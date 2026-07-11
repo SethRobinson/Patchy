@@ -14,6 +14,8 @@ class QAction;
 class QEvent;
 class QListWidget;
 class QListWidgetItem;
+class QObject;
+class QPoint;
 class QToolButton;
 
 namespace patchy::ui {
@@ -43,6 +45,7 @@ public:
   };
 
   using TargetCallback = std::function<void(RowKind, ChannelId, bool overlay)>;
+  using LoadSelectionCallback = std::function<void(RowKind, ChannelId)>;
   using ReorderCallback = std::function<void(std::vector<ChannelId>)>;
 
   explicit ChannelPanel(QWidget* parent = nullptr);
@@ -53,6 +56,7 @@ public:
   void set_actions(QAction* create, QAction* save_selection, QAction* load_selection,
                    QAction* rename, QAction* invert, QAction* remove);
   void set_target_callback(TargetCallback callback);
+  void set_load_selection_callback(LoadSelectionCallback callback);
   void set_reorder_callback(ReorderCallback callback);
 
   [[nodiscard]] std::optional<Row> selected_row() const;
@@ -60,6 +64,7 @@ public:
 
 protected:
   void changeEvent(QEvent* event) override;
+  bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
   static constexpr int kKindRole = Qt::UserRole + 1;
@@ -69,6 +74,7 @@ private:
   void handle_current_item_changed(QListWidgetItem* current);
   void handle_item_changed(QListWidgetItem* item);
   void handle_rows_moved();
+  void show_context_menu(const QPoint& position);
   void refresh_action_states();
   void retranslate_ui();
 
@@ -80,8 +86,10 @@ private:
   QToolButton* invert_button_{nullptr};
   QToolButton* remove_button_{nullptr};
   TargetCallback target_callback_;
+  LoadSelectionCallback load_selection_callback_;
   ReorderCallback reorder_callback_;
   bool updating_{false};
+  bool ctrl_load_mouse_press_{false};
   bool document_available_{false};
   bool channel_creation_available_{false};
   std::vector<Row> committed_rows_;

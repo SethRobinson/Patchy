@@ -40,10 +40,13 @@ A saved alpha read from PSD/PSB always becomes a document channel, including cha
 ## UI and performance
 
 - Layers and Channels share top tabs in the right dock, with Layers active initially.
+- Channel actions use full-width vertical buttons and the same actions appear when a channel row is right-clicked.
+- Ctrl-click (Command-click on macOS) loads any channel row as a new selection without changing the active edit target. Saved alpha and spot channels keep their exact 0-255 coverage. RGB component rows use Photoshop's white-backed composite values; Composite uses Patchy's fixed 30/59/11 grayscale conversion because Photoshop's luminosity conversion depends on its color-management setup.
 - Selecting an alpha channel is mutually exclusive with editing layer content or a layer mask. Clicking a Layers thumbnail returns to the corresponding layer target.
 - Brush/Eraser, Fill/Clear, Gradient, Line, Rectangle/Ellipse, and Invert share the grayscale edit path. Content-only operations stay disabled while a document channel is active.
 - Channel-only edits mark the document modified and participate in normal COW undo snapshots, but they do not invalidate the layer compositor. Only the dirty overlay and revision-keyed thumbnail are refreshed.
 - Nothing scans a full channel during repaint. Full-size grayscale and overlay images are built only when their target or revision changes.
+- Ctrl-clicking a layer or layer-mask thumbnail keeps its exact soft alpha. Marching ants follow the 50% boundary, while saving the selection copies mask rows or hard-region spans directly instead of probing a complex region once per canvas pixel.
 - Save and Save As warn before a non-PSD/PSB format discards saved channels. Export is always an explicitly flattened operation and does not warn.
 
 Deferred work: editable component channels, multiple simultaneous overlays, channel-options editing, Quick Mask, spot separations, multichannel/CMYK/Lab document modes, 16/32-bit channel editing, vector masks, and PSD real-user-mask channel `-3`.

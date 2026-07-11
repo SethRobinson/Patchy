@@ -4146,6 +4146,11 @@ Mixed selection</source>
         <translation>この色成分をグレースケールでプレビューします。色成分チャンネルは読み取り専用です。</translation>
     </message>
     <message>
+        <location line="+1"/>
+        <source>Ctrl-click to load this channel as a selection.</source>
+        <translation>Ctrl+クリックでこのチャンネルを選択範囲として読み込みます。</translation>
+    </message>
+    <message>
         <location line="+173"/>
         <source>New</source>
         <translation>新規</translation>

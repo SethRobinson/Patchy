@@ -3,9 +3,11 @@
 #include <QAbstractItemModel>
 #include <QAction>
 #include <QEvent>
-#include <QHBoxLayout>
 #include <QListWidget>
+#include <QMenu>
+#include <QMouseEvent>
 #include <QSignalBlocker>
+#include <QSizePolicy>
 #include <QToolButton>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -32,9 +34,11 @@ ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
   list_->setDragDropMode(QAbstractItemView::InternalMove);
   list_->setIconSize(QSize(42, 30));
   list_->setSpacing(1);
+  list_->viewport()->installEventFilter(this);
+  list_->setContextMenuPolicy(Qt::CustomContextMenu);
   layout->addWidget(list_, 1);
 
-  auto* buttons = new QHBoxLayout();
+  auto* buttons = new QVBoxLayout();
   buttons->setContentsMargins(0, 0, 0, 0);
   buttons->setSpacing(3);
   const auto add_button = [this, buttons](const QString& object_name) {
@@ -42,6 +46,8 @@ ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
     button->setObjectName(object_name);
     button->setAutoRaise(false);
     button->setFocusPolicy(Qt::NoFocus);
+    button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    button->setToolButtonStyle(Qt::ToolButtonTextOnly);
     buttons->addWidget(button);
     return button;
   };
@@ -51,7 +57,6 @@ ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
   rename_button_ = add_button(QStringLiteral("channelRenameButton"));
   invert_button_ = add_button(QStringLiteral("channelInvertButton"));
   remove_button_ = add_button(QStringLiteral("channelDeleteButton"));
-  buttons->addStretch(1);
   layout->addLayout(buttons);
 
   connect(list_, &QListWidget::currentItemChanged, this,
@@ -59,6 +64,8 @@ ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
   connect(list_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) { handle_item_changed(item); });
   connect(list_->model(), &QAbstractItemModel::rowsMoved, this,
           [this] { QTimer::singleShot(0, this, [this] { handle_rows_moved(); }); });
+  connect(list_, &QWidget::customContextMenuRequested, this,
+          [this](const QPoint& position) { show_context_menu(position); });
 
   retranslate_ui();
   refresh_action_states();
@@ -88,15 +95,19 @@ void ChannelPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) 
     if (row.kind == RowKind::Alpha) {
       flags |= Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled | Qt::ItemIsUserCheckable;
       item->setCheckState(row.overlay ? Qt::Checked : Qt::Unchecked);
-      item->setToolTip(tr("Select for a grayscale view. Check to show a colored overlay."));
+      item->setToolTip(tr("Select for a grayscale view. Check to show a colored overlay.") + QLatin1Char('\n') +
+                       tr("Ctrl-click to load this channel as a selection."));
     } else if (row.kind == RowKind::Spot) {
       flags |= Qt::ItemIsUserCheckable;
       item->setCheckState(row.overlay ? Qt::Checked : Qt::Unchecked);
-      item->setToolTip(tr("Spot channels can be previewed but not edited."));
+      item->setToolTip(tr("Spot channels can be previewed but not edited.") + QLatin1Char('\n') +
+                       tr("Ctrl-click to load this channel as a selection."));
     } else {
-      item->setToolTip(row.kind == RowKind::Composite
-                           ? tr("Show the normal composite image.")
-                           : tr("Preview this component as grayscale. Component channels are read-only."));
+      const auto preview_tip = row.kind == RowKind::Composite
+                                   ? tr("Show the normal composite image.")
+                                   : tr("Preview this component as grayscale. Component channels are read-only.");
+      item->setToolTip(preview_tip + QLatin1Char('\n') +
+                       tr("Ctrl-click to load this channel as a selection."));
     }
     item->setFlags(flags);
     if (selected.has_value() && selected->kind == row.kind && selected->id == row.id) {
@@ -141,6 +152,10 @@ void ChannelPanel::set_target_callback(TargetCallback callback) {
   target_callback_ = std::move(callback);
 }
 
+void ChannelPanel::set_load_selection_callback(LoadSelectionCallback callback) {
+  load_selection_callback_ = std::move(callback);
+}
+
 void ChannelPanel::set_reorder_callback(ReorderCallback callback) {
   reorder_callback_ = std::move(callback);
 }
@@ -170,6 +185,35 @@ void ChannelPanel::changeEvent(QEvent* event) {
     retranslate_ui();
   }
   QWidget::changeEvent(event);
+}
+
+bool ChannelPanel::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == list_->viewport() && event != nullptr) {
+    if (event->type() == QEvent::MouseButtonPress) {
+      ctrl_load_mouse_press_ = false;
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      const auto load_modifier =
+          (mouse_event->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) != 0;
+      if (mouse_event->button() == Qt::LeftButton && load_modifier && document_available_ &&
+          load_selection_callback_) {
+        if (auto* item = list_->itemAt(mouse_event->position().toPoint()); item != nullptr) {
+          const auto row = row_from_item(item);
+          ctrl_load_mouse_press_ = true;
+          load_selection_callback_(row.kind, row.id);
+          event->accept();
+          return true;
+        }
+      }
+    } else if (event->type() == QEvent::MouseButtonRelease && ctrl_load_mouse_press_) {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (mouse_event->button() == Qt::LeftButton) {
+        ctrl_load_mouse_press_ = false;
+        event->accept();
+        return true;
+      }
+    }
+  }
+  return QWidget::eventFilter(watched, event);
 }
 
 ChannelPanel::Row ChannelPanel::row_from_item(const QListWidgetItem* item) const {
@@ -249,10 +293,27 @@ void ChannelPanel::handle_rows_moved() {
   }
 }
 
+void ChannelPanel::show_context_menu(const QPoint& position) {
+  if (auto* item = list_->itemAt(position); item != nullptr) {
+    list_->setCurrentItem(item);
+  }
+  refresh_action_states();
+
+  QMenu menu(this);
+  menu.setObjectName(QStringLiteral("channelContextMenu"));
+  menu.addAction(create_button_->defaultAction());
+  menu.addAction(save_selection_button_->defaultAction());
+  menu.addAction(load_selection_button_->defaultAction());
+  menu.addSeparator();
+  menu.addAction(rename_button_->defaultAction());
+  menu.addAction(invert_button_->defaultAction());
+  menu.addAction(remove_button_->defaultAction());
+  menu.exec(list_->viewport()->mapToGlobal(position));
+}
+
 void ChannelPanel::refresh_action_states() {
   const auto selected = selected_row();
-  const bool saved = selected.has_value() &&
-                     (selected->kind == RowKind::Alpha || selected->kind == RowKind::Spot);
+  const bool loadable = selected.has_value();
   const bool editable_alpha = selected.has_value() && selected->kind == RowKind::Alpha;
   if (create_button_->defaultAction() != nullptr) {
     create_button_->defaultAction()->setEnabled(document_available_ && channel_creation_available_);
@@ -261,7 +322,7 @@ void ChannelPanel::refresh_action_states() {
     save_selection_button_->defaultAction()->setEnabled(document_available_ && channel_creation_available_);
   }
   if (load_selection_button_->defaultAction() != nullptr) {
-    load_selection_button_->defaultAction()->setEnabled(document_available_ && saved);
+    load_selection_button_->defaultAction()->setEnabled(document_available_ && loadable);
   }
   if (rename_button_->defaultAction() != nullptr) {
     rename_button_->defaultAction()->setEnabled(document_available_ && editable_alpha);
@@ -275,17 +336,11 @@ void ChannelPanel::refresh_action_states() {
 }
 
 void ChannelPanel::retranslate_ui() {
-  create_button_->setText(tr("New"));
   create_button_->setToolTip(tr("New alpha channel"));
-  save_selection_button_->setText(tr("Save"));
   save_selection_button_->setToolTip(tr("Save selection as channel"));
-  load_selection_button_->setText(tr("Load"));
   load_selection_button_->setToolTip(tr("Load channel as selection"));
-  rename_button_->setText(tr("Rename"));
   rename_button_->setToolTip(tr("Rename channel"));
-  invert_button_->setText(tr("Invert"));
   invert_button_->setToolTip(tr("Invert channel"));
-  remove_button_->setText(tr("Delete"));
   remove_button_->setToolTip(tr("Delete channel"));
 }
 

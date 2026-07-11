@@ -15972,6 +15972,151 @@ void ui_ctrl_click_layer_loads_layer_transparency() {
   save_widget_artifact("ui_ctrl_click_layer_transparency", window);
 }
 
+void ui_ctrl_click_layer_and_mask_preserve_soft_coverage() {
+  patchy::Document document(72, 60, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(72, 60, patchy::PixelFormat::rgba8());
+  const auto coverage_for_coordinate = [](int coordinate) -> std::uint8_t {
+    if (coordinate < 4) {
+      return 0;
+    }
+    if (coordinate < 16) {
+      return 1;
+    }
+    if (coordinate < 28) {
+      return 60;
+    }
+    if (coordinate < 40) {
+      return 127;
+    }
+    if (coordinate < 52) {
+      return 128;
+    }
+    return 255;
+  };
+  for (int y = 0; y < pixels.height(); ++y) {
+    for (int x = 0; x < pixels.width(); ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      pixel[0] = 210;
+      pixel[1] = 120;
+      pixel[2] = 40;
+      pixel[3] = coverage_for_coordinate(x);
+    }
+  }
+  auto& layer = document.add_pixel_layer("Soft Pixels", std::move(pixels));
+  patchy::PixelBuffer mask_pixels(72, 60, patchy::PixelFormat::gray8());
+  for (int y = 0; y < mask_pixels.height(); ++y) {
+    auto row = mask_pixels.row(y);
+    std::fill(row.begin(), row.end(), coverage_for_coordinate(y));
+  }
+  layer.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 72, 60}, std::move(mask_pixels), 0, false});
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Soft Transparency"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+
+  click_layer_row_thumbnail(*layers, QStringLiteral("Soft Pixels"), QStringLiteral("layerContentThumbnail"),
+                            Qt::ControlModifier);
+  CHECK(canvas->selection_has_partial_alpha());
+  for (const auto [x, expected] : std::array<std::pair<int, std::uint8_t>, 6>{
+           std::pair{2, std::uint8_t{0}}, std::pair{8, std::uint8_t{1}},
+           std::pair{20, std::uint8_t{60}}, std::pair{32, std::uint8_t{127}},
+           std::pair{44, std::uint8_t{128}}, std::pair{60, std::uint8_t{255}}}) {
+    CHECK(canvas->selection_alpha_at(QPoint(x, 20)) == expected);
+  }
+
+  auto& active_document = patchy::ui::MainWindowTestAccess::document(window);
+  require_action(window, "channelSaveSelectionAction")->trigger();
+  QApplication::processEvents();
+  CHECK(active_document.channels().size() == 1);
+  const auto& saved = active_document.channels().front().pixels();
+  CHECK(*saved.pixel(8, 20) == 1);
+  CHECK(*saved.pixel(20, 20) == 60);
+  CHECK(*saved.pixel(32, 20) == 127);
+  CHECK(*saved.pixel(44, 20) == 128);
+  CHECK(*saved.pixel(60, 20) == 255);
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(active_document.channels().empty());
+
+  click_layer_row_thumbnail(*layers, QStringLiteral("Soft Pixels"), QStringLiteral("layerMaskThumbnail"),
+                            Qt::ControlModifier);
+  CHECK(canvas->selection_has_partial_alpha());
+  for (const auto [y, expected] : std::array<std::pair<int, std::uint8_t>, 6>{
+           std::pair{2, std::uint8_t{0}}, std::pair{8, std::uint8_t{1}},
+           std::pair{20, std::uint8_t{60}}, std::pair{32, std::uint8_t{127}},
+           std::pair{44, std::uint8_t{128}}, std::pair{56, std::uint8_t{255}}}) {
+    CHECK(canvas->selection_alpha_at(QPoint(20, y)) == expected);
+  }
+}
+
+void ui_deko_layer_transparency_selection_and_channel_save_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("deko_test.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(path.wstring()));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  auto* layer_item = require_layer_item(*layers, QStringLiteral("Layer 2"));
+  const auto layer_id =
+      static_cast<patchy::LayerId>(layer_item->data(patchy::ui::kLayerIdRole).toULongLong());
+  auto& active_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* layer = static_cast<const patchy::Document&>(active_document).find_layer(layer_id);
+  CHECK(layer != nullptr);
+  CHECK(layer->pixels().format() == patchy::PixelFormat::rgba8());
+
+  std::optional<QPoint> faint_point;
+  std::optional<QPoint> strong_point;
+  std::uint8_t faint_alpha = 0;
+  std::uint8_t strong_alpha = 0;
+  for (int y = 0; y < layer->pixels().height() && (!faint_point.has_value() || !strong_point.has_value()); ++y) {
+    for (int x = 0; x < layer->pixels().width(); ++x) {
+      const auto alpha = layer->pixels().pixel(x, y)[3];
+      const QPoint document_point(layer->bounds().x + x, layer->bounds().y + y);
+      if (!faint_point.has_value() && alpha > 0 && alpha < 16) {
+        faint_point = document_point;
+        faint_alpha = alpha;
+      }
+      if (!strong_point.has_value() && alpha >= 128 && alpha < 255) {
+        strong_point = document_point;
+        strong_alpha = alpha;
+      }
+      if (faint_point.has_value() && strong_point.has_value()) {
+        break;
+      }
+    }
+  }
+  CHECK(faint_point.has_value());
+  CHECK(strong_point.has_value());
+
+  click_layer_row_thumbnail(*layers, QStringLiteral("Layer 2"), QStringLiteral("layerContentThumbnail"),
+                            Qt::ControlModifier);
+  CHECK(canvas->selection_has_partial_alpha());
+  CHECK(canvas->selection_alpha_at(*faint_point) == faint_alpha);
+  CHECK(canvas->selection_alpha_at(*strong_point) == strong_alpha);
+
+  const auto channel_count_before = active_document.channels().size();
+  QElapsedTimer timer;
+  timer.start();
+  require_action(window, "channelSaveSelectionAction")->trigger();
+  const auto elapsed_ms = timer.elapsed();
+  QApplication::processEvents();
+  CHECK(elapsed_ms < 5000);
+  CHECK(active_document.channels().size() == channel_count_before + 1);
+  const auto& saved = active_document.channels().back().pixels();
+  CHECK(*saved.pixel(faint_point->x(), faint_point->y()) == faint_alpha);
+  CHECK(*saved.pixel(strong_point->x(), strong_point->y()) == strong_alpha);
+  save_widget_artifact("ui_deko_soft_layer_selection", window);
+}
+
 void ui_select_grow_and_similar_use_magic_wand_tolerance() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -17557,6 +17702,150 @@ void ui_channels_panel_targets_and_alpha_edits() {
   CHECK(chip->text().contains(QStringLiteral("Alpha A")));
 }
 
+void ui_channel_ctrl_click_context_menu_and_vertical_actions() {
+  patchy::Document document(3, 1, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(3, 1, patchy::PixelFormat::rgba8());
+  const std::array<std::array<std::uint8_t, 4>, 3> samples{{
+      {64, 128, 192, 255},
+      {200, 100, 50, 128},
+      {10, 20, 30, 0},
+  }};
+  for (int x = 0; x < pixels.width(); ++x) {
+    auto* pixel = pixels.pixel(x, 0);
+    std::copy(samples[static_cast<std::size_t>(x)].begin(),
+              samples[static_cast<std::size_t>(x)].end(), pixel);
+  }
+  document.add_pixel_layer("Pixels", std::move(pixels));
+
+  patchy::PixelBuffer alpha_pixels(3, 1, patchy::PixelFormat::gray8());
+  *alpha_pixels.pixel(0, 0) = 0;
+  *alpha_pixels.pixel(1, 0) = 73;
+  *alpha_pixels.pixel(2, 0) = 255;
+  const auto alpha_id = document.allocate_channel_id();
+  document.add_channel(patchy::DocumentChannel(alpha_id, "Alpha Test",
+                                                patchy::DocumentChannelKind::Alpha,
+                                                std::move(alpha_pixels)));
+  patchy::PixelBuffer spot_pixels(3, 1, patchy::PixelFormat::gray8());
+  *spot_pixels.pixel(0, 0) = 12;
+  *spot_pixels.pixel(1, 0) = 128;
+  *spot_pixels.pixel(2, 0) = 244;
+  const auto spot_id = document.allocate_channel_id();
+  document.add_channel(patchy::DocumentChannel(spot_id, "Spot Test",
+                                                patchy::DocumentChannelKind::Spot,
+                                                std::move(spot_pixels)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Channel Gestures"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* channels_dock = window.findChild<QDockWidget*>(QStringLiteral("channelsDock"));
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("channelPanel"));
+  auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
+  CHECK(channels_dock != nullptr);
+  CHECK(panel != nullptr);
+  CHECK(channels != nullptr);
+  channels_dock->raise();
+  QApplication::processEvents();
+  CHECK(channels->currentRow() == 0);
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+
+  const std::array<std::pair<const char*, QString>, 6> button_expectations{{
+      {"channelNewButton", QStringLiteral("New Channel")},
+      {"channelSaveSelectionButton", QStringLiteral("Save Selection as Channel")},
+      {"channelLoadSelectionButton", QStringLiteral("Load Channel as Selection")},
+      {"channelRenameButton", QStringLiteral("Rename Channel")},
+      {"channelInvertButton", QStringLiteral("Invert Channel")},
+      {"channelDeleteButton", QStringLiteral("Delete Channel")},
+  }};
+  int previous_y = -1;
+  for (const auto& [object_name, text] : button_expectations) {
+    auto* button = panel->findChild<QToolButton*>(QLatin1String(object_name));
+    CHECK(button != nullptr);
+    CHECK(button->text() == text);
+    const auto position = button->mapTo(panel, QPoint());
+    CHECK(position.y() > previous_y);
+    CHECK(button->width() >= panel->width() - 20);
+    previous_y = position.y();
+  }
+
+  const auto ctrl_click_row = [channels](int row) {
+    const auto point = channels->visualItemRect(channels->item(row)).center();
+    send_mouse(*channels->viewport(), QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier);
+    send_mouse(*channels->viewport(), QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton,
+               Qt::ControlModifier);
+    QApplication::processEvents();
+  };
+
+  ctrl_click_row(1);
+  CHECK(channels->currentRow() == 0);
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+  CHECK(canvas->selection_alpha_at(QPoint(0, 0)) == 64);
+  CHECK(canvas->selection_alpha_at(QPoint(1, 0)) == 227);
+  CHECK(canvas->selection_alpha_at(QPoint(2, 0)) == 255);
+
+  ctrl_click_row(0);
+  CHECK(channels->currentRow() == 0);
+  CHECK(canvas->selection_alpha_at(QPoint(0, 0)) == 115);
+  CHECK(canvas->selection_alpha_at(QPoint(1, 0)) == 189);
+  CHECK(canvas->selection_alpha_at(QPoint(2, 0)) == 255);
+
+  ctrl_click_row(4);
+  CHECK(channels->currentRow() == 0);
+  CHECK(canvas->active_document_channel_id() == std::nullopt);
+  CHECK(canvas->selection_alpha_at(QPoint(0, 0)) == 0);
+  CHECK(canvas->selection_alpha_at(QPoint(1, 0)) == 73);
+  CHECK(canvas->selection_alpha_at(QPoint(2, 0)) == 255);
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selection_alpha_at(QPoint(0, 0)) == 115);
+  CHECK(canvas->selection_alpha_at(QPoint(1, 0)) == 189);
+
+  ctrl_click_row(5);
+  CHECK(channels->currentRow() == 0);
+  CHECK(canvas->selection_alpha_at(QPoint(0, 0)) == 12);
+  CHECK(canvas->selection_alpha_at(QPoint(1, 0)) == 128);
+  CHECK(canvas->selection_alpha_at(QPoint(2, 0)) == 244);
+
+  bool saw_context_menu = false;
+  QTimer::singleShot(0, [&window, &saw_context_menu] {
+    auto* menu = window.findChild<QMenu*>(QStringLiteral("channelContextMenu"));
+    CHECK(menu != nullptr);
+    CHECK(menu->objectName() == QStringLiteral("channelContextMenu"));
+    QStringList action_names;
+    for (auto* action : menu->actions()) {
+      if (!action->isSeparator()) {
+        action_names.push_back(action->objectName());
+      }
+    }
+    CHECK(action_names ==
+          QStringList({QStringLiteral("channelNewAction"),
+                       QStringLiteral("channelSaveSelectionAction"),
+                       QStringLiteral("channelLoadSelectionAction"),
+                       QStringLiteral("channelRenameAction"),
+                       QStringLiteral("channelInvertAction"),
+                       QStringLiteral("channelDeleteAction")}));
+    CHECK(require_action(window, "channelNewAction")->isEnabled());
+    CHECK(require_action(window, "channelSaveSelectionAction")->isEnabled());
+    CHECK(require_action(window, "channelLoadSelectionAction")->isEnabled());
+    CHECK(require_action(window, "channelRenameAction")->isEnabled());
+    CHECK(require_action(window, "channelInvertAction")->isEnabled());
+    CHECK(require_action(window, "channelDeleteAction")->isEnabled());
+    saw_context_menu = true;
+    menu->close();
+  });
+  const auto context_point = channels->visualItemRect(channels->item(4)).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                  channels->viewport()->mapToGlobal(context_point));
+  QApplication::sendEvent(channels->viewport(), &context_event);
+  QApplication::processEvents();
+  CHECK(saw_context_menu);
+  CHECK(channels->currentItem()->text() == QStringLiteral("Alpha Test"));
+  CHECK(canvas->active_document_channel_id() == alpha_id);
+  CHECK(static_cast<const patchy::Document&>(patchy::ui::MainWindowTestAccess::document(window))
+            .find_channel(spot_id) != nullptr);
+}
+
 void ui_channel_shape_previews_match_committed_grayscale_and_overlay() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgb8());
   document.add_pixel_layer(
@@ -17764,6 +18053,39 @@ void ui_channels_soft_selection_crud_history_and_layer_exit() {
   CHECK(layers != nullptr);
   click_layer_row_thumbnail(*layers, QStringLiteral("Pixels"), QStringLiteral("layerContentThumbnail"));
   CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+}
+
+void ui_save_fragmented_selection_as_channel_stays_responsive() {
+  patchy::Document document(256, 256, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer(
+      "Pixels", solid_pixels(256, 256, patchy::PixelFormat::rgb8(), QColor(220, 80, 45)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Fragmented Selection"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  patchy::PixelBuffer checkerboard(256, 256, patchy::PixelFormat::gray8());
+  for (int y = 0; y < checkerboard.height(); ++y) {
+    auto row = checkerboard.row(y);
+    for (int x = 0; x < checkerboard.width(); ++x) {
+      row[static_cast<std::size_t>(x)] = ((x + y) & 1) == 0 ? 255 : 0;
+    }
+  }
+  canvas->replace_selection_from_grayscale(checkerboard, QStringLiteral("Checkerboard selection"));
+  CHECK(canvas->has_selection());
+  CHECK(!canvas->selection_has_partial_alpha());
+
+  QElapsedTimer timer;
+  timer.start();
+  require_action(window, "channelSaveSelectionAction")->trigger();
+  const auto elapsed_ms = timer.elapsed();
+  QApplication::processEvents();
+  CHECK(elapsed_ms < 1500);
+  const auto& active_document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(active_document.channels().size() == 1);
+  CHECK(active_document.channels().front().pixels().data().size() == checkerboard.data().size());
+  CHECK(std::equal(active_document.channels().front().pixels().data().begin(),
+                   active_document.channels().front().pixels().data().end(), checkerboard.data().begin()));
 }
 
 void ui_channels_target_survives_document_switch() {
@@ -36266,6 +36588,10 @@ int main(int argc, char* argv[]) {
       {"ui_selection_expand_contract_and_layer_transparency_work",
        ui_selection_expand_contract_and_layer_transparency_work},
       {"ui_ctrl_click_layer_loads_layer_transparency", ui_ctrl_click_layer_loads_layer_transparency},
+      {"ui_ctrl_click_layer_and_mask_preserve_soft_coverage",
+       ui_ctrl_click_layer_and_mask_preserve_soft_coverage},
+      {"ui_deko_layer_transparency_selection_and_channel_save_if_available",
+       ui_deko_layer_transparency_selection_and_channel_save_if_available},
       {"ui_select_grow_and_similar_use_magic_wand_tolerance",
        ui_select_grow_and_similar_use_magic_wand_tolerance},
       {"ui_complex_selection_stroke_uses_region_outline", ui_complex_selection_stroke_uses_region_outline},
@@ -36305,10 +36631,14 @@ int main(int argc, char* argv[]) {
       {"ui_layer_via_copy_and_cut_match_photoshop_shortcuts",
        ui_layer_via_copy_and_cut_match_photoshop_shortcuts},
       {"ui_channels_panel_targets_and_alpha_edits", ui_channels_panel_targets_and_alpha_edits},
+      {"ui_channel_ctrl_click_context_menu_and_vertical_actions",
+       ui_channel_ctrl_click_context_menu_and_vertical_actions},
       {"ui_channel_shape_previews_match_committed_grayscale_and_overlay",
        ui_channel_shape_previews_match_committed_grayscale_and_overlay},
       {"ui_channels_soft_selection_crud_history_and_layer_exit",
        ui_channels_soft_selection_crud_history_and_layer_exit},
+      {"ui_save_fragmented_selection_as_channel_stays_responsive",
+       ui_save_fragmented_selection_as_channel_stays_responsive},
       {"ui_channels_target_survives_document_switch", ui_channels_target_survives_document_switch},
       {"ui_non_psd_save_warns_before_discarding_channels",
        ui_non_psd_save_warns_before_discarding_channels},

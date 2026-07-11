@@ -261,6 +261,18 @@ QPixmap grayscale_channel_thumbnail(const PixelBuffer& pixels) {
   return result;
 }
 
+std::uint8_t white_backed_component(std::uint8_t component, std::uint8_t alpha) {
+  return static_cast<std::uint8_t>((static_cast<int>(component) * static_cast<int>(alpha) +
+                                    255 * (255 - static_cast<int>(alpha))) /
+                                   255);
+}
+
+std::uint8_t channel_selection_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
+  return static_cast<std::uint8_t>((static_cast<int>(red) * 30 + static_cast<int>(green) * 59 +
+                                    static_cast<int>(blue) * 11) /
+                                   100);
+}
+
 }  // namespace
 
 QPixmap MainWindow::cached_channel_thumbnail(const DocumentChannel& channel) {
@@ -469,15 +481,89 @@ void MainWindow::save_selection_as_channel() {
 }
 
 void MainWindow::load_channel_as_selection() {
-  if (canvas_ == nullptr) {
+  if (channel_panel_ == nullptr) {
     return;
   }
-  const auto* channel = std::as_const(*this).selected_panel_channel();
-  if (channel == nullptr) {
+  const auto selected = channel_panel_->selected_row();
+  if (!selected.has_value()) {
     return;
   }
-  const auto name = QString::fromStdString(channel->name());
-  canvas_->replace_selection_from_grayscale(channel->pixels(), tr("Load channel as selection"));
+  load_channel_as_selection(selected->kind, selected->id);
+}
+
+void MainWindow::load_channel_as_selection(ChannelPanel::RowKind kind, ChannelId id) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+
+  const PixelBuffer* selection_pixels = nullptr;
+  PixelBuffer derived_pixels;
+  QString name;
+  if (kind == ChannelPanel::RowKind::Alpha || kind == ChannelPanel::RowKind::Spot) {
+    const auto* channel = static_cast<const Document&>(document()).find_channel(id);
+    if (channel == nullptr) {
+      return;
+    }
+    selection_pixels = &channel->pixels();
+    name = QString::fromStdString(channel->name());
+  } else {
+    const auto& doc = static_cast<const Document&>(document());
+    std::vector<std::uint8_t> merged_alpha;
+    const auto flattened = Compositor{}.flatten_rgb8(doc, &merged_alpha);
+    derived_pixels = PixelBuffer(doc.width(), doc.height(), PixelFormat::gray8());
+    for (int y = 0; y < doc.height(); ++y) {
+      const auto source = flattened.row(y);
+      auto destination = derived_pixels.row(y);
+      for (int x = 0; x < doc.width(); ++x) {
+        const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(doc.width()) +
+                           static_cast<std::size_t>(x);
+        const auto* pixel = source.data() + static_cast<std::size_t>(x) * 3U;
+        const auto red = white_backed_component(pixel[0], merged_alpha[index]);
+        const auto green = white_backed_component(pixel[1], merged_alpha[index]);
+        const auto blue = white_backed_component(pixel[2], merged_alpha[index]);
+        switch (kind) {
+          case ChannelPanel::RowKind::Composite:
+            destination[static_cast<std::size_t>(x)] = channel_selection_luminance(red, green, blue);
+            break;
+          case ChannelPanel::RowKind::Red:
+            destination[static_cast<std::size_t>(x)] = red;
+            break;
+          case ChannelPanel::RowKind::Green:
+            destination[static_cast<std::size_t>(x)] = green;
+            break;
+          case ChannelPanel::RowKind::Blue:
+            destination[static_cast<std::size_t>(x)] = blue;
+            break;
+          case ChannelPanel::RowKind::Alpha:
+          case ChannelPanel::RowKind::Spot:
+            break;
+        }
+      }
+    }
+    selection_pixels = &derived_pixels;
+    switch (kind) {
+      case ChannelPanel::RowKind::Composite:
+        name = tr("Composite");
+        break;
+      case ChannelPanel::RowKind::Red:
+        name = tr("Red");
+        break;
+      case ChannelPanel::RowKind::Green:
+        name = tr("Green");
+        break;
+      case ChannelPanel::RowKind::Blue:
+        name = tr("Blue");
+        break;
+      case ChannelPanel::RowKind::Alpha:
+      case ChannelPanel::RowKind::Spot:
+        break;
+    }
+  }
+
+  if (selection_pixels == nullptr) {
+    return;
+  }
+  canvas_->replace_selection_from_grayscale(*selection_pixels, tr("Load channel as selection"));
   statusBar()->showMessage(tr("Loaded %1 as selection").arg(name));
 }
 

@@ -564,6 +564,7 @@ private:
   void create_alpha_channel();
   void save_selection_as_channel();
   void load_channel_as_selection();
+  void load_channel_as_selection(ChannelPanel::RowKind kind, ChannelId id);
   void rename_active_channel();
   void invert_active_channel();
   void delete_active_channel();

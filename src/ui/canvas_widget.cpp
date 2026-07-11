@@ -3820,33 +3820,31 @@ void CanvasWidget::select_layer_opaque_pixels(LayerId layer_id) {
     return;
   }
 
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
   const auto& pixels = layer->pixels();
-  const auto bounds = layer->bounds();
-  std::vector<QRect> runs;
-  runs.reserve(static_cast<std::size_t>(std::max(1, pixels.height())));
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    int run_start = -1;
-    for (std::int32_t x = 0; x <= pixels.width(); ++x) {
-      bool selected = false;
-      if (x < pixels.width()) {
-        const auto* px = pixels.pixel(x, y);
-        selected = pixels.format().channels >= 4 ? px[3] != 0 : true;
-      }
-      if (selected && run_start < 0) {
-        run_start = x;
-      } else if (!selected && run_start >= 0) {
-        runs.emplace_back(bounds.x + run_start, bounds.y + y, x - run_start, 1);
-        run_start = -1;
+  const auto layer_bounds = to_qrect(layer->bounds());
+  const auto selection_bounds = layer_bounds.intersected(canvas_rect);
+  if (selection_bounds.isEmpty() || pixels.empty()) {
+    set_selection_from_region({});
+  } else {
+    QImage alpha(selection_bounds.size(), QImage::Format_Grayscale8);
+    const auto channels = static_cast<std::size_t>(pixels.format().channels);
+    for (int y = 0; y < selection_bounds.height(); ++y) {
+      auto* destination = alpha.scanLine(y);
+      const auto source_y = selection_bounds.y() + y - layer_bounds.y();
+      const auto source_x = selection_bounds.x() - layer_bounds.x();
+      const auto source = pixels.row(source_y);
+      if (channels >= 4U) {
+        for (int x = 0; x < selection_bounds.width(); ++x) {
+          destination[x] = source[(static_cast<std::size_t>(source_x + x) * channels) + 3U];
+        }
+      } else {
+        std::fill_n(destination, selection_bounds.width(), std::uint8_t{255});
       }
     }
+    auto layer_region = region_from_alpha_mask(alpha, selection_bounds);
+    set_selection_from_mask(std::move(layer_region), selection_bounds, std::move(alpha));
   }
-
-  QRegion layer_region;
-  if (!runs.empty()) {
-    layer_region.setRects(runs.data(), static_cast<int>(runs.size()));
-  }
-  const QRect canvas_rect(0, 0, document_->width(), document_->height());
-  set_selection_from_region(layer_region.intersected(canvas_rect));
   selection_edges_visible_ = true;
   if (status_callback_) {
     status_callback_(selection_.isEmpty() ? tr("Layer has no opaque pixels") : tr("Selected layer opacity"));
@@ -3866,34 +3864,30 @@ void CanvasWidget::select_layer_mask_pixels(LayerId layer_id) {
     return;
   }
 
-  const auto& mask = *layer->mask();
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
-  QRegion mask_region;
-  if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
-    std::vector<QRect> runs;
-    runs.reserve(static_cast<std::size_t>(std::max(1, mask.pixels.height())));
-    for (std::int32_t y = 0; y < mask.pixels.height(); ++y) {
-      int run_start = -1;
-      for (std::int32_t x = 0; x <= mask.pixels.width(); ++x) {
-        const bool selected = x < mask.pixels.width() && *mask.pixels.pixel(x, y) != 0U;
-        if (selected && run_start < 0) {
-          run_start = x;
-        } else if (!selected && run_start >= 0) {
-          runs.emplace_back(mask.bounds.x + run_start, mask.bounds.y + y, x - run_start, 1);
-          run_start = -1;
-        }
+  const auto& mask = *layer->mask();
+  const auto stored_bounds = to_qrect(mask.bounds);
+  const auto selection_bounds =
+      mask.default_color != 0U ? canvas_rect : stored_bounds.intersected(canvas_rect);
+  if (selection_bounds.isEmpty()) {
+    set_selection_from_region({});
+  } else {
+    QImage alpha(selection_bounds.size(), QImage::Format_Grayscale8);
+    for (int y = 0; y < alpha.height(); ++y) {
+      std::fill_n(alpha.scanLine(y), alpha.width(), mask.default_color);
+    }
+    if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
+      const auto copy_bounds = stored_bounds.intersected(selection_bounds);
+      for (int y = copy_bounds.top(); y <= copy_bounds.bottom(); ++y) {
+        const auto source = mask.pixels.row(y - stored_bounds.y());
+        auto* destination = alpha.scanLine(y - selection_bounds.y());
+        const auto source_x = copy_bounds.x() - stored_bounds.x();
+        const auto destination_x = copy_bounds.x() - selection_bounds.x();
+        std::copy_n(source.begin() + source_x, copy_bounds.width(), destination + destination_x);
       }
     }
-    if (!runs.empty()) {
-      mask_region.setRects(runs.data(), static_cast<int>(runs.size()));
-    }
-  }
-
-  if (mask.default_color != 0U) {
-    const auto mask_bounds = to_qrect(mask.bounds).intersected(canvas_rect);
-    set_selection_from_region(QRegion(canvas_rect).subtracted(mask_bounds).united(mask_region));
-  } else {
-    set_selection_from_region(mask_region);
+    auto mask_region = region_from_alpha_mask(alpha, selection_bounds);
+    set_selection_from_mask(std::move(mask_region), selection_bounds, std::move(alpha));
   }
   selection_edges_visible_ = true;
   if (status_callback_) {
@@ -3978,10 +3972,28 @@ PixelBuffer CanvasWidget::selection_as_grayscale() const {
     return {};
   }
   PixelBuffer pixels(document_->width(), document_->height(), PixelFormat::gray8());
-  for (int y = 0; y < document_->height(); ++y) {
-    auto row = pixels.row(y);
-    for (int x = 0; x < document_->width(); ++x) {
-      row[static_cast<std::size_t>(x)] = selection_alpha_at(QPoint(x, y));
+  pixels.clear(0);
+  if (selection_.isEmpty()) {
+    return pixels;
+  }
+
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  if (!selection_mask_alpha_.isNull()) {
+    const QRect image_bounds(selection_mask_bounds_.topLeft(), selection_mask_alpha_.size());
+    const auto copy_bounds = image_bounds.intersected(canvas_rect);
+    for (int y = copy_bounds.top(); y <= copy_bounds.bottom(); ++y) {
+      const auto* source = selection_mask_alpha_.constScanLine(y - image_bounds.y());
+      auto destination = pixels.row(y);
+      const auto source_x = copy_bounds.x() - image_bounds.x();
+      std::copy_n(source + source_x, copy_bounds.width(), destination.begin() + copy_bounds.x());
+    }
+    return pixels;
+  }
+
+  for (const auto& rect : selection_.intersected(canvas_rect)) {
+    for (int y = rect.top(); y <= rect.bottom(); ++y) {
+      auto row = pixels.row(y);
+      std::fill(row.begin() + rect.left(), row.begin() + rect.right() + 1, std::uint8_t{255});
     }
   }
   return pixels;
