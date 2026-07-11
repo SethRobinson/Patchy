@@ -4089,6 +4089,25 @@ Mixed selection</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::FontPickerCombo</name>
+    <message>
+        <location filename="../src/ui/font_picker.cpp" line="+295"/>
+        <source>The quick brown fox jumps over the lazy dog. 0123456789</source>
+        <extracomment>Latin sample text in the font preview; keep it Latin in every language (it demonstrates the font&apos;s Latin glyph coverage).</extracomment>
+        <translation>The quick brown fox jumps over the lazy dog. 0123456789</translation>
+    </message>
+    <message>
+        <location line="+31"/>
+        <source>Also supports: %1</source>
+        <translation>その他の対応スクリプト: %1</translation>
+    </message>
+    <message>
+        <location line="+147"/>
+        <source>Search fonts...</source>
+        <translation>フォントを検索...</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::HotkeyEditorPanel</name>
     <message>
         <location filename="../src/ui/hotkey_editor.cpp" line="+175"/>

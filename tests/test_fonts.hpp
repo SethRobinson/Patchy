@@ -22,11 +22,13 @@
 namespace patchy::test {
 
 enum class TestFontRole {
-  UiDefault,      // Arial/Segoe/Calibri-class family used as the suite-wide widget font
-  CenturyGothic,  // GOTHIC.TTF on Windows (Century Gothic; PSD fixture text face)
+  UiDefault,       // Arial/Segoe/Calibri-class family used as the suite-wide widget font
+  CenturyGothic,   // GOTHIC.TTF on Windows (Century Gothic; PSD fixture text face)
   Verdana,
   ArialBlack,
-  Candara,        // restaurant-menu fixture description face (Candara-BoldItalic)
+  Candara,         // restaurant-menu fixture description face (Candara-BoldItalic)
+  JapaneseGothic,  // a Japanese-writing-system family (font picker preview tests)
+  Wingdings,       // a symbol-writing-system family (font picker preview tests)
 };
 
 inline QStringList test_font_candidates(TestFontRole role) {
@@ -109,6 +111,25 @@ inline QStringList test_font_candidates(TestFontRole role) {
       };
 #else
       return {};  // no stock equivalent; tests take their substitution path
+#endif
+    case TestFontRole::JapaneseGothic:
+#if defined(Q_OS_WIN)
+      return {
+          QStringLiteral("C:/Windows/Fonts/msgothic.ttc"),
+          QStringLiteral("C:/Windows/Fonts/YuGothM.ttc"),
+      };
+#elif defined(Q_OS_LINUX)
+      return {QStringLiteral("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")};
+#else
+      return {};  // macOS ships Hiragino under non-ASCII paths; tests skip with a reason
+#endif
+    case TestFontRole::Wingdings:
+#if defined(Q_OS_WIN)
+      return {QStringLiteral("C:/Windows/Fonts/wingding.ttf")};
+#elif defined(Q_OS_MACOS)
+      return {QStringLiteral("/System/Library/Fonts/Supplemental/Wingdings.ttf")};
+#else
+      return {};
 #endif
   }
   return {};

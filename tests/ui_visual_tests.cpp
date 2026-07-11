@@ -17,6 +17,7 @@
 #include "ui/document_float_window.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/filter_workflows.hpp"
+#include "ui/font_picker.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -79,6 +80,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
+#include <QListView>
 #include <QListWidget>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -21018,6 +21020,282 @@ void ui_text_options_bar_accept_cancel_buttons() {
   CHECK(!undo_action->isEnabled());
 }
 
+QWidget* find_font_picker_popup() {
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("textFontPickerPopup") && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  return popup;
+}
+
+void ui_text_font_picker_popup_filters_and_commits() {
+  register_test_fonts(TestFontRole::Verdana);
+  if (!QFontDatabase::families().contains(QStringLiteral("Verdana"))) {
+    std::cout << "[SKIP] Verdana unavailable on this machine\n";
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  // The picker must still BE a QFontComboBox named textFontCombo: all existing wiring and
+  // tests find it that way.
+  auto* combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  CHECK(combo != nullptr);
+  auto* picker = qobject_cast<patchy::ui::FontPickerCombo*>(combo);
+  CHECK(picker != nullptr);
+
+  int font_changes = 0;
+  QObject::connect(picker, &QFontComboBox::currentFontChanged, picker,
+                   [&font_changes](const QFont&) { ++font_changes; });
+
+  picker->showPopup();
+  QApplication::processEvents();
+  auto* popup = find_font_picker_popup();
+  CHECK(popup != nullptr);
+  auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  CHECK(search != nullptr);
+  CHECK(list != nullptr);
+  const auto unfiltered_rows = list->model()->rowCount();
+
+  QTest::keyClicks(search, QStringLiteral("erda"));
+  QApplication::processEvents();
+  auto* model = list->model();
+  CHECK(model->rowCount() >= 1);
+  CHECK(model->rowCount() < unfiltered_rows);  // substring filter actually narrowed the list
+  int verdana_row = -1;
+  for (int row = 0; row < model->rowCount(); ++row) {
+    const auto family = model->index(row, 0).data(Qt::DisplayRole).toString();
+    CHECK(family.contains(QStringLiteral("erda"), Qt::CaseInsensitive));
+    if (family == QStringLiteral("Verdana")) {
+      verdana_row = row;
+    }
+  }
+  CHECK(verdana_row >= 0);
+  list->setCurrentIndex(model->index(verdana_row, 0));
+  QApplication::processEvents();
+  QTest::keyClick(search, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(find_font_picker_popup() == nullptr);
+  CHECK(picker->currentFont().family() == QStringLiteral("Verdana"));
+  CHECK(font_changes == 1);
+}
+
+void ui_text_font_picker_rows_render_in_their_own_font() {
+  register_test_fonts(TestFontRole::Verdana);
+  register_test_fonts(TestFontRole::Wingdings);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* picker = window.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("textFontCombo"));
+  CHECK(picker != nullptr);
+
+  if (QFontDatabase::families().contains(QStringLiteral("Verdana"))) {
+    const auto info = picker->family_render_info(QStringLiteral("Verdana"));
+    CHECK(info.latin_capable);
+    CHECK(info.display_font.family() == QStringLiteral("Verdana"));  // row renders in its own face
+    CHECK(info.systems.contains(QFontDatabase::Latin));
+    CHECK(info.row_sample.isEmpty());
+  } else {
+    std::cout << "[SKIP] Verdana unavailable; latin-row checks skipped\n";
+  }
+  if (QFontDatabase::families().contains(QStringLiteral("Wingdings"))) {
+    const auto info = picker->family_render_info(QStringLiteral("Wingdings"));
+    CHECK(!info.latin_capable);
+    // A symbol face cannot draw its own Latin name: the row keeps the UI font for the name
+    // and shows a short run of the family's actual glyphs beside it.
+    CHECK(info.display_font.family() != QStringLiteral("Wingdings"));
+    CHECK(info.systems.contains(QFontDatabase::Symbol));
+    CHECK(!info.row_sample.isEmpty());
+    CHECK(info.row_sample.size() <= 9);  // decoration, not a wall of dingbats
+  } else {
+    std::cout << "[SKIP] Wingdings unavailable; symbol-row checks skipped\n";
+  }
+}
+
+void ui_text_font_picker_preview_shows_supported_scripts() {
+  register_test_fonts(TestFontRole::UiDefault);
+  register_test_fonts(TestFontRole::Verdana);
+  register_test_fonts(TestFontRole::JapaneseGothic);
+  const auto japanese_families = QFontDatabase::families(QFontDatabase::Japanese);
+  if (japanese_families.isEmpty()) {
+    std::cout << "[SKIP] no Japanese-capable font available on this machine\n";
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  auto* picker = window.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("textFontCombo"));
+  CHECK(picker != nullptr);
+  picker->showPopup();
+  QApplication::processEvents();
+  auto* popup = find_font_picker_popup();
+  CHECK(popup != nullptr);
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  auto* preview = popup->findChild<patchy::ui::FontPreviewPane*>(QStringLiteral("textFontPickerPreview"));
+  CHECK(list != nullptr);
+  CHECK(preview != nullptr);
+
+  const auto select_family = [list](const QString& family) {
+    auto* model = list->model();
+    for (int row = 0; row < model->rowCount(); ++row) {
+      if (model->index(row, 0).data(Qt::DisplayRole).toString() == family) {
+        // Keyboard/selection navigation drives the same preview update as mouse hover.
+        list->setCurrentIndex(model->index(row, 0));
+        QApplication::processEvents();
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const auto& japanese_family = japanese_families.front();
+  CHECK(select_family(japanese_family));
+  CHECK(preview->family() == japanese_family);
+  bool has_japanese_line = false;
+  for (const auto& text : preview->line_texts()) {
+    for (const auto& ch : text) {
+      if (ch.unicode() >= 0x3040 && ch.unicode() <= 0x30FF) {  // hiragana/katakana
+        has_japanese_line = true;
+        break;
+      }
+    }
+  }
+  CHECK(has_japanese_line);
+  save_widget_artifact("font_picker_preview_japanese", *popup);
+
+  if (QFontDatabase::families().contains(QStringLiteral("Verdana"))) {
+    CHECK(select_family(QStringLiteral("Verdana")));
+    CHECK(preview->family() == QStringLiteral("Verdana"));
+    const auto lines = preview->line_texts();
+    CHECK(lines.size() >= 2);
+    CHECK(lines.front() == QStringLiteral("Verdana"));  // type-specimen name line leads
+    bool has_pangram = false;
+    for (const auto& text : lines) {
+      if (text.contains(QStringLiteral("quick brown fox"))) {
+        has_pangram = true;
+      }
+    }
+    CHECK(has_pangram);
+    // Minor European scripts collapse into the "Also supports" footer instead of rendering
+    // cryptic sample lines. Expectation comes from what THIS build's font database claims
+    // for Verdana (FreeType and DirectWrite report different sets for the same file).
+    const auto verdana_systems = QFontDatabase::writingSystems(QStringLiteral("Verdana"));
+    QStringList expected_footer_names;
+    for (const auto ws : {QFontDatabase::Greek, QFontDatabase::Cyrillic, QFontDatabase::Armenian,
+                          QFontDatabase::Vietnamese}) {
+      if (verdana_systems.contains(ws)) {
+        expected_footer_names.append(QFontDatabase::writingSystemName(ws));
+      }
+    }
+    if (!expected_footer_names.isEmpty()) {
+      CHECK(!preview->footer_text().isEmpty());
+      CHECK(preview->footer_text().contains(expected_footer_names.front()));
+    }
+  }
+  popup->close();
+  QApplication::processEvents();
+}
+
+void ui_text_font_picker_popup_resizes_and_persists() {
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("ui/textFontPickerPopupSize"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  auto* picker = window.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("textFontCombo"));
+  CHECK(picker != nullptr);
+
+  picker->showPopup();
+  QApplication::processEvents();
+  auto* popup = find_font_picker_popup();
+  CHECK(popup != nullptr);
+  CHECK(popup->findChild<QSizeGrip*>() != nullptr);  // the resize handle
+  CHECK(popup->width() >= 360);                      // first-open default browse size
+  CHECK(popup->height() >= 520);
+
+  popup->resize(500, 600);
+  QApplication::processEvents();
+  popup->close();
+  QApplication::processEvents();
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("ui/textFontPickerPopupSize")).toSize() ==
+        QSize(500, 600));
+
+  // Programmatic reopen: the dismiss-toggle guard only arms when the pointer is over the combo.
+  picker->showPopup();
+  QApplication::processEvents();
+  auto* reopened = find_font_picker_popup();
+  CHECK(reopened != nullptr);
+  CHECK(reopened->size() == QSize(500, 600));
+  reopened->close();
+  QApplication::processEvents();
+}
+
+void ui_text_font_picker_open_while_editing_keeps_text_session() {
+  register_test_fonts(TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  auto* picker = window.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("textFontCombo"));
+  const bool picker_found = picker != nullptr;
+
+  const auto editor_point = canvas->widget_position_for_document_point(QPoint(80, 80));
+  send_mouse(*canvas, QEvent::MouseButtonPress, editor_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, editor_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  // A failing CHECK while the editor is alive aborts the suite during unwind, so capture the
+  // live-session state into locals and assert after the session ends.
+  const bool editor_opened = editor != nullptr;
+  bool popup_seen = false;
+  bool search_focused = false;
+  bool editor_survived_popup_focus = false;
+  if (editor_opened && picker_found) {
+    editor->setPlainText(QStringLiteral("Keep Me"));
+    QApplication::processEvents();
+    picker->showPopup();  // moves focus into the popup's search box
+    QApplication::processEvents();
+    auto* popup = find_font_picker_popup();
+    popup_seen = popup != nullptr;
+    if (popup_seen) {
+      auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+      if (search != nullptr) {
+        search->setFocus();
+        QApplication::processEvents();
+        search_focused = QApplication::focusWidget() == search;
+      }
+      // The popup is a Qt::Popup window, so is_text_option_widget must match it by name;
+      // without that, the focus change above auto-commits and closes the session.
+      editor_survived_popup_focus =
+          canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor;
+      popup->close();
+      QApplication::processEvents();
+    }
+    auto* cancel_button = window.findChild<QPushButton*>(QStringLiteral("textCancelButton"));
+    if (cancel_button != nullptr && cancel_button->isVisible()) {
+      cancel_button->click();
+    } else {
+      require_action_by_text(window, QStringLiteral("Move"))->trigger();  // ends any live session
+    }
+    QApplication::processEvents();
+  }
+  CHECK(picker_found);
+  CHECK(editor_opened);
+  CHECK(popup_seen);
+  CHECK(search_focused);
+  CHECK(editor_survived_popup_focus);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+}
+
 void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
   patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -35515,6 +35793,12 @@ int main(int argc, char* argv[]) {
       {"ui_delete_key_action_removes_text_layer_object", ui_delete_key_action_removes_text_layer_object},
       {"ui_text_tool_click_creates_provisional_layer", ui_text_tool_click_creates_provisional_layer},
       {"ui_text_options_bar_accept_cancel_buttons", ui_text_options_bar_accept_cancel_buttons},
+      {"ui_text_font_picker_popup_filters_and_commits", ui_text_font_picker_popup_filters_and_commits},
+      {"ui_text_font_picker_rows_render_in_their_own_font", ui_text_font_picker_rows_render_in_their_own_font},
+      {"ui_text_font_picker_preview_shows_supported_scripts", ui_text_font_picker_preview_shows_supported_scripts},
+      {"ui_text_font_picker_popup_resizes_and_persists", ui_text_font_picker_popup_resizes_and_persists},
+      {"ui_text_font_picker_open_while_editing_keeps_text_session",
+       ui_text_font_picker_open_while_editing_keeps_text_session},
       {"ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview",
        ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
       {"ui_expensive_text_style_preview_debounces_to_plain_live_text",

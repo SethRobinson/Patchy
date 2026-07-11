@@ -33,6 +33,7 @@
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
+#include "ui/font_picker.hpp"
 #include "ui/hotkey_editor.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/color_panel.hpp"
@@ -12759,7 +12760,7 @@ void MainWindow::create_actions() {
   });
 
   add_option_label(tr("Font:"), {CanvasTool::Text});
-  text_font_combo_ = new QFontComboBox(toolbar);
+  text_font_combo_ = new FontPickerCombo(toolbar);
   text_font_combo_->setObjectName(QStringLiteral("textFontCombo"));
   text_font_combo_->setCurrentFont(font());
   text_font_combo_->setFixedWidth(210);
@@ -24387,7 +24388,11 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
          owns(text_cancel_button_) || owns(text_character_button_) || owns(primary_color_button_) ||
          in_named_ancestor(QStringLiteral("swatchesDock")) ||
          // The Character panel edits the LIVE session; focus moving into it must not commit.
-         in_named_ancestor(QStringLiteral("textCharacterDialog"));
+         in_named_ancestor(QStringLiteral("textCharacterDialog")) ||
+         // The font picker popup is a Qt::Popup window, so isAncestorOf-based ownership stops
+         // at its boundary; without the name match, focusing its search box would auto-commit
+         // an open inline text editor.
+         in_named_ancestor(QString::fromLatin1(kFontPickerPopupObjectName));
 }
 
 void MainWindow::apply_transform_controls_from_ui() {
