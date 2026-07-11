@@ -414,7 +414,7 @@
         <location line="+366"/>
         <location line="+1801"/>
         <location line="+269"/>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="+1185"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="+1268"/>
         <source>Preview</source>
         <translation>プレビュー</translation>
     </message>
@@ -773,8 +773,8 @@
         <location line="-99"/>
         <location line="+21"/>
         <location line="+20"/>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-857"/>
-        <location line="+551"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-940"/>
+        <location line="+634"/>
         <location line="+148"/>
         <location line="+148"/>
         <location line="+174"/>
@@ -791,7 +791,7 @@
     </message>
     <message>
         <location line="+44"/>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-1018"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-1101"/>
         <location filename="../src/ui/print_dialog.cpp" line="+472"/>
         <source>Scale</source>
         <translation>拡大縮小</translation>
@@ -1353,12 +1353,12 @@
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="+668"/>
-        <location line="+1414"/>
+        <location line="+1497"/>
         <source>Blending Options</source>
         <translation>描画オプション</translation>
     </message>
     <message>
-        <location line="-1404"/>
+        <location line="-1487"/>
         <source>Show Effects</source>
         <translation>効果を表示</translation>
     </message>
@@ -1373,12 +1373,22 @@
         <translation>ドロップシャドウ・光彩・境界線をレイヤーマスクの形に合わせるだけでなく、マスクで切り抜きます</translation>
     </message>
     <message>
-        <location line="+52"/>
+        <location line="+89"/>
+        <source>Decrease %1</source>
+        <translation>%1 を減らす</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>Increase %1</source>
+        <translation>%1 を増やす</translation>
+    </message>
+    <message>
+        <location line="+34"/>
         <source>Use Page Up or Page Down to select a handle, arrow keys to move it, and Alt/Option-drag to split a joined handle.</source>
         <translation>Page Up または Page Down でハンドルを選択し、矢印キーで移動します。結合されたハンドルを分割するには Alt/Option キーを押しながらドラッグします。</translation>
     </message>
     <message>
-        <location line="+84"/>
+        <location line="+88"/>
         <location line="+1261"/>
         <source>Bevel &amp; Emboss</source>
         <translation>ベベルとエンボス</translation>
@@ -1439,7 +1449,7 @@
         <translation>サテン</translation>
     </message>
     <message>
-        <location line="-2082"/>
+        <location line="-2165"/>
         <location filename="../src/ui/main_window.cpp" line="+9"/>
         <location line="+1036"/>
         <source>Pattern Overlay</source>
@@ -1461,7 +1471,7 @@
     </message>
     <message>
         <location line="+658"/>
-        <location line="+177"/>
+        <location line="+260"/>
         <location line="+20"/>
         <location line="+37"/>
         <location line="+64"/>
@@ -1475,9 +1485,9 @@
         <translation>描画モード</translation>
     </message>
     <message>
-        <location line="-1072"/>
+        <location line="-1155"/>
         <location line="+452"/>
-        <location line="+178"/>
+        <location line="+261"/>
         <location line="+20"/>
         <location line="+36"/>
         <location line="+65"/>
@@ -1495,12 +1505,12 @@
         <translation type="vanished">Photoshop のサテンのカスタム輪郭は、レイヤースタイルを編集するまでは保持されます。Patchy でのプレビューおよび編集後の保存にはリニア輪郭が使用されます。</translation>
     </message>
     <message>
-        <location line="-1053"/>
+        <location line="-1136"/>
         <source>Midpoint</source>
         <translation>中間点</translation>
     </message>
     <message>
-        <location line="+581"/>
+        <location line="+664"/>
         <location line="+70"/>
         <location line="+91"/>
         <location line="+67"/>
@@ -1619,8 +1629,8 @@
         <translation>位置</translation>
     </message>
     <message>
-        <location line="-681"/>
-        <location line="+637"/>
+        <location line="-764"/>
+        <location line="+720"/>
         <location line="+20"/>
         <location line="+60"/>
         <location line="+73"/>
@@ -1640,7 +1650,7 @@
         <translation>位置 %</translation>
     </message>
     <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-1074"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-1157"/>
         <location filename="../src/ui/main_window.cpp" line="+17"/>
         <source>Add Stop</source>
         <translation>ストップを追加</translation>
@@ -1652,7 +1662,7 @@
         <translation>ストップを削除</translation>
     </message>
     <message>
-        <location line="+991"/>
+        <location line="+1074"/>
         <location line="+58"/>
         <source>Spread</source>
         <translation>スプレッド</translation>
@@ -1688,12 +1698,12 @@
         <translation>インスタンス</translation>
     </message>
     <message>
-        <location line="-992"/>
+        <location line="-1075"/>
         <source>Remove Selected Instance</source>
         <translation>選択したインスタンスを削除</translation>
     </message>
     <message>
-        <location line="+1841"/>
+        <location line="+1924"/>
         <source>Add Stroke</source>
         <translation>境界線を追加</translation>
     </message>
@@ -1704,7 +1714,7 @@
         <translation>シャドウ（内側）を追加</translation>
     </message>
     <message>
-        <location line="-1930"/>
+        <location line="-2013"/>
         <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
         <translation>Photoshop のサテンのカスタム輪郭と輪郭アンチエイリアスは、レイヤースタイルを編集するまでは保持されます。Patchy でのプレビューおよび編集後の保存には、アンチエイリアスなしのリニア輪郭が使用されます。</translation>
     </message>
@@ -1729,7 +1739,7 @@
         <translation>このフォルダーの末尾にある PSD レコードには、別の「ブレンド条件 (Blend If)」データが含まれています。Patchy はその境界データを変更せずに保持します。以下のコントロールで編集されるのは表示側のフォルダーレコードのみです。</translation>
     </message>
     <message>
-        <location line="+612"/>
+        <location line="+624"/>
         <source>Blend If</source>
         <translation>ブレンド条件 (Blend If)</translation>
     </message>
@@ -1744,7 +1754,7 @@
         <translation>チャンネルをリセット</translation>
     </message>
     <message>
-        <location line="+24"/>
+        <location line="+91"/>
         <source>%1 Blend If range</source>
         <translation>%1 の「ブレンド条件 (Blend If)」範囲</translation>
     </message>
@@ -1789,7 +1799,7 @@
         <translation>下のレイヤー</translation>
     </message>
     <message>
-        <location line="+256"/>
+        <location line="+260"/>
         <source>Remove Inner Shadow</source>
         <translation>シャドウ（内側）を削除</translation>
     </message>
@@ -1862,7 +1872,7 @@
         <translation>グラデーションストップの色を選択</translation>
     </message>
     <message>
-        <location line="-1025"/>
+        <location line="-1108"/>
         <source>Location</source>
         <translation>位置</translation>
     </message>
@@ -1910,7 +1920,7 @@
     <message>
         <location filename="../src/ui/blend_mode_ui.cpp" line="+2"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="-63"/>
-        <location line="+646"/>
+        <location line="+729"/>
         <location line="+20"/>
         <location line="+35"/>
         <location filename="../src/ui/main_window.cpp" line="+7"/>
@@ -2008,8 +2018,8 @@
         <translation>消しゴム</translation>
     </message>
     <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-2186"/>
-        <location line="+715"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-2269"/>
+        <location line="+798"/>
         <location line="+32"/>
         <location filename="../src/ui/main_window.cpp" line="+2"/>
         <source>Gradient</source>
@@ -2180,7 +2190,7 @@
     <message>
         <location line="+1"/>
         <location filename="../src/ui/filter_workflows.cpp" line="+1"/>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-211"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-282"/>
         <source>Red</source>
         <translation>赤</translation>
     </message>
@@ -2619,7 +2629,7 @@ Flow: %6
     </message>
     <message>
         <location filename="../src/ui/filter_workflows.cpp" line="+262"/>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="+48"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="+115"/>
         <location filename="../src/ui/main_window.cpp" line="-596"/>
         <location line="+664"/>
         <source>White</source>
@@ -2847,7 +2857,7 @@ Open in Generative Upscale...</source>
     </message>
     <message>
         <location filename="../src/ui/filter_workflows.cpp" line="+5"/>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-38"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-105"/>
         <location filename="../src/ui/main_window.cpp" line="+3"/>
         <source>Gray</source>
         <translation>グレー</translation>

@@ -1056,11 +1056,23 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   blending_layout->addWidget(blending_group);
 
   struct BlendIfRowWidgets {
+    struct SpinControl {
+      QWidget* container{nullptr};
+      QSpinBox* spin{nullptr};
+      QPushButton* decrease{nullptr};
+      QPushButton* increase{nullptr};
+
+      void sync_buttons() const {
+        decrease->setEnabled(spin->value() > spin->minimum());
+        increase->setEnabled(spin->value() < spin->maximum());
+      }
+    };
+
     BlendIfRangeEditorWidget* editor{nullptr};
-    QSpinBox* black_low{nullptr};
-    QSpinBox* black_high{nullptr};
-    QSpinBox* white_low{nullptr};
-    QSpinBox* white_high{nullptr};
+    SpinControl black_low;
+    SpinControl black_high;
+    SpinControl white_low;
+    SpinControl white_high;
   };
 
   auto* blend_if_group = new QGroupBox(QObject::tr("Blend If"), controls);
@@ -1083,14 +1095,81 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   blend_if_channel_row->addWidget(reset_blend_if_channel);
   blend_if_layout->addLayout(blend_if_channel_row);
 
+  const auto blend_if_value_style = QStringLiteral(R"(
+    QSpinBox {
+      background: #292929;
+      border: 1px solid #171717;
+      border-top-color: #5d5d5d;
+      border-radius: 2px;
+      color: #f0f0f0;
+      padding: 0 5px;
+    }
+    QSpinBox:disabled {
+      background: #2c2c2c;
+      color: #767676;
+    }
+  )");
+  const auto blend_if_step_button_style = QStringLiteral(R"(
+    QPushButton {
+      background: #3a3a3a;
+      border: 1px solid #171717;
+      border-top-color: #5d5d5d;
+      border-radius: 2px;
+      padding: 0;
+    }
+    QPushButton:hover { background: #4a4a4a; border-color: #696969; }
+    QPushButton:pressed { background: #2f75bd; border-color: #6bb3ff; }
+    QPushButton:disabled { background: #2e2e2e; border-top-color: #444444; }
+  )");
+
   auto make_blend_if_spin = [&](QWidget* parent_widget, const QString& object_name,
                                 const QString& accessible_name) {
-    auto* spin = new QSpinBox(parent_widget);
+    BlendIfRowWidgets::SpinControl control;
+    control.container = new QWidget(parent_widget);
+    auto* layout = new QHBoxLayout(control.container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(2);
+
+    auto* spin = new QSpinBox(control.container);
     spin->setObjectName(object_name);
     spin->setRange(0, 255);
     spin->setAccessibleName(accessible_name);
-    spin->setFixedWidth(70);
-    return spin;
+    configure_dialog_spinbox(spin, 48);
+    spin->setFixedWidth(48);
+    spin->setStyleSheet(blend_if_value_style);
+
+    auto* decrease = new QPushButton(QStringLiteral("-"), control.container);
+    decrease->setObjectName(object_name + QStringLiteral("DecreaseButton"));
+    decrease->setAccessibleName(QObject::tr("Decrease %1").arg(accessible_name));
+    decrease->setToolTip(decrease->accessibleName());
+    decrease->setAutoRepeat(true);
+    configure_compact_symbol_button(decrease);
+    decrease->setStyleSheet(blend_if_step_button_style);
+
+    auto* increase = new QPushButton(QStringLiteral("+"), control.container);
+    increase->setObjectName(object_name + QStringLiteral("IncreaseButton"));
+    increase->setAccessibleName(QObject::tr("Increase %1").arg(accessible_name));
+    increase->setToolTip(increase->accessibleName());
+    increase->setAutoRepeat(true);
+    configure_compact_symbol_button(increase);
+    increase->setStyleSheet(blend_if_step_button_style);
+
+    layout->addWidget(spin);
+    layout->addWidget(decrease);
+    layout->addWidget(increase);
+
+    control.spin = spin;
+    control.decrease = decrease;
+    control.increase = increase;
+    QObject::connect(decrease, &QPushButton::clicked, spin, &QSpinBox::stepDown);
+    QObject::connect(increase, &QPushButton::clicked, spin, &QSpinBox::stepUp);
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), control.container,
+                     [decrease, increase, spin](int) {
+                       decrease->setEnabled(spin->value() > spin->minimum());
+                       increase->setEnabled(spin->value() < spin->maximum());
+                     });
+    control.sync_buttons();
+    return control;
   };
 
   auto make_blend_if_row = [&](const QString& title, const QString& object_prefix,
@@ -1117,10 +1196,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     row.black_high = make_blend_if_spin(
         blend_if_group, object_prefix + QStringLiteral("BlackHighSpin"),
         QObject::tr("%1 black transition end").arg(title));
-    black_label->setBuddy(row.black_low);
-    values->addWidget(row.black_low);
+    black_label->setBuddy(row.black_low.spin);
+    values->addWidget(row.black_low.container);
     values->addWidget(new QLabel(QObject::tr("to"), blend_if_group));
-    values->addWidget(row.black_high);
+    values->addWidget(row.black_high.container);
     values->addStretch(1);
     auto* white_label = new QLabel(QObject::tr("White"), blend_if_group);
     values->addWidget(white_label);
@@ -1130,10 +1209,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     row.white_high = make_blend_if_spin(
         blend_if_group, object_prefix + QStringLiteral("WhiteHighSpin"),
         QObject::tr("%1 white transition end").arg(title));
-    white_label->setBuddy(row.white_low);
-    values->addWidget(row.white_low);
+    white_label->setBuddy(row.white_low.spin);
+    values->addWidget(row.white_low.container);
     values->addWidget(new QLabel(QObject::tr("to"), blend_if_group));
-    values->addWidget(row.white_high);
+    values->addWidget(row.white_high.container);
     blend_if_layout->addLayout(values);
     return row;
   };
@@ -1151,21 +1230,25 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     return static_cast<std::size_t>(std::clamp(blend_if_channel->currentData().toInt(), 0, 3));
   };
   const auto set_blend_if_row = [&](BlendIfRowWidgets& row, BlendIfThresholds thresholds) {
-    const QSignalBlocker black_low_blocker(row.black_low);
-    const QSignalBlocker black_high_blocker(row.black_high);
-    const QSignalBlocker white_low_blocker(row.white_low);
-    const QSignalBlocker white_high_blocker(row.white_high);
-    for (auto* spin : {row.black_low, row.black_high, row.white_low, row.white_high}) {
+    const QSignalBlocker black_low_blocker(row.black_low.spin);
+    const QSignalBlocker black_high_blocker(row.black_high.spin);
+    const QSignalBlocker white_low_blocker(row.white_low.spin);
+    const QSignalBlocker white_high_blocker(row.white_high.spin);
+    for (auto* spin : {row.black_low.spin, row.black_high.spin, row.white_low.spin, row.white_high.spin}) {
       spin->setRange(0, 255);
     }
-    row.black_low->setValue(thresholds.black_low);
-    row.black_high->setValue(thresholds.black_high);
-    row.white_low->setValue(thresholds.white_low);
-    row.white_high->setValue(thresholds.white_high);
-    row.black_low->setRange(0, thresholds.black_high);
-    row.black_high->setRange(thresholds.black_low, thresholds.white_low);
-    row.white_low->setRange(thresholds.black_high, thresholds.white_high);
-    row.white_high->setRange(thresholds.white_low, 255);
+    row.black_low.spin->setValue(thresholds.black_low);
+    row.black_high.spin->setValue(thresholds.black_high);
+    row.white_low.spin->setValue(thresholds.white_low);
+    row.white_high.spin->setValue(thresholds.white_high);
+    row.black_low.spin->setRange(0, thresholds.black_high);
+    row.black_high.spin->setRange(thresholds.black_low, thresholds.white_low);
+    row.white_low.spin->setRange(thresholds.black_high, thresholds.white_high);
+    row.white_high.spin->setRange(thresholds.white_low, 255);
+    row.black_low.sync_buttons();
+    row.black_high.sync_buttons();
+    row.white_low.sync_buttons();
+    row.white_high.sync_buttons();
     row.editor->set_thresholds(thresholds);
   };
   const auto load_blend_if_controls = [&] {
@@ -2531,10 +2614,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return;
       }
       const BlendIfThresholds thresholds{
-          static_cast<std::uint8_t>(row_ptr->black_low->value()),
-          static_cast<std::uint8_t>(row_ptr->black_high->value()),
-          static_cast<std::uint8_t>(row_ptr->white_low->value()),
-          static_cast<std::uint8_t>(row_ptr->white_high->value()),
+          static_cast<std::uint8_t>(row_ptr->black_low.spin->value()),
+          static_cast<std::uint8_t>(row_ptr->black_high.spin->value()),
+          static_cast<std::uint8_t>(row_ptr->white_low.spin->value()),
+          static_cast<std::uint8_t>(row_ptr->white_high.spin->value()),
       };
       auto& ranges = blend_if.channels[current_blend_if_channel_index()];
       (this_layer ? ranges.this_layer : ranges.underlying_layer) = thresholds;
@@ -2543,7 +2626,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       loading_blend_if_controls = false;
       emit_preview(false);
     };
-    for (auto* spin : {row.black_low, row.black_high, row.white_low, row.white_high}) {
+    for (auto* spin : {row.black_low.spin, row.black_high.spin, row.white_low.spin, row.white_high.spin}) {
       QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
                        [update_from_spins](int) { update_from_spins(); });
     }

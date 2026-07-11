@@ -3176,6 +3176,55 @@ void ui_layer_style_blend_if_controls_load_channels_and_map_settings() {
     CHECK(this_black_low->value() == 10);
     CHECK(this_black_high->value() == 20);
     CHECK(underlying_white_low->value() == 190);
+
+    auto* low_minus = dialog->findChild<QPushButton*>(
+        QStringLiteral("layerStyleBlendIfThisBlackLowSpinDecreaseButton"));
+    auto* low_plus = dialog->findChild<QPushButton*>(
+        QStringLiteral("layerStyleBlendIfThisBlackLowSpinIncreaseButton"));
+    auto* high_minus = dialog->findChild<QPushButton*>(
+        QStringLiteral("layerStyleBlendIfThisBlackHighSpinDecreaseButton"));
+    auto* high_plus = dialog->findChild<QPushButton*>(
+        QStringLiteral("layerStyleBlendIfThisBlackHighSpinIncreaseButton"));
+    CHECK(low_minus != nullptr && low_plus != nullptr);
+    CHECK(high_minus != nullptr && high_plus != nullptr);
+    for (auto* button : {low_minus, low_plus, high_minus, high_plus}) {
+      CHECK(button->width() >= 20 && button->height() >= 20);
+      CHECK(!button->icon().isNull());
+    }
+    const auto click_step_button = [](QPushButton* button) {
+      send_mouse(*button, QEvent::MouseButtonPress, button->rect().center(), Qt::LeftButton,
+                 Qt::LeftButton);
+      send_mouse(*button, QEvent::MouseButtonRelease, button->rect().center(), Qt::LeftButton,
+                 Qt::NoButton);
+    };
+
+    // Reproduce the joined-handle case from the UI: the first field's minus
+    // moves the left half down, while the second field's plus moves the right
+    // half up. The visible controls must not swap either direction.
+    this_black_high->setValue(74);
+    this_black_low->setValue(74);
+    CHECK(low_minus->isEnabled());
+    CHECK(!low_plus->isEnabled());
+    click_step_button(low_minus);
+    CHECK(this_black_low->value() == 73);
+    CHECK(low_plus->isEnabled());
+    click_step_button(low_plus);
+    CHECK(this_black_low->value() == 74);
+    CHECK(!high_minus->isEnabled());
+    CHECK(high_plus->isEnabled());
+    click_step_button(high_plus);
+    CHECK(this_black_high->value() == 75);
+    CHECK(high_minus->isEnabled());
+    click_step_button(high_minus);
+    CHECK(this_black_high->value() == 74);
+    this_black_low->setValue(10);
+    this_black_high->setValue(20);
+    auto* white_value_edit = this_white_low->findChild<QLineEdit*>();
+    CHECK(white_value_edit != nullptr);
+    CHECK(white_value_edit->width() >= 36);
+    CHECK(white_value_edit->text() == QStringLiteral("200"));
+    save_widget_artifact("ui_layer_style_blend_if_controls", *dialog);
+
     this_black_high->setValue(25);
     underlying_white_low->setValue(185);
 
