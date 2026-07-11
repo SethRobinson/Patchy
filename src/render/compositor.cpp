@@ -51,6 +51,18 @@ public:
     destination_alpha = alpha + destination_alpha * (1.0F - alpha);
   }
 
+  [[nodiscard]] render_detail::CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
+    x -= origin_x_;
+    y -= origin_y_;
+    if (x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
+      return {};
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) + static_cast<std::size_t>(x);
+    const auto* pixel = destination_.pixel(x, y);
+    return render_detail::CompositeSample{RgbColor{pixel[0], pixel[1], pixel[2]}, alpha_[index]};
+  }
+
   void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
     amount = clamp_unit(amount);
     x -= origin_x_;

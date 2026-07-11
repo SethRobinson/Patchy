@@ -1,5 +1,6 @@
 #include "ui/layer_style_dialog.hpp"
 
+#include "ui/blend_if_range_editor.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
@@ -335,8 +336,12 @@ void update_color_preview_label(QWidget* widget, int red, int green, int blue) {
 std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer, std::function<void(const LayerStyleSettings&)> preview_changed) {
   const LayerStyleSettings original_settings{
-      static_cast<int>(std::round(layer.opacity() * 100.0F)), layer.blend_mode(), layer.layer_style()};
+      static_cast<int>(std::round(layer.opacity() * 100.0F)), layer.blend_mode(), layer.layer_style(),
+      layer.blend_if(), false};
   auto style = layer.layer_style();
+  auto blend_if = layer.blend_if();
+  const auto blend_if_payload_status = layer.blend_if_payload_status();
+  bool replace_unsupported_blend_if = false;
   auto shadow = style.drop_shadows.empty() ? default_drop_shadow() : style.drop_shadows.front();
   auto inner_shadow = style.inner_shadows.empty() ? default_inner_shadow() : style.inner_shadows.front();
   auto outer_glow = style.outer_glows.empty() ? default_outer_glow() : style.outer_glows.front();
@@ -355,7 +360,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyLayerStyleDialog"));
-  dialog.resize(760, 520);
+  dialog.resize(840, 680);
   auto* root = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), QObject::tr("Layer Style"),
                                           DialogChromeCloseMode::Accept);
 
@@ -412,6 +417,48 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     warning->setProperty("warningBanner", true);
     warning->setStyleSheet(QStringLiteral(
         "QLabel#layerStyleGroupEffectsWarning { background: #4a3a1f; border: 1px solid #9a7430; "
+        "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
+    root->addWidget(warning);
+  }
+
+  QLabel* blend_if_unsupported_warning = nullptr;
+  QPushButton* replace_blend_if_button = nullptr;
+  if (blend_if_payload_status == BlendIfPayloadStatus::Unsupported) {
+    auto* warning_row = new QWidget(&dialog);
+    warning_row->setObjectName(QStringLiteral("layerStyleBlendIfUnsupportedWarningRow"));
+    auto* warning_layout = new QHBoxLayout(warning_row);
+    warning_layout->setContentsMargins(8, 6, 8, 6);
+    warning_layout->setSpacing(8);
+    blend_if_unsupported_warning = new QLabel(
+        QObject::tr("This layer contains Photoshop Blend If data for an unsupported color mode or payload shape. "
+                    "Patchy preserves it unchanged and does not preview it unless you replace it."),
+        warning_row);
+    blend_if_unsupported_warning->setObjectName(QStringLiteral("layerStyleBlendIfUnsupportedWarning"));
+    blend_if_unsupported_warning->setWordWrap(true);
+    blend_if_unsupported_warning->setProperty("warningBanner", true);
+    warning_layout->addWidget(blend_if_unsupported_warning, 1);
+    replace_blend_if_button = new QPushButton(QObject::tr("Replace with Editable Defaults"), warning_row);
+    replace_blend_if_button->setObjectName(QStringLiteral("layerStyleBlendIfReplaceButton"));
+    warning_layout->addWidget(replace_blend_if_button, 0, Qt::AlignVCenter);
+    warning_row->setStyleSheet(QStringLiteral(
+        "QWidget#layerStyleBlendIfUnsupportedWarningRow { background: #4a3a1f; border: 1px solid #9a7430; "
+        "border-radius: 3px; }"));
+    root->addWidget(warning_row);
+  }
+
+  const auto boundary_blend_if = decode_layer_blend_if(layer.raw_psd_group_boundary_blending_ranges());
+  if (!layer.raw_psd_group_boundary_blending_ranges().empty() &&
+      (boundary_blend_if.status == BlendIfPayloadStatus::Unsupported ||
+       !blend_if_is_identity(boundary_blend_if.settings))) {
+    auto* warning = new QLabel(
+        QObject::tr("This folder's closing PSD record contains separate Blend If data. Patchy preserves that "
+                    "boundary data unchanged; the controls below edit only the visible folder record."),
+        &dialog);
+    warning->setObjectName(QStringLiteral("layerStyleBlendIfBoundaryWarning"));
+    warning->setWordWrap(true);
+    warning->setProperty("warningBanner", true);
+    warning->setStyleSheet(QStringLiteral(
+        "QLabel#layerStyleBlendIfBoundaryWarning { background: #4a3a1f; border: 1px solid #9a7430; "
         "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
@@ -1007,6 +1054,131 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       QObject::tr("Clip drop shadows, glows, and strokes with the layer mask instead of only shaping them"));
   blending_form->addRow(QString(), mask_hides_effects);
   blending_layout->addWidget(blending_group);
+
+  struct BlendIfRowWidgets {
+    BlendIfRangeEditorWidget* editor{nullptr};
+    QSpinBox* black_low{nullptr};
+    QSpinBox* black_high{nullptr};
+    QSpinBox* white_low{nullptr};
+    QSpinBox* white_high{nullptr};
+  };
+
+  auto* blend_if_group = new QGroupBox(QObject::tr("Blend If"), controls);
+  blend_if_group->setObjectName(QStringLiteral("layerStyleBlendIfGroup"));
+  auto* blend_if_layout = new QVBoxLayout(blend_if_group);
+  blend_if_layout->setSpacing(4);
+  auto* blend_if_channel_row = new QHBoxLayout();
+  auto* blend_if_channel_label = new QLabel(QObject::tr("Blend If:"), blend_if_group);
+  auto* blend_if_channel = new QComboBox(blend_if_group);
+  blend_if_channel->setObjectName(QStringLiteral("layerStyleBlendIfChannelCombo"));
+  blend_if_channel->addItem(QObject::tr("Gray"), static_cast<int>(BlendIfChannel::Gray));
+  blend_if_channel->addItem(QObject::tr("Red"), static_cast<int>(BlendIfChannel::Red));
+  blend_if_channel->addItem(QObject::tr("Green"), static_cast<int>(BlendIfChannel::Green));
+  blend_if_channel->addItem(QObject::tr("Blue"), static_cast<int>(BlendIfChannel::Blue));
+  blend_if_channel_label->setBuddy(blend_if_channel);
+  blend_if_channel_row->addWidget(blend_if_channel_label);
+  blend_if_channel_row->addWidget(blend_if_channel, 1);
+  auto* reset_blend_if_channel = new QPushButton(QObject::tr("Reset Channel"), blend_if_group);
+  reset_blend_if_channel->setObjectName(QStringLiteral("layerStyleBlendIfResetChannelButton"));
+  blend_if_channel_row->addWidget(reset_blend_if_channel);
+  blend_if_layout->addLayout(blend_if_channel_row);
+
+  auto make_blend_if_spin = [&](QWidget* parent_widget, const QString& object_name,
+                                const QString& accessible_name) {
+    auto* spin = new QSpinBox(parent_widget);
+    spin->setObjectName(object_name);
+    spin->setRange(0, 255);
+    spin->setAccessibleName(accessible_name);
+    spin->setFixedWidth(70);
+    return spin;
+  };
+
+  auto make_blend_if_row = [&](const QString& title, const QString& object_prefix,
+                               const QString& editor_object_name) {
+    BlendIfRowWidgets row;
+    auto* title_label = new QLabel(title, blend_if_group);
+    title_label->setStyleSheet(QStringLiteral("font-weight: 600;"));
+    blend_if_layout->addWidget(title_label);
+    row.editor = new BlendIfRangeEditorWidget(blend_if_group);
+    row.editor->setObjectName(editor_object_name);
+    row.editor->set_accessibility_text(
+        QObject::tr("%1 Blend If range").arg(title),
+        QObject::tr("Use Page Up or Page Down to select a handle, arrow keys to move it, and Alt/Option-drag to "
+                    "split a joined handle."));
+    blend_if_layout->addWidget(row.editor);
+
+    auto* values = new QHBoxLayout();
+    values->setSpacing(5);
+    auto* black_label = new QLabel(QObject::tr("Black"), blend_if_group);
+    values->addWidget(black_label);
+    row.black_low = make_blend_if_spin(
+        blend_if_group, object_prefix + QStringLiteral("BlackLowSpin"),
+        QObject::tr("%1 black transition start").arg(title));
+    row.black_high = make_blend_if_spin(
+        blend_if_group, object_prefix + QStringLiteral("BlackHighSpin"),
+        QObject::tr("%1 black transition end").arg(title));
+    black_label->setBuddy(row.black_low);
+    values->addWidget(row.black_low);
+    values->addWidget(new QLabel(QObject::tr("to"), blend_if_group));
+    values->addWidget(row.black_high);
+    values->addStretch(1);
+    auto* white_label = new QLabel(QObject::tr("White"), blend_if_group);
+    values->addWidget(white_label);
+    row.white_low = make_blend_if_spin(
+        blend_if_group, object_prefix + QStringLiteral("WhiteLowSpin"),
+        QObject::tr("%1 white transition start").arg(title));
+    row.white_high = make_blend_if_spin(
+        blend_if_group, object_prefix + QStringLiteral("WhiteHighSpin"),
+        QObject::tr("%1 white transition end").arg(title));
+    white_label->setBuddy(row.white_low);
+    values->addWidget(row.white_low);
+    values->addWidget(new QLabel(QObject::tr("to"), blend_if_group));
+    values->addWidget(row.white_high);
+    blend_if_layout->addLayout(values);
+    return row;
+  };
+
+  auto blend_if_this = make_blend_if_row(QObject::tr("This Layer"), QStringLiteral("layerStyleBlendIfThis"),
+                                         QStringLiteral("layerStyleBlendIfThisEditor"));
+  auto blend_if_underlying =
+      make_blend_if_row(QObject::tr("Underlying Layer"), QStringLiteral("layerStyleBlendIfUnderlying"),
+                        QStringLiteral("layerStyleBlendIfUnderlyingEditor"));
+  blend_if_group->setEnabled(blend_if_payload_status != BlendIfPayloadStatus::Unsupported);
+  blending_layout->addWidget(blend_if_group);
+
+  bool loading_blend_if_controls = false;
+  const auto current_blend_if_channel_index = [&] {
+    return static_cast<std::size_t>(std::clamp(blend_if_channel->currentData().toInt(), 0, 3));
+  };
+  const auto set_blend_if_row = [&](BlendIfRowWidgets& row, BlendIfThresholds thresholds) {
+    const QSignalBlocker black_low_blocker(row.black_low);
+    const QSignalBlocker black_high_blocker(row.black_high);
+    const QSignalBlocker white_low_blocker(row.white_low);
+    const QSignalBlocker white_high_blocker(row.white_high);
+    for (auto* spin : {row.black_low, row.black_high, row.white_low, row.white_high}) {
+      spin->setRange(0, 255);
+    }
+    row.black_low->setValue(thresholds.black_low);
+    row.black_high->setValue(thresholds.black_high);
+    row.white_low->setValue(thresholds.white_low);
+    row.white_high->setValue(thresholds.white_high);
+    row.black_low->setRange(0, thresholds.black_high);
+    row.black_high->setRange(thresholds.black_low, thresholds.white_low);
+    row.white_low->setRange(thresholds.black_high, thresholds.white_high);
+    row.white_high->setRange(thresholds.white_low, 255);
+    row.editor->set_thresholds(thresholds);
+  };
+  const auto load_blend_if_controls = [&] {
+    loading_blend_if_controls = true;
+    const auto channel_index = current_blend_if_channel_index();
+    const auto channel = static_cast<BlendIfChannel>(channel_index);
+    blend_if_this.editor->set_ramp_channel(channel);
+    blend_if_underlying.editor->set_ramp_channel(channel);
+    set_blend_if_row(blend_if_this, blend_if.channels[channel_index].this_layer);
+    set_blend_if_row(blend_if_underlying, blend_if.channels[channel_index].underlying_layer);
+    loading_blend_if_controls = false;
+  };
+  load_blend_if_controls();
 
   // Preview is transient dialog state, independent of Photoshop's persisted
   // master effects switch (Show Effects above). It stays visible on every page.
@@ -1874,7 +2046,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       satin.unsupported_contour_options = false;
     }
     return LayerStyleSettings{opacity->value(), static_cast<BlendMode>(blend->currentData().toInt()),
-                              std::move(result)};
+                              std::move(result), blend_if, replace_unsupported_blend_if};
   };
   auto build_current_settings = [&]() {
     return build_current_settings_for_item(categories->currentItem());
@@ -2340,6 +2512,66 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       preview_emitter.schedule(std::move(preview_settings));
     }
   };
+
+  const auto connect_blend_if_row = [&](BlendIfRowWidgets& row, bool this_layer) {
+    auto* row_ptr = &row;
+    row.editor->changed = [&, row_ptr, this_layer](BlendIfThresholds thresholds, bool immediate) {
+      if (loading_blend_if_controls) {
+        return;
+      }
+      auto& ranges = blend_if.channels[current_blend_if_channel_index()];
+      (this_layer ? ranges.this_layer : ranges.underlying_layer) = thresholds;
+      loading_blend_if_controls = true;
+      set_blend_if_row(*row_ptr, thresholds);
+      loading_blend_if_controls = false;
+      emit_preview(immediate);
+    };
+    const auto update_from_spins = [&, row_ptr, this_layer] {
+      if (loading_blend_if_controls) {
+        return;
+      }
+      const BlendIfThresholds thresholds{
+          static_cast<std::uint8_t>(row_ptr->black_low->value()),
+          static_cast<std::uint8_t>(row_ptr->black_high->value()),
+          static_cast<std::uint8_t>(row_ptr->white_low->value()),
+          static_cast<std::uint8_t>(row_ptr->white_high->value()),
+      };
+      auto& ranges = blend_if.channels[current_blend_if_channel_index()];
+      (this_layer ? ranges.this_layer : ranges.underlying_layer) = thresholds;
+      loading_blend_if_controls = true;
+      set_blend_if_row(*row_ptr, thresholds);
+      loading_blend_if_controls = false;
+      emit_preview(false);
+    };
+    for (auto* spin : {row.black_low, row.black_high, row.white_low, row.white_high}) {
+      QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
+                       [update_from_spins](int) { update_from_spins(); });
+    }
+  };
+  connect_blend_if_row(blend_if_this, true);
+  connect_blend_if_row(blend_if_underlying, false);
+  QObject::connect(blend_if_channel, &QComboBox::currentIndexChanged, &dialog,
+                   [&](int) { load_blend_if_controls(); });
+  QObject::connect(reset_blend_if_channel, &QPushButton::clicked, &dialog, [&] {
+    blend_if.channels[current_blend_if_channel_index()] = {};
+    load_blend_if_controls();
+    emit_preview(true);
+  });
+  if (replace_blend_if_button != nullptr) {
+    QObject::connect(replace_blend_if_button, &QPushButton::clicked, &dialog, [&] {
+      replace_unsupported_blend_if = true;
+      blend_if = {};
+      blend_if_group->setEnabled(true);
+      replace_blend_if_button->setEnabled(false);
+      if (blend_if_unsupported_warning != nullptr) {
+        blend_if_unsupported_warning->setText(
+            QObject::tr("The preserved Photoshop Blend If payload will be replaced with editable RGB defaults "
+                        "when you choose OK."));
+      }
+      load_blend_if_controls();
+      emit_preview(true);
+    });
+  }
   gradient_controls->changed = [&emit_preview](bool immediate) { emit_preview(immediate); };
   stroke_gradient_controls->changed = [&emit_preview](bool immediate) { emit_preview(immediate); };
   QObject::connect(categories, &QListWidget::itemSelectionChanged, &dialog, restyle_category_rows);

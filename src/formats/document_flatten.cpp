@@ -37,6 +37,15 @@ public:
     dst[3] = clamp_byte((alpha + destination_alpha * (1.0F - alpha)) * 255.0F);
   }
 
+  [[nodiscard]] render_detail::CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
+    if (x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
+      return {};
+    }
+    const auto* pixel = destination_.pixel(x, y);
+    return render_detail::CompositeSample{RgbColor{pixel[0], pixel[1], pixel[2]},
+                                          static_cast<float>(pixel[3]) / 255.0F};
+  }
+
   void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
     amount = clamp_unit(amount);
     if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
@@ -77,8 +86,10 @@ PixelBuffer flatten_document_rgba8(const Document& document) {
   if (document.width() <= 0 || document.height() <= 0) {
     throw std::runtime_error("Cannot flatten an empty document");
   }
-  if (auto masked = document_alpha_rgba8(document); masked.has_value()) {
-    return std::move(*masked);
+  if (!render_detail::layers_have_rendered_blend_if(document.layers())) {
+    if (auto masked = document_alpha_rgba8(document); masked.has_value()) {
+      return std::move(*masked);
+    }
   }
   PixelBuffer output(document.width(), document.height(), PixelFormat::rgba8());
   output.clear(0);

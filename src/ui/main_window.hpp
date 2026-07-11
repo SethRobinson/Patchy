@@ -888,7 +888,11 @@ private:
   PluginHost plugin_host_;
   QPageLayout print_page_layout_;
   std::optional<ClipboardPayload> clipboard_;
-  std::optional<LayerStyle> layer_style_clipboard_;
+  struct LayerStyleClipboard {
+    LayerStyle style;
+    std::optional<LayerBlendIf> blend_if;
+  };
+  std::optional<LayerStyleClipboard> layer_style_clipboard_;
   std::optional<QByteArray> patchy_system_clipboard_signature_;
   std::vector<LayerId> pending_layer_opacity_ids_;
   QStringList recent_files_;

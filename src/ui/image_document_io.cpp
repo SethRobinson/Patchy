@@ -85,6 +85,18 @@ public:
     }
   }
 
+  [[nodiscard]] render_detail::CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
+    const auto image_x = x - origin_x_;
+    const auto image_y = y - origin_y_;
+    if (image_x < 0 || image_y < 0 || image_x >= destination_.width() || image_y >= destination_.height()) {
+      return {};
+    }
+    const auto* pixel =
+        destination_.constScanLine(image_y) + static_cast<std::size_t>(image_x) * (preserve_alpha_ ? 4U : 3U);
+    return render_detail::CompositeSample{RgbColor{pixel[0], pixel[1], pixel[2]},
+                                          preserve_alpha_ ? static_cast<float>(pixel[3]) / 255.0F : 1.0F};
+  }
+
   void composite_source_row(std::int32_t x, std::int32_t y, const std::uint8_t* source_row, std::int32_t width,
                             std::uint16_t channels, float opacity) {
     if (source_row == nullptr || width <= 0 || channels < 3) {
@@ -421,7 +433,8 @@ bool has_enabled_backdrop_dependent_style(const LayerStyle& style) noexcept {
 
 bool layer_style_cache_eligible(const Layer& layer, const PixelBuffer& source) {
   if (layer.kind() != LayerKind::Pixel || layer.blend_mode() != BlendMode::Normal || has_enabled_mask(layer) ||
-      source.empty() || source.format().bit_depth != BitDepth::UInt8 || source.format().channels < 3) {
+      render_detail::layer_has_rendered_blend_if(layer) || source.empty() ||
+      source.format().bit_depth != BitDepth::UInt8 || source.format().channels < 3) {
     return false;
   }
   const auto& style = layer.layer_style();
@@ -851,14 +864,20 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
     if (profiling) {
       ++profile->groups;
     }
-    // Clip runs inside the children go through render_detail::composite_layer
-    // (no per-member style cache/profiling); unclipped children keep this
-    // path's cached-style fast path via the composite_one callback.
-    render_detail::composite_sibling_layers(
-        target, layer.children(), clip, overrides, false, masks,
-        [&](QImageCompositeTarget& child_target, const Layer& child) {
-          composite_document_layer(child_target, child, clip, overrides, masks, profile, path);
-        });
+    if (render_detail::layer_has_rendered_blend_if(layer)) {
+      // A Blend-If group must be rendered as one isolated source so This Layer
+      // samples the group result and Underlying Layer samples the outer stack.
+      render_detail::composite_layer(target, layer, clip, overrides, false, masks);
+    } else {
+      // Clip runs inside the children go through render_detail::composite_layer
+      // (no per-member style cache/profiling); unclipped children keep this
+      // path's cached-style fast path via the composite_one callback.
+      render_detail::composite_sibling_layers(
+          target, layer.children(), clip, overrides, false, masks,
+          [&](QImageCompositeTarget& child_target, const Layer& child) {
+            composite_document_layer(child_target, child, clip, overrides, masks, profile, path);
+          });
+    }
     action = "group";
   } else if (kind == LayerKind::Adjustment) {
     if (profiling) {
@@ -984,8 +1003,12 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
     return {};
   }
 
-  QImage image(clip.width, clip.height, preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
-  if (preserve_alpha) {
+  const auto logical_alpha_render =
+      !preserve_alpha && render_detail::layers_have_rendered_underlying_blend_if(document.layers());
+  const auto target_preserves_alpha = preserve_alpha || logical_alpha_render;
+  QImage image(clip.width, clip.height,
+               target_preserves_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
+  if (target_preserves_alpha) {
     image.fill(Qt::transparent);
   } else {
     image.fill(Qt::white);
@@ -1020,15 +1043,15 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
       const Rect strip_clip{clip.x, clip.y + start, clip.width, rows};
       strips.push_back(StripJob{
           strip_clip,
-          std::async(std::launch::async, [&document, strip_clip, preserve_alpha, overrides, masks] {
+          std::async(std::launch::async, [&document, strip_clip, target_preserves_alpha, overrides, masks] {
             QImage strip_image(strip_clip.width, strip_clip.height,
-                               preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
-            if (preserve_alpha) {
+                               target_preserves_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
+            if (target_preserves_alpha) {
               strip_image.fill(Qt::transparent);
             } else {
               strip_image.fill(Qt::white);
             }
-            QImageCompositeTarget strip_target(strip_image, preserve_alpha, strip_clip.x, strip_clip.y);
+            QImageCompositeTarget strip_target(strip_image, target_preserves_alpha, strip_clip.x, strip_clip.y);
             render_detail::composite_sibling_layers(
                 strip_target, document.layers(), strip_clip, overrides, false, masks,
                 [&](QImageCompositeTarget& target, const Layer& layer) {
@@ -1039,18 +1062,37 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
     }
     for (auto& strip : strips) {
       const auto strip_image = strip.image.get();
-      const auto row_bytes = static_cast<std::size_t>(strip_image.width()) * (preserve_alpha ? 4U : 3U);
+      const auto row_bytes =
+          static_cast<std::size_t>(strip_image.width()) * (target_preserves_alpha ? 4U : 3U);
       for (std::int32_t row = 0; row < strip_image.height(); ++row) {
         std::memcpy(image.scanLine(strip.clip.y - clip.y + row), strip_image.constScanLine(row), row_bytes);
       }
     }
   } else {
-    QImageCompositeTarget target(image, preserve_alpha, clip.x, clip.y);
+    QImageCompositeTarget target(image, target_preserves_alpha, clip.x, clip.y);
     render_detail::composite_sibling_layers(
         target, document.layers(), clip, overrides, false, masks,
         [&](QImageCompositeTarget& layer_target, const Layer& layer) {
           composite_document_layer(layer_target, layer, clip, overrides, masks, profiling ? &profile : nullptr);
         });
+  }
+  if (logical_alpha_render) {
+    QImage matted(image.width(), image.height(), QImage::Format_RGB888);
+    matted.fill(Qt::white);
+    for (int y = 0; y < image.height(); ++y) {
+      const auto* source = image.constScanLine(y);
+      auto* destination = matted.scanLine(y);
+      for (int x = 0; x < image.width(); ++x) {
+        const auto alpha = static_cast<int>(source[3]);
+        for (int channel = 0; channel < 3; ++channel) {
+          destination[channel] = static_cast<std::uint8_t>(
+              (static_cast<int>(source[channel]) * alpha + 255 * (255 - alpha) + 127) / 255);
+        }
+        source += 4U;
+        destination += 3U;
+      }
+    }
+    image = std::move(matted);
   }
   apply_document_resolution(image, document);
   if (timed_render) {

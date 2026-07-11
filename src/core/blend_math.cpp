@@ -180,6 +180,103 @@ float clamp_unit(float value) {
   return std::clamp(value, 0.0F, 1.0F);
 }
 
+float blend_if_threshold_factor(const BlendIfThresholds& thresholds, std::uint8_t value) noexcept {
+  if (value < thresholds.black_low || value > thresholds.white_high) {
+    return 0.0F;
+  }
+  if (value < thresholds.black_high) {
+    // Photoshop's split handles include both byte endpoints in the feather.
+    // This makes the first retained value 1/(span+1), rather than zero, while
+    // joined handles keep their hard-cutoff behavior.
+    const auto width = static_cast<int>(thresholds.black_high) - static_cast<int>(thresholds.black_low) + 1;
+    return static_cast<float>(static_cast<int>(value) - static_cast<int>(thresholds.black_low) + 1) /
+           static_cast<float>(width);
+  }
+  if (value > thresholds.white_low) {
+    const auto width = static_cast<int>(thresholds.white_high) - static_cast<int>(thresholds.white_low) + 1;
+    return static_cast<float>(static_cast<int>(thresholds.white_high) - static_cast<int>(value) + 1) /
+           static_cast<float>(width);
+  }
+  return 1.0F;
+}
+
+std::uint8_t blend_if_gray_value(RgbColor color) noexcept {
+  // Photoshop's composite RGB control follows the PDF-family perceived-luma
+  // weights. Fixed thousandths reproduce the PS 2026 primary/secondary-color
+  // probes without toolchain-dependent floating-point tie behavior.
+  return static_cast<std::uint8_t>((299 * static_cast<int>(color.red) + 590 * static_cast<int>(color.green) +
+                                    111 * static_cast<int>(color.blue) + 500) /
+                                   1000);
+}
+
+namespace {
+
+float blend_if_color_factor(const LayerBlendIf& settings, RgbColor color, bool source) noexcept {
+  const std::array<std::uint8_t, 4> values{blend_if_gray_value(color), color.red, color.green, color.blue};
+  float factor = 1.0F;
+  for (std::size_t channel = 0; channel < settings.channels.size(); ++channel) {
+    const auto& ranges = settings.channels[channel];
+    factor *= blend_if_threshold_factor(source ? ranges.this_layer : ranges.underlying_layer, values[channel]);
+    if (factor <= 0.0F) {
+      return 0.0F;
+    }
+  }
+  return factor;
+}
+
+std::uint8_t blend_if_threshold_alpha_byte(const BlendIfThresholds& thresholds,
+                                           std::uint8_t value) noexcept {
+  if (value < thresholds.black_low || value > thresholds.white_high) {
+    return 0;
+  }
+  if (value < thresholds.black_high) {
+    const auto numerator = static_cast<int>(value) - static_cast<int>(thresholds.black_low) + 1;
+    const auto denominator =
+        static_cast<int>(thresholds.black_high) - static_cast<int>(thresholds.black_low) + 1;
+    return static_cast<std::uint8_t>((numerator * 255) / denominator);
+  }
+  if (value > thresholds.white_low) {
+    const auto numerator = static_cast<int>(thresholds.white_high) - static_cast<int>(value) + 1;
+    const auto denominator =
+        static_cast<int>(thresholds.white_high) - static_cast<int>(thresholds.white_low) + 1;
+    return static_cast<std::uint8_t>((numerator * 255) / denominator);
+  }
+  return 255;
+}
+
+std::uint8_t blend_if_color_alpha_byte(const LayerBlendIf& settings, RgbColor color, bool source) noexcept {
+  const std::array<std::uint8_t, 4> values{blend_if_gray_value(color), color.red, color.green, color.blue};
+  int factor = 255;
+  for (std::size_t channel = 0; channel < settings.channels.size(); ++channel) {
+    const auto& ranges = settings.channels[channel];
+    const auto channel_factor = blend_if_threshold_alpha_byte(
+        source ? ranges.this_layer : ranges.underlying_layer, values[channel]);
+    factor = (factor * static_cast<int>(channel_factor)) / 255;
+    if (factor <= 0) {
+      return 0;
+    }
+  }
+  return static_cast<std::uint8_t>(factor);
+}
+
+}  // namespace
+
+float blend_if_source_factor(const LayerBlendIf& settings, RgbColor source) noexcept {
+  return blend_if_color_factor(settings, source, true);
+}
+
+float blend_if_underlying_factor(const LayerBlendIf& settings, RgbColor underlying) noexcept {
+  return blend_if_color_factor(settings, underlying, false);
+}
+
+std::uint8_t blend_if_source_alpha_byte(const LayerBlendIf& settings, RgbColor source) noexcept {
+  return blend_if_color_alpha_byte(settings, source, true);
+}
+
+std::uint8_t blend_if_underlying_alpha_byte(const LayerBlendIf& settings, RgbColor underlying) noexcept {
+  return blend_if_color_alpha_byte(settings, underlying, false);
+}
+
 std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> source,
                                       std::array<std::uint8_t, 3> destination, BlendMode mode) {
   // The four non-separable modes use the PDF-spec luma-based algorithm shared by Photoshop

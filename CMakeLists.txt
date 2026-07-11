@@ -399,6 +399,8 @@ if(PATCHY_BUILD_APP)
       src/ui/filter_workflows.cpp
       src/ui/font_picker.hpp
       src/ui/font_picker.cpp
+      src/ui/blend_if_range_editor.hpp
+      src/ui/blend_if_range_editor.cpp
       src/ui/gradient_stops_editor.hpp
       src/ui/gradient_stops_editor.cpp
       src/ui/hotkey_editor.hpp

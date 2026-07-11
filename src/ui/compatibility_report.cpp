@@ -12,7 +12,6 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
-#include <array>
 #include <string>
 
 namespace patchy::ui {
@@ -98,30 +97,17 @@ void append_unrendered_style_warnings(const Layer& layer, QStringList& warnings)
   }
 }
 
-bool has_non_default_blending_ranges(const std::vector<std::uint8_t>& payload) {
-  if (payload.empty()) {
-    return false;
-  }
-  constexpr std::array<std::uint8_t, 8> kIdentityRange{0, 0, 255, 255, 0, 0, 255, 255};
-  if (payload.size() % kIdentityRange.size() != 0U) {
-    // Preserve unusual payload shapes and surface them rather than assuming an
-    // unknown Photoshop variant is the identity setting.
-    return true;
-  }
-  for (std::size_t offset = 0; offset < payload.size(); offset += kIdentityRange.size()) {
-    if (!std::equal(kIdentityRange.begin(), kIdentityRange.end(), payload.begin() + offset)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 void append_layer_warnings(const Layer& layer, QStringList& warnings) {
   append_unrendered_style_warnings(layer, warnings);
-  if (has_non_default_blending_ranges(layer.raw_psd_blending_ranges()) ||
-      has_non_default_blending_ranges(layer.raw_psd_group_boundary_blending_ranges())) {
-    warnings << QObject::tr("%1 contains non-default Photoshop Blend If data that Patchy preserves for PSD "
-                            "round-trip but does not render or edit.")
+  if (!layer.raw_psd_blending_ranges().empty() &&
+      layer.blend_if_payload_status() == BlendIfPayloadStatus::Unsupported) {
+    warnings << QObject::tr("%1 contains Photoshop Blend If data for an unsupported color mode or payload shape. "
+                            "Patchy preserves it for PSD round-trip but does not render or edit it.")
+                    .arg(QString::fromStdString(layer.name()));
+  }
+  if (blend_if_payload_has_non_identity_or_unsupported(layer.raw_psd_group_boundary_blending_ranges())) {
+    warnings << QObject::tr("%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves "
+                            "that boundary data but does not render or edit it.")
                     .arg(QString::fromStdString(layer.name()));
   }
 

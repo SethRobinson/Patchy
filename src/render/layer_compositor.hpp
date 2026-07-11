@@ -24,6 +24,110 @@ struct LayerBoundsOverride {
   std::optional<bool> visible{};
 };
 
+struct CompositeSample {
+  RgbColor color{};
+  float alpha{0.0F};
+};
+
+[[nodiscard]] inline bool layer_has_rendered_blend_if(const Layer& layer) noexcept {
+  return layer.blend_if_payload_status() == BlendIfPayloadStatus::Supported &&
+         !blend_if_is_identity(layer.blend_if());
+}
+
+[[nodiscard]] inline bool blend_if_has_underlying_ranges(const LayerBlendIf& settings) noexcept {
+  const BlendIfThresholds identity;
+  return std::any_of(settings.channels.begin(), settings.channels.end(), [&](const BlendIfChannelRanges& channel) {
+    return channel.underlying_layer != identity;
+  });
+}
+
+[[nodiscard]] inline bool layer_has_rendered_underlying_blend_if(const Layer& layer) noexcept {
+  return layer_has_rendered_blend_if(layer) && blend_if_has_underlying_ranges(layer.blend_if());
+}
+
+[[nodiscard]] inline bool layers_have_rendered_blend_if(const std::vector<Layer>& layers) noexcept {
+  for (const auto& layer : layers) {
+    if (layer_has_rendered_blend_if(layer) ||
+        (layer.kind() == LayerKind::Group && layers_have_rendered_blend_if(layer.children()))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+[[nodiscard]] inline bool layers_have_rendered_underlying_blend_if(const std::vector<Layer>& layers) noexcept {
+  for (const auto& layer : layers) {
+    if (layer_has_rendered_underlying_blend_if(layer) ||
+        (layer.kind() == LayerKind::Group && layers_have_rendered_underlying_blend_if(layer.children()))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+[[nodiscard]] inline float blend_if_underlying_alpha_factor(const LayerBlendIf& settings,
+                                                             CompositeSample underlying) noexcept {
+  // Photoshop treats the transparent part of a partially covered backdrop as
+  // passing the Underlying Layer test. Only the covered fraction is tested
+  // against the destination color.
+  const auto destination_alpha = clamp_unit(underlying.alpha);
+  return (1.0F - destination_alpha) +
+         destination_alpha *
+             (static_cast<float>(blend_if_underlying_alpha_byte(settings, underlying.color)) / 255.0F);
+}
+
+[[nodiscard]] inline float blend_if_source_alpha_factor(const LayerBlendIf& settings,
+                                                        RgbColor source) noexcept {
+  return static_cast<float>(blend_if_source_alpha_byte(settings, source)) / 255.0F;
+}
+
+// Blend If must inspect the layer stack as it stood before any effect from the
+// current layer was drawn. Capturing the touched rectangle also keeps the
+// result stable while the current layer composites pixel by pixel.
+class CompositeSnapshot {
+public:
+  CompositeSnapshot() = default;
+
+  template <typename Target>
+  CompositeSnapshot(const Target& source, Rect rect)
+      : rect_(rect),
+        rgb_(static_cast<std::size_t>(std::max(0, rect.width)) *
+                 static_cast<std::size_t>(std::max(0, rect.height)) * 3U,
+             0),
+        alpha_(static_cast<std::size_t>(std::max(0, rect.width)) *
+                   static_cast<std::size_t>(std::max(0, rect.height)),
+               0.0F) {
+    for (std::int32_t y = 0; y < rect_.height; ++y) {
+      for (std::int32_t x = 0; x < rect_.width; ++x) {
+        const auto index =
+            static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+        const auto sample = source.sample_color(rect_.x + x, rect_.y + y);
+        rgb_[index * 3U + 0U] = sample.color.red;
+        rgb_[index * 3U + 1U] = sample.color.green;
+        rgb_[index * 3U + 2U] = sample.color.blue;
+        alpha_[index] = clamp_unit(sample.alpha);
+      }
+    }
+  }
+
+  [[nodiscard]] CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
+    x -= rect_.x;
+    y -= rect_.y;
+    if (x < 0 || y < 0 || x >= rect_.width || y >= rect_.height) {
+      return {};
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+    const auto* rgb = rgb_.data() + index * 3U;
+    return CompositeSample{RgbColor{rgb[0], rgb[1], rgb[2]}, alpha_[index]};
+  }
+
+private:
+  Rect rect_{};
+  std::vector<std::uint8_t> rgb_;
+  std::vector<float> alpha_;
+};
+
 // ---------------------------------------------------------------------------
 // Optional cache hook for the expensive per-effect float masks (distance
 // transforms, spread expansions, interior blurs). A provider that returns a
@@ -1314,7 +1418,8 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
 template <typename Target>
 void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides = nullptr,
-                     bool throw_on_unsupported_pixel_format = false, StyleMaskProvider* masks = nullptr);
+                     bool throw_on_unsupported_pixel_format = false, StyleMaskProvider* masks = nullptr,
+                     const CompositeSnapshot* blend_if_backdrop = nullptr);
 
 template <typename Target>
 void composite_adjustment_layer(Target& destination, const Layer& layer, Rect clip,
@@ -1341,11 +1446,26 @@ void composite_adjustment_layer(Target& destination, const Layer& layer, Rect cl
   // per-pixel settings math (pow() for Levels gamma, per pixel, per channel)
   // dominated patch renders under adjustment stacks before this.
   const auto lut = build_adjustment_lut(*settings);
+  const auto has_blend_if = layer_has_rendered_blend_if(layer);
+  const auto blend_if = has_blend_if ? layer.blend_if() : LayerBlendIf{};
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-      const auto amount = layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) * layer.opacity();
+      auto amount = layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) * layer.opacity();
       if (amount <= 0.0F) {
         continue;
+      }
+      if (has_blend_if) {
+        const auto underlying = destination.sample_color(x, y);
+        auto adjusted = apply_adjustment_to_color(underlying.color, *settings);
+        if (lut.has_value()) {
+          adjusted = RgbColor{lut->red[underlying.color.red], lut->green[underlying.color.green],
+                              lut->blue[underlying.color.blue]};
+        }
+        amount *= blend_if_source_alpha_factor(blend_if, adjusted) *
+                  blend_if_underlying_alpha_factor(blend_if, underlying);
+        if (amount <= 0.0F) {
+          continue;
+        }
       }
       if constexpr (requires { destination.adjust_color(x, y, *lut, amount); }) {
         if (lut.has_value()) {
@@ -1361,7 +1481,8 @@ void composite_adjustment_layer(Target& destination, const Layer& layer, Rect cl
 template <typename Target>
 void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                            const std::vector<LayerBoundsOverride>* overrides,
-                           bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks = nullptr) {
+                           bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks = nullptr,
+                           const CompositeSnapshot* blend_if_backdrop_override = nullptr) {
   if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F || layer.kind() != LayerKind::Pixel) {
     return;
   }
@@ -1380,6 +1501,16 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   const auto bounds = layer_bounds_for_render(layer, overrides);
   const auto layer_mask_bounds = layer_mask_bounds_for_render(layer, overrides);
   const auto& style = layer.layer_style();
+  const auto draw_rect = intersect_rect(clip, bounds);
+  const auto has_blend_if = layer_has_rendered_blend_if(layer);
+  const auto blend_if = has_blend_if ? layer.blend_if() : LayerBlendIf{};
+  const auto has_underlying_blend_if = has_blend_if && blend_if_has_underlying_ranges(blend_if);
+  std::optional<CompositeSnapshot> owned_blend_if_backdrop;
+  const CompositeSnapshot* blend_if_backdrop = blend_if_backdrop_override;
+  if (has_underlying_blend_if && blend_if_backdrop == nullptr && !draw_rect.empty()) {
+    owned_blend_if_backdrop.emplace(destination, draw_rect);
+    blend_if_backdrop = &*owned_blend_if_backdrop;
+  }
   if (style.effects_visible) {
     for (std::uint32_t index = 0; index < style.drop_shadows.size(); ++index) {
       const auto& shadow = style.drop_shadows[index];
@@ -1395,7 +1526,6 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     }
   }
 
-  const auto draw_rect = intersect_rect(clip, bounds);
   std::vector<PreparedSatin> prepared_satins;
   if (!draw_rect.empty() && style.effects_visible) {
     prepared_satins.reserve(style.satins.size());
@@ -1418,7 +1548,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       const auto source_stride = source.stride_bytes();
       const auto has_enabled_mask = layer.mask().has_value() && !layer.mask()->disabled;
       bool composited_by_target = false;
-      if (!has_enabled_mask && prepared_satins.empty() && layer.blend_mode() == BlendMode::Normal) {
+      if (!has_blend_if && !has_enabled_mask && prepared_satins.empty() &&
+          layer.blend_mode() == BlendMode::Normal) {
         if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
                                 std::int32_t width, std::uint16_t channel_count, float opacity) {
                         target.composite_source_row(x, y, row, width, channel_count, opacity);
@@ -1441,29 +1572,84 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             const auto sx = x - bounds.x;
             const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
             const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-            const auto alpha = source_alpha * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) *
-                               layer.opacity();
+            auto alpha = source_alpha * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) *
+                         layer.opacity();
             if (alpha <= 0.0F) {
               continue;
             }
 
-            std::array<std::uint8_t, 3> styled_color{src[0], src[1], src[2]};
-            for (const auto& prepared : prepared_satins) {
-              const auto mask_index =
-                  static_cast<std::size_t>(y - prepared.mask_bounds.y) *
-                      static_cast<std::size_t>(prepared.mask_bounds.width) +
-                  static_cast<std::size_t>(x - prepared.mask_bounds.x);
-              const auto coverage =
-                  prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
-              if (coverage <= 0.0F) {
+            if constexpr (requires { destination.record_clip_coverage(x, y, alpha); }) {
+              destination.record_clip_coverage(x, y, alpha);
+            }
+
+            const auto source_color = RgbColor{src[0], src[1], src[2]};
+            if (has_blend_if) {
+              alpha *= blend_if_source_alpha_factor(blend_if, source_color);
+              if (has_underlying_blend_if) {
+                alpha *= blend_if_underlying_alpha_factor(blend_if, blend_if_backdrop->sample_color(x, y));
+              }
+              if (alpha <= 0.0F) {
                 continue;
               }
-              const auto& color = prepared.effect->color;
-              styled_color = composite_blended_rgb({color.red, color.green, color.blue}, styled_color,
-                                                    prepared.effect->blend_mode, coverage, 1.0F);
+            }
+
+            std::array<std::uint8_t, 3> styled_color{src[0], src[1], src[2]};
+            if (!has_blend_if) {
+              for (const auto& prepared : prepared_satins) {
+                const auto mask_index =
+                    static_cast<std::size_t>(y - prepared.mask_bounds.y) *
+                        static_cast<std::size_t>(prepared.mask_bounds.width) +
+                    static_cast<std::size_t>(x - prepared.mask_bounds.x);
+                const auto coverage =
+                    prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
+                if (coverage <= 0.0F) {
+                  continue;
+                }
+                const auto& color = prepared.effect->color;
+                styled_color = composite_blended_rgb({color.red, color.green, color.blue}, styled_color,
+                                                      prepared.effect->blend_mode, coverage, 1.0F);
+              }
             }
             destination.composite_color(x, y, RgbColor{styled_color[0], styled_color[1], styled_color[2]}, alpha,
                                         layer.blend_mode());
+          }
+        }
+      }
+    });
+  }
+
+  // Satin is normally folded into the base color to preserve Patchy's
+  // established identity-path bytes. Photoshop does not gate layer effects
+  // with Blend If, however, so a Blend-If layer renders Satin as its own
+  // interior effect using the original (ungated) layer matte.
+  if (has_blend_if && !draw_rect.empty() && !prepared_satins.empty()) {
+    profile_compositor_step(destination, layer, "satin_effect", draw_rect, [&] {
+      const auto format = source.format();
+      const auto channels = format.channels;
+      const auto* source_bytes = source.data().data();
+      const auto source_stride = source.stride_bytes();
+      for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+        const auto sy = y - bounds.y;
+        const auto* source_row = source_bytes + static_cast<std::size_t>(sy) * source_stride;
+        for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+          const auto sx = x - bounds.x;
+          const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
+          const auto source_alpha =
+              (channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F) *
+              layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) * layer.opacity();
+          if (source_alpha <= 0.0F) {
+            continue;
+          }
+          for (const auto& prepared : prepared_satins) {
+            const auto mask_index =
+                static_cast<std::size_t>(y - prepared.mask_bounds.y) *
+                    static_cast<std::size_t>(prepared.mask_bounds.width) +
+                static_cast<std::size_t>(x - prepared.mask_bounds.x);
+            const auto alpha =
+                source_alpha * prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
+            if (alpha > 0.0F) {
+              destination.composite_color(x, y, prepared.effect->color, alpha, prepared.effect->blend_mode);
+            }
           }
         }
       }
@@ -1520,8 +1706,11 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
 }
 
 // Isolated buffer for one Photoshop clipping group. The base layer composites
-// in normally, then freeze_clip() locks the accumulated alpha plane as the clip
-// mask: clipped members blend against the base's COLOR at full strength
+// in normally, then freeze_clip() locks the clipping shape. Identity layers
+// preserve Patchy's historical accumulated-alpha shape; Blend-If bases use a
+// separately recorded original content/mask coverage so gating the base does
+// not hide clipped members. Clipped members blend against the base's COLOR at
+// full strength
 // (destination alpha 1 - Photoshop's default "Blend Clipped Layers as Group"
 // semantics) without growing coverage, and a clipped adjustment layer's
 // adjust_color touches only masked pixels. merge_into() then lays the ensemble
@@ -1529,13 +1718,15 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
 // is already folded into the frozen alpha, so the group fades as a unit.
 class IsolatedClipGroupTarget {
 public:
-  explicit IsolatedClipGroupTarget(Rect rect)
+  explicit IsolatedClipGroupTarget(Rect rect, bool use_original_clip_coverage = false)
       : rect_(rect),
         rgb_(static_cast<std::size_t>(std::max(0, rect.width)) * static_cast<std::size_t>(std::max(0, rect.height)) *
                  3U,
              0),
         alpha_(static_cast<std::size_t>(std::max(0, rect.width)) * static_cast<std::size_t>(std::max(0, rect.height)),
-               0.0F) {}
+               0.0F),
+        clip_alpha_(alpha_.size(), 0.0F),
+        use_original_clip_coverage_(use_original_clip_coverage) {}
 
   void composite_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha, BlendMode mode) {
     alpha = clamp_unit(alpha);
@@ -1547,7 +1738,8 @@ public:
     const auto index =
         static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
     auto& destination_alpha = alpha_[index];
-    if (frozen_ && destination_alpha <= 0.0F) {
+    const auto clip_alpha = clip_alpha_[index];
+    if (frozen_ && clip_alpha <= 0.0F) {
       return;  // outside the clip mask
     }
     auto* dst = rgb_.data() + index * 3U;
@@ -1557,9 +1749,43 @@ public:
     for (int channel = 0; channel < 3; ++channel) {
       dst[channel] = blended[static_cast<std::size_t>(channel)];
     }
-    if (!frozen_) {
+    if (frozen_) {
+      // Clipped members paint at full color strength inside the original base
+      // matte, but can restore output coverage that the base's Blend If hid.
+      const auto normalized_destination_alpha =
+          clip_alpha > 0.0F ? std::min(destination_alpha, clip_alpha) / clip_alpha : 0.0F;
+      const auto clipped_output_alpha =
+          clip_alpha * (alpha + normalized_destination_alpha * (1.0F - alpha));
+      destination_alpha = std::max(destination_alpha, clipped_output_alpha);
+    } else {
       destination_alpha = alpha + destination_alpha * (1.0F - alpha);
     }
+  }
+
+  [[nodiscard]] CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
+    x -= rect_.x;
+    y -= rect_.y;
+    if (x < 0 || y < 0 || x >= rect_.width || y >= rect_.height) {
+      return {};
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+    const auto* rgb = rgb_.data() + index * 3U;
+    return CompositeSample{RgbColor{rgb[0], rgb[1], rgb[2]}, alpha_[index]};
+  }
+
+  void record_clip_coverage(std::int32_t x, std::int32_t y, float alpha) noexcept {
+    if (frozen_ || !use_original_clip_coverage_) {
+      return;
+    }
+    x -= rect_.x;
+    y -= rect_.y;
+    if (x < 0 || y < 0 || x >= rect_.width || y >= rect_.height) {
+      return;
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+    clip_alpha_[index] = std::max(clip_alpha_[index], clamp_unit(alpha));
   }
 
   void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
@@ -1601,6 +1827,12 @@ public:
   }
 
   void freeze_clip() noexcept {
+    if (!use_original_clip_coverage_) {
+      // Preserve the historical/default path byte for byte: before Blend If,
+      // Patchy deliberately let base-layer styles contribute to the frozen
+      // clipping shape. Only Blend-If bases need Photoshop's original matte.
+      clip_alpha_ = alpha_;
+    }
     frozen_ = true;
   }
 
@@ -1620,10 +1852,40 @@ public:
     }
   }
 
+  template <typename Target>
+  void merge_layer_into(Target& destination, const Layer& layer, const LayerBlendIf& blend_if,
+                        const CompositeSnapshot* backdrop, std::optional<Rect> layer_mask_bounds) const {
+    const auto mode = layer.blend_mode() == BlendMode::PassThrough ? BlendMode::Normal : layer.blend_mode();
+    const auto has_underlying_blend_if = blend_if_has_underlying_ranges(blend_if);
+    for (std::int32_t y = 0; y < rect_.height; ++y) {
+      for (std::int32_t x = 0; x < rect_.width; ++x) {
+        const auto index =
+            static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+        auto alpha = alpha_[index] * layer.opacity() *
+                     layer_mask_alpha_for_render(layer, rect_.x + x, rect_.y + y, layer_mask_bounds);
+        if (alpha <= 0.0F) {
+          continue;
+        }
+        const auto* px = rgb_.data() + index * 3U;
+        const auto color = RgbColor{px[0], px[1], px[2]};
+        alpha *= blend_if_source_alpha_factor(blend_if, color);
+        if (has_underlying_blend_if) {
+          alpha *= blend_if_underlying_alpha_factor(
+              blend_if, backdrop->sample_color(rect_.x + x, rect_.y + y));
+        }
+        if (alpha > 0.0F) {
+          destination.composite_color(rect_.x + x, rect_.y + y, color, alpha, mode);
+        }
+      }
+    }
+  }
+
 private:
   Rect rect_{};
   std::vector<std::uint8_t> rgb_;
   std::vector<float> alpha_;
+  std::vector<float> clip_alpha_;
+  bool use_original_clip_coverage_{false};
   bool frozen_{false};
 };
 
@@ -1664,8 +1926,13 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
       index = run_end;
       continue;
     }
-    IsolatedClipGroupTarget group(group_rect);
-    composite_layer(group, layer, group_rect, overrides, throw_on_unsupported_pixel_format, masks);
+    std::optional<CompositeSnapshot> base_backdrop;
+    if (layer_has_rendered_underlying_blend_if(layer)) {
+      base_backdrop.emplace(destination, group_rect);
+    }
+    IsolatedClipGroupTarget group(group_rect, layer_has_rendered_blend_if(layer));
+    composite_layer(group, layer, group_rect, overrides, throw_on_unsupported_pixel_format, masks,
+                    base_backdrop.has_value() ? &*base_backdrop : nullptr);
     group.freeze_clip();
     for (std::size_t member = index + 1; member < run_end; ++member) {
       composite_layer(group, siblings[member], group_rect, overrides, throw_on_unsupported_pixel_format, masks);
@@ -1689,12 +1956,25 @@ void composite_layers(Target& destination, const std::vector<Layer>& layers, Rec
 template <typename Target>
 void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides,
-                     bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks) {
+                     bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
+                     const CompositeSnapshot* blend_if_backdrop) {
   if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
     return;
   }
 
   if (layer.kind() == LayerKind::Group) {
+    if (layer_has_rendered_blend_if(layer)) {
+      const auto blend_if = layer.blend_if();
+      std::optional<CompositeSnapshot> backdrop;
+      if (blend_if_has_underlying_ranges(blend_if)) {
+        backdrop.emplace(destination, clip);
+      }
+      IsolatedClipGroupTarget isolated(clip);
+      composite_layers(isolated, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks);
+      isolated.merge_layer_into(destination, layer, blend_if, backdrop.has_value() ? &*backdrop : nullptr,
+                                layer_mask_bounds_for_render(layer, overrides));
+      return;
+    }
     composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks);
     return;
   }
@@ -1704,7 +1984,8 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
     return;
   }
 
-  composite_pixel_layer(destination, layer, clip, overrides, throw_on_unsupported_pixel_format, masks);
+  composite_pixel_layer(destination, layer, clip, overrides, throw_on_unsupported_pixel_format, masks,
+                        blend_if_backdrop);
 }
 
 }  // namespace patchy::render_detail

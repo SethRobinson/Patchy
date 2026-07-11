@@ -2,9 +2,11 @@
 
 #include "core/pixel_buffer.hpp"
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -89,6 +91,58 @@ struct RgbColor {
   std::uint8_t green{0};
   std::uint8_t blue{0};
 };
+
+// Photoshop Blend If stores the two halves of each black and white triangle
+// directly. Joined handles have equal values; split handles describe the
+// partially blended transition between the two values.
+struct BlendIfThresholds {
+  std::uint8_t black_low{0};
+  std::uint8_t black_high{0};
+  std::uint8_t white_low{255};
+  std::uint8_t white_high{255};
+
+  bool operator==(const BlendIfThresholds&) const = default;
+};
+
+struct BlendIfChannelRanges {
+  BlendIfThresholds this_layer;
+  BlendIfThresholds underlying_layer;
+
+  bool operator==(const BlendIfChannelRanges&) const = default;
+};
+
+enum class BlendIfChannel : std::uint8_t {
+  Gray,
+  Red,
+  Green,
+  Blue,
+};
+
+struct LayerBlendIf {
+  // Composite Gray, Red, Green, and Blue, in Photoshop's native record order.
+  std::array<BlendIfChannelRanges, 4> channels{};
+
+  bool operator==(const LayerBlendIf&) const = default;
+};
+
+enum class BlendIfPayloadStatus : std::uint8_t {
+  Empty,
+  Supported,
+  Unsupported,
+};
+
+struct DecodedLayerBlendIf {
+  LayerBlendIf settings;
+  BlendIfPayloadStatus status{BlendIfPayloadStatus::Empty};
+};
+
+[[nodiscard]] bool blend_if_thresholds_are_valid(const BlendIfThresholds& thresholds) noexcept;
+[[nodiscard]] bool blend_if_is_identity(const LayerBlendIf& settings) noexcept;
+[[nodiscard]] DecodedLayerBlendIf decode_layer_blend_if(std::span<const std::uint8_t> payload) noexcept;
+[[nodiscard]] bool blend_if_payload_has_non_identity_or_unsupported(
+    std::span<const std::uint8_t> payload) noexcept;
+[[nodiscard]] std::vector<std::uint8_t> encode_layer_blend_if(
+    const LayerBlendIf& settings, std::span<const std::uint8_t> original_payload = {});
 
 struct GradientColorStop {
   float location{0.0F};
@@ -285,14 +339,17 @@ public:
   [[nodiscard]] const std::map<std::string, std::string>& metadata() const noexcept;
   [[nodiscard]] std::optional<LayerMask>& mask() noexcept;
   [[nodiscard]] const std::optional<LayerMask>& mask() const noexcept;
-  // Opaque payloads from the layer-record blending-ranges field. The group-boundary
-  // payload belongs to the synthetic closing record that Patchy's tree model folds
-  // into its corresponding group. These blobs are serialization-only, so mutating
-  // them deliberately does not bump render or content revisions.
+  // Original payloads from the layer-record blending-ranges field. Semantic RGB
+  // edits go through set_blend_if(); these raw accessors remain no-bump PSD
+  // preservation plumbing. The group-boundary payload belongs to the synthetic
+  // closing record folded into its corresponding group and is always raw-only.
   [[nodiscard]] std::vector<std::uint8_t>& raw_psd_blending_ranges() noexcept;
   [[nodiscard]] const std::vector<std::uint8_t>& raw_psd_blending_ranges() const noexcept;
   [[nodiscard]] std::vector<std::uint8_t>& raw_psd_group_boundary_blending_ranges() noexcept;
   [[nodiscard]] const std::vector<std::uint8_t>& raw_psd_group_boundary_blending_ranges() const noexcept;
+  [[nodiscard]] LayerBlendIf blend_if() const noexcept;
+  [[nodiscard]] BlendIfPayloadStatus blend_if_payload_status() const noexcept;
+  [[nodiscard]] bool blend_if_rgb_compatible() const noexcept;
   [[nodiscard]] std::vector<UnknownPsdBlock>& unknown_psd_blocks() noexcept;
   [[nodiscard]] const std::vector<UnknownPsdBlock>& unknown_psd_blocks() const noexcept;
   [[nodiscard]] LayerStyle& layer_style() noexcept;
@@ -311,6 +368,12 @@ public:
   void set_pixels(PixelBuffer pixels);
   void set_mask(LayerMask mask);
   void clear_mask() noexcept;
+  // Semantic Blend If edits are revision-aware and regenerate only the known
+  // range bytes. Raw access above remains no-bump preservation plumbing for PSD
+  // import/export and unknown payload shapes.
+  [[nodiscard]] bool set_blend_if(const LayerBlendIf& settings, bool replace_unsupported = false);
+  void set_blend_if_payload(std::vector<std::uint8_t> payload, bool rgb_compatible = true);
+  void set_blend_if_rgb_compatible(bool compatible) noexcept;
   void add_child(Layer child);
   // For composition-affecting state changes that live on ANOTHER layer (e.g. a
   // sibling joining/leaving this layer's clipping group): bumps the render
@@ -334,6 +397,7 @@ private:
   std::optional<LayerMask> mask_{};
   std::vector<std::uint8_t> raw_psd_blending_ranges_{};
   std::vector<std::uint8_t> raw_psd_group_boundary_blending_ranges_{};
+  bool blend_if_rgb_compatible_{true};
   std::vector<UnknownPsdBlock> unknown_psd_blocks_{};
   LayerStyle layer_style_{};
   std::uint64_t render_revision_{1};

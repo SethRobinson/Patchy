@@ -11,6 +11,7 @@
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
+#include "ui/blend_if_range_editor.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/default_brush_tips.hpp"
 #include "ui/dialog_utils.hpp"
@@ -3023,6 +3024,374 @@ void ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback() {
   CHECK(preview_values.back() == 18);
 }
 
+patchy::LayerBlendIf blend_if_ui_test_settings() {
+  patchy::LayerBlendIf settings;
+  settings.channels[0].this_layer = patchy::BlendIfThresholds{10, 20, 200, 240};
+  settings.channels[0].underlying_layer = patchy::BlendIfThresholds{12, 24, 190, 230};
+  settings.channels[1].this_layer = patchy::BlendIfThresholds{30, 40, 180, 220};
+  settings.channels[1].underlying_layer = patchy::BlendIfThresholds{32, 42, 170, 210};
+  settings.channels[2].this_layer = patchy::BlendIfThresholds{50, 60, 160, 200};
+  settings.channels[2].underlying_layer = patchy::BlendIfThresholds{52, 62, 150, 190};
+  settings.channels[3].this_layer = patchy::BlendIfThresholds{70, 80, 140, 180};
+  settings.channels[3].underlying_layer = patchy::BlendIfThresholds{72, 82, 130, 170};
+  return settings;
+}
+
+void ui_blend_if_range_editor_renders_and_edits_split_handles() {
+  patchy::ui::BlendIfRangeEditorWidget editor;
+  editor.resize(420, 56);
+  editor.set_accessibility_text(QStringLiteral("Test Blend If range"),
+                                QStringLiteral("Alt-drag splits a joined handle"));
+  editor.set_ramp_channel(patchy::BlendIfChannel::Blue);
+  editor.set_thresholds(patchy::BlendIfThresholds{40, 40, 210, 210});
+  editor.show();
+  QApplication::processEvents();
+  editor.setFocus(Qt::OtherFocusReason);
+
+  struct Change {
+    patchy::BlendIfThresholds value;
+    bool immediate{false};
+  };
+  std::vector<Change> changes;
+  editor.changed = [&](patchy::BlendIfThresholds value, bool immediate) {
+    changes.push_back(Change{value, immediate});
+    editor.set_thresholds(value);
+  };
+
+  constexpr int ramp_left = 12;
+  const auto x_for_value = [&](int value) {
+    return ramp_left + static_cast<int>(std::lround(static_cast<double>(value) / 255.0 *
+                                                    static_cast<double>(editor.width() - 26)));
+  };
+  const QPoint joined_black_handle(x_for_value(40) + 3, 36);
+  const QPoint split_black_handle = joined_black_handle + QPoint(60, 0);
+  send_mouse(editor, QEvent::MouseButtonPress, joined_black_handle, Qt::LeftButton, Qt::LeftButton,
+             Qt::AltModifier);
+  send_mouse(editor, QEvent::MouseMove, split_black_handle, Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(editor, QEvent::MouseButtonRelease, split_black_handle, Qt::LeftButton, Qt::NoButton,
+             Qt::AltModifier);
+
+  CHECK(editor.value().black_low == 40);
+  CHECK(editor.value().black_high > editor.value().black_low);
+  CHECK(changes.size() >= 2);
+  CHECK(!changes.front().immediate);
+  CHECK(changes.back().immediate);
+
+  editor.set_thresholds(patchy::BlendIfThresholds{20, 50, 180, 230});
+  changes.clear();
+  send_key(editor, Qt::Key_Right, Qt::ShiftModifier);
+  CHECK(editor.value().black_high == 60);
+  CHECK(!changes.empty() && changes.back().immediate);
+  send_key(editor, Qt::Key_PageDown);
+  send_key(editor, Qt::Key_Home);
+  CHECK(editor.value().white_low == 60);
+  const auto changes_at_white_minimum = changes.size();
+  send_key(editor, Qt::Key_Left);
+  CHECK(editor.value().white_low == 60);
+  CHECK(changes.size() == changes_at_white_minimum);
+  send_key(editor, Qt::Key_PageDown);
+  send_key(editor, Qt::Key_End);
+  CHECK(editor.value().white_high == 255);
+  send_key(editor, Qt::Key_PageDown);
+  send_key(editor, Qt::Key_Home);
+  send_key(editor, Qt::Key_Right, Qt::ShiftModifier);
+  CHECK(editor.value().black_low == 10);
+  const auto before_page_up = editor.value();
+  send_key(editor, Qt::Key_PageUp);
+  CHECK(editor.value() == before_page_up);
+  CHECK(editor.accessibleName() == QStringLiteral("Test Blend If range"));
+  CHECK(editor.accessibleDescription().contains(QStringLiteral("Alt-drag")));
+  editor.set_thresholds(patchy::BlendIfThresholds{20, 70, 175, 235});
+  QApplication::processEvents();
+  save_widget_artifact("ui_blend_if_range_editor", editor);
+}
+
+void ui_layer_style_blend_if_controls_load_channels_and_map_settings() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Blend If Controls",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  const auto original = blend_if_ui_test_settings();
+  layer.set_blend_if_payload(patchy::encode_layer_blend_if(original), true);
+  CHECK(layer.blend_if_payload_status() == patchy::BlendIfPayloadStatus::Supported);
+
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* group = dialog->findChild<QGroupBox*>(QStringLiteral("layerStyleBlendIfGroup"));
+    auto* channel = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBlendIfChannelCombo"));
+    auto* reset_channel =
+        dialog->findChild<QPushButton*>(QStringLiteral("layerStyleBlendIfResetChannelButton"));
+    auto* this_editor = dynamic_cast<patchy::ui::BlendIfRangeEditorWidget*>(
+        dialog->findChild<QWidget*>(QStringLiteral("layerStyleBlendIfThisEditor")));
+    auto* underlying_editor = dynamic_cast<patchy::ui::BlendIfRangeEditorWidget*>(
+        dialog->findChild<QWidget*>(QStringLiteral("layerStyleBlendIfUnderlyingEditor")));
+    auto* this_black_low =
+        dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackLowSpin"));
+    auto* this_black_high =
+        dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackHighSpin"));
+    auto* this_white_low =
+        dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisWhiteLowSpin"));
+    auto* this_white_high =
+        dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisWhiteHighSpin"));
+    auto* underlying_black_low =
+        dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfUnderlyingBlackLowSpin"));
+    auto* underlying_black_high =
+        dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfUnderlyingBlackHighSpin"));
+    auto* underlying_white_low =
+        dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfUnderlyingWhiteLowSpin"));
+    auto* underlying_white_high =
+        dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfUnderlyingWhiteHighSpin"));
+    CHECK(group != nullptr && group->isEnabled());
+    CHECK(channel != nullptr);
+    CHECK(reset_channel != nullptr);
+    CHECK(this_editor != nullptr);
+    CHECK(underlying_editor != nullptr);
+    CHECK(this_black_low != nullptr);
+    CHECK(this_black_high != nullptr);
+    CHECK(this_white_low != nullptr);
+    CHECK(this_white_high != nullptr);
+    CHECK(underlying_black_low != nullptr);
+    CHECK(underlying_black_high != nullptr);
+    CHECK(underlying_white_low != nullptr);
+    CHECK(underlying_white_high != nullptr);
+    CHECK(this_editor->accessibleName() == QStringLiteral("This Layer Blend If range"));
+    CHECK(underlying_editor->accessibleName() == QStringLiteral("Underlying Layer Blend If range"));
+    CHECK(this_editor->accessibleDescription().contains(QStringLiteral("Page Up or Page Down")));
+    CHECK(this_black_low->accessibleName() == QStringLiteral("This Layer black transition start"));
+    CHECK(this_black_high->accessibleName() == QStringLiteral("This Layer black transition end"));
+    CHECK(this_white_low->accessibleName() == QStringLiteral("This Layer white transition start"));
+    CHECK(this_white_high->accessibleName() == QStringLiteral("This Layer white transition end"));
+    CHECK(underlying_black_low->accessibleName() ==
+          QStringLiteral("Underlying Layer black transition start"));
+    CHECK(underlying_black_high->accessibleName() ==
+          QStringLiteral("Underlying Layer black transition end"));
+    CHECK(underlying_white_low->accessibleName() ==
+          QStringLiteral("Underlying Layer white transition start"));
+    CHECK(underlying_white_high->accessibleName() ==
+          QStringLiteral("Underlying Layer white transition end"));
+
+    CHECK(channel->currentData().toInt() == static_cast<int>(patchy::BlendIfChannel::Gray));
+    CHECK(this_editor->ramp_channel() == patchy::BlendIfChannel::Gray);
+    CHECK(this_black_low->value() == 10);
+    CHECK(this_black_high->value() == 20);
+    CHECK(underlying_white_low->value() == 190);
+    this_black_high->setValue(25);
+    underlying_white_low->setValue(185);
+
+    channel->setCurrentIndex(channel->findData(static_cast<int>(patchy::BlendIfChannel::Red)));
+    CHECK(this_editor->ramp_channel() == patchy::BlendIfChannel::Red);
+    CHECK(this_black_low->value() == 30);
+    CHECK(this_black_high->value() == 40);
+    CHECK(underlying_black_low->value() == 32);
+    this_black_high->setValue(45);
+
+    channel->setCurrentIndex(channel->findData(static_cast<int>(patchy::BlendIfChannel::Blue)));
+    CHECK(this_editor->ramp_channel() == patchy::BlendIfChannel::Blue);
+    CHECK(this_black_low->value() == 70);
+    CHECK(underlying_black_high->value() == 82);
+    CHECK(underlying_white_high->value() == 170);
+    underlying_white_high->setValue(175);
+
+    channel->setCurrentIndex(channel->findData(static_cast<int>(patchy::BlendIfChannel::Gray)));
+    CHECK(this_black_high->value() == 25);
+    CHECK(underlying_white_low->value() == 185);
+    inspected = true;
+    dialog->accept();
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(inspected);
+  CHECK(settings.has_value());
+  CHECK((settings->blend_if.channels[0].this_layer == patchy::BlendIfThresholds{10, 25, 200, 240}));
+  CHECK((settings->blend_if.channels[0].underlying_layer == patchy::BlendIfThresholds{12, 24, 185, 230}));
+  CHECK((settings->blend_if.channels[1].this_layer == patchy::BlendIfThresholds{30, 45, 180, 220}));
+  CHECK(settings->blend_if.channels[2] == original.channels[2]);
+  CHECK((settings->blend_if.channels[3].underlying_layer == patchy::BlendIfThresholds{72, 82, 130, 175}));
+}
+
+void ui_layer_style_blend_if_preview_off_accumulates_and_cancel_restores() {
+  patchy::Document direct_document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer direct_layer(direct_document.allocate_layer_id(), "Blend If Preview",
+                             solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  const auto original = blend_if_ui_test_settings();
+  const auto original_payload = patchy::encode_layer_blend_if(original);
+  direct_layer.set_blend_if_payload(original_payload, true);
+
+  std::vector<patchy::ui::LayerStyleSettings> previews;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
+    auto* black_high = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackHighSpin"));
+    CHECK(preview != nullptr && preview->isChecked());
+    CHECK(black_high != nullptr);
+    black_high->setValue(28);
+    QTest::qWait(80);
+    CHECK(!previews.empty());
+    CHECK(previews.back().blend_if.channels[0].this_layer.black_high == 28);
+
+    preview->setChecked(false);
+    QApplication::processEvents();
+    CHECK(previews.back().blend_if == original);
+    black_high->setValue(32);
+    QTest::qWait(80);
+    CHECK(previews.back().blend_if == original);
+    dialog->accept();
+  });
+
+  const auto accepted = patchy::ui::request_layer_style_settings(
+      nullptr, direct_layer,
+      [&](const patchy::ui::LayerStyleSettings& settings) { previews.push_back(settings); });
+  CHECK(accepted.has_value());
+  CHECK(accepted->blend_if.channels[0].this_layer.black_high == 32);
+  CHECK(!previews.empty());
+  CHECK(previews.back().blend_if == original);
+
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Blend If Cancel",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  const auto layer_id = layer.id();
+  layer.set_blend_if_payload(original_payload, true);
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Blend If Cancel"));
+  show_window(window);
+  bool saw_live_preview = false;
+  QTimer::singleShot(0, &window, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* black_high = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackHighSpin"));
+    CHECK(black_high != nullptr);
+    black_high->setValue(35);
+    QTest::qWait(80);
+    const auto* preview_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+    CHECK(preview_layer != nullptr);
+    saw_live_preview = preview_layer->blend_if().channels[0].this_layer.black_high == 35;
+    dialog->reject();
+  });
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_live_preview);
+  const auto* restored = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(restored->raw_psd_blending_ranges() == original_payload);
+  CHECK(restored->blend_if() == original);
+}
+
+void ui_layer_style_blend_if_unsupported_requires_explicit_replace() {
+  constexpr std::array<std::uint8_t, 8> unsupported_payload{0, 0, 255, 255, 0, 0, 255, 255};
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Unsupported Blend If",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  const auto layer_id = layer.id();
+  layer.set_blend_if_payload(std::vector<std::uint8_t>(unsupported_payload.begin(), unsupported_payload.end()), true);
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Unsupported Blend If"));
+  show_window(window);
+  auto* blending_options = require_action(window, "layerBlendingOptionsAction");
+  const auto run_style_dialog = [&](const std::function<void(QDialog&)>& interaction) {
+    bool handled = false;
+    QTimer::singleShot(0, &window, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+      CHECK(dialog != nullptr);
+      interaction(*dialog);
+      handled = true;
+    });
+    blending_options->trigger();
+    QApplication::processEvents();
+    CHECK(handled);
+  };
+
+  run_style_dialog([](QDialog& dialog) {
+    auto* warning = dialog.findChild<QLabel*>(QStringLiteral("layerStyleBlendIfUnsupportedWarning"));
+    auto* group = dialog.findChild<QGroupBox*>(QStringLiteral("layerStyleBlendIfGroup"));
+    auto* replace = dialog.findChild<QPushButton*>(QStringLiteral("layerStyleBlendIfReplaceButton"));
+    CHECK(warning != nullptr && warning->isVisible());
+    CHECK(warning->text().contains(QStringLiteral("unsupported color mode or payload shape")));
+    CHECK(group != nullptr && !group->isEnabled());
+    CHECK(replace != nullptr && replace->isEnabled());
+    dialog.accept();
+  });
+  const auto* preserved_without_replace =
+      patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(preserved_without_replace != nullptr);
+  CHECK(preserved_without_replace->raw_psd_blending_ranges() ==
+        std::vector<std::uint8_t>(unsupported_payload.begin(), unsupported_payload.end()));
+
+  run_style_dialog([](QDialog& dialog) {
+    auto* warning = dialog.findChild<QLabel*>(QStringLiteral("layerStyleBlendIfUnsupportedWarning"));
+    auto* group = dialog.findChild<QGroupBox*>(QStringLiteral("layerStyleBlendIfGroup"));
+    auto* replace = dialog.findChild<QPushButton*>(QStringLiteral("layerStyleBlendIfReplaceButton"));
+    auto* black_high = dialog.findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackHighSpin"));
+    auto* black_low = dialog.findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackLowSpin"));
+    CHECK(warning != nullptr);
+    CHECK(group != nullptr);
+    CHECK(replace != nullptr);
+    CHECK(black_high != nullptr);
+    CHECK(black_low != nullptr);
+    replace->click();
+    QApplication::processEvents();
+    CHECK(group->isEnabled());
+    CHECK(!replace->isEnabled());
+    CHECK(warning->text().contains(QStringLiteral("will be replaced with editable RGB defaults")));
+    black_high->setValue(35);
+    black_low->setValue(15);
+    dialog.reject();
+  });
+  const auto* preserved_after_cancel = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(preserved_after_cancel != nullptr);
+  CHECK(preserved_after_cancel->raw_psd_blending_ranges() ==
+        std::vector<std::uint8_t>(unsupported_payload.begin(), unsupported_payload.end()));
+
+  run_style_dialog([](QDialog& dialog) {
+    auto* group = dialog.findChild<QGroupBox*>(QStringLiteral("layerStyleBlendIfGroup"));
+    auto* replace = dialog.findChild<QPushButton*>(QStringLiteral("layerStyleBlendIfReplaceButton"));
+    auto* black_high = dialog.findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackHighSpin"));
+    auto* black_low = dialog.findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackLowSpin"));
+    CHECK(group != nullptr);
+    CHECK(replace != nullptr);
+    CHECK(black_high != nullptr);
+    CHECK(black_low != nullptr);
+    replace->click();
+    QApplication::processEvents();
+    CHECK(group->isEnabled());
+    black_high->setValue(35);
+    black_low->setValue(15);
+    dialog.accept();
+  });
+  const auto* replaced = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(replaced != nullptr);
+  CHECK(replaced->blend_if_payload_status() == patchy::BlendIfPayloadStatus::Supported);
+  CHECK(replaced->raw_psd_blending_ranges().size() == 40);
+  CHECK((replaced->blend_if().channels[0].this_layer == patchy::BlendIfThresholds{15, 35, 255, 255}));
+
+  patchy::Document non_rgb_document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer non_rgb_layer(non_rgb_document.allocate_layer_id(), "Non-RGB Blend If",
+                              solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  const auto non_rgb_payload = patchy::encode_layer_blend_if(blend_if_ui_test_settings());
+  non_rgb_layer.set_blend_if_payload(non_rgb_payload, false);
+  CHECK(non_rgb_layer.blend_if_payload_status() == patchy::BlendIfPayloadStatus::Unsupported);
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleBlendIfUnsupportedWarning"));
+    auto* group = dialog->findChild<QGroupBox*>(QStringLiteral("layerStyleBlendIfGroup"));
+    CHECK(warning != nullptr && warning->isVisible());
+    CHECK(group != nullptr && !group->isEnabled());
+    dialog->reject();
+  });
+  const auto non_rgb_result = patchy::ui::request_layer_style_settings(nullptr, non_rgb_layer, {});
+  CHECK(!non_rgb_result.has_value());
+  CHECK(non_rgb_layer.raw_psd_blending_ranges() == non_rgb_payload);
+  CHECK(!non_rgb_layer.blend_if_rgb_compatible());
+}
+
 void ui_layer_style_dialog_coalesces_rapid_slider_preview_callbacks() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Coalesced Style",
@@ -4517,7 +4886,7 @@ void ui_compatibility_report_flags_unrendered_styles_on_groups() {
   CHECK(contour_text.contains(QStringLiteral("non-anti-aliased Linear contour")));
 }
 
-void ui_compatibility_report_ignores_identity_blend_if_and_flags_custom_ranges() {
+void ui_compatibility_report_handles_supported_unsupported_and_boundary_blend_if() {
   constexpr std::array<std::uint8_t, 8> identity_range{0, 0, 255, 255, 0, 0, 255, 255};
   std::vector<std::uint8_t> identity_payload;
   for (int channel = 0; channel < 5; ++channel) {
@@ -4536,13 +4905,70 @@ void ui_compatibility_report_ignores_identity_blend_if_and_flags_custom_ranges()
 
   CHECK(patchy::ui::compatibility_warnings_for_document(document).isEmpty());
 
-  auto& custom_ranges = document.layers().front().children().front().raw_psd_blending_ranges();
-  custom_ranges[1] = 8;
-  const auto text = patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
-  CHECK(text.contains(QStringLiteral("Blend If Layer")));
-  CHECK(text.contains(QStringLiteral("non-default Photoshop Blend If")));
-  CHECK(text.contains(QStringLiteral("preserves for PSD round-trip")));
-  CHECK(text.contains(QStringLiteral("does not render or edit")));
+  const auto supported_nondefault = patchy::encode_layer_blend_if(blend_if_ui_test_settings());
+  auto& child_layer = document.layers().front().children().front();
+  child_layer.set_blend_if_payload(supported_nondefault, true);
+  CHECK(patchy::ui::compatibility_warnings_for_document(document).isEmpty());
+
+  child_layer.set_blend_if_payload(std::vector<std::uint8_t>(identity_range.begin(), identity_range.end()), true);
+  const auto unsupported_text =
+      patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
+  CHECK(unsupported_text.contains(QStringLiteral("Blend If Layer")));
+  CHECK(unsupported_text.contains(QStringLiteral("unsupported color mode or payload shape")));
+  CHECK(unsupported_text.contains(QStringLiteral("preserves it for PSD round-trip")));
+  CHECK(unsupported_text.contains(QStringLiteral("does not render or edit")));
+
+  child_layer.set_blend_if_payload(supported_nondefault, true);
+  document.layers().front().raw_psd_group_boundary_blending_ranges() = supported_nondefault;
+  const auto boundary_text =
+      patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
+  CHECK(boundary_text.contains(QStringLiteral("Blend If Group")));
+  CHECK(boundary_text.contains(QStringLiteral("group-boundary record")));
+  CHECK(boundary_text.contains(QStringLiteral("preserves that boundary data")));
+  CHECK(boundary_text.contains(QStringLiteral("does not render or edit")));
+}
+
+void ui_psd_import_notice_reports_only_unsupported_blend_if() {
+  SettingsValueRestorer restore_psd_warning_check(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+    settings.sync();
+  }
+
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto write_blend_if_fixture = [&](const QString& name, const std::vector<std::uint8_t>& payload) {
+    patchy::Document document(32, 24, patchy::PixelFormat::rgba8());
+    patchy::Layer layer(document.allocate_layer_id(), name.toStdString(),
+                        solid_pixels(16, 12, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+    layer.set_blend_if_payload(payload, true);
+    document.add_layer(std::move(layer));
+    const auto path = temp.filePath(name + QStringLiteral(".psd"));
+    patchy::psd::DocumentIo::write_layered_rgb8_file(document, path.toStdString());
+    return path;
+  };
+
+  const auto supported_path =
+      write_blend_if_fixture(QStringLiteral("supported-blend-if"),
+                             patchy::encode_layer_blend_if(blend_if_ui_test_settings()));
+  constexpr std::array<std::uint8_t, 8> unsupported_payload{0, 0, 255, 255, 0, 0, 255, 255};
+  const auto unsupported_path = write_blend_if_fixture(
+      QStringLiteral("unsupported-blend-if"),
+      std::vector<std::uint8_t>(unsupported_payload.begin(), unsupported_payload.end()));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, supported_path);
+  QApplication::processEvents();
+  CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("Blend If")));
+
+  patchy::ui::MainWindowTestAccess::open_document_path(window, unsupported_path);
+  QApplication::processEvents();
+  const auto notice = window.statusBar()->currentMessage();
+  CHECK(notice.contains(QStringLiteral("unsupported Photoshop Blend If payloads")));
+  CHECK(notice.contains(QStringLiteral("does not render or edit")));
+  CHECK(notice.contains(QStringLiteral("1 layer(s)")));
 }
 
 void ui_compatibility_report_describes_linked_smart_object_updates() {
@@ -35322,6 +35748,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_info_panel_layers_docks.png",
       "ui_layer_style_dialog.png",
       "ui_layer_style_result.png",
+      "ui_blend_if_range_editor.png",
       "ui_gradient_stops_editor_two_track.png",
       "ui_new_document_dialog.png",
       "ui_new_document_result.png",
@@ -38196,6 +38623,14 @@ int main(int argc, char* argv[]) {
        ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render},
       {"ui_layer_style_dialog_does_not_open_a_second_dialog",
        ui_layer_style_dialog_does_not_open_a_second_dialog},
+      {"ui_blend_if_range_editor_renders_and_edits_split_handles",
+       ui_blend_if_range_editor_renders_and_edits_split_handles},
+      {"ui_layer_style_blend_if_controls_load_channels_and_map_settings",
+       ui_layer_style_blend_if_controls_load_channels_and_map_settings},
+      {"ui_layer_style_blend_if_preview_off_accumulates_and_cancel_restores",
+       ui_layer_style_blend_if_preview_off_accumulates_and_cancel_restores},
+      {"ui_layer_style_blend_if_unsupported_requires_explicit_replace",
+       ui_layer_style_blend_if_unsupported_requires_explicit_replace},
       {"ui_layer_style_gradient_editor_drag_updates_stops_and_previews",
        ui_layer_style_gradient_editor_drag_updates_stops_and_previews},
       {"ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops",
@@ -38245,12 +38680,14 @@ int main(int argc, char* argv[]) {
        ui_compatibility_report_flags_cmyk_rgb_conversion},
       {"ui_compatibility_report_flags_unrendered_styles_on_groups",
        ui_compatibility_report_flags_unrendered_styles_on_groups},
-      {"ui_compatibility_report_ignores_identity_blend_if_and_flags_custom_ranges",
-       ui_compatibility_report_ignores_identity_blend_if_and_flags_custom_ranges},
+      {"ui_compatibility_report_handles_supported_unsupported_and_boundary_blend_if",
+       ui_compatibility_report_handles_supported_unsupported_and_boundary_blend_if},
       {"ui_compatibility_report_describes_linked_smart_object_updates",
        ui_compatibility_report_describes_linked_smart_object_updates},
       {"ui_psd_import_notice_reports_unrendered_layer_effects",
        ui_psd_import_notice_reports_unrendered_layer_effects},
+      {"ui_psd_import_notice_reports_only_unsupported_blend_if",
+       ui_psd_import_notice_reports_only_unsupported_blend_if},
       {"ui_psd_import_warning_dialog_is_hidden_by_default",
        ui_psd_import_warning_dialog_is_hidden_by_default},
       {"ui_psd_import_warning_dialog_shows_when_enabled",

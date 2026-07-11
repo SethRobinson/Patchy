@@ -9,6 +9,17 @@ namespace patchy {
 
 [[nodiscard]] std::uint8_t clamp_byte(float value);
 [[nodiscard]] float clamp_unit(float value);
+[[nodiscard]] float blend_if_threshold_factor(const BlendIfThresholds& thresholds,
+                                               std::uint8_t value) noexcept;
+[[nodiscard]] std::uint8_t blend_if_gray_value(RgbColor color) noexcept;
+[[nodiscard]] float blend_if_source_factor(const LayerBlendIf& settings, RgbColor source) noexcept;
+[[nodiscard]] float blend_if_underlying_factor(const LayerBlendIf& settings, RgbColor underlying) noexcept;
+// Photoshop evaluates each active channel as an 8-bit coverage and multiplies
+// those coverages with integer truncation. The compositor uses these byte
+// variants; the float helpers above expose the underlying normalized math.
+[[nodiscard]] std::uint8_t blend_if_source_alpha_byte(const LayerBlendIf& settings, RgbColor source) noexcept;
+[[nodiscard]] std::uint8_t blend_if_underlying_alpha_byte(const LayerBlendIf& settings,
+                                                          RgbColor underlying) noexcept;
 [[nodiscard]] std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> source,
                                                     std::array<std::uint8_t, 3> destination, BlendMode mode);
 [[nodiscard]] std::array<std::uint8_t, 3> composite_blended_rgb(std::array<std::uint8_t, 3> source,

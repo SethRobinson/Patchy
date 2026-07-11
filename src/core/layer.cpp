@@ -1,6 +1,7 @@
 #include "core/layer.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
@@ -9,6 +10,20 @@
 namespace patchy {
 
 namespace {
+
+constexpr std::array<std::uint8_t, 8> kIdentityBlendIfEntry{0, 0, 255, 255, 0, 0, 255, 255};
+
+BlendIfThresholds decode_blend_if_thresholds(std::span<const std::uint8_t, 4> bytes) noexcept {
+  return BlendIfThresholds{bytes[0], bytes[1], bytes[2], bytes[3]};
+}
+
+void encode_blend_if_thresholds(std::vector<std::uint8_t>& payload, std::size_t offset,
+                                const BlendIfThresholds& thresholds) {
+  payload[offset + 0U] = thresholds.black_low;
+  payload[offset + 1U] = thresholds.black_high;
+  payload[offset + 2U] = thresholds.white_low;
+  payload[offset + 3U] = thresholds.white_high;
+}
 
 // Revision values are handed out app-globally and never reused: after an undo,
 // a NEW edit must not reproduce a revision number an abandoned redo branch
@@ -32,6 +47,86 @@ inline void trace_revision_bump(const char* accessor, const std::string& name) n
 }
 
 }  // namespace
+
+bool blend_if_thresholds_are_valid(const BlendIfThresholds& thresholds) noexcept {
+  return thresholds.black_low <= thresholds.black_high && thresholds.black_high <= thresholds.white_low &&
+         thresholds.white_low <= thresholds.white_high;
+}
+
+bool blend_if_is_identity(const LayerBlendIf& settings) noexcept {
+  const BlendIfThresholds identity;
+  return std::all_of(settings.channels.begin(), settings.channels.end(), [&](const BlendIfChannelRanges& channel) {
+    return channel.this_layer == identity && channel.underlying_layer == identity;
+  });
+}
+
+DecodedLayerBlendIf decode_layer_blend_if(std::span<const std::uint8_t> payload) noexcept {
+  DecodedLayerBlendIf decoded;
+  if (payload.empty()) {
+    return decoded;
+  }
+  // Photoshop RGB records use four editable entries (Gray, R, G, B), followed
+  // by one identity transparency entry. Other sizes/color-mode shapes stay raw.
+  if (payload.size() != 40U ||
+      !std::equal(kIdentityBlendIfEntry.begin(), kIdentityBlendIfEntry.end(), payload.begin() + 32U)) {
+    decoded.status = BlendIfPayloadStatus::Unsupported;
+    return decoded;
+  }
+  for (std::size_t channel = 0; channel < decoded.settings.channels.size(); ++channel) {
+    const auto offset = channel * 8U;
+    auto& ranges = decoded.settings.channels[channel];
+    ranges.this_layer = decode_blend_if_thresholds(
+        std::span<const std::uint8_t, 4>(payload.data() + offset, 4U));
+    ranges.underlying_layer = decode_blend_if_thresholds(
+        std::span<const std::uint8_t, 4>(payload.data() + offset + 4U, 4U));
+    if (!blend_if_thresholds_are_valid(ranges.this_layer) ||
+        !blend_if_thresholds_are_valid(ranges.underlying_layer)) {
+      decoded.settings = {};
+      decoded.status = BlendIfPayloadStatus::Unsupported;
+      return decoded;
+    }
+  }
+  decoded.status = BlendIfPayloadStatus::Supported;
+  return decoded;
+}
+
+bool blend_if_payload_has_non_identity_or_unsupported(std::span<const std::uint8_t> payload) noexcept {
+  if (payload.empty()) {
+    return false;
+  }
+  const auto decoded = decode_layer_blend_if(payload);
+  return decoded.status == BlendIfPayloadStatus::Unsupported || !blend_if_is_identity(decoded.settings);
+}
+
+std::vector<std::uint8_t> encode_layer_blend_if(const LayerBlendIf& settings,
+                                                std::span<const std::uint8_t> original_payload) {
+  if (blend_if_is_identity(settings) && original_payload.empty()) {
+    return {};
+  }
+  if (!std::all_of(settings.channels.begin(), settings.channels.end(), [](const BlendIfChannelRanges& channel) {
+        return blend_if_thresholds_are_valid(channel.this_layer) &&
+               blend_if_thresholds_are_valid(channel.underlying_layer);
+      })) {
+    throw std::invalid_argument("Blend If thresholds must remain ordered");
+  }
+
+  std::vector<std::uint8_t> encoded;
+  if (original_payload.size() == 40U &&
+      std::equal(kIdentityBlendIfEntry.begin(), kIdentityBlendIfEntry.end(), original_payload.begin() + 32U)) {
+    encoded.assign(original_payload.begin(), original_payload.end());
+  } else {
+    encoded.resize(40U);
+    for (std::size_t offset = 0; offset < encoded.size(); offset += kIdentityBlendIfEntry.size()) {
+      std::copy(kIdentityBlendIfEntry.begin(), kIdentityBlendIfEntry.end(), encoded.begin() + offset);
+    }
+  }
+  for (std::size_t channel = 0; channel < settings.channels.size(); ++channel) {
+    const auto offset = channel * 8U;
+    encode_blend_if_thresholds(encoded, offset, settings.channels[channel].this_layer);
+    encode_blend_if_thresholds(encoded, offset + 4U, settings.channels[channel].underlying_layer);
+  }
+  return encoded;
+}
 
 bool LayerStyle::empty() const noexcept {
   const auto has_enabled_shadow =
@@ -204,6 +299,23 @@ const std::vector<std::uint8_t>& Layer::raw_psd_group_boundary_blending_ranges()
   return raw_psd_group_boundary_blending_ranges_;
 }
 
+LayerBlendIf Layer::blend_if() const noexcept {
+  return decode_layer_blend_if(raw_psd_blending_ranges_).settings;
+}
+
+BlendIfPayloadStatus Layer::blend_if_payload_status() const noexcept {
+  auto decoded = decode_layer_blend_if(raw_psd_blending_ranges_);
+  if (!blend_if_rgb_compatible_ && decoded.status == BlendIfPayloadStatus::Supported &&
+      !blend_if_is_identity(decoded.settings)) {
+    return BlendIfPayloadStatus::Unsupported;
+  }
+  return decoded.status;
+}
+
+bool Layer::blend_if_rgb_compatible() const noexcept {
+  return blend_if_rgb_compatible_;
+}
+
 std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() noexcept {
   trace_revision_bump("unknown_psd_blocks", name_);
   render_revision_ = next_layer_revision();
@@ -307,6 +419,37 @@ void Layer::clear_mask() noexcept {
   mask_.reset();
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
+}
+
+bool Layer::set_blend_if(const LayerBlendIf& settings, bool replace_unsupported) {
+  if (blend_if_payload_status() == BlendIfPayloadStatus::Unsupported && !replace_unsupported) {
+    return false;
+  }
+  auto encoded = encode_layer_blend_if(settings, replace_unsupported ? std::span<const std::uint8_t>{}
+                                                                       : std::span<const std::uint8_t>{
+                                                                             raw_psd_blending_ranges_});
+  if (encoded == raw_psd_blending_ranges_ && blend_if_rgb_compatible_) {
+    return true;
+  }
+  raw_psd_blending_ranges_ = std::move(encoded);
+  blend_if_rgb_compatible_ = true;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+  return true;
+}
+
+void Layer::set_blend_if_payload(std::vector<std::uint8_t> payload, bool rgb_compatible) {
+  if (payload == raw_psd_blending_ranges_ && rgb_compatible == blend_if_rgb_compatible_) {
+    return;
+  }
+  raw_psd_blending_ranges_ = std::move(payload);
+  blend_if_rgb_compatible_ = rgb_compatible;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+}
+
+void Layer::set_blend_if_rgb_compatible(bool compatible) noexcept {
+  blend_if_rgb_compatible_ = compatible;
 }
 
 void Layer::add_child(Layer child) {

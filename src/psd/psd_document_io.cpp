@@ -7392,6 +7392,9 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       reader.skip(mask_end - reader.position());
     }
     const auto blending_ranges_length = read_section_length(reader, "layer blending ranges");
+    if (reader.position() > extra_end || blending_ranges_length > extra_end - reader.position()) {
+      throw std::runtime_error("PSD layer blending ranges exceed the layer record");
+    }
     record.blending_ranges = reader.read_bytes(blending_ranges_length);
     if (reader.position() < extra_end) {
       record.name = read_pascal_string(reader, 4);
@@ -8085,6 +8088,7 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.metadata() = source.metadata();
   target.mask() = source.mask();
   target.raw_psd_blending_ranges() = source.raw_psd_blending_ranges();
+  target.set_blend_if_rgb_compatible(source.blend_if_rgb_compatible());
   target.raw_psd_group_boundary_blending_ranges() = source.raw_psd_group_boundary_blending_ranges();
   target.unknown_psd_blocks() = source.unknown_psd_blocks();
 }
@@ -8337,7 +8341,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     layer.set_blend_mode(record.blend_mode);
     layer.set_opacity(static_cast<float>(record.opacity) / 255.0F);
     layer.set_visible(record.visible);
-    layer.raw_psd_blending_ranges() = record.blending_ranges;
+    layer.set_blend_if_payload(record.blending_ranges, source_color_mode == kColorModeRgb);
     if (record.section_divider_type == 0U) {
       // Divider/folder records never carry the clipping flag into the model, so
       // groups always build unclipped even from stray bytes.

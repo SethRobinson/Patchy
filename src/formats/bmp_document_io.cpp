@@ -397,6 +397,16 @@ public:
     destination_alpha = alpha + destination_alpha * (1.0F - alpha);
   }
 
+  [[nodiscard]] render_detail::CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
+    if (x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
+      return {};
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) + static_cast<std::size_t>(x);
+    const auto* pixel = destination_.pixel(x, y);
+    return render_detail::CompositeSample{RgbColor{pixel[0], pixel[1], pixel[2]}, alpha_[index]};
+  }
+
   void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
     amount = clamp_unit(amount);
     if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
@@ -461,6 +471,15 @@ public:
     dst[3] = clamp_byte((alpha + destination_alpha * (1.0F - alpha)) * 255.0F);
   }
 
+  [[nodiscard]] render_detail::CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
+    if (x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
+      return {};
+    }
+    const auto* pixel = destination_.pixel(x, y);
+    return render_detail::CompositeSample{RgbColor{pixel[0], pixel[1], pixel[2]},
+                                          static_cast<float>(pixel[3]) / 255.0F};
+  }
+
   void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
     amount = clamp_unit(amount);
     if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
@@ -496,6 +515,32 @@ private:
 };
 
 [[nodiscard]] PixelBuffer render_rgb8_on_white(const Document& document) {
+  if (render_detail::layers_have_rendered_underlying_blend_if(document.layers())) {
+    // Keep the logical backdrop transparent while Blend If is evaluated, then
+    // apply BMP's white matte once at the end. Treating the matte as an opaque
+    // underlying layer would make an Underlying Layer range hide pixels that
+    // Photoshop leaves visible over transparency.
+    PixelBuffer rgba(document.width(), document.height(), PixelFormat::rgba8());
+    rgba.clear(0);
+    Rgba8RenderTarget rgba_target(rgba);
+    const auto canvas = Rect::from_size(document.width(), document.height());
+    render_detail::composite_layers(rgba_target, document.layers(), canvas, nullptr, true);
+
+    PixelBuffer output(document.width(), document.height(), PixelFormat::rgb8());
+    for (std::int32_t y = 0; y < document.height(); ++y) {
+      for (std::int32_t x = 0; x < document.width(); ++x) {
+        const auto* source = rgba.pixel(x, y);
+        auto* destination = output.pixel(x, y);
+        const auto alpha = static_cast<int>(source[3]);
+        for (int channel = 0; channel < 3; ++channel) {
+          destination[channel] = static_cast<std::uint8_t>(
+              (static_cast<int>(source[channel]) * alpha + 255 * (255 - alpha) + 127) / 255);
+        }
+      }
+    }
+    return output;
+  }
+
   PixelBuffer output(document.width(), document.height(), PixelFormat::rgb8());
   output.clear(255);
   Rgb8RenderTarget target(output, 1.0F);
@@ -508,8 +553,10 @@ private:
   // A single masked layer is written non-destructively: the original colors stay intact
   // and the mask becomes the alpha channel, so reopening preserves both. Compositing here
   // would instead erase the colors wherever the mask is transparent.
-  if (auto masked = document_alpha_rgba8(document); masked.has_value()) {
-    return std::move(*masked);
+  if (!render_detail::layers_have_rendered_blend_if(document.layers())) {
+    if (auto masked = document_alpha_rgba8(document); masked.has_value()) {
+      return std::move(*masked);
+    }
   }
   PixelBuffer output(document.width(), document.height(), PixelFormat::rgba8());
   output.clear(0);

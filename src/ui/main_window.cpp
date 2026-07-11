@@ -2280,7 +2280,11 @@ bool flat_save_discards_layers(const Document& document) {
   if (layer.mask().has_value() && !layer_mask_is_document_alpha(layer)) {
     return true;
   }
-  return !layer.layer_style().empty();
+  const auto blend_if_status = layer.blend_if_payload_status();
+  const bool has_blend_if = blend_if_status == BlendIfPayloadStatus::Unsupported
+                                ? !layer.raw_psd_blending_ranges().empty()
+                                : !blend_if_is_identity(layer.blend_if());
+  return !layer.layer_style().empty() || has_blend_if;
 }
 
 // The single source of truth for the file dialog filters: every open/save/export filter
@@ -2582,6 +2586,46 @@ QString unrendered_layer_effect_import_notice(const Document& document) {
       .arg(counts.pattern_overlay);
 }
 
+struct UnsupportedBlendIfCounts {
+  std::size_t layer_payloads{0};
+  std::size_t group_boundaries{0};
+};
+
+void count_unsupported_blend_if(const std::vector<Layer>& layers, UnsupportedBlendIfCounts& counts) {
+  for (const auto& layer : layers) {
+    if (!layer.raw_psd_blending_ranges().empty() &&
+        layer.blend_if_payload_status() == BlendIfPayloadStatus::Unsupported) {
+      ++counts.layer_payloads;
+    }
+    if (blend_if_payload_has_non_identity_or_unsupported(layer.raw_psd_group_boundary_blending_ranges())) {
+      ++counts.group_boundaries;
+    }
+    count_unsupported_blend_if(layer.children(), counts);
+  }
+}
+
+QString unsupported_blend_if_import_notice(const Document& document) {
+  UnsupportedBlendIfCounts counts;
+  count_unsupported_blend_if(document.layers(), counts);
+  if (counts.layer_payloads == 0U && counts.group_boundaries == 0U) {
+    return {};
+  }
+  if (counts.group_boundaries == 0U) {
+    return QObject::tr("Patchy preserved unsupported Photoshop Blend If payloads but does not render or edit them "
+                       "(%1 layer(s)).")
+        .arg(counts.layer_payloads);
+  }
+  if (counts.layer_payloads == 0U) {
+    return QObject::tr("Patchy preserved Blend If data on Photoshop group-boundary records but does not render or "
+                       "edit it (%1 group(s)).")
+        .arg(counts.group_boundaries);
+  }
+  return QObject::tr("Patchy preserved unsupported Photoshop Blend If data without rendering it (%1 layer "
+                     "payload(s), %2 group-boundary record(s)).")
+      .arg(counts.layer_payloads)
+      .arg(counts.group_boundaries);
+}
+
 QStringList supported_local_open_paths(const QMimeData* mime_data) {
   QStringList paths;
   if (mime_data == nullptr || !mime_data->hasUrls()) {
@@ -2649,6 +2693,9 @@ OpenDocumentResult load_document_from_path(QString path) {
       import_notices.push_back(QString::fromStdString(notice));
     }
     if (const auto notice = unrendered_layer_effect_import_notice(opened); !notice.isEmpty()) {
+      import_notices.push_back(notice);
+    }
+    if (const auto notice = unsupported_blend_if_import_notice(opened); !notice.isEmpty()) {
       import_notices.push_back(notice);
     }
     // Linked-file staleness: compare each external source's stored date/size with
@@ -9085,6 +9132,9 @@ std::optional<RasterizedLayerPixels> render_rasterized_layer_pixels(const Docume
   layer.set_opacity(1.0F);
   layer.set_blend_mode(BlendMode::Normal);
   layer.clear_mask();
+  // Blend If remains a live advanced-blending option on the source layer; do
+  // not bake it into text/smart-object pixels or a Rasterize Layer Style result.
+  layer.set_blend_if_payload({}, true);
   if (!include_layer_style) {
     layer.layer_style() = {};
   }
@@ -18998,10 +19048,20 @@ void MainWindow::edit_active_layer_style() {
   const auto original_opacity = layer->opacity();
   const auto original_blend_mode = layer->blend_mode();
   const auto original_style = layer->layer_style();
-  auto set_layer_style_settings = [](Layer& target, const LayerStyleSettings& settings) {
+  const auto original_blend_if = layer->blend_if();
+  const auto original_blend_if_payload = layer->raw_psd_blending_ranges();
+  const auto original_blend_if_rgb_compatible = layer->blend_if_rgb_compatible();
+  auto set_layer_style_settings = [original_blend_if, original_blend_if_payload,
+                                   original_blend_if_rgb_compatible](Layer& target,
+                                                                     const LayerStyleSettings& settings) {
     target.set_opacity(static_cast<float>(settings.opacity) / 100.0F);
     target.set_blend_mode(settings.blend_mode);
     target.layer_style() = settings.style;
+    if (!settings.replace_unsupported_blend_if && settings.blend_if == original_blend_if) {
+      target.set_blend_if_payload(original_blend_if_payload, original_blend_if_rgb_compatible);
+    } else {
+      (void)target.set_blend_if(settings.blend_if, settings.replace_unsupported_blend_if);
+    }
   };
   auto apply_preview_settings = [this, &doc, layer_id, set_layer_style_settings](const LayerStyleSettings& settings) {
     auto* target = doc.find_layer(layer_id);
@@ -19025,7 +19085,8 @@ void MainWindow::edit_active_layer_style() {
       canvas_->document_changed(to_qrect(unite_rect(before, after)));
     }
   };
-  auto restore_original = [this, &doc, layer_id, original_opacity, original_blend_mode, original_style] {
+  auto restore_original = [this, &doc, layer_id, original_opacity, original_blend_mode, original_style,
+                           original_blend_if_payload, original_blend_if_rgb_compatible] {
     auto* target = doc.find_layer(layer_id);
     if (target == nullptr) {
       return;
@@ -19034,6 +19095,7 @@ void MainWindow::edit_active_layer_style() {
     target->set_opacity(original_opacity);
     target->set_blend_mode(original_blend_mode);
     target->layer_style() = original_style;
+    target->set_blend_if_payload(original_blend_if_payload, original_blend_if_rgb_compatible);
     const auto after = layer_render_bounds(*target);
     if (canvas_ != nullptr) {
       canvas_->document_changed(to_qrect(unite_rect(before, after)));
@@ -19079,11 +19141,14 @@ void MainWindow::copy_active_layer_style() {
     return;
   }
 
-  layer_style_clipboard_ = layer->layer_style();
+  layer_style_clipboard_ = LayerStyleClipboard{
+      layer->layer_style(), layer->blend_if_payload_status() == BlendIfPayloadStatus::Unsupported
+                                ? std::optional<LayerBlendIf>{}
+                                : std::optional<LayerBlendIf>{layer->blend_if()}};
   // The style clipboard carries modeled settings, not the source layer's raw
   // lfx2 bytes. Pasted custom Satin curves and contour anti-aliasing are
   // therefore normalized to the Linear contour that Patchy can regenerate.
-  for (auto& satin : layer_style_clipboard_->satins) {
+  for (auto& satin : layer_style_clipboard_->style.satins) {
     satin.unsupported_contour_options = false;
   }
   update_history(tr("Copy layer style"));
@@ -19122,7 +19187,10 @@ void MainWindow::paste_layer_style_to_selected_layers() {
     }
     affected = unite_rect(affected, layer_render_bounds(*layer));
     clear_layer_psd_style_source(*layer);
-    layer->layer_style() = *layer_style_clipboard_;
+    layer->layer_style() = layer_style_clipboard_->style;
+    if (layer_style_clipboard_->blend_if.has_value()) {
+      (void)layer->set_blend_if(*layer_style_clipboard_->blend_if, true);
+    }
     affected = unite_rect(affected, layer_render_bounds(*layer));
     ++pasted_count;
   }
