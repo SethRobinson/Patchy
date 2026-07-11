@@ -5,6 +5,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
 #include "filters/filter_registry.hpp"
+#include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/document_flatten.hpp"
@@ -6384,6 +6385,274 @@ void curves_lut_matches_photoshop_2026_calibration() {
   CHECK(hash_lut(combined_lut.red) == 0xe19b4c2c6f440cb5ULL);
 }
 
+void curves_eyedroppers_rebuild_neutral_component_curves() {
+  patchy::CurvesEyedropperSamples samples;
+  samples.black = patchy::RgbColor{20, 30, 40};
+  samples.gray = patchy::RgbColor{100, 110, 120};
+  samples.white = patchy::RgbColor{220, 230, 240};
+  const auto curves = patchy::curves_adjustment_from_eyedropper_samples(samples);
+  CHECK(curves.rgb == patchy::CurveControlPoints({{0, 0}, {255, 255}}));
+  CHECK(curves.red == patchy::CurveControlPoints({{20, 0}, {100, 128}, {220, 255}}));
+  CHECK(curves.green == patchy::CurveControlPoints({{30, 0}, {110, 128}, {230, 255}}));
+  CHECK(curves.blue == patchy::CurveControlPoints({{40, 0}, {120, 128}, {240, 255}}));
+
+  const auto lut = patchy::build_curves_lut(curves);
+  CHECK(lut.red[20] == 0U);
+  CHECK(lut.green[30] == 0U);
+  CHECK(lut.blue[40] == 0U);
+  CHECK(lut.red[100] == 128U);
+  CHECK(lut.green[110] == 128U);
+  CHECK(lut.blue[120] == 128U);
+  CHECK(lut.red[220] == 255U);
+  CHECK(lut.green[230] == 255U);
+  CHECK(lut.blue[240] == 255U);
+
+  patchy::CurvesEyedropperSamples degenerate;
+  degenerate.black = patchy::RgbColor{255, 255, 255};
+  degenerate.white = patchy::RgbColor{0, 0, 0};
+  const auto bounded = patchy::curves_adjustment_from_eyedropper_samples(degenerate);
+  for (const auto channel : {patchy::CurvesChannel::Red, patchy::CurvesChannel::Green,
+                             patchy::CurvesChannel::Blue}) {
+    const auto& points = patchy::curve_points_for_channel(bounded, channel);
+    CHECK(points.size() == 2U);
+    CHECK(points[0].input < points[1].input);
+  }
+}
+
+void acv_v4_reads_photoshop_rgb_order_and_writes_canonical_bytes() {
+  patchy::CurvesAdjustment expected;
+  expected.rgb = {{0, 0}, {64, 48}, {255, 255}};
+  expected.red = {{0, 12}, {127, 160}, {255, 240}};
+  expected.green = {{0, 0}, {255, 255}};
+  expected.blue = {{0, 255}, {255, 0}};
+
+  patchy::psd::BigEndianWriter photoshop;
+  photoshop.write_u16(4);  // counted ACV version
+  photoshop.write_u16(5);  // Photoshop RGB: master, R, G, B, reserved identity
+  const auto add_curve = [&photoshop](const patchy::CurveControlPoints& points) {
+    photoshop.write_u16(static_cast<std::uint16_t>(points.size()));
+    for (const auto& point : points) {
+      photoshop.write_u16(static_cast<std::uint16_t>(point.output));
+      photoshop.write_u16(static_cast<std::uint16_t>(point.input));
+    }
+  };
+  add_curve(expected.rgb);
+  add_curve(expected.red);
+  add_curve(expected.green);
+  add_curve(expected.blue);
+  add_curve({{0, 0}, {255, 255}});
+
+  CHECK(patchy::acv::read(photoshop.bytes()) == expected);
+  CHECK(patchy::acv::write(expected) == photoshop.bytes());
+
+  std::filesystem::create_directories("test-artifacts");
+  const std::filesystem::path path = "test-artifacts/curves-roundtrip.acv";
+  patchy::acv::write_file(path, expected);
+  CHECK(patchy::acv::read_file(path) == expected);
+
+  // Valid single-master presets apply identity to unspecified RGB channels.
+  patchy::psd::BigEndianWriter master_only;
+  master_only.write_u16(4);
+  master_only.write_u16(1);
+  master_only.write_u16(3);
+  master_only.write_u16(0);
+  master_only.write_u16(0);
+  master_only.write_u16(190);
+  master_only.write_u16(128);
+  master_only.write_u16(255);
+  master_only.write_u16(255);
+  patchy::CurvesAdjustment master_expected;
+  master_expected.rgb = {{0, 0}, {128, 190}, {255, 255}};
+  CHECK(patchy::acv::read(master_only.bytes()) == master_expected);
+}
+
+void acv_v1_reads_photoshop_bitmap_and_indexed_extension() {
+  const auto add_curve = [](patchy::psd::BigEndianWriter& writer,
+                            const patchy::CurveControlPoints& points) {
+    writer.write_u16(static_cast<std::uint16_t>(points.size()));
+    for (const auto& point : points) {
+      writer.write_u16(static_cast<std::uint16_t>(point.output));
+      writer.write_u16(static_cast<std::uint16_t>(point.input));
+    }
+  };
+
+  // Photoshop 2026 native `curv` bodies use a BE u32 bitmap. The indexed
+  // extension repeats the channels and is authoritative.
+  patchy::psd::BigEndianWriter current;
+  current.write_u16(1);
+  current.write_u32(0x0000000bU);  // Composite, Red, Blue.
+  add_curve(current, {{0, 0}, {128, 180}, {255, 255}});
+  add_curve(current, {{0, 10}, {255, 245}});
+  add_curve(current, {{0, 250}, {255, 5}});
+  current.write_bytes(std::array<std::uint8_t, 4>{'C', 'r', 'v', ' '});
+  current.write_u16(4);
+  current.write_u32(4);
+  current.write_u16(0);
+  add_curve(current, {{0, 0}, {128, 190}, {255, 255}});
+  current.write_u16(1);
+  add_curve(current, {{0, 12}, {255, 240}});
+  current.write_u16(2);
+  add_curve(current, {{0, 4}, {96, 120}, {255, 251}});
+  current.write_u16(3);
+  add_curve(current, {{0, 255}, {255, 0}});
+
+  patchy::CurvesAdjustment current_expected;
+  current_expected.rgb = {{0, 0}, {128, 190}, {255, 255}};
+  current_expected.red = {{0, 12}, {255, 240}};
+  current_expected.green = {{0, 4}, {96, 120}, {255, 251}};
+  current_expected.blue = {{0, 255}, {255, 0}};
+  CHECK(patchy::acv::read(current.bytes()) == current_expected);
+
+  // Adobe's published ACV table documents a legacy u16 bitmap. Missing
+  // component records remain identity.
+  patchy::psd::BigEndianWriter legacy;
+  legacy.write_u16(1);
+  legacy.write_u16(0x0005U);  // Composite and Green.
+  add_curve(legacy, {{0, 0}, {128, 175}, {255, 255}});
+  add_curve(legacy, {{0, 3}, {255, 252}});
+  patchy::CurvesAdjustment legacy_expected;
+  legacy_expected.rgb = {{0, 0}, {128, 175}, {255, 255}};
+  legacy_expected.green = {{0, 3}, {255, 252}};
+  CHECK(patchy::acv::read(legacy.bytes()) == legacy_expected);
+
+  // The high word is part of Photoshop's u32 bitmap, not a legacy u16 bitmap.
+  // Channel 18 is validated and ignored by Patchy's RGB-only model.
+  patchy::psd::BigEndianWriter high_channel;
+  high_channel.write_u16(1);
+  high_channel.write_u32(0x00040001U);  // Composite and channel 18.
+  add_curve(high_channel, {{0, 7}, {255, 248}});
+  add_curve(high_channel, {{0, 30}, {255, 220}});
+  patchy::CurvesAdjustment high_channel_expected;
+  high_channel_expected.rgb = {{0, 7}, {255, 248}};
+  CHECK(patchy::acv::read(high_channel.bytes()) == high_channel_expected);
+
+  // A zero bitmap is valid when all curves live in the indexed extension.
+  patchy::psd::BigEndianWriter extension_only;
+  extension_only.write_u16(1);
+  extension_only.write_u32(0);
+  extension_only.write_bytes(std::array<std::uint8_t, 4>{'C', 'r', 'v', ' '});
+  extension_only.write_u16(4);
+  extension_only.write_u32(1);
+  extension_only.write_u16(0);
+  add_curve(extension_only, {{0, 8}, {255, 247}});
+  patchy::CurvesAdjustment extension_expected;
+  extension_expected.rgb = {{0, 8}, {255, 247}};
+  CHECK(patchy::acv::read(extension_only.bytes()) == extension_expected);
+
+  // Exact bodies captured from Photoshop 2026 native `curv` blocks after
+  // removing the PSD-only one-byte prefix. They pin the current u32 bitmap,
+  // repeated indexed records, output/input order, zero-count identity, and
+  // body padding.
+  const std::vector<std::uint8_t> photoshop_identity{
+      0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 'C',  'r',  'v',  ' ',  0x00, 0x04, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  CHECK(patchy::acv::read(photoshop_identity) == patchy::CurvesAdjustment{});
+
+  const std::vector<std::uint8_t> photoshop_rich{
+      0x00, 0x01, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x04, 0x00, 0x08, 0x00, 0x00, 0x00, 0x23,
+      0x00, 0x40, 0x00, 0xbe, 0x00, 0x80, 0x00, 0xf5, 0x00, 0xff, 0x00, 0x04, 0x00, 0x14,
+      0x00, 0x00, 0x00, 0x2d, 0x00, 0x50, 0x00, 0xe1, 0x00, 0xa0, 0x00, 0xe6, 0x00, 0xff,
+      0x00, 0x04, 0x00, 0x04, 0x00, 0x00, 0x00, 0x78, 0x00, 0x60, 0x00, 0xee, 0x00, 0xdc,
+      0x00, 0xfa, 0x00, 0xff, 0x00, 0x03, 0x00, 0xfa, 0x00, 0x00, 0x00, 0xa0, 0x00, 0x70,
+      0x00, 0x05, 0x00, 0xff, 'C',  'r',  'v',  ' ',  0x00, 0x04, 0x00, 0x00, 0x00, 0x04,
+      0x00, 0x00, 0x00, 0x04, 0x00, 0x08, 0x00, 0x00, 0x00, 0x23, 0x00, 0x40, 0x00, 0xbe,
+      0x00, 0x80, 0x00, 0xf5, 0x00, 0xff, 0x00, 0x01, 0x00, 0x04, 0x00, 0x14, 0x00, 0x00,
+      0x00, 0x2d, 0x00, 0x50, 0x00, 0xe1, 0x00, 0xa0, 0x00, 0xe6, 0x00, 0xff, 0x00, 0x02,
+      0x00, 0x04, 0x00, 0x04, 0x00, 0x00, 0x00, 0x78, 0x00, 0x60, 0x00, 0xee, 0x00, 0xdc,
+      0x00, 0xfa, 0x00, 0xff, 0x00, 0x03, 0x00, 0x03, 0x00, 0xfa, 0x00, 0x00, 0x00, 0xa0,
+      0x00, 0x70, 0x00, 0x05, 0x00, 0xff, 0x00, 0x00, 0x00};
+  patchy::CurvesAdjustment photoshop_rich_expected;
+  photoshop_rich_expected.rgb = {{0, 8}, {64, 35}, {128, 190}, {255, 245}};
+  photoshop_rich_expected.red = {{0, 20}, {80, 45}, {160, 225}, {255, 230}};
+  photoshop_rich_expected.green = {{0, 4}, {96, 120}, {220, 238}, {255, 250}};
+  photoshop_rich_expected.blue = {{0, 250}, {112, 160}, {255, 5}};
+  CHECK(patchy::acv::read(photoshop_rich) == photoshop_rich_expected);
+}
+
+void acv_rejects_malformed_data_and_invalid_models() {
+  const auto read_throws = [](std::span<const std::uint8_t> bytes) {
+    try {
+      (void)patchy::acv::read(bytes);
+      return false;
+    } catch (const std::runtime_error&) {
+      return true;
+    }
+  };
+
+  CHECK(read_throws({}));
+  CHECK(read_throws(std::array<std::uint8_t, 2>{0, 3}));
+  CHECK(read_throws(std::array<std::uint8_t, 4>{0, 4, 0, 0}));
+  CHECK(read_throws(std::array<std::uint8_t, 4>{0, 4, 0, 20}));
+
+  patchy::psd::BigEndianWriter bad_point_count;
+  bad_point_count.write_u16(4);
+  bad_point_count.write_u16(1);
+  bad_point_count.write_u16(1);
+  bad_point_count.write_u16(0);
+  bad_point_count.write_u16(0);
+  CHECK(read_throws(bad_point_count.bytes()));
+
+  patchy::psd::BigEndianWriter out_of_range;
+  out_of_range.write_u16(4);
+  out_of_range.write_u16(1);
+  out_of_range.write_u16(2);
+  out_of_range.write_u16(0);
+  out_of_range.write_u16(0);
+  out_of_range.write_u16(256);
+  out_of_range.write_u16(255);
+  CHECK(read_throws(out_of_range.bytes()));
+
+  patchy::psd::BigEndianWriter duplicate_input;
+  duplicate_input.write_u16(4);
+  duplicate_input.write_u16(1);
+  duplicate_input.write_u16(2);
+  duplicate_input.write_u16(0);
+  duplicate_input.write_u16(64);
+  duplicate_input.write_u16(255);
+  duplicate_input.write_u16(64);
+  CHECK(read_throws(duplicate_input.bytes()));
+
+  auto trailing = patchy::acv::write(patchy::CurvesAdjustment{});
+  trailing.push_back(1);
+  CHECK(read_throws(trailing));
+
+  std::filesystem::create_directories("test-artifacts");
+  const std::filesystem::path oversized_path = "test-artifacts/curves-oversized.acv";
+  {
+    std::ofstream file(oversized_path, std::ios::binary);
+    const std::vector<char> oversized_bytes(4097, 0);
+    file.write(oversized_bytes.data(), static_cast<std::streamsize>(oversized_bytes.size()));
+    CHECK(static_cast<bool>(file));
+  }
+  bool oversized_file_threw = false;
+  try {
+    (void)patchy::acv::read_file(oversized_path);
+  } catch (const std::runtime_error&) {
+    oversized_file_threw = true;
+  }
+  CHECK(oversized_file_threw);
+
+  patchy::CurvesAdjustment invalid;
+  invalid.red = {{0, 0}};
+  bool write_threw = false;
+  try {
+    (void)patchy::acv::write(invalid);
+  } catch (const std::runtime_error&) {
+    write_threw = true;
+  }
+  CHECK(write_threw);
+
+  invalid = {};
+  invalid.blue = {{0, 0}, {0, 255}};
+  write_threw = false;
+  try {
+    (void)patchy::acv::write(invalid);
+  } catch (const std::runtime_error&) {
+    write_threw = true;
+  }
+  CHECK(write_threw);
+}
+
 void curves_lut_export_targets_match_reference_and_preserve_alpha() {
   patchy::Document document(4, 1, patchy::PixelFormat::rgba8());
   patchy::PixelBuffer pixels(4, 1, patchy::PixelFormat::rgba8());
@@ -6495,7 +6764,58 @@ void curves_metadata_prefers_rich_points_and_keeps_legacy_fallback() {
   CHECK(metadata.at(patchy::kLayerMetadataAdjustmentCurvesRgbPoints) == "9:9;72:44;128:188;247:247");
 }
 
-void psd_curves_identity_and_legacy_plad_payloads_stay_compact_and_stable() {
+std::vector<std::uint8_t> test_patchy_curves_plad_payload(const patchy::CurvesAdjustment& curves,
+                                                          bool include_rich_tail) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_bytes(std::array<std::uint8_t, 4>{'P', 'L', 'A', 'D'});
+  writer.write_u16(4);
+  writer.write_u8(1);  // Curves.
+  const auto write_i32 = [&writer](int value) { writer.write_u32(static_cast<std::uint32_t>(value)); };
+  for (int channel = 0; channel < 4; ++channel) {
+    write_i32(0);
+    write_i32(255);
+    write_i32(100);
+    write_i32(0);
+    write_i32(255);
+  }
+  write_i32(0);  // Levels channel.
+  const auto composite = patchy::build_curve_lut(curves.rgb);
+  write_i32(composite[0]);
+  write_i32(composite[128]);
+  write_i32(composite[255]);
+  for (int unused_adjustment_value = 0; unused_adjustment_value < 6; ++unused_adjustment_value) {
+    write_i32(0);
+  }
+  write_i32(0);   // Hue/Saturation colorize disabled.
+  write_i32(0);   // Colorize hue.
+  write_i32(25);  // Colorize saturation default.
+  write_i32(0);   // Colorize lightness.
+
+  if (include_rich_tail) {
+    patchy::psd::BigEndianWriter extension;
+    extension.write_u16(1);
+    extension.write_u16(4);
+    constexpr std::array channels{patchy::CurvesChannel::Rgb, patchy::CurvesChannel::Red,
+                                  patchy::CurvesChannel::Green, patchy::CurvesChannel::Blue};
+    for (std::size_t channel_index = 0; channel_index < channels.size(); ++channel_index) {
+      const auto points =
+          patchy::normalized_curve_control_points(patchy::curve_points_for_channel(curves, channels[channel_index]));
+      extension.write_u8(static_cast<std::uint8_t>(channel_index));
+      extension.write_u8(0);
+      extension.write_u16(static_cast<std::uint16_t>(points.size()));
+      for (const auto& point : points) {
+        extension.write_u16(static_cast<std::uint16_t>(point.input));
+        extension.write_u16(static_cast<std::uint16_t>(point.output));
+      }
+    }
+    writer.write_bytes(std::array<std::uint8_t, 4>{'C', 'R', 'V', '2'});
+    writer.write_u32(static_cast<std::uint32_t>(extension.bytes().size()));
+    writer.write_bytes(extension.bytes());
+  }
+  return writer.bytes();
+}
+
+void psd_curves_native_output_omits_private_plad_and_migrates_legacy() {
   const auto write_document = [](const patchy::CurvesAdjustment& curves) {
     patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
     document.add_pixel_layer("Base", solid_rgb(1, 1, 80, 100, 120));
@@ -6508,73 +6828,70 @@ void psd_curves_identity_and_legacy_plad_payloads_stay_compact_and_stable() {
     document.add_layer(std::move(adjustment));
     return patchy::psd::DocumentIo::write_layered_rgb8(document);
   };
-  const auto payload_from_document = [](std::span<const std::uint8_t> bytes) {
-    const auto payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "plAD");
-    CHECK(payload.has_value());
-    return *payload;
-  };
-
-  constexpr std::size_t kCompactPladSize = 4U + 2U + 1U + 30U * 4U + 4U * 4U;
-  constexpr std::array<std::uint8_t, 4> kRichSignature{'C', 'R', 'V', '2'};
-  const auto has_rich_signature = [&kRichSignature](const std::vector<std::uint8_t>& payload) {
-    return std::search(payload.begin(), payload.end(), kRichSignature.begin(), kRichSignature.end()) !=
-           payload.end();
-  };
-  const auto hash_payload = [](std::span<const std::uint8_t> payload) {
-    std::uint64_t hash = 1469598103934665603ULL;
-    for (const auto byte : payload) {
-      hash ^= byte;
-      hash *= 1099511628211ULL;
-    }
-    return hash;
-  };
   const auto identity_bytes = write_document(patchy::CurvesAdjustment{});
-  const auto identity_payload = payload_from_document(identity_bytes);
-  CHECK(identity_payload.size() == kCompactPladSize);
-  CHECK(!has_rich_signature(identity_payload));
-  CHECK(hash_payload(identity_payload) == 0x98a0c3b8a3e8feebULL);
+  const auto identity_extra = psd_layer_extra_data(identity_bytes, 1);
+  CHECK(!psd_layer_block_payload(identity_extra, "plAD").has_value());
+  const auto identity_native = psd_layer_block_payload(identity_extra, "curv");
+  CHECK(identity_native.has_value());
+  const std::vector<std::uint8_t> expected_identity_native{
+      0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 'C', 'r', 'v', ' ',
+      0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  CHECK(*identity_native == expected_identity_native);
 
   const auto legacy_curves = patchy::curves_adjustment_from_legacy_outputs(17, 184, 243);
   const auto legacy_bytes = write_document(legacy_curves);
-  const auto legacy_payload = payload_from_document(legacy_bytes);
-  CHECK(legacy_payload.size() == kCompactPladSize);
-  CHECK(!has_rich_signature(legacy_payload));
-  CHECK(hash_payload(legacy_payload) == 0xb38537e6fbb105e4ULL);
+  const auto legacy_extra = psd_layer_extra_data(legacy_bytes, 1);
+  CHECK(!psd_layer_block_payload(legacy_extra, "plAD").has_value());
+  CHECK(psd_layer_block_payload(legacy_extra, "curv").has_value());
 
-  const auto read = patchy::psd::DocumentIo::read(legacy_bytes);
-  const auto rewritten = patchy::psd::DocumentIo::write_layered_rgb8(read);
-  CHECK(payload_from_document(rewritten) == legacy_payload);
+  const auto private_payload = test_patchy_curves_plad_payload(legacy_curves, false);
+  const auto private_bytes = single_adjustment_layer_psd({{{'p', 'l', 'A', 'D'}, private_payload}});
+  const auto private_document = patchy::psd::DocumentIo::read(private_bytes);
+  CHECK(private_document.layers().size() == 1U);
+  const auto private_settings = patchy::adjustment_settings_from_layer(private_document.layers().front());
+  CHECK(private_settings.has_value());
+  CHECK(private_settings->curves == legacy_curves);
+
+  const auto migrated = patchy::psd::DocumentIo::write_layered_rgb8(private_document);
+  const auto migrated_extra = psd_layer_extra_data(migrated, 0);
+  CHECK(!psd_layer_block_payload(migrated_extra, "plAD").has_value());
+  CHECK(psd_layer_block_payload(migrated_extra, "curv").has_value());
+  const auto migrated_document = patchy::psd::DocumentIo::read(migrated);
+  const auto migrated_settings = patchy::adjustment_settings_from_layer(migrated_document.layers().front());
+  CHECK(migrated_settings.has_value());
+  CHECK(migrated_settings->curves == legacy_curves);
 }
 
-void psd_curves_adjustment_rich_plad_v4_round_trips_and_malformed_tail_falls_back() {
-  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  document.add_pixel_layer("Base", solid_rgb(1, 1, 90, 120, 150));
+void psd_curves_private_plad_v4_imports_and_malformed_tail_migrates_fallback() {
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::Curves;
   settings.curves.rgb = {{12, 6}, {48, 24}, {128, 201}, {220, 214}, {248, 249}};
   settings.curves.red = {{5, 0}, {100, 140}, {252, 255}};
   settings.curves.green = {{8, 12}, {247, 244}};
   settings.curves.blue = {{3, 255}, {96, 180}, {249, 0}};
-  patchy::Layer adjustment(document.allocate_layer_id(), "Rich Curves", patchy::LayerKind::Adjustment);
-  adjustment.set_bounds(patchy::Rect::from_size(1, 1));
-  patchy::configure_adjustment_layer(adjustment, settings);
-  document.add_layer(std::move(adjustment));
-
-  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
-  const auto payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "plAD");
-  CHECK(payload.has_value());
+  const auto payload = test_patchy_curves_plad_payload(settings.curves, true);
   constexpr std::size_t kCurvesTailOffset = 4U + 2U + 1U + 30U * 4U + 4U * 4U;
-  CHECK(payload->size() > kCurvesTailOffset + 8U);
-  CHECK((*payload)[4] == 0U);
-  CHECK((*payload)[5] == 4U);
-  CHECK(std::string(payload->begin() + static_cast<std::ptrdiff_t>(kCurvesTailOffset),
-                    payload->begin() + static_cast<std::ptrdiff_t>(kCurvesTailOffset + 4U)) == "CRV2");
+  CHECK(payload.size() > kCurvesTailOffset + 8U);
+  CHECK(payload[4] == 0U);
+  CHECK(payload[5] == 4U);
+  CHECK(std::string(payload.begin() + static_cast<std::ptrdiff_t>(kCurvesTailOffset),
+                    payload.begin() + static_cast<std::ptrdiff_t>(kCurvesTailOffset + 4U)) == "CRV2");
 
-  const auto read = patchy::psd::DocumentIo::read(bytes);
-  const auto rich_settings = patchy::adjustment_settings_from_layer(read.layers().back());
+  const auto read = patchy::psd::DocumentIo::read(
+      single_adjustment_layer_psd({{{'p', 'l', 'A', 'D'}, payload}}));
+  const auto rich_settings = patchy::adjustment_settings_from_layer(read.layers().front());
   CHECK(rich_settings.has_value());
   CHECK(rich_settings->kind == patchy::AdjustmentKind::Curves);
   CHECK(rich_settings->curves == settings.curves);
+  const auto rich_migrated = patchy::psd::DocumentIo::write_layered_rgb8(read);
+  const auto rich_migrated_extra = psd_layer_extra_data(rich_migrated, 0);
+  CHECK(!psd_layer_block_payload(rich_migrated_extra, "plAD").has_value());
+  CHECK(psd_layer_block_payload(rich_migrated_extra, "curv").has_value());
+  const auto rich_round_trip = patchy::psd::DocumentIo::read(rich_migrated);
+  const auto rich_round_trip_settings =
+      patchy::adjustment_settings_from_layer(rich_round_trip.layers().front());
+  CHECK(rich_round_trip_settings.has_value());
+  CHECK(rich_round_trip_settings->curves == settings.curves);
 
   const auto master = patchy::build_curve_lut(settings.curves.rgb);
   const auto expected_fallback =
@@ -6588,12 +6905,17 @@ void psd_curves_adjustment_rich_plad_v4_round_trips_and_malformed_tail_falls_bac
     CHECK(fallback_settings->kind == patchy::AdjustmentKind::Curves);
     CHECK(fallback_settings->curves == expected_fallback);
     const auto rewritten = patchy::psd::DocumentIo::write_layered_rgb8(fallback_document);
-    const auto rewritten_payload = psd_layer_block_payload(psd_layer_extra_data(rewritten, 0), "plAD");
-    CHECK(rewritten_payload.has_value());
-    CHECK(*rewritten_payload == candidate);
+    const auto rewritten_extra = psd_layer_extra_data(rewritten, 0);
+    CHECK(!psd_layer_block_payload(rewritten_extra, "plAD").has_value());
+    CHECK(psd_layer_block_payload(rewritten_extra, "curv").has_value());
+    const auto migrated_document = patchy::psd::DocumentIo::read(rewritten);
+    const auto migrated_settings =
+        patchy::adjustment_settings_from_layer(migrated_document.layers().front());
+    CHECK(migrated_settings.has_value());
+    CHECK(migrated_settings->curves == expected_fallback);
   };
 
-  auto malformed = *payload;
+  auto malformed = payload;
   malformed[kCurvesTailOffset + 4U] = 0x7fU;
   malformed[kCurvesTailOffset + 5U] = 0xffU;
   malformed[kCurvesTailOffset + 6U] = 0xffU;
@@ -6606,7 +6928,7 @@ void psd_curves_adjustment_rich_plad_v4_round_trips_and_malformed_tail_falls_bac
     bytes[offset + 2U] = static_cast<std::uint8_t>(value >> 8U);
     bytes[offset + 3U] = static_cast<std::uint8_t>(value);
   };
-  auto truncated = *payload;
+  auto truncated = payload;
   truncated.resize(truncated.size() - 2U);
   write_u32_at(truncated, kCurvesTailOffset + 4U,
                static_cast<std::uint32_t>(truncated.size() - kCurvesTailOffset - 8U));
@@ -6614,35 +6936,35 @@ void psd_curves_adjustment_rich_plad_v4_round_trips_and_malformed_tail_falls_bac
 
   constexpr std::size_t kExtensionBodyOffset = kCurvesTailOffset + 8U;
   constexpr std::size_t kFirstChannelIdOffset = kExtensionBodyOffset + 4U;
-  auto invalid_channel = *payload;
+  auto invalid_channel = payload;
   invalid_channel[kFirstChannelIdOffset] = 9U;
   check_fallback(invalid_channel);
 
   const auto first_channel_count =
-      (static_cast<std::size_t>((*payload)[kFirstChannelIdOffset + 2U]) << 8U) |
-      static_cast<std::size_t>((*payload)[kFirstChannelIdOffset + 3U]);
+      (static_cast<std::size_t>(payload[kFirstChannelIdOffset + 2U]) << 8U) |
+      static_cast<std::size_t>(payload[kFirstChannelIdOffset + 3U]);
   const auto second_channel_id_offset = kFirstChannelIdOffset + 4U + first_channel_count * 4U;
-  auto duplicate_channel = *payload;
+  auto duplicate_channel = payload;
   duplicate_channel[second_channel_id_offset] = duplicate_channel[kFirstChannelIdOffset];
   check_fallback(duplicate_channel);
 
-  auto future_version = *payload;
+  auto future_version = payload;
   future_version[kExtensionBodyOffset] = 0U;
   future_version[kExtensionBodyOffset + 1U] = 2U;
   check_fallback(future_version);
 
   // The v1 shape can never exceed 324 bytes (four 19-point channels). Reject
   // larger declared records before copying them, even when the enclosing plAD
-  // really contains all of those bytes, and preserve the opaque bytes untouched.
-  auto oversized = std::vector<std::uint8_t>(payload->begin(),
-                                              payload->begin() + static_cast<std::ptrdiff_t>(kCurvesTailOffset));
+  // really contains all of those bytes. Migration keeps the modeled fallback.
+  auto oversized = std::vector<std::uint8_t>(
+      payload.begin(), payload.begin() + static_cast<std::ptrdiff_t>(kCurvesTailOffset));
   oversized.insert(oversized.end(), {'C', 'R', 'V', '2'});
   oversized.resize(kCurvesTailOffset + 8U + 325U, 0xa5U);
   write_u32_at(oversized, kCurvesTailOffset + 4U, 325U);
   check_fallback(oversized);
 
   // Once Patchy changes the modeled curve, the opaque future record must no
-  // longer shadow the edit: regenerate a known CRV2 v1 record instead.
+  // longer shadow the edit: the modeled fallback plus edit migrate to curv.
   auto edited_document = patchy::psd::DocumentIo::read(
       single_adjustment_layer_psd({{{'p', 'l', 'A', 'D'}, future_version}}));
   auto edited_settings = patchy::adjustment_settings_from_layer(edited_document.layers().front());
@@ -6650,11 +6972,9 @@ void psd_curves_adjustment_rich_plad_v4_round_trips_and_malformed_tail_falls_bac
   edited_settings->curves.red = {{0, 5}, {96, 142}, {255, 250}};
   patchy::configure_adjustment_layer(edited_document.layers().front(), *edited_settings);
   const auto edited_bytes = patchy::psd::DocumentIo::write_layered_rgb8(edited_document);
-  const auto edited_payload = psd_layer_block_payload(psd_layer_extra_data(edited_bytes, 0), "plAD");
-  CHECK(edited_payload.has_value());
-  CHECK(*edited_payload != future_version);
-  CHECK((*edited_payload)[kExtensionBodyOffset] == 0U);
-  CHECK((*edited_payload)[kExtensionBodyOffset + 1U] == 1U);
+  const auto edited_extra = psd_layer_extra_data(edited_bytes, 0);
+  CHECK(!psd_layer_block_payload(edited_extra, "plAD").has_value());
+  CHECK(psd_layer_block_payload(edited_extra, "curv").has_value());
   const auto edited_round_trip = patchy::psd::DocumentIo::read(edited_bytes);
   const auto edited_round_trip_settings =
       patchy::adjustment_settings_from_layer(edited_round_trip.layers().front());
@@ -6663,24 +6983,14 @@ void psd_curves_adjustment_rich_plad_v4_round_trips_and_malformed_tail_falls_bac
 }
 
 void psd_native_curves_suppresses_private_fallback_and_preserves_both_blocks() {
-  patchy::Document stale_document(1, 1, patchy::PixelFormat::rgb8());
-  stale_document.add_pixel_layer("Base", solid_rgb(1, 1, 40, 80, 120));
   patchy::AdjustmentSettings stale_settings;
   stale_settings.kind = patchy::AdjustmentKind::Curves;
   stale_settings.curves.rgb = {{0, 0}, {128, 220}, {255, 255}};
-  patchy::Layer stale_adjustment(stale_document.allocate_layer_id(), "Stale Curves",
-                                 patchy::LayerKind::Adjustment);
-  stale_adjustment.set_bounds(patchy::Rect::from_size(1, 1));
-  patchy::configure_adjustment_layer(stale_adjustment, stale_settings);
-  stale_document.add_layer(std::move(stale_adjustment));
-  const auto stale_extra =
-      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(stale_document), 1);
-  const auto stale_plad = psd_layer_block_payload(stale_extra, "plAD");
-  CHECK(stale_plad.has_value());
+  const auto stale_plad = test_patchy_curves_plad_payload(stale_settings.curves, false);
 
   const std::vector<std::uint8_t> native_curv{0x00, 0x01, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78};
   const auto bytes = single_adjustment_layer_psd(
-      {{{'c', 'u', 'r', 'v'}, native_curv}, {{'p', 'l', 'A', 'D'}, *stale_plad}});
+      {{{'c', 'u', 'r', 'v'}, native_curv}, {{'p', 'l', 'A', 'D'}, stale_plad}});
   const auto document = patchy::psd::DocumentIo::read(bytes);
   CHECK(document.layers().size() == 1U);
   CHECK(document.layers().front().kind() == patchy::LayerKind::Pixel);
@@ -6693,7 +7003,153 @@ void psd_native_curves_suppresses_private_fallback_and_preserves_both_blocks() {
   CHECK(rewritten_curv.has_value());
   CHECK(*rewritten_curv == native_curv);
   CHECK(rewritten_plad.has_value());
-  CHECK(*rewritten_plad == *stale_plad);
+  CHECK(*rewritten_plad == stale_plad);
+
+  patchy::Document native_document(1, 1, patchy::PixelFormat::rgb8());
+  native_document.add_pixel_layer("Base", solid_rgb(1, 1, 40, 80, 120));
+  patchy::AdjustmentSettings native_settings;
+  native_settings.kind = patchy::AdjustmentKind::Curves;
+  native_settings.curves.rgb = {{0, 4}, {128, 180}, {255, 250}};
+  native_settings.curves.red = {{0, 12}, {255, 242}};
+  patchy::Layer native_adjustment(native_document.allocate_layer_id(), "Native Curves",
+                                  patchy::LayerKind::Adjustment);
+  native_adjustment.set_bounds(patchy::Rect::from_size(1, 1));
+  patchy::configure_adjustment_layer(native_adjustment, native_settings);
+  native_document.add_layer(std::move(native_adjustment));
+  const auto native_extra =
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(native_document), 1);
+  const auto valid_native_curv = psd_layer_block_payload(native_extra, "curv");
+  CHECK(valid_native_curv.has_value());
+
+  const auto conflicting_bytes = single_adjustment_layer_psd(
+      {{{'c', 'u', 'r', 'v'}, *valid_native_curv}, {{'p', 'l', 'A', 'D'}, stale_plad}});
+  const auto conflicting_document = patchy::psd::DocumentIo::read(conflicting_bytes);
+  CHECK(conflicting_document.layers().front().kind() == patchy::LayerKind::Adjustment);
+  const auto conflicting_settings =
+      patchy::adjustment_settings_from_layer(conflicting_document.layers().front());
+  CHECK(conflicting_settings.has_value());
+  CHECK(conflicting_settings->curves == native_settings.curves);
+}
+
+void psd_photoshop_curves_fixtures_import_preserve_regenerate_and_round_trip() {
+  patchy::CurvesAdjustment expected;
+  expected.rgb = {{0, 8}, {64, 35}, {128, 190}, {255, 245}};
+  expected.red = {{0, 20}, {80, 45}, {160, 225}, {255, 230}};
+  expected.green = {{0, 4}, {96, 120}, {220, 238}, {255, 250}};
+  expected.blue = {{0, 250}, {112, 160}, {255, 5}};
+
+  struct FixtureCase {
+    const char* filename;
+    const char* layer_name;
+    bool clipped;
+    bool patterned_mask;
+  };
+  constexpr std::array<FixtureCase, 2> kCases{{
+      {"photoshop-curves-masked.psd", "Curves rich-masked", false, true},
+      {"photoshop-curves-clipped.psd", "Curves rich-clipped", true, false},
+  }};
+
+  const auto block_payload = [](const patchy::Layer& layer,
+                                std::string_view key) -> const std::vector<std::uint8_t>* {
+    const auto& blocks = layer.unknown_psd_blocks();
+    const auto found = std::find_if(blocks.begin(), blocks.end(), [key](const patchy::UnknownPsdBlock& block) {
+      return block.key == key;
+    });
+    return found == blocks.end() ? nullptr : &found->payload;
+  };
+
+  const auto check_mask = [](const patchy::Layer& layer, bool patterned) {
+    if (!patterned) {
+      CHECK(!layer.mask().has_value());
+      return;
+    }
+    CHECK(layer.mask().has_value());
+    const auto& mask = *layer.mask();
+    CHECK(mask.bounds.x == 0);
+    CHECK(mask.bounds.y == 0);
+    CHECK(mask.bounds.width == 4);
+    CHECK(mask.bounds.height == 8);
+    CHECK(mask.default_color == 255);
+    for (std::int32_t y = 0; y < 8; ++y) {
+      for (std::int32_t x = 0; x < 4; ++x) {
+        CHECK(mask.pixels.pixel(x, y)[0] == 0);
+      }
+    }
+  };
+
+  patchy::Document fresh_document(8, 8, patchy::PixelFormat::rgb8());
+  fresh_document.add_pixel_layer("Base", solid_rgb(8, 8, 50, 100, 150));
+  patchy::AdjustmentSettings fresh_settings;
+  fresh_settings.kind = patchy::AdjustmentKind::Curves;
+  fresh_settings.curves = expected;
+  patchy::Layer fresh_adjustment(fresh_document.allocate_layer_id(), "Fresh Curves",
+                                 patchy::LayerKind::Adjustment);
+  fresh_adjustment.set_bounds(patchy::Rect::from_size(8, 8));
+  patchy::configure_adjustment_layer(fresh_adjustment, fresh_settings);
+  fresh_document.add_layer(std::move(fresh_adjustment));
+  const auto fresh_curv = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(fresh_document), 1), "curv");
+  CHECK(fresh_curv.has_value());
+  CHECK(fresh_curv->size() == 164U);
+
+  for (const auto& fixture : kCases) {
+    const auto path = patchy::test::committed_psd_fixture_path(fixture.filename);
+    CHECK(std::filesystem::exists(path));
+    auto document = patchy::psd::DocumentIo::read_file(path);
+    CHECK(document.width() == 8);
+    CHECK(document.height() == 8);
+    CHECK(document.layers().size() == 2U);
+
+    const auto* adjustment = find_layer_named(std::as_const(document).layers(), fixture.layer_name);
+    CHECK(adjustment != nullptr);
+    CHECK(adjustment->kind() == patchy::LayerKind::Adjustment);
+    CHECK(adjustment->clipped() == fixture.clipped);
+    check_mask(*adjustment, fixture.patterned_mask);
+    const auto settings = patchy::adjustment_settings_from_layer(*adjustment);
+    CHECK(settings.has_value());
+    CHECK(settings->kind == patchy::AdjustmentKind::Curves);
+    CHECK(settings->curves == expected);
+
+    const auto* original_curv = block_payload(*adjustment, "curv");
+    CHECK(original_curv != nullptr);
+    CHECK(original_curv->size() == 164U);
+    const auto original_curv_copy = *original_curv;
+    CHECK(original_curv_copy == *fresh_curv);
+
+    const auto rewritten_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto round_tripped = patchy::psd::DocumentIo::read(rewritten_bytes);
+    const auto* round_tripped_adjustment =
+        find_layer_named(round_tripped.layers(), fixture.layer_name);
+    CHECK(round_tripped_adjustment != nullptr);
+    CHECK(round_tripped_adjustment->clipped() == fixture.clipped);
+    check_mask(*round_tripped_adjustment, fixture.patterned_mask);
+    const auto round_tripped_settings = patchy::adjustment_settings_from_layer(*round_tripped_adjustment);
+    CHECK(round_tripped_settings.has_value());
+    CHECK(round_tripped_settings->curves == expected);
+    const auto* round_tripped_curv = block_payload(*round_tripped_adjustment, "curv");
+    CHECK(round_tripped_curv != nullptr);
+    CHECK(*round_tripped_curv == original_curv_copy);
+
+    auto edited = *settings;
+    edited.curves.red[1].output = 52;
+    auto* mutable_adjustment = document.find_layer(adjustment->id());
+    CHECK(mutable_adjustment != nullptr);
+    patchy::configure_adjustment_layer(*mutable_adjustment, edited);
+
+    const auto edited_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto edited_round_trip = patchy::psd::DocumentIo::read(edited_bytes);
+    const auto* edited_adjustment = find_layer_named(edited_round_trip.layers(), fixture.layer_name);
+    CHECK(edited_adjustment != nullptr);
+    CHECK(edited_adjustment->clipped() == fixture.clipped);
+    check_mask(*edited_adjustment, fixture.patterned_mask);
+    const auto edited_settings = patchy::adjustment_settings_from_layer(*edited_adjustment);
+    CHECK(edited_settings.has_value());
+    CHECK(edited_settings->curves == edited.curves);
+    const auto* edited_curv = block_payload(*edited_adjustment, "curv");
+    CHECK(edited_curv != nullptr);
+    CHECK(edited_curv->size() == 164U);
+    CHECK(*edited_curv != original_curv_copy);
+  }
 }
 
 void psd_levels_adjustment_channel_round_trips() {
@@ -15079,16 +15535,25 @@ int main() {
       {"curves_control_points_normalize_and_build_composed_luts",
        curves_control_points_normalize_and_build_composed_luts},
       {"curves_lut_matches_photoshop_2026_calibration", curves_lut_matches_photoshop_2026_calibration},
+      {"curves_eyedroppers_rebuild_neutral_component_curves",
+       curves_eyedroppers_rebuild_neutral_component_curves},
+      {"acv_v4_reads_photoshop_rgb_order_and_writes_canonical_bytes",
+       acv_v4_reads_photoshop_rgb_order_and_writes_canonical_bytes},
+      {"acv_v1_reads_photoshop_bitmap_and_indexed_extension",
+       acv_v1_reads_photoshop_bitmap_and_indexed_extension},
+      {"acv_rejects_malformed_data_and_invalid_models", acv_rejects_malformed_data_and_invalid_models},
       {"curves_lut_export_targets_match_reference_and_preserve_alpha",
        curves_lut_export_targets_match_reference_and_preserve_alpha},
       {"curves_metadata_prefers_rich_points_and_keeps_legacy_fallback",
        curves_metadata_prefers_rich_points_and_keeps_legacy_fallback},
-      {"psd_curves_identity_and_legacy_plad_payloads_stay_compact_and_stable",
-       psd_curves_identity_and_legacy_plad_payloads_stay_compact_and_stable},
-      {"psd_curves_adjustment_rich_plad_v4_round_trips_and_malformed_tail_falls_back",
-       psd_curves_adjustment_rich_plad_v4_round_trips_and_malformed_tail_falls_back},
+      {"psd_curves_native_output_omits_private_plad_and_migrates_legacy",
+       psd_curves_native_output_omits_private_plad_and_migrates_legacy},
+      {"psd_curves_private_plad_v4_imports_and_malformed_tail_migrates_fallback",
+       psd_curves_private_plad_v4_imports_and_malformed_tail_migrates_fallback},
       {"psd_native_curves_suppresses_private_fallback_and_preserves_both_blocks",
        psd_native_curves_suppresses_private_fallback_and_preserves_both_blocks},
+      {"psd_photoshop_curves_fixtures_import_preserve_regenerate_and_round_trip",
+       psd_photoshop_curves_fixtures_import_preserve_regenerate_and_round_trip},
       {"psd_levels_adjustment_channel_round_trips", psd_levels_adjustment_channel_round_trips},
       {"psd_levels_adjustment_writes_native_levl_and_patchy_fallback",
        psd_levels_adjustment_writes_native_levl_and_patchy_fallback},

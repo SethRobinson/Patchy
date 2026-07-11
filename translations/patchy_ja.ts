@@ -175,7 +175,7 @@
         <translation>%1 x %2 = %3 セル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="+2292"/>
+        <location filename="../src/ui/main_window.cpp" line="+2301"/>
         <source>GIF Image</source>
         <translation>GIF 画像</translation>
     </message>
@@ -200,12 +200,12 @@
         <translation>Targa 画像</translation>
     </message>
     <message>
-        <location line="+256"/>
+        <location line="+294"/>
         <source>Animated image: imported the first frame only (%1 frames in the file)</source>
         <translation>アニメーション画像: 最初のフレームのみ読み込みました (ファイル内に %1 フレーム)</translation>
     </message>
     <message>
-        <location line="-251"/>
+        <location line="-289"/>
         <source>Windows Icon</source>
         <translation>Windows アイコン</translation>
     </message>
@@ -287,7 +287,7 @@
     <message>
         <location line="+2"/>
         <location line="+42"/>
-        <location filename="../src/ui/main_window.cpp" line="+9804"/>
+        <location filename="../src/ui/main_window.cpp" line="+9856"/>
         <location line="+550"/>
         <source>Normal</source>
         <translation>通常</translation>
@@ -374,7 +374,7 @@
     </message>
     <message>
         <location line="-14"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="+3026"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+3409"/>
         <location line="+6"/>
         <source>Saturation</source>
         <translation>彩度</translation>
@@ -410,15 +410,16 @@
         <translation>エアブラシ</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="-2402"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="-2773"/>
         <location line="+366"/>
-        <location line="+1817"/>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="+425"/>
+        <location line="+1801"/>
+        <location line="+269"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="+893"/>
         <source>Preview</source>
         <translation>プレビュー</translation>
     </message>
     <message>
-        <location line="-2126"/>
+        <location line="-2379"/>
         <source>Invert</source>
         <translation>反転</translation>
     </message>
@@ -443,7 +444,7 @@
     </message>
     <message>
         <location line="-276"/>
-        <location filename="../src/ui/main_window.cpp" line="-11171"/>
+        <location filename="../src/ui/main_window.cpp" line="-11231"/>
         <source>Grayscale</source>
         <translation>グレースケール</translation>
     </message>
@@ -550,12 +551,140 @@
         <translation>レンズ周辺減光</translation>
     </message>
     <message>
-        <location line="+1959"/>
+        <location line="+1943"/>
         <source>Preset:</source>
         <translation>プリセット:</translation>
     </message>
     <message>
-        <location line="-2001"/>
+        <location line="+250"/>
+        <source>Target</source>
+        <translation>画像内調整</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Click and drag on the image to adjust the selected channel</source>
+        <translation>画像上をクリックしてドラッグし、選択中のチャンネルを調整</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>Set the black point from the image</source>
+        <translation>画像から黒点を設定</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>Neutralize a gray point from the image</source>
+        <translation>画像からグレー点を中立化</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>Set the white point from the image</source>
+        <translation>画像から白点を設定</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Shadows</source>
+        <translation>シャドウ</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Show pixels clipped to black</source>
+        <translation>黒につぶれているピクセルを表示</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Highlights</source>
+        <translation>ハイライト</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Show pixels clipped to white</source>
+        <translation>白飛びしているピクセルを表示</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Both</source>
+        <translation>両方</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Show shadow and highlight clipping together</source>
+        <translation>シャドウとハイライトのクリッピングを同時に表示</translation>
+    </message>
+    <message>
+        <location line="+23"/>
+        <source>Curves presets</source>
+        <translation>トーンカーブのプリセット</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>Custom</source>
+        <translation>カスタム</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Current custom curve</source>
+        <translation>現在のカスタムカーブ</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>Load...</source>
+        <translation>読み込み...</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Load a Photoshop Curves preset</source>
+        <translation>Photoshop のトーンカーブプリセットを読み込み</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Save...</source>
+        <translation>保存...</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Save the current curves as a Photoshop preset</source>
+        <translation>現在のトーンカーブを Photoshop プリセットとして保存</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Before</source>
+        <translation>調整前</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Hold to compare with the unadjusted image</source>
+        <translation>押している間、調整前の画像と比較</translation>
+    </message>
+    <message>
+        <location line="+210"/>
+        <location line="+14"/>
+        <source>Load Curves Preset</source>
+        <translation>トーンカーブプリセットを読み込み</translation>
+    </message>
+    <message>
+        <location line="-13"/>
+        <location line="+21"/>
+        <source>Photoshop Curves Preset (*.acv)</source>
+        <translation>Photoshop トーンカーブプリセット (*.acv)</translation>
+    </message>
+    <message>
+        <location line="-7"/>
+        <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
+        <translation>トーンカーブプリセットを読み込めませんでした。ファイルが破損しているか、対応していない可能性があります。</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <location line="+12"/>
+        <source>Save Curves Preset</source>
+        <translation>トーンカーブプリセットを保存</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>The Curves preset could not be saved.</source>
+        <translation>トーンカーブプリセットを保存できませんでした。</translation>
+    </message>
+    <message>
+        <location line="-2576"/>
         <source>Unsharp Mask</source>
         <translation>アンシャープマスク</translation>
     </message>
@@ -619,13 +748,13 @@
     </message>
     <message>
         <location line="+14"/>
-        <location line="+1875"/>
+        <location line="+1859"/>
         <location filename="../src/ui/main_window_shared.cpp" line="+19"/>
         <source>Levels</source>
         <translation>レベル補正</translation>
     </message>
     <message>
-        <location line="-1870"/>
+        <location line="-1854"/>
         <location line="+14"/>
         <location line="+7"/>
         <location line="+49"/>
@@ -643,16 +772,16 @@
         <location line="-99"/>
         <location line="+21"/>
         <location line="+20"/>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="+14"/>
-        <location line="+89"/>
-        <location line="+281"/>
-        <location line="+131"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-341"/>
+        <location line="+354"/>
+        <location line="+148"/>
+        <location line="+267"/>
         <source>Angle</source>
         <translation>角度</translation>
     </message>
     <message>
         <location line="-18"/>
-        <location filename="../src/ui/main_window.cpp" line="+1989"/>
+        <location filename="../src/ui/main_window.cpp" line="+2038"/>
         <location line="+560"/>
         <location line="+43"/>
         <source>Height</source>
@@ -660,7 +789,7 @@
     </message>
     <message>
         <location line="+44"/>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-128"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-766"/>
         <location filename="../src/ui/print_dialog.cpp" line="+472"/>
         <source>Scale</source>
         <translation>拡大縮小</translation>
@@ -810,7 +939,7 @@
         <translation>ピクセルにフィルターを適用しています</translation>
     </message>
     <message>
-        <location line="+384"/>
+        <location line="+368"/>
         <source>Channel:</source>
         <translation>チャンネル:</translation>
     </message>
@@ -825,65 +954,71 @@
         <translation>出力レベル:</translation>
     </message>
     <message>
-        <location line="+28"/>
+        <location filename="../src/ui/curves_editor.cpp" line="+536"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+28"/>
         <source>Auto</source>
         <translation>自動</translation>
     </message>
     <message>
-        <location line="+171"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+170"/>
         <location filename="../src/ui/main_window_shared.cpp" line="+2"/>
         <source>Curves</source>
         <translation>トーンカーブ</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>Shadows Output</source>
-        <translation>シャドウ出力</translation>
+        <translation type="vanished">シャドウ出力</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>Midtones Output</source>
-        <translation>中間調出力</translation>
+        <translation type="vanished">中間調出力</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>Highlights Output</source>
-        <translation>ハイライト出力</translation>
+        <translation type="vanished">ハイライト出力</translation>
     </message>
     <message>
+        <location filename="../src/ui/curves_editor.cpp" line="-379"/>
         <source>Curves graph</source>
         <translation>トーンカーブグラフ</translation>
     </message>
     <message>
+        <location line="+1"/>
         <source>Click to add a point. Drag points or use the arrow keys to adjust them.</source>
         <translation>クリックしてポイントを追加します。ポイントをドラッグするか、矢印キーで調整します。</translation>
     </message>
     <message>
+        <location line="+356"/>
         <source>Input:</source>
         <translation>入力:</translation>
     </message>
     <message>
+        <location line="+9"/>
         <source>Output:</source>
         <translation>出力:</translation>
     </message>
     <message>
+        <location line="+15"/>
         <source>Set the active channel from its histogram</source>
         <translation>ヒストグラムに基づいて選択中のチャンネルを自動調整</translation>
     </message>
     <message>
+        <location line="+2"/>
         <source>Reset</source>
         <translation>リセット</translation>
     </message>
     <message>
+        <location line="+2"/>
         <source>Reset all channels</source>
         <translation>すべてのチャンネルをリセット</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="-2572"/>
         <source>Curves: RGB %1, Red %2, Green %3, Blue %4 points</source>
         <translation>トーンカーブ: RGB %1、赤 %2、緑 %3、青 %4 ポイント</translation>
     </message>
     <message>
-        <location line="+70"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+461"/>
         <location filename="../src/ui/main_window_shared.cpp" line="+2"/>
         <source>Hue/Saturation</source>
         <translation>色相・彩度</translation>
@@ -1070,7 +1205,7 @@
         <translation>適用して閉じる</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="+47"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="+48"/>
         <source>%1 is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
         <translation>%1 は外部ファイルにリンクされたスマートオブジェクトです。Patchy はこれを保持し、ソースファイルが利用可能な場合はディスクから更新できます。</translation>
     </message>
@@ -1090,7 +1225,7 @@
         <translation>%1 は Patchy では保持のみ可能で編集できないスマートオブジェクトです (%2)。</translation>
     </message>
     <message>
-        <location line="+25"/>
+        <location line="+16"/>
         <source>%1 contains a Satin effect that Patchy preserves for PSD round-trip but does not render or edit.</source>
         <translation>%1 にはサテン効果が含まれています。Patchy は PSD 往復用に保持しますが、描画や編集は行いません。</translation>
     </message>
@@ -1100,12 +1235,12 @@
         <translation>%1 にはパターンオーバーレイ効果が含まれています。Patchy は PSD 往復用に保持しますが、描画や編集は行いません。</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+28"/>
         <source>%1 contains non-default Photoshop Blend If data that Patchy preserves for PSD round-trip but does not render or edit.</source>
         <translation>%1 には既定値以外の Photoshop「ブレンド条件 (Blend If)」データが含まれています。Patchy は PSD 往復用に保持しますが、描画や編集は行いません。</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+8"/>
         <location line="+53"/>
         <source>%1 preserves %2 unknown PSD layer block(s).</source>
         <translation>%1 は不明な PSD レイヤーブロック %2 個を保持しています。</translation>
@@ -1181,7 +1316,7 @@
         <translation>Patchy は認識できる編集可能データを保持し、Photoshop や他の PSD エディターと異なる可能性のある領域を示しました。</translation>
     </message>
     <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-521"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-208"/>
         <source>Layer Style</source>
         <translation>レイヤースタイル</translation>
     </message>
@@ -1193,18 +1328,18 @@
         <translation>名前:</translation>
     </message>
     <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="+112"/>
-        <location line="+1264"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="+518"/>
+        <location line="+1171"/>
         <source>Blending Options</source>
         <translation>描画オプション</translation>
     </message>
     <message>
-        <location line="-1254"/>
+        <location line="-1161"/>
         <source>Show Effects</source>
         <translation>効果を表示</translation>
     </message>
     <message>
-        <location line="-1254"/>
+        <location line="+4"/>
         <source>Layer Mask Hides Effects</source>
         <translation>レイヤーマスクで効果を隠す</translation>
     </message>
@@ -1214,76 +1349,80 @@
         <translation>ドロップシャドウ・光彩・境界線をレイヤーマスクの形に合わせるだけでなく、マスクで切り抜きます</translation>
     </message>
     <message>
-        <location line="+10"/>
-        <location line="+1241"/>
+        <location line="+11"/>
+        <location line="+1143"/>
         <source>Bevel &amp; Emboss</source>
         <translation>ベベルとエンボス</translation>
     </message>
     <message>
-        <location line="-1210"/>
-        <location line="+1223"/>
-        <location filename="../src/ui/main_window.cpp" line="-2545"/>
+        <location line="-1073"/>
+        <location line="+1086"/>
+        <location filename="../src/ui/main_window.cpp" line="-22"/>
         <source>Stroke</source>
         <translation>境界線</translation>
     </message>
     <message>
-        <location line="-1021"/>
-        <location line="+1026"/>
+        <location line="-864"/>
+        <location line="+869"/>
         <location filename="../src/ui/main_window.cpp" line="-9"/>
         <source>Color Overlay</source>
         <translation>カラーオーバーレイ</translation>
     </message>
     <message>
-        <location line="-975"/>
-        <location line="+977"/>
+        <location line="-818"/>
+        <location line="+820"/>
         <source>Gradient Overlay</source>
         <translation>グラデーションオーバーレイ</translation>
     </message>
     <message>
-        <location line="-815"/>
-        <location line="+817"/>
+        <location line="-803"/>
+        <location line="+805"/>
         <location filename="../src/ui/main_window.cpp" line="-9"/>
         <source>Outer Glow</source>
         <translation>光彩(外側)</translation>
     </message>
     <message>
-        <location line="-765"/>
-        <location line="+767"/>
+        <location line="-753"/>
+        <location line="+755"/>
         <location filename="../src/ui/main_window.cpp" line="-6"/>
         <source>Drop Shadow</source>
         <translation>ドロップシャドウ</translation>
     </message>
     <message>
-        <location line="-1181"/>
-        <location line="+1171"/>
+        <location line="-1024"/>
+        <location line="+1014"/>
         <location filename="../src/ui/main_window.cpp" line="+3"/>
         <source>Inner Shadow</source>
         <translation>シャドウ（内側）</translation>
     </message>
     <message>
-        <location line="-1095"/>
-        <location line="+1097"/>
+        <location line="-938"/>
+        <location line="+940"/>
         <location filename="../src/ui/main_window.cpp" line="+6"/>
         <source>Inner Glow</source>
         <translation>光彩（内側）</translation>
     </message>
     <message>
+        <location line="-1684"/>
         <location filename="../src/ui/main_window.cpp" line="+3"/>
+        <location line="+1011"/>
         <source>Satin</source>
         <translation>サテン</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+0"/>
+        <location filename="../src/ui/main_window.cpp" line="-1002"/>
+        <location line="+1005"/>
         <source>Pattern Overlay</source>
         <translation>パターンオーバーレイ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="+1055"/>
+        <location filename="../src/ui/main_window.cpp" line="+2"/>
         <source>Patchy preserved layer effects for PSD round-trip but does not render or edit them (%1).</source>
         <translation>Patchy はレイヤー効果（%1）を PSD 往復用に保持しますが、描画や編集は行いません。</translation>
     </message>
     <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-866"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-4"/>
         <source>Satin and Pattern Overlay are preserved for PSD round-trip, but Patchy does not render or edit them. Saving other layer style changes may normalize Photoshop-only effect options.</source>
         <translation>サテンとパターンオーバーレイは PSD 往復用に保持されますが、Patchy では描画も編集も行いません。他のレイヤースタイルを保存すると、Photoshop 固有の効果オプションが書き換えられる場合があります。</translation>
     </message>
@@ -1293,42 +1432,46 @@
         <translation>%1 は PSD 往復用に保持されますが、Patchy では描画も編集も行いません。他のレイヤースタイルを保存すると、Photoshop 固有の効果オプションが書き換えられる場合があります。</translation>
     </message>
     <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-1275"/>
-        <location line="+65"/>
-        <location line="+44"/>
+        <location line="+500"/>
+        <location line="+52"/>
+        <location line="+20"/>
+        <location line="+37"/>
+        <location line="+64"/>
         <location line="+75"/>
         <location line="+74"/>
         <location line="+50"/>
-        <location line="+162"/>
+        <location line="+17"/>
         <location line="+52"/>
         <source>Blend Mode</source>
         <translation>描画モード</translation>
     </message>
     <message>
-        <location line="-521"/>
+        <location line="-805"/>
+        <location line="+365"/>
+        <location line="+53"/>
+        <location line="+20"/>
+        <location line="+36"/>
         <location line="+65"/>
-        <location line="+45"/>
         <location line="+75"/>
         <location line="+74"/>
         <location line="+50"/>
-        <location line="+44"/>
-        <location line="+118"/>
+        <location line="+17"/>
         <location line="+51"/>
         <source>Opacity</source>
         <translation>不透明度</translation>
     </message>
     <message>
-        <location line="-503"/>
-        <location line="+31"/>
-        <location line="+71"/>
+        <location line="-417"/>
+        <location line="+70"/>
+        <location line="+91"/>
         <location line="+67"/>
-        <location line="+286"/>
+        <location line="+141"/>
         <location line="+58"/>
         <source>Size</source>
         <translation>サイズ</translation>
     </message>
     <message>
-        <location line="-510"/>
+        <location line="-424"/>
         <source>Depth</source>
         <translation>深さ</translation>
     </message>
@@ -1348,7 +1491,7 @@
         <translation>下</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+5"/>
         <source>Highlight</source>
         <translation>ハイライト</translation>
     </message>
@@ -1358,62 +1501,60 @@
         <translation>シャドウ</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="-23"/>
         <source>Direction</source>
         <translation>方向</translation>
     </message>
     <message>
-        <location line="+2"/>
         <source>Highlight Opacity</source>
-        <translation>ハイライトの不透明度</translation>
+        <translation type="vanished">ハイライトの不透明度</translation>
     </message>
     <message>
-        <location line="+4"/>
         <source>Shadow Opacity</source>
-        <translation>シャドウの不透明度</translation>
+        <translation type="vanished">シャドウの不透明度</translation>
     </message>
     <message>
-        <location line="+32"/>
-        <location line="+59"/>
+        <location line="+83"/>
+        <location line="+73"/>
         <location line="+73"/>
         <location line="+61"/>
-        <location line="+219"/>
+        <location line="+74"/>
         <location line="+57"/>
         <source>R</source>
         <translation>R</translation>
     </message>
     <message>
-        <location line="-466"/>
-        <location line="+59"/>
+        <location line="-335"/>
+        <location line="+73"/>
         <location line="+73"/>
         <location line="+61"/>
-        <location line="+219"/>
+        <location line="+74"/>
         <location line="+57"/>
         <source>G</source>
         <translation>G</translation>
     </message>
     <message>
-        <location line="-466"/>
-        <location line="+59"/>
+        <location line="-335"/>
+        <location line="+73"/>
         <location line="+73"/>
         <location line="+61"/>
-        <location line="+219"/>
+        <location line="+74"/>
         <location line="+57"/>
         <source>B</source>
         <translation>B</translation>
     </message>
     <message>
-        <location line="-452"/>
-        <location line="+61"/>
+        <location line="-321"/>
+        <location line="+75"/>
         <location line="+73"/>
         <location line="+66"/>
-        <location line="+214"/>
+        <location line="+69"/>
         <location line="+55"/>
         <source>Color RGB</source>
         <translation>カラー RGB</translation>
     </message>
     <message>
-        <location line="-511"/>
+        <location line="-386"/>
         <source>Outside</source>
         <translation>外側</translation>
     </message>
@@ -1424,25 +1565,27 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+141"/>
+        <location line="+161"/>
         <source>Center</source>
         <translation>中央</translation>
     </message>
     <message>
-        <location line="-139"/>
+        <location line="-159"/>
         <source>Position</source>
         <translation>位置</translation>
     </message>
     <message>
-        <location line="+30"/>
-        <location line="+59"/>
+        <location line="-469"/>
+        <location line="+425"/>
+        <location line="+20"/>
+        <location line="+60"/>
+        <location line="+73"/>
         <location line="+73"/>
         <location line="+61"/>
         <location line="+1"/>
-        <location line="+69"/>
-        <location line="+149"/>
+        <location line="+73"/>
         <location line="+57"/>
-        <location filename="../src/ui/main_window.cpp" line="-1045"/>
+        <location filename="../src/ui/main_window.cpp" line="-2052"/>
         <source>Choose Color...</source>
         <translation>色を選択...</translation>
     </message>
@@ -1452,7 +1595,7 @@
         <translation>位置 %</translation>
     </message>
     <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-186"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-822"/>
         <location filename="../src/ui/main_window.cpp" line="+17"/>
         <source>Add Stop</source>
         <translation>ストップを追加</translation>
@@ -1464,26 +1607,26 @@
         <translation>ストップを削除</translation>
     </message>
     <message>
-        <location line="+103"/>
+        <location line="+739"/>
         <location line="+58"/>
         <source>Spread</source>
         <translation>スプレッド</translation>
     </message>
     <message>
-        <location line="-410"/>
+        <location line="-265"/>
         <location line="+67"/>
         <source>Choke</source>
         <translation>チョーク</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="-2222"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="-2593"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="-74"/>
-        <location line="+411"/>
+        <location line="+266"/>
         <source>Distance</source>
         <translation>距離</translation>
     </message>
     <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-332"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-187"/>
         <source>Edge</source>
         <translation>エッジ</translation>
     </message>
@@ -1499,29 +1642,29 @@
         <translation>インスタンス</translation>
     </message>
     <message>
-        <location line="-338"/>
+        <location line="-780"/>
         <source>Remove Selected Instance</source>
         <translation>選択したインスタンスを削除</translation>
     </message>
     <message>
-        <location line="+1228"/>
+        <location line="+1513"/>
         <source>Add Stroke</source>
         <translation>境界線を追加</translation>
     </message>
     <message>
-        <location line="-972"/>
-        <location line="+974"/>
+        <location line="-815"/>
+        <location line="+817"/>
         <source>Add Inner Shadow</source>
         <translation>シャドウ（内側）を追加</translation>
     </message>
     <message>
-        <location line="-970"/>
+        <location line="-813"/>
         <source>Remove Inner Shadow</source>
         <translation>シャドウ（内側）を削除</translation>
     </message>
     <message>
         <location line="+69"/>
-        <location line="+903"/>
+        <location line="+746"/>
         <source>Add Inner Glow</source>
         <translation>光彩（内側）を追加</translation>
     </message>
@@ -1546,22 +1689,22 @@
         <translation>ドロップシャドウを追加</translation>
     </message>
     <message>
-        <location line="-907"/>
+        <location line="-750"/>
         <source>Remove Inner Glow</source>
         <translation>光彩（内側）を削除</translation>
     </message>
     <message>
-        <location line="+1285"/>
+        <location line="+1037"/>
         <source>Choose Color Overlay Color</source>
         <translation>カラーオーバーレイの色を選択</translation>
     </message>
     <message>
-        <location line="-12"/>
+        <location line="-41"/>
         <source>Choose Stroke Color</source>
         <translation>境界線の色を選択</translation>
     </message>
     <message>
-        <location line="+31"/>
+        <location line="+33"/>
         <source>Choose Highlight Color</source>
         <translation>ハイライトの色を選択</translation>
     </message>
@@ -1571,28 +1714,29 @@
         <translation>シャドウの色を選択</translation>
     </message>
     <message>
-        <location line="+38"/>
+        <location line="-1183"/>
+        <location line="+224"/>
         <location filename="../src/ui/main_window.cpp" line="+151"/>
         <source>Choose Gradient Stop Color</source>
         <translation>グラデーションストップの色を選択</translation>
     </message>
     <message>
-        <location line="-1214"/>
+        <location line="-758"/>
         <source>Location</source>
         <translation>位置</translation>
     </message>
     <message>
-        <location line="+42"/>
+        <location line="+44"/>
         <source>Reverse</source>
         <translation>反転</translation>
     </message>
     <message>
-        <location line="+14"/>
+        <location line="+11"/>
         <source>Style</source>
         <translation>スタイル</translation>
     </message>
     <message>
-        <location line="-8"/>
+        <location line="-6"/>
         <source>Linear</source>
         <translation>線形</translation>
     </message>
@@ -1624,7 +1768,10 @@
     </message>
     <message>
         <location filename="../src/ui/blend_mode_ui.cpp" line="+2"/>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-47"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-48"/>
+        <location line="+434"/>
+        <location line="+20"/>
+        <location line="+35"/>
         <location filename="../src/ui/main_window.cpp" line="+7"/>
         <source>Color</source>
         <translation>色</translation>
@@ -1640,7 +1787,7 @@
         <translation>前景/背景にリセット</translation>
     </message>
     <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="+1233"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="+1239"/>
         <source>Choose Outer Glow Color</source>
         <translation>光彩（外側）の色を選択</translation>
     </message>
@@ -1715,7 +1862,9 @@
         <translation>消しゴム</translation>
     </message>
     <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-1282"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-1777"/>
+        <location line="+503"/>
+        <location line="+32"/>
         <location filename="../src/ui/main_window.cpp" line="+2"/>
         <source>Gradient</source>
         <translation>グラデーション</translation>
@@ -1736,12 +1885,13 @@
         <translation>楕円</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-30"/>
+        <location filename="../src/ui/main_window.cpp" line="+2"/>
         <source>Fill</source>
         <translation>塗りつぶし</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location filename="../src/ui/main_window.cpp" line="+2"/>
         <source>Eyedropper</source>
         <translation>スポイト</translation>
     </message>
@@ -1782,7 +1932,7 @@
         <translation>レイヤーは非表示です。クリックで表示します。</translation>
     </message>
     <message>
-        <location line="+1162"/>
+        <location line="+1170"/>
         <source>Layer styles. Click to edit them.</source>
         <translation>レイヤースタイル。クリックで編集します。</translation>
     </message>
@@ -1792,7 +1942,7 @@
         <translation>マスク</translation>
     </message>
     <message>
-        <location line="-836"/>
+        <location line="-844"/>
         <location line="+16"/>
         <source>Collapse panel</source>
         <translation>パネルを折りたたむ</translation>
@@ -1835,12 +1985,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+605"/>
+        <location line="+613"/>
         <source>Adjustment Layer</source>
         <translation>調整レイヤー</translation>
     </message>
     <message>
-        <location line="-603"/>
+        <location line="-611"/>
         <source>Text Layer</source>
         <translation>テキストレイヤー</translation>
     </message>
@@ -1875,23 +2025,27 @@
         <translation>32 ビット浮動小数点</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="+1861"/>
+        <location filename="../src/ui/curves_editor.cpp" line="-39"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+1845"/>
         <location filename="../src/ui/main_window.cpp" line="+7"/>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
     <message>
         <location line="+1"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+1"/>
         <source>Red</source>
         <translation>赤</translation>
     </message>
     <message>
         <location line="+1"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+1"/>
         <source>Green</source>
         <translation>緑</translation>
     </message>
     <message>
         <location line="+1"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+1"/>
         <source>Blue</source>
         <translation>青</translation>
     </message>
@@ -1937,12 +2091,12 @@
     </message>
     <message>
         <location line="+0"/>
-        <location line="+91"/>
+        <location line="+92"/>
         <source>, </source>
         <translation>、</translation>
     </message>
     <message>
-        <location line="-85"/>
+        <location line="-86"/>
         <source>No editable adjustment settings</source>
         <translation>編集可能な調整設定はありません</translation>
     </message>
@@ -1952,12 +2106,11 @@
         <translation>レベル補正: 黒 %1、白 %2、ガンマ %3%、出力 %4-%5</translation>
     </message>
     <message>
-        <location line="+7"/>
         <source>Curves: shadows %1, midtones %2, highlights %3</source>
-        <translation>トーンカーブ: シャドウ %1、中間調 %2、ハイライト %3</translation>
+        <translation type="vanished">トーンカーブ: シャドウ %1、中間調 %2、ハイライト %3</translation>
     </message>
     <message>
-        <location line="+11"/>
+        <location line="+19"/>
         <source>Hue/Saturation: hue %1, saturation %2, lightness %3</source>
         <translation>色相・彩度: 色相 %1、彩度 %2、明度 %3</translation>
     </message>
@@ -1983,10 +2136,46 @@
         <translation>テキスト</translation>
     </message>
     <message>
+        <location filename="../src/ui/curves_presets.cpp" line="+101"/>
         <location filename="../src/ui/filter_workflows.cpp" line="-12"/>
         <location filename="../src/ui/main_window.cpp" line="+1"/>
         <source>Default</source>
         <translation>既定</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Medium Contrast</source>
+        <translation>中程度のコントラスト</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Strong Contrast</source>
+        <translation>強いコントラスト</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Lift Shadows</source>
+        <translation>シャドウを明るく</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Recover Highlights</source>
+        <translation>ハイライトを抑える</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Matte</source>
+        <translation>マット</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Warm</source>
+        <translation>暖色</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Cool</source>
+        <translation>寒色</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="+4"/>
@@ -2044,7 +2233,7 @@
         <translation> ラスタープレビュー</translation>
     </message>
     <message>
-        <location line="+571"/>
+        <location line="+578"/>
         <source>Smart object. Click to edit its contents.</source>
         <translation>スマートオブジェクト。クリックで内容を編集します。</translation>
     </message>
@@ -2054,7 +2243,7 @@
         <translation>リンクされたスマートオブジェクト。クリックでリンク先のファイルを開きます。</translation>
     </message>
     <message>
-        <location line="+766"/>
+        <location line="+807"/>
         <source>Missing Font</source>
         <translation>フォントが見つかりません</translation>
     </message>
@@ -2074,7 +2263,7 @@
         <translation>続行</translation>
     </message>
     <message>
-        <location line="-1345"/>
+        <location line="-1393"/>
         <source>%1
 Font: %2, %3 pt%4
 Color: %5
@@ -2092,7 +2281,7 @@ Flow: %6
         <translation>、%1</translation>
     </message>
     <message>
-        <location line="+409"/>
+        <location line="+416"/>
         <source>Folder is empty</source>
         <translation>フォルダーは空です</translation>
     </message>
@@ -2194,7 +2383,7 @@ Flow: %6
         <translation>すべてのファイル (*.*)</translation>
     </message>
     <message>
-        <location line="+226"/>
+        <location line="+267"/>
         <source>Linked file %1 was not found</source>
         <translation>リンクファイル %1 が見つかりません</translation>
     </message>
@@ -2251,19 +2440,21 @@ Flow: %6
         <translation>幅</translation>
     </message>
     <message>
-        <location line="-596"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+262"/>
+        <location filename="../src/ui/main_window.cpp" line="-596"/>
         <location line="+664"/>
         <source>White</source>
         <translation>白</translation>
     </message>
     <message>
-        <location line="-663"/>
+        <location line="-10"/>
+        <location filename="../src/ui/main_window.cpp" line="-663"/>
         <location line="+664"/>
         <source>Black</source>
         <translation>黒</translation>
     </message>
     <message>
-        <location line="-663"/>
+        <location filename="../src/ui/main_window.cpp" line="-663"/>
         <source>Transparent</source>
         <translation>透明</translation>
     </message>
@@ -2475,12 +2666,13 @@ Open in Generative Upscale...</source>
         <translation>その他...</translation>
     </message>
     <message>
-        <location line="+3"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+5"/>
+        <location filename="../src/ui/main_window.cpp" line="+3"/>
         <source>Gray</source>
         <translation>グレー</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location filename="../src/ui/main_window.cpp" line="+7"/>
         <source>Choose canvas extension color</source>
         <translation>カンバス拡張カラーを選択</translation>
     </message>
@@ -2532,7 +2724,7 @@ Open in Generative Upscale...</source>
         <translation>H</translation>
     </message>
     <message>
-        <location line="+7570"/>
+        <location line="+7581"/>
         <source>Warp:</source>
         <translation>ワープ:</translation>
     </message>
@@ -2705,7 +2897,7 @@ Open in Generative Upscale...</source>
         <translation>印刷に失敗</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="-11614"/>
+        <location filename="../src/ui/main_window.cpp" line="-11674"/>
         <source>Image pixels locked</source>
         <translation>画像ピクセルをロック</translation>
     </message>
@@ -3406,12 +3598,12 @@ Mixed selection</source>
         <translation>垂直方向のゆがみ:</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="+322"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="+452"/>
         <source>Colorize</source>
         <translation>色彩の統一</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="+472"/>
+        <location filename="../src/ui/main_window.cpp" line="+473"/>
         <source>Colorize: hue %1, saturation %2, lightness %3</source>
         <translation>色彩の統一: 色相 %1、彩度 %2、明度 %3</translation>
     </message>
@@ -3420,7 +3612,7 @@ Mixed selection</source>
         <translation type="vanished">下のレイヤーにクリップされています</translation>
     </message>
     <message>
-        <location line="+452"/>
+        <location line="+459"/>
         <source>Clipped to the layer below. Click to release.</source>
         <translation>下のレイヤーにクリップされています。クリックで解除します。</translation>
     </message>
@@ -3741,17 +3933,17 @@ Mixed selection</source>
 <context>
     <name>patchy::ui::CanvasWidget</name>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="+9608"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="+9934"/>
         <source>Size: %1 px  Soft: %2%</source>
         <translation>サイズ: %1 px  柔らかさ: %2%</translation>
     </message>
     <message>
-        <location line="-2063"/>
+        <location line="-2067"/>
         <source>%1 x %2 px</source>
         <translation>%1 x %2 px</translation>
     </message>
     <message>
-        <location line="-1003"/>
+        <location line="-1195"/>
         <source>Brush opacity: %1%</source>
         <translation>ブラシの不透明度: %1%</translation>
     </message>
@@ -3761,7 +3953,7 @@ Mixed selection</source>
         <translation>グラデーションの不透明度: %1%</translation>
     </message>
     <message>
-        <location line="+2693"/>
+        <location line="+2889"/>
         <source>Finish the open dialog before editing the document</source>
         <translation>開いているダイアログを閉じてからドキュメントを編集してください</translation>
     </message>
@@ -3771,13 +3963,13 @@ Mixed selection</source>
         <translation>レイヤーの画像ピクセルはロックされています。</translation>
     </message>
     <message>
-        <location line="-4173"/>
-        <location line="+4179"/>
+        <location line="-4421"/>
+        <location line="+4427"/>
         <source>Layer position is locked.</source>
         <translation>レイヤーの位置はロックされています。</translation>
     </message>
     <message>
-        <location line="-6399"/>
+        <location line="-6721"/>
         <source>Select an editable pixel layer to transform</source>
         <translation>変形する編集可能なピクセルレイヤーを選択してください</translation>
     </message>
@@ -3793,12 +3985,12 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+32"/>
-        <location line="+10550"/>
+        <location line="+10872"/>
         <source>Drag handles to transform. Shift keeps aspect ratio.</source>
         <translation>ハンドルをドラッグして変形します。Shift で縦横比を保持します。</translation>
     </message>
     <message>
-        <location line="-9895"/>
+        <location line="-10216"/>
         <source>Inverted selection</source>
         <translation>選択範囲を反転しました</translation>
     </message>
@@ -3838,7 +4030,7 @@ Mixed selection</source>
         <translation>先にピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location line="+34"/>
+        <location line="+32"/>
         <source>Layer has no opaque pixels</source>
         <translation>レイヤーに不透明ピクセルがありません</translation>
     </message>
@@ -3853,7 +4045,7 @@ Mixed selection</source>
         <translation>レイヤーにマスクがありません</translation>
     </message>
     <message>
-        <location line="+36"/>
+        <location line="+32"/>
         <source>Layer mask has no selected pixels</source>
         <translation>レイヤーマスクに選択済みピクセルがありません</translation>
     </message>
@@ -3863,7 +4055,7 @@ Mixed selection</source>
         <translation>レイヤーマスクを選択しました</translation>
     </message>
     <message>
-        <location line="+128"/>
+        <location line="+146"/>
         <source>Make a selection before growing</source>
         <translation>拡張する前に選択範囲を作成してください</translation>
     </message>
@@ -3883,12 +4075,12 @@ Mixed selection</source>
         <translation>類似ピクセル %1 px を選択しました</translation>
     </message>
     <message>
-        <location line="+149"/>
+        <location line="+193"/>
         <source>No document</source>
         <translation>ドキュメントがありません</translation>
     </message>
     <message>
-        <location line="+493"/>
+        <location line="+510"/>
         <source>This tool is unavailable while viewing a document channel</source>
         <translation>ドキュメントチャンネルの表示中はこのツールを使用できません</translation>
     </message>
@@ -3903,7 +4095,7 @@ Mixed selection</source>
         <translation>グレースケールチャンネルの編集中は指先ツールを使用できません</translation>
     </message>
     <message>
-        <location line="+4598"/>
+        <location line="+4846"/>
         <source>Select a saved channel to edit</source>
         <translation>編集する保存済みチャンネルを選択してください</translation>
     </message>
@@ -3968,13 +4160,13 @@ Mixed selection</source>
         <translation>レイヤーをワープしました</translation>
     </message>
     <message>
-        <location line="-9944"/>
+        <location line="-10265"/>
         <source>Forced refresh</source>
         <translation>強制再描画しました</translation>
     </message>
     <message>
-        <location line="-104"/>
-        <location line="+4712"/>
+        <location line="-105"/>
+        <location line="+5030"/>
         <source>Processing...</source>
         <translation>処理中...</translation>
     </message>
@@ -3983,17 +4175,17 @@ Mixed selection</source>
         <translation type="vanished">レイヤーマスク編集中はクローンを使用できません</translation>
     </message>
     <message>
-        <location line="-3012"/>
+        <location line="-3256"/>
         <source>Alt-click to set a clone source</source>
         <translation>Alt クリックでクローン元を設定します</translation>
     </message>
     <message>
-        <location line="+4718"/>
+        <location line="+4966"/>
         <source>Select the Clone tool to set a clone source</source>
         <translation>クローン元を設定するにはクローンツールを選択してください</translation>
     </message>
     <message>
-        <location line="-4714"/>
+        <location line="-4962"/>
         <source>Clone stamp</source>
         <translation>クローンスタンプ</translation>
     </message>
@@ -4033,12 +4225,12 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+0"/>
-        <location line="+4031"/>
+        <location line="+4279"/>
         <source>Shape</source>
         <translation>図形</translation>
     </message>
     <message>
-        <location line="-3480"/>
+        <location line="-3693"/>
         <source>Move layers</source>
         <translation>レイヤーを移動</translation>
     </message>
@@ -4048,7 +4240,7 @@ Mixed selection</source>
         <translation>レイヤーを移動</translation>
     </message>
     <message>
-        <location line="+630"/>
+        <location line="+647"/>
         <source>Nudge layers</source>
         <translation>レイヤーを少し移動</translation>
     </message>
@@ -4058,7 +4250,7 @@ Mixed selection</source>
         <translation>レイヤーを少し移動</translation>
     </message>
     <message>
-        <location line="+2847"/>
+        <location line="+3043"/>
         <location line="+12"/>
         <source>Selection</source>
         <translation>選択範囲</translation>
@@ -4109,12 +4301,12 @@ Mixed selection</source>
         <translation>自動選択で %1 px を選択しました</translation>
     </message>
     <message>
-        <location line="-6325"/>
+        <location line="-6573"/>
         <source>Magic Wand</source>
         <translation>自動選択</translation>
     </message>
     <message>
-        <location line="+6430"/>
+        <location line="+6678"/>
         <source>Select a pixel layer before using Quick Select</source>
         <translation>クイック選択を使う前にピクセルレイヤーを選択してください</translation>
     </message>
@@ -4135,7 +4327,7 @@ Mixed selection</source>
         <translation>クイック選択</translation>
     </message>
     <message>
-        <location line="-5819"/>
+        <location line="-6032"/>
         <location line="+32"/>
         <location line="+61"/>
         <source>Deselect</source>
@@ -4143,12 +4335,12 @@ Mixed selection</source>
     </message>
     <message>
         <location line="-88"/>
-        <location line="+6464"/>
+        <location line="+6677"/>
         <source>Move Selection</source>
         <translation>選択範囲を移動</translation>
     </message>
     <message>
-        <location line="-6444"/>
+        <location line="-6657"/>
         <source>Elliptical Marquee</source>
         <translation>楕円形選択</translation>
     </message>
@@ -4163,7 +4355,7 @@ Mixed selection</source>
         <translation>投げ縄</translation>
     </message>
     <message>
-        <location line="+3831"/>
+        <location line="+4044"/>
         <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
         <translation>スマートオブジェクトの内容には描画できません。ピクセルを編集するにはレイヤーをラスタライズしてください。</translation>
     </message>
@@ -4188,19 +4380,19 @@ Mixed selection</source>
         <translation>自由変形をキャンセルしました</translation>
     </message>
     <message>
-        <location line="-9086"/>
-        <location line="+5159"/>
+        <location line="-9407"/>
+        <location line="+5480"/>
         <source>New Guide</source>
         <translation>新規ガイド</translation>
     </message>
     <message>
-        <location line="-5147"/>
+        <location line="-5468"/>
         <source>Clear Guides</source>
         <translation>ガイドを消去</translation>
     </message>
     <message>
         <location line="+13"/>
-        <location line="+5147"/>
+        <location line="+5468"/>
         <source>Clear Selected Guide</source>
         <translation>選択中のガイドを消去</translation>
     </message>
@@ -4213,17 +4405,17 @@ Mixed selection</source>
 <context>
     <name>patchy::ui::ChannelPanel</name>
     <message>
-        <location filename="../src/ui/channel_panel.cpp" line="+91"/>
+        <location filename="../src/ui/channel_panel.cpp" line="+104"/>
         <source>Select for a grayscale view. Check to show a colored overlay.</source>
         <translation>選択するとグレースケールで表示します。チェックするとカラーオーバーレイを表示します。</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+5"/>
         <source>Spot channels can be previewed but not edited.</source>
         <translation>スポットカラーチャンネルはプレビューできますが、編集はできません。</translation>
     </message>
     <message>
-        <location line="+3"/>
+        <location line="+4"/>
         <source>Show the normal composite image.</source>
         <translation>通常のコンポジット画像を表示します。</translation>
     </message>
@@ -4233,24 +4425,24 @@ Mixed selection</source>
         <translation>この色成分をグレースケールでプレビューします。色成分チャンネルは読み取り専用です。</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-9"/>
+        <location line="+5"/>
+        <location line="+6"/>
         <source>Ctrl-click to load this channel as a selection.</source>
         <translation>Ctrl+クリックでこのチャンネルを選択範囲として読み込みます。</translation>
     </message>
     <message>
-        <location line="+173"/>
         <source>New</source>
-        <translation>新規</translation>
+        <translation type="vanished">新規</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="+244"/>
         <source>New alpha channel</source>
         <translation>新規アルファチャンネル</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>Save</source>
-        <translation>保存</translation>
+        <translation type="vanished">保存</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -4258,9 +4450,8 @@ Mixed selection</source>
         <translation>選択範囲をチャンネルとして保存</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>Load</source>
-        <translation>読み込み</translation>
+        <translation type="vanished">読み込み</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -4268,9 +4459,8 @@ Mixed selection</source>
         <translation>チャンネルを選択範囲として読み込み</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>Rename</source>
-        <translation>名前を変更</translation>
+        <translation type="vanished">名前を変更</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -4278,9 +4468,8 @@ Mixed selection</source>
         <translation>チャンネル名を変更</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>Invert</source>
-        <translation>反転</translation>
+        <translation type="vanished">反転</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -4288,9 +4477,8 @@ Mixed selection</source>
         <translation>チャンネルを反転</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>Delete</source>
-        <translation>削除</translation>
+        <translation type="vanished">削除</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -4448,12 +4636,12 @@ Mixed selection</source>
 <context>
     <name>patchy::ui::MainWindow</name>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="+13037"/>
+        <location filename="../src/ui/main_window.cpp" line="+13066"/>
         <source>Import Notes</source>
         <translation>読み込みに関する注意</translation>
     </message>
     <message>
-        <location line="-4761"/>
+        <location line="-4738"/>
         <source>I&amp;mport</source>
         <translation>読み込み(&amp;M)</translation>
     </message>
@@ -4463,7 +4651,7 @@ Mixed selection</source>
         <translation>スキャナーまたはカメラから(&amp;S)...</translation>
     </message>
     <message>
-        <location line="+4792"/>
+        <location line="+4769"/>
         <location line="+5"/>
         <source>Import from Scanner</source>
         <translation>スキャナーから読み込み</translation>
@@ -4495,12 +4683,12 @@ Mixed selection</source>
         <translation>読み込みに失敗しました</translation>
     </message>
     <message>
-        <location line="-4887"/>
+        <location line="-4864"/>
         <source>Sprite Sheet to &amp;Layers...</source>
         <translation>スプライトシートをレイヤーへ(&amp;L)...</translation>
     </message>
     <message>
-        <location line="+4846"/>
+        <location line="+4823"/>
         <location line="+18"/>
         <source>Sprite Sheet to Layers</source>
         <translation>スプライトシートをレイヤーへ</translation>
@@ -4526,12 +4714,12 @@ Mixed selection</source>
         <translation>%2 から %1 フレームを読み込みました</translation>
     </message>
     <message>
-        <location line="-4874"/>
+        <location line="-4851"/>
         <source>Export Layers as Sprite S&amp;heet...</source>
         <translation>レイヤーをスプライトシートに書き出し(&amp;H)...</translation>
     </message>
     <message>
-        <location line="+4896"/>
+        <location line="+4873"/>
         <location line="+15"/>
         <source>Export Sprite Sheet</source>
         <translation>スプライトシートの書き出し</translation>
@@ -4552,12 +4740,12 @@ Mixed selection</source>
         <translation>フレーム %1</translation>
     </message>
     <message>
-        <location line="-4169"/>
+        <location line="-4146"/>
         <source>Seamless &amp;Tile Preview</source>
         <translation>シームレスタイル プレビュー(&amp;T)</translation>
     </message>
     <message>
-        <location line="+4061"/>
+        <location line="+4038"/>
         <source>%1 opened with notes:
 
 %2</source>
@@ -4606,7 +4794,7 @@ Mixed selection</source>
         <translation>プロファイリング ストレステストを実行...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window_stress_test.cpp" line="+2156"/>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="+2154"/>
         <source>The profiling stress test closes all open documents, then builds a large scripted scene to measure performance. It takes several minutes; please leave the mouse and keyboard alone while it runs. This is primarily a development tool.</source>
         <translation>プロファイリング ストレステストは、開いているドキュメントをすべて閉じてから、性能測定用の大きなシーンをスクリプトで作成します。数分かかりますので、実行中はマウスとキーボードに触れないでください。これは主に開発用のツールです。</translation>
     </message>
@@ -4633,22 +4821,22 @@ Mixed selection</source>
         <translation>ストレステストを準備中...</translation>
     </message>
     <message>
-        <location line="-1241"/>
+        <location line="-1239"/>
         <source>Step %1 of %2: %3</source>
         <translation>ステップ %1 / %2: %3</translation>
     </message>
     <message>
-        <location line="+1374"/>
+        <location line="+1372"/>
         <source>Running stress test...</source>
         <translation>ストレステストを実行中...</translation>
     </message>
     <message>
-        <location line="-1327"/>
+        <location line="-1325"/>
         <source>Running stress test... (%1)</source>
         <translation>ストレステストを実行中... (%1)</translation>
     </message>
     <message>
-        <location line="+1349"/>
+        <location line="+1347"/>
         <source>Stress test complete</source>
         <translation>ストレステストが完了しました</translation>
     </message>
@@ -4678,12 +4866,12 @@ Mixed selection</source>
         <translation>レポートフォルダーを開く</translation>
     </message>
     <message>
-        <location line="-960"/>
+        <location line="-958"/>
         <source>Stress test</source>
         <translation>ストレステスト</translation>
     </message>
     <message>
-        <location line="+677"/>
+        <location line="+675"/>
         <source>Stress extra 1</source>
         <translation>ストレス追加 1</translation>
     </message>
@@ -4693,7 +4881,7 @@ Mixed selection</source>
         <translation>ストレス追加 2</translation>
     </message>
     <message>
-        <location line="-659"/>
+        <location line="-657"/>
         <source>Texture base</source>
         <translation>テクスチャのベース</translation>
     </message>
@@ -4713,14 +4901,14 @@ Mixed selection</source>
         <translation>ホットキー</translation>
     </message>
     <message>
-        <location line="-6842"/>
-        <location line="+5699"/>
+        <location line="-6819"/>
+        <location line="+5676"/>
         <location line="+3"/>
         <source>New document</source>
         <translation>新規ドキュメント</translation>
     </message>
     <message>
-        <location line="-5629"/>
+        <location line="-5606"/>
         <location line="+1006"/>
         <source>Ready</source>
         <translation>準備完了</translation>
@@ -4737,7 +4925,7 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+4265"/>
+        <location line="+4242"/>
         <source>Close</source>
         <translation>閉じる</translation>
     </message>
@@ -4752,7 +4940,7 @@ Mixed selection</source>
         <translation>すべて閉じる</translation>
     </message>
     <message>
-        <location line="-4255"/>
+        <location line="-4232"/>
         <source>&amp;File</source>
         <translation>ファイル(&amp;F)</translation>
     </message>
@@ -5082,13 +5270,13 @@ Mixed selection</source>
         <translation>文字パネル（行送り・トラッキング・字形の比率）</translation>
     </message>
     <message>
-        <location line="+526"/>
+        <location line="+527"/>
         <source>Channels</source>
         <translation>チャンネル</translation>
     </message>
     <message>
-        <location line="+19"/>
-        <location filename="../src/ui/main_window_channels.cpp" line="+445"/>
+        <location line="+28"/>
+        <location filename="../src/ui/main_window_channels.cpp" line="+457"/>
         <source>New Channel</source>
         <translation>新規チャンネル</translation>
     </message>
@@ -5105,7 +5293,7 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+3"/>
-        <location filename="../src/ui/main_window_channels.cpp" line="+24"/>
+        <location filename="../src/ui/main_window_channels.cpp" line="+98"/>
         <source>Rename Channel</source>
         <translation>チャンネル名を変更</translation>
     </message>
@@ -5120,7 +5308,7 @@ Mixed selection</source>
         <translation>チャンネルを削除</translation>
     </message>
     <message>
-        <location line="+2057"/>
+        <location line="+2024"/>
         <source>Saved Channels Will Be Discarded</source>
         <translation>保存済みチャンネルは破棄されます</translation>
     </message>
@@ -5130,8 +5318,8 @@ Mixed selection</source>
         <translation>このファイル形式では保存済みチャンネルを保存できません。チャンネルを破棄して保存を続けますか？</translation>
     </message>
     <message>
-        <location line="+983"/>
-        <location filename="../src/ui/main_window_adjustments.cpp" line="+317"/>
+        <location line="+986"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="+415"/>
         <source>Filters are unavailable while viewing a document channel</source>
         <translation>ドキュメントチャンネルの表示中はフィルターを使用できません</translation>
     </message>
@@ -5177,7 +5365,7 @@ Mixed selection</source>
         <translation> %</translation>
     </message>
     <message>
-        <location line="-4580"/>
+        <location line="-4583"/>
         <source>Palette</source>
         <translation>パレット</translation>
     </message>
@@ -5469,7 +5657,7 @@ Mixed selection</source>
         <translation>インデックス画像を開くとき:</translation>
     </message>
     <message>
-        <location line="+4981"/>
+        <location line="+4984"/>
         <source>Show Mask Overlay</source>
         <translation>マスクオーバーレイを表示</translation>
     </message>
@@ -5484,13 +5672,13 @@ Mixed selection</source>
         <translation>マスクオーバーレイを非表示にしました</translation>
     </message>
     <message>
-        <location line="-5487"/>
-        <location line="+5506"/>
+        <location line="-5466"/>
+        <location line="+5485"/>
         <source>Showing the layer mask. Alt-click the mask thumbnail to return.</source>
         <translation>レイヤーマスクを表示しています。マスクサムネールをAltクリックすると戻ります。</translation>
     </message>
     <message>
-        <location line="-7993"/>
+        <location line="-7973"/>
         <source>&amp;Delete Layer Mask</source>
         <translation>レイヤーマスクを削除(&amp;D)</translation>
     </message>
@@ -5691,12 +5879,12 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+5"/>
-        <location line="+5266"/>
+        <location line="+5246"/>
         <source>Legacy Photoshop Plug-ins</source>
         <translation>従来の Photoshop プラグイン</translation>
     </message>
     <message>
-        <location line="-5263"/>
+        <location line="-5243"/>
         <source>Zoom &amp;In</source>
         <translation>ズームイン(&amp;I)</translation>
     </message>
@@ -5842,58 +6030,58 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+144"/>
-        <location line="+9350"/>
+        <location line="+9330"/>
         <source>Convert to Smart Object</source>
         <translation>スマートオブジェクトに変換</translation>
     </message>
     <message>
-        <location line="-9349"/>
-        <location line="+8740"/>
+        <location line="-9329"/>
+        <location line="+8720"/>
         <source>Edit Smart Object Contents</source>
         <translation>スマートオブジェクトの内容を編集</translation>
     </message>
     <message>
-        <location line="-8739"/>
+        <location line="-8719"/>
         <source>Replace Smart Object Contents...</source>
         <translation>スマートオブジェクトの内容を置き換え...</translation>
     </message>
     <message>
         <location line="+2"/>
-        <location line="+9466"/>
+        <location line="+9446"/>
         <source>New Smart Object via Copy</source>
         <translation>コピーして新しいスマートオブジェクトを作成</translation>
     </message>
     <message>
-        <location line="-9465"/>
-        <location line="+8876"/>
+        <location line="-9445"/>
+        <location line="+8856"/>
         <location line="+50"/>
         <source>Update Smart Object Content</source>
         <translation>スマートオブジェクトのコンテンツを更新</translation>
     </message>
     <message>
-        <location line="-8925"/>
+        <location line="-8905"/>
         <source>Relink to File...</source>
         <translation>ファイルに再リンク...</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+9118"/>
+        <location line="+9098"/>
         <source>Embed Linked Smart Object</source>
         <translation>リンクされたスマートオブジェクトを埋め込み</translation>
     </message>
     <message>
-        <location line="-9115"/>
+        <location line="-9095"/>
         <source>Convert to Normal Layer (Rasterize)</source>
         <translation>通常レイヤーに変換（ラスタライズ）</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+9953"/>
+        <location line="+9933"/>
         <source>Smart Objects</source>
         <translation>スマートオブジェクト</translation>
     </message>
     <message>
-        <location line="-9344"/>
+        <location line="-9324"/>
         <source>Float in &amp;Window</source>
         <translation>ウィンドウに分離(&amp;W)</translation>
     </message>
@@ -5965,12 +6153,12 @@ Mixed selection</source>
     <message>
         <location line="+1"/>
         <location line="+1119"/>
-        <location line="+8396"/>
+        <location line="+8376"/>
         <source>Fill</source>
         <translation>塗りつぶし</translation>
     </message>
     <message>
-        <location line="-9514"/>
+        <location line="-9494"/>
         <source>Shape Tools</source>
         <translation>図形ツール</translation>
     </message>
@@ -5997,7 +6185,7 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+5605"/>
+        <location line="+5585"/>
         <location line="+91"/>
         <location line="+22"/>
         <location line="+448"/>
@@ -6005,7 +6193,7 @@ Mixed selection</source>
         <translation>文字</translation>
     </message>
     <message>
-        <location line="-6165"/>
+        <location line="-6145"/>
         <source>Hand</source>
         <translation>手のひら</translation>
     </message>
@@ -6561,12 +6749,12 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+3029"/>
+        <location line="+3006"/>
         <source>None</source>
         <translation>なし</translation>
     </message>
     <message>
-        <location line="-3028"/>
+        <location line="-3005"/>
         <source>Sharp</source>
         <translation>シャープ</translation>
     </message>
@@ -6647,13 +6835,13 @@ Mixed selection</source>
         <translation>右揃え</translation>
     </message>
     <message>
-        <location line="+223"/>
+        <location line="+224"/>
         <source>Layers</source>
         <translation>レイヤー</translation>
     </message>
     <message>
         <location line="+85"/>
-        <location line="+5472"/>
+        <location line="+5451"/>
         <location line="+38"/>
         <source>Editing layer mask</source>
         <translation>レイヤーマスクを編集中</translation>
@@ -6664,66 +6852,66 @@ Mixed selection</source>
         <translation>レイヤーピクセルを編集中</translation>
     </message>
     <message>
-        <location line="-5409"/>
+        <location line="-5388"/>
         <source>Mode</source>
         <translation>モード</translation>
     </message>
     <message>
         <location line="+10"/>
-        <location line="+8555"/>
+        <location line="+8552"/>
         <source>Opacity</source>
         <translation>不透明度</translation>
     </message>
     <message>
-        <location line="-8458"/>
-        <location line="+7291"/>
+        <location line="-8455"/>
+        <location line="+7270"/>
         <source>New Layer</source>
         <translation>新規レイヤー</translation>
     </message>
     <message>
-        <location line="-7290"/>
-        <location line="+7292"/>
+        <location line="-7269"/>
+        <location line="+7271"/>
         <source>New Folder</source>
         <translation>新規フォルダー</translation>
     </message>
     <message>
-        <location line="-7291"/>
-        <location line="+7293"/>
+        <location line="-7270"/>
+        <location line="+7272"/>
         <source>New Adjustment Layer</source>
         <translation>新規調整レイヤー</translation>
     </message>
     <message>
-        <location line="-7292"/>
-        <location line="+7294"/>
+        <location line="-7271"/>
+        <location line="+7273"/>
         <source>Duplicate Layer</source>
         <translation>レイヤーを複製</translation>
     </message>
     <message>
-        <location line="-7293"/>
-        <location line="+5503"/>
+        <location line="-7272"/>
+        <location line="+5482"/>
         <source>Rename Layer</source>
         <translation>レイヤー名を変更</translation>
     </message>
     <message>
-        <location line="-5502"/>
-        <location line="+7294"/>
+        <location line="-5481"/>
+        <location line="+7273"/>
         <source>Delete Layer</source>
         <translation>レイヤーを削除</translation>
     </message>
     <message>
-        <location line="-7347"/>
-        <location line="+9292"/>
+        <location line="-7326"/>
+        <location line="+9291"/>
         <location line="+111"/>
         <source>Lock transparent pixels</source>
         <translation>透明ピクセルをロック</translation>
     </message>
     <message>
-        <location line="-9251"/>
+        <location line="-9233"/>
         <source>History</source>
         <translation>履歴</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+10"/>
         <source>Properties</source>
         <translation>プロパティ</translation>
     </message>
@@ -6734,7 +6922,7 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+8"/>
-        <location line="+9286"/>
+        <location line="+9267"/>
         <source>X: -
 Y: -
 RGB: -
@@ -6745,23 +6933,20 @@ RGB: -
 範囲: -</translation>
     </message>
     <message>
-        <location line="-9272"/>
         <source>Swatches</source>
-        <translation>スウォッチ</translation>
+        <translation type="vanished">スウォッチ</translation>
     </message>
     <message>
-        <location line="+19"/>
         <source>Set foreground color</source>
-        <translation>描画色を設定</translation>
+        <translation type="vanished">描画色を設定</translation>
     </message>
     <message>
-        <location line="+10"/>
-        <location line="+9477"/>
+        <location line="+234"/>
         <source>Foreground color changed</source>
         <translation>描画色を変更しました</translation>
     </message>
     <message>
-        <location line="-9323"/>
+        <location line="-9346"/>
         <source>Picked color %1, %2, %3 (%4)</source>
         <translation>色を取得しました %1, %2, %3 (%4)</translation>
     </message>
@@ -6772,14 +6957,14 @@ RGB: -
         <location line="+38"/>
         <location line="+608"/>
         <location line="+171"/>
-        <location line="+3755"/>
+        <location line="+3758"/>
         <location line="+31"/>
         <location line="+247"/>
         <source>Untitled</source>
         <translation>無題</translation>
     </message>
     <message>
-        <location line="-4882"/>
+        <location line="-4885"/>
         <source>Save changes?</source>
         <translation>変更を保存しますか?</translation>
     </message>
@@ -6833,12 +7018,12 @@ RGB: -
     <message>
         <location line="+8"/>
         <location line="+147"/>
-        <location line="+10050"/>
+        <location line="+10076"/>
         <source>Open</source>
         <translation>開く</translation>
     </message>
     <message>
-        <location line="-10089"/>
+        <location line="-10115"/>
         <source>Opening %1...</source>
         <translation>%1 を開いています...</translation>
     </message>
@@ -6884,14 +7069,14 @@ RGB: -
     </message>
     <message>
         <location line="+3"/>
-        <location line="+3835"/>
+        <location line="+3838"/>
         <location line="+18"/>
         <location line="+21"/>
         <source>Save failed</source>
         <translation>保存に失敗しました</translation>
     </message>
     <message>
-        <location line="-3859"/>
+        <location line="-3862"/>
         <source>Export Flat Image</source>
         <translation>統合画像を書き出し</translation>
     </message>
@@ -6908,12 +7093,12 @@ RGB: -
     <message>
         <location line="-182"/>
         <location line="+184"/>
-        <location line="+3664"/>
+        <location line="+3667"/>
         <source>Export failed</source>
         <translation>書き出しに失敗しました</translation>
     </message>
     <message>
-        <location line="-3645"/>
+        <location line="-3648"/>
         <source>Print output created</source>
         <translation>印刷出力を作成しました</translation>
     </message>
@@ -6943,7 +7128,7 @@ RGB: -
         <translation>インターフェースの拡大率:</translation>
     </message>
     <message>
-        <location line="+446"/>
+        <location line="+449"/>
         <source>Interface Scale</source>
         <translation>インターフェースの拡大率</translation>
     </message>
@@ -6953,7 +7138,7 @@ RGB: -
         <translation>新しいインターフェースの拡大率を反映するには Patchy を再起動してください。</translation>
     </message>
     <message>
-        <location line="-549"/>
+        <location line="-552"/>
         <source>Update Available</source>
         <translation>更新があります</translation>
     </message>
@@ -7139,7 +7324,7 @@ To update, paste this into a terminal:
         <translation>ペン</translation>
     </message>
     <message>
-        <location line="+443"/>
+        <location line="+446"/>
         <source>Scan Legacy Photoshop Plug-ins</source>
         <translation>従来の Photoshop プラグインをスキャン</translation>
     </message>
@@ -7190,7 +7375,8 @@ To update, paste this into a terminal:
     <message>
         <location line="+22"/>
         <location filename="../src/ui/main_window_adjustments.cpp" line="-33"/>
-        <location line="+205"/>
+        <location line="+206"/>
+        <location line="+187"/>
         <source>Applied %1</source>
         <translation>%1 を適用しました</translation>
     </message>
@@ -7270,8 +7456,8 @@ To update, paste this into a terminal:
         <translation>%1 個のレイヤーを貼り付けました</translation>
     </message>
     <message>
-        <location line="-1880"/>
-        <location line="+1892"/>
+        <location line="-1883"/>
+        <location line="+1895"/>
         <source>Clipboard does not contain an image</source>
         <translation>クリップボードに画像がありません</translation>
     </message>
@@ -7293,7 +7479,7 @@ To update, paste this into a terminal:
         <translation>テキスト編集をキャンセルしました</translation>
     </message>
     <message>
-        <location line="+5369"/>
+        <location line="+5389"/>
         <source>Text: %1</source>
         <translation>テキスト: %1</translation>
     </message>
@@ -7303,21 +7489,21 @@ To update, paste this into a terminal:
         <translation>テキストプレビュー</translation>
     </message>
     <message>
-        <location line="-6433"/>
+        <location line="-6453"/>
         <source>Created text layer</source>
         <translation>テキストレイヤーを作成しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window_adjustments.cpp" line="-377"/>
-        <location line="+245"/>
-        <location line="+177"/>
-        <location line="+127"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="-565"/>
+        <location line="+246"/>
+        <location line="+184"/>
+        <location line="+178"/>
         <location line="+129"/>
         <source>Select an editable RGB pixel layer</source>
         <translation>編集可能な RGB ピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location line="-598"/>
+        <location line="-657"/>
         <source>Filter preview failed: %1</source>
         <translation>フィルタープレビューに失敗しました: %1</translation>
     </message>
@@ -7329,33 +7515,37 @@ To update, paste this into a terminal:
     </message>
     <message>
         <location line="-37"/>
-        <location line="+220"/>
+        <location line="+221"/>
+        <location line="+192"/>
         <source>Applying %1...</source>
         <translation>%1 を適用しています...</translation>
     </message>
     <message>
-        <location line="-220"/>
-        <location line="+220"/>
-        <location filename="../src/ui/main_window_stress_test.cpp" line="+269"/>
+        <location line="-413"/>
+        <location line="+221"/>
+        <location line="+192"/>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="+267"/>
         <source>Cancel</source>
         <translation>キャンセル</translation>
     </message>
     <message>
-        <location line="-208"/>
-        <location line="+215"/>
+        <location line="-401"/>
+        <location line="+216"/>
+        <location line="+192"/>
         <source>Applying %1...
 %2</source>
         <translation>%1 を適用しています...
 %2</translation>
     </message>
     <message>
-        <location line="-186"/>
-        <location line="+206"/>
+        <location line="-379"/>
+        <location line="+207"/>
+        <location line="+187"/>
         <source>%1 made no changes</source>
         <translation>%1 による変更はありません</translation>
     </message>
     <message>
-        <location line="-202"/>
+        <location line="-390"/>
         <source>Filter: %1</source>
         <translation>フィルター: %1</translation>
     </message>
@@ -7366,7 +7556,7 @@ To update, paste this into a terminal:
     </message>
     <message>
         <location line="+38"/>
-        <location line="+114"/>
+        <location line="+115"/>
         <location line="+36"/>
         <location line="+3"/>
         <location line="+7"/>
@@ -7382,19 +7572,24 @@ To update, paste this into a terminal:
         <translation>レベル補正をキャンセルしました</translation>
     </message>
     <message>
-        <location line="+38"/>
-        <location line="+116"/>
+        <location line="+36"/>
+        <location line="+125"/>
+        <location line="+31"/>
+        <location line="+3"/>
+        <location line="+7"/>
+        <location line="+10"/>
         <source>Curves</source>
         <translation>トーンカーブ</translation>
     </message>
     <message>
-        <location line="-108"/>
-        <location line="+93"/>
+        <location line="-159"/>
+        <location line="+102"/>
+        <location line="+32"/>
         <source>Cancelled Curves</source>
         <translation>トーンカーブをキャンセルしました</translation>
     </message>
     <message>
-        <location line="+26"/>
+        <location line="+36"/>
         <location line="+116"/>
         <source>Hue/Saturation</source>
         <translation>色相・彩度</translation>
@@ -7438,17 +7633,18 @@ To update, paste this into a terminal:
         <translation>この調整レイヤーには編集可能な設定がありません</translation>
     </message>
     <message>
-        <location line="+109"/>
+        <location line="+144"/>
         <source>Cancelled adjustment edit</source>
         <translation>調整の編集をキャンセルしました</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+12"/>
         <source>Edit %1 adjustment</source>
         <translation>%1 調整を編集</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="-4"/>
+        <location line="+9"/>
         <source>Updated adjustment layer</source>
         <translation>調整レイヤーを更新しました</translation>
     </message>
@@ -7643,7 +7839,7 @@ To update, paste this into a terminal:
         <translation>レイヤースタイル</translation>
     </message>
     <message>
-        <location line="-8246"/>
+        <location line="-8226"/>
         <source>Copy Layer Style</source>
         <translation>レイヤースタイルをコピー</translation>
     </message>
@@ -7658,7 +7854,7 @@ To update, paste this into a terminal:
         <translation>レイヤースタイルを削除</translation>
     </message>
     <message>
-        <location line="+8272"/>
+        <location line="+8252"/>
         <source>Copy layer style</source>
         <translation>レイヤースタイルをコピー</translation>
     </message>
@@ -7810,7 +8006,7 @@ To update, paste this into a terminal:
         <translation>表示レイヤーを新規レイヤーに結合</translation>
     </message>
     <message>
-        <location line="-9948"/>
+        <location line="-9928"/>
         <source>Rasterize</source>
         <translation>ラスタライズ</translation>
     </message>
@@ -7820,19 +8016,19 @@ To update, paste this into a terminal:
         <translation>ラスタライズ（レイヤースタイルを含む）</translation>
     </message>
     <message>
-        <location line="+10007"/>
-        <location line="+2131"/>
+        <location line="+9987"/>
+        <location line="+2151"/>
         <source>Visible</source>
         <translation>表示</translation>
     </message>
     <message>
-        <location line="-2121"/>
+        <location line="-2141"/>
         <source>Lock Transparent Pixels</source>
         <translation>透明ピクセルをロック</translation>
     </message>
     <message>
-        <location line="-10064"/>
-        <location line="+10077"/>
+        <location line="-10044"/>
+        <location line="+10057"/>
         <source>Load Layer Transparency</source>
         <translation>レイヤーの透明部分を読み込み</translation>
     </message>
@@ -7973,12 +8169,12 @@ To update, paste this into a terminal:
         <translation>クリップボードに色が含まれていません</translation>
     </message>
     <message>
-        <location line="-3126"/>
+        <location line="-3129"/>
         <source>Palette index %1 set to %2</source>
         <translation>パレットのインデックス %1 を %2 に設定しました</translation>
     </message>
     <message>
-        <location line="+7591"/>
+        <location line="+7594"/>
         <source>Clearing</source>
         <translation>消去中</translation>
     </message>
@@ -8003,12 +8199,12 @@ To update, paste this into a terminal:
         <translation>%1 個のレイヤーを削除しました</translation>
     </message>
     <message>
-        <location line="-10576"/>
+        <location line="-10556"/>
         <source>Export Smart Object Contents...</source>
         <translation>スマートオブジェクトの内容を書き出し...</translation>
     </message>
     <message numerus="yes">
-        <location line="+4500"/>
+        <location line="+4477"/>
         <source> (+%n more import note(s))</source>
         <translation>
             <numerusform> (ほか %n 件のインポートノート)</numerusform>
@@ -8030,7 +8226,7 @@ To update, paste this into a terminal:
         <translation>オンにすると、ファイルを開いたときに PSD 互換性レポートとインポートノートのポップアップを表示します。オフの場合、インポートノートはステータスバーにのみ表示されます。</translation>
     </message>
     <message>
-        <location line="+3487"/>
+        <location line="+3490"/>
         <location line="+35"/>
         <location line="+603"/>
         <location line="+288"/>
@@ -8180,12 +8376,12 @@ To update, paste this into a terminal:
         <translation>%1 をデコードできませんでした</translation>
     </message>
     <message>
-        <location line="-5611"/>
+        <location line="-5614"/>
         <source>Float in Window</source>
         <translation>ウィンドウに分離</translation>
     </message>
     <message>
-        <location line="+2187"/>
+        <location line="+2190"/>
         <source>Select a pixel layer to warp</source>
         <translation>ワープするピクセルレイヤーを選択してください</translation>
     </message>
@@ -8431,12 +8627,12 @@ To update, paste this into a terminal:
         <translation>幅</translation>
     </message>
     <message>
-        <location line="+17"/>
+        <location line="+26"/>
         <source>Flip horizontal</source>
         <translation>水平方向に反転</translation>
     </message>
     <message>
-        <location line="+21"/>
+        <location line="+30"/>
         <source>Flip vertical</source>
         <translation>垂直方向に反転</translation>
     </message>
@@ -8499,20 +8695,20 @@ To update, paste this into a terminal:
         <translation>レイヤーのロックを解除しました</translation>
     </message>
     <message>
-        <location line="+2885"/>
+        <location line="+2886"/>
         <source>Finish the open dialog before editing the document</source>
         <translation>開いているダイアログを閉じてからドキュメントを編集してください</translation>
     </message>
     <message>
-        <location line="-9096"/>
-        <location line="+6346"/>
+        <location line="-9118"/>
+        <location line="+6368"/>
         <location line="+1"/>
         <source>Undo</source>
         <translation>取り消し</translation>
     </message>
     <message>
-        <location line="-6346"/>
-        <location line="+6375"/>
+        <location line="-6368"/>
+        <location line="+6398"/>
         <location line="+1"/>
         <source>Redo</source>
         <translation>やり直し</translation>
@@ -8571,13 +8767,13 @@ Layer mask</source>
         <translation>ドキュメント: %1 x %2 px | %3 ppi | %4 | %5 レイヤー | ズーム %6% | %7</translation>
     </message>
     <message>
-        <location line="-8642"/>
+        <location line="-8665"/>
         <location line="+1195"/>
         <location line="+79"/>
         <location line="+29"/>
         <location line="+85"/>
         <location line="+51"/>
-        <location line="+7187"/>
+        <location line="+7210"/>
         <source>No document</source>
         <translation>ドキュメントがありません</translation>
     </message>
@@ -8814,7 +9010,7 @@ Y: %2
         <translation>テキスト色 %1</translation>
     </message>
     <message>
-        <location line="+2060"/>
+        <location line="+2063"/>
         <location line="+78"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
@@ -8845,12 +9041,12 @@ Y: %2
         <translation>最近使ったファイルが見つかりません</translation>
     </message>
     <message>
-        <location line="-14923"/>
+        <location line="-14926"/>
         <source>Open Recent &amp;Folder</source>
         <translation>最近使ったフォルダー(&amp;F)</translation>
     </message>
     <message>
-        <location line="+14807"/>
+        <location line="+14810"/>
         <source>Recent Folders %1-%2</source>
         <translation>最近使ったフォルダー %1～%2</translation>
     </message>
@@ -8885,7 +9081,7 @@ Y: %2
         <translation>フォルダーが見つかりません</translation>
     </message>
     <message>
-        <location line="-14224"/>
+        <location line="-14227"/>
         <source>&amp;Rulers</source>
         <translation>定規(&amp;R)</translation>
     </message>
@@ -8916,18 +9112,18 @@ Y: %2
     </message>
     <message>
         <location line="+1"/>
-        <location line="+4891"/>
+        <location line="+4868"/>
         <source>Guides</source>
         <translation>ガイド</translation>
     </message>
     <message>
-        <location line="-4890"/>
-        <location line="+4893"/>
+        <location line="-4867"/>
+        <location line="+4870"/>
         <source>Grid</source>
         <translation>グリッド</translation>
     </message>
     <message>
-        <location line="-4892"/>
+        <location line="-4869"/>
         <source>Document Bounds and Center</source>
         <translation>ドキュメントの境界と中心</translation>
     </message>
@@ -8967,7 +9163,7 @@ Y: %2
         <translation>ガイドを消去</translation>
     </message>
     <message>
-        <location line="+4795"/>
+        <location line="+4772"/>
         <source>Pixels</source>
         <translation>ピクセル</translation>
     </message>
@@ -9008,19 +9204,19 @@ Y: %2
     </message>
     <message>
         <location line="+8"/>
-        <location line="+310"/>
+        <location line="+313"/>
         <source> px</source>
         <translation> px</translation>
     </message>
     <message>
-        <location line="-5964"/>
+        <location line="-5944"/>
         <location line="+2482"/>
-        <location line="+5318"/>
+        <location line="+5298"/>
         <source> pt</source>
         <translation> pt</translation>
     </message>
     <message>
-        <location line="-2138"/>
+        <location line="-2141"/>
         <source>Lines</source>
         <translation>線</translation>
     </message>
@@ -9115,7 +9311,7 @@ Y: %2
         <translation>スナップ</translation>
     </message>
     <message>
-        <location line="+177"/>
+        <location line="+180"/>
         <source>New Guide</source>
         <translation>新規ガイド</translation>
     </message>
@@ -9167,34 +9363,34 @@ Y: %2
         <translation>グリッド環境設定</translation>
     </message>
     <message>
-        <location line="-2944"/>
-        <location line="+7439"/>
+        <location line="-2923"/>
+        <location line="+7418"/>
         <source>Lock</source>
         <translation>ロック</translation>
     </message>
     <message>
-        <location line="-7411"/>
-        <location line="+9290"/>
+        <location line="-7390"/>
+        <location line="+9289"/>
         <location line="+111"/>
         <source>Lock image pixels</source>
         <translation>画像ピクセルをロック</translation>
     </message>
     <message>
-        <location line="-9398"/>
-        <location line="+9288"/>
+        <location line="-9397"/>
+        <location line="+9287"/>
         <location line="+111"/>
         <source>Lock position</source>
         <translation>位置をロック</translation>
     </message>
     <message>
-        <location line="-9391"/>
-        <location line="+9281"/>
+        <location line="-9390"/>
+        <location line="+9280"/>
         <location line="+111"/>
         <source>Lock all</source>
         <translation>すべてロック</translation>
     </message>
     <message>
-        <location line="-1975"/>
+        <location line="-1995"/>
         <source>Lock All</source>
         <translation>すべてロック</translation>
     </message>
@@ -9209,7 +9405,7 @@ Y: %2
         <translation>位置をロック</translation>
     </message>
     <message>
-        <location line="+1212"/>
+        <location line="+1230"/>
         <location line="+31"/>
         <source>Layer lock enabled</source>
         <translation>レイヤーロックを有効にしました</translation>
@@ -9221,7 +9417,7 @@ Y: %2
         <translation>レイヤーロックを無効にしました</translation>
     </message>
     <message>
-        <location line="-5471"/>
+        <location line="-5489"/>
         <location line="+100"/>
         <location line="+343"/>
         <location line="+789"/>
@@ -9238,15 +9434,16 @@ Y: %2
         <location line="+1871"/>
         <location line="+82"/>
         <location line="+175"/>
-        <location line="+398"/>
-        <location filename="../src/ui/main_window_adjustments.cpp" line="-989"/>
-        <location line="+245"/>
-        <location line="+620"/>
+        <location line="+416"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="-1091"/>
+        <location line="+246"/>
+        <location line="+184"/>
+        <location line="+494"/>
         <source>Layer pixels are locked.</source>
         <translation>レイヤーの画像ピクセルはロックされています。</translation>
     </message>
     <message>
-        <location line="-4866"/>
+        <location line="-4884"/>
         <location line="+18"/>
         <source>Layer position is locked.</source>
         <translation>レイヤーの位置はロックされています。</translation>
@@ -9257,7 +9454,7 @@ Y: %2
         <translation>結合先レイヤーの画像ピクセルはロックされています。下のレイヤーと結合するには画像ピクセルのロックを解除してください。</translation>
     </message>
     <message>
-        <location line="+1842"/>
+        <location line="+1862"/>
         <source>transparent</source>
         <translation>透明</translation>
     </message>
@@ -9292,7 +9489,7 @@ Y: %2
         <translation>選択範囲からブラシ先端を定義</translation>
     </message>
     <message>
-        <location line="+10828"/>
+        <location line="+10808"/>
         <source>Brush tip: %1</source>
         <translation>ブラシ先端: %1</translation>
     </message>
@@ -9345,8 +9542,8 @@ Y: %2
         <translation>ブラシ先端を定義しました: %1</translation>
     </message>
     <message>
-        <location line="-10835"/>
-        <location line="+11296"/>
+        <location line="-10815"/>
+        <location line="+11294"/>
         <source>Create Clipping Mask</source>
         <translation>クリッピングマスクを作成</translation>
     </message>
@@ -9381,13 +9578,13 @@ Y: %2
         <translation>クリッピングマスクの作成には下にピクセルレイヤーが必要です</translation>
     </message>
     <message>
-        <location line="-11330"/>
-        <location line="+10061"/>
+        <location line="-11328"/>
+        <location line="+10041"/>
         <source>View Layer Mask</source>
         <translation>レイヤーマスクを表示</translation>
     </message>
     <message>
-        <location line="+1642"/>
+        <location line="+1662"/>
         <source>%1
 %2% opacity%3%4%5%6%7%8</source>
         <translation>%1
@@ -9401,27 +9598,34 @@ Clipped to the layer below</source>
 下のレイヤーにクリップされています</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window_channels.cpp" line="-201"/>
+        <location filename="../src/ui/main_window_channels.cpp" line="-275"/>
+        <location line="+244"/>
         <source>Composite</source>
         <translation>コンポジット</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="-242"/>
+        <location line="+245"/>
+        <location line="+125"/>
         <source>Red</source>
         <translation>赤</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="-368"/>
+        <location line="+246"/>
+        <location line="+125"/>
         <source>Green</source>
         <translation>緑</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="-369"/>
+        <location line="+247"/>
+        <location line="+125"/>
         <source>Blue</source>
         <translation>青</translation>
     </message>
     <message>
-        <location line="+66"/>
+        <location line="-306"/>
         <source>Showing composite</source>
         <translation>コンポジットを表示しています</translation>
     </message>
@@ -9482,7 +9686,7 @@ Clipped to the layer below</source>
         <translation>選択範囲を %1 として保存しました</translation>
     </message>
     <message>
-        <location line="+15"/>
+        <location line="+89"/>
         <source>Load channel as selection</source>
         <translation>チャンネルを選択範囲として読み込み</translation>
     </message>
@@ -9542,7 +9746,8 @@ Clipped to the layer below</source>
         <translation>ペイントツールはレイヤーマスクを編集しています。クリックするとレイヤーピクセルの編集に戻ります。</translation>
     </message>
     <message>
-        <location line="+11"/>
+        <location line="+21"/>
+        <location line="+12"/>
         <source>Viewing channel: %1 (click to exit)</source>
         <translation>チャンネルを表示中: %1（クリックして終了）</translation>
     </message>
@@ -9552,7 +9757,8 @@ Clipped to the layer below</source>
         <translation>チャンネルを編集中: %1（クリックして終了）</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-12"/>
+        <location line="+13"/>
         <source>Click to return to the composite image.</source>
         <translation>クリックするとコンポジット画像に戻ります。</translation>
     </message>
@@ -9680,7 +9886,7 @@ Clipped to the layer below</source>
 <context>
     <name>patchy::ui::PatchyColorPicker</name>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="+1568"/>
+        <location filename="../src/ui/color_panel.cpp" line="+1567"/>
         <source>Basic colors</source>
         <translation>基本色</translation>
     </message>
@@ -9690,12 +9896,12 @@ Clipped to the layer below</source>
         <translation>現在のパレット</translation>
     </message>
     <message>
-        <location line="-435"/>
+        <location line="-434"/>
         <source>Choose which palette the swatches below show</source>
         <translation>下のスウォッチに表示するパレットを選びます</translation>
     </message>
     <message>
-        <location line="+440"/>
+        <location line="+439"/>
         <source>Load Palette File...</source>
         <translation>パレットファイルを読み込み...</translation>
     </message>
@@ -9710,7 +9916,7 @@ Clipped to the layer below</source>
         <translation>ファイル: %1</translation>
     </message>
     <message>
-        <location line="-1036"/>
+        <location line="-1035"/>
         <source>Current color: drag it to a custom color slot, or drop a color here</source>
         <translation>現在の色: カスタム色スロットへドラッグ、またはここに色をドロップできます</translation>
     </message>
@@ -9735,7 +9941,7 @@ Clipped to the layer below</source>
         <translation>選択したカスタム色ボックスを現在の色に設定します (ボックスをクリックして選択)</translation>
     </message>
     <message>
-        <location line="+127"/>
+        <location line="+126"/>
         <source>Hue:</source>
         <translation>色相:</translation>
     </message>
@@ -9770,7 +9976,7 @@ Clipped to the layer below</source>
         <translation>青:</translation>
     </message>
     <message>
-        <location line="-111"/>
+        <location line="-110"/>
         <source>Square</source>
         <translation>スクエア</translation>
     </message>

@@ -21,6 +21,7 @@ struct LayerBoundsOverride {
   Rect bounds{};
   const PixelBuffer* pixels{nullptr};
   std::optional<Rect> mask_bounds{};
+  std::optional<bool> visible{};
 };
 
 // ---------------------------------------------------------------------------
@@ -101,6 +102,15 @@ inline const LayerBoundsOverride* layer_override_for_render(const Layer& layer,
     return override.layer_id == layer.id();
   });
   return found == overrides->end() ? nullptr : &*found;
+}
+
+inline bool layer_visible_for_render(const Layer& layer,
+                                     const std::vector<LayerBoundsOverride>* overrides) {
+  if (const auto* override = layer_override_for_render(layer, overrides);
+      override != nullptr && override->visible.has_value()) {
+    return *override->visible;
+  }
+  return layer.visible();
 }
 
 inline Rect layer_bounds_for_render(const Layer& layer, const std::vector<LayerBoundsOverride>* overrides) {
@@ -1197,7 +1207,7 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
 template <typename Target>
 void composite_adjustment_layer(Target& destination, const Layer& layer, Rect clip,
                                 const std::vector<LayerBoundsOverride>* overrides) {
-  if (!layer.visible() || layer.opacity() <= 0.0F) {
+  if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
     return;
   }
   const auto settings = adjustment_settings_from_layer(layer);
@@ -1240,7 +1250,7 @@ template <typename Target>
 void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                            const std::vector<LayerBoundsOverride>* overrides,
                            bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks = nullptr) {
-  if (!layer.visible() || layer.opacity() <= 0.0F || layer.kind() != LayerKind::Pixel) {
+  if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F || layer.kind() != LayerKind::Pixel) {
     return;
   }
 
@@ -1498,7 +1508,7 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
       continue;
     }
     // Photoshop: a hidden or zero-opacity base hides the whole clipping group.
-    if (!layer.visible() || layer.opacity() <= 0.0F) {
+    if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
       index = run_end;
       continue;
     }
@@ -1534,7 +1544,7 @@ template <typename Target>
 void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides,
                      bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks) {
-  if (!layer.visible() || layer.opacity() <= 0.0F) {
+  if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
     return;
   }
 

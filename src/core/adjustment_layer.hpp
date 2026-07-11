@@ -134,6 +134,12 @@ struct CurvesAdjustment {
   friend bool operator==(const CurvesAdjustment&, const CurvesAdjustment&) = default;
 };
 
+struct CurvesEyedropperSamples {
+  std::optional<RgbColor> black;
+  std::optional<RgbColor> gray;
+  std::optional<RgbColor> white;
+};
+
 struct HueSaturationAdjustment {
   int hue_shift{0};
   int saturation_delta{0};
@@ -169,6 +175,11 @@ struct AdjustmentSettings {
 void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channel, CurveControlPoints points);
 [[nodiscard]] CurvesAdjustment curves_adjustment_from_legacy_outputs(int shadow_output, int midtone_output,
                                                                      int highlight_output);
+// Rebuilds the component curves from sampled black/neutral/white points. Like
+// Photoshop's Curves eyedroppers, this replaces prior hand-drawn geometry
+// instead of layering an ambiguous point onto it.
+[[nodiscard]] CurvesAdjustment curves_adjustment_from_eyedropper_samples(
+    const CurvesEyedropperSamples& samples);
 
 [[nodiscard]] bool layer_is_adjustment(const Layer& layer);
 [[nodiscard]] std::string adjustment_kind_key(AdjustmentKind kind);

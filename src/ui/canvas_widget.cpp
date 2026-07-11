@@ -1857,6 +1857,12 @@ void CanvasWidget::set_document_for_history_restore(Document* document, bool nor
 
 void CanvasWidget::set_document_internal(Document* document, bool preserve_frame_for_same_size,
                                          bool normal_composite_unchanged) {
+  clear_transient_read_interaction();
+  curves_clipping_mode_.reset();
+  curves_clipping_channel_.reset();
+  curves_clipping_preview_image_ = QImage();
+  curves_clipping_display_mip_cache_.clear();
+  curves_clipping_display_mip_source_key_ = 0;
   const auto old_transform_controls_rect = move_transform_controls_rect();
   const bool render_cache_was_dirty = render_cache_dirty_;
   const bool preserve_frame = preserve_frame_for_same_size && document != nullptr && !render_cache_.isNull() &&
@@ -3316,6 +3322,7 @@ void CanvasWidget::force_refresh() {
   ++render_cache_diagnostics_.full_refreshes;
   ++render_cache_diagnostics_.forced_refreshes;
   invalidate_display_mip_cache();
+  refresh_curves_clipping_preview();
   if (status_callback_) {
     status_callback_(tr("Forced refresh"));
   }
@@ -4282,6 +4289,58 @@ void CanvasWidget::set_color_picked_callback(std::function<void(QColor)> callbac
   color_picked_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_transient_read_interaction(
+    std::function<void(const CanvasReadGesture&)> callback, QCursor cursor) {
+  clear_transient_read_interaction();
+  transient_read_callback_ = std::move(callback);
+  transient_read_cursor_ = std::move(cursor);
+  update_tool_cursor();
+}
+
+void CanvasWidget::clear_transient_read_interaction() {
+  auto callback = transient_read_callback_;
+  const auto was_dragging = transient_read_dragging_;
+  transient_read_dragging_ = false;
+  transient_read_callback_ = {};
+  if (QWidget::mouseGrabber() == this) {
+    releaseMouse();
+  }
+  if (was_dragging && callback) {
+    callback(CanvasReadGesture{document_position(last_mouse_position_), mapToGlobal(last_mouse_position_),
+                               Qt::NoModifier, CanvasReadPhase::Cancel});
+  }
+  update_tool_cursor();
+}
+
+bool CanvasWidget::has_transient_read_interaction() const noexcept {
+  return static_cast<bool>(transient_read_callback_);
+}
+
+void CanvasWidget::set_curves_clipping_preview(std::optional<CurvesClippingMode> mode,
+                                               std::optional<CurvesChannel> channel) {
+  curves_clipping_mode_ = mode;
+  curves_clipping_channel_ = mode.has_value() ? channel : std::nullopt;
+  if (mode.has_value()) {
+    const bool cache_needs_refresh =
+        document_ != nullptr &&
+        (render_cache_dirty_ || render_cache_.size() != QSize(document_->width(), document_->height()));
+    if (cache_needs_refresh) {
+      // ensure_render_cache refreshes the clipping image after replacing the
+      // source cache, so do not scan it a second time here.
+      ensure_render_cache();
+    } else {
+      refresh_curves_clipping_preview();
+    }
+  } else {
+    refresh_curves_clipping_preview();
+  }
+  update();
+}
+
+std::optional<CurvesClippingMode> CanvasWidget::curves_clipping_preview_mode() const noexcept {
+  return curves_clipping_mode_;
+}
+
 void CanvasWidget::set_brush_settings_changed_callback(std::function<void()> callback) {
   brush_settings_changed_callback_ = std::move(callback);
 }
@@ -4410,9 +4469,12 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   const auto draw_scaled_image = [&painter, &target_rect, pixel_aligned_view,
                                   &pixel_aligned_target_rect, this, exposed_rect](const QImage& image) {
     if (!image.isNull()) {
-      const QImage& display_image = (&image == &render_cache_ && zoom_ < 1.0)        ? display_image_for_zoom()
-                                    : (&image == &move_base_cache_ && zoom_ < 1.0) ? move_base_display_image_for_zoom()
-                                                                                   : image;
+      const QImage& display_image =
+          (&image == &render_cache_ && zoom_ < 1.0)
+              ? display_image_for_zoom()
+              : (&image == &curves_clipping_preview_image_ && zoom_ < 1.0)
+                    ? curves_clipping_display_image_for_zoom()
+                    : (&image == &move_base_cache_ && zoom_ < 1.0) ? move_base_display_image_for_zoom() : image;
       if (uses_deep_zoom_pixel_renderer(zoom_)) {
         draw_deep_zoom_image(painter, display_image, exposed_rect);
       } else if (pixel_aligned_view) {
@@ -4540,9 +4602,13 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_document_patch(patch, !base_excludes_layer);
     }
   } else {
-    draw_scaled_image(render_cache_);
+    draw_scaled_image(curves_clipping_mode_.has_value() && !curves_clipping_preview_image_.isNull()
+                          ? curves_clipping_preview_image_
+                          : render_cache_);
   }
-  draw_mask_display_overlay(painter, target_rect, pixel_aligned_view, pixel_aligned_target_rect);
+  if (!curves_clipping_mode_.has_value()) {
+    draw_mask_display_overlay(painter, target_rect, pixel_aligned_view, pixel_aligned_target_rect);
+  }
   painter.restore();
 
   if (moving_layer_ && !moving_layers_.empty() && !draw_transform_overlay) {
@@ -4783,6 +4849,19 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       (event->buttons() & Qt::RightButton) != 0) {
     panning_ = true;
     setCursor(Qt::ClosedHandCursor);
+    return;
+  }
+
+  if (transient_read_callback_ && event->button() == Qt::LeftButton) {
+    const auto point = document_position(event->pos());
+    if (document_contains(point)) {
+      transient_read_dragging_ = true;
+      grabMouse();
+      auto callback = transient_read_callback_;
+      callback(CanvasReadGesture{point, event->globalPosition().toPoint(), event->modifiers(),
+                                 CanvasReadPhase::Press});
+    }
+    event->accept();
     return;
   }
 
@@ -5369,6 +5448,25 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
+  if (transient_read_dragging_) {
+    const auto phase = (event->buttons() & Qt::LeftButton) != 0 ? CanvasReadPhase::Drag
+                                                               : CanvasReadPhase::Cancel;
+    auto callback = transient_read_callback_;
+    if (phase == CanvasReadPhase::Cancel) {
+      transient_read_dragging_ = false;
+      if (QWidget::mouseGrabber() == this) {
+        releaseMouse();
+      }
+    }
+    if (callback) {
+      callback(CanvasReadGesture{document_position(event->pos()), event->globalPosition().toPoint(),
+                                 event->modifiers(), phase});
+    }
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
+
   if (edit_locked_ && !zooming_) {
     clear_move_hover_outline();
     last_mouse_position_ = event->pos();
@@ -5706,6 +5804,22 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (panning_) {
     panning_ = false;
     update_tool_cursor();
+    return;
+  }
+
+  if (transient_read_dragging_ &&
+      (event->button() == Qt::LeftButton || (event->buttons() & Qt::LeftButton) == 0)) {
+    transient_read_dragging_ = false;
+    if (QWidget::mouseGrabber() == this) {
+      releaseMouse();
+    }
+    auto callback = transient_read_callback_;
+    if (callback) {
+      callback(CanvasReadGesture{document_position(event->pos()), event->globalPosition().toPoint(),
+                                 event->modifiers(), CanvasReadPhase::Release});
+    }
+    last_mouse_position_ = event->pos();
+    event->accept();
     return;
   }
 
@@ -6241,6 +6355,27 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  if (transient_read_callback_ && event->key() == Qt::Key_Escape) {
+    if (transient_read_dragging_) {
+      transient_read_dragging_ = false;
+      if (QWidget::mouseGrabber() == this) {
+        releaseMouse();
+      }
+      auto callback = transient_read_callback_;
+      callback(CanvasReadGesture{document_position(last_mouse_position_), mapToGlobal(last_mouse_position_),
+                                 event->modifiers(), CanvasReadPhase::Cancel});
+      event->accept();
+      return;
+    }
+    // The canvas and non-modal owner are sibling windows, so an unhandled key
+    // cannot bubble back to the dialog after an on-canvas sample takes focus.
+    auto callback = transient_read_callback_;
+    callback(CanvasReadGesture{document_position(last_mouse_position_), mapToGlobal(last_mouse_position_),
+                               event->modifiers(), CanvasReadPhase::Dismiss});
+    event->accept();
+    return;
+  }
+
   if (edit_locked_) {
     if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
       spacebar_panning_ = true;
@@ -6560,6 +6695,17 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
 
 void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   const auto was_painting = painting_;
+  if (transient_read_dragging_) {
+    transient_read_dragging_ = false;
+    if (QWidget::mouseGrabber() == this) {
+      releaseMouse();
+    }
+    auto callback = transient_read_callback_;
+    if (callback) {
+      callback(CanvasReadGesture{document_position(last_mouse_position_), mapToGlobal(last_mouse_position_),
+                                 Qt::NoModifier, CanvasReadPhase::Cancel});
+    }
+  }
   if (brush_adjust_dragging_) {
     end_brush_adjust_drag(true);
   }
@@ -6634,6 +6780,7 @@ void CanvasWidget::ensure_render_cache() {
   render_cache_dirty_ = false;
   ++render_cache_diagnostics_.full_refreshes;
   invalidate_display_mip_cache();
+  refresh_curves_clipping_preview();
   if (layer_edit_target_ == LayerEditTarget::ComponentRed ||
       layer_edit_target_ == LayerEditTarget::ComponentGreen ||
       layer_edit_target_ == LayerEditTarget::ComponentBlue) {
@@ -6721,6 +6868,7 @@ void CanvasWidget::start_async_render_cache_refresh() {
           widget->render_cache_dirty_ = false;
           ++widget->render_cache_diagnostics_.full_refreshes;
           widget->invalidate_display_mip_cache();
+          widget->refresh_curves_clipping_preview();
           if (widget->layer_edit_target_ == LayerEditTarget::ComponentRed ||
               widget->layer_edit_target_ == LayerEditTarget::ComponentGreen ||
               widget->layer_edit_target_ == LayerEditTarget::ComponentBlue) {
@@ -6874,12 +7022,24 @@ bool CanvasWidget::patch_render_cache_patches(const std::vector<RenderedDocument
   render_cache_dirty_ = false;
   render_cache_diagnostics_.partial_patches += patched;
   invalidate_display_mip_cache();
+  refresh_curves_clipping_preview();
   return true;
 }
 
 void CanvasWidget::invalidate_display_mip_cache() noexcept {
   display_mip_cache_.clear();
   display_mip_source_size_ = QSize();
+}
+
+void CanvasWidget::refresh_curves_clipping_preview() {
+  curves_clipping_display_mip_cache_.clear();
+  curves_clipping_display_mip_source_key_ = 0;
+  if (!curves_clipping_mode_.has_value() || render_cache_.isNull()) {
+    curves_clipping_preview_image_ = QImage();
+    return;
+  }
+  curves_clipping_preview_image_ = render_curves_clipping_preview(
+      render_cache_, *curves_clipping_mode_, curves_clipping_channel_);
 }
 
 void CanvasWidget::ensure_move_base_cache() {
@@ -6984,6 +7144,41 @@ const QImage& CanvasWidget::display_image_for_zoom() {
 
   const auto level = std::min<int>(target_level, static_cast<int>(display_mip_cache_.size()));
   return level <= 0 ? render_cache_ : display_mip_cache_[level - 1];
+}
+
+const QImage& CanvasWidget::curves_clipping_display_image_for_zoom() {
+  if (curves_clipping_preview_image_.isNull() || zoom_ >= 1.0) {
+    return curves_clipping_preview_image_;
+  }
+
+  if (curves_clipping_display_mip_cache_.empty() ||
+      curves_clipping_display_mip_source_key_ != curves_clipping_preview_image_.cacheKey()) {
+    curves_clipping_display_mip_cache_.clear();
+    curves_clipping_display_mip_source_key_ = curves_clipping_preview_image_.cacheKey();
+  }
+
+  const auto target_level = display_mip_level_for_zoom(zoom_);
+  if (target_level <= 0) {
+    return curves_clipping_preview_image_;
+  }
+
+  while (static_cast<int>(curves_clipping_display_mip_cache_.size()) < target_level) {
+    const auto& previous = curves_clipping_display_mip_cache_.empty()
+                               ? curves_clipping_preview_image_
+                               : curves_clipping_display_mip_cache_.back();
+    const QSize next_size(std::max(1, (previous.width() + 1) / 2),
+                          std::max(1, (previous.height() + 1) / 2));
+    if (next_size == previous.size()) {
+      break;
+    }
+    curves_clipping_display_mip_cache_.push_back(
+        previous.scaled(next_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+            .convertToFormat(previous.format()));
+  }
+
+  const auto level =
+      std::min<int>(target_level, static_cast<int>(curves_clipping_display_mip_cache_.size()));
+  return level <= 0 ? curves_clipping_preview_image_ : curves_clipping_display_mip_cache_[level - 1];
 }
 
 // Mirror of display_image_for_zoom for the move-drag base image. The base must
@@ -8383,6 +8578,10 @@ void CanvasWidget::update_tool_cursor() {
   ZoomTraceScope trace("tool_cursor", zoom_);
   if (spacebar_panning_ || tool_ == CanvasTool::Pan) {
     setCursor(Qt::OpenHandCursor);
+    return;
+  }
+  if (transient_read_callback_) {
+    setCursor(transient_read_cursor_);
     return;
   }
   if (tool_ == CanvasTool::Move) {

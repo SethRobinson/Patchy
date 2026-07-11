@@ -17,9 +17,11 @@
 #include "ui/document_float_window.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/curves_editor.hpp"
+#include "ui/curves_presets.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/gradient_stops_editor.hpp"
+#include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/ico_document_io.hpp"
@@ -2561,6 +2563,35 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   const auto curves_summary =
       QCoreApplication::translate("QObject", "Curves: RGB %1, Red %2, Green %3, Blue %4 points");
   CHECK(curves_summary == QStringLiteral("トーンカーブ: RGB %1、赤 %2、緑 %3、青 %4 ポイント"));
+  const auto curves_presets = QCoreApplication::translate("QObject", "Curves presets");
+  CHECK(curves_presets == QStringLiteral("トーンカーブのプリセット"));
+  const auto medium_contrast = QCoreApplication::translate("QObject", "Medium Contrast");
+  CHECK(medium_contrast == QStringLiteral("中程度のコントラスト"));
+  const auto curves_load = QCoreApplication::translate("QObject", "Load...");
+  CHECK(curves_load == QStringLiteral("読み込み..."));
+  const auto curves_save = QCoreApplication::translate("QObject", "Save...");
+  CHECK(curves_save == QStringLiteral("保存..."));
+  const auto curves_load_title = QCoreApplication::translate("QObject", "Load Curves Preset");
+  CHECK(curves_load_title == QStringLiteral("トーンカーブプリセットを読み込み"));
+  const auto curves_save_title = QCoreApplication::translate("QObject", "Save Curves Preset");
+  CHECK(curves_save_title == QStringLiteral("トーンカーブプリセットを保存"));
+  const auto curves_preset_filter =
+      QCoreApplication::translate("QObject", "Photoshop Curves Preset (*.acv)");
+  CHECK(curves_preset_filter == QStringLiteral("Photoshop トーンカーブプリセット (*.acv)"));
+  const auto curves_load_error = QCoreApplication::translate(
+      "QObject", "The Curves preset could not be loaded. The file may be damaged or unsupported.");
+  CHECK(curves_load_error == QStringLiteral(
+                                  "トーンカーブプリセットを読み込めませんでした。ファイルが破損しているか、対応していない可能性があります。"));
+  const auto curves_save_error =
+      QCoreApplication::translate("QObject", "The Curves preset could not be saved.");
+  CHECK(curves_save_error == QStringLiteral("トーンカーブプリセットを保存できませんでした。"));
+  const auto curves_target = QCoreApplication::translate("QObject", "Target");
+  CHECK(curves_target == QStringLiteral("画像内調整"));
+  const auto curves_before = QCoreApplication::translate("QObject", "Before");
+  CHECK(curves_before == QStringLiteral("調整前"));
+  const auto curves_clipping =
+      QCoreApplication::translate("QObject", "Show shadow and highlight clipping together");
+  CHECK(curves_clipping == QStringLiteral("シャドウとハイライトのクリッピングを同時に表示"));
 
   CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
   QApplication::processEvents();
@@ -32957,6 +32988,338 @@ void ui_curves_editor_points_channels_keyboard_auto_and_reset() {
   editor.hide();
 }
 
+void ui_curves_transient_canvas_read_is_non_mutating() {
+  patchy::Document document(32, 24, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Sample", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(90, 120, 150)));
+  const auto layer_id = document.layers().front().id();
+  const auto* original_layer = std::as_const(document).find_layer(layer_id);
+  CHECK(original_layer != nullptr);
+  const auto original_render_revision = original_layer->render_revision();
+  const auto original_content_revision = original_layer->content_revision();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(320, 240);
+  canvas.set_document(&document);
+  canvas.fit_to_view();
+  canvas.set_edit_locked(true);
+  canvas.set_primary_color(QColor(12, 34, 56));
+  canvas.show();
+  QApplication::processEvents();
+
+  std::vector<patchy::ui::CanvasReadPhase> phases;
+  canvas.set_transient_read_interaction(
+      [&](const patchy::ui::CanvasReadGesture& gesture) { phases.push_back(gesture.phase); }, Qt::CrossCursor);
+  const auto from = canvas.widget_position_for_document_point(QPoint(8, 8));
+  const auto to = canvas.widget_position_for_document_point(QPoint(12, 5));
+  drag(canvas, from, to);
+  CHECK(phases.size() == 3U);
+  CHECK(phases[0] == patchy::ui::CanvasReadPhase::Press);
+  CHECK(phases[1] == patchy::ui::CanvasReadPhase::Drag);
+  CHECK(phases[2] == patchy::ui::CanvasReadPhase::Release);
+  send_key(canvas, Qt::Key_Escape);
+  CHECK(phases.size() == 4U);
+  CHECK(phases[3] == patchy::ui::CanvasReadPhase::Dismiss);
+  CHECK(canvas.primary_color() == QColor(12, 34, 56));
+  CHECK(canvas.has_transient_read_interaction());
+  const auto* unchanged_layer = std::as_const(document).find_layer(layer_id);
+  CHECK(unchanged_layer != nullptr);
+  CHECK(unchanged_layer->render_revision() == original_render_revision);
+  CHECK(unchanged_layer->content_revision() == original_content_revision);
+
+  canvas.set_curves_clipping_preview(patchy::ui::CurvesClippingMode::Both,
+                                     patchy::CurvesChannel::Rgb);
+  CHECK(canvas.curves_clipping_preview_mode() == patchy::ui::CurvesClippingMode::Both);
+  canvas.set_curves_clipping_preview(std::nullopt);
+  CHECK(!canvas.curves_clipping_preview_mode().has_value());
+  unchanged_layer = std::as_const(document).find_layer(layer_id);
+  CHECK(unchanged_layer != nullptr);
+  CHECK(unchanged_layer->render_revision() == original_render_revision);
+  CHECK(unchanged_layer->content_revision() == original_content_revision);
+
+  phases.clear();
+  send_mouse(canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+  canvas.clear_transient_read_interaction();
+  CHECK(phases.size() == 2U);
+  CHECK(phases[0] == patchy::ui::CanvasReadPhase::Press);
+  CHECK(phases[1] == patchy::ui::CanvasReadPhase::Cancel);
+  CHECK(!canvas.has_transient_read_interaction());
+}
+
+void ui_curves_canvas_tools_before_and_clipping_hooks() {
+  patchy::ui::CurvesDialogHooks hooks;
+  patchy::ui::CurvesCanvasMode active_mode = patchy::ui::CurvesCanvasMode::None;
+  std::function<void(const patchy::ui::CurvesCanvasSample&)> sample_changed;
+  int clear_count = 0;
+  std::vector<std::pair<std::optional<patchy::ui::CurvesClippingMode>, patchy::CurvesChannel>> clipping_calls;
+  hooks.set_canvas_mode = [&](patchy::ui::CurvesCanvasMode mode, auto callback) {
+    active_mode = mode;
+    sample_changed = std::move(callback);
+  };
+  hooks.clear_canvas_mode = [&] {
+    active_mode = patchy::ui::CurvesCanvasMode::None;
+    sample_changed = {};
+    ++clear_count;
+  };
+  hooks.clipping_changed = [&](std::optional<patchy::ui::CurvesClippingMode> mode,
+                               patchy::CurvesChannel channel) {
+    clipping_calls.emplace_back(mode, channel);
+  };
+
+  std::vector<bool> preview_states;
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyCurvesDialog"));
+    CHECK(dialog != nullptr);
+    auto* editor = dialog->findChild<patchy::ui::CurvesEditorWidget*>(QStringLiteral("curvesEditor"));
+    auto* tabs = dialog->findChild<QTabBar*>(QStringLiteral("curvesChannelTabs"));
+    auto* targeted = dialog->findChild<QPushButton*>(QStringLiteral("curvesTargetedAdjustmentButton"));
+    auto* black = dialog->findChild<QPushButton*>(QStringLiteral("curvesBlackPointButton"));
+    auto* gray = dialog->findChild<QPushButton*>(QStringLiteral("curvesGrayPointButton"));
+    auto* white = dialog->findChild<QPushButton*>(QStringLiteral("curvesWhitePointButton"));
+    auto* reset = dialog->findChild<QPushButton*>(QStringLiteral("curvesResetButton"));
+    auto* before = dialog->findChild<QPushButton*>(QStringLiteral("curvesBeforeButton"));
+    auto* clipping = dialog->findChild<QPushButton*>(QStringLiteral("curvesClippingPreviewButton"));
+    CHECK(editor != nullptr);
+    CHECK(tabs != nullptr);
+    CHECK(targeted != nullptr && targeted->isEnabled());
+    CHECK(black != nullptr && black->isEnabled());
+    CHECK(gray != nullptr && gray->isEnabled());
+    CHECK(white != nullptr && white->isEnabled());
+    CHECK(reset != nullptr);
+    CHECK(before != nullptr && before->isEnabled());
+    CHECK(clipping != nullptr && clipping->isEnabled());
+
+    const auto send_sample = [&](QColor color, patchy::ui::CanvasReadPhase phase, int global_y) {
+      CHECK(static_cast<bool>(sample_changed));
+      const auto callback = sample_changed;
+      callback(patchy::ui::CurvesCanvasSample{
+          color, patchy::ui::CanvasReadGesture{QPoint(10, 10), QPoint(200, global_y), Qt::NoModifier, phase}});
+    };
+
+    targeted->click();
+    CHECK(active_mode == patchy::ui::CurvesCanvasMode::Targeted);
+    send_sample(QColor(100, 120, 140), patchy::ui::CanvasReadPhase::Press, 100);
+    send_sample({}, patchy::ui::CanvasReadPhase::Drag, 70);
+    send_sample({}, patchy::ui::CanvasReadPhase::Release, 70);
+    const auto targeted_points = editor->adjustment().rgb;
+    const auto targeted_point = std::find_if(targeted_points.begin(), targeted_points.end(),
+                                             [](const patchy::CurveControlPoint& point) {
+                                               return point.input == 117;
+                                             });
+    CHECK(targeted_point != targeted_points.end());
+    CHECK(targeted_point->output == 147);
+
+    black->click();
+    CHECK(active_mode == patchy::ui::CurvesCanvasMode::BlackPoint);
+    send_sample(QColor(20, 30, 40), patchy::ui::CanvasReadPhase::Press, 100);
+    white->click();
+    send_sample(QColor(220, 230, 240), patchy::ui::CanvasReadPhase::Press, 100);
+    gray->click();
+    send_sample(QColor(100, 110, 120), patchy::ui::CanvasReadPhase::Press, 100);
+    CHECK(editor->adjustment().red == patchy::CurveControlPoints({{20, 0}, {100, 128}, {220, 255}}));
+    CHECK(editor->adjustment().green == patchy::CurveControlPoints({{30, 0}, {110, 128}, {230, 255}}));
+    CHECK(editor->adjustment().blue == patchy::CurveControlPoints({{40, 0}, {120, 128}, {240, 255}}));
+
+    black->click();
+    send_sample(QColor(20, 30, 40), patchy::ui::CanvasReadPhase::Press, 100);
+    reset->click();
+    white->click();
+    send_sample(QColor(220, 230, 240), patchy::ui::CanvasReadPhase::Press, 100);
+    CHECK(editor->adjustment().red == patchy::CurveControlPoints({{0, 0}, {220, 255}}));
+    CHECK(editor->adjustment().green == patchy::CurveControlPoints({{0, 0}, {230, 255}}));
+    CHECK(editor->adjustment().blue == patchy::CurveControlPoints({{0, 0}, {240, 255}}));
+
+    preview_states.clear();
+    const auto center = before->rect().center();
+    send_mouse(*before, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*before, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    CHECK(preview_states.size() >= 2U);
+    CHECK(std::find(preview_states.begin(), preview_states.end(), false) != preview_states.end());
+    CHECK(preview_states.back());
+
+    clipping->click();
+    CHECK(!clipping_calls.empty());
+    CHECK(clipping_calls.back().first == patchy::ui::CurvesClippingMode::Both);
+    CHECK(clipping_calls.back().second == patchy::CurvesChannel::Rgb);
+    tabs->setCurrentIndex(1);
+    QApplication::processEvents();
+    CHECK(clipping_calls.back().first == patchy::ui::CurvesClippingMode::Both);
+    CHECK(clipping_calls.back().second == patchy::CurvesChannel::Red);
+    clipping->click();
+    CHECK(!clipping_calls.back().first.has_value());
+
+    inspected = true;
+    send_sample({}, patchy::ui::CanvasReadPhase::Dismiss, 100);
+  });
+
+  const auto result = patchy::ui::request_curves_settings(
+      nullptr,
+      [&](bool enabled, const patchy::ui::CurvesSettings&) { preview_states.push_back(enabled); },
+      {}, {}, hooks);
+  CHECK(!result.has_value());
+  CHECK(inspected);
+  CHECK(clear_count >= 1);
+  CHECK(active_mode == patchy::ui::CurvesCanvasMode::None);
+  CHECK(!clipping_calls.empty());
+  CHECK(!clipping_calls.back().first.has_value());
+}
+
+void ui_curves_canvas_sampler_reads_below_preview_and_escape_closes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_primary_color(QColor(20, 30, 40));
+  use_solid_fill_settings(canvas);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto base_id = document.active_layer_id();
+  CHECK(base_id.has_value());
+  const auto* base = std::as_const(document).find_layer(*base_id);
+  CHECK(base != nullptr);
+  const auto base_render_revision = base->render_revision();
+  const auto base_content_revision = base->content_revision();
+  const auto layer_count_before = document.layers().size();
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto primary_before = canvas->primary_color();
+
+  bool sampled_original_input = false;
+  bool escape_closed_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyCurvesDialog"));
+    CHECK(dialog != nullptr);
+    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("curvesGraph"));
+    auto* editor = dialog->findChild<patchy::ui::CurvesEditorWidget*>(QStringLiteral("curvesEditor"));
+    auto* black = dialog->findChild<QPushButton*>(QStringLiteral("curvesBlackPointButton"));
+    CHECK(graph != nullptr);
+    CHECK(editor != nullptr);
+    CHECK(black != nullptr && black->isEnabled());
+
+    // Make the live adjustment visibly remap the sampled tone. The canvas
+    // sampler must still read the unadjusted layer below the preview layer.
+    click_curves_graph(*graph, 20, 220);
+    process_events_for(200);
+    black->click();
+    CHECK(canvas->has_transient_read_interaction());
+    const auto canvas_point = canvas->widget_position_for_document_point(QPoint(80, 80));
+    send_mouse(*canvas, QEvent::MouseButtonPress, canvas_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas_point, Qt::LeftButton, Qt::NoButton);
+    const auto sampled = editor->adjustment();
+    sampled_original_input = sampled.red.front().input == 20 && sampled.green.front().input == 30 &&
+                             sampled.blue.front().input == 40;
+
+    send_key(*canvas, Qt::Key_Escape);
+    escape_closed_dialog = !dialog->isVisible();
+  });
+  require_action(window, "layerNewCurvesAdjustmentAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(sampled_original_input);
+  CHECK(escape_closed_dialog);
+  CHECK(!canvas->has_transient_read_interaction());
+  CHECK(canvas->primary_color() == primary_before);
+  CHECK(document.layers().size() == layer_count_before);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+  base = std::as_const(document).find_layer(*base_id);
+  CHECK(base != nullptr);
+  CHECK(base->render_revision() == base_render_revision);
+  CHECK(base->content_revision() == base_content_revision);
+}
+
+void ui_curves_preset_thumbnails_apply_all_channels_and_track_custom() {
+  const auto presets = patchy::ui::builtin_curves_presets();
+  CHECK(presets.size() == 8U);
+  const std::array<QString, 8> expected_ids{
+      QStringLiteral("curves.default"),
+      QStringLiteral("curves.medium_contrast"),
+      QStringLiteral("curves.strong_contrast"),
+      QStringLiteral("curves.lift_shadows"),
+      QStringLiteral("curves.recover_highlights"),
+      QStringLiteral("curves.matte"),
+      QStringLiteral("curves.warm"),
+      QStringLiteral("curves.cool"),
+  };
+  for (std::size_t index = 0; index < presets.size(); ++index) {
+    CHECK(presets[index].id == expected_ids[index]);
+    CHECK(patchy::ui::find_curves_preset(presets[index].id) == &presets[index]);
+    CHECK(patchy::ui::find_curves_preset(presets[index].adjustment) == &presets[index]);
+    for (const auto channel : {patchy::CurvesChannel::Rgb, patchy::CurvesChannel::Red,
+                               patchy::CurvesChannel::Green, patchy::CurvesChannel::Blue}) {
+      const auto& channel_points = patchy::curve_points_for_channel(presets[index].adjustment, channel);
+      CHECK(channel_points.size() >= 2U);
+      CHECK(channel_points.size() <= 19U);
+      CHECK(patchy::normalized_curve_control_points(channel_points) == channel_points);
+    }
+    const auto thumbnail = patchy::ui::curves_adjustment_thumbnail(presets[index].adjustment);
+    CHECK(!thumbnail.isNull());
+    CHECK(thumbnail.size() == QSize(72, 48));
+  }
+  const auto default_thumbnail = patchy::ui::curves_adjustment_thumbnail(presets[0].adjustment);
+  const auto strong_thumbnail = patchy::ui::curves_adjustment_thumbnail(presets[2].adjustment);
+  const auto warm_thumbnail = patchy::ui::curves_adjustment_thumbnail(presets[6].adjustment);
+  const auto cool_thumbnail = patchy::ui::curves_adjustment_thumbnail(presets[7].adjustment);
+  CHECK(default_thumbnail != strong_thumbnail);
+  CHECK(warm_thumbnail != cool_thumbnail);
+
+  std::optional<patchy::ui::CurvesSettings> result;
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyCurvesDialog"));
+    CHECK(dialog != nullptr);
+    auto* preset_list = dialog->findChild<QListWidget*>(QStringLiteral("curvesPresetList"));
+    auto* editor = dialog->findChild<patchy::ui::CurvesEditorWidget*>(QStringLiteral("curvesEditor"));
+    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("curvesGraph"));
+    CHECK(preset_list != nullptr);
+    CHECK(editor != nullptr);
+    CHECK(graph != nullptr);
+    CHECK(preset_list->count() == static_cast<int>(presets.size()) + 1);
+    CHECK(preset_list->currentItem() != nullptr);
+    CHECK(preset_list->currentItem()->data(Qt::UserRole + 1).toString() == QStringLiteral("curves.default"));
+
+    QListWidgetItem* warm_item = nullptr;
+    QListWidgetItem* strong_item = nullptr;
+    for (int row = 0; row < preset_list->count(); ++row) {
+      auto* item = preset_list->item(row);
+      CHECK(item != nullptr);
+      if (row > 0) {
+        CHECK(!item->icon().isNull());
+      }
+      if (item->data(Qt::UserRole + 1).toString() == QStringLiteral("curves.warm")) {
+        warm_item = item;
+      }
+      if (item->data(Qt::UserRole + 1).toString() == QStringLiteral("curves.strong_contrast")) {
+        strong_item = item;
+      }
+    }
+    CHECK(warm_item != nullptr);
+    CHECK(strong_item != nullptr);
+
+    preset_list->setCurrentItem(warm_item);
+    QApplication::processEvents();
+    CHECK(editor->adjustment() == presets[6].adjustment);
+    CHECK(editor->adjustment().red != editor->adjustment().blue);
+
+    click_curves_graph(*graph, 108, 183);
+    QApplication::processEvents();
+    CHECK(preset_list->currentItem() == preset_list->item(0));
+    CHECK(preset_list->currentItem()->data(Qt::UserRole + 1).toString().isEmpty());
+    CHECK(preset_list->currentItem()->text() == QStringLiteral("Custom"));
+    CHECK(!preset_list->currentItem()->icon().isNull());
+
+    preset_list->setCurrentItem(strong_item);
+    QApplication::processEvents();
+    CHECK(editor->adjustment() == presets[2].adjustment);
+    dialog->grab().save(QStringLiteral("test-artifacts/ui_curves_presets.png"));
+    inspected = true;
+    dialog->accept();
+  });
+  result = patchy::ui::request_curves_settings(nullptr);
+  CHECK(inspected);
+  CHECK(result.has_value());
+  CHECK(*result == presets[2].adjustment);
+}
+
 void ui_curves_destructive_and_adjustment_luts_match() {
   patchy::PixelBuffer original(256, 1, patchy::PixelFormat::rgba8());
   for (int value = 0; value < 256; ++value) {
@@ -32986,6 +33349,88 @@ void ui_curves_destructive_and_adjustment_luts_match() {
   for (int value = 0; value < 256; ++value) {
     CHECK(destructive.pixel(value, 0)[3] == original.pixel(value, 0)[3]);
   }
+}
+
+void ui_curves_acv_load_save_updates_editor_and_preview() {
+  ensure_artifact_dir();
+  const auto input_path =
+      QFileInfo(QStringLiteral("test-artifacts/ui-curves-load.acv")).absoluteFilePath();
+  const auto output_without_suffix =
+      QFileInfo(QStringLiteral("test-artifacts/ui-curves-saved")).absoluteFilePath();
+  const auto output_path = output_without_suffix + QStringLiteral(".acv");
+  QFile::remove(input_path);
+  QFile::remove(output_path);
+
+  patchy::CurvesAdjustment expected;
+  expected.rgb = {{0, 8}, {64, 35}, {128, 190}, {255, 245}};
+  expected.red = {{0, 20}, {80, 45}, {160, 225}, {255, 230}};
+  expected.green = {{0, 4}, {96, 120}, {220, 238}, {255, 250}};
+  expected.blue = {{0, 250}, {112, 160}, {255, 5}};
+  patchy::acv::write_file(std::filesystem::path(input_path.toStdU16String()), expected);
+
+  QWidget parent;
+  parent.show();
+  QApplication::processEvents();
+  int preview_count = 0;
+  bool preview_enabled = false;
+  patchy::CurvesAdjustment preview_curves;
+  bool saw_load_dialog = false;
+  bool saw_save_dialog = false;
+  bool loaded_editor = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyCurvesDialog")));
+    CHECK(dialog != nullptr);
+    auto* load = dialog->findChild<QPushButton*>(QStringLiteral("curvesLoadPresetButton"));
+    auto* save = dialog->findChild<QPushButton*>(QStringLiteral("curvesSavePresetButton"));
+    auto* editor = dialog->findChild<patchy::ui::CurvesEditorWidget*>(QStringLiteral("curvesEditor"));
+    CHECK(load != nullptr);
+    CHECK(save != nullptr);
+    CHECK(editor != nullptr);
+    CHECK(load->text() == QStringLiteral("Load..."));
+    CHECK(save->text() == QStringLiteral("Save..."));
+
+    QTimer::singleShot(0, [&] {
+      auto* file_dialog = qobject_cast<QFileDialog*>(
+          find_top_level_dialog(QStringLiteral("curvesPresetOpenFileDialog")));
+      CHECK(file_dialog != nullptr);
+      CHECK(file_dialog->nameFilters().contains(QStringLiteral("Photoshop Curves Preset (*.acv)")));
+      saw_load_dialog = true;
+      file_dialog->selectFile(input_path);
+      static_cast<QDialog*>(file_dialog)->accept();
+    });
+    load->click();
+    loaded_editor = editor->adjustment() == expected;
+
+    QTimer::singleShot(0, [&] {
+      auto* file_dialog = qobject_cast<QFileDialog*>(
+          find_top_level_dialog(QStringLiteral("curvesPresetSaveFileDialog")));
+      CHECK(file_dialog != nullptr);
+      saw_save_dialog = true;
+      file_dialog->selectFile(output_without_suffix);
+      static_cast<QDialog*>(file_dialog)->accept();
+    });
+    save->click();
+    dialog->accept();
+  });
+
+  const auto accepted = patchy::ui::request_curves_settings(
+      &parent,
+      [&](bool enabled, const patchy::ui::CurvesSettings& settings) {
+        ++preview_count;
+        preview_enabled = enabled;
+        preview_curves = settings;
+      });
+  CHECK(accepted.has_value());
+  CHECK(*accepted == expected);
+  CHECK(saw_load_dialog);
+  CHECK(saw_save_dialog);
+  CHECK(loaded_editor);
+  CHECK(preview_count > 0);
+  CHECK(preview_enabled);
+  CHECK(preview_curves == expected);
+  CHECK(QFileInfo::exists(output_path));
+  CHECK(patchy::acv::read_file(std::filesystem::path(output_path.toStdU16String())) == expected);
 }
 
 void ui_curves_dialog_preview_toggle_and_cancel_restore_pixels() {
@@ -34590,6 +35035,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_levels_selection.png",
       "ui_curves_dialog.png",
       "ui_curves_editor.png",
+      "ui_curves_presets.png",
       "ui_curves_selection.png",
       "ui_color_balance_dialog.png",
       "ui_color_balance_selection.png",
@@ -38047,8 +38493,18 @@ int main(int argc, char* argv[]) {
       {"ui_curves_dialog_remaps_midtones_in_selection", ui_curves_dialog_remaps_midtones_in_selection},
       {"ui_curves_editor_points_channels_keyboard_auto_and_reset",
        ui_curves_editor_points_channels_keyboard_auto_and_reset},
+      {"ui_curves_transient_canvas_read_is_non_mutating",
+       ui_curves_transient_canvas_read_is_non_mutating},
+      {"ui_curves_canvas_tools_before_and_clipping_hooks",
+       ui_curves_canvas_tools_before_and_clipping_hooks},
+      {"ui_curves_canvas_sampler_reads_below_preview_and_escape_closes",
+       ui_curves_canvas_sampler_reads_below_preview_and_escape_closes},
+      {"ui_curves_preset_thumbnails_apply_all_channels_and_track_custom",
+       ui_curves_preset_thumbnails_apply_all_channels_and_track_custom},
       {"ui_curves_destructive_and_adjustment_luts_match",
        ui_curves_destructive_and_adjustment_luts_match},
+      {"ui_curves_acv_load_save_updates_editor_and_preview",
+       ui_curves_acv_load_save_updates_editor_and_preview},
       {"ui_curves_dialog_preview_toggle_and_cancel_restore_pixels",
        ui_curves_dialog_preview_toggle_and_cancel_restore_pixels},
       {"ui_curves_destructive_apply_cancel_restores_exact_layer",

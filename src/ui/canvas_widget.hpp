@@ -4,6 +4,7 @@
 #include "core/magnetic_lasso.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/warp_mesh.hpp"
+#include "ui/curves_clipping_preview.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/selection_outline.hpp"
 
@@ -92,6 +93,24 @@ struct CanvasInfoState {
   QColor color{Qt::transparent};
   std::optional<QRect> active_rect{};
   QString active_rect_label{};
+};
+
+enum class CanvasReadPhase {
+  Press,
+  Drag,
+  Release,
+  Cancel,
+  Dismiss
+};
+
+// Read-only, dialog-owned canvas gesture. It is intentionally separate from
+// the Eyedropper tool: consumers can inspect document coordinates without
+// changing the foreground color, palette state, layer revisions, or history.
+struct CanvasReadGesture {
+  QPoint document_position{};
+  QPoint global_position{};
+  Qt::KeyboardModifiers modifiers{};
+  CanvasReadPhase phase{CanvasReadPhase::Press};
 };
 
 class CanvasWidget final : public QWidget {
@@ -512,6 +531,13 @@ public:
   // or live Shift/Alt) so the Options-bar mode buttons can follow.
   void set_selection_mode_changed_callback(std::function<void(SelectionMode)> callback);
   void set_color_picked_callback(std::function<void(QColor)> callback);
+  void set_transient_read_interaction(std::function<void(const CanvasReadGesture&)> callback,
+                                      QCursor cursor = Qt::CrossCursor);
+  void clear_transient_read_interaction();
+  [[nodiscard]] bool has_transient_read_interaction() const noexcept;
+  void set_curves_clipping_preview(std::optional<CurvesClippingMode> mode,
+                                   std::optional<CurvesChannel> channel = std::nullopt);
+  [[nodiscard]] std::optional<CurvesClippingMode> curves_clipping_preview_mode() const noexcept;
   // Invoked when the canvas itself changes brush/gradient parameters (size
   // drag gesture, opacity digit keys) so the options bar can resync.
   void set_brush_settings_changed_callback(std::function<void()> callback);
@@ -632,9 +658,11 @@ private:
   bool patch_render_cache_rect(QRect document_rect, const QImage& partial);
   bool patch_render_cache_patches(const std::vector<RenderedDocumentPatch>& patches);
   void invalidate_display_mip_cache() noexcept;
+  void refresh_curves_clipping_preview();
   void ensure_move_base_cache();
   void clear_move_base_cache() noexcept;
   [[nodiscard]] const QImage& display_image_for_zoom();
+  [[nodiscard]] const QImage& curves_clipping_display_image_for_zoom();
   [[nodiscard]] const QImage& move_base_display_image_for_zoom();
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
@@ -1269,6 +1297,14 @@ private:
   std::function<void(QString, SelectionSnapshot, bool)> selection_history_callback_;
   std::function<void(SelectionMode)> selection_mode_changed_callback_;
   std::function<void(QColor)> color_picked_callback_;
+  std::function<void(const CanvasReadGesture&)> transient_read_callback_;
+  QCursor transient_read_cursor_{Qt::CrossCursor};
+  bool transient_read_dragging_{false};
+  std::optional<CurvesClippingMode> curves_clipping_mode_{};
+  std::optional<CurvesChannel> curves_clipping_channel_{};
+  QImage curves_clipping_preview_image_{};
+  std::vector<QImage> curves_clipping_display_mip_cache_{};
+  qint64 curves_clipping_display_mip_source_key_{0};
   std::function<void()> brush_settings_changed_callback_;
   std::function<void(PenButtonAction)> pen_button_action_callback_;
   std::function<void(QPoint, QRect)> text_requested_callback_;

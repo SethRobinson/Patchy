@@ -119,6 +119,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 add_library(patchy_psd
+  src/formats/acv_curves_io.cpp
   src/psd/abr_reader.cpp
   src/psd/psd_binary.cpp
   src/psd/psd_descriptor.cpp
@@ -389,8 +390,12 @@ if(PATCHY_BUILD_APP)
       src/ui/document_float_window.hpp
       src/ui/document_float_window.cpp
       src/ui/edit_conversions.cpp
+      src/ui/curves_clipping_preview.hpp
+      src/ui/curves_clipping_preview.cpp
       src/ui/curves_editor.hpp
       src/ui/curves_editor.cpp
+      src/ui/curves_presets.hpp
+      src/ui/curves_presets.cpp
       src/ui/filter_workflows.cpp
       src/ui/font_picker.hpp
       src/ui/font_picker.cpp
@@ -569,12 +574,24 @@ if(PATCHY_BUILD_TESTS)
     # dispatch (QShortcutMap contention) instead of QApplication::sendEvent.
     target_link_libraries(patchy_ui_visual_tests PRIVATE patchy_ui Qt6::Test)
     patchy_configure_target(patchy_ui_visual_tests)
+    target_compile_options(patchy_ui_visual_tests PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
     target_compile_definitions(patchy_ui_visual_tests PRIVATE PATCHY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     patchy_copy_translations(patchy_ui_visual_tests)
     patchy_copy_qt_runtime(patchy_ui_visual_tests)
     patchy_copy_bundled_fonts(patchy_ui_visual_tests)
     add_test(NAME patchy_ui_visual_tests COMMAND patchy_ui_visual_tests)
     set_tests_properties(patchy_ui_visual_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    add_executable(patchy_curves_clipping_preview_tests
+      tests/curves_clipping_preview_tests.cpp
+    )
+    target_link_libraries(patchy_curves_clipping_preview_tests PRIVATE patchy_ui)
+    patchy_configure_target(patchy_curves_clipping_preview_tests)
+    patchy_copy_translations(patchy_curves_clipping_preview_tests)
+    patchy_copy_qt_runtime(patchy_curves_clipping_preview_tests)
+    patchy_copy_bundled_fonts(patchy_curves_clipping_preview_tests)
+    add_test(NAME patchy_curves_clipping_preview_tests
+             COMMAND patchy_curves_clipping_preview_tests)
 
     add_executable(patchy_perf_tests
       tests/perf_tests.cpp

@@ -5,6 +5,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
+#include "formats/acv_curves_io.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_smart_objects.hpp"
@@ -92,6 +93,8 @@ constexpr std::size_t kPatchyCurvesExtensionMaxPayloadSize =
 constexpr std::array<char, 4> kPhotoshopLevelsAdjustmentBlockKey{'l', 'e', 'v', 'l'};
 constexpr std::uint16_t kPhotoshopLevelsAdjustmentVersion = 2;
 constexpr int kPhotoshopLevelsRecordCount = 29;
+constexpr std::array<char, 4> kPhotoshopCurvesAdjustmentBlockKey{'c', 'u', 'r', 'v'};
+constexpr std::array<char, 4> kPhotoshopCurvesExtraMarker{'C', 'r', 'v', ' '};
 constexpr std::array<char, 4> kPhotoshopHueSaturationBlockKey{'h', 'u', 'e', '2'};
 constexpr std::uint16_t kPhotoshopHueSaturationVersion = 2;
 // version u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3.
@@ -4326,6 +4329,86 @@ bool curve_points_are_exact_identity(const CurveControlPoints& points) {
          points[1] == CurveControlPoint{255, 255};
 }
 
+std::optional<AdjustmentSettings> parse_photoshop_curves_adjustment(
+    std::span<const std::uint8_t> payload) {
+  // Photoshop's curv adjustment block begins with one zero byte, followed by
+  // the documented Curves-file body. Photoshop 2026 writes a version-1 bitmap
+  // body plus its indexed `Crv ` version-4 extension and pads the payload to a
+  // four-byte boundary. The shared ACV reader handles both sections and gives
+  // the richer indexed extension authority when it is present.
+  if (payload.empty() || payload.front() != 0U) {
+    return std::nullopt;
+  }
+  try {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::Curves;
+    settings.curves = acv::read(payload.subspan(1U));
+    return settings;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+std::vector<std::uint8_t> photoshop_curves_payload(const CurvesAdjustment& curves,
+                                                   const UnknownPsdBlock* original) {
+  if (original != nullptr) {
+    if (const auto parsed = parse_photoshop_curves_adjustment(original->payload);
+        parsed.has_value() && parsed->curves == curves) {
+      // The imported payload may contain compatibility details Patchy does not
+      // model. Keep every byte until the modeled control points actually change.
+      return original->payload;
+    }
+  }
+
+  constexpr std::array channels{CurvesChannel::Rgb, CurvesChannel::Red,
+                                CurvesChannel::Green, CurvesChannel::Blue};
+  struct ActiveCurve {
+    std::uint16_t channel{0};
+    CurveControlPoints points;
+  };
+  std::vector<ActiveCurve> active;
+  std::uint32_t bitmap = 0U;
+  for (std::size_t index = 0; index < channels.size(); ++index) {
+    auto points = normalized_curve_control_points(curve_points_for_channel(curves, channels[index]));
+    if (curve_points_are_exact_identity(points)) {
+      continue;
+    }
+    bitmap |= 1U << static_cast<unsigned>(index);
+    active.push_back(ActiveCurve{static_cast<std::uint16_t>(index), std::move(points)});
+  }
+
+  const auto write_curve = [](BigEndianWriter& writer, const CurveControlPoints& points) {
+    writer.write_u16(static_cast<std::uint16_t>(points.size()));
+    for (const auto point : points) {
+      // Photoshop stores each control point as output first, then input.
+      writer.write_u16(static_cast<std::uint16_t>(point.output));
+      writer.write_u16(static_cast<std::uint16_t>(point.input));
+    }
+  };
+
+  BigEndianWriter writer;
+  writer.write_u8(0U);  // curv adjustment-block prefix
+  writer.write_u16(1U);
+  // Photoshop 2026 writes this bitmap as four bytes even though Adobe's table
+  // labels the field as two. Real captures use 0x0000000f for RGB+R+G+B.
+  writer.write_u32(bitmap);
+  for (const auto& curve : active) {
+    write_curve(writer, curve.points);
+  }
+
+  write_signature(writer, kPhotoshopCurvesExtraMarker);
+  writer.write_u16(4U);
+  writer.write_u32(static_cast<std::uint32_t>(active.size()));
+  for (const auto& curve : active) {
+    writer.write_u16(curve.channel);
+    write_curve(writer, curve.points);
+  }
+  while ((writer.bytes().size() % 4U) != 0U) {
+    writer.write_u8(0U);
+  }
+  return writer.bytes();
+}
+
 bool curves_require_patchy_extension(const CurvesAdjustment& curves) {
   if (!curve_points_are_exact_identity(curves.red) || !curve_points_are_exact_identity(curves.green) ||
       !curve_points_are_exact_identity(curves.blue)) {
@@ -7483,7 +7566,8 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
       layer_smart_object_block_dirty(*encoded.layer)) {
     return true;
   }
-  if (encoded.kind == EncodedLayerKind::Adjustment && (block.key == "levl" || block.key == "hue2")) {
+  if (encoded.kind == EncodedLayerKind::Adjustment &&
+      (block.key == "levl" || block.key == "curv" || block.key == "hue2")) {
     return true;
   }
   if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX")) {
@@ -7599,15 +7683,28 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
       write_additional_layer_block(extra, kPhotoshopLevelsAdjustmentBlockKey,
                                    photoshop_levels_payload(settings->levels), large_document);
     }
+    if (settings.has_value() && settings->kind == AdjustmentKind::Curves) {
+      write_additional_layer_block(
+          extra, kPhotoshopCurvesAdjustmentBlockKey,
+          photoshop_curves_payload(settings->curves, find_layer_block(*encoded.layer, "curv")),
+          large_document);
+    }
     if (settings.has_value() && settings->kind == AdjustmentKind::HueSaturation) {
       write_additional_layer_block(
           extra, kPhotoshopHueSaturationBlockKey,
           photoshop_hue2_payload(settings->hue_saturation, find_layer_block(*encoded.layer, "hue2")),
           large_document);
     }
-    const auto payload = patchy_adjustment_payload(*encoded.layer);
-    if (!payload.empty()) {
-      write_additional_layer_block(extra, kPatchyAdjustmentBlockKey, payload, large_document);
+    // Native Curves carries the complete Patchy point model. Writing plAD next
+    // to curv makes Photoshop report "unknown data" on every open, even though
+    // it recognizes the native adjustment. Legacy plAD remains readable and is
+    // migrated to curv on save; malformed native layers stay opaque above and
+    // therefore retain both raw blocks.
+    if (!settings.has_value() || settings->kind != AdjustmentKind::Curves) {
+      const auto payload = patchy_adjustment_payload(*encoded.layer);
+      if (!payload.empty()) {
+        write_additional_layer_block(extra, kPatchyAdjustmentBlockKey, payload, large_document);
+      }
     }
   }
 
@@ -8141,6 +8238,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     }
 
     std::optional<AdjustmentSettings> native_adjustment_settings;
+    std::optional<AdjustmentSettings> native_curves_settings;
     std::optional<AdjustmentSettings> patchy_adjustment_settings;
     bool has_native_curves = false;
     for (const auto& block : record.additional_blocks) {
@@ -8152,17 +8250,18 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
         }
       } else if (block.key == "curv") {
         has_native_curves = true;
+        if (auto parsed = parse_photoshop_curves_adjustment(block.payload); parsed.has_value()) {
+          native_curves_settings = parsed;
+        }
       } else if (block.key == "plAD") {
         patchy_adjustment_settings = parse_patchy_adjustment(block.payload);
       }
     }
     // Native Photoshop adjustment data is authoritative over Patchy's private
-    // fallback. Sequence 2 does not interpret curv yet, so import it through the
-    // same opaque regular-layer path used by other unsupported native adjustment
-    // blocks. This preserves both curv and plAD while preventing edits based on a
-    // potentially stale private fallback.
+    // fallback. A valid curv block is editable; an unrecognized one deliberately
+    // stays on the opaque regular-layer path so a stale plAD can never shadow it.
     auto adjustment_settings = has_native_curves
-                                   ? std::optional<AdjustmentSettings>{}
+                                   ? native_curves_settings
                                    : (native_adjustment_settings.has_value() ? native_adjustment_settings
                                                                              : patchy_adjustment_settings);
     if (adjustment_settings.has_value() && native_adjustment_settings.has_value() &&

@@ -1,22 +1,32 @@
 #include "ui/filter_workflows.hpp"
 
+#include "formats/acv_curves_io.hpp"
 #include "ui/curves_editor.hpp"
+#include "ui/curves_presets.hpp"
 #include "ui/dialog_utils.hpp"
 
+#include <QAbstractItemView>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QFileInfo>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLinearGradient>
+#include <QListView>
+#include <QListWidget>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QPixmap>
 #include <QPolygonF>
 #include <QPushButton>
 #include <QRect>
+#include <QSignalBlocker>
 #include <QSlider>
 #include <QSizePolicy>
 #include <QSpinBox>
@@ -29,6 +39,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <stdexcept>
@@ -2957,19 +2968,113 @@ std::optional<LevelsSettings> request_levels_settings(
 
 std::optional<CurvesSettings> request_curves_settings(
     QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed, CurvesSettings initial,
-    CurvesHistograms histograms) {
+    CurvesHistograms histograms, CurvesDialogHooks hooks) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyCurvesDialog"));
   dialog.setWindowTitle(QObject::tr("Curves"));
-  dialog.setMinimumSize(450, 540);
+  dialog.setMinimumSize(640, 630);
 
   auto* root = new QVBoxLayout(&dialog);
+  auto* canvas_tools = new QHBoxLayout();
+  auto* targeted_button = new QPushButton(QObject::tr("Target"), &dialog);
+  targeted_button->setObjectName(QStringLiteral("curvesTargetedAdjustmentButton"));
+  targeted_button->setCheckable(true);
+  targeted_button->setToolTip(QObject::tr("Click and drag on the image to adjust the selected channel"));
+  canvas_tools->addWidget(targeted_button);
+  auto* black_button = new QPushButton(QObject::tr("Black"), &dialog);
+  black_button->setObjectName(QStringLiteral("curvesBlackPointButton"));
+  black_button->setCheckable(true);
+  black_button->setToolTip(QObject::tr("Set the black point from the image"));
+  canvas_tools->addWidget(black_button);
+  auto* gray_button = new QPushButton(QObject::tr("Gray"), &dialog);
+  gray_button->setObjectName(QStringLiteral("curvesGrayPointButton"));
+  gray_button->setCheckable(true);
+  gray_button->setToolTip(QObject::tr("Neutralize a gray point from the image"));
+  canvas_tools->addWidget(gray_button);
+  auto* white_button = new QPushButton(QObject::tr("White"), &dialog);
+  white_button->setObjectName(QStringLiteral("curvesWhitePointButton"));
+  white_button->setCheckable(true);
+  white_button->setToolTip(QObject::tr("Set the white point from the image"));
+  canvas_tools->addWidget(white_button);
+  canvas_tools->addSpacing(12);
+  auto* shadow_clipping_button = new QPushButton(QObject::tr("Shadows"), &dialog);
+  shadow_clipping_button->setObjectName(QStringLiteral("curvesShadowClippingButton"));
+  shadow_clipping_button->setCheckable(true);
+  shadow_clipping_button->setToolTip(QObject::tr("Show pixels clipped to black"));
+  canvas_tools->addWidget(shadow_clipping_button);
+  auto* highlight_clipping_button = new QPushButton(QObject::tr("Highlights"), &dialog);
+  highlight_clipping_button->setObjectName(QStringLiteral("curvesHighlightClippingButton"));
+  highlight_clipping_button->setCheckable(true);
+  highlight_clipping_button->setToolTip(QObject::tr("Show pixels clipped to white"));
+  canvas_tools->addWidget(highlight_clipping_button);
+  auto* clipping_button = new QPushButton(QObject::tr("Both"), &dialog);
+  clipping_button->setObjectName(QStringLiteral("curvesClippingPreviewButton"));
+  clipping_button->setCheckable(true);
+  clipping_button->setToolTip(QObject::tr("Show shadow and highlight clipping together"));
+  canvas_tools->addWidget(clipping_button);
+  canvas_tools->addStretch(1);
+  root->addLayout(canvas_tools);
+
+  const std::array canvas_tool_buttons{targeted_button, black_button, gray_button, white_button};
+  for (auto* button : canvas_tool_buttons) {
+    button->setEnabled(static_cast<bool>(hooks.set_canvas_mode));
+  }
+  const std::array clipping_buttons{shadow_clipping_button, highlight_clipping_button, clipping_button};
+  for (auto* button : clipping_buttons) {
+    button->setEnabled(static_cast<bool>(hooks.clipping_changed));
+  }
+
   auto* editor = new CurvesEditorWidget(&dialog);
   editor->set_adjustment(initial);
   editor->set_histograms(std::move(histograms));
   root->addWidget(editor, 1);
 
+  constexpr int kPresetIdRole = Qt::UserRole + 1;
+  constexpr QSize kPresetThumbnailSize(72, 48);
+  auto* preset_list = new QListWidget(&dialog);
+  preset_list->setObjectName(QStringLiteral("curvesPresetList"));
+  preset_list->setAccessibleName(QObject::tr("Curves presets"));
+  preset_list->setViewMode(QListView::IconMode);
+  preset_list->setFlow(QListView::LeftToRight);
+  preset_list->setWrapping(false);
+  preset_list->setResizeMode(QListView::Adjust);
+  preset_list->setMovement(QListView::Static);
+  preset_list->setSelectionMode(QAbstractItemView::SingleSelection);
+  preset_list->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+  preset_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  preset_list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  preset_list->setIconSize(kPresetThumbnailSize);
+  preset_list->setGridSize(QSize(98, 78));
+  preset_list->setUniformItemSizes(true);
+  preset_list->setFixedHeight(92);
+
+  auto* custom_preset_item = new QListWidgetItem(QObject::tr("Custom"), preset_list);
+  custom_preset_item->setData(kPresetIdRole, QString());
+  custom_preset_item->setToolTip(QObject::tr("Current custom curve"));
+  for (const auto& preset : builtin_curves_presets()) {
+    const auto display_name = curves_preset_display_name(preset);
+    auto* item = new QListWidgetItem(QIcon(QPixmap::fromImage(
+                                         curves_adjustment_thumbnail(preset.adjustment, kPresetThumbnailSize))),
+                                     display_name, preset_list);
+    item->setData(kPresetIdRole, preset.id);
+    item->setToolTip(display_name);
+  }
+  root->addWidget(preset_list);
+
   auto* footer = new QHBoxLayout();
+  auto* load_preset = new QPushButton(QObject::tr("Load..."), &dialog);
+  load_preset->setObjectName(QStringLiteral("curvesLoadPresetButton"));
+  load_preset->setToolTip(QObject::tr("Load a Photoshop Curves preset"));
+  footer->addWidget(load_preset);
+  auto* save_preset = new QPushButton(QObject::tr("Save..."), &dialog);
+  save_preset->setObjectName(QStringLiteral("curvesSavePresetButton"));
+  save_preset->setToolTip(QObject::tr("Save the current curves as a Photoshop preset"));
+  footer->addWidget(save_preset);
+  footer->addSpacing(12);
+  auto* before = new QPushButton(QObject::tr("Before"), &dialog);
+  before->setObjectName(QStringLiteral("curvesBeforeButton"));
+  before->setToolTip(QObject::tr("Hold to compare with the unadjusted image"));
+  footer->addWidget(before);
   auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
   preview->setObjectName(QStringLiteral("curvesPreviewCheck"));
   preview->setChecked(true);
@@ -2992,25 +3097,283 @@ std::optional<CurvesSettings> request_curves_settings(
   auto schedule_preview = [&] { preview_emitter.schedule(preview_request()); };
   auto flush_preview = [&] { preview_emitter.flush(preview_request()); };
 
+  CurvesEyedropperSamples eyedropper_samples;
+  bool applying_eyedropper_adjustment = false;
+  bool tonal_sample_active = false;
+  int tonal_sample_start_global_y = 0;
+  auto activate_canvas_mode = [&](CurvesCanvasMode mode) {
+    if (!hooks.set_canvas_mode) {
+      return;
+    }
+    hooks.set_canvas_mode(mode, [&, mode](const CurvesCanvasSample& sample) {
+      const auto& gesture = sample.gesture;
+      if (gesture.phase == CanvasReadPhase::Dismiss) {
+        dialog.reject();
+        return;
+      }
+      if (gesture.phase == CanvasReadPhase::Cancel) {
+        if (tonal_sample_active) {
+          editor->cancel_tonal_sample();
+          tonal_sample_active = false;
+        }
+        return;
+      }
+
+      if (gesture.phase == CanvasReadPhase::Press) {
+        if (!sample.input_color.isValid() || sample.input_color.alpha() == 0) {
+          tonal_sample_active = false;
+          return;
+        }
+        const auto color = RgbColor{static_cast<std::uint8_t>(sample.input_color.red()),
+                                    static_cast<std::uint8_t>(sample.input_color.green()),
+                                    static_cast<std::uint8_t>(sample.input_color.blue())};
+        if (mode == CurvesCanvasMode::Targeted) {
+          int input = 0;
+          switch (editor->active_channel()) {
+            case CurvesChannel::Red:
+              input = color.red;
+              break;
+            case CurvesChannel::Green:
+              input = color.green;
+              break;
+            case CurvesChannel::Blue:
+              input = color.blue;
+              break;
+            case CurvesChannel::Rgb:
+              input = (54 * static_cast<int>(color.red) + 183 * static_cast<int>(color.green) +
+                       19 * static_cast<int>(color.blue)) /
+                      256;
+              break;
+          }
+          tonal_sample_start_global_y = gesture.global_position.y();
+          tonal_sample_active = editor->begin_tonal_sample(input);
+          return;
+        }
+
+        if (mode == CurvesCanvasMode::BlackPoint) {
+          eyedropper_samples.black = color;
+        } else if (mode == CurvesCanvasMode::GrayPoint) {
+          eyedropper_samples.gray = color;
+        } else if (mode == CurvesCanvasMode::WhitePoint) {
+          eyedropper_samples.white = color;
+        }
+        applying_eyedropper_adjustment = true;
+        editor->apply_external_adjustment(curves_adjustment_from_eyedropper_samples(eyedropper_samples));
+        applying_eyedropper_adjustment = false;
+        return;
+      }
+
+      if (mode != CurvesCanvasMode::Targeted || !tonal_sample_active) {
+        return;
+      }
+      const auto output_delta = tonal_sample_start_global_y - gesture.global_position.y();
+      if (gesture.phase == CanvasReadPhase::Drag) {
+        editor->update_tonal_sample(output_delta, false);
+      } else if (gesture.phase == CanvasReadPhase::Release) {
+        editor->update_tonal_sample(output_delta, true);
+        tonal_sample_active = false;
+      }
+    });
+  };
+
+  auto* canvas_tool_group = new QButtonGroup(&dialog);
+  canvas_tool_group->setExclusive(false);
+  for (int index = 0; index < static_cast<int>(canvas_tool_buttons.size()); ++index) {
+    canvas_tool_group->addButton(canvas_tool_buttons[static_cast<std::size_t>(index)], index);
+  }
+  QObject::connect(canvas_tool_group, &QButtonGroup::idToggled, &dialog, [&](int id, bool checked) {
+    if (checked) {
+      for (int index = 0; index < static_cast<int>(canvas_tool_buttons.size()); ++index) {
+        if (index == id) {
+          continue;
+        }
+        const QSignalBlocker blocker(canvas_tool_buttons[static_cast<std::size_t>(index)]);
+        canvas_tool_buttons[static_cast<std::size_t>(index)]->setChecked(false);
+      }
+      constexpr std::array modes{CurvesCanvasMode::Targeted, CurvesCanvasMode::BlackPoint,
+                                 CurvesCanvasMode::GrayPoint, CurvesCanvasMode::WhitePoint};
+      activate_canvas_mode(modes[static_cast<std::size_t>(std::clamp(id, 0, 3))]);
+    } else if (std::none_of(canvas_tool_buttons.begin(), canvas_tool_buttons.end(),
+                            [](const QPushButton* button) { return button->isChecked(); })) {
+      if (hooks.clear_canvas_mode) {
+        hooks.clear_canvas_mode();
+      }
+    }
+  });
+
+  std::optional<CurvesClippingMode> active_clipping_mode;
+  auto* clipping_group = new QButtonGroup(&dialog);
+  clipping_group->setExclusive(false);
+  for (int index = 0; index < static_cast<int>(clipping_buttons.size()); ++index) {
+    clipping_group->addButton(clipping_buttons[static_cast<std::size_t>(index)], index);
+  }
+  QObject::connect(clipping_group, &QButtonGroup::idToggled, &dialog, [&](int id, bool checked) {
+    if (checked) {
+      for (int index = 0; index < static_cast<int>(clipping_buttons.size()); ++index) {
+        if (index == id) {
+          continue;
+        }
+        const QSignalBlocker blocker(clipping_buttons[static_cast<std::size_t>(index)]);
+        clipping_buttons[static_cast<std::size_t>(index)]->setChecked(false);
+      }
+      constexpr std::array modes{CurvesClippingMode::Shadows, CurvesClippingMode::Highlights,
+                                 CurvesClippingMode::Both};
+      active_clipping_mode = modes[static_cast<std::size_t>(std::clamp(id, 0, 2))];
+    } else if (std::none_of(clipping_buttons.begin(), clipping_buttons.end(),
+                            [](const QPushButton* button) { return button->isChecked(); })) {
+      active_clipping_mode.reset();
+    }
+    if (hooks.clipping_changed) {
+      hooks.clipping_changed(active_clipping_mode, editor->active_channel());
+    }
+  });
+  editor->active_channel_changed = [&](CurvesChannel channel) {
+    if (active_clipping_mode.has_value() && hooks.clipping_changed) {
+      hooks.clipping_changed(active_clipping_mode, channel);
+    }
+  };
+
+  auto update_custom_preset_thumbnail = [&] {
+    custom_preset_item->setIcon(
+        QIcon(QPixmap::fromImage(curves_adjustment_thumbnail(dialog_settings, kPresetThumbnailSize))));
+  };
+  auto select_custom_preset = [&] {
+    update_custom_preset_thumbnail();
+    const QSignalBlocker blocker(preset_list);
+    preset_list->setCurrentItem(custom_preset_item);
+  };
+  auto sync_curves_preset_selection = [&] {
+    update_custom_preset_thumbnail();
+    QListWidgetItem* selected = custom_preset_item;
+    if (const auto* matching = find_curves_preset(dialog_settings); matching != nullptr) {
+      for (int row = 1; row < preset_list->count(); ++row) {
+        auto* item = preset_list->item(row);
+        if (item != nullptr && item->data(kPresetIdRole).toString() == matching->id) {
+          selected = item;
+          break;
+        }
+      }
+    }
+    const QSignalBlocker blocker(preset_list);
+    preset_list->setCurrentItem(selected);
+  };
+
   editor->adjustment_changed = [&](const CurvesSettings& settings, bool gesture_finished) {
+    if (!applying_eyedropper_adjustment) {
+      eyedropper_samples = {};
+    }
     dialog_settings = settings;
     editor->set_adjustment(dialog_settings);
+    select_custom_preset();
     if (gesture_finished) {
       flush_preview();
     } else {
       schedule_preview();
     }
   };
-  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
+  QObject::connect(preset_list, &QListWidget::currentItemChanged, &dialog,
+                   [&](QListWidgetItem* current, QListWidgetItem*) {
+                     if (current == nullptr) {
+                       return;
+                     }
+                     const auto id = current->data(kPresetIdRole).toString();
+                     if (id.isEmpty()) {
+                       return;
+                     }
+                     const auto* preset = find_curves_preset(id);
+                     if (preset == nullptr) {
+                       return;
+                     }
+                     eyedropper_samples = {};
+                     dialog_settings = preset->adjustment;
+                     editor->set_adjustment(dialog_settings);
+                     update_custom_preset_thumbnail();
+                     flush_preview();
+                   });
+  sync_curves_preset_selection();
+  QObject::connect(load_preset, &QPushButton::clicked, &dialog, [&] {
+    const auto path = get_open_file_name(
+        &dialog, QObject::tr("Load Curves Preset"), QString(),
+        QObject::tr("Photoshop Curves Preset (*.acv)"), nullptr,
+        QStringLiteral("curvesPresetOpenFileDialog"));
+    if (path.isEmpty()) {
+      return;
+    }
+    try {
+      eyedropper_samples = {};
+      dialog_settings = acv::read_file(std::filesystem::path(path.toStdU16String()));
+      editor->set_adjustment(dialog_settings);
+      sync_curves_preset_selection();
+      flush_preview();
+    } catch (const std::exception&) {
+      show_critical_message(
+          &dialog, QObject::tr("Load Curves Preset"),
+          QObject::tr("The Curves preset could not be loaded. The file may be damaged or unsupported."),
+          QStringLiteral("curvesPresetLoadErrorMessageBox"));
+    }
+  });
+  QObject::connect(save_preset, &QPushButton::clicked, &dialog, [&] {
+    auto path = get_save_file_name(
+        &dialog, QObject::tr("Save Curves Preset"), QString(),
+        QObject::tr("Photoshop Curves Preset (*.acv)"), nullptr,
+        QStringLiteral("curvesPresetSaveFileDialog"));
+    if (path.isEmpty()) {
+      return;
+    }
+    if (QFileInfo(path).suffix().isEmpty()) {
+      path += QStringLiteral(".acv");
+    }
+    try {
+      acv::write_file(std::filesystem::path(path.toStdU16String()), dialog_settings);
+    } catch (const std::exception&) {
+      show_critical_message(&dialog, QObject::tr("Save Curves Preset"),
+                            QObject::tr("The Curves preset could not be saved."),
+                            QStringLiteral("curvesPresetSaveErrorMessageBox"));
+    }
+  });
+  QObject::connect(before, &QPushButton::pressed, &dialog, [&] {
+    preview_emitter.flush(AdjustmentPreviewRequest<CurvesSettings>{false, dialog_settings});
+    if (active_clipping_mode.has_value() && hooks.clipping_changed) {
+      hooks.clipping_changed(std::nullopt, editor->active_channel());
+    }
+  });
+  QObject::connect(before, &QPushButton::released, &dialog, [&] {
+    flush_preview();
+    if (active_clipping_mode.has_value() && hooks.clipping_changed) {
+      hooks.clipping_changed(active_clipping_mode, editor->active_channel());
+    }
+  });
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&](bool enabled) {
+    before->setEnabled(enabled);
+    if (!enabled) {
+      before->setDown(false);
+    }
+    flush_preview();
+  });
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  QObject::connect(&dialog, &QDialog::finished, &dialog, [&] {
+    if (hooks.clear_canvas_mode) {
+      hooks.clear_canvas_mode();
+    }
+    if (hooks.clipping_changed) {
+      hooks.clipping_changed(std::nullopt, editor->active_channel());
+    }
+  });
 
   QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
     if (dialog.isVisible()) {
       flush_preview();
     }
   });
-  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+  const auto result = run_non_modal_dialog(dialog);
+  if (hooks.clear_canvas_mode) {
+    hooks.clear_canvas_mode();
+  }
+  if (hooks.clipping_changed) {
+    hooks.clipping_changed(std::nullopt, editor->active_channel());
+  }
+  if (result != QDialog::Accepted) {
     return std::nullopt;
   }
   return dialog_settings;

@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <span>
 
 class QPushButton;
@@ -51,6 +52,10 @@ public:
   void set_histograms(CurvesHistograms histograms);
   void set_active_channel(CurvesChannel channel);
   void set_selected_point(int index);
+  [[nodiscard]] bool begin_tonal_sample(int input);
+  void update_tonal_sample(int output_delta, bool finished);
+  void cancel_tonal_sample();
+  void apply_external_adjustment(const CurvesAdjustment& adjustment, bool finished = true);
 
   [[nodiscard]] const CurvesAdjustment& adjustment() const noexcept;
   [[nodiscard]] CurvesChannel active_channel() const noexcept;
@@ -82,6 +87,10 @@ private:
   CurvesChannel active_channel_{CurvesChannel::Rgb};
   int selected_point_{0};
   bool updating_controls_{false};
+  std::optional<CurvesAdjustment> tonal_sample_start_{};
+  int tonal_sample_point_{-1};
+  int tonal_sample_input_{0};
+  int tonal_sample_output_{0};
 
   QTabBar* channel_tabs_{nullptr};
   CurvesGraphWidget* graph_{nullptr};

@@ -518,6 +518,41 @@ CurvesAdjustment curves_adjustment_from_legacy_outputs(int shadow_output, int mi
   return curves;
 }
 
+CurvesAdjustment curves_adjustment_from_eyedropper_samples(const CurvesEyedropperSamples& samples) {
+  CurvesAdjustment curves;
+  const auto channel_curve = [&samples](auto component) {
+    int black = samples.black.has_value() ? static_cast<int>(component(*samples.black)) : 0;
+    int white = samples.white.has_value() ? static_cast<int>(component(*samples.white)) : 255;
+    black = std::clamp(black, 0, 254);
+    white = std::clamp(white, 1, 255);
+    if (black >= white) {
+      // Degenerate samples still produce a deterministic usable range without
+      // duplicate inputs (the native Curves formats reject those).
+      if (samples.white.has_value() && !samples.black.has_value()) {
+        black = std::max(0, white - 1);
+      } else {
+        white = std::min(255, black + 1);
+        if (black >= white) {
+          black = white - 1;
+        }
+      }
+    }
+
+    CurveControlPoints points{{black, 0}, {white, 255}};
+    if (samples.gray.has_value() && white - black >= 2) {
+      const auto neutral_input =
+          std::clamp(static_cast<int>(component(*samples.gray)), black + 1, white - 1);
+      points.insert(points.begin() + 1, CurveControlPoint{neutral_input, 128});
+    }
+    return normalized_curve_control_points(std::move(points));
+  };
+
+  curves.red = channel_curve([](RgbColor color) { return color.red; });
+  curves.green = channel_curve([](RgbColor color) { return color.green; });
+  curves.blue = channel_curve([](RgbColor color) { return color.blue; });
+  return curves;
+}
+
 std::array<std::uint8_t, 256> build_curve_lut(const CurveControlPoints& source) {
   const auto points = normalized_curve_control_points(source);
   const auto count = points.size();

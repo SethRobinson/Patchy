@@ -64,6 +64,9 @@ bool promote_flat_alpha_to_layer_mask(Document& document);
 [[nodiscard]] QImage qimage_from_document_rect_with_layer_pixels(const Document& document, QRect document_rect,
                                                                  bool preserve_alpha, LayerId layer_id,
                                                                  const PixelBuffer& layer_pixels, Rect layer_bounds);
+[[nodiscard]] QImage qimage_from_document_rect_with_hidden_layers(
+    const Document& document, QRect document_rect, bool preserve_alpha,
+    const std::vector<LayerId>& hidden_layer_ids);
 [[nodiscard]] bool image_format_preserves_alpha(std::string_view extension) noexcept;
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options = {});

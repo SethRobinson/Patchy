@@ -186,6 +186,11 @@ public:
     update();
   }
 
+  void set_sample_input(std::optional<int> input) {
+    sample_input_ = input.has_value() ? std::optional<int>{std::clamp(*input, 0, 255)} : std::nullopt;
+    update();
+  }
+
   [[nodiscard]] QSize sizeHint() const override {
     return QSize(360, 360);
   }
@@ -214,6 +219,7 @@ protected:
       }
     }
     draw_curve(painter, graph, active_channel_, true);
+    draw_sample_marker(painter, graph);
     draw_points(painter, graph);
 
     painter.setRenderHint(QPainter::Antialiasing, false);
@@ -457,6 +463,17 @@ private:
     }
   }
 
+  void draw_sample_marker(QPainter& painter, const QRect& graph) const {
+    if (!sample_input_.has_value()) {
+      return;
+    }
+    const auto x = x_for_input(*sample_input_);
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    painter.setPen(QPen(QColor(255, 198, 72, 205), 1, Qt::DashLine));
+    painter.drawLine(QPointF(x, graph.top()), QPointF(x, graph.bottom()));
+    painter.setRenderHint(QPainter::Antialiasing, true);
+  }
+
   void clamp_selected_point() {
     const auto& points = curve_points_for_channel(adjustment_, active_channel_);
     selected_point_ = points.empty() ? -1 : std::clamp(selected_point_, 0, static_cast<int>(points.size()) - 1);
@@ -468,6 +485,7 @@ private:
   std::array<std::array<std::uint8_t, 256>, 4> curve_luts_{};
   int selected_point_{0};
   int active_drag_point_{-1};
+  std::optional<int> sample_input_{};
 };
 
 CurvesEditorWidget::CurvesEditorWidget(QWidget* parent) : QWidget(parent) {
@@ -603,6 +621,56 @@ void CurvesEditorWidget::set_active_channel(CurvesChannel channel) {
 
 void CurvesEditorWidget::set_selected_point(int index) {
   select_point(index);
+}
+
+bool CurvesEditorWidget::begin_tonal_sample(int input) {
+  if (tonal_sample_start_.has_value()) {
+    cancel_tonal_sample();
+  }
+  input = std::clamp(input, 0, 255);
+  tonal_sample_start_ = adjustment_;
+  tonal_sample_input_ = input;
+  tonal_sample_output_ = build_curve_lut(curve_points_for_channel(adjustment_, active_channel_))
+                             [static_cast<std::size_t>(input)];
+  tonal_sample_point_ = add_point(input, tonal_sample_output_);
+  if (tonal_sample_point_ < 0) {
+    tonal_sample_start_.reset();
+    graph_->set_sample_input(std::nullopt);
+    return false;
+  }
+  graph_->set_sample_input(input);
+  return true;
+}
+
+void CurvesEditorWidget::update_tonal_sample(int output_delta, bool finished) {
+  if (!tonal_sample_start_.has_value() || tonal_sample_point_ < 0) {
+    return;
+  }
+  change_point(tonal_sample_point_, tonal_sample_input_, tonal_sample_output_ + output_delta, finished);
+  if (finished) {
+    tonal_sample_start_.reset();
+    tonal_sample_point_ = -1;
+    graph_->set_sample_input(std::nullopt);
+  }
+}
+
+void CurvesEditorWidget::cancel_tonal_sample() {
+  if (!tonal_sample_start_.has_value()) {
+    graph_->set_sample_input(std::nullopt);
+    return;
+  }
+  auto original = std::move(*tonal_sample_start_);
+  tonal_sample_start_.reset();
+  tonal_sample_point_ = -1;
+  graph_->set_sample_input(std::nullopt);
+  propose_adjustment(std::move(original), true);
+}
+
+void CurvesEditorWidget::apply_external_adjustment(const CurvesAdjustment& adjustment, bool finished) {
+  tonal_sample_start_.reset();
+  tonal_sample_point_ = -1;
+  graph_->set_sample_input(std::nullopt);
+  propose_adjustment(adjustment, finished);
 }
 
 const CurvesAdjustment& CurvesEditorWidget::adjustment() const noexcept {

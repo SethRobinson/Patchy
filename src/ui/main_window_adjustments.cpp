@@ -319,6 +319,66 @@ CurvesHistograms curves_histograms_before_adjustment(const Document& document, L
   return curves_histograms_from_composite(input_document);
 }
 
+bool collect_layers_at_or_above(const std::vector<Layer>& siblings, LayerId target_id,
+                                std::vector<LayerId>& hidden) {
+  for (std::size_t index = 0; index < siblings.size(); ++index) {
+    if (siblings[index].id() == target_id) {
+      for (std::size_t hidden_index = index; hidden_index < siblings.size(); ++hidden_index) {
+        hidden.push_back(siblings[hidden_index].id());
+      }
+      return true;
+    }
+    if (!siblings[index].children().empty() &&
+        collect_layers_at_or_above(siblings[index].children(), target_id, hidden)) {
+      for (std::size_t hidden_index = index + 1U; hidden_index < siblings.size(); ++hidden_index) {
+        hidden.push_back(siblings[hidden_index].id());
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+QColor curves_sample_before_layer(const Document& document, LayerId layer_id, QPoint point) {
+  if (point.x() < 0 || point.y() < 0 || point.x() >= document.width() || point.y() >= document.height()) {
+    return {};
+  }
+  std::vector<LayerId> hidden;
+  collect_layers_at_or_above(document.layers(), layer_id, hidden);
+  const auto image = qimage_from_document_rect_with_hidden_layers(
+      document, QRect(point, QSize(1, 1)), true, hidden);
+  return image.isNull() ? QColor{} : image.pixelColor(0, 0);
+}
+
+CurvesDialogHooks curves_canvas_hooks(CanvasWidget* canvas,
+                                      std::function<QColor(QPoint)> sample_input_color) {
+  CurvesDialogHooks hooks;
+  if (canvas == nullptr || !sample_input_color) {
+    return hooks;
+  }
+  hooks.set_canvas_mode = [canvas, sample_input_color = std::move(sample_input_color)](
+                              CurvesCanvasMode mode,
+                              std::function<void(const CurvesCanvasSample&)> sample_changed) {
+    canvas->clear_transient_read_interaction();
+    if (mode == CurvesCanvasMode::None || !sample_changed) {
+      return;
+    }
+    canvas->set_transient_read_interaction(
+        [sample_input_color, sample_changed = std::move(sample_changed)](const CanvasReadGesture& gesture) {
+          auto color = gesture.phase == CanvasReadPhase::Press
+                           ? sample_input_color(gesture.document_position)
+                           : QColor{};
+          sample_changed(CurvesCanvasSample{color, gesture});
+        },
+        Qt::CrossCursor);
+  };
+  hooks.clear_canvas_mode = [canvas] { canvas->clear_transient_read_interaction(); };
+  hooks.clipping_changed = [canvas](std::optional<CurvesClippingMode> mode, CurvesChannel channel) {
+    canvas->set_curves_clipping_preview(mode, channel);
+  };
+  return hooks;
+}
+
 FilterProgress progress_dialog_filter_progress(QProgressDialog& progress,
                                                std::function<QString(const QString&)> label_text,
                                                QEventLoop::ProcessEventsFlags event_flags,
@@ -766,8 +826,16 @@ void MainWindow::new_curves_adjustment_layer() {
   };
 
   const auto histograms = curves_histograms_from_composite(std::as_const(document()));
+  const auto hooks = curves_canvas_hooks(canvas_, [this, &preview_id](QPoint point) {
+    if (preview_id.has_value() && document().find_layer(*preview_id) != nullptr) {
+      return curves_sample_before_layer(std::as_const(document()), *preview_id, point);
+    }
+    const auto image = qimage_from_document_rect(
+        std::as_const(document()), QRect(point, QSize(1, 1)), true);
+    return image.isNull() ? QColor{} : image.pixelColor(0, 0);
+  });
   auto preview_edit_lock = lock_preview_dialog_edits();
-  const auto settings = request_curves_settings(this, preview_changed, {}, histograms);
+  const auto settings = request_curves_settings(this, preview_changed, {}, histograms, hooks);
   remove_adjustment_layer_preview(preview_id, restore_active_layer);
   preview_edit_lock.release();
   if (!settings.has_value()) {
@@ -856,8 +924,14 @@ void MainWindow::curves_dialog() {
   };
 
   const auto histograms = curves_histograms_from_pixels(original_pixels.get());
+  const auto hooks = curves_canvas_hooks(
+      canvas_, [this, active_id, original_pixels, bounds](QPoint point) {
+        const auto image = qimage_from_document_rect_with_layer_pixels(
+            std::as_const(document()), QRect(point, QSize(1, 1)), true, active_id, *original_pixels, bounds);
+        return image.isNull() ? QColor{} : image.pixelColor(0, 0);
+      });
   auto preview_edit_lock = lock_preview_dialog_edits();
-  const auto settings = request_curves_settings(this, preview_changed, {}, histograms);
+  const auto settings = request_curves_settings(this, preview_changed, {}, histograms, hooks);
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
   if (layer == nullptr) {
@@ -1359,7 +1433,14 @@ void MainWindow::edit_active_adjustment_layer() {
       const auto histograms = original_layer.clipped()
                                   ? CurvesHistograms{}
                                   : curves_histograms_before_adjustment(std::as_const(doc), layer_id);
-      const auto result = request_curves_settings(this, preview_changed, original_settings->curves, histograms);
+      auto hooks = curves_canvas_hooks(canvas_, [this, layer_id](QPoint point) {
+        return curves_sample_before_layer(std::as_const(document()), layer_id, point);
+      });
+      if (original_layer.clipped()) {
+        hooks.set_canvas_mode = {};
+      }
+      const auto result =
+          request_curves_settings(this, preview_changed, original_settings->curves, histograms, hooks);
       if (result.has_value()) {
         accepted_settings = *original_settings;
         accepted_settings->curves = *result;

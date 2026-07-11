@@ -3,6 +3,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "filters/filter_registry.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/curves_editor.hpp"
 
 #include <QColor>
@@ -44,6 +45,27 @@ struct LevelsSettings {
 };
 
 using CurvesSettings = CurvesAdjustment;
+
+enum class CurvesCanvasMode {
+  None,
+  Targeted,
+  BlackPoint,
+  GrayPoint,
+  WhitePoint
+};
+
+struct CurvesCanvasSample {
+  QColor input_color{};
+  CanvasReadGesture gesture{};
+};
+
+struct CurvesDialogHooks {
+  std::function<void(CurvesCanvasMode mode,
+                     std::function<void(const CurvesCanvasSample& sample)> sample_changed)>
+      set_canvas_mode;
+  std::function<void()> clear_canvas_mode;
+  std::function<void(std::optional<CurvesClippingMode> mode, CurvesChannel channel)> clipping_changed;
+};
 
 struct ColorBalanceSettings {
   int cyan_red{0};
@@ -91,7 +113,7 @@ public:
     LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr);
 [[nodiscard]] std::optional<CurvesSettings> request_curves_settings(
     QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed = {},
-    CurvesSettings initial = {}, CurvesHistograms histograms = {});
+    CurvesSettings initial = {}, CurvesHistograms histograms = {}, CurvesDialogHooks hooks = {});
 [[nodiscard]] std::optional<HueSaturationSettings> request_hue_saturation_settings(
     QWidget* parent, std::function<void(bool, const HueSaturationSettings&)> preview_changed = {},
     HueSaturationSettings initial = {});

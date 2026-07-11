@@ -353,7 +353,7 @@ void collect_render_trace_stats(const Layer& layer, Rect clip,
                                 const std::vector<render_detail::LayerBoundsOverride>* overrides,
                                 RenderTraceStats& stats) {
   ++stats.layers;
-  if (!layer.visible() || layer.opacity() <= 0.0F) {
+  if (!render_detail::layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
     return;
   }
   ++stats.visible_layers;
@@ -823,9 +823,9 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
   if (profiling) {
     ++profile->visited_layers;
   }
-  if (!layer.visible() || layer.opacity() <= 0.0F) {
+  if (!render_detail::layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
     if (profiling) {
-      if (!layer.visible()) {
+      if (!render_detail::layer_visible_for_render(layer, overrides)) {
         ++profile->skipped_invisible;
         action = "skip_invisible";
       } else {
@@ -1294,6 +1294,23 @@ QImage qimage_from_document_rect_with_layer_pixels(const Document& document, QRe
                                                    Rect layer_bounds) {
   const std::vector<render_detail::LayerBoundsOverride> overrides{
       render_detail::LayerBoundsOverride{layer_id, layer_bounds, &layer_pixels}};
+  return render_document_rect(document, document_rect, preserve_alpha, &overrides);
+}
+
+QImage qimage_from_document_rect_with_hidden_layers(const Document& document, QRect document_rect,
+                                                    bool preserve_alpha,
+                                                    const std::vector<LayerId>& hidden_layer_ids) {
+  std::vector<render_detail::LayerBoundsOverride> overrides;
+  overrides.reserve(hidden_layer_ids.size());
+  for (const auto layer_id : hidden_layer_ids) {
+    const auto* layer = document.find_layer(layer_id);
+    if (layer == nullptr) {
+      continue;
+    }
+    const auto bounds = layer->kind() == LayerKind::Adjustment ? layer->bounds() : layer_pixel_bounds(*layer);
+    overrides.push_back(
+        render_detail::LayerBoundsOverride{layer_id, bounds, nullptr, std::nullopt, false});
+  }
   return render_document_rect(document, document_rect, preserve_alpha, &overrides);
 }
 
