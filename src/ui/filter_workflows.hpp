@@ -3,6 +3,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "filters/filter_registry.hpp"
+#include "ui/curves_editor.hpp"
 
 #include <QColor>
 #include <QRegion>
@@ -42,11 +43,7 @@ struct LevelsSettings {
   LevelsRecord blue{};
 };
 
-struct CurvesSettings {
-  int shadow_output{0};
-  int midtone_output{128};
-  int highlight_output{255};
-};
+using CurvesSettings = CurvesAdjustment;
 
 struct ColorBalanceSettings {
   int cyan_red{0};
@@ -94,7 +91,7 @@ public:
     LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr);
 [[nodiscard]] std::optional<CurvesSettings> request_curves_settings(
     QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed = {},
-    CurvesSettings initial = {});
+    CurvesSettings initial = {}, CurvesHistograms histograms = {});
 [[nodiscard]] std::optional<HueSaturationSettings> request_hue_saturation_settings(
     QWidget* parent, std::function<void(bool, const HueSaturationSettings&)> preview_changed = {},
     HueSaturationSettings initial = {});

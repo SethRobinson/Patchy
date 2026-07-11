@@ -1,5 +1,6 @@
 #include "ui/filter_workflows.hpp"
 
+#include "ui/curves_editor.hpp"
 #include "ui/dialog_utils.hpp"
 
 #include <QCheckBox>
@@ -2615,29 +2616,13 @@ void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& sel
 
 void apply_curves_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, CurvesSettings settings,
                             const FilterProgress* progress) {
-  settings.shadow_output = std::clamp(settings.shadow_output, 0, 255);
-  settings.midtone_output = std::clamp(settings.midtone_output, 0, 255);
-  settings.highlight_output = std::clamp(settings.highlight_output, 0, 255);
-  const auto map_value = [settings](std::uint8_t value) {
-    const auto input = static_cast<double>(value);
-    double output = 0.0;
-    if (input <= 128.0) {
-      const auto t = input / 128.0;
-      output = static_cast<double>(settings.shadow_output) +
-               (static_cast<double>(settings.midtone_output) - static_cast<double>(settings.shadow_output)) * t;
-    } else {
-      const auto t = (input - 128.0) / 127.0;
-      output = static_cast<double>(settings.midtone_output) +
-               (static_cast<double>(settings.highlight_output) - static_cast<double>(settings.midtone_output)) * t;
-    }
-    return filter_clamp_byte(output);
-  };
+  const auto lut = build_curves_lut(settings);
 
   for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
     auto* px = pixels.pixel(x, y);
-    px[0] = map_value(px[0]);
-    px[1] = map_value(px[1]);
-    px[2] = map_value(px[2]);
+    px[0] = lut.red[px[0]];
+    px[1] = lut.green[px[1]];
+    px[2] = lut.blue[px[2]];
   });
 }
 
@@ -2971,19 +2956,64 @@ std::optional<LevelsSettings> request_levels_settings(
 }
 
 std::optional<CurvesSettings> request_curves_settings(
-    QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed, CurvesSettings initial) {
-  initial.shadow_output = std::clamp(initial.shadow_output, 0, 255);
-  initial.midtone_output = std::clamp(initial.midtone_output, 0, 255);
-  initial.highlight_output = std::clamp(initial.highlight_output, 0, 255);
-  return request_adjustment_settings_dialog<CurvesSettings>(
-      parent, QStringLiteral("patchyCurvesDialog"), QObject::tr("Curves"), QStringLiteral("curvesPreviewCheck"),
-      {{QObject::tr("Shadows Output"), QStringLiteral("curvesShadowOutput"), 0, 255, initial.shadow_output, {}},
-       {QObject::tr("Midtones Output"), QStringLiteral("curvesMidtoneOutput"), 0, 255, initial.midtone_output, {}},
-       {QObject::tr("Highlights Output"), QStringLiteral("curvesHighlightOutput"), 0, 255, initial.highlight_output, {}}},
-      [](const std::vector<QSpinBox*>& spins) {
-        return CurvesSettings{spins[0]->value(), spins[1]->value(), spins[2]->value()};
-      },
-      std::move(preview_changed));
+    QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed, CurvesSettings initial,
+    CurvesHistograms histograms) {
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("patchyCurvesDialog"));
+  dialog.setWindowTitle(QObject::tr("Curves"));
+  dialog.setMinimumSize(450, 540);
+
+  auto* root = new QVBoxLayout(&dialog);
+  auto* editor = new CurvesEditorWidget(&dialog);
+  editor->set_adjustment(initial);
+  editor->set_histograms(std::move(histograms));
+  root->addWidget(editor, 1);
+
+  auto* footer = new QHBoxLayout();
+  auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
+  preview->setObjectName(QStringLiteral("curvesPreviewCheck"));
+  preview->setChecked(true);
+  footer->addWidget(preview);
+  footer->addStretch(1);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  footer->addWidget(buttons);
+  root->addLayout(footer);
+
+  CurvesSettings dialog_settings = editor->adjustment();
+  CoalescedPreviewEmitter<AdjustmentPreviewRequest<CurvesSettings>> preview_emitter(
+      dialog, [&](const AdjustmentPreviewRequest<CurvesSettings>& request) {
+        if (preview_changed) {
+          preview_changed(request.enabled, request.settings);
+        }
+      });
+  auto preview_request = [&] {
+    return AdjustmentPreviewRequest<CurvesSettings>{preview->isChecked(), dialog_settings};
+  };
+  auto schedule_preview = [&] { preview_emitter.schedule(preview_request()); };
+  auto flush_preview = [&] { preview_emitter.flush(preview_request()); };
+
+  editor->adjustment_changed = [&](const CurvesSettings& settings, bool gesture_finished) {
+    dialog_settings = settings;
+    editor->set_adjustment(dialog_settings);
+    if (gesture_finished) {
+      flush_preview();
+    } else {
+      schedule_preview();
+    }
+  };
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
+    if (dialog.isVisible()) {
+      flush_preview();
+    }
+  });
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  return dialog_settings;
 }
 
 HueSaturationAdjustment to_hue_saturation_adjustment(const HueSaturationSettings& settings) {

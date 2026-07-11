@@ -851,6 +851,38 @@
         <translation>ハイライト出力</translation>
     </message>
     <message>
+        <source>Curves graph</source>
+        <translation>トーンカーブグラフ</translation>
+    </message>
+    <message>
+        <source>Click to add a point. Drag points or use the arrow keys to adjust them.</source>
+        <translation>クリックしてポイントを追加します。ポイントをドラッグするか、矢印キーで調整します。</translation>
+    </message>
+    <message>
+        <source>Input:</source>
+        <translation>入力:</translation>
+    </message>
+    <message>
+        <source>Output:</source>
+        <translation>出力:</translation>
+    </message>
+    <message>
+        <source>Set the active channel from its histogram</source>
+        <translation>ヒストグラムに基づいて選択中のチャンネルを自動調整</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>リセット</translation>
+    </message>
+    <message>
+        <source>Reset all channels</source>
+        <translation>すべてのチャンネルをリセット</translation>
+    </message>
+    <message>
+        <source>Curves: RGB %1, Red %2, Green %3, Blue %4 points</source>
+        <translation>トーンカーブ: RGB %1、赤 %2、緑 %3、青 %4 ポイント</translation>
+    </message>
+    <message>
         <location line="+70"/>
         <location filename="../src/ui/main_window_shared.cpp" line="+2"/>
         <source>Hue/Saturation</source>

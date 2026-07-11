@@ -414,6 +414,23 @@ public:
     dst[2] = clamp_byte(static_cast<float>(adjusted.blue) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
   }
 
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentLut& lut, float amount) {
+    amount = clamp_unit(amount);
+    if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
+      return;
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) + static_cast<std::size_t>(x);
+    if (alpha_[index] <= 0.0F) {
+      return;
+    }
+    auto* dst = destination_.pixel(x, y);
+    dst[0] = clamp_byte(static_cast<float>(lut.red[dst[0]]) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
+    dst[1] =
+        clamp_byte(static_cast<float>(lut.green[dst[1]]) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
+    dst[2] = clamp_byte(static_cast<float>(lut.blue[dst[2]]) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
+  }
+
 private:
   PixelBuffer& destination_;
   std::vector<float> alpha_;
@@ -457,6 +474,21 @@ public:
     dst[0] = clamp_byte(static_cast<float>(adjusted.red) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
     dst[1] = clamp_byte(static_cast<float>(adjusted.green) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
     dst[2] = clamp_byte(static_cast<float>(adjusted.blue) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
+  }
+
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentLut& lut, float amount) {
+    amount = clamp_unit(amount);
+    if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
+      return;
+    }
+    auto* dst = destination_.pixel(x, y);
+    if (dst[3] == 0) {
+      return;
+    }
+    dst[0] = clamp_byte(static_cast<float>(lut.red[dst[0]]) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
+    dst[1] =
+        clamp_byte(static_cast<float>(lut.green[dst[1]]) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
+    dst[2] = clamp_byte(static_cast<float>(lut.blue[dst[2]]) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
   }
 
 private:

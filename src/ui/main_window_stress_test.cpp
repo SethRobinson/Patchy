@@ -1747,9 +1747,7 @@ void StressTestRunner::phase_adjustments() {
 
   AdjustmentSettings curves;
   curves.kind = AdjustmentKind::Curves;
-  curves.curves.shadow_output = 6;
-  curves.curves.midtone_output = 132;
-  curves.curves.highlight_output = 250;
+  curves.curves = curves_adjustment_from_legacy_outputs(6, 132, 250);
   add_adjustment("26_adjust_curves", "Curves adjustment layer", curves, QStringLiteral("Curves"));
 
   AdjustmentSettings hue;

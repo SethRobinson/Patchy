@@ -412,8 +412,7 @@ private:
   void apply_levels_adjustment(const LevelsSettings& settings, bool allow_identity = false);
   void new_curves_adjustment_layer();
   void curves_dialog();
-  void apply_curves_adjustment(int shadow_output, int midtone_output, int highlight_output,
-                               bool allow_identity = false);
+  void apply_curves_adjustment(const CurvesAdjustment& curves, bool allow_identity = false);
   void new_hue_saturation_adjustment_layer();
   void hue_saturation_dialog();
   void apply_hue_saturation_adjustment(const HueSaturationSettings& hue_saturation, bool allow_identity = false);

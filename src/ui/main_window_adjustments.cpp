@@ -281,6 +281,44 @@ bool levels_settings_have_effect(LevelsSettings settings) {
   return adjustment_has_effect(adjustment);
 }
 
+bool curves_settings_have_effect(const CurvesSettings& curves) {
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::Curves;
+  adjustment.curves = curves;
+  return adjustment_has_effect(adjustment);
+}
+
+CurvesHistograms curves_histograms_from_composite(const Document& document) {
+  std::vector<std::uint8_t> merged_alpha;
+  const auto rgb = Compositor{}.flatten_rgb8(document, &merged_alpha);
+  return curves_histograms_from_pixels(&rgb, merged_alpha);
+}
+
+bool truncate_layer_tree_before(std::vector<Layer>& siblings, LayerId target_id) {
+  for (std::size_t index = 0; index < siblings.size(); ++index) {
+    if (siblings[index].id() == target_id) {
+      siblings.erase(siblings.begin() + static_cast<std::ptrdiff_t>(index), siblings.end());
+      return true;
+    }
+    if (!std::as_const(siblings[index]).children().empty()) {
+      auto& children = siblings[index].children();
+      if (truncate_layer_tree_before(children, target_id)) {
+        siblings.erase(siblings.begin() + static_cast<std::ptrdiff_t>(index + 1U), siblings.end());
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+CurvesHistograms curves_histograms_before_adjustment(const Document& document, LayerId adjustment_id) {
+  auto input_document = document;
+  if (!truncate_layer_tree_before(input_document.layers(), adjustment_id)) {
+    return curves_histograms_from_composite(document);
+  }
+  return curves_histograms_from_composite(input_document);
+}
+
 FilterProgress progress_dialog_filter_progress(QProgressDialog& progress,
                                                std::function<QString(const QString&)> label_text,
                                                QEventLoop::ProcessEventsFlags event_flags,
@@ -547,7 +585,8 @@ void MainWindow::new_levels_adjustment_layer() {
 
   const PixelBuffer* histogram_source = nullptr;
   if (restore_active_layer.has_value()) {
-    if (auto* layer = document().find_layer(*restore_active_layer); editable_rgb8_layer(layer)) {
+    const auto& read_only_document = std::as_const(document());
+    if (const auto* layer = read_only_document.find_layer(*restore_active_layer); editable_rgb8_layer(layer)) {
       histogram_source = &layer->pixels();
     }
   }
@@ -722,21 +761,20 @@ void MainWindow::new_curves_adjustment_layer() {
                                                                          const CurvesSettings& curves) {
     AdjustmentSettings settings;
     settings.kind = AdjustmentKind::Curves;
-    settings.curves = CurvesAdjustment{std::clamp(curves.shadow_output, 0, 255),
-                                       std::clamp(curves.midtone_output, 0, 255),
-                                       std::clamp(curves.highlight_output, 0, 255)};
+    settings.curves = curves;
     update_adjustment_layer_preview(tr("Curves"), settings, enabled, preview_id, restore_active_layer);
   };
 
+  const auto histograms = curves_histograms_from_composite(std::as_const(document()));
   auto preview_edit_lock = lock_preview_dialog_edits();
-  const auto settings = request_curves_settings(this, preview_changed);
+  const auto settings = request_curves_settings(this, preview_changed, {}, histograms);
   remove_adjustment_layer_preview(preview_id, restore_active_layer);
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Curves"));
     return;
   }
-  apply_curves_adjustment(settings->shadow_output, settings->midtone_output, settings->highlight_output, true);
+  apply_curves_adjustment(*settings, true);
 }
 
 void MainWindow::curves_dialog() {
@@ -750,22 +788,24 @@ void MainWindow::curves_dialog() {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
+  if (layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
+    return;
+  }
   const auto active_id = *active;
   const auto bounds = layer->bounds();
-  auto original_pixels = std::make_shared<const PixelBuffer>(layer->pixels());
+  auto original_layer = std::make_shared<const Layer>(*layer);
+  auto original_pixels = std::make_shared<const PixelBuffer>(original_layer->pixels());
   const auto selection = canvas_->selected_document_region();
   using CurvesPreviewRequest = AdjustmentPixelPreviewRequest<CurvesSettings>;
-  const auto curves_has_effect = [](const CurvesSettings& settings) {
-    return !(settings.shadow_output == 0 && settings.midtone_output == 128 && settings.highlight_output == 255);
-  };
   auto preview_state = std::make_shared<AsyncPixelPreviewState<CurvesPreviewRequest>>();
-  preview_state->start = [this, preview_state, active_id, bounds, original_pixels, selection,
-                          curves_has_effect](const CurvesPreviewRequest& request) {
-    if (!request.enabled || !curves_has_effect(request.settings)) {
+  preview_state->start = [this, preview_state, active_id, bounds, original_layer, original_pixels,
+                          selection](const CurvesPreviewRequest& request) {
+    if (!request.enabled || !curves_settings_have_effect(request.settings)) {
       preview_state->pending.reset();
       ++preview_state->generation;
       if (auto* preview_layer = document().find_layer(active_id); preview_layer != nullptr) {
-        set_layer_pixels_preserving_origin(*preview_layer, *original_pixels, bounds);
+        *preview_layer = *original_layer;
         if (canvas_ != nullptr) {
           canvas_->document_changed(to_qrect(bounds));
         }
@@ -810,34 +850,77 @@ void MainWindow::curves_dialog() {
           Qt::QueuedConnection);
     }).detach();
   };
-  const auto preview_changed = [preview_state, curves_has_effect](bool enabled, const CurvesSettings& settings) {
+  const auto preview_changed = [preview_state](bool enabled, const CurvesSettings& settings) {
     enqueue_async_pixel_preview(preview_state, CurvesPreviewRequest{enabled, settings},
-                                !enabled || !curves_has_effect(settings));
+                                !enabled || !curves_settings_have_effect(settings));
   };
 
+  const auto histograms = curves_histograms_from_pixels(original_pixels.get());
   auto preview_edit_lock = lock_preview_dialog_edits();
-  const auto settings = request_curves_settings(this, preview_changed);
+  const auto settings = request_curves_settings(this, preview_changed, {}, histograms);
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
   if (layer == nullptr) {
     return;
   }
-  set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
+  *layer = *original_layer;
   canvas_->document_changed(to_qrect(bounds));
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Curves"));
     return;
   }
-  apply_curves_adjustment(settings->shadow_output, settings->midtone_output, settings->highlight_output);
+
+  auto final_pixels = *original_pixels;
+  if (curves_settings_have_effect(*settings)) {
+    const auto display_name = tr("Curves");
+    if (canvas_ != nullptr) {
+      canvas_->begin_processing_operation();
+    }
+    const auto finish_processing = qScopeGuard([this] {
+      if (canvas_ != nullptr) {
+        canvas_->end_processing_operation();
+      }
+    });
+    QProgressDialog progress(tr("Applying %1...").arg(display_name), tr("Cancel"), 0, 100, this);
+    progress.setObjectName(QStringLiteral("adjustmentProgressDialog"));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+    remember_dialog_position(progress);
+    progress.setValue(0);
+    auto filter_progress = progress_dialog_filter_progress(
+        progress, [this, display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
+        QEventLoop::AllEvents, [this] {
+          if (canvas_ != nullptr) {
+            canvas_->tick_processing_operation();
+          }
+        });
+    try {
+      apply_curves_to_pixels(final_pixels, bounds, selection, *settings, &filter_progress);
+      progress.setValue(100);
+    } catch (const FilterCancelled&) {
+      statusBar()->showMessage(tr("Cancelled Curves"));
+      return;
+    }
+  }
+  if (pixel_buffers_equal(final_pixels, *original_pixels)) {
+    statusBar()->showMessage(tr("%1 made no changes").arg(tr("Curves")));
+    return;
+  }
+  push_undo_snapshot(tr("Curves"));
+  layer = doc.find_layer(active_id);
+  if (layer == nullptr) {
+    return;
+  }
+  set_layer_pixels_preserving_origin(*layer, std::move(final_pixels), bounds);
+  canvas_->document_changed(to_qrect(bounds));
+  statusBar()->showMessage(tr("Applied %1").arg(tr("Curves")));
 }
 
-void MainWindow::apply_curves_adjustment(int shadow_output, int midtone_output, int highlight_output,
-                                        bool allow_identity) {
+void MainWindow::apply_curves_adjustment(const CurvesAdjustment& curves, bool allow_identity) {
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::Curves;
-  settings.curves = CurvesAdjustment{std::clamp(shadow_output, 0, 255), std::clamp(midtone_output, 0, 255),
-                                     std::clamp(highlight_output, 0, 255)};
+  settings.curves = curves;
   if (!allow_identity && !adjustment_has_effect(settings)) {
     return;
   }
@@ -1205,6 +1288,7 @@ void MainWindow::edit_active_adjustment_layer() {
   }
 
   const auto layer_id = layer->id();
+  const auto original_layer = *layer;
   auto apply_settings = [this, &doc, layer_id](const AdjustmentSettings& settings) {
     auto* target = doc.find_layer(layer_id);
     if (target == nullptr) {
@@ -1216,15 +1300,31 @@ void MainWindow::edit_active_adjustment_layer() {
       refresh_layer_thumbnails();
     }
   };
+  auto restore_original_layer = [this, &doc, layer_id, &original_layer] {
+    auto* target = doc.find_layer(layer_id);
+    if (target == nullptr) {
+      return;
+    }
+    *target = original_layer;
+    if (canvas_ != nullptr) {
+      canvas_->document_changed();
+      refresh_layer_thumbnails();
+    }
+  };
 
   std::optional<AdjustmentSettings> accepted_settings;
   auto preview_edit_lock = lock_preview_dialog_edits();
   switch (original_settings->kind) {
     case AdjustmentKind::Levels: {
-      const auto preview_changed = [apply_settings, original_settings](bool enabled, const LevelsSettings& levels) {
+      const auto preview_changed = [apply_settings, restore_original_layer,
+                                    original_settings](bool enabled, const LevelsSettings& levels) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
         auto settings = *original_settings;
         settings.levels = sanitized_levels_adjustment(levels);
-        apply_settings(enabled ? settings : *original_settings);
+        apply_settings(settings);
       };
       const auto result = request_levels_settings(this, preview_changed,
                                                   LevelsSettings{original_settings->levels.black_input,
@@ -1243,32 +1343,39 @@ void MainWindow::edit_active_adjustment_layer() {
       break;
     }
     case AdjustmentKind::Curves: {
-      const auto preview_changed = [apply_settings, original_settings](bool enabled, const CurvesSettings& curves) {
+      const auto preview_changed = [apply_settings, restore_original_layer,
+                                    original_settings](bool enabled, const CurvesSettings& curves) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
         auto settings = *original_settings;
-        settings.curves = CurvesAdjustment{std::clamp(curves.shadow_output, 0, 255),
-                                           std::clamp(curves.midtone_output, 0, 255),
-                                           std::clamp(curves.highlight_output, 0, 255)};
-        apply_settings(enabled ? settings : *original_settings);
+        settings.curves = curves;
+        apply_settings(settings);
       };
-      const auto result = request_curves_settings(this, preview_changed,
-                                                  CurvesSettings{original_settings->curves.shadow_output,
-                                                                 original_settings->curves.midtone_output,
-                                                                 original_settings->curves.highlight_output});
+      // A clipped adjustment runs inside an isolated clipping buffer. Until the
+      // histogram renderer can expose that buffer directly, leave Auto disabled
+      // instead of presenting a backdrop-mixed histogram as the adjustment input.
+      const auto histograms = original_layer.clipped()
+                                  ? CurvesHistograms{}
+                                  : curves_histograms_before_adjustment(std::as_const(doc), layer_id);
+      const auto result = request_curves_settings(this, preview_changed, original_settings->curves, histograms);
       if (result.has_value()) {
         accepted_settings = *original_settings;
-        accepted_settings->curves =
-            CurvesAdjustment{std::clamp(result->shadow_output, 0, 255),
-                             std::clamp(result->midtone_output, 0, 255),
-                             std::clamp(result->highlight_output, 0, 255)};
+        accepted_settings->curves = *result;
       }
       break;
     }
     case AdjustmentKind::HueSaturation: {
-      const auto preview_changed = [apply_settings, original_settings](bool enabled,
-                                                                       const HueSaturationSettings& hue_saturation) {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const HueSaturationSettings& hue_saturation) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
         auto settings = *original_settings;
         settings.hue_saturation = to_hue_saturation_adjustment(hue_saturation);
-        apply_settings(enabled ? settings : *original_settings);
+        apply_settings(settings);
       };
       const auto result = request_hue_saturation_settings(
           this, preview_changed, to_hue_saturation_settings(original_settings->hue_saturation));
@@ -1279,14 +1386,18 @@ void MainWindow::edit_active_adjustment_layer() {
       break;
     }
     case AdjustmentKind::ColorBalance: {
-      const auto preview_changed = [apply_settings, original_settings](bool enabled,
-                                                                       const ColorBalanceSettings& color_balance) {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const ColorBalanceSettings& color_balance) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
         auto settings = *original_settings;
         settings.color_balance =
             ColorBalanceAdjustment{std::clamp(color_balance.cyan_red, -100, 100),
                                    std::clamp(color_balance.magenta_green, -100, 100),
                                    std::clamp(color_balance.yellow_blue, -100, 100)};
-        apply_settings(enabled ? settings : *original_settings);
+        apply_settings(settings);
       };
       const auto result = request_color_balance_settings(
           this, preview_changed,
@@ -1304,12 +1415,20 @@ void MainWindow::edit_active_adjustment_layer() {
     }
   }
 
-  apply_settings(*original_settings);
+  restore_original_layer();
   preview_edit_lock.release();
   if (!accepted_settings.has_value()) {
     refresh_layer_list();
     refresh_layer_controls();
     statusBar()->showMessage(tr("Cancelled adjustment edit"));
+    return;
+  }
+
+  if (original_settings->kind == AdjustmentKind::Curves &&
+      accepted_settings->curves == original_settings->curves) {
+    refresh_layer_list();
+    refresh_layer_controls();
+    statusBar()->showMessage(tr("Updated adjustment layer"));
     return;
   }
 

@@ -1562,10 +1562,11 @@ QString adjustment_settings_summary(const Layer& layer) {
           .arg(settings->levels.black_output)
           .arg(settings->levels.white_output);
     case AdjustmentKind::Curves:
-      return QObject::tr("Curves: shadows %1, midtones %2, highlights %3")
-          .arg(settings->curves.shadow_output)
-          .arg(settings->curves.midtone_output)
-          .arg(settings->curves.highlight_output);
+      return QObject::tr("Curves: RGB %1, Red %2, Green %3, Blue %4 points")
+          .arg(curve_points_for_channel(settings->curves, CurvesChannel::Rgb).size())
+          .arg(curve_points_for_channel(settings->curves, CurvesChannel::Red).size())
+          .arg(curve_points_for_channel(settings->curves, CurvesChannel::Green).size())
+          .arg(curve_points_for_channel(settings->curves, CurvesChannel::Blue).size());
     case AdjustmentKind::HueSaturation:
       if (settings->hue_saturation.colorize) {
         return QObject::tr("Colorize: hue %1, saturation %2, lightness %3")
@@ -1725,24 +1726,31 @@ void draw_curves_adjustment_thumbnail_symbol(QPainter& painter, const CurvesAdju
   const auto y_for_output = [](int output) {
     return 24.0 - (static_cast<double>(std::clamp(output, 0, 255)) / 255.0) * 18.0;
   };
-  const auto shadow_y = y_for_output(settings.shadow_output);
-  const auto midtone_y = y_for_output(settings.midtone_output);
-  const auto highlight_y = y_for_output(settings.highlight_output);
-  QPainterPath curve;
-  curve.moveTo(QPointF(x_for_input(0), shadow_y));
-  curve.cubicTo(QPointF(x_for_input(44), (shadow_y + midtone_y) * 0.5),
-                QPointF(x_for_input(84), (shadow_y + midtone_y) * 0.5), QPointF(x_for_input(128), midtone_y));
-  curve.cubicTo(QPointF(x_for_input(172), (midtone_y + highlight_y) * 0.5),
-                QPointF(x_for_input(211), (midtone_y + highlight_y) * 0.5), QPointF(x_for_input(255), highlight_y));
+  const auto path_for_lut = [&](const std::array<std::uint8_t, 256>& lut) {
+    QPainterPath path;
+    path.moveTo(QPointF(x_for_input(0), y_for_output(lut[0])));
+    for (int input = 1; input < 256; ++input) {
+      path.lineTo(QPointF(x_for_input(input), y_for_output(lut[static_cast<std::size_t>(input)])));
+    }
+    return path;
+  };
+  const auto composite_lut = build_curve_lut(curve_points_for_channel(settings, CurvesChannel::Rgb));
+  const auto channel_lut = build_curves_lut(settings);
+  painter.setPen(QPen(QColor(235, 82, 82, 130), 1, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  painter.drawPath(path_for_lut(channel_lut.red));
+  painter.setPen(QPen(QColor(76, 218, 126, 130), 1, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  painter.drawPath(path_for_lut(channel_lut.green));
+  painter.setPen(QPen(QColor(82, 139, 244, 130), 1, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  painter.drawPath(path_for_lut(channel_lut.blue));
+  const auto curve = path_for_lut(composite_lut);
   painter.setPen(QPen(QColor(8, 13, 11, 160), 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
   painter.drawPath(curve.translated(0.0, 1.0));
   painter.setPen(QPen(accent.lighter(135), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
   painter.drawPath(curve);
   painter.setBrush(QColor(238, 246, 241));
   painter.setPen(QPen(QColor(18, 34, 24), 1));
-  for (const auto point : {QPointF(x_for_input(0), shadow_y), QPointF(x_for_input(128), midtone_y),
-                           QPointF(x_for_input(255), highlight_y)}) {
-    painter.drawEllipse(point, 1.7, 1.7);
+  for (const auto& point : curve_points_for_channel(settings, CurvesChannel::Rgb)) {
+    painter.drawEllipse(QPointF(x_for_input(point.input), y_for_output(point.output)), 1.7, 1.7);
   }
 }
 

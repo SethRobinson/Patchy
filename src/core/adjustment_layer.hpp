@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace patchy {
 
@@ -49,6 +50,10 @@ inline constexpr const char* kLayerMetadataAdjustmentCurvesShadowOutput = "patch
 inline constexpr const char* kLayerMetadataAdjustmentCurvesMidtoneOutput = "patchy.adjustment.curves.midtone_output";
 inline constexpr const char* kLayerMetadataAdjustmentCurvesHighlightOutput =
     "patchy.adjustment.curves.highlight_output";
+inline constexpr const char* kLayerMetadataAdjustmentCurvesRgbPoints = "patchy.adjustment.curves.rgb.points";
+inline constexpr const char* kLayerMetadataAdjustmentCurvesRedPoints = "patchy.adjustment.curves.red.points";
+inline constexpr const char* kLayerMetadataAdjustmentCurvesGreenPoints = "patchy.adjustment.curves.green.points";
+inline constexpr const char* kLayerMetadataAdjustmentCurvesBluePoints = "patchy.adjustment.curves.blue.points";
 inline constexpr const char* kLayerMetadataAdjustmentHueSaturationHueShift =
     "patchy.adjustment.hue_saturation.hue_shift";
 inline constexpr const char* kLayerMetadataAdjustmentHueSaturationSaturationDelta =
@@ -104,10 +109,29 @@ struct LevelsAdjustment {
   LevelsRecord blue{};
 };
 
+enum class CurvesChannel {
+  Rgb,
+  Red,
+  Green,
+  Blue
+};
+
+struct CurveControlPoint {
+  int input{0};
+  int output{0};
+
+  friend bool operator==(const CurveControlPoint&, const CurveControlPoint&) = default;
+};
+
+using CurveControlPoints = std::vector<CurveControlPoint>;
+
 struct CurvesAdjustment {
-  int shadow_output{0};
-  int midtone_output{128};
-  int highlight_output{255};
+  CurveControlPoints rgb{{0, 0}, {255, 255}};
+  CurveControlPoints red{{0, 0}, {255, 255}};
+  CurveControlPoints green{{0, 0}, {255, 255}};
+  CurveControlPoints blue{{0, 0}, {255, 255}};
+
+  friend bool operator==(const CurvesAdjustment&, const CurvesAdjustment&) = default;
 };
 
 struct HueSaturationAdjustment {
@@ -136,6 +160,16 @@ struct AdjustmentSettings {
   ColorBalanceAdjustment color_balance{};
 };
 
+// Curves always carry two to nineteen points per channel, sorted by input.
+// Duplicate inputs are resolved in favor of the last supplied point. Inputs
+// outside the first/last control point clamp to that endpoint's output.
+[[nodiscard]] CurveControlPoints normalized_curve_control_points(CurveControlPoints points);
+[[nodiscard]] const CurveControlPoints& curve_points_for_channel(const CurvesAdjustment& curves,
+                                                                 CurvesChannel channel) noexcept;
+void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channel, CurveControlPoints points);
+[[nodiscard]] CurvesAdjustment curves_adjustment_from_legacy_outputs(int shadow_output, int midtone_output,
+                                                                     int highlight_output);
+
 [[nodiscard]] bool layer_is_adjustment(const Layer& layer);
 [[nodiscard]] std::string adjustment_kind_key(AdjustmentKind kind);
 [[nodiscard]] std::string adjustment_display_name(AdjustmentKind kind);
@@ -156,6 +190,8 @@ struct AdjustmentLut {
   std::array<std::uint8_t, 256> green{};
   std::array<std::uint8_t, 256> blue{};
 };
+[[nodiscard]] std::array<std::uint8_t, 256> build_curve_lut(const CurveControlPoints& points);
+[[nodiscard]] AdjustmentLut build_curves_lut(const CurvesAdjustment& curves);
 [[nodiscard]] std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& settings);
 
 }  // namespace patchy

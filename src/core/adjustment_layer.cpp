@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <cstddef>
 #include <string_view>
 #include <utility>
 
@@ -48,6 +49,75 @@ void set_metadata_int(Layer& layer, const char* key, int value) {
 
 void set_metadata_string(Layer& layer, const char* key, std::string value) {
   layer.metadata()[key] = std::move(value);
+}
+
+constexpr std::size_t kMinimumCurveControlPoints = 2U;
+constexpr std::size_t kMaximumCurveControlPoints = 19U;
+
+std::optional<CurveControlPoints> parse_curve_control_points(std::string_view encoded) {
+  CurveControlPoints points;
+  while (!encoded.empty()) {
+    const auto separator = encoded.find(';');
+    const auto token = encoded.substr(0, separator);
+    const auto coordinate_separator = token.find(':');
+    if (token.empty() || coordinate_separator == std::string_view::npos ||
+        token.find(':', coordinate_separator + 1U) != std::string_view::npos) {
+      return std::nullopt;
+    }
+    const auto input = parse_int(token.substr(0, coordinate_separator));
+    const auto output = parse_int(token.substr(coordinate_separator + 1U));
+    if (!input.has_value() || !output.has_value() || *input < 0 || *input > 255 || *output < 0 ||
+        *output > 255) {
+      return std::nullopt;
+    }
+    points.push_back(CurveControlPoint{*input, *output});
+    if (points.size() > kMaximumCurveControlPoints) {
+      return std::nullopt;
+    }
+    if (separator == std::string_view::npos) {
+      encoded = {};
+    } else {
+      encoded.remove_prefix(separator + 1U);
+      if (encoded.empty()) {
+        return std::nullopt;
+      }
+    }
+  }
+  if (points.size() < kMinimumCurveControlPoints) {
+    return std::nullopt;
+  }
+  for (std::size_t index = 1; index < points.size(); ++index) {
+    if (points[index - 1U].input >= points[index].input) {
+      return std::nullopt;
+    }
+  }
+  return points;
+}
+
+std::string serialize_curve_control_points(const CurveControlPoints& source) {
+  const auto points = normalized_curve_control_points(source);
+  std::string encoded;
+  for (std::size_t index = 0; index < points.size(); ++index) {
+    if (index != 0U) {
+      encoded.push_back(';');
+    }
+    encoded += std::to_string(points[index].input);
+    encoded.push_back(':');
+    encoded += std::to_string(points[index].output);
+  }
+  return encoded;
+}
+
+std::optional<CurvesAdjustment> metadata_curves_adjustment(const Layer& layer) {
+  const auto rgb = parse_curve_control_points(metadata_string_or(layer, kLayerMetadataAdjustmentCurvesRgbPoints, {}));
+  const auto red = parse_curve_control_points(metadata_string_or(layer, kLayerMetadataAdjustmentCurvesRedPoints, {}));
+  const auto green =
+      parse_curve_control_points(metadata_string_or(layer, kLayerMetadataAdjustmentCurvesGreenPoints, {}));
+  const auto blue = parse_curve_control_points(metadata_string_or(layer, kLayerMetadataAdjustmentCurvesBluePoints, {}));
+  if (!rgb.has_value() || !red.has_value() || !green.has_value() || !blue.has_value()) {
+    return std::nullopt;
+  }
+  return CurvesAdjustment{*rgb, *red, *green, *blue};
 }
 
 LevelsRecord clamp_levels_record(LevelsRecord record);
@@ -195,24 +265,6 @@ std::uint8_t levels_channel(std::uint8_t value, LevelsRecord record) {
   return clamp_byte(static_cast<float>(output));
 }
 
-std::uint8_t curves_channel(std::uint8_t value, CurvesAdjustment settings) {
-  settings.shadow_output = std::clamp(settings.shadow_output, 0, 255);
-  settings.midtone_output = std::clamp(settings.midtone_output, 0, 255);
-  settings.highlight_output = std::clamp(settings.highlight_output, 0, 255);
-  const auto input = static_cast<double>(value);
-  double output = 0.0;
-  if (input <= 128.0) {
-    const auto t = input / 128.0;
-    output = static_cast<double>(settings.shadow_output) +
-             (static_cast<double>(settings.midtone_output) - static_cast<double>(settings.shadow_output)) * t;
-  } else {
-    const auto t = (input - 128.0) / 127.0;
-    output = static_cast<double>(settings.midtone_output) +
-             (static_cast<double>(settings.highlight_output) - static_cast<double>(settings.midtone_output)) * t;
-  }
-  return clamp_byte(static_cast<float>(output));
-}
-
 RgbColor apply_levels(RgbColor color, LevelsAdjustment settings) {
   const auto master = levels_master_record(settings);
   RgbColor adjusted{levels_channel(color.red, master), levels_channel(color.green, master),
@@ -223,9 +275,22 @@ RgbColor apply_levels(RgbColor color, LevelsAdjustment settings) {
   return adjusted;
 }
 
-RgbColor apply_curves(RgbColor color, CurvesAdjustment settings) {
-  return RgbColor{curves_channel(color.red, settings), curves_channel(color.green, settings),
-                  curves_channel(color.blue, settings)};
+RgbColor apply_curves(RgbColor color, const CurvesAdjustment& settings) {
+  // Some compositor/export targets expose only the single-color adjustment
+  // hook. Keep the last exact settings per render thread so those paths do not
+  // normalize, sort, and allocate four 256-entry LUTs for every pixel.
+  struct CachedCurvesLut {
+    CurvesAdjustment settings{};
+    AdjustmentLut lut{};
+    bool valid{false};
+  };
+  thread_local CachedCurvesLut cache;
+  if (!cache.valid || cache.settings != settings) {
+    cache.settings = settings;
+    cache.lut = build_curves_lut(settings);
+    cache.valid = true;
+  }
+  return RgbColor{cache.lut.red[color.red], cache.lut.green[color.green], cache.lut.blue[color.blue]};
 }
 
 // Photoshop 2026 colorize, calibrated pixel-for-pixel against COM-rendered
@@ -361,6 +426,178 @@ RgbColor apply_color_balance(RgbColor color, ColorBalanceAdjustment settings) {
 
 }  // namespace
 
+CurveControlPoints normalized_curve_control_points(CurveControlPoints points) {
+  for (auto& point : points) {
+    point.input = std::clamp(point.input, 0, 255);
+    point.output = std::clamp(point.output, 0, 255);
+  }
+  std::stable_sort(points.begin(), points.end(),
+                   [](const CurveControlPoint& left, const CurveControlPoint& right) {
+                     return left.input < right.input;
+                   });
+
+  CurveControlPoints unique;
+  unique.reserve(points.size() + 2U);
+  for (const auto point : points) {
+    if (!unique.empty() && unique.back().input == point.input) {
+      unique.back() = point;
+    } else {
+      unique.push_back(point);
+    }
+  }
+  if (unique.empty()) {
+    return {{0, 0}, {255, 255}};
+  }
+  if (unique.size() == 1U) {
+    if (unique.front().input < 255) {
+      unique.push_back(CurveControlPoint{255, 255});
+    } else {
+      unique.insert(unique.begin(), CurveControlPoint{0, 0});
+    }
+  }
+
+  if (unique.size() <= kMaximumCurveControlPoints) {
+    return unique;
+  }
+
+  // Keep the endpoints and an evenly distributed deterministic subset of the
+  // interior. Normal editor and file-format paths enforce the limit before this
+  // point; this is a defensive bound for callers constructing the public model.
+  CurveControlPoints bounded;
+  bounded.reserve(kMaximumCurveControlPoints);
+  bounded.push_back(unique.front());
+  constexpr std::size_t kInteriorSlots = kMaximumCurveControlPoints - 2U;
+  const auto last_index = unique.size() - 1U;
+  for (std::size_t slot = 1U; slot <= kInteriorSlots; ++slot) {
+    const auto index = (slot * last_index + (kMaximumCurveControlPoints - 1U) / 2U) /
+                       (kMaximumCurveControlPoints - 1U);
+    bounded.push_back(unique[index]);
+  }
+  bounded.push_back(unique.back());
+  return bounded;
+}
+
+const CurveControlPoints& curve_points_for_channel(const CurvesAdjustment& curves, CurvesChannel channel) noexcept {
+  switch (channel) {
+    case CurvesChannel::Red:
+      return curves.red;
+    case CurvesChannel::Green:
+      return curves.green;
+    case CurvesChannel::Blue:
+      return curves.blue;
+    case CurvesChannel::Rgb:
+      return curves.rgb;
+  }
+  return curves.rgb;
+}
+
+void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channel, CurveControlPoints points) {
+  auto normalized = normalized_curve_control_points(std::move(points));
+  switch (channel) {
+    case CurvesChannel::Red:
+      curves.red = std::move(normalized);
+      return;
+    case CurvesChannel::Green:
+      curves.green = std::move(normalized);
+      return;
+    case CurvesChannel::Blue:
+      curves.blue = std::move(normalized);
+      return;
+    case CurvesChannel::Rgb:
+      curves.rgb = std::move(normalized);
+      return;
+  }
+}
+
+CurvesAdjustment curves_adjustment_from_legacy_outputs(int shadow_output, int midtone_output,
+                                                       int highlight_output) {
+  CurvesAdjustment curves;
+  curves.rgb = normalized_curve_control_points({{0, std::clamp(shadow_output, 0, 255)},
+                                                 {128, std::clamp(midtone_output, 0, 255)},
+                                                 {255, std::clamp(highlight_output, 0, 255)}});
+  return curves;
+}
+
+std::array<std::uint8_t, 256> build_curve_lut(const CurveControlPoints& source) {
+  const auto points = normalized_curve_control_points(source);
+  const auto count = points.size();
+  std::vector<double> second_derivatives(count, 0.0);
+  std::vector<double> workspace(count, 0.0);
+
+  // Photoshop 2026 calibration over full 256-value ramps: Curves uses a natural
+  // cubic through the control points, zero second derivative at both endpoints,
+  // clamps outside movable endpoints, and rounds the result to the nearest byte.
+  // All render paths intentionally funnel through this one calibrated builder.
+  for (std::size_t index = 1U; index + 1U < count; ++index) {
+    const auto previous_span = static_cast<double>(points[index].input - points[index - 1U].input);
+    const auto next_span = static_cast<double>(points[index + 1U].input - points[index].input);
+    const auto combined_span = previous_span + next_span;
+    const auto sigma = previous_span / combined_span;
+    const auto pivot = sigma * second_derivatives[index - 1U] + 2.0;
+    second_derivatives[index] = (sigma - 1.0) / pivot;
+    const auto previous_slope =
+        static_cast<double>(points[index].output - points[index - 1U].output) / previous_span;
+    const auto next_slope = static_cast<double>(points[index + 1U].output - points[index].output) / next_span;
+    workspace[index] =
+        (6.0 * (next_slope - previous_slope) / combined_span - sigma * workspace[index - 1U]) / pivot;
+  }
+  for (std::size_t upper = count - 1U; upper > 0U; --upper) {
+    const auto index = upper - 1U;
+    second_derivatives[index] = second_derivatives[index] * second_derivatives[upper] + workspace[index];
+  }
+
+  std::array<std::uint8_t, 256> lut{};
+  std::size_t upper = 1U;
+  for (int input = 0; input < 256; ++input) {
+    if (input <= points.front().input) {
+      lut[static_cast<std::size_t>(input)] = static_cast<std::uint8_t>(points.front().output);
+      continue;
+    }
+    if (input >= points.back().input) {
+      lut[static_cast<std::size_t>(input)] = static_cast<std::uint8_t>(points.back().output);
+      continue;
+    }
+    while (upper + 1U < count && input > points[upper].input) {
+      ++upper;
+    }
+    if (input == points[upper - 1U].input) {
+      lut[static_cast<std::size_t>(input)] = static_cast<std::uint8_t>(points[upper - 1U].output);
+      continue;
+    }
+    if (input == points[upper].input) {
+      lut[static_cast<std::size_t>(input)] = static_cast<std::uint8_t>(points[upper].output);
+      continue;
+    }
+    const auto span = static_cast<double>(points[upper].input - points[upper - 1U].input);
+    const auto left_weight = (static_cast<double>(points[upper].input) - input) / span;
+    const auto right_weight = (input - static_cast<double>(points[upper - 1U].input)) / span;
+    const auto output = left_weight * points[upper - 1U].output + right_weight * points[upper].output +
+                        ((left_weight * left_weight * left_weight - left_weight) *
+                             second_derivatives[upper - 1U] +
+                         (right_weight * right_weight * right_weight - right_weight) *
+                             second_derivatives[upper]) *
+                            span * span / 6.0;
+    lut[static_cast<std::size_t>(input)] =
+        static_cast<std::uint8_t>(std::clamp(std::lround(output), 0L, 255L));
+  }
+  return lut;
+}
+
+AdjustmentLut build_curves_lut(const CurvesAdjustment& curves) {
+  const auto composite = build_curve_lut(curves.rgb);
+  const auto red = build_curve_lut(curves.red);
+  const auto green = build_curve_lut(curves.green);
+  const auto blue = build_curve_lut(curves.blue);
+  AdjustmentLut lut;
+  for (std::size_t input = 0; input < 256U; ++input) {
+    // Photoshop applies the component channel first, then Composite RGB.
+    lut.red[input] = composite[red[input]];
+    lut.green[input] = composite[green[input]];
+    lut.blue[input] = composite[blue[input]];
+  }
+  return lut;
+}
+
 bool layer_is_adjustment(const Layer& layer) {
   return layer.kind() == LayerKind::Adjustment && adjustment_settings_from_layer(layer).has_value();
 }
@@ -446,9 +683,13 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
                                 kLayerMetadataAdjustmentLevelsBlueGammaPercent,
                                 kLayerMetadataAdjustmentLevelsBlueBlackOutput,
                                 kLayerMetadataAdjustmentLevelsBlueWhiteOutput);
-  settings.curves.shadow_output = metadata_int_or(layer, kLayerMetadataAdjustmentCurvesShadowOutput, 0);
-  settings.curves.midtone_output = metadata_int_or(layer, kLayerMetadataAdjustmentCurvesMidtoneOutput, 128);
-  settings.curves.highlight_output = metadata_int_or(layer, kLayerMetadataAdjustmentCurvesHighlightOutput, 255);
+  settings.curves = curves_adjustment_from_legacy_outputs(
+      metadata_int_or(layer, kLayerMetadataAdjustmentCurvesShadowOutput, 0),
+      metadata_int_or(layer, kLayerMetadataAdjustmentCurvesMidtoneOutput, 128),
+      metadata_int_or(layer, kLayerMetadataAdjustmentCurvesHighlightOutput, 255));
+  if (const auto rich_curves = metadata_curves_adjustment(layer); rich_curves.has_value()) {
+    settings.curves = *rich_curves;
+  }
   settings.hue_saturation.hue_shift = metadata_int_or(layer, kLayerMetadataAdjustmentHueSaturationHueShift, 0);
   settings.hue_saturation.saturation_delta =
       metadata_int_or(layer, kLayerMetadataAdjustmentHueSaturationSaturationDelta, 0);
@@ -495,12 +736,22 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
                              kLayerMetadataAdjustmentLevelsBlueGammaPercent,
                              kLayerMetadataAdjustmentLevelsBlueBlackOutput,
                              kLayerMetadataAdjustmentLevelsBlueWhiteOutput);
-  set_metadata_int(layer, kLayerMetadataAdjustmentCurvesShadowOutput,
-                   std::clamp(settings.curves.shadow_output, 0, 255));
-  set_metadata_int(layer, kLayerMetadataAdjustmentCurvesMidtoneOutput,
-                   std::clamp(settings.curves.midtone_output, 0, 255));
-  set_metadata_int(layer, kLayerMetadataAdjustmentCurvesHighlightOutput,
-                   std::clamp(settings.curves.highlight_output, 0, 255));
+  const auto composite_curve_lut = build_curve_lut(settings.curves.rgb);
+  set_metadata_int(layer, kLayerMetadataAdjustmentCurvesShadowOutput, composite_curve_lut[0]);
+  set_metadata_int(layer, kLayerMetadataAdjustmentCurvesMidtoneOutput, composite_curve_lut[128]);
+  set_metadata_int(layer, kLayerMetadataAdjustmentCurvesHighlightOutput, composite_curve_lut[255]);
+  auto& metadata = layer.metadata();
+  if (settings.kind == AdjustmentKind::Curves) {
+    metadata[kLayerMetadataAdjustmentCurvesRgbPoints] = serialize_curve_control_points(settings.curves.rgb);
+    metadata[kLayerMetadataAdjustmentCurvesRedPoints] = serialize_curve_control_points(settings.curves.red);
+    metadata[kLayerMetadataAdjustmentCurvesGreenPoints] = serialize_curve_control_points(settings.curves.green);
+    metadata[kLayerMetadataAdjustmentCurvesBluePoints] = serialize_curve_control_points(settings.curves.blue);
+  } else {
+    metadata.erase(kLayerMetadataAdjustmentCurvesRgbPoints);
+    metadata.erase(kLayerMetadataAdjustmentCurvesRedPoints);
+    metadata.erase(kLayerMetadataAdjustmentCurvesGreenPoints);
+    metadata.erase(kLayerMetadataAdjustmentCurvesBluePoints);
+  }
   set_metadata_int(layer, kLayerMetadataAdjustmentHueSaturationHueShift,
                    std::clamp(settings.hue_saturation.hue_shift, -180, 180));
   set_metadata_int(layer, kLayerMetadataAdjustmentHueSaturationSaturationDelta,
@@ -541,13 +792,20 @@ void apply_adjustment_to_pixels(PixelBuffer& pixels, const AdjustmentSettings& s
     return;
   }
 
+  const auto lut = build_adjustment_lut(settings);
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
       auto* px = pixels.pixel(x, y);
-      const auto adjusted = apply_adjustment_to_color(RgbColor{px[0], px[1], px[2]}, settings);
-      px[0] = adjusted.red;
-      px[1] = adjusted.green;
-      px[2] = adjusted.blue;
+      if (lut.has_value()) {
+        px[0] = lut->red[px[0]];
+        px[1] = lut->green[px[1]];
+        px[2] = lut->blue[px[2]];
+      } else {
+        const auto adjusted = apply_adjustment_to_color(RgbColor{px[0], px[1], px[2]}, settings);
+        px[0] = adjusted.red;
+        px[1] = adjusted.green;
+        px[2] = adjusted.blue;
+      }
     }
   }
 }
@@ -555,6 +813,9 @@ void apply_adjustment_to_pixels(PixelBuffer& pixels, const AdjustmentSettings& s
 std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& settings) {
   if (settings.kind == AdjustmentKind::HueSaturation) {
     return std::nullopt;
+  }
+  if (settings.kind == AdjustmentKind::Curves) {
+    return build_curves_lut(settings.curves);
   }
   AdjustmentLut lut;
   for (int value = 0; value < 256; ++value) {
@@ -576,8 +837,15 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
              levels_record_has_effect(settings.levels.red) || levels_record_has_effect(settings.levels.green) ||
              levels_record_has_effect(settings.levels.blue);
     case AdjustmentKind::Curves:
-      return settings.curves.shadow_output != 0 || settings.curves.midtone_output != 128 ||
-             settings.curves.highlight_output != 255;
+      {
+        const auto lut = build_curves_lut(settings.curves);
+        for (std::size_t value = 0; value < 256U; ++value) {
+          if (lut.red[value] != value || lut.green[value] != value || lut.blue[value] != value) {
+            return true;
+          }
+        }
+        return false;
+      }
     case AdjustmentKind::HueSaturation:
       return settings.hue_saturation.colorize || settings.hue_saturation.hue_shift != 0 ||
              settings.hue_saturation.saturation_delta != 0 || settings.hue_saturation.lightness_delta != 0;

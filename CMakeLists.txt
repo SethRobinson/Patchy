@@ -389,6 +389,8 @@ if(PATCHY_BUILD_APP)
       src/ui/document_float_window.hpp
       src/ui/document_float_window.cpp
       src/ui/edit_conversions.cpp
+      src/ui/curves_editor.hpp
+      src/ui/curves_editor.cpp
       src/ui/filter_workflows.cpp
       src/ui/font_picker.hpp
       src/ui/font_picker.cpp

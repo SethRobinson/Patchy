@@ -84,6 +84,11 @@ constexpr std::uint16_t kMaxPatchyLayerStyleEntries = 512;
 constexpr std::array<char, 4> kPatchyAdjustmentBlockKey{'p', 'l', 'A', 'D'};
 constexpr std::array<char, 4> kPatchyAdjustmentPayloadSignature{'P', 'L', 'A', 'D'};
 constexpr std::uint16_t kPatchyAdjustmentVersion = 4;
+constexpr std::array<char, 4> kPatchyCurvesExtensionSignature{'C', 'R', 'V', '2'};
+constexpr std::uint16_t kPatchyCurvesExtensionVersion = 1;
+constexpr std::uint16_t kPatchyCurvesExtensionChannelCount = 4;
+constexpr std::size_t kPatchyCurvesExtensionMaxPayloadSize =
+    2U + 2U + kPatchyCurvesExtensionChannelCount * (1U + 1U + 2U + 19U * 4U);
 constexpr std::array<char, 4> kPhotoshopLevelsAdjustmentBlockKey{'l', 'e', 'v', 'l'};
 constexpr std::uint16_t kPhotoshopLevelsAdjustmentVersion = 2;
 constexpr int kPhotoshopLevelsRecordCount = 29;
@@ -3984,6 +3989,35 @@ AdjustmentKind adjustment_kind_from_value(std::uint8_t value) {
   }
 }
 
+std::uint8_t curves_channel_value(CurvesChannel channel) {
+  switch (channel) {
+    case CurvesChannel::Rgb:
+      return 0U;
+    case CurvesChannel::Red:
+      return 1U;
+    case CurvesChannel::Green:
+      return 2U;
+    case CurvesChannel::Blue:
+      return 3U;
+  }
+  return 0U;
+}
+
+std::optional<CurvesChannel> curves_channel_from_value(std::uint8_t value) {
+  switch (value) {
+    case 0U:
+      return CurvesChannel::Rgb;
+    case 1U:
+      return CurvesChannel::Red;
+    case 2U:
+      return CurvesChannel::Green;
+    case 3U:
+      return CurvesChannel::Blue;
+    default:
+      return std::nullopt;
+  }
+}
+
 std::uint8_t levels_channel_value(LevelsChannel channel) {
   switch (channel) {
     case LevelsChannel::Red:
@@ -4222,10 +4256,111 @@ std::vector<std::uint8_t> photoshop_hue2_payload(const HueSaturationAdjustment& 
   return bytes;
 }
 
+void write_patchy_curves_extension(BigEndianWriter& writer, const CurvesAdjustment& curves) {
+  BigEndianWriter extension;
+  extension.write_u16(kPatchyCurvesExtensionVersion);
+  extension.write_u16(kPatchyCurvesExtensionChannelCount);
+  constexpr std::array channels{CurvesChannel::Rgb, CurvesChannel::Red, CurvesChannel::Green, CurvesChannel::Blue};
+  for (const auto channel : channels) {
+    const auto points = normalized_curve_control_points(curve_points_for_channel(curves, channel));
+    extension.write_u8(curves_channel_value(channel));
+    extension.write_u8(0U);  // reserved
+    extension.write_u16(static_cast<std::uint16_t>(points.size()));
+    for (const auto point : points) {
+      extension.write_u16(static_cast<std::uint16_t>(point.input));
+      extension.write_u16(static_cast<std::uint16_t>(point.output));
+    }
+  }
+
+  write_signature(writer, kPatchyCurvesExtensionSignature);
+  writer.write_u32(static_cast<std::uint32_t>(extension.bytes().size()));
+  writer.write_bytes(extension.bytes());
+}
+
+std::optional<CurvesAdjustment> parse_patchy_curves_extension(std::span<const std::uint8_t> payload) {
+  if (payload.size() > kPatchyCurvesExtensionMaxPayloadSize) {
+    return std::nullopt;
+  }
+  try {
+    BigEndianReader reader(payload);
+    if (reader.read_u16() != kPatchyCurvesExtensionVersion ||
+        reader.read_u16() != kPatchyCurvesExtensionChannelCount) {
+      return std::nullopt;
+    }
+
+    CurvesAdjustment curves;
+    std::array<bool, kPatchyCurvesExtensionChannelCount> seen{};
+    for (std::uint16_t index = 0; index < kPatchyCurvesExtensionChannelCount; ++index) {
+      const auto channel_value = reader.read_u8();
+      const auto channel = curves_channel_from_value(channel_value);
+      if (!channel.has_value() || reader.read_u8() != 0U || seen[channel_value]) {
+        return std::nullopt;
+      }
+      seen[channel_value] = true;
+      const auto count = reader.read_u16();
+      if (count < 2U || count > 19U || reader.remaining() < static_cast<std::size_t>(count) * 4U) {
+        return std::nullopt;
+      }
+      CurveControlPoints points;
+      points.reserve(count);
+      for (std::uint16_t point_index = 0; point_index < count; ++point_index) {
+        points.push_back(CurveControlPoint{static_cast<int>(reader.read_u16()),
+                                           static_cast<int>(reader.read_u16())});
+      }
+      if (normalized_curve_control_points(points) != points) {
+        return std::nullopt;
+      }
+      set_curve_points_for_channel(curves, *channel, std::move(points));
+    }
+    if (reader.remaining() != 0U || std::any_of(seen.begin(), seen.end(), [](bool value) { return !value; })) {
+      return std::nullopt;
+    }
+    return curves;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+bool curve_points_are_exact_identity(const CurveControlPoints& points) {
+  return points.size() == 2U && points[0] == CurveControlPoint{0, 0} &&
+         points[1] == CurveControlPoint{255, 255};
+}
+
+bool curves_require_patchy_extension(const CurvesAdjustment& curves) {
+  if (!curve_points_are_exact_identity(curves.red) || !curve_points_are_exact_identity(curves.green) ||
+      !curve_points_are_exact_identity(curves.blue)) {
+    return true;
+  }
+  if (curve_points_are_exact_identity(curves.rgb)) {
+    return false;
+  }
+  return curves.rgb.size() != 3U || curves.rgb[0].input != 0 || curves.rgb[1].input != 128 ||
+         curves.rgb[2].input != 255;
+}
+
+std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::uint8_t> payload);
+
 std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
   const auto settings = adjustment_settings_from_layer(layer);
   if (!settings.has_value()) {
     return {};
+  }
+
+  if (settings->kind == AdjustmentKind::Curves) {
+    for (const auto& block : layer.unknown_psd_blocks()) {
+      if (block.key != "plAD") {
+        continue;
+      }
+      const auto original = parse_patchy_adjustment(block.payload);
+      if (original.has_value() && original->kind == AdjustmentKind::Curves &&
+          original->curves == settings->curves) {
+        // Untouched imported Curves payloads remain byte-identical, including an
+        // unknown, future, or malformed CRV2 tail. A real Patchy edit changes the
+        // modeled points and falls through to regenerate the known v4 shape.
+        return block.payload;
+      }
+      break;
+    }
   }
 
   BigEndianWriter writer;
@@ -4236,9 +4371,10 @@ std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
     write_levels_record_i32(writer, levels_record_for_photoshop_index(settings->levels, index));
   }
   write_i32(writer, levels_channel_value(settings->levels.channel));
-  write_i32(writer, settings->curves.shadow_output);
-  write_i32(writer, settings->curves.midtone_output);
-  write_i32(writer, settings->curves.highlight_output);
+  const auto composite_curve_lut = build_curve_lut(settings->curves.rgb);
+  write_i32(writer, composite_curve_lut[0]);
+  write_i32(writer, composite_curve_lut[128]);
+  write_i32(writer, composite_curve_lut[255]);
   write_i32(writer, settings->hue_saturation.hue_shift);
   write_i32(writer, settings->hue_saturation.saturation_delta);
   write_i32(writer, settings->hue_saturation.lightness_delta);
@@ -4252,6 +4388,12 @@ std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
   write_i32(writer, settings->hue_saturation.colorize_hue);
   write_i32(writer, settings->hue_saturation.colorize_saturation);
   write_i32(writer, settings->hue_saturation.colorize_lightness);
+  if (settings->kind == AdjustmentKind::Curves && curves_require_patchy_extension(settings->curves)) {
+    // Length-delimited extension under the intentionally unchanged plAD v4.
+    // Older builds ignore trailing bytes and continue to use the three legacy
+    // composite outputs written above.
+    write_patchy_curves_extension(writer, settings->curves);
+  }
   return writer.bytes();
 }
 
@@ -4275,9 +4417,11 @@ std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::u
       set_levels_record_for_photoshop_index(settings.levels, index, read_levels_record_i32(reader));
     }
     settings.levels.channel = levels_channel_from_value(read_i32(reader));
-    settings.curves.shadow_output = read_i32(reader);
-    settings.curves.midtone_output = read_i32(reader);
-    settings.curves.highlight_output = read_i32(reader);
+    const auto legacy_curve_shadow = read_i32(reader);
+    const auto legacy_curve_midtone = read_i32(reader);
+    const auto legacy_curve_highlight = read_i32(reader);
+    settings.curves =
+        curves_adjustment_from_legacy_outputs(legacy_curve_shadow, legacy_curve_midtone, legacy_curve_highlight);
     settings.hue_saturation.hue_shift = read_i32(reader);
     settings.hue_saturation.saturation_delta = read_i32(reader);
     settings.hue_saturation.lightness_delta = read_i32(reader);
@@ -4290,6 +4434,19 @@ std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::u
       settings.hue_saturation.colorize_hue = std::clamp(read_i32(reader), 0, 360) % 360;
       settings.hue_saturation.colorize_saturation = std::clamp(read_i32(reader), 0, 100);
       settings.hue_saturation.colorize_lightness = std::clamp(read_i32(reader), -100, 100);
+    }
+    if (settings.kind == AdjustmentKind::Curves && reader.remaining() >= 8U &&
+        read_signature(reader) == kPatchyCurvesExtensionSignature) {
+      const auto extension_length = static_cast<std::size_t>(reader.read_u32());
+      if (extension_length <= kPatchyCurvesExtensionMaxPayloadSize && extension_length <= reader.remaining()) {
+        const auto extension = reader.read_bytes(extension_length);
+        if (const auto rich_curves = parse_patchy_curves_extension(extension); rich_curves.has_value()) {
+          settings.curves = *rich_curves;
+        }
+      }
+      // A malformed or unknown rich tail never invalidates the legacy plAD
+      // fields above. This is the compatibility escape hatch for old files and
+      // future extensions that retain version 4.
     }
     return settings;
   } catch (const std::exception&) {
@@ -7315,8 +7472,8 @@ bool is_smart_object_reference_block(std::string_view key) {
 
 bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block,
                              bool generated_style_block) {
-  if (block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "lspf" ||
-      block.key == "lmgm") {
+  if (block.key == "luni" || block.key == "plFX" || block.key == "lspf" || block.key == "lmgm" ||
+      (block.key == "plAD" && encoded.kind == EncodedLayerKind::Adjustment)) {
     return true;
   }
   // A moved/transformed smart object regenerates its placed-layer blocks (see the
@@ -7985,6 +8142,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
 
     std::optional<AdjustmentSettings> native_adjustment_settings;
     std::optional<AdjustmentSettings> patchy_adjustment_settings;
+    bool has_native_curves = false;
     for (const auto& block : record.additional_blocks) {
       if (block.key == "levl") {
         native_adjustment_settings = parse_photoshop_levels_adjustment(block.payload);
@@ -7992,12 +8150,21 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
         if (auto parsed = parse_photoshop_hue2_adjustment(block.payload); parsed.has_value()) {
           native_adjustment_settings = parsed;
         }
+      } else if (block.key == "curv") {
+        has_native_curves = true;
       } else if (block.key == "plAD") {
         patchy_adjustment_settings = parse_patchy_adjustment(block.payload);
       }
     }
-    auto adjustment_settings = native_adjustment_settings.has_value() ? native_adjustment_settings
-                                                                      : patchy_adjustment_settings;
+    // Native Photoshop adjustment data is authoritative over Patchy's private
+    // fallback. Sequence 2 does not interpret curv yet, so import it through the
+    // same opaque regular-layer path used by other unsupported native adjustment
+    // blocks. This preserves both curv and plAD while preventing edits based on a
+    // potentially stale private fallback.
+    auto adjustment_settings = has_native_curves
+                                   ? std::optional<AdjustmentSettings>{}
+                                   : (native_adjustment_settings.has_value() ? native_adjustment_settings
+                                                                             : patchy_adjustment_settings);
     if (adjustment_settings.has_value() && native_adjustment_settings.has_value() &&
         patchy_adjustment_settings.has_value() && adjustment_settings->kind == AdjustmentKind::Levels &&
         patchy_adjustment_settings->kind == AdjustmentKind::Levels) {
