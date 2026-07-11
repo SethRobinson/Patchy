@@ -71,12 +71,19 @@ int unknown_layer_block_count(const Layer& layer) {
 
 void append_unrendered_style_warnings(const Layer& layer, QStringList& warnings) {
   const auto& style = layer.layer_style();
-  const auto has_satin = std::any_of(style.satins.begin(), style.satins.end(), [](const LayerSatin& satin) {
-    return satin.enabled;
-  });
-  if (has_satin) {
-    warnings << QObject::tr("%1 contains a Satin effect that Patchy preserves for PSD round-trip but does not "
-                            "render or edit.")
+  if (layer.kind() == LayerKind::Group && !style.empty()) {
+    warnings << QObject::tr("%1 is a group with layer effects. Patchy preserves them for PSD round-trip but does "
+                            "not render group layer effects yet.")
+                    .arg(QString::fromStdString(layer.name()));
+  }
+  const auto has_unsupported_satin_contour =
+      std::any_of(style.satins.begin(), style.satins.end(), [](const LayerSatin& satin) {
+        return satin.unsupported_contour_options;
+      });
+  if (has_unsupported_satin_contour) {
+    warnings << QObject::tr("%1 contains Photoshop Satin contour settings that Patchy cannot render or edit "
+                            "(a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, "
+                            "then uses the non-anti-aliased Linear contour.")
                     .arg(QString::fromStdString(layer.name()));
   }
 

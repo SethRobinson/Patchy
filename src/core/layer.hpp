@@ -93,11 +93,17 @@ struct RgbColor {
 struct GradientColorStop {
   float location{0.0F};
   RgbColor color{};
+  // Relative position between the previous stop and this destination stop where
+  // the blend reaches 50%. Photoshop stores this as Mdpn (0..100); the first
+  // stop's value is unused and 0.5 is the identity path.
+  float midpoint{0.5F};
 };
 
 struct GradientAlphaStop {
   float location{0.0F};
   float opacity{1.0F};
+  // Same destination-stop convention as GradientColorStop::midpoint.
+  float midpoint{0.5F};
 };
 
 enum class LayerStyleGradientType {
@@ -223,6 +229,9 @@ struct LayerSatin {
   float distance{11.0F};
   float size{14.0F};
   bool invert{true};
+  // Untouched Photoshop lfx2 data preserves custom contour points and AntA.
+  // Patchy's modeled renderer/editor uses a non-anti-aliased Linear contour.
+  bool unsupported_contour_options{false};
 };
 
 struct LayerPatternOverlay {

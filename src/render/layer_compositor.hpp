@@ -42,6 +42,7 @@ enum class StyleMaskKind : std::uint8_t {
   InnerGlow,
   BevelHeight,
   Stroke,
+  Satin,
 };
 
 struct StyleMaskEntry {
@@ -958,6 +959,117 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
   }
 }
 
+inline int satin_tent_peak(float size) noexcept {
+  if (size <= 0.0F) {
+    return 0;
+  }
+  return std::max(2, static_cast<int>(std::lround(size)));
+}
+
+// Photoshop's Satin blur is the exact separable tent [1..N..1] / N^2,
+// N=max(2, Size), rather than the three-box approximation shared by the other
+// soft layer effects. Prefix sums keep the exact kernel bounded to O(pixels)
+// even at large Size values. Size zero bypasses the blur altogether.
+inline void blur_satin_tent_mask_in_place(std::vector<float>& mask, int width, int height, float size) {
+  const auto peak = satin_tent_peak(size);
+  if (peak == 0 || width <= 0 || height <= 0 || mask.empty()) {
+    return;
+  }
+
+  const auto convolve_lines = [peak](const std::vector<float>& input, std::vector<float>& output, int line_count,
+                                     int line_length, std::size_t line_step, std::size_t sample_step) {
+    std::vector<double> prefix(static_cast<std::size_t>(line_length) + 1U, 0.0);
+    std::vector<double> weighted_prefix(static_cast<std::size_t>(line_length) + 1U, 0.0);
+    const auto divisor = static_cast<double>(peak) * static_cast<double>(peak);
+    for (int line = 0; line < line_count; ++line) {
+      const auto base = static_cast<std::size_t>(line) * line_step;
+      prefix[0] = 0.0;
+      weighted_prefix[0] = 0.0;
+      for (int position = 0; position < line_length; ++position) {
+        const auto value = static_cast<double>(input[base + static_cast<std::size_t>(position) * sample_step]);
+        prefix[static_cast<std::size_t>(position) + 1U] = prefix[static_cast<std::size_t>(position)] + value;
+        weighted_prefix[static_cast<std::size_t>(position) + 1U] =
+            weighted_prefix[static_cast<std::size_t>(position)] + static_cast<double>(position) * value;
+      }
+
+      for (int position = 0; position < line_length; ++position) {
+        const auto left = std::max(0, position - peak + 1);
+        const auto right = std::min(line_length, position + peak);
+        const auto left_sum = prefix[static_cast<std::size_t>(position) + 1U] - prefix[static_cast<std::size_t>(left)];
+        const auto left_weighted = weighted_prefix[static_cast<std::size_t>(position) + 1U] -
+                                   weighted_prefix[static_cast<std::size_t>(left)];
+        const auto right_sum = prefix[static_cast<std::size_t>(right)] -
+                               prefix[static_cast<std::size_t>(position) + 1U];
+        const auto right_weighted = weighted_prefix[static_cast<std::size_t>(right)] -
+                                    weighted_prefix[static_cast<std::size_t>(position) + 1U];
+        const auto numerator = (static_cast<double>(peak - position) * left_sum + left_weighted) +
+                               (static_cast<double>(peak + position) * right_sum - right_weighted);
+        output[base + static_cast<std::size_t>(position) * sample_step] =
+            static_cast<float>(numerator / divisor);
+      }
+    }
+  };
+
+  std::vector<float> horizontal(mask.size(), 0.0F);
+  std::vector<float> output(mask.size(), 0.0F);
+  convolve_lines(mask, horizontal, height, width, static_cast<std::size_t>(width), 1U);
+  convolve_lines(horizontal, output, width, height, 1U, static_cast<std::size_t>(width));
+  mask.swap(output);
+}
+
+inline std::vector<float> satin_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds,
+                                           Rect mask_bounds, int offset_x, int offset_y, float size, bool invert,
+                                           std::optional<Rect> layer_mask_bounds) {
+  // Two copies of the layer matte move in opposite directions. Photoshop blurs
+  // their signed difference before taking its absolute value; folding first
+  // would incorrectly join overlapping lobes.
+  auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds, offset_x, offset_y, layer_mask_bounds);
+  const auto opposite =
+      layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y, layer_mask_bounds);
+  for (std::size_t index = 0; index < mask.size(); ++index) {
+    mask[index] -= opposite[index];
+  }
+  blur_satin_tent_mask_in_place(mask, mask_bounds.width, mask_bounds.height, size);
+  for (auto& value : mask) {
+    value = clamp_unit(std::abs(value));
+    if (invert) {
+      value = 1.0F - value;
+    }
+  }
+  return mask;
+}
+
+struct PreparedSatin {
+  const LayerSatin* effect{nullptr};
+  std::shared_ptr<const StyleMaskEntry> entry;
+  Rect mask_bounds{};
+};
+
+inline PreparedSatin prepare_satin(const Layer& layer, const PixelBuffer& source, Rect draw_rect, Rect bounds,
+                                   const LayerSatin& satin, std::optional<Rect> layer_mask_bounds,
+                                   StyleMaskProvider* masks, std::uint32_t effect_index) {
+  constexpr float kPi = 3.14159265358979323846F;
+  const auto radians = (180.0F - satin.angle_degrees) * kPi / 180.0F;
+  // Photoshop clamps a requested zero Distance to one pixel. Keeping the
+  // offset integral matches its raster descriptor and Patchy's other effects.
+  const auto distance = std::max(1.0F, satin.distance);
+  const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * distance));
+  const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * distance));
+  const auto peak = satin_tent_peak(satin.size);
+  const auto sample_padding = peak > 0 ? peak - 1 : 0;
+  const auto full_domain = outset_rect(bounds, sample_padding);
+  const auto legacy_mask_bounds = clipped_mask_bounds(full_domain, draw_rect, sample_padding);
+  auto [entry, mask_bounds] = style_mask_for_render(
+      masks, layer, StyleMaskKind::Satin, effect_index, full_domain, bounds, legacy_mask_bounds, bounds,
+      layer_mask_bounds, [&](Rect domain) {
+        StyleMaskEntry computed;
+        computed.primary = satin_alpha_mask(source, layer, bounds, domain, offset_x, offset_y, satin.size,
+                                            satin.invert, layer_mask_bounds);
+        return computed;
+      });
+  return PreparedSatin{&satin, std::move(entry), mask_bounds};
+}
+
 template <typename Target>
 void render_color_overlay(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                           const LayerColorOverlay& overlay, std::optional<Rect> layer_mask_bounds) {
@@ -1284,6 +1396,20 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   const auto draw_rect = intersect_rect(clip, bounds);
+  std::vector<PreparedSatin> prepared_satins;
+  if (!draw_rect.empty() && style.effects_visible) {
+    prepared_satins.reserve(style.satins.size());
+    for (std::uint32_t index = 0; index < style.satins.size(); ++index) {
+      const auto& satin = style.satins[index];
+      if (!satin.enabled || satin.opacity <= 0.0F) {
+        continue;
+      }
+      profile_compositor_step(destination, layer, "satin", clip, [&] {
+        prepared_satins.push_back(
+            prepare_satin(layer, source, draw_rect, bounds, satin, layer_mask_bounds, masks, index));
+      });
+    }
+  }
   if (!draw_rect.empty()) {
     profile_compositor_step(destination, layer, "base_pixels", draw_rect, [&] {
       const auto format = source.format();
@@ -1292,7 +1418,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       const auto source_stride = source.stride_bytes();
       const auto has_enabled_mask = layer.mask().has_value() && !layer.mask()->disabled;
       bool composited_by_target = false;
-      if (!has_enabled_mask && layer.blend_mode() == BlendMode::Normal) {
+      if (!has_enabled_mask && prepared_satins.empty() && layer.blend_mode() == BlendMode::Normal) {
         if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
                                 std::int32_t width, std::uint16_t channel_count, float opacity) {
                         target.composite_source_row(x, y, row, width, channel_count, opacity);
@@ -1317,7 +1443,27 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
             const auto alpha = source_alpha * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) *
                                layer.opacity();
-            destination.composite_color(x, y, RgbColor{src[0], src[1], src[2]}, alpha, layer.blend_mode());
+            if (alpha <= 0.0F) {
+              continue;
+            }
+
+            std::array<std::uint8_t, 3> styled_color{src[0], src[1], src[2]};
+            for (const auto& prepared : prepared_satins) {
+              const auto mask_index =
+                  static_cast<std::size_t>(y - prepared.mask_bounds.y) *
+                      static_cast<std::size_t>(prepared.mask_bounds.width) +
+                  static_cast<std::size_t>(x - prepared.mask_bounds.x);
+              const auto coverage =
+                  prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
+              if (coverage <= 0.0F) {
+                continue;
+              }
+              const auto& color = prepared.effect->color;
+              styled_color = composite_blended_rgb({color.red, color.green, color.blue}, styled_color,
+                                                    prepared.effect->blend_mode, coverage, 1.0F);
+            }
+            destination.composite_color(x, y, RgbColor{styled_color[0], styled_color[1], styled_color[2]}, alpha,
+                                        layer.blend_mode());
           }
         }
       }

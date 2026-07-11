@@ -32,6 +32,10 @@ public:
   void set_opacity_track_enabled(bool enabled);
 
   void set_stops(std::vector<GradientStop> stops);
+  // Midpoints are aligned with the color-stop rows. A value belongs to the
+  // segment from the previous stop into that destination stop; the first stop's
+  // value is preserved but has no visible handle.
+  void set_color_midpoints(std::vector<float> midpoints);
   void set_current_row(int row);
   void set_opacity_stops(std::vector<GradientAlphaStop> stops);
   void set_current_opacity_row(int row);
@@ -42,6 +46,7 @@ public:
   std::function<void(int)> stop_selected;
   std::function<void(int)> choose_stop_color_requested;
   std::function<void(int, int)> stop_location_changed;         // row, percent 0..100
+  std::function<void(int, int)> color_midpoint_changed;        // destination row, percent 5..95
   std::function<void(int, QColor)> stop_color_picked;          // bar click samples under cursor
   std::function<int(GradientStop)> stop_add_requested;         // returns new row, or -1 to refuse
   std::function<void(int)> stop_delete_requested;
@@ -49,6 +54,7 @@ public:
   // Opacity-track callbacks (fire only while the opacity track is enabled).
   std::function<void(int)> opacity_stop_selected;
   std::function<void(int, int)> opacity_stop_location_changed;        // row, percent 0..100
+  std::function<void(int, int)> opacity_midpoint_changed;             // destination row, percent 5..95
   std::function<int(GradientAlphaStop)> opacity_stop_add_requested;   // returns new row, or -1
   std::function<void(int)> opacity_stop_delete_requested;
 
@@ -70,18 +76,27 @@ private:
   [[nodiscard]] int x_from_position(float location) const;
   [[nodiscard]] QPainterPath handle_path(int row) const;
   [[nodiscard]] QPainterPath opacity_handle_path(int row) const;
+  [[nodiscard]] QPainterPath color_midpoint_path(int row) const;
+  [[nodiscard]] QPainterPath opacity_midpoint_path(int row) const;
   [[nodiscard]] int hit_stop(QPoint pos) const;
   [[nodiscard]] int hit_opacity_stop(QPoint pos) const;
+  [[nodiscard]] int hit_color_midpoint(QPoint pos) const;
+  [[nodiscard]] int hit_opacity_midpoint(QPoint pos) const;
+  [[nodiscard]] int previous_color_stop_row(int row) const;
+  [[nodiscard]] int previous_opacity_stop_row(int row) const;
   [[nodiscard]] float opacity_at(double position) const;
+  [[nodiscard]] RgbColor style_color_at(double position) const;
   void update_cursor(QPoint pos);
 
   bool opacity_track_enabled_{false};
   std::vector<GradientStop> stops_;
+  std::vector<float> color_midpoints_;
   std::vector<GradientAlphaStop> opacity_stops_;
   int current_row_{-1};
   int current_opacity_row_{-1};
   Track active_track_{Track::Color};
   int active_row_{-1};
+  bool active_midpoint_{false};
   QPoint press_position_;
   bool dragging_{false};
   bool open_color_on_release_{false};

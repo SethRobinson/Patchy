@@ -2542,17 +2542,16 @@ bool is_supported_open_path(const QString& path) {
 }
 
 struct UnrenderedLayerEffectCounts {
-  std::size_t satin{0};
+  std::size_t groups_with_layer_effects{0};
   std::size_t pattern_overlay{0};
 };
 
 void count_unrendered_layer_effects(const std::vector<Layer>& layers, UnrenderedLayerEffectCounts& counts) {
   for (const auto& layer : layers) {
     const auto& style = layer.layer_style();
-    counts.satin += static_cast<std::size_t>(
-        std::count_if(style.satins.begin(), style.satins.end(), [](const LayerSatin& satin) {
-          return satin.enabled;
-        }));
+    if (layer.kind() == LayerKind::Group && !style.empty()) {
+      ++counts.groups_with_layer_effects;
+    }
     counts.pattern_overlay += static_cast<std::size_t>(
         std::count_if(style.pattern_overlays.begin(), style.pattern_overlays.end(),
                       [](const LayerPatternOverlay& pattern) { return pattern.enabled; }));
@@ -2563,20 +2562,24 @@ void count_unrendered_layer_effects(const std::vector<Layer>& layers, Unrendered
 QString unrendered_layer_effect_import_notice(const Document& document) {
   UnrenderedLayerEffectCounts counts;
   count_unrendered_layer_effects(document.layers(), counts);
-  if (counts.satin == 0U && counts.pattern_overlay == 0U) {
+  if (counts.groups_with_layer_effects == 0U && counts.pattern_overlay == 0U) {
     return {};
   }
 
-  QStringList details;
-  if (counts.satin != 0U) {
-    details << QStringLiteral("%1: %2").arg(QObject::tr("Satin")).arg(counts.satin);
+  if (counts.groups_with_layer_effects == 0U) {
+    return QObject::tr(
+               "Patchy preserved layer effects for PSD round-trip but does not render or edit them (%1).")
+        .arg(QStringLiteral("%1: %2").arg(QObject::tr("Pattern Overlay")).arg(counts.pattern_overlay));
   }
-  if (counts.pattern_overlay != 0U) {
-    details << QStringLiteral("%1: %2").arg(QObject::tr("Pattern Overlay")).arg(counts.pattern_overlay);
+  if (counts.pattern_overlay == 0U) {
+    return QObject::tr("Patchy preserved group layer effects for PSD round-trip but does not render them yet "
+                       "(groups: %1).")
+        .arg(counts.groups_with_layer_effects);
   }
-  return QObject::tr(
-             "Patchy preserved layer effects for PSD round-trip but does not render or edit them (%1).")
-      .arg(details.join(QStringLiteral(", ")));
+  return QObject::tr("Patchy preserved layer effects for PSD round-trip. Group layer effects are not rendered "
+                     "(groups: %1); Pattern Overlay is not rendered or editable (%2).")
+      .arg(counts.groups_with_layer_effects)
+      .arg(counts.pattern_overlay);
 }
 
 QStringList supported_local_open_paths(const QMimeData* mime_data) {
@@ -19077,6 +19080,12 @@ void MainWindow::copy_active_layer_style() {
   }
 
   layer_style_clipboard_ = layer->layer_style();
+  // The style clipboard carries modeled settings, not the source layer's raw
+  // lfx2 bytes. Pasted custom Satin curves and contour anti-aliasing are
+  // therefore normalized to the Linear contour that Patchy can regenerate.
+  for (auto& satin : layer_style_clipboard_->satins) {
+    satin.unsupported_contour_options = false;
+  }
   update_history(tr("Copy layer style"));
   statusBar()->showMessage(tr("Copied layer style"));
   refresh_layer_style_action_states();
@@ -19315,6 +19324,7 @@ void MainWindow::rasterize_active_layer_styles() {
     affected = unite_rect(affected, change.before);
     layer->set_pixels(std::move(change.pixels.pixels));
     layer->set_bounds(change.pixels.bounds);
+    clear_layer_psd_style_source(*layer);
     layer->layer_style() = {};
     if (change.clear_text) {
       layer->set_name(rasterized_text_layer_name(*layer).toStdString());

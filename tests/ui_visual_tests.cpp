@@ -3340,6 +3340,58 @@ void ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops() {
   CHECK(alpha_stops.back().opacity == 1.0F);
 }
 
+void ui_layer_style_gradient_midpoints_edit_color_and_opacity_tracks() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  auto layer = make_gradient_fill_test_layer(document);
+  auto& gradient = layer.layer_style().gradient_fills.front().gradient;
+  gradient.color_stops.back().midpoint = 0.25F;
+  gradient.alpha_stops.back().midpoint = 0.75F;
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    select_layer_style_gradient_page(*dialog);
+    auto* editor =
+        dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(QStringLiteral("layerStyleGradientStopsEditor"));
+    auto* location = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientStopLocationSpin"));
+    auto* midpoint = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientStopMidpointSpin"));
+    CHECK(editor != nullptr);
+    CHECK(location != nullptr);
+    CHECK(midpoint != nullptr);
+    CHECK(!midpoint->isEnabled());  // first sorted stop has no incoming segment
+
+    const QPoint color_tag(editor->width() - 10, editor->height() - 18);
+    send_mouse(*editor, QEvent::MouseButtonPress, color_tag, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseButtonRelease, color_tag, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(midpoint->isEnabled());
+    CHECK(midpoint->value() == 25);
+    midpoint->setValue(72);
+    location->setValue(0);
+    QApplication::processEvents();
+    CHECK(!midpoint->isEnabled());  // an equal-position hard stop has no segment midpoint
+    location->setValue(100);
+    QApplication::processEvents();
+    CHECK(midpoint->isEnabled());
+    CHECK(midpoint->value() == 72);
+
+    const QPoint opacity_tag(editor->width() - 10, 8);
+    send_mouse(*editor, QEvent::MouseButtonPress, opacity_tag, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseButtonRelease, opacity_tag, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(midpoint->isEnabled());
+    CHECK(midpoint->value() == 75);
+    midpoint->setValue(33);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(settings.has_value());
+  const auto& result = settings->style.gradient_fills.front().gradient;
+  CHECK(std::abs(result.color_stops.back().midpoint - 0.72F) < 0.001F);
+  CHECK(std::abs(result.alpha_stops.back().midpoint - 0.33F) < 0.001F);
+}
+
 void ui_layer_style_gradient_page_controls_map_to_settings() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   auto layer = make_gradient_fill_test_layer(document);
@@ -3468,6 +3520,7 @@ void ui_layer_style_gradient_stroke_controls_map_to_settings() {
     auto* angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeGradientAngleSpin"));
     auto* scale = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeGradientScaleSpin"));
     auto* stop_hex = dialog->findChild<QLineEdit*>(QStringLiteral("layerStyleStrokeGradientStopHexEdit"));
+    auto* midpoint = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeGradientStopMidpointSpin"));
     CHECK(categories != nullptr);
     CHECK(fill != nullptr);
     CHECK(gradient_group != nullptr);
@@ -3477,6 +3530,7 @@ void ui_layer_style_gradient_stroke_controls_map_to_settings() {
     CHECK(angle != nullptr);
     CHECK(scale != nullptr);
     CHECK(stop_hex != nullptr);
+    CHECK(midpoint != nullptr);
     const auto stroke_items = categories->findItems(QStringLiteral("Stroke"), Qt::MatchExactly);
     CHECK(!stroke_items.empty());
     categories->setCurrentItem(stroke_items.front());
@@ -3486,6 +3540,7 @@ void ui_layer_style_gradient_stroke_controls_map_to_settings() {
     CHECK(editor->isVisible());
     CHECK(!editor->visibleRegion().isEmpty());
     CHECK(!scale->visibleRegion().isEmpty());
+    CHECK(!midpoint->isEnabled());
     fill->setCurrentIndex(0);
     CHECK(!gradient_group->isVisible());
     fill->setCurrentIndex(1);
@@ -3497,6 +3552,18 @@ void ui_layer_style_gradient_stroke_controls_map_to_settings() {
     scale->setValue(175);
     stop_hex->setText(QStringLiteral("#123456"));
     send_key(*stop_hex, Qt::Key_Return);
+    const QPoint color_tag(editor->width() - 10, editor->height() - 18);
+    send_mouse(*editor, QEvent::MouseButtonPress, color_tag, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseButtonRelease, color_tag, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(midpoint->isEnabled());
+    midpoint->setValue(64);
+    const QPoint opacity_tag(editor->width() - 10, 8);
+    send_mouse(*editor, QEvent::MouseButtonPress, opacity_tag, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseButtonRelease, opacity_tag, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(midpoint->isEnabled());
+    midpoint->setValue(36);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
   });
 
@@ -3512,6 +3579,8 @@ void ui_layer_style_gradient_stroke_controls_map_to_settings() {
   CHECK(result.gradient.color_stops.front().color.red == 0x12);
   CHECK(result.gradient.color_stops.front().color.green == 0x34);
   CHECK(result.gradient.color_stops.front().color.blue == 0x56);
+  CHECK(std::abs(result.gradient.color_stops.back().midpoint - 0.64F) < 0.001F);
+  CHECK(std::abs(result.gradient.alpha_stops.back().midpoint - 0.36F) < 0.001F);
 }
 
 void ui_layer_style_bevel_lighting_controls_map_to_settings() {
@@ -3588,6 +3657,77 @@ void ui_layer_style_bevel_lighting_controls_map_to_settings() {
   CHECK(std::abs(result.shadow_opacity - 0.37F) < 0.001F);
 }
 
+void ui_layer_style_satin_controls_map_to_settings() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Satin Styled",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerSatin satin;
+  satin.enabled = true;
+  satin.unsupported_contour_options = true;
+  layer.layer_style().satins.push_back(satin);
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleSatinBlendModeCombo"));
+    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleSatinOpacitySpin"));
+    auto* angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleSatinAngleSpin"));
+    auto* distance = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleSatinDistanceSpin"));
+    auto* size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleSatinSizeSpin"));
+    auto* invert = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleSatinInvertCheck"));
+    auto* red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleSatinRedSpin"));
+    auto* green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleSatinGreenSpin"));
+    auto* blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleSatinBlueSpin"));
+    auto* contour_warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleSatinContourWarning"));
+    CHECK(categories != nullptr);
+    CHECK(blend != nullptr);
+    CHECK(opacity != nullptr);
+    CHECK(angle != nullptr);
+    CHECK(distance != nullptr);
+    CHECK(size != nullptr);
+    CHECK(invert != nullptr);
+    CHECK(red != nullptr);
+    CHECK(green != nullptr);
+    CHECK(blue != nullptr);
+    CHECK(contour_warning != nullptr);
+    CHECK(contour_warning->isVisible());
+    CHECK(contour_warning->text().contains(QStringLiteral("non-anti-aliased Linear contour")));
+    const auto satin_items = categories->findItems(QStringLiteral("Satin"), Qt::MatchExactly);
+    CHECK(!satin_items.empty());
+    categories->setCurrentItem(satin_items.front());
+    QApplication::processEvents();
+    CHECK(!opacity->visibleRegion().isEmpty());
+    blend->setCurrentIndex(std::max(0, blend->findData(static_cast<int>(patchy::BlendMode::Screen))));
+    opacity->setValue(63);
+    angle->setValue(-42);
+    distance->setValue(27);
+    size->setValue(19);
+    invert->setChecked(false);
+    red->setValue(12);
+    green->setValue(34);
+    blue->setValue(56);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+
+  int previews = 0;
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, [&](const patchy::ui::LayerStyleSettings&) { ++previews; });
+  CHECK(settings.has_value());
+  CHECK(settings->style.satins.size() == 1);
+  const auto& result = settings->style.satins.front();
+  CHECK(result.enabled);
+  CHECK(result.blend_mode == patchy::BlendMode::Screen);
+  CHECK(std::abs(result.opacity - 0.63F) < 0.001F);
+  CHECK(result.angle_degrees == -42.0F);
+  CHECK(result.distance == 27.0F);
+  CHECK(result.size == 19.0F);
+  CHECK(!result.invert);
+  CHECK(result.color.red == 12 && result.color.green == 34 && result.color.blue == 56);
+  CHECK(!result.unsupported_contour_options);
+  CHECK(previews >= 1);
+}
+
 void ui_layer_style_dialog_warns_about_unrendered_effects() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Photoshop Effects",
@@ -3606,7 +3746,7 @@ void ui_layer_style_dialog_warns_about_unrendered_effects() {
     auto* warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleUnsupportedEffectsWarning"));
     CHECK(warning != nullptr);
     CHECK(warning->isVisible());
-    CHECK(warning->text().contains(QStringLiteral("Satin")));
+    CHECK(!warning->text().contains(QStringLiteral("Satin")));
     CHECK(warning->text().contains(QStringLiteral("Pattern Overlay")));
     CHECK(warning->text().contains(QStringLiteral("preserved for PSD round-trip")));
     CHECK(warning->text().contains(QStringLiteral("does not render or edit")));
@@ -3620,14 +3760,39 @@ void ui_layer_style_dialog_warns_about_unrendered_effects() {
   CHECK(saw_warning);
 }
 
+void ui_layer_style_dialog_warns_that_group_effects_do_not_render() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer group(document.allocate_layer_id(), "Styled Group", patchy::LayerKind::Group);
+  patchy::LayerSatin satin;
+  satin.enabled = true;
+  group.layer_style().satins.push_back(satin);
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Child",
+                               solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(Qt::white))));
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleGroupEffectsWarning"));
+    CHECK(warning != nullptr);
+    CHECK(warning->isVisible());
+    CHECK(warning->text().contains(QStringLiteral("not rendered")));
+    CHECK(warning->text().contains(QStringLiteral("Preview cannot show")));
+    dialog->reject();
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, group, {});
+  CHECK(!settings.has_value());
+}
+
 void ui_gradient_stops_editor_two_track_renders_artifact() {
   patchy::ui::GradientStopsEditorWidget editor;
   editor.set_opacity_track_enabled(true);
   editor.resize(420, 96);
   editor.set_stops({patchy::GradientStop{0.0F, patchy::EditColor{255, 255, 255, 255}},
                     patchy::GradientStop{1.0F, patchy::EditColor{255, 0, 0, 255}}});
+  editor.set_color_midpoints({0.5F, 0.25F});
   editor.set_opacity_stops(
-      {patchy::GradientAlphaStop{0.0F, 0.0F}, patchy::GradientAlphaStop{1.0F, 1.0F}});
+      {patchy::GradientAlphaStop{0.0F, 0.0F}, patchy::GradientAlphaStop{1.0F, 1.0F, 0.75F}});
   const auto image = editor.grab().toImage();
 
   // Transparent left end: the gradient contributes nothing, so two vertically
@@ -3650,6 +3815,62 @@ void ui_gradient_stops_editor_two_track_renders_artifact() {
   CHECK(color_close(image.pixelColor(10, editor.height() - 14), QColor(255, 255, 255), 12));
   CHECK(color_close(image.pixelColor(editor.width() - 12, editor.height() - 14), QColor(255, 0, 0), 12));
   save_widget_artifact("ui_gradient_stops_editor_two_track", editor);
+}
+
+void ui_gradient_stops_editor_drags_destination_midpoints() {
+  patchy::ui::GradientStopsEditorWidget editor;
+  editor.set_opacity_track_enabled(true);
+  editor.resize(420, 96);
+  editor.show();
+  QApplication::processEvents();
+  editor.set_stops({patchy::GradientStop{0.0F, patchy::EditColor{255, 255, 255, 255}},
+                    patchy::GradientStop{1.0F, patchy::EditColor{0, 0, 0, 255}}});
+  std::vector<float> color_midpoints{0.5F, 0.25F};
+  std::vector<patchy::GradientAlphaStop> alpha_stops{{0.0F, 0.0F}, {1.0F, 1.0F, 0.75F}};
+  editor.set_color_midpoints(color_midpoints);
+  editor.set_opacity_stops(alpha_stops);
+
+  patchy::EditColor sampled_insert_color;
+  bool sampled_insert = false;
+  editor.stop_add_requested = [&](patchy::GradientStop stop) {
+    sampled_insert_color = stop.color;
+    sampled_insert = true;
+    return -1;
+  };
+  const int span = editor.width() - 22;
+  const QPoint insert_at_half(10 + span / 2, editor.height() - 10);
+  send_mouse(editor, QEvent::MouseButtonPress, insert_at_half, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(editor, QEvent::MouseButtonRelease, insert_at_half, Qt::LeftButton, Qt::NoButton);
+  CHECK(sampled_insert);
+  // White to black with the destination midpoint at 25% is two-thirds black
+  // at the segment's halfway location. A generic linear sample would be 128.
+  CHECK(std::abs(static_cast<int>(sampled_insert_color.r) - 85) <= 1);
+  CHECK(sampled_insert_color.g == sampled_insert_color.r);
+  CHECK(sampled_insert_color.b == sampled_insert_color.r);
+
+  int color_row = -1;
+  int color_percent = -1;
+  editor.color_midpoint_changed = [&](int row, int percent) {
+    color_row = row;
+    color_percent = percent;
+    color_midpoints[static_cast<std::size_t>(row)] = static_cast<float>(percent) / 100.0F;
+    editor.set_color_midpoints(color_midpoints);
+  };
+  int opacity_row = -1;
+  int opacity_percent = -1;
+  editor.opacity_midpoint_changed = [&](int row, int percent) {
+    opacity_row = row;
+    opacity_percent = percent;
+    alpha_stops[static_cast<std::size_t>(row)].midpoint = static_cast<float>(percent) / 100.0F;
+    editor.set_opacity_stops(alpha_stops);
+  };
+
+  drag(editor, QPoint(10 + span / 4, 54), QPoint(10 + (span * 7) / 10, 54));
+  CHECK(color_row == 1);
+  CHECK(std::abs(color_percent - 70) <= 1);
+  drag(editor, QPoint(10 + (span * 3) / 4, 36), QPoint(10 + (span * 3) / 10, 36));
+  CHECK(opacity_row == 1);
+  CHECK(std::abs(opacity_percent - 30) <= 1);
 }
 
 void ui_brightness_contrast_filter_applies_settings() {
@@ -4280,10 +4501,20 @@ void ui_compatibility_report_flags_unrendered_styles_on_groups() {
   const auto warnings = patchy::ui::compatibility_warnings_for_document(document);
   const auto text = warnings.join(QLatin1Char('\n'));
   CHECK(text.contains(QStringLiteral("Styled Group")));
-  CHECK(text.contains(QStringLiteral("Satin")));
+  CHECK(text.contains(QStringLiteral("group with layer effects")));
+  CHECK(text.contains(QStringLiteral("does not render group layer effects")));
   CHECK(text.contains(QStringLiteral("Pattern Overlay")));
   CHECK(text.contains(QStringLiteral("preserves for PSD round-trip")));
   CHECK(text.contains(QStringLiteral("does not render or edit")));
+
+  auto& imported_satin = document.layers().front().layer_style().satins.front();
+  imported_satin.enabled = false;
+  imported_satin.unsupported_contour_options = true;
+  const auto contour_text =
+      patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
+  CHECK(contour_text.contains(QStringLiteral("Satin contour settings")));
+  CHECK(contour_text.contains(QStringLiteral("custom curve or anti-aliasing")));
+  CHECK(contour_text.contains(QStringLiteral("non-anti-aliased Linear contour")));
 }
 
 void ui_compatibility_report_ignores_identity_blend_if_and_flags_custom_ranges() {
@@ -4344,6 +4575,9 @@ void ui_psd_import_notice_reports_unrendered_layer_effects() {
   document.add_layer(std::move(root));
 
   patchy::Layer group(document.allocate_layer_id(), "Effects Group", patchy::LayerKind::Group);
+  patchy::LayerSatin group_satin;
+  group_satin.enabled = true;
+  group.layer_style().satins.push_back(group_satin);
   patchy::Layer child(document.allocate_layer_id(), "Nested Effects",
                       solid_pixels(16, 12, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   patchy::LayerSatin nested_satin;
@@ -4370,8 +4604,8 @@ void ui_psd_import_notice_reports_unrendered_layer_effects() {
   QApplication::processEvents();
   const auto notice = window.statusBar()->currentMessage();
   CHECK(notice.contains(
-      QStringLiteral("Patchy preserved layer effects for PSD round-trip but does not render or edit them "
-                     "(Satin: 2, Pattern Overlay: 1).")));
+      QStringLiteral("Patchy preserved layer effects for PSD round-trip. Group layer effects are not rendered "
+                     "(groups: 1); Pattern Overlay is not rendered or editable (1).")));
 }
 
 void ui_psd_import_warning_dialog_is_hidden_by_default() {
@@ -7048,8 +7282,19 @@ void ui_layer_context_menu_rasterizes_text_and_layer_styles() {
     styled_layer.layer_style().drop_shadows.push_back(shadow);
     document.add_layer(std::move(styled_layer));
 
+    // Reimport once so this exercises the Photoshop raw-style preservation
+    // path as well as the modeled style. Rasterizing must remove both or the
+    // next PSD save would resurrect the original effect over baked pixels.
+    auto imported_document =
+        patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+    CHECK(std::any_of(imported_document.layers().front().unknown_psd_blocks().begin(),
+                      imported_document.layers().front().unknown_psd_blocks().end(),
+                      [](const patchy::UnknownPsdBlock& block) {
+                        return block.key == "lfx2" || block.key == "lrFX";
+                      }));
+
     patchy::ui::MainWindow window;
-    window.add_document_session(std::move(document), QStringLiteral("Rasterize Style"));
+    window.add_document_session(std::move(imported_document), QStringLiteral("Rasterize Style"));
     show_window(window);
     auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
     auto* geometry = window.findChild<QLabel*>(QStringLiteral("activeLayerGeometryLabel"));
@@ -7064,6 +7309,21 @@ void ui_layer_context_menu_rasterizes_text_and_layer_styles() {
 
     CHECK(geometry->text().contains(QStringLiteral("Effects: none")));
     CHECK(!require_action(window, "layerRasterizeLayerStyleAction")->isEnabled());
+    const auto& rasterized_document = patchy::ui::MainWindowTestAccess::document(window);
+    const auto& rasterized_layer = rasterized_document.layers().front();
+    CHECK(std::none_of(rasterized_layer.unknown_psd_blocks().begin(),
+                       rasterized_layer.unknown_psd_blocks().end(),
+                       [](const patchy::UnknownPsdBlock& block) {
+                         return block.key == "lfx2" || block.key == "lrFX";
+                       }));
+    const auto resaved = patchy::psd::DocumentIo::read(
+        patchy::psd::DocumentIo::write_layered_rgb8(rasterized_document));
+    CHECK(resaved.layers().front().layer_style().empty());
+    CHECK(std::none_of(resaved.layers().front().unknown_psd_blocks().begin(),
+                       resaved.layers().front().unknown_psd_blocks().end(),
+                       [](const patchy::UnknownPsdBlock& block) {
+                         return block.key == "lfx2" || block.key == "lrFX";
+                       }));
   }
 }
 
@@ -7145,6 +7405,10 @@ void ui_layer_style_copy_paste_delete_applies_to_selected_layers() {
   shadow.distance = 7.0F;
   shadow.size = 7.0F;
   source_layer.layer_style().drop_shadows.push_back(shadow);
+  patchy::LayerSatin custom_satin;
+  custom_satin.enabled = false;
+  custom_satin.unsupported_contour_options = true;
+  source_layer.layer_style().satins.push_back(custom_satin);
   document.add_layer(std::move(source_layer));
 
   patchy::Layer target_a_layer(document.allocate_layer_id(), "Target Multiply",
@@ -7200,6 +7464,22 @@ void ui_layer_style_copy_paste_delete_applies_to_selected_layers() {
   CHECK(paste_style->isEnabled());
   paste_style->trigger();
   QApplication::processEvents();
+
+  const auto& pasted_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto find_named_layer = [&](std::string_view name) -> const patchy::Layer* {
+    const auto found = std::find_if(pasted_document.layers().begin(), pasted_document.layers().end(),
+                                    [name](const patchy::Layer& layer) { return layer.name() == name; });
+    return found == pasted_document.layers().end() ? nullptr : &*found;
+  };
+  const auto* source_after_copy = find_named_layer("Style Source");
+  const auto* target_a_after_paste = find_named_layer("Target Multiply");
+  const auto* target_b_after_paste = find_named_layer("Target Screen");
+  CHECK(source_after_copy != nullptr);
+  CHECK(target_a_after_paste != nullptr);
+  CHECK(target_b_after_paste != nullptr);
+  CHECK(source_after_copy->layer_style().satins.front().unsupported_contour_options);
+  CHECK(!target_a_after_paste->layer_style().satins.front().unsupported_contour_options);
+  CHECK(!target_b_after_paste->layer_style().satins.front().unsupported_contour_options);
 
   select_single_layer(QStringLiteral("Target Multiply"));
   CHECK(geometry->text().contains(QStringLiteral("Drop Shadow")));
@@ -37920,6 +38200,8 @@ int main(int argc, char* argv[]) {
        ui_layer_style_gradient_editor_drag_updates_stops_and_previews},
       {"ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops",
        ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops},
+      {"ui_layer_style_gradient_midpoints_edit_color_and_opacity_tracks",
+       ui_layer_style_gradient_midpoints_edit_color_and_opacity_tracks},
       {"ui_layer_style_gradient_page_controls_map_to_settings",
        ui_layer_style_gradient_page_controls_map_to_settings},
       {"ui_layer_style_preview_is_transient_and_show_effects_persists",
@@ -37928,10 +38210,15 @@ int main(int argc, char* argv[]) {
        ui_layer_style_gradient_stroke_controls_map_to_settings},
       {"ui_layer_style_bevel_lighting_controls_map_to_settings",
        ui_layer_style_bevel_lighting_controls_map_to_settings},
+      {"ui_layer_style_satin_controls_map_to_settings", ui_layer_style_satin_controls_map_to_settings},
       {"ui_layer_style_dialog_warns_about_unrendered_effects",
        ui_layer_style_dialog_warns_about_unrendered_effects},
+      {"ui_layer_style_dialog_warns_that_group_effects_do_not_render",
+       ui_layer_style_dialog_warns_that_group_effects_do_not_render},
       {"ui_gradient_stops_editor_two_track_renders_artifact",
        ui_gradient_stops_editor_two_track_renders_artifact},
+      {"ui_gradient_stops_editor_drags_destination_midpoints",
+       ui_gradient_stops_editor_drags_destination_midpoints},
       {"ui_brightness_contrast_filter_applies_settings",
        ui_brightness_contrast_filter_applies_settings},
       {"ui_filter_preview_restores_unselected_region_runs",

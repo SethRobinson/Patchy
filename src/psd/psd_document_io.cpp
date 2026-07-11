@@ -3110,7 +3110,9 @@ LayerStyleGradient parse_gradient(const DescriptorObject& effect, const CmykColo
         const auto& stop = *item.object_value;
         gradient.color_stops.push_back(
             GradientColorStop{std::clamp(static_cast<float>(descriptor_number(stop, "Lctn") / 4096.0), 0.0F, 1.0F),
-                              descriptor_rgb_color(stop, "Clr ", cmyk)});
+                              descriptor_rgb_color(stop, "Clr ", cmyk),
+                              std::clamp(static_cast<float>(descriptor_number(stop, "Mdpn", 50.0) / 100.0),
+                                         0.0F, 1.0F)});
       }
     }
     if (const auto* transparency = descriptor_value(*gradient_object, "Trns");
@@ -3122,7 +3124,9 @@ LayerStyleGradient parse_gradient(const DescriptorObject& effect, const CmykColo
         const auto& stop = *item.object_value;
         gradient.alpha_stops.push_back(
             GradientAlphaStop{std::clamp(static_cast<float>(descriptor_number(stop, "Lctn") / 4096.0), 0.0F, 1.0F),
-                              percent_to_unit(descriptor_number(stop, "Opct", 100.0))});
+                              percent_to_unit(descriptor_number(stop, "Opct", 100.0)),
+                              std::clamp(static_cast<float>(descriptor_number(stop, "Mdpn", 50.0) / 100.0),
+                                         0.0F, 1.0F)});
       }
     }
   }
@@ -3130,10 +3134,12 @@ LayerStyleGradient parse_gradient(const DescriptorObject& effect, const CmykColo
   gradient.scale = std::max(0.01F, static_cast<float>(descriptor_number(effect, "Scl ", 100.0) / 100.0));
   gradient.reverse = descriptor_bool(effect, "Rvrs", false);
   gradient.type = gradient_type_from_descriptor(descriptor_enum(effect, "Type", "Lnr "));
-  std::sort(gradient.color_stops.begin(), gradient.color_stops.end(),
-            [](const GradientColorStop& lhs, const GradientColorStop& rhs) { return lhs.location < rhs.location; });
-  std::sort(gradient.alpha_stops.begin(), gradient.alpha_stops.end(),
-            [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
+  std::stable_sort(
+      gradient.color_stops.begin(), gradient.color_stops.end(),
+      [](const GradientColorStop& lhs, const GradientColorStop& rhs) { return lhs.location < rhs.location; });
+  std::stable_sort(
+      gradient.alpha_stops.begin(), gradient.alpha_stops.end(),
+      [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
   return gradient;
 }
 
@@ -3268,11 +3274,10 @@ std::optional<LayerGradientFill> parse_gradient_fill(const DescriptorObject& eff
 
 std::optional<LayerSatin> parse_satin(const DescriptorObject& effect,
                                       const CmykColorConverter& cmyk) {
-  if (!descriptor_bool(effect, "enab", false)) {
-    return std::nullopt;
-  }
   LayerSatin satin;
-  satin.enabled = true;
+  // Disabled Satin records remain editable Photoshop style entries and may
+  // carry contour options that must be warned about before lfx2 regeneration.
+  satin.enabled = descriptor_bool(effect, "enab", false);
   satin.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "mul "),
                                                       std::array<char, 4>{'m', 'u', 'l', ' '});
   satin.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{0, 0, 0});
@@ -3281,6 +3286,19 @@ std::optional<LayerSatin> parse_satin(const DescriptorObject& effect,
   satin.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 11.0)));
   satin.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 14.0)));
   satin.invert = descriptor_bool(effect, "Invr", true);
+  satin.unsupported_contour_options = descriptor_bool(effect, "AntA", false);
+  if (const auto* contour = descriptor_object(effect, "MpgS"); contour != nullptr) {
+    const auto* curve = descriptor_value(*contour, "Crv ");
+    const auto point_matches = [](const DescriptorValue& value, double x, double y) {
+      return value.type == DescriptorValue::Type::Object && value.object_value != nullptr &&
+             std::abs(descriptor_number(*value.object_value, "Hrzn") - x) < 0.0001 &&
+             std::abs(descriptor_number(*value.object_value, "Vrtc") - y) < 0.0001;
+    };
+    satin.unsupported_contour_options =
+        satin.unsupported_contour_options || curve == nullptr || curve->type != DescriptorValue::Type::List ||
+        curve->list_value.size() != 2U || !point_matches(curve->list_value[0], 0.0, 0.0) ||
+        !point_matches(curve->list_value[1], 255.0, 255.0);
+  }
   return satin;
 }
 
@@ -6757,7 +6775,9 @@ void write_gradient_color_stop(BigEndianWriter& writer, const GradientColorStop&
   write_descriptor_object_header(writer, "", "Clrt", 4);
   write_descriptor_enum_item(writer, "Type", "Clry", "UsrS");
   write_descriptor_long_item(writer, "Lctn", static_cast<std::int32_t>(std::lround(std::clamp(stop.location, 0.0F, 1.0F) * 4096.0F)));
-  write_descriptor_long_item(writer, "Mdpn", 50);
+  write_descriptor_long_item(
+      writer, "Mdpn",
+      static_cast<std::int32_t>(std::lround(std::clamp(stop.midpoint, 0.0F, 1.0F) * 100.0F)));
   write_rgb_color_descriptor_item(writer, "Clr ", stop.color);
 }
 
@@ -6765,7 +6785,9 @@ void write_gradient_alpha_stop(BigEndianWriter& writer, const GradientAlphaStop&
   write_descriptor_object_header(writer, "", "TrnS", 3);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, std::clamp(stop.opacity, 0.0F, 1.0F) * 100.0);
   write_descriptor_long_item(writer, "Lctn", static_cast<std::int32_t>(std::lround(std::clamp(stop.location, 0.0F, 1.0F) * 4096.0F)));
-  write_descriptor_long_item(writer, "Mdpn", 50);
+  write_descriptor_long_item(
+      writer, "Mdpn",
+      static_cast<std::int32_t>(std::lround(std::clamp(stop.midpoint, 0.0F, 1.0F) * 100.0F)));
 }
 
 std::string_view gradient_type_descriptor_value(LayerStyleGradientType type) {
@@ -6795,10 +6817,12 @@ void write_layer_style_gradient_descriptor(BigEndianWriter& writer, const LayerS
     alpha_stops.push_back(GradientAlphaStop{0.0F, 1.0F});
     alpha_stops.push_back(GradientAlphaStop{1.0F, 1.0F});
   }
-  std::sort(color_stops.begin(), color_stops.end(),
-            [](const GradientColorStop& lhs, const GradientColorStop& rhs) { return lhs.location < rhs.location; });
-  std::sort(alpha_stops.begin(), alpha_stops.end(),
-            [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
+  std::stable_sort(
+      color_stops.begin(), color_stops.end(),
+      [](const GradientColorStop& lhs, const GradientColorStop& rhs) { return lhs.location < rhs.location; });
+  std::stable_sort(
+      alpha_stops.begin(), alpha_stops.end(),
+      [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
 
   write_descriptor_object_header(writer, "", "Grdn", 5);
   write_descriptor_text_item(writer, "Nm  ", "Custom");
@@ -6829,28 +6853,29 @@ void write_layer_style_gradient_descriptor_item(BigEndianWriter& writer, std::st
 // Photoshop's FrFX gradient shape differs from the otherwise similar GrFl
 // descriptor. In particular, RGB components are plain doubles, each color stop
 // puts Clr before Type/Lctn/Mdpn, and the Grad object's unicode header name is
-// "Gradient". Photoshop accepts lean layer-effects roots, but expects this
-// native shape inside the FrFX object.
-void write_stroke_rgb_color_descriptor(BigEndianWriter& writer, RgbColor color) {
+// "Gradient". Native ChFX colors use the same double RGB object.
+void write_native_rgb_color_descriptor(BigEndianWriter& writer, RgbColor color) {
   write_descriptor_object_header(writer, "", "RGBC", 3);
   write_descriptor_double_item(writer, "Rd  ", color.red);
   write_descriptor_double_item(writer, "Grn ", color.green);
   write_descriptor_double_item(writer, "Bl  ", color.blue);
 }
 
-void write_stroke_rgb_color_descriptor_item(BigEndianWriter& writer, std::string_view key, RgbColor color) {
+void write_native_rgb_color_descriptor_item(BigEndianWriter& writer, std::string_view key, RgbColor color) {
   write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
-  write_stroke_rgb_color_descriptor(writer, color);
+  write_native_rgb_color_descriptor(writer, color);
 }
 
 void write_stroke_gradient_color_stop(BigEndianWriter& writer, const GradientColorStop& stop) {
   write_descriptor_object_header(writer, "", "Clrt", 4);
-  write_stroke_rgb_color_descriptor_item(writer, "Clr ", stop.color);
+  write_native_rgb_color_descriptor_item(writer, "Clr ", stop.color);
   write_descriptor_enum_item(writer, "Type", "Clry", "UsrS");
   write_descriptor_long_item(
       writer, "Lctn",
       static_cast<std::int32_t>(std::lround(std::clamp(stop.location, 0.0F, 1.0F) * 4096.0F)));
-  write_descriptor_long_item(writer, "Mdpn", 50);
+  write_descriptor_long_item(
+      writer, "Mdpn",
+      static_cast<std::int32_t>(std::lround(std::clamp(stop.midpoint, 0.0F, 1.0F) * 100.0F)));
 }
 
 void write_stroke_gradient_descriptor(BigEndianWriter& writer, const LayerStyleGradient& gradient) {
@@ -6864,10 +6889,12 @@ void write_stroke_gradient_descriptor(BigEndianWriter& writer, const LayerStyleG
     alpha_stops.push_back(GradientAlphaStop{0.0F, 1.0F});
     alpha_stops.push_back(GradientAlphaStop{1.0F, 1.0F});
   }
-  std::sort(color_stops.begin(), color_stops.end(),
-            [](const GradientColorStop& lhs, const GradientColorStop& rhs) { return lhs.location < rhs.location; });
-  std::sort(alpha_stops.begin(), alpha_stops.end(),
-            [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
+  std::stable_sort(
+      color_stops.begin(), color_stops.end(),
+      [](const GradientColorStop& lhs, const GradientColorStop& rhs) { return lhs.location < rhs.location; });
+  std::stable_sort(
+      alpha_stops.begin(), alpha_stops.end(),
+      [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
 
   write_descriptor_object_header(writer, "Gradient", "Grdn", 5);
   write_descriptor_text_item(writer, "Nm  ", "Custom");
@@ -7021,7 +7048,7 @@ void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke)
   if (stroke.uses_gradient) {
     // Photoshop writes a black Clr placeholder even though PntT selects the
     // following gradient. Omitting it makes the descriptor non-native.
-    write_stroke_rgb_color_descriptor_item(writer, "Clr ", RgbColor{0, 0, 0});
+    write_native_rgb_color_descriptor_item(writer, "Clr ", RgbColor{0, 0, 0});
     write_stroke_gradient_descriptor_item(writer, "Grad", stroke.gradient);
     write_descriptor_enum_item(writer, "gradientsInterpolationMethod", "gradientInterpolationMethodType", "Gcls");
     write_descriptor_unit_float_item(writer, "Angl", {'#', 'A', 'n', 'g'}, stroke.gradient.angle_degrees);
@@ -7035,7 +7062,7 @@ void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke)
     write_descriptor_unit_float_item(writer, "Hrzn", {'#', 'P', 'r', 'c'}, 0.0);
     write_descriptor_unit_float_item(writer, "Vrtc", {'#', 'P', 'r', 'c'}, 0.0);
   } else {
-    write_stroke_rgb_color_descriptor_item(writer, "Clr ", stroke.color);
+    write_native_rgb_color_descriptor_item(writer, "Clr ", stroke.color);
   }
   write_descriptor_bool_item(writer, "overprint", false);
 }
@@ -7058,17 +7085,32 @@ void write_bevel_emboss_descriptor(BigEndianWriter& writer, const LayerBevelEmbo
 }
 
 void write_satin_descriptor(BigEndianWriter& writer, const LayerSatin& satin) {
-  write_descriptor_object_header(writer, "", "ChFX", 10);
+  // Photoshop 2026's native Satin shape. MpgS is the Linear contour: custom
+  // curves and AntA remain byte-preserved with untouched imported lfx2 data,
+  // but an edited modeled Satin deliberately regenerates with AntA off.
+  write_descriptor_object_header(writer, "", "ChFX", 12);
   write_descriptor_bool_item(writer, "enab", satin.enabled);
+  write_descriptor_bool_item(writer, "present", true);
+  write_descriptor_bool_item(writer, "showInDialog", true);
   write_blend_mode_descriptor_item(writer, "Md  ", satin.blend_mode);
-  write_rgb_color_descriptor_item(writer, "Clr ", satin.color);
+  write_native_rgb_color_descriptor_item(writer, "Clr ", satin.color);
+  write_descriptor_bool_item(writer, "AntA", false);
+  write_descriptor_bool_item(writer, "Invr", satin.invert);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, satin.opacity * 100.0);
   write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, satin.angle_degrees);
   write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, satin.distance);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, satin.size);
-  write_descriptor_bool_item(writer, "Invr", satin.invert);
-  write_descriptor_bool_item(writer, "AntA", false);
-  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_item_header(writer, "MpgS", {'O', 'b', 'j', 'c'});
+  write_descriptor_object_header(writer, "", "ShpC", 2);
+  write_descriptor_text_item(writer, "Nm  ", "$$$/Contours/Defaults/Linear=Linear");
+  write_descriptor_item_header(writer, "Crv ", {'V', 'l', 'L', 's'});
+  writer.write_u32(2);
+  for (const auto point : {0.0, 255.0}) {
+    write_signature(writer, {'O', 'b', 'j', 'c'});
+    write_descriptor_object_header(writer, "", "CrPt", 2);
+    write_descriptor_double_item(writer, "Hrzn", point);
+    write_descriptor_double_item(writer, "Vrtc", point);
+  }
 }
 
 void write_pattern_descriptor(BigEndianWriter& writer, const LayerPatternOverlay& pattern) {
@@ -7670,7 +7712,10 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   }
 
   bool generated_style_payload = false;
-  if (encoded.layer != nullptr && !encoded.layer->layer_style().empty() &&
+  // LayerStyle::empty() is a rendering predicate, so a style containing only a
+  // disabled Satin is "empty" visually but still has a native record to save.
+  if (encoded.layer != nullptr &&
+      (!encoded.layer->layer_style().empty() || !encoded.layer->layer_style().satins.empty()) &&
       !layer_preserves_photoshop_layer_style(*encoded.layer)) {
     const auto payload = photoshop_lfx2_layer_style_payload(encoded.layer->layer_style());
     write_additional_layer_block(extra, {'l', 'f', 'x', '2'}, payload, large_document);

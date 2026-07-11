@@ -39,6 +39,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -175,12 +176,19 @@ LayerBevelEmboss default_bevel_emboss() {
   return bevel;
 }
 
+LayerSatin default_satin() {
+  LayerSatin satin;
+  satin.enabled = true;
+  return satin;
+}
+
 enum class LayerStyleCategoryPage {
   Blending = 0,
   BevelEmboss,
   Stroke,
   InnerShadow,
   InnerGlow,
+  Satin,
   ColorOverlay,
   GradientOverlay,
   OuterGlow,
@@ -193,6 +201,7 @@ enum class LayerStyleEffectKind {
   Stroke,
   InnerShadow,
   InnerGlow,
+  Satin,
   ColorOverlay,
   GradientOverlay,
   OuterGlow,
@@ -253,6 +262,8 @@ struct LayerStyleGradientControls {
   QPushButton* stop_swatch{nullptr};
   QLabel* stop_opacity_label{nullptr};
   QSpinBox* stop_opacity{nullptr};
+  QLabel* stop_midpoint_label{nullptr};
+  QSpinBox* stop_midpoint{nullptr};
   QPushButton* add_stop{nullptr};
   QPushButton* remove_stop{nullptr};
   QCheckBox* reverse{nullptr};
@@ -278,18 +289,18 @@ struct LayerStyleGradientControls {
     if (result.color_stops.empty()) {
       result.color_stops = default_layer_style_gradient().color_stops;
     }
-    std::sort(result.color_stops.begin(), result.color_stops.end(),
-              [](const GradientColorStop& lhs, const GradientColorStop& rhs) {
-                return lhs.location < rhs.location;
-              });
+    std::stable_sort(result.color_stops.begin(), result.color_stops.end(),
+                     [](const GradientColorStop& lhs, const GradientColorStop& rhs) {
+                       return lhs.location < rhs.location;
+                     });
     result.alpha_stops = alpha_stops;
     if (result.alpha_stops.empty()) {
       result.alpha_stops = default_layer_style_gradient().alpha_stops;
     }
-    std::sort(result.alpha_stops.begin(), result.alpha_stops.end(),
-              [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) {
-                return lhs.location < rhs.location;
-              });
+    std::stable_sort(result.alpha_stops.begin(), result.alpha_stops.end(),
+                     [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) {
+                       return lhs.location < rhs.location;
+                     });
     return result;
   }
 };
@@ -334,6 +345,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto gradient = style.gradient_fills.empty() ? default_gradient_fill() : style.gradient_fills.front();
   auto stroke = style.strokes.empty() ? default_stroke() : style.strokes.front();
   auto bevel = style.bevels.empty() ? default_bevel_emboss() : style.bevels.front();
+  auto satin = style.satins.empty() ? default_satin() : style.satins.front();
   if (gradient.gradient.color_stops.empty()) {
     gradient.gradient = default_layer_style_gradient();
   }
@@ -355,30 +367,51 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   name_row->addWidget(name, 1);
   root->addLayout(name_row);
 
-  const bool has_enabled_satin =
-      std::any_of(style.satins.begin(), style.satins.end(), [](const LayerSatin& effect) { return effect.enabled; });
   const bool has_enabled_pattern = std::any_of(
       style.pattern_overlays.begin(), style.pattern_overlays.end(),
       [](const LayerPatternOverlay& effect) { return effect.enabled; });
-  if (has_enabled_satin || has_enabled_pattern) {
+  if (has_enabled_pattern) {
     auto* warning = new QLabel(&dialog);
     warning->setObjectName(QStringLiteral("layerStyleUnsupportedEffectsWarning"));
     warning->setWordWrap(true);
     warning->setProperty("warningBanner", true);
-    if (has_enabled_satin && has_enabled_pattern) {
-      warning->setText(QObject::tr(
-          "Satin and Pattern Overlay are preserved for PSD round-trip, but Patchy does not render or edit them. "
-          "Saving other layer style changes may normalize Photoshop-only effect options."));
-    } else {
-      const auto effect_name = has_enabled_satin ? QObject::tr("Satin") : QObject::tr("Pattern Overlay");
-      warning->setText(
-          QObject::tr(
-              "%1 is preserved for PSD round-trip, but Patchy does not render or edit it. Saving other layer style "
-              "changes may normalize Photoshop-only effect options.")
-              .arg(effect_name));
-    }
+    warning->setText(
+        QObject::tr(
+            "%1 is preserved for PSD round-trip, but Patchy does not render or edit it. Saving other layer style "
+            "changes may normalize Photoshop-only effect options.")
+            .arg(QObject::tr("Pattern Overlay")));
     warning->setStyleSheet(QStringLiteral(
         "QLabel#layerStyleUnsupportedEffectsWarning { background: #4a3a1f; border: 1px solid #9a7430; "
+        "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
+    root->addWidget(warning);
+  }
+  const bool has_unsupported_satin_contour =
+      std::any_of(style.satins.begin(), style.satins.end(), [](const LayerSatin& effect) {
+        return effect.unsupported_contour_options;
+      });
+  if (has_unsupported_satin_contour) {
+    auto* warning = new QLabel(
+        QObject::tr("Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer "
+                    "styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour."),
+        &dialog);
+    warning->setObjectName(QStringLiteral("layerStyleSatinContourWarning"));
+    warning->setWordWrap(true);
+    warning->setProperty("warningBanner", true);
+    warning->setStyleSheet(QStringLiteral(
+        "QLabel#layerStyleSatinContourWarning { background: #4a3a1f; border: 1px solid #9a7430; "
+        "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
+    root->addWidget(warning);
+  }
+  if (layer.kind() == LayerKind::Group) {
+    auto* warning = new QLabel(
+        QObject::tr("Layer effects on groups are preserved for PSD round-trip but are not rendered yet. Satin "
+                    "controls remain editable, but Preview cannot show the group result."),
+        &dialog);
+    warning->setObjectName(QStringLiteral("layerStyleGroupEffectsWarning"));
+    warning->setWordWrap(true);
+    warning->setProperty("warningBanner", true);
+    warning->setStyleSheet(QStringLiteral(
+        "QLabel#layerStyleGroupEffectsWarning { background: #4a3a1f; border: 1px solid #9a7430; "
         "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
@@ -524,6 +557,21 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     selected_layout->addStretch(1);
     form->addRow(QString(), selected_row);
 
+    auto* midpoint_row = new QWidget(parent_widget);
+    auto* midpoint_layout = new QHBoxLayout(midpoint_row);
+    midpoint_layout->setContentsMargins(0, 0, 0, 0);
+    midpoint_layout->setSpacing(8);
+    state->stop_midpoint_label = new QLabel(QObject::tr("Midpoint"), midpoint_row);
+    state->stop_midpoint = new QSpinBox(midpoint_row);
+    state->stop_midpoint->setObjectName(object_prefix + QStringLiteral("StopMidpointSpin"));
+    state->stop_midpoint->setRange(5, 95);
+    state->stop_midpoint->setSuffix(QStringLiteral("%"));
+    configure_dialog_spinbox(state->stop_midpoint, 64);
+    midpoint_layout->addWidget(state->stop_midpoint_label);
+    midpoint_layout->addWidget(state->stop_midpoint);
+    midpoint_layout->addStretch(1);
+    form->addRow(QString(), midpoint_row);
+
     auto* stop_buttons = new QWidget(parent_widget);
     auto* stop_button_layout = new QHBoxLayout(stop_buttons);
     stop_button_layout->setContentsMargins(0, 0, 0, 0);
@@ -580,6 +628,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
             GradientStop{stop.location, EditColor{stop.color.red, stop.color.green, stop.color.blue, 255}});
       }
       state->editor->set_stops(std::move(editor_stops));
+      std::vector<float> color_midpoints;
+      color_midpoints.reserve(state->color_stops.size());
+      for (const auto& stop : state->color_stops) {
+        color_midpoints.push_back(stop.midpoint);
+      }
+      state->editor->set_color_midpoints(std::move(color_midpoints));
       state->editor->set_opacity_stops(state->alpha_stops);
       state->editor->set_current_row(state->selected_color_stop);
       state->editor->set_current_opacity_row(state->selected_alpha_stop);
@@ -594,6 +648,23 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       const QSignalBlocker location_blocker(state->stop_location);
       const QSignalBlocker hex_blocker(state->stop_hex);
       const QSignalBlocker opacity_blocker(state->stop_opacity);
+      const QSignalBlocker midpoint_blocker(state->stop_midpoint);
+      auto has_previous_stop = [](const auto& stops, int row) {
+        std::vector<int> rows(stops.size());
+        std::iota(rows.begin(), rows.end(), 0);
+        std::stable_sort(rows.begin(), rows.end(), [&](int lhs, int rhs) {
+          return stops[static_cast<std::size_t>(lhs)].location <
+                 stops[static_cast<std::size_t>(rhs)].location;
+        });
+        const auto found = std::find(rows.begin(), rows.end(), row);
+        if (found == rows.end() || found == rows.begin()) {
+          return false;
+        }
+        const auto previous = *(found - 1);
+        return stops[static_cast<std::size_t>(previous)].location <
+               stops[static_cast<std::size_t>(row)].location;
+      };
+      bool midpoint_available = false;
       if (color_selected) {
         const auto& stop = state->color_stops[static_cast<std::size_t>(state->selected_color_stop)];
         state->stop_location->setValue(
@@ -602,6 +673,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
             QColor(stop.color.red, stop.color.green, stop.color.blue).name(QColor::HexRgb).toUpper());
         update_color_preview_label(state->stop_swatch, stop.color.red, stop.color.green, stop.color.blue);
         state->remove_stop->setEnabled(state->color_stops.size() > 2U);
+        midpoint_available = has_previous_stop(state->color_stops, state->selected_color_stop);
+        state->stop_midpoint->setValue(
+            static_cast<int>(std::lround(std::clamp(stop.midpoint, 0.05F, 0.95F) * 100.0F)));
       } else {
         const auto& stop = state->alpha_stops[static_cast<std::size_t>(state->selected_alpha_stop)];
         state->stop_location->setValue(
@@ -609,7 +683,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         state->stop_opacity->setValue(
             static_cast<int>(std::lround(std::clamp(stop.opacity, 0.0F, 1.0F) * 100.0F)));
         state->remove_stop->setEnabled(state->alpha_stops.size() > 2U);
+        midpoint_available = has_previous_stop(state->alpha_stops, state->selected_alpha_stop);
+        state->stop_midpoint->setValue(
+            static_cast<int>(std::lround(std::clamp(stop.midpoint, 0.05F, 0.95F) * 100.0F)));
       }
+      state->stop_midpoint_label->setEnabled(midpoint_available);
+      state->stop_midpoint->setEnabled(midpoint_available);
     };
     state->load = [state](const LayerStyleGradient& value) {
       state->loading = true;
@@ -656,6 +735,28 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       }
       state->alpha_stops[static_cast<std::size_t>(row)].location =
           static_cast<float>(std::clamp(location, 0, 100)) / 100.0F;
+      state->update_previews();
+      notify_changed(false);
+    };
+    state->editor->color_midpoint_changed = [state, notify_changed](int row, int midpoint) {
+      if (row < 0 || row >= static_cast<int>(state->color_stops.size())) {
+        return;
+      }
+      state->color_stops[static_cast<std::size_t>(row)].midpoint =
+          static_cast<float>(std::clamp(midpoint, 5, 95)) / 100.0F;
+      state->selected_color_stop = row;
+      state->selected_alpha_stop = -1;
+      state->update_previews();
+      notify_changed(false);
+    };
+    state->editor->opacity_midpoint_changed = [state, notify_changed](int row, int midpoint) {
+      if (row < 0 || row >= static_cast<int>(state->alpha_stops.size())) {
+        return;
+      }
+      state->alpha_stops[static_cast<std::size_t>(row)].midpoint =
+          static_cast<float>(std::clamp(midpoint, 5, 95)) / 100.0F;
+      state->selected_alpha_stop = row;
+      state->selected_color_stop = -1;
       state->update_previews();
       notify_changed(false);
     };
@@ -719,6 +820,24 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                        } else if (state->selected_alpha_stop >= 0 &&
                                   state->selected_alpha_stop < static_cast<int>(state->alpha_stops.size())) {
                          state->alpha_stops[static_cast<std::size_t>(state->selected_alpha_stop)].location = location;
+                       } else {
+                         return;
+                       }
+                       state->update_previews();
+                       notify_changed(false);
+                     });
+    QObject::connect(state->stop_midpoint, qOverload<int>(&QSpinBox::valueChanged), &dialog,
+                     [state, notify_changed](int value) {
+                       if (state->loading || !state->stop_midpoint->isEnabled()) {
+                         return;
+                       }
+                       const auto midpoint = static_cast<float>(std::clamp(value, 5, 95)) / 100.0F;
+                       if (state->selected_color_stop >= 0 &&
+                           state->selected_color_stop < static_cast<int>(state->color_stops.size())) {
+                         state->color_stops[static_cast<std::size_t>(state->selected_color_stop)].midpoint = midpoint;
+                       } else if (state->selected_alpha_stop >= 0 &&
+                                  state->selected_alpha_stop < static_cast<int>(state->alpha_stops.size())) {
+                         state->alpha_stops[static_cast<std::size_t>(state->selected_alpha_stop)].midpoint = midpoint;
                        } else {
                          return;
                        }
@@ -861,6 +980,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* stroke_layout = make_page(QStringLiteral("layerStyleStrokePage"));
   auto* inner_shadow_layout = make_page(QStringLiteral("layerStyleInnerShadowPage"));
   auto* inner_glow_layout = make_page(QStringLiteral("layerStyleInnerGlowPage"));
+  auto* satin_layout = make_page(QStringLiteral("layerStyleSatinPage"));
   auto* color_overlay_layout = make_page(QStringLiteral("layerStyleColorOverlayPage"));
   auto* gradient_layout = make_page(QStringLiteral("layerStyleGradientOverlayPage"));
   auto* outer_glow_layout = make_page(QStringLiteral("layerStyleOuterGlowPage"));
@@ -1187,6 +1307,61 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   inner_glow_layout->addWidget(inner_glow_group);
   inner_glow_layout->addStretch(1);
 
+  auto* satin_group = new QGroupBox(QObject::tr("Satin"), controls);
+  auto* satin_form = new QFormLayout(satin_group);
+  auto* satin_blend = new QComboBox(satin_group);
+  satin_blend->setObjectName(QStringLiteral("layerStyleSatinBlendModeCombo"));
+  add_blend_mode_items(satin_blend);
+  satin_blend->setCurrentIndex(std::max(0, satin_blend->findData(static_cast<int>(satin.blend_mode))));
+  satin_form->addRow(QObject::tr("Blend Mode"), satin_blend);
+  auto* satin_opacity =
+      add_slider_spin_row(satin_form, satin_group, QObject::tr("Opacity"),
+                          QStringLiteral("layerStyleSatinOpacitySpin"), 0, 100,
+                          static_cast<int>(std::round(satin.opacity * 100.0F)), QStringLiteral("%"));
+  auto* satin_angle =
+      add_slider_spin_row(satin_form, satin_group, QObject::tr("Angle"),
+                          QStringLiteral("layerStyleSatinAngleSpin"), -180, 180,
+                          static_cast<int>(std::round(satin.angle_degrees)));
+  auto* satin_distance =
+      add_slider_spin_row(satin_form, satin_group, QObject::tr("Distance"),
+                          QStringLiteral("layerStyleSatinDistanceSpin"), 0, 1000,
+                          static_cast<int>(std::round(satin.distance)));
+  auto* satin_size = add_slider_spin_row(satin_form, satin_group, QObject::tr("Size"),
+                                         QStringLiteral("layerStyleSatinSizeSpin"), 0, 1000,
+                                         static_cast<int>(std::round(satin.size)));
+  auto* satin_invert = new QCheckBox(QObject::tr("Invert"), satin_group);
+  satin_invert->setObjectName(QStringLiteral("layerStyleSatinInvertCheck"));
+  satin_invert->setChecked(satin.invert);
+  satin_form->addRow(QString(), satin_invert);
+  auto* satin_color_row = new QWidget(satin_group);
+  auto* satin_color_layout = new QVBoxLayout(satin_color_row);
+  satin_color_layout->setContentsMargins(0, 0, 0, 0);
+  satin_color_layout->setSpacing(4);
+  auto* satin_red = add_color_slider_row(satin_color_layout, satin_color_row, QObject::tr("R"),
+                                         QStringLiteral("layerStyleSatinRedSpin"), satin.color.red);
+  auto* satin_green = add_color_slider_row(satin_color_layout, satin_color_row, QObject::tr("G"),
+                                           QStringLiteral("layerStyleSatinGreenSpin"), satin.color.green);
+  auto* satin_blue = add_color_slider_row(satin_color_layout, satin_color_row, QObject::tr("B"),
+                                          QStringLiteral("layerStyleSatinBlueSpin"), satin.color.blue);
+  auto* satin_preview_row = new QWidget(satin_color_row);
+  auto* satin_preview_layout = new QHBoxLayout(satin_preview_row);
+  satin_preview_layout->setContentsMargins(26, 0, 0, 0);
+  satin_preview_layout->setSpacing(8);
+  auto* satin_color_preview = new QPushButton(satin_preview_row);
+  satin_color_preview->setObjectName(QStringLiteral("layerStyleSatinColorPreview"));
+  satin_color_preview->setFixedSize(28, 22);
+  satin_color_preview->setToolTip(QObject::tr("Choose Color..."));
+  satin_preview_layout->addWidget(satin_color_preview);
+  satin_preview_layout->addStretch(1);
+  satin_color_layout->addWidget(satin_preview_row);
+  auto update_satin_color_preview = [satin_color_preview, satin_red, satin_green, satin_blue] {
+    update_color_preview_label(satin_color_preview, satin_red->value(), satin_green->value(), satin_blue->value());
+  };
+  update_satin_color_preview();
+  satin_form->addRow(QObject::tr("Color RGB"), satin_color_row);
+  satin_layout->addWidget(satin_group);
+  satin_layout->addStretch(1);
+
   auto* color_overlay_group = new QGroupBox(QObject::tr("Color Overlay"), controls);
   auto* color_overlay_form = new QFormLayout(color_overlay_group);
   auto* color_overlay_blend = new QComboBox(color_overlay_group);
@@ -1384,7 +1559,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   };
   auto is_stackable_kind = [](LayerStyleEffectKind kind) {
     return kind == LayerStyleEffectKind::Stroke || kind == LayerStyleEffectKind::InnerShadow ||
-           kind == LayerStyleEffectKind::InnerGlow || kind == LayerStyleEffectKind::ColorOverlay ||
+           kind == LayerStyleEffectKind::InnerGlow || kind == LayerStyleEffectKind::Satin ||
+           kind == LayerStyleEffectKind::ColorOverlay ||
            kind == LayerStyleEffectKind::GradientOverlay || kind == LayerStyleEffectKind::OuterGlow ||
            kind == LayerStyleEffectKind::DropShadow;
   };
@@ -1396,6 +1572,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return source.inner_shadows.size();
       case LayerStyleEffectKind::InnerGlow:
         return source.inner_glows.size();
+      case LayerStyleEffectKind::Satin:
+        return source.satins.size();
       case LayerStyleEffectKind::ColorOverlay:
         return source.color_overlays.size();
       case LayerStyleEffectKind::GradientOverlay:
@@ -1434,6 +1612,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       target.inner_glows.push_back(default_inner_glow());
     }
     return target.inner_glows[static_cast<std::size_t>(std::max(0, index))];
+  };
+  auto ensure_satin = [](LayerStyle& target, int index) -> LayerSatin& {
+    while (index >= 0 && target.satins.size() <= static_cast<std::size_t>(index)) {
+      target.satins.push_back(default_satin());
+    }
+    return target.satins[static_cast<std::size_t>(std::max(0, index))];
   };
   auto ensure_color_overlay = [](LayerStyle& target, int index) -> LayerColorOverlay& {
     while (index >= 0 && target.color_overlays.size() <= static_cast<std::size_t>(index)) {
@@ -1483,6 +1667,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         case LayerStyleEffectKind::InnerGlow:
           if (enabled || result.inner_glows.size() > static_cast<std::size_t>(std::max(0, index))) {
             ensure_inner_glow(result, index).enabled = enabled;
+          }
+          break;
+        case LayerStyleEffectKind::Satin:
+          if (enabled || result.satins.size() > static_cast<std::size_t>(std::max(0, index))) {
+            ensure_satin(result, index).enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::ColorOverlay:
@@ -1587,6 +1776,23 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                 static_cast<std::uint8_t>(inner_glow_blue->value())};
         break;
       }
+      case LayerStyleEffectKind::Satin: {
+        if (!enabled && result.satins.size() <= static_cast<std::size_t>(index)) {
+          return;
+        }
+        auto& target = ensure_satin(result, index);
+        target.enabled = enabled;
+        target.blend_mode = static_cast<BlendMode>(satin_blend->currentData().toInt());
+        target.opacity = static_cast<float>(satin_opacity->value()) / 100.0F;
+        target.angle_degrees = static_cast<float>(satin_angle->value());
+        target.distance = static_cast<float>(satin_distance->value());
+        target.size = static_cast<float>(satin_size->value());
+        target.invert = satin_invert->isChecked();
+        target.color = RgbColor{static_cast<std::uint8_t>(satin_red->value()),
+                                static_cast<std::uint8_t>(satin_green->value()),
+                                static_cast<std::uint8_t>(satin_blue->value())};
+        break;
+      }
       case LayerStyleEffectKind::ColorOverlay: {
         if (!enabled && result.color_overlays.size() <= static_cast<std::size_t>(index)) {
           return;
@@ -1661,6 +1867,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     result.layer_mask_hides_effects = mask_hides_effects->isChecked();
     apply_enabled_states(result);
     save_controls_to_style(result, category);
+    // Accepting any style edit regenerates the complete native lfx2 descriptor.
+    // Every modeled Satin is therefore written with the Linear contour, even
+    // when a different effect page is active.
+    for (auto& satin : result.satins) {
+      satin.unsupported_contour_options = false;
+    }
     return LayerStyleSettings{opacity->value(), static_cast<BlendMode>(blend->currentData().toInt()),
                               std::move(result)};
   };
@@ -1738,6 +1950,21 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         inner_glow_blue->setValue(value.color.blue);
         break;
       }
+      case LayerStyleEffectKind::Satin: {
+        const auto value = style.satins.size() > static_cast<std::size_t>(index)
+                               ? style.satins[static_cast<std::size_t>(index)]
+                               : default_satin();
+        set_combo_data(satin_blend, static_cast<int>(value.blend_mode));
+        satin_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
+        satin_angle->setValue(static_cast<int>(std::round(value.angle_degrees)));
+        satin_distance->setValue(static_cast<int>(std::round(value.distance)));
+        satin_size->setValue(static_cast<int>(std::round(value.size)));
+        satin_invert->setChecked(value.invert);
+        satin_red->setValue(value.color.red);
+        satin_green->setValue(value.color.green);
+        satin_blue->setValue(value.color.blue);
+        break;
+      }
       case LayerStyleEffectKind::ColorOverlay: {
         const auto value = style.color_overlays.size() > static_cast<std::size_t>(index)
                                ? style.color_overlays[static_cast<std::size_t>(index)]
@@ -1799,6 +2026,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     stroke_gradient_controls->update_previews();
     update_outer_glow_color_preview();
     update_inner_glow_color_preview();
+    update_satin_color_preview();
     update_shadow_color_preview();
     update_inner_shadow_color_preview();
     loading_controls = false;
@@ -1824,6 +2052,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return duplicate(style.inner_shadows, [] { return default_inner_shadow(); });
       case LayerStyleEffectKind::InnerGlow:
         return duplicate(style.inner_glows, [] { return default_inner_glow(); });
+      case LayerStyleEffectKind::Satin:
+        return duplicate(style.satins, [] { return default_satin(); });
       case LayerStyleEffectKind::ColorOverlay:
         return duplicate(style.color_overlays, [] { return default_color_overlay(); });
       case LayerStyleEffectKind::GradientOverlay:
@@ -1853,6 +2083,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return remove(style.inner_shadows);
       case LayerStyleEffectKind::InnerGlow:
         return remove(style.inner_glows);
+      case LayerStyleEffectKind::Satin:
+        return remove(style.satins);
       case LayerStyleEffectKind::ColorOverlay:
         return remove(style.color_overlays);
       case LayerStyleEffectKind::GradientOverlay:
@@ -1878,6 +2110,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return indexed_object_name(QStringLiteral("layerStyleInnerShadowCategoryCheck"), index);
       case LayerStyleEffectKind::InnerGlow:
         return indexed_object_name(QStringLiteral("layerStyleInnerGlowCategoryCheck"), index);
+      case LayerStyleEffectKind::Satin:
+        return indexed_object_name(QStringLiteral("layerStyleSatinCategoryCheck"), index);
       case LayerStyleEffectKind::ColorOverlay:
         return indexed_object_name(QStringLiteral("layerStyleColorOverlayCategoryCheck"), index);
       case LayerStyleEffectKind::GradientOverlay:
@@ -1899,6 +2133,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return indexed_object_name(QStringLiteral("layerStyleAddInnerShadowInstanceButton"), index);
       case LayerStyleEffectKind::InnerGlow:
         return indexed_object_name(QStringLiteral("layerStyleAddInnerGlowInstanceButton"), index);
+      case LayerStyleEffectKind::Satin:
+        return indexed_object_name(QStringLiteral("layerStyleAddSatinInstanceButton"), index);
       case LayerStyleEffectKind::ColorOverlay:
         return indexed_object_name(QStringLiteral("layerStyleAddColorOverlayInstanceButton"), index);
       case LayerStyleEffectKind::GradientOverlay:
@@ -1921,6 +2157,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return QObject::tr("Add Inner Shadow");
       case LayerStyleEffectKind::InnerGlow:
         return QObject::tr("Add Inner Glow");
+      case LayerStyleEffectKind::Satin:
+        return QObject::tr("Add Satin");
       case LayerStyleEffectKind::ColorOverlay:
         return QObject::tr("Add Color Overlay");
       case LayerStyleEffectKind::GradientOverlay:
@@ -2056,6 +2294,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                     LayerStyleEffectKind::InnerShadow, style.inner_shadows);
     add_vector_rows(QObject::tr("Inner Glow"), LayerStyleCategoryPage::InnerGlow, LayerStyleEffectKind::InnerGlow,
                     style.inner_glows);
+    add_vector_rows(QObject::tr("Satin"), LayerStyleCategoryPage::Satin, LayerStyleEffectKind::Satin, style.satins);
     add_vector_rows(QObject::tr("Color Overlay"), LayerStyleCategoryPage::ColorOverlay,
                     LayerStyleEffectKind::ColorOverlay, style.color_overlays);
     add_vector_rows(QObject::tr("Gradient Overlay"), LayerStyleCategoryPage::GradientOverlay,
@@ -2089,6 +2328,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     stroke_gradient_controls->update_previews();
     update_outer_glow_color_preview();
     update_inner_glow_color_preview();
+    update_satin_color_preview();
     update_shadow_color_preview();
     update_inner_shadow_color_preview();
     auto settings = build_current_settings();
@@ -2134,10 +2374,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   for (auto* spin : {bevel_size, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
                      bevel_shadow_opacity, stroke_size, stroke_opacity, stroke_red, stroke_green, stroke_blue,
                      color_overlay_opacity, color_overlay_red, color_overlay_green, color_overlay_blue,
-                     gradient_opacity, outer_glow_opacity, outer_glow_size,
-                     outer_glow_spread, outer_glow_red, outer_glow_green, outer_glow_blue, inner_glow_opacity,
-                     inner_glow_size, inner_glow_choke, inner_glow_red, inner_glow_green, inner_glow_blue,
-                     shadow_opacity, shadow_angle, shadow_distance, shadow_size, shadow_spread, shadow_red,
+                     gradient_opacity, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_red,
+                     outer_glow_green, outer_glow_blue, inner_glow_opacity, inner_glow_size, inner_glow_choke,
+                     inner_glow_red, inner_glow_green, inner_glow_blue, satin_opacity, satin_angle, satin_distance,
+                     satin_size, satin_red, satin_green, satin_blue, shadow_opacity, shadow_angle, shadow_distance,
+                     shadow_size, shadow_spread, shadow_red,
                      shadow_green, shadow_blue, inner_shadow_opacity, inner_shadow_angle, inner_shadow_distance,
                      inner_shadow_size, inner_shadow_choke, inner_shadow_red, inner_shadow_green, inner_shadow_blue}) {
     QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
@@ -2156,7 +2397,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(inner_glow_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(inner_glow_source, &QComboBox::currentIndexChanged, &dialog,
+                    [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(satin_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(satin_invert, &QCheckBox::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(shadow_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(inner_shadow_blend, &QComboBox::currentIndexChanged, &dialog,
@@ -2246,6 +2491,18 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     inner_glow_red->setValue(chosen->red());
     inner_glow_green->setValue(chosen->green());
     inner_glow_blue->setValue(chosen->blue());
+    emit_preview(true);
+  });
+  QObject::connect(satin_color_preview, &QPushButton::clicked, &dialog, [&] {
+    const auto chosen =
+        request_patchy_color(&dialog, QColor(satin_red->value(), satin_green->value(), satin_blue->value()),
+                             QObject::tr("Choose Satin Color"));
+    if (!chosen.has_value()) {
+      return;
+    }
+    satin_red->setValue(chosen->red());
+    satin_green->setValue(chosen->green());
+    satin_blue->setValue(chosen->blue());
     emit_preview(true);
   });
   QObject::connect(shadow_color_preview, &QPushButton::clicked, &dialog, [&] {

@@ -253,7 +253,15 @@ float gradient_stop_opacity(const LayerStyleGradient& gradient, float position) 
     const auto& left = stops[index - 1U];
     if (position <= right.location) {
       const auto span = std::max(0.0001F, right.location - left.location);
-      const auto t = (position - left.location) / span;
+      auto t = (position - left.location) / span;
+      // Keep the historical default path instruction-for-instruction identical.
+      // Non-default Photoshop midpoints remap the segment around its 50% value.
+      if (right.midpoint != 0.5F) {
+        t = std::clamp(t, 0.0F, 1.0F);
+        const auto midpoint = std::clamp(right.midpoint, 0.0001F, 0.9999F);
+        t = t <= midpoint ? 0.5F * t / midpoint
+                          : 0.5F + 0.5F * (t - midpoint) / (1.0F - midpoint);
+      }
       return left.opacity + (right.opacity - left.opacity) * t;
     }
   }
@@ -277,7 +285,13 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position) {
     const auto& left = stops[index - 1U];
     if (position <= right.location) {
       const auto span = std::max(0.0001F, right.location - left.location);
-      const auto t = (position - left.location) / span;
+      auto t = (position - left.location) / span;
+      if (right.midpoint != 0.5F) {
+        t = std::clamp(t, 0.0F, 1.0F);
+        const auto midpoint = std::clamp(right.midpoint, 0.0001F, 0.9999F);
+        t = t <= midpoint ? 0.5F * t / midpoint
+                          : 0.5F + 0.5F * (t - midpoint) / (1.0F - midpoint);
+      }
       return RgbColor{clamp_byte(static_cast<float>(left.color.red) +
                                  (static_cast<float>(right.color.red) - static_cast<float>(left.color.red)) * t),
                       clamp_byte(static_cast<float>(left.color.green) +

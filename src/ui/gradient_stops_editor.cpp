@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <numeric>
 #include <utility>
 
 namespace patchy::ui {
@@ -24,6 +25,27 @@ constexpr int kOpacityAreaHeight = 28;
 
 QColor qcolor_from_edit_color(EditColor color) {
   return QColor(color.r, color.g, color.b, color.a);
+}
+
+template <typename Stop>
+std::vector<int> sorted_stop_rows(const std::vector<Stop>& stops) {
+  std::vector<int> rows(stops.size());
+  std::iota(rows.begin(), rows.end(), 0);
+  std::stable_sort(rows.begin(), rows.end(), [&](int lhs, int rhs) {
+    return stops[static_cast<std::size_t>(lhs)].location < stops[static_cast<std::size_t>(rhs)].location;
+  });
+  return rows;
+}
+
+QPainterPath midpoint_diamond(QPointF center) {
+  constexpr double radius = 4.5;
+  QPainterPath path;
+  path.moveTo(center.x(), center.y() - radius);
+  path.lineTo(center.x() + radius, center.y());
+  path.lineTo(center.x(), center.y() + radius);
+  path.lineTo(center.x() - radius, center.y());
+  path.closeSubpath();
+  return path;
 }
 
 }  // namespace
@@ -50,12 +72,22 @@ QSize GradientStopsEditorWidget::sizeHint() const {
 
 void GradientStopsEditorWidget::set_stops(std::vector<GradientStop> stops) {
   stops_ = std::move(stops);
+  if (color_midpoints_.size() != stops_.size()) {
+    color_midpoints_.assign(stops_.size(), 0.5F);
+  }
   // Two-track mode allows no color selection while an opacity stop is selected;
   // only an existing color selection is clamped. Single-track keeps the legacy
   // "always select something" clamp.
   if (!opacity_track_enabled_ || current_row_ >= 0) {
     current_row_ = stops_.empty() ? -1 : std::clamp(current_row_, 0, static_cast<int>(stops_.size()) - 1);
   }
+  update_cursor(mapFromGlobal(QCursor::pos()));
+  update();
+}
+
+void GradientStopsEditorWidget::set_color_midpoints(std::vector<float> midpoints) {
+  color_midpoints_ = std::move(midpoints);
+  color_midpoints_.resize(stops_.size(), 0.5F);
   update_cursor(mapFromGlobal(QCursor::pos()));
   update();
 }
@@ -124,29 +156,34 @@ void GradientStopsEditorWidget::paintEvent(QPaintEvent* event) {
       gradient.setColorAt(static_cast<double>(stop.location), qcolor_from_edit_color(stop.color));
     }
   } else {
-    // Composite the color ramp with the opacity ramp: sample at the union of
-    // both tracks' knot locations (both ramps are piecewise linear, so between
-    // union knots the product is close enough for a preview).
-    auto opaque_stops = stops_;
-    for (auto& stop : opaque_stops) {
-      stop.color.a = 255;
+    // Color and opacity can have different midpoint curves, so their product is
+    // not piecewise linear at the union of their knots. Sampling once per bar
+    // pixel is bounded UI work and keeps the preview faithful to the renderer.
+    LayerStyleGradient ramp;
+    ramp.color_stops.reserve(stops_.size());
+    for (std::size_t index = 0; index < stops_.size(); ++index) {
+      const auto& stop = stops_[index];
+      ramp.color_stops.push_back(GradientColorStop{
+          stop.location, RgbColor{stop.color.r, stop.color.g, stop.color.b},
+          index < color_midpoints_.size() ? color_midpoints_[index] : 0.5F});
     }
-    const auto sorted_colors = normalized_gradient_stops(opaque_stops);
-    std::vector<float> knots{0.0F, 1.0F};
-    knots.reserve(knots.size() + sorted_colors.size() + opacity_stops_.size());
-    for (const auto& stop : sorted_colors) {
-      knots.push_back(std::clamp(stop.location, 0.0F, 1.0F));
-    }
-    for (const auto& stop : opacity_stops_) {
-      knots.push_back(std::clamp(stop.location, 0.0F, 1.0F));
-    }
-    std::sort(knots.begin(), knots.end());
-    knots.erase(std::unique(knots.begin(), knots.end()), knots.end());
-    for (const auto knot : knots) {
-      const auto color = gradient_color_at(sorted_colors, 1.0F, false, static_cast<double>(knot));
-      const auto alpha = std::clamp(opacity_at(static_cast<double>(knot)), 0.0F, 1.0F);
+    ramp.alpha_stops = opacity_stops_;
+    std::stable_sort(ramp.color_stops.begin(), ramp.color_stops.end(),
+                     [](const GradientColorStop& lhs, const GradientColorStop& rhs) {
+                       return lhs.location < rhs.location;
+                     });
+    std::stable_sort(ramp.alpha_stops.begin(), ramp.alpha_stops.end(),
+                     [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) {
+                       return lhs.location < rhs.location;
+                     });
+    const auto sample_count = std::clamp(bar.width(), 2, 1024);
+    for (int sample = 0; sample < sample_count; ++sample) {
+      const auto knot = static_cast<float>(sample) / static_cast<float>(sample_count - 1);
+      const auto color = gradient_color(ramp, knot);
+      const auto alpha = std::clamp(gradient_stop_opacity(ramp, knot), 0.0F, 1.0F);
       gradient.setColorAt(static_cast<double>(knot),
-                          QColor(color.r, color.g, color.b, static_cast<int>(std::lround(alpha * 255.0F))));
+                          QColor(color.red, color.green, color.blue,
+                                 static_cast<int>(std::lround(alpha * 255.0F))));
     }
   }
   painter.fillRect(bar, gradient);
@@ -157,6 +194,30 @@ void GradientStopsEditorWidget::paintEvent(QPaintEvent* event) {
   painter.drawRect(bar);
 
   painter.setRenderHint(QPainter::Antialiasing, true);
+  if (opacity_track_enabled_) {
+    for (int row = 0; row < static_cast<int>(stops_.size()); ++row) {
+      const auto path = color_midpoint_path(row);
+      if (!path.isEmpty()) {
+        painter.setPen(QPen(active_midpoint_ && active_track_ == Track::Color && active_row_ == row
+                                ? QColor(76, 154, 255)
+                                : QColor(235, 238, 243),
+                            1.5));
+        painter.setBrush(QColor(95, 103, 114));
+        painter.drawPath(path);
+      }
+    }
+    for (int row = 0; row < static_cast<int>(opacity_stops_.size()); ++row) {
+      const auto path = opacity_midpoint_path(row);
+      if (!path.isEmpty()) {
+        painter.setPen(QPen(active_midpoint_ && active_track_ == Track::Opacity && active_row_ == row
+                                ? QColor(76, 154, 255)
+                                : QColor(235, 238, 243),
+                            1.5));
+        painter.setBrush(QColor(95, 103, 114));
+        painter.drawPath(path);
+      }
+    }
+  }
   for (int row = 0; row < static_cast<int>(stops_.size()); ++row) {
     if (active_track_ == Track::Color && row == active_row_ && pending_delete_) {
       continue;
@@ -188,12 +249,43 @@ void GradientStopsEditorWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   const auto pos = event->position().toPoint();
+  const int opacity_midpoint_hit = hit_opacity_midpoint(pos);
+  const int color_midpoint_hit = hit_color_midpoint(pos);
+  if (opacity_midpoint_hit >= 0 || color_midpoint_hit >= 0) {
+    const bool opacity_track = opacity_midpoint_hit >= 0;
+    active_track_ = opacity_track ? Track::Opacity : Track::Color;
+    active_row_ = opacity_track ? opacity_midpoint_hit : color_midpoint_hit;
+    active_midpoint_ = true;
+    press_position_ = pos;
+    dragging_ = true;
+    pending_delete_ = false;
+    open_color_on_release_ = false;
+    if (opacity_track) {
+      current_opacity_row_ = active_row_;
+      current_row_ = -1;
+      if (opacity_stop_selected) {
+        opacity_stop_selected(active_row_);
+      }
+    } else {
+      current_row_ = active_row_;
+      current_opacity_row_ = -1;
+      if (stop_selected) {
+        stop_selected(active_row_);
+      }
+    }
+    update_cursor(pos);
+    update();
+    event->accept();
+    return;
+  }
+
   const int opacity_hit = hit_opacity_stop(pos);
   if (opacity_hit >= 0) {
     current_opacity_row_ = opacity_hit;
     current_row_ = -1;
     active_track_ = Track::Opacity;
     active_row_ = opacity_hit;
+    active_midpoint_ = false;
     press_position_ = pos;
     dragging_ = false;
     pending_delete_ = false;
@@ -216,6 +308,7 @@ void GradientStopsEditorWidget::mousePressEvent(QMouseEvent* event) {
     }
     active_track_ = Track::Color;
     active_row_ = hit;
+    active_midpoint_ = false;
     press_position_ = pos;
     dragging_ = false;
     pending_delete_ = false;
@@ -232,8 +325,13 @@ void GradientStopsEditorWidget::mousePressEvent(QMouseEvent* event) {
   if (current_row_ >= 0 && current_row_ < static_cast<int>(stops_.size()) && bar_rect().contains(pos)) {
     const double position = position_from_x(pos.x());
     if (stop_color_picked) {
-      const auto color = gradient_color_at(normalized_gradient_stops(stops_), 1.0F, false, position);
-      stop_color_picked(current_row_, QColor(color.r, color.g, color.b));
+      if (opacity_track_enabled_) {
+        const auto color = style_color_at(position);
+        stop_color_picked(current_row_, QColor(color.red, color.green, color.blue));
+      } else {
+        const auto color = gradient_color_at(normalized_gradient_stops(stops_), 1.0F, false, position);
+        stop_color_picked(current_row_, QColor(color.r, color.g, color.b));
+      }
     }
     event->accept();
     return;
@@ -255,6 +353,7 @@ void GradientStopsEditorWidget::mousePressEvent(QMouseEvent* event) {
         current_row_ = -1;
         active_track_ = Track::Opacity;
         active_row_ = added_row;
+        active_midpoint_ = false;
         press_position_ = pos;
         dragging_ = true;
         pending_delete_ = false;
@@ -270,8 +369,15 @@ void GradientStopsEditorWidget::mousePressEvent(QMouseEvent* event) {
   if (handle_area_rect().contains(pos)) {
     const double position = position_from_x(pos.x());
     if (stop_add_requested) {
-      const int added_row = stop_add_requested(GradientStop{
-          static_cast<float>(position), gradient_color_at(normalized_gradient_stops(stops_), 1.0F, false, position)});
+      EditColor sampled_color;
+      if (opacity_track_enabled_) {
+        const auto color = style_color_at(position);
+        sampled_color = EditColor{color.red, color.green, color.blue, 255};
+      } else {
+        sampled_color = gradient_color_at(normalized_gradient_stops(stops_), 1.0F, false, position);
+      }
+      const int added_row =
+          stop_add_requested(GradientStop{static_cast<float>(position), sampled_color});
       if (added_row >= 0) {
         current_row_ = added_row;
         if (opacity_track_enabled_) {
@@ -279,6 +385,7 @@ void GradientStopsEditorWidget::mousePressEvent(QMouseEvent* event) {
         }
         active_track_ = Track::Color;
         active_row_ = added_row;
+        active_midpoint_ = false;
         press_position_ = pos;
         dragging_ = true;
         pending_delete_ = false;
@@ -297,6 +404,30 @@ void GradientStopsEditorWidget::mousePressEvent(QMouseEvent* event) {
 void GradientStopsEditorWidget::mouseMoveEvent(QMouseEvent* event) {
   const auto pos = event->position().toPoint();
   if ((event->buttons() & Qt::LeftButton) != 0 && active_row_ >= 0) {
+    if (active_midpoint_) {
+      const int previous = active_track_ == Track::Color ? previous_color_stop_row(active_row_)
+                                                          : previous_opacity_stop_row(active_row_);
+      if (previous >= 0) {
+        const auto left = active_track_ == Track::Color
+                              ? stops_[static_cast<std::size_t>(previous)].location
+                              : opacity_stops_[static_cast<std::size_t>(previous)].location;
+        const auto right = active_track_ == Track::Color
+                               ? stops_[static_cast<std::size_t>(active_row_)].location
+                               : opacity_stops_[static_cast<std::size_t>(active_row_)].location;
+        if (right > left) {
+          const auto relative = (static_cast<float>(position_from_x(pos.x())) - left) / (right - left);
+          const auto percent = std::clamp(static_cast<int>(std::lround(relative * 100.0F)), 5, 95);
+          if (active_track_ == Track::Color && color_midpoint_changed) {
+            color_midpoint_changed(active_row_, percent);
+          } else if (active_track_ == Track::Opacity && opacity_midpoint_changed) {
+            opacity_midpoint_changed(active_row_, percent);
+          }
+          event->accept();
+          return;
+        }
+      }
+    }
+
     const auto active_track_size = active_track_ == Track::Color ? stops_.size() : opacity_stops_.size();
     const bool in_delete_zone = is_delete_zone(active_track_, pos) && active_track_size > 2U;
     if (in_delete_zone) {
@@ -331,7 +462,17 @@ void GradientStopsEditorWidget::mouseMoveEvent(QMouseEvent* event) {
 void GradientStopsEditorWidget::mouseReleaseEvent(QMouseEvent* event) {
   const int row = active_row_;
   const auto track = active_track_;
+  const bool was_midpoint = active_midpoint_;
   active_row_ = -1;
+  active_midpoint_ = false;
+  if (event->button() == Qt::LeftButton && row >= 0 && was_midpoint) {
+    pending_delete_ = false;
+    open_color_on_release_ = false;
+    update_cursor(event->position().toPoint());
+    update();
+    event->accept();
+    return;
+  }
   const auto& delete_callback = track == Track::Color ? stop_delete_requested : opacity_stop_delete_requested;
   if (event->button() == Qt::LeftButton && row >= 0 && pending_delete_ && delete_callback) {
     pending_delete_ = false;
@@ -431,6 +572,46 @@ QPainterPath GradientStopsEditorWidget::opacity_handle_path(int row) const {
   return path;
 }
 
+int GradientStopsEditorWidget::previous_color_stop_row(int row) const {
+  const auto rows = sorted_stop_rows(stops_);
+  const auto found = std::find(rows.begin(), rows.end(), row);
+  return found == rows.end() || found == rows.begin() ? -1 : *(found - 1);
+}
+
+int GradientStopsEditorWidget::previous_opacity_stop_row(int row) const {
+  const auto rows = sorted_stop_rows(opacity_stops_);
+  const auto found = std::find(rows.begin(), rows.end(), row);
+  return found == rows.end() || found == rows.begin() ? -1 : *(found - 1);
+}
+
+QPainterPath GradientStopsEditorWidget::color_midpoint_path(int row) const {
+  const auto previous = previous_color_stop_row(row);
+  if (previous < 0 || row < 0 || row >= static_cast<int>(stops_.size())) {
+    return {};
+  }
+  const auto left = stops_[static_cast<std::size_t>(previous)].location;
+  const auto right = stops_[static_cast<std::size_t>(row)].location;
+  if (right <= left || static_cast<std::size_t>(row) >= color_midpoints_.size()) {
+    return {};
+  }
+  const auto location = left + (right - left) * std::clamp(color_midpoints_[static_cast<std::size_t>(row)], 0.0F, 1.0F);
+  return midpoint_diamond(QPointF(x_from_position(location), bar_rect().bottom() - 6.0));
+}
+
+QPainterPath GradientStopsEditorWidget::opacity_midpoint_path(int row) const {
+  const auto previous = previous_opacity_stop_row(row);
+  if (previous < 0 || row < 0 || row >= static_cast<int>(opacity_stops_.size())) {
+    return {};
+  }
+  const auto left = opacity_stops_[static_cast<std::size_t>(previous)].location;
+  const auto& right_stop = opacity_stops_[static_cast<std::size_t>(row)];
+  if (right_stop.location <= left) {
+    return {};
+  }
+  const auto location = left + (right_stop.location - left) * std::clamp(right_stop.midpoint, 0.0F, 1.0F);
+  return midpoint_diamond(QPointF(x_from_position(location), bar_rect().top() + 6.0));
+}
+
 int GradientStopsEditorWidget::hit_stop(QPoint pos) const {
   for (int row = static_cast<int>(stops_.size()) - 1; row >= 0; --row) {
     const auto widened = handle_path(row).controlPointRect().adjusted(-3.0, -3.0, 3.0, 3.0);
@@ -454,17 +635,64 @@ int GradientStopsEditorWidget::hit_opacity_stop(QPoint pos) const {
   return -1;
 }
 
+int GradientStopsEditorWidget::hit_color_midpoint(QPoint pos) const {
+  if (!opacity_track_enabled_) {
+    return -1;
+  }
+  for (int row = static_cast<int>(stops_.size()) - 1; row >= 0; --row) {
+    const auto path = color_midpoint_path(row);
+    if (!path.isEmpty() && path.controlPointRect().adjusted(-3.0, -3.0, 3.0, 3.0).contains(QPointF(pos))) {
+      return row;
+    }
+  }
+  return -1;
+}
+
+int GradientStopsEditorWidget::hit_opacity_midpoint(QPoint pos) const {
+  if (!opacity_track_enabled_) {
+    return -1;
+  }
+  for (int row = static_cast<int>(opacity_stops_.size()) - 1; row >= 0; --row) {
+    const auto path = opacity_midpoint_path(row);
+    if (!path.isEmpty() && path.controlPointRect().adjusted(-3.0, -3.0, 3.0, 3.0).contains(QPointF(pos))) {
+      return row;
+    }
+  }
+  return -1;
+}
+
 float GradientStopsEditorWidget::opacity_at(double position) const {
   LayerStyleGradient ramp;
   ramp.alpha_stops = opacity_stops_;
-  std::sort(ramp.alpha_stops.begin(), ramp.alpha_stops.end(),
-            [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
+  std::stable_sort(
+      ramp.alpha_stops.begin(), ramp.alpha_stops.end(),
+      [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
   return gradient_stop_opacity(ramp, static_cast<float>(position));
+}
+
+RgbColor GradientStopsEditorWidget::style_color_at(double position) const {
+  LayerStyleGradient ramp;
+  ramp.color_stops.reserve(stops_.size());
+  for (std::size_t index = 0; index < stops_.size(); ++index) {
+    const auto& stop = stops_[index];
+    ramp.color_stops.push_back(GradientColorStop{
+        stop.location, RgbColor{stop.color.r, stop.color.g, stop.color.b},
+        index < color_midpoints_.size() ? color_midpoints_[index] : 0.5F});
+  }
+  std::stable_sort(ramp.color_stops.begin(), ramp.color_stops.end(),
+                   [](const GradientColorStop& lhs, const GradientColorStop& rhs) {
+                     return lhs.location < rhs.location;
+                   });
+  return gradient_color(ramp, static_cast<float>(position));
 }
 
 void GradientStopsEditorWidget::update_cursor(QPoint pos) {
   if (!rect().contains(pos)) {
     unsetCursor();
+    return;
+  }
+  if (hit_color_midpoint(pos) >= 0 || hit_opacity_midpoint(pos) >= 0) {
+    setCursor(Qt::SizeHorCursor);
     return;
   }
   if (hit_stop(pos) >= 0 || hit_opacity_stop(pos) >= 0) {

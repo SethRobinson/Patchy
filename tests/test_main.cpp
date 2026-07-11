@@ -2519,6 +2519,257 @@ void compositor_renders_layer_style_color_overlay() {
   CHECK(px[2] == 20);
 }
 
+void gradient_midpoints_remap_color_and_alpha_segments() {
+  patchy::LayerStyleGradient identity;
+  identity.color_stops = {{0.0F, patchy::RgbColor{0, 0, 0}},
+                          {1.0F, patchy::RgbColor{255, 255, 255}}};
+  identity.alpha_stops = {{0.0F, 0.0F}, {1.0F, 1.0F}};
+
+  const auto identity_quarter = patchy::gradient_color(identity, 0.25F);
+  CHECK(identity_quarter.red == 64U);
+  CHECK(identity_quarter.green == 64U);
+  CHECK(identity_quarter.blue == 64U);
+  CHECK(std::abs(patchy::gradient_stop_opacity(identity, 0.25F) - 0.25F) < 1.0e-6F);
+
+  auto shifted = identity;
+  // Midpoints ride the destination stop. Values on the first stop are unused;
+  // the right stop says where this segment reaches its 50% blend.
+  shifted.color_stops.front().midpoint = 0.01F;
+  shifted.color_stops.back().midpoint = 0.25F;
+  shifted.alpha_stops.front().midpoint = 0.99F;
+  shifted.alpha_stops.back().midpoint = 0.75F;
+
+  const auto color_at_midpoint = patchy::gradient_color(shifted, 0.25F);
+  CHECK(color_at_midpoint.red == 128U);
+  CHECK(color_at_midpoint.green == 128U);
+  CHECK(color_at_midpoint.blue == 128U);
+  CHECK(std::abs(patchy::gradient_stop_opacity(shifted, 0.75F) - 0.5F) < 1.0e-6F);
+
+  // Both halves remain linear around the moved midpoint and still pin their
+  // endpoints. These values catch accidentally treating Mdpn as a global
+  // location or attaching it to the source stop.
+  CHECK(patchy::gradient_color(shifted, 0.125F).red == 64U);
+  CHECK(patchy::gradient_color(shifted, 0.625F).red == 191U);
+  CHECK(std::abs(patchy::gradient_stop_opacity(shifted, 0.375F) - 0.25F) < 1.0e-6F);
+  CHECK(std::abs(patchy::gradient_stop_opacity(shifted, 0.875F) - 0.75F) < 1.0e-6F);
+  CHECK(patchy::gradient_color(shifted, 0.0F).red == 0U);
+  CHECK(patchy::gradient_color(shifted, 1.0F).red == 255U);
+}
+
+void compositor_renders_photoshop_style_satin() {
+  const auto render = [](patchy::LayerSatin satin, patchy::RgbColor source_color,
+                         patchy::RgbColor background_color, patchy::Rect bounds) {
+    patchy::Document document(96, 96, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer(
+        "Background", solid_rgb(96, 96, background_color.red, background_color.green, background_color.blue));
+    patchy::Layer layer(document.allocate_layer_id(), "Satin",
+                        solid_rgba(bounds.width, bounds.height, source_color.red, source_color.green,
+                                   source_color.blue, 255));
+    auto& source = document.add_layer(std::move(layer));
+    source.set_bounds(bounds);
+    source.layer_style().satins.push_back(satin);
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+  const auto near_byte = [](std::uint8_t actual, int expected, int tolerance) {
+    CHECK(std::abs(static_cast<int>(actual) - expected) <= tolerance);
+  };
+  const auto near_float = [](float actual, float expected) {
+    CHECK(std::abs(actual - expected) <= 1.0e-6F);
+  };
+
+  // Satin uses Photoshop's exact separable tent. A vertical impulse is
+  // constant through the vertical pass at its center, exposing the horizontal
+  // [1,2,3,2,1] / 9 profile directly.
+  std::vector<float> impulse(9U * 9U, 0.0F);
+  for (int y = 0; y < 9; ++y) {
+    impulse[static_cast<std::size_t>(y * 9 + 4)] = 1.0F;
+  }
+  patchy::render_detail::blur_satin_tent_mask_in_place(impulse, 9, 9, 3.0F);
+  const std::array<float, 9> expected_size_three{0.0F, 0.0F, 1.0F / 9.0F, 2.0F / 9.0F, 3.0F / 9.0F,
+                                                 2.0F / 9.0F, 1.0F / 9.0F, 0.0F, 0.0F};
+  for (int x = 0; x < 9; ++x) {
+    near_float(impulse[static_cast<std::size_t>(4 * 9 + x)], expected_size_three[static_cast<std::size_t>(x)]);
+  }
+  std::fill(impulse.begin(), impulse.end(), 0.0F);
+  for (int x = 0; x < 9; ++x) {
+    impulse[static_cast<std::size_t>(4 * 9 + x)] = 1.0F;
+  }
+  patchy::render_detail::blur_satin_tent_mask_in_place(impulse, 9, 9, 3.0F);
+  for (int y = 0; y < 9; ++y) {
+    near_float(impulse[static_cast<std::size_t>(y * 9 + 4)], expected_size_three[static_cast<std::size_t>(y)]);
+  }
+  auto size_zero = std::vector<float>{-1.0F, -0.25F, 0.5F, 1.0F};
+  const auto size_zero_before = size_zero;
+  patchy::render_detail::blur_satin_tent_mask_in_place(size_zero, 2, 2, 0.0F);
+  CHECK(size_zero == size_zero_before);
+
+  std::fill(impulse.begin(), impulse.end(), 0.0F);
+  for (int y = 0; y < 9; ++y) {
+    impulse[static_cast<std::size_t>(y * 9 + 4)] = 1.0F;
+  }
+  patchy::render_detail::blur_satin_tent_mask_in_place(impulse, 9, 9, 1.0F);
+  near_float(impulse[static_cast<std::size_t>(4 * 9 + 3)], 0.25F);
+  near_float(impulse[static_cast<std::size_t>(4 * 9 + 4)], 0.5F);
+  near_float(impulse[static_cast<std::size_t>(4 * 9 + 5)], 0.25F);
+
+  patchy::LayerSatin satin;
+  satin.enabled = true;
+  satin.blend_mode = patchy::BlendMode::Normal;
+  satin.color = patchy::RgbColor{0, 0, 0};
+  satin.opacity = 1.0F;
+  satin.angle_degrees = 0.0F;
+  satin.distance = 10.0F;
+  satin.size = 4.0F;
+  satin.invert = false;
+  constexpr patchy::Rect kBounds{20, 20, 56, 56};
+  const auto horizontal = render(satin, {128, 128, 128}, {0, 0, 0}, kBounds);
+
+  // Exact Photoshop 2026 Size 4 transition over straight RGB 128. The signed
+  // band ends at x=29, then the [1,2,3,4,3,2,1] / 16 tent falls to zero.
+  const std::array<std::uint8_t, 7> expected_transition{8U, 24U, 48U, 80U, 104U, 120U, 128U};
+  for (int index = 0; index < static_cast<int>(expected_transition.size()); ++index) {
+    CHECK(horizontal.pixel(27 + index, 48)[0] == expected_transition[static_cast<std::size_t>(index)]);
+  }
+  CHECK(horizontal.pixel(20, 48)[0] == 0U);
+  CHECK(horizontal.pixel(48, 48)[0] == 128U);
+  CHECK(horizontal.pixel(48, 20)[0] == 128U);
+  // Satin is an interior effect: non-zero layer placement must not leak into
+  // the one-pixel exterior around the layer.
+  CHECK(horizontal.pixel(19, 48)[0] == 0U);
+  CHECK(horizontal.pixel(76, 48)[0] == 0U);
+
+  auto vertical_settings = satin;
+  vertical_settings.angle_degrees = 90.0F;
+  const auto vertical = render(vertical_settings, {128, 128, 128}, {0, 0, 0}, kBounds);
+  CHECK(vertical.pixel(48, 20)[0] == 0U);
+  CHECK(vertical.pixel(48, 48)[0] == 128U);
+  CHECK(vertical.pixel(20, 48)[0] == 128U);
+
+  auto oblique_settings = satin;
+  oblique_settings.angle_degrees = 30.0F;
+  oblique_settings.size = 0.0F;
+  const auto oblique = render(oblique_settings, {128, 128, 128}, {0, 0, 0}, kBounds);
+  // Photoshop resolves d=10 at 30 degrees to integral components |v|=(9,5).
+  CHECK(oblique.pixel(28, 48)[0] == 0U);
+  CHECK(oblique.pixel(29, 48)[0] == 128U);
+  CHECK(oblique.pixel(48, 24)[0] == 0U);
+  CHECK(oblique.pixel(48, 25)[0] == 128U);
+
+  auto inverted_settings = satin;
+  inverted_settings.invert = true;
+  const auto inverted = render(inverted_settings, {128, 128, 128}, {0, 0, 0}, kBounds);
+  for (const auto x : {20, 27, 28, 29, 30, 31, 32, 33, 48}) {
+    const auto sum = static_cast<int>(horizontal.pixel(x, 48)[0]) +
+                     static_cast<int>(inverted.pixel(x, 48)[0]);
+    CHECK(std::abs(sum - 128) <= 1);
+  }
+
+  auto short_distance = satin;
+  short_distance.distance = 2.0F;
+  const auto short_distance_render = render(short_distance, {128, 128, 128}, {0, 0, 0}, kBounds);
+  CHECK(horizontal.pixel(30, 48)[0] + 40 < short_distance_render.pixel(30, 48)[0]);
+
+  auto hard_settings = satin;
+  hard_settings.distance = 5.0F;
+  hard_settings.size = 0.0F;
+  const auto hard = render(hard_settings, {128, 128, 128}, {0, 0, 0}, kBounds);
+  auto zero_distance_settings = hard_settings;
+  zero_distance_settings.distance = 0.0F;
+  auto one_distance_settings = zero_distance_settings;
+  one_distance_settings.distance = 1.0F;
+  const auto zero_distance = render(zero_distance_settings, {128, 128, 128}, {0, 0, 0}, kBounds);
+  const auto one_distance = render(one_distance_settings, {128, 128, 128}, {0, 0, 0}, kBounds);
+  CHECK(zero_distance.data().size() == one_distance.data().size());
+  CHECK(std::equal(zero_distance.data().begin(), zero_distance.data().end(), one_distance.data().begin()));
+  CHECK(zero_distance.pixel(20, 48)[0] == 0U);
+  CHECK(zero_distance.pixel(21, 48)[0] == 128U);
+  CHECK(zero_distance.pixel(74, 48)[0] == 128U);
+  CHECK(zero_distance.pixel(75, 48)[0] == 0U);
+  CHECK(zero_distance.pixel(48, 48)[0] == 128U);
+  auto soft_settings = hard_settings;
+  soft_settings.size = 10.0F;
+  const auto soft = render(soft_settings, {128, 128, 128}, {0, 0, 0}, kBounds);
+  CHECK(soft.pixel(27, 48)[0] + 20 < hard.pixel(27, 48)[0]);
+
+  auto half_opacity = satin;
+  half_opacity.opacity = 0.5F;
+  const auto half = render(half_opacity, {128, 128, 128}, {0, 0, 0}, kBounds);
+  near_byte(half.pixel(20, 48)[0], 64, 1);
+
+  auto colored = satin;
+  colored.color = patchy::RgbColor{240, 40, 20};
+  colored.blend_mode = patchy::BlendMode::Normal;
+  const auto normal = render(colored, {120, 120, 120}, {0, 0, 0}, kBounds);
+  colored.blend_mode = patchy::BlendMode::Multiply;
+  const auto multiply = render(colored, {120, 120, 120}, {0, 0, 0}, kBounds);
+  colored.blend_mode = patchy::BlendMode::Screen;
+  const auto screen = render(colored, {120, 120, 120}, {0, 0, 0}, kBounds);
+  const auto* normal_edge = normal.pixel(20, 48);
+  const auto* multiply_edge = multiply.pixel(20, 48);
+  const auto* screen_edge = screen.pixel(20, 48);
+  CHECK(multiply_edge[0] < normal_edge[0]);
+  CHECK(multiply_edge[1] < normal_edge[1]);
+  CHECK(screen_edge[0] > normal_edge[0]);
+  CHECK(screen_edge[1] > normal_edge[1]);
+
+  auto disabled = satin;
+  disabled.enabled = false;
+  const auto unchanged = render(disabled, {37, 57, 77}, {3, 5, 7}, kBounds);
+  const auto* unchanged_inside = unchanged.pixel(48, 48);
+  CHECK(unchanged_inside[0] == 37U);
+  CHECK(unchanged_inside[1] == 57U);
+  CHECK(unchanged_inside[2] == 77U);
+
+  patchy::Document half_alpha_document(96, 96, patchy::PixelFormat::rgba8());
+  patchy::Layer half_alpha_layer(half_alpha_document.allocate_layer_id(), "Half-alpha Satin",
+                                 solid_rgba(56, 56, 128, 128, 128, 128));
+  auto& half_alpha_source = half_alpha_document.add_layer(std::move(half_alpha_layer));
+  half_alpha_source.set_bounds(kBounds);
+  auto half_alpha_satin = satin;
+  half_alpha_satin.size = 0.0F;
+  half_alpha_source.layer_style().satins.push_back(half_alpha_satin);
+  const auto half_alpha_result = patchy::flatten_document_rgba8(half_alpha_document);
+  const auto* half_alpha_band = half_alpha_result.pixel(20, 48);
+  CHECK(half_alpha_band[0] == 64U);
+  CHECK(half_alpha_band[1] == 64U);
+  CHECK(half_alpha_band[2] == 64U);
+  CHECK(half_alpha_band[3] == 128U);
+  const auto* half_alpha_center = half_alpha_result.pixel(48, 48);
+  CHECK(half_alpha_center[0] == 128U);
+  CHECK(half_alpha_center[1] == 128U);
+  CHECK(half_alpha_center[2] == 128U);
+  CHECK(half_alpha_center[3] == 128U);
+
+  patchy::Document half_alpha_backdrop_document(96, 96, patchy::PixelFormat::rgb8());
+  half_alpha_backdrop_document.add_pixel_layer("White", solid_rgb(96, 96, 255, 255, 255));
+  patchy::Layer half_alpha_backdrop_layer(half_alpha_backdrop_document.allocate_layer_id(), "Half-alpha Satin",
+                                          solid_rgba(56, 56, 128, 128, 128, 128));
+  auto& half_alpha_backdrop_source = half_alpha_backdrop_document.add_layer(std::move(half_alpha_backdrop_layer));
+  half_alpha_backdrop_source.set_bounds(kBounds);
+  half_alpha_backdrop_source.layer_style().satins.push_back(half_alpha_satin);
+  const auto half_alpha_backdrop_result = patchy::Compositor{}.flatten_rgb8(half_alpha_backdrop_document);
+  CHECK(half_alpha_backdrop_result.pixel(20, 48)[0] == 159U);
+  CHECK(half_alpha_backdrop_result.pixel(48, 48)[0] == 191U);
+
+  patchy::Document masked_document(96, 96, patchy::PixelFormat::rgb8());
+  masked_document.add_pixel_layer("Background", solid_rgb(96, 96, 0, 0, 0));
+  patchy::Layer masked_layer(masked_document.allocate_layer_id(), "Masked Satin",
+                             solid_rgba(56, 56, 0, 0, 0, 255));
+  auto& masked_source = masked_document.add_layer(std::move(masked_layer));
+  masked_source.set_bounds(kBounds);
+  patchy::PixelBuffer mask_pixels(28, 56, patchy::PixelFormat::gray8());
+  std::fill(mask_pixels.data().begin(), mask_pixels.data().end(), std::uint8_t{255});
+  masked_source.set_mask(patchy::LayerMask{patchy::Rect{20, 20, 28, 56}, std::move(mask_pixels), 0, false});
+  auto masked_satin = satin;
+  masked_satin.color = patchy::RgbColor{255, 255, 255};
+  masked_source.layer_style().satins.push_back(masked_satin);
+  const auto masked = patchy::Compositor{}.flatten_rgb8(masked_document);
+  // The mask reshapes both the Satin matte and its final interior clip. Its
+  // right edge becomes a new lobe, with no effect leaking into the hidden half.
+  CHECK(masked.pixel(47, 48)[0] > 240U);
+  CHECK(masked.pixel(48, 48)[0] == 0U);
+}
+
 void psd_flat_rgb8_round_trips() {
   patchy::Document document(2, 1, patchy::PixelFormat::rgb8());
   patchy::PixelBuffer pixels(2, 1, patchy::PixelFormat::rgb8());
@@ -5692,6 +5943,388 @@ void psd_generated_stroke_descriptors_match_photoshop_shape() {
   check_key_order(*offset, {{"Hrzn", false}, {"Vrtc", false}});
   CHECK(require_value(*offset, "Hrzn").unit == "#Prc");
   CHECK(require_value(*offset, "Vrtc").unit == "#Prc");
+}
+
+void psd_gradient_midpoints_write_mdpn_and_round_trip() {
+  using DescriptorType = patchy::psd::DescriptorValue::Type;
+
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Midpoint gradients", solid_rgba(4, 4, 40, 80, 120, 255));
+
+  patchy::LayerSatin satin;
+  satin.enabled = true;
+  satin.blend_mode = patchy::BlendMode::Screen;
+  satin.color = patchy::RgbColor{17, 83, 211};
+  satin.opacity = 0.37F;
+  satin.angle_degrees = -23.0F;
+  satin.distance = 9.0F;
+  satin.size = 6.0F;
+  satin.invert = false;
+  layer.layer_style().satins.push_back(satin);
+
+  patchy::LayerGradientFill fill;
+  fill.enabled = true;
+  fill.gradient.color_stops = {{0.0F, patchy::RgbColor{12, 34, 56}, 0.17F},
+                               {1.0F, patchy::RgbColor{210, 220, 230}, 0.23F}};
+  fill.gradient.alpha_stops = {{0.0F, 1.0F, 0.83F}, {1.0F, 0.4F, 0.77F}};
+  layer.layer_style().gradient_fills.push_back(fill);
+
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.size = 2.0F;
+  stroke.uses_gradient = true;
+  stroke.gradient = fill.gradient;
+  layer.layer_style().strokes.push_back(stroke);
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  std::filesystem::create_directories("test-artifacts");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      document, std::filesystem::path("test-artifacts") / "patchy-layer-style-4a-com.psd");
+  const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lfx2");
+  CHECK(payload.has_value());
+  patchy::psd::BigEndianReader reader(*payload);
+  CHECK(reader.read_u32() == 0U);
+  CHECK(reader.read_u32() == 16U);
+  const auto root = patchy::psd::read_descriptor(reader);
+
+  const auto check_gradient_midpoints = [&](std::string_view effect_key) {
+    const auto* effect = patchy::psd::descriptor_object(root, effect_key);
+    CHECK(effect != nullptr);
+    const auto* gradient = patchy::psd::descriptor_object(*effect, "Grad");
+    CHECK(gradient != nullptr);
+
+    const auto* colors = patchy::psd::descriptor_value(*gradient, "Clrs");
+    CHECK(colors != nullptr);
+    CHECK(colors->type == DescriptorType::List);
+    CHECK(colors->list_value.size() == 2);
+    CHECK(colors->list_value[0].object_value != nullptr);
+    CHECK(colors->list_value[1].object_value != nullptr);
+    const auto* first_color_midpoint =
+        patchy::psd::descriptor_value(*colors->list_value[0].object_value, "Mdpn");
+    const auto* second_color_midpoint =
+        patchy::psd::descriptor_value(*colors->list_value[1].object_value, "Mdpn");
+    CHECK(first_color_midpoint != nullptr);
+    CHECK(second_color_midpoint != nullptr);
+    CHECK(first_color_midpoint->type == DescriptorType::Integer);
+    CHECK(second_color_midpoint->type == DescriptorType::Integer);
+    CHECK(first_color_midpoint->integer_value == 17);
+    CHECK(second_color_midpoint->integer_value == 23);
+
+    const auto* transparency = patchy::psd::descriptor_value(*gradient, "Trns");
+    CHECK(transparency != nullptr);
+    CHECK(transparency->type == DescriptorType::List);
+    CHECK(transparency->list_value.size() == 2);
+    CHECK(transparency->list_value[0].object_value != nullptr);
+    CHECK(transparency->list_value[1].object_value != nullptr);
+    const auto* first_alpha_midpoint =
+        patchy::psd::descriptor_value(*transparency->list_value[0].object_value, "Mdpn");
+    const auto* second_alpha_midpoint =
+        patchy::psd::descriptor_value(*transparency->list_value[1].object_value, "Mdpn");
+    CHECK(first_alpha_midpoint != nullptr);
+    CHECK(second_alpha_midpoint != nullptr);
+    CHECK(first_alpha_midpoint->type == DescriptorType::Integer);
+    CHECK(second_alpha_midpoint->type == DescriptorType::Integer);
+    CHECK(first_alpha_midpoint->integer_value == 83);
+    CHECK(second_alpha_midpoint->integer_value == 77);
+  };
+  check_gradient_midpoints("GrFl");
+  check_gradient_midpoints("FrFX");
+
+  const auto round_tripped = patchy::psd::DocumentIo::read(bytes);
+  CHECK(round_tripped.layers().size() == 1);
+  const auto& style = round_tripped.layers().front().layer_style();
+  CHECK(style.gradient_fills.size() == 1);
+  CHECK(style.strokes.size() == 1);
+  for (const auto* gradient :
+       {&style.gradient_fills.front().gradient, &style.strokes.front().gradient}) {
+    CHECK(gradient->color_stops.size() == 2);
+    CHECK(gradient->alpha_stops.size() == 2);
+    CHECK(std::abs(gradient->color_stops[0].midpoint - 0.17F) < 1.0e-6F);
+    CHECK(std::abs(gradient->color_stops[1].midpoint - 0.23F) < 1.0e-6F);
+    CHECK(std::abs(gradient->alpha_stops[0].midpoint - 0.83F) < 1.0e-6F);
+    CHECK(std::abs(gradient->alpha_stops[1].midpoint - 0.77F) < 1.0e-6F);
+  }
+
+  patchy::Document hard_stop_document(4, 4, patchy::PixelFormat::rgb8());
+  auto& hard_stop_layer =
+      hard_stop_document.add_pixel_layer("Hard stop", solid_rgba(4, 4, 40, 80, 120, 255));
+  patchy::LayerGradientFill hard_stop_fill;
+  hard_stop_fill.enabled = true;
+  hard_stop_fill.gradient.color_stops = {
+      {0.0F, patchy::RgbColor{0, 0, 0}, 0.5F},
+      {0.5F, patchy::RgbColor{255, 0, 0}, 0.31F},
+      {0.5F, patchy::RgbColor{0, 255, 0}, 0.73F},
+      {1.0F, patchy::RgbColor{255, 255, 255}, 0.62F}};
+  hard_stop_fill.gradient.alpha_stops = {
+      {0.0F, 1.0F, 0.5F}, {0.5F, 0.8F, 0.22F},
+      {0.5F, 0.2F, 0.88F}, {1.0F, 1.0F, 0.44F}};
+  hard_stop_layer.layer_style().gradient_fills.push_back(hard_stop_fill);
+  const auto hard_stop_round_trip = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(hard_stop_document));
+  const auto& hard_gradient =
+      hard_stop_round_trip.layers().front().layer_style().gradient_fills.front().gradient;
+  CHECK(hard_gradient.color_stops.size() == 4);
+  CHECK(hard_gradient.color_stops[1].color.red == 255U);
+  CHECK(hard_gradient.color_stops[2].color.green == 255U);
+  CHECK(std::abs(hard_gradient.color_stops[1].midpoint - 0.31F) < 1.0e-6F);
+  CHECK(std::abs(hard_gradient.color_stops[2].midpoint - 0.73F) < 1.0e-6F);
+  CHECK(hard_gradient.alpha_stops.size() == 4);
+  CHECK(std::abs(hard_gradient.alpha_stops[1].opacity - 0.8F) < 1.0e-6F);
+  CHECK(std::abs(hard_gradient.alpha_stops[2].opacity - 0.2F) < 1.0e-6F);
+  CHECK(std::abs(hard_gradient.alpha_stops[1].midpoint - 0.22F) < 1.0e-6F);
+  CHECK(std::abs(hard_gradient.alpha_stops[2].midpoint - 0.88F) < 1.0e-6F);
+}
+
+void psd_generated_satin_descriptor_matches_photoshop_shape() {
+  using DescriptorType = patchy::psd::DescriptorValue::Type;
+
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Native Satin", solid_rgba(4, 4, 80, 120, 160, 255));
+  patchy::LayerSatin satin;
+  satin.enabled = true;
+  satin.blend_mode = patchy::BlendMode::Screen;
+  satin.color = patchy::RgbColor{17, 83, 211};
+  satin.opacity = 0.37F;
+  satin.angle_degrees = -23.0F;
+  satin.distance = 9.0F;
+  satin.size = 6.0F;
+  satin.invert = false;
+  layer.layer_style().satins.push_back(satin);
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lfx2");
+  CHECK(payload.has_value());
+  patchy::psd::BigEndianReader reader(*payload);
+  CHECK(reader.read_u32() == 0U);
+  CHECK(reader.read_u32() == 16U);
+  const auto root = patchy::psd::read_descriptor(reader);
+  const auto* descriptor = patchy::psd::descriptor_object(root, "ChFX");
+  CHECK(descriptor != nullptr);
+  CHECK(descriptor->name.empty());
+  CHECK(descriptor->class_id == "ChFX");
+  CHECK(!descriptor->class_id_long_form);
+
+  const auto check_key_order = [](const patchy::psd::DescriptorObject& object,
+                                  const std::vector<std::pair<std::string, bool>>& expected) {
+    CHECK(object.key_order.size() == expected.size());
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+      CHECK(object.key_order[index].key == expected[index].first);
+      CHECK(object.key_order[index].long_form == expected[index].second);
+    }
+  };
+  const auto require_value = [](const patchy::psd::DescriptorObject& object,
+                                std::string_view key) -> const patchy::psd::DescriptorValue& {
+    const auto* value = patchy::psd::descriptor_value(object, key);
+    CHECK(value != nullptr);
+    return *value;
+  };
+
+  check_key_order(*descriptor, {{"enab", false},
+                                {"present", true},
+                                {"showInDialog", true},
+                                {"Md  ", false},
+                                {"Clr ", false},
+                                {"AntA", false},
+                                {"Invr", false},
+                                {"Opct", false},
+                                {"lagl", false},
+                                {"Dstn", false},
+                                {"blur", false},
+                                {"MpgS", false}});
+  CHECK(require_value(*descriptor, "enab").type == DescriptorType::Bool);
+  CHECK(require_value(*descriptor, "enab").bool_value);
+  CHECK(require_value(*descriptor, "present").bool_value);
+  CHECK(require_value(*descriptor, "showInDialog").bool_value);
+
+  const auto& mode = require_value(*descriptor, "Md  ");
+  CHECK(mode.type == DescriptorType::Enum);
+  CHECK(mode.enum_type == "BlnM");
+  CHECK(!mode.enum_type_long_form);
+  CHECK(mode.enum_value == "screen");
+  CHECK(mode.enum_value_long_form);
+
+  const auto* color = patchy::psd::descriptor_object(*descriptor, "Clr ");
+  CHECK(color != nullptr);
+  CHECK(color->name.empty());
+  CHECK(color->class_id == "RGBC");
+  CHECK(!color->class_id_long_form);
+  check_key_order(*color, {{"Rd  ", false}, {"Grn ", false}, {"Bl  ", false}});
+  for (const auto& [key, expected] :
+       std::array<std::pair<std::string_view, double>, 3>{{{"Rd  ", 17.0}, {"Grn ", 83.0}, {"Bl  ", 211.0}}}) {
+    const auto& channel = require_value(*color, key);
+    CHECK(channel.type == DescriptorType::Double);
+    CHECK(channel.double_value == expected);
+  }
+
+  CHECK(require_value(*descriptor, "AntA").type == DescriptorType::Bool);
+  CHECK(!require_value(*descriptor, "AntA").bool_value);
+  CHECK(require_value(*descriptor, "Invr").type == DescriptorType::Bool);
+  CHECK(!require_value(*descriptor, "Invr").bool_value);
+  const auto check_unit = [&](std::string_view key, std::string_view unit, double expected) {
+    const auto& value = require_value(*descriptor, key);
+    CHECK(value.type == DescriptorType::UnitFloat);
+    CHECK(value.unit == unit);
+    CHECK(std::abs(value.double_value - expected) < 1.0e-6);
+  };
+  check_unit("Opct", "#Prc", 37.0);
+  check_unit("lagl", "#Ang", -23.0);
+  check_unit("Dstn", "#Pxl", 9.0);
+  check_unit("blur", "#Pxl", 6.0);
+
+  const auto* contour = patchy::psd::descriptor_object(*descriptor, "MpgS");
+  CHECK(contour != nullptr);
+  CHECK(contour->name.empty());
+  CHECK(contour->class_id == "ShpC");
+  CHECK(!contour->class_id_long_form);
+  check_key_order(*contour, {{"Nm  ", false}, {"Crv ", false}});
+  const auto& contour_name = require_value(*contour, "Nm  ");
+  CHECK(contour_name.type == DescriptorType::String);
+  CHECK(contour_name.string_value == "$$$/Contours/Defaults/Linear=Linear");
+  const auto& points = require_value(*contour, "Crv ");
+  CHECK(points.type == DescriptorType::List);
+  CHECK(points.list_value.size() == 2);
+  for (std::size_t index = 0; index < points.list_value.size(); ++index) {
+    CHECK(points.list_value[index].type == DescriptorType::Object);
+    CHECK(points.list_value[index].object_value != nullptr);
+    const auto& point = *points.list_value[index].object_value;
+    CHECK(point.name.empty());
+    CHECK(point.class_id == "CrPt");
+    CHECK(!point.class_id_long_form);
+    check_key_order(point, {{"Hrzn", false}, {"Vrtc", false}});
+    const auto expected = index == 0U ? 0.0 : 255.0;
+    CHECK(require_value(point, "Hrzn").type == DescriptorType::Double);
+    CHECK(require_value(point, "Vrtc").type == DescriptorType::Double);
+    CHECK(require_value(point, "Hrzn").double_value == expected);
+    CHECK(require_value(point, "Vrtc").double_value == expected);
+  }
+  CHECK(patchy::psd::descriptor_value(*descriptor, "Nose") == nullptr);
+
+  const auto round_tripped = patchy::psd::DocumentIo::read(bytes);
+  CHECK(round_tripped.layers().size() == 1);
+  CHECK(round_tripped.layers().front().layer_style().satins.size() == 1);
+  const auto& imported = round_tripped.layers().front().layer_style().satins.front();
+  CHECK(imported.enabled);
+  CHECK(imported.blend_mode == satin.blend_mode);
+  CHECK(imported.color.red == satin.color.red);
+  CHECK(imported.color.green == satin.color.green);
+  CHECK(imported.color.blue == satin.color.blue);
+  CHECK(std::abs(imported.opacity - satin.opacity) < 1.0e-6F);
+  CHECK(std::abs(imported.angle_degrees - satin.angle_degrees) < 1.0e-6F);
+  CHECK(std::abs(imported.distance - satin.distance) < 1.0e-6F);
+  CHECK(std::abs(imported.size - satin.size) < 1.0e-6F);
+  CHECK(imported.invert == satin.invert);
+  CHECK(!imported.unsupported_contour_options);
+
+  auto anti_aliased_bytes = bytes;
+  constexpr std::array<std::uint8_t, 12> kAntialiasItem{
+      0, 0, 0, 0, 'A', 'n', 't', 'A', 'b', 'o', 'o', 'l'};
+  const auto antialias_item = std::search(anti_aliased_bytes.begin(), anti_aliased_bytes.end(),
+                                          kAntialiasItem.begin(), kAntialiasItem.end());
+  CHECK(antialias_item != anti_aliased_bytes.end());
+  *(antialias_item + kAntialiasItem.size()) = 1U;
+  const auto anti_aliased_import = patchy::psd::DocumentIo::read(anti_aliased_bytes);
+  CHECK(anti_aliased_import.layers().front().layer_style().satins.size() == 1);
+  CHECK(anti_aliased_import.layers().front().layer_style().satins.front().unsupported_contour_options);
+
+  patchy::Document disabled_document(4, 4, patchy::PixelFormat::rgb8());
+  auto& disabled_layer =
+      disabled_document.add_pixel_layer("Disabled Satin", solid_rgba(4, 4, 80, 120, 160, 255));
+  satin.enabled = false;
+  disabled_layer.layer_style().satins.push_back(satin);
+  const auto disabled_bytes = patchy::psd::DocumentIo::write_layered_rgb8(disabled_document);
+  CHECK(psd_layer_block_payload(psd_first_layer_extra_data(disabled_bytes), "lfx2").has_value());
+  const auto disabled_round_trip = patchy::psd::DocumentIo::read(disabled_bytes);
+  CHECK(disabled_round_trip.layers().front().layer_style().satins.size() == 1);
+  const auto& disabled_imported = disabled_round_trip.layers().front().layer_style().satins.front();
+  CHECK(!disabled_imported.enabled);
+  CHECK(disabled_imported.blend_mode == satin.blend_mode);
+  CHECK(disabled_imported.color.red == satin.color.red);
+  CHECK(disabled_imported.color.green == satin.color.green);
+  CHECK(disabled_imported.color.blue == satin.color.blue);
+  CHECK(std::abs(disabled_imported.opacity - satin.opacity) < 1.0e-6F);
+  CHECK(disabled_imported.angle_degrees == satin.angle_degrees);
+  CHECK(disabled_imported.distance == satin.distance);
+  CHECK(disabled_imported.size == satin.size);
+  CHECK(disabled_imported.invert == satin.invert);
+}
+
+void psd_photoshop_satin_fixture_preserves_native_lfx2() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-satin-default.psd");
+  CHECK(std::filesystem::exists(path));
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto* layer = find_layer_named(document.layers(), "Satin default");
+  CHECK(layer != nullptr);
+  CHECK(layer->layer_style().satins.size() == 1);
+  const auto& satin = layer->layer_style().satins.front();
+  CHECK(satin.enabled);
+  CHECK(satin.blend_mode == patchy::BlendMode::Multiply);
+  CHECK(satin.color.red == 0U);
+  CHECK(satin.color.green == 0U);
+  CHECK(satin.color.blue == 0U);
+  CHECK(std::abs(satin.opacity - 0.5F) < 1.0e-6F);
+  CHECK(std::abs(satin.angle_degrees - 19.0F) < 1.0e-6F);
+  CHECK(std::abs(satin.distance - 11.0F) < 1.0e-6F);
+  CHECK(std::abs(satin.size - 14.0F) < 1.0e-6F);
+  CHECK(satin.invert);
+  CHECK(!satin.unsupported_contour_options);
+
+  const auto preserved = std::find_if(layer->unknown_psd_blocks().begin(), layer->unknown_psd_blocks().end(),
+                                      [](const patchy::UnknownPsdBlock& block) { return block.key == "lfx2"; });
+  CHECK(preserved != layer->unknown_psd_blocks().end());
+  CHECK(preserved->payload.size() == 5580U);
+
+  // The untouched Photoshop payload wins over modeled regeneration and remains
+  // byte-for-byte identical on save.
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto resaved_payload = psd_layer_block_payload(psd_layer_extra_data(resaved, 1), "lfx2");
+  CHECK(resaved_payload.has_value());
+  CHECK(*resaved_payload == preserved->payload);
+
+  const auto reread = patchy::psd::DocumentIo::read(resaved);
+  const auto* reread_layer = find_layer_named(reread.layers(), "Satin default");
+  CHECK(reread_layer != nullptr);
+  CHECK(reread_layer->layer_style().satins.size() == 1);
+  CHECK(reread_layer->layer_style().satins.front().invert);
+  CHECK(std::abs(reread_layer->layer_style().satins.front().size - 14.0F) < 1.0e-6F);
+}
+
+void psd_photoshop_layer_style_4a_round_trip_fixture_imports() {
+  const auto path =
+      patchy::test::committed_psd_fixture_path("photoshop-layer-style-4a-roundtrip.psd");
+  CHECK(std::filesystem::exists(path));
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto* layer = find_layer_named(document.layers(), "Midpoint gradients");
+  CHECK(layer != nullptr);
+  const auto& style = layer->layer_style();
+  CHECK(style.satins.size() == 1);
+  const auto& satin = style.satins.front();
+  CHECK(satin.enabled);
+  CHECK(satin.blend_mode == patchy::BlendMode::Screen);
+  CHECK(satin.color.red == 17U && satin.color.green == 83U && satin.color.blue == 211U);
+  CHECK(std::abs(satin.opacity - 0.37F) < 1.0e-6F);
+  CHECK(satin.angle_degrees == -23.0F);
+  CHECK(satin.distance == 9.0F);
+  CHECK(satin.size == 6.0F);
+  CHECK(!satin.invert);
+  CHECK(!satin.unsupported_contour_options);
+
+  CHECK(style.gradient_fills.size() == 1);
+  CHECK(style.strokes.size() == 1);
+  for (const auto* gradient :
+       {&style.gradient_fills.front().gradient, &style.strokes.front().gradient}) {
+    CHECK(gradient->color_stops.size() == 2);
+    CHECK(gradient->alpha_stops.size() == 2);
+    CHECK(std::abs(gradient->color_stops[1].midpoint - 0.23F) < 1.0e-6F);
+    CHECK(std::abs(gradient->alpha_stops[1].midpoint - 0.77F) < 1.0e-6F);
+  }
+
+  const auto preserved = std::find_if(layer->unknown_psd_blocks().begin(), layer->unknown_psd_blocks().end(),
+                                      [](const patchy::UnknownPsdBlock& block) { return block.key == "lfx2"; });
+  CHECK(preserved != layer->unknown_psd_blocks().end());
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto resaved_payload = psd_layer_block_payload(psd_first_layer_extra_data(resaved), "lfx2");
+  CHECK(resaved_payload.has_value());
+  CHECK(*resaved_payload == preserved->payload);
 }
 
 void psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates() {
@@ -15374,6 +16007,9 @@ int main() {
       {"compositor_renders_sparse_drop_shadow_from_visible_alpha_bounds",
        compositor_renders_sparse_drop_shadow_from_visible_alpha_bounds},
       {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
+      {"gradient_midpoints_remap_color_and_alpha_segments",
+       gradient_midpoints_remap_color_and_alpha_segments},
+      {"compositor_renders_photoshop_style_satin", compositor_renders_photoshop_style_satin},
       {"compositor_renders_drop_shadow_spread", compositor_renders_drop_shadow_spread},
       {"compositor_drop_shadow_full_spread_keeps_rounded_support",
        compositor_drop_shadow_full_spread_keeps_rounded_support},
@@ -15514,6 +16150,14 @@ int main() {
       {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},
       {"psd_generated_stroke_descriptors_match_photoshop_shape",
        psd_generated_stroke_descriptors_match_photoshop_shape},
+      {"psd_gradient_midpoints_write_mdpn_and_round_trip",
+       psd_gradient_midpoints_write_mdpn_and_round_trip},
+      {"psd_generated_satin_descriptor_matches_photoshop_shape",
+       psd_generated_satin_descriptor_matches_photoshop_shape},
+      {"psd_photoshop_satin_fixture_preserves_native_lfx2",
+       psd_photoshop_satin_fixture_preserves_native_lfx2},
+      {"psd_photoshop_layer_style_4a_round_trip_fixture_imports",
+       psd_photoshop_layer_style_4a_round_trip_fixture_imports},
       {"psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates",
        psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates},
       {"psd_arrows_imports_photoshop_inner_effects",
