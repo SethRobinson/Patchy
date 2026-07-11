@@ -39,6 +39,7 @@ A saved alpha read from PSD/PSB always becomes a document channel, including cha
 
 ## UI and performance
 
+- Layers and Channels share top tabs in the right dock, with Layers active initially.
 - Selecting an alpha channel is mutually exclusive with editing layer content or a layer mask. Clicking a Layers thumbnail returns to the corresponding layer target.
 - Brush/Eraser, Fill/Clear, Gradient, Line, Rectangle/Ellipse, and Invert share the grayscale edit path. Content-only operations stay disabled while a document channel is active.
 - Channel-only edits mark the document modified and participate in normal COW undo snapshots, but they do not invalidate the layer compositor. Only the dirty overlay and revision-keyed thumbnail are refreshed.

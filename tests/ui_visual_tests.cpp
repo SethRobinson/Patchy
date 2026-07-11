@@ -17351,23 +17351,76 @@ void ui_channels_panel_targets_and_alpha_edits() {
   show_window(window);
   auto* canvas = require_canvas(window);
   auto& active_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
   auto* channels_dock = window.findChild<QDockWidget*>(QStringLiteral("channelsDock"));
   auto* channels_panel = window.findChild<QWidget*>(QStringLiteral("channelPanel"));
   auto* channels_toggle = window.findChild<QToolButton*>(QStringLiteral("channelsDockCollapseButton"));
   auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
+  CHECK(layer_list != nullptr);
   CHECK(layers_dock != nullptr);
   CHECK(channels_dock != nullptr);
   CHECK(channels_panel != nullptr);
   CHECK(channels_toggle != nullptr);
   CHECK(channels != nullptr);
-  CHECK(!channels_toggle->isChecked());
-  CHECK(channels_toggle->text() == QStringLiteral(">"));
-  CHECK(!channels_panel->isVisible());
-  CHECK(channels_dock->geometry().top() >= layers_dock->geometry().bottom() - 4);
-  CHECK(channels_dock->geometry().top() <= layers_dock->geometry().bottom() + 20);
-  channels_toggle->setChecked(true);
+  CHECK(window.tabPosition(Qt::RightDockWidgetArea) == QTabWidget::North);
+  CHECK(window.tabifiedDockWidgets(layers_dock).contains(channels_dock));
+  QTabBar* dock_tabs = nullptr;
+  int layers_tab = -1;
+  int channels_tab = -1;
+  for (auto* candidate : window.findChildren<QTabBar*>()) {
+    int candidate_layers = -1;
+    int candidate_channels = -1;
+    for (int index = 0; index < candidate->count(); ++index) {
+      if (candidate->tabText(index) == QStringLiteral("Layers")) {
+        candidate_layers = index;
+      } else if (candidate->tabText(index) == QStringLiteral("Channels")) {
+        candidate_channels = index;
+      }
+    }
+    if (candidate_layers >= 0 && candidate_channels >= 0) {
+      dock_tabs = candidate;
+      layers_tab = candidate_layers;
+      channels_tab = candidate_channels;
+      break;
+    }
+  }
+  CHECK(dock_tabs != nullptr);
+  CHECK(dock_tabs->currentIndex() == layers_tab);
+  CHECK(dock_tabs->mapToGlobal(QPoint()).y() < layers_dock->mapToGlobal(QPoint()).y());
+  const auto average_tab_lightness = [dock_tabs](int index) {
+    const auto image = dock_tabs->grab().toImage();
+    auto sample = dock_tabs->tabRect(index).adjusted(5, 4, -5, -4);
+    sample.setRight(std::min(sample.right(), sample.left() + 5));
+    std::int64_t total = 0;
+    int count = 0;
+    for (int y = sample.top(); y <= sample.bottom(); ++y) {
+      for (int x = sample.left(); x <= sample.right(); ++x) {
+        total += image.pixelColor(x, y).lightness();
+        ++count;
+      }
+    }
+    CHECK(count > 0);
+    return static_cast<int>(total / count);
+  };
+  CHECK(average_tab_lightness(layers_tab) >= average_tab_lightness(channels_tab) + 8);
+  CHECK(channels_toggle->isChecked());
+  CHECK(channels_toggle->text() == QStringLiteral("v"));
+  dock_tabs->setCurrentIndex(channels_tab);
   QApplication::processEvents();
+  CHECK(dock_tabs->currentIndex() == channels_tab);
+  CHECK(channels_panel->isVisible());
+  auto* channel_resize_handle = channels_dock->findChild<QWidget*>(
+      QStringLiteral("rightDockResizeHandle"), Qt::FindDirectChildrenOnly);
+  CHECK(channel_resize_handle != nullptr);
+  CHECK(channel_resize_handle->isVisible());
+  dock_tabs->setCurrentIndex(layers_tab);
+  QApplication::processEvents();
+  CHECK(dock_tabs->currentIndex() == layers_tab);
+  CHECK(layer_list->isVisible());
+  dock_tabs->setCurrentIndex(channels_tab);
+  QApplication::processEvents();
+  CHECK(dock_tabs->currentIndex() == channels_tab);
   CHECK(channels_panel->isVisible());
   CHECK(channels->count() == 7);
   const QStringList expected_names{QStringLiteral("Composite"), QStringLiteral("Red"),
@@ -17601,12 +17654,13 @@ void ui_channels_soft_selection_crud_history_and_layer_exit() {
   show_window(window);
   auto* canvas = require_canvas(window);
   auto& active_document = patchy::ui::MainWindowTestAccess::document(window);
-  auto* channels_toggle = window.findChild<QToolButton*>(QStringLiteral("channelsDockCollapseButton"));
+  auto* channels_dock = window.findChild<QDockWidget*>(QStringLiteral("channelsDock"));
   auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
-  CHECK(channels_toggle != nullptr);
+  CHECK(channels_dock != nullptr);
   CHECK(channels != nullptr);
-  channels_toggle->setChecked(true);
+  channels_dock->raise();
   QApplication::processEvents();
+  CHECK(channels->isVisible());
 
   require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
   auto* feather = window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin"));

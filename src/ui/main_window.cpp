@@ -4903,15 +4903,19 @@ QString photoshop_style() {
       border-top: 1px solid #5c5c5c;
     }
     QTabBar::tab {
-      background: #3f3f3f;
+      background: #2b2b2b;
       color: #e1e1e1;
       border: 1px solid #2b2b2b;
       padding: 5px 12px;
       min-height: 20px;
     }
+    QTabBar::tab:hover:!selected {
+      background: #353535;
+    }
     QTabBar::tab:selected {
-      background: #2b2b2b;
-      border-bottom-color: #2b2b2b;
+      background: #3f3f3f;
+      color: #ffffff;
+      border-bottom-color: #3f3f3f;
     }
   )")
 #ifdef Q_OS_MACOS
@@ -13061,6 +13065,7 @@ void MainWindow::create_actions() {
 }
 
 void MainWindow::create_docks() {
+  setTabPosition(Qt::RightDockWidgetArea, QTabWidget::North);
   auto* layers_dock = new QDockWidget(tr("Layers"), this);
   layers_dock->setObjectName(QStringLiteral("layersDock"));
   bind_widget_text(layers_dock, "Layers");
@@ -13382,10 +13387,19 @@ void MainWindow::create_docks() {
   bind_widget_text(channel_dock_, "Channels");
   channel_panel_ = new ChannelPanel(channel_dock_);
   channel_dock_->setWidget(channel_panel_);
-  install_collapsible_dock_title(channel_dock_, channel_panel_, QStringLiteral("channels"), 190,
-                                 QWIDGETSIZE_MAX, false);
+  install_collapsible_dock_title(channel_dock_, channel_panel_, QStringLiteral("channels"), 190);
+  channel_dock_->setProperty("patchy.rightDockResizeHost", true);
+  channel_dock_->installEventFilter(this);
+  auto* channel_dock_resize_handle = new QWidget(channel_dock_);
+  channel_dock_resize_handle->setObjectName(QStringLiteral("rightDockResizeHandle"));
+  channel_dock_resize_handle->setProperty("patchy.rightDockResizeHandle", true);
+  channel_dock_resize_handle->setAttribute(Qt::WA_StyledBackground, true);
+  channel_dock_resize_handle->setCursor(Qt::SplitHCursor);
+  channel_dock_resize_handle->installEventFilter(this);
   addDockWidget(Qt::RightDockWidgetArea, channel_dock_);
-  splitDockWidget(layers_dock, channel_dock_, Qt::Vertical);
+  tabifyDockWidget(layers_dock, channel_dock_);
+  layers_dock->raise();
+  update_right_dock_resize_handle_geometry(channel_dock_);
 
   const auto make_channel_action = [this](QAction*& target, const char* text, const char* object_name,
                                           const char* hotkey_id, auto callback) {
@@ -16091,17 +16105,20 @@ void MainWindow::show_preferences() {
       top: -1px;
     }
     QDialog#patchyPreferencesDialog QTabBar::tab {
-      background: #383838;
+      background: #2b2b2b;
       border: 1px solid #444444;
       border-bottom-color: #2b2b2b;
       color: #dcdcdc;
       padding: 7px 18px;
       min-width: 92px;
     }
+    QDialog#patchyPreferencesDialog QTabBar::tab:hover:!selected {
+      background: #343434;
+    }
     QDialog#patchyPreferencesDialog QTabBar::tab:selected {
-      background: #2b2b2b;
+      background: #383838;
       color: #ffffff;
-      border-bottom-color: #2b2b2b;
+      border-bottom-color: #383838;
     }
     QDialog#patchyPreferencesDialog QFrame[preferencesPanel="true"] {
       background: #303030;

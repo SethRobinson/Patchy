@@ -1253,8 +1253,7 @@ void PatchyColorPickerPrivate::build_ui() {
   sliders_layout->setRowStretch(static_cast<int>(rows.size()), 1);
   tabs_->addTab(sliders_page, PatchyColorPicker::tr("Sliders"));
 
-  // Local override of the global tab style: make the *selected* tab the light one
-  // (the global theme darkens it, which reads as "not selected" on this dialog).
+  // Use stronger selected-tab contrast in this compact picker than the global theme.
   tabs_->setStyleSheet(QStringLiteral(R"(
     QTabBar::tab {
       background: #343434;
