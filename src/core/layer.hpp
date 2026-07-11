@@ -276,6 +276,14 @@ public:
   [[nodiscard]] const std::map<std::string, std::string>& metadata() const noexcept;
   [[nodiscard]] std::optional<LayerMask>& mask() noexcept;
   [[nodiscard]] const std::optional<LayerMask>& mask() const noexcept;
+  // Opaque payloads from the layer-record blending-ranges field. The group-boundary
+  // payload belongs to the synthetic closing record that Patchy's tree model folds
+  // into its corresponding group. These blobs are serialization-only, so mutating
+  // them deliberately does not bump render or content revisions.
+  [[nodiscard]] std::vector<std::uint8_t>& raw_psd_blending_ranges() noexcept;
+  [[nodiscard]] const std::vector<std::uint8_t>& raw_psd_blending_ranges() const noexcept;
+  [[nodiscard]] std::vector<std::uint8_t>& raw_psd_group_boundary_blending_ranges() noexcept;
+  [[nodiscard]] const std::vector<std::uint8_t>& raw_psd_group_boundary_blending_ranges() const noexcept;
   [[nodiscard]] std::vector<UnknownPsdBlock>& unknown_psd_blocks() noexcept;
   [[nodiscard]] const std::vector<UnknownPsdBlock>& unknown_psd_blocks() const noexcept;
   [[nodiscard]] LayerStyle& layer_style() noexcept;
@@ -315,6 +323,8 @@ private:
   std::vector<Layer> children_{};
   std::map<std::string, std::string> metadata_{};
   std::optional<LayerMask> mask_{};
+  std::vector<std::uint8_t> raw_psd_blending_ranges_{};
+  std::vector<std::uint8_t> raw_psd_group_boundary_blending_ranges_{};
   std::vector<UnknownPsdBlock> unknown_psd_blocks_{};
   LayerStyle layer_style_{};
   std::uint64_t render_revision_{1};

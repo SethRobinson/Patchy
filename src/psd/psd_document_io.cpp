@@ -144,6 +144,7 @@ struct PsdTextGeometry {
 struct LayerRecord {
   Rect bounds;
   std::vector<LayerChannelInfo> channels;
+  std::vector<std::uint8_t> blending_ranges;
   BlendMode blend_mode{BlendMode::Normal};
   std::uint8_t opacity{255};
   bool visible{true};
@@ -201,6 +202,7 @@ struct EncodedLayer {
   EncodedLayerKind kind{EncodedLayerKind::Pixel};
   Rect bounds;
   std::vector<EncodedChannel> channels;
+  const std::vector<std::uint8_t>* blending_ranges{nullptr};
 };
 
 struct ImageResource {
@@ -6584,6 +6586,75 @@ void write_layer_style_gradient_descriptor_item(BigEndianWriter& writer, std::st
   write_layer_style_gradient_descriptor(writer, gradient);
 }
 
+// Photoshop's FrFX gradient shape differs from the otherwise similar GrFl
+// descriptor. In particular, RGB components are plain doubles, each color stop
+// puts Clr before Type/Lctn/Mdpn, and the Grad object's unicode header name is
+// "Gradient". Photoshop accepts lean layer-effects roots, but expects this
+// native shape inside the FrFX object.
+void write_stroke_rgb_color_descriptor(BigEndianWriter& writer, RgbColor color) {
+  write_descriptor_object_header(writer, "", "RGBC", 3);
+  write_descriptor_double_item(writer, "Rd  ", color.red);
+  write_descriptor_double_item(writer, "Grn ", color.green);
+  write_descriptor_double_item(writer, "Bl  ", color.blue);
+}
+
+void write_stroke_rgb_color_descriptor_item(BigEndianWriter& writer, std::string_view key, RgbColor color) {
+  write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
+  write_stroke_rgb_color_descriptor(writer, color);
+}
+
+void write_stroke_gradient_color_stop(BigEndianWriter& writer, const GradientColorStop& stop) {
+  write_descriptor_object_header(writer, "", "Clrt", 4);
+  write_stroke_rgb_color_descriptor_item(writer, "Clr ", stop.color);
+  write_descriptor_enum_item(writer, "Type", "Clry", "UsrS");
+  write_descriptor_long_item(
+      writer, "Lctn",
+      static_cast<std::int32_t>(std::lround(std::clamp(stop.location, 0.0F, 1.0F) * 4096.0F)));
+  write_descriptor_long_item(writer, "Mdpn", 50);
+}
+
+void write_stroke_gradient_descriptor(BigEndianWriter& writer, const LayerStyleGradient& gradient) {
+  auto color_stops = gradient.color_stops;
+  auto alpha_stops = gradient.alpha_stops;
+  if (color_stops.empty()) {
+    color_stops.push_back(GradientColorStop{0.0F, RgbColor{0, 0, 0}});
+    color_stops.push_back(GradientColorStop{1.0F, RgbColor{255, 255, 255}});
+  }
+  if (alpha_stops.empty()) {
+    alpha_stops.push_back(GradientAlphaStop{0.0F, 1.0F});
+    alpha_stops.push_back(GradientAlphaStop{1.0F, 1.0F});
+  }
+  std::sort(color_stops.begin(), color_stops.end(),
+            [](const GradientColorStop& lhs, const GradientColorStop& rhs) { return lhs.location < rhs.location; });
+  std::sort(alpha_stops.begin(), alpha_stops.end(),
+            [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
+
+  write_descriptor_object_header(writer, "Gradient", "Grdn", 5);
+  write_descriptor_text_item(writer, "Nm  ", "Custom");
+  write_descriptor_enum_item(writer, "GrdF", "GrdF", "CstS");
+  write_descriptor_double_item(writer, "Intr", 4096.0);
+
+  write_descriptor_item_header(writer, "Clrs", {'V', 'l', 'L', 's'});
+  writer.write_u32(checked_u32(color_stops.size(), "gradient color stops"));
+  for (const auto& stop : color_stops) {
+    write_signature(writer, {'O', 'b', 'j', 'c'});
+    write_stroke_gradient_color_stop(writer, stop);
+  }
+
+  write_descriptor_item_header(writer, "Trns", {'V', 'l', 'L', 's'});
+  writer.write_u32(checked_u32(alpha_stops.size(), "gradient alpha stops"));
+  for (const auto& stop : alpha_stops) {
+    write_signature(writer, {'O', 'b', 'j', 'c'});
+    write_gradient_alpha_stop(writer, stop);
+  }
+}
+
+void write_stroke_gradient_descriptor_item(BigEndianWriter& writer, std::string_view key,
+                                           const LayerStyleGradient& gradient) {
+  write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
+  write_stroke_gradient_descriptor(writer, gradient);
+}
+
 std::string_view stroke_position_descriptor_value(LayerStrokePosition position) {
   switch (position) {
     case LayerStrokePosition::Inside:
@@ -6698,18 +6769,35 @@ void write_gradient_fill_descriptor(BigEndianWriter& writer, const LayerGradient
 }
 
 void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke) {
-  write_descriptor_object_header(writer, "", "FrFX", 7);
+  write_descriptor_object_header(writer, "", "FrFX", stroke.uses_gradient ? 19U : 10U);
   write_descriptor_bool_item(writer, "enab", stroke.enabled);
+  write_descriptor_bool_item(writer, "present", true);
+  write_descriptor_bool_item(writer, "showInDialog", true);
   write_descriptor_enum_item(writer, "Styl", "FStl", stroke_position_descriptor_value(stroke.position));
   write_descriptor_enum_item(writer, "PntT", "FrFl", stroke.uses_gradient ? "GrFl" : "SClr");
   write_blend_mode_descriptor_item(writer, "Md  ", stroke.blend_mode);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, stroke.opacity * 100.0);
   write_descriptor_unit_float_item(writer, "Sz  ", {'#', 'P', 'x', 'l'}, stroke.size);
   if (stroke.uses_gradient) {
-    write_layer_style_gradient_descriptor_item(writer, "Grad", stroke.gradient);
+    // Photoshop writes a black Clr placeholder even though PntT selects the
+    // following gradient. Omitting it makes the descriptor non-native.
+    write_stroke_rgb_color_descriptor_item(writer, "Clr ", RgbColor{0, 0, 0});
+    write_stroke_gradient_descriptor_item(writer, "Grad", stroke.gradient);
+    write_descriptor_enum_item(writer, "gradientsInterpolationMethod", "gradientInterpolationMethodType", "Gcls");
+    write_descriptor_unit_float_item(writer, "Angl", {'#', 'A', 'n', 'g'}, stroke.gradient.angle_degrees);
+    write_descriptor_enum_item(writer, "Type", "GrdT", gradient_type_descriptor_value(stroke.gradient.type));
+    write_descriptor_bool_item(writer, "Rvrs", stroke.gradient.reverse);
+    write_descriptor_bool_item(writer, "Dthr", false);
+    write_descriptor_unit_float_item(writer, "Scl ", {'#', 'P', 'r', 'c'}, stroke.gradient.scale * 100.0);
+    write_descriptor_bool_item(writer, "Algn", true);
+    write_descriptor_item_header(writer, "Ofst", {'O', 'b', 'j', 'c'});
+    write_descriptor_object_header(writer, "", "Pnt ", 2);
+    write_descriptor_unit_float_item(writer, "Hrzn", {'#', 'P', 'r', 'c'}, 0.0);
+    write_descriptor_unit_float_item(writer, "Vrtc", {'#', 'P', 'r', 'c'}, 0.0);
   } else {
-    write_rgb_color_descriptor_item(writer, "Clr ", stroke.color);
+    write_stroke_rgb_color_descriptor_item(writer, "Clr ", stroke.color);
   }
+  write_descriptor_bool_item(writer, "overprint", false);
 }
 
 void write_bevel_emboss_descriptor(BigEndianWriter& writer, const LayerBevelEmboss& bevel) {
@@ -7022,7 +7110,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       reader.skip(mask_end - reader.position());
     }
     const auto blending_ranges_length = read_section_length(reader, "layer blending ranges");
-    reader.skip(blending_ranges_length);
+    record.blending_ranges = reader.read_bytes(blending_ranges_length);
     if (reader.position() < extra_end) {
       record.name = read_pascal_string(reader, 4);
     }
@@ -7321,7 +7409,11 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   } else {
     extra.write_u32(0);  // layer mask data
   }
-  extra.write_u32(0);  // layer blending ranges
+  if (encoded.blending_ranges != nullptr) {
+    write_length_prefixed_block(extra, *encoded.blending_ranges);
+  } else {
+    extra.write_u32(0);  // layer blending ranges
+  }
   const auto name = encoded_layer_name(encoded);
   write_pascal_string(extra, name, 4);
   auto unicode_name = unicode_string_payload(name);
@@ -7446,6 +7538,7 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document) {
   encoded.layer = &layer;
   encoded.kind = EncodedLayerKind::Pixel;
   encoded.bounds = layer.bounds().empty() ? Rect::from_size(pixels.width(), pixels.height()) : layer.bounds();
+  encoded.blending_ranges = &layer.raw_psd_blending_ranges();
   std::vector<std::uint16_t> channel_ids{kChannelRed, kChannelGreen, kChannelBlue};
   if (pixels.format().channels >= 4) {
     channel_ids.push_back(kChannelTransparency);
@@ -7491,6 +7584,7 @@ EncodedLayer encode_adjustment_layer(const Layer& layer, bool large_document) {
   encoded.layer = &layer;
   encoded.kind = EncodedLayerKind::Adjustment;
   encoded.bounds = layer.bounds();
+  encoded.blending_ranges = &layer.raw_psd_blending_ranges();
   if (layer.mask().has_value() && !layer.mask()->pixels.empty()) {
     const auto& mask = *layer.mask();
     if (mask.pixels.format() != PixelFormat::gray8()) {
@@ -7505,9 +7599,10 @@ EncodedLayer encode_adjustment_layer(const Layer& layer, bool large_document) {
   return encoded;
 }
 
-EncodedLayer encode_group_boundary() {
+EncodedLayer encode_group_boundary(const Layer& layer) {
   EncodedLayer encoded;
   encoded.kind = EncodedLayerKind::GroupBoundary;
+  encoded.blending_ranges = &layer.raw_psd_group_boundary_blending_ranges();
   return encoded;
 }
 
@@ -7516,6 +7611,7 @@ EncodedLayer encode_group(const Layer& layer) {
   encoded.layer = &layer;
   encoded.kind = EncodedLayerKind::Group;
   encoded.bounds = layer.bounds();
+  encoded.blending_ranges = &layer.raw_psd_blending_ranges();
   return encoded;
 }
 
@@ -7531,7 +7627,7 @@ void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encode
   }
 
   if (layer.kind() == LayerKind::Group) {
-    encoded_layers.push_back(encode_group_boundary());
+    encoded_layers.push_back(encode_group_boundary(layer));
     for (const auto& child : layer.children()) {
       append_encoded_layers(child, encoded_layers, large_document);
     }
@@ -7689,45 +7785,55 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.layer_style() = source.layer_style();
   target.metadata() = source.metadata();
   target.mask() = source.mask();
+  target.raw_psd_blending_ranges() = source.raw_psd_blending_ranges();
+  target.raw_psd_group_boundary_blending_ranges() = source.raw_psd_group_boundary_blending_ranges();
   target.unknown_psd_blocks() = source.unknown_psd_blocks();
 }
 
 std::vector<Layer> build_group_hierarchy(std::vector<DecodedLayer> flat_layers) {
-  std::vector<std::vector<Layer>> stack;
+  struct GroupFrame {
+    std::vector<Layer> children;
+    std::vector<std::uint8_t> boundary_blending_ranges;
+  };
+
+  std::vector<GroupFrame> stack;
   stack.emplace_back();
 
   for (auto& decoded : flat_layers) {
     if (is_section_divider_boundary(decoded.section_divider_type)) {
-      stack.emplace_back();
+      stack.push_back(GroupFrame{{}, std::as_const(decoded.layer).raw_psd_blending_ranges()});
       continue;
     }
 
     if (is_section_divider_folder(decoded.section_divider_type)) {
       std::vector<Layer> children;
+      std::vector<std::uint8_t> boundary_blending_ranges;
       if (stack.size() > 1U) {
-        children = std::move(stack.back());
+        children = std::move(stack.back().children);
+        boundary_blending_ranges = std::move(stack.back().boundary_blending_ranges);
         stack.pop_back();
       }
 
       Layer group(0, decoded.layer.name(), LayerKind::Group);
       copy_layer_state(group, decoded.layer);
+      group.raw_psd_group_boundary_blending_ranges() = std::move(boundary_blending_ranges);
       set_layer_group_expanded(group, decoded.section_divider_type == 1U);
       group.children() = std::move(children);
-      stack.back().push_back(std::move(group));
+      stack.back().children.push_back(std::move(group));
       continue;
     }
 
-    stack.back().push_back(std::move(decoded.layer));
+    stack.back().children.push_back(std::move(decoded.layer));
   }
 
   while (stack.size() > 1U) {
-    auto orphaned_children = std::move(stack.back());
+    auto orphaned_children = std::move(stack.back().children);
     stack.pop_back();
-    stack.back().insert(stack.back().end(), std::make_move_iterator(orphaned_children.begin()),
-                        std::make_move_iterator(orphaned_children.end()));
+    stack.back().children.insert(stack.back().children.end(), std::make_move_iterator(orphaned_children.begin()),
+                                 std::make_move_iterator(orphaned_children.end()));
   }
 
-  return std::move(stack.front());
+  return std::move(stack.front().children);
 }
 
 Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
@@ -7920,6 +8026,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     layer.set_blend_mode(record.blend_mode);
     layer.set_opacity(static_cast<float>(record.opacity) / 255.0F);
     layer.set_visible(record.visible);
+    layer.raw_psd_blending_ranges() = record.blending_ranges;
     if (record.section_divider_type == 0U) {
       // Divider/folder records never carry the clipping flag into the model, so
       // groups always build unclipped even from stray bytes.

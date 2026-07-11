@@ -2503,6 +2503,44 @@ bool is_supported_open_path(const QString& path) {
   return !QImageReader::imageFormat(path).isEmpty();
 }
 
+struct UnrenderedLayerEffectCounts {
+  std::size_t satin{0};
+  std::size_t pattern_overlay{0};
+};
+
+void count_unrendered_layer_effects(const std::vector<Layer>& layers, UnrenderedLayerEffectCounts& counts) {
+  for (const auto& layer : layers) {
+    const auto& style = layer.layer_style();
+    counts.satin += static_cast<std::size_t>(
+        std::count_if(style.satins.begin(), style.satins.end(), [](const LayerSatin& satin) {
+          return satin.enabled;
+        }));
+    counts.pattern_overlay += static_cast<std::size_t>(
+        std::count_if(style.pattern_overlays.begin(), style.pattern_overlays.end(),
+                      [](const LayerPatternOverlay& pattern) { return pattern.enabled; }));
+    count_unrendered_layer_effects(layer.children(), counts);
+  }
+}
+
+QString unrendered_layer_effect_import_notice(const Document& document) {
+  UnrenderedLayerEffectCounts counts;
+  count_unrendered_layer_effects(document.layers(), counts);
+  if (counts.satin == 0U && counts.pattern_overlay == 0U) {
+    return {};
+  }
+
+  QStringList details;
+  if (counts.satin != 0U) {
+    details << QStringLiteral("%1: %2").arg(QObject::tr("Satin")).arg(counts.satin);
+  }
+  if (counts.pattern_overlay != 0U) {
+    details << QStringLiteral("%1: %2").arg(QObject::tr("Pattern Overlay")).arg(counts.pattern_overlay);
+  }
+  return QObject::tr(
+             "Patchy preserved layer effects for PSD round-trip but does not render or edit them (%1).")
+      .arg(details.join(QStringLiteral(", ")));
+}
+
 QStringList supported_local_open_paths(const QMimeData* mime_data) {
   QStringList paths;
   if (mime_data == nullptr || !mime_data->hasUrls()) {
@@ -2568,6 +2606,9 @@ OpenDocumentResult load_document_from_path(QString path) {
     opened = psd::DocumentIo::read_file(path.toStdString(), psd_options);
     for (const auto& notice : psd_notices) {
       import_notices.push_back(QString::fromStdString(notice));
+    }
+    if (const auto notice = unrendered_layer_effect_import_notice(opened); !notice.isEmpty()) {
+      import_notices.push_back(notice);
     }
     // Linked-file staleness: compare each external source's stored date/size with
     // the file on disk (Photoshop's own check). These are actionable, so they go

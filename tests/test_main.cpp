@@ -164,6 +164,11 @@ void layer_content_revision_ignores_translation_and_tracks_render_content() {
   const auto initial_content_revision = layer.content_revision();
   const auto initial_render_revision = layer.render_revision();
 
+  layer.raw_psd_blending_ranges() = {0, 12, 240, 255, 3, 18, 220, 251};
+  layer.raw_psd_group_boundary_blending_ranges() = {5, 20, 210, 245, 9, 24, 200, 239};
+  CHECK(layer.content_revision() == initial_content_revision);
+  CHECK(layer.render_revision() == initial_render_revision);
+
   layer.set_bounds(patchy::Rect{10, 12, 4, 4});
   CHECK(layer.content_revision() == initial_content_revision);
   CHECK(layer.render_revision() > initial_render_revision);
@@ -5512,6 +5517,182 @@ void psd_layer_styles_round_trip_patchy_effects() {
   CHECK(!style.bevels.front().direction_up);
 }
 
+void psd_generated_stroke_descriptors_match_photoshop_shape() {
+  using DescriptorType = patchy::psd::DescriptorValue::Type;
+
+  const auto generated_stroke_descriptor = [](const patchy::LayerStroke& stroke) {
+    patchy::Document document(3, 3, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Stroke", solid_rgba(3, 3, 40, 80, 120, 255));
+    layer.layer_style().strokes.push_back(stroke);
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    if (stroke.uses_gradient) {
+      std::filesystem::create_directories("test-artifacts");
+      patchy::psd::DocumentIo::write_layered_rgb8_file(
+          document, std::filesystem::path("test-artifacts") / "patchy-gradient-stroke-com.psd");
+    }
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lfx2");
+    CHECK(payload.has_value());
+    patchy::psd::BigEndianReader reader(*payload);
+    CHECK(reader.read_u32() == 0U);
+    CHECK(reader.read_u32() == 16U);
+    const auto root = patchy::psd::read_descriptor(reader);
+    const auto* frame = patchy::psd::descriptor_object(root, "FrFX");
+    CHECK(frame != nullptr);
+    return *frame;
+  };
+
+  const auto check_key_order = [](const patchy::psd::DescriptorObject& object,
+                                  const std::vector<std::pair<std::string, bool>>& expected) {
+    CHECK(object.key_order.size() == expected.size());
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+      CHECK(object.key_order[index].key == expected[index].first);
+      CHECK(object.key_order[index].long_form == expected[index].second);
+    }
+  };
+  const auto require_value = [](const patchy::psd::DescriptorObject& object,
+                                std::string_view key) -> const patchy::psd::DescriptorValue& {
+    const auto* value = patchy::psd::descriptor_value(object, key);
+    CHECK(value != nullptr);
+    return *value;
+  };
+  const auto check_native_rgb = [&](const patchy::psd::DescriptorObject& object, patchy::RgbColor expected) {
+    CHECK(object.name.empty());
+    CHECK(object.class_id == "RGBC");
+    CHECK(!object.class_id_long_form);
+    check_key_order(object, {{"Rd  ", false}, {"Grn ", false}, {"Bl  ", false}});
+    const auto& red = require_value(object, "Rd  ");
+    const auto& green = require_value(object, "Grn ");
+    const auto& blue = require_value(object, "Bl  ");
+    CHECK(red.type == DescriptorType::Double);
+    CHECK(green.type == DescriptorType::Double);
+    CHECK(blue.type == DescriptorType::Double);
+    CHECK(red.double_value == expected.red);
+    CHECK(green.double_value == expected.green);
+    CHECK(blue.double_value == expected.blue);
+  };
+
+  patchy::LayerStroke solid;
+  solid.enabled = true;
+  solid.position = patchy::LayerStrokePosition::Inside;
+  solid.blend_mode = patchy::BlendMode::Multiply;
+  solid.opacity = 0.62F;
+  solid.size = 7.0F;
+  solid.color = patchy::RgbColor{12, 34, 56};
+  const auto solid_frame = generated_stroke_descriptor(solid);
+  CHECK(solid_frame.class_id == "FrFX");
+  check_key_order(solid_frame, {{"enab", false},
+                                {"present", true},
+                                {"showInDialog", true},
+                                {"Styl", false},
+                                {"PntT", false},
+                                {"Md  ", false},
+                                {"Opct", false},
+                                {"Sz  ", false},
+                                {"Clr ", false},
+                                {"overprint", true}});
+  const auto& solid_fill_type = require_value(solid_frame, "PntT");
+  CHECK(solid_fill_type.type == DescriptorType::Enum);
+  CHECK(solid_fill_type.enum_type == "FrFl");
+  CHECK(solid_fill_type.enum_value == "SClr");
+  const auto* solid_color = patchy::psd::descriptor_object(solid_frame, "Clr ");
+  CHECK(solid_color != nullptr);
+  check_native_rgb(*solid_color, solid.color);
+  const auto& solid_overprint = require_value(solid_frame, "overprint");
+  CHECK(solid_overprint.type == DescriptorType::Bool);
+  CHECK(!solid_overprint.bool_value);
+
+  patchy::LayerStroke gradient = solid;
+  gradient.uses_gradient = true;
+  gradient.gradient.type = patchy::LayerStyleGradientType::Radial;
+  gradient.gradient.angle_degrees = 37.0F;
+  gradient.gradient.scale = 0.73F;
+  gradient.gradient.reverse = true;
+  gradient.gradient.color_stops = {{0.0F, patchy::RgbColor{250, 20, 30}},
+                                   {1.0F, patchy::RgbColor{15, 40, 240}}};
+  gradient.gradient.alpha_stops = {{0.0F, 1.0F}, {0.5F, 0.42F}, {1.0F, 1.0F}};
+  const auto gradient_frame = generated_stroke_descriptor(gradient);
+  check_key_order(gradient_frame, {{"enab", false},
+                                   {"present", true},
+                                   {"showInDialog", true},
+                                   {"Styl", false},
+                                   {"PntT", false},
+                                   {"Md  ", false},
+                                   {"Opct", false},
+                                   {"Sz  ", false},
+                                   {"Clr ", false},
+                                   {"Grad", false},
+                                   {"gradientsInterpolationMethod", true},
+                                   {"Angl", false},
+                                   {"Type", false},
+                                   {"Rvrs", false},
+                                   {"Dthr", false},
+                                   {"Scl ", false},
+                                   {"Algn", false},
+                                   {"Ofst", false},
+                                   {"overprint", true}});
+  const auto* placeholder = patchy::psd::descriptor_object(gradient_frame, "Clr ");
+  CHECK(placeholder != nullptr);
+  check_native_rgb(*placeholder, patchy::RgbColor{0, 0, 0});
+
+  const auto& interpolation = require_value(gradient_frame, "gradientsInterpolationMethod");
+  CHECK(interpolation.type == DescriptorType::Enum);
+  CHECK(interpolation.enum_type == "gradientInterpolationMethodType");
+  CHECK(interpolation.enum_type_long_form);
+  CHECK(interpolation.enum_value == "Gcls");
+  CHECK(!interpolation.enum_value_long_form);
+  const auto& angle = require_value(gradient_frame, "Angl");
+  CHECK(angle.type == DescriptorType::UnitFloat);
+  CHECK(angle.unit == "#Ang");
+  CHECK(angle.double_value == 37.0);
+  const auto& gradient_type = require_value(gradient_frame, "Type");
+  CHECK(gradient_type.type == DescriptorType::Enum);
+  CHECK(gradient_type.enum_type == "GrdT");
+  CHECK(gradient_type.enum_value == "Rdl ");
+  CHECK(require_value(gradient_frame, "Rvrs").bool_value);
+  const auto& scale = require_value(gradient_frame, "Scl ");
+  CHECK(scale.type == DescriptorType::UnitFloat);
+  CHECK(scale.unit == "#Prc");
+  CHECK(std::abs(scale.double_value - 73.0) < 0.001);
+
+  const auto* gradient_object = patchy::psd::descriptor_object(gradient_frame, "Grad");
+  CHECK(gradient_object != nullptr);
+  CHECK(gradient_object->name == "Gradient");
+  CHECK(gradient_object->class_id == "Grdn");
+  check_key_order(*gradient_object,
+                  {{"Nm  ", false}, {"GrdF", false}, {"Intr", false}, {"Clrs", false}, {"Trns", false}});
+  const auto& color_list = require_value(*gradient_object, "Clrs");
+  CHECK(color_list.type == DescriptorType::List);
+  CHECK(color_list.list_value.size() == 2);
+  CHECK(color_list.list_value.front().type == DescriptorType::Object);
+  CHECK(color_list.list_value.front().object_value != nullptr);
+  const auto& first_color_stop = *color_list.list_value.front().object_value;
+  CHECK(first_color_stop.class_id == "Clrt");
+  check_key_order(first_color_stop,
+                  {{"Clr ", false}, {"Type", false}, {"Lctn", false}, {"Mdpn", false}});
+  const auto* first_stop_color = patchy::psd::descriptor_object(first_color_stop, "Clr ");
+  CHECK(first_stop_color != nullptr);
+  check_native_rgb(*first_stop_color, gradient.gradient.color_stops.front().color);
+
+  const auto& transparency_list = require_value(*gradient_object, "Trns");
+  CHECK(transparency_list.type == DescriptorType::List);
+  CHECK(transparency_list.list_value.size() == 3);
+  CHECK(transparency_list.list_value[1].object_value != nullptr);
+  const auto& middle_transparency_stop = *transparency_list.list_value[1].object_value;
+  CHECK(middle_transparency_stop.class_id == "TrnS");
+  check_key_order(middle_transparency_stop, {{"Opct", false}, {"Lctn", false}, {"Mdpn", false}});
+  const auto& stop_opacity = require_value(middle_transparency_stop, "Opct");
+  CHECK(stop_opacity.type == DescriptorType::UnitFloat);
+  CHECK(stop_opacity.unit == "#Prc");
+  CHECK(std::abs(stop_opacity.double_value - 42.0) < 0.001);
+
+  const auto* offset = patchy::psd::descriptor_object(gradient_frame, "Ofst");
+  CHECK(offset != nullptr);
+  CHECK(offset->class_id == "Pnt ");
+  check_key_order(*offset, {{"Hrzn", false}, {"Vrtc", false}});
+  CHECK(require_value(*offset, "Hrzn").unit == "#Prc");
+  CHECK(require_value(*offset, "Vrtc").unit == "#Prc");
+}
+
 void psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates() {
   patchy::Document document(3, 3, patchy::PixelFormat::rgb8());
   auto& layer = document.add_pixel_layer("Photoshop Style", solid_rgba(3, 3, 120, 80, 40, 255));
@@ -6795,6 +6976,61 @@ void psd_writer_round_trips_layer_groups() {
   CHECK(read_again.layers()[1].kind() == patchy::LayerKind::Group);
   CHECK(read_again.layers()[1].children().size() == 2);
   CHECK(read_again.layers()[1].children()[1].name() == "Top Child");
+}
+
+void psd_blending_ranges_round_trip_for_layers_and_group_records() {
+  const std::vector<std::uint8_t> pixel_ranges{0, 12, 240, 255, 3, 18, 220, 251};
+  const std::vector<std::uint8_t> adjustment_ranges{5, 20, 210, 245, 9, 24, 200, 239};
+  const std::vector<std::uint8_t> child_ranges{10, 30, 190, 230, 14, 34, 180, 224};
+  const std::vector<std::uint8_t> group_ranges{15, 40, 170, 220, 19, 44, 160, 214};
+  const std::vector<std::uint8_t> boundary_ranges{20, 50, 150, 210, 24, 54, 140, 204};
+
+  for (const bool large_document : {false, true}) {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+
+    patchy::Layer pixel(document.allocate_layer_id(), "Pixel", solid_rgba(2, 2, 10, 20, 30, 255));
+    pixel.raw_psd_blending_ranges() = pixel_ranges;
+    document.add_layer(std::move(pixel));
+
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::Levels;
+    settings.levels.black_input = 12;
+    patchy::Layer adjustment(document.allocate_layer_id(), "Levels", patchy::LayerKind::Adjustment);
+    adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+    patchy::configure_adjustment_layer(adjustment, settings);
+    adjustment.raw_psd_blending_ranges() = adjustment_ranges;
+    document.add_layer(std::move(adjustment));
+
+    patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+    group.raw_psd_blending_ranges() = group_ranges;
+    group.raw_psd_group_boundary_blending_ranges() = boundary_ranges;
+    patchy::Layer child(document.allocate_layer_id(), "Child", solid_rgba(2, 2, 40, 50, 60, 255));
+    child.raw_psd_blending_ranges() = child_ranges;
+    group.add_child(std::move(child));
+    document.add_layer(std::move(group));
+
+    const auto assert_preserved = [&](const patchy::Document& read) {
+      CHECK(read.layers().size() == 3);
+      CHECK(read.layers()[0].raw_psd_blending_ranges() == pixel_ranges);
+      CHECK(read.layers()[1].kind() == patchy::LayerKind::Adjustment);
+      CHECK(read.layers()[1].raw_psd_blending_ranges() == adjustment_ranges);
+      const auto& read_group = read.layers()[2];
+      CHECK(read_group.kind() == patchy::LayerKind::Group);
+      CHECK(read_group.raw_psd_blending_ranges() == group_ranges);
+      CHECK(read_group.raw_psd_group_boundary_blending_ranges() == boundary_ranges);
+      CHECK(read_group.children().size() == 1);
+      CHECK(read_group.children().front().raw_psd_blending_ranges() == child_ranges);
+    };
+
+    const patchy::psd::WriteOptions options{large_document};
+    const auto first_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document, options);
+    const auto first_read = patchy::psd::DocumentIo::read(first_bytes);
+    assert_preserved(first_read);
+
+    const auto second_bytes = patchy::psd::DocumentIo::write_layered_rgb8(first_read, options);
+    const auto second_read = patchy::psd::DocumentIo::read(second_bytes);
+    assert_preserved(second_read);
+  }
 }
 
 void psd_round_trips_clipping_flag() {
@@ -14413,6 +14649,8 @@ int main() {
       {"psd_arrows_load_save_stays_compressed_if_available",
        psd_arrows_load_save_stays_compressed_if_available},
       {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},
+      {"psd_generated_stroke_descriptors_match_photoshop_shape",
+       psd_generated_stroke_descriptors_match_photoshop_shape},
       {"psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates",
        psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates},
       {"psd_arrows_imports_photoshop_inner_effects",
@@ -14460,6 +14698,8 @@ int main() {
        psd_reader_tolerates_legacy_patchy_top_to_bottom_background_files},
       {"psd_reader_preserves_layer_group_hierarchy", psd_reader_preserves_layer_group_hierarchy},
       {"psd_writer_round_trips_layer_groups", psd_writer_round_trips_layer_groups},
+      {"psd_blending_ranges_round_trip_for_layers_and_group_records",
+       psd_blending_ranges_round_trip_for_layers_and_group_records},
       {"psd_round_trips_clipping_flag", psd_round_trips_clipping_flag},
       {"psd_clipped_first_in_group_round_trips_and_renders_unclipped",
        psd_clipped_first_in_group_round_trips_and_renders_unclipped},

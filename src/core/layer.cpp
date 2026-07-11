@@ -188,6 +188,22 @@ const std::optional<LayerMask>& Layer::mask() const noexcept {
   return mask_;
 }
 
+std::vector<std::uint8_t>& Layer::raw_psd_blending_ranges() noexcept {
+  return raw_psd_blending_ranges_;
+}
+
+const std::vector<std::uint8_t>& Layer::raw_psd_blending_ranges() const noexcept {
+  return raw_psd_blending_ranges_;
+}
+
+std::vector<std::uint8_t>& Layer::raw_psd_group_boundary_blending_ranges() noexcept {
+  return raw_psd_group_boundary_blending_ranges_;
+}
+
+const std::vector<std::uint8_t>& Layer::raw_psd_group_boundary_blending_ranges() const noexcept {
+  return raw_psd_group_boundary_blending_ranges_;
+}
+
 std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() noexcept {
   trace_revision_bump("unknown_psd_blocks", name_);
   render_revision_ = next_layer_revision();

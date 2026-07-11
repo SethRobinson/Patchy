@@ -1039,8 +1039,8 @@
     </message>
     <message>
         <location filename="../src/ui/compatibility_report.cpp" line="+47"/>
-        <source>%1 is a smart object linked to an external file; Patchy shows and preserves the embedded preview but cannot update it from disk.</source>
-        <translation>%1 は外部ファイルにリンクされたスマートオブジェクトです。Patchy は埋め込みプレビューを表示・保持しますが、ディスクから更新することはできません。</translation>
+        <source>%1 is a smart object linked to an external file; Patchy preserves it and can update it from disk when the source file is available.</source>
+        <translation>%1 は外部ファイルにリンクされたスマートオブジェクトです。Patchy はこれを保持し、ソースファイルが利用可能な場合はディスクから更新できます。</translation>
     </message>
     <message>
         <location line="+5"/>
@@ -1058,7 +1058,22 @@
         <translation>%1 は Patchy では保持のみ可能で編集できないスマートオブジェクトです (%2)。</translation>
     </message>
     <message>
-        <location line="+14"/>
+        <location line="+25"/>
+        <source>%1 contains a Satin effect that Patchy preserves for PSD round-trip but does not render or edit.</source>
+        <translation>%1 にはサテン効果が含まれています。Patchy は PSD 往復用に保持しますが、描画や編集は行いません。</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>%1 contains a Pattern Overlay effect that Patchy preserves for PSD round-trip but does not render or edit.</source>
+        <translation>%1 にはパターンオーバーレイ効果が含まれています。Patchy は PSD 往復用に保持しますが、描画や編集は行いません。</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>%1 contains non-default Photoshop Blend If data that Patchy preserves for PSD round-trip but does not render or edit.</source>
+        <translation>%1 には既定値以外の Photoshop「ブレンド条件 (Blend If)」データが含まれています。Patchy は PSD 往復用に保持しますが、描画や編集は行いません。</translation>
+    </message>
+    <message>
+        <location line="+12"/>
         <location line="+53"/>
         <source>%1 preserves %2 unknown PSD layer block(s).</source>
         <translation>%1 は不明な PSD レイヤーブロック %2 個を保持しています。</translation>
@@ -1153,6 +1168,11 @@
     </message>
     <message>
         <location line="-1254"/>
+        <source>Show Effects</source>
+        <translation>効果を表示</translation>
+    </message>
+    <message>
+        <location line="-1254"/>
         <source>Layer Mask Hides Effects</source>
         <translation>レイヤーマスクで効果を隠す</translation>
     </message>
@@ -1226,6 +1246,21 @@
         <translation>パターンオーバーレイ</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="+1055"/>
+        <source>Patchy preserved layer effects for PSD round-trip but does not render or edit them (%1).</source>
+        <translation>Patchy はレイヤー効果（%1）を PSD 往復用に保持しますが、描画や編集は行いません。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="-866"/>
+        <source>Satin and Pattern Overlay are preserved for PSD round-trip, but Patchy does not render or edit them. Saving other layer style changes may normalize Photoshop-only effect options.</source>
+        <translation>サテンとパターンオーバーレイは PSD 往復用に保持されますが、Patchy では描画も編集も行いません。他のレイヤースタイルを保存すると、Photoshop 固有の効果オプションが書き換えられる場合があります。</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>%1 is preserved for PSD round-trip, but Patchy does not render or edit it. Saving other layer style changes may normalize Photoshop-only effect options.</source>
+        <translation>%1 は PSD 往復用に保持されますが、Patchy では描画も編集も行いません。他のレイヤースタイルを保存すると、Photoshop 固有の効果オプションが書き換えられる場合があります。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="-1275"/>
         <location line="+65"/>
         <location line="+44"/>
@@ -1279,6 +1314,16 @@
         <location line="+1"/>
         <source>Down</source>
         <translation>下</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>Highlight</source>
+        <translation>ハイライト</translation>
+    </message>
+    <message>
+        <location line="+20"/>
+        <source>Shadow</source>
+        <translation>シャドウ</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -1482,6 +1527,16 @@
         <location line="-12"/>
         <source>Choose Stroke Color</source>
         <translation>境界線の色を選択</translation>
+    </message>
+    <message>
+        <location line="+31"/>
+        <source>Choose Highlight Color</source>
+        <translation>ハイライトの色を選択</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Choose Shadow Color</source>
+        <translation>シャドウの色を選択</translation>
     </message>
     <message>
         <location line="+38"/>
