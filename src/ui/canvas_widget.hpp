@@ -127,7 +127,11 @@ public:
 
   enum class LayerEditTarget {
     Content,
-    Mask
+    Mask,
+    DocumentChannel,
+    ComponentRed,
+    ComponentGreen,
+    ComponentBlue
   };
 
   enum class MaskDisplayMode {
@@ -245,6 +249,11 @@ public:
   [[nodiscard]] bool edit_locked() const noexcept;
   void set_layer_edit_target(LayerEditTarget target) noexcept;
   [[nodiscard]] LayerEditTarget layer_edit_target() const noexcept;
+  void set_document_channel_edit_target(ChannelId id, MaskDisplayMode mode = MaskDisplayMode::Grayscale);
+  void set_component_channel_preview(LayerEditTarget component);
+  [[nodiscard]] std::optional<ChannelId> active_document_channel_id() const noexcept;
+  [[nodiscard]] bool editing_document_channel() const noexcept;
+  [[nodiscard]] bool document_channel_is_editable() const noexcept;
   void set_mask_display_mode(MaskDisplayMode mode);
   [[nodiscard]] MaskDisplayMode mask_display_mode() const noexcept;
   void invalidate_mask_display();
@@ -416,7 +425,7 @@ public:
   // for should_defer_full_refresh_to_async) and the render diagnostics keep
   // counting, so history steps on big documents swap frames instead of
   // flashing checkerboard.
-  void set_document_for_history_restore(Document* document);
+  void set_document_for_history_restore(Document* document, bool normal_composite_unchanged = false);
   [[nodiscard]] bool processing_overlay_visible() const noexcept;
   [[nodiscard]] bool processing_operation_active() const noexcept;
   void begin_processing_operation(QString message = {});
@@ -430,6 +439,10 @@ public:
   void document_changed(QRegion document_region);
   void document_changed_effect_bounds(QRect document_rect);
   void document_changed_effect_bounds(QRegion document_region);
+  // Invalidates the active grayscale target without invalidating the normal
+  // compositor. Document channels are not part of the layer composite.
+  void grayscale_target_changed(QRect document_rect,
+                                DocumentChangeReason reason = DocumentChangeReason::Immediate);
   void select_all();
   void invert_selection();
   void clear_selection();
@@ -477,6 +490,8 @@ public:
   void select_active_layer_opaque_pixels();
   [[nodiscard]] QRect fill_active_layer_mask(QColor color);
   [[nodiscard]] QRect clear_active_layer_mask();
+  [[nodiscard]] PixelBuffer selection_as_grayscale() const;
+  void replace_selection_from_grayscale(const PixelBuffer& pixels, QString history_label);
   void grow_selection();
   void select_similar_to_selection();
   [[nodiscard]] std::optional<QRect> selected_document_rect() const noexcept;
@@ -596,7 +611,8 @@ private:
   [[nodiscard]] QImage render_document_image() const;
   void ensure_render_cache();
   [[nodiscard]] QImage render_document_image_with_processing();
-  void set_document_internal(Document* document, bool preserve_frame_for_same_size);
+  void set_document_internal(Document* document, bool preserve_frame_for_same_size,
+                             bool normal_composite_unchanged = false);
   void start_async_render_cache_refresh();
   void cancel_async_render_cache_refresh() noexcept;
   // True when a paint should keep showing the previous frame and let the async
@@ -624,7 +640,7 @@ private:
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
   [[nodiscard]] QPoint shape_constrained_current() const;
-  void draw_shape_preview(QPainter& painter) const;
+  void draw_shape_preview(QPainter& painter, QRect exposed_rect);
   void draw_drag_size_readout(QPainter& painter) const;
   void draw_text_rect_preview(QPainter& painter) const;
   void draw_zoom_preview(QPainter& painter) const;
@@ -670,6 +686,14 @@ private:
   [[nodiscard]] Layer* active_pixel_layer() const noexcept;
   [[nodiscard]] LayerMask* active_layer_mask() const noexcept;
   [[nodiscard]] bool editing_layer_mask() const noexcept;
+  [[nodiscard]] DocumentChannel* active_document_channel() const noexcept;
+  [[nodiscard]] const DocumentChannel* active_document_channel_const() const noexcept;
+  struct GrayscaleEditTarget {
+    PixelBuffer* pixels{nullptr};
+    QRect bounds;
+  };
+  [[nodiscard]] std::optional<GrayscaleEditTarget> active_grayscale_edit_target(QRect required_rect = {});
+  [[nodiscard]] bool editing_grayscale_target() const noexcept;
   void refresh_mask_display_image(QRegion document_region);
   void draw_mask_display_overlay(QPainter& painter, const QRectF& target_rect, bool pixel_aligned_view,
                                  QRect pixel_aligned_target_rect);
@@ -848,6 +872,8 @@ private:
   [[nodiscard]] QRegion move_active_layer_by(QPoint delta);
   void document_changed_impl(QRegion document_region, bool includes_effect_bounds,
                              DocumentChangeReason reason = DocumentChangeReason::Immediate);
+  void active_edit_target_changed_impl(QRegion document_region,
+                                       DocumentChangeReason reason = DocumentChangeReason::Immediate);
   void notify_document_changed(DocumentChangeReason reason = DocumentChangeReason::Immediate);
   void set_transform_cursor_for_handle(TransformHandle handle);
   void update_move_transform_controls_dirty(std::optional<QRectF> old_rect);
@@ -972,9 +998,12 @@ private:
   bool selection_square_constrained_{false};
   CanvasTool tool_{CanvasTool::Brush};
   LayerEditTarget layer_edit_target_{LayerEditTarget::Content};
+  ChannelId active_document_channel_id_{0};
   MaskDisplayMode mask_display_mode_{MaskDisplayMode::None};
   QImage mask_display_image_;
   LayerId mask_display_image_layer_{0};
+  ChannelId mask_display_image_channel_{0};
+  std::uint64_t mask_display_image_revision_{0};
   QColor primary_color_{Qt::black};
   QColor secondary_color_{Qt::white};
   // Palette-mode snap cache; rebuilt lazily when the document palette changes

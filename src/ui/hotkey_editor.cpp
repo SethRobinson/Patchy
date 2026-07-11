@@ -743,6 +743,9 @@ QString HotkeyEditorPanel::category_display_name(const QString& category_key) co
   if (category_key == QStringLiteral("brush")) {
     return tr("Brush");
   }
+  if (category_key == QStringLiteral("channels")) {
+    return tr("Channels");
+  }
   return tr("Other");
 }
 

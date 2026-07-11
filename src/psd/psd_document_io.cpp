@@ -57,11 +57,15 @@ constexpr std::uint16_t kChannelBlack = 3;
 constexpr std::uint16_t kChannelTransparency = 0xFFFFU;
 constexpr std::uint16_t kChannelUserMask = 0xFFFEU;
 constexpr std::uint16_t kImageResourceAlphaChannelNames = 1006;
+constexpr std::uint16_t kImageResourceDisplayInfo = 1007;
 constexpr std::uint16_t kImageResourceResolutionInfo = 1005;
 constexpr std::uint16_t kImageResourceGridAndGuidesInfo = 1032;
 constexpr std::uint16_t kImageResourceGlobalLightAngle = 1037;
 constexpr std::uint16_t kImageResourceIccProfile = 1039;
+constexpr std::uint16_t kImageResourceUnicodeAlphaChannelNames = 1045;
 constexpr std::uint16_t kImageResourceGlobalLightAltitude = 1049;
+constexpr std::uint16_t kImageResourceAlphaIdentifiers = 1053;
+constexpr std::uint16_t kImageResourceDisplayInfoFloat = 1077;
 // Patchy-private resource (Photoshop plug-in id range 4000-4999): the document
 // palette for the palettized editing mode. Photoshop and pre-feature Patchy
 // builds preserve unknown resource ids verbatim, so the palette round-trips and
@@ -206,6 +210,25 @@ struct ImageResource {
   std::vector<std::uint8_t> payload;
 };
 
+// Metadata for one extra plane in the composite image data. Photoshop stores a
+// DisplayInfo record and a name for merged transparency as well as saved
+// alpha/spot channels, but merged transparency deliberately has no alpha ID.
+struct CompositeChannelInfo {
+  std::string_view name;
+  bool merged_transparency{false};
+  bool alpha_identifier_eligible{false};
+  std::optional<std::uint32_t> photoshop_identifier;
+  DocumentChannelDisplayInfo display_info;
+  std::span<const std::uint8_t> raw_display_info;
+};
+
+struct ParsedCompositeChannelResources {
+  std::vector<std::string> legacy_names;
+  std::vector<std::string> unicode_names;
+  std::vector<std::uint32_t> identifiers;
+  std::vector<std::vector<std::uint8_t>> display_records;
+};
+
 struct PsdTextStyleRun {
   int start{0};
   int length{0};
@@ -302,6 +325,9 @@ PixelFormat format_from_header(const Header& header) {
   }
   if (header.color_mode != kColorModeRgb && header.color_mode != kColorModeCmyk) {
     throw std::runtime_error("The starter PSD reader currently supports RGB and CMYK files only");
+  }
+  if (header.channels > kMaximumPhotoshopChannelCount) {
+    throw std::runtime_error("PSD files cannot contain more than 56 channels");
   }
   if (header.color_mode == kColorModeRgb && header.channels < 3) {
     throw std::runtime_error("RGB PSD file must contain at least 3 channels");
@@ -414,9 +440,9 @@ void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, b
   writer.write_bytes(raw_data);
 }
 
-// A flat document whose single pixel layer carries an enabled grayscale mask is exported
-// with the mask preserved as a document-level extra alpha channel ("Alpha 1"), matching
-// how Photoshop surfaces the alpha of a flattened image. This is the eligibility check.
+// A flat export whose single pixel layer carries an enabled imported-alpha mask
+// preserves that mask as a saved composite channel ("Alpha 1"). On PSD reopen it is
+// a DocumentChannel, never an applied layer mask. This is the eligibility check.
 [[nodiscard]] const Layer* document_alpha_mask_layer(const Document& document) noexcept {
   if (document.layers().size() != 1) {
     return nullptr;
@@ -448,6 +474,32 @@ struct DocumentAlphaComposite {
   std::vector<std::uint8_t> alpha;  // canvas-sized grayscale, row-major
   std::string_view channel_name;    // 1006 label: "Alpha 1" (saved channel) or "Transparency"
 };
+
+void append_document_channels_for_write(
+    const Document& document, std::vector<std::span<const std::uint8_t>>& planes,
+    std::vector<CompositeChannelInfo>& channel_info) {
+  planes.reserve(planes.size() + document.channels().size());
+  channel_info.reserve(channel_info.size() + document.channels().size());
+  for (const auto& channel : document.channels()) {
+    const auto& pixels = channel.pixels();
+    if (pixels.format() != PixelFormat::gray8() || pixels.width() != document.width() ||
+        pixels.height() != document.height()) {
+      throw std::runtime_error("PSD saved channels must be full-canvas 8-bit grayscale images");
+    }
+    planes.emplace_back(pixels.data());
+    channel_info.push_back(CompositeChannelInfo{channel.name(), false,
+                                                channel.kind() == DocumentChannelKind::Alpha,
+                                                channel.photoshop_identifier(),
+                                                channel.display_info(),
+                                                channel.raw_photoshop_display_info()});
+  }
+}
+
+void check_composite_channel_limit(std::size_t extra_channel_count) {
+  if (3U + extra_channel_count > kMaximumPhotoshopChannelCount) {
+    throw std::runtime_error("PSD files support at most 56 total channels, including merged transparency");
+  }
+}
 
 // Builds the composite RGB (with the layer's original colors, NOT the masked flatten) and
 // the canvas-sized alpha plane sampled from the layer mask, honoring its bounds and
@@ -515,44 +567,80 @@ struct DocumentAlphaComposite {
   return DocumentAlphaComposite{std::move(rgb), std::move(alpha), "Transparency"};
 }
 
-// Writes the merged image data section as four planar channels (R, G, B, A). The PSD
-// merged-image RLE layout uses one compression marker followed by the row-length table
-// for every channel's rows and then all row data, which encode_packbits_rows produces
-// directly when given channel_count == 4.
-void write_rgb8_image_data_with_alpha(BigEndianWriter& writer, const PixelBuffer& pixels,
-                                      std::span<const std::uint8_t> alpha, bool wide_rle_counts) {
-  const auto rgb_planar = planar_rgb8_data(pixels);
-  const auto channel_pixels = static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height());
-  if (alpha.size() != channel_pixels) {
-    throw std::runtime_error("PSD alpha plane length does not match the composite dimensions");
+// Writes RGB followed by any number of full-canvas grayscale planes. The merged
+// image RLE layout has one compression marker, all row counts for all planes, then
+// all encoded rows. Build the RLE candidate row-by-row so adding many saved
+// channels does not require another full planar copy of every channel.
+void write_rgb8_image_data_with_extra_channels(
+    BigEndianWriter& writer, const PixelBuffer& pixels,
+    std::span<const std::span<const std::uint8_t>> extra_channels, bool wide_rle_counts) {
+  if (pixels.format() != PixelFormat::rgb8()) {
+    throw std::runtime_error("PSD composite export requires RGB8 pixels");
+  }
+  const auto width = static_cast<std::size_t>(pixels.width());
+  const auto height = static_cast<std::size_t>(pixels.height());
+  const auto channel_pixels = width * height;
+  for (const auto channel : extra_channels) {
+    if (channel.size() != channel_pixels) {
+      throw std::runtime_error("PSD saved channel dimensions do not match the document");
+    }
   }
 
-  std::vector<std::uint8_t> raw_data(rgb_planar.size() + channel_pixels);
-  std::copy(rgb_planar.begin(), rgb_planar.end(), raw_data.begin());
-  std::copy(alpha.begin(), alpha.end(), raw_data.begin() + static_cast<std::ptrdiff_t>(rgb_planar.size()));
+  const auto channel_count = 3U + extra_channels.size();
+  std::vector<std::uint32_t> row_lengths;
+  row_lengths.reserve(height * channel_count);
+  std::vector<std::uint8_t> encoded_rows;
+  std::vector<std::uint8_t> rgb_row(width);
+  const auto max_row_bytes = wide_rle_counts ? 0xFFFFFFFFULL : 0xFFFFULL;
+  const auto append_encoded_row = [&](std::span<const std::uint8_t> row) {
+    auto encoded = encode_packbits_row(row);
+    if (encoded.size() > max_row_bytes) {
+      throw std::runtime_error("PSD PackBits row is too large");
+    }
+    row_lengths.push_back(static_cast<std::uint32_t>(encoded.size()));
+    encoded_rows.insert(encoded_rows.end(), encoded.begin(), encoded.end());
+  };
 
-  const auto rle_data = encode_packbits_rows(raw_data, pixels.width(), pixels.height(), 4, wide_rle_counts);
-  if (rle_data.size() < raw_data.size()) {
+  for (std::size_t component = 0; component < 3U; ++component) {
+    for (std::size_t y = 0; y < height; ++y) {
+      const auto first_pixel = y * width;
+      for (std::size_t x = 0; x < width; ++x) {
+        rgb_row[x] = pixels.data()[(first_pixel + x) * 3U + component];
+      }
+      append_encoded_row(rgb_row);
+    }
+  }
+  for (const auto channel : extra_channels) {
+    for (std::size_t y = 0; y < height; ++y) {
+      append_encoded_row(channel.subspan(y * width, width));
+    }
+  }
+
+  const auto count_width = wide_rle_counts ? 4U : 2U;
+  const auto rle_size = row_lengths.size() * count_width + encoded_rows.size();
+  const auto raw_size = channel_pixels * channel_count;
+  if (rle_size < raw_size) {
     writer.write_u16(kCompressionRle);
-    writer.write_bytes(rle_data);
+    for (const auto length : row_lengths) {
+      if (wide_rle_counts) {
+        writer.write_u32(length);
+      } else {
+        writer.write_u16(static_cast<std::uint16_t>(length));
+      }
+    }
+    writer.write_bytes(encoded_rows);
     return;
   }
 
   writer.write_u16(kCompressionRaw);
-  writer.write_bytes(raw_data);
-}
-
-// Image resource 1006 holds one Pascal string per alpha channel. A document-alpha
-// mask exports as a saved channel named "Alpha 1" (how Photoshop labels it in its UI);
-// a layered document with canvas transparency exports its merged alpha under the name
-// "Transparency", Photoshop's own name for merged canvas alpha (which the reader
-// deliberately never adopts as a layer mask).
-[[nodiscard]] std::vector<std::uint8_t> alpha_channel_names_resource(std::string_view name) {
-  std::vector<std::uint8_t> payload;
-  payload.reserve(1U + name.size());
-  payload.push_back(static_cast<std::uint8_t>(name.size()));
-  payload.insert(payload.end(), name.begin(), name.end());
-  return payload;
+  for (std::size_t component = 0; component < 3U; ++component) {
+    for (std::size_t pixel = 0; pixel < channel_pixels; ++pixel) {
+      writer.write_u8(pixels.data()[pixel * 3U + component]);
+    }
+  }
+  for (const auto channel : extra_channels) {
+    writer.write_bytes(channel);
+  }
 }
 
 std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
@@ -729,6 +817,68 @@ std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader&
       const auto rows =
           std::span<const std::uint32_t>(row_lengths.data() + offset, static_cast<std::size_t>(header.height));
       channels.push_back(read_rle_channel_from_counts(reader, rows, width));
+    }
+    return channels;
+  }
+
+  throw std::runtime_error("Unsupported PSD composite compression");
+}
+
+// Reads only a contiguous suffix of the composite planes. Raw data can skip the
+// color planes directly; RLE still needs the complete row-count table, but the
+// encoded rows for unwanted planes are skipped without decoding or storing them.
+std::vector<std::vector<std::uint8_t>> read_flat_image_channels_from(
+    BigEndianReader& reader, const Header& header, std::uint16_t compression,
+    std::uint16_t first_channel) {
+  if (first_channel > header.channels) {
+    throw std::runtime_error("Invalid PSD saved channel index");
+  }
+  const auto width = static_cast<std::int32_t>(header.width);
+  const auto height = static_cast<std::int32_t>(header.height);
+  const auto channel_pixels = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+  std::vector<std::vector<std::uint8_t>> channels;
+  channels.reserve(static_cast<std::size_t>(header.channels - first_channel));
+
+  if (compression == kCompressionRaw) {
+    const auto skip_bytes = channel_pixels * static_cast<std::size_t>(first_channel);
+    if (skip_bytes > reader.remaining()) {
+      throw std::runtime_error("PSD composite channel data is truncated");
+    }
+    reader.skip(skip_bytes);
+    for (std::uint16_t channel = first_channel; channel < header.channels; ++channel) {
+      channels.push_back(read_channel_data(reader, compression, width, height, header.large_document));
+    }
+    return channels;
+  }
+
+  if (compression == kCompressionRle) {
+    std::vector<std::uint32_t> row_lengths;
+    row_lengths.reserve(static_cast<std::size_t>(header.channels) * static_cast<std::size_t>(header.height));
+    for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
+      for (std::uint32_t y = 0; y < header.height; ++y) {
+        row_lengths.push_back(header.large_document ? reader.read_u32() : reader.read_u16());
+      }
+    }
+    for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
+      const auto offset = static_cast<std::size_t>(channel) * static_cast<std::size_t>(header.height);
+      const auto rows =
+          std::span<const std::uint32_t>(row_lengths.data() + offset, static_cast<std::size_t>(header.height));
+      if (channel < first_channel) {
+        std::size_t encoded_size = 0;
+        for (const auto row_length : rows) {
+          if (encoded_size > reader.remaining() ||
+              static_cast<std::size_t>(row_length) > reader.remaining() - encoded_size) {
+            throw std::runtime_error("PSD composite channel data is truncated");
+          }
+          encoded_size += row_length;
+        }
+        if (encoded_size > reader.remaining()) {
+          throw std::runtime_error("PSD composite channel data is truncated");
+        }
+        reader.skip(encoded_size);
+      } else {
+        channels.push_back(read_rle_channel_from_counts(reader, rows, width));
+      }
     }
     return channels;
   }
@@ -4232,6 +4382,237 @@ std::optional<std::vector<std::uint8_t>> find_image_resource_payload(std::span<c
   return std::nullopt;
 }
 
+std::vector<std::string> parse_legacy_alpha_channel_names(std::span<const std::uint8_t> payload) {
+  std::vector<std::string> names;
+  std::size_t offset = 0;
+  while (offset < payload.size()) {
+    const auto length = static_cast<std::size_t>(payload[offset++]);
+    if (length > payload.size() - offset) {
+      break;
+    }
+    names.emplace_back(reinterpret_cast<const char*>(payload.data() + offset), length);
+    offset += length;
+  }
+  return names;
+}
+
+std::vector<std::string> parse_unicode_alpha_channel_names(std::span<const std::uint8_t> payload) {
+  BigEndianReader reader(payload);
+  std::vector<std::string> names;
+  while (reader.remaining() >= 4U) {
+    const auto unit_count = reader.read_u32();
+    if (unit_count > reader.remaining() / 2U) {
+      break;
+    }
+    std::string decoded;
+    for (std::uint32_t index = 0; index < unit_count; ++index) {
+      auto codepoint = static_cast<std::uint32_t>(reader.read_u16());
+      if (codepoint == 0) {
+        continue;
+      }
+      if (codepoint >= 0xD800U && codepoint <= 0xDBFFU && index + 1U < unit_count) {
+        const auto low = static_cast<std::uint32_t>(reader.read_u16());
+        ++index;
+        if (low >= 0xDC00U && low <= 0xDFFFU) {
+          codepoint = 0x10000U + ((codepoint - 0xD800U) << 10U) + (low - 0xDC00U);
+        } else {
+          codepoint = '?';
+        }
+      }
+      append_utf8(decoded, codepoint);
+    }
+    names.push_back(std::move(decoded));
+  }
+  return names;
+}
+
+std::vector<std::uint32_t> parse_alpha_identifiers(std::span<const std::uint8_t> payload) {
+  if (payload.size() < 4U) {
+    return {};
+  }
+  BigEndianReader reader(payload);
+  const auto count = reader.read_u32();
+  if (count > reader.remaining() / 4U) {
+    return {};
+  }
+  std::vector<std::uint32_t> identifiers;
+  identifiers.reserve(count);
+  for (std::uint32_t index = 0; index < count; ++index) {
+    identifiers.push_back(reader.read_u32());
+  }
+  return identifiers;
+}
+
+std::vector<std::vector<std::uint8_t>> parse_display_info_records(
+    std::span<const std::uint8_t> payload, bool floating_point_resource) {
+  std::size_t offset = 0;
+  const auto record_size = floating_point_resource ? 13U : 14U;
+  if (floating_point_resource) {
+    if (payload.size() < 4U || BigEndianReader(payload.first(4)).read_u32() != 1U) {
+      return {};
+    }
+    offset = 4U;
+  }
+  if ((payload.size() - offset) % record_size != 0U) {
+    return {};
+  }
+  std::vector<std::vector<std::uint8_t>> records;
+  records.reserve((payload.size() - offset) / record_size);
+  while (offset < payload.size()) {
+    records.emplace_back(payload.begin() + static_cast<std::ptrdiff_t>(offset),
+                         payload.begin() + static_cast<std::ptrdiff_t>(offset + record_size));
+    offset += record_size;
+  }
+  return records;
+}
+
+ParsedCompositeChannelResources parse_composite_channel_resources(
+    std::span<const std::uint8_t> image_resources) {
+  ParsedCompositeChannelResources result;
+  const auto parsed = read_image_resources(image_resources);
+  if (!parsed.has_value()) {
+    return result;
+  }
+  std::optional<std::span<const std::uint8_t>> legacy_display;
+  std::optional<std::span<const std::uint8_t>> modern_display;
+  for (const auto& resource : *parsed) {
+    switch (resource.id) {
+      case kImageResourceAlphaChannelNames:
+        if (result.legacy_names.empty()) {
+          result.legacy_names = parse_legacy_alpha_channel_names(resource.payload);
+        }
+        break;
+      case kImageResourceUnicodeAlphaChannelNames:
+        if (result.unicode_names.empty()) {
+          result.unicode_names = parse_unicode_alpha_channel_names(resource.payload);
+        }
+        break;
+      case kImageResourceAlphaIdentifiers:
+        if (result.identifiers.empty()) {
+          result.identifiers = parse_alpha_identifiers(resource.payload);
+        }
+        break;
+      case kImageResourceDisplayInfo:
+        if (!legacy_display.has_value()) {
+          legacy_display = resource.payload;
+        }
+        break;
+      case kImageResourceDisplayInfoFloat:
+        if (!modern_display.has_value()) {
+          modern_display = resource.payload;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  if (modern_display.has_value()) {
+    result.display_records = parse_display_info_records(*modern_display, true);
+  }
+  if (result.display_records.empty() && legacy_display.has_value()) {
+    result.display_records = parse_display_info_records(*legacy_display, false);
+  }
+  return result;
+}
+
+DocumentChannelDisplayInfo display_info_from_photoshop_record(std::span<const std::uint8_t> record) {
+  DocumentChannelDisplayInfo info;
+  if (record.size() < 13U) {
+    return info;
+  }
+  BigEndianReader reader(record.first(13U));
+  const auto color_space = reader.read_u16();
+  std::array<std::uint16_t, 4> components{};
+  for (auto& component : components) {
+    component = reader.read_u16();
+  }
+  const auto opacity_percent = reader.read_u16();
+  const auto mode = reader.read_u8();
+  if (color_space == 0U) {  // RGB, 16-bit unsigned components.
+    const auto component8 = [](std::uint16_t value) {
+      return static_cast<std::uint8_t>((static_cast<std::uint32_t>(value) + 128U) / 257U);
+    };
+    info.color = RgbColor{component8(components[0]), component8(components[1]), component8(components[2])};
+  }
+  info.opacity = std::clamp(static_cast<float>(opacity_percent) / 100.0F, 0.0F, 1.0F);
+  info.color_indicates = mode == 2U   ? DocumentChannelColorIndicates::SpotColor
+                         : mode == 0U ? DocumentChannelColorIndicates::SelectedAreas
+                                      : DocumentChannelColorIndicates::MaskedAreas;
+  return info;
+}
+
+std::uint16_t composite_color_channel_count(std::uint16_t color_mode) noexcept {
+  return is_cmyk_color_mode(color_mode) ? 4U : 3U;
+}
+
+void add_saved_composite_channels(Document& document,
+                                  std::vector<std::vector<std::uint8_t>> channel_planes,
+                                  std::uint16_t first_saved_channel, const Header& header,
+                                  const ParsedCompositeChannelResources& resources) {
+  const auto color_channels = composite_color_channel_count(header.color_mode);
+  if (first_saved_channel < color_channels || first_saved_channel > header.channels) {
+    throw std::runtime_error("Invalid PSD saved channel layout");
+  }
+  const auto expected_count = static_cast<std::size_t>(header.channels - first_saved_channel);
+  if (channel_planes.size() != expected_count) {
+    throw std::runtime_error("PSD saved channel count does not match the composite data");
+  }
+  const auto first_resource_index = static_cast<std::size_t>(first_saved_channel - color_channels);
+  const auto pixel_count = static_cast<std::size_t>(document.width()) * static_cast<std::size_t>(document.height());
+  std::size_t alpha_identifier_index = 0;
+  for (std::size_t index = 0; index < channel_planes.size(); ++index) {
+    if (channel_planes[index].size() != pixel_count) {
+      throw std::runtime_error("PSD saved channel dimensions do not match the document");
+    }
+    const auto aligned_index = [first_resource_index, index, saved_count = channel_planes.size()](
+                                   std::size_t resource_count) {
+      // Modern Photoshop describes merged transparency in the name/display arrays;
+      // some older writers omit that derived entry. Align either shape without using
+      // the literal channel name to decide whether a plane is merged transparency.
+      return first_resource_index != 0U && resource_count == saved_count ? index
+                                                                         : first_resource_index + index;
+    };
+    const auto unicode_index = aligned_index(resources.unicode_names.size());
+    const auto legacy_index = aligned_index(resources.legacy_names.size());
+    const auto display_index = aligned_index(resources.display_records.size());
+    std::string name;
+    if (unicode_index < resources.unicode_names.size() && !resources.unicode_names[unicode_index].empty()) {
+      name = resources.unicode_names[unicode_index];
+    } else if (legacy_index < resources.legacy_names.size() &&
+               !resources.legacy_names[legacy_index].empty()) {
+      name = resources.legacy_names[legacy_index];
+    } else {
+      name = "Alpha " + std::to_string(index + 1U);
+    }
+
+    DocumentChannelDisplayInfo display_info;
+    std::vector<std::uint8_t> raw_display_info;
+    if (display_index < resources.display_records.size()) {
+      raw_display_info = resources.display_records[display_index];
+      display_info = display_info_from_photoshop_record(raw_display_info);
+    }
+    const auto kind = display_info.color_indicates == DocumentChannelColorIndicates::SpotColor
+                          ? DocumentChannelKind::Spot
+                          : DocumentChannelKind::Alpha;
+    PixelBuffer pixels(document.width(), document.height(), PixelFormat::gray8());
+    std::copy(channel_planes[index].begin(), channel_planes[index].end(), pixels.data().begin());
+    DocumentChannel channel(document.allocate_channel_id(), std::move(name), kind, std::move(pixels));
+    // Resource 1053 contains identifiers for saved alpha channels only.
+    // Photoshop omits spot channels, so consume this array independently of
+    // the name/display arrays that describe every extra plane.
+    if (kind == DocumentChannelKind::Alpha &&
+        alpha_identifier_index < resources.identifiers.size()) {
+      channel.set_photoshop_identifier(resources.identifiers[alpha_identifier_index]);
+      ++alpha_identifier_index;
+    }
+    channel.set_display_info(display_info);
+    if (!raw_display_info.empty()) {
+      channel.set_raw_photoshop_display_info(std::move(raw_display_info));
+    }
+    document.add_channel(std::move(channel));
+  }
+}
+
 double sanitized_print_ppi(double value) noexcept {
   return std::isfinite(value) && value > 0.0 ? value : 300.0;
 }
@@ -4424,11 +4805,122 @@ void apply_patchy_palette_resource(Document& document, std::span<const std::uint
   }
 }
 
-// alpha_channel_name: the single 1006 entry to publish ("Alpha 1" for a promoted
-// document-alpha mask, "Transparency" for a merged-transparency composite), or empty
-// to strip the resource (opaque 3-channel composites must not name channels).
+std::vector<std::uint8_t> alpha_channel_names_resource(
+    std::span<const CompositeChannelInfo> channels) {
+  std::vector<std::uint8_t> payload;
+  for (const auto& channel : channels) {
+    // Resource 1006 is a legacy one-byte Pascal string array. Photoshop uses
+    // one '?' per Unicode scalar that is not representable there; the exact
+    // UTF-8 name belongs in resource 1045.
+    std::vector<std::uint8_t> legacy_name;
+    legacy_name.reserve(std::min<std::size_t>(channel.name.size(), 255U));
+    const auto units = utf8_to_utf16(channel.name);
+    for (std::size_t index = 0; index < units.size() && legacy_name.size() < 255U; ++index) {
+      const auto unit = units[index];
+      if (unit >= 0xD800U && unit <= 0xDBFFU && index + 1U < units.size() &&
+          units[index + 1U] >= 0xDC00U && units[index + 1U] <= 0xDFFFU) {
+        ++index;
+      }
+      legacy_name.push_back(unit <= 0x7FU ? static_cast<std::uint8_t>(unit)
+                                         : static_cast<std::uint8_t>('?'));
+    }
+    payload.push_back(static_cast<std::uint8_t>(legacy_name.size()));
+    payload.insert(payload.end(), legacy_name.begin(), legacy_name.end());
+  }
+  return payload;
+}
+
+std::vector<std::uint8_t> unicode_alpha_channel_names_resource(
+    std::span<const CompositeChannelInfo> channels) {
+  BigEndianWriter writer;
+  for (const auto& channel : channels) {
+    const auto units = utf8_to_utf16(channel.name);
+    writer.write_u32(checked_u32(units.size() + 1U, "Unicode alpha channel name length"));
+    for (const auto unit : units) {
+      writer.write_u16(unit);
+    }
+    writer.write_u16(0);  // Photoshop includes the terminator in the unit count.
+  }
+  return writer.bytes();
+}
+
+std::vector<std::uint8_t> alpha_identifiers_resource(
+    std::span<const CompositeChannelInfo> channels) {
+  const auto has_alpha_identifier = [](const CompositeChannelInfo& channel) {
+    return !channel.merged_transparency && channel.alpha_identifier_eligible;
+  };
+  std::vector<std::uint32_t> used;
+  for (const auto& channel : channels) {
+    if (has_alpha_identifier(channel) && channel.photoshop_identifier.has_value()) {
+      used.push_back(*channel.photoshop_identifier);
+    }
+  }
+  std::uint32_t next_identifier = 1U;
+  const auto allocate_identifier = [&used, &next_identifier]() {
+    while (std::find(used.begin(), used.end(), next_identifier) != used.end()) {
+      ++next_identifier;
+      if (next_identifier == 0U) {
+        throw std::runtime_error("PSD alpha channel identifiers are exhausted");
+      }
+    }
+    const auto result = next_identifier++;
+    used.push_back(result);
+    return result;
+  };
+
+  BigEndianWriter writer;
+  const auto saved_count = static_cast<std::size_t>(std::count_if(
+      channels.begin(), channels.end(), has_alpha_identifier));
+  writer.write_u32(checked_u32(saved_count, "alpha identifier count"));
+  for (const auto& channel : channels) {
+    if (!has_alpha_identifier(channel)) {
+      continue;
+    }
+    writer.write_u32(channel.photoshop_identifier.has_value() ? *channel.photoshop_identifier
+                                                               : allocate_identifier());
+  }
+  return writer.bytes();
+}
+
+std::vector<std::uint8_t> generated_display_info_record(const DocumentChannelDisplayInfo& info) {
+  BigEndianWriter writer;
+  writer.write_u16(0);  // RGB color space.
+  writer.write_u16(static_cast<std::uint16_t>(info.color.red) * 257U);
+  writer.write_u16(static_cast<std::uint16_t>(info.color.green) * 257U);
+  writer.write_u16(static_cast<std::uint16_t>(info.color.blue) * 257U);
+  writer.write_u16(0);
+  writer.write_u16(static_cast<std::uint16_t>(std::lround(std::clamp(info.opacity, 0.0F, 1.0F) * 100.0F)));
+  writer.write_u8(info.color_indicates == DocumentChannelColorIndicates::SpotColor       ? 2U
+                  : info.color_indicates == DocumentChannelColorIndicates::SelectedAreas ? 0U
+                                                                                           : 1U);
+  return writer.bytes();
+}
+
+std::vector<std::uint8_t> display_info_resource(std::span<const CompositeChannelInfo> channels,
+                                                bool floating_point_resource) {
+  BigEndianWriter writer;
+  if (floating_point_resource) {
+    writer.write_u32(1);
+  }
+  for (const auto& channel : channels) {
+    if ((!floating_point_resource && channel.raw_display_info.size() == 14U)) {
+      writer.write_bytes(channel.raw_display_info);
+      continue;
+    }
+    if (channel.raw_display_info.size() >= 13U) {
+      writer.write_bytes(channel.raw_display_info.first(13U));
+    } else {
+      writer.write_bytes(generated_display_info_record(channel.display_info));
+    }
+    if (!floating_point_resource) {
+      writer.write_u8(0);
+    }
+  }
+  return writer.bytes();
+}
+
 std::vector<std::uint8_t> image_resources_for_document(const Document& document,
-                                                       std::string_view alpha_channel_name) {
+                                                       std::span<const CompositeChannelInfo> channels) {
   auto resources = document.metadata().raw_psd_image_resources;
   auto parsed = read_image_resources(resources);
   if (!parsed.has_value()) {
@@ -4454,10 +4946,19 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
   if (!document.color_state().embedded_icc_profile.empty()) {
     upsert_image_resource(*parsed, kImageResourceIccProfile, document.color_state().embedded_icc_profile);
   }
-  if (!alpha_channel_name.empty()) {
-    upsert_image_resource(*parsed, kImageResourceAlphaChannelNames, alpha_channel_names_resource(alpha_channel_name));
+  if (!channels.empty()) {
+    upsert_image_resource(*parsed, kImageResourceAlphaChannelNames, alpha_channel_names_resource(channels));
+    upsert_image_resource(*parsed, kImageResourceUnicodeAlphaChannelNames,
+                          unicode_alpha_channel_names_resource(channels));
+    upsert_image_resource(*parsed, kImageResourceAlphaIdentifiers, alpha_identifiers_resource(channels));
+    upsert_image_resource(*parsed, kImageResourceDisplayInfo, display_info_resource(channels, false));
+    upsert_image_resource(*parsed, kImageResourceDisplayInfoFloat, display_info_resource(channels, true));
   } else {
     remove_image_resource(*parsed, kImageResourceAlphaChannelNames);
+    remove_image_resource(*parsed, kImageResourceUnicodeAlphaChannelNames);
+    remove_image_resource(*parsed, kImageResourceAlphaIdentifiers);
+    remove_image_resource(*parsed, kImageResourceDisplayInfo);
+    remove_image_resource(*parsed, kImageResourceDisplayInfoFloat);
   }
   const auto& palette_editing = document.palette_editing();
   const std::vector<RgbColor>* palette_colors = nullptr;
@@ -7042,7 +7543,9 @@ void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encode
 }
 
 Document read_flat_composite(BigEndianReader& reader, const Header& header,
-                             const CmykToRgbTransform* cmyk_icc) {
+                             const CmykToRgbTransform* cmyk_icc,
+                             const ParsedCompositeChannelResources& channel_resources,
+                             bool has_merged_transparency) {
   const auto format = format_from_header(header);
   const auto compression = reader.read_u16();
   const auto source_is_cmyk = is_cmyk_color_mode(header.color_mode);
@@ -7064,29 +7567,32 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
     }
   }
 
+  const auto color_channel_count = composite_color_channel_count(header.color_mode);
+  const auto first_saved_channel = static_cast<std::uint16_t>(
+      color_channel_count + (has_merged_transparency ? 1U : 0U));
+  if (first_saved_channel > header.channels) {
+    throw std::runtime_error("PSD merged transparency flag has no matching composite channel");
+  }
   Layer& background = document.add_pixel_layer("Background", std::move(pixels));
-
-  // A flat RGB composite may carry one or more extra channels beyond R/G/B. Photoshop
-  // surfaces the first as a saved "Alpha 1" channel; mirror that by importing it as an
-  // editable grayscale layer mask (the same shape the flat writer produces above).
-  if (!source_is_cmyk && header.channels >= 4 && channel_data.size() >= 4 &&
-      channel_data[3].size() == channel_pixels) {
-    const auto& alpha = channel_data[3];
-    std::uint8_t min_alpha = 255;
-    std::uint8_t max_alpha = 0;
-    for (const auto value : alpha) {
-      min_alpha = std::min(min_alpha, value);
-      max_alpha = std::max(max_alpha, value);
+  if (has_merged_transparency) {
+    const auto& merged_alpha = channel_data[color_channel_count];
+    if (merged_alpha.size() != channel_pixels) {
+      throw std::runtime_error("PSD merged transparency dimensions do not match the document");
     }
-    if (max_alpha > 0 && min_alpha < 255) {
-      PixelBuffer mask_pixels(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height),
-                              PixelFormat::gray8());
-      std::copy(alpha.begin(), alpha.end(), mask_pixels.data().begin());
-      background.set_mask(LayerMask{Rect::from_size(static_cast<std::int32_t>(header.width),
-                                                    static_cast<std::int32_t>(header.height)),
-                                    std::move(mask_pixels), /*default_color*/ 255, /*disabled*/ false});
-      set_layer_mask_is_document_alpha(background, true);
-    }
+    PixelBuffer mask_pixels(document.width(), document.height(), PixelFormat::gray8());
+    std::copy(merged_alpha.begin(), merged_alpha.end(), mask_pixels.data().begin());
+    background.set_mask(LayerMask{Rect::from_size(document.width(), document.height()),
+                                  std::move(mask_pixels), 255, false});
+    set_layer_mask_is_document_alpha(background, true);
+  }
+  std::vector<std::vector<std::uint8_t>> saved_channels;
+  saved_channels.reserve(static_cast<std::size_t>(header.channels - first_saved_channel));
+  for (std::uint16_t channel = first_saved_channel; channel < header.channels; ++channel) {
+    saved_channels.push_back(std::move(channel_data[channel]));
+  }
+  if (!saved_channels.empty()) {
+    add_saved_composite_channels(document, std::move(saved_channels), first_saved_channel, header,
+                                 channel_resources);
   }
 
   return document;
@@ -7240,7 +7746,9 @@ Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
 std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height,
                                std::uint16_t source_color_mode, float global_light_angle,
                                float global_light_altitude, bool large_document,
-                               const CmykToRgbTransform* cmyk_icc) {
+                               const CmykToRgbTransform* cmyk_icc,
+                               bool& has_merged_transparency) {
+  has_merged_transparency = false;
   const auto layer_info_length = large_document
                                      ? read_section_length_u64(layer_reader, "layer info")
                                      : static_cast<std::uint64_t>(read_section_length(layer_reader, "layer info"));
@@ -7249,8 +7757,11 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
   }
 
   const auto layer_info_end = layer_reader.position() + static_cast<std::size_t>(layer_info_length);
-  auto layer_count_raw = static_cast<std::int16_t>(layer_reader.read_u16());
-  const auto layer_count = static_cast<std::uint16_t>(std::abs(layer_count_raw));
+  const auto layer_count_raw = static_cast<std::int16_t>(layer_reader.read_u16());
+  has_merged_transparency = layer_count_raw < 0;
+  const auto layer_count = static_cast<std::uint16_t>(
+      layer_count_raw < 0 ? -static_cast<std::int32_t>(layer_count_raw)
+                          : static_cast<std::int32_t>(layer_count_raw));
   const CmykColorConverter cmyk_converter{cmyk_icc};
   std::vector<LayerRecord> records;
   records.reserve(layer_count);
@@ -7520,6 +8031,32 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
   return build_group_hierarchy(std::move(decoded_layers));
 }
 
+bool read_merged_transparency_flag_and_skip_layer_mask(BigEndianReader& reader,
+                                                        std::uint64_t layer_mask_length,
+                                                        bool large_document) {
+  if (layer_mask_length > reader.remaining()) {
+    throw std::runtime_error("Invalid PSD layer and mask information length");
+  }
+  if (layer_mask_length == 0U) {
+    return false;
+  }
+  const auto prefix_size = large_document ? 8U : 4U;
+  if (layer_mask_length < prefix_size) {
+    reader.skip(static_cast<std::size_t>(layer_mask_length));
+    return false;
+  }
+  const auto layer_info_length =
+      large_document ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32());
+  std::size_t consumed = prefix_size;
+  bool has_merged_transparency = false;
+  if (layer_info_length >= 2U && layer_mask_length - consumed >= 2U) {
+    has_merged_transparency = static_cast<std::int16_t>(reader.read_u16()) < 0;
+    consumed += 2U;
+  }
+  reader.skip(static_cast<std::size_t>(layer_mask_length) - consumed);
+  return has_merged_transparency;
+}
+
 }  // namespace
 
 bool DocumentIo::can_read(std::span<const std::uint8_t> bytes) noexcept {
@@ -7533,6 +8070,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
 
   skip_length_block(reader, "color mode data");
   auto image_resources = read_length_block(reader, "image resources");
+  const auto channel_resources = parse_composite_channel_resources(image_resources);
 
   Document document(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height), format);
   document.metadata().raw_psd_image_resources = image_resources;
@@ -7592,18 +8130,18 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       header.large_document
           ? read_section_length_u64(reader, "layer and mask information")
           : static_cast<std::uint64_t>(read_section_length(reader, "layer and mask information"));
+  bool has_merged_transparency = false;
   if (options.prefer_flat_composite) {
-    if (layer_mask_length > reader.remaining()) {
-      throw std::runtime_error("Invalid PSD layer and mask information length");
-    }
-    reader.skip(static_cast<std::size_t>(layer_mask_length));
+    has_merged_transparency =
+        read_merged_transparency_flag_and_skip_layer_mask(reader, layer_mask_length, header.large_document);
 
     auto metadata = std::move(document.metadata());
     auto color_state = std::move(document.color_state());
     auto print_settings = document.print_settings();
     auto grid_settings = document.grid_settings();
     auto guides = std::move(document.guides());
-    document = read_flat_composite(reader, header, cmyk_icc);
+    document = read_flat_composite(reader, header, cmyk_icc, channel_resources,
+                                   has_merged_transparency);
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
     document.color_state().ocio_view = std::move(color_state.ocio_view);
@@ -7623,7 +8161,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto layer_mask_payload = reader.read_bytes(static_cast<std::size_t>(layer_mask_length));
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
-                              global_light_angle, global_light_altitude, header.large_document, cmyk_icc);
+                              global_light_angle, global_light_altitude, header.large_document, cmyk_icc,
+                              has_merged_transparency);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
@@ -7703,7 +8242,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto print_settings = document.print_settings();
     auto grid_settings = document.grid_settings();
     auto guides = std::move(document.guides());
-    document = read_flat_composite(reader, header, cmyk_icc);
+    document = read_flat_composite(reader, header, cmyk_icc, channel_resources,
+                                   has_merged_transparency);
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
     document.color_state().ocio_view = std::move(color_state.ocio_view);
@@ -7711,52 +8251,42 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     document.grid_settings() = grid_settings;
     document.guides() = std::move(guides);
   } else {
-    // The editable layered data is authoritative. We still consult the merged composite
-    // for two reasons: an optional first-paint cache seed, and to recover a document-level
-    // extra alpha ("Alpha 1") as a layer mask when the file has a single pixel layer (the
-    // shape the layered writer produces for a flat image whose alpha became a mask).
-    // Photoshop layered files with a transparent canvas ALSO ship a 4th composite
-    // channel, but resource 1006 names it "Transparency": that is merged canvas
-    // alpha, not a saved channel, and adopting it would invent a phantom layer mask
-    // (single-text-layer PSBs like the table-tent Content.psb showed one). Only the
-    // "Alpha 1" shape our own writer emits is recovered.
-    const auto alpha_channel_names =
-        find_image_resource_payload(image_resources, kImageResourceAlphaChannelNames);
-    constexpr std::string_view kSavedAlphaName = "Alpha 1";
-    const bool first_alpha_is_saved =
-        alpha_channel_names.has_value() &&
-        alpha_channel_names->size() >= 1U + kSavedAlphaName.size() &&
-        (*alpha_channel_names)[0] == kSavedAlphaName.size() &&
-        std::equal(kSavedAlphaName.begin(), kSavedAlphaName.end(), alpha_channel_names->begin() + 1);
-    const bool want_alpha_mask = first_alpha_is_saved && header.channels >= 4 &&
-                                 !is_cmyk_color_mode(header.color_mode) &&
-                                 document.layers().size() == 1 &&
-                                 document.layers().front().kind() == LayerKind::Pixel &&
-                                 !document.layers().front().mask().has_value();
-    if (options.retain_flat_composite || want_alpha_mask) {
+    // The editable layer data is authoritative. Decode RGB only for the optional
+    // first-paint cache; when only saved channels are needed, raw color planes and
+    // encoded RLE rows are skipped without allocating a base composite.
+    const auto color_channel_count = composite_color_channel_count(header.color_mode);
+    const auto first_saved_channel = static_cast<std::uint16_t>(
+        color_channel_count + (has_merged_transparency ? 1U : 0U));
+    if (first_saved_channel > header.channels) {
+      throw std::runtime_error("PSD merged transparency flag has no matching composite channel");
+    }
+    const auto saved_channel_count = static_cast<std::size_t>(header.channels - first_saved_channel);
+    if (options.retain_flat_composite) {
       try {
-        auto flat_composite = read_flat_composite(reader, header, cmyk_icc);
+        auto flat_composite = read_flat_composite(reader, header, cmyk_icc, channel_resources,
+                                                  has_merged_transparency);
         if (!flat_composite.layers().empty() && flat_composite.layers().front().kind() == LayerKind::Pixel) {
-          if (options.retain_flat_composite) {
-            document.metadata().psd_flat_composite = flat_composite.layers().front().pixels();
-          }
-          if (want_alpha_mask && flat_composite.layers().front().mask().has_value()) {
-            document.layers().front().set_mask(*flat_composite.layers().front().mask());
-            set_layer_mask_is_document_alpha(document.layers().front(), true);
+          document.metadata().psd_flat_composite =
+              std::as_const(flat_composite).layers().front().pixels();
+          for (auto& channel : flat_composite.channels()) {
+            document.add_channel(std::move(channel));
           }
         }
       } catch (const std::exception&) {
         document.metadata().psd_flat_composite.reset();
-      }
-    } else if (reader.remaining() >= 2) {
-      const auto compression = reader.read_u16();
-      if (compression == kCompressionRaw) {
-        const auto channel_pixels = static_cast<std::size_t>(header.width) * static_cast<std::size_t>(header.height);
-        const auto composite_bytes = channel_pixels * static_cast<std::size_t>(header.channels);
-        if (composite_bytes <= reader.remaining()) {
-          reader.skip(composite_bytes);
+        if (saved_channel_count != 0U) {
+          throw;
         }
       }
+    } else if (saved_channel_count != 0U) {
+      if (reader.remaining() < 2U) {
+        throw std::runtime_error("PSD composite image data is missing");
+      }
+      const auto compression = reader.read_u16();
+      auto saved_channels =
+          read_flat_image_channels_from(reader, header, compression, first_saved_channel);
+      add_saved_composite_channels(document, std::move(saved_channels), first_saved_channel, header,
+                                   channel_resources);
     }
   }
 
@@ -7786,31 +8316,40 @@ std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, 
     composite = merged_flatten_composite(document);
     // A flat file has no layer section to carry the spec's negative-layer-count
     // "merged transparency" flag, so its alpha exports under the saved-channel
-    // convention instead; the flat reader round-trips "Alpha 1" as an editable
-    // document-alpha mask.
+    // convention instead; the flat reader imports "Alpha 1" as a DocumentChannel.
     if (!composite->channel_name.empty()) {
       composite->channel_name = "Alpha 1";
     }
   }
-  const bool with_alpha = !composite->channel_name.empty();
+
+  std::vector<std::span<const std::uint8_t>> extra_channels;
+  std::vector<CompositeChannelInfo> channel_info;
+  if (!composite->channel_name.empty()) {
+    extra_channels.emplace_back(composite->alpha);
+    channel_info.push_back(CompositeChannelInfo{composite->channel_name, false, true, std::nullopt,
+                                                DocumentChannelDisplayInfo{}, {}});
+  }
+  append_document_channels_for_write(document, extra_channels, channel_info);
+  check_composite_channel_limit(extra_channels.size());
 
   BigEndianWriter writer;
   write_header(writer, Header{options.large_document,
-                              static_cast<std::uint16_t>(with_alpha ? 4 : 3),
+                              static_cast<std::uint16_t>(3U + extra_channels.size()),
                               static_cast<std::uint32_t>(composite->rgb.height()),
                               static_cast<std::uint32_t>(composite->rgb.width()),
                               8,
                               kColorModeRgb});
 
   writer.write_u32(0);  // Color mode data section.
-  write_length_prefixed_block(writer, image_resources_for_document(document, composite->channel_name));
+  write_length_prefixed_block(writer, image_resources_for_document(document, channel_info));
   if (options.large_document) {
     writer.write_u64(0);  // Layer and mask information section.
   } else {
     writer.write_u32(0);  // Layer and mask information section.
   }
-  if (with_alpha) {
-    write_rgb8_image_data_with_alpha(writer, composite->rgb, composite->alpha, options.large_document);
+  if (!extra_channels.empty()) {
+    write_rgb8_image_data_with_extra_channels(writer, composite->rgb, extra_channels,
+                                              options.large_document);
   } else {
     write_rgb8_image_data(writer, composite->rgb, options.large_document);
   }
@@ -7827,27 +8366,29 @@ void DocumentIo::write_flat_rgb8_file(const Document& document, const std::files
 std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& document, WriteOptions options) {
   check_write_dimensions(document, options.large_document);
 
-  auto composite = document_alpha_composite(document);
-  const bool document_alpha_promoted = composite.has_value();
-  if (!composite.has_value()) {
-    composite = merged_flatten_composite(document);
-  }
+  auto composite = merged_flatten_composite(document);
 
-  // When the document's single mask is promoted to a document-level "Alpha 1" channel
-  // (below), drop it from the per-layer record so the mask is not represented twice. The
-  // copy only happens in that case and is cheap: pixel buffers are copy-on-write.
-  std::optional<Document> promoted;
-  if (document_alpha_promoted) {
-    promoted = document;
-    promoted->layers().front().clear_mask();
+  const bool merged_transparency_channel = composite.channel_name == "Transparency";
+  std::vector<std::span<const std::uint8_t>> extra_channels;
+  std::vector<CompositeChannelInfo> channel_info;
+  if (!composite.channel_name.empty()) {
+    DocumentChannelDisplayInfo display_info;
+    if (merged_transparency_channel) {
+      display_info.opacity = 1.0F;
+    }
+    extra_channels.emplace_back(composite.alpha);
+    channel_info.push_back(CompositeChannelInfo{composite.channel_name, merged_transparency_channel,
+                                                !merged_transparency_channel, std::nullopt,
+                                                display_info, {}});
   }
-  const Document& layer_source = promoted.has_value() ? *promoted : document;
+  append_document_channels_for_write(document, extra_channels, channel_info);
+  check_composite_channel_limit(extra_channels.size());
 
   std::vector<EncodedLayer> encoded_layers;
-  encoded_layers.reserve(layer_source.layers().size());
+  encoded_layers.reserve(document.layers().size());
   // Photoshop stores layer records in stack order from bottom to top. Patchy's
   // document model uses the same order, so write it directly instead of reversing.
-  for (const auto& layer : layer_source.layers()) {
+  for (const auto& layer : document.layers()) {
     append_encoded_layers(layer, encoded_layers, options.large_document);
   }
 
@@ -7856,10 +8397,11 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   // transparency" flag: without it Photoshop surfaces the composite's 4th channel as
   // a phantom saved channel named "Transparency" in the Channels panel (PS's own
   // transparent-canvas files write the negative form, verified July 2026 via COM
-  // channel counts). The document-alpha "Alpha 1" export IS a saved channel and
-  // keeps the positive count.
-  const bool merged_transparency_channel = composite->channel_name == "Transparency";
+  // channel counts). Saved document channels follow this derived plane.
   const auto layer_count = static_cast<std::int16_t>(encoded_layers.size());
+  if (merged_transparency_channel && layer_count == 0) {
+    throw std::runtime_error("A layered PSD needs a layer record to identify merged transparency");
+  }
   layer_info.write_u16(static_cast<std::uint16_t>(merged_transparency_channel ? -layer_count : layer_count));
   const auto& global_blocks = document.metadata().unknown_psd_resources;
   const auto has_smart_object_sources =
@@ -7938,26 +8480,26 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     }
   }
 
-  const bool with_alpha = !composite->channel_name.empty();
   BigEndianWriter writer;
   write_header(writer, Header{options.large_document,
-                              static_cast<std::uint16_t>(with_alpha ? 4 : 3),
+                              static_cast<std::uint16_t>(3U + extra_channels.size()),
                               static_cast<std::uint32_t>(document.height()),
                               static_cast<std::uint32_t>(document.width()),
                               8,
                               kColorModeRgb});
   writer.write_u32(0);
-  write_length_prefixed_block(writer, image_resources_for_document(document, composite->channel_name));
+  write_length_prefixed_block(writer, image_resources_for_document(document, channel_info));
   if (options.large_document) {
     writer.write_u64(layer_mask.bytes().size());
     writer.write_bytes(layer_mask.bytes());
   } else {
     write_length_prefixed_block(writer, layer_mask.bytes());
   }
-  if (with_alpha) {
-    write_rgb8_image_data_with_alpha(writer, composite->rgb, composite->alpha, options.large_document);
+  if (!extra_channels.empty()) {
+    write_rgb8_image_data_with_extra_channels(writer, composite.rgb, extra_channels,
+                                              options.large_document);
   } else {
-    write_rgb8_image_data(writer, composite->rgb, options.large_document);
+    write_rgb8_image_data(writer, composite.rgb, options.large_document);
   }
   return writer.bytes();
 }

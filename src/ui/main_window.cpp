@@ -4582,13 +4582,13 @@ QString photoshop_style() {
       padding: 5px;
       border-bottom: 1px solid #202020;
     }
-    QWidget#historyDockTitle, QWidget#swatchesDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
+    QWidget#historyDockTitle, QWidget#channelsDockTitle, QWidget#swatchesDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
     QWidget#layersDockTitle {
       background: #2f3032;
       border-top: 1px solid #45474b;
       border-bottom: 1px solid #1b1c1e;
     }
-    QWidget#historyDockTitle QLabel, QWidget#swatchesDockTitle QLabel, QWidget#propertiesDockTitle QLabel,
+    QWidget#historyDockTitle QLabel, QWidget#channelsDockTitle QLabel, QWidget#swatchesDockTitle QLabel, QWidget#propertiesDockTitle QLabel,
     QWidget#infoDockTitle QLabel, QWidget#layersDockTitle QLabel {
       color: #f0f0f0;
       font-weight: 600;
@@ -9393,7 +9393,7 @@ void MainWindow::update_right_dock_resize_handle_geometry(QWidget* host) {
 void MainWindow::set_right_dock_stack_width(int width) {
   const auto max_width = std::max(kRightDockMinimumWidth, this->width() - 260);
   const auto target_width = std::clamp(width, kRightDockMinimumWidth, max_width);
-  for (const auto& object_name : {QStringLiteral("layersDock"), QStringLiteral("historyDock"),
+  for (const auto& object_name : {QStringLiteral("layersDock"), QStringLiteral("channelsDock"), QStringLiteral("historyDock"),
                                   QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
                                   QStringLiteral("swatchesDock")}) {
     auto* dock = findChild<QDockWidget*>(object_name);
@@ -10302,6 +10302,7 @@ void MainWindow::retranslate_ui() {
   rebuild_recent_folders_menu();
   refresh_layer_list();
   refresh_layer_controls();
+  refresh_channel_panel();
   refresh_document_info();
   refresh_color_buttons();
   refresh_text_color_button();
@@ -11064,6 +11065,7 @@ void MainWindow::create_actions() {
     const auto display_name = filter_display_name(filter);
     auto* action = menu_for_filter(identifier)->addAction(display_name);
     action->setObjectName(filter_action_object_name(identifier));
+    action->setProperty("patchy.channelViewBlocked", true);
     action->setIcon(simple_icon(display_name.left(3).toUpper()));
     action->setStatusTip(tr("Apply %1 to the active layer").arg(display_name));
     refresh_action_tooltip(action);
@@ -13137,7 +13139,8 @@ void MainWindow::create_docks() {
     restyle_layer_rows(layer_list_);
     if (target == LayerCtrlClickTarget::MaskThumbnail && (modifiers & Qt::AltModifier) != 0) {
       const auto showing_mask =
-          was_active && canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale;
+          was_active && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask &&
+          canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale;
       set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
       canvas_->set_mask_display_mode(showing_mask ? CanvasWidget::MaskDisplayMode::None
                                                   : CanvasWidget::MaskDisplayMode::Grayscale);
@@ -13373,6 +13376,50 @@ void MainWindow::create_docks() {
   right_dock_resize_handle->installEventFilter(this);
   addDockWidget(Qt::RightDockWidgetArea, layers_dock);
   update_right_dock_resize_handle_geometry(layers_dock);
+
+  channel_dock_ = new QDockWidget(tr("Channels"), this);
+  channel_dock_->setObjectName(QStringLiteral("channelsDock"));
+  bind_widget_text(channel_dock_, "Channels");
+  channel_panel_ = new ChannelPanel(channel_dock_);
+  channel_dock_->setWidget(channel_panel_);
+  install_collapsible_dock_title(channel_dock_, channel_panel_, QStringLiteral("channels"), 190,
+                                 QWIDGETSIZE_MAX, false);
+  addDockWidget(Qt::RightDockWidgetArea, channel_dock_);
+  splitDockWidget(layers_dock, channel_dock_, Qt::Vertical);
+
+  const auto make_channel_action = [this](QAction*& target, const char* text, const char* object_name,
+                                          const char* hotkey_id, auto callback) {
+    target = new QAction(tr(text), this);
+    target->setObjectName(QLatin1String(object_name));
+    bind_action_text(target, text);
+    register_hotkey(target, QLatin1String(hotkey_id), QKeySequence(), QStringLiteral("channels"));
+    register_document_action(target);
+    connect(target, &QAction::triggered, this, callback);
+  };
+  make_channel_action(channel_new_action_, QT_TR_NOOP("New Channel"), "channelNewAction", "channel.new",
+                      [this] { create_alpha_channel(); });
+  make_channel_action(channel_save_selection_action_, QT_TR_NOOP("Save Selection as Channel"),
+                      "channelSaveSelectionAction", "channel.save_selection",
+                      [this] { save_selection_as_channel(); });
+  make_channel_action(channel_load_selection_action_, QT_TR_NOOP("Load Channel as Selection"),
+                      "channelLoadSelectionAction", "channel.load_selection",
+                      [this] { load_channel_as_selection(); });
+  make_channel_action(channel_rename_action_, QT_TR_NOOP("Rename Channel"), "channelRenameAction", "channel.rename",
+                      [this] { rename_active_channel(); });
+  make_channel_action(channel_invert_action_, QT_TR_NOOP("Invert Channel"), "channelInvertAction", "channel.invert",
+                      [this] { invert_active_channel(); });
+  make_channel_action(channel_delete_action_, QT_TR_NOOP("Delete Channel"), "channelDeleteAction", "channel.delete",
+                      [this] { delete_active_channel(); });
+  channel_panel_->set_actions(channel_new_action_, channel_save_selection_action_,
+                              channel_load_selection_action_, channel_rename_action_, channel_invert_action_,
+                              channel_delete_action_);
+  channel_panel_->set_target_callback([this](ChannelPanel::RowKind kind, ChannelId id, bool overlay) {
+    set_channel_edit_target(kind, id, overlay);
+  });
+  channel_panel_->set_reorder_callback(
+      [this](std::vector<ChannelId> order) { reorder_channels_from_panel(std::move(order)); });
+  register_document_widget(channel_panel_);
+  refresh_channel_panel();
 
   auto* history_dock = new QDockWidget(tr("History"), this);
   history_dock->setObjectName(QStringLiteral("historyDock"));
@@ -13668,6 +13715,16 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     if (canvas != canvas_) {
       return;
     }
+    if (canvas->editing_document_channel()) {
+      if (reason == CanvasWidget::DocumentChangeReason::BrushStrokePreview) {
+        pending_channel_thumbnail_refresh_ = true;
+        return;
+      }
+      pending_channel_thumbnail_refresh_ = false;
+      refresh_channel_panel();
+      refresh_document_info();
+      return;
+    }
     if (reason == CanvasWidget::DocumentChangeReason::BrushStrokePreview) {
       pending_layer_thumbnail_refresh_ = true;
       return;
@@ -13794,6 +13851,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   // The thumbnail cache is scoped to the active document; layer ids restart
   // per document, so entries must never leak across tabs.
   layer_thumbnail_cache_.clear();
+  channel_thumbnail_cache_.clear();
   auto session = std::make_unique<DocumentSession>();
   session->session_id = next_session_id_++;
   session->document = std::move(document);
@@ -13877,6 +13935,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   }
   refresh_layer_list();
   refresh_layer_controls();
+  refresh_channel_panel();
   refresh_document_info();  update_undo_redo_actions();
   update_document_action_state();
   refresh_document_tab_titles();
@@ -13918,12 +13977,14 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
     // Layer ids restart per document, so the active-document thumbnail cache
     // cannot survive a document switch.
     layer_thumbnail_cache_.clear();
+    channel_thumbnail_cache_.clear();
   }
   if (canvas == nullptr || session_for_canvas(canvas) == nullptr) {
     canvas_ = nullptr;
     refresh_options_bar();
     refresh_layer_list();
     refresh_layer_controls();
+    refresh_channel_panel();
     refresh_document_info();
     refresh_color_buttons();    update_undo_redo_actions();
     update_document_action_state();
@@ -13952,6 +14013,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
   refresh_options_bar();
   refresh_layer_list();
   refresh_layer_controls();
+  refresh_channel_panel();
   refresh_document_info();
   canvas_->refresh_info_display();  update_undo_redo_actions();
   update_document_action_state();
@@ -14903,7 +14965,12 @@ void MainWindow::resize_image_dialog() {
   if (dimensions_changed) {
     resize_image_and_layers(doc, settings->width, settings->height);
     canvas_->clear_selection();
+    const auto previous_channel_target = canvas_->layer_edit_target();
+    const auto previous_channel_id = canvas_->active_document_channel_id();
+    const auto previous_channel_display = canvas_->mask_display_mode();
     canvas_->set_document(&doc);
+    restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                                previous_channel_display);
     refresh_layer_list();
     refresh_layer_controls();
   }
@@ -14929,7 +14996,12 @@ void MainWindow::resize_canvas_dialog() {
   push_undo_snapshot(tr("Canvas size"));
   resize_canvas_and_layers(doc, settings->width, settings->height, settings->anchor, edit_color(settings->extension_color));
   canvas_->clear_selection();
+  const auto previous_channel_target = canvas_->layer_edit_target();
+  const auto previous_channel_id = canvas_->active_document_channel_id();
+  const auto previous_channel_display = canvas_->mask_display_mode();
   canvas_->set_document(&doc);
+  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                              previous_channel_display);
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
@@ -15389,8 +15461,19 @@ bool MainWindow::save_document_as() {
 
 bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options) {
   finish_active_text_editor();
+  const auto extension = extension_for_path(path);
+  if (!is_photoshop_document_extension(extension) &&
+      !std::as_const(document()).channels().empty()) {
+    const auto answer = show_warning_message(
+        this, tr("Saved Channels Will Be Discarded"),
+        tr("This file format cannot store saved channels. Continue saving and discard them?"),
+        QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Cancel,
+        QStringLiteral("discardSavedChannelsMessageBox"));
+    if (answer != QMessageBox::Save) {
+      return false;
+    }
+  }
   try {
-    const auto extension = extension_for_path(path);
     auto effective_image_options = image_options.value_or(image_save_defaults_for_document());
     if (!image_options.has_value() && image_save_options_apply_to_extension(extension)) {
       const auto& active_session = session();
@@ -16352,6 +16435,7 @@ void MainWindow::add_legacy_plugin_action(const PluginDescriptor& descriptor) {
   auto* action = legacy_plugins_menu_->addAction(QString::fromStdString(descriptor.display_name));
   action->setData(identifier);
   action->setObjectName(QStringLiteral("legacyPluginAction"));
+  action->setProperty("patchy.channelViewBlocked", true);
   action->setIcon(simple_icon(QStringLiteral("8BF"), QColor(105, 185, 255)));
   action->setIconVisibleInMenu(false);
   connect(action, &QAction::triggered, this, [this, identifier] { run_legacy_plugin(identifier); });
@@ -16360,6 +16444,14 @@ void MainWindow::add_legacy_plugin_action(const PluginDescriptor& descriptor) {
 }
 
 void MainWindow::run_legacy_plugin(QString identifier) {
+  if (canvas_ != nullptr &&
+      (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentGreen ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentBlue)) {
+    statusBar()->showMessage(tr("Filters are unavailable while viewing a document channel"));
+    return;
+  }
   const auto* descriptor = plugin_host_.find(identifier.toStdString());
   if (descriptor == nullptr) {
     return;
@@ -18502,6 +18594,7 @@ void MainWindow::set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, 
   if (canvas_ == nullptr) {
     return;
   }
+  const auto previous_target = canvas_->layer_edit_target();
   if (target == CanvasWidget::LayerEditTarget::Mask) {
     const auto active = document().active_layer_id();
     const auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
@@ -18509,14 +18602,21 @@ void MainWindow::set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, 
       target = CanvasWidget::LayerEditTarget::Content;
     }
   }
-  if (target == CanvasWidget::LayerEditTarget::Content &&
-      canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale) {
+  const bool leaving_document_channel = previous_target == CanvasWidget::LayerEditTarget::DocumentChannel ||
+                                        previous_target == CanvasWidget::LayerEditTarget::ComponentRed ||
+                                        previous_target == CanvasWidget::LayerEditTarget::ComponentGreen ||
+                                        previous_target == CanvasWidget::LayerEditTarget::ComponentBlue;
+  if (leaving_document_channel ||
+      (target == CanvasWidget::LayerEditTarget::Content &&
+       canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale)) {
     canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::None);
   }
   canvas_->set_layer_edit_target(target);
   canvas_->update();
   update_layer_target_styles(layer_list_, document().active_layer_id(), target);
   refresh_layer_controls();
+  refresh_channel_panel();
+  update_document_action_state();
   if (announce) {
     statusBar()->showMessage(target == CanvasWidget::LayerEditTarget::Mask ? tr("Editing layer mask")
                                                                            : tr("Editing layer pixels"));
@@ -18526,6 +18626,9 @@ void MainWindow::set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, 
 void MainWindow::set_mask_overlay_shown(bool shown) {
   if (canvas_ == nullptr) {
     return;
+  }
+  if (shown && canvas_->layer_edit_target() != CanvasWidget::LayerEditTarget::Mask) {
+    set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
   }
   canvas_->set_mask_display_mode(shown ? CanvasWidget::MaskDisplayMode::Overlay
                                        : CanvasWidget::MaskDisplayMode::None);
@@ -20614,11 +20717,13 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                                                    tr("Show Mask Overlay"));
   overlay_mask_action->setCheckable(true);
   overlay_mask_action->setChecked(canvas_ != nullptr &&
+                                  canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask &&
                                   canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay);
   auto* view_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(235, 235, 235)),
                                                 tr("View Layer Mask"));
   view_mask_action->setCheckable(true);
   view_mask_action->setChecked(canvas_ != nullptr &&
+                               canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask &&
                                canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale);
   mask_menu->addSeparator();
   auto* link_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)),
@@ -20917,11 +21022,22 @@ void MainWindow::fill_active_layer() {
 }
 
 void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
-  if (canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask) {
-    if (const auto active = document().active_layer_id();
-        active.has_value() && layer_id_locks_image_pixels(*active)) {
-      statusBar()->showMessage(tr("Layer pixels are locked."));
-      return;
+  const auto edit_target = canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
+  const bool document_channel = edit_target == CanvasWidget::LayerEditTarget::DocumentChannel;
+  const bool component_channel = edit_target == CanvasWidget::LayerEditTarget::ComponentRed ||
+                                 edit_target == CanvasWidget::LayerEditTarget::ComponentGreen ||
+                                 edit_target == CanvasWidget::LayerEditTarget::ComponentBlue;
+  if (component_channel || (document_channel && !canvas_->document_channel_is_editable())) {
+    statusBar()->showMessage(tr("This channel is read-only"));
+    return;
+  }
+  if (canvas_ != nullptr && (edit_target == CanvasWidget::LayerEditTarget::Mask || document_channel)) {
+    if (!document_channel) {
+      const auto active = document().active_layer_id();
+      if (active.has_value() && layer_id_locks_image_pixels(*active)) {
+        statusBar()->showMessage(tr("Layer pixels are locked."));
+        return;
+      }
     }
     canvas_->begin_processing_operation();
     const auto finish_processing = qScopeGuard([this] {
@@ -20932,10 +21048,15 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
     push_undo_snapshot(label);
     const auto dirty = canvas_->fill_active_layer_mask(color);
     if (!dirty.isEmpty()) {
-      canvas_->document_changed(dirty);
-      refresh_layer_thumbnails();
+      if (document_channel) {
+        canvas_->grayscale_target_changed(dirty);
+        refresh_channel_panel();
+      } else {
+        canvas_->document_changed(dirty);
+        refresh_layer_thumbnails();
+      }
       refresh_document_info();
-      statusBar()->showMessage(tr("Filled layer mask"));
+      statusBar()->showMessage(document_channel ? tr("Filled channel") : tr("Filled layer mask"));
     }
     return;
   }
@@ -20983,11 +21104,22 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
 }
 
 void MainWindow::clear_active_layer() {
-  if (canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask) {
-    if (const auto active = document().active_layer_id();
-        active.has_value() && layer_id_locks_image_pixels(*active)) {
-      statusBar()->showMessage(tr("Layer pixels are locked."));
-      return;
+  const auto edit_target = canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
+  const bool document_channel = edit_target == CanvasWidget::LayerEditTarget::DocumentChannel;
+  const bool component_channel = edit_target == CanvasWidget::LayerEditTarget::ComponentRed ||
+                                 edit_target == CanvasWidget::LayerEditTarget::ComponentGreen ||
+                                 edit_target == CanvasWidget::LayerEditTarget::ComponentBlue;
+  if (component_channel || (document_channel && !canvas_->document_channel_is_editable())) {
+    statusBar()->showMessage(tr("This channel is read-only"));
+    return;
+  }
+  if (canvas_ != nullptr && (edit_target == CanvasWidget::LayerEditTarget::Mask || document_channel)) {
+    if (!document_channel) {
+      const auto active = document().active_layer_id();
+      if (active.has_value() && layer_id_locks_image_pixels(*active)) {
+        statusBar()->showMessage(tr("Layer pixels are locked."));
+        return;
+      }
     }
     canvas_->begin_processing_operation();
     const auto finish_processing = qScopeGuard([this] {
@@ -20995,13 +21127,18 @@ void MainWindow::clear_active_layer() {
         canvas_->end_processing_operation();
       }
     });
-    push_undo_snapshot(tr("Clear layer mask"));
+    push_undo_snapshot(document_channel ? tr("Clear channel") : tr("Clear layer mask"));
     const auto dirty = canvas_->clear_active_layer_mask();
     if (!dirty.isEmpty()) {
-      canvas_->document_changed(dirty);
-      refresh_layer_thumbnails();
+      if (document_channel) {
+        canvas_->grayscale_target_changed(dirty);
+        refresh_channel_panel();
+      } else {
+        canvas_->document_changed(dirty);
+        refresh_layer_thumbnails();
+      }
       refresh_document_info();
-      statusBar()->showMessage(tr("Cleared layer mask"));
+      statusBar()->showMessage(document_channel ? tr("Cleared channel") : tr("Cleared layer mask"));
     }
     return;
   }
@@ -21403,6 +21540,15 @@ void MainWindow::border_selection_dialog() {
 }
 
 void MainWindow::flip_active_layer_horizontal() {
+  if (canvas_ != nullptr) {
+    const auto target = canvas_->layer_edit_target();
+    if (target == CanvasWidget::LayerEditTarget::DocumentChannel ||
+        target == CanvasWidget::LayerEditTarget::ComponentRed ||
+        target == CanvasWidget::LayerEditTarget::ComponentGreen ||
+        target == CanvasWidget::LayerEditTarget::ComponentBlue) {
+      return;
+    }
+  }
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
     return;
@@ -21424,6 +21570,15 @@ void MainWindow::flip_active_layer_horizontal() {
 }
 
 void MainWindow::flip_active_layer_vertical() {
+  if (canvas_ != nullptr) {
+    const auto target = canvas_->layer_edit_target();
+    if (target == CanvasWidget::LayerEditTarget::DocumentChannel ||
+        target == CanvasWidget::LayerEditTarget::ComponentRed ||
+        target == CanvasWidget::LayerEditTarget::ComponentGreen ||
+        target == CanvasWidget::LayerEditTarget::ComponentBlue) {
+      return;
+    }
+  }
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
     return;
@@ -21455,7 +21610,12 @@ void MainWindow::crop_to_selection() {
     return;
   }
   canvas_->clear_selection();
+  const auto previous_channel_target = canvas_->layer_edit_target();
+  const auto previous_channel_id = canvas_->active_document_channel_id();
+  const auto previous_channel_display = canvas_->mask_display_mode();
   canvas_->set_document(&doc);
+  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                              previous_channel_display);
   // The old pan is meaningless for the smaller document and can leave it
   // mostly off screen, so recenter at the current zoom.
   canvas_->center_document_in_view();
@@ -21470,7 +21630,12 @@ void MainWindow::rotate_canvas_clockwise() {
   push_undo_snapshot(tr("Rotate canvas"));
   patchy::rotate_document_clockwise(doc);
   canvas_->clear_selection();
+  const auto previous_channel_target = canvas_->layer_edit_target();
+  const auto previous_channel_id = canvas_->active_document_channel_id();
+  const auto previous_channel_display = canvas_->mask_display_mode();
   canvas_->set_document(&doc);
+  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                              previous_channel_display);
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
@@ -21482,7 +21647,12 @@ void MainWindow::rotate_canvas_counterclockwise() {
   push_undo_snapshot(tr("Rotate canvas"));
   patchy::rotate_document_counterclockwise(doc);
   canvas_->clear_selection();
+  const auto previous_channel_target = canvas_->layer_edit_target();
+  const auto previous_channel_id = canvas_->active_document_channel_id();
+  const auto previous_channel_display = canvas_->mask_display_mode();
   canvas_->set_document(&doc);
+  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                              previous_channel_display);
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
@@ -22019,10 +22189,13 @@ void MainWindow::undo() {
   active_session.selection_move_coalescing = false;
   const auto changed_region =
       history_restore_changed_region(active_session.redo_stack.back().document, active_session.document);
-  canvas_->set_document_for_history_restore(&active_session.document);
+  const bool normal_composite_unchanged = changed_region.has_value() && changed_region->isEmpty();
+  canvas_->set_document_for_history_restore(&active_session.document, normal_composite_unchanged);
   canvas_->apply_selection_snapshot(restored_selection);
   refresh_layer_list();
   refresh_layer_controls();
+  refresh_channel_panel();
+  update_document_action_state();
   apply_history_render_refresh(canvas_, changed_region);
   refresh_palette_panel();
   schedule_palette_compliance_check();
@@ -22047,10 +22220,13 @@ void MainWindow::redo() {
   active_session.selection_move_coalescing = false;
   const auto changed_region =
       history_restore_changed_region(active_session.undo_stack.back().document, active_session.document);
-  canvas_->set_document_for_history_restore(&active_session.document);
+  const bool normal_composite_unchanged = changed_region.has_value() && changed_region->isEmpty();
+  canvas_->set_document_for_history_restore(&active_session.document, normal_composite_unchanged);
   canvas_->apply_selection_snapshot(restored_selection);
   refresh_layer_list();
   refresh_layer_controls();
+  refresh_channel_panel();
+  update_document_action_state();
   apply_history_render_refresh(canvas_, changed_region);
   refresh_palette_panel();
   schedule_palette_compliance_check();
@@ -22556,7 +22732,8 @@ void MainWindow::refresh_layer_controls() {
     canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
     update_layer_target_styles(layer_list_, active, CanvasWidget::LayerEditTarget::Content);
   }
-  if (canvas_ != nullptr && !layer->mask().has_value() &&
+  if (canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask &&
+      !layer->mask().has_value() &&
       canvas_->mask_display_mode() != CanvasWidget::MaskDisplayMode::None) {
     canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::None);
   }
@@ -22568,17 +22745,18 @@ void MainWindow::refresh_layer_controls() {
   }
   if (mask_overlay_action_ != nullptr) {
     mask_overlay_action_->setEnabled(layer->mask().has_value());
-    mask_overlay_action_->setChecked(canvas_ != nullptr &&
+    mask_overlay_action_->setChecked(canvas_ != nullptr && editing_mask &&
                                      canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay);
   }
   if (view_layer_mask_action_ != nullptr) {
     view_layer_mask_action_->setEnabled(layer->mask().has_value());
-    view_layer_mask_action_->setChecked(canvas_ != nullptr &&
+    view_layer_mask_action_->setChecked(canvas_ != nullptr && editing_mask &&
                                         canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale);
   }
-  if (mask_edit_mode_chip_ != nullptr) {
-    mask_edit_mode_chip_->setVisible(editing_mask);
+  if (canvas_ != nullptr) {
+    update_layer_target_styles(layer_list_, active, canvas_->layer_edit_target());
   }
+  refresh_edit_target_chip();
   updating_layer_controls_ = false;
   refresh_document_info();
 }
@@ -24825,6 +25003,46 @@ void MainWindow::update_document_action_state() {
   if (layer_list_ != nullptr) {
     layer_list_->setEnabled(has_document && !locked);
   }
+  const bool channel_view = canvas_ != nullptr &&
+                            (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
+                             canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
+                             canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentGreen ||
+                             canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentBlue);
+  const bool writable_channel = channel_view && canvas_->document_channel_is_editable();
+  const auto set_command_enabled = [this, has_document, locked](const QString& id, bool enabled) {
+    if (const auto* command = hotkey_registry_.find_command(id); command != nullptr && command->action != nullptr) {
+      command->action->setEnabled(has_document && !locked && enabled);
+    }
+  };
+  if (channel_view) {
+    for (auto* action : document_actions_) {
+      if (action != nullptr && action->property("patchy.channelViewBlocked").toBool()) {
+        action->setEnabled(false);
+      }
+    }
+    for (const auto& id : {QStringLiteral("edit.cut"), QStringLiteral("edit.copy"),
+                           QStringLiteral("edit.copy_merged"), QStringLiteral("edit.paste"),
+                           QStringLiteral("edit.free_transform"), QStringLiteral("edit.warp_transform"),
+                           QStringLiteral("layer.flip_horizontal"), QStringLiteral("layer.flip_vertical"),
+                           QStringLiteral("tools.move"), QStringLiteral("tools.clone"),
+                           QStringLiteral("tools.smudge"), QStringLiteral("tools.type"),
+                           QStringLiteral("image.levels"), QStringLiteral("image.curves"),
+                           QStringLiteral("image.hue_saturation"), QStringLiteral("image.color_balance")}) {
+      set_command_enabled(id, false);
+    }
+    for (const auto& command : hotkey_registry_.commands()) {
+      if (command.id.startsWith(QStringLiteral("patchy.filters.")) && command.action != nullptr) {
+        command.action->setEnabled(false);
+      }
+    }
+    for (const auto& id : {QStringLiteral("layer.fill"), QStringLiteral("layer.fill_background"),
+                           QStringLiteral("layer.clear"), QStringLiteral("tools.brush"),
+                           QStringLiteral("tools.eraser"), QStringLiteral("tools.gradient"),
+                           QStringLiteral("tools.line"), QStringLiteral("tools.rect"),
+                           QStringLiteral("tools.ellipse"), QStringLiteral("tools.fill")}) {
+      set_command_enabled(id, writable_channel);
+    }
+  }
   const auto* current_session = active_session();
   const bool active_floated = current_session != nullptr && current_session->float_window != nullptr;
   const bool any_floated = any_document_floated();
@@ -24846,6 +25064,16 @@ void MainWindow::update_document_action_state() {
   }
   if (cascade_windows_action_ != nullptr) {
     cascade_windows_action_->setEnabled(has_document && !locked);
+  }
+  if (channel_panel_ != nullptr) {
+    // Keep these panel-specific rules after the broad document action pass above:
+    // component/spot rows and full-capacity documents intentionally disable a
+    // subset of the channel actions even though a document is active.
+    channel_panel_->set_document_available(has_document && !locked);
+    const bool has_capacity = has_document &&
+                              std::as_const(document()).channels().size() <
+                                  std::as_const(document()).maximum_saved_channel_count();
+    channel_panel_->set_channel_creation_available(!locked && has_capacity);
   }
   refresh_options_bar();
 }

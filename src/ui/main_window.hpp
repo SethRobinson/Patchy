@@ -7,6 +7,7 @@
 #include "formats/format_registry.hpp"
 #include "plugins/plugin_host.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/channel_panel.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/stress_test.hpp"
@@ -438,6 +439,7 @@ private:
   void delete_active_layer_mask();
   void set_active_layer_mask_linked(bool linked);
   void set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, bool announce);
+  void set_channel_edit_target(ChannelPanel::RowKind kind, ChannelId id, bool overlay, bool announce = true);
   void set_mask_overlay_shown(bool shown);
   void set_active_layer_mask_disabled(bool disabled);
   void invert_active_layer_mask();
@@ -557,6 +559,21 @@ private:
   [[nodiscard]] QPixmap cached_layer_content_thumbnail(const Layer& layer);
   [[nodiscard]] QPixmap cached_layer_mask_thumbnail(const Layer& layer);
   void refresh_layer_controls();
+  void refresh_channel_panel();
+  [[nodiscard]] QPixmap cached_channel_thumbnail(const DocumentChannel& channel);
+  void create_alpha_channel();
+  void save_selection_as_channel();
+  void load_channel_as_selection();
+  void rename_active_channel();
+  void invert_active_channel();
+  void delete_active_channel();
+  void reorder_channels_from_panel(std::vector<ChannelId> order);
+  [[nodiscard]] DocumentChannel* selected_panel_channel() noexcept;
+  [[nodiscard]] const DocumentChannel* selected_panel_channel() const noexcept;
+  void refresh_edit_target_chip();
+  void restore_channel_target_after_document_reset(CanvasWidget::LayerEditTarget target,
+                                                   std::optional<ChannelId> channel_id,
+                                                   CanvasWidget::MaskDisplayMode display_mode);
   void refresh_document_info();
   void update_canvas_info(CanvasInfoState info);
   void choose_primary_color();
@@ -671,8 +688,15 @@ private:
   // once a document floats in its own window.
   CanvasWidget* canvas_{nullptr};
   std::unordered_map<LayerId, LayerThumbnailCacheEntry> layer_thumbnail_cache_;
+  struct ChannelThumbnailCacheEntry {
+    std::uint64_t content_revision{0};
+    QPixmap thumbnail;
+  };
+  std::unordered_map<ChannelId, ChannelThumbnailCacheEntry> channel_thumbnail_cache_;
   bool swallow_next_canvas_left_press_{false};
   QListWidget* layer_list_{nullptr};
+  ChannelPanel* channel_panel_{nullptr};
+  QDockWidget* channel_dock_{nullptr};
   QSlider* opacity_slider_{nullptr};
   QSpinBox* opacity_spin_{nullptr};
   QTimer* layer_opacity_apply_timer_{nullptr};
@@ -800,6 +824,12 @@ private:
   QAction* edit_layer_mask_action_{nullptr};
   QAction* mask_overlay_action_{nullptr};
   QAction* view_layer_mask_action_{nullptr};
+  QAction* channel_new_action_{nullptr};
+  QAction* channel_save_selection_action_{nullptr};
+  QAction* channel_load_selection_action_{nullptr};
+  QAction* channel_rename_action_{nullptr};
+  QAction* channel_invert_action_{nullptr};
+  QAction* channel_delete_action_{nullptr};
   QToolButton* mask_edit_mode_chip_{nullptr};
   // Palette (indexed) mode UI: dock panel, status chip, advisory compliance scan.
   PalettePanel* palette_panel_{nullptr};
@@ -925,6 +955,7 @@ private:
   bool native_resizable_frame_applied_{false};
   bool native_frame_geometry_resynced_{false};
   bool pending_layer_thumbnail_refresh_{false};
+  bool pending_channel_thumbnail_refresh_{false};
   bool chrome_resizing_{false};
   bool chrome_resize_cursor_active_{false};
   Qt::Edges chrome_resize_edges_;

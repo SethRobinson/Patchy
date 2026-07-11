@@ -309,6 +309,14 @@ FilterProgress progress_dialog_filter_progress(QProgressDialog& progress,
 }  // namespace
 
 void MainWindow::apply_filter(const QString& identifier) {
+  if (canvas_ != nullptr &&
+      (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentGreen ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentBlue)) {
+    statusBar()->showMessage(tr("Filters are unavailable while viewing a document channel"));
+    return;
+  }
   auto& doc = document();
   auto active = doc.active_layer_id();
   if (!active.has_value()) {

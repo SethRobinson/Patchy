@@ -497,14 +497,14 @@ std::vector<PsdLayerChannelRecord> psd_layer_channel_records(std::span<const std
 
 std::uint16_t psd_composite_compression(std::span<const std::uint8_t> bytes) {
   patchy::psd::BigEndianReader reader(bytes);
-  (void)patchy::psd::read_header(reader);
+  const auto header = patchy::psd::read_header(reader);
 
   const auto color_mode_length = reader.read_u32();
   reader.skip(color_mode_length);
   const auto image_resource_length = reader.read_u32();
   reader.skip(image_resource_length);
-  const auto layer_mask_length = reader.read_u32();
-  reader.skip(layer_mask_length);
+  const auto layer_mask_length = header.large_document ? reader.read_u64() : reader.read_u32();
+  reader.skip(static_cast<std::size_t>(layer_mask_length));
   return reader.read_u16();
 }
 
@@ -751,6 +751,130 @@ void write_test_image_resource(patchy::psd::BigEndianWriter& writer, std::uint16
   if ((payload.size() % 2U) != 0) {
     writer.write_u8(0);
   }
+}
+
+std::vector<std::uint8_t> test_alpha_channel_names_payload(const std::vector<std::string>& names) {
+  std::vector<std::uint8_t> payload;
+  for (const auto& name : names) {
+    const auto length = std::min<std::size_t>(name.size(), 255U);
+    payload.push_back(static_cast<std::uint8_t>(length));
+    payload.insert(payload.end(), name.begin(), name.begin() + static_cast<std::ptrdiff_t>(length));
+  }
+  return payload;
+}
+
+std::vector<std::uint8_t> test_alpha_identifiers_payload(const std::vector<std::uint32_t>& identifiers) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u32(static_cast<std::uint32_t>(identifiers.size()));
+  for (const auto identifier : identifiers) {
+    writer.write_u32(identifier);
+  }
+  return writer.bytes();
+}
+
+std::vector<std::uint8_t> test_channel_display_record(patchy::RgbColor color, std::uint16_t opacity_percent,
+                                                      std::uint8_t mode, bool legacy_padding = false) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u16(0);  // RGB color space.
+  writer.write_u16(static_cast<std::uint16_t>(color.red) * 257U);
+  writer.write_u16(static_cast<std::uint16_t>(color.green) * 257U);
+  writer.write_u16(static_cast<std::uint16_t>(color.blue) * 257U);
+  writer.write_u16(0);
+  writer.write_u16(opacity_percent);
+  writer.write_u8(mode);
+  if (legacy_padding) {
+    writer.write_u8(0);
+  }
+  return writer.bytes();
+}
+
+std::vector<std::uint8_t> test_display_info_float_payload(
+    const std::vector<std::vector<std::uint8_t>>& records) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u32(1);
+  for (const auto& record : records) {
+    CHECK(record.size() == 13U);
+    writer.write_bytes(record);
+  }
+  return writer.bytes();
+}
+
+std::vector<std::uint8_t> flat_psd_with_test_planes(
+    bool large_document, std::uint16_t color_mode, std::int32_t width, std::int32_t height,
+    const std::vector<std::vector<std::uint8_t>>& planes,
+    std::span<const std::uint8_t> image_resources = {}, std::uint16_t compression = 0) {
+  CHECK(width > 0 && height > 0);
+  CHECK(!planes.empty());
+  const auto pixel_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+  for (const auto& plane : planes) {
+    CHECK(plane.size() == pixel_count);
+  }
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{
+                                        large_document,
+                                        static_cast<std::uint16_t>(planes.size()),
+                                        static_cast<std::uint32_t>(height),
+                                        static_cast<std::uint32_t>(width),
+                                        8,
+                                        color_mode,
+                                    });
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(image_resources.size()));
+  writer.write_bytes(image_resources);
+  if (large_document) {
+    writer.write_u64(0);
+  } else {
+    writer.write_u32(0);
+  }
+  writer.write_u16(compression);
+
+  if (compression == 0U) {
+    for (const auto& plane : planes) {
+      writer.write_bytes(plane);
+    }
+    return writer.bytes();
+  }
+
+  CHECK(compression == 1U);
+  std::vector<std::vector<std::uint8_t>> rows;
+  rows.reserve(planes.size() * static_cast<std::size_t>(height));
+  for (const auto& plane : planes) {
+    for (std::int32_t y = 0; y < height; ++y) {
+      const auto offset = static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+      rows.push_back(patchy::psd::encode_packbits_row(
+          std::span<const std::uint8_t>(plane).subspan(offset, static_cast<std::size_t>(width))));
+    }
+  }
+  for (const auto& row : rows) {
+    if (large_document) {
+      writer.write_u32(static_cast<std::uint32_t>(row.size()));
+    } else {
+      CHECK(row.size() <= 0xffffU);
+      writer.write_u16(static_cast<std::uint16_t>(row.size()));
+    }
+  }
+  for (const auto& row : rows) {
+    writer.write_bytes(row);
+  }
+  return writer.bytes();
+}
+
+std::int16_t psd_signed_layer_count(std::span<const std::uint8_t> bytes) {
+  patchy::psd::BigEndianReader reader(bytes);
+  const auto header = patchy::psd::read_header(reader);
+  reader.skip(reader.read_u32());
+  reader.skip(reader.read_u32());
+  const auto layer_mask_length = header.large_document ? reader.read_u64() : reader.read_u32();
+  CHECK(layer_mask_length > 0U);
+  const auto layer_info_length = header.large_document ? reader.read_u64() : reader.read_u32();
+  CHECK(layer_info_length >= 2U);
+  return static_cast<std::int16_t>(reader.read_u16());
+}
+
+patchy::psd::Header test_psd_header(std::span<const std::uint8_t> bytes) {
+  patchy::psd::BigEndianReader reader(bytes);
+  return patchy::psd::read_header(reader);
 }
 
 void write_test_layer_block(patchy::psd::BigEndianWriter& writer, const char (&key)[5],
@@ -1308,6 +1432,147 @@ void document_snapshot_shares_pixels_when_only_moving_a_layer() {
   CHECK(shared_pixel_ptr(document, layer_id) != live_ptr);
   CHECK(shared_pixel_ptr(snapshot, layer_id) == live_ptr);
   CHECK(snapshot.find_layer(layer_id)->pixels().pixel(0, 0)[0] == 10);
+}
+
+void document_channels_validate_crud_revisions_and_cow() {
+  patchy::Document document(3, 2, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer alpha_pixels(3, 2, patchy::PixelFormat::gray8());
+  for (std::int32_t y = 0; y < alpha_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < alpha_pixels.width(); ++x) {
+      *alpha_pixels.pixel(x, y) = static_cast<std::uint8_t>(10 + y * 3 + x);
+    }
+  }
+
+  const auto alpha_id = document.allocate_channel_id();
+  auto& alpha = document.add_channel(
+      patchy::DocumentChannel(alpha_id, "Alpha 1", patchy::DocumentChannelKind::Alpha, std::move(alpha_pixels)));
+  CHECK(document.channels().size() == 1);
+  CHECK(document.find_channel(alpha_id) == &alpha);
+  CHECK(document.next_alpha_channel_name() == "Alpha 2");
+
+  const auto revision_before_copy = std::as_const(alpha).content_revision();
+  const auto* shared_pixels = std::as_const(alpha).pixels().data().data();
+  patchy::Document snapshot = document;
+  CHECK(std::as_const(*snapshot.find_channel(alpha_id)).pixels().data().data() == shared_pixels);
+  CHECK(std::as_const(*snapshot.find_channel(alpha_id)).content_revision() == revision_before_copy);
+
+  *document.find_channel(alpha_id)->pixels().pixel(0, 0) = 240;
+  CHECK(std::as_const(*document.find_channel(alpha_id)).content_revision() != revision_before_copy);
+  CHECK(std::as_const(*document.find_channel(alpha_id)).pixels().data().data() != shared_pixels);
+  CHECK(*std::as_const(*snapshot.find_channel(alpha_id)).pixels().pixel(0, 0) == 10);
+
+  patchy::PixelBuffer spot_pixels(3, 2, patchy::PixelFormat::gray8());
+  spot_pixels.clear(255);
+  const auto spot_id = document.allocate_channel_id();
+  auto& spot = document.add_channel(
+      patchy::DocumentChannel(spot_id, "Spot", patchy::DocumentChannelKind::Spot, std::move(spot_pixels)));
+  CHECK(spot.display_info().color_indicates == patchy::DocumentChannelColorIndicates::SpotColor);
+  CHECK(document.rename_channel(alpha_id, "Duplicate Name"));
+  CHECK(document.rename_channel(spot_id, "Duplicate Name"));
+  CHECK(document.reorder_channel(spot_id, 0));
+  CHECK(document.channels().front().id() == spot_id);
+  CHECK(document.remove_channel(alpha_id));
+  CHECK(document.find_channel(alpha_id) == nullptr);
+
+  bool rejected_wrong_size = false;
+  try {
+    patchy::PixelBuffer wrong_size(1, 1, patchy::PixelFormat::gray8());
+    document.add_channel(patchy::DocumentChannel(document.allocate_channel_id(), "Wrong size",
+                                                  patchy::DocumentChannelKind::Alpha, std::move(wrong_size)));
+  } catch (const std::invalid_argument&) {
+    rejected_wrong_size = true;
+  }
+  CHECK(rejected_wrong_size);
+
+  bool rejected_wrong_format = false;
+  try {
+    patchy::PixelBuffer wrong_format(3, 2, patchy::PixelFormat::rgb8());
+    (void)patchy::DocumentChannel(999, "Wrong format", patchy::DocumentChannelKind::Alpha,
+                                 std::move(wrong_format));
+  } catch (const std::invalid_argument&) {
+    rejected_wrong_format = true;
+  }
+  CHECK(rejected_wrong_format);
+
+  patchy::Document capacity_document(1, 1, patchy::PixelFormat::rgb8());
+  const auto capacity = capacity_document.maximum_saved_channel_count();
+  for (std::size_t index = 0; index < capacity; ++index) {
+    patchy::PixelBuffer one_pixel(1, 1, patchy::PixelFormat::gray8());
+    capacity_document.add_channel(patchy::DocumentChannel(
+        capacity_document.allocate_channel_id(), "Capacity", patchy::DocumentChannelKind::Alpha,
+        std::move(one_pixel)));
+  }
+  CHECK(capacity_document.channels().size() == capacity);
+  bool rejected_over_capacity = false;
+  try {
+    patchy::PixelBuffer one_too_many(1, 1, patchy::PixelFormat::gray8());
+    capacity_document.add_channel(patchy::DocumentChannel(
+        capacity_document.allocate_channel_id(), "Too many", patchy::DocumentChannelKind::Alpha,
+        std::move(one_too_many)));
+  } catch (const std::length_error&) {
+    rejected_over_capacity = true;
+  }
+  CHECK(rejected_over_capacity);
+}
+
+patchy::Document document_with_test_channels(std::int32_t width, std::int32_t height) {
+  patchy::Document document(width, height, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Pixels", solid_rgb(width, height, 10, 20, 30));
+
+  patchy::PixelBuffer alpha(width, height, patchy::PixelFormat::gray8());
+  patchy::PixelBuffer spot(width, height, patchy::PixelFormat::gray8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      *alpha.pixel(x, y) = static_cast<std::uint8_t>(1 + y * width + x);
+      *spot.pixel(x, y) = static_cast<std::uint8_t>(200 + y * width + x);
+    }
+  }
+  document.add_channel(patchy::DocumentChannel(document.allocate_channel_id(), "Alpha",
+                                                patchy::DocumentChannelKind::Alpha, std::move(alpha)));
+  document.add_channel(patchy::DocumentChannel(document.allocate_channel_id(), "Spot",
+                                                patchy::DocumentChannelKind::Spot, std::move(spot)));
+  return document;
+}
+
+void document_channel_geometry_tracks_image_and_canvas_operations() {
+  {
+    auto document = document_with_test_channels(2, 2);
+    patchy::resize_image_and_layers(document, 4, 4);
+    CHECK(std::as_const(document).channels()[0].pixels().width() == 4);
+    CHECK(std::as_const(document).channels()[0].pixels().height() == 4);
+    CHECK(*std::as_const(document.channels()[0]).pixels().pixel(0, 0) == 1);
+    CHECK(*std::as_const(document.channels()[0]).pixels().pixel(3, 3) == 4);
+  }
+
+  {
+    auto document = document_with_test_channels(2, 2);
+    patchy::resize_canvas_and_layers(document, 3, 3, patchy::CanvasAnchor::TopLeft);
+    CHECK(*std::as_const(document.channels()[0]).pixels().pixel(2, 2) == 0);
+    CHECK(*std::as_const(document.channels()[1]).pixels().pixel(2, 2) == 255);
+  }
+
+  {
+    auto document = document_with_test_channels(3, 3);
+    CHECK(patchy::crop_document(document, patchy::Rect{1, 1, 2, 2}));
+    CHECK(document.width() == 2);
+    CHECK(document.height() == 2);
+    CHECK(*std::as_const(document.channels()[0]).pixels().pixel(0, 0) == 5);
+    CHECK(*std::as_const(document.channels()[0]).pixels().pixel(1, 1) == 9);
+  }
+
+  {
+    auto document = document_with_test_channels(2, 3);
+    const auto original_alpha = std::as_const(document.channels()[0]).pixels().data();
+    const std::vector<std::uint8_t> original_bytes(original_alpha.begin(), original_alpha.end());
+    patchy::rotate_document_clockwise(document);
+    CHECK(document.width() == 3);
+    CHECK(document.height() == 2);
+    patchy::rotate_document_counterclockwise(document);
+    CHECK(document.width() == 2);
+    CHECK(document.height() == 3);
+    const auto restored = std::as_const(document.channels()[0]).pixels().data();
+    CHECK(std::equal(restored.begin(), restored.end(), original_bytes.begin(), original_bytes.end()));
+  }
 }
 
 void document_adds_and_finds_layers() {
@@ -2793,61 +3058,395 @@ void psd_layer_mask_link_state_round_trips() {
   }
 }
 
-void psd_document_alpha_mask_round_trips_and_transparency_is_not_a_mask() {
-  // A single-layer document whose mask came from a document alpha channel writes the
-  // mask as the composite's "Alpha 1" channel (resource 1006) and recovers it on read.
+void psd_legacy_document_alpha_marker_stays_a_layer_mask() {
+  // The old import marker no longer promotes a layer mask into a saved PSD alpha.
+  // A layered save keeps it as the layer's real -2 mask; merged transparency is
+  // derived separately and must not reappear as a saved document channel.
   patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
   auto& layer = document.add_pixel_layer("Flat", solid_rgb(4, 2, 30, 90, 200));
   patchy::PixelBuffer mask_pixels(4, 2, patchy::PixelFormat::gray8());
   mask_pixels.clear(128);
   layer.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 4, 2}, std::move(mask_pixels), 255, false});
   patchy::set_layer_mask_is_document_alpha(layer, true);
-  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(psd_signed_layer_count(bytes) == -1);
+  const auto records = psd_layer_channel_records(bytes);
+  CHECK(std::any_of(records.begin(), records.end(),
+                    [](const PsdLayerChannelRecord& record) { return record.id == -2; }));
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
   CHECK(reread.layers().size() == 1);
   const auto& recovered = reread.layers().front();
   CHECK(recovered.mask().has_value());
-  CHECK(patchy::layer_mask_is_document_alpha(recovered));
-  CHECK(recovered.mask()->pixels.width() == 4 && recovered.mask()->pixels.height() == 2);
-  const auto* mask_px = recovered.mask()->pixels.pixel(1, 1);
-  CHECK(mask_px != nullptr && mask_px[0] == 128);
+  CHECK(recovered.mask()->pixels.pixel(1, 1)[0] == 128);
+  CHECK(!patchy::layer_mask_is_document_alpha(recovered));
+  CHECK(reread.channels().empty());
+}
 
-  // Photoshop layered files with a transparent canvas carry merged TRANSPARENCY as a
-  // 4th composite channel (resource 1006 names it "Transparency", not "Alpha 1");
-  // adopting it invented a phantom layer mask on single-layer files like the
-  // table-tent Content.psb. Rebuild that shape: same bytes, 1006 renamed.
-  auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
-  static constexpr std::uint8_t kAlphaOne[] = {7, 'A', 'l', 'p', 'h', 'a', ' ', '1'};
-  static constexpr std::uint8_t kTransparency[] = {12, 'T', 'r', 'a', 'n', 's', 'p', 'a',
-                                                   'r',  'e', 'n', 'c', 'y'};
-  const auto found = std::search(bytes.begin(), bytes.end(), std::begin(kAlphaOne), std::end(kAlphaOne));
-  CHECK(found != bytes.end());
-  std::vector<std::uint8_t> renamed(bytes.begin(), found);
-  renamed.insert(renamed.end(), std::begin(kTransparency), std::end(kTransparency));
-  renamed.insert(renamed.end(), found + std::size(kAlphaOne), bytes.end());
-  // The resource block's u32 payload length sits directly before the pascal-string
-  // payload; patch it (8 -> 13) so the renamed resource still parses.
-  const auto length_at = std::distance(bytes.begin(), found) - 4;
-  CHECK(length_at >= 0);
-  CHECK(renamed[static_cast<std::size_t>(length_at) + 3] == 8);
-  renamed[static_cast<std::size_t>(length_at) + 3] = 13;
-  // The renamed payload is 13 bytes (odd): resource payloads pad to even, and the
-  // original 8-byte payload had no pad, so add one byte after the name.
-  renamed.insert(renamed.begin() + static_cast<std::ptrdiff_t>(length_at) + 4 + 13, 0);
-  // The rename grew the image resources section by 6 bytes; bump its length field
-  // (u32 after the color mode section) to match.
-  const auto read_u32_at = [](const std::vector<std::uint8_t>& buffer, std::size_t at) {
-    return (static_cast<std::uint32_t>(buffer[at]) << 24) | (static_cast<std::uint32_t>(buffer[at + 1]) << 16) |
-           (static_cast<std::uint32_t>(buffer[at + 2]) << 8) | buffer[at + 3];
+void psd_psb_saved_channels_round_trip_names_pixels_and_metadata() {
+  const std::string unicode_name =
+      "\xE3\x82\xB9\xE3\x83\x9D\xE3\x83\x83\xE3\x83\x88";  // Japanese "Spot".
+  const auto spot_record = test_channel_display_record(patchy::RgbColor{9, 80, 210}, 73, 2);
+
+  for (const bool large_document : {false, true}) {
+    for (const bool compressible : {false, true}) {
+      const std::int32_t width = compressible ? 32 : 128;
+      const std::int32_t height = compressible ? 4 : 1;
+      patchy::Document document(width, height, patchy::PixelFormat::rgb8());
+      patchy::PixelBuffer base(width, height, patchy::PixelFormat::rgb8());
+      for (std::int32_t y = 0; y < height; ++y) {
+        for (std::int32_t x = 0; x < width; ++x) {
+          auto* pixel = base.pixel(x, y);
+          pixel[0] = compressible ? 20U : static_cast<std::uint8_t>(x);
+          pixel[1] = compressible ? 60U : static_cast<std::uint8_t>(x + 47);
+          pixel[2] = compressible ? 100U : static_cast<std::uint8_t>(255 - x);
+        }
+      }
+      document.add_pixel_layer("Background", std::move(base));
+
+      const auto add_channel = [&](std::string name, patchy::DocumentChannelKind kind, std::uint8_t offset) {
+        patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::gray8());
+        for (std::int32_t y = 0; y < height; ++y) {
+          for (std::int32_t x = 0; x < width; ++x) {
+            *pixels.pixel(x, y) = compressible
+                                      ? offset
+                                      : static_cast<std::uint8_t>(offset + x * 37 + y * 19);
+          }
+        }
+        return patchy::DocumentChannel(document.allocate_channel_id(), std::move(name), kind,
+                                       std::move(pixels));
+      };
+
+      auto first = add_channel("Duplicate", patchy::DocumentChannelKind::Alpha, 11);
+      patchy::DocumentChannelDisplayInfo first_display;
+      first_display.color = patchy::RgbColor{12, 34, 56};
+      first_display.opacity = 0.37F;
+      first_display.color_indicates = patchy::DocumentChannelColorIndicates::SelectedAreas;
+      first.set_display_info(first_display);
+      first.set_photoshop_identifier(std::uint32_t{101});
+      document.add_channel(std::move(first));
+
+      document.add_channel(add_channel("Duplicate", patchy::DocumentChannelKind::Alpha, 33));
+
+      auto spot = add_channel(unicode_name, patchy::DocumentChannelKind::Spot, 77);
+      patchy::DocumentChannelDisplayInfo spot_display;
+      spot_display.color = patchy::RgbColor{9, 80, 210};
+      spot_display.opacity = 0.73F;
+      // Kind, not normalized presentation metadata, controls resource 1053.
+      // The preserved raw record below still describes this channel as a spot.
+      spot_display.color_indicates = patchy::DocumentChannelColorIndicates::MaskedAreas;
+      spot.set_display_info(spot_display);
+      spot.set_raw_photoshop_display_info(spot_record);
+      spot.set_photoshop_identifier(std::uint32_t{0x12345678U});
+      document.add_channel(std::move(spot));
+
+      patchy::psd::WriteOptions options;
+      options.large_document = large_document;
+      const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document, options);
+      const auto header = test_psd_header(bytes);
+      CHECK(header.large_document == large_document);
+      CHECK(header.channels == 6);
+      CHECK(psd_composite_compression(bytes) == (compressible ? 1U : 0U));
+      CHECK(test_image_resource_payload(psd_raw_image_resources(bytes), 1053).value() ==
+            test_alpha_identifiers_payload({101, 1}));
+
+      const auto read = patchy::psd::DocumentIo::read(bytes);
+      CHECK(read.channels().size() == 3);
+      CHECK(read.channels()[0].name() == "Duplicate");
+      CHECK(read.channels()[1].name() == "Duplicate");
+      CHECK(read.channels()[2].name() == unicode_name);
+      CHECK(read.channels()[0].kind() == patchy::DocumentChannelKind::Alpha);
+      CHECK(read.channels()[2].kind() == patchy::DocumentChannelKind::Spot);
+      CHECK(read.channels()[0].photoshop_identifier() == std::optional<std::uint32_t>{101});
+      CHECK(!read.channels()[2].photoshop_identifier().has_value());
+      CHECK(read.channels()[0].display_info().color.red == 12);
+      CHECK(read.channels()[0].display_info().color.green == 34);
+      CHECK(read.channels()[0].display_info().color.blue == 56);
+      CHECK(std::abs(read.channels()[0].display_info().opacity - 0.37F) < 0.001F);
+      CHECK(read.channels()[0].display_info().color_indicates ==
+            patchy::DocumentChannelColorIndicates::SelectedAreas);
+      CHECK(read.channels()[2].raw_photoshop_display_info() == spot_record);
+      CHECK(read.channels()[2].display_info().color_indicates ==
+            patchy::DocumentChannelColorIndicates::SpotColor);
+
+      const auto last_x = width - 1;
+      const auto last_y = height - 1;
+      const auto expected_first = compressible
+                                      ? std::uint8_t{11}
+                                      : static_cast<std::uint8_t>(11 + last_x * 37 + last_y * 19);
+      const auto expected_spot = compressible
+                                     ? std::uint8_t{77}
+                                     : static_cast<std::uint8_t>(77 + last_x * 37 + last_y * 19);
+      CHECK(read.channels()[0].pixels().pixel(last_x, last_y)[0] == expected_first);
+      CHECK(read.channels()[2].pixels().pixel(last_x, last_y)[0] == expected_spot);
+    }
+  }
+}
+
+void psd_photoshop_saved_channels_fixture_imports_and_resaves() {
+  // Photoshop 2026-authored ground truth: an opaque RGB document with two
+  // duplicate-named saved alpha channels and one Unicode-named spot channel.
+  // The three RGB components are derived; exactly these three stored channels
+  // must follow them, with no phantom merged-transparency channel.
+  const auto fixture_path =
+      patchy::test::committed_psd_fixture_path("photoshop-saved-channels.psd");
+  const auto document = patchy::psd::DocumentIo::read_file(fixture_path);
+  CHECK(document.width() == 16);
+  CHECK(document.height() == 12);
+  CHECK(document.layers().size() == 1);
+  CHECK(!document.layers().front().mask().has_value());
+  CHECK(document.channels().size() == 3);
+  const auto legacy_names = test_alpha_channel_names_payload(
+      {"Duplicate", "Duplicate", "???????"});
+  CHECK(test_image_resource_payload(document.metadata().raw_psd_image_resources, 1006).value() ==
+        legacy_names);
+
+  const std::string unicode_name =
+      "\xE7\x89\xB9\xE8\x89\xB2\xE3\x83\x81\xE3\x83\xA3\xE3\x83\xB3\xE3\x83\x8D\xE3\x83\xAB";
+  const auto& alpha_masked = document.channels()[0];
+  const auto& alpha_selected = document.channels()[1];
+  const auto& spot = document.channels()[2];
+  CHECK(alpha_masked.name() == "Duplicate");
+  CHECK(alpha_selected.name() == "Duplicate");
+  CHECK(spot.name() == unicode_name);
+  CHECK(alpha_masked.kind() == patchy::DocumentChannelKind::Alpha);
+  CHECK(alpha_selected.kind() == patchy::DocumentChannelKind::Alpha);
+  CHECK(spot.kind() == patchy::DocumentChannelKind::Spot);
+
+  const auto check_display = [](const patchy::DocumentChannel& channel, patchy::RgbColor color,
+                                float opacity, patchy::DocumentChannelColorIndicates mode) {
+    CHECK(channel.display_info().color.red == color.red);
+    CHECK(channel.display_info().color.green == color.green);
+    CHECK(channel.display_info().color.blue == color.blue);
+    CHECK(std::abs(channel.display_info().opacity - opacity) < 0.001F);
+    CHECK(channel.display_info().color_indicates == mode);
+    CHECK(channel.raw_photoshop_display_info().size() == 13U);
   };
-  const auto resources_length_at = 26U + 4U + read_u32_at(renamed, 26);
-  const auto resources_length = read_u32_at(renamed, resources_length_at) + 6U;
-  renamed[resources_length_at] = static_cast<std::uint8_t>(resources_length >> 24);
-  renamed[resources_length_at + 1] = static_cast<std::uint8_t>(resources_length >> 16);
-  renamed[resources_length_at + 2] = static_cast<std::uint8_t>(resources_length >> 8);
-  renamed[resources_length_at + 3] = static_cast<std::uint8_t>(resources_length);
-  const auto transparent_read = patchy::psd::DocumentIo::read(renamed);
-  CHECK(transparent_read.layers().size() == 1);
+  check_display(alpha_masked, patchy::RgbColor{12, 34, 56}, 0.37F,
+                patchy::DocumentChannelColorIndicates::MaskedAreas);
+  check_display(alpha_selected, patchy::RgbColor{210, 120, 30}, 0.61F,
+                patchy::DocumentChannelColorIndicates::SelectedAreas);
+  check_display(spot, patchy::RgbColor{12, 34, 210}, 0.63F,
+                patchy::DocumentChannelColorIndicates::SpotColor);
+  CHECK(alpha_masked.photoshop_identifier() == std::optional<std::uint32_t>{3});
+  CHECK(alpha_selected.photoshop_identifier() == std::optional<std::uint32_t>{4});
+  CHECK(!spot.photoshop_identifier().has_value());
+
+  CHECK(alpha_masked.pixels().pixel(0, 0)[0] == 255);
+  CHECK(alpha_masked.pixels().pixel(4, 0)[0] == 128);
+  CHECK(alpha_masked.pixels().pixel(8, 0)[0] == 0);
+  CHECK(alpha_selected.pixels().pixel(0, 0)[0] == 64);
+  CHECK(alpha_selected.pixels().pixel(8, 4)[0] == 200);
+  CHECK(spot.pixels().pixel(12, 8)[0] == 0);
+  CHECK(spot.pixels().pixel(0, 8)[0] == 96);
+  CHECK(spot.pixels().pixel(8, 8)[0] == 255);
+
+  std::filesystem::create_directories("test-artifacts");
+  const auto patchy_path =
+      std::filesystem::path("test-artifacts") / "photoshop-saved-channels-patchy.psd";
+  const auto patchy_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(test_image_resource_payload(psd_raw_image_resources(patchy_bytes), 1006).value() ==
+        legacy_names);
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy_path);
+  const auto reread = patchy::psd::DocumentIo::read_file(patchy_path);
+  CHECK(reread.channels().size() == document.channels().size());
+  for (std::size_t index = 0; index < document.channels().size(); ++index) {
+    const auto& before = document.channels()[index];
+    const auto& after = reread.channels()[index];
+    CHECK(after.name() == before.name());
+    CHECK(after.kind() == before.kind());
+    CHECK(after.photoshop_identifier() == before.photoshop_identifier());
+    CHECK(after.raw_photoshop_display_info() == before.raw_photoshop_display_info());
+    CHECK(after.pixels().data().size() == before.pixels().data().size());
+    CHECK(std::equal(after.pixels().data().begin(), after.pixels().data().end(),
+                     before.pixels().data().begin()));
+  }
+}
+
+void psd_legacy_channel_name_fallback_counts_unicode_scalars() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(1, 1, 255, 255, 255));
+
+  std::string name(254, 'A');
+  name += "\xF0\x9F\x98\x80";  // One supplementary Unicode scalar.
+  name += "tail retained only in resource 1045";
+  patchy::PixelBuffer pixels(1, 1, patchy::PixelFormat::gray8());
+  pixels.clear(127);
+  document.add_channel(patchy::DocumentChannel(document.allocate_channel_id(), name,
+                                                patchy::DocumentChannelKind::Alpha,
+                                                std::move(pixels)));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto legacy = test_image_resource_payload(psd_raw_image_resources(bytes), 1006).value();
+  std::vector<std::uint8_t> expected{255U};
+  expected.insert(expected.end(), 254U, static_cast<std::uint8_t>('A'));
+  expected.push_back(static_cast<std::uint8_t>('?'));
+  CHECK(legacy == expected);
+
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
+  CHECK(reread.channels().size() == 1);
+  CHECK(reread.channels().front().name() == name);
+}
+
+void psd_saved_channel_coexists_with_real_layer_mask() {
+  patchy::Document document(6, 4, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Masked", solid_rgb(6, 4, 200, 40, 20));
+  patchy::PixelBuffer mask_pixels(4, 2, patchy::PixelFormat::gray8());
+  mask_pixels.clear(128);
+  layer.set_mask(patchy::LayerMask{patchy::Rect{1, 1, 4, 2}, std::move(mask_pixels), 255, false});
+
+  patchy::PixelBuffer alpha(6, 4, patchy::PixelFormat::gray8());
+  alpha.clear(29);
+  document.add_channel(patchy::DocumentChannel(document.allocate_channel_id(), "Saved Alpha",
+                                                patchy::DocumentChannelKind::Alpha, std::move(alpha)));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto records = psd_layer_channel_records(bytes);
+  CHECK(std::any_of(records.begin(), records.end(),
+                    [](const PsdLayerChannelRecord& record) { return record.id == -2; }));
+  CHECK(psd_signed_layer_count(bytes) == -1);  // mask transparency is the derived first extra plane.
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 1);
+  CHECK(read.layers().front().mask().has_value());
+  CHECK(read.layers().front().mask()->pixels.pixel(0, 0)[0] == 128);
+  CHECK(read.channels().size() == 1);
+  CHECK(read.channels().front().name() == "Saved Alpha");
+  CHECK(read.channels().front().pixels().pixel(5, 3)[0] == 29);
+}
+
+void psd_merged_transparency_is_structural_before_saved_channels() {
+  patchy::Document transparent(4, 3, patchy::PixelFormat::rgba8());
+  transparent.add_pixel_layer("Paint", solid_rgba(4, 3, 30, 100, 220, 128));
+  patchy::PixelBuffer saved_pixels(4, 3, patchy::PixelFormat::gray8());
+  saved_pixels.clear(61);
+  auto saved = patchy::DocumentChannel(transparent.allocate_channel_id(), "Saved After Transparency",
+                                       patchy::DocumentChannelKind::Alpha, std::move(saved_pixels));
+  saved.set_photoshop_identifier(std::uint32_t{700});
+  transparent.add_channel(std::move(saved));
+
+  const auto transparent_bytes = patchy::psd::DocumentIo::write_layered_rgb8(transparent);
+  CHECK(test_psd_header(transparent_bytes).channels == 5);
+  CHECK(psd_signed_layer_count(transparent_bytes) == -1);
+  const auto transparent_read = patchy::psd::DocumentIo::read(transparent_bytes);
+  CHECK(transparent_read.channels().size() == 1);
+  CHECK(transparent_read.channels().front().name() == "Saved After Transparency");
+  CHECK(transparent_read.channels().front().photoshop_identifier() == std::optional<std::uint32_t>{700});
+  CHECK(transparent_read.channels().front().pixels().pixel(3, 2)[0] == 61);
   CHECK(!transparent_read.layers().front().mask().has_value());
+
+  // The label alone has no special meaning. With a positive layer count, a saved
+  // channel literally named "Transparency" remains a normal editable channel.
+  patchy::Document opaque(4, 3, patchy::PixelFormat::rgb8());
+  opaque.add_pixel_layer("Background", solid_rgb(4, 3, 30, 100, 220));
+  patchy::PixelBuffer literal_pixels(4, 3, patchy::PixelFormat::gray8());
+  literal_pixels.clear(147);
+  opaque.add_channel(patchy::DocumentChannel(opaque.allocate_channel_id(), "Transparency",
+                                              patchy::DocumentChannelKind::Alpha,
+                                              std::move(literal_pixels)));
+  const auto literal_bytes = patchy::psd::DocumentIo::write_layered_rgb8(opaque);
+  CHECK(psd_signed_layer_count(literal_bytes) == 1);
+  const auto literal_read = patchy::psd::DocumentIo::read(literal_bytes);
+  CHECK(literal_read.channels().size() == 1);
+  CHECK(literal_read.channels().front().name() == "Transparency");
+  CHECK(literal_read.channels().front().pixels().pixel(0, 0)[0] == 147);
+}
+
+void psd_cmyk_extra_plane_imports_as_saved_channel() {
+  patchy::psd::BigEndianWriter resources;
+  const auto names = test_alpha_channel_names_payload({"Ink Mask"});
+  const auto identifiers = test_alpha_identifiers_payload({505});
+  write_test_image_resource(resources, 1006, "", names);
+  write_test_image_resource(resources, 1053, "", identifiers);
+
+  const std::vector<std::vector<std::uint8_t>> planes{
+      {255, 255},  // cyan
+      {0, 255},    // magenta
+      {0, 255},    // yellow
+      {255, 127},  // black
+      {7, 201},    // saved channel (after all four CMYK components)
+  };
+  for (const std::uint16_t compression : {std::uint16_t{0}, std::uint16_t{1}}) {
+    const auto bytes = flat_psd_with_test_planes(false, 4, 2, 1, planes, resources.bytes(), compression);
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.metadata().values.at("psd.color_mode") == "CMYK");
+    CHECK(read.layers().size() == 1);
+    CHECK(read.channels().size() == 1);
+    CHECK(read.channels().front().name() == "Ink Mask");
+    CHECK(read.channels().front().photoshop_identifier() == std::optional<std::uint32_t>{505});
+    CHECK(read.channels().front().pixels().pixel(0, 0)[0] == 7);
+    CHECK(read.channels().front().pixels().pixel(1, 0)[0] == 201);
+  }
+}
+
+void psd_saved_channel_resource_mismatches_use_fallback_names() {
+  const std::vector<std::vector<std::uint8_t>> planes{
+      {10, 20}, {30, 40}, {50, 60}, {70, 80}, {90, 100},
+  };
+
+  patchy::psd::BigEndianWriter partial_resources;
+  const auto one_name = test_alpha_channel_names_payload({"Named Only"});
+  const auto one_identifier = test_alpha_identifiers_payload({99});
+  const auto one_display =
+      test_display_info_float_payload({test_channel_display_record(patchy::RgbColor{200, 20, 40}, 80, 2)});
+  write_test_image_resource(partial_resources, 1006, "", one_name);
+  write_test_image_resource(partial_resources, 1053, "", one_identifier);
+  write_test_image_resource(partial_resources, 1077, "", one_display);
+
+  const auto partial = patchy::psd::DocumentIo::read(
+      flat_psd_with_test_planes(false, 3, 2, 1, planes, partial_resources.bytes()));
+  CHECK(partial.channels().size() == 2);
+  CHECK(partial.channels()[0].name() == "Named Only");
+  CHECK(partial.channels()[1].name() == "Alpha 2");
+  CHECK(partial.channels()[0].kind() == patchy::DocumentChannelKind::Spot);
+  CHECK(partial.channels()[1].kind() == patchy::DocumentChannelKind::Alpha);
+  CHECK(!partial.channels()[0].photoshop_identifier().has_value());
+  CHECK(partial.channels()[1].photoshop_identifier() == std::optional<std::uint32_t>{99});
+
+  // When the floating-point display resource (1077) is absent, the legacy 1007
+  // 14-byte records remain authoritative and are retained byte-for-byte.
+  patchy::psd::BigEndianWriter legacy_resources;
+  const auto legacy_record =
+      test_channel_display_record(patchy::RgbColor{15, 120, 230}, 65, 2, true);
+  write_test_image_resource(legacy_resources, 1007, "", legacy_record);
+  const auto legacy = patchy::psd::DocumentIo::read(
+      flat_psd_with_test_planes(false, 3, 2, 1, planes, legacy_resources.bytes()));
+  CHECK(legacy.channels().size() == 2);
+  CHECK(legacy.channels()[0].kind() == patchy::DocumentChannelKind::Spot);
+  CHECK(legacy.channels()[0].raw_photoshop_display_info() == legacy_record);
+  CHECK(std::abs(legacy.channels()[0].display_info().opacity - 0.65F) < 0.001F);
+
+  const auto missing =
+      patchy::psd::DocumentIo::read(flat_psd_with_test_planes(false, 3, 2, 1, planes));
+  CHECK(missing.channels().size() == 2);
+  CHECK(missing.channels()[0].name() == "Alpha 1");
+  CHECK(missing.channels()[1].name() == "Alpha 2");
+}
+
+void psd_opaque_allows_53_saved_channels_but_transparent_throws() {
+  patchy::Document opaque(1, 1, patchy::PixelFormat::rgb8());
+  opaque.add_pixel_layer("Background", solid_rgb(1, 1, 20, 40, 60));
+  for (std::size_t index = 0; index < opaque.maximum_saved_channel_count(); ++index) {
+    patchy::PixelBuffer pixels(1, 1, patchy::PixelFormat::gray8());
+    pixels.clear(static_cast<std::uint8_t>(index));
+    opaque.add_channel(patchy::DocumentChannel(opaque.allocate_channel_id(),
+                                                "Alpha " + std::to_string(index + 1U),
+                                                patchy::DocumentChannelKind::Alpha,
+                                                std::move(pixels)));
+  }
+  CHECK(opaque.channels().size() == 53);
+  const auto opaque_bytes = patchy::psd::DocumentIo::write_layered_rgb8(opaque);
+  CHECK(test_psd_header(opaque_bytes).channels == 56);
+  CHECK(patchy::psd::DocumentIo::read(opaque_bytes).channels().size() == 53);
+
+  auto transparent = opaque;
+  transparent.layers().front().set_pixels(solid_rgba(1, 1, 20, 40, 60, 0));
+  bool threw = false;
+  try {
+    (void)patchy::psd::DocumentIo::write_layered_rgb8(transparent);
+  } catch (const std::runtime_error&) {
+    threw = true;
+  }
+  CHECK(threw);
 }
 
 void psb_transparency_channel_is_not_a_layer_mask_if_available() {
@@ -13621,6 +14220,10 @@ int main() {
       {"pixel_buffer_copy_shares_storage_until_mutated", pixel_buffer_copy_shares_storage_until_mutated},
       {"document_snapshot_shares_pixels_when_only_moving_a_layer",
        document_snapshot_shares_pixels_when_only_moving_a_layer},
+      {"document_channels_validate_crud_revisions_and_cow",
+       document_channels_validate_crud_revisions_and_cow},
+      {"document_channel_geometry_tracks_image_and_canvas_operations",
+       document_channel_geometry_tracks_image_and_canvas_operations},
       {"document_adds_and_finds_layers", document_adds_and_finds_layers},
       {"document_removes_layers_and_updates_active_layer", document_removes_layers_and_updates_active_layer},
       {"document_can_clear_active_layer", document_can_clear_active_layer},
@@ -13708,8 +14311,24 @@ int main() {
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_layer_mask_link_state_round_trips", psd_layer_mask_link_state_round_trips},
-      {"psd_document_alpha_mask_round_trips_and_transparency_is_not_a_mask",
-       psd_document_alpha_mask_round_trips_and_transparency_is_not_a_mask},
+      {"psd_legacy_document_alpha_marker_stays_a_layer_mask",
+       psd_legacy_document_alpha_marker_stays_a_layer_mask},
+      {"psd_psb_saved_channels_round_trip_names_pixels_and_metadata",
+       psd_psb_saved_channels_round_trip_names_pixels_and_metadata},
+      {"psd_photoshop_saved_channels_fixture_imports_and_resaves",
+       psd_photoshop_saved_channels_fixture_imports_and_resaves},
+      {"psd_legacy_channel_name_fallback_counts_unicode_scalars",
+       psd_legacy_channel_name_fallback_counts_unicode_scalars},
+      {"psd_saved_channel_coexists_with_real_layer_mask",
+       psd_saved_channel_coexists_with_real_layer_mask},
+      {"psd_merged_transparency_is_structural_before_saved_channels",
+       psd_merged_transparency_is_structural_before_saved_channels},
+      {"psd_cmyk_extra_plane_imports_as_saved_channel",
+       psd_cmyk_extra_plane_imports_as_saved_channel},
+      {"psd_saved_channel_resource_mismatches_use_fallback_names",
+       psd_saved_channel_resource_mismatches_use_fallback_names},
+      {"psd_opaque_allows_53_saved_channels_but_transparent_throws",
+       psd_opaque_allows_53_saved_channels_but_transparent_throws},
       {"psb_transparency_channel_is_not_a_layer_mask_if_available",
        psb_transparency_channel_is_not_a_layer_mask_if_available},
       {"psd_layer_record_flags_mark_photoshop5_layers", psd_layer_record_flags_mark_photoshop5_layers},

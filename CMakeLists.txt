@@ -50,6 +50,7 @@ add_library(patchy_core
   src/core/brush_dynamics.cpp
   src/core/brush_tip.cpp
   src/core/document.cpp
+  src/core/document_channel.cpp
   src/core/layer.cpp
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
@@ -377,6 +378,8 @@ if(PATCHY_BUILD_APP)
       src/ui/brush_tip_picker.cpp
       src/ui/canvas_widget.hpp
       src/ui/canvas_widget.cpp
+      src/ui/channel_panel.hpp
+      src/ui/channel_panel.cpp
       src/ui/color_panel.hpp
       src/ui/default_brush_tips.hpp
       src/ui/default_brush_tips.cpp
@@ -403,6 +406,7 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window.hpp
       src/ui/main_window.cpp
       src/ui/main_window_adjustments.cpp
+      src/ui/main_window_channels.cpp
       src/ui/main_window_chrome.cpp
       src/ui/main_window_palette.cpp
       src/ui/main_window_shared.hpp

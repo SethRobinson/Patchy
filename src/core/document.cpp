@@ -1,6 +1,7 @@
 #include "core/document.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -95,6 +96,14 @@ std::vector<Layer>& Document::layers() noexcept {
   return layers_;
 }
 
+const std::vector<DocumentChannel>& Document::channels() const noexcept {
+  return channels_;
+}
+
+std::vector<DocumentChannel>& Document::channels() noexcept {
+  return channels_;
+}
+
 std::optional<LayerId> Document::active_layer_id() const noexcept {
   return active_layer_id_;
 }
@@ -127,6 +136,44 @@ const Layer* Document::find_layer(LayerId id) const noexcept {
   return find_layer_recursive(layers_, id);
 }
 
+DocumentChannel& Document::add_channel(DocumentChannel channel) {
+  if (channel.id() == 0) {
+    throw std::invalid_argument("Document channel id 0 is reserved");
+  }
+  if (find_channel(channel.id()) != nullptr) {
+    throw std::invalid_argument("Document channel ids must be unique");
+  }
+  const auto& pixels = std::as_const(channel).pixels();
+  if (pixels.format() != PixelFormat::gray8()) {
+    throw std::invalid_argument("Document channels must use 8-bit grayscale pixels");
+  }
+  if (pixels.width() != width_ || pixels.height() != height_) {
+    throw std::invalid_argument("Document channels must match document dimensions");
+  }
+  if (channels_.size() >= maximum_saved_channel_count()) {
+    throw std::length_error("Document has reached Photoshop's 56-channel limit");
+  }
+
+  const auto id = channel.id();
+  channels_.push_back(std::move(channel));
+  if (id >= next_channel_id_) {
+    next_channel_id_ = id == std::numeric_limits<ChannelId>::max() ? 1 : id + 1;
+  }
+  return channels_.back();
+}
+
+DocumentChannel* Document::find_channel(ChannelId id) noexcept {
+  const auto found = std::find_if(channels_.begin(), channels_.end(),
+                                  [id](const DocumentChannel& channel) { return channel.id() == id; });
+  return found == channels_.end() ? nullptr : &*found;
+}
+
+const DocumentChannel* Document::find_channel(ChannelId id) const noexcept {
+  const auto found = std::find_if(channels_.begin(), channels_.end(),
+                                  [id](const DocumentChannel& channel) { return channel.id() == id; });
+  return found == channels_.end() ? nullptr : &*found;
+}
+
 void Document::set_active_layer(LayerId id) {
   if (find_layer(id) == nullptr) {
     throw std::invalid_argument("Cannot activate a layer that does not exist");
@@ -150,6 +197,44 @@ bool Document::remove_layer(LayerId id) {
   return true;
 }
 
+bool Document::remove_channel(ChannelId id) {
+  const auto found = std::find_if(channels_.begin(), channels_.end(),
+                                  [id](const DocumentChannel& channel) { return channel.id() == id; });
+  if (found == channels_.end()) {
+    return false;
+  }
+  channels_.erase(found);
+  return true;
+}
+
+bool Document::rename_channel(ChannelId id, std::string name) {
+  auto* channel = find_channel(id);
+  if (channel == nullptr) {
+    return false;
+  }
+  channel->set_name(std::move(name));
+  return true;
+}
+
+bool Document::reorder_channel(ChannelId id, std::size_t final_index) {
+  if (final_index >= channels_.size()) {
+    throw std::out_of_range("Document channel reorder index is out of range");
+  }
+  const auto found = std::find_if(channels_.begin(), channels_.end(),
+                                  [id](const DocumentChannel& channel) { return channel.id() == id; });
+  if (found == channels_.end()) {
+    return false;
+  }
+  if (static_cast<std::size_t>(std::distance(channels_.begin(), found)) == final_index) {
+    return true;
+  }
+
+  auto moved = std::move(*found);
+  channels_.erase(found);
+  channels_.insert(channels_.begin() + static_cast<std::ptrdiff_t>(final_index), std::move(moved));
+  return true;
+}
+
 void Document::resize_canvas(std::int32_t width, std::int32_t height) {
   if (width < 0 || height < 0) {
     throw std::invalid_argument("Document dimensions cannot be negative");
@@ -160,6 +245,53 @@ void Document::resize_canvas(std::int32_t width, std::int32_t height) {
 
 LayerId Document::allocate_layer_id() noexcept {
   return next_layer_id_++;
+}
+
+ChannelId Document::allocate_channel_id() {
+  if (next_channel_id_ == 0) {
+    next_channel_id_ = 1;
+  }
+  const auto first_candidate = next_channel_id_;
+  do {
+    const auto candidate = next_channel_id_;
+    next_channel_id_ = candidate == std::numeric_limits<ChannelId>::max() ? 1 : candidate + 1;
+    if (find_channel(candidate) == nullptr) {
+      return candidate;
+    }
+  } while (next_channel_id_ != first_candidate);
+  throw std::overflow_error("No document channel ids remain available");
+}
+
+std::string Document::next_alpha_channel_name() const {
+  for (std::uint64_t number = 1;; ++number) {
+    const auto candidate = std::string("Alpha ") + std::to_string(number);
+    const auto exists = std::any_of(channels_.begin(), channels_.end(), [&](const DocumentChannel& channel) {
+      return channel.name() == candidate;
+    });
+    if (!exists) {
+      return candidate;
+    }
+    if (number == std::numeric_limits<std::uint64_t>::max()) {
+      throw std::overflow_error("No alpha channel names remain available");
+    }
+  }
+}
+
+std::size_t Document::maximum_saved_channel_count(bool includes_merged_transparency) const noexcept {
+  std::size_t component_count = 3U;
+  switch (format_.color_mode) {
+    case ColorMode::Grayscale:
+      component_count = 1U;
+      break;
+    case ColorMode::RGB:
+    case ColorMode::Lab:
+      component_count = 3U;
+      break;
+    case ColorMode::CMYK:
+      component_count = 4U;
+      break;
+  }
+  return kMaximumPhotoshopChannelCount - component_count - (includes_merged_transparency ? 1U : 0U);
 }
 
 Layer* Document::find_layer_recursive(std::vector<Layer>& layers, LayerId id) noexcept {

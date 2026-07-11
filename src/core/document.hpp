@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/document_channel.hpp"
 #include "core/layer.hpp"
 #include "core/palette.hpp"
 #include "core/smart_object.hpp"
@@ -95,18 +96,29 @@ public:
   [[nodiscard]] std::vector<DocumentGuide>& guides() noexcept;
   [[nodiscard]] const std::vector<Layer>& layers() const noexcept;
   [[nodiscard]] std::vector<Layer>& layers() noexcept;
+  [[nodiscard]] const std::vector<DocumentChannel>& channels() const noexcept;
+  [[nodiscard]] std::vector<DocumentChannel>& channels() noexcept;
   [[nodiscard]] std::optional<LayerId> active_layer_id() const noexcept;
 
   Layer& add_pixel_layer(std::string name, PixelBuffer pixels);
   Layer& add_layer(Layer layer);
   [[nodiscard]] Layer* find_layer(LayerId id) noexcept;
   [[nodiscard]] const Layer* find_layer(LayerId id) const noexcept;
+  DocumentChannel& add_channel(DocumentChannel channel);
+  [[nodiscard]] DocumentChannel* find_channel(ChannelId id) noexcept;
+  [[nodiscard]] const DocumentChannel* find_channel(ChannelId id) const noexcept;
 
   void set_active_layer(LayerId id);
   void clear_active_layer() noexcept;
   bool remove_layer(LayerId id);
+  bool remove_channel(ChannelId id);
+  bool rename_channel(ChannelId id, std::string name);
+  bool reorder_channel(ChannelId id, std::size_t final_index);
   void resize_canvas(std::int32_t width, std::int32_t height);
   [[nodiscard]] LayerId allocate_layer_id() noexcept;
+  [[nodiscard]] ChannelId allocate_channel_id();
+  [[nodiscard]] std::string next_alpha_channel_name() const;
+  [[nodiscard]] std::size_t maximum_saved_channel_count(bool includes_merged_transparency = false) const noexcept;
 
 private:
   Layer* find_layer_recursive(std::vector<Layer>& layers, LayerId id) noexcept;
@@ -125,8 +137,10 @@ private:
   DocumentGridSettings grid_settings_{};
   std::vector<DocumentGuide> guides_{};
   std::vector<Layer> layers_{};
+  std::vector<DocumentChannel> channels_{};
   std::optional<LayerId> active_layer_id_{};
   LayerId next_layer_id_{1};
+  ChannelId next_channel_id_{1};
 };
 
 }  // namespace patchy

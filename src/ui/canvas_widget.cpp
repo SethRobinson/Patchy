@@ -1851,14 +1851,28 @@ void CanvasWidget::set_document(Document* document) {
   set_document_internal(document, /*preserve_frame_for_same_size=*/false);
 }
 
-void CanvasWidget::set_document_for_history_restore(Document* document) {
-  set_document_internal(document, /*preserve_frame_for_same_size=*/true);
+void CanvasWidget::set_document_for_history_restore(Document* document, bool normal_composite_unchanged) {
+  set_document_internal(document, /*preserve_frame_for_same_size=*/true, normal_composite_unchanged);
 }
 
-void CanvasWidget::set_document_internal(Document* document, bool preserve_frame_for_same_size) {
+void CanvasWidget::set_document_internal(Document* document, bool preserve_frame_for_same_size,
+                                         bool normal_composite_unchanged) {
   const auto old_transform_controls_rect = move_transform_controls_rect();
+  const bool render_cache_was_dirty = render_cache_dirty_;
   const bool preserve_frame = preserve_frame_for_same_size && document != nullptr && !render_cache_.isNull() &&
                               render_cache_.size() == QSize(document->width(), document->height());
+  const auto restore_channel_id =
+      preserve_frame_for_same_size && layer_edit_target_ == LayerEditTarget::DocumentChannel
+          ? active_document_channel_id_
+          : ChannelId{0};
+  const auto restore_component_target =
+      preserve_frame_for_same_size &&
+              (layer_edit_target_ == LayerEditTarget::ComponentRed ||
+               layer_edit_target_ == LayerEditTarget::ComponentGreen ||
+               layer_edit_target_ == LayerEditTarget::ComponentBlue)
+          ? layer_edit_target_
+          : LayerEditTarget::Content;
+  const auto restore_channel_display_mode = mask_display_mode_;
   cancel_free_transform();
   if (warping_layer_) {
     reset_warp_state();
@@ -1878,14 +1892,29 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   creating_guide_ = false;
   guide_drag_remove_ = false;
   layer_edit_target_ = LayerEditTarget::Content;
+  active_document_channel_id_ = 0;
   mask_display_mode_ = MaskDisplayMode::None;
   mask_display_image_ = QImage();
   mask_display_image_layer_ = 0;
+  mask_display_image_channel_ = 0;
+  mask_display_image_revision_ = 0;
+  if (restore_channel_id != 0 && document_ != nullptr &&
+      static_cast<const Document*>(document_)->find_channel(restore_channel_id) != nullptr) {
+    layer_edit_target_ = LayerEditTarget::DocumentChannel;
+    active_document_channel_id_ = restore_channel_id;
+    mask_display_mode_ = restore_channel_display_mode == MaskDisplayMode::None
+                             ? MaskDisplayMode::Grayscale
+                             : restore_channel_display_mode;
+  } else if (restore_component_target != LayerEditTarget::Content) {
+    layer_edit_target_ = restore_component_target;
+    mask_display_mode_ = MaskDisplayMode::Grayscale;
+  }
   if (!preserve_frame) {
     render_cache_ = QImage();
     render_cache_diagnostics_ = {};
   }
-  render_cache_dirty_ = true;
+  const bool keep_normal_composite_cache = preserve_frame && normal_composite_unchanged;
+  render_cache_dirty_ = keep_normal_composite_cache ? render_cache_was_dirty : true;
   if (!preserve_frame && document_ != nullptr && document_->metadata().psd_flat_composite.has_value()) {
     const auto& flat_composite = *document_->metadata().psd_flat_composite;
     // RGB-only PSD compatibility composites cannot preserve transparency, so
@@ -1898,7 +1927,9 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
     }
     document_->metadata().psd_flat_composite.reset();
   }
-  invalidate_display_mip_cache();
+  if (!keep_normal_composite_cache) {
+    invalidate_display_mip_cache();
+  }
   clear_move_hover_outline();
   update_move_transform_controls_dirty(old_transform_controls_rect);
   smudge_state_ = {};
@@ -2137,12 +2168,69 @@ void CanvasWidget::set_layer_edit_target(LayerEditTarget target) noexcept {
     return;
   }
   layer_edit_target_ = target;
+  if (target != LayerEditTarget::DocumentChannel) {
+    active_document_channel_id_ = 0;
+  }
+  if (target == LayerEditTarget::ComponentRed || target == LayerEditTarget::ComponentGreen ||
+      target == LayerEditTarget::ComponentBlue) {
+    mask_display_mode_ = MaskDisplayMode::Grayscale;
+    mask_display_image_ = QImage();
+    mask_display_image_layer_ = 0;
+    mask_display_image_channel_ = 0;
+    mask_display_image_revision_ = 0;
+  }
   clear_brush_stroke_tracking();
   update_tool_cursor();
+  update();
 }
 
 CanvasWidget::LayerEditTarget CanvasWidget::layer_edit_target() const noexcept {
   return layer_edit_target_;
+}
+
+void CanvasWidget::set_document_channel_edit_target(ChannelId id, MaskDisplayMode mode) {
+  const auto* channel = document_ != nullptr ? static_cast<const Document*>(document_)->find_channel(id) : nullptr;
+  if (channel == nullptr) {
+    set_layer_edit_target(LayerEditTarget::Content);
+    set_mask_display_mode(MaskDisplayMode::None);
+    return;
+  }
+  layer_edit_target_ = LayerEditTarget::DocumentChannel;
+  active_document_channel_id_ = id;
+  mask_display_mode_ = mode == MaskDisplayMode::None ? MaskDisplayMode::Grayscale : mode;
+  mask_display_image_ = QImage();
+  mask_display_image_layer_ = 0;
+  mask_display_image_channel_ = 0;
+  mask_display_image_revision_ = 0;
+  clear_brush_stroke_tracking();
+  update_tool_cursor();
+  update();
+}
+
+void CanvasWidget::set_component_channel_preview(LayerEditTarget component) {
+  if (component != LayerEditTarget::ComponentRed && component != LayerEditTarget::ComponentGreen &&
+      component != LayerEditTarget::ComponentBlue) {
+    set_layer_edit_target(LayerEditTarget::Content);
+    set_mask_display_mode(MaskDisplayMode::None);
+    return;
+  }
+  set_layer_edit_target(component);
+}
+
+std::optional<ChannelId> CanvasWidget::active_document_channel_id() const noexcept {
+  if (layer_edit_target_ != LayerEditTarget::DocumentChannel || active_document_channel_id_ == 0) {
+    return std::nullopt;
+  }
+  return active_document_channel_id_;
+}
+
+bool CanvasWidget::editing_document_channel() const noexcept {
+  return layer_edit_target_ == LayerEditTarget::DocumentChannel && active_document_channel_const() != nullptr;
+}
+
+bool CanvasWidget::document_channel_is_editable() const noexcept {
+  const auto* channel = active_document_channel_const();
+  return channel != nullptr && channel->kind() == DocumentChannelKind::Alpha;
 }
 
 void CanvasWidget::set_mask_display_mode(MaskDisplayMode mode) {
@@ -2152,6 +2240,8 @@ void CanvasWidget::set_mask_display_mode(MaskDisplayMode mode) {
   mask_display_mode_ = mode;
   mask_display_image_ = QImage();
   mask_display_image_layer_ = 0;
+  mask_display_image_channel_ = 0;
+  mask_display_image_revision_ = 0;
   update();
 }
 
@@ -2162,6 +2252,8 @@ CanvasWidget::MaskDisplayMode CanvasWidget::mask_display_mode() const noexcept {
 void CanvasWidget::invalidate_mask_display() {
   mask_display_image_ = QImage();
   mask_display_image_layer_ = 0;
+  mask_display_image_channel_ = 0;
+  mask_display_image_revision_ = 0;
   if (mask_display_mode_ != MaskDisplayMode::None) {
     update();
   }
@@ -3171,6 +3263,9 @@ void CanvasWidget::document_changed() {
   cancel_async_render_cache_refresh();
   render_cache_dirty_ = true;
   mask_display_image_ = QImage();
+  mask_display_image_layer_ = 0;
+  mask_display_image_channel_ = 0;
+  mask_display_image_revision_ = 0;
   invalidate_display_mip_cache();
   refresh_free_transform_preview_caches();
   notify_document_changed();
@@ -3213,6 +3308,9 @@ void CanvasWidget::force_refresh() {
   quantize_image_for_palette_display(render_cache_);
   render_cache_dirty_ = render_cache_.isNull();
   mask_display_image_ = QImage();
+  mask_display_image_layer_ = 0;
+  mask_display_image_channel_ = 0;
+  mask_display_image_revision_ = 0;
   move_preview_patches_.clear();
   move_preview_patches_delta_.reset();
   ++render_cache_diagnostics_.full_refreshes;
@@ -3240,13 +3338,58 @@ void CanvasWidget::document_changed_effect_bounds(QRegion document_region) {
   document_changed_impl(std::move(document_region), true);
 }
 
+void CanvasWidget::grayscale_target_changed(QRect document_rect, DocumentChangeReason reason) {
+  active_edit_target_changed_impl(QRegion(document_rect), reason);
+}
+
+void CanvasWidget::active_edit_target_changed_impl(QRegion document_region, DocumentChangeReason reason) {
+  if (!editing_document_channel()) {
+    document_changed_impl(std::move(document_region), false, reason);
+    return;
+  }
+
+  const auto canvas_rect = document_ != nullptr ? QRect(0, 0, document_->width(), document_->height()) : QRect();
+  document_region = document_region.intersected(canvas_rect);
+  if (document_region.isEmpty() && !canvas_rect.isEmpty()) {
+    document_region = QRegion(canvas_rect);
+  }
+  if (const auto* channel = active_document_channel_const();
+      channel != nullptr && !mask_display_image_.isNull() && mask_display_image_channel_ == channel->id()) {
+    // The mutable channel accessor has already advanced its revision. The
+    // cached image still represents the previous revision everywhere except
+    // `document_region`, which is patched below, so advance the cache key and
+    // retain the bounded refresh instead of rebuilding the full canvas.
+    mask_display_image_revision_ = channel->content_revision();
+  }
+  refresh_mask_display_image(document_region);
+  notify_document_changed(reason);
+  if (!isVisible()) {
+    return;
+  }
+  if (zoom_ < 1.0 || document_region.isEmpty()) {
+    update();
+    return;
+  }
+  QRegion widget_region;
+  for (const auto& rect : document_region) {
+    widget_region += widget_rect_for_document_rect(rect);
+  }
+  update(widget_region);
+}
+
 void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_effect_bounds,
                                          DocumentChangeReason reason) {
   cancel_async_render_cache_refresh();
   refresh_free_transform_preview_caches();
   if (mask_display_mode_ != MaskDisplayMode::None) {
-    if (document_region.isEmpty()) {
+    const bool component_preview = layer_edit_target_ == LayerEditTarget::ComponentRed ||
+                                   layer_edit_target_ == LayerEditTarget::ComponentGreen ||
+                                   layer_edit_target_ == LayerEditTarget::ComponentBlue;
+    if (document_region.isEmpty() || component_preview) {
       mask_display_image_ = QImage();
+      mask_display_image_layer_ = 0;
+      mask_display_image_channel_ = 0;
+      mask_display_image_revision_ = 0;
     } else {
       refresh_mask_display_image(document_region);
     }
@@ -3767,20 +3910,22 @@ void CanvasWidget::select_active_layer_opaque_pixels() {
 }
 
 QRect CanvasWidget::fill_active_layer_mask(QColor color) {
-  auto* mask = active_layer_mask();
-  if (document_ == nullptr || mask == nullptr) {
+  if (document_ == nullptr) {
     return {};
   }
   auto affected = has_selection() && selected_document_rect().has_value()
                       ? *selected_document_rect()
                       : QRect(0, 0, document_->width(), document_->height());
   affected = affected.intersected(QRect(0, 0, document_->width(), document_->height()));
-  if (affected.isEmpty() ||
-      !expand_mask_to_include_rect(*mask, affected, QSize(document_->width(), document_->height()))) {
+  if (affected.isEmpty()) {
+    return {};
+  }
+  auto target = active_grayscale_edit_target(affected);
+  if (!target.has_value() || target->pixels == nullptr) {
     return {};
   }
 
-  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  const auto bounds = target->bounds;
   const auto value = mask_value_from_color(color);
   QRect dirty;
   if (has_selection() && !selection_has_partial_alpha()) {
@@ -3792,7 +3937,7 @@ QRect CanvasWidget::fill_active_layer_mask(QColor color) {
       }
       for (int y = clipped.top(); y <= clipped.bottom(); ++y) {
         for (int x = clipped.left(); x <= clipped.right(); ++x) {
-          auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+          auto* px = target->pixels->pixel(x - bounds.x(), y - bounds.y());
           *px = blend_mask_value(*px, value, 1.0F);
         }
         tick_processing_operation();
@@ -3815,7 +3960,7 @@ QRect CanvasWidget::fill_active_layer_mask(QColor color) {
       if (coverage <= 0.0F) {
         continue;
       }
-      auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+      auto* px = target->pixels->pixel(x - bounds.x(), y - bounds.y());
       *px = blend_mask_value(*px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
@@ -3826,6 +3971,55 @@ QRect CanvasWidget::fill_active_layer_mask(QColor color) {
 
 QRect CanvasWidget::clear_active_layer_mask() {
   return fill_active_layer_mask(Qt::black);
+}
+
+PixelBuffer CanvasWidget::selection_as_grayscale() const {
+  if (document_ == nullptr) {
+    return {};
+  }
+  PixelBuffer pixels(document_->width(), document_->height(), PixelFormat::gray8());
+  for (int y = 0; y < document_->height(); ++y) {
+    auto row = pixels.row(y);
+    for (int x = 0; x < document_->width(); ++x) {
+      row[static_cast<std::size_t>(x)] = selection_alpha_at(QPoint(x, y));
+    }
+  }
+  return pixels;
+}
+
+void CanvasWidget::replace_selection_from_grayscale(const PixelBuffer& pixels, QString history_label) {
+  if (document_ == nullptr || pixels.format() != PixelFormat::gray8() ||
+      pixels.width() != document_->width() || pixels.height() != document_->height()) {
+    return;
+  }
+  const auto before = capture_selection_snapshot();
+  QImage alpha(document_->width(), document_->height(), QImage::Format_Grayscale8);
+  std::vector<QRect> runs;
+  for (int y = 0; y < document_->height(); ++y) {
+    const auto source = pixels.row(y);
+    auto* destination = alpha.scanLine(y);
+    std::copy(source.begin(), source.end(), destination);
+    int run_start = -1;
+    for (int x = 0; x < document_->width(); ++x) {
+      if (source[static_cast<std::size_t>(x)] != 0U && run_start < 0) {
+        run_start = x;
+      }
+      if ((source[static_cast<std::size_t>(x)] == 0U || x + 1 == document_->width()) && run_start >= 0) {
+        const auto run_end = source[static_cast<std::size_t>(x)] == 0U ? x : x + 1;
+        runs.emplace_back(run_start, y, run_end - run_start, 1);
+        run_start = -1;
+      }
+    }
+  }
+  QRegion region;
+  if (!runs.empty()) {
+    region.setRects(runs.data(), static_cast<int>(runs.size()));
+  }
+  set_selection_from_mask(std::move(region), QRect(0, 0, document_->width(), document_->height()),
+                          std::move(alpha));
+  record_selection_history(std::move(history_label), before);
+  refresh_info_display();
+  update();
 }
 
 void CanvasWidget::grow_selection() {
@@ -4375,7 +4569,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   }
   draw_selection_overlay(painter);
   draw_quick_select_stroke_overlay(painter);
-  draw_shape_preview(painter);
+  draw_shape_preview(painter, exposed_rect);
   draw_drag_size_readout(painter);
   draw_text_rect_preview(painter);
   if (tool_ == CanvasTool::Clone && clone_source_set_) {
@@ -4652,6 +4846,19 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  const bool channel_view_active = layer_edit_target_ == LayerEditTarget::DocumentChannel ||
+                                   layer_edit_target_ == LayerEditTarget::ComponentRed ||
+                                   layer_edit_target_ == LayerEditTarget::ComponentGreen ||
+                                   layer_edit_target_ == LayerEditTarget::ComponentBlue;
+  if (event->button() == Qt::LeftButton && channel_view_active &&
+      (effective_tool == CanvasTool::Move || effective_tool == CanvasTool::Clone ||
+       effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::Text)) {
+    if (status_callback_) {
+      status_callback_(tr("This tool is unavailable while viewing a document channel"));
+    }
+    event->accept();
+    return;
+  }
 
   if (!document_contains(document_point)) {
     // Marquee/lasso and brush strokes may begin in the grey area, and the zoom
@@ -4694,9 +4901,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (effective_tool == CanvasTool::Clone) {
-    if (editing_layer_mask()) {
+    if (editing_layer_mask() || editing_document_channel()) {
       if (status_callback_) {
-        status_callback_(tr("Clone is unavailable while editing a layer mask"));
+        status_callback_(tr("Clone is unavailable while editing a grayscale channel"));
       }
       return;
     }
@@ -4724,7 +4931,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       const auto dirty = connect_from.has_value() ? clone_brush_segment(connect_from->toPoint(), document_point)
                                                   : clone_brush_at(document_point);
       if (!dirty.isEmpty()) {
-        document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
+        active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
       }
     }
     return;
@@ -5013,7 +5220,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       begin_processing_operation();
       const auto dirty = flood_fill(document_point);
       tick_processing_operation();
-      document_changed(dirty);
+      active_edit_target_changed_impl(QRegion(dirty));
       end_processing_operation();
     }
     return;
@@ -5021,9 +5228,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::Smudge ||
       effective_tool == CanvasTool::Eraser) {
-    if (effective_tool == CanvasTool::Smudge && editing_layer_mask()) {
+    if (effective_tool == CanvasTool::Smudge && (editing_layer_mask() || editing_document_channel())) {
       if (status_callback_) {
-        status_callback_(tr("Smudge is unavailable while editing a layer mask"));
+        status_callback_(tr("Smudge is unavailable while editing a grayscale channel"));
       }
       return;
     }
@@ -5057,14 +5264,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
           dirty = draw_brush_at(document_point, effective_tool == CanvasTool::Eraser);
         }
         if (!dirty.isEmpty()) {
-          document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
+          active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
         }
       } else {
         reset_brush_smoothing();
         if (connect_from.has_value()) {
           const auto dirty = smudge_brush_segment(connect_from->toPoint(), document_point);
           if (!dirty.isEmpty()) {
-            document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
+            active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
           }
         }
       }
@@ -5225,7 +5432,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       last_document_position_f_ = constrained_point;
     }
     if (!dirty.isEmpty()) {
-      document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
+      active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
     }
   } else if (drawing_shape_) {
     clear_move_hover_outline();
@@ -5561,7 +5768,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     reset_axis_constrained_stroke();
     clear_brush_stroke_tracking();
     if (!dirty.isEmpty()) {
-      document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokeFinished);
+      active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokeFinished);
     } else {
       notify_document_changed(DocumentChangeReason::BrushStrokeFinished);
     }
@@ -5932,7 +6139,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         !preview_rect.isEmpty() && !dirty.isEmpty() ? preview_rect.united(dirty)
         : !preview_rect.isEmpty()                  ? preview_rect
                                                    : dirty;
-    document_changed(repaint_rect);
+    active_edit_target_changed_impl(QRegion(repaint_rect));
     // The drag size readout is drawn offset from the drag corner, outside the shape's
     // dirty margin, so the bounded repaint above would leave it on screen after the
     // commit; repaint the whole viewport once to clear it.
@@ -6415,6 +6622,11 @@ void CanvasWidget::ensure_render_cache() {
   render_cache_dirty_ = false;
   ++render_cache_diagnostics_.full_refreshes;
   invalidate_display_mip_cache();
+  if (layer_edit_target_ == LayerEditTarget::ComponentRed ||
+      layer_edit_target_ == LayerEditTarget::ComponentGreen ||
+      layer_edit_target_ == LayerEditTarget::ComponentBlue) {
+    mask_display_image_ = QImage();
+  }
 }
 
 QImage CanvasWidget::render_document_image_with_processing() {
@@ -6497,6 +6709,11 @@ void CanvasWidget::start_async_render_cache_refresh() {
           widget->render_cache_dirty_ = false;
           ++widget->render_cache_diagnostics_.full_refreshes;
           widget->invalidate_display_mip_cache();
+          if (widget->layer_edit_target_ == LayerEditTarget::ComponentRed ||
+              widget->layer_edit_target_ == LayerEditTarget::ComponentGreen ||
+              widget->layer_edit_target_ == LayerEditTarget::ComponentBlue) {
+            widget->mask_display_image_ = QImage();
+          }
           if (widget->isVisible()) {
             widget->update();
           }
@@ -7201,7 +7418,7 @@ QRect CanvasWidget::shape_drag_rect(QPoint anchor, QPoint current) const {
   return rect;
 }
 
-void CanvasWidget::draw_shape_preview(QPainter& painter) const {
+void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
   if (!drawing_shape_) {
     return;
   }
@@ -7215,6 +7432,175 @@ void CanvasWidget::draw_shape_preview(QPainter& painter) const {
   }
   const auto a = widget_position(doc_a);
   const auto b = widget_position(doc_b);
+
+  // A document-channel preview is not an RGB paint preview. The committed edit
+  // first converts the paint color to gray, then presents that gray either by
+  // itself or through the channel's colored overlay. Build the prospective
+  // value/coverage image at viewport resolution so the preview follows those
+  // same rules without doing work proportional to the document pixel count.
+  const auto* preview_channel = active_document_channel_const();
+  if (layer_edit_target_ == LayerEditTarget::DocumentChannel && preview_channel != nullptr &&
+      preview_channel->kind() == DocumentChannelKind::Alpha) {
+    const QRectF exact_target_rect(widget_position_f(QPointF(0.0, 0.0)),
+                                   widget_position_f(QPointF(document_->width(), document_->height())));
+    const bool pixel_aligned_view = uses_pixel_aligned_view(zoom_);
+    QRect pixel_aligned_target_rect;
+    if (pixel_aligned_view) {
+      const auto top_left = widget_position(QPoint(0, 0));
+      const auto bottom_right = widget_position(QPoint(document_->width(), document_->height()));
+      pixel_aligned_target_rect =
+          QRect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y()));
+    }
+    const QRectF target_rect = pixel_aligned_view ? QRectF(pixel_aligned_target_rect) : exact_target_rect;
+    const auto preview_rect = target_rect.toAlignedRect().intersected(exposed_rect).intersected(rect());
+    if (!preview_rect.isEmpty()) {
+      QImage source(preview_rect.size(), QImage::Format_ARGB32_Premultiplied);
+      source.fill(Qt::transparent);
+      {
+        QPainter source_painter(&source);
+        source_painter.translate(-preview_rect.topLeft());
+        source_painter.setClipRect(target_rect);
+        if (has_selection()) {
+          QRegion widget_selection;
+          for (const auto& selection_rect : selection_) {
+            widget_selection += widget_rect_for_document_rect(selection_rect);
+          }
+          source_painter.setClipRegion(widget_selection, Qt::IntersectClip);
+        }
+        source_painter.setRenderHint(QPainter::Antialiasing, true);
+
+        if (tool_ == CanvasTool::Gradient) {
+          QLinearGradient linear_gradient(a, b);
+          const auto radius =
+              std::max(1.0, std::hypot(static_cast<double>(b.x() - a.x()), static_cast<double>(b.y() - a.y())));
+          QRadialGradient radial_gradient(a, radius);
+          auto* gradient = gradient_method_ == GradientMethod::Radial ? static_cast<QGradient*>(&radial_gradient)
+                                                                      : static_cast<QGradient*>(&linear_gradient);
+          for (const auto& stop : effective_gradient_stops()) {
+            const auto value = mask_value_from_color(QColor(stop.color.r, stop.color.g, stop.color.b));
+            const auto alpha = static_cast<int>(std::clamp(
+                std::lround(static_cast<double>(stop.color.a) * static_cast<double>(gradient_opacity_) / 100.0),
+                0L, 255L));
+            gradient->setColorAt(gradient_reverse_ ? 1.0 - static_cast<double>(stop.location)
+                                                   : static_cast<double>(stop.location),
+                                 QColor(value, value, value, alpha));
+          }
+          source_painter.fillRect(target_rect, QBrush(*gradient));
+        } else {
+          const auto value = mask_value_from_color(primary_color_);
+          const auto alpha = static_cast<int>(
+              std::clamp(std::lround(255.0 * static_cast<double>(brush_opacity_) / 100.0), 0L, 255L));
+          const QColor gray(value, value, value, alpha);
+          if (tool_ == CanvasTool::Line) {
+            QPen pen(gray);
+            pen.setWidth(std::max(1, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_))));
+            pen.setCapStyle(Qt::RoundCap);
+            pen.setJoinStyle(Qt::RoundJoin);
+            pen.setCosmetic(false);
+            source_painter.setPen(pen);
+            source_painter.setBrush(Qt::NoBrush);
+            source_painter.drawLine(a, b);
+          } else if (tool_ == CanvasTool::Rectangle) {
+            if (fill_shapes_) {
+              source_painter.setPen(Qt::NoPen);
+              source_painter.setBrush(gray);
+            } else {
+              QPen pen(gray);
+              pen.setWidth(std::max(1, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_))));
+              pen.setCosmetic(false);
+              source_painter.setPen(pen);
+              source_painter.setBrush(Qt::NoBrush);
+            }
+            const auto shape_rect = normalized_rect(a, b);
+            if (shape_corner_radius_ > 0) {
+              const auto radius = static_cast<double>(shape_corner_radius_) * zoom_;
+              const auto clamped = std::min(radius, std::min(shape_rect.width(), shape_rect.height()) / 2.0);
+              source_painter.drawRoundedRect(shape_rect, clamped, clamped);
+            } else {
+              source_painter.drawRect(shape_rect);
+            }
+          } else if (tool_ == CanvasTool::Ellipse) {
+            if (fill_shapes_) {
+              source_painter.setPen(Qt::NoPen);
+              source_painter.setBrush(gray);
+            } else {
+              QPen pen(gray);
+              pen.setWidth(std::max(1, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_))));
+              pen.setCosmetic(false);
+              source_painter.setPen(pen);
+              source_painter.setBrush(Qt::NoBrush);
+            }
+            source_painter.drawEllipse(normalized_rect(a, b));
+          }
+        }
+      }
+
+      if (mask_display_mode_ == MaskDisplayMode::Overlay) {
+        QImage base(preview_rect.size(), QImage::Format_ARGB32_Premultiplied);
+        base.fill(QColor(36, 38, 41));
+        {
+          QPainter base_painter(&base);
+          base_painter.translate(-preview_rect.topLeft());
+          draw_checkerboard(base_painter, target_rect, preview_rect);
+          if (!render_cache_.isNull()) {
+            const auto& display_image = zoom_ < 1.0 ? display_image_for_zoom() : render_cache_;
+            base_painter.setRenderHint(
+                QPainter::SmoothPixmapTransform,
+                uses_smooth_display_scaling(zoom_, uses_deep_zoom_pixel_renderer(zoom_)));
+            if (pixel_aligned_view) {
+              base_painter.drawImage(pixel_aligned_target_rect, display_image, display_image.rect());
+            } else {
+              base_painter.drawImage(target_rect, display_image, QRectF(display_image.rect()));
+            }
+          }
+        }
+
+        const auto& display = preview_channel->display_info();
+        const QColor overlay(display.color.red, display.color.green, display.color.blue);
+        const bool selected_areas =
+            display.color_indicates == DocumentChannelColorIndicates::SelectedAreas;
+        const auto overlay_opacity = std::clamp(display.opacity, 0.0F, 1.0F);
+        for (int y = 0; y < source.height(); ++y) {
+          auto* source_row = reinterpret_cast<QRgb*>(source.scanLine(y));
+          const auto* base_row = reinterpret_cast<const QRgb*>(base.constScanLine(y));
+          for (int x = 0; x < source.width(); ++x) {
+            const auto paint = qUnpremultiply(source_row[x]);
+            const auto paint_alpha = qAlpha(paint);
+            if (paint_alpha == 0) {
+              continue;
+            }
+            const auto value = qRed(paint);
+            const auto coverage = selected_areas ? value : 255 - value;
+            const auto channel_alpha = static_cast<int>(std::clamp(
+                std::lround(static_cast<double>(coverage) * static_cast<double>(overlay_opacity)), 0L, 255L));
+            const auto background = qUnpremultiply(base_row[x]);
+            const auto blend = [channel_alpha](int foreground, int background_component) {
+              return (foreground * channel_alpha + background_component * (255 - channel_alpha) + 127) / 255;
+            };
+            source_row[x] = qPremultiply(qRgba(blend(overlay.red(), qRed(background)),
+                                                  blend(overlay.green(), qGreen(background)),
+                                                  blend(overlay.blue(), qBlue(background)), paint_alpha));
+          }
+        }
+      }
+      painter.drawImage(preview_rect.topLeft(), source);
+    }
+
+    if (tool_ == CanvasTool::Gradient) {
+      const auto stops = effective_gradient_stops();
+      painter.setPen(QPen(QColor(230, 235, 242), 1));
+      const auto first =
+          gradient_color_at(stops, static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_, 0.0);
+      const auto last =
+          gradient_color_at(stops, static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_, 1.0);
+      painter.setBrush(QColor(first.r, first.g, first.b, first.a));
+      painter.drawEllipse(a, 4, 4);
+      painter.setBrush(QColor(last.r, last.g, last.b, last.a));
+      painter.drawEllipse(b, 4, 4);
+    }
+    return;
+  }
+
   if (tool_ == CanvasTool::Gradient) {
     QGradient* raw_gradient = nullptr;
     QLinearGradient linear_gradient(a, b);
@@ -7234,7 +7620,7 @@ void CanvasWidget::draw_shape_preview(QPainter& painter) const {
     }
 
     QRect document_rect;
-    if (editing_layer_mask()) {
+    if (editing_grayscale_target()) {
       document_rect =
           QRect(0, 0, document_ != nullptr ? document_->width() : 0, document_ != nullptr ? document_->height() : 0);
     } else if (const auto layer_rect = active_layer_document_rect()) {
@@ -8753,17 +9139,54 @@ bool CanvasWidget::editing_layer_mask() const noexcept {
   return layer_edit_target_ == LayerEditTarget::Mask && active_layer_mask() != nullptr;
 }
 
-void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
-  if (mask_display_mode_ == MaskDisplayMode::None || document_ == nullptr ||
-      !document_->active_layer_id().has_value()) {
-    return;
+DocumentChannel* CanvasWidget::active_document_channel() const noexcept {
+  if (document_ == nullptr || layer_edit_target_ != LayerEditTarget::DocumentChannel ||
+      active_document_channel_id_ == 0) {
+    return nullptr;
   }
-  // Use const access throughout so inspecting the mask does not bump layer
-  // render revisions on every repaint.
-  const auto* layer = static_cast<const Layer*>(document_->find_layer(*document_->active_layer_id()));
-  if (layer == nullptr || !layer->mask().has_value()) {
-    mask_display_image_ = QImage();
-    mask_display_image_layer_ = 0;
+  return document_->find_channel(active_document_channel_id_);
+}
+
+const DocumentChannel* CanvasWidget::active_document_channel_const() const noexcept {
+  if (document_ == nullptr || layer_edit_target_ != LayerEditTarget::DocumentChannel ||
+      active_document_channel_id_ == 0) {
+    return nullptr;
+  }
+  return static_cast<const Document*>(document_)->find_channel(active_document_channel_id_);
+}
+
+std::optional<CanvasWidget::GrayscaleEditTarget> CanvasWidget::active_grayscale_edit_target(QRect required_rect) {
+  if (document_ == nullptr) {
+    return std::nullopt;
+  }
+  if (editing_layer_mask()) {
+    auto* mask = active_layer_mask();
+    if (mask == nullptr ||
+        (!required_rect.isEmpty() &&
+         !expand_mask_to_include_rect(*mask, required_rect, QSize(document_->width(), document_->height())))) {
+      return std::nullopt;
+    }
+    return GrayscaleEditTarget{&mask->pixels,
+                               QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height)};
+  }
+  auto* channel = active_document_channel();
+  if (channel == nullptr || channel->kind() != DocumentChannelKind::Alpha) {
+    return std::nullopt;
+  }
+  auto& pixels = channel->pixels();
+  if (pixels.format() != PixelFormat::gray8() || pixels.width() != document_->width() ||
+      pixels.height() != document_->height()) {
+    return std::nullopt;
+  }
+  return GrayscaleEditTarget{&pixels, QRect(0, 0, document_->width(), document_->height())};
+}
+
+bool CanvasWidget::editing_grayscale_target() const noexcept {
+  return editing_layer_mask() || (editing_document_channel() && document_channel_is_editable());
+}
+
+void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
+  if (mask_display_mode_ == MaskDisplayMode::None || document_ == nullptr) {
     return;
   }
 
@@ -8771,12 +9194,39 @@ void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
   if (document_size.isEmpty()) {
     mask_display_image_ = QImage();
     mask_display_image_layer_ = 0;
+    mask_display_image_channel_ = 0;
+    mask_display_image_revision_ = 0;
     return;
   }
+
+  const bool component_preview = layer_edit_target_ == LayerEditTarget::ComponentRed ||
+                                 layer_edit_target_ == LayerEditTarget::ComponentGreen ||
+                                 layer_edit_target_ == LayerEditTarget::ComponentBlue;
+  const auto* channel = active_document_channel_const();
+  const auto channel_revision = channel != nullptr ? channel->content_revision() : std::uint64_t{0};
+  const Layer* layer = nullptr;
+  if (!component_preview && channel == nullptr && document_->active_layer_id().has_value()) {
+    // Use const access throughout so inspecting the mask does not bump layer
+    // render revisions on every repaint.
+    layer = static_cast<const Layer*>(document_->find_layer(*document_->active_layer_id()));
+  }
+  if (!component_preview && channel == nullptr && (layer == nullptr || !layer->mask().has_value())) {
+    mask_display_image_ = QImage();
+    mask_display_image_layer_ = 0;
+    mask_display_image_channel_ = 0;
+    mask_display_image_revision_ = 0;
+    return;
+  }
+
+  const auto source_layer_id = layer != nullptr ? layer->id() : LayerId{0};
+  const auto source_channel_id = channel != nullptr ? channel->id() : ChannelId{0};
   if (mask_display_image_.isNull() || mask_display_image_.size() != document_size ||
-      mask_display_image_layer_ != layer->id()) {
+      mask_display_image_layer_ != source_layer_id || mask_display_image_channel_ != source_channel_id ||
+      (channel != nullptr && mask_display_image_revision_ != channel_revision)) {
     mask_display_image_ = QImage(document_size, QImage::Format_ARGB32_Premultiplied);
-    mask_display_image_layer_ = layer->id();
+    mask_display_image_layer_ = source_layer_id;
+    mask_display_image_channel_ = source_channel_id;
+    mask_display_image_revision_ = channel_revision;
     document_region = QRegion(QRect(QPoint(), document_size));
   } else {
     document_region = document_region.intersected(QRect(QPoint(), document_size));
@@ -8785,23 +9235,73 @@ void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
     }
   }
 
-  const auto& mask = *layer->mask();
-  const auto bounds = QRect(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
+  if (component_preview) {
+    if (render_cache_.isNull() || render_cache_.size() != document_size) {
+      return;
+    }
+    const auto source = render_cache_.convertToFormat(QImage::Format_RGBA8888);
+    const auto component = layer_edit_target_ == LayerEditTarget::ComponentRed     ? 0
+                           : layer_edit_target_ == LayerEditTarget::ComponentGreen ? 1
+                                                                                   : 2;
+    for (const auto& rect : document_region) {
+      for (int y = rect.top(); y <= rect.bottom(); ++y) {
+        const auto* source_row = source.constScanLine(y);
+        auto* row = reinterpret_cast<QRgb*>(mask_display_image_.scanLine(y));
+        for (int x = rect.left(); x <= rect.right(); ++x) {
+          const auto value = source_row[static_cast<std::size_t>(x) * 4U + static_cast<std::size_t>(component)];
+          row[x] = qRgb(value, value, value);
+        }
+      }
+    }
+    return;
+  }
+
   const bool grayscale = mask_display_mode_ == MaskDisplayMode::Grayscale;
-  const bool mask_pixels_usable = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
+  const PixelBuffer* pixels = nullptr;
+  QRect bounds;
+  std::uint8_t default_value = 0;
+  QColor overlay_color(255, 0, 0);
+  float overlay_opacity = 0.5F;
+  bool overlay_selected_areas = false;
+  if (channel != nullptr) {
+    pixels = &channel->pixels();
+    bounds = QRect(0, 0, pixels->width(), pixels->height());
+    const auto& display = channel->display_info();
+    overlay_color = QColor(display.color.red, display.color.green, display.color.blue);
+    overlay_opacity = std::clamp(display.opacity, 0.0F, 1.0F);
+    overlay_selected_areas = display.color_indicates == DocumentChannelColorIndicates::SelectedAreas;
+  } else {
+    const auto& mask = *layer->mask();
+    pixels = &mask.pixels;
+    bounds = QRect(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
+    default_value = mask.default_color;
+  }
+  const bool pixels_usable = pixels != nullptr && !pixels->empty() && pixels->format() == PixelFormat::gray8();
   for (const auto& rect : document_region) {
     for (int y = rect.top(); y <= rect.bottom(); ++y) {
       auto* row = reinterpret_cast<QRgb*>(mask_display_image_.scanLine(y));
       for (int x = rect.left(); x <= rect.right(); ++x) {
-        const auto value = mask_pixels_usable && bounds.contains(x, y)
-                               ? *mask.pixels.pixel(x - bounds.x(), y - bounds.y())
-                               : mask.default_color;
+        const auto value = pixels_usable && bounds.contains(x, y)
+                               ? *pixels->pixel(x - bounds.x(), y - bounds.y())
+                               : default_value;
         if (grayscale) {
           row[x] = qRgb(value, value, value);
-        } else {
-          // Premultiplied half-strength red marking the areas the mask hides.
+        } else if (channel == nullptr) {
+          // Preserve the historical layer-mask overlay byte-for-byte. Integer
+          // division intentionally maps a fully hidden pixel to alpha 127.
           const auto alpha = static_cast<QRgb>(255 - value) / 2U;
           row[x] = (alpha << 24U) | (alpha << 16U);
+        } else {
+          const auto coverage = overlay_selected_areas ? value : static_cast<std::uint8_t>(255U - value);
+          const auto alpha = static_cast<std::uint8_t>(std::clamp(
+              std::lround(static_cast<double>(coverage) * overlay_opacity), 0L, 255L));
+          const auto premultiply = [alpha](int component) {
+            return static_cast<QRgb>((component * static_cast<int>(alpha) + 127) / 255);
+          };
+          row[x] = (static_cast<QRgb>(alpha) << 24U) |
+                   (premultiply(overlay_color.red()) << 16U) |
+                   (premultiply(overlay_color.green()) << 8U) |
+                   premultiply(overlay_color.blue());
         }
       }
     }
@@ -8810,22 +9310,39 @@ void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
 
 void CanvasWidget::draw_mask_display_overlay(QPainter& painter, const QRectF& target_rect, bool pixel_aligned_view,
                                              QRect pixel_aligned_target_rect) {
-  if (mask_display_mode_ == MaskDisplayMode::None || document_ == nullptr ||
-      !document_->active_layer_id().has_value()) {
+  if (mask_display_mode_ == MaskDisplayMode::None || document_ == nullptr) {
     return;
   }
-  const auto* layer = static_cast<const Layer*>(document_->find_layer(*document_->active_layer_id()));
-  if (layer == nullptr || !layer->mask().has_value()) {
-    return;
-  }
-  if (mask_display_mode_ == MaskDisplayMode::Overlay && layer->mask()->disabled) {
-    // A disabled mask hides nothing, so there is no coverage to mark.
+  LayerId expected_layer_id = 0;
+  if (layer_edit_target_ == LayerEditTarget::Mask) {
+    if (!document_->active_layer_id().has_value()) {
+      return;
+    }
+    const auto* layer = static_cast<const Layer*>(document_->find_layer(*document_->active_layer_id()));
+    if (layer == nullptr || !layer->mask().has_value()) {
+      return;
+    }
+    expected_layer_id = layer->id();
+    if (mask_display_mode_ == MaskDisplayMode::Overlay && layer->mask()->disabled) {
+      // A disabled mask hides nothing, so there is no coverage to mark.
+      return;
+    }
+  } else if (layer_edit_target_ == LayerEditTarget::DocumentChannel) {
+    if (active_document_channel_const() == nullptr) {
+      return;
+    }
+  } else if (layer_edit_target_ != LayerEditTarget::ComponentRed &&
+             layer_edit_target_ != LayerEditTarget::ComponentGreen &&
+             layer_edit_target_ != LayerEditTarget::ComponentBlue) {
     return;
   }
 
   const QSize document_size(document_->width(), document_->height());
+  const auto* channel = active_document_channel_const();
   if (mask_display_image_.isNull() || mask_display_image_.size() != document_size ||
-      mask_display_image_layer_ != layer->id()) {
+      (expected_layer_id != 0 && mask_display_image_layer_ != expected_layer_id) ||
+      (channel != nullptr && (mask_display_image_channel_ != channel->id() ||
+                              mask_display_image_revision_ != channel->content_revision()))) {
     refresh_mask_display_image(QRegion(QRect(QPoint(), document_size)));
   }
   if (mask_display_image_.isNull()) {
@@ -9476,6 +9993,33 @@ bool CanvasWidget::dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputS
 }
 
 bool CanvasWidget::begin_edit(QString label) {
+  if (layer_edit_target_ == LayerEditTarget::DocumentChannel) {
+    const auto* channel = active_document_channel_const();
+    if (channel == nullptr) {
+      if (status_callback_) {
+        status_callback_(tr("Select a saved channel to edit"));
+      }
+      return false;
+    }
+    if (channel->kind() != DocumentChannelKind::Alpha) {
+      if (status_callback_) {
+        status_callback_(tr("Spot channels are read-only"));
+      }
+      return false;
+    }
+    if (before_edit_callback_) {
+      before_edit_callback_(label);
+    }
+    return true;
+  }
+  if (layer_edit_target_ == LayerEditTarget::ComponentRed ||
+      layer_edit_target_ == LayerEditTarget::ComponentGreen ||
+      layer_edit_target_ == LayerEditTarget::ComponentBlue) {
+    if (status_callback_) {
+      status_callback_(tr("Color component channels are read-only"));
+    }
+    return false;
+  }
   if (active_layer_locks_image_pixels()) {
     show_layer_pixels_locked_message();
     return false;
@@ -10106,7 +10650,7 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
   // strokes (toolbar tool or pen eraser end), Clone/Smudge, and mask painting never run
   // dynamics and keep the full global behavior.
   const auto brush_dynamics_authoritative =
-      !editing_layer_mask() && effective_tool_for_input() == CanvasTool::Brush;
+      !editing_grayscale_target() && effective_tool_for_input() == CanvasTool::Brush;
   const auto pressure = sample.pressure_available ? std::clamp(sample.pressure, 0.0F, 1.0F) : 1.0F;
   if (pen_input_settings_.pressure_size &&
       !(brush_dynamics_authoritative &&
@@ -10164,7 +10708,7 @@ EditOptions CanvasWidget::current_brush_edit_options(const EffectiveBrushInput& 
 }
 
 QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase, bool stamp_endpoint) {
-  if (editing_layer_mask()) {
+  if (editing_grayscale_target()) {
     return draw_mask_brush_segment(from, to, erase);
   }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
@@ -10208,7 +10752,7 @@ QRect CanvasWidget::draw_brush_segment(QPoint from, QPoint to, bool erase, bool 
 }
 
 QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
-  if (editing_layer_mask()) {
+  if (editing_grayscale_target()) {
     return draw_mask_brush_at(point, erase);
   }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
@@ -10247,8 +10791,7 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
 }
 
 QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase) {
-  auto* mask = active_layer_mask();
-  if (document_ == nullptr || mask == nullptr) {
+  if (document_ == nullptr) {
     return {};
   }
 
@@ -10262,12 +10805,12 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
                              std::abs(end.x() - start.x()) + 1,
                              std::abs(end.y() - start.y()) + 1)
                            .intersected(QRect(0, 0, document_->width(), document_->height()));
-    if (stroke_rect.isEmpty() ||
-        !expand_mask_to_include_rect(*mask, stroke_rect, QSize(document_->width(), document_->height()))) {
+    auto target = active_grayscale_edit_target(stroke_rect);
+    if (stroke_rect.isEmpty() || !target.has_value() || target->pixels == nullptr) {
       return {};
     }
 
-    const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+    const auto bounds = target->bounds;
     const auto paint_value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
     const auto opacity = static_cast<float>(brush.opacity) / 100.0F;
     QRect dirty;
@@ -10286,7 +10829,7 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
       }
       coverage *= opacity;
 
-      auto* value = mask->pixels.pixel(document_point.x() - bounds.x(), document_point.y() - bounds.y());
+      auto* value = target->pixels->pixel(document_point.x() - bounds.x(), document_point.y() - bounds.y());
       *value = blend_mask_value(*value, paint_value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     });
@@ -10299,12 +10842,12 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
   const auto bottom = static_cast<int>(std::ceil(std::max(from.y(), to.y()) + static_cast<double>(radius))) + 1;
   auto stroke_rect = QRect(left, top, right - left, bottom - top)
                          .intersected(QRect(0, 0, document_->width(), document_->height()));
-  if (stroke_rect.isEmpty() ||
-      !expand_mask_to_include_rect(*mask, stroke_rect, QSize(document_->width(), document_->height()))) {
+  auto target = active_grayscale_edit_target(stroke_rect);
+  if (stroke_rect.isEmpty() || !target.has_value() || target->pixels == nullptr) {
     return {};
   }
 
-  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  const auto bounds = target->bounds;
   stroke_rect = stroke_rect.intersected(bounds);
   if (stroke_rect.isEmpty()) {
     return {};
@@ -10347,7 +10890,7 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
       }
       coverage *= opacity;
 
-      auto* value = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+      auto* value = target->pixels->pixel(x - bounds.x(), y - bounds.y());
       *value = blend_mask_value(*value, paint_value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
@@ -10623,7 +11166,7 @@ void CanvasWidget::draw_pixel(Layer& layer, QPoint document_point, QColor color,
 }
 
 QRect CanvasWidget::draw_line(QPoint from, QPoint to, bool erase) {
-  if (editing_layer_mask()) {
+  if (editing_grayscale_target()) {
     return draw_mask_line(from, to, erase);
   }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
@@ -10643,7 +11186,7 @@ QRect CanvasWidget::draw_line(QPoint from, QPoint to, bool erase) {
 }
 
 QRect CanvasWidget::draw_gradient(QPoint from, QPoint to) {
-  if (editing_layer_mask()) {
+  if (editing_grayscale_target()) {
     return draw_mask_gradient(from, to);
   }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
@@ -10667,7 +11210,7 @@ GradientOptions CanvasWidget::current_gradient_options() const {
 }
 
 QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
-  if (editing_layer_mask()) {
+  if (editing_grayscale_target()) {
     return draw_mask_rectangle(from, to, erase);
   }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
@@ -10691,7 +11234,7 @@ QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
 }
 
 QRect CanvasWidget::draw_ellipse(QPoint from, QPoint to, bool erase) {
-  if (editing_layer_mask()) {
+  if (editing_grayscale_target()) {
     return draw_mask_ellipse(from, to, erase);
   }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
@@ -10713,7 +11256,7 @@ QRect CanvasWidget::draw_ellipse(QPoint from, QPoint to, bool erase) {
 }
 
 QRect CanvasWidget::flood_fill(QPoint start) {
-  if (editing_layer_mask()) {
+  if (editing_grayscale_target()) {
     return flood_fill_mask(start);
   }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
@@ -10731,8 +11274,7 @@ QRect CanvasWidget::draw_mask_line(QPoint from, QPoint to, bool erase) {
 }
 
 QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
-  auto* mask = active_layer_mask();
-  if (document_ == nullptr || mask == nullptr) {
+  if (document_ == nullptr) {
     return {};
   }
 
@@ -10740,12 +11282,12 @@ QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
                       ? *selected_document_rect()
                       : QRect(0, 0, document_->width(), document_->height());
   affected = affected.intersected(QRect(0, 0, document_->width(), document_->height()));
-  if (affected.isEmpty() ||
-      !expand_mask_to_include_rect(*mask, affected, QSize(document_->width(), document_->height()))) {
+  auto target = active_grayscale_edit_target(affected);
+  if (affected.isEmpty() || !target.has_value() || target->pixels == nullptr) {
     return {};
   }
 
-  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  const auto bounds = target->bounds;
   affected = affected.intersected(bounds);
   if (affected.isEmpty()) {
     return {};
@@ -10789,7 +11331,7 @@ QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
         continue;
       }
       const auto value = mask_value_from_color(QColor(color.r, color.g, color.b));
-      auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+      auto* px = target->pixels->pixel(x - bounds.x(), y - bounds.y());
       *px = blend_mask_value(*px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
@@ -10862,12 +11404,11 @@ QRect CanvasWidget::render_mask_shape(QRect rect, bool erase, patchy::ShapeKind 
     return {};
   }
 
-  auto* mask = active_layer_mask();
-  if (mask == nullptr ||
-      !expand_mask_to_include_rect(*mask, affected, QSize(document_->width(), document_->height()))) {
+  auto target = active_grayscale_edit_target(affected);
+  if (!target.has_value() || target->pixels == nullptr) {
     return {};
   }
-  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  const auto bounds = target->bounds;
   const auto value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
   const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
   QRect dirty;
@@ -10884,7 +11425,7 @@ QRect CanvasWidget::render_mask_shape(QRect rect, bool erase, patchy::ShapeKind 
       if (coverage <= 0.0F) {
         continue;
       }
-      auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+      auto* px = target->pixels->pixel(x - bounds.x(), y - bounds.y());
       *px = blend_mask_value(*px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
@@ -10894,29 +11435,31 @@ QRect CanvasWidget::render_mask_shape(QRect rect, bool erase, patchy::ShapeKind 
 }
 
 QRect CanvasWidget::flood_fill_mask(QPoint start) {
-  auto* mask = active_layer_mask();
-  if (document_ == nullptr || mask == nullptr || !document_contains(start) || !selection_allows(start) ||
-      !expand_mask_to_include_rect(*mask, QRect(0, 0, document_->width(), document_->height()),
-                                   QSize(document_->width(), document_->height()))) {
+  if (document_ == nullptr || !document_contains(start) || !selection_allows(start)) {
+    return {};
+  }
+  auto grayscale_target = active_grayscale_edit_target(QRect(0, 0, document_->width(), document_->height()));
+  if (!grayscale_target.has_value() || grayscale_target->pixels == nullptr) {
     return {};
   }
 
-  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  const auto bounds = grayscale_target->bounds;
+  auto* pixels = grayscale_target->pixels;
   const QPoint local_start(start.x() - bounds.x(), start.y() - bounds.y());
-  if (local_start.x() < 0 || local_start.y() < 0 || local_start.x() >= mask->pixels.width() ||
-      local_start.y() >= mask->pixels.height()) {
+  if (local_start.x() < 0 || local_start.y() < 0 || local_start.x() >= pixels->width() ||
+      local_start.y() >= pixels->height()) {
     return {};
   }
 
-  const auto target = *mask->pixels.pixel(local_start.x(), local_start.y());
+  const auto target = *pixels->pixel(local_start.x(), local_start.y());
   const auto replacement = mask_value_from_color(primary_color_);
   if (target == replacement) {
     return {};
   }
 
   std::queue<QPoint> queue;
-  std::vector<std::uint8_t> visited(static_cast<std::size_t>(mask->pixels.width()) *
-                                    static_cast<std::size_t>(mask->pixels.height()));
+  std::vector<std::uint8_t> visited(static_cast<std::size_t>(pixels->width()) *
+                                    static_cast<std::size_t>(pixels->height()));
   queue.push(local_start);
   QRect dirty;
   std::size_t progress_counter = 0;
@@ -10927,10 +11470,10 @@ QRect CanvasWidget::flood_fill_mask(QPoint start) {
     }
     const auto local = queue.front();
     queue.pop();
-    if (local.x() < 0 || local.y() < 0 || local.x() >= mask->pixels.width() || local.y() >= mask->pixels.height()) {
+    if (local.x() < 0 || local.y() < 0 || local.x() >= pixels->width() || local.y() >= pixels->height()) {
       continue;
     }
-    const auto index = static_cast<std::size_t>(local.y()) * static_cast<std::size_t>(mask->pixels.width()) +
+    const auto index = static_cast<std::size_t>(local.y()) * static_cast<std::size_t>(pixels->width()) +
                        static_cast<std::size_t>(local.x());
     if (visited[index] != 0U) {
       continue;
@@ -10940,7 +11483,7 @@ QRect CanvasWidget::flood_fill_mask(QPoint start) {
     if (!selection_allows(document_point)) {
       continue;
     }
-    auto* px = mask->pixels.pixel(local.x(), local.y());
+    auto* px = pixels->pixel(local.x(), local.y());
     if (*px != target) {
       continue;
     }

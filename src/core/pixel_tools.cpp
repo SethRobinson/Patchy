@@ -1295,6 +1295,66 @@ void resize_layer_image(Layer& layer, std::int32_t old_width, std::int32_t old_h
   layer.set_bounds(new_bounds);
 }
 
+void resize_document_channel_image(DocumentChannel& channel, std::int32_t width, std::int32_t height) {
+  const auto& source = std::as_const(channel).pixels();
+  channel.set_pixels(scale_pixels_resampled(source, width, height));
+}
+
+void resize_document_channel_canvas(DocumentChannel& channel, std::int32_t width, std::int32_t height,
+                                    CanvasResizeOffset offset) {
+  const auto& source = std::as_const(channel).pixels();
+  PixelBuffer resized(width, height, PixelFormat::gray8());
+  resized.clear(channel.kind() == DocumentChannelKind::Spot ? 255 : 0);
+  for (std::int32_t source_y = 0; source_y < source.height(); ++source_y) {
+    const auto destination_y = source_y + offset.y;
+    if (destination_y < 0 || destination_y >= height) {
+      continue;
+    }
+    for (std::int32_t source_x = 0; source_x < source.width(); ++source_x) {
+      const auto destination_x = source_x + offset.x;
+      if (destination_x < 0 || destination_x >= width) {
+        continue;
+      }
+      *resized.pixel(destination_x, destination_y) = *source.pixel(source_x, source_y);
+    }
+  }
+  channel.set_pixels(std::move(resized));
+}
+
+void crop_document_channel(DocumentChannel& channel, Rect crop) {
+  const auto& source = std::as_const(channel).pixels();
+  PixelBuffer cropped(crop.width, crop.height, PixelFormat::gray8());
+  for (std::int32_t y = 0; y < crop.height; ++y) {
+    const auto source_row = source.row(crop.y + y).subspan(static_cast<std::size_t>(crop.x),
+                                                           static_cast<std::size_t>(crop.width));
+    auto destination_row = cropped.row(y);
+    std::copy(source_row.begin(), source_row.end(), destination_row.begin());
+  }
+  channel.set_pixels(std::move(cropped));
+}
+
+void rotate_document_channel_clockwise(DocumentChannel& channel) {
+  const auto& source = std::as_const(channel).pixels();
+  PixelBuffer rotated(source.height(), source.width(), PixelFormat::gray8());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      *rotated.pixel(source.height() - 1 - y, x) = *source.pixel(x, y);
+    }
+  }
+  channel.set_pixels(std::move(rotated));
+}
+
+void rotate_document_channel_counterclockwise(DocumentChannel& channel) {
+  const auto& source = std::as_const(channel).pixels();
+  PixelBuffer rotated(source.height(), source.width(), PixelFormat::gray8());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      *rotated.pixel(y, source.width() - 1 - x) = *source.pixel(x, y);
+    }
+  }
+  channel.set_pixels(std::move(rotated));
+}
+
 // Single-pass shape renderer shared by rectangle and ellipse, fill and outline, draw and erase.
 Rect render_shape(Document& document, LayerId layer_id, Rect rect, const EditOptions& options, bool erase,
                   ShapeKind kind) {
@@ -2430,6 +2490,9 @@ void resize_image_and_layers(Document& document, std::int32_t width, std::int32_
   for (auto& layer : document.layers()) {
     resize_layer_image(layer, old_width, old_height, width, height);
   }
+  for (auto& channel : document.channels()) {
+    resize_document_channel_image(channel, width, height);
+  }
   document.resize_canvas(width, height);
 }
 
@@ -2440,6 +2503,9 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
   }
 
   const auto offset = canvas_resize_offset(anchor, document.width(), document.height(), width, height);
+  for (auto& channel : document.channels()) {
+    resize_document_channel_canvas(channel, width, height, offset);
+  }
   document.resize_canvas(width, height);
   for (auto& layer : document.layers()) {
     resize_layer_to_canvas(layer, width, height, offset, extension_color);
@@ -2455,6 +2521,9 @@ bool crop_document(Document& document, Rect crop) {
   for (auto& layer : document.layers()) {
     crop_layer_to_rect(layer, crop);
   }
+  for (auto& channel : document.channels()) {
+    crop_document_channel(channel, crop);
+  }
   document.resize_canvas(crop.width, crop.height);
   return true;
 }
@@ -2465,6 +2534,9 @@ void rotate_document_clockwise(Document& document) {
   for (auto& layer : document.layers()) {
     rotate_layer_clockwise(layer, old_height);
   }
+  for (auto& channel : document.channels()) {
+    rotate_document_channel_clockwise(channel);
+  }
   document.resize_canvas(old_height, old_width);
 }
 
@@ -2473,6 +2545,9 @@ void rotate_document_counterclockwise(Document& document) {
   const auto old_height = document.height();
   for (auto& layer : document.layers()) {
     rotate_layer_counterclockwise(layer, old_width);
+  }
+  for (auto& channel : document.channels()) {
+    rotate_document_channel_counterclockwise(channel);
   }
   document.resize_canvas(old_height, old_width);
 }
