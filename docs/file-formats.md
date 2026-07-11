@@ -22,6 +22,32 @@ All read AND write; modules in src/formats/, Qt-free, explicit-endian via `binar
 - **ILBM/PBM** — ByteRun1 via the shared `psd::decode_packbits`/`encode_packbits_row` (the encoder was promoted from psd_document_io.cpp to psd_descriptor.{hpp,cpp}); EHB supported, HAM rejected, writer emits planar ILBM with masking type 2 for transparency.
 - PNG/JPEG/TIFF/WebP stay on Qt.
 
+## Layered documents and flat formats (the Photoshop-style save guard)
+
+A document opened from a flat format (JPEG, PNG, ...) that has since grown structure a flat save
+would discard must never silently flatten back over its file. The policy copies Photoshop:
+
+- `flat_save_discards_layers(document)` (main_window.cpp) is the "format cannot store the
+  document's features" test: more than one layer, any group/adjustment/text/smart-object layer,
+  a hand-authored mask, or layer styles. A single pixel layer whose only mask carries the
+  document-alpha marker stays exempt (that mask IS the flat file's alpha plane).
+- `save_extension_preserves_layers()` lists the formats the guard skips: psd/psb, aseprite/ase
+  (layered writers), and ico/cur, which are exempt on purpose: a multi-size icon lives as one
+  hidden "WxH" layer per size that its writer round-trips, so every icon save would otherwise
+  false-positive.
+- **Save** on a layered flat-backed document routes to **Save As** instead of writing, and Save
+  As defaults the file name and filter to `.psd` (keeping the base name) whenever the document
+  is layered and its current path is not layer-capable.
+- Explicitly choosing a flat format in Save As (or any direct `save_document_to_path` call)
+  raises `flattenLayersMessageBox` (default Cancel) and, on confirm, performs a **save-a-copy**:
+  the flat file is written but the session keeps its path, title, and modified state, so closing
+  still prompts and the next Save still offers PSD. Save As pre-confirms before the format
+  options prompt and passes `flatten_confirmed` so the box appears once.
+- Exception: a **linked smart-object child** session keeps real-save semantics after the same
+  warning (the linked file on disk IS that document, and the parent refresh needs the write).
+- Coverage: `ui_save_layered_flat_format_routes_to_save_as_with_psd_default`,
+  `ui_flat_save_of_layered_document_warns_and_saves_copy`.
+
 ## Shared writer helpers
 
 `formats/document_flatten.{hpp,cpp}`: `flatten_document_rgba8` (masked-aware: a document-alpha layer exports non-destructively), `indexed_flatten_for_palette_mode` (document palette in file order, exact-then-LUT, appended transparent slot: the PNG-8 semantics), and `indexed_flatten_quantized` (median-cut fallback for RGB docs; GIF + ILBM share it).

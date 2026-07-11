@@ -5318,6 +5318,26 @@ Mixed selection</source>
         <translation>このファイル形式では保存済みチャンネルを保存できません。チャンネルを破棄して保存を続けますか？</translation>
     </message>
     <message>
+        <location line="-33"/>
+        <source>This file format cannot store layers. Continue saving and flatten the linked file?</source>
+        <translation>このファイル形式ではレイヤーを保存できません。リンクされたファイルを統合して保存を続けますか？</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>This file format cannot store layers, so Patchy will save a flattened copy. The open document will keep its layers and unsaved changes. To keep layers in the file, save as a Photoshop document (.psd) instead.</source>
+        <translation>このファイル形式ではレイヤーを保存できないため、Patchy は統合したコピーを保存します。開いているドキュメントのレイヤーと未保存の変更はそのまま残ります。レイヤーをファイルに残すには、Photoshop ドキュメント (.psd) として保存してください。</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>Layers Will Be Flattened</source>
+        <translation>レイヤーは統合されます</translation>
+    </message>
+    <message>
+        <location line="+62"/>
+        <source>Saved flattened copy %1</source>
+        <translation>統合したコピー %1 を保存しました</translation>
+    </message>
+    <message>
         <location line="+986"/>
         <location filename="../src/ui/main_window_adjustments.cpp" line="+415"/>
         <source>Filters are unavailable while viewing a document channel</source>

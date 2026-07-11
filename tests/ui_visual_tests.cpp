@@ -252,6 +252,10 @@ public:
     return window.save_document_to_path(std::move(path), std::move(options));
   }
 
+  static QString active_session_path(MainWindow& window) {
+    return window.session().path;
+  }
+
   static bool close_document_tab(MainWindow& window, int index) {
     return window.close_document_tab(index);
   }
@@ -18650,6 +18654,116 @@ void ui_non_psd_save_warns_before_discarding_channels() {
   CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, path, options));
   CHECK(save_prompt_seen);
   CHECK(QFileInfo::exists(path));
+}
+
+void ui_save_layered_flat_format_routes_to_save_as_with_psd_default() {
+  patchy::Document document(24, 18, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Pixels",
+                           solid_pixels(24, 18, patchy::PixelFormat::rgb8(), QColor(60, 120, 180)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Layered Save Routing"));
+  show_window(window);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto jpg_path = temp.filePath(QStringLiteral("photo.jpg"));
+
+  // A flat single-layer document saves to JPEG silently and becomes that file.
+  patchy::ui::ImageSaveOptions options;
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, jpg_path, options));
+  CHECK(QFileInfo::exists(jpg_path));
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == jpg_path);
+
+  // Once the document grows layers, Save must not silently flatten over the JPEG:
+  // it routes to Save As with the file name defaulted to .psd (Photoshop behavior).
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  QByteArray jpg_bytes_before;
+  {
+    QFile jpg_file(jpg_path);
+    CHECK(jpg_file.open(QIODevice::ReadOnly));
+    jpg_bytes_before = jpg_file.readAll();
+  }
+
+  bool saw_dialog = false;
+  QString default_name;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    CHECK(dialog != nullptr);
+    const auto selected = dialog->selectedFiles();
+    if (!selected.isEmpty()) {
+      default_name = QFileInfo(selected.first()).fileName();
+    }
+    saw_dialog = true;
+    dialog->reject();
+  });
+  CHECK(!patchy::ui::MainWindowTestAccess::save_document(window));
+  CHECK(saw_dialog);
+  CHECK(default_name == QStringLiteral("photo.psd"));
+
+  // The canceled Save As left the JPEG untouched and the document unsaved.
+  {
+    QFile jpg_file(jpg_path);
+    CHECK(jpg_file.open(QIODevice::ReadOnly));
+    CHECK(jpg_file.readAll() == jpg_bytes_before);
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == jpg_path);
+}
+
+void ui_flat_save_of_layered_document_warns_and_saves_copy() {
+  patchy::Document document(24, 18, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base",
+                           solid_pixels(24, 18, patchy::PixelFormat::rgb8(), QColor(60, 120, 180)));
+  document.add_pixel_layer("Top",
+                           solid_pixels(24, 18, patchy::PixelFormat::rgb8(), QColor(220, 30, 30)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Flatten Copy Warning"));
+  show_window(window);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto jpg_path = temp.filePath(QStringLiteral("layered.jpg"));
+  patchy::ui::ImageSaveOptions options;
+
+  bool cancel_prompt_seen = false;
+  QTimer::singleShot(0, [&cancel_prompt_seen] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("flattenLayersMessageBox")));
+    CHECK(box != nullptr);
+    cancel_prompt_seen = true;
+    box->button(QMessageBox::Cancel)->click();
+  });
+  CHECK(!patchy::ui::MainWindowTestAccess::save_document_to_path(window, jpg_path, options));
+  CHECK(cancel_prompt_seen);
+  CHECK(!QFileInfo::exists(jpg_path));
+
+  bool save_prompt_seen = false;
+  QTimer::singleShot(0, [&save_prompt_seen] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("flattenLayersMessageBox")));
+    CHECK(box != nullptr);
+    save_prompt_seen = true;
+    box->button(QMessageBox::Save)->click();
+  });
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, jpg_path, options));
+  CHECK(save_prompt_seen);
+  CHECK(QFileInfo::exists(jpg_path));
+
+  // Photoshop's save-a-copy semantics: only the flat copy went to disk; the layered
+  // document is still the open, modified, untitled document.
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window).isEmpty());
+
+  // Saving as PSD is a real save: no flatten prompt, adopts the path, clears modified.
+  const auto psd_path = temp.filePath(QStringLiteral("layered.psd"));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_path, options));
+  CHECK(QFileInfo::exists(psd_path));
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == psd_path);
 }
 
 void ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail() {
@@ -38166,6 +38280,10 @@ int main(int argc, char* argv[]) {
       {"ui_channels_target_survives_document_switch", ui_channels_target_survives_document_switch},
       {"ui_non_psd_save_warns_before_discarding_channels",
        ui_non_psd_save_warns_before_discarding_channels},
+      {"ui_save_layered_flat_format_routes_to_save_as_with_psd_default",
+       ui_save_layered_flat_format_routes_to_save_as_with_psd_default},
+      {"ui_flat_save_of_layered_document_warns_and_saves_copy",
+       ui_flat_save_of_layered_document_warns_and_saves_copy},
       {"ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail",
        ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail},
       {"ui_layer_mask_target_paints_inverts_disables_and_applies",

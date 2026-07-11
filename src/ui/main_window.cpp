@@ -2253,6 +2253,36 @@ bool is_photoshop_document_extension(const QString& extension) {
   return extension == QStringLiteral("psd") || extension == QStringLiteral("psb");
 }
 
+// Formats whose writers keep the document's layer structure: PSD/PSB and Aseprite save
+// the layer tree, and ICO/CUR are exempt because multi-size icons deliberately live as
+// one hidden "WxH" layer per size that their writers round-trip.
+bool save_extension_preserves_layers(const QString& extension) {
+  return is_photoshop_document_extension(extension) || extension == QStringLiteral("aseprite") ||
+         extension == QStringLiteral("ase") || extension == QStringLiteral("ico") ||
+         extension == QStringLiteral("cur");
+}
+
+// Photoshop's "this format cannot store the document's features" test, reduced to what a
+// flat save discards in Patchy: a second layer or group, a non-pixel layer (group,
+// adjustment, text, smart object), a hand-authored mask, or layer styles. A single pixel
+// layer whose only mask is the document-alpha marker round-trips through flat formats
+// (the mask is written back as the file's alpha plane), so it does not count.
+bool flat_save_discards_layers(const Document& document) {
+  const auto& layers = document.layers();
+  if (layers.size() != 1) {
+    return !layers.empty();
+  }
+  const Layer& layer = layers.front();
+  if (layer.kind() != LayerKind::Pixel || !layer.children().empty() || layer_is_text(layer) ||
+      layer_is_smart_object(layer)) {
+    return true;
+  }
+  if (layer.mask().has_value() && !layer_mask_is_document_alpha(layer)) {
+    return true;
+  }
+  return !layer.layer_style().empty();
+}
+
 // The single source of truth for the file dialog filters: every open/save/export filter
 // string, the supported-extension checks, and the default-extension logic are generated from
 // this table. Adding a file format to Patchy means adding one row here (plus wiring the
@@ -15468,6 +15498,13 @@ bool MainWindow::save_document() {
   if (session().path.isEmpty()) {
     return save_document_as();
   }
+  if (!save_extension_preserves_layers(extension_for_path(session().path)) &&
+      flat_save_discards_layers(std::as_const(document()))) {
+    // Photoshop behavior: Save on a document whose file format cannot hold its layers
+    // (a JPEG that grew layers) turns into Save As, defaulting to PSD, instead of
+    // silently flattening back over the original file.
+    return save_document_as();
+  }
   return save_document_to_path(session().path);
 }
 
@@ -15478,7 +15515,17 @@ bool MainWindow::save_document_as() {
   }
   finish_active_text_editor();
   const auto fallback_name = session().title.isEmpty() ? tr("Untitled.psd") : session().title;
-  const auto initial_path = file_dialog_initial_path(session().path, fallback_name);
+  auto initial_path = file_dialog_initial_path(session().path, fallback_name);
+  const bool layered_document = flat_save_discards_layers(std::as_const(document()));
+  if (layered_document && !save_extension_preserves_layers(extension_for_path(initial_path))) {
+    // Photoshop behavior: Save As for a layered document defaults to PSD, not the flat
+    // format the document was opened from.
+    const QFileInfo initial_info(initial_path);
+    const auto base_name = is_supported_image_extension(extension_for_path(initial_path))
+                               ? initial_info.completeBaseName()
+                               : initial_info.fileName();
+    initial_path = initial_info.dir().filePath(base_name + QStringLiteral(".psd"));
+  }
   auto selected_filter = save_file_filter_for_path(initial_path);
   auto path = get_save_file_name(this, tr("Save As"), initial_path, save_file_filter(), &selected_filter,
                                  QStringLiteral("saveAsFileDialog"), recent_files_);
@@ -15487,6 +15534,10 @@ bool MainWindow::save_document_as() {
   }
   path = path_with_default_extension(path, selected_filter);
   const auto extension = extension_for_path(path);
+  const bool discards_layers = layered_document && !save_extension_preserves_layers(extension);
+  if (discards_layers && !confirm_flatten_layers_for_save()) {
+    return false;
+  }
   std::optional<ImageSaveOptions> image_options;
   if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
     image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document());
@@ -15494,12 +15545,38 @@ bool MainWindow::save_document_as() {
       return false;
     }
   }
-  return save_document_to_path(path, image_options);
+  return save_document_to_path(path, image_options, /*flatten_confirmed*/ discards_layers);
 }
 
-bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options) {
+bool MainWindow::confirm_flatten_layers_for_save() {
+  const bool linked_external_child =
+      session().smart_object_link.has_value() && session().smart_object_link->external;
+  // A linked smart-object child writes the linked file itself (the file on disk is the
+  // document), so its flat save is a real save; everything else saves a flattened copy
+  // and keeps the layered document open with its unsaved changes (Photoshop's
+  // save-a-copy semantics).
+  const auto message =
+      linked_external_child
+          ? tr("This file format cannot store layers. Continue saving and flatten the linked file?")
+          : tr("This file format cannot store layers, so Patchy will save a flattened copy. The open "
+               "document will keep its layers and unsaved changes. To keep layers in the file, save as a "
+               "Photoshop document (.psd) instead.");
+  const auto answer =
+      show_warning_message(this, tr("Layers Will Be Flattened"), message,
+                           QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Cancel,
+                           QStringLiteral("flattenLayersMessageBox"));
+  return answer == QMessageBox::Save;
+}
+
+bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options,
+                                       bool flatten_confirmed) {
   finish_active_text_editor();
   const auto extension = extension_for_path(path);
+  const bool discards_layers = !save_extension_preserves_layers(extension) &&
+                               flat_save_discards_layers(std::as_const(document()));
+  if (discards_layers && !flatten_confirmed && !confirm_flatten_layers_for_save()) {
+    return false;
+  }
   if (!is_photoshop_document_extension(extension) &&
       !std::as_const(document()).channels().empty()) {
     const auto answer = show_warning_message(
@@ -15529,6 +15606,22 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       aseprite::DocumentIo::write_file(document(), path.toStdString());
     } else {
       write_flat_image_file(document(), path, extension, effective_image_options);
+    }
+    const bool saved_flattened_copy =
+        discards_layers &&
+        !(session().smart_object_link.has_value() && session().smart_object_link->external);
+    if (saved_flattened_copy) {
+      // Photoshop's save-a-copy semantics: only the flat copy lands on disk; the layered
+      // document stays open, modified, and pointed at its original file, so a later Save
+      // still offers PSD instead of quietly flattening again.
+      remember_save_directory_for_path(path);
+      if (image_save_options_apply_to_extension(extension)) {
+        persist_image_save_defaults(effective_image_options);
+      }
+      update_history(tr("Save"));
+      add_recent_file(path);
+      statusBar()->showMessage(tr("Saved flattened copy %1").arg(path));
+      return true;
     }
     auto& active_session = session();
     active_session.path = path;

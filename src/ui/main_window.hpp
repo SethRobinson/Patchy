@@ -368,7 +368,12 @@ private:
   bool open_dropped_files(QDropEvent* event);
   bool save_document();
   bool save_document_as();
-  bool save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options = std::nullopt);
+  // flatten_confirmed: the caller already ran confirm_flatten_layers_for_save() for this
+  // save, so the layers-will-be-flattened prompt is skipped (never pass true without
+  // asking first).
+  bool save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options = std::nullopt,
+                             bool flatten_confirmed = false);
+  bool confirm_flatten_layers_for_save();
   void export_flat_image();
   void page_setup();
   void print_document();
