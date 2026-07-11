@@ -76,7 +76,6 @@ bool apply_color_to_open_color_picker(QColor color);
 [[nodiscard]] PatchyColorPicker* color_picker_ancestor_of(QWidget* widget);
 
 [[nodiscard]] QString color_button_style(QColor color);
-[[nodiscard]] QString swatch_button_style(QColor color, bool large = false);
 [[nodiscard]] QString inline_text_editor_style(QColor color, int pixel_size);
 [[nodiscard]] QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QString& title,
                                                     std::function<void(QColor)> color_changed);

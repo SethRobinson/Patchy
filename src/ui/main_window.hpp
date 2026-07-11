@@ -247,7 +247,6 @@ private:
   void resize_window_from_global_point(QPoint global_position);
   void set_window_screen_size(QSize physical_size);
   void create_docks();
-  void create_swatches_dock();
   void create_palette_dock();
   // Palette (indexed) mode plumbing. Every document-palette mutation goes through
   // these so the undo snapshot, the revision bump (app-globally unique values,

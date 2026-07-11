@@ -1275,7 +1275,7 @@ bool top_level_widget_exists(const QString& object_name) {
   return false;
 }
 
-void ui_main_window_renders_color_swatches() {
+void ui_main_window_renders_color_controls() {
   patchy::ui::MainWindow window;
   show_window(window);
 
@@ -1287,7 +1287,10 @@ void ui_main_window_renders_color_swatches() {
   CHECK(background->text() == QStringLiteral("BG"));
   CHECK(!foreground->text().contains('#'));
   CHECK(!background->text().contains('#'));
-  CHECK(window.findChildren<QPushButton*>(QStringLiteral("swatchButton")).size() >= 16);
+  CHECK(window.findChild<QDockWidget*>(QStringLiteral("swatchesDock")) == nullptr);
+  CHECK(window.findChild<QToolButton*>(QStringLiteral("swatchesDockCollapseButton")) == nullptr);
+  CHECK(window.findChildren<QPushButton*>(QStringLiteral("swatchButton")).isEmpty());
+  CHECK(window.findChild<QDockWidget*>(QStringLiteral("paletteDock")) != nullptr);
   const QStringList expected_menus = {QStringLiteral("File"),   QStringLiteral("Edit"),   QStringLiteral("Image"),
                                       QStringLiteral("Layer"),  QStringLiteral("Type"),   QStringLiteral("Select"),
                                       QStringLiteral("Filter"), QStringLiteral("Plugins"), QStringLiteral("View"),
@@ -2700,6 +2703,8 @@ void ui_svg_icon_resources_are_registered() {
   CHECK(QFile::exists(QStringLiteral(":/patchy/icons/new.svg")));
   CHECK(QFile::exists(QStringLiteral(":/patchy/icons/mask.svg")));
   CHECK(QFile::exists(QStringLiteral(":/patchy/icons/selection-add.svg")));
+  CHECK(QFile::exists(QStringLiteral(":/patchy/icons/channel-save-selection.svg")));
+  CHECK(QFile::exists(QStringLiteral(":/patchy/icons/channel-load-selection.svg")));
 
   const QIcon icon(QStringLiteral(":/patchy/icons/new.svg"));
   CHECK(!icon.isNull());
@@ -5659,13 +5664,16 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(!active_layer_text->isVisible());
   CHECK(active_tool_info->text().contains(QStringLiteral("Brush")));
   auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
+  auto* history_dock = window.findChild<QDockWidget*>(QStringLiteral("historyDock"));
   auto* properties_dock = window.findChild<QDockWidget*>(QStringLiteral("propertiesDock"));
+  auto* history_list = window.findChild<QListWidget*>(QStringLiteral("historyList"));
   auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
   auto* properties_toggle = window.findChild<QToolButton*>(QStringLiteral("propertiesDockCollapseButton"));
-  auto* swatches_toggle = window.findChild<QToolButton*>(QStringLiteral("swatchesDockCollapseButton"));
   auto* info_toggle = window.findChild<QToolButton*>(QStringLiteral("infoDockCollapseButton"));
   CHECK(layers_dock != nullptr);
+  CHECK(history_dock != nullptr);
   CHECK(properties_dock != nullptr);
+  CHECK(history_list != nullptr);
   CHECK(layers_dock->minimumWidth() >= 280);
   CHECK(layers_dock->minimumHeight() >= 300);
   CHECK(layer_list->minimumHeight() >= 120);
@@ -5687,16 +5695,24 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(visible_layer_action_buttons == 5);
   CHECK(history_toggle != nullptr);
   CHECK(properties_toggle != nullptr);
-  CHECK(swatches_toggle != nullptr);
   CHECK(info_toggle != nullptr);
+  CHECK(window.findChild<QDockWidget*>(QStringLiteral("swatchesDock")) == nullptr);
   CHECK(history_toggle->text() == QStringLiteral(">"));
   CHECK(properties_toggle->text() == QStringLiteral(">"));
-  CHECK(swatches_toggle->text() == QStringLiteral(">"));
   CHECK(info_toggle->text() == QStringLiteral(">"));
   CHECK(history_toggle->icon().isNull());
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(history_list->count() > 0);
   history_toggle->setChecked(true);
   QApplication::processEvents();
+  const auto history_row_height = history_list->sizeHintForRow(0);
+  CHECK(history_row_height > 0);
   CHECK(history_toggle->text() == QStringLiteral("v"));
+  CHECK(history_dock->minimumHeight() >= 190);
+  CHECK(history_dock->height() >= 190);
+  CHECK(history_list->viewport()->height() >= history_row_height * 3);
+  save_widget_artifact("ui_history_expanded_default", *history_dock);
   history_toggle->setChecked(false);
   QApplication::processEvents();
   CHECK(layers_dock->width() >= 260);
@@ -5820,16 +5836,13 @@ void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
   auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
   auto* properties_toggle = window.findChild<QToolButton*>(QStringLiteral("propertiesDockCollapseButton"));
   auto* info_toggle = window.findChild<QToolButton*>(QStringLiteral("infoDockCollapseButton"));
-  auto* swatches_toggle = window.findChild<QToolButton*>(QStringLiteral("swatchesDockCollapseButton"));
   CHECK(layer_list != nullptr);
   CHECK(history_toggle != nullptr);
   CHECK(properties_toggle != nullptr);
   CHECK(info_toggle != nullptr);
-  CHECK(swatches_toggle != nullptr);
   CHECK(history_toggle->text() == QStringLiteral(">"));
   CHECK(properties_toggle->text() == QStringLiteral(">"));
   CHECK(info_toggle->text() == QStringLiteral(">"));
-  CHECK(swatches_toggle->text() == QStringLiteral(">"));
 
   auto* deep_item = require_layer_item(*layer_list, QStringLiteral("Deep Paint Layer With Long Name"));
   layer_list->scrollToItem(deep_item, QAbstractItemView::PositionAtCenter);
@@ -17702,7 +17715,7 @@ void ui_channels_panel_targets_and_alpha_edits() {
   CHECK(chip->text().contains(QStringLiteral("Alpha A")));
 }
 
-void ui_channel_ctrl_click_context_menu_and_vertical_actions() {
+void ui_channel_ctrl_click_context_menu_and_compact_actions() {
   patchy::Document document(3, 1, patchy::PixelFormat::rgb8());
   patchy::PixelBuffer pixels(3, 1, patchy::PixelFormat::rgba8());
   const std::array<std::array<std::uint8_t, 4>, 3> samples{{
@@ -17749,24 +17762,47 @@ void ui_channel_ctrl_click_context_menu_and_vertical_actions() {
   CHECK(channels->currentRow() == 0);
   CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
 
-  const std::array<std::pair<const char*, QString>, 6> button_expectations{{
-      {"channelNewButton", QStringLiteral("New Channel")},
-      {"channelSaveSelectionButton", QStringLiteral("Save Selection as Channel")},
-      {"channelLoadSelectionButton", QStringLiteral("Load Channel as Selection")},
-      {"channelRenameButton", QStringLiteral("Rename Channel")},
-      {"channelInvertButton", QStringLiteral("Invert Channel")},
-      {"channelDeleteButton", QStringLiteral("Delete Channel")},
+  struct ButtonExpectation {
+    const char* button_name;
+    const char* action_name;
+    QString text;
+  };
+  const std::array<ButtonExpectation, 6> button_expectations{{
+      {"channelNewButton", "channelNewAction", QStringLiteral("New Channel")},
+      {"channelSaveSelectionButton", "channelSaveSelectionAction", QStringLiteral("Save Selection as Channel")},
+      {"channelLoadSelectionButton", "channelLoadSelectionAction", QStringLiteral("Load Channel as Selection")},
+      {"channelRenameButton", "channelRenameAction", QStringLiteral("Rename Channel")},
+      {"channelInvertButton", "channelInvertAction", QStringLiteral("Invert Channel")},
+      {"channelDeleteButton", "channelDeleteAction", QStringLiteral("Delete Channel")},
   }};
-  int previous_y = -1;
-  for (const auto& [object_name, text] : button_expectations) {
-    auto* button = panel->findChild<QToolButton*>(QLatin1String(object_name));
+  auto* action_bar = panel->findChild<QWidget*>(QStringLiteral("channelActionBar"));
+  CHECK(action_bar != nullptr);
+  int row_y = -1;
+  int previous_x = -1;
+  std::vector<qint64> icon_keys;
+  for (const auto& expectation : button_expectations) {
+    auto* button = panel->findChild<QToolButton*>(QLatin1String(expectation.button_name));
+    auto* action = require_action(window, expectation.action_name);
     CHECK(button != nullptr);
-    CHECK(button->text() == text);
+    CHECK(button->defaultAction() == action);
+    CHECK(button->text() == expectation.text);
     const auto position = button->mapTo(panel, QPoint());
-    CHECK(position.y() > previous_y);
-    CHECK(button->width() >= panel->width() - 20);
-    previous_y = position.y();
+    CHECK(row_y < 0 || position.y() == row_y);
+    CHECK(position.x() > previous_x);
+    CHECK(button->toolButtonStyle() == Qt::ToolButtonIconOnly);
+    CHECK(!button->icon().isNull());
+    CHECK(!button->icon().pixmap(button->iconSize()).isNull());
+    CHECK(button->toolTip() == action->toolTip());
+    CHECK(button->accessibleName() == expectation.text);
+    CHECK(button->width() <= 36);
+    CHECK(button->height() <= 32);
+    row_y = position.y();
+    previous_x = position.x();
+    icon_keys.push_back(button->icon().cacheKey());
   }
+  CHECK(action_bar->height() <= 32);
+  std::sort(icon_keys.begin(), icon_keys.end());
+  CHECK(std::adjacent_find(icon_keys.begin(), icon_keys.end()) == icon_keys.end());
 
   const auto ctrl_click_row = [channels](int row) {
     const auto point = channels->visualItemRect(channels->item(row)).center();
@@ -17844,6 +17880,7 @@ void ui_channel_ctrl_click_context_menu_and_vertical_actions() {
   CHECK(canvas->active_document_channel_id() == alpha_id);
   CHECK(static_cast<const patchy::Document&>(patchy::ui::MainWindowTestAccess::document(window))
             .find_channel(spot_id) != nullptr);
+  save_widget_artifact("ui_channel_compact_actions", *panel);
 }
 
 void ui_channel_shape_previews_match_committed_grayscale_and_overlay() {
@@ -27311,25 +27348,6 @@ void ui_text_options_follow_active_rich_text_span() {
   foreground_blue_probe.setPosition(blue_start + 1, QTextCursor::KeepAnchor);
   CHECK(foreground_blue_probe.charFormat().foreground().color() == QColor(140, 70, 220));
 
-  const auto red_start = editor->toPlainText().indexOf(QStringLiteral("Red"));
-  cursor.setPosition(red_start);
-  cursor.setPosition(red_start + 3, QTextCursor::KeepAnchor);
-  editor->setTextCursor(cursor);
-  QApplication::processEvents();
-  const auto swatches = window.findChildren<QPushButton*>(QStringLiteral("swatchButton"));
-  CHECK(swatches.size() >= 7);
-  swatches.at(6)->click();
-  QApplication::processEvents();
-  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
-  CHECK(editor->textCursor().hasSelection());
-  CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(0, 150, 220));
-  CHECK(canvas->primary_color() == QColor(0, 150, 220));
-
-  QTextCursor swatch_red_probe(editor->document());
-  swatch_red_probe.setPosition(red_start);
-  swatch_red_probe.setPosition(red_start + 1, QTextCursor::KeepAnchor);
-  CHECK(swatch_red_probe.charFormat().foreground().color() == QColor(0, 150, 220));
-
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
@@ -36232,7 +36250,7 @@ int main(int argc, char* argv[]) {
   patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false);
 
   const std::vector<TestCase> tests = {
-      {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
+      {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
       {"ui_window_force_refresh_action_rebuilds_cache", ui_window_force_refresh_action_rebuilds_cache},
       {"ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency",
        ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency},
@@ -36631,8 +36649,8 @@ int main(int argc, char* argv[]) {
       {"ui_layer_via_copy_and_cut_match_photoshop_shortcuts",
        ui_layer_via_copy_and_cut_match_photoshop_shortcuts},
       {"ui_channels_panel_targets_and_alpha_edits", ui_channels_panel_targets_and_alpha_edits},
-      {"ui_channel_ctrl_click_context_menu_and_vertical_actions",
-       ui_channel_ctrl_click_context_menu_and_vertical_actions},
+      {"ui_channel_ctrl_click_context_menu_and_compact_actions",
+       ui_channel_ctrl_click_context_menu_and_compact_actions},
       {"ui_channel_shape_previews_match_committed_grayscale_and_overlay",
        ui_channel_shape_previews_match_committed_grayscale_and_overlay},
       {"ui_channels_soft_selection_crud_history_and_layer_exit",

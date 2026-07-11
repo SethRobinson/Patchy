@@ -1998,17 +1998,6 @@ QString color_button_style(QColor color) {
       .arg(text);
 }
 
-QString swatch_button_style(QColor color, bool large) {
-  return QStringLiteral(
-             "QPushButton { background: rgb(%1, %2, %3); border: 1px solid #747b86; border-radius: 2px; min-width: %4px; "
-             "min-height: %4px; max-width: %4px; max-height: %4px; }"
-             "QPushButton:hover { border: 2px solid #63a6ff; }")
-      .arg(color.red())
-      .arg(color.green())
-      .arg(color.blue())
-      .arg(large ? 30 : 24);
-}
-
 QString inline_text_editor_style(QColor color, int pixel_size) {
   Q_UNUSED(pixel_size);
   return QStringLiteral(

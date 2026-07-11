@@ -40,7 +40,7 @@ A saved alpha read from PSD/PSB always becomes a document channel, including cha
 ## UI and performance
 
 - Layers and Channels share top tabs in the right dock, with Layers active initially.
-- Channel actions use full-width vertical buttons and the same actions appear when a channel row is right-clicked.
+- Channel actions use a compact icon row with localized tooltips, and the same actions appear when a channel row is right-clicked.
 - Ctrl-click (Command-click on macOS) loads any channel row as a new selection without changing the active edit target. Saved alpha and spot channels keep their exact 0-255 coverage. RGB component rows use Photoshop's white-backed composite values; Composite uses Patchy's fixed 30/59/11 grayscale conversion because Photoshop's luminosity conversion depends on its color-management setup.
 - Selecting an alpha channel is mutually exclusive with editing layer content or a layer mask. Clicking a Layers thumbnail returns to the corresponding layer target.
 - Brush/Eraser, Fill/Clear, Gradient, Line, Rectangle/Ellipse, and Invert share the grayscale edit path. Content-only operations stay disabled while a document channel is active.

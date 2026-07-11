@@ -55,6 +55,8 @@
     <file alias="selection-add.svg">icons/selection-add.svg</file>
     <file alias="selection-subtract.svg">icons/selection-subtract.svg</file>
     <file alias="selection-intersect.svg">icons/selection-intersect.svg</file>
+    <file alias="channel-save-selection.svg">icons/channel-save-selection.svg</file>
+    <file alias="channel-load-selection.svg">icons/channel-load-selection.svg</file>
     <file alias="plugin.svg">icons/plugin.svg</file>
     <file alias="scroll-dither.svg">icons/scroll-dither.svg</file>
     <file alias="spin-plus.svg">icons/spin-plus.svg</file>

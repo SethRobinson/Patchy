@@ -3,11 +3,11 @@
 #include <QAbstractItemModel>
 #include <QAction>
 #include <QEvent>
+#include <QHBoxLayout>
 #include <QListWidget>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QSignalBlocker>
-#include <QSizePolicy>
 #include <QToolButton>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -38,26 +38,32 @@ ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
   list_->setContextMenuPolicy(Qt::CustomContextMenu);
   layout->addWidget(list_, 1);
 
-  auto* buttons = new QVBoxLayout();
+  auto* action_bar = new QWidget(this);
+  action_bar->setObjectName(QStringLiteral("channelActionBar"));
+  auto* buttons = new QHBoxLayout(action_bar);
   buttons->setContentsMargins(0, 0, 0, 0);
-  buttons->setSpacing(3);
-  const auto add_button = [this, buttons](const QString& object_name) {
-    auto* button = new QToolButton(this);
+  buttons->setSpacing(4);
+  const auto add_button = [action_bar, buttons](const QString& object_name) {
+    auto* button = new QToolButton(action_bar);
     button->setObjectName(object_name);
+    button->setProperty("channelActionButton", true);
     button->setAutoRaise(false);
     button->setFocusPolicy(Qt::NoFocus);
-    button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    button->setFixedSize(34, 30);
+    button->setIconSize(QSize(20, 20));
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     buttons->addWidget(button);
     return button;
   };
   create_button_ = add_button(QStringLiteral("channelNewButton"));
   save_selection_button_ = add_button(QStringLiteral("channelSaveSelectionButton"));
   load_selection_button_ = add_button(QStringLiteral("channelLoadSelectionButton"));
+  buttons->addSpacing(4);
   rename_button_ = add_button(QStringLiteral("channelRenameButton"));
   invert_button_ = add_button(QStringLiteral("channelInvertButton"));
   remove_button_ = add_button(QStringLiteral("channelDeleteButton"));
-  layout->addLayout(buttons);
+  buttons->addStretch(1);
+  layout->addWidget(action_bar);
 
   connect(list_, &QListWidget::currentItemChanged, this,
           [this](QListWidgetItem* current, QListWidgetItem*) { handle_current_item_changed(current); });
@@ -138,12 +144,18 @@ void ChannelPanel::set_channel_creation_available(bool available) {
 
 void ChannelPanel::set_actions(QAction* create, QAction* save_selection, QAction* load_selection,
                                QAction* rename, QAction* invert, QAction* remove) {
-  create_button_->setDefaultAction(create);
-  save_selection_button_->setDefaultAction(save_selection);
-  load_selection_button_->setDefaultAction(load_selection);
-  rename_button_->setDefaultAction(rename);
-  invert_button_->setDefaultAction(invert);
-  remove_button_->setDefaultAction(remove);
+  const auto bind_action = [](QToolButton* button, QAction* action) {
+    button->setDefaultAction(action);
+    button->setAccessibleName(action->text());
+    QObject::connect(action, &QAction::changed, button,
+                     [button, action] { button->setAccessibleName(action->text()); });
+  };
+  bind_action(create_button_, create);
+  bind_action(save_selection_button_, save_selection);
+  bind_action(load_selection_button_, load_selection);
+  bind_action(rename_button_, rename);
+  bind_action(invert_button_, invert);
+  bind_action(remove_button_, remove);
   retranslate_ui();
   refresh_action_states();
 }
@@ -336,12 +348,21 @@ void ChannelPanel::refresh_action_states() {
 }
 
 void ChannelPanel::retranslate_ui() {
-  create_button_->setToolTip(tr("New alpha channel"));
-  save_selection_button_->setToolTip(tr("Save selection as channel"));
-  load_selection_button_->setToolTip(tr("Load channel as selection"));
-  rename_button_->setToolTip(tr("Rename channel"));
-  invert_button_->setToolTip(tr("Invert channel"));
-  remove_button_->setToolTip(tr("Delete channel"));
+  const auto update_button = [](QToolButton* button, const QString& fallback_tooltip) {
+    if (button->defaultAction() == nullptr) {
+      button->setToolTip(fallback_tooltip);
+      button->setAccessibleName(fallback_tooltip);
+      return;
+    }
+    button->setToolTip(button->defaultAction()->toolTip());
+    button->setAccessibleName(button->defaultAction()->text());
+  };
+  update_button(create_button_, tr("New alpha channel"));
+  update_button(save_selection_button_, tr("Save selection as channel"));
+  update_button(load_selection_button_, tr("Load channel as selection"));
+  update_button(rename_button_, tr("Rename channel"));
+  update_button(invert_button_, tr("Invert channel"));
+  update_button(remove_button_, tr("Delete channel"));
 }
 
 }  // namespace patchy::ui

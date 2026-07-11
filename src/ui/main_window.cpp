@@ -337,6 +337,7 @@ constexpr int kLayerRowHorizontalSpacing = 6;
 constexpr int kLayerChildIndent = 22;
 constexpr int kRightDockMinimumWidth = 280;
 constexpr int kRightDockResizeHandleWidth = 7;
+constexpr int kHistoryDockExpandedMinimumHeight = 190;
 constexpr int kOpenProgressTitleReservedWidth = 140;
 constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
 constexpr int kLayerOpacityApplyDelayMs = 33;
@@ -4582,13 +4583,13 @@ QString photoshop_style() {
       padding: 5px;
       border-bottom: 1px solid #202020;
     }
-    QWidget#historyDockTitle, QWidget#channelsDockTitle, QWidget#swatchesDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
+    QWidget#historyDockTitle, QWidget#channelsDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
     QWidget#layersDockTitle {
       background: #2f3032;
       border-top: 1px solid #45474b;
       border-bottom: 1px solid #1b1c1e;
     }
-    QWidget#historyDockTitle QLabel, QWidget#channelsDockTitle QLabel, QWidget#swatchesDockTitle QLabel, QWidget#propertiesDockTitle QLabel,
+    QWidget#historyDockTitle QLabel, QWidget#channelsDockTitle QLabel, QWidget#propertiesDockTitle QLabel,
     QWidget#infoDockTitle QLabel, QWidget#layersDockTitle QLabel {
       color: #f0f0f0;
       font-weight: 600;
@@ -4857,6 +4858,13 @@ QString photoshop_style() {
       max-width: 40px;
       min-height: 34px;
       max-height: 34px;
+    }
+    QToolButton[channelActionButton="true"] {
+      padding: 0;
+      min-width: 34px;
+      max-width: 34px;
+      min-height: 30px;
+      max-height: 30px;
     }
     QPushButton[layerDropActive="true"], QToolButton[layerDropActive="true"] {
       background: #2e3f50;
@@ -9397,9 +9405,9 @@ void MainWindow::update_right_dock_resize_handle_geometry(QWidget* host) {
 void MainWindow::set_right_dock_stack_width(int width) {
   const auto max_width = std::max(kRightDockMinimumWidth, this->width() - 260);
   const auto target_width = std::clamp(width, kRightDockMinimumWidth, max_width);
-  for (const auto& object_name : {QStringLiteral("layersDock"), QStringLiteral("channelsDock"), QStringLiteral("historyDock"),
-                                  QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
-                                  QStringLiteral("swatchesDock")}) {
+  for (const auto& object_name : {QStringLiteral("layersDock"), QStringLiteral("channelsDock"),
+                                  QStringLiteral("historyDock"), QStringLiteral("propertiesDock"),
+                                  QStringLiteral("infoDock")}) {
     auto* dock = findChild<QDockWidget*>(object_name);
     if (dock == nullptr) {
       continue;
@@ -13424,6 +13432,12 @@ void MainWindow::create_docks() {
                       [this] { invert_active_channel(); });
   make_channel_action(channel_delete_action_, QT_TR_NOOP("Delete Channel"), "channelDeleteAction", "channel.delete",
                       [this] { delete_active_channel(); });
+  channel_new_action_->setIcon(simple_icon(QStringLiteral("new")));
+  channel_save_selection_action_->setIcon(simple_icon(QStringLiteral("channel-save-selection")));
+  channel_load_selection_action_->setIcon(simple_icon(QStringLiteral("channel-load-selection")));
+  channel_rename_action_->setIcon(simple_icon(QStringLiteral("RN")));
+  channel_invert_action_->setIcon(simple_icon(QStringLiteral("inv")));
+  channel_delete_action_->setIcon(simple_icon(QStringLiteral("trash")));
   channel_panel_->set_actions(channel_new_action_, channel_save_selection_action_,
                               channel_load_selection_action_, channel_rename_action_, channel_invert_action_,
                               channel_delete_action_);
@@ -13443,7 +13457,8 @@ void MainWindow::create_docks() {
   history_list_ = new QListWidget(history_dock);
   history_list_->setObjectName(QStringLiteral("historyList"));
   history_dock->setWidget(history_list_);
-  install_collapsible_dock_title(history_dock, history_list_, QStringLiteral("history"), 0, QWIDGETSIZE_MAX, false);
+  install_collapsible_dock_title(history_dock, history_list_, QStringLiteral("history"),
+                                 kHistoryDockExpandedMinimumHeight, QWIDGETSIZE_MAX, false);
   addDockWidget(Qt::RightDockWidgetArea, history_dock);
 
   auto* properties_dock = new QDockWidget(tr("Properties"), this);
@@ -13504,50 +13519,8 @@ void MainWindow::create_docks() {
   install_collapsible_dock_title(info_dock, info_panel, QStringLiteral("info"), 0, QWIDGETSIZE_MAX, false);
   addDockWidget(Qt::RightDockWidgetArea, info_dock);
 
-  create_swatches_dock();
   create_palette_dock();
 }
-
-void MainWindow::create_swatches_dock() {
-  auto* swatches_dock = new QDockWidget(tr("Swatches"), this);
-  swatches_dock->setObjectName(QStringLiteral("swatchesDock"));
-  bind_widget_text(swatches_dock, "Swatches");
-  auto* swatches_panel = new QWidget(swatches_dock);
-  auto* swatches_layout = new QGridLayout(swatches_panel);
-  swatches_layout->setContentsMargins(6, 6, 6, 6);
-  swatches_layout->setSpacing(4);
-
-  const std::vector<QColor> swatches = {
-      QColor(0, 0, 0),       QColor(255, 255, 255), QColor(220, 20, 40),  QColor(255, 140, 0),
-      QColor(255, 220, 0),   QColor(30, 160, 80),   QColor(0, 150, 220),  QColor(50, 90, 220),
-      QColor(140, 70, 220),  QColor(230, 60, 170),  QColor(110, 70, 35),  QColor(128, 128, 128),
-      QColor(35, 40, 48),    QColor(245, 248, 252), QColor(80, 200, 180), QColor(255, 105, 105),
-  };
-
-  int index = 0;
-  for (const auto& color : swatches) {
-    auto* button = new QPushButton(swatches_panel);
-    button->setObjectName(QStringLiteral("swatchButton"));
-    button->setToolTip(tr("Set foreground color"));
-    button->setStyleSheet(swatch_button_style(color));
-    swatches_layout->addWidget(button, index / 8, index % 8);
-    connect(button, &QPushButton::clicked, this, [this, color] {
-      if (canvas_ == nullptr) {
-        return;
-      }
-      canvas_->set_primary_color(color);
-      apply_primary_color_to_active_text_editor(color);
-      refresh_color_buttons();
-      statusBar()->showMessage(tr("Foreground color changed"));
-    });
-    ++index;
-  }
-
-  swatches_dock->setWidget(swatches_panel);
-  install_collapsible_dock_title(swatches_dock, swatches_panel, QStringLiteral("swatches"), 0, QWIDGETSIZE_MAX, false);
-  addDockWidget(Qt::RightDockWidgetArea, swatches_dock);
-}
-
 
 void MainWindow::create_palette_dock() {
   palette_dock_ = new QDockWidget(tr("Palette"), this);
@@ -24583,7 +24556,6 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
          owns(text_smoothing_combo_) || owns(text_color_button_) || owns(text_align_left_button_) ||
          owns(text_align_center_button_) || owns(text_align_right_button_) || owns(text_apply_button_) ||
          owns(text_cancel_button_) || owns(text_character_button_) || owns(primary_color_button_) ||
-         in_named_ancestor(QStringLiteral("swatchesDock")) ||
          // The Character panel edits the LIVE session; focus moving into it must not commit.
          in_named_ancestor(QStringLiteral("textCharacterDialog")) ||
          // The font picker popup is a Qt::Popup window, so isAncestorOf-based ownership stops
