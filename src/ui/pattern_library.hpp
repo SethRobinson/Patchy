@@ -70,6 +70,14 @@ public:
   // Returns the first imported/deduplicated entry's storage id, or empty on failure.
   QString import_pat(const QString& path, QString& error, QStringList& warnings);
 
+  // Imports one image file (any format QImageReader reads, EXIF orientation
+  // applied) as a single ungrouped pattern named after the file stem, with a
+  // fresh pattern UUID. Alpha is preserved and any tile rectangle is allowed;
+  // images over 8 million pixels are rejected. An animated image imports its
+  // first frame with a warning. No pixel dedup: re-importing adds a new entry.
+  // Returns the new entry's storage id, or empty on failure.
+  QString import_image(const QString& path, QString& error, QStringList& warnings);
+
   // Adds one RGBA tile. preferred_pattern_id is retained when non-empty and
   // unique; an empty id generates a fresh Photoshop-shaped UUID. Returns the
   // safe storage id, or empty on failure/id collision.

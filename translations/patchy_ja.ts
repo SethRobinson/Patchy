@@ -3992,8 +3992,13 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/pattern_manager_dialog.cpp"/>
-        <source>Import .pat…</source>
-        <translation>.pat を読み込む…</translation>
+        <source>Import…</source>
+        <translation>読み込む…</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Import Photoshop .pat pattern files or images</source>
+        <translation>Photoshop の .pat パターンファイルまたは画像を読み込みます</translation>
     </message>
     <message>
         <location filename="../src/ui/pattern_manager_dialog.cpp"/>
@@ -4007,8 +4012,8 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/pattern_manager_dialog.cpp"/>
-        <source>Mouse wheel zooms. Double-click resets zoom.</source>
-        <translation>マウスホイールでズーム、ダブルクリックでズームをリセットします。</translation>
+        <source>Drag to pan. Mouse wheel zooms. Double-click resets the view.</source>
+        <translation>ドラッグでパン、マウスホイールでズーム、ダブルクリックで表示をリセットします。</translation>
     </message>
     <message>
         <location filename="../src/ui/pattern_manager_dialog.cpp"/>
@@ -4068,13 +4073,18 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/pattern_manager_dialog.cpp"/>
-        <source>Import Photoshop Patterns</source>
-        <translation>Photoshop パターンを読み込む</translation>
+        <source>Patterns and Images</source>
+        <translation>パターンと画像</translation>
     </message>
     <message>
         <location filename="../src/ui/pattern_manager_dialog.cpp"/>
-        <source>Photoshop Patterns (*.pat)</source>
-        <translation>Photoshop パターン (*.pat)</translation>
+        <source>Photoshop Patterns</source>
+        <translation>Photoshop パターン</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>No patterns could be imported.</source>
+        <translation>パターンを読み込めませんでした。</translation>
     </message>
     <message>
         <location filename="../src/ui/pattern_manager_dialog.cpp"/>
@@ -11044,6 +11054,21 @@ Clipped to the layer below</source>
         <location filename="../src/ui/pattern_library.cpp"/>
         <source>Some pattern data was skipped or repaired because it is unsupported or damaged.</source>
         <translation>未対応または破損したデータが含まれているため、一部のパターンデータをスキップまたは修復しました。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Could not read &quot;%1&quot; as an image.</source>
+        <translation>「%1」を画像として読み込めませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>&quot;%1&quot; is too large to use as a pattern (over 8 million pixels).</source>
+        <translation>「%1」は大きすぎてパターンとして使用できません (800 万ピクセル超)。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Animated image &quot;%1&quot;: imported the first frame only.</source>
+        <translation>アニメーション画像「%1」: 最初のフレームのみ読み込みました。</translation>
     </message>
     <message>
         <location filename="../src/ui/pattern_library.cpp"/>

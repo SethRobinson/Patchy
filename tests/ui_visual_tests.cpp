@@ -548,10 +548,11 @@ void send_tablet(QWidget& widget, QEvent::Type type, QPoint position, qreal pres
   QApplication::processEvents();
 }
 
-void drag(QWidget& widget, QPoint from, QPoint to, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
-  send_mouse(widget, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton, modifiers);
-  send_mouse(widget, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton, modifiers);
-  send_mouse(widget, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton, modifiers);
+void drag(QWidget& widget, QPoint from, QPoint to, Qt::KeyboardModifiers modifiers = Qt::NoModifier,
+          Qt::MouseButton button = Qt::LeftButton) {
+  send_mouse(widget, QEvent::MouseButtonPress, from, button, button, modifiers);
+  send_mouse(widget, QEvent::MouseMove, to, Qt::NoButton, button, modifiers);
+  send_mouse(widget, QEvent::MouseButtonRelease, to, button, Qt::NoButton, modifiers);
 }
 
 void send_double_click(QWidget& widget, QPoint position, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
@@ -11911,6 +11912,67 @@ void ui_photo_pattern_presets_load_stable_tiles() {
   CHECK(!generated->tile.empty());
 }
 
+void ui_pattern_library_imports_image_files() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
+
+  // An RGBA image with distinct pixels and partial alpha round-trips exactly.
+  QImage image(7, 5, QImage::Format_RGBA8888);
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < image.width(); ++x) {
+      image.setPixelColor(x, y, QColor(x * 30, y * 40, 90, x == 3 && y == 2 ? 128 : 255));
+    }
+  }
+  const auto png_path = directory.filePath(QStringLiteral("Mossy Rock.png"));
+  CHECK(image.save(png_path, "PNG"));
+
+  QString error;
+  QStringList warnings;
+  const auto storage_id = library.import_image(png_path, error, warnings);
+  CHECK(!storage_id.isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(warnings.isEmpty());
+  const auto* entry = library.find_entry(storage_id);
+  CHECK(entry != nullptr);
+  CHECK(entry->name == QStringLiteral("Mossy Rock"));
+  CHECK(entry->folder.isEmpty());  // image imports land ungrouped
+  CHECK(entry->size == QSize(7, 5));
+  const auto resource = library.resource_for_entry(storage_id);
+  CHECK(resource.has_value());
+  CHECK(resource->tile.width() == 7);
+  CHECK(resource->tile.height() == 5);
+  bool pixels_match = true;
+  for (int y = 0; y < 5 && pixels_match; ++y) {
+    for (int x = 0; x < 7 && pixels_match; ++x) {
+      const auto* px = resource->tile.pixel(x, y);
+      const auto expected = image.pixelColor(x, y);
+      pixels_match = px[0] == expected.red() && px[1] == expected.green() &&
+                     px[2] == expected.blue() && px[3] == expected.alpha();
+    }
+  }
+  CHECK(pixels_match);
+  CHECK(resource->tile.pixel(3, 2)[3] == 128);  // alpha preserved
+
+  // A second import of the same file adds a new entry (no id-based dedup for images).
+  const auto second = library.import_image(png_path, error, warnings);
+  CHECK(!second.isEmpty());
+  CHECK(second != storage_id);
+  CHECK(library.entries().size() == 2);
+  CHECK(library.find_entry(storage_id)->id != library.find_entry(second)->id);
+
+  // A non-image file reports a per-file error and adds nothing.
+  const auto text_path = directory.filePath(QStringLiteral("notes.txt"));
+  {
+    QFile file(text_path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write("not an image");
+  }
+  CHECK(library.import_image(text_path, error, warnings).isEmpty());
+  CHECK(error.contains(QStringLiteral("notes.txt")));
+  CHECK(library.entries().size() == 2);
+}
+
 void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
   clear_pattern_test_state();
   patchy::ui::PatternLibrary library(pattern_test_storage_dir());
@@ -12074,6 +12136,22 @@ void ui_pattern_manager_preview_zooms_and_opens_image() {
     CHECK(preview->property("previewZoomPercent").toInt() == 125);
     send_double_click(*preview, center);
     CHECK(preview->property("previewZoomPercent").toInt() == 100);
+
+    // Any mouse button drags to pan; wheel zoom anchors at the cursor (an off-center
+    // zoom adjusts the pan); double-click resets the whole view.
+    CHECK(preview->property("previewPanOffset").toPoint() == QPoint(0, 0));
+    drag(*preview, center, center + QPoint(9, 6));
+    CHECK(preview->property("previewPanOffset").toPoint() == QPoint(9, 6));
+    drag(*preview, center, center + QPoint(-3, 2), Qt::NoModifier, Qt::MiddleButton);
+    CHECK(preview->property("previewPanOffset").toPoint() == QPoint(6, 8));
+    drag(*preview, center, center + QPoint(1, -4), Qt::NoModifier, Qt::RightButton);
+    CHECK(preview->property("previewPanOffset").toPoint() == QPoint(7, 4));
+    send_wheel(*preview, center + QPoint(40, 25), 120);
+    CHECK(preview->property("previewZoomPercent").toInt() == 125);
+    CHECK(preview->property("previewPanOffset").toPoint() != QPoint(7, 4));
+    send_double_click(*preview, center);
+    CHECK(preview->property("previewZoomPercent").toInt() == 100);
+    CHECK(preview->property("previewPanOffset").toPoint() == QPoint(0, 0));
 
     // The centered main tile carries the faint white outline (same as the tile preview),
     // so its corner pixel reads lighter than the flat tile interior.
@@ -33819,11 +33897,15 @@ void ui_tile_preview_window_tracks_document_edits() {
   CHECK(refreshed);
   save_widget_artifact("ui_tile_preview_window", *preview);
 
-  // Dragging pans the tiling; double-click recenters.
+  // Dragging pans the tiling with any mouse button; double-click recenters.
   CHECK(view->property("panOffset").toPoint() == QPoint(0, 0));
   const auto view_center = QPoint(view->width() / 2, view->height() / 2);
   drag(*view, view_center, view_center + QPoint(23, -17));
   CHECK(view->property("panOffset").toPoint() == QPoint(23, -17));
+  drag(*view, view_center, view_center + QPoint(-6, 9), Qt::NoModifier, Qt::MiddleButton);
+  CHECK(view->property("panOffset").toPoint() == QPoint(17, -8));
+  drag(*view, view_center, view_center + QPoint(4, 3), Qt::NoModifier, Qt::RightButton);
+  CHECK(view->property("panOffset").toPoint() == QPoint(21, -5));
   send_double_click(*view, view_center);
   CHECK(view->property("panOffset").toPoint() == QPoint(0, 0));
 
@@ -40585,6 +40667,7 @@ int main(int argc, char* argv[]) {
        ui_pattern_library_rejects_oversized_pat_before_read},
       {"ui_pattern_library_delete_requires_tile_removal",
        ui_pattern_library_delete_requires_tile_removal},
+      {"ui_pattern_library_imports_image_files", ui_pattern_library_imports_image_files},
       {"ui_default_patterns_seed_once_and_restore", ui_default_patterns_seed_once_and_restore},
       {"ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024",
        ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024},

@@ -109,8 +109,12 @@ protected:
   }
 
   void mousePressEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
+    // Any button pans; the widget has no context menu, so right-drag is free.
+    const auto button = event->button();
+    if (!dragging_ &&
+        (button == Qt::LeftButton || button == Qt::MiddleButton || button == Qt::RightButton)) {
       dragging_ = true;
+      drag_button_ = button;
       drag_position_ = event->pos();
       setCursor(Qt::ClosedHandCursor);
     }
@@ -124,7 +128,7 @@ protected:
   }
 
   void mouseReleaseEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
+    if (dragging_ && event->button() == drag_button_) {
       dragging_ = false;
       setCursor(Qt::OpenHandCursor);
     }
@@ -200,6 +204,7 @@ private:
   QPoint pan_;
   QPoint drag_position_;
   bool dragging_{false};
+  Qt::MouseButton drag_button_{Qt::NoButton};
   std::function<void(int)> zoom_changed_;
 };
 

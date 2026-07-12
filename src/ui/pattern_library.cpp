@@ -10,11 +10,14 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QImageReader>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
 #include <QSaveFile>
 #include <QUuid>
+
+#include <cstdint>
 
 #include <algorithm>
 #include <cstring>
@@ -31,6 +34,8 @@ namespace {
 constexpr std::size_t kTileCacheLimit = 16;
 constexpr int kInitialBuiltinPatternVersion = 1;
 constexpr qint64 kMaxPatFileBytes = 32LL * 1024LL * 1024LL;
+// Mirrors pat_reader's per-pattern decode cap.
+constexpr std::int64_t kMaxImagePatternPixels = 8LL * 1024LL * 1024LL;
 
 [[nodiscard]] QString default_storage_dir() {
   const auto settings = app_settings();
@@ -532,6 +537,40 @@ QString PatternLibrary::import_pat(const QString& path, QString& error, QStringL
     emit changed();
   }
   return first_storage_id;
+}
+
+QString PatternLibrary::import_image(const QString& path, QString& error, QStringList& warnings) {
+  error.clear();
+  warnings.clear();
+  const auto file_name = QFileInfo(path).fileName();
+  QImageReader reader(path);
+  reader.setAutoTransform(true);  // apply EXIF orientation (phone photos)
+  const auto image = reader.read();
+  if (image.isNull()) {
+    error = tr("Could not read \"%1\" as an image.").arg(file_name);
+    return {};
+  }
+  if (static_cast<std::int64_t>(image.width()) * image.height() > kMaxImagePatternPixels) {
+    error = tr("\"%1\" is too large to use as a pattern (over 8 million pixels).").arg(file_name);
+    return {};
+  }
+  if (reader.supportsAnimation() && reader.imageCount() > 1) {
+    warnings.append(tr("Animated image \"%1\": imported the first frame only.").arg(file_name));
+  }
+  const auto tile = pattern_tile_from_image(image);
+  if (!tile.has_value()) {
+    error = tr("Could not read \"%1\" as an image.").arg(file_name);
+    return {};
+  }
+  const auto name = QFileInfo(path).completeBaseName();
+  const auto storage_id = add_pattern_internal(name, *tile, {}, {});
+  if (storage_id.isEmpty()) {
+    error = tr("Could not save pattern \"%1\".").arg(name);
+    return {};
+  }
+  sort_entries();
+  emit changed();
+  return storage_id;
 }
 
 QString PatternLibrary::duplicate_pattern(const QString& storage_id) {

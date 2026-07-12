@@ -8,6 +8,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QImageReader>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -34,18 +35,22 @@ namespace {
 
 constexpr int kFolderMarkerRole = Qt::UserRole + 1;
 
-// Tiles the pattern centered on the widget, with the same faint outline around the
-// center tile the Seamless Tile Preview uses so wrap boundaries are visible. The mouse
-// wheel zooms (nearest-neighbor when magnifying, smooth when shrinking photo textures);
-// double-click resets to 100%. Zoom persists across selection changes within one run.
+// Tiles the pattern centered on the widget, outlining the tile under the viewport
+// center exactly like the Seamless Tile Preview so wrap boundaries stay findable.
+// Any mouse button drags to pan (the tiling wraps, so no pan can scroll off), the
+// wheel zooms about the cursor (nearest-neighbor when magnifying, smooth when
+// shrinking photo textures), and double-click resets the view. Zoom and pan persist
+// across selection changes within one run.
 class PatternPreview final : public QWidget {
 public:
   explicit PatternPreview(QWidget* parent = nullptr) : QWidget(parent) {
     setObjectName(QStringLiteral("patternManagerPreview"));
     setMinimumSize(300, 180);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    setToolTip(QObject::tr("Mouse wheel zooms. Double-click resets zoom."));
+    setCursor(Qt::OpenHandCursor);
+    setToolTip(QObject::tr("Drag to pan. Mouse wheel zooms. Double-click resets the view."));
     publish_zoom();
+    set_pan(QPoint());
   }
 
   void set_pattern(const PatternResource* pattern) {
@@ -83,17 +88,22 @@ protected:
       const auto& scaled = scaled_tile();
       const auto draw_w = scaled.width();
       const auto draw_h = scaled.height();
-      // Center one tile on the widget; the wrap phase aligns the rest of the grid to it.
-      const QPoint center_origin((width() - draw_w) / 2, (height() - draw_h) / 2);
-      const auto phase = [](int origin, int step) {
-        const int rem = (-origin) % step;
-        return rem < 0 ? rem + step : rem;
+      // One tile's origin sits at the centered position offset by the pan; the wrap
+      // start (first origin at or left of/above the viewport) aligns the grid to it.
+      const QPoint origin((width() - draw_w) / 2 + pan_.x(), (height() - draw_h) / 2 + pan_.y());
+      const auto wrap_start = [](int anchor, int step) {
+        const int rem = anchor % step;
+        return rem > 0 ? rem - step : rem;  // in (-step, 0]
       };
-      painter.drawTiledPixmap(rect(), scaled,
-                              QPoint(phase(center_origin.x(), draw_w), phase(center_origin.y(), draw_h)));
-      // Same faint outline the Seamless Tile Preview draws around its center tile.
+      const int start_x = wrap_start(origin.x(), draw_w);
+      const int start_y = wrap_start(origin.y(), draw_h);
+      painter.drawTiledPixmap(rect(), scaled, QPoint(-start_x, -start_y));
+      // Same faint outline the Seamless Tile Preview draws: the tile under the viewport
+      // center, so the wrap boundaries stay findable wherever the view is panned.
+      const int outline_x = start_x + ((width() / 2 - start_x) / draw_w) * draw_w;
+      const int outline_y = start_y + ((height() / 2 - start_y) / draw_h) * draw_h;
       painter.setPen(QColor(255, 255, 255, 60));
-      painter.drawRect(QRect(center_origin, QSize(draw_w - 1, draw_h - 1)));
+      painter.drawRect(QRect(outline_x, outline_y, draw_w - 1, draw_h - 1));
       if (const auto percent = zoom_percent(); percent != 100) {
         const auto text = QStringLiteral("%1%").arg(percent);
         QRect badge(0, 0, painter.fontMetrics().horizontalAdvance(text) + 10,
@@ -123,12 +133,41 @@ protected:
     if (delta > 0 ? next < zoom_ : next > zoom_) {
       next = zoom_;
     }
-    set_zoom(next);
+    if (next != zoom_) {
+      zoom_about(event->position(), next);
+    }
     event->accept();
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    // Any button pans; the widget has no context menu, so right-drag is free.
+    const auto button = event->button();
+    if (!dragging_ &&
+        (button == Qt::LeftButton || button == Qt::MiddleButton || button == Qt::RightButton)) {
+      dragging_ = true;
+      drag_button_ = button;
+      drag_position_ = event->pos();
+      setCursor(Qt::ClosedHandCursor);
+    }
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if (dragging_) {
+      set_pan(pan_ + (event->pos() - drag_position_));
+      drag_position_ = event->pos();
+    }
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    if (dragging_ && event->button() == drag_button_) {
+      dragging_ = false;
+      setCursor(Qt::OpenHandCursor);
+    }
   }
 
   void mouseDoubleClickEvent(QMouseEvent* event) override {
     if (event->button() == Qt::LeftButton) {
+      set_pan(QPoint());
       set_zoom(1.0);
       event->accept();
       return;
@@ -162,15 +201,40 @@ private:
     update();
   }
 
+  void set_pan(QPoint pan) {
+    pan_ = pan;
+    setProperty("previewPanOffset", pan_);  // test-visible state
+    update();
+  }
+
   void publish_zoom() {
     setProperty("previewZoomPercent", zoom_percent());  // test-visible state
+  }
+
+  [[nodiscard]] static int draw_extent(int extent, double zoom) {
+    return std::max(1, static_cast<int>(std::lround(extent * zoom)));
+  }
+
+  // Re-derives the pan so the tile-space point under pos stays stationary through the
+  // zoom (same tile-fraction anchoring as the Seamless Tile Preview).
+  void zoom_about(QPointF pos, double next_zoom) {
+    const auto old_draw_w = draw_extent(tile_.width(), zoom_);
+    const auto old_draw_h = draw_extent(tile_.height(), zoom_);
+    const auto new_draw_w = draw_extent(tile_.width(), next_zoom);
+    const auto new_draw_h = draw_extent(tile_.height(), next_zoom);
+    const auto tile_x = (pos.x() - ((width() - old_draw_w) / 2 + pan_.x())) / old_draw_w;
+    const auto tile_y = (pos.y() - ((height() - old_draw_h) / 2 + pan_.y())) / old_draw_h;
+    set_pan(QPoint(
+        static_cast<int>(std::lround(pos.x() - tile_x * new_draw_w - (width() - new_draw_w) / 2)),
+        static_cast<int>(std::lround(pos.y() - tile_y * new_draw_h - (height() - new_draw_h) / 2))));
+    set_zoom(next_zoom);
   }
 
   // Scaling once per zoom/tile change keeps paint at one drawTiledPixmap call even when
   // zoomed far out (a per-tile loop would explode for tiny tiles).
   [[nodiscard]] const QPixmap& scaled_tile() {
-    const auto draw_w = std::max(1, static_cast<int>(std::lround(tile_.width() * zoom_)));
-    const auto draw_h = std::max(1, static_cast<int>(std::lround(tile_.height() * zoom_)));
+    const auto draw_w = draw_extent(tile_.width(), zoom_);
+    const auto draw_h = draw_extent(tile_.height(), zoom_);
     if (scaled_.isNull() || scaled_.width() != draw_w || scaled_.height() != draw_h) {
       scaled_ = draw_w == tile_.width() && draw_h == tile_.height()
                     ? tile_
@@ -183,6 +247,10 @@ private:
   QPixmap tile_;
   QPixmap scaled_;
   double zoom_{1.0};
+  QPoint pan_;
+  QPoint drag_position_;
+  bool dragging_{false};
+  Qt::MouseButton drag_button_{Qt::NoButton};
 };
 
 [[nodiscard]] QString tree_item_storage_id(const QTreeWidgetItem* item) {
@@ -232,8 +300,9 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
   right->addLayout(form);
 
   auto* action_row = new QHBoxLayout();
-  auto* import_button = new QPushButton(QObject::tr("Import .pat…"), &dialog);
+  auto* import_button = new QPushButton(QObject::tr("Import…"), &dialog);
   import_button->setObjectName(QStringLiteral("patternManagerImportButton"));
+  import_button->setToolTip(QObject::tr("Import Photoshop .pat pattern files or images"));
   auto* open_image_button = new QPushButton(QObject::tr("Open as Image"), &dialog);
   open_image_button->setObjectName(QStringLiteral("patternManagerOpenImageButton"));
   open_image_button->setToolTip(QObject::tr("Open the selected pattern's texture as a new image"));
@@ -502,28 +571,53 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
     }
   });
   QObject::connect(import_button, &QPushButton::clicked, &dialog, [&] {
-    const auto path = QFileDialog::getOpenFileName(&dialog, QObject::tr("Import Photoshop Patterns"),
-                                                   {}, QObject::tr("Photoshop Patterns (*.pat)"));
-    if (path.isEmpty()) {
+    QStringList image_globs;
+    for (const auto& format : QImageReader::supportedImageFormats()) {
+      image_globs.append(QStringLiteral("*.") + QString::fromLatin1(format).toLower());
+    }
+    image_globs.removeDuplicates();
+    const auto filter =
+        QStringLiteral("%1 (*.pat %2);;%3 (*.pat);;%4 (%2);;%5")
+            .arg(QObject::tr("Patterns and Images"), image_globs.join(QLatin1Char(' ')),
+                 QObject::tr("Photoshop Patterns"), QObject::tr("Images"),
+                 QObject::tr("All Files (*.*)"));
+    const auto paths =
+        QFileDialog::getOpenFileNames(&dialog, QObject::tr("Import Patterns"), {}, filter);
+    if (paths.isEmpty()) {
       return;
     }
     const auto before = library.entries().size();
-    QString error;
-    QStringList warnings;
-    const auto first = library.import_pat(path, error, warnings);
-    if (first.isEmpty()) {
-      QMessageBox::warning(&dialog, QObject::tr("Import Patterns"), error);
+    QStringList problems;
+    QString first_storage_id;
+    for (const auto& path : paths) {
+      QString error;
+      QStringList warnings;
+      const auto is_pat =
+          QFileInfo(path).suffix().compare(QStringLiteral("pat"), Qt::CaseInsensitive) == 0;
+      const auto imported = is_pat ? library.import_pat(path, error, warnings)
+                                   : library.import_image(path, error, warnings);
+      if (imported.isEmpty()) {
+        problems.append(error);
+      } else if (first_storage_id.isEmpty()) {
+        first_storage_id = imported;
+      }
+      problems.append(warnings);
+    }
+    if (first_storage_id.isEmpty()) {
+      QMessageBox::warning(&dialog, QObject::tr("Import Patterns"),
+                           problems.isEmpty() ? QObject::tr("No patterns could be imported.")
+                                              : problems.join(QLatin1Char('\n')));
       return;
     }
     remember_collapse_state();
-    reload_tree(first);
+    reload_tree(first_storage_id);
     refresh_details();
-    if (!warnings.isEmpty()) {
+    if (!problems.isEmpty()) {
       const auto imported = static_cast<int>(library.entries().size() - before);
       QMessageBox message(QMessageBox::Information, QObject::tr("Import Patterns"),
                           QObject::tr("Imported %n pattern(s).", nullptr, imported), QMessageBox::Ok,
                           &dialog);
-      message.setDetailedText(warnings.join(QLatin1Char('\n')));
+      message.setDetailedText(problems.join(QLatin1Char('\n')));
       message.exec();
     }
   });
