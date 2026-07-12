@@ -552,6 +552,51 @@
         <translation>レンズ周辺減光</translation>
     </message>
     <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="231"/>
+        <source>Visual Filters &amp; Looks</source>
+        <translation>ビジュアルフィルターとルック</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="243"/>
+        <source>Looks</source>
+        <translation>ルック</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="270"/>
+        <source>Live Canvas Preview</source>
+        <translation>キャンバスでライブプレビュー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="313"/>
+        <source>Settings</source>
+        <translation>設定</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="334"/>
+        <source>Apply</source>
+        <translation>適用</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="340"/>
+        <source>Original</source>
+        <translation>元画像</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="390"/>
+        <source>Rendering preview...</source>
+        <translation>プレビューを描画しています...</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="403"/>
+        <source>Ready</source>
+        <translation>準備完了</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="426"/>
+        <source>Choose a look to adjust its settings.</source>
+        <translation>設定を調整するルックを選択してください。</translation>
+    </message>
+    <message>
         <location line="+1943"/>
         <source>Preset:</source>
         <translation>プリセット:</translation>
@@ -653,6 +698,7 @@
     </message>
     <message>
         <location line="+2"/>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="267"/>
         <source>Hold to compare with the unadjusted image</source>
         <translation>押している間、調整前の画像と比較</translation>
     </message>
@@ -6783,6 +6829,16 @@ Mixed selection</source>
         <translation>ポスタリゼーション(&amp;P)</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="11176"/>
+        <source>&amp;Visual Filters &amp;&amp; Looks...</source>
+        <translation>ビジュアルフィルター &amp;&amp; ルック(&amp;V)...</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11180"/>
+        <source>Preview and apply visual filters and photo looks</source>
+        <translation>ビジュアルフィルターとフォトルックをプレビューして適用</translation>
+    </message>
+    <message>
         <location line="+4"/>
         <source>&amp;Image Size...</source>
         <translation>画像サイズ(&amp;I)...</translation>
@@ -8459,6 +8515,16 @@ To update, paste this into a terminal:
         <location line="+49"/>
         <source>Cancelled %1</source>
         <translation>%1 をキャンセルしました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="838"/>
+        <source>Cancelled Visual Filters &amp; Looks</source>
+        <translation>ビジュアルフィルターとルックをキャンセルしました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="842"/>
+        <source>No visual filter applied</source>
+        <translation>ビジュアルフィルターは適用されませんでした</translation>
     </message>
     <message>
         <location line="-37"/>

@@ -410,6 +410,10 @@ if(PATCHY_BUILD_APP)
       src/ui/curves_presets.hpp
       src/ui/curves_presets.cpp
       src/ui/filter_workflows.cpp
+      src/ui/visual_filter_gallery_dialog.hpp
+      src/ui/visual_filter_gallery_dialog.cpp
+      src/ui/zoomable_image_preview.hpp
+      src/ui/zoomable_image_preview.cpp
       src/ui/font_picker.hpp
       src/ui/font_picker.cpp
       src/ui/blend_if_range_editor.hpp

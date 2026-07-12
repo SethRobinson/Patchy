@@ -102,6 +102,29 @@ Only six filter IDs are registered hotkey command IDs today: Invert, Desaturate,
 
 Human-readable catalog names are canonical English translation sources. UI code translates them in the existing `QObject` context, while submenu and action status text keep their existing `MainWindow` context.
 
+## Photo Looks Gallery
+
+`Filter > Visual Filters & Looks...` is the shared entry point for visual filter browsing. Its persisted hotkey command ID is `filter.gallery`; it has no default shortcut. The seven existing Photo Looks remain available as direct Filter-menu actions and keep their existing IDs, dialogs, defaults, and output.
+
+The first gallery checkpoint has this fixed display order:
+
+1. Original
+2. Soft Glow (`patchy.filters.soft_glow`)
+3. Punchy Color (`patchy.filters.punchy_color`)
+4. Noir (`patchy.filters.noir`)
+5. Cinematic Matte (`patchy.filters.cinematic_matte`)
+6. Vintage Fade (`patchy.filters.vintage_fade`)
+7. Vintage Sepia (`patchy.filters.sepia`)
+8. Lens Vignette (`patchy.filters.vignette`)
+
+Original is a UI sentinel, not a filter ID and not a persisted invocation. Gallery list items carry the exact built-in ID for the seven real Looks in `Qt::UserRole + 1`; Original carries an empty value. The gallery's automation contracts include `filterGalleryDialog`, `filterGalleryLooksList`, `filterGalleryPreview`, `filterGalleryParameters`, `filterGalleryCanvasPreviewCheck`, `filterGalleryBeforeButton`, `filterGalleryStatusLabel`, `filterGalleryButtonBox`, and the `filterGalleryZoom*` controls. Catalog-generated amount and strength controls keep their existing `filterAmount*` and `filterStrength*` object names.
+
+Thumbnail and center-preview work always starts from an immutable copy of the active layer. Thumbnails are generated lazily from a bounded proxy. Any pixel-distance parameters are scaled through `FilterRegistry::scale`; final canvas preview and Apply always use the unscaled invocation at full layer resolution. Returning to the same Look after viewing another must reproduce the same pixels, never a cumulative re-filtering of an earlier preview.
+
+Full-resolution live-canvas preview requests carry monotonically increasing generations. A finished worker may update the canvas only when it is still the newest generation and the dialog remains open. At most one request runs while the latest pending request replaces older pending work. Closing the dialog invalidates every unfinished result. The bounded center preview is debounced, and thumbnail work advances one Look per event-loop turn. The momentary Before button compares the center preview with the immutable source while held; it does not change the live canvas preview. Live Canvas Preview is enabled by default and can restore or reapply the current full-resolution result without changing the dialog selection.
+
+Cancel restores the active layer's original pixels and document-space bounds exactly, adds no undo entry, and does not mark a previously clean document modified. Apply renders once more from the immutable original, commits one destructive transaction, and creates one undo entry. Undo and Redo restore both pixels and bounds. Original and identity results close without creating a no-op undo entry.
+
 ## Spatial scaling and bounds
 
 Thumbnail and proxy rendering scales only parameters marked as pixel distances. Version-1 spatial keys are:

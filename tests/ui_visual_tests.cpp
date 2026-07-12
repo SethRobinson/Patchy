@@ -53,6 +53,8 @@
 #include "ui/splash_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/update_checker.hpp"
+#include "ui/visual_filter_gallery_dialog.hpp"
+#include "ui/zoomable_image_preview.hpp"
 #include "ui/zoom_status_bar.hpp"
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
@@ -742,6 +744,19 @@ patchy::PixelBuffer make_filter_stroke_source() {
   return patchy::ui::pixels_from_image_rgba(image);
 }
 
+patchy::Document make_filter_gallery_document(patchy::LayerId& layer_id, patchy::Rect& bounds,
+                                              patchy::PixelBuffer& original_pixels) {
+  original_pixels = make_filter_stroke_source();
+  patchy::Document document(320, 240, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Gallery Subject", original_pixels);
+  layer_id = layer.id();
+  bounds = patchy::Rect{48, 38, original_pixels.width(), original_pixels.height()};
+  layer.set_bounds(bounds);
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+  return document;
+}
+
 // `offset_x/offset_y` map an `after` pixel back to `before`-space; they are
 // non-zero when the filter grew the layer (the grown buffer's (0,0) corresponds
 // to before-space (offset_x, offset_y), which is negative). Pixels that fall
@@ -849,6 +864,22 @@ void process_events_for(int milliseconds) {
   QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);
   loop.exec(QEventLoop::AllEvents);
   QApplication::processEvents();
+}
+
+bool process_events_until(const std::function<bool()>& condition, int timeout_ms = 3000) {
+  if (condition()) {
+    return true;
+  }
+  QElapsedTimer timer;
+  timer.start();
+  while (timer.elapsed() < timeout_ms) {
+    const auto remaining = std::max(1, timeout_ms - static_cast<int>(timer.elapsed()));
+    process_events_for(std::min(20, remaining));
+    if (condition()) {
+      return true;
+    }
+  }
+  return condition();
 }
 
 QDialog* find_top_level_dialog(const QString& object_name) {
@@ -2632,6 +2663,30 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   CHECK(filter_radius == QStringLiteral("半径"));
   CHECK(patchy::ui::filter_progress_stage_text(patchy::FilterProgressStage::GeneratingClouds) ==
         QStringLiteral("雲模様を生成しています"));
+  const auto filter_gallery_action =
+      QCoreApplication::translate("patchy::ui::MainWindow", "&Visual Filters && Looks...");
+  CHECK(filter_gallery_action == QStringLiteral("ビジュアルフィルター && ルック(&V)..."));
+  const auto filter_gallery_tip = QCoreApplication::translate(
+      "patchy::ui::MainWindow", "Preview and apply visual filters and photo looks");
+  CHECK(filter_gallery_tip == QStringLiteral("ビジュアルフィルターとフォトルックをプレビューして適用"));
+  const auto filter_gallery_cancelled =
+      QCoreApplication::translate("patchy::ui::MainWindow", "Cancelled Visual Filters & Looks");
+  CHECK(filter_gallery_cancelled == QStringLiteral("ビジュアルフィルターとルックをキャンセルしました"));
+  const auto filter_gallery_none =
+      QCoreApplication::translate("patchy::ui::MainWindow", "No visual filter applied");
+  CHECK(filter_gallery_none == QStringLiteral("ビジュアルフィルターは適用されませんでした"));
+  const auto filter_gallery_title = QCoreApplication::translate("QObject", "Visual Filters & Looks");
+  CHECK(filter_gallery_title == QStringLiteral("ビジュアルフィルターとルック"));
+  const auto filter_gallery_original = QCoreApplication::translate("QObject", "Original");
+  CHECK(filter_gallery_original == QStringLiteral("元画像"));
+  const auto filter_gallery_canvas = QCoreApplication::translate("QObject", "Live Canvas Preview");
+  CHECK(filter_gallery_canvas == QStringLiteral("キャンバスでライブプレビュー"));
+  const auto filter_gallery_apply = QCoreApplication::translate("QObject", "Apply");
+  CHECK(filter_gallery_apply == QStringLiteral("適用"));
+  const auto filter_gallery_rendering = QCoreApplication::translate("QObject", "Rendering preview...");
+  CHECK(filter_gallery_rendering == QStringLiteral("プレビューを描画しています..."));
+  const auto filter_gallery_ready = QCoreApplication::translate("QObject", "Ready");
+  CHECK(filter_gallery_ready == QStringLiteral("準備完了"));
   const auto curves_load = QCoreApplication::translate("QObject", "Load...");
   CHECK(curves_load == QStringLiteral("読み込み..."));
   const auto curves_save = QCoreApplication::translate("QObject", "Save...");
@@ -2660,6 +2715,28 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
 
   CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
   QApplication::processEvents();
+}
+
+void ui_filter_gallery_action_retranslates() {
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* action = require_action(window, "filterGalleryAction");
+  CHECK(action->text() == QStringLiteral("&Visual Filters && Looks..."));
+  CHECK(action->statusTip() == QStringLiteral("Preview and apply visual filters and photo looks"));
+
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("ja"), false));
+  QApplication::processEvents();
+  CHECK(action->text() == QStringLiteral("ビジュアルフィルター && ルック(&V)..."));
+  CHECK(action->statusTip() == QStringLiteral("ビジュアルフィルターとフォトルックをプレビューして適用"));
+  patchy::ui::ZoomableImagePreview translated_preview;
+  CHECK(translated_preview.toolTip() ==
+        QStringLiteral("ドラッグで表示位置を移動できます。マウスホイールでズームします。"));
+
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
+  QApplication::processEvents();
+  CHECK(action->text() == QStringLiteral("&Visual Filters && Looks..."));
+  CHECK(action->statusTip() == QStringLiteral("Preview and apply visual filters and photo looks"));
 }
 
 void ui_about_dialog_shows_labeled_external_links() {
@@ -2995,6 +3072,17 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
   show_window(window);
   auto* filter_menu = window.findChild<QMenu*>(QStringLiteral("filterMenu"));
   CHECK(filter_menu != nullptr);
+  auto* gallery_action = require_action(window, "filterGalleryAction");
+  CHECK(gallery_action->property("patchy.channelViewBlocked").toBool());
+  CHECK(!filter_menu->actions().isEmpty());
+  CHECK(filter_menu->actions().front() == gallery_action);
+  CHECK(filter_menu->actions().size() >= 2);
+  CHECK(filter_menu->actions()[1]->isSeparator());
+  const auto* gallery_command = window.hotkey_registry().find_command(QStringLiteral("filter.gallery"));
+  CHECK(gallery_command != nullptr);
+  CHECK(gallery_command->action == gallery_action);
+  CHECK(gallery_command->default_shortcuts.isEmpty());
+  CHECK(gallery_action->shortcuts().isEmpty());
   struct ExpectedMenu {
     const char* object_name;
     QStringList action_object_names;
@@ -5059,6 +5147,433 @@ void ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds() {
   CHECK(canvas->active_layer_document_rect().has_value());
   CHECK(*canvas->active_layer_document_rect() == QRect(applied_bounds.x, applied_bounds.y, applied_bounds.width,
                                                        applied_bounds.height));
+}
+
+void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() {
+  ensure_artifact_dir();
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto source = make_filter_stroke_source();
+  const auto source_copy = source;
+  const patchy::Rect bounds{48, 38, source.width(), source.height()};
+  std::vector<patchy::ui::VisualFilterGalleryPreview> canvas_previews;
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    CHECK(!dialog->isModal());
+    CHECK(dialog->windowModality() == Qt::NonModal);
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("filterGalleryPreview"));
+    auto* parameters = dialog->findChild<QWidget*>(QStringLiteral("filterGalleryParameters"));
+    auto* before = dialog->findChild<QPushButton*>(QStringLiteral("filterGalleryBeforeButton"));
+    auto* canvas_preview = dialog->findChild<QCheckBox*>(QStringLiteral("filterGalleryCanvasPreviewCheck"));
+    auto* status = dialog->findChild<QLabel*>(QStringLiteral("filterGalleryStatusLabel"));
+    auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("filterGalleryButtonBox"));
+    auto* zoom_fit = dialog->findChild<QToolButton*>(QStringLiteral("filterGalleryZoomFit"));
+    auto* zoom_100 = dialog->findChild<QToolButton*>(QStringLiteral("filterGalleryZoom100"));
+    auto* zoom_out = dialog->findChild<QToolButton*>(QStringLiteral("filterGalleryZoomOut"));
+    auto* zoom_in = dialog->findChild<QToolButton*>(QStringLiteral("filterGalleryZoomIn"));
+    auto* zoom_label = dialog->findChild<QLabel*>(QStringLiteral("filterGalleryZoomLabel"));
+    CHECK(looks != nullptr);
+    CHECK(preview != nullptr);
+    CHECK(parameters != nullptr);
+    CHECK(before != nullptr);
+    CHECK(canvas_preview != nullptr && canvas_preview->isChecked());
+    CHECK(canvas_preview->text() == QStringLiteral("Live Canvas Preview"));
+    CHECK(before->toolTip() == QStringLiteral("Hold to compare with the unadjusted image"));
+    CHECK(status != nullptr);
+    CHECK(buttons != nullptr);
+    CHECK(zoom_fit != nullptr && zoom_100 != nullptr && zoom_out != nullptr && zoom_in != nullptr);
+    CHECK(zoom_label != nullptr && zoom_label->text().contains(QStringLiteral("%")));
+    CHECK(buttons->button(QDialogButtonBox::Ok) != nullptr);
+    CHECK(buttons->button(QDialogButtonBox::Ok)->text() == QStringLiteral("Apply"));
+    CHECK(buttons->button(QDialogButtonBox::Cancel) != nullptr);
+    CHECK(buttons->button(QDialogButtonBox::Reset) != nullptr);
+
+    const std::array<QString, 8> expected_ids{
+        QString(),
+        QStringLiteral("patchy.filters.soft_glow"),
+        QStringLiteral("patchy.filters.punchy_color"),
+        QStringLiteral("patchy.filters.noir"),
+        QStringLiteral("patchy.filters.cinematic_matte"),
+        QStringLiteral("patchy.filters.vintage_fade"),
+        QStringLiteral("patchy.filters.sepia"),
+        QStringLiteral("patchy.filters.vignette"),
+    };
+    const std::array<QString, 8> expected_names{
+        QStringLiteral("Original"),       QStringLiteral("Soft Glow"),
+        QStringLiteral("Punchy Color"),   QStringLiteral("Noir"),
+        QStringLiteral("Cinematic Matte"), QStringLiteral("Vintage Fade"),
+        QStringLiteral("Vintage Sepia"),  QStringLiteral("Lens Vignette"),
+    };
+    CHECK(looks->count() == static_cast<int>(expected_ids.size()));
+    CHECK(looks->currentRow() == 0);
+    for (int row = 0; row < looks->count(); ++row) {
+      auto* item = looks->item(row);
+      CHECK(item != nullptr);
+      CHECK(item->data(Qt::UserRole + 1).toString() == expected_ids[static_cast<std::size_t>(row)]);
+      CHECK(item->text() == expected_names[static_cast<std::size_t>(row)]);
+    }
+    CHECK(preview->property("previewFitMode").toBool());
+    CHECK(process_events_until(
+        [&] {
+          for (int row = 0; row < looks->count(); ++row) {
+            if (looks->item(row)->icon().isNull()) {
+              return false;
+            }
+          }
+          return true;
+        },
+        6000));
+    const auto original_thumbnail = looks->item(0)->icon().pixmap(QSize(144, 96)).toImage();
+    const auto noir_thumbnail = looks->item(3)->icon().pixmap(QSize(144, 96)).toImage();
+    CHECK(!original_thumbnail.isNull());
+    CHECK(!noir_thumbnail.isNull());
+    CHECK(original_thumbnail != noir_thumbnail);
+    CHECK(patchy::ui::pixel_buffers_equal(source, source_copy));
+
+    const auto original_preview = preview->grab().toImage();
+    looks->setCurrentRow(1);
+    QApplication::processEvents();
+    auto* amount = parameters->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
+    auto* amount_slider = parameters->findChild<QSlider*>(QStringLiteral("filterAmountSlider"));
+    CHECK(amount != nullptr && amount_slider != nullptr);
+    CHECK(amount->value() == 100 && amount_slider->value() == 100);
+    amount->setValue(42);
+    CHECK(amount_slider->value() == 42);
+    buttons->button(QDialogButtonBox::Reset)->click();
+    QApplication::processEvents();
+    amount = parameters->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
+    amount_slider = parameters->findChild<QSlider*>(QStringLiteral("filterAmountSlider"));
+    CHECK(amount != nullptr && amount_slider != nullptr);
+    CHECK(amount->value() == 100 && amount_slider->value() == 100);
+
+    QImage filtered_preview;
+    CHECK(process_events_until(
+        [&] {
+          filtered_preview = preview->grab().toImage();
+          return filtered_preview != original_preview;
+        },
+        6000));
+    process_events_for(80);
+    filtered_preview = preview->grab().toImage();
+    CHECK(!canvas_previews.empty());
+    CHECK(canvas_previews.back().canvas_enabled);
+    CHECK(canvas_previews.back().invocation.has_value());
+    CHECK(canvas_previews.back().invocation->filter_id == "patchy.filters.soft_glow");
+
+    const auto callback_count_before_compare = canvas_previews.size();
+    const auto center = before->rect().center();
+    send_mouse(*before, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    QApplication::processEvents();
+    CHECK(preview->grab().toImage() == original_preview);
+    CHECK(canvas_previews.size() == callback_count_before_compare);
+    send_mouse(*before, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    CHECK(process_events_until([&] { return preview->grab().toImage() == filtered_preview; }, 1000));
+    CHECK(canvas_previews.size() == callback_count_before_compare);
+
+    zoom_100->click();
+    QApplication::processEvents();
+    CHECK(!preview->property("previewFitMode").toBool());
+    CHECK(preview->property("previewZoomPercent").toInt() == 100);
+    for (int attempt = 0;
+         attempt < 8 && preview->property("previewZoomPercent").toInt() < 300;
+         ++attempt) {
+      zoom_in->click();
+      QApplication::processEvents();
+    }
+    CHECK(preview->property("previewZoomPercent").toInt() >= 300);
+    const auto pan_before = preview->property("previewPanOffset").toPoint();
+    drag(*preview, preview->rect().center(), preview->rect().center() + QPoint(24, 16));
+    CHECK(preview->property("previewPanOffset").toPoint() != pan_before);
+    for (int attempt = 0;
+         attempt < 8 && preview->property("previewZoomPercent").toInt() < 1600;
+         ++attempt) {
+      zoom_in->click();
+      QApplication::processEvents();
+    }
+    CHECK(preview->property("previewZoomPercent").toInt() == 1600);
+    QElapsedTimer max_zoom_paint;
+    max_zoom_paint.start();
+    CHECK(!preview->grab().toImage().isNull());
+    CHECK(max_zoom_paint.elapsed() < 1500);
+    zoom_out->click();
+    zoom_fit->click();
+    QApplication::processEvents();
+    CHECK(preview->property("previewFitMode").toBool());
+
+    looks->setCurrentRow(7);
+    QApplication::processEvents();
+    auto* strength = parameters->findChild<QSpinBox*>(QStringLiteral("filterStrengthSpin"));
+    auto* strength_slider = parameters->findChild<QSlider*>(QStringLiteral("filterStrengthSlider"));
+    CHECK(strength != nullptr && strength_slider != nullptr);
+    CHECK(strength->value() == 55 && strength_slider->value() == 55);
+    CHECK(strength->buttonSymbols() == QAbstractSpinBox::PlusMinus);
+    const auto click_spin = [strength](const QPoint& point) {
+      send_mouse(*strength, QEvent::MouseButtonPress, point,
+                 Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*strength, QEvent::MouseButtonRelease, point,
+                 Qt::LeftButton, Qt::NoButton);
+    };
+    click_spin(QPoint(strength->width() - 12, strength->height() / 2));
+    CHECK(strength->value() == 56);
+    click_spin(QPoint(strength->width() - 39, strength->height() / 2));
+    CHECK(strength->value() == 55);
+    CHECK(process_events_until(
+        [&] {
+          return !canvas_previews.empty() && canvas_previews.back().invocation.has_value() &&
+                 canvas_previews.back().invocation->filter_id == "patchy.filters.vignette";
+        },
+        1000));
+    save_widget_artifact("ui_filter_gallery_photo_looks", *dialog);
+    drove_dialog = true;
+    dialog->reject();
+  });
+
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{220, 28, 24},
+      patchy::RgbColor{255, 255, 255},
+      [&](const patchy::ui::VisualFilterGalleryPreview& preview) { canvas_previews.push_back(preview); });
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+  CHECK(!result.invocation.has_value());
+  CHECK(patchy::ui::pixel_buffers_equal(source, source_copy));
+}
+
+void ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact() {
+  patchy::LayerId layer_id{};
+  patchy::Rect bounds;
+  patchy::PixelBuffer original_pixels;
+  auto document = make_filter_gallery_document(layer_id, bounds, original_pixels);
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto vignette = registry.default_invocation("patchy.filters.vignette");
+  patchy::Rect expected_bounds = bounds;
+  const auto expected_pixels = patchy::ui::build_filter_preview_pixels(
+      original_pixels, QRegion(), bounds, registry, patchy::ui::FilterPreviewSettings{true, vignette}, nullptr,
+      &expected_bounds);
+  CHECK(filter_rect_equal(expected_bounds, bounds));
+  CHECK(!patchy::ui::pixel_buffers_equal(expected_pixels, original_pixels));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Gallery Live Preview"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(layer_list != nullptr);
+  CHECK(tabs != nullptr);
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  bool drove_dialog = false;
+
+  const auto layer_matches = [&](const patchy::PixelBuffer& wanted, const patchy::Rect& wanted_bounds) {
+    const auto& read_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* layer = read_document.find_layer(layer_id);
+    return layer != nullptr && filter_rect_equal(layer->bounds(), wanted_bounds) &&
+           patchy::ui::pixel_buffers_equal(layer->pixels(), wanted);
+  };
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* canvas_preview = dialog->findChild<QCheckBox*>(QStringLiteral("filterGalleryCanvasPreviewCheck"));
+    auto* before = dialog->findChild<QPushButton*>(QStringLiteral("filterGalleryBeforeButton"));
+    CHECK(looks != nullptr);
+    CHECK(canvas_preview != nullptr && canvas_preview->isChecked());
+    CHECK(before != nullptr);
+    CHECK(window.isEnabled());
+    CHECK(canvas->edit_locked());
+    CHECK(!layer_list->isEnabled());
+    CHECK(!tabs->tabBar()->isEnabled());
+    CHECK(require_action(window, "viewZoomInAction")->isEnabled());
+
+    // The first request is deliberately superseded several times without
+    // yielding. Only the final Vignette generation may reach the canvas.
+    looks->setCurrentRow(1);
+    looks->setCurrentRow(2);
+    looks->setCurrentRow(3);
+    looks->setCurrentRow(5);
+    looks->setCurrentRow(7);
+    CHECK(process_events_until([&] { return layer_matches(expected_pixels, expected_bounds); }, 7000));
+    process_events_for(120);
+    CHECK(layer_matches(expected_pixels, expected_bounds));
+
+    canvas_preview->setChecked(false);
+    QApplication::processEvents();
+    CHECK(layer_matches(original_pixels, bounds));
+    canvas_preview->setChecked(true);
+    CHECK(process_events_until([&] { return layer_matches(expected_pixels, expected_bounds); }, 7000));
+
+    // Before compares only the dialog preview. It must not cancel or replace
+    // the full-resolution canvas generation.
+    const auto compare_center = before->rect().center();
+    send_mouse(*before, QEvent::MouseButtonPress, compare_center, Qt::LeftButton, Qt::LeftButton);
+    QApplication::processEvents();
+    CHECK(layer_matches(expected_pixels, expected_bounds));
+    send_mouse(*before, QEvent::MouseButtonRelease, compare_center, Qt::LeftButton, Qt::NoButton);
+    CHECK(layer_matches(expected_pixels, expected_bounds));
+
+    // Close with a newer worker in flight. Its queued result must be invalidated
+    // and must never repaint the restored original after reject returns.
+    looks->setCurrentRow(1);
+    looks->setCurrentRow(3);
+    drove_dialog = true;
+    dialog->reject();
+  });
+
+  require_action(window, "filterGalleryAction")->trigger();
+  CHECK(drove_dialog);
+  process_events_for(350);
+  CHECK(layer_matches(original_pixels, bounds));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(!canvas->edit_locked());
+  CHECK(layer_list->isEnabled());
+  CHECK(tabs->tabBar()->isEnabled());
+}
+
+void ui_filter_gallery_original_noop_and_selected_apply_undo_redo() {
+  patchy::LayerId layer_id{};
+  patchy::Rect bounds;
+  patchy::PixelBuffer original_pixels;
+  auto document = make_filter_gallery_document(layer_id, bounds, original_pixels);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Gallery Apply"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto undo_before_original = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto& before_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto* before_layer = before_document.find_layer(layer_id);
+  CHECK(before_layer != nullptr);
+  const auto render_revision_before = before_layer->render_revision();
+  const auto content_revision_before = before_layer->content_revision();
+  const auto pixel_revision_before = before_layer->pixel_revision();
+
+  bool accepted_original = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("filterGalleryButtonBox"));
+    CHECK(looks != nullptr && looks->currentRow() == 0);
+    CHECK(looks->currentItem()->data(Qt::UserRole + 1).toString().isEmpty());
+    CHECK(buttons != nullptr && buttons->button(QDialogButtonBox::Ok) != nullptr);
+    accepted_original = true;
+    buttons->button(QDialogButtonBox::Ok)->click();
+  });
+  require_action(window, "filterGalleryAction")->trigger();
+  CHECK(accepted_original);
+  process_events_for(120);
+  {
+    const auto& read_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* layer = read_document.find_layer(layer_id);
+    CHECK(layer != nullptr);
+    CHECK(filter_rect_equal(layer->bounds(), bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(layer->pixels(), original_pixels));
+    CHECK(layer->render_revision() == render_revision_before);
+    CHECK(layer->content_revision() == content_revision_before);
+    CHECK(layer->pixel_revision() == pixel_revision_before);
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before_original);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("No visual filter applied"));
+
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_selection_mode(patchy::ui::CanvasWidget::SelectionMode::Replace);
+  canvas->set_selection_feather_radius(0);
+  canvas->set_selection_antialias(false);
+  const QPoint selection_start(bounds.x + 6, bounds.y + 5);
+  const QPoint selection_end(bounds.x + bounds.width / 2, bounds.y + bounds.height - 6);
+  drag(*canvas, canvas->widget_position_for_document_point(selection_start),
+       canvas->widget_position_for_document_point(selection_end));
+  QApplication::processEvents();
+  const auto selection = canvas->selected_document_region();
+  CHECK(!selection.isEmpty());
+  CHECK(selection.contains(selection_start + QPoint(3, 3)));
+  CHECK(!selection.contains(QPoint(bounds.x + bounds.width - 8, bounds.y + bounds.height / 2)));
+  const auto undo_before_apply = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto sepia = registry.default_invocation("patchy.filters.sepia");
+  set_filter_integer(sepia, "amount", 64);
+  patchy::Rect expected_bounds = bounds;
+  const auto expected_pixels = patchy::ui::build_filter_preview_pixels(
+      original_pixels, selection, bounds, registry, patchy::ui::FilterPreviewSettings{true, sepia}, nullptr,
+      &expected_bounds);
+  CHECK(filter_rect_equal(expected_bounds, bounds));
+
+  bool accepted_filter = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* parameters = dialog->findChild<QWidget*>(QStringLiteral("filterGalleryParameters"));
+    auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("filterGalleryButtonBox"));
+    CHECK(looks != nullptr && parameters != nullptr && buttons != nullptr);
+    looks->setCurrentRow(6);
+    QApplication::processEvents();
+    auto* amount = parameters->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
+    CHECK(amount != nullptr);
+    amount->setValue(64);
+    CHECK(buttons->button(QDialogButtonBox::Ok) != nullptr);
+    accepted_filter = true;
+    buttons->button(QDialogButtonBox::Ok)->click();
+  });
+  require_action(window, "filterGalleryAction")->trigger();
+  CHECK(accepted_filter);
+
+  patchy::PixelBuffer applied_pixels;
+  {
+    const auto& read_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* layer = read_document.find_layer(layer_id);
+    CHECK(layer != nullptr);
+    CHECK(filter_rect_equal(layer->bounds(), expected_bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(layer->pixels(), expected_pixels));
+    applied_pixels = layer->pixels();
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before_apply + 1U);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  bool changed_inside = false;
+  for (int y = 0; y < original_pixels.height(); ++y) {
+    for (int x = 0; x < original_pixels.width(); ++x) {
+      const auto* original = original_pixels.pixel(x, y);
+      const auto* applied = applied_pixels.pixel(x, y);
+      const auto equal = std::equal(original, original + 4, applied);
+      const QPoint document_point(bounds.x + x, bounds.y + y);
+      if (selection.contains(document_point)) {
+        changed_inside = changed_inside || !equal;
+      } else {
+        CHECK(equal);
+      }
+    }
+  }
+  CHECK(changed_inside);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  {
+    const auto& read_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* layer = read_document.find_layer(layer_id);
+    CHECK(layer != nullptr);
+    CHECK(filter_rect_equal(layer->bounds(), bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(layer->pixels(), original_pixels));
+  }
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  QApplication::processEvents();
+  {
+    const auto& read_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* layer = read_document.find_layer(layer_id);
+    CHECK(layer != nullptr);
+    CHECK(filter_rect_equal(layer->bounds(), expected_bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(layer->pixels(), expected_pixels));
+  }
 }
 
 void ui_all_builtin_filters_render_stroke_contact_sheet() {
@@ -38249,6 +38764,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "format_alpha.png",
       "ui_image_adjustments_invert_desaturate.png",
       "ui_image_adjustments_auto_contrast.png",
+      "ui_filter_gallery_photo_looks.png",
       "ui_all_builtin_filters_stroke_contact_sheet.png",
       "ui_image_adjustment_selection_scope.png",
       "ui_hue_saturation_dialog.png",
@@ -41000,6 +41516,7 @@ int main(int argc, char* argv[]) {
       {"ui_language_invalid_preference_falls_back_to_english", ui_language_invalid_preference_falls_back_to_english},
       {"ui_language_catalog_covers_dialog_status_and_properties",
        ui_language_catalog_covers_dialog_status_and_properties},
+      {"ui_filter_gallery_action_retranslates", ui_filter_gallery_action_retranslates},
       {"ui_about_dialog_shows_labeled_external_links", ui_about_dialog_shows_labeled_external_links},
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
@@ -41102,6 +41619,12 @@ int main(int argc, char* argv[]) {
       {"ui_blur_grows_layer_into_transparency", ui_blur_grows_layer_into_transparency},
       {"ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds",
        ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds},
+      {"ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before",
+       ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before},
+      {"ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact",
+       ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact},
+      {"ui_filter_gallery_original_noop_and_selected_apply_undo_redo",
+       ui_filter_gallery_original_noop_and_selected_apply_undo_redo},
       {"ui_all_builtin_filters_render_stroke_contact_sheet",
        ui_all_builtin_filters_render_stroke_contact_sheet},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},

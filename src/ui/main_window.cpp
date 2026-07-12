@@ -11173,6 +11173,20 @@ void MainWindow::create_actions() {
     register_document_action(action);
   }
 
+  auto* filter_gallery_action = filter_menu->addAction(tr("&Visual Filters && Looks..."));
+  filter_gallery_action->setObjectName(QStringLiteral("filterGalleryAction"));
+  filter_gallery_action->setProperty("patchy.channelViewBlocked", true);
+  filter_gallery_action->setIcon(simple_icon(QStringLiteral("FX")));
+  filter_gallery_action->setStatusTip(tr("Preview and apply visual filters and photo looks"));
+  bind_action_text(filter_gallery_action, "&Visual Filters && Looks...");
+  bind_translated_status_tip(filter_gallery_action, "Preview and apply visual filters and photo looks");
+  apply_bound_translation(filter_gallery_action);
+  refresh_action_tooltip(filter_gallery_action);
+  register_hotkey(filter_gallery_action, "filter.gallery");
+  connect(filter_gallery_action, &QAction::triggered, this, [this] { visual_filter_gallery_dialog(); });
+  register_document_action(filter_gallery_action);
+  filter_menu->addSeparator();
+
   const auto add_filter_submenu = [this, filter_menu](const char* object_name, const char* source) {
     auto* menu = filter_menu->addMenu(tr(source));
     menu->setObjectName(QString::fromLatin1(object_name));

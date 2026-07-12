@@ -420,6 +420,7 @@ private:
   bool cancel_active_text_editor();
   void finish_active_text_editor();
   void apply_filter(const QString& identifier);
+  void visual_filter_gallery_dialog();
   void populate_new_adjustment_layer_menu(QMenu* menu, const QString& object_name_prefix = {});
   void new_levels_adjustment_layer();
   void levels_dialog();
