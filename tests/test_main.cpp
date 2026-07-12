@@ -17100,6 +17100,60 @@ void filter_recipe_order_and_bounds_match_explicit_execution() {
                     recipe_result.pixels.data().begin()));
 }
 
+void filter_recipe_render_trace_records_every_entry_input_bounds() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto gaussian_two =
+      registry.default_invocation("patchy.filters.gaussian_blur");
+  gaussian_two.parameters["radius"] = std::int64_t{2};
+  auto gaussian_six = gaussian_two;
+  gaussian_six.parameters["radius"] = std::int64_t{6};
+  auto gaussian_nine = gaussian_two;
+  gaussian_nine.parameters["radius"] = std::int64_t{9};
+  auto twirl = registry.default_invocation("patchy.filters.twirl");
+  twirl.parameters["angle"] = std::int64_t{210};
+  twirl.parameters["radius"] = std::int64_t{80};
+  twirl.parameters["center_x"] = 35.0;
+  twirl.parameters["center_y"] = 60.0;
+  auto gaussian_three = gaussian_two;
+  gaussian_three.parameters["radius"] = std::int64_t{3};
+
+  const patchy::FilterRecipe recipe{{
+      patchy::FilterRecipeEntry{gaussian_two},
+      patchy::FilterRecipeEntry{gaussian_six, false},
+      patchy::FilterRecipeEntry{gaussian_nine, true, 0.0},
+      patchy::FilterRecipeEntry{twirl},
+      patchy::FilterRecipeEntry{gaussian_three},
+  }};
+  const auto source = solid_rgba(17, 13, 45, 95, 155, 255);
+  const patchy::Rect bounds{70, 90, source.width(), source.height()};
+  patchy::FilterRecipeRenderTrace trace;
+  const auto rendered =
+      registry.render(recipe, source, bounds, true, nullptr, &trace);
+  CHECK(trace.entry_input_bounds.size() == recipe.entries.size());
+
+  const auto same_rect = [](patchy::Rect left, patchy::Rect right) {
+    return left.x == right.x && left.y == right.y &&
+           left.width == right.width && left.height == right.height;
+  };
+  patchy::FilterRenderResult expected{source, bounds};
+  for (std::size_t index = 0; index < recipe.entries.size(); ++index) {
+    CHECK(same_rect(trace.entry_input_bounds[index], expected.bounds));
+    const auto& entry = recipe.entries[index];
+    if (entry.enabled && entry.opacity > 0.0) {
+      expected = registry.render(entry.invocation, expected.pixels,
+                                 expected.bounds);
+    }
+  }
+  CHECK(same_rect(rendered.bounds, expected.bounds));
+  CHECK(rendered.pixels.format() == expected.pixels.format());
+  CHECK(rendered.pixels.width() == expected.pixels.width());
+  CHECK(rendered.pixels.height() == expected.pixels.height());
+  CHECK(std::equal(rendered.pixels.data().begin(),
+                   rendered.pixels.data().end(),
+                   expected.pixels.data().begin()));
+}
+
 void filter_recipe_expansion_keeps_fully_transparent_bounds_stable() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -19835,6 +19889,8 @@ int main() {
        filter_recipe_scales_supports_validates_and_skips_zero_opacity},
       {"filter_recipe_order_and_bounds_match_explicit_execution",
        filter_recipe_order_and_bounds_match_explicit_execution},
+      {"filter_recipe_render_trace_records_every_entry_input_bounds",
+       filter_recipe_render_trace_records_every_entry_input_bounds},
       {"filter_recipe_expansion_keeps_fully_transparent_bounds_stable",
        filter_recipe_expansion_keeps_fully_transparent_bounds_stable},
       {"bmp_reader_rejects_invalid_headers", bmp_reader_rejects_invalid_headers},

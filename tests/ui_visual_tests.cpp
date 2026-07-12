@@ -5577,6 +5577,15 @@ void ui_filter_gallery_stack_edits_reverse_order_and_stay_independent() {
         5000));
     save_widget_artifact("ui_filter_gallery_stack", *dialog);
 
+    for (int row = 0; row < applied->count(); ++row) {
+      CHECK(!applied->item(row)->flags().testFlag(Qt::ItemIsDropEnabled));
+    }
+    CHECK(applied->model()
+              ->flags(QModelIndex())
+              .testFlag(Qt::ItemIsDropEnabled));
+    // Offscreen Qt cannot synthesize the nested native QDrag loop. The flags
+    // above pin the pointer-drop classification (between rows, never OnItem),
+    // while moveRow pins the signal path used by that native drop.
     CHECK(applied->model()->moveRow(QModelIndex(), 0, QModelIndex(), 3));
     CHECK(process_events_until(
         [&] {
@@ -5610,6 +5619,245 @@ void ui_filter_gallery_stack_edits_reverse_order_and_stay_independent() {
   CHECK(result.recipe.has_value());
   CHECK(previews.back().recipe.has_value());
   CHECK(filter_recipes_equal(*result.recipe, *previews.back().recipe));
+}
+
+void ui_filter_gallery_stack_spatial_overlay_tracks_active_input_bounds() {
+  GallerySettingsRestorer gallery_settings;
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  patchy::ui::MainWindow theme_host;
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* applied = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryAppliedEffectsList"));
+    auto* duplicate = dialog->findChild<QPushButton*>(
+        QStringLiteral("filterGalleryDuplicateEffectButton"));
+    auto* preview = dynamic_cast<patchy::ui::ZoomableImagePreview*>(
+        dialog->findChild<QWidget*>(QStringLiteral("filterGalleryPreview")));
+    auto* editor = dialog->findChild<QWidget*>(
+        QStringLiteral("filterGalleryParameterEditor"));
+    auto* status = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryStatusLabel"));
+    CHECK(looks != nullptr && applied != nullptr && duplicate != nullptr &&
+          preview != nullptr && editor != nullptr && status != nullptr);
+
+    // Seth's reported sequence: the active spatial effect must retain its
+    // center/radius handles after it is created through Duplicate.
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.soft_glow")));
+    QApplication::processEvents();
+    duplicate->click();
+    QApplication::processEvents();
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.noir")));
+    QApplication::processEvents();
+    duplicate->click();
+    QApplication::processEvents();
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.twirl")));
+    CHECK(process_events_until(
+        [&] {
+          return applied->count() == 3 &&
+                 applied->item(0)->text() == QStringLiteral("Twirl") &&
+                 preview->property("filterSpatialOverlayVisible").toBool() &&
+                 preview->property("filterSpatialRadiusVisible").toBool();
+        },
+        5000));
+
+    // Exercise nontrivial geometry: an expanding filter before and after the
+    // active Twirl changes both its input bounds and the final displayed bounds.
+    looks->setCurrentItem(looks->item(0));
+    QApplication::processEvents();
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.gaussian_blur")));
+    QApplication::processEvents();
+    auto* radius = editor->findChild<QSpinBox*>(
+        QStringLiteral("filterRadiusSpin"));
+    CHECK(radius != nullptr);
+    radius->setValue(4);
+    duplicate->click();
+    QApplication::processEvents();
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.twirl")));
+    QApplication::processEvents();
+    auto* center_x = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterXSpin"));
+    auto* center_y = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterYSpin"));
+    radius = editor->findChild<QSpinBox*>(QStringLiteral("filterRadiusSpin"));
+    CHECK(center_x != nullptr && center_y != nullptr && radius != nullptr);
+    center_x->setValue(30.0);
+    center_y->setValue(65.0);
+    radius->setValue(70);
+    duplicate->click();
+    QApplication::processEvents();
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.gaussian_blur")));
+    QApplication::processEvents();
+    radius = editor->findChild<QSpinBox*>(QStringLiteral("filterRadiusSpin"));
+    CHECK(radius != nullptr);
+    radius->setValue(3);
+    CHECK(process_events_until(
+        [&] {
+          return !previews.empty() && previews.back().recipe.has_value() &&
+                 previews.back().recipe->entries.size() == 3 &&
+                 status->text() ==
+                     QCoreApplication::translate("QObject", "Ready");
+        },
+        5000));
+
+    applied->setCurrentRow(1);
+    QApplication::processEvents();
+    CHECK(applied->currentItem()->text() == QStringLiteral("Twirl"));
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterSpatialOverlayVisible").toBool() &&
+                 preview->property("filterSpatialRadiusVisible").toBool();
+        },
+        1000));
+
+    const auto recipe = *previews.back().recipe;
+    patchy::FilterRecipe prefix;
+    prefix.entries.push_back(recipe.entries.front());
+    const auto active_input = registry.render(prefix, source, bounds);
+    const auto final_render = registry.render(recipe, source, bounds);
+    const auto mapped = [](double percent, int source_origin,
+                           int source_extent, int result_origin,
+                           int result_extent) {
+      return (static_cast<double>(source_origin) +
+              static_cast<double>(source_extent - 1) * percent / 100.0 -
+              static_cast<double>(result_origin)) /
+             static_cast<double>(result_extent - 1);
+    };
+    const auto expected_x =
+        mapped(30.0, active_input.bounds.x, active_input.bounds.width,
+               final_render.bounds.x, final_render.bounds.width);
+    const auto expected_y =
+        mapped(65.0, active_input.bounds.y, active_input.bounds.height,
+               final_render.bounds.y, final_render.bounds.height);
+    const auto expected_radius =
+        0.70 *
+        static_cast<double>(std::min(active_input.bounds.width,
+                                     active_input.bounds.height)) /
+        static_cast<double>(std::min(final_render.bounds.width,
+                                     final_render.bounds.height));
+    CHECK(std::abs(preview->property("filterCenterXNormalized").toDouble() -
+                   expected_x) < 0.000001);
+    CHECK(std::abs(preview->property("filterCenterYNormalized").toDouble() -
+                   expected_y) < 0.000001);
+    CHECK(std::abs(preview->property("filterRadiusNormalized").toDouble() -
+                   expected_radius) < 0.000001);
+
+    // Dragging the controls uses the inverse mapping: final-preview
+    // coordinates must become percentages in the active entry's input bounds.
+    center_x = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterXSpin"));
+    center_y = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterYSpin"));
+    radius = editor->findChild<QSpinBox*>(QStringLiteral("filterRadiusSpin"));
+    CHECK(center_x != nullptr && center_y != nullptr && radius != nullptr);
+    const auto display_size = QSizeF(preview->image().width() * preview->zoom(),
+                                     preview->image().height() * preview->zoom());
+    const QRectF displayed(
+        QPointF((preview->width() - display_size.width()) / 2.0,
+                (preview->height() - display_size.height()) / 2.0),
+        display_size);
+    const auto center_point = [&](double x, double y) {
+      return QPointF(displayed.left() + displayed.width() * x,
+                     displayed.top() + displayed.height() * y)
+          .toPoint();
+    };
+    const auto start_center = center_point(expected_x, expected_y);
+    constexpr double target_x = 0.60;
+    constexpr double target_y = 0.40;
+    drag(*preview, start_center, center_point(target_x, target_y));
+    CHECK(process_events_until(
+        [&] {
+          return status->text() ==
+                 QCoreApplication::translate("QObject", "Ready");
+        },
+        5000));
+    const auto source_percent = [](double normalized, int source_origin,
+                                   int source_extent, int result_origin,
+                                   int result_extent) {
+      return std::clamp(
+          (static_cast<double>(result_origin) +
+               normalized * static_cast<double>(result_extent - 1) -
+           static_cast<double>(source_origin)) /
+              static_cast<double>(source_extent - 1) *
+              100.0,
+          0.0, 100.0);
+    };
+    const auto actual_target_x =
+        preview->property("filterCenterXNormalized").toDouble();
+    const auto actual_target_y =
+        preview->property("filterCenterYNormalized").toDouble();
+    CHECK(std::abs(actual_target_x - target_x) <= 0.002);
+    CHECK(std::abs(actual_target_y - target_y) <= 0.002);
+    const auto dragged_x = source_percent(
+        actual_target_x, active_input.bounds.x, active_input.bounds.width,
+        final_render.bounds.x, final_render.bounds.width);
+    const auto dragged_y = source_percent(
+        actual_target_y, active_input.bounds.y, active_input.bounds.height,
+        final_render.bounds.y, final_render.bounds.height);
+    CHECK(std::abs(center_x->value() - dragged_x) <= 0.11);
+    CHECK(std::abs(center_y->value() - dragged_y) <= 0.11);
+
+    const auto displayed_center = center_point(target_x, target_y);
+    const auto shorter_display_extent =
+        std::min(displayed.width(), displayed.height());
+    const auto current_radius =
+        preview->property("filterRadiusNormalized").toDouble();
+    constexpr double target_radius = 0.25;
+    const auto radius_direction = target_x <= 0.5 ? 1.0 : -1.0;
+    drag(*preview,
+         displayed_center +
+             QPoint(static_cast<int>(std::lround(
+                        radius_direction * shorter_display_extent *
+                        current_radius / 2.0)),
+                    0),
+         displayed_center +
+             QPoint(static_cast<int>(std::lround(
+                        radius_direction * shorter_display_extent *
+                        target_radius / 2.0)),
+                    0));
+    CHECK(process_events_until(
+        [&] {
+          return status->text() ==
+                 QCoreApplication::translate("QObject", "Ready");
+        },
+        5000));
+    const auto actual_target_radius =
+        preview->property("filterRadiusNormalized").toDouble();
+    CHECK(std::abs(actual_target_radius - target_radius) <= 0.01);
+    const auto expected_dragged_radius =
+        actual_target_radius *
+        static_cast<double>(std::min(final_render.bounds.width,
+                                     final_render.bounds.height)) /
+        static_cast<double>(std::min(active_input.bounds.width,
+                                     active_input.bounds.height)) *
+        100.0;
+    CHECK(std::abs(radius->value() - expected_dragged_radius) <= 1.0);
+    drove_dialog = true;
+    dialog->reject();
+  });
+
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      &theme_host, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255},
+      [&](const patchy::ui::VisualFilterGalleryPreview& preview) {
+        previews.push_back(preview);
+      });
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
 }
 
 void ui_filter_gallery_explicit_original_click_clears_filtered_stack() {
@@ -43146,6 +43394,8 @@ int main(int argc, char* argv[]) {
        ui_filter_recipe_selection_is_restored_once_after_the_full_stack},
       {"ui_filter_gallery_stack_edits_reverse_order_and_stay_independent",
        ui_filter_gallery_stack_edits_reverse_order_and_stay_independent},
+      {"ui_filter_gallery_stack_spatial_overlay_tracks_active_input_bounds",
+       ui_filter_gallery_stack_spatial_overlay_tracks_active_input_bounds},
       {"ui_filter_gallery_explicit_original_click_clears_filtered_stack",
        ui_filter_gallery_explicit_original_click_clears_filtered_stack},
       {"ui_filter_gallery_stack_cancel_and_apply_are_one_transaction",

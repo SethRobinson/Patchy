@@ -151,6 +151,7 @@ struct GalleryProxy {
 struct GalleryProxyRender {
   QImage image;
   Rect bounds{};
+  std::vector<Rect> entry_input_bounds;
 };
 
 struct GalleryRecipeEntry {
@@ -162,6 +163,7 @@ struct GalleryProxyPreviewState {
   struct Work {
     std::uint64_t generation{0};
     FilterRecipe recipe;
+    std::vector<std::uint64_t> entry_ids;
     std::uint64_t active_entry_id{0};
     std::string active_filter_id;
   };
@@ -171,21 +173,23 @@ struct GalleryProxyPreviewState {
   std::atomic<std::uint64_t> generation{0};
   std::optional<Work> pending;
   std::function<void(Work)> start;
-  std::function<void(GalleryProxyRender, std::uint64_t, std::string)> apply;
+  std::function<void(GalleryProxyRender, std::vector<std::uint64_t>,
+                     std::uint64_t, std::string)>
+      apply;
   std::function<void(QString)> fail;
 };
 
 void enqueue_gallery_proxy_preview(
     const std::shared_ptr<GalleryProxyPreviewState>& state,
-    FilterRecipe recipe, std::uint64_t active_entry_id,
-    std::string active_filter_id) {
+    FilterRecipe recipe, std::vector<std::uint64_t> entry_ids,
+    std::uint64_t active_entry_id, std::string active_filter_id) {
   if (state == nullptr || state->closed || !state->start) {
     return;
   }
   const auto generation =
       state->generation.fetch_add(1, std::memory_order_acq_rel) + 1;
   GalleryProxyPreviewState::Work work{
-      generation, std::move(recipe), active_entry_id,
+      generation, std::move(recipe), std::move(entry_ids), active_entry_id,
       std::move(active_filter_id)};
   if (state->in_flight) {
     state->pending = std::move(work);
@@ -362,38 +366,49 @@ void close_gallery_proxy_preview(
       Rect::from_size(proxy.original.width(), proxy.original.height());
   if (proxy.original.empty() ||
       (proxy.selection_restricted && proxy.selection.isEmpty())) {
-    return {image_from_pixels(proxy.original), local_bounds};
+    return {image_from_pixels(proxy.original), local_bounds, {}};
   }
   const auto scaled = registry.scale(invocation, proxy.spatial_scale);
   if (!scaled.has_value()) {
-    return {image_from_pixels(proxy.original), local_bounds};
+    return {image_from_pixels(proxy.original), local_bounds, {}};
   }
   const FilterPreviewSettings settings{true, *scaled};
   auto result_bounds = local_bounds;
   auto pixels = build_filter_preview_pixels(proxy.original, proxy.selection,
                                             local_bounds, registry, settings,
                                             progress, &result_bounds);
-  return {image_from_pixels(pixels), result_bounds};
+  return {image_from_pixels(pixels), result_bounds, {}};
 }
 
 [[nodiscard]] GalleryProxyRender render_proxy(
     const GalleryProxy& proxy, const FilterRegistry& registry,
-    const FilterRecipe& recipe, const FilterProgress* progress = nullptr) {
+    const FilterRecipe& recipe,
+    const FilterProgress* progress = nullptr) {
   const auto local_bounds =
       Rect::from_size(proxy.original.width(), proxy.original.height());
   if (proxy.original.empty() || recipe.entries.empty() ||
       (proxy.selection_restricted && proxy.selection.isEmpty())) {
-    return {image_from_pixels(proxy.original), local_bounds};
+    return {image_from_pixels(proxy.original), local_bounds,
+            std::vector<Rect>(recipe.entries.size(), local_bounds)};
   }
   const auto scaled = registry.scale(recipe, proxy.spatial_scale);
   if (!scaled.has_value()) {
-    return {image_from_pixels(proxy.original), local_bounds};
+    return {image_from_pixels(proxy.original), local_bounds,
+            std::vector<Rect>(recipe.entries.size(), local_bounds)};
+  }
+  if (!proxy.selection_restricted) {
+    FilterRecipeRenderTrace trace;
+    auto rendered = registry.render(*scaled, proxy.original, local_bounds,
+                                    true, progress, &trace);
+    return {image_from_pixels(rendered.pixels), rendered.bounds,
+            std::move(trace.entry_input_bounds)};
   }
   auto result_bounds = local_bounds;
   auto pixels = build_filter_preview_pixels(
       proxy.original, proxy.selection, local_bounds, registry, *scaled,
       progress, &result_bounds);
-  return {image_from_pixels(pixels), result_bounds};
+  return {image_from_pixels(pixels), result_bounds,
+          std::vector<Rect>(recipe.entries.size(), local_bounds)};
 }
 
 [[nodiscard]] QIcon thumbnail_icon(const QImage& source) {
@@ -853,8 +868,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
       item->setData(kRecipeEntryIdRole,
                     QVariant::fromValue<qulonglong>(entry->ui_id));
       item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable |
-                     Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled |
-                     Qt::ItemIsUserCheckable);
+                     Qt::ItemIsDragEnabled | Qt::ItemIsUserCheckable);
       item->setCheckState(entry->value.enabled ? Qt::Checked
                                                : Qt::Unchecked);
       if (active_recipe_entry_id == entry->ui_id) {
@@ -970,21 +984,25 @@ VisualFilterGalleryResult request_visual_filter_gallery(
 
   auto current_proxy_bounds =
       Rect::from_size(proxy.original.width(), proxy.original.height());
-  std::string rendered_proxy_filter_id;
-  std::uint64_t rendered_proxy_entry_id = 0;
+  std::map<std::uint64_t, Rect> rendered_entry_input_bounds;
   std::function<void()> refresh_spatial_overlay;
   auto proxy_preview_state = std::make_shared<GalleryProxyPreviewState>();
   auto proxy_registry = std::make_shared<const FilterRegistry>(registry);
   proxy_preview_state->apply =
-      [&](GalleryProxyRender rendered, std::uint64_t active_entry_id,
-          std::string filter_id) {
+      [&](GalleryProxyRender rendered, std::vector<std::uint64_t> entry_ids,
+          std::uint64_t, std::string filter_id) {
         preview->set_image(rendered.image);
         preview->setProperty(
             "filterGalleryRenderedFilterId",
             QString::fromStdString(filter_id));
         current_proxy_bounds = rendered.bounds;
-        rendered_proxy_filter_id = filter_id;
-        rendered_proxy_entry_id = active_entry_id;
+        rendered_entry_input_bounds.clear();
+        const auto traced_count = std::min(
+            entry_ids.size(), rendered.entry_input_bounds.size());
+        for (std::size_t index = 0; index < traced_count; ++index) {
+          rendered_entry_input_bounds.emplace(
+              entry_ids[index], rendered.entry_input_bounds[index]);
+        }
         if (refresh_spatial_overlay) {
           refresh_spatial_overlay();
         }
@@ -1003,9 +1021,13 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         const auto generation = work.generation;
         const auto active_entry_id = work.active_entry_id;
         const auto filter_id = work.active_filter_id;
+        auto entry_ids = std::move(work.entry_ids);
+        auto recipe = std::move(work.recipe);
         std::thread([app, proxy_preview_state, proxy_registry, proxy,
-                     recipe = std::move(work.recipe), generation,
-                     active_entry_id, filter_id, rendered, error, cancelled] {
+                     recipe = std::move(recipe),
+                     entry_ids = std::move(entry_ids), generation,
+                     active_entry_id, filter_id, rendered, error,
+                     cancelled]() mutable {
           FilterProgress progress{
               [proxy_preview_state, generation](int, int,
                                                 FilterProgressStage) {
@@ -1026,7 +1048,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
           QMetaObject::invokeMethod(
               app,
               [proxy_preview_state, generation, active_entry_id, filter_id,
-               rendered, error, cancelled]() mutable {
+               entry_ids = std::move(entry_ids), rendered, error,
+               cancelled]() mutable {
                 proxy_preview_state->in_flight = false;
                 const auto is_latest =
                     generation == proxy_preview_state->generation.load(
@@ -1034,8 +1057,9 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                 if (!proxy_preview_state->closed && is_latest &&
                     !*cancelled) {
                   if (error->isEmpty() && proxy_preview_state->apply) {
-                    proxy_preview_state->apply(std::move(*rendered),
-                                               active_entry_id, filter_id);
+                    proxy_preview_state->apply(
+                        std::move(*rendered), std::move(entry_ids),
+                        active_entry_id, filter_id);
                   } else if (!error->isEmpty() &&
                              proxy_preview_state->fail) {
                     proxy_preview_state->fail(*error);
@@ -1065,8 +1089,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
       preview->setProperty("filterGalleryRenderedFilterId", QString());
       current_proxy_bounds =
           Rect::from_size(proxy.original.width(), proxy.original.height());
-      rendered_proxy_filter_id.clear();
-      rendered_proxy_entry_id = 0;
+      rendered_entry_input_bounds.clear();
       if (refresh_spatial_overlay) {
         refresh_spatial_overlay();
       }
@@ -1074,8 +1097,13 @@ VisualFilterGalleryResult request_visual_filter_gallery(
       return;
     }
     status->setText(QObject::tr("Rendering preview..."));
+    std::vector<std::uint64_t> entry_ids;
+    entry_ids.reserve(recipe_entries.size());
+    for (const auto& entry : recipe_entries) {
+      entry_ids.push_back(entry.ui_id);
+    }
     enqueue_gallery_proxy_preview(
-        proxy_preview_state, *recipe, active->ui_id,
+        proxy_preview_state, *recipe, std::move(entry_ids), active->ui_id,
         active->value.invocation.filter_id);
   };
   QObject::connect(central_timer, &QTimer::timeout, &dialog, render_current);
@@ -1441,9 +1469,11 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                         ? entry->value.invocation.filter_id
                         : std::string{};
     const auto* definition = registry.find(id);
-    if (recipe_entries.size() != 1 || entry == nullptr ||
-        definition == nullptr || rendered_proxy_filter_id != id ||
-        rendered_proxy_entry_id != entry->ui_id) {
+    const auto input_bounds =
+        entry != nullptr ? rendered_entry_input_bounds.find(entry->ui_id)
+                         : rendered_entry_input_bounds.end();
+    if (entry == nullptr || definition == nullptr ||
+        input_bounds == rendered_entry_input_bounds.end()) {
       preview->set_center_radius_overlay(std::nullopt);
       return;
     }
@@ -1473,12 +1503,14 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                                : control.default_value,
                            control.value);
     };
-    const auto mapped_center = [](double percent, int source_extent,
+    const auto mapped_center = [](double percent, int source_origin,
+                                  int source_extent,
                                   int result_origin, int result_extent) {
       if (source_extent <= 1 || result_extent <= 1) {
         return 0.5;
       }
       const auto source_coordinate =
+          static_cast<double>(source_origin) +
           static_cast<double>(source_extent - 1) * percent / 100.0;
       return std::clamp(
           (source_coordinate - static_cast<double>(result_origin)) /
@@ -1487,15 +1519,18 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     };
     NormalizedCenterRadiusOverlay overlay;
     overlay.center = QPointF(
-        mapped_center(value_for(*center_x), proxy.original.width(),
+        mapped_center(value_for(*center_x), input_bounds->second.x,
+                      input_bounds->second.width,
                       current_proxy_bounds.x, current_proxy_bounds.width),
-        mapped_center(value_for(*center_y), proxy.original.height(),
+        mapped_center(value_for(*center_y), input_bounds->second.y,
+                      input_bounds->second.height,
                       current_proxy_bounds.y, current_proxy_bounds.height));
     if (const auto* radius = find_control(
             FilterParameterPresentation::EffectRadiusPercent);
         radius != nullptr) {
       const auto source_shorter =
-          std::max(1, std::min(proxy.original.width(), proxy.original.height()));
+          std::max(1, std::min(input_bounds->second.width,
+                               input_bounds->second.height));
       const auto result_shorter = std::max(
           1, std::min(current_proxy_bounds.width, current_proxy_bounds.height));
       overlay.radius = std::clamp(
@@ -1512,8 +1547,11 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                             ? entry->value.invocation.filter_id
                             : std::string{};
         const auto* definition = registry.find(id);
-        if (recipe_entries.size() != 1 || entry == nullptr ||
-            definition == nullptr) {
+        const auto input_bounds =
+            entry != nullptr ? rendered_entry_input_bounds.find(entry->ui_id)
+                             : rendered_entry_input_bounds.end();
+        if (entry == nullptr || definition == nullptr ||
+            input_bounds == rendered_entry_input_bounds.end()) {
           return;
         }
         const auto spec = filter_dialog_spec_for(*definition);
@@ -1577,7 +1615,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
             slider->setValue(value);
           }
         };
-        const auto source_percent = [](double normalized, int source_extent,
+        const auto source_percent = [](double normalized, int source_origin,
+                                       int source_extent,
                                        int result_origin,
                                        int result_extent) {
           if (source_extent <= 1 || result_extent <= 1) {
@@ -1587,24 +1626,27 @@ VisualFilterGalleryResult request_visual_filter_gallery(
               static_cast<double>(result_origin) +
               normalized * static_cast<double>(result_extent - 1);
           return std::clamp(
-              source_coordinate /
+              (source_coordinate - static_cast<double>(source_origin)) /
                   static_cast<double>(source_extent - 1) *
                   100.0,
               0.0, 100.0);
         };
         sync_double(
             find_control(FilterParameterPresentation::CenterXPercent),
-            source_percent(overlay.center.x(), proxy.original.width(),
+            source_percent(overlay.center.x(), input_bounds->second.x,
+                           input_bounds->second.width,
                            current_proxy_bounds.x,
                            current_proxy_bounds.width));
         sync_double(
             find_control(FilterParameterPresentation::CenterYPercent),
-            source_percent(overlay.center.y(), proxy.original.height(),
+            source_percent(overlay.center.y(), input_bounds->second.y,
+                           input_bounds->second.height,
                            current_proxy_bounds.y,
                            current_proxy_bounds.height));
         if (overlay.radius.has_value()) {
           const auto source_shorter = std::max(
-              1, std::min(proxy.original.width(), proxy.original.height()));
+              1, std::min(input_bounds->second.width,
+                          input_bounds->second.height));
           const auto result_shorter = std::max(
               1,
               std::min(current_proxy_bounds.width, current_proxy_bounds.height));
@@ -1676,8 +1718,13 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     synchronizing_catalog = false;
     update_favorite_button();
   };
+  const auto invalidate_spatial_trace = [&] {
+    rendered_entry_input_bounds.clear();
+    preview->set_center_radius_overlay(std::nullopt);
+  };
   const auto refresh_recipe_ui = [&](bool sync_catalog,
                                      bool recipe_changed = true) {
+    invalidate_spatial_trace();
     if (recipe_changed) {
       mark_recipe_custom();
     }
@@ -1754,6 +1801,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                          item->data(kRecipeEntryIdRole).toULongLong();
                       if (auto* entry = find_recipe_entry(ui_id);
                           entry != nullptr) {
+                        invalidate_spatial_trace();
                         entry->value.enabled =
                             item->checkState() == Qt::Checked;
                         mark_recipe_custom();
@@ -1766,6 +1814,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                      if (rebuilding_applied_list) {
                        return;
                      }
+                     invalidate_spatial_trace();
                      QTimer::singleShot(0, &dialog, [&] {
                        if (rebuilding_applied_list) {
                          return;

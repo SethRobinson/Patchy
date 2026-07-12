@@ -656,9 +656,14 @@ FilterRegistry::render(const FilterInvocation &invocation,
 FilterRenderResult
 FilterRegistry::render(const FilterRecipe &recipe, const PixelBuffer &original,
                        Rect bounds, bool allow_output_expansion,
-                       const FilterProgress *progress) const {
+                       const FilterProgress *progress,
+                       FilterRecipeRenderTrace *trace) const {
   if (!supports(recipe)) {
     throw std::invalid_argument("Unsupported filter recipe");
+  }
+  if (trace != nullptr) {
+    trace->entry_input_bounds.clear();
+    trace->entry_input_bounds.reserve(recipe.entries.size());
   }
   FilterRenderResult current{original, bounds};
   const auto effective_count = static_cast<int>(std::count_if(
@@ -668,6 +673,9 @@ FilterRegistry::render(const FilterRecipe &recipe, const PixelBuffer &original,
       }));
   int phase = 0;
   for (const auto &entry : recipe.entries) {
+    if (trace != nullptr) {
+      trace->entry_input_bounds.push_back(current.bounds);
+    }
     if (!entry.enabled || entry.opacity <= 0.0) {
       continue;
     }

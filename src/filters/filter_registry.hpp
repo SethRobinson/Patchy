@@ -121,6 +121,12 @@ struct FilterRenderResult {
   Rect bounds{};
 };
 
+struct FilterRecipeRenderTrace {
+  // One entry per recipe item, including disabled and zero-opacity items. Each
+  // rectangle is the document-space buffer that item would receive.
+  std::vector<Rect> entry_input_bounds;
+};
+
 class FilterRegistry;
 
 using PixelFilterFn = std::function<void(PixelBuffer &)>;
@@ -192,7 +198,8 @@ public:
   [[nodiscard]] FilterRenderResult
   render(const FilterRecipe &recipe, const PixelBuffer &original, Rect bounds,
          bool allow_output_expansion = true,
-         const FilterProgress *progress = nullptr) const;
+         const FilterProgress *progress = nullptr,
+         FilterRecipeRenderTrace *trace = nullptr) const;
 
 private:
   std::vector<FilterDefinition> filters_;
