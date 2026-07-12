@@ -647,6 +647,31 @@
         <translation>設定</translation>
     </message>
     <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="598"/>
+        <source>Saved Looks</source>
+        <translation>保存済みルック</translation>
+    </message>
+    <message>
+        <location line="+11"/>
+        <source>Save Look...</source>
+        <translation>ルックを保存...</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Rename...</source>
+        <translation>名前を変更...</translation>
+    </message>
+    <message>
+        <location line="+171"/>
+        <source>Apply this saved Look</source>
+        <translation>この保存済みルックを適用します</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>This Look uses filters or settings that this version of Patchy cannot apply.</source>
+        <translation>このルックには、このバージョンの Patchy では適用できないフィルターまたは設定が含まれています。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="478"/>
         <source>Favorite filter</source>
         <translation>お気に入りフィルター</translation>
@@ -655,6 +680,26 @@
         <location line="+1"/>
         <source>Add or remove this filter from Favorites</source>
         <translation>このフィルターをお気に入りに追加、またはお気に入りから削除します</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="672"/>
+        <source>Applied Effects</source>
+        <translation>適用エフェクト</translation>
+    </message>
+    <message>
+        <location line="+22"/>
+        <source>Duplicate the selected effect</source>
+        <translation>選択したエフェクトを複製します</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Remove</source>
+        <translation>削除</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Remove the selected effect</source>
+        <translation>選択したエフェクトを削除します</translation>
     </message>
     <message>
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="334"/>
@@ -680,6 +725,81 @@
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="670"/>
         <source>Choose a filter to adjust its settings.</source>
         <translation>設定を調整するフィルターを選択してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="1836"/>
+        <source>Look name:</source>
+        <translation>ルック名:</translation>
+    </message>
+    <message>
+        <location line="+17"/>
+        <source>Enter a name for the Look.</source>
+        <translation>ルック名を入力してください。</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>This Look cannot be saved.</source>
+        <translation>このルックは保存できません。</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>The selected Look no longer exists.</source>
+        <translation>選択したルックはもう存在しません。</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Could not %1 the Look. Check that the Looks folder is writable.</source>
+        <translation>ルックを%1できませんでした。ルックフォルダーが書き込み可能か確認してください。</translation>
+    </message>
+    <message>
+        <location line="+28"/>
+        <source>Unsupported Look</source>
+        <translation>未対応のルック</translation>
+    </message>
+    <message>
+        <location line="+31"/>
+        <source>Save Look</source>
+        <translation>ルックを保存</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Save</source>
+        <translation>保存</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>save</source>
+        <translation>保存</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>Rename Look</source>
+        <translation>ルック名を変更</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Rename</source>
+        <translation>名前を変更</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>rename</source>
+        <translation>名前変更</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>Delete Look</source>
+        <translation>ルックを削除</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Delete Look &quot;%1&quot;?</source>
+        <translation>ルック「%1」を削除しますか？</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>delete</source>
+        <translation>削除</translation>
     </message>
     <message>
         <location filename="../src/ui/zoomable_image_preview.cpp" line="136"/>
@@ -8615,6 +8735,11 @@ To update, paste this into a terminal:
         <location filename="../src/ui/main_window_adjustments.cpp" line="842"/>
         <source>No visual filter applied</source>
         <translation>ビジュアルフィルターは適用されませんでした</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="889"/>
+        <source>Visual Filter Stack</source>
+        <translation>ビジュアルフィルタースタック</translation>
     </message>
     <message>
         <location line="-37"/>

@@ -187,8 +187,8 @@ Rect union_bounds(Rect left, Rect right) {
               static_cast<std::int32_t>(y2 - y1)};
 }
 
-FilterRenderResult blend_recipe_result(const FilterRenderResult &before,
-                                       const FilterRenderResult &filtered,
+FilterRenderResult blend_recipe_result(FilterRenderResult before,
+                                       FilterRenderResult filtered,
                                        double opacity, BlendMode blend_mode) {
   if (opacity <= 0.0) {
     return before;
@@ -200,25 +200,35 @@ FilterRenderResult blend_recipe_result(const FilterRenderResult &before,
     throw std::invalid_argument("Filter recipe changed the pixel format");
   }
 
+  constexpr std::uint64_t kOpacityScale = 65535U;
+  const auto effect_weight = static_cast<std::uint64_t>(
+      std::llround(std::clamp(opacity, 0.0, 1.0) *
+                   static_cast<double>(kOpacityScale)));
+  if (effect_weight == 0U) {
+    return before;
+  }
+
   const auto bounds = union_bounds(before.bounds, filtered.bounds);
-  PixelBuffer destination(bounds.width, bounds.height, before.pixels.format());
-  PixelBuffer source(bounds.width, bounds.height, before.pixels.format());
-  destination.clear(0);
-  source.clear(0);
-  blit_buffer(destination, before.pixels, before.bounds.x - bounds.x,
-              before.bounds.y - bounds.y);
-  blit_buffer(source, filtered.pixels, filtered.bounds.x - bounds.x,
-              filtered.bounds.y - bounds.y);
+  const auto align_to_bounds = [bounds](FilterRenderResult result) {
+    if (result.bounds.x == bounds.x && result.bounds.y == bounds.y &&
+        result.bounds.width == bounds.width &&
+        result.bounds.height == bounds.height) {
+      return std::move(result.pixels);
+    }
+    PixelBuffer aligned(bounds.width, bounds.height, result.pixels.format());
+    aligned.clear(0);
+    blit_buffer(aligned, result.pixels, result.bounds.x - bounds.x,
+                result.bounds.y - bounds.y);
+    return aligned;
+  };
+  auto destination = align_to_bounds(std::move(before));
+  auto source = align_to_bounds(std::move(filtered));
 
   // A recipe filter is an alternate result for the entry's input, not a new
   // layer composited over it. Interpolate the two complete premultiplied
   // results so equal alphas stay equal and an alpha-changing filter moves
   // linearly toward its result. The fixed-point weight makes the rounding path
   // independent of the platform's float evaluation details.
-  constexpr std::uint64_t kOpacityScale = 65535U;
-  const auto effect_weight = static_cast<std::uint64_t>(
-      std::llround(std::clamp(opacity, 0.0, 1.0) *
-                   static_cast<double>(kOpacityScale)));
   const auto before_weight = kOpacityScale - effect_weight;
   const auto color_channels =
       std::min<std::uint16_t>(destination.format().channels, 3);
@@ -287,7 +297,8 @@ PixelBuffer pad_buffer_transparent(const PixelBuffer &source, int margin) {
   return padded;
 }
 
-Rect trim_transparent_border(PixelBuffer &buffer, Rect bounds) {
+Rect trim_transparent_border(PixelBuffer &buffer, Rect bounds,
+                             Rect empty_result_bounds) {
   if (buffer.format().channels < 4 || buffer.empty()) {
     return bounds;
   }
@@ -305,9 +316,34 @@ Rect trim_transparent_border(PixelBuffer &buffer, Rect bounds) {
       }
     }
   }
-  if (max_x < min_x || max_y < min_y ||
-      (min_x == 0 && min_y == 0 && max_x == buffer.width() - 1 &&
-       max_y == buffer.height() - 1)) {
+  if (max_x < min_x || max_y < min_y) {
+    const auto local_x = static_cast<std::int64_t>(empty_result_bounds.x) -
+                         static_cast<std::int64_t>(bounds.x);
+    const auto local_y = static_cast<std::int64_t>(empty_result_bounds.y) -
+                         static_cast<std::int64_t>(bounds.y);
+    const auto right = local_x + empty_result_bounds.width;
+    const auto bottom = local_y + empty_result_bounds.height;
+    if (!empty_result_bounds.empty() && local_x >= 0 && local_y >= 0 &&
+        right <= buffer.width() && bottom <= buffer.height()) {
+      PixelBuffer cropped(empty_result_bounds.width, empty_result_bounds.height,
+                          buffer.format());
+      const auto row_bytes =
+          static_cast<std::size_t>(empty_result_bounds.width) *
+          bytes_per_pixel(buffer.format());
+      for (std::int32_t y = 0; y < empty_result_bounds.height; ++y) {
+        const auto *source_row = buffer.pixel(
+            static_cast<std::int32_t>(local_x),
+            static_cast<std::int32_t>(local_y) + y);
+        auto *destination_row = cropped.pixel(0, y);
+        std::copy(source_row, source_row + row_bytes, destination_row);
+      }
+      buffer = std::move(cropped);
+      return empty_result_bounds;
+    }
+    return bounds;
+  }
+  if (min_x == 0 && min_y == 0 && max_x == buffer.width() - 1 &&
+      max_y == buffer.height() - 1) {
     return bounds;
   }
 
@@ -451,6 +487,26 @@ FilterRegistry::scale(const FilterInvocation &invocation,
   return scaled;
 }
 
+std::optional<FilterRecipe>
+FilterRegistry::scale(const FilterRecipe &recipe, double spatial_scale) const {
+  if (!std::isfinite(spatial_scale) || spatial_scale <= 0.0 ||
+      !supports(recipe)) {
+    return std::nullopt;
+  }
+  FilterRecipe scaled;
+  scaled.entries.reserve(recipe.entries.size());
+  for (const auto &entry : recipe.entries) {
+    auto invocation = scale(entry.invocation, spatial_scale);
+    if (!invocation.has_value()) {
+      return std::nullopt;
+    }
+    auto scaled_entry = entry;
+    scaled_entry.invocation = std::move(*invocation);
+    scaled.entries.push_back(std::move(scaled_entry));
+  }
+  return scaled;
+}
+
 void FilterRegistry::apply(const FilterInvocation &invocation,
                            PixelBuffer &pixels,
                            const FilterProgress *progress) const {
@@ -480,27 +536,31 @@ void FilterRegistry::apply(const FilterRecipe &recipe, PixelBuffer &pixels,
   if (!supports(recipe)) {
     throw std::invalid_argument("Unsupported filter recipe");
   }
-  const auto enabled_count = static_cast<int>(std::count_if(
+  const auto effective_count = static_cast<int>(std::count_if(
       recipe.entries.begin(), recipe.entries.end(),
-      [](const FilterRecipeEntry &entry) { return entry.enabled; }));
+      [](const FilterRecipeEntry &entry) {
+        return entry.enabled && entry.opacity > 0.0;
+      }));
   int phase = 0;
   for (const auto &entry : recipe.entries) {
-    if (!entry.enabled) {
+    if (!entry.enabled || entry.opacity <= 0.0) {
       continue;
     }
-    const auto before = pixels;
     auto entry_progress =
-        filter_progress_phase(progress, phase++, std::max(1, enabled_count));
-    apply(entry.invocation, pixels, &entry_progress);
-    if (entry.opacity <= 0.0) {
-      pixels = before;
-    } else if (entry.opacity < 1.0 || entry.blend_mode != BlendMode::Normal) {
-      const Rect bounds{0, 0, pixels.width(), pixels.height()};
-      auto blended = blend_recipe_result(FilterRenderResult{before, bounds},
-                                         FilterRenderResult{pixels, bounds},
-                                         entry.opacity, entry.blend_mode);
-      pixels = std::move(blended.pixels);
+        filter_progress_phase(progress, phase++, std::max(1, effective_count));
+    if (entry.opacity >= 1.0 && entry.blend_mode == BlendMode::Normal) {
+      apply(entry.invocation, pixels, &entry_progress);
+      continue;
     }
+
+    auto before = pixels;
+    apply(entry.invocation, pixels, &entry_progress);
+    const Rect bounds{0, 0, pixels.width(), pixels.height()};
+    auto blended = blend_recipe_result(
+        FilterRenderResult{std::move(before), bounds},
+        FilterRenderResult{std::move(pixels), bounds}, entry.opacity,
+        entry.blend_mode);
+    pixels = std::move(blended.pixels);
   }
 }
 
@@ -528,6 +588,28 @@ std::optional<int> FilterRegistry::translation_invariant_support(
   return filter != nullptr && filter->catalog.translation_support
              ? filter->catalog.translation_support(*normalized)
              : std::nullopt;
+}
+
+std::optional<int> FilterRegistry::translation_invariant_support(
+    const FilterRecipe &recipe) const {
+  if (!supports(recipe)) {
+    return std::nullopt;
+  }
+  std::int64_t total = 0;
+  for (const auto &entry : recipe.entries) {
+    if (!entry.enabled || entry.opacity <= 0.0) {
+      continue;
+    }
+    const auto support = translation_invariant_support(entry.invocation);
+    if (!support.has_value() || *support < 0) {
+      return std::nullopt;
+    }
+    total += *support;
+    if (total > std::numeric_limits<int>::max()) {
+      return std::nullopt;
+    }
+  }
+  return static_cast<int>(total);
 }
 
 FilterRenderResult
@@ -567,7 +649,7 @@ FilterRegistry::render(const FilterInvocation &invocation,
   const Rect grown{static_cast<std::int32_t>(grown_x),
                    static_cast<std::int32_t>(grown_y), pixels.width(),
                    pixels.height()};
-  const auto trimmed = trim_transparent_border(pixels, grown);
+  const auto trimmed = trim_transparent_border(pixels, grown, bounds);
   return FilterRenderResult{std::move(pixels), trimmed};
 }
 
@@ -579,21 +661,27 @@ FilterRegistry::render(const FilterRecipe &recipe, const PixelBuffer &original,
     throw std::invalid_argument("Unsupported filter recipe");
   }
   FilterRenderResult current{original, bounds};
-  const auto enabled_count = static_cast<int>(std::count_if(
+  const auto effective_count = static_cast<int>(std::count_if(
       recipe.entries.begin(), recipe.entries.end(),
-      [](const FilterRecipeEntry &entry) { return entry.enabled; }));
+      [](const FilterRecipeEntry &entry) {
+        return entry.enabled && entry.opacity > 0.0;
+      }));
   int phase = 0;
   for (const auto &entry : recipe.entries) {
-    if (!entry.enabled) {
+    if (!entry.enabled || entry.opacity <= 0.0) {
       continue;
     }
     auto entry_progress =
-        filter_progress_phase(progress, phase++, std::max(1, enabled_count));
-    const auto filtered =
+        filter_progress_phase(progress, phase++, std::max(1, effective_count));
+    auto filtered =
         render(entry.invocation, current.pixels, current.bounds,
                allow_output_expansion, &entry_progress);
-    current =
-        blend_recipe_result(current, filtered, entry.opacity, entry.blend_mode);
+    if (entry.opacity >= 1.0 && entry.blend_mode == BlendMode::Normal) {
+      current = std::move(filtered);
+    } else {
+      current = blend_recipe_result(std::move(current), std::move(filtered),
+                                    entry.opacity, entry.blend_mode);
+    }
   }
   return current;
 }

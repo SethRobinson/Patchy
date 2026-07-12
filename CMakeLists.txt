@@ -410,6 +410,8 @@ if(PATCHY_BUILD_APP)
       src/ui/curves_presets.hpp
       src/ui/curves_presets.cpp
       src/ui/filter_workflows.cpp
+      src/ui/filter_look_library.hpp
+      src/ui/filter_look_library.cpp
       src/ui/visual_filter_gallery_dialog.hpp
       src/ui/visual_filter_gallery_dialog.cpp
       src/ui/filter_gallery_controls.hpp

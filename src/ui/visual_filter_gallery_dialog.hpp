@@ -11,6 +11,8 @@ class QWidget;
 
 namespace patchy::ui {
 
+class FilterLookLibrary;
+
 enum class VisualFilterGalleryOutcome {
   Cancelled,
   Original,
@@ -19,24 +21,25 @@ enum class VisualFilterGalleryOutcome {
 
 struct VisualFilterGalleryResult {
   VisualFilterGalleryOutcome outcome{VisualFilterGalleryOutcome::Cancelled};
-  std::optional<FilterInvocation> invocation;
+  std::optional<FilterRecipe> recipe;
 };
 
 struct VisualFilterGalleryPreview {
   bool canvas_enabled{true};
-  std::optional<FilterInvocation> invocation;
+  std::optional<FilterRecipe> recipe;
 };
 
 using VisualFilterGalleryPreviewCallback =
     std::function<void(const VisualFilterGalleryPreview&)>;
 
 // Presents every catalogued Filter-menu effect over an immutable, bounded
-// proxy of the supplied layer pixels. A null preview invocation means Original;
+// proxy of the supplied layer pixels. A null preview recipe means Original;
 // the result outcome distinguishes accepting Original from cancelling.
 [[nodiscard]] VisualFilterGalleryResult request_visual_filter_gallery(
     QWidget* parent, const PixelBuffer& immutable_original, Rect bounds,
     const QRegion& selection, const FilterRegistry& registry,
     RgbColor foreground, RgbColor background,
-    VisualFilterGalleryPreviewCallback preview_changed = {});
+    VisualFilterGalleryPreviewCallback preview_changed = {},
+    FilterLookLibrary* look_library = nullptr);
 
 }  // namespace patchy::ui

@@ -766,7 +766,7 @@ void MainWindow::visual_filter_gallery_dialog() {
 
   try {
     auto preview_registry = std::make_shared<const FilterRegistry>(filters_);
-    using PreviewState = LatestCancellablePixelPreviewState<FilterInvocation>;
+    using PreviewState = LatestCancellablePixelPreviewState<FilterRecipe>;
     auto preview_state = std::make_shared<PreviewState>();
     preview_state->start =
         [this, preview_state, preview_registry, original_pixels, selection, bounds, session_id, layer_id,
@@ -781,7 +781,7 @@ void MainWindow::visual_filter_gallery_dialog() {
           const auto generation = work.generation;
           std::thread([app, window, preview_state, preview_registry, original_pixels, selection, bounds, session_id,
                        layer_id, last_preview_bounds, preview_shows_original, target_canvas, generation,
-                       invocation = std::move(work.request), result, result_bounds, error, cancelled] {
+                       recipe = std::move(work.request), result, result_bounds, error, cancelled] {
             FilterProgress cancellation_progress{
                 [preview_state, generation](int, int, FilterProgressStage) {
                   return preview_state->generation.load(std::memory_order_acquire) == generation;
@@ -789,7 +789,7 @@ void MainWindow::visual_filter_gallery_dialog() {
             try {
               *result = build_filter_preview_pixels(
                   *original_pixels, selection, bounds, *preview_registry,
-                  FilterPreviewSettings{true, std::move(invocation)}, &cancellation_progress, &*result_bounds);
+                  recipe, &cancellation_progress, &*result_bounds);
             } catch (const FilterCancelled&) {
               *cancelled = true;
             } catch (const std::exception& caught) {
@@ -836,12 +836,12 @@ void MainWindow::visual_filter_gallery_dialog() {
         };
 
     const auto preview_changed = [preview_state, restore_original](const VisualFilterGalleryPreview& preview) {
-      if (!preview.canvas_enabled || !preview.invocation.has_value()) {
+      if (!preview.canvas_enabled || !preview.recipe.has_value()) {
         cancel_latest_cancellable_pixel_preview(preview_state);
         restore_original();
         return;
       }
-      enqueue_latest_cancellable_pixel_preview(preview_state, *preview.invocation);
+      enqueue_latest_cancellable_pixel_preview(preview_state, *preview.recipe);
     };
 
     auto preview_edit_lock = lock_preview_dialog_edits();
@@ -861,18 +861,33 @@ void MainWindow::visual_filter_gallery_dialog() {
       statusBar()->showMessage(tr("Cancelled Visual Filters & Looks"));
       return;
     }
-    if (result.outcome == VisualFilterGalleryOutcome::Original || !result.invocation.has_value()) {
+    if (result.outcome == VisualFilterGalleryOutcome::Original || !result.recipe.has_value()) {
       statusBar()->showMessage(tr("No visual filter applied"));
       return;
     }
-    if (!filters_.supports(*result.invocation)) {
-      throw std::invalid_argument("Unsupported visual filter invocation");
+    if (!filters_.supports(*result.recipe)) {
+      throw std::invalid_argument("Unsupported visual filter recipe");
     }
-    const auto* filter = filters_.find(result.invocation->filter_id);
-    if (filter == nullptr) {
-      throw std::invalid_argument("Unknown visual filter identifier");
+    const auto enabled_effect_count = std::count_if(
+        result.recipe->entries.begin(), result.recipe->entries.end(),
+        [](const FilterRecipeEntry& entry) {
+          return entry.enabled && entry.opacity > 0.0;
+        });
+    if (enabled_effect_count == 0) {
+      statusBar()->showMessage(tr("No visual filter applied"));
+      return;
     }
-    const auto display_name = filter_display_name(*filter);
+    QString display_name;
+    if (result.recipe->entries.size() == 1) {
+      if (const auto* filter =
+              filters_.find(result.recipe->entries.front().invocation.filter_id);
+          filter != nullptr) {
+        display_name = filter_display_name(*filter);
+      }
+    }
+    if (display_name.isEmpty()) {
+      display_name = tr("Visual Filter Stack");
+    }
 
     if (target_canvas != nullptr) {
       target_canvas->begin_processing_operation();
@@ -907,7 +922,7 @@ void MainWindow::visual_filter_gallery_dialog() {
     try {
       final_result.bounds = bounds;
       final_result.pixels = build_filter_preview_pixels(
-          *original_pixels, selection, bounds, filters_, FilterPreviewSettings{true, *result.invocation},
+          *original_pixels, selection, bounds, filters_, *result.recipe,
           &filter_progress, &final_result.bounds);
       snap_filter_result_to_palette(final_result.pixels, final_result.bounds, selection,
                                     target_canvas != nullptr ? target_canvas->palette_snap_context() : nullptr);

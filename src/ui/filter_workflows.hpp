@@ -136,6 +136,9 @@ using FilterCancelled = ::patchy::FilterCancelled;
 [[nodiscard]] PixelBuffer build_filter_preview_pixels(
     const PixelBuffer& original, const QRegion& selection, Rect bounds, const FilterRegistry& registry,
     const FilterPreviewSettings& settings, const FilterProgress* progress = nullptr, Rect* result_bounds = nullptr);
+[[nodiscard]] PixelBuffer build_filter_preview_pixels(
+    const PixelBuffer& original, const QRegion& selection, Rect bounds, const FilterRegistry& registry,
+    const FilterRecipe& recipe, const FilterProgress* progress = nullptr, Rect* result_bounds = nullptr);
 [[nodiscard]] bool pixel_buffers_equal(const PixelBuffer& lhs, const PixelBuffer& rhs);
 [[nodiscard]] bool editable_rgb8_layer(const Layer* layer);
 void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings,

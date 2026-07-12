@@ -169,6 +169,8 @@ public:
   normalize(const FilterInvocation &invocation) const;
   [[nodiscard]] std::optional<FilterInvocation>
   scale(const FilterInvocation &invocation, double spatial_scale) const;
+  [[nodiscard]] std::optional<FilterRecipe>
+  scale(const FilterRecipe &recipe, double spatial_scale) const;
   void apply(const FilterInvocation &invocation, PixelBuffer &pixels,
              const FilterProgress *progress = nullptr) const;
 
@@ -181,6 +183,8 @@ public:
                                   std::int32_t height) const;
   [[nodiscard]] std::optional<int>
   translation_invariant_support(const FilterInvocation &invocation) const;
+  [[nodiscard]] std::optional<int>
+  translation_invariant_support(const FilterRecipe &recipe) const;
   [[nodiscard]] FilterRenderResult
   render(const FilterInvocation &invocation, const PixelBuffer &original,
          Rect bounds, bool allow_output_expansion = true,

@@ -116,7 +116,7 @@ Human-readable catalog names are canonical English translation sources. UI code 
 
 Original is a UI sentinel, not a filter ID or persisted invocation. It remains visible at the top of every category and search view. Real items carry their exact built-in ID in `Qt::UserRole + 1`; Original carries an empty value. The gallery pre-creates all items in catalog order and filters them in place instead of rebuilding or sorting the list.
 
-Search is case-insensitive and localized. It matches the translated filter name, canonical English filter name, translated category name, and stable category token with underscores treated as spaces. Original stays visible when no real effect matches. Filtering the rows does not render an effect. If a search, category, or favorite change hides the selected filter, selection returns to Original and follows the normal Original preview path.
+Search is case-insensitive and localized. It matches the translated filter name, canonical English filter name, translated category name, and stable category token with underscores treated as spaces. Original stays visible when no real effect matches. Filtering the catalog rows does not render an effect or change the applied stack. If a search, category, or favorite change hides the selected catalog filter, the catalog selection returns to Original without clearing the active recipe. Explicitly clicking that Original row still clears the recipe, even when it was already selected by filtering.
 
 Favorites are stored by stable filter ID and follow catalog order. Loading discards missing IDs and duplicate entries, then rewrites the cleaned list. Toggling a favorite writes immediately and is a harmless library preference, so Cancel does not undo it. The Favorites view may contain no real effects; Original still provides a safe no-op selection.
 
@@ -132,19 +132,21 @@ The gallery settings keys are fixed:
 
 Unknown category tokens fall back to `all`. A saved filter is restored only when it still exists and is visible in the restored view. Saved sizes are accepted only from 880 by 560 through 3200 by 2400 pixels; the default is 1120 by 720. Search text, zoom, pan, and parameter edits are session-only.
 
-The gallery's automation contracts include `filterGalleryDialog`, `filterGallerySearchEdit`, `filterGalleryCategoryCombo`, `filterGalleryLooksList`, `filterGalleryEmptyLabel`, `filterGalleryPreview`, `filterGalleryParameters`, `filterGalleryParameterEditor`, `filterGalleryFavoriteButton`, `filterGalleryCanvasPreviewCheck`, `filterGalleryBeforeButton`, `filterGalleryStatusLabel`, `filterGalleryButtonBox`, and the `filterGalleryZoom*` controls. Catalog-generated controls keep their catalog object-name roots. The gallery assigns `filterAngleDial` and `filterWaveformControl` to its two specialized widgets. The center/radius overlay is part of `filterGalleryPreview`, not a separate child widget.
+The gallery's automation contracts include `filterGalleryDialog`, `filterGallerySearchEdit`, `filterGalleryCategoryCombo`, `filterGalleryLooksList`, `filterGalleryEmptyLabel`, `filterGalleryPreview`, `filterGalleryParameters`, `filterGalleryParameterEditor`, `filterGalleryFavoriteButton`, `filterGalleryCanvasPreviewCheck`, `filterGalleryBeforeButton`, `filterGalleryStatusLabel`, `filterGalleryButtonBox`, and the `filterGalleryZoom*` controls. The stack controls are `filterGalleryAppliedEffects`, `filterGalleryAppliedEffectsList`, `filterGalleryDuplicateEffectButton`, and `filterGalleryRemoveEffectButton`. Saved Look controls are `filterGallerySavedLooks`, `filterGallerySavedLooksCombo`, `filterGallerySaveLookButton`, `filterGalleryRenameLookButton`, and `filterGalleryDeleteLookButton`. Catalog-generated controls keep their catalog object-name roots. The gallery assigns `filterAngleDial` and `filterWaveformControl` to its two specialized widgets. The center/radius overlay is part of `filterGalleryPreview`, not a separate child widget.
 
 The angle dial appears for Motion Blur, Emboss, and Twirl. It is synchronized with the standard numeric controls. Its hand wraps visually, but Twirl retains the full `-720` through `720` degree value. The Wave graph synchronizes amplitude, wavelength, and phase while retaining all three numeric controls. Horizontal dragging changes phase, vertical dragging changes amplitude, and the wheel changes wavelength.
 
 Radial Blur, Twirl, Pinch/Bloat, and Lens Vignette declare `center_x` and `center_y` as doubles from 0.0 through 100.0, with defaults of 50.0 and steps of 0.1. Their roles are `CenterXPercent` and `CenterYPercent`. The preview draws a draggable crosshair for these filters. Dragged values are quantized to the declared step before both the editor and invocation are updated. Twirl and Pinch/Bloat also mark their integer `radius` as `EffectRadiusPercent`, so the overlay adds a draggable radius circle and handle. Normal pan and zoom remain active when a drag does not begin near one of those handles. Spatial drags move the overlay and numeric values immediately, but a size-changing center proxy is adopted only after release so its coordinate system cannot jump under the pointer.
 
-Thumbnail and center-preview work always starts from an immutable copy of the active layer. The center proxy has a maximum dimension of 640 pixels and the thumbnail proxy has a maximum dimension of 180 pixels. Both use bounded premultiplied bilinear resampling and a correspondingly scaled selection. Pixel-distance parameters are scaled through `FilterRegistry::scale`; percentages, angles, sample counts, centers, and captured colors do not scale. Final canvas preview and Apply always use the unscaled invocation at full layer resolution. Returning to the same effect after viewing another must reproduce the same pixels, never a cumulative re-filtering of an earlier preview.
+Thumbnail and center-preview work always starts from an immutable copy of the active layer. The center proxy has a maximum dimension of 640 pixels and the thumbnail proxy has a maximum dimension of 180 pixels. Both use bounded premultiplied bilinear resampling and a correspondingly scaled selection. Pixel-distance parameters are scaled through `FilterRegistry::scale`; percentages, angles, sample counts, centers, and captured colors do not scale. Final canvas preview and Apply always use the unscaled recipe at full layer resolution. Returning to the same effect after viewing another must reproduce the same pixels, never a cumulative re-filtering of an earlier preview.
+
+Catalog thumbnails remain single-filter previews. The center and live-canvas previews render the complete applied recipe from the immutable original. A stack with more than one entry hides the center/radius overlay because a preceding entry may have changed the proxy bounds. Numeric controls remain available for every active entry.
 
 Thumbnail icons are 128 by 78 pixels. Original is available immediately. Missing thumbnails are generated lazily, one visible filter per timer turn, and the per-dialog ready flag prevents repeat work. Hidden rows are skipped. Selecting and editing a filter refreshes that row's icon from the current invocation. The cache is session-local and is not persisted across gallery openings. Category, search, and favorite changes prioritize newly visible missing thumbnails without invalidating completed ones.
 
 Full-resolution live-canvas preview requests carry monotonically increasing generations. A finished worker may update the canvas only when it is still the newest generation and the dialog remains open. At most one request runs while the latest pending request replaces older pending work. Closing the dialog invalidates every unfinished result. The bounded center preview uses the same latest-generation rule on its own worker, cooperatively cancels obsolete work, and is debounced before dispatch. Thumbnail work stays bounded to the 180-pixel proxy and advances one effect per event-loop turn. The momentary Before button aligns the immutable source to the current expanded result bounds, preserving zoom and pan while it is held; it does not change the live canvas preview. Live Canvas Preview is enabled by default and can restore or reapply the current full-resolution result without changing the dialog selection.
 
-Cancel restores the active layer's original pixels and document-space bounds exactly, adds no undo entry, and does not mark a previously clean document modified. Apply renders once more from the immutable original, commits one destructive transaction, and creates one undo entry. Undo and Redo restore both pixels and bounds. Original and identity results close without creating a no-op undo entry.
+Cancel restores the active layer's original pixels and document-space bounds exactly, adds no undo entry, and does not mark a previously clean document modified. Apply renders the complete recipe once more from the immutable original, commits one destructive transaction, and creates one undo entry. Undo and Redo restore both pixels and bounds. Original, an empty recipe, and a recipe with no enabled nonzero-opacity entries close without creating a no-op undo entry.
 
 ## Spatial scaling and bounds
 
@@ -191,7 +193,49 @@ Foreground and background colors are copied into every invocation when it is cre
 
 Recipe opacity is a finite double from 0 through 1. An out-of-range or non-finite opacity makes the recipe unsupported. The default is enabled, opacity 1, Normal blend mode. Recipe execution is deterministic and starts from its supplied immutable source; callers must not build a preview cumulatively from an earlier preview.
 
-User Look JSON is a later gallery checkpoint. When added, use one UUID-named version-1 JSON record per Look, strict type/shape validation, and `QSaveFile` for atomic replacement. A malformed record is skipped without hiding or modifying other records.
+The applied-effects list displays the final effect at the top, opposite the stored execution order. Reading a reordered list therefore rebuilds the recipe from the bottom visual row to the top. Each dialog entry has a transient numeric identity so duplicate entries remain independent even when they share the same filter ID and parameters. This identity is never persisted.
+
+Selecting the first catalog filter creates the first recipe entry. Selecting another catalog filter replaces the active recipe entry. Duplicate inserts a separate copy immediately after the active entry in execution order, which places it immediately above the source entry in the visual list. Remove selects the nearest remaining visual row. Original clears the recipe. Enable, duplicate, remove, reorder, Reset, and parameter edits affect only the applied stack; category, search, and Favorites changes do not.
+
+Scaling a recipe returns a normalized copy and retains entry order, enable state, opacity, blend mode, and captured colors. Aggregate translation support is the checked sum of enabled, nonzero-opacity entry support. Unknown support from any executed entry makes the aggregate unknown. Zero-opacity entries are still validated as part of the persistence contract, but they do not execute, expand bounds, report progress, or affect aggregate support.
+
+When a selection exists, the complete recipe runs against one immutable source and the wrapper restores pixels outside the selection once after the final entry. Restoring outside pixels after each entry changes spatial-filter results near the selection edge and is not allowed. A fully transparent expanded result returns to the input rectangle instead of growing empty bounds once per filter.
+
+## Saved Looks
+
+User Looks live as independent files under `<settings directory>/looks/<uuid>.json`. The lowercase canonical UUID is the stable preset ID and filename stem. Save creates a fresh UUID, Rename keeps it, and Delete removes its one record. These library operations take effect immediately and are not rolled back when the gallery is cancelled.
+
+Each record uses this version-1 shape:
+
+```json
+{
+  "version": 1,
+  "id": "01234567-89ab-4cde-8123-456789abcdef",
+  "name": "My Look",
+  "recipe": {
+    "entries": [
+      {
+        "enabled": true,
+        "opacity": 1.0,
+        "blendMode": "normal",
+        "invocation": {
+          "filterId": "patchy.filters.soft_glow",
+          "schemaVersion": 1,
+          "parameters": {
+            "amount": {"type": "integer", "value": 75}
+          },
+          "foreground": {"red": 0, "green": 0, "blue": 0},
+          "background": {"red": 255, "green": 255, "blue": 255}
+        }
+      }
+    ]
+  }
+}
+```
+
+Parameter values carry an explicit `integer`, `double`, `boolean`, or `string` type. Blend modes use the stable full Photoshop descriptor string tokens, never enum ordinals or translated names. Entry array order is execution order. Colors are required even when the current filter does not use them, so later rendering never reads the toolbar swatches.
+
+Writes use `QSaveFile`, and in-memory state changes only after the atomic commit succeeds. Loading is strict and bounded to 1 MiB per file, 64 entries per recipe, and 64 parameters per entry. It rejects malformed JSON, unsupported record versions, filename/record UUID mismatches, invalid UTF-8, invalid value types, non-finite or out-of-range opacity, invalid colors, and unknown blend tokens. Unknown filter IDs and schema versions remain structurally valid records. They appear in the Saved Looks list disabled with an unsupported tooltip, and Patchy preserves them rather than substituting another filter. One malformed record is skipped without hiding, modifying, or deleting neighboring records.
 
 ## Regression coverage
 

@@ -3,10 +3,13 @@
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/filter_gallery_controls.hpp"
+#include "ui/filter_look_library.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/zoomable_image_preview.hpp"
 
 #include <QCheckBox>
+#include <QAbstractItemModel>
+#include <QAbstractItemView>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialog>
@@ -16,9 +19,11 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QImage>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPainter>
 #include <QPixmap>
 #include <QPointer>
@@ -27,6 +32,7 @@
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
+#include <QStandardItemModel>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -35,6 +41,7 @@
 #include <atomic>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -54,6 +61,7 @@ namespace {
 constexpr int kFilterIdRole = Qt::UserRole + 1;
 constexpr int kThumbnailReadyRole = Qt::UserRole + 2;
 constexpr int kFilterCategoryRole = Qt::UserRole + 3;
+constexpr int kRecipeEntryIdRole = Qt::UserRole + 4;
 constexpr int kMaximumProxyDimension = 640;
 constexpr int kMaximumThumbnailDimension = 180;
 
@@ -145,10 +153,17 @@ struct GalleryProxyRender {
   Rect bounds{};
 };
 
+struct GalleryRecipeEntry {
+  std::uint64_t ui_id{0};
+  FilterRecipeEntry value;
+};
+
 struct GalleryProxyPreviewState {
   struct Work {
     std::uint64_t generation{0};
-    FilterInvocation invocation;
+    FilterRecipe recipe;
+    std::uint64_t active_entry_id{0};
+    std::string active_filter_id;
   };
 
   bool closed{false};
@@ -156,19 +171,22 @@ struct GalleryProxyPreviewState {
   std::atomic<std::uint64_t> generation{0};
   std::optional<Work> pending;
   std::function<void(Work)> start;
-  std::function<void(GalleryProxyRender, std::string)> apply;
+  std::function<void(GalleryProxyRender, std::uint64_t, std::string)> apply;
   std::function<void(QString)> fail;
 };
 
 void enqueue_gallery_proxy_preview(
     const std::shared_ptr<GalleryProxyPreviewState>& state,
-    FilterInvocation invocation) {
+    FilterRecipe recipe, std::uint64_t active_entry_id,
+    std::string active_filter_id) {
   if (state == nullptr || state->closed || !state->start) {
     return;
   }
   const auto generation =
       state->generation.fetch_add(1, std::memory_order_acq_rel) + 1;
-  GalleryProxyPreviewState::Work work{generation, std::move(invocation)};
+  GalleryProxyPreviewState::Work work{
+      generation, std::move(recipe), active_entry_id,
+      std::move(active_filter_id)};
   if (state->in_flight) {
     state->pending = std::move(work);
     return;
@@ -358,6 +376,26 @@ void close_gallery_proxy_preview(
   return {image_from_pixels(pixels), result_bounds};
 }
 
+[[nodiscard]] GalleryProxyRender render_proxy(
+    const GalleryProxy& proxy, const FilterRegistry& registry,
+    const FilterRecipe& recipe, const FilterProgress* progress = nullptr) {
+  const auto local_bounds =
+      Rect::from_size(proxy.original.width(), proxy.original.height());
+  if (proxy.original.empty() || recipe.entries.empty() ||
+      (proxy.selection_restricted && proxy.selection.isEmpty())) {
+    return {image_from_pixels(proxy.original), local_bounds};
+  }
+  const auto scaled = registry.scale(recipe, proxy.spatial_scale);
+  if (!scaled.has_value()) {
+    return {image_from_pixels(proxy.original), local_bounds};
+  }
+  auto result_bounds = local_bounds;
+  auto pixels = build_filter_preview_pixels(
+      proxy.original, proxy.selection, local_bounds, registry, *scaled,
+      progress, &result_bounds);
+  return {image_from_pixels(pixels), result_bounds};
+}
+
 [[nodiscard]] QIcon thumbnail_icon(const QImage& source) {
   constexpr int width = 128;
   constexpr int height = 78;
@@ -399,7 +437,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     QWidget* parent, const PixelBuffer& immutable_original, Rect bounds,
     const QRegion& selection, const FilterRegistry& registry,
     RgbColor foreground, RgbColor background,
-    VisualFilterGalleryPreviewCallback preview_changed) {
+    VisualFilterGalleryPreviewCallback preview_changed,
+    FilterLookLibrary* look_library) {
   const auto proxy =
       make_gallery_proxy(immutable_original, bounds, selection,
                          kMaximumProxyDimension);
@@ -409,6 +448,10 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   const auto original_image = image_from_pixels(proxy.original);
   const auto original_thumbnail = image_from_pixels(thumbnail_proxy.original);
   const auto available_filters = gallery_filters(registry);
+  auto owned_look_library =
+      look_library == nullptr ? std::make_unique<FilterLookLibrary>() : nullptr;
+  auto& saved_look_library =
+      look_library != nullptr ? *look_library : *owned_look_library;
 
   auto settings = app_settings();
   std::set<std::string, std::less<>> favorite_ids;
@@ -550,6 +593,33 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   parameters->setFixedWidth(280);
   auto* parameter_layout = new QVBoxLayout(parameters);
   parameter_layout->setContentsMargins(10, 8, 10, 8);
+
+  auto* saved_looks_heading =
+      new QLabel(QObject::tr("Saved Looks"), parameters);
+  saved_looks_heading->setObjectName(
+      QStringLiteral("filterGallerySavedLooks"));
+  parameter_layout->addWidget(saved_looks_heading);
+  auto* saved_looks_combo = new QComboBox(parameters);
+  saved_looks_combo->setObjectName(
+      QStringLiteral("filterGallerySavedLooksCombo"));
+  parameter_layout->addWidget(saved_looks_combo);
+  auto* saved_look_actions = new QHBoxLayout();
+  saved_look_actions->setContentsMargins(0, 0, 0, 4);
+  saved_look_actions->setSpacing(5);
+  auto* save_look = new QPushButton(QObject::tr("Save Look..."), parameters);
+  save_look->setObjectName(QStringLiteral("filterGallerySaveLookButton"));
+  auto* rename_look =
+      new QPushButton(QObject::tr("Rename..."), parameters);
+  rename_look->setObjectName(
+      QStringLiteral("filterGalleryRenameLookButton"));
+  auto* delete_look = new QPushButton(QObject::tr("Delete"), parameters);
+  delete_look->setObjectName(
+      QStringLiteral("filterGalleryDeleteLookButton"));
+  saved_look_actions->addWidget(save_look);
+  saved_look_actions->addWidget(rename_look);
+  saved_look_actions->addWidget(delete_look);
+  parameter_layout->addLayout(saved_look_actions);
+
   auto* parameter_header = new QHBoxLayout();
   auto* parameter_heading = new QLabel(QObject::tr("Settings"), parameters);
   parameter_header->addWidget(parameter_heading);
@@ -566,7 +636,72 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   parameter_form_host->setObjectName(
       QStringLiteral("filterGalleryParameterEditor"));
   parameter_layout->addWidget(parameter_form_host);
-  parameter_layout->addStretch(1);
+
+  auto* applied_effects = new QWidget(parameters);
+  applied_effects->setObjectName(
+      QStringLiteral("filterGalleryAppliedEffects"));
+  auto* applied_layout = new QVBoxLayout(applied_effects);
+  applied_layout->setContentsMargins(0, 6, 0, 0);
+  applied_layout->setSpacing(5);
+  auto* applied_heading =
+      new QLabel(QObject::tr("Applied Effects"), applied_effects);
+  applied_layout->addWidget(applied_heading);
+  auto* applied_list = new QListWidget(applied_effects);
+  applied_list->setObjectName(
+      QStringLiteral("filterGalleryAppliedEffectsList"));
+  applied_list->setSelectionMode(QAbstractItemView::SingleSelection);
+  applied_list->setDragEnabled(true);
+  applied_list->setAcceptDrops(true);
+  applied_list->setDropIndicatorShown(true);
+  applied_list->setDragDropOverwriteMode(false);
+  applied_list->setDefaultDropAction(Qt::MoveAction);
+  applied_list->setDragDropMode(QAbstractItemView::InternalMove);
+  applied_list->setMinimumHeight(110);
+  // The application stylesheet hides QListWidget indicators globally because
+  // the Layers panel paints its own visibility controls. This list uses native
+  // item check states, so restore a compact, readable indicator locally.
+  applied_list->setStyleSheet(QStringLiteral(R"(
+    QListWidget#filterGalleryAppliedEffectsList::item {
+      min-height: 30px;
+      padding: 0 4px;
+    }
+    QListWidget#filterGalleryAppliedEffectsList::indicator {
+      width: 13px;
+      height: 13px;
+      min-width: 13px;
+      min-height: 13px;
+      max-width: 13px;
+      max-height: 13px;
+      margin-left: 4px;
+      margin-right: 5px;
+      background: #4a4a4a;
+      border: 1px solid #8a8a8a;
+    }
+    QListWidget#filterGalleryAppliedEffectsList::indicator:checked {
+      background: #1473e6;
+      border-color: #9ccfff;
+      image: url(:/patchy/icons/checkmark.svg);
+    }
+  )"));
+  applied_layout->addWidget(applied_list, 1);
+  auto* applied_actions = new QHBoxLayout();
+  applied_actions->setContentsMargins(0, 0, 0, 0);
+  applied_actions->setSpacing(6);
+  auto* duplicate_effect =
+      new QPushButton(QObject::tr("Duplicate"), applied_effects);
+  duplicate_effect->setObjectName(
+      QStringLiteral("filterGalleryDuplicateEffectButton"));
+  duplicate_effect->setToolTip(
+      QObject::tr("Duplicate the selected effect"));
+  applied_actions->addWidget(duplicate_effect);
+  auto* remove_effect =
+      new QPushButton(QObject::tr("Remove"), applied_effects);
+  remove_effect->setObjectName(
+      QStringLiteral("filterGalleryRemoveEffectButton"));
+  remove_effect->setToolTip(QObject::tr("Remove the selected effect"));
+  applied_actions->addWidget(remove_effect);
+  applied_layout->addLayout(applied_actions);
+  parameter_layout->addWidget(applied_effects, 1);
   content->addWidget(parameters);
 
   auto* footer = new QHBoxLayout();
@@ -584,15 +719,20 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   footer->addWidget(buttons);
   root->addLayout(footer);
 
-  std::map<std::string, FilterInvocation, std::less<>> invocations;
+  std::map<std::string, FilterInvocation, std::less<>> catalog_invocations;
   std::map<std::string, QListWidgetItem*, std::less<>> filter_items;
+  std::vector<GalleryRecipeEntry> recipe_entries;
+  std::uint64_t next_recipe_entry_id = 1;
+  std::optional<std::uint64_t> active_recipe_entry_id;
+  bool synchronizing_catalog = false;
+  bool rebuilding_applied_list = false;
   auto* original_item = new QListWidgetItem(QObject::tr("Original"), looks);
   original_item->setData(kFilterIdRole, QString());
   original_item->setIcon(thumbnail_icon(original_thumbnail));
   original_item->setData(kThumbnailReadyRole, true);
   for (const auto* definition : available_filters) {
     const auto& id = definition->identifier;
-    invocations.emplace(
+    catalog_invocations.emplace(
         id, registry.default_invocation(id, foreground, background));
     auto* item = new QListWidgetItem(filter_display_name(*definition), looks);
     item->setData(kFilterIdRole, QString::fromStdString(id));
@@ -603,24 +743,141 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   }
   looks->setCurrentRow(0);
 
-  const auto current_id = [looks] {
+  const auto selected_catalog_id = [looks] {
     const auto* item = looks->currentItem();
     return item == nullptr ? std::string{}
                            : item->data(kFilterIdRole).toString().toStdString();
   };
-  const auto current_invocation = [&]() -> std::optional<FilterInvocation> {
-    const auto id = current_id();
-    if (id.empty()) {
+  const auto find_recipe_entry = [&](std::uint64_t ui_id)
+      -> GalleryRecipeEntry* {
+    const auto found = std::find_if(
+        recipe_entries.begin(), recipe_entries.end(),
+        [ui_id](const GalleryRecipeEntry& entry) {
+          return entry.ui_id == ui_id;
+        });
+    return found == recipe_entries.end() ? nullptr : &*found;
+  };
+  const auto active_recipe_entry = [&]() -> GalleryRecipeEntry* {
+    return active_recipe_entry_id.has_value()
+               ? find_recipe_entry(*active_recipe_entry_id)
+               : nullptr;
+  };
+  const auto active_filter_id = [&] {
+    const auto* entry = active_recipe_entry();
+    return entry == nullptr ? std::string{}
+                            : entry->value.invocation.filter_id;
+  };
+  const auto current_recipe = [&]() -> std::optional<FilterRecipe> {
+    if (recipe_entries.empty()) {
       return std::nullopt;
     }
-    const auto found = invocations.find(id);
-    return found == invocations.end()
-               ? std::optional<FilterInvocation>{}
-               : std::optional<FilterInvocation>{found->second};
+    FilterRecipe recipe;
+    recipe.entries.reserve(recipe_entries.size());
+    for (const auto& entry : recipe_entries) {
+      recipe.entries.push_back(entry.value);
+    }
+    return recipe;
+  };
+  bool loading_saved_look = false;
+  std::function<void()> refresh_saved_look_controls;
+  std::function<void(const QString&)> rebuild_saved_looks;
+  const auto selected_saved_look_id = [saved_looks_combo] {
+    return saved_looks_combo->currentData().toString();
+  };
+  const auto mark_recipe_custom = [&] {
+    if (loading_saved_look) {
+      return;
+    }
+    const QSignalBlocker blocker(saved_looks_combo);
+    saved_looks_combo->setCurrentIndex(0);
+    if (refresh_saved_look_controls) {
+      refresh_saved_look_controls();
+    }
+  };
+  refresh_saved_look_controls = [&] {
+    const auto recipe = current_recipe();
+    save_look->setEnabled(recipe.has_value() && !recipe->entries.empty() &&
+                          registry.supports(*recipe));
+    const auto id = selected_saved_look_id();
+    const auto has_saved_look =
+        !id.isEmpty() && saved_look_library.find_entry(id) != nullptr;
+    rename_look->setEnabled(has_saved_look);
+    delete_look->setEnabled(has_saved_look);
+  };
+  rebuild_saved_looks = [&](const QString& preferred_id) {
+    const QSignalBlocker blocker(saved_looks_combo);
+    saved_looks_combo->clear();
+    saved_looks_combo->addItem(QObject::tr("Custom"), QString());
+    int preferred_index = 0;
+    for (const auto& entry : saved_look_library.entries()) {
+      const auto supported = !entry.recipe.entries.empty() &&
+                             registry.supports(entry.recipe);
+      const auto index = saved_looks_combo->count();
+      saved_looks_combo->addItem(entry.name, entry.id);
+      saved_looks_combo->setItemData(
+          index,
+          supported
+              ? QObject::tr("Apply this saved Look")
+              : QObject::tr(
+                    "This Look uses filters or settings that this version of "
+                    "Patchy cannot apply."),
+          Qt::ToolTipRole);
+      if (auto* model =
+              qobject_cast<QStandardItemModel*>(saved_looks_combo->model());
+          model != nullptr && model->item(index) != nullptr) {
+        model->item(index)->setEnabled(supported);
+      }
+      if (supported && entry.id == preferred_id) {
+        preferred_index = index;
+      }
+    }
+    saved_looks_combo->setCurrentIndex(preferred_index);
+    refresh_saved_look_controls();
+  };
+  rebuild_saved_looks({});
+
+  std::function<void()> rebuild_applied_list;
+  rebuild_applied_list = [&] {
+    rebuilding_applied_list = true;
+    const QSignalBlocker blocker(applied_list);
+    applied_list->clear();
+    QListWidgetItem* selected_item = nullptr;
+    for (auto entry = recipe_entries.rbegin();
+         entry != recipe_entries.rend(); ++entry) {
+      const auto* definition = registry.find(entry->value.invocation.filter_id);
+      auto* item = new QListWidgetItem(
+          definition != nullptr
+              ? filter_display_name(*definition)
+              : QString::fromStdString(entry->value.invocation.filter_id),
+          applied_list);
+      item->setData(kRecipeEntryIdRole,
+                    QVariant::fromValue<qulonglong>(entry->ui_id));
+      item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable |
+                     Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled |
+                     Qt::ItemIsUserCheckable);
+      item->setCheckState(entry->value.enabled ? Qt::Checked
+                                               : Qt::Unchecked);
+      if (active_recipe_entry_id == entry->ui_id) {
+        selected_item = item;
+      }
+    }
+    if (selected_item == nullptr && applied_list->count() > 0) {
+      selected_item = applied_list->item(0);
+      active_recipe_entry_id =
+          selected_item->data(kRecipeEntryIdRole).toULongLong();
+    }
+    applied_list->setCurrentItem(selected_item);
+    const auto has_active = active_recipe_entry() != nullptr;
+    duplicate_effect->setEnabled(has_active);
+    remove_effect->setEnabled(has_active);
+    rebuilding_applied_list = false;
   };
   std::function<void()> schedule_thumbnails;
   const auto update_favorite_button = [&] {
-    const auto id = current_id();
+    auto id = active_filter_id();
+    if (id.empty()) {
+      id = selected_catalog_id();
+    }
     const auto is_filter = !id.empty() && filter_items.contains(id);
     const auto is_favorite =
         is_filter && favorite_ids.find(id) != favorite_ids.end();
@@ -651,8 +908,12 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     }());
     settings.setValue(QLatin1String(kGalleryCategoryKey),
                       category->currentData().toString());
+    auto last_filter_id = active_filter_id();
+    if (last_filter_id.empty()) {
+      last_filter_id = selected_catalog_id();
+    }
     settings.setValue(QLatin1String(kGalleryLastFilterKey),
-                      QString::fromStdString(current_id()));
+                      QString::fromStdString(last_filter_id));
     settings.setValue(QLatin1String(kGalleryLivePreviewKey),
                       canvas_preview->isChecked());
     settings.setValue(QLatin1String(kGallerySizeKey), dialog.size());
@@ -691,6 +952,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     }
     original_item->setHidden(false);
     if (looks->currentItem() == nullptr || looks->currentItem()->isHidden()) {
+      const QSignalBlocker blocker(looks);
       looks->setCurrentItem(original_item);
     }
     empty_label->setVisible(visible_filters == 0);
@@ -702,31 +964,29 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   const auto emit_canvas_preview = [&] {
     if (preview_changed) {
       preview_changed(VisualFilterGalleryPreview{
-          canvas_preview->isChecked(), current_invocation()});
+          canvas_preview->isChecked(), current_recipe()});
     }
   };
 
   auto current_proxy_bounds =
       Rect::from_size(proxy.original.width(), proxy.original.height());
   std::string rendered_proxy_filter_id;
+  std::uint64_t rendered_proxy_entry_id = 0;
   std::function<void()> refresh_spatial_overlay;
   auto proxy_preview_state = std::make_shared<GalleryProxyPreviewState>();
   auto proxy_registry = std::make_shared<const FilterRegistry>(registry);
   proxy_preview_state->apply =
-      [&](GalleryProxyRender rendered, std::string filter_id) {
+      [&](GalleryProxyRender rendered, std::uint64_t active_entry_id,
+          std::string filter_id) {
         preview->set_image(rendered.image);
         preview->setProperty(
             "filterGalleryRenderedFilterId",
             QString::fromStdString(filter_id));
         current_proxy_bounds = rendered.bounds;
         rendered_proxy_filter_id = filter_id;
+        rendered_proxy_entry_id = active_entry_id;
         if (refresh_spatial_overlay) {
           refresh_spatial_overlay();
-        }
-        if (const auto item = filter_items.find(filter_id);
-            item != filter_items.end()) {
-          item->second->setIcon(thumbnail_icon(rendered.image));
-          item->second->setData(kThumbnailReadyRole, true);
         }
         status->setText(QObject::tr("Ready"));
       };
@@ -741,10 +1001,11 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         auto cancelled = std::make_shared<bool>(false);
         auto* app = QCoreApplication::instance();
         const auto generation = work.generation;
-        const auto filter_id = work.invocation.filter_id;
+        const auto active_entry_id = work.active_entry_id;
+        const auto filter_id = work.active_filter_id;
         std::thread([app, proxy_preview_state, proxy_registry, proxy,
-                     invocation = std::move(work.invocation), generation,
-                     filter_id, rendered, error, cancelled] {
+                     recipe = std::move(work.recipe), generation,
+                     active_entry_id, filter_id, rendered, error, cancelled] {
           FilterProgress progress{
               [proxy_preview_state, generation](int, int,
                                                 FilterProgressStage) {
@@ -753,7 +1014,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
               }};
           try {
             *rendered =
-                render_proxy(proxy, *proxy_registry, invocation, &progress);
+                render_proxy(proxy, *proxy_registry, recipe, &progress);
           } catch (const FilterCancelled&) {
             *cancelled = true;
           } catch (const std::exception& caught) {
@@ -764,8 +1025,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
           }
           QMetaObject::invokeMethod(
               app,
-              [proxy_preview_state, generation, filter_id, rendered, error,
-               cancelled]() mutable {
+              [proxy_preview_state, generation, active_entry_id, filter_id,
+               rendered, error, cancelled]() mutable {
                 proxy_preview_state->in_flight = false;
                 const auto is_latest =
                     generation == proxy_preview_state->generation.load(
@@ -774,7 +1035,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                     !*cancelled) {
                   if (error->isEmpty() && proxy_preview_state->apply) {
                     proxy_preview_state->apply(std::move(*rendered),
-                                               filter_id);
+                                               active_entry_id, filter_id);
                   } else if (!error->isEmpty() &&
                              proxy_preview_state->fail) {
                     proxy_preview_state->fail(*error);
@@ -796,14 +1057,16 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   central_timer->setSingleShot(true);
   central_timer->setInterval(35);
   const auto render_current = [&] {
-    const auto invocation = current_invocation();
-    if (!invocation.has_value()) {
+    const auto recipe = current_recipe();
+    const auto* active = active_recipe_entry();
+    if (!recipe.has_value() || active == nullptr) {
       cancel_gallery_proxy_preview(proxy_preview_state);
       preview->set_image(original_image);
       preview->setProperty("filterGalleryRenderedFilterId", QString());
       current_proxy_bounds =
           Rect::from_size(proxy.original.width(), proxy.original.height());
       rendered_proxy_filter_id.clear();
+      rendered_proxy_entry_id = 0;
       if (refresh_spatial_overlay) {
         refresh_spatial_overlay();
       }
@@ -811,7 +1074,9 @@ VisualFilterGalleryResult request_visual_filter_gallery(
       return;
     }
     status->setText(QObject::tr("Rendering preview..."));
-    enqueue_gallery_proxy_preview(proxy_preview_state, *invocation);
+    enqueue_gallery_proxy_preview(
+        proxy_preview_state, *recipe, active->ui_id,
+        active->value.invocation.filter_id);
   };
   QObject::connect(central_timer, &QTimer::timeout, &dialog, render_current);
   const auto schedule_render =
@@ -836,11 +1101,13 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     form->setHorizontalSpacing(8);
     form->setVerticalSpacing(8);
 
-    const auto id = current_id();
-    const auto invocation_it = invocations.find(id);
+    const auto* active = active_recipe_entry();
+    const auto id = active != nullptr
+                        ? active->value.invocation.filter_id
+                        : std::string{};
+    const auto active_id = active != nullptr ? active->ui_id : 0;
     const auto* definition = registry.find(id);
-    if (id.empty() || invocation_it == invocations.end() ||
-        definition == nullptr) {
+    if (active == nullptr || definition == nullptr) {
       auto* hint = new QLabel(
           QObject::tr("Choose a filter to adjust its settings."),
           parameter_form_host);
@@ -849,11 +1116,23 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     } else {
       const auto spec = filter_dialog_spec_for(*definition);
       const auto commit_value =
-          [&, id](const std::string& key, FilterParameterValue value) {
-            if (const auto found = invocations.find(id);
-                found != invocations.end()) {
-              found->second.parameters[key] = std::move(value);
+          [&, active_id](const std::string& key,
+                         FilterParameterValue value) {
+            if (auto* entry = find_recipe_entry(active_id);
+                entry != nullptr) {
+              entry->value.invocation.parameters[key] = std::move(value);
+              catalog_invocations[entry->value.invocation.filter_id] =
+                  entry->value.invocation;
+              if (const auto item =
+                      filter_items.find(entry->value.invocation.filter_id);
+                  item != filter_items.end()) {
+                item->second->setData(kThumbnailReadyRole, false);
+              }
             }
+            if (schedule_thumbnails) {
+              schedule_thumbnails();
+            }
+            mark_recipe_custom();
             if (refresh_spatial_overlay) {
               refresh_spatial_overlay();
             }
@@ -862,9 +1141,9 @@ VisualFilterGalleryResult request_visual_filter_gallery(
           };
       for (const auto& control : spec.controls) {
         const auto parameter =
-            invocation_it->second.parameters.find(control.parameter_key);
+            active->value.invocation.parameters.find(control.parameter_key);
         const auto& current_value =
-            parameter != invocation_it->second.parameters.end()
+            parameter != active->value.invocation.parameters.end()
                 ? parameter->second
                 : control.default_value;
         if (control.kind == FilterParameterKind::Boolean) {
@@ -1081,7 +1360,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
             };
         waveform->set_values(read_wave_values());
         waveform->set_values_changed_callback(
-            [&, id, waveform, amplitude_spin, wavelength_spin, phase_spin,
+            [&, active_id, waveform, amplitude_spin, wavelength_spin,
+             phase_spin,
              amplitude = *wave_amplitude, wavelength = *wave_wavelength,
              phase = *wave_phase](FilterWaveformValues values, bool) {
               const auto sync = [&](QSpinBox* spin,
@@ -1097,9 +1377,9 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                   const QSignalBlocker slider_blocker(slider);
                   slider->setValue(value);
                 }
-                if (const auto found = invocations.find(id);
-                    found != invocations.end()) {
-                  found->second.parameters[control.parameter_key] =
+                if (auto* entry = find_recipe_entry(active_id);
+                    entry != nullptr) {
+                  entry->value.invocation.parameters[control.parameter_key] =
                       static_cast<std::int64_t>(value);
                 }
               };
@@ -1107,6 +1387,20 @@ VisualFilterGalleryResult request_visual_filter_gallery(
               sync(wavelength_spin, wavelength, values.wavelength);
               sync(phase_spin, phase, values.phase);
               waveform->set_values(values);
+              if (auto* entry = find_recipe_entry(active_id);
+                  entry != nullptr) {
+                catalog_invocations[entry->value.invocation.filter_id] =
+                    entry->value.invocation;
+                if (const auto item =
+                        filter_items.find(entry->value.invocation.filter_id);
+                    item != filter_items.end()) {
+                  item->second->setData(kThumbnailReadyRole, false);
+                }
+              }
+              if (schedule_thumbnails) {
+                schedule_thumbnails();
+              }
+              mark_recipe_custom();
               schedule_render();
               emit_canvas_preview();
             });
@@ -1142,11 +1436,14 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   };
 
   refresh_spatial_overlay = [&] {
-    const auto id = current_id();
-    const auto invocation = invocations.find(id);
+    const auto* entry = active_recipe_entry();
+    const auto id = entry != nullptr
+                        ? entry->value.invocation.filter_id
+                        : std::string{};
     const auto* definition = registry.find(id);
-    if (id.empty() || invocation == invocations.end() ||
-        definition == nullptr || rendered_proxy_filter_id != id) {
+    if (recipe_entries.size() != 1 || entry == nullptr ||
+        definition == nullptr || rendered_proxy_filter_id != id ||
+        rendered_proxy_entry_id != entry->ui_id) {
       preview->set_center_radius_overlay(std::nullopt);
       return;
     }
@@ -1170,8 +1467,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     }
     const auto value_for = [&](const FilterControlSpec& control) {
       const auto found =
-          invocation->second.parameters.find(control.parameter_key);
-      return numeric_value(found != invocation->second.parameters.end()
+          entry->value.invocation.parameters.find(control.parameter_key);
+      return numeric_value(found != entry->value.invocation.parameters.end()
                                ? found->second
                                : control.default_value,
                            control.value);
@@ -1210,10 +1507,12 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   };
   preview->set_center_radius_changed_callback(
       [&](NormalizedCenterRadiusOverlay overlay, bool gesture_finished) {
-        const auto id = current_id();
-        auto invocation = invocations.find(id);
+        auto* entry = active_recipe_entry();
+        const auto id = entry != nullptr
+                            ? entry->value.invocation.filter_id
+                            : std::string{};
         const auto* definition = registry.find(id);
-        if (id.empty() || invocation == invocations.end() ||
+        if (recipe_entries.size() != 1 || entry == nullptr ||
             definition == nullptr) {
           return;
         }
@@ -1246,7 +1545,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
             spin->setValue(value);
             value = spin->value();
           }
-          invocation->second.parameters[control->parameter_key] = value;
+          entry->value.invocation.parameters[control->parameter_key] = value;
           if (auto* slider = parameter_form_host->findChild<QSlider*>(
                   control->object_name + QStringLiteral("Slider"));
               slider != nullptr) {
@@ -1263,7 +1562,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
           const auto value = std::clamp(
               static_cast<int>(std::lround(requested)), control->minimum,
               control->maximum);
-          invocation->second.parameters[control->parameter_key] =
+          entry->value.invocation.parameters[control->parameter_key] =
               static_cast<std::int64_t>(value);
           if (auto* spin = parameter_form_host->findChild<QSpinBox*>(
                   control->object_name + QStringLiteral("Spin"));
@@ -1315,6 +1614,15 @@ VisualFilterGalleryResult request_visual_filter_gallery(
               *overlay.radius * static_cast<double>(result_shorter) /
                   source_shorter * 100.0);
         }
+        catalog_invocations[id] = entry->value.invocation;
+        if (const auto item = filter_items.find(id);
+            item != filter_items.end()) {
+          item->second->setData(kThumbnailReadyRole, false);
+        }
+        if (schedule_thumbnails) {
+          schedule_thumbnails();
+        }
+        mark_recipe_custom();
         refresh_spatial_overlay();
         if (gesture_finished) {
           schedule_render();
@@ -1350,19 +1658,204 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   QObject::connect(before, &QPushButton::released, &dialog, schedule_render);
   QObject::connect(canvas_preview, &QCheckBox::toggled, &dialog,
                    [&](bool) { emit_canvas_preview(); });
+
+  const auto sync_catalog_to_active = [&] {
+    synchronizing_catalog = true;
+    {
+      const QSignalBlocker blocker(looks);
+      auto* wanted = original_item;
+      const auto id = active_filter_id();
+      if (!id.empty()) {
+        if (const auto found = filter_items.find(id);
+            found != filter_items.end()) {
+          wanted = found->second;
+        }
+      }
+      looks->setCurrentItem(wanted);
+    }
+    synchronizing_catalog = false;
+    update_favorite_button();
+  };
+  const auto refresh_recipe_ui = [&](bool sync_catalog,
+                                     bool recipe_changed = true) {
+    if (recipe_changed) {
+      mark_recipe_custom();
+    }
+    rebuild_applied_list();
+    if (sync_catalog) {
+      sync_catalog_to_active();
+    } else {
+      update_favorite_button();
+    }
+    rebuild_parameter_editor();
+    schedule_render();
+    emit_canvas_preview();
+  };
   QObject::connect(looks, &QListWidget::currentItemChanged, &dialog,
                    [&](QListWidgetItem*, QListWidgetItem*) {
-                     update_favorite_button();
-                     rebuild_parameter_editor();
-                     schedule_render();
-                     emit_canvas_preview();
+                     if (synchronizing_catalog) {
+                       return;
+                     }
+                     const auto id = selected_catalog_id();
+                     if (id.empty()) {
+                       recipe_entries.clear();
+                       active_recipe_entry_id.reset();
+                     } else {
+                       const auto invocation = catalog_invocations.find(id);
+                       if (invocation == catalog_invocations.end()) {
+                         return;
+                       }
+                       if (auto* entry = active_recipe_entry();
+                           entry != nullptr) {
+                         entry->value.invocation = invocation->second;
+                       } else {
+                         const auto ui_id = next_recipe_entry_id++;
+                         recipe_entries.push_back(GalleryRecipeEntry{
+                             ui_id, FilterRecipeEntry{invocation->second}});
+                         active_recipe_entry_id = ui_id;
+                       }
+                      }
+                      refresh_recipe_ui(false);
+                    });
+  QObject::connect(looks, &QListWidget::itemClicked, &dialog,
+                   [&](QListWidgetItem* item) {
+                     if (synchronizing_catalog || item == nullptr ||
+                         !item->data(kFilterIdRole).toString().isEmpty() ||
+                         recipe_entries.empty()) {
+                       return;
+                     }
+                     // Filtering can select Original under a signal blocker so
+                     // the active recipe survives a catalog-only view change.
+                     // A later explicit click on that already-current row must
+                     // still perform Original's clear action.
+                     recipe_entries.clear();
+                     active_recipe_entry_id.reset();
+                     refresh_recipe_ui(false);
                    });
+  QObject::connect(applied_list, &QListWidget::currentItemChanged, &dialog,
+                   [&](QListWidgetItem* current, QListWidgetItem*) {
+                     if (rebuilding_applied_list || current == nullptr) {
+                       return;
+                     }
+                     active_recipe_entry_id =
+                         current->data(kRecipeEntryIdRole).toULongLong();
+                     sync_catalog_to_active();
+                     rebuild_parameter_editor();
+                     if (refresh_spatial_overlay) {
+                       refresh_spatial_overlay();
+                     }
+                   });
+  QObject::connect(applied_list, &QListWidget::itemChanged, &dialog,
+                   [&](QListWidgetItem* item) {
+                     if (rebuilding_applied_list || item == nullptr) {
+                       return;
+                     }
+                     const auto ui_id =
+                         item->data(kRecipeEntryIdRole).toULongLong();
+                      if (auto* entry = find_recipe_entry(ui_id);
+                          entry != nullptr) {
+                        entry->value.enabled =
+                            item->checkState() == Qt::Checked;
+                        mark_recipe_custom();
+                        schedule_render();
+                       emit_canvas_preview();
+                     }
+                   });
+  QObject::connect(applied_list->model(), &QAbstractItemModel::rowsMoved,
+                   &dialog, [&] {
+                     if (rebuilding_applied_list) {
+                       return;
+                     }
+                     QTimer::singleShot(0, &dialog, [&] {
+                       if (rebuilding_applied_list) {
+                         return;
+                       }
+                       std::map<std::uint64_t, FilterRecipeEntry> entries_by_id;
+                       for (const auto& entry : recipe_entries) {
+                         entries_by_id.emplace(entry.ui_id, entry.value);
+                       }
+                       std::vector<GalleryRecipeEntry> reordered;
+                       reordered.reserve(recipe_entries.size());
+                       for (int row = applied_list->count() - 1; row >= 0;
+                            --row) {
+                         const auto ui_id = applied_list->item(row)
+                                                ->data(kRecipeEntryIdRole)
+                                                .toULongLong();
+                         if (const auto found = entries_by_id.find(ui_id);
+                             found != entries_by_id.end()) {
+                           reordered.push_back(
+                               GalleryRecipeEntry{ui_id, found->second});
+                         }
+                       }
+                       if (reordered.size() != recipe_entries.size()) {
+                         rebuild_applied_list();
+                         return;
+                        }
+                        recipe_entries = std::move(reordered);
+                        mark_recipe_custom();
+                        schedule_render();
+                       emit_canvas_preview();
+                     });
+                   });
+  QObject::connect(duplicate_effect, &QPushButton::clicked, &dialog, [&] {
+    if (!active_recipe_entry_id.has_value()) {
+      return;
+    }
+    const auto found = std::find_if(
+        recipe_entries.begin(), recipe_entries.end(),
+        [&](const GalleryRecipeEntry& entry) {
+          return entry.ui_id == *active_recipe_entry_id;
+        });
+    if (found == recipe_entries.end()) {
+      return;
+    }
+    const auto insertion =
+        static_cast<std::size_t>(found - recipe_entries.begin()) + 1U;
+    const auto ui_id = next_recipe_entry_id++;
+    const auto duplicate = GalleryRecipeEntry{ui_id, found->value};
+    recipe_entries.insert(recipe_entries.begin() +
+                              static_cast<std::ptrdiff_t>(insertion),
+                          duplicate);
+    active_recipe_entry_id = ui_id;
+    refresh_recipe_ui(true);
+  });
+  QObject::connect(remove_effect, &QPushButton::clicked, &dialog, [&] {
+    if (!active_recipe_entry_id.has_value()) {
+      return;
+    }
+    const auto found = std::find_if(
+        recipe_entries.begin(), recipe_entries.end(),
+        [&](const GalleryRecipeEntry& entry) {
+          return entry.ui_id == *active_recipe_entry_id;
+        });
+    if (found == recipe_entries.end()) {
+      return;
+    }
+    const auto old_index =
+        static_cast<std::size_t>(found - recipe_entries.begin());
+    const auto old_visual_row =
+        recipe_entries.size() - 1U - old_index;
+    recipe_entries.erase(found);
+    if (recipe_entries.empty()) {
+      active_recipe_entry_id.reset();
+    } else {
+      const auto new_visual_row =
+          std::min(old_visual_row, recipe_entries.size() - 1U);
+      const auto new_index =
+          recipe_entries.size() - 1U - new_visual_row;
+      active_recipe_entry_id = recipe_entries[new_index].ui_id;
+    }
+    refresh_recipe_ui(true);
+  });
   QObject::connect(search, &QLineEdit::textChanged, &dialog,
                    [&](const QString&) { apply_list_filter(); });
   QObject::connect(category, qOverload<int>(&QComboBox::currentIndexChanged),
                    &dialog, [&](int) { apply_list_filter(); });
   QObject::connect(favorite, &QToolButton::toggled, &dialog, [&](bool checked) {
-    const auto id = current_id();
+    auto id = active_filter_id();
+    if (id.empty()) {
+      id = selected_catalog_id();
+    }
     if (id.empty() || !filter_items.contains(id)) {
       return;
     }
@@ -1376,16 +1869,160 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     apply_list_filter();
   });
 
+  const auto request_look_name = [&](const QString& title,
+                                     const QString& initial,
+                                     const QString& accept_text)
+      -> std::optional<QString> {
+    QInputDialog input(&dialog);
+    input.setObjectName(QStringLiteral("filterGalleryLookNameDialog"));
+    input.setWindowTitle(title);
+    input.setLabelText(QObject::tr("Look name:"));
+    input.setInputMode(QInputDialog::TextInput);
+    input.setTextValue(initial);
+    input.setOkButtonText(accept_text);
+    input.resize(420, input.sizeHint().height());
+    if (exec_dialog(input) != QDialog::Accepted) {
+      return std::nullopt;
+    }
+    return input.textValue().trimmed();
+  };
+  const auto show_look_failure = [&](const QString& title,
+                                     FilterLookLibraryError error,
+                                     const QString& operation) {
+    QString message;
+    if (error == FilterLookLibraryError::InvalidName) {
+      message = QObject::tr("Enter a name for the Look.");
+    } else if (error == FilterLookLibraryError::InvalidRecipe) {
+      message = QObject::tr("This Look cannot be saved.");
+    } else if (error == FilterLookLibraryError::NotFound) {
+      message = QObject::tr("The selected Look no longer exists.");
+    } else {
+      message = QObject::tr(
+                    "Could not %1 the Look. Check that the Looks folder is "
+                    "writable.")
+                    .arg(operation);
+    }
+    (void)show_warning_message(
+        &dialog, title, message, QMessageBox::Ok, QMessageBox::Ok,
+        QStringLiteral("filterGalleryLookErrorMessageBox"));
+  };
+  QObject::connect(saved_looks_combo,
+                   qOverload<int>(&QComboBox::currentIndexChanged), &dialog,
+                   [&](int) {
+                     if (loading_saved_look) {
+                       return;
+                     }
+                     const auto id = selected_saved_look_id();
+                     if (id.isEmpty()) {
+                       refresh_saved_look_controls();
+                       return;
+                     }
+                     const auto* entry = saved_look_library.find_entry(id);
+                     if (entry == nullptr || entry->recipe.entries.empty() ||
+                         !registry.supports(entry->recipe)) {
+                       const QSignalBlocker blocker(saved_looks_combo);
+                       saved_looks_combo->setCurrentIndex(0);
+                       status->setText(QObject::tr("Unsupported Look"));
+                       refresh_saved_look_controls();
+                       return;
+                     }
+                     loading_saved_look = true;
+                     recipe_entries.clear();
+                     recipe_entries.reserve(entry->recipe.entries.size());
+                     for (const auto& recipe_entry : entry->recipe.entries) {
+                       recipe_entries.push_back(GalleryRecipeEntry{
+                           next_recipe_entry_id++, recipe_entry});
+                     }
+                     active_recipe_entry_id = recipe_entries.empty()
+                                                  ? std::optional<std::uint64_t>{}
+                                                  : std::optional<std::uint64_t>{
+                                                        recipe_entries.back().ui_id};
+                     refresh_recipe_ui(true, false);
+                     loading_saved_look = false;
+                     refresh_saved_look_controls();
+                   });
+  QObject::connect(save_look, &QPushButton::clicked, &dialog, [&] {
+    const auto recipe = current_recipe();
+    if (!recipe.has_value() || recipe->entries.empty() ||
+        !registry.supports(*recipe)) {
+      return;
+    }
+    const auto name = request_look_name(QObject::tr("Save Look"), {},
+                                        QObject::tr("Save"));
+    if (!name.has_value()) {
+      return;
+    }
+    FilterLookLibraryError error = FilterLookLibraryError::None;
+    const auto id = saved_look_library.add_look(*name, *recipe, &error);
+    if (id.isEmpty()) {
+      show_look_failure(QObject::tr("Save Look"), error,
+                        QObject::tr("save"));
+      return;
+    }
+    rebuild_saved_looks(id);
+  });
+  QObject::connect(rename_look, &QPushButton::clicked, &dialog, [&] {
+    const auto id = selected_saved_look_id();
+    const auto* entry = saved_look_library.find_entry(id);
+    if (entry == nullptr) {
+      return;
+    }
+    const auto name = request_look_name(QObject::tr("Rename Look"),
+                                        entry->name,
+                                        QObject::tr("Rename"));
+    if (!name.has_value()) {
+      return;
+    }
+    FilterLookLibraryError error = FilterLookLibraryError::None;
+    if (!saved_look_library.rename_look(id, *name, &error)) {
+      show_look_failure(QObject::tr("Rename Look"), error,
+                        QObject::tr("rename"));
+      return;
+    }
+    rebuild_saved_looks(id);
+  });
+  QObject::connect(delete_look, &QPushButton::clicked, &dialog, [&] {
+    const auto id = selected_saved_look_id();
+    const auto* entry = saved_look_library.find_entry(id);
+    if (entry == nullptr) {
+      return;
+    }
+    const auto answer = show_warning_message(
+        &dialog, QObject::tr("Delete Look"),
+        QObject::tr("Delete Look \"%1\"?").arg(entry->name),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No,
+        QStringLiteral("filterGalleryDeleteLookMessageBox"));
+    if (answer != QMessageBox::Yes) {
+      return;
+    }
+    FilterLookLibraryError error = FilterLookLibraryError::None;
+    if (!saved_look_library.remove_look(id, &error)) {
+      show_look_failure(QObject::tr("Delete Look"), error,
+                        QObject::tr("delete"));
+      return;
+    }
+    rebuild_saved_looks({});
+  });
+
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog,
                    &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog,
                    &QDialog::reject);
   if (auto* reset = buttons->button(QDialogButtonBox::Reset)) {
     QObject::connect(reset, &QPushButton::clicked, &dialog, [&] {
-      const auto id = current_id();
-      if (!id.empty()) {
-        invocations[id] =
+      if (auto* entry = active_recipe_entry(); entry != nullptr) {
+        const auto id = entry->value.invocation.filter_id;
+        entry->value.invocation =
             registry.default_invocation(id, foreground, background);
+        catalog_invocations[id] = entry->value.invocation;
+        if (const auto item = filter_items.find(id);
+            item != filter_items.end()) {
+          item->second->setData(kThumbnailReadyRole, false);
+        }
+        if (schedule_thumbnails) {
+          schedule_thumbnails();
+        }
+        mark_recipe_custom();
       }
       rebuild_parameter_editor();
       schedule_render();
@@ -1404,8 +2041,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         continue;
       }
       const auto id = item->data(kFilterIdRole).toString().toStdString();
-      if (const auto found = invocations.find(id);
-          found != invocations.end()) {
+      if (const auto found = catalog_invocations.find(id);
+          found != catalog_invocations.end()) {
         item->setIcon(thumbnail_icon(
             render_proxy(thumbnail_proxy, registry, found->second).image));
         item->setData(kThumbnailReadyRole, true);
@@ -1420,6 +2057,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     }
   };
 
+  rebuild_applied_list();
   rebuild_parameter_editor();
   const auto saved_category =
       settings.value(QLatin1String(kGalleryCategoryKey),
@@ -1451,11 +2089,11 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   if (dialog_result != QDialog::Accepted) {
     return {};
   }
-  const auto invocation = current_invocation();
-  if (!invocation.has_value()) {
+  const auto recipe = current_recipe();
+  if (!recipe.has_value()) {
     return {VisualFilterGalleryOutcome::Original, std::nullopt};
   }
-  return {VisualFilterGalleryOutcome::Filter, invocation};
+  return {VisualFilterGalleryOutcome::Filter, recipe};
 }
 
 }  // namespace patchy::ui

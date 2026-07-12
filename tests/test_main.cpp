@@ -60,6 +60,7 @@
 #include <functional>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -16904,6 +16905,249 @@ void filter_recipe_opacity_interpolates_rgba_results() {
   CHECK(interpolated_center[3] == 170);
 }
 
+void filter_recipe_scales_supports_validates_and_skips_zero_opacity() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+
+  auto box = registry.default_invocation("patchy.filters.box_blur",
+                                         patchy::RgbColor{1, 2, 3},
+                                         patchy::RgbColor{4, 5, 6});
+  box.parameters["radius"] = std::int64_t{4};
+  auto twirl = registry.default_invocation("patchy.filters.twirl",
+                                           patchy::RgbColor{7, 8, 9},
+                                           patchy::RgbColor{10, 11, 12});
+  twirl.parameters["angle"] = std::int64_t{270};
+  twirl.parameters["radius"] = std::int64_t{80};
+  twirl.parameters["center_x"] = 25.5;
+  twirl.parameters["center_y"] = 75.5;
+  const patchy::FilterRecipe recipe{{
+      patchy::FilterRecipeEntry{box, false, 0.25,
+                                patchy::BlendMode::Multiply},
+      patchy::FilterRecipeEntry{twirl, true, 0.75,
+                                patchy::BlendMode::Screen},
+  }};
+  const auto scaled = registry.scale(recipe, 0.5);
+  CHECK(scaled.has_value());
+  CHECK(scaled->entries.size() == 2);
+  CHECK(!scaled->entries[0].enabled);
+  CHECK(scaled->entries[0].opacity == 0.25);
+  CHECK(scaled->entries[0].blend_mode == patchy::BlendMode::Multiply);
+  CHECK(std::get<std::int64_t>(
+            scaled->entries[0].invocation.parameters.at("radius")) == 2);
+  CHECK(scaled->entries[0].invocation.foreground.red == 1);
+  CHECK(scaled->entries[0].invocation.background.blue == 6);
+  CHECK(scaled->entries[1].enabled);
+  CHECK(scaled->entries[1].opacity == 0.75);
+  CHECK(scaled->entries[1].blend_mode == patchy::BlendMode::Screen);
+  CHECK(std::get<std::int64_t>(
+            scaled->entries[1].invocation.parameters.at("angle")) == 270);
+  CHECK(std::get<std::int64_t>(
+            scaled->entries[1].invocation.parameters.at("radius")) == 80);
+  CHECK(std::get<double>(
+            scaled->entries[1].invocation.parameters.at("center_x")) == 25.5);
+  CHECK(std::get<double>(
+            scaled->entries[1].invocation.parameters.at("center_y")) == 75.5);
+  CHECK(scaled->entries[1].invocation.foreground.green == 8);
+  CHECK(scaled->entries[1].invocation.background.red == 10);
+  CHECK(!registry.scale(recipe, 0.0).has_value());
+
+  auto gaussian = registry.default_invocation("patchy.filters.gaussian_blur");
+  gaussian.parameters["radius"] = std::int64_t{3};
+  const auto sharpen =
+      registry.default_invocation("patchy.filters.sharpen");
+  auto vignette = registry.default_invocation("patchy.filters.vignette");
+  patchy::FilterRecipe supported{{
+      patchy::FilterRecipeEntry{box},
+      patchy::FilterRecipeEntry{gaussian},
+      patchy::FilterRecipeEntry{sharpen},
+      patchy::FilterRecipeEntry{vignette, false},
+  }};
+  CHECK(registry.translation_invariant_support(supported) == 8);
+  supported.entries.back().enabled = true;
+  supported.entries.back().opacity = 0.0;
+  CHECK(registry.translation_invariant_support(supported) == 8);
+  supported.entries.back().opacity = 1.0;
+  CHECK(!registry.translation_invariant_support(supported).has_value());
+  CHECK(registry.translation_invariant_support(patchy::FilterRecipe{}) == 0);
+
+  patchy::FilterCatalogMetadata maximum_support_metadata;
+  maximum_support_metadata.execute =
+      [](const patchy::FilterRegistry&, const patchy::FilterInvocation&,
+         patchy::PixelBuffer&, const patchy::FilterProgress*) {};
+  maximum_support_metadata.translation_support =
+      [](const patchy::FilterInvocation&) -> std::optional<int> {
+    return std::numeric_limits<int>::max();
+  };
+  registry.register_filter(
+      {"test.filters.maximum_support", "Maximum Support",
+       [](patchy::PixelBuffer&) {}, std::move(maximum_support_metadata)});
+  const auto maximum_support =
+      registry.default_invocation("test.filters.maximum_support");
+  const patchy::FilterRecipe overflowing{{
+      patchy::FilterRecipeEntry{maximum_support},
+      patchy::FilterRecipeEntry{maximum_support},
+  }};
+  CHECK(!registry.translation_invariant_support(overflowing).has_value());
+
+  for (const auto opacity :
+       {-0.01, 1.01, std::numeric_limits<double>::infinity(),
+        std::numeric_limits<double>::quiet_NaN()}) {
+    const patchy::FilterRecipe invalid{
+        {patchy::FilterRecipeEntry{box, true, opacity}}};
+    CHECK(!registry.supports(invalid));
+    CHECK(!registry.scale(invalid, 0.5).has_value());
+    CHECK(!registry.translation_invariant_support(invalid).has_value());
+  }
+  const patchy::FilterRecipe pass_through{{patchy::FilterRecipeEntry{
+      box, true, 1.0, patchy::BlendMode::PassThrough}}};
+  CHECK(!registry.supports(pass_through));
+  const patchy::FilterRecipe invalid_mode{{patchy::FilterRecipeEntry{
+      box, true, 1.0, static_cast<patchy::BlendMode>(999)}}};
+  CHECK(!registry.supports(invalid_mode));
+  auto missing = box;
+  missing.filter_id = "test.filters.missing";
+  const patchy::FilterRecipe disabled_missing{
+      {patchy::FilterRecipeEntry{missing, false}}};
+  CHECK(!registry.supports(disabled_missing));
+  CHECK(!registry.scale(disabled_missing, 0.5).has_value());
+
+  int executions = 0;
+  patchy::FilterCatalogMetadata counted_metadata;
+  counted_metadata.execute =
+      [&executions](const patchy::FilterRegistry&,
+                    const patchy::FilterInvocation&, patchy::PixelBuffer& pixels,
+                    const patchy::FilterProgress*) {
+    ++executions;
+    pixels.pixel(0, 0)[0] = 255;
+  };
+  counted_metadata.output_margin =
+      [](const patchy::FilterInvocation&, std::int32_t,
+         std::int32_t) { return 5; };
+  counted_metadata.translation_support =
+      [](const patchy::FilterInvocation&) -> std::optional<int> { return 2; };
+  registry.register_filter({"test.filters.counted", "Counted",
+                            [](patchy::PixelBuffer&) {},
+                            std::move(counted_metadata)});
+  const auto counted = registry.default_invocation("test.filters.counted");
+  const patchy::FilterRecipe zero_opacity{
+      {patchy::FilterRecipeEntry{counted, true, 0.0}}};
+  auto source = solid_rgba(3, 2, 10, 20, 30, 255);
+  const auto source_copy = source;
+  int progress_calls = 0;
+  const patchy::FilterProgress progress{
+      [&progress_calls](int, int, patchy::FilterProgressStage) {
+        ++progress_calls;
+        return true;
+      }};
+  registry.apply(zero_opacity, source, &progress);
+  CHECK(executions == 0);
+  CHECK(progress_calls == 0);
+  CHECK(std::equal(source.data().begin(), source.data().end(),
+                   source_copy.data().begin()));
+  const patchy::Rect source_bounds{13, 17, 3, 2};
+  const auto rendered =
+      registry.render(zero_opacity, source, source_bounds, true, &progress);
+  CHECK(executions == 0);
+  CHECK(progress_calls == 0);
+  CHECK(rendered.bounds.x == source_bounds.x);
+  CHECK(rendered.bounds.y == source_bounds.y);
+  CHECK(rendered.bounds.width == source_bounds.width);
+  CHECK(rendered.bounds.height == source_bounds.height);
+  CHECK(std::equal(rendered.pixels.data().begin(),
+                   rendered.pixels.data().end(), source.data().begin()));
+}
+
+void filter_recipe_order_and_bounds_match_explicit_execution() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto clouds = registry.default_invocation(
+      "patchy.filters.clouds", patchy::RgbColor{240, 20, 10},
+      patchy::RgbColor{5, 15, 230});
+  auto box = registry.default_invocation("patchy.filters.box_blur");
+  box.parameters["radius"] = std::int64_t{2};
+  const auto source = solid_rgba(9, 7, 30, 70, 110, 200);
+  const patchy::Rect bounds{40, 60, 9, 7};
+
+  const auto first = registry.render(clouds, source, bounds);
+  const auto explicit_result =
+      registry.render(box, first.pixels, first.bounds);
+  const patchy::FilterRecipe ordered{{patchy::FilterRecipeEntry{clouds},
+                                      patchy::FilterRecipeEntry{box}}};
+  const auto recipe_result = registry.render(ordered, source, bounds);
+  CHECK(recipe_result.bounds.x == explicit_result.bounds.x);
+  CHECK(recipe_result.bounds.y == explicit_result.bounds.y);
+  CHECK(recipe_result.bounds.width == explicit_result.bounds.width);
+  CHECK(recipe_result.bounds.height == explicit_result.bounds.height);
+  CHECK(recipe_result.bounds.x == bounds.x - 2);
+  CHECK(recipe_result.bounds.y == bounds.y - 2);
+  CHECK(recipe_result.bounds.width == bounds.width + 4);
+  CHECK(recipe_result.bounds.height == bounds.height + 4);
+  CHECK(recipe_result.pixels.format() == explicit_result.pixels.format());
+  CHECK(recipe_result.pixels.width() == explicit_result.pixels.width());
+  CHECK(recipe_result.pixels.height() == explicit_result.pixels.height());
+  CHECK(std::equal(recipe_result.pixels.data().begin(),
+                   recipe_result.pixels.data().end(),
+                   explicit_result.pixels.data().begin()));
+
+  const patchy::FilterRecipe reversed{{patchy::FilterRecipeEntry{box},
+                                       patchy::FilterRecipeEntry{clouds}}};
+  const auto reversed_result = registry.render(reversed, source, bounds);
+  CHECK(reversed_result.bounds.x == recipe_result.bounds.x);
+  CHECK(reversed_result.bounds.y == recipe_result.bounds.y);
+  CHECK(reversed_result.pixels.width() == recipe_result.pixels.width());
+  CHECK(!std::equal(reversed_result.pixels.data().begin(),
+                    reversed_result.pixels.data().end(),
+                    recipe_result.pixels.data().begin()));
+}
+
+void filter_recipe_expansion_keeps_fully_transparent_bounds_stable() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  patchy::PixelBuffer transparent(7, 5, patchy::PixelFormat::rgba8());
+  transparent.clear(0);
+  const patchy::Rect bounds{30, 40, 7, 5};
+  auto box = registry.default_invocation("patchy.filters.box_blur");
+  box.parameters["radius"] = std::int64_t{3};
+
+  const auto single = registry.render(box, transparent, bounds);
+  CHECK(single.bounds.x == bounds.x);
+  CHECK(single.bounds.y == bounds.y);
+  CHECK(single.bounds.width == bounds.width);
+  CHECK(single.bounds.height == bounds.height);
+  CHECK(single.pixels.width() == transparent.width());
+  CHECK(single.pixels.height() == transparent.height());
+  CHECK(std::equal(single.pixels.data().begin(), single.pixels.data().end(),
+                   transparent.data().begin()));
+
+  const patchy::FilterRecipe repeated{{patchy::FilterRecipeEntry{box},
+                                       patchy::FilterRecipeEntry{box}}};
+  const auto stacked = registry.render(repeated, transparent, bounds);
+  CHECK(stacked.bounds.x == bounds.x);
+  CHECK(stacked.bounds.y == bounds.y);
+  CHECK(stacked.bounds.width == bounds.width);
+  CHECK(stacked.bounds.height == bounds.height);
+  CHECK(stacked.pixels.width() == transparent.width());
+  CHECK(stacked.pixels.height() == transparent.height());
+  CHECK(std::equal(stacked.pixels.data().begin(), stacked.pixels.data().end(),
+                   transparent.data().begin()));
+
+  // Recipe opacity uses a deterministic 16-bit fixed-point weight. A positive
+  // value that quantizes to zero must also retain the input bounds; otherwise
+  // an invisible blur would still grow the layer and create a no-op undo.
+  const auto opaque = solid_rgba(7, 5, 35, 85, 145, 255);
+  const patchy::FilterRecipe microscopic{{patchy::FilterRecipeEntry{
+      box, true, 0.25 / 65535.0, patchy::BlendMode::Normal}}};
+  const auto microscopic_result =
+      registry.render(microscopic, opaque, bounds);
+  CHECK(microscopic_result.bounds.x == bounds.x);
+  CHECK(microscopic_result.bounds.y == bounds.y);
+  CHECK(microscopic_result.bounds.width == bounds.width);
+  CHECK(microscopic_result.bounds.height == bounds.height);
+  CHECK(std::equal(microscopic_result.pixels.data().begin(),
+                   microscopic_result.pixels.data().end(),
+                   opaque.data().begin()));
+}
+
 void bmp_reader_rejects_invalid_headers() {
   CHECK(!patchy::bmp::DocumentIo::can_read({}));
   const std::vector<std::uint8_t> not_bmp{'N', 'O'};
@@ -19587,6 +19831,12 @@ int main() {
        filter_named_engine_recipes_bounds_colors_and_legacy_stay_distinct},
       {"filter_recipe_opacity_interpolates_rgba_results",
        filter_recipe_opacity_interpolates_rgba_results},
+      {"filter_recipe_scales_supports_validates_and_skips_zero_opacity",
+       filter_recipe_scales_supports_validates_and_skips_zero_opacity},
+      {"filter_recipe_order_and_bounds_match_explicit_execution",
+       filter_recipe_order_and_bounds_match_explicit_execution},
+      {"filter_recipe_expansion_keeps_fully_transparent_bounds_stable",
+       filter_recipe_expansion_keeps_fully_transparent_bounds_stable},
       {"bmp_reader_rejects_invalid_headers", bmp_reader_rejects_invalid_headers},
       {"bmp_indexed_reads_2_4_8_bit_palettes_and_rows", bmp_indexed_reads_2_4_8_bit_palettes_and_rows},
       {"bmp_exact_indexed_writes_and_round_trips", bmp_exact_indexed_writes_and_round_trips},

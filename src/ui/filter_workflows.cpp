@@ -1249,21 +1249,21 @@ void blit_buffer_rect(PixelBuffer& dst, const PixelBuffer& src, std::int32_t dst
   }
 }
 
-PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegion& selection, Rect bounds,
-                                        const FilterRegistry& registry, const FilterPreviewSettings& settings,
-                                        const FilterProgress* progress, Rect* result_bounds) {
+namespace {
+
+template <typename Filter>
+PixelBuffer build_filter_preview_pixels_impl(const PixelBuffer& original, const QRegion& selection, Rect bounds,
+                                              const FilterRegistry& registry, const Filter& filter,
+                                              const FilterProgress* progress, Rect* result_bounds) {
   if (result_bounds != nullptr) {
     *result_bounds = bounds;
-  }
-  if (!settings.preview_enabled) {
-    return original;
   }
   if (!selection.isEmpty() && layer_selection_region(selection, bounds).isEmpty()) {
     return original;
   }
 
   if (selection.isEmpty()) {
-    auto rendered = registry.render(settings.invocation, original, bounds, true, progress);
+    auto rendered = registry.render(filter, original, bounds, true, progress);
     if (result_bounds != nullptr) {
       *result_bounds = rendered.bounds;
     }
@@ -1271,7 +1271,7 @@ PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegi
   }
 
   auto pixels = original;
-  if (const auto support = registry.translation_invariant_support(settings.invocation); support.has_value()) {
+  if (const auto support = registry.translation_invariant_support(filter); support.has_value()) {
     const auto selected = layer_selection_region(selection, bounds);
     const QRect layer_rect(bounds.x, bounds.y, bounds.width, bounds.height);
     const auto work =
@@ -1279,16 +1279,37 @@ PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegi
     if (!work.isEmpty() && work != layer_rect) {
       const Rect work_local{work.x() - bounds.x, work.y() - bounds.y, work.width(), work.height()};
       auto window = copy_buffer_rect(original, work_local);
-      registry.apply(settings.invocation, window, progress);
+      registry.apply(filter, window, progress);
       blit_buffer_rect(pixels, window, work_local.x, work_local.y);
       restore_pixels_outside_selection(pixels, original, selection, bounds);
       return pixels;
     }
   }
 
-  registry.apply(settings.invocation, pixels, progress);
+  registry.apply(filter, pixels, progress);
   restore_pixels_outside_selection(pixels, original, selection, bounds);
   return pixels;
+}
+
+}  // namespace
+
+PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegion& selection, Rect bounds,
+                                         const FilterRegistry& registry, const FilterPreviewSettings& settings,
+                                         const FilterProgress* progress, Rect* result_bounds) {
+  if (!settings.preview_enabled) {
+    if (result_bounds != nullptr) {
+      *result_bounds = bounds;
+    }
+    return original;
+  }
+  return build_filter_preview_pixels_impl(original, selection, bounds, registry, settings.invocation, progress,
+                                          result_bounds);
+}
+
+PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegion& selection, Rect bounds,
+                                         const FilterRegistry& registry, const FilterRecipe& recipe,
+                                         const FilterProgress* progress, Rect* result_bounds) {
+  return build_filter_preview_pixels_impl(original, selection, bounds, registry, recipe, progress, result_bounds);
 }
 
 bool pixel_buffers_equal(const PixelBuffer& lhs, const PixelBuffer& rhs) {
