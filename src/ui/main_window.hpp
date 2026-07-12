@@ -72,6 +72,7 @@ class BrushTipLibrary;
 class BrushTipPicker;
 class DocumentFloatWindow;
 class PalettePanel;
+class PatternLibrary;
 class ZoomPercentEdit;
 class ZoomStatusBar;
 
@@ -106,6 +107,7 @@ public:
   void refresh_native_frame_after_overlay();
   [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }
   [[nodiscard]] BrushTipLibrary& brush_tip_library();
+  [[nodiscard]] PatternLibrary& pattern_library();
   void set_active_brush_tip(const QString& tip_id, bool announce);
   void define_brush_tip_from_selection();
   [[nodiscard]] QImage capture_brush_tip_define_source() const;
@@ -746,6 +748,7 @@ private:
   QCheckBox* quick_select_enhance_edge_check_{nullptr};
   QComboBox* brush_preset_combo_{nullptr};
   BrushTipLibrary* brush_tip_library_{nullptr};
+  PatternLibrary* pattern_library_{nullptr};
   BrushTipPicker* brush_tip_picker_{nullptr};
   BrushDynamicsButton* brush_dynamics_button_{nullptr};
   QString active_brush_tip_id_;

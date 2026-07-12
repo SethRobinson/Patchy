@@ -43,6 +43,7 @@
 #include "ui/localization.hpp"
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
+#include "ui/pattern_library.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
@@ -19017,14 +19018,32 @@ void MainWindow::rename_active_layer() {
 
 namespace {
 
-// Materializes any built-in pattern preset a style references into the
-// document's pattern store, so previews and saves can resolve the tile. Store
-// insertions are benign; unreferenced entries prune at PSD write.
-void ensure_builtin_patterns_for_style(Document& doc, const LayerStyle& style) {
+// Materializes any user-library or legacy built-in pattern a style references
+// into the document store, so previews and saves no longer depend on the
+// application library. Store insertions are benign; unreferenced entries prune
+// at PSD write.
+void ensure_patterns_for_style(Document& doc, const LayerStyle& style,
+                               const PatternLibrary& library,
+                               const PatternStore* transient_patterns = nullptr) {
   std::vector<std::string> referenced;
   collect_referenced_pattern_ids(style, referenced);
   for (const auto& id : referenced) {
-    if (doc.metadata().patterns.find(id) == nullptr && find_builtin_pattern_preset(id) != nullptr) {
+    if (doc.metadata().patterns.find(id) != nullptr) {
+      continue;
+    }
+    if (transient_patterns != nullptr) {
+      if (const auto* resource = transient_patterns->find(id); resource != nullptr) {
+        auto authored = *resource;
+        authored.provenance = PatternProvenance::Authored;
+        doc.metadata().patterns.adopt(authored);
+        continue;
+      }
+    }
+    if (auto resource = library.resource(QString::fromStdString(id)); resource.has_value()) {
+      resource->provenance = PatternProvenance::Authored;
+      doc.metadata().patterns.adopt(*resource);
+    } else if (find_builtin_pattern_preset(id) != nullptr) {
+      // Legacy repair path for settings/files created before PatternLibrary.
       doc.metadata().patterns.adopt(builtin_pattern_resource(id));
     }
   }
@@ -19060,6 +19079,7 @@ void MainWindow::edit_active_layer_style() {
   const auto original_blend_if = layer->blend_if();
   const auto original_blend_if_payload = layer->raw_psd_blending_ranges();
   const auto original_blend_if_rgb_compatible = layer->blend_if_rgb_compatible();
+  const auto original_patterns = doc.metadata().patterns;
   auto set_layer_style_settings = [original_blend_if, original_blend_if_payload,
                                    original_blend_if_rgb_compatible](Layer& target,
                                                                      const LayerStyleSettings& settings) {
@@ -19072,23 +19092,31 @@ void MainWindow::edit_active_layer_style() {
       (void)target.set_blend_if(settings.blend_if, settings.replace_unsupported_blend_if);
     }
   };
-  auto apply_preview_settings = [this, &doc, layer_id, set_layer_style_settings](const LayerStyleSettings& settings) {
+  auto apply_preview_settings = [this, &doc, layer_id, set_layer_style_settings,
+                                 original_patterns](const LayerStyleSettings& settings) {
     auto* target = doc.find_layer(layer_id);
     if (target == nullptr) {
       return;
     }
-    ensure_builtin_patterns_for_style(doc, settings.style);
+    // Every preview starts from the original document store. The temporary
+    // store may contain a manager-selected collision alias, so use it as a
+    // fallback while materializing only patterns referenced by this preview.
+    const auto available_patterns = doc.metadata().patterns;
+    doc.metadata().patterns = original_patterns;
+    ensure_patterns_for_style(doc, settings.style, pattern_library(), &available_patterns);
     set_layer_style_settings(*target, settings);
     if (canvas_ != nullptr) {
       canvas_->document_changed_async_preview();
     }
   };
-  auto apply_committed_settings = [this, &doc, layer_id, set_layer_style_settings](const LayerStyleSettings& settings) {
+  auto apply_committed_settings = [this, &doc, layer_id, set_layer_style_settings](
+                                      const LayerStyleSettings& settings,
+                                      const PatternStore* transient_patterns) {
     auto* target = doc.find_layer(layer_id);
     if (target == nullptr) {
       return;
     }
-    ensure_builtin_patterns_for_style(doc, settings.style);
+    ensure_patterns_for_style(doc, settings.style, pattern_library(), transient_patterns);
     const auto before = layer_render_bounds(*target);
     set_layer_style_settings(*target, settings);
     const auto after = layer_render_bounds(*target);
@@ -19097,7 +19125,9 @@ void MainWindow::edit_active_layer_style() {
     }
   };
   auto restore_original = [this, &doc, layer_id, original_opacity, original_blend_mode, original_style,
-                           original_blend_if_payload, original_blend_if_rgb_compatible] {
+                           original_blend_if_payload, original_blend_if_rgb_compatible,
+                           original_patterns] {
+    doc.metadata().patterns = original_patterns;
     auto* target = doc.find_layer(layer_id);
     if (target == nullptr) {
       return;
@@ -19115,7 +19145,8 @@ void MainWindow::edit_active_layer_style() {
 
   auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings =
-      request_layer_style_settings(this, *layer, apply_preview_settings, &doc.metadata().patterns);
+      request_layer_style_settings(this, *layer, apply_preview_settings, &doc.metadata().patterns,
+                                   &pattern_library());
   if (!settings.has_value()) {
     restore_original();
     preview_edit_lock.release();
@@ -19124,13 +19155,14 @@ void MainWindow::edit_active_layer_style() {
     return;
   }
 
+  const auto dialog_patterns = doc.metadata().patterns;
   restore_original();
   preview_edit_lock.release();
   push_undo_snapshot(tr("Layer style"));
   if (auto* target = doc.find_layer(layer_id); target != nullptr) {
     clear_layer_psd_style_source(*target);
   }
-  apply_committed_settings(*settings);
+  apply_committed_settings(*settings, &dialog_patterns);
   refresh_layer_list();
   refresh_layer_controls();
   statusBar()->showMessage(tr("Updated layer style"));
@@ -19205,7 +19237,7 @@ void MainWindow::paste_layer_style_to_selected_layers() {
     adopted.provenance = PatternProvenance::Authored;  // the target file has no raw block for it
     mutable_doc.metadata().patterns.adopt(adopted);
   }
-  ensure_builtin_patterns_for_style(mutable_doc, layer_style_clipboard_->style);
+  ensure_patterns_for_style(mutable_doc, layer_style_clipboard_->style, pattern_library());
   Rect affected;
   std::size_t pasted_count = 0;
   for (const auto id : targets) {
@@ -21588,6 +21620,25 @@ BrushTipLibrary& MainWindow::brush_tip_library() {
     }
   }
   return *brush_tip_library_;
+}
+
+PatternLibrary& MainWindow::pattern_library() {
+  if (pattern_library_ == nullptr) {
+    pattern_library_ = new PatternLibrary({}, this);
+    // Seed code-generated defaults once. A user deletion stays deleted across
+    // launches; the Pattern Manager's explicit restore command brings it back.
+    auto settings = app_settings();
+    const auto stored_version =
+        settings.value(QStringLiteral("patterns/defaultPatternsVersion"), 0).toInt();
+    if (stored_version < kDefaultPatternsVersion) {
+      pattern_library_->restore_default_patterns(stored_version);
+      if (pattern_library_->has_all_default_patterns_introduced_after(stored_version)) {
+        settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"),
+                          kDefaultPatternsVersion);
+      }
+    }
+  }
+  return *pattern_library_;
 }
 
 void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {

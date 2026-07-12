@@ -8,6 +8,8 @@
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/gradient_stops_editor.hpp"
+#include "ui/pattern_library.hpp"
+#include "ui/pattern_manager_dialog.hpp"
 
 #include <QAbstractButton>
 #include <QCheckBox>
@@ -17,7 +19,9 @@
 #include <QDialogButtonBox>
 #include <QEvent>
 #include <QFormLayout>
+#include <QFrame>
 #include <QGroupBox>
+#include <QHash>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QImage>
@@ -35,12 +39,14 @@
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSizePolicy>
+#include <QScreen>
 #include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QString>
 #include <QTimer>
+#include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -229,6 +235,12 @@ QIcon pattern_preset_icon(const PixelBuffer& tile, int extent = 24) {
   return QIcon(QPixmap::fromImage(canvas_image));
 }
 
+[[nodiscard]] bool pattern_tiles_equal(const PixelBuffer& lhs, const PixelBuffer& rhs) {
+  return lhs.width() == rhs.width() && lhs.height() == rhs.height() &&
+         lhs.format() == rhs.format() && lhs.data().size() == rhs.data().size() &&
+         std::equal(lhs.data().begin(), lhs.data().end(), rhs.data().begin());
+}
+
 // Thumbnail of a contour curve: the engine LUT drawn as a polyline on a chip.
 QIcon contour_preset_icon(const StyleContour& contour) {
   constexpr int kWidth = 32;
@@ -255,7 +267,177 @@ QIcon contour_preset_icon(const StyleContour& contour) {
 
 constexpr int kPatternIdRole = Qt::UserRole;
 constexpr int kPatternPersistNameRole = Qt::UserRole + 1;
-constexpr const char* kContourCustomId = "custom";
+constexpr int kPatternPickerIndexRole = Qt::UserRole + 2;
+constexpr int kPatternPickerIsLeafRole = Qt::UserRole + 3;
+constexpr const char *kContourCustomId = "custom";
+
+// QComboBox does not present hierarchical models as an expandable tree on all
+// Qt styles. Keep its flat model for the selected-value display and existing
+// combo-box behavior, but replace the drop-down with a folder-aware tree.
+class PatternPickerCombo final : public QComboBox {
+public:
+  explicit PatternPickerCombo(QWidget *parent = nullptr) : QComboBox(parent) {}
+
+  void clear_patterns() {
+    entries_.clear();
+    QComboBox::clear();
+  }
+
+  void add_pattern(const QIcon &icon, const QString &flat_label,
+                   const QString &display_name, const QString &pattern_id,
+                   const QString &persist_name, const QString &folder = {}) {
+    QComboBox::addItem(icon, flat_label, pattern_id);
+    setItemData(count() - 1, persist_name, kPatternPersistNameRole);
+    entries_.push_back({display_name, folder});
+  }
+
+  void add_pattern(const QString &flat_label, const QString &display_name,
+                   const QString &pattern_id, const QString &persist_name,
+                   const QString &folder = {}) {
+    add_pattern({}, flat_label, display_name, pattern_id, persist_name, folder);
+  }
+
+  void showPopup() override {
+    if (!isEnabled() || entries_.empty()) {
+      return;
+    }
+    hidePopup();
+
+    auto *popup = new QFrame(this, Qt::Popup);
+    popup->setAttribute(Qt::WA_DeleteOnClose);
+    popup->setObjectName(objectName() + QStringLiteral("Popup"));
+    popup->setFrameShape(QFrame::StyledPanel);
+    auto *layout = new QVBoxLayout(popup);
+    layout->setContentsMargins(1, 1, 1, 1);
+    layout->setSpacing(0);
+    auto *tree = new QTreeWidget(popup);
+    tree->setObjectName(objectName() + QStringLiteral("Tree"));
+    tree->setHeaderHidden(true);
+    tree->setRootIsDecorated(true);
+    tree->setIconSize(iconSize());
+    tree->setUniformRowHeights(true);
+    layout->addWidget(tree);
+
+    QHash<QString, QTreeWidgetItem *> folders;
+    const auto selected_folder =
+        currentIndex() >= 0 &&
+                currentIndex() < static_cast<int>(entries_.size())
+            ? entries_[static_cast<std::size_t>(currentIndex())].folder
+            : QString{};
+    for (int index = 0; index < static_cast<int>(entries_.size()); ++index) {
+      const auto &entry = entries_[static_cast<std::size_t>(index)];
+      QTreeWidgetItem *parent_item = nullptr;
+      if (!entry.folder.isEmpty()) {
+        parent_item = folders.value(entry.folder, nullptr);
+        if (parent_item == nullptr) {
+          parent_item = new QTreeWidgetItem(tree, QStringList{entry.folder});
+          parent_item->setIcon(0, style()->standardIcon(QStyle::SP_DirIcon));
+          folders.insert(entry.folder, parent_item);
+          if (!folder_expansion_.contains(entry.folder)) {
+            folder_expansion_.insert(entry.folder,
+                                     entry.folder == selected_folder);
+          }
+          parent_item->setExpanded(folder_expansion_.value(entry.folder));
+        }
+      }
+
+      auto *item =
+          parent_item != nullptr
+              ? new QTreeWidgetItem(parent_item,
+                                    QStringList{entry.display_name})
+              : new QTreeWidgetItem(tree, QStringList{entry.display_name});
+      item->setIcon(0, itemIcon(index));
+      item->setData(0, kPatternPickerIndexRole, index);
+      item->setData(0, kPatternPickerIsLeafRole, true);
+      if (index == currentIndex()) {
+        tree->setCurrentItem(item);
+      }
+    }
+
+    QObject::connect(tree, &QTreeWidget::itemExpanded, popup,
+                     [this](QTreeWidgetItem *item) {
+                       if (item->childCount() > 0) {
+                         folder_expansion_.insert(item->text(0), true);
+                       }
+                     });
+    QObject::connect(tree, &QTreeWidget::itemCollapsed, popup,
+                     [this](QTreeWidgetItem *item) {
+                       if (item->childCount() > 0) {
+                         folder_expansion_.insert(item->text(0), false);
+                       }
+                     });
+    const auto select_pattern = [this, popup](QTreeWidgetItem *item) {
+      const auto index = item->data(0, kPatternPickerIndexRole).toInt();
+      setCurrentIndex(index);
+      emit activated(index);
+      popup->close();
+    };
+    QObject::connect(tree, &QTreeWidget::itemClicked, popup,
+                     [select_pattern](QTreeWidgetItem *item, int) {
+                       if (!item->data(0, kPatternPickerIsLeafRole).toBool()) {
+                         item->setExpanded(!item->isExpanded());
+                         return;
+                       }
+                       select_pattern(item);
+                     });
+    QObject::connect(tree, &QTreeWidget::itemActivated, popup,
+                     [select_pattern](QTreeWidgetItem *item, int) {
+                       if (item->data(0, kPatternPickerIsLeafRole).toBool()) {
+                         select_pattern(item);
+                       }
+                     });
+
+    popup_ = popup;
+    auto visible_rows = tree->topLevelItemCount();
+    for (int index = 0; index < tree->topLevelItemCount(); ++index) {
+      const auto *item = tree->topLevelItem(index);
+      if (item->isExpanded()) {
+        visible_rows += item->childCount();
+      }
+    }
+    const auto popup_width = std::max(width(), 320);
+    // A short folder must not collapse the picker into a cramped two-row menu.
+    // Keep enough vertical room to browse and compare thumbnails; longer
+    // libraries remain bounded and scroll inside the tree.
+    const auto popup_height = std::clamp(visible_rows * 30 + 4, 280, 420);
+    popup->resize(popup_width, popup_height);
+
+    auto position = mapToGlobal(QPoint(0, height()));
+    if (const auto *target_screen = screen(); target_screen != nullptr) {
+      const auto available = target_screen->availableGeometry();
+      position.setX(std::clamp(
+          position.x(), available.left(),
+          std::max(available.left(), available.right() - popup_width + 1)));
+      if (position.y() + popup_height > available.bottom() + 1) {
+        position.setY(std::max(available.top(),
+                               mapToGlobal(QPoint(0, 0)).y() - popup_height));
+      }
+    }
+    popup->move(position);
+    popup->show();
+    tree->setFocus(Qt::PopupFocusReason);
+    if (tree->currentItem() != nullptr) {
+      tree->scrollToItem(tree->currentItem());
+    }
+  }
+
+  void hidePopup() override {
+    if (popup_ != nullptr) {
+      popup_->close();
+      popup_.clear();
+    }
+  }
+
+private:
+  struct Entry {
+    QString display_name;
+    QString folder;
+  };
+
+  std::vector<Entry> entries_;
+  QHash<QString, bool> folder_expansion_;
+  QPointer<QFrame> popup_;
+};
 
 enum class LayerStyleCategoryPage {
   Blending = 0,
@@ -415,7 +597,7 @@ void update_color_preview_label(QWidget* widget, int red, int green, int blue) {
 
 std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer, std::function<void(const LayerStyleSettings&)> preview_changed,
-    const PatternStore* document_patterns) {
+    PatternStore* document_patterns, PatternLibrary* pattern_library) {
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)), layer.blend_mode(), layer.layer_style(),
       layer.blend_if(), false};
@@ -434,6 +616,24 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto satin = style.satins.empty() ? default_satin() : style.satins.front();
   auto pattern_overlay =
       style.pattern_overlays.empty() ? default_pattern_overlay() : style.pattern_overlays.front();
+  // Manager selections whose Photoshop id collides with different embedded
+  // pixels receive a document-local id. Keep those resources alive across
+  // Preview-off callbacks, where MainWindow restores the original store.
+  std::vector<PatternResource> transient_manager_patterns;
+  if (style.pattern_overlays.empty() && pattern_library != nullptr &&
+      pattern_library->find_entry_by_pattern_id(QString::fromStdString(pattern_overlay.pattern_id)) == nullptr) {
+    if (!pattern_library->entries().empty()) {
+      const auto& first = pattern_library->entries().front();
+      pattern_overlay.pattern_id = first.id.toStdString();
+      pattern_overlay.pattern_name = first.name.toStdString();
+    } else if (document_patterns != nullptr && !document_patterns->patterns.empty()) {
+      pattern_overlay.pattern_id = document_patterns->patterns.front().id;
+      pattern_overlay.pattern_name = document_patterns->patterns.front().name;
+    } else {
+      pattern_overlay.pattern_id.clear();
+      pattern_overlay.pattern_name.clear();
+    }
+  }
   // Imported non-preset curves survive picker round trips: each picker keeps the
   // original custom curve and only a deliberate preset pick replaces it.
   StyleContour custom_gloss_contour = bevel.gloss_contour;
@@ -461,11 +661,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   // A pattern reference resolves if its tile is embedded in the document or is
   // one of Patchy's built-in presets (materialized into the document on apply).
-  const auto pattern_reference_resolves = [document_patterns](const std::string& id) {
+  const auto pattern_reference_resolves = [document_patterns, pattern_library](const std::string& id) {
     if (id.empty()) {
       return false;
     }
     if (document_patterns != nullptr && document_patterns->find(id) != nullptr) {
+      return true;
+    }
+    if (pattern_library != nullptr &&
+        pattern_library->find_entry_by_pattern_id(QString::fromStdString(id)) != nullptr) {
       return true;
     }
     return find_builtin_pattern_preset(id) != nullptr;
@@ -488,12 +692,14 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     note_missing_pattern(effect.texture.pattern_id, effect.texture.pattern_name,
                          effect.enabled && effect.texture.enabled);
   }
+  QLabel* missing_pattern_warning = nullptr;
   if (!missing_pattern_names.empty()) {
     QStringList names;
     for (const auto& missing : missing_pattern_names) {
       names << QString::fromStdString(missing);
     }
     auto* warning = new QLabel(&dialog);
+    missing_pattern_warning = warning;
     warning->setObjectName(QStringLiteral("layerStyleMissingPatternWarning"));
     warning->setWordWrap(true);
     warning->setProperty("warningBanner", true);
@@ -1152,30 +1358,49 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* bevel_contour_layout = make_page(QStringLiteral("layerStyleBevelContourPage"));
   auto* bevel_texture_layout = make_page(QStringLiteral("layerStyleBevelTexturePage"));
 
-  // Pattern pickers: an icon combo listing the document's embedded patterns
-  // first, then the built-in presets (skipping ids the document already holds).
-  // Item data carries the persisted id + English name; the label is translated.
-  auto make_pattern_combo = [&](QWidget* combo_parent, const QString& object_name,
-                                const std::string& current_id, const std::string& current_name) {
-    auto* combo = new QComboBox(combo_parent);
-    combo->setObjectName(object_name);
-    combo->setIconSize(QSize(24, 24));
+  // Pattern pickers list document-embedded resources first, then the persistent
+  // user library. A direct dialog caller that supplies no library retains the
+  // built-in fallback used before the Pattern Manager existed.
+  const auto pattern_entry_display_name = [](const PatternLibraryEntry& entry) {
+    if (const auto* preset = find_builtin_pattern_preset(entry.id.toStdString());
+        preset != nullptr && entry.name == QString::fromLatin1(preset->english_name)) {
+      return QObject::tr(preset->english_name);
+    }
+    return entry.name;
+  };
+  const auto populate_pattern_combo = [&](PatternPickerCombo* combo, const std::string& current_id,
+                                          const std::string& current_name) {
+    const QSignalBlocker blocker(combo);
+    combo->clear_patterns();
     if (document_patterns != nullptr) {
       for (const auto& resource : document_patterns->patterns) {
-        combo->addItem(pattern_preset_icon(resource.tile), QString::fromStdString(resource.name),
-                       QString::fromStdString(resource.id));
-        combo->setItemData(combo->count() - 1, QString::fromStdString(resource.name),
-                           kPatternPersistNameRole);
+        const auto name = QString::fromStdString(resource.name);
+        const auto display = name.isEmpty() ? QString::fromStdString(resource.id) : name;
+        combo->add_pattern(pattern_preset_icon(resource.tile), display, display,
+                           QString::fromStdString(resource.id), name);
       }
     }
-    for (const auto& preset : builtin_pattern_presets()) {
-      if (document_patterns != nullptr && document_patterns->find(preset.id) != nullptr) {
-        continue;
+    if (pattern_library != nullptr) {
+      for (const auto& entry : pattern_library->entries()) {
+        if (document_patterns != nullptr && document_patterns->find(entry.id.toStdString()) != nullptr) {
+          continue;
+        }
+        const auto display = pattern_entry_display_name(entry);
+        const auto label = entry.folder.isEmpty() ? display
+                                                   : QObject::tr("%1 / %2").arg(entry.folder, display);
+        combo->add_pattern(QIcon(entry.thumbnail), label, display, entry.id, entry.name,
+                           entry.folder);
       }
-      combo->addItem(pattern_preset_icon(generate_builtin_pattern_tile(preset.id)),
-                     QObject::tr(preset.english_name), QString::fromLatin1(preset.id));
-      combo->setItemData(combo->count() - 1, QString::fromLatin1(preset.english_name),
-                         kPatternPersistNameRole);
+    } else {
+      for (const auto& preset : builtin_pattern_presets()) {
+        if (document_patterns != nullptr && document_patterns->find(preset.id) != nullptr) {
+          continue;
+        }
+        const auto display = QObject::tr(preset.english_name);
+        combo->add_pattern(pattern_preset_icon(generate_builtin_pattern_tile(preset.id)), display,
+                           display, QString::fromLatin1(preset.id),
+                           QString::fromLatin1(preset.english_name), default_patterns_folder_name());
+      }
     }
     const auto current = QString::fromStdString(current_id);
     auto index = combo->findData(current, kPatternIdRole);
@@ -1183,11 +1408,18 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       // Unresolvable reference: keep it selectable so opening and accepting the
       // dialog never silently rewrites the file's pattern id.
       const auto display = current_name.empty() ? current_id : current_name;
-      combo->addItem(QObject::tr("%1 (missing)").arg(QString::fromStdString(display)), current);
-      combo->setItemData(combo->count() - 1, QString::fromStdString(current_name), kPatternPersistNameRole);
+      const auto missing = QObject::tr("%1 (missing)").arg(QString::fromStdString(display));
+      combo->add_pattern(missing, missing, current, QString::fromStdString(current_name));
       index = combo->count() - 1;
     }
-    combo->setCurrentIndex(std::max(0, index));
+    combo->setCurrentIndex(index >= 0 ? index : (combo->count() > 0 ? 0 : -1));
+  };
+  auto make_pattern_combo = [&](QWidget* combo_parent, const QString& object_name,
+                                const std::string& current_id, const std::string& current_name) {
+    auto* combo = new PatternPickerCombo(combo_parent);
+    combo->setObjectName(object_name);
+    combo->setIconSize(QSize(24, 24));
+    populate_pattern_combo(combo, current_id, current_name);
     return combo;
   };
   auto pattern_combo_id = [](const QComboBox* combo) {
@@ -1593,10 +1825,19 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto* bevel_texture_group = new QGroupBox(QObject::tr("Texture"), controls);
   auto* bevel_texture_form = new QFormLayout(bevel_texture_group);
-  auto* bevel_texture_pattern = make_pattern_combo(bevel_texture_group,
+  auto* bevel_texture_pattern_row = new QWidget(bevel_texture_group);
+  auto* bevel_texture_pattern_layout = new QHBoxLayout(bevel_texture_pattern_row);
+  bevel_texture_pattern_layout->setContentsMargins(0, 0, 0, 0);
+  bevel_texture_pattern_layout->setSpacing(8);
+  auto* bevel_texture_pattern = make_pattern_combo(bevel_texture_pattern_row,
                                                    QStringLiteral("layerStyleBevelTexturePatternCombo"),
                                                    bevel.texture.pattern_id, bevel.texture.pattern_name);
-  bevel_texture_form->addRow(QObject::tr("Pattern"), bevel_texture_pattern);
+  bevel_texture_pattern_layout->addWidget(bevel_texture_pattern, 1);
+  auto* bevel_texture_manage = new QPushButton(QObject::tr("Manage…"), bevel_texture_pattern_row);
+  bevel_texture_manage->setObjectName(QStringLiteral("layerStyleBevelTextureManageButton"));
+  bevel_texture_manage->setToolTip(QObject::tr("Open Pattern Manager"));
+  bevel_texture_pattern_layout->addWidget(bevel_texture_manage);
+  bevel_texture_form->addRow(QObject::tr("Pattern"), bevel_texture_pattern_row);
   auto* bevel_texture_scale = add_slider_spin_row(
       bevel_texture_form, bevel_texture_group, QObject::tr("Scale"),
       QStringLiteral("layerStyleBevelTextureScaleSpin"), 1, 1000,
@@ -1633,10 +1874,19 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       pattern_overlay_form, pattern_overlay_group, QObject::tr("Opacity"),
       QStringLiteral("layerStylePatternOverlayOpacitySpin"), 0, 100,
       static_cast<int>(std::round(pattern_overlay.opacity * 100.0F)), QStringLiteral("%"));
+  auto* pattern_overlay_pattern_row = new QWidget(pattern_overlay_group);
+  auto* pattern_overlay_pattern_layout = new QHBoxLayout(pattern_overlay_pattern_row);
+  pattern_overlay_pattern_layout->setContentsMargins(0, 0, 0, 0);
+  pattern_overlay_pattern_layout->setSpacing(8);
   auto* pattern_overlay_pattern = make_pattern_combo(
-      pattern_overlay_group, QStringLiteral("layerStylePatternOverlayPatternCombo"),
+      pattern_overlay_pattern_row, QStringLiteral("layerStylePatternOverlayPatternCombo"),
       pattern_overlay.pattern_id, pattern_overlay.pattern_name);
-  pattern_overlay_form->addRow(QObject::tr("Pattern"), pattern_overlay_pattern);
+  pattern_overlay_pattern_layout->addWidget(pattern_overlay_pattern, 1);
+  auto* pattern_overlay_manage = new QPushButton(QObject::tr("Manage…"), pattern_overlay_pattern_row);
+  pattern_overlay_manage->setObjectName(QStringLiteral("layerStylePatternOverlayManageButton"));
+  pattern_overlay_manage->setToolTip(QObject::tr("Open Pattern Manager"));
+  pattern_overlay_pattern_layout->addWidget(pattern_overlay_manage);
+  pattern_overlay_form->addRow(QObject::tr("Pattern"), pattern_overlay_pattern_row);
   auto* pattern_overlay_angle = add_slider_spin_row(
       pattern_overlay_form, pattern_overlay_group, QObject::tr("Angle"),
       QStringLiteral("layerStylePatternOverlayAngleSpin"), -180, 180,
@@ -3049,6 +3299,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   CoalescedLayerStylePreviewEmitter<LayerStyleSettings> preview_emitter(
       dialog, [&](const LayerStyleSettings& settings) {
+        if (document_patterns != nullptr) {
+          for (const auto& resource : transient_manager_patterns) {
+            document_patterns->adopt(resource);
+          }
+        }
         if (preview_changed) {
           preview_changed(settings);
         }
@@ -3197,6 +3452,86 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(bevel_contour_anti_aliased, &QCheckBox::toggled, &dialog,
                    [&emit_preview](bool) { emit_preview(true); });
+  bevel_texture_manage->setEnabled(pattern_library != nullptr);
+  pattern_overlay_manage->setEnabled(pattern_library != nullptr);
+  const auto open_pattern_manager = [&](QComboBox* target_combo) {
+    if (pattern_library == nullptr) {
+      return;
+    }
+    const auto bevel_id = pattern_combo_id(bevel_texture_pattern);
+    const auto bevel_name = pattern_combo_persist_name(bevel_texture_pattern);
+    const auto overlay_id = pattern_combo_id(pattern_overlay_pattern);
+    const auto overlay_name = pattern_combo_persist_name(pattern_overlay_pattern);
+    const auto selected_storage_id = request_pattern_manager(
+        &dialog, *pattern_library, target_combo->currentData(kPatternIdRole).toString());
+    QString selected_pattern_id;
+    QString selected_pattern_name;
+    if (!selected_storage_id.isEmpty()) {
+      const auto* entry = pattern_library->find_entry(selected_storage_id);
+      const auto selected_resource = pattern_library->resource_for_entry(selected_storage_id);
+      if (entry != nullptr && selected_resource.has_value()) {
+        auto resource = *selected_resource;
+        selected_pattern_name = entry->name;
+        if (document_patterns != nullptr) {
+          if (const auto* embedded = document_patterns->find(resource.id);
+              embedded != nullptr && !pattern_tiles_equal(embedded->tile, resource.tile)) {
+            // A style stores only the Photoshop id, so two different tiles with
+            // the same id cannot coexist in one document. Give the selected
+            // library tile a document-local id and materialize it immediately;
+            // MainWindow restores this transient insertion on cancel.
+            const auto prior = std::find_if(
+                transient_manager_patterns.begin(), transient_manager_patterns.end(),
+                [&resource](const PatternResource& candidate) {
+                  return candidate.name == resource.name &&
+                         pattern_tiles_equal(candidate.tile, resource.tile);
+                });
+            if (prior != transient_manager_patterns.end()) {
+              resource = *prior;
+            } else {
+              do {
+                resource.id = generate_pattern_uuid();
+              } while (document_patterns->find(resource.id) != nullptr ||
+                       pattern_library->find_entry_by_pattern_id(
+                           QString::fromStdString(resource.id)) != nullptr);
+              resource.provenance = PatternProvenance::Authored;
+              transient_manager_patterns.push_back(resource);
+            }
+            document_patterns->adopt(resource);
+          }
+        }
+        selected_pattern_id = QString::fromStdString(resource.id);
+      }
+    }
+    populate_pattern_combo(bevel_texture_pattern, bevel_id, bevel_name);
+    populate_pattern_combo(pattern_overlay_pattern, overlay_id, overlay_name);
+    if (!selected_pattern_id.isEmpty()) {
+      set_pattern_combo_id(target_combo, selected_pattern_id.toStdString());
+      if (target_combo->currentIndex() >= 0 && !selected_pattern_name.isEmpty()) {
+        target_combo->setItemData(target_combo->currentIndex(), selected_pattern_name,
+                                  kPatternPersistNameRole);
+      }
+    }
+    emit_preview(true);
+    if (missing_pattern_warning != nullptr) {
+      const auto current_style = build_current_settings().style;
+      auto has_missing = false;
+      for (const auto& effect : current_style.pattern_overlays) {
+        has_missing = has_missing ||
+                      (effect.enabled && !effect.pattern_id.empty() &&
+                       !pattern_reference_resolves(effect.pattern_id));
+      }
+      for (const auto& effect : current_style.bevels) {
+        has_missing = has_missing ||
+                      (effect.enabled && effect.texture.enabled && !effect.texture.pattern_id.empty() &&
+                       !pattern_reference_resolves(effect.texture.pattern_id));
+      }
+      missing_pattern_warning->setVisible(has_missing);
+    }
+  };
+  QObject::connect(bevel_texture_manage, &QPushButton::clicked, &dialog,
+                   [&] { open_pattern_manager(bevel_texture_pattern); });
+  QObject::connect(pattern_overlay_manage, &QPushButton::clicked, &dialog,
+                   [&] { open_pattern_manager(pattern_overlay_pattern); });
   QObject::connect(bevel_texture_pattern, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(bevel_texture_invert, &QCheckBox::toggled, &dialog,
@@ -3400,6 +3735,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
+  }
+
+  if (document_patterns != nullptr) {
+    for (const auto& resource : transient_manager_patterns) {
+      document_patterns->adopt(resource);
+    }
   }
 
   return build_current_settings();

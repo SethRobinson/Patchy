@@ -78,6 +78,10 @@ not part of any release package.
   `aseprite-blend-modes-reference.png` (Aseprite's own flattened render of the
   blend-mode fixture): authored locally with Aseprite 1.3.17 via a batch script
   (self-authored art; no third-party content).
+- `test-fixtures/pat/hue.pat`: a real Photoshop pattern fixture from Jaroslav
+  Bereza's `jardicc/pat-parser` repository, included under the MIT License.
+  The pinned source URL, checksum, copyright notice, and full license text are
+  in `test-fixtures/pat/NOTICE.txt`.
 
 ## Built-in color palette presets
 

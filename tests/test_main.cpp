@@ -19,8 +19,10 @@
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "plugins/plugin_host.hpp"
 #include "psd/abr_reader.hpp"
+#include "psd/pat_reader.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
+#include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
@@ -12724,6 +12726,511 @@ std::vector<std::uint8_t> read_binary_file(const std::filesystem::path& path) {
   return std::vector<std::uint8_t>((std::istreambuf_iterator<char>(file)), {});
 }
 
+struct TestPatPlane {
+  std::uint32_t slot{0};
+  std::int32_t top{0};
+  std::int32_t left{0};
+  std::int32_t bottom{0};
+  std::int32_t right{0};
+  std::uint16_t depth{8};
+  std::uint8_t compression{0};
+  std::vector<std::uint8_t> data;
+};
+
+std::vector<std::uint8_t> test_color_pat_bytes(
+    std::uint32_t mode, std::uint16_t width, std::uint16_t height,
+    std::string_view name, const std::string& id, std::span<const TestPatPlane> planes) {
+  patchy::psd::BigEndianWriter writer;
+  write_ascii4(writer, "8BPT");
+  writer.write_u16(1);  // Standalone PAT file version.
+  writer.write_u32(1);  // Pattern count.
+
+  writer.write_u32(1);  // Pattern record version.
+  writer.write_u32(mode);
+  writer.write_u16(height);
+  writer.write_u16(width);
+  patchy::psd::write_descriptor_unicode_string(writer, name);
+  CHECK(id.size() <= 255U);
+  writer.write_u8(static_cast<std::uint8_t>(id.size()));
+  writer.write_bytes(std::span(reinterpret_cast<const std::uint8_t*>(id.data()), id.size()));
+
+  constexpr std::uint32_t kDeclaredChannels = 24;
+  constexpr std::size_t kSlotCount = kDeclaredChannels + 2U;
+  std::size_t vma_length = 16U + 4U;
+  for (std::size_t slot = 0; slot < kSlotCount; ++slot) {
+    const auto plane = std::find_if(planes.begin(), planes.end(), [slot](const TestPatPlane& value) {
+      return value.slot == slot;
+    });
+    vma_length += plane == planes.end() ? 4U : 8U + 23U + plane->data.size();
+  }
+  writer.write_u32(3);  // Virtual Memory Array version.
+  writer.write_u32(static_cast<std::uint32_t>(vma_length));
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(height);
+  writer.write_u32(width);
+  writer.write_u32(kDeclaredChannels);
+
+  for (std::size_t slot = 0; slot < kSlotCount; ++slot) {
+    const auto plane = std::find_if(planes.begin(), planes.end(), [slot](const TestPatPlane& value) {
+      return value.slot == slot;
+    });
+    if (plane == planes.end()) {
+      writer.write_u32(0);  // Unwritten user-mask/transparency or spare slot.
+      continue;
+    }
+    writer.write_u32(1);  // Written.
+    writer.write_u32(static_cast<std::uint32_t>(23U + plane->data.size()));
+    writer.write_u32(plane->depth);
+    writer.write_u32(static_cast<std::uint32_t>(plane->top));
+    writer.write_u32(static_cast<std::uint32_t>(plane->left));
+    writer.write_u32(static_cast<std::uint32_t>(plane->bottom));
+    writer.write_u32(static_cast<std::uint32_t>(plane->right));
+    writer.write_u16(plane->depth);
+    writer.write_u8(plane->compression);
+    writer.write_bytes(plane->data);
+  }
+  return writer.bytes();
+}
+
+std::vector<std::uint8_t> test_raw_rgb_pat_bytes(
+    std::string id = "11111111-2222-3333-4444-555555555555") {
+  std::vector<TestPatPlane> planes{
+      {0, 0, 0, 2, 2, 8, 0, {10, 20, 30, 40}},
+      {1, 0, 0, 2, 2, 8, 0, {50, 60, 70, 80}},
+      {2, 0, 0, 2, 2, 8, 0, {90, 100, 110, 120}},
+  };
+  return test_color_pat_bytes(3, 2, 2, "Raw RGB", id, planes);
+}
+
+void write_test_u32_at(std::vector<std::uint8_t>& bytes, std::size_t offset,
+                       std::uint32_t value) {
+  CHECK(offset <= bytes.size() && bytes.size() - offset >= 4U);
+  bytes[offset] = static_cast<std::uint8_t>(value >> 24U);
+  bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 16U);
+  bytes[offset + 2U] = static_cast<std::uint8_t>(value >> 8U);
+  bytes[offset + 3U] = static_cast<std::uint8_t>(value);
+}
+
+void append_pat_record(std::vector<std::uint8_t>& destination,
+                       std::span<const std::uint8_t> source_pat) {
+  CHECK(source_pat.size() >= 10U);
+  destination.insert(destination.end(), source_pat.begin() + 10, source_pat.end());
+}
+
+std::vector<std::uint8_t> pat_record_as_patterns_block(
+    std::span<const std::uint8_t> pat) {
+  CHECK(pat.size() >= 10U);
+  patchy::psd::BigEndianWriter writer;
+  const auto record = pat.subspan(10U);
+  writer.write_u32(static_cast<std::uint32_t>(record.size()));
+  writer.write_bytes(record);
+  while (writer.bytes().size() % 4U != 0U) {
+    writer.write_u8(0U);
+  }
+  return writer.bytes();
+}
+
+std::size_t test_pat_vma_length_offset(std::span<const std::uint8_t> pat) {
+  patchy::psd::BigEndianReader reader(pat);
+  reader.skip(10U);  // file envelope
+  reader.skip(12U);  // record version, mode, and dimensions
+  (void)patchy::psd::read_descriptor_unicode_string(reader);
+  reader.skip(reader.read_u8());
+  reader.skip(4U);  // VMA version
+  return reader.position();
+}
+
+std::vector<std::uint8_t> test_indexed_pat_bytes(
+    std::int32_t top = 0, std::int32_t left = 0, std::int32_t bottom = 2,
+    std::int32_t right = 2) {
+  patchy::psd::BigEndianWriter writer;
+  write_ascii4(writer, "8BPT");
+  writer.write_u16(1);
+  writer.write_u32(1);
+  writer.write_u32(1);
+  writer.write_u32(2);  // Indexed.
+  writer.write_u16(2);
+  writer.write_u16(2);
+  patchy::psd::write_descriptor_unicode_string(writer, "Indexed Alpha");
+  constexpr std::string_view id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+  writer.write_u8(static_cast<std::uint8_t>(id.size()));
+  writer.write_bytes(std::span(reinterpret_cast<const std::uint8_t*>(id.data()), id.size()));
+
+  std::array<std::uint8_t, 256U * 3U> table{};
+  table[3] = 10;
+  table[4] = 20;
+  table[5] = 30;
+  table[6] = 200;
+  table[7] = 150;
+  table[8] = 100;
+  writer.write_bytes(table);
+  writer.write_u16(3);  // Colors used.
+  writer.write_u16(2);  // Palette index 2 is transparent.
+
+  constexpr std::uint32_t kDeclaredChannels = 24;
+  constexpr std::size_t kPixelCount = 4;
+  constexpr std::size_t kChannelPayloadBytes = 23U + kPixelCount;
+  constexpr std::size_t kSlotCount = kDeclaredChannels + 2U;
+  constexpr std::size_t kVmaLength =
+      16U + 4U + 8U + kChannelPayloadBytes + (kSlotCount - 1U) * 4U;
+  writer.write_u32(3);
+  writer.write_u32(static_cast<std::uint32_t>(kVmaLength));
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(2);
+  writer.write_u32(2);
+  writer.write_u32(kDeclaredChannels);
+  writer.write_u32(1);
+  writer.write_u32(static_cast<std::uint32_t>(kChannelPayloadBytes));
+  writer.write_u32(8);
+  writer.write_u32(static_cast<std::uint32_t>(top));
+  writer.write_u32(static_cast<std::uint32_t>(left));
+  writer.write_u32(static_cast<std::uint32_t>(bottom));
+  writer.write_u32(static_cast<std::uint32_t>(right));
+  writer.write_u16(8);
+  writer.write_u8(0);
+  constexpr std::array<std::uint8_t, 4> indices{1, 2, 2, 1};
+  writer.write_bytes(indices);
+  for (std::size_t slot = 1; slot < kSlotCount; ++slot) {
+    writer.write_u32(0);
+  }
+  return writer.bytes();
+}
+
+void pat_hue_fixture_decodes_packbits_and_alpha() {
+  const auto bytes =
+      read_binary_file(patchy::test::committed_format_fixture_path("pat", "hue.pat"));
+  CHECK(bytes.size() == 18367U);
+  CHECK(fnv1a_hash_bytes(bytes) == 0x831FD2A322BE6A5EULL);
+  std::string error;
+  const auto result = patchy::psd::read_pat(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->patterns.size() == 1U);
+
+  const auto& pattern = result->patterns.front();
+  CHECK(pattern.name == "hue");
+  CHECK(pattern.id == "e7f7ad0e-6537-0b48-a350-1a98c4160671");
+  CHECK(pattern.provenance == patchy::PatternProvenance::Authored);
+  CHECK(pattern.tile.width() == 100);
+  CHECK(pattern.tile.height() == 100);
+  CHECK(pattern.tile.format() == patchy::PixelFormat::rgba8());
+
+  const auto check_pixel = [&pattern](int x, int y, std::array<std::uint8_t, 4> expected) {
+    const auto* pixel = pattern.tile.pixel(x, y);
+    CHECK(std::equal(expected.begin(), expected.end(), pixel));
+  };
+  check_pixel(0, 0, {255, 167, 0, 255});
+  check_pixel(50, 50, {255, 77, 0, 255});
+  check_pixel(25, 75, {255, 0, 0, 18});
+  check_pixel(99, 99, {0, 17, 149, 255});
+}
+
+void pat_raw_rgb_record_imports_without_psd_length_wrapper() {
+  const auto bytes = test_raw_rgb_pat_bytes();
+  std::string error;
+  const auto result = patchy::psd::read_pat(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->patterns.size() == 1U);
+
+  const auto& pattern = result->patterns.front();
+  CHECK(pattern.name == "Raw RGB");
+  CHECK(pattern.id == "11111111-2222-3333-4444-555555555555");
+  CHECK(pattern.tile.width() == 2);
+  CHECK(pattern.tile.height() == 2);
+  const auto* first = pattern.tile.pixel(0, 0);
+  CHECK(first[0] == 10 && first[1] == 50 && first[2] == 90 && first[3] == 255);
+  const auto* last = pattern.tile.pixel(1, 1);
+  CHECK(last[0] == 40 && last[1] == 80 && last[2] == 120 && last[3] == 255);
+}
+
+void pat_indexed_footer_applies_transparent_palette_index() {
+  const auto bytes = test_indexed_pat_bytes();
+  std::string error;
+  const auto result = patchy::psd::read_pat(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->patterns.size() == 1U);
+  const auto& tile = result->patterns.front().tile;
+  const auto* opaque = tile.pixel(0, 0);
+  CHECK(opaque[0] == 10 && opaque[1] == 20 && opaque[2] == 30 && opaque[3] == 255);
+  const auto* transparent = tile.pixel(1, 0);
+  CHECK(transparent[0] == 200 && transparent[1] == 150 && transparent[2] == 100 &&
+        transparent[3] == 0);
+}
+
+void pat_rejects_wrong_magic_version_truncation_and_empty_files() {
+  const auto expect_rejected = [](std::span<const std::uint8_t> bytes) {
+    std::string error;
+    const auto result = patchy::psd::read_pat(bytes, error);
+    CHECK(!result.has_value());
+    CHECK(!error.empty());
+  };
+
+  expect_rejected({});
+
+  auto wrong_magic = test_raw_rgb_pat_bytes();
+  wrong_magic[0] = 'X';
+  expect_rejected(wrong_magic);
+
+  auto wrong_version = test_raw_rgb_pat_bytes();
+  wrong_version[4] = 0;
+  wrong_version[5] = 2;
+  expect_rejected(wrong_version);
+
+  auto truncated = test_raw_rgb_pat_bytes();
+  truncated.pop_back();
+  expect_rejected(truncated);
+
+  const std::array<std::uint8_t, 10> no_patterns{
+      '8', 'B', 'P', 'T', 0, 1, 0, 0, 0, 0,
+  };
+  expect_rejected(no_patterns);
+}
+
+void pat_gray16_and_cmyk_records_decode() {
+  {
+    const std::vector<TestPatPlane> planes{
+        {0, 0, 0, 1, 3, 16, 0, {0x00, 0x00, 0x40, 0x00, 0x80, 0x00}},
+    };
+    const auto bytes = test_color_pat_bytes(
+        1, 3, 1, "Gray 16", "22222222-3333-4444-5555-666666666666", planes);
+    std::string error;
+    const auto result = patchy::psd::read_pat(bytes, error);
+    CHECK(result.has_value());
+    CHECK(error.empty());
+    CHECK(result->warnings.empty());
+    CHECK(result->patterns.size() == 1U);
+    const auto& tile = result->patterns.front().tile;
+    CHECK(tile.pixel(0, 0)[0] == 0);
+    CHECK(tile.pixel(1, 0)[0] == 128);
+    CHECK(tile.pixel(2, 0)[0] == 255);
+    for (int x = 0; x < 3; ++x) {
+      const auto* pixel = tile.pixel(x, 0);
+      CHECK(pixel[0] == pixel[1] && pixel[1] == pixel[2] && pixel[3] == 255);
+    }
+  }
+
+  {
+    const std::vector<TestPatPlane> planes{
+        {0, 0, 0, 1, 2, 8, 0, {255, 255}},  // inverted cyan
+        {1, 0, 0, 1, 2, 8, 0, {0, 255}},    // inverted magenta
+        {2, 0, 0, 1, 2, 8, 0, {0, 255}},    // inverted yellow
+        {3, 0, 0, 1, 2, 8, 0, {255, 128}},  // inverted black
+    };
+    const auto bytes = test_color_pat_bytes(
+        4, 2, 1, "CMYK", "33333333-4444-5555-6666-777777777777", planes);
+    std::string error;
+    const auto result = patchy::psd::read_pat(bytes, error);
+    CHECK(result.has_value());
+    CHECK(error.empty());
+    CHECK(result->warnings.empty());
+    CHECK(result->patterns.size() == 1U);
+    const auto& tile = result->patterns.front().tile;
+    const auto* red = tile.pixel(0, 0);
+    CHECK(red[0] == 255 && red[1] == 0 && red[2] == 0 && red[3] == 255);
+    const auto* gray = tile.pixel(1, 0);
+    CHECK(gray[0] == 128 && gray[1] == 128 && gray[2] == 128 && gray[3] == 255);
+  }
+}
+
+void pat_invalid_utf8_id_is_replaced() {
+  std::string invalid_id = "44444444-5555-6666-7777-888888888888";
+  invalid_id[0] = static_cast<char>(0xFF);
+  const auto bytes = test_raw_rgb_pat_bytes(invalid_id);
+  std::string error;
+  const auto result = patchy::psd::read_pat(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->patterns.size() == 1U);
+  CHECK(result->warnings.size() == 1U);
+  CHECK(result->warnings.front().find("invalid UTF-8 pattern id") != std::string::npos);
+  const auto& replacement = result->patterns.front().id;
+  CHECK(replacement != invalid_id);
+  CHECK(replacement.size() == 36U);
+  CHECK(replacement[8] == '-' && replacement[13] == '-' && replacement[18] == '-' &&
+        replacement[23] == '-');
+}
+
+void pat_trailing_hierarchy_is_ignored() {
+  auto bytes = test_raw_rgb_pat_bytes();
+  constexpr std::array<std::uint8_t, 16> hierarchy{
+      '8', 'B', 'I', 'M', 'p', 'h', 'r', 'y', 0, 0, 0, 4, 0, 0, 0, 0,
+  };
+  bytes.insert(bytes.end(), hierarchy.begin(), hierarchy.end());
+  std::string error;
+  const auto result = patchy::psd::read_pat(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->patterns.size() == 1U);
+}
+
+void pat_bounds_compressed_expansion_and_extreme_rectangles() {
+  auto bytes = test_raw_rgb_pat_bytes();
+  write_test_u32_at(bytes, 6U, 3U);
+
+  // A tiny PackBits slot advertising just over eight million expanded pixels
+  // must be rejected before the shared decoder can allocate its output plane.
+  const std::vector<TestPatPlane> expansion_planes{
+      {0, 0, 0, 1025, 8192, 8, 1, {}},
+  };
+  const auto expansion = test_color_pat_bytes(
+      3, 1, 1, "Expansion", "55555555-6666-7777-8888-999999999999",
+      expansion_planes);
+  append_pat_record(bytes, expansion);
+
+  // The mathematical width exceeds int32; subtraction must be widened before
+  // applying the dimension guard rather than overflowing in signed arithmetic.
+  const std::vector<TestPatPlane> extreme_planes{
+      {0, 0, std::numeric_limits<std::int32_t>::min(), 1,
+       std::numeric_limits<std::int32_t>::max(), 8, 0, {0}},
+  };
+  const auto extreme = test_color_pat_bytes(
+      3, 1, 1, "Extreme", "66666666-7777-8888-9999-aaaaaaaaaaaa",
+      extreme_planes);
+  append_pat_record(bytes, extreme);
+
+  std::string error;
+  const auto result = patchy::psd::read_pat(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->patterns.size() == 1U);
+  CHECK(result->warnings.size() == 2U);
+  CHECK(result->warnings[0].find("too many pixels") != std::string::npos);
+  CHECK(result->warnings[1].find("rectangle is invalid") != std::string::npos);
+}
+
+void pat_extreme_plane_origin_samples_safely() {
+  constexpr auto origin = std::numeric_limits<std::int32_t>::min();
+  const std::vector<TestPatPlane> planes{
+      {0, origin, origin, origin + 2, origin + 2, 8, 0, {10, 20, 30, 40}},
+      {1, origin, origin, origin + 2, origin + 2, 8, 0, {50, 60, 70, 80}},
+      {2, origin, origin, origin + 2, origin + 2, 8, 0, {90, 100, 110, 120}},
+  };
+  const auto bytes = test_color_pat_bytes(
+      3, 2, 2, "Extreme Origin", "77777777-8888-9999-aaaa-bbbbbbbbbbbb", planes);
+  std::string error;
+  const auto result = patchy::psd::read_pat(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->patterns.size() == 1U);
+  const auto* pixel = result->patterns.front().tile.pixel(0, 0);
+  CHECK(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0 && pixel[3] == 255);
+
+  const auto indexed_bytes = test_indexed_pat_bytes(origin, origin, origin + 2, origin + 2);
+  const auto indexed_result = patchy::psd::read_pat(indexed_bytes, error);
+  CHECK(indexed_result.has_value());
+  CHECK(error.empty());
+  CHECK(indexed_result->warnings.empty());
+  CHECK(indexed_result->patterns.size() == 1U);
+  const auto* indexed_pixel = indexed_result->patterns.front().tile.pixel(0, 0);
+  CHECK(indexed_pixel[0] == 0 && indexed_pixel[1] == 0 && indexed_pixel[2] == 0 &&
+        indexed_pixel[3] == 255);
+}
+
+void pat_attempt_budgets_include_failed_compressed_records() {
+  {
+    auto bytes = test_raw_rgb_pat_bytes();
+    write_test_u32_at(bytes, 6U, 4U);
+
+    // Each written plane expands to just under eight million samples. Two
+    // malformed CMYK+alpha records fit under the 80 Mi-sample attempt budget;
+    // their empty RLE data then fails in the decoder. The third record must be
+    // stopped by the cumulative preflight rather than attempting decompression.
+    std::vector<TestPatPlane> planes;
+    for (const auto slot : {0U, 1U, 2U, 3U, 25U}) {
+      planes.push_back({slot, 0, 0, 1024, 8191, 8, 1, {}});
+    }
+    for (std::uint32_t index = 0; index < 3U; ++index) {
+      const auto id = "aaaaaaaa-0000-0000-0000-" +
+                      std::string(11U, '0') + static_cast<char>('1' + index);
+      const auto record = test_color_pat_bytes(
+          4, 1, 1, "Plane attempt " + std::to_string(index + 1U), id, planes);
+      append_pat_record(bytes, record);
+    }
+
+    std::string error;
+    const auto result = patchy::psd::read_pat(bytes, error);
+    CHECK(result.has_value());
+    CHECK(error.empty());
+    CHECK(result->patterns.size() == 1U);
+    CHECK(result->warnings.size() == 3U);
+    CHECK(result->warnings[0].find("channel data could not be decoded") != std::string::npos);
+    CHECK(result->warnings[1].find("channel data could not be decoded") != std::string::npos);
+    CHECK(result->warnings[2].find("cumulative plane sample limit") != std::string::npos);
+  }
+
+  {
+    auto bytes = test_raw_rgb_pat_bytes();
+    write_test_u32_at(bytes, 6U, 3U);
+    const std::vector<TestPatPlane> planes{
+        {0, 0, 0, 1, 1, 8, 1, {}},
+    };
+    for (std::uint32_t index = 0; index < 2U; ++index) {
+      const auto id = "bbbbbbbb-0000-0000-0000-" +
+                      std::string(11U, '0') + static_cast<char>('1' + index);
+      const auto record = test_color_pat_bytes(
+          3, 4096, 2048, "Pixel attempt " + std::to_string(index + 1U), id, planes);
+      append_pat_record(bytes, record);
+    }
+
+    std::string error;
+    const auto result = patchy::psd::read_pat(bytes, error);
+    CHECK(result.has_value());
+    CHECK(error.empty());
+    CHECK(result->patterns.size() == 1U);
+    CHECK(result->warnings.size() == 2U);
+    CHECK(result->warnings[0].find("channel data could not be decoded") != std::string::npos);
+    CHECK(result->warnings[1].find("total pixel limit") != std::string::npos);
+  }
+}
+
+void psd_pattern_unused_vma_slot_is_not_decoded() {
+  const std::vector<TestPatPlane> planes{
+      {0, 0, 0, 2, 2, 8, 0, {10, 20, 30, 40}},
+      {1, 0, 0, 2, 2, 8, 0, {50, 60, 70, 80}},
+      {2, 0, 0, 2, 2, 8, 0, {90, 100, 110, 120}},
+      // Slot 4 is neither an RGB channel nor sheet alpha. Its malformed RLE
+      // body must be length-checked and skipped without decompression.
+      {4, 0, 0, 1024, 8191, 8, 1, {}},
+  };
+  const auto pat = test_color_pat_bytes(
+      3, 2, 2, "Unused slot", "cccccccc-0000-0000-0000-000000000001", planes);
+  const auto payload = pat_record_as_patterns_block(pat);
+  const auto patterns = patchy::psd::parse_patterns_block(payload, nullptr);
+  CHECK(patterns.size() == 1U);
+  CHECK(patterns.front().id == "cccccccc-0000-0000-0000-000000000001");
+  const auto* pixel = patterns.front().tile.pixel(1, 1);
+  CHECK(pixel[0] == 40 && pixel[1] == 80 && pixel[2] == 120 && pixel[3] == 255);
+}
+
+void psd_pattern_vma_cannot_consume_the_next_record() {
+  auto malformed_pat = test_raw_rgb_pat_bytes(
+      "88888888-9999-aaaa-bbbb-cccccccccccc");
+  const auto vma_length_offset = test_pat_vma_length_offset(malformed_pat);
+  patchy::psd::BigEndianReader length_reader(
+      std::span<const std::uint8_t>(malformed_pat).subspan(vma_length_offset, 4U));
+  const auto vma_length = length_reader.read_u32();
+  write_test_u32_at(malformed_pat, vma_length_offset, vma_length + 4U);
+
+  auto payload = pat_record_as_patterns_block(malformed_pat);
+  const auto valid_pat = test_raw_rgb_pat_bytes(
+      "99999999-aaaa-bbbb-cccc-dddddddddddd");
+  const auto valid_block = pat_record_as_patterns_block(valid_pat);
+  payload.insert(payload.end(), valid_block.begin(), valid_block.end());
+
+  const auto patterns = patchy::psd::parse_patterns_block(payload, nullptr);
+  CHECK(patterns.size() == 1U);
+  CHECK(patterns.front().id == "99999999-aaaa-bbbb-cccc-dddddddddddd");
+}
+
 void abr_v6_fixture_parses_brushes_names_and_spacing() {
   const auto bytes = read_binary_file(patchy::test::committed_abr_fixture_path("myer-settlement-brushes.abr"));
   std::string error;
@@ -17582,6 +18089,25 @@ int main() {
       {"tool_brush_tip_erases_and_respects_gates", tool_brush_tip_erases_and_respects_gates},
       {"brush_tip_softening_feathers_edges", brush_tip_softening_feathers_edges},
       {"tool_brush_tip_large_stamp_stroke_is_fast", tool_brush_tip_large_stamp_stroke_is_fast},
+      {"pat_hue_fixture_decodes_packbits_and_alpha", pat_hue_fixture_decodes_packbits_and_alpha},
+      {"pat_raw_rgb_record_imports_without_psd_length_wrapper",
+       pat_raw_rgb_record_imports_without_psd_length_wrapper},
+      {"pat_indexed_footer_applies_transparent_palette_index",
+       pat_indexed_footer_applies_transparent_palette_index},
+      {"pat_rejects_wrong_magic_version_truncation_and_empty_files",
+       pat_rejects_wrong_magic_version_truncation_and_empty_files},
+      {"pat_gray16_and_cmyk_records_decode", pat_gray16_and_cmyk_records_decode},
+      {"pat_invalid_utf8_id_is_replaced", pat_invalid_utf8_id_is_replaced},
+      {"pat_trailing_hierarchy_is_ignored", pat_trailing_hierarchy_is_ignored},
+      {"pat_bounds_compressed_expansion_and_extreme_rectangles",
+       pat_bounds_compressed_expansion_and_extreme_rectangles},
+      {"pat_extreme_plane_origin_samples_safely", pat_extreme_plane_origin_samples_safely},
+      {"pat_attempt_budgets_include_failed_compressed_records",
+       pat_attempt_budgets_include_failed_compressed_records},
+      {"psd_pattern_unused_vma_slot_is_not_decoded",
+       psd_pattern_unused_vma_slot_is_not_decoded},
+      {"psd_pattern_vma_cannot_consume_the_next_record",
+       psd_pattern_vma_cannot_consume_the_next_record},
       {"abr_v6_fixture_parses_brushes_names_and_spacing", abr_v6_fixture_parses_brushes_names_and_spacing},
       {"abr_dynamics_fixture_extracts_shape_and_scatter", abr_dynamics_fixture_extracts_shape_and_scatter},
       {"abr_myer_brushes_have_default_dynamics", abr_myer_brushes_have_default_dynamics},

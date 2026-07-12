@@ -18,6 +18,7 @@ constexpr std::uint32_t kVirtualMemoryArrayVersion = 3;
 // is max channels + one user-mask slot + one sheet-transparency slot.
 constexpr std::uint32_t kDeclaredMaxChannels = 24;
 constexpr std::size_t kChannelHeaderBytes = 23;  // depth u32 + rect + depth u16 + compression u8
+constexpr std::uint64_t kMaxDecodedPatternPixels = 64ULL * 1024ULL * 1024ULL;
 
 enum PatternImageMode : std::uint32_t {
   kModeBitmap = 0,
@@ -40,18 +41,33 @@ struct DecodedPlane {
   return static_cast<std::uint8_t>(std::min<std::uint32_t>(255U, (value16 * 255U + 16384U) / 32768U));
 }
 
-// Reads one virtual-memory-array slot; returns false for unwritten/empty slots.
-bool read_plane(BigEndianReader& reader, DecodedPlane& plane) {
+// Reads one virtual-memory-array slot; returns false for unwritten/empty slots
+// and for written slots the caller does not use. Unused slots still validate
+// their declared length and remain inside the VMA, but their payload is skipped
+// without parsing or decompressing it.
+bool read_plane(BigEndianReader& reader, DecodedPlane& plane, std::size_t container_end,
+                bool decode_samples) {
+  if (reader.position() > container_end || container_end - reader.position() < 4U) {
+    throw std::runtime_error("PSD pattern channel list is truncated");
+  }
   const auto written = reader.read_u32();
   if (written == 0U) {
     return false;
+  }
+  if (container_end - reader.position() < 4U) {
+    throw std::runtime_error("PSD pattern channel length is truncated");
   }
   const auto length = reader.read_u32();
   if (length == 0U) {
     return false;
   }
-  if (length < kChannelHeaderBytes || length > reader.remaining()) {
+  if (length < kChannelHeaderBytes || length > reader.remaining() ||
+      length > container_end - reader.position()) {
     throw std::runtime_error("PSD pattern channel is truncated");
+  }
+  if (!decode_samples) {
+    reader.skip(length);
+    return false;
   }
   const auto end_position = reader.position() + length;
   const auto depth = reader.read_u32();
@@ -61,10 +77,17 @@ bool read_plane(BigEndianReader& reader, DecodedPlane& plane) {
   const auto right = static_cast<std::int32_t>(reader.read_u32());
   const auto pixel_depth = reader.read_u16();
   const auto compression = reader.read_u8();
-  const auto width = right - left;
-  const auto height = bottom - top;
-  if (width <= 0 || height <= 0 || width > 30000 || height > 30000) {
+  const auto width64 = static_cast<std::int64_t>(right) - static_cast<std::int64_t>(left);
+  const auto height64 = static_cast<std::int64_t>(bottom) - static_cast<std::int64_t>(top);
+  if (width64 <= 0 || height64 <= 0 || width64 > 30000 || height64 > 30000) {
     throw std::runtime_error("PSD pattern channel rectangle is invalid");
+  }
+  const auto width = static_cast<std::int32_t>(width64);
+  const auto height = static_cast<std::int32_t>(height64);
+  const auto plane_pixels = static_cast<std::uint64_t>(width64) *
+                            static_cast<std::uint64_t>(height64);
+  if (plane_pixels > kMaxDecodedPatternPixels) {
+    throw std::runtime_error("PSD pattern channel has too many pixels");
   }
   if ((depth != 8U && depth != 16U) || (pixel_depth != 8U && pixel_depth != 16U)) {
     throw std::runtime_error("PSD pattern channel depth is unsupported");
@@ -92,6 +115,9 @@ bool read_plane(BigEndianReader& reader, DecodedPlane& plane) {
     }
     raw.reserve(expected);
     for (const auto count : counts) {
+      if (count > end_position - reader.position()) {
+        throw std::runtime_error("PSD pattern RLE row is truncated");
+      }
       const auto encoded = reader.read_bytes(count);
       auto row = decode_packbits(encoded, row_bytes);
       raw.insert(raw.end(), row.begin(), row.end());
@@ -123,8 +149,8 @@ bool read_plane(BigEndianReader& reader, DecodedPlane& plane) {
 
 [[nodiscard]] std::uint8_t plane_sample(const DecodedPlane& plane, std::int32_t x, std::int32_t y,
                                         std::uint8_t fallback) noexcept {
-  const auto px = x - plane.left;
-  const auto py = y - plane.top;
+  const auto px = static_cast<std::int64_t>(x) - static_cast<std::int64_t>(plane.left);
+  const auto py = static_cast<std::int64_t>(y) - static_cast<std::int64_t>(plane.top);
   if (plane.samples.empty() || px < 0 || py < 0 || px >= plane.width || py >= plane.height) {
     return fallback;
   }
@@ -169,11 +195,19 @@ std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
 
     const auto supported_mode =
         mode == kModeGrayscale || mode == kModeIndexed || mode == kModeRgb || mode == kModeCmyk;
+    const auto pattern_pixels =
+        width > 0 && height > 0
+            ? static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height)
+            : 0U;
     if (version == kPatternVersion && supported_mode && width > 0 && height > 0 && width <= 30000 &&
-        height <= 30000 && !pattern_id.empty()) {
+        height <= 30000 && pattern_pixels <= kMaxDecodedPatternPixels && !pattern_id.empty()) {
+      if (reader.position() > pattern_end || pattern_end - reader.position() < 8U) {
+        throw std::runtime_error("PSD pattern VMA header is truncated");
+      }
       const auto vma_version = reader.read_u32();
       const auto vma_length = reader.read_u32();
-      if (vma_version != kVirtualMemoryArrayVersion || vma_length > reader.remaining()) {
+      if (vma_version != kVirtualMemoryArrayVersion || vma_length < 20U ||
+          vma_length > reader.remaining() || vma_length > pattern_end - reader.position()) {
         throw std::runtime_error("PSD pattern VMA header is invalid");
       }
       const auto vma_end = reader.position() + vma_length;
@@ -192,7 +226,8 @@ std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
       bool alpha_present = false;
       for (std::uint32_t slot = 0; slot < slot_count && reader.position() < vma_end; ++slot) {
         DecodedPlane plane;
-        if (!read_plane(reader, plane)) {
+        const auto relevant = slot < color_channel_count || slot == declared_channels + 1U;
+        if (!read_plane(reader, plane, vma_end, relevant)) {
           continue;
         }
         if (slot < color_channel_count) {
@@ -341,21 +376,24 @@ std::vector<std::uint8_t> serialize_patterns_block(std::span<const PatternResour
   BigEndianWriter block;
   for (const auto& resource : patterns) {
     const auto& tile = resource.tile;
+    const auto pixel_count = static_cast<std::uint64_t>(std::max<std::int32_t>(0, tile.width())) *
+                             static_cast<std::uint64_t>(std::max<std::int32_t>(0, tile.height()));
     if (tile.empty() || tile.format() != PixelFormat::rgba8() || resource.id.empty() ||
-        resource.id.size() > 255U || tile.width() > 30000 || tile.height() > 30000) {
+        resource.id.size() > 255U || tile.width() > 30000 || tile.height() > 30000 ||
+        pixel_count > kMaxDecodedPatternPixels) {
       continue;
     }
     const auto width = tile.width();
     const auto height = tile.height();
-    const auto pixel_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    const auto pixel_count_size = static_cast<std::size_t>(pixel_count);
 
     bool has_transparency = false;
-    for (std::size_t index = 0; index < pixel_count && !has_transparency; ++index) {
+    for (std::size_t index = 0; index < pixel_count_size && !has_transparency; ++index) {
       has_transparency = tile.data()[index * 4U + 3U] != 255U;
     }
 
     // Channel planes: R, G, B in the first slots; transparency in the last slot.
-    const auto plane_bytes = pixel_count;
+    const auto plane_bytes = pixel_count_size;
     const auto channel_slot_bytes = 8U + kChannelHeaderBytes + plane_bytes;  // written+length+header+data
     const auto written_channels = 3U + (has_transparency ? 1U : 0U);
     const auto slot_count = kDeclaredMaxChannels + 2U;
@@ -379,9 +417,9 @@ std::vector<std::uint8_t> serialize_patterns_block(std::span<const PatternResour
     pattern.write_u32(static_cast<std::uint32_t>(width));
     pattern.write_u32(kDeclaredMaxChannels);
 
-    const auto write_plane = [&pattern, &tile, width, height, pixel_count](std::size_t component) {
+    const auto write_plane = [&pattern, &tile, width, height, pixel_count_size](std::size_t component) {
       pattern.write_u32(1);  // written
-      pattern.write_u32(static_cast<std::uint32_t>(kChannelHeaderBytes + pixel_count));
+      pattern.write_u32(static_cast<std::uint32_t>(kChannelHeaderBytes + pixel_count_size));
       pattern.write_u32(8);  // pixel depth
       pattern.write_u32(0);
       pattern.write_u32(0);
@@ -389,9 +427,9 @@ std::vector<std::uint8_t> serialize_patterns_block(std::span<const PatternResour
       pattern.write_u32(static_cast<std::uint32_t>(width));
       pattern.write_u16(8);  // pixel depth again
       pattern.write_u8(0);   // raw compression, PS 27.8's own choice for small tiles
-      std::vector<std::uint8_t> plane(pixel_count);
+      std::vector<std::uint8_t> plane(pixel_count_size);
       const auto data = tile.data();
-      for (std::size_t index = 0; index < pixel_count; ++index) {
+      for (std::size_t index = 0; index < pixel_count_size; ++index) {
         plane[index] = data[index * 4U + component];
       }
       pattern.write_bytes(plane);

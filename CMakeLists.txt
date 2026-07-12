@@ -125,6 +125,7 @@ endif()
 add_library(patchy_psd
   src/formats/acv_curves_io.cpp
   src/psd/abr_reader.cpp
+  src/psd/pat_reader.cpp
   src/psd/psd_binary.cpp
   src/psd/psd_descriptor.cpp
   src/psd/psd_document_io.cpp
@@ -431,6 +432,10 @@ if(PATCHY_BUILD_APP)
       src/ui/palette_convert_dialog.cpp
       src/ui/palette_panel.hpp
       src/ui/palette_panel.cpp
+      src/ui/pattern_library.hpp
+      src/ui/pattern_library.cpp
+      src/ui/pattern_manager_dialog.hpp
+      src/ui/pattern_manager_dialog.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
       src/ui/scanner_import.hpp

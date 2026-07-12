@@ -3928,6 +3928,138 @@ Mixed selection</source>
         <source>clipped</source>
         <translation>クリップ</translation>
     </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>%1 / %2</source>
+        <translation>%1 / %2</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>Manage…</source>
+        <translation>管理…</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>Open Pattern Manager</source>
+        <translation>パターンマネージャーを開く</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Patterns</source>
+        <translation>パターン</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Could not update the selected pattern. Check that the pattern library folder is writable.</source>
+        <translation>選択したパターンを更新できませんでした。パターンライブラリのフォルダーに書き込めることを確認してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Folder for the selected pattern(s); leave empty to remove them from folders</source>
+        <translation>選択したパターンのフォルダー。空欄にするとフォルダーから外します</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Import .pat…</source>
+        <translation>.pat を読み込む…</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Delete the selected patterns or folders (Del)</source>
+        <translation>選択したパターンまたはフォルダーを削除します (Del)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Restore Default Patterns</source>
+        <translation>標準パターンを復元</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Bring back deleted built-in patterns and reset changed defaults</source>
+        <translation>削除した内蔵パターンを復元し、変更された標準パターンを初期状態に戻します</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Use Pattern</source>
+        <translation>このパターンを使う</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>%n pattern(s) selected</source>
+        <translation>
+            <numerusform>%n 個のパターンを選択中</numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Delete pattern &quot;%1&quot;?</source>
+        <translation>パターン「%1」を削除しますか？</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Delete %n pattern(s)?</source>
+        <translation>
+            <numerusform>%n 個のパターンを削除しますか？</numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Delete Patterns</source>
+        <translation>パターンを削除</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Could not delete %n pattern(s). Check that the pattern library folder is writable.</source>
+        <translation>
+            <numerusform>%n 個のパターンを削除できませんでした。パターンライブラリのフォルダーに書き込めることを確認してください。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Import Photoshop Patterns</source>
+        <translation>Photoshop パターンを読み込む</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Photoshop Patterns (*.pat)</source>
+        <translation>Photoshop パターン (*.pat)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Import Patterns</source>
+        <translation>パターンを読み込む</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Imported %n pattern(s).</source>
+        <translation>
+            <numerusform>%n 個のパターンを読み込みました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>All default patterns are already present with factory settings.</source>
+        <translation>すべての標準パターンは既に初期設定の状態で揃っています。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Some default patterns could not be restored. Check that the pattern library folder is writable.</source>
+        <translation>一部の標準パターンを復元できませんでした。パターンライブラリのフォルダーに書き込めることを確認してください。</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Restored %n default pattern(s).</source>
+        <translation>
+            <numerusform>%n 個の標準パターンを復元しました。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Reset %n default pattern(s) to factory settings.</source>
+        <translation>
+            <numerusform>%n 個の標準パターンを初期設定に戻しました。</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -10385,6 +10517,74 @@ Clipped to the layer below</source>
         <location line="-55"/>
         <source>Drag to pan. Double-click to recenter.</source>
         <translation>ドラッグでパン、ダブルクリックで中央に戻します。</translation>
+    </message>
+</context>
+<context>
+    <name>PatternLibrary</name>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Untitled Pattern</source>
+        <translation>無題のパターン</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Could not open &quot;%1&quot;.</source>
+        <translation>「%1」を開けませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Could not read &quot;%1&quot;.</source>
+        <translation>「%1」を読み込めませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>&quot;%1&quot; is too large to import safely.</source>
+        <translation>「%1」は安全に読み込めるサイズを超えています。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Could not import patterns from &quot;%1&quot;. The file is not a supported Photoshop PAT file or is damaged.</source>
+        <translation>「%1」からパターンを読み込めませんでした。このファイルは対応する Photoshop PAT ファイルではないか、破損しています。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Some pattern data was skipped or repaired because it is unsupported or damaged.</source>
+        <translation>未対応または破損したデータが含まれているため、一部のパターンデータをスキップまたは修復しました。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Imported Patterns</source>
+        <translation>読み込んだパターン</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Pattern %1</source>
+        <translation>パターン %1</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Skipped pattern &quot;%1&quot; because its pixels could not be decoded.</source>
+        <translation>ピクセルをデコードできなかったため、パターン「%1」をスキップしました。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Pattern &quot;%1&quot; used an id already assigned to different pixels; it was imported with a new id.</source>
+        <translation>パターン「%1」の ID は別のピクセルに割り当て済みだったため、新しい ID で読み込みました。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>Could not save pattern &quot;%1&quot;.</source>
+        <translation>パターン「%1」を保存できませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>No patterns could be imported from &quot;%1&quot;.</source>
+        <translation>「%1」からパターンを読み込めませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
+        <source>%1 Copy</source>
+        <translation>%1 のコピー</translation>
     </message>
 </context>
 </TS>

@@ -10,6 +10,8 @@
 #include "core/palette.hpp"
 #include "core/palette_presets.hpp"
 #include "ui/palette_panel.hpp"
+#include "ui/pattern_library.hpp"
+#include "ui/pattern_manager_dialog.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -9286,6 +9288,19 @@ QString brush_tip_test_storage_dir() {
   return QFileInfo(patchy::ui::app_settings().fileName()).absolutePath() + QStringLiteral("/brushes");
 }
 
+QString pattern_test_storage_dir() {
+  return QFileInfo(patchy::ui::app_settings().fileName()).absolutePath() + QStringLiteral("/patterns");
+}
+
+void clear_pattern_test_state() {
+  QDir(pattern_test_storage_dir()).removeRecursively();
+  auto settings = patchy::ui::app_settings();
+  // Keep unrelated MainWindow tests from changing their pattern library on disk.
+  // The dedicated default-seeding test explicitly resets this to zero.
+  settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"), 999999);
+  settings.sync();
+}
+
 void clear_brush_tip_test_state() {
   QDir(brush_tip_test_storage_dir()).removeRecursively();
   auto settings = patchy::ui::app_settings();
@@ -11489,6 +11504,692 @@ void ui_brush_tip_manager_folder_rows_fit_thumbnails() {
   CHECK(saw_dialog);
   CHECK(measured_tip_rows == 5);
   CHECK(short_tip_rows == 0);  // every tip row must have room for its 40px thumbnail
+  clear_brush_tip_test_state();
+}
+
+void ui_pattern_library_imports_pat_and_persists_folders() {
+  clear_pattern_test_state();
+  patchy::ui::PatternLibrary library(pattern_test_storage_dir());
+  QString error;
+  QStringList warnings;
+  const auto fixture = QString::fromStdString(
+      patchy::test::committed_format_fixture_path("pat", "hue.pat").string());
+  const auto first_storage_id = library.import_pat(fixture, error, warnings);
+  CHECK(!first_storage_id.isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(warnings.isEmpty());
+  CHECK(library.entries().size() == 1);
+  const auto* entry = library.find_entry(first_storage_id);
+  CHECK(entry != nullptr);
+  CHECK(entry->name == QStringLiteral("hue"));
+  CHECK(entry->folder == QStringLiteral("hue"));
+  CHECK(entry->size == QSize(100, 100));
+  CHECK(!entry->id.isEmpty());
+  CHECK(entry->id != entry->storage_id);
+  const auto original_pattern_id = entry->id;
+  const auto resource = library.resource(original_pattern_id);
+  CHECK(resource.has_value());
+  CHECK(resource->provenance == patchy::PatternProvenance::Authored);
+  const auto resource_by_storage_id = library.resource_for_entry(first_storage_id);
+  CHECK(resource_by_storage_id.has_value());
+  CHECK(resource_by_storage_id->id == resource->id);
+  CHECK(resource_by_storage_id->name == resource->name);
+  CHECK(!library.resource_for_entry(QStringLiteral("missing-storage-id")).has_value());
+  const auto* top_left = resource->tile.pixel(0, 0);
+  CHECK(top_left[0] == 255 && top_left[1] == 167 && top_left[2] == 0 && top_left[3] == 255);
+  const auto* bottom_left = resource->tile.pixel(0, 99);
+  CHECK(bottom_left[0] == 255 && bottom_left[1] == 0 && bottom_left[2] == 198 &&
+        bottom_left[3] == 10);
+
+  const auto reimported_storage_id = library.import_pat(fixture, error, warnings);
+  CHECK(reimported_storage_id == first_storage_id);
+  CHECK(error.isEmpty());
+  CHECK(warnings.isEmpty());
+  CHECK(library.entries().size() == 1);  // same Photoshop id and pixels deduplicate
+
+  CHECK(library.rename_pattern(first_storage_id, QStringLiteral("Hue Wheel")));
+  CHECK(library.set_pattern_folder(first_storage_id, QStringLiteral("Color Tests")));
+  const auto duplicate_storage_id = library.duplicate_pattern(first_storage_id);
+  CHECK(!duplicate_storage_id.isEmpty());
+  const auto* duplicate = library.find_entry(duplicate_storage_id);
+  CHECK(duplicate != nullptr);
+  CHECK(duplicate->id != original_pattern_id);
+  CHECK(duplicate->folder == QStringLiteral("Color Tests"));
+
+  patchy::ui::PatternLibrary reloaded(pattern_test_storage_dir());
+  CHECK(reloaded.entries().size() == 2);
+  CHECK(reloaded.find_entry(first_storage_id) != nullptr);
+  CHECK(reloaded.find_entry(first_storage_id)->name == QStringLiteral("Hue Wheel"));
+  CHECK(reloaded.find_entry(first_storage_id)->folder == QStringLiteral("Color Tests"));
+
+  int changed_signals = 0;
+  QObject::connect(&library, &patchy::ui::PatternLibrary::changed, &library,
+                   [&changed_signals] { ++changed_signals; });
+  CHECK(library.remove_patterns({first_storage_id, duplicate_storage_id}) == 2);
+  CHECK(changed_signals == 1);
+  patchy::ui::PatternLibrary empty_reload(pattern_test_storage_dir());
+  CHECK(empty_reload.entries().empty());
+  clear_pattern_test_state();
+}
+
+void ui_pattern_library_aggregates_parser_warnings() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto fixture = QString::fromStdString(
+      patchy::test::committed_format_fixture_path("pat", "hue.pat").string());
+  QFile source(fixture);
+  CHECK(source.open(QIODevice::ReadOnly));
+  auto bytes = source.readAll();
+  CHECK(bytes.size() > 10);
+  // Keep the valid first record but claim a second one. The reader imports the
+  // first and reports the missing/trailing second record as a parser warning.
+  bytes[6] = 0;
+  bytes[7] = 0;
+  bytes[8] = 0;
+  bytes[9] = 2;
+  const auto warning_fixture = directory.filePath(QStringLiteral("warning.pat"));
+  QFile destination(warning_fixture);
+  CHECK(destination.open(QIODevice::WriteOnly));
+  CHECK(destination.write(bytes) == bytes.size());
+  destination.close();
+
+  patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
+  QString error;
+  QStringList warnings;
+  CHECK(!library.import_pat(warning_fixture, error, warnings).isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(warnings == QStringList{QStringLiteral(
+                        "Some pattern data was skipped or repaired because it is unsupported or damaged.")});
+}
+
+void ui_pattern_library_reimport_deduplicates_remapped_source_id() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
+  const auto fixture = QString::fromStdString(
+      patchy::test::committed_format_fixture_path("pat", "hue.pat").string());
+  const auto source_id = QStringLiteral("e7f7ad0e-6537-0b48-a350-1a98c4160671");
+  const auto occupying_storage = library.add_pattern(
+      QStringLiteral("Different Pixels"),
+      solid_pixels(2, 2, patchy::PixelFormat::rgba8(), QColor(10, 20, 30, 255)),
+      QStringLiteral("Existing"), source_id);
+  CHECK(!occupying_storage.isEmpty());
+
+  QString error;
+  QStringList warnings;
+  const auto remapped_storage = library.import_pat(fixture, error, warnings);
+  CHECK(!remapped_storage.isEmpty());
+  CHECK(remapped_storage != occupying_storage);
+  CHECK(error.isEmpty());
+  CHECK(warnings.size() == 1);
+  CHECK(library.entries().size() == 2);
+  const auto* remapped = library.find_entry(remapped_storage);
+  CHECK(remapped != nullptr);
+  CHECK(remapped->id != source_id);
+  CHECK(remapped->source_id == source_id);
+
+  warnings.clear();
+  CHECK(library.import_pat(fixture, error, warnings) == remapped_storage);
+  CHECK(error.isEmpty() && warnings.isEmpty());
+  CHECK(library.entries().size() == 2);
+
+  patchy::ui::PatternLibrary reloaded(directory.filePath(QStringLiteral("library")));
+  const auto* persisted = reloaded.find_entry(remapped_storage);
+  CHECK(persisted != nullptr && persisted->source_id == source_id);
+  CHECK(reloaded.import_pat(fixture, error, warnings) == remapped_storage);
+  CHECK(error.isEmpty() && warnings.isEmpty());
+  CHECK(reloaded.entries().size() == 2);
+}
+
+void ui_pattern_library_rejects_oversized_pat_before_read() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto oversized_path = directory.filePath(QStringLiteral("oversized.pat"));
+  QFile oversized(oversized_path);
+  CHECK(oversized.open(QIODevice::WriteOnly));
+  CHECK(oversized.resize(32LL * 1024LL * 1024LL + 1LL));
+  oversized.close();
+
+  patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
+  QString error;
+  QStringList warnings;
+  CHECK(library.import_pat(oversized_path, error, warnings).isEmpty());
+  CHECK(error == QStringLiteral("\"oversized.pat\" is too large to import safely."));
+  CHECK(warnings.isEmpty());
+  CHECK(library.entries().empty());
+}
+
+void ui_pattern_library_delete_requires_tile_removal() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
+  QString error;
+  QStringList warnings;
+  const auto fixture = QString::fromStdString(
+      patchy::test::committed_format_fixture_path("pat", "hue.pat").string());
+  const auto storage_id = library.import_pat(fixture, error, warnings);
+  CHECK(!storage_id.isEmpty());
+
+  const auto tile_path = library.storage_dir() + QStringLiteral("/") + storage_id +
+                         QStringLiteral(".png");
+  const auto sidecar_path = library.storage_dir() + QStringLiteral("/") + storage_id +
+                            QStringLiteral(".json");
+  CHECK(QFile::remove(tile_path));
+  CHECK(QFile::remove(sidecar_path));
+  // Directories at the file paths provide a cross-platform removal failure.
+  CHECK(QDir().mkpath(tile_path));
+  CHECK(QDir().mkpath(sidecar_path));
+
+  int changed_signals = 0;
+  QObject::connect(&library, &patchy::ui::PatternLibrary::changed, &library,
+                   [&changed_signals] { ++changed_signals; });
+  CHECK(!library.remove_pattern(storage_id));
+  CHECK(library.find_entry(storage_id) != nullptr);
+  CHECK(changed_signals == 0);
+
+  CHECK(QDir(tile_path).removeRecursively());
+  CHECK(library.remove_pattern(storage_id));
+  CHECK(library.find_entry(storage_id) == nullptr);
+  CHECK(changed_signals == 1);
+  CHECK(QFileInfo(sidecar_path).isDir());  // sidecar cleanup is deliberately best-effort
+}
+
+void ui_default_patterns_seed_once_and_restore() {
+  clear_pattern_test_state();
+  clear_brush_tip_test_state();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"), 0);
+    settings.sync();
+  }
+
+  const auto presets = patchy::builtin_pattern_presets();
+  QString deleted_pattern_id;
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto& library = window.pattern_library();
+    CHECK(library.entries().size() == presets.size());
+    CHECK(library.has_all_default_patterns_introduced_after(0));
+    CHECK(library.default_patterns_match_factory());
+    CHECK(library.folders() == QStringList{patchy::ui::default_patterns_folder_name()});
+    for (const auto& preset : presets) {
+      const auto* entry =
+          library.find_entry_by_pattern_id(QString::fromLatin1(preset.id));
+      CHECK(entry != nullptr);
+      CHECK(entry->folder == patchy::ui::default_patterns_folder_name());
+      CHECK(entry->name == QString::fromLatin1(preset.english_name));
+    }
+    const auto first = library.entries().front();
+    deleted_pattern_id = first.id;
+    CHECK(library.remove_pattern(first.storage_id));
+    CHECK(library.entries().size() == presets.size() - 1);
+    CHECK(!library.has_all_default_patterns_introduced_after(0));
+    CHECK(!library.default_patterns_match_factory());
+    CHECK(library.has_all_default_patterns_introduced_after(
+        patchy::ui::kDefaultPatternsVersion));
+  }
+  CHECK(patchy::ui::app_settings()
+            .value(QStringLiteral("patterns/defaultPatternsVersion"))
+            .toInt() == patchy::ui::kDefaultPatternsVersion);
+
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto& library = window.pattern_library();
+    CHECK(library.entries().size() == presets.size() - 1);
+    CHECK(library.find_entry_by_pattern_id(deleted_pattern_id) == nullptr);
+    CHECK(!library.has_all_default_patterns_introduced_after(0));
+    CHECK(library.restore_default_patterns() == 1);
+    CHECK(library.entries().size() == presets.size());
+    CHECK(library.find_entry_by_pattern_id(deleted_pattern_id) != nullptr);
+    CHECK(library.has_all_default_patterns_introduced_after(0));
+    CHECK(library.default_patterns_match_factory());
+    CHECK(library.restore_default_patterns() == 0);
+    CHECK(library.reset_default_patterns_to_factory() == 0);
+  }
+  clear_pattern_test_state();
+  clear_brush_tip_test_state();
+}
+
+void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
+  clear_pattern_test_state();
+  patchy::ui::PatternLibrary library(pattern_test_storage_dir());
+  QString error;
+  QStringList warnings;
+  const auto fixture = QString::fromStdString(
+      patchy::test::committed_format_fixture_path("pat", "hue.pat").string());
+  const auto storage_id = library.import_pat(fixture, error, warnings);
+  CHECK(!storage_id.isEmpty());
+  const auto* imported = library.find_entry(storage_id);
+  CHECK(imported != nullptr);
+  const auto imported_pattern_id = imported->id;
+
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Pattern Manager",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(),
+                                   QColor(80, 140, 220, 255)));
+  bool checked_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog =
+        qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* overlay_manage =
+        dialog->findChild<QPushButton*>(QStringLiteral("layerStylePatternOverlayManageButton"));
+    auto* texture_manage =
+        dialog->findChild<QPushButton*>(QStringLiteral("layerStyleBevelTextureManageButton"));
+    auto* overlay_combo =
+        dialog->findChild<QComboBox*>(QStringLiteral("layerStylePatternOverlayPatternCombo"));
+    auto* texture_combo =
+        dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBevelTexturePatternCombo"));
+    auto* overlay_check =
+        dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePatternOverlayCategoryCheck"));
+    auto* bevel_check =
+        dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelEmbossCategoryCheck"));
+    auto* texture_check =
+        dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelTextureCategoryCheck"));
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    CHECK(overlay_manage != nullptr && overlay_manage->isEnabled());
+    CHECK(texture_manage != nullptr && texture_manage->isEnabled());
+    CHECK(overlay_combo != nullptr && texture_combo != nullptr);
+    CHECK(overlay_check != nullptr && bevel_check != nullptr && texture_check != nullptr);
+    CHECK(categories != nullptr);
+    CHECK(overlay_combo->findData(imported_pattern_id) >= 0);
+    const auto overlay_items = categories->findItems(QStringLiteral("Pattern Overlay"), Qt::MatchExactly);
+    CHECK(!overlay_items.empty());
+    categories->setCurrentItem(overlay_items.front());
+    QApplication::processEvents();
+    save_widget_artifact("ui_layer_style_pattern_manager_buttons", *dialog);
+
+    bool checked_manager = false;
+    QTimer::singleShot(0, [&] {
+      auto* manager =
+          qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patternManagerDialog")));
+      CHECK(manager != nullptr);
+      auto* tree = manager->findChild<QTreeWidget*>(QStringLiteral("patternManagerTree"));
+      auto* use = manager->findChild<QPushButton*>(QStringLiteral("patternManagerUseButton"));
+      CHECK(tree != nullptr);
+      CHECK(use != nullptr && use->isEnabled());
+      QApplication::processEvents();
+      int pattern_rows = 0;
+      for (int top = 0; top < tree->topLevelItemCount(); ++top) {
+        auto* item = tree->topLevelItem(top);
+        if (item->childCount() == 0) {
+          ++pattern_rows;
+          CHECK(tree->visualItemRect(item).height() >= 44);
+        } else {
+          for (int child = 0; child < item->childCount(); ++child) {
+            ++pattern_rows;
+            CHECK(tree->visualItemRect(item->child(child)).height() >= 44);
+          }
+        }
+      }
+      CHECK(pattern_rows == 1);
+      save_widget_artifact("ui_pattern_manager_dialog", *manager);
+      checked_manager = true;
+      use->click();
+    });
+    overlay_manage->click();
+    CHECK(checked_manager);
+    CHECK(overlay_combo->currentData().toString() == imported_pattern_id);
+    overlay_check->setChecked(true);
+
+    const auto texture_items = categories->findItems(QStringLiteral("Texture"), Qt::MatchExactly);
+    CHECK(!texture_items.empty());
+    categories->setCurrentItem(texture_items.front());
+    QApplication::processEvents();
+    QTimer::singleShot(0, [&] {
+      auto* manager =
+          qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patternManagerDialog")));
+      CHECK(manager != nullptr);
+      auto* use = manager->findChild<QPushButton*>(QStringLiteral("patternManagerUseButton"));
+      CHECK(use != nullptr && use->isEnabled());
+      use->click();
+    });
+    texture_manage->click();
+    CHECK(texture_combo->currentData().toString() == imported_pattern_id);
+    bevel_check->setChecked(true);
+    texture_check->setChecked(true);
+    checked_dialog = true;
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+
+  int preview_count = 0;
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, [&](const patchy::ui::LayerStyleSettings&) { ++preview_count; },
+      &document.metadata().patterns, &library);
+  CHECK(checked_dialog);
+  CHECK(settings.has_value());
+  CHECK(settings->style.pattern_overlays.size() == 1);
+  CHECK(settings->style.pattern_overlays.front().enabled);
+  CHECK(QString::fromStdString(settings->style.pattern_overlays.front().pattern_id) ==
+        imported_pattern_id);
+  CHECK(settings->style.pattern_overlays.front().pattern_name == "hue");
+  CHECK(settings->style.bevels.size() == 1);
+  CHECK(settings->style.bevels.front().enabled);
+  CHECK(settings->style.bevels.front().texture.enabled);
+  CHECK(QString::fromStdString(settings->style.bevels.front().texture.pattern_id) ==
+        imported_pattern_id);
+  CHECK(preview_count >= 1);
+  clear_pattern_test_state();
+}
+
+void ui_layer_style_pattern_picker_groups_and_collapses_folders() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::PatternLibrary library(
+      directory.filePath(QStringLiteral("library")));
+  CHECK(library.restore_default_patterns() ==
+        static_cast<int>(patchy::builtin_pattern_presets().size()));
+  QString error;
+  QStringList warnings;
+  const auto fixture = QString::fromStdString(
+      patchy::test::committed_format_fixture_path("pat", "hue.pat").string());
+  const auto imported_storage_id = library.import_pat(fixture, error, warnings);
+  CHECK(!imported_storage_id.isEmpty());
+  const auto *imported = library.find_entry(imported_storage_id);
+  CHECK(imported != nullptr);
+  const auto imported_pattern_id = imported->id;
+
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Pattern Folders",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(),
+                                   QColor(80, 140, 220, 255)));
+
+  bool checked_popup = false;
+  QTimer::singleShot(0, [&] {
+    auto *dialog = qobject_cast<QDialog *>(
+        find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto *categories = dialog->findChild<QListWidget *>(
+        QStringLiteral("layerStyleCategoryList"));
+    auto *combo = dialog->findChild<QComboBox *>(
+        QStringLiteral("layerStyleBevelTexturePatternCombo"));
+    CHECK(categories != nullptr && combo != nullptr);
+    const auto texture_items =
+        categories->findItems(QStringLiteral("Texture"), Qt::MatchExactly);
+    CHECK(!texture_items.empty());
+    categories->setCurrentItem(texture_items.front());
+    QApplication::processEvents();
+    const auto default_pattern_id =
+        QString::fromLatin1(patchy::builtin_pattern_presets().front().id);
+    const auto default_pattern_index = combo->findData(default_pattern_id);
+    CHECK(default_pattern_index >= 0);
+    combo->setCurrentIndex(default_pattern_index);
+
+    combo->showPopup();
+    QApplication::processEvents();
+    auto *popup = combo->findChild<QFrame *>(
+        QStringLiteral("layerStyleBevelTexturePatternComboPopup"),
+        Qt::FindDirectChildrenOnly);
+    CHECK(popup != nullptr && popup->isVisible());
+    CHECK(popup->height() >= 280);
+    auto *tree = popup->findChild<QTreeWidget *>(
+        QStringLiteral("layerStyleBevelTexturePatternComboTree"));
+    CHECK(tree != nullptr);
+
+    const auto find_folder = [tree](const QString &name) -> QTreeWidgetItem * {
+      for (int index = 0; index < tree->topLevelItemCount(); ++index) {
+        auto *item = tree->topLevelItem(index);
+        if (item->text(0) == name) {
+          return item;
+        }
+      }
+      return nullptr;
+    };
+    auto *defaults = find_folder(patchy::ui::default_patterns_folder_name());
+    auto *hue = find_folder(QStringLiteral("hue"));
+    CHECK(defaults != nullptr);
+    CHECK(hue != nullptr);
+    CHECK(defaults->childCount() ==
+          static_cast<int>(patchy::builtin_pattern_presets().size()));
+    CHECK(hue->childCount() == 1);
+    CHECK(defaults->isExpanded());
+    CHECK(!hue->isExpanded());
+
+    defaults->setExpanded(false);
+    hue->setExpanded(true);
+    QApplication::processEvents();
+    CHECK(!defaults->isExpanded());
+    CHECK(hue->isExpanded());
+    save_widget_artifact("ui_layer_style_pattern_picker_folders", *popup);
+
+    auto *hue_pattern = hue->child(0);
+    CHECK(hue_pattern != nullptr);
+    tree->scrollToItem(hue_pattern);
+    QApplication::processEvents();
+    const auto row = tree->visualItemRect(hue_pattern);
+    CHECK(row.isValid());
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      row.center());
+    QApplication::processEvents();
+    CHECK(combo->currentData().toString() == imported_pattern_id);
+    checked_popup = true;
+    dialog->reject();
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, {}, &document.metadata().patterns, &library);
+  CHECK(!settings.has_value());
+  CHECK(checked_popup);
+}
+
+void ui_pattern_manager_remaps_document_id_collision() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
+  constexpr const char* kCollisionId = "shared-pattern-id";
+  const auto library_tile = solid_pixels(4, 3, patchy::PixelFormat::rgba8(),
+                                         QColor(20, 210, 80, 255));
+  const auto storage_id =
+      library.add_pattern(QStringLiteral("Library Green"), library_tile,
+                          QStringLiteral("Collisions"), QString::fromLatin1(kCollisionId));
+  CHECK(!storage_id.isEmpty());
+
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::PatternResource embedded;
+  embedded.id = kCollisionId;
+  embedded.name = "Embedded Red";
+  embedded.tile = solid_pixels(4, 3, patchy::PixelFormat::rgba8(),
+                               QColor(220, 30, 40, 255));
+  embedded.provenance = patchy::PatternProvenance::ImportedRaw;
+  document.metadata().patterns.adopt(embedded);
+  patchy::Layer layer(document.allocate_layer_id(), "Pattern Collision",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(),
+                                   QColor(80, 140, 220, 255)));
+
+  QString remapped_id;
+  QTimer::singleShot(0, [&] {
+    auto* dialog =
+        qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* manage =
+        dialog->findChild<QPushButton*>(QStringLiteral("layerStylePatternOverlayManageButton"));
+    auto* combo =
+        dialog->findChild<QComboBox*>(QStringLiteral("layerStylePatternOverlayPatternCombo"));
+    auto* overlay_check =
+        dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePatternOverlayCategoryCheck"));
+    auto* categories =
+        dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    CHECK(manage != nullptr && combo != nullptr && overlay_check != nullptr &&
+          categories != nullptr);
+    CHECK(combo->currentData().toString() == QString::fromLatin1(kCollisionId));
+    const auto overlay_items =
+        categories->findItems(QStringLiteral("Pattern Overlay"), Qt::MatchExactly);
+    CHECK(!overlay_items.empty());
+    categories->setCurrentItem(overlay_items.front());
+    QApplication::processEvents();
+
+    QTimer::singleShot(0, [&] {
+      auto* manager =
+          qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patternManagerDialog")));
+      CHECK(manager != nullptr);
+      auto* use = manager->findChild<QPushButton*>(QStringLiteral("patternManagerUseButton"));
+      CHECK(use != nullptr && use->isEnabled());
+      use->click();
+    });
+    manage->click();
+
+    remapped_id = combo->currentData().toString();
+    CHECK(!remapped_id.isEmpty());
+    CHECK(remapped_id != QString::fromLatin1(kCollisionId));
+    const auto* remapped = document.metadata().patterns.find(remapped_id.toStdString());
+    CHECK(remapped != nullptr);
+    CHECK(remapped->name == "Library Green");
+    CHECK(remapped->tile.pixel(0, 0)[1] == 210);
+    CHECK(document.metadata().patterns.find(kCollisionId)->tile.pixel(0, 0)[0] == 220);
+    overlay_check->setChecked(true);
+    dialog->accept();
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, {}, &document.metadata().patterns, &library);
+  CHECK(settings.has_value());
+  CHECK(settings->style.pattern_overlays.size() == 1);
+  CHECK(QString::fromStdString(settings->style.pattern_overlays.front().pattern_id) ==
+        remapped_id);
+  CHECK(settings->style.pattern_overlays.front().pattern_name == "Library Green");
+  CHECK(document.metadata().patterns.patterns.size() == 2);
+}
+
+void ui_layer_style_library_pattern_cancel_and_undo_restore_store() {
+  clear_pattern_test_state();
+  clear_brush_tip_test_state();
+  {
+    patchy::ui::MainWindow window;
+    auto& library = window.pattern_library();
+    QString error;
+    QStringList warnings;
+    const auto fixture = QString::fromStdString(
+        patchy::test::committed_format_fixture_path("pat", "hue.pat").string());
+    const auto storage_id = library.import_pat(fixture, error, warnings);
+    CHECK(!storage_id.isEmpty());
+    CHECK(error.isEmpty() && warnings.isEmpty());
+    const auto* imported = library.find_entry(storage_id);
+    CHECK(imported != nullptr);
+    const auto imported_id = imported->id.toStdString();
+
+    patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+    patchy::PatternResource embedded;
+    embedded.id = imported_id;
+    embedded.name = "Embedded Collision";
+    embedded.tile = solid_pixels(3, 3, patchy::PixelFormat::rgba8(),
+                                 QColor(180, 20, 30, 255));
+    embedded.provenance = patchy::PatternProvenance::ImportedRaw;
+    document.metadata().patterns.adopt(embedded);
+    patchy::Layer layer(document.allocate_layer_id(), "Transient Pattern",
+                        solid_pixels(48, 36, patchy::PixelFormat::rgba8(),
+                                     QColor(80, 140, 220, 255)));
+    const auto layer_id = layer.id();
+    document.add_layer(std::move(layer));
+    document.set_active_layer(layer_id);
+    window.add_document_session(std::move(document), QStringLiteral("Pattern Undo"));
+    show_window(window);
+
+    const auto drive_dialog = [&](bool accept, bool& preview_materialized,
+                                  std::string& selected_alias) {
+      QTimer::singleShot(0, &window, [&] {
+        auto* dialog = qobject_cast<QDialog*>(
+            find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+        CHECK(dialog != nullptr);
+        auto* overlay_check = dialog->findChild<QCheckBox*>(
+            QStringLiteral("layerStylePatternOverlayCategoryCheck"));
+        auto* preview_check =
+            dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
+        auto* manage = dialog->findChild<QPushButton*>(
+            QStringLiteral("layerStylePatternOverlayManageButton"));
+        auto* combo = dialog->findChild<QComboBox*>(
+            QStringLiteral("layerStylePatternOverlayPatternCombo"));
+        auto* categories =
+            dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+        CHECK(overlay_check != nullptr && preview_check != nullptr && manage != nullptr &&
+              combo != nullptr && categories != nullptr);
+        const auto overlay_items =
+            categories->findItems(QStringLiteral("Pattern Overlay"), Qt::MatchExactly);
+        CHECK(!overlay_items.empty());
+        categories->setCurrentItem(overlay_items.front());
+        QApplication::processEvents();
+        QTimer::singleShot(0, [&] {
+          auto* manager = qobject_cast<QDialog*>(
+              find_top_level_dialog(QStringLiteral("patternManagerDialog")));
+          CHECK(manager != nullptr);
+          auto* use =
+              manager->findChild<QPushButton*>(QStringLiteral("patternManagerUseButton"));
+          CHECK(use != nullptr && use->isEnabled());
+          use->click();
+        });
+        manage->click();
+        selected_alias = combo->currentData().toString().toStdString();
+        CHECK(!selected_alias.empty() && selected_alias != imported_id);
+        overlay_check->setChecked(true);
+        QApplication::processEvents();
+        preview_materialized =
+            patchy::ui::MainWindowTestAccess::document(window).metadata().patterns.find(
+                selected_alias) != nullptr;
+        if (!accept) {
+          preview_check->setChecked(false);
+          QApplication::processEvents();
+          const auto& preview_off_patterns =
+              patchy::ui::MainWindowTestAccess::document(window).metadata().patterns;
+          CHECK(preview_off_patterns.patterns.size() == 1);
+          CHECK(preview_off_patterns.find(imported_id) != nullptr);
+          CHECK(preview_off_patterns.find(imported_id)->tile.pixel(0, 0)[0] == 180);
+          preview_check->setChecked(true);
+          QApplication::processEvents();
+          CHECK(patchy::ui::MainWindowTestAccess::document(window)
+                    .metadata()
+                    .patterns.find(selected_alias) != nullptr);
+        }
+        if (accept) {
+          dialog->accept();
+        } else {
+          dialog->reject();
+        }
+      });
+      require_action(window, "layerBlendingOptionsAction")->trigger();
+      QApplication::processEvents();
+    };
+
+    bool cancel_preview_materialized = false;
+    std::string canceled_alias;
+    drive_dialog(false, cancel_preview_materialized, canceled_alias);
+    CHECK(cancel_preview_materialized);
+    auto& after_cancel = patchy::ui::MainWindowTestAccess::document(window);
+    CHECK(after_cancel.metadata().patterns.patterns.size() == 1);
+    CHECK(after_cancel.metadata().patterns.find(imported_id) != nullptr);
+    CHECK(after_cancel.metadata().patterns.find(canceled_alias) == nullptr);
+    const auto* canceled_layer = after_cancel.find_layer(layer_id);
+    CHECK(canceled_layer != nullptr);
+    CHECK(canceled_layer->layer_style().pattern_overlays.empty());
+
+    bool commit_preview_materialized = false;
+    std::string committed_alias;
+    drive_dialog(true, commit_preview_materialized, committed_alias);
+    CHECK(commit_preview_materialized);
+    auto& after_commit = patchy::ui::MainWindowTestAccess::document(window);
+    CHECK(after_commit.metadata().patterns.find(imported_id) != nullptr);
+    const auto* committed_pattern = after_commit.metadata().patterns.find(committed_alias);
+    CHECK(committed_pattern != nullptr);
+    CHECK(committed_pattern->name == "hue");
+    CHECK(committed_pattern->tile.pixel(0, 0)[0] == 255);
+    const auto* committed_layer = after_commit.find_layer(layer_id);
+    CHECK(committed_layer != nullptr);
+    CHECK(committed_layer->layer_style().pattern_overlays.size() == 1);
+    CHECK(committed_layer->layer_style().pattern_overlays.front().pattern_id == committed_alias);
+
+    const auto* undo_command = window.hotkey_registry().find_command(QStringLiteral("edit.undo"));
+    CHECK(undo_command != nullptr && undo_command->action != nullptr);
+    undo_command->action->trigger();
+    QApplication::processEvents();
+    auto& after_undo = patchy::ui::MainWindowTestAccess::document(window);
+    CHECK(after_undo.metadata().patterns.patterns.size() == 1);
+    CHECK(after_undo.metadata().patterns.find(imported_id) != nullptr);
+    CHECK(after_undo.metadata().patterns.find(committed_alias) == nullptr);
+    const auto* undone_layer = after_undo.find_layer(layer_id);
+    CHECK(undone_layer != nullptr);
+    CHECK(undone_layer->layer_style().pattern_overlays.empty());
+  }
+  clear_pattern_test_state();
   clear_brush_tip_test_state();
 }
 
@@ -38869,6 +39570,14 @@ int main(int argc, char* argv[]) {
        ui_layer_style_pattern_warning_follows_resolvability},
       {"ui_layer_style_pattern_overlay_controls_map_to_settings",
        ui_layer_style_pattern_overlay_controls_map_to_settings},
+      {"ui_pattern_manager_and_layer_style_buttons_use_library_pattern",
+       ui_pattern_manager_and_layer_style_buttons_use_library_pattern},
+      {"ui_layer_style_pattern_picker_groups_and_collapses_folders",
+       ui_layer_style_pattern_picker_groups_and_collapses_folders},
+      {"ui_pattern_manager_remaps_document_id_collision",
+       ui_pattern_manager_remaps_document_id_collision},
+      {"ui_layer_style_library_pattern_cancel_and_undo_restore_store",
+       ui_layer_style_library_pattern_cancel_and_undo_restore_store},
       {"ui_layer_style_bevel_contour_and_texture_rows_round_trip",
        ui_layer_style_bevel_contour_and_texture_rows_round_trip},
       {"ui_layer_style_dialog_warns_that_group_effects_do_not_render",
@@ -38991,6 +39700,17 @@ int main(int argc, char* argv[]) {
        ui_brush_tip_define_from_image_uses_inverted_luminance},
       {"ui_brush_tip_folders_and_bulk_delete", ui_brush_tip_folders_and_bulk_delete},
       {"ui_brush_tip_manager_folder_rows_fit_thumbnails", ui_brush_tip_manager_folder_rows_fit_thumbnails},
+      {"ui_pattern_library_imports_pat_and_persists_folders",
+       ui_pattern_library_imports_pat_and_persists_folders},
+      {"ui_pattern_library_aggregates_parser_warnings",
+       ui_pattern_library_aggregates_parser_warnings},
+      {"ui_pattern_library_reimport_deduplicates_remapped_source_id",
+       ui_pattern_library_reimport_deduplicates_remapped_source_id},
+      {"ui_pattern_library_rejects_oversized_pat_before_read",
+       ui_pattern_library_rejects_oversized_pat_before_read},
+      {"ui_pattern_library_delete_requires_tile_removal",
+       ui_pattern_library_delete_requires_tile_removal},
+      {"ui_default_patterns_seed_once_and_restore", ui_default_patterns_seed_once_and_restore},
       {"ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024",
        ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024},
       {"ui_palette_panel_click_sets_foreground_and_chip_tracks_mode",

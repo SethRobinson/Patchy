@@ -10,6 +10,8 @@ class QWidget;
 
 namespace patchy::ui {
 
+class PatternLibrary;
+
 struct LayerStyleSettings {
   int opacity{100};
   BlendMode blend_mode{BlendMode::Normal};
@@ -20,14 +22,15 @@ struct LayerStyleSettings {
   bool replace_unsupported_blend_if{false};
 };
 
-// document_patterns (optional) lists the document's embedded pattern tiles so
-// the Pattern Overlay / Bevel Texture pickers can offer them alongside the
-// built-in presets. The dialog only reads it; the host materializes any picked
-// built-in preset into the document store when applying the settings
-// (MainWindow::edit_active_layer_style does this for previews and commits).
+// document_patterns (optional) lists the document's embedded pattern tiles.
+// pattern_library adds the persistent folder-aware user presets and enables the
+// Pattern Manager buttons. The dialog can add a transient document resource when
+// a chosen library pattern has the same Photoshop id as different embedded
+// pixels. MainWindow snapshots the store around the dialog so cancel stays clean.
 [[nodiscard]] std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer,
     std::function<void(const LayerStyleSettings&)> preview_changed = {},
-    const PatternStore* document_patterns = nullptr);
+    PatternStore* document_patterns = nullptr,
+    PatternLibrary* pattern_library = nullptr);
 
 }  // namespace patchy::ui
