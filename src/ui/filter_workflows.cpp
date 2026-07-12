@@ -729,6 +729,16 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Color Halftone"),
     QT_TRANSLATE_NOOP("QObject", "Analog Grain"),
     QT_TRANSLATE_NOOP("QObject", "Lens Vignette"),
+    QT_TRANSLATE_NOOP("QObject", "Other"),
+    QT_TRANSLATE_NOOP("QObject", "Adjustments"),
+    QT_TRANSLATE_NOOP("QObject", "Photo Looks"),
+    QT_TRANSLATE_NOOP("QObject", "Blur"),
+    QT_TRANSLATE_NOOP("QObject", "Sharpen"),
+    QT_TRANSLATE_NOOP("QObject", "Distort"),
+    QT_TRANSLATE_NOOP("QObject", "Noise"),
+    QT_TRANSLATE_NOOP("QObject", "Pixelate"),
+    QT_TRANSLATE_NOOP("QObject", "Stylize"),
+    QT_TRANSLATE_NOOP("QObject", "Render"),
     QT_TRANSLATE_NOOP("QObject", "Amount"),
     QT_TRANSLATE_NOOP("QObject", "Brightness"),
     QT_TRANSLATE_NOOP("QObject", "Contrast"),
@@ -752,6 +762,8 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Seed"),
     QT_TRANSLATE_NOOP("QObject", "Block Size"),
     QT_TRANSLATE_NOOP("QObject", "Cell Size"),
+    QT_TRANSLATE_NOOP("QObject", "Center X"),
+    QT_TRANSLATE_NOOP("QObject", "Center Y"),
 };
 
 QString translate_filter_catalog_text(const std::string& source) {
@@ -786,6 +798,32 @@ QString filter_parameter_suffix(FilterParameterUnit unit) {
 
 QString filter_display_name(const FilterDefinition& filter) {
   return translate_filter_catalog_text(filter.display_name);
+}
+
+QString filter_category_display_name(FilterCategory category) {
+  switch (category) {
+    case FilterCategory::Uncategorized:
+      return translate_filter_catalog_text("Other");
+    case FilterCategory::Adjustment:
+      return translate_filter_catalog_text("Adjustments");
+    case FilterCategory::PhotoLooks:
+      return translate_filter_catalog_text("Photo Looks");
+    case FilterCategory::Blur:
+      return translate_filter_catalog_text("Blur");
+    case FilterCategory::Sharpen:
+      return translate_filter_catalog_text("Sharpen");
+    case FilterCategory::Distort:
+      return translate_filter_catalog_text("Distort");
+    case FilterCategory::Noise:
+      return translate_filter_catalog_text("Noise");
+    case FilterCategory::Pixelate:
+      return translate_filter_catalog_text("Pixelate");
+    case FilterCategory::Stylize:
+      return translate_filter_catalog_text("Stylize");
+    case FilterCategory::Render:
+      return translate_filter_catalog_text("Render");
+  }
+  return translate_filter_catalog_text("Other");
 }
 
 QString filter_progress_stage_text(FilterProgressStage stage) {
@@ -844,6 +882,7 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
     control.typed_maximum = parameter.maximum;
     control.step = parameter.step;
     control.options = parameter.options;
+    control.presentation = parameter.presentation;
     spec.controls.push_back(std::move(control));
   }
   return spec;

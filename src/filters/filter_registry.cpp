@@ -61,6 +61,67 @@ clamp_parameter_value(const FilterParameterDefinition &definition,
   return value;
 }
 
+void remap_center_parameter_for_padding(
+    FilterInvocation &invocation, const FilterParameterDefinition &definition,
+    std::int32_t original_extent, int margin) {
+  if (margin <= 0 ||
+      (definition.presentation !=
+           FilterParameterPresentation::CenterXPercent &&
+       definition.presentation !=
+           FilterParameterPresentation::CenterYPercent)) {
+    return;
+  }
+  const auto found = invocation.parameters.find(definition.key);
+  if (found == invocation.parameters.end()) {
+    return;
+  }
+
+  double percent = 50.0;
+  if (const auto *real = std::get_if<double>(&found->second); real != nullptr) {
+    percent = *real;
+  } else if (const auto *integer =
+                 std::get_if<std::int64_t>(&found->second);
+             integer != nullptr) {
+    percent = static_cast<double>(*integer);
+  } else {
+    return;
+  }
+
+  const auto original_span =
+      static_cast<double>(std::max<std::int32_t>(0, original_extent - 1));
+  const auto padded_extent = static_cast<std::int64_t>(original_extent) +
+                             static_cast<std::int64_t>(margin) * 2;
+  if (padded_extent <= 1) {
+    return;
+  }
+  const auto padded_span = static_cast<double>(padded_extent - 1);
+  const auto padded_percent =
+      100.0 * (static_cast<double>(margin) +
+               original_span * std::clamp(percent, 0.0, 100.0) / 100.0) /
+      padded_span;
+  if (std::holds_alternative<double>(found->second)) {
+    found->second = padded_percent;
+  } else {
+    found->second = static_cast<std::int64_t>(std::llround(padded_percent));
+  }
+}
+
+void remap_center_parameters_for_padding(
+    FilterInvocation &invocation, const FilterDefinition &definition,
+    std::int32_t original_width, std::int32_t original_height, int margin) {
+  for (const auto &parameter : definition.catalog.parameters) {
+    if (parameter.presentation ==
+        FilterParameterPresentation::CenterXPercent) {
+      remap_center_parameter_for_padding(invocation, parameter, original_width,
+                                         margin);
+    } else if (parameter.presentation ==
+               FilterParameterPresentation::CenterYPercent) {
+      remap_center_parameter_for_padding(invocation, parameter, original_height,
+                                         margin);
+    }
+  }
+}
+
 bool recipe_blend_mode_supported(BlendMode mode) noexcept {
   const auto value = static_cast<int>(mode);
   return value >= static_cast<int>(BlendMode::Normal) &&
@@ -489,7 +550,14 @@ FilterRegistry::render(const FilterInvocation &invocation,
   }
 
   auto pixels = pad_buffer_transparent(original, margin);
-  apply(*normalized, pixels, progress);
+  auto padded_invocation = *normalized;
+  if (const auto *filter = find(padded_invocation.filter_id);
+      filter != nullptr) {
+    remap_center_parameters_for_padding(padded_invocation, *filter,
+                                        original.width(), original.height(),
+                                        margin);
+  }
+  apply(padded_invocation, pixels, progress);
   const auto grown_x = static_cast<std::int64_t>(bounds.x) - margin;
   const auto grown_y = static_cast<std::int64_t>(bounds.y) - margin;
   if (grown_x < std::numeric_limits<std::int32_t>::min() ||

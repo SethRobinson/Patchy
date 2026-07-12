@@ -16417,6 +16417,46 @@ void filter_catalog_defines_stable_named_contracts() {
       {"patchy.filters.vignette", Category::PhotoLooks, false, {{"strength", 55}}},
   };
 
+  const auto has_center_parameters = [](std::string_view identifier) {
+    return identifier == "patchy.filters.radial_blur" ||
+           identifier == "patchy.filters.twirl" ||
+           identifier == "patchy.filters.pinch_bloat" ||
+           identifier == "patchy.filters.vignette";
+  };
+  const auto expected_presentation = [](std::string_view identifier,
+                                        std::string_view key) {
+    using Presentation = patchy::FilterParameterPresentation;
+    if (key == "center_x") {
+      return Presentation::CenterXPercent;
+    }
+    if (key == "center_y") {
+      return Presentation::CenterYPercent;
+    }
+    if (key == "angle" &&
+        (identifier == "patchy.filters.motion_blur" ||
+         identifier == "patchy.filters.emboss" ||
+         identifier == "patchy.filters.twirl")) {
+      return Presentation::Angle;
+    }
+    if (key == "radius" &&
+        (identifier == "patchy.filters.twirl" ||
+         identifier == "patchy.filters.pinch_bloat")) {
+      return Presentation::EffectRadiusPercent;
+    }
+    if (identifier == "patchy.filters.wave") {
+      if (key == "amplitude") {
+        return Presentation::WaveAmplitude;
+      }
+      if (key == "wavelength") {
+        return Presentation::WaveWavelength;
+      }
+      if (key == "phase") {
+        return Presentation::WavePhase;
+      }
+    }
+    return Presentation::Standard;
+  };
+
   CHECK(registry.filters().size() == expected.size());
   std::unordered_set<std::string> spatial_parameters;
   for (std::size_t filter_index = 0; filter_index < expected.size(); ++filter_index) {
@@ -16427,7 +16467,8 @@ void filter_catalog_defines_stable_named_contracts() {
     CHECK(actual.catalog.adjustment_only == wanted.adjustment_only);
     CHECK(actual.catalog.schema_version == 1);
     CHECK(static_cast<bool>(actual.catalog.execute));
-    CHECK(actual.catalog.parameters.size() == wanted.defaults.size());
+    const auto center_count = has_center_parameters(actual.identifier) ? 2U : 0U;
+    CHECK(actual.catalog.parameters.size() == wanted.defaults.size() + center_count);
     const auto invocation = registry.default_invocation(actual.identifier);
     CHECK(invocation.filter_id == actual.identifier);
     CHECK(invocation.schema_version == 1);
@@ -16443,11 +16484,35 @@ void filter_catalog_defines_stable_named_contracts() {
       CHECK(parameter.step == 1.0);
       CHECK(std::get<std::int64_t>(parameter.default_value) == default_value);
       CHECK(std::get<std::int64_t>(invocation.parameters.at(key)) == default_value);
+      CHECK(parameter.presentation ==
+            expected_presentation(actual.identifier, parameter.key));
       CHECK(static_cast<double>(default_value) >= *parameter.minimum);
       CHECK(static_cast<double>(default_value) <= *parameter.maximum);
       if (parameter.spatial_scale == patchy::FilterSpatialScale::Pixels) {
         spatial_parameters.insert(actual.identifier + "/" + parameter.key);
         CHECK(parameter.unit == patchy::FilterParameterUnit::Pixels);
+      }
+    }
+    if (center_count != 0U) {
+      constexpr std::array center_keys{"center_x", "center_y"};
+      constexpr std::array center_names{"filterCenterX", "filterCenterY"};
+      for (std::size_t center_index = 0; center_index < center_keys.size();
+           ++center_index) {
+        const auto &parameter = actual.catalog.parameters[
+            wanted.defaults.size() + center_index];
+        CHECK(parameter.key == center_keys[center_index]);
+        CHECK(parameter.control_object_name == center_names[center_index]);
+        CHECK(parameter.kind == patchy::FilterParameterKind::Double);
+        CHECK(std::get<double>(parameter.default_value) == 50.0);
+        CHECK(parameter.minimum == 0.0);
+        CHECK(parameter.maximum == 100.0);
+        CHECK(parameter.step == 0.1);
+        CHECK(parameter.unit == patchy::FilterParameterUnit::Percent);
+        CHECK(parameter.spatial_scale == patchy::FilterSpatialScale::None);
+        CHECK(parameter.presentation ==
+              expected_presentation(actual.identifier, parameter.key));
+        CHECK(std::get<double>(invocation.parameters.at(parameter.key)) ==
+              50.0);
       }
     }
   }
@@ -16501,7 +16566,23 @@ void filter_invocations_normalize_scale_and_reject_bad_data() {
   const auto scaled_twirl = registry.scale(twirl, 0.25);
   CHECK(scaled_twirl.has_value());
   CHECK(std::get<std::int64_t>(scaled_twirl->parameters.at("radius")) == 100);
+  CHECK(std::get<double>(scaled_twirl->parameters.at("center_x")) == 50.0);
+  CHECK(std::get<double>(scaled_twirl->parameters.at("center_y")) == 50.0);
   CHECK(!registry.scale(twirl, 0.0).has_value());
+
+  auto radial = registry.default_invocation("patchy.filters.radial_blur");
+  radial.parameters["center_x"] = 17.5;
+  radial.parameters["center_y"] = 82.5;
+  const auto scaled_radial = registry.scale(radial, 0.125);
+  CHECK(scaled_radial.has_value());
+  CHECK(std::get<double>(scaled_radial->parameters.at("center_x")) == 17.5);
+  CHECK(std::get<double>(scaled_radial->parameters.at("center_y")) == 82.5);
+  radial.parameters.erase("center_x");
+  const auto normalized_radial = registry.normalize(radial);
+  CHECK(normalized_radial.has_value());
+  CHECK(std::get<double>(normalized_radial->parameters.at("center_x")) == 50.0);
+  radial.parameters["center_x"] = std::int64_t{25};
+  CHECK(!registry.supports(radial));
 
   patchy::FilterCatalogMetadata custom_catalog;
   custom_catalog.schema_version = 1;
@@ -16534,6 +16615,110 @@ void filter_invocations_normalize_scale_and_reject_bad_data() {
   typed = registry.default_invocation("test.filters.typed");
   typed.parameters["flag"] = std::string("true");
   CHECK(!registry.supports(typed));
+}
+
+void filter_centers_preserve_defaults_move_effects_and_survive_padding() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+
+  patchy::PixelBuffer source(17, 13, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      auto *pixel = source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 31 + y * 7) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 11 + y * 29) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 19 + y * 13) % 256);
+      pixel[3] = 255;
+    }
+  }
+  const auto equal_pixels = [](const patchy::PixelBuffer &left,
+                               const patchy::PixelBuffer &right) {
+    return left.format() == right.format() && left.width() == right.width() &&
+           left.height() == right.height() &&
+           std::equal(left.data().begin(), left.data().end(),
+                      right.data().begin());
+  };
+
+  // These three named defaults historically matched the legacy wrapper. The
+  // newly appended 50/50 center parameters must not move that output.
+  for (const auto *identifier : {"patchy.filters.radial_blur",
+                                 "patchy.filters.twirl",
+                                 "patchy.filters.pinch_bloat"}) {
+    auto legacy = source;
+    registry.apply(identifier, legacy);
+    auto named = source;
+    registry.apply(registry.default_invocation(identifier), named);
+    CHECK(equal_pixels(legacy, named));
+  }
+
+  auto vignette_source = solid_rgb(9, 7, 255, 255, 255);
+  registry.apply(registry.default_invocation("patchy.filters.vignette"),
+                 vignette_source);
+  CHECK(vignette_source.pixel(4, 3)[0] == 255);
+  CHECK(vignette_source.pixel(0, 0)[0] == 115);
+
+  for (const auto *identifier : {"patchy.filters.radial_blur",
+                                 "patchy.filters.twirl",
+                                 "patchy.filters.pinch_bloat",
+                                 "patchy.filters.vignette"}) {
+    auto centered = source;
+    auto centered_invocation = registry.default_invocation(identifier);
+    registry.apply(centered_invocation, centered);
+
+    auto explicit_center = source;
+    centered_invocation.parameters["center_x"] = 50.0;
+    centered_invocation.parameters["center_y"] = 50.0;
+    registry.apply(centered_invocation, explicit_center);
+    CHECK(equal_pixels(centered, explicit_center));
+
+    auto moved = source;
+    auto moved_invocation = registry.default_invocation(identifier);
+    moved_invocation.parameters["center_x"] = 25.0;
+    moved_invocation.parameters["center_y"] = 75.0;
+    registry.apply(moved_invocation, moved);
+    CHECK(!equal_pixels(centered, moved));
+    for (std::uint16_t channel = 0; channel < 4; ++channel) {
+      CHECK(moved.pixel(4, 9)[channel] == source.pixel(4, 9)[channel]);
+    }
+  }
+
+  // Radial Blur grows an RGBA buffer before execution. The center percentage
+  // is relative to the unpadded source and must be remapped for that temporary
+  // buffer, otherwise this stationary center pixel loses alpha after growth.
+  patchy::PixelBuffer point_source(11, 11, patchy::PixelFormat::rgba8());
+  point_source.clear(0);
+  for (std::uint16_t channel = 0; channel < 4; ++channel) {
+    point_source.pixel(2, 8)[channel] = 255;
+  }
+  auto off_center_radial =
+      registry.default_invocation("patchy.filters.radial_blur");
+  off_center_radial.parameters["center_x"] = 20.0;
+  off_center_radial.parameters["center_y"] = 80.0;
+  CHECK(registry.output_margin(off_center_radial, 11, 11) > 0);
+  auto edge_center_radial =
+      registry.default_invocation("patchy.filters.radial_blur");
+  edge_center_radial.parameters["center_x"] = 0.0;
+  edge_center_radial.parameters["center_y"] = 50.0;
+  // The far corners of a 1024px layer sweep well beyond the old 256px safety
+  // cap. Output growth must follow the actual sampled geometry so the halo is
+  // not clipped before rendering.
+  CHECK(registry.output_margin(edge_center_radial, 1024, 1024) > 600);
+  const patchy::Rect point_bounds{100, 200, 11, 11};
+  const auto confined =
+      registry.render(off_center_radial, point_source, point_bounds, false);
+  const auto expanded =
+      registry.render(off_center_radial, point_source, point_bounds, true);
+  const auto expanded_center_x = point_bounds.x + 2 - expanded.bounds.x;
+  const auto expanded_center_y = point_bounds.y + 8 - expanded.bounds.y;
+  CHECK(expanded_center_x >= 0 &&
+        expanded_center_x < expanded.pixels.width());
+  CHECK(expanded_center_y >= 0 &&
+        expanded_center_y < expanded.pixels.height());
+  for (std::uint16_t channel = 0; channel < 4; ++channel) {
+    CHECK(expanded.pixels.pixel(expanded_center_x,
+                                expanded_center_y)[channel] ==
+          confined.pixels.pixel(2, 8)[channel]);
+  }
 }
 
 void filter_named_engine_recipes_bounds_colors_and_legacy_stay_distinct() {
@@ -19396,6 +19581,8 @@ int main() {
       {"filter_catalog_defines_stable_named_contracts", filter_catalog_defines_stable_named_contracts},
       {"filter_invocations_normalize_scale_and_reject_bad_data",
        filter_invocations_normalize_scale_and_reject_bad_data},
+      {"filter_centers_preserve_defaults_move_effects_and_survive_padding",
+       filter_centers_preserve_defaults_move_effects_and_survive_padding},
       {"filter_named_engine_recipes_bounds_colors_and_legacy_stay_distinct",
        filter_named_engine_recipes_bounds_colors_and_legacy_stay_distinct},
       {"filter_recipe_opacity_interpolates_rgba_results",

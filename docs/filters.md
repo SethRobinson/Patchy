@@ -64,18 +64,18 @@ Parameter keys are stable within a filter schema. The version-1 keys and default
 | `unsharp_mask` | `amount=150`, `radius=2`, `threshold=8` |
 | `gaussian_blur` | `radius=2` |
 | `motion_blur` | `angle=0`, `distance=12` |
-| `radial_blur` | `amount=35`, `samples=16` |
+| `radial_blur` | `amount=35`, `samples=16`, `center_x=50.0`, `center_y=50.0` |
 | `edge_detect` | `strength=100` |
 | `emboss` | `angle=135`, `height=2`, `amount=100` |
 | `glowing_edges` | `edge_width=2`, `brightness=140`, `smoothness=2` |
-| `twirl` | `angle=180`, `radius=100` |
+| `twirl` | `angle=180`, `radius=100`, `center_x=50.0`, `center_y=50.0` |
 | `wave` | `amplitude=12`, `wavelength=48`, `phase=0` |
-| `pinch_bloat` | `amount=35`, `radius=100` |
+| `pinch_bloat` | `amount=35`, `radius=100`, `center_x=50.0`, `center_y=50.0` |
 | `clouds` | `scale=96`, `detail=6`, `contrast=40`, `seed=1` |
 | `pixelate` | `block_size=4` |
 | `color_halftone` | `cell_size=10`, `intensity=75`, `contrast=60` |
 | `film_grain` | `amount=50` |
-| `vignette` | `strength=55` |
+| `vignette` | `strength=55`, `center_x=50.0`, `center_y=50.0` |
 
 Missing known parameters use these defaults. Unknown parameter keys are ignored so a newer writer can add harmless fields. Unknown filter IDs and unsupported schema versions make the invocation and its containing recipe unsupported. They must never fall back to a different filter.
 
@@ -85,43 +85,64 @@ Values are normalized through the catalog before execution. Integer, double, boo
 
 Seven filters belong to Image > Adjustments: Invert, Brightness/Contrast, Grayscale, Desaturate, Auto Contrast, Threshold, and Posterize. Grayscale currently has no direct action.
 
-The 23 Filter-menu effects are cataloged in this display order:
+The gallery exposes the other 23 effects in the fixed catalog and category order below. Display labels are translated, but order is never locale-sorted.
 
-- Photo Looks: Soft Glow, Punchy Color, Noir, Cinematic Matte, Vintage Fade, Vintage Sepia, Lens Vignette
-- Blur: Box Blur, Gaussian Blur, Motion Blur, Radial Blur
-- Sharpen: Sharpen, Unsharp Mask
-- Distort: Twirl, Wave, Pinch/Bloat
-- Noise: Analog Grain
-- Pixelate: Pixel Mosaic, Color Halftone
-- Stylize: Edge Detect, Emboss, Glowing Edges
-- Render: Clouds
+| Category token | Gallery effects in order |
+| --- | --- |
+| `photo_looks` | Soft Glow (`patchy.filters.soft_glow`), Punchy Color (`patchy.filters.punchy_color`), Noir (`patchy.filters.noir`), Cinematic Matte (`patchy.filters.cinematic_matte`), Vintage Fade (`patchy.filters.vintage_fade`), Vintage Sepia (`patchy.filters.sepia`), Lens Vignette (`patchy.filters.vignette`) |
+| `blur` | Box Blur (`patchy.filters.box_blur`), Gaussian Blur (`patchy.filters.gaussian_blur`), Motion Blur (`patchy.filters.motion_blur`), Radial Blur (`patchy.filters.radial_blur`) |
+| `sharpen` | Sharpen (`patchy.filters.sharpen`), Unsharp Mask (`patchy.filters.unsharp_mask`) |
+| `distort` | Twirl (`patchy.filters.twirl`), Wave (`patchy.filters.wave`), Pinch/Bloat (`patchy.filters.pinch_bloat`) |
+| `noise` | Analog Grain (`patchy.filters.film_grain`) |
+| `pixelate` | Pixel Mosaic (`patchy.filters.pixelate`), Color Halftone (`patchy.filters.color_halftone`) |
+| `stylize` | Edge Detect (`patchy.filters.edge_detect`), Emboss (`patchy.filters.emboss`), Glowing Edges (`patchy.filters.glowing_edges`) |
+| `render` | Clouds (`patchy.filters.clouds`) |
+
+The category selector starts with the synthetic `all` and `favorites` views, then uses the eight tokens in the table. These ten tokens and their order are settings compatibility surfaces. Never persist a translated label or a `FilterCategory` ordinal.
 
 The catalog generates dialog controls, but the existing Qt object names such as `filterAmountSpin` and `filterRadiusSlider` remain test and automation contracts.
+
+The catalog is also the type contract for generated editors. Integer and double parameters receive linked sliders and spin boxes, booleans receive check boxes, and stable string options receive combo boxes whose item data holds the option token. Double slider ticks are derived from the declared minimum, maximum, and step, while the spin box keeps the declared precision. Units, defaults, ranges, object-name roots, and option tokens all come from `FilterParameterDefinition`. Direct filter dialogs and the gallery consume the same `FilterDialogSpec`, so their standard controls must stay in sync. The gallery adds visual companions without creating a second parameter model.
+
+`FilterParameterPresentation` is not persisted and does not replace the parameter key or value. Current roles are `Angle`, `CenterXPercent`, `CenterYPercent`, `EffectRadiusPercent`, `WaveAmplitude`, `WaveWavelength`, and `WavePhase`. UI code must select specialized controls by these roles, not by a parameter key, display label, unit, or filter ID. The render wrapper also uses the two center roles to preserve their image-space positions when transparent padding is added.
 
 Only six filter IDs are registered hotkey command IDs today: Invert, Desaturate, Auto Contrast, Brightness/Contrast, Threshold, and Posterize. Direct Filter-menu actions are not HotkeyRegistry commands. A catalog refactor must not silently add or remove commands.
 
 Human-readable catalog names are canonical English translation sources. UI code translates them in the existing `QObject` context, while submenu and action status text keep their existing `MainWindow` context.
 
-## Photo Looks Gallery
+## Visual Filters and Looks Gallery
 
-`Filter > Visual Filters & Looks...` is the shared entry point for visual filter browsing. Its persisted hotkey command ID is `filter.gallery`; it has no default shortcut. The seven existing Photo Looks remain available as direct Filter-menu actions and keep their existing IDs, dialogs, defaults, and output.
+`Filter > Visual Filters & Looks...` is the shared entry point for visual filter browsing. Its persisted hotkey command ID is `filter.gallery`; it has no default shortcut. Existing direct Filter-menu actions remain fast paths and keep their IDs, dialogs, defaults, selection behavior, and output.
 
-The first gallery checkpoint has this fixed display order:
+Original is a UI sentinel, not a filter ID or persisted invocation. It remains visible at the top of every category and search view. Real items carry their exact built-in ID in `Qt::UserRole + 1`; Original carries an empty value. The gallery pre-creates all items in catalog order and filters them in place instead of rebuilding or sorting the list.
 
-1. Original
-2. Soft Glow (`patchy.filters.soft_glow`)
-3. Punchy Color (`patchy.filters.punchy_color`)
-4. Noir (`patchy.filters.noir`)
-5. Cinematic Matte (`patchy.filters.cinematic_matte`)
-6. Vintage Fade (`patchy.filters.vintage_fade`)
-7. Vintage Sepia (`patchy.filters.sepia`)
-8. Lens Vignette (`patchy.filters.vignette`)
+Search is case-insensitive and localized. It matches the translated filter name, canonical English filter name, translated category name, and stable category token with underscores treated as spaces. Original stays visible when no real effect matches. Filtering the rows does not render an effect. If a search, category, or favorite change hides the selected filter, selection returns to Original and follows the normal Original preview path.
 
-Original is a UI sentinel, not a filter ID and not a persisted invocation. Gallery list items carry the exact built-in ID for the seven real Looks in `Qt::UserRole + 1`; Original carries an empty value. The gallery's automation contracts include `filterGalleryDialog`, `filterGalleryLooksList`, `filterGalleryPreview`, `filterGalleryParameters`, `filterGalleryCanvasPreviewCheck`, `filterGalleryBeforeButton`, `filterGalleryStatusLabel`, `filterGalleryButtonBox`, and the `filterGalleryZoom*` controls. Catalog-generated amount and strength controls keep their existing `filterAmount*` and `filterStrength*` object names.
+Favorites are stored by stable filter ID and follow catalog order. Loading discards missing IDs and duplicate entries, then rewrites the cleaned list. Toggling a favorite writes immediately and is a harmless library preference, so Cancel does not undo it. The Favorites view may contain no real effects; Original still provides a safe no-op selection.
 
-Thumbnail and center-preview work always starts from an immutable copy of the active layer. Thumbnails are generated lazily from a bounded proxy. Any pixel-distance parameters are scaled through `FilterRegistry::scale`; final canvas preview and Apply always use the unscaled invocation at full layer resolution. Returning to the same Look after viewing another must reproduce the same pixels, never a cumulative re-filtering of an earlier preview.
+The gallery settings keys are fixed:
 
-Full-resolution live-canvas preview requests carry monotonically increasing generations. A finished worker may update the canvas only when it is still the newest generation and the dialog remains open. At most one request runs while the latest pending request replaces older pending work. Closing the dialog invalidates every unfinished result. The bounded center preview is debounced, and thumbnail work advances one Look per event-loop turn. The momentary Before button compares the center preview with the immutable source while held; it does not change the live canvas preview. Live Canvas Preview is enabled by default and can restore or reapply the current full-resolution result without changing the dialog selection.
+| Key | Value |
+| --- | --- |
+| `filters/gallery/favorites` | Ordered `QStringList` of valid built-in filter IDs |
+| `filters/gallery/category` | One of the ten stable view/category tokens |
+| `filters/gallery/lastFilterId` | Last selected built-in filter ID, or empty for Original |
+| `filters/gallery/liveCanvasPreview` | Boolean live-preview preference |
+| `filters/gallery/size` | Last dialog size |
+
+Unknown category tokens fall back to `all`. A saved filter is restored only when it still exists and is visible in the restored view. Saved sizes are accepted only from 880 by 560 through 3200 by 2400 pixels; the default is 1120 by 720. Search text, zoom, pan, and parameter edits are session-only.
+
+The gallery's automation contracts include `filterGalleryDialog`, `filterGallerySearchEdit`, `filterGalleryCategoryCombo`, `filterGalleryLooksList`, `filterGalleryEmptyLabel`, `filterGalleryPreview`, `filterGalleryParameters`, `filterGalleryParameterEditor`, `filterGalleryFavoriteButton`, `filterGalleryCanvasPreviewCheck`, `filterGalleryBeforeButton`, `filterGalleryStatusLabel`, `filterGalleryButtonBox`, and the `filterGalleryZoom*` controls. Catalog-generated controls keep their catalog object-name roots. The gallery assigns `filterAngleDial` and `filterWaveformControl` to its two specialized widgets. The center/radius overlay is part of `filterGalleryPreview`, not a separate child widget.
+
+The angle dial appears for Motion Blur, Emboss, and Twirl. It is synchronized with the standard numeric controls. Its hand wraps visually, but Twirl retains the full `-720` through `720` degree value. The Wave graph synchronizes amplitude, wavelength, and phase while retaining all three numeric controls. Horizontal dragging changes phase, vertical dragging changes amplitude, and the wheel changes wavelength.
+
+Radial Blur, Twirl, Pinch/Bloat, and Lens Vignette declare `center_x` and `center_y` as doubles from 0.0 through 100.0, with defaults of 50.0 and steps of 0.1. Their roles are `CenterXPercent` and `CenterYPercent`. The preview draws a draggable crosshair for these filters. Dragged values are quantized to the declared step before both the editor and invocation are updated. Twirl and Pinch/Bloat also mark their integer `radius` as `EffectRadiusPercent`, so the overlay adds a draggable radius circle and handle. Normal pan and zoom remain active when a drag does not begin near one of those handles. Spatial drags move the overlay and numeric values immediately, but a size-changing center proxy is adopted only after release so its coordinate system cannot jump under the pointer.
+
+Thumbnail and center-preview work always starts from an immutable copy of the active layer. The center proxy has a maximum dimension of 640 pixels and the thumbnail proxy has a maximum dimension of 180 pixels. Both use bounded premultiplied bilinear resampling and a correspondingly scaled selection. Pixel-distance parameters are scaled through `FilterRegistry::scale`; percentages, angles, sample counts, centers, and captured colors do not scale. Final canvas preview and Apply always use the unscaled invocation at full layer resolution. Returning to the same effect after viewing another must reproduce the same pixels, never a cumulative re-filtering of an earlier preview.
+
+Thumbnail icons are 128 by 78 pixels. Original is available immediately. Missing thumbnails are generated lazily, one visible filter per timer turn, and the per-dialog ready flag prevents repeat work. Hidden rows are skipped. Selecting and editing a filter refreshes that row's icon from the current invocation. The cache is session-local and is not persisted across gallery openings. Category, search, and favorite changes prioritize newly visible missing thumbnails without invalidating completed ones.
+
+Full-resolution live-canvas preview requests carry monotonically increasing generations. A finished worker may update the canvas only when it is still the newest generation and the dialog remains open. At most one request runs while the latest pending request replaces older pending work. Closing the dialog invalidates every unfinished result. The bounded center preview uses the same latest-generation rule on its own worker, cooperatively cancels obsolete work, and is debounced before dispatch. Thumbnail work stays bounded to the 180-pixel proxy and advances one effect per event-loop turn. The momentary Before button aligns the immutable source to the current expanded result bounds, preserving zoom and pan while it is held; it does not change the live canvas preview. Live Canvas Preview is enabled by default and can restore or reapply the current full-resolution result without changing the dialog selection.
 
 Cancel restores the active layer's original pixels and document-space bounds exactly, adds no undo entry, and does not mark a previously clean document modified. Apply renders once more from the immutable original, commits one destructive transaction, and creates one undo entry. Undo and Redo restore both pixels and bounds. Original and identity results close without creating a no-op undo entry.
 
@@ -144,10 +165,19 @@ Output growth and translation support are catalog metadata:
 
 - Box Blur and Gaussian Blur grow by their radius and have translation support equal to that radius.
 - Motion Blur grows by its distance and has translation support of distance plus one for bilinear sampling.
-- Radial Blur computes growth from the input dimensions and amount. Amount zero has no growth.
+- Radial Blur keeps the historical centered growth calculation for exact default compatibility. An edited center computes growth from the actual sampled corner sweep without a fixed pixel cap. Impossible dimensions fail through the registry's checked padding path instead of clipping valid output. Amount zero has no growth.
 - Unsharp Mask does not grow, but its translation support is its radius.
 - Sharpen and Edge Detect have translation support of one pixel.
 - Other version-1 filters neither grow nor advertise fixed translation support.
+
+When rendering expands an RGBA layer, the registry pads every side before executing the filter. A center expressed against the original image must therefore be remapped to the padded buffer. For each axis, the registry applies:
+
+```text
+padded_percent = 100 * (margin + (original_extent - 1) * percent / 100)
+                 / (original_extent + 2 * margin - 1)
+```
+
+This remap is selected by the `CenterXPercent` and `CenterYPercent` roles and preserves the same image-space point after padding. It applies to default 50.0 centers as well as edited centers. Never run a centered effect on a padded buffer with the unadjusted percentage, because an off-center value would shift with the new bounds.
 
 The UI selection wrapper decides whether expansion is allowed. A selected operation stays inside the layer bounds. With no selection, an RGBA layer may grow and then trim transparent borders. Preview, Cancel, Apply, Undo, and Redo must restore both pixels and document-space bounds.
 

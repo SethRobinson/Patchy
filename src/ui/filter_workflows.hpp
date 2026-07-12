@@ -89,6 +89,8 @@ struct FilterControlSpec {
   std::optional<double> typed_maximum;
   std::optional<double> step;
   std::vector<FilterParameterOption> options;
+  FilterParameterPresentation presentation{
+      FilterParameterPresentation::Standard};
 };
 
 struct FilterDialogSpec {
@@ -108,6 +110,7 @@ using FilterCancelled = ::patchy::FilterCancelled;
 
 [[nodiscard]] QString filter_action_object_name(const QString& identifier);
 [[nodiscard]] QString filter_display_name(const FilterDefinition& filter);
+[[nodiscard]] QString filter_category_display_name(FilterCategory category);
 [[nodiscard]] QString filter_progress_stage_text(FilterProgressStage stage);
 [[nodiscard]] bool is_adjustment_only_filter(const FilterDefinition& filter);
 [[nodiscard]] FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter);

@@ -47,6 +47,28 @@ int filter_value(const FilterInvocation &invocation, std::string_view key,
   return static_cast<int>(*integer);
 }
 
+double filter_number(const FilterInvocation &invocation, std::string_view key,
+                     double fallback) {
+  const auto found = invocation.parameters.find(key);
+  if (found == invocation.parameters.end()) {
+    return fallback;
+  }
+  if (const auto *real = std::get_if<double>(&found->second);
+      real != nullptr && std::isfinite(*real)) {
+    return *real;
+  }
+  if (const auto *integer = std::get_if<std::int64_t>(&found->second);
+      integer != nullptr) {
+    return static_cast<double>(*integer);
+  }
+  return fallback;
+}
+
+double filter_center_coordinate(std::int32_t extent, double percent) {
+  return static_cast<double>(std::max<std::int32_t>(0, extent - 1)) *
+         std::clamp(percent, 0.0, 100.0) / 100.0;
+}
+
 void report_filter_progress(
     const FilterProgress *progress, int completed, int total,
     FilterProgressStage stage = FilterProgressStage::Filtering) {
@@ -519,10 +541,13 @@ void apply_clouds_to_pixels(PixelBuffer &pixels, RgbColor foreground,
 
 void apply_twirl_to_pixels(PixelBuffer &pixels, const PixelBuffer &original,
                            int angle_degrees, int radius_percent,
+                           double center_x_percent, double center_y_percent,
                            const FilterProgress *progress) {
   const auto channels = pixels.format().channels;
-  const auto center_x = (static_cast<double>(pixels.width()) - 1.0) * 0.5;
-  const auto center_y = (static_cast<double>(pixels.height()) - 1.0) * 0.5;
+  const auto center_x =
+      filter_center_coordinate(pixels.width(), center_x_percent);
+  const auto center_y =
+      filter_center_coordinate(pixels.height(), center_y_percent);
   const auto radius = std::max(
       1.0, static_cast<double>(std::min(pixels.width(), pixels.height())) *
                0.5 * static_cast<double>(std::clamp(radius_percent, 1, 100)) /
@@ -676,12 +701,16 @@ void apply_motion_blur_to_pixels(PixelBuffer &pixels,
 }
 
 void apply_radial_blur_to_pixels(PixelBuffer &pixels,
-                                 const PixelBuffer &original, int amount,
-                                 int samples, const FilterProgress *progress) {
+                                  const PixelBuffer &original, int amount,
+                                  int samples, double center_x_percent,
+                                  double center_y_percent,
+                                  const FilterProgress *progress) {
   amount = std::clamp(amount, 0, 100);
   samples = std::clamp(samples, 4, 32);
-  const auto center_x = (static_cast<double>(pixels.width()) - 1.0) * 0.5;
-  const auto center_y = (static_cast<double>(pixels.height()) - 1.0) * 0.5;
+  const auto center_x =
+      filter_center_coordinate(pixels.width(), center_x_percent);
+  const auto center_y =
+      filter_center_coordinate(pixels.height(), center_y_percent);
   const auto sweep = static_cast<double>(amount) * 3.6 * kFilterPi / 180.0;
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     report_filter_progress(progress, y, pixels.height(),
@@ -737,13 +766,17 @@ void apply_wave_to_pixels(PixelBuffer &pixels, const PixelBuffer &original,
 }
 
 void apply_pinch_bloat_to_pixels(PixelBuffer &pixels,
-                                 const PixelBuffer &original, int amount,
-                                 int radius_percent,
-                                 const FilterProgress *progress) {
+                                  const PixelBuffer &original, int amount,
+                                  int radius_percent,
+                                  double center_x_percent,
+                                  double center_y_percent,
+                                  const FilterProgress *progress) {
   amount = std::clamp(amount, -100, 100);
   radius_percent = std::clamp(radius_percent, 1, 100);
-  const auto center_x = (static_cast<double>(pixels.width()) - 1.0) * 0.5;
-  const auto center_y = (static_cast<double>(pixels.height()) - 1.0) * 0.5;
+  const auto center_x =
+      filter_center_coordinate(pixels.width(), center_x_percent);
+  const auto center_y =
+      filter_center_coordinate(pixels.height(), center_y_percent);
   const auto radius = std::max(
       1.0, static_cast<double>(std::min(pixels.width(), pixels.height())) *
                0.5 * static_cast<double>(radius_percent) / 100.0);
@@ -1262,7 +1295,10 @@ void execute_builtin_filter(const FilterRegistry &registry,
     apply_radial_blur_to_pixels(
         pixels, original,
         std::clamp(filter_value(invocation, "amount", 35), 0, 100),
-        std::clamp(filter_value(invocation, "samples", 16), 4, 32), progress);
+        std::clamp(filter_value(invocation, "samples", 16), 4, 32),
+        std::clamp(filter_number(invocation, "center_x", 50.0), 0.0, 100.0),
+        std::clamp(filter_number(invocation, "center_y", 50.0), 0.0, 100.0),
+        progress);
     return;
   }
 
@@ -1327,7 +1363,10 @@ void execute_builtin_filter(const FilterRegistry &registry,
     apply_twirl_to_pixels(
         pixels, original,
         std::clamp(filter_value(invocation, "angle", 180), -720, 720),
-        std::clamp(filter_value(invocation, "radius", 100), 1, 100), progress);
+        std::clamp(filter_value(invocation, "radius", 100), 1, 100),
+        std::clamp(filter_number(invocation, "center_x", 50.0), 0.0, 100.0),
+        std::clamp(filter_number(invocation, "center_y", 50.0), 0.0, 100.0),
+        progress);
     return;
   }
 
@@ -1344,7 +1383,10 @@ void execute_builtin_filter(const FilterRegistry &registry,
     apply_pinch_bloat_to_pixels(
         pixels, original,
         std::clamp(filter_value(invocation, "amount", 35), -100, 100),
-        std::clamp(filter_value(invocation, "radius", 100), 1, 100), progress);
+        std::clamp(filter_value(invocation, "radius", 100), 1, 100),
+        std::clamp(filter_number(invocation, "center_x", 50.0), 0.0, 100.0),
+        std::clamp(filter_number(invocation, "center_y", 50.0), 0.0, 100.0),
+        progress);
     return;
   }
 
@@ -1428,10 +1470,19 @@ void execute_builtin_filter(const FilterRegistry &registry,
   if (identifier == "patchy.filters.vignette") {
     const auto strength =
         std::clamp(filter_value(invocation, "strength", 55), 0, 100);
-    const auto center_x = (static_cast<double>(pixels.width()) - 1.0) * 0.5;
-    const auto center_y = (static_cast<double>(pixels.height()) - 1.0) * 0.5;
-    const auto max_distance =
-        std::sqrt(center_x * center_x + center_y * center_y);
+    const auto center_x = filter_center_coordinate(
+        pixels.width(),
+        std::clamp(filter_number(invocation, "center_x", 50.0), 0.0,
+                   100.0));
+    const auto center_y = filter_center_coordinate(
+        pixels.height(),
+        std::clamp(filter_number(invocation, "center_y", 50.0), 0.0,
+                   100.0));
+    const auto far_x =
+        std::max(center_x, static_cast<double>(pixels.width() - 1) - center_x);
+    const auto far_y = std::max(
+        center_y, static_cast<double>(pixels.height() - 1) - center_y);
+    const auto max_distance = std::sqrt(far_x * far_x + far_y * far_y);
     if (max_distance <= 0.0) {
       return;
     }
@@ -1464,7 +1515,9 @@ integer_parameter(std::string key, std::string display_name,
                   std::string control_object_name, int minimum, int maximum,
                   int default_value,
                   FilterParameterUnit unit = FilterParameterUnit::None,
-                  FilterSpatialScale spatial_scale = FilterSpatialScale::None) {
+                  FilterSpatialScale spatial_scale = FilterSpatialScale::None,
+                  FilterParameterPresentation presentation =
+                      FilterParameterPresentation::Standard) {
   FilterParameterDefinition definition;
   definition.key = std::move(key);
   definition.display_name = std::move(display_name);
@@ -1476,6 +1529,30 @@ integer_parameter(std::string key, std::string display_name,
   definition.step = 1.0;
   definition.unit = unit;
   definition.spatial_scale = spatial_scale;
+  definition.presentation = presentation;
+  return definition;
+}
+
+FilterParameterDefinition
+double_parameter(std::string key, std::string display_name,
+                 std::string control_object_name, double minimum,
+                 double maximum, double default_value, double step,
+                 FilterParameterUnit unit = FilterParameterUnit::None,
+                 FilterSpatialScale spatial_scale = FilterSpatialScale::None,
+                 FilterParameterPresentation presentation =
+                     FilterParameterPresentation::Standard) {
+  FilterParameterDefinition definition;
+  definition.key = std::move(key);
+  definition.display_name = std::move(display_name);
+  definition.control_object_name = std::move(control_object_name);
+  definition.kind = FilterParameterKind::Double;
+  definition.default_value = default_value;
+  definition.minimum = minimum;
+  definition.maximum = maximum;
+  definition.step = step;
+  definition.unit = unit;
+  definition.spatial_scale = spatial_scale;
+  definition.presentation = presentation;
   return definition;
 }
 
@@ -1496,10 +1573,78 @@ int catalog_integer(const FilterInvocation &invocation, std::string_view key,
   return filter_value(invocation, key, fallback);
 }
 
+double catalog_number(const FilterInvocation &invocation, std::string_view key,
+                      double fallback) {
+  return filter_number(invocation, key, fallback);
+}
+
+int off_center_radial_blur_margin(const FilterInvocation &invocation,
+                                  std::int32_t width,
+                                  std::int32_t height) {
+  const auto amount =
+      std::clamp(catalog_integer(invocation, "amount", 35), 0, 100);
+  if (amount <= 0 || width <= 0 || height <= 0) {
+    return 0;
+  }
+  const auto samples =
+      std::clamp(catalog_integer(invocation, "samples", 16), 4, 32);
+  const auto center_x = filter_center_coordinate(
+      width,
+      std::clamp(catalog_number(invocation, "center_x", 50.0), 0.0, 100.0));
+  const auto center_y = filter_center_coordinate(
+      height,
+      std::clamp(catalog_number(invocation, "center_y", 50.0), 0.0, 100.0));
+  const auto sweep = static_cast<double>(amount) * 3.6 * kFilterPi / 180.0;
+  const std::array<std::array<double, 2>, 4> corners{{
+      {{0.0, 0.0}},
+      {{static_cast<double>(width - 1), 0.0}},
+      {{0.0, static_cast<double>(height - 1)}},
+      {{static_cast<double>(width - 1), static_cast<double>(height - 1)}},
+  }};
+  double minimum_x = 0.0;
+  double minimum_y = 0.0;
+  double maximum_x = static_cast<double>(width - 1);
+  double maximum_y = static_cast<double>(height - 1);
+  for (int sample = 0; sample < samples; ++sample) {
+    const auto t = static_cast<double>(sample) /
+                       static_cast<double>(samples - 1) -
+                   0.5;
+    const auto angle = -sweep * t;
+    const auto cosine = std::cos(angle);
+    const auto sine = std::sin(angle);
+    for (const auto &corner : corners) {
+      const auto dx = corner[0] - center_x;
+      const auto dy = corner[1] - center_y;
+      const auto rotated_x = center_x + dx * cosine - dy * sine;
+      const auto rotated_y = center_y + dx * sine + dy * cosine;
+      minimum_x = std::min(minimum_x, rotated_x);
+      minimum_y = std::min(minimum_y, rotated_y);
+      maximum_x = std::max(maximum_x, rotated_x);
+      maximum_y = std::max(maximum_y, rotated_y);
+    }
+  }
+  const auto excess = std::max(
+      {0.0, -minimum_x, -minimum_y,
+       maximum_x - static_cast<double>(width - 1),
+       maximum_y - static_cast<double>(height - 1)});
+  if (excess <= 0.0) {
+    return 0;
+  }
+  const auto required = std::ceil(excess) + 1.0;
+  if (required >=
+      static_cast<double>(std::numeric_limits<int>::max())) {
+    // FilterRegistry::render() performs the final checked-dimension arithmetic
+    // and reports an overflow instead of silently clipping a valid halo.
+    return std::numeric_limits<int>::max();
+  }
+  return std::max(0, static_cast<int>(required));
+}
+
 } // namespace
 
 FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
   using Category = FilterCategory;
+  using Presentation = FilterParameterPresentation;
   using Scale = FilterSpatialScale;
   using Unit = FilterParameterUnit;
 
@@ -1507,6 +1652,13 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                          int default_value = 100) {
     return integer_parameter("amount", std::move(label), "filterAmount", 0, 100,
                              default_value, Unit::Percent);
+  };
+  const auto center = [](std::string key, std::string label,
+                         std::string object_name,
+                         Presentation presentation) {
+    return double_parameter(std::move(key), std::move(label),
+                            std::move(object_name), 0.0, 100.0, 50.0, 0.1,
+                            Unit::Percent, Scale::None, presentation);
   };
 
   FilterCatalogMetadata metadata;
@@ -1574,7 +1726,7 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
     metadata = catalog_metadata(
         Category::Blur, false,
         {integer_parameter("angle", "Angle", "filterAngle", -180, 180, 0,
-                           Unit::Degrees),
+                           Unit::Degrees, Scale::None, Presentation::Angle),
          integer_parameter("distance", "Distance", "filterDistance", 1, 64, 12,
                            Unit::Pixels, Scale::Pixels)});
   } else if (identifier == "patchy.filters.radial_blur") {
@@ -1582,7 +1734,11 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
         Category::Blur, false,
         {integer_parameter("amount", "Amount", "filterAmount", 0, 100, 35,
                            Unit::Percent),
-         integer_parameter("samples", "Samples", "filterSamples", 4, 32, 16)});
+         integer_parameter("samples", "Samples", "filterSamples", 4, 32, 16),
+         center("center_x", "Center X", "filterCenterX",
+                Presentation::CenterXPercent),
+         center("center_y", "Center Y", "filterCenterY",
+                Presentation::CenterYPercent)});
   } else if (identifier == "patchy.filters.edge_detect") {
     metadata = catalog_metadata(
         Category::Stylize, false,
@@ -1592,7 +1748,7 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
     metadata = catalog_metadata(
         Category::Stylize, false,
         {integer_parameter("angle", "Angle", "filterAngle", -180, 180, 135,
-                           Unit::Degrees),
+                           Unit::Degrees, Scale::None, Presentation::Angle),
          integer_parameter("height", "Height", "filterHeight", 1, 24, 2,
                            Unit::Pixels, Scale::Pixels),
          integer_parameter("amount", "Amount", "filterDepth", 0, 300, 100,
@@ -1607,28 +1763,41 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
          integer_parameter("smoothness", "Smoothness", "filterSmoothness", 0,
                            12, 2, Unit::Pixels, Scale::Pixels)});
   } else if (identifier == "patchy.filters.twirl") {
-    metadata =
-        catalog_metadata(Category::Distort, false,
-                         {integer_parameter("angle", "Angle", "filterAngle",
-                                            -720, 720, 180, Unit::Degrees),
-                          integer_parameter("radius", "Radius", "filterRadius",
-                                            1, 100, 100, Unit::Percent)});
+    metadata = catalog_metadata(
+        Category::Distort, false,
+        {integer_parameter("angle", "Angle", "filterAngle", -720, 720, 180,
+                           Unit::Degrees, Scale::None, Presentation::Angle),
+         integer_parameter("radius", "Radius", "filterRadius", 1, 100, 100,
+                           Unit::Percent, Scale::None,
+                           Presentation::EffectRadiusPercent),
+         center("center_x", "Center X", "filterCenterX",
+                Presentation::CenterXPercent),
+         center("center_y", "Center Y", "filterCenterY",
+                Presentation::CenterYPercent)});
   } else if (identifier == "patchy.filters.wave") {
     metadata = catalog_metadata(
         Category::Distort, false,
         {integer_parameter("amplitude", "Amplitude", "filterAmplitude", 0, 64,
-                           12, Unit::Pixels, Scale::Pixels),
+                           12, Unit::Pixels, Scale::Pixels,
+                           Presentation::WaveAmplitude),
          integer_parameter("wavelength", "Wavelength", "filterWavelength", 4,
-                           256, 48, Unit::Pixels, Scale::Pixels),
+                           256, 48, Unit::Pixels, Scale::Pixels,
+                           Presentation::WaveWavelength),
          integer_parameter("phase", "Phase", "filterPhase", 0, 360, 0,
-                           Unit::Degrees)});
+                           Unit::Degrees, Scale::None,
+                           Presentation::WavePhase)});
   } else if (identifier == "patchy.filters.pinch_bloat") {
-    metadata =
-        catalog_metadata(Category::Distort, false,
-                         {integer_parameter("amount", "Amount", "filterAmount",
-                                            -100, 100, 35, Unit::Percent),
-                          integer_parameter("radius", "Radius", "filterRadius",
-                                            1, 100, 100, Unit::Percent)});
+    metadata = catalog_metadata(
+        Category::Distort, false,
+        {integer_parameter("amount", "Amount", "filterAmount", -100, 100, 35,
+                           Unit::Percent),
+         integer_parameter("radius", "Radius", "filterRadius", 1, 100, 100,
+                           Unit::Percent, Scale::None,
+                           Presentation::EffectRadiusPercent),
+         center("center_x", "Center X", "filterCenterX",
+                Presentation::CenterXPercent),
+         center("center_y", "Center Y", "filterCenterY",
+                Presentation::CenterYPercent)});
   } else if (identifier == "patchy.filters.clouds") {
     metadata = catalog_metadata(
         Category::Render, false,
@@ -1658,7 +1827,11 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
     metadata = catalog_metadata(
         Category::PhotoLooks, false,
         {integer_parameter("strength", "Strength", "filterStrength", 0, 100, 55,
-                           Unit::Percent)});
+                           Unit::Percent),
+         center("center_x", "Center X", "filterCenterX",
+                Presentation::CenterXPercent),
+         center("center_y", "Center Y", "filterCenterY",
+                Presentation::CenterYPercent)});
   } else {
     return {};
   }
@@ -1698,6 +1871,16 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
   } else if (identifier == "patchy.filters.radial_blur") {
     metadata.output_margin = [](const FilterInvocation &invocation,
                                 std::int32_t width, std::int32_t height) {
+      const auto center_x =
+          std::clamp(catalog_number(invocation, "center_x", 50.0), 0.0, 100.0);
+      const auto center_y =
+          std::clamp(catalog_number(invocation, "center_y", 50.0), 0.0, 100.0);
+      if (center_x != 50.0 || center_y != 50.0) {
+        return off_center_radial_blur_margin(invocation, width, height);
+      }
+
+      // Keep the historical centered calculation byte-for-byte: default
+      // invocations and old files must retain their existing growth and pixels.
       const auto amount =
           std::clamp(catalog_integer(invocation, "amount", 35), 0, 100);
       if (amount <= 0) {

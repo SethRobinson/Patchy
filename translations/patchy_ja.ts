@@ -552,9 +552,84 @@
         <translation>レンズ周辺減光</translation>
     </message>
     <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="706"/>
+        <source>Other</source>
+        <translation>その他</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Adjustments</source>
+        <translation>色調補正</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Photo Looks</source>
+        <translation>フォトルック</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Blur</source>
+        <translation>ぼかし</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Distort</source>
+        <translation>変形</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Pixelate</source>
+        <translation>ピクセレート</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Stylize</source>
+        <translation>表現手法</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Render</source>
+        <translation>描画</translation>
+    </message>
+    <message>
+        <location line="+42"/>
+        <source>Center X</source>
+        <translation>中心 X</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Center Y</source>
+        <translation>中心 Y</translation>
+    </message>
+    <message>
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="231"/>
         <source>Visual Filters &amp; Looks</source>
         <translation>ビジュアルフィルターとルック</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="370"/>
+        <source>Filters</source>
+        <translation>フィルター</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>Search filters</source>
+        <translation>フィルターを検索</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>All</source>
+        <translation>すべて</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Favorites</source>
+        <translation>お気に入り</translation>
+    </message>
+    <message>
+        <location line="+21"/>
+        <source>No filters match this view.</source>
+        <translation>この表示条件に一致するフィルターはありません。</translation>
     </message>
     <message>
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="243"/>
@@ -570,6 +645,16 @@
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="313"/>
         <source>Settings</source>
         <translation>設定</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="478"/>
+        <source>Favorite filter</source>
+        <translation>お気に入りフィルター</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Add or remove this filter from Favorites</source>
+        <translation>このフィルターをお気に入りに追加、またはお気に入りから削除します</translation>
     </message>
     <message>
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="334"/>
@@ -592,9 +677,14 @@
         <translation>準備完了</translation>
     </message>
     <message>
-        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="426"/>
-        <source>Choose a look to adjust its settings.</source>
-        <translation>設定を調整するルックを選択してください。</translation>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="670"/>
+        <source>Choose a filter to adjust its settings.</source>
+        <translation>設定を調整するフィルターを選択してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/zoomable_image_preview.cpp" line="136"/>
+        <source>Drag the center or radius handle to position the filter. Drag elsewhere to pan; the mouse wheel zooms.</source>
+        <translation>中心または半径のハンドルをドラッグしてフィルターの位置を調整します。その他の場所をドラッグすると表示位置を移動でき、マウスホイールでズームします。</translation>
     </message>
     <message>
         <location line="+1943"/>
@@ -11358,5 +11448,28 @@ Clipped to the layer below</source>
     <message><source>Metal Shine</source><translation>メタルシャイン</translation></message>
     <message><source>Cel Shade</source><translation>セルシェード</translation></message>
     <message><source>Jewel Tone</source><translation>ジュエルトーン</translation></message>
+</context>
+<context>
+    <name>FilterGalleryControls</name>
+    <message>
+        <location filename="../src/ui/filter_gallery_controls.cpp" line="60"/>
+        <source>Angle</source>
+        <translation>角度</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Drag around the dial to set the angle. Use the arrow keys for precise changes; hold Shift for larger steps.</source>
+        <translation>ダイヤルをドラッグして角度を設定します。矢印キーで細かく調整し、Shift キーを押しながら操作すると大きく変更できます。</translation>
+    </message>
+    <message>
+        <location line="+283"/>
+        <source>Waveform</source>
+        <translation>波形</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Drag horizontally to change phase and vertically to change amplitude. Use the mouse wheel to change wavelength.</source>
+        <translation>横にドラッグすると位相、縦にドラッグすると振幅が変わります。マウスホイールで波長を変更できます。</translation>
+    </message>
 </context>
 </TS>

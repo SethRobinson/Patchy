@@ -57,6 +57,19 @@ enum class FilterParameterUnit { None, Percent, Pixels, Degrees };
 
 enum class FilterSpatialScale { None, Pixels };
 
+// Optional semantic/presentation hints for catalog-generated controls. These
+// do not affect persistence: parameter keys and values remain authoritative.
+enum class FilterParameterPresentation {
+  Standard,
+  Angle,
+  CenterXPercent,
+  CenterYPercent,
+  EffectRadiusPercent,
+  WaveAmplitude,
+  WaveWavelength,
+  WavePhase
+};
+
 struct FilterParameterOption {
   std::string value;
   std::string display_name;
@@ -74,6 +87,8 @@ struct FilterParameterDefinition {
   FilterParameterUnit unit{FilterParameterUnit::None};
   FilterSpatialScale spatial_scale{FilterSpatialScale::None};
   std::vector<FilterParameterOption> options;
+  FilterParameterPresentation presentation{
+      FilterParameterPresentation::Standard};
 };
 
 enum class FilterProgressStage {

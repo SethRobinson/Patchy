@@ -165,6 +165,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <atomic>
 #include <array>
 #include <cstdint>
 #include <cmath>
@@ -437,6 +438,46 @@ private:
   QString key_;
   bool had_value_{false};
   QVariant value_;
+};
+
+class GallerySettingsRestorer {
+public:
+  GallerySettingsRestorer()
+      : favorites_(QStringLiteral("filters/gallery/favorites")),
+        category_(QStringLiteral("filters/gallery/category")),
+        last_filter_(QStringLiteral("filters/gallery/lastFilterId")),
+        live_preview_(QStringLiteral("filters/gallery/liveCanvasPreview")),
+        size_(QStringLiteral("filters/gallery/size")) {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("filters/gallery/favorites"));
+    settings.remove(QStringLiteral("filters/gallery/category"));
+    settings.remove(QStringLiteral("filters/gallery/lastFilterId"));
+    settings.remove(QStringLiteral("filters/gallery/liveCanvasPreview"));
+    settings.remove(QStringLiteral("filters/gallery/size"));
+    settings.sync();
+  }
+
+private:
+  SettingsValueRestorer favorites_;
+  SettingsValueRestorer category_;
+  SettingsValueRestorer last_filter_;
+  SettingsValueRestorer live_preview_;
+  SettingsValueRestorer size_;
+};
+
+class LanguageRestorer {
+public:
+  LanguageRestorer()
+      : language_(patchy::ui::LocalizationManager::instance()
+                      .current_language()) {}
+
+  ~LanguageRestorer() {
+    patchy::ui::LocalizationManager::instance().set_language(language_, false);
+    QApplication::processEvents();
+  }
+
+private:
+  QString language_;
 };
 
 class EnvironmentVariableRestorer {
@@ -2908,11 +2949,15 @@ void ui_svg_icon_resources_are_registered() {
 struct ExpectedFilterParameter {
   const char* key;
   const char* object_name;
-  int minimum;
-  int maximum;
-  int default_value;
+  double minimum;
+  double maximum;
+  double default_value;
   patchy::FilterParameterUnit unit;
   patchy::FilterSpatialScale spatial_scale{patchy::FilterSpatialScale::None};
+  patchy::FilterParameterKind kind{patchy::FilterParameterKind::Integer};
+  double step{1.0};
+  patchy::FilterParameterPresentation presentation{
+      patchy::FilterParameterPresentation::Standard};
 };
 
 struct ExpectedFilterCatalogEntry {
@@ -2924,6 +2969,8 @@ struct ExpectedFilterCatalogEntry {
 
 const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
   using Category = patchy::FilterCategory;
+  using Kind = patchy::FilterParameterKind;
+  using Presentation = patchy::FilterParameterPresentation;
   using Scale = patchy::FilterSpatialScale;
   using Unit = patchy::FilterParameterUnit;
   static const std::vector<ExpectedFilterCatalogEntry> expected = {
@@ -2965,15 +3012,21 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
       {"patchy.filters.gaussian_blur", Category::Blur, false,
        {{"radius", "filterRadius", 1, 12, 2, Unit::Pixels, Scale::Pixels}}},
       {"patchy.filters.motion_blur", Category::Blur, false,
-       {{"angle", "filterAngle", -180, 180, 0, Unit::Degrees},
+       {{"angle", "filterAngle", -180, 180, 0, Unit::Degrees, Scale::None,
+         Kind::Integer, 1.0, Presentation::Angle},
         {"distance", "filterDistance", 1, 64, 12, Unit::Pixels, Scale::Pixels}}},
       {"patchy.filters.radial_blur", Category::Blur, false,
        {{"amount", "filterAmount", 0, 100, 35, Unit::Percent},
-        {"samples", "filterSamples", 4, 32, 16, Unit::None}}},
+        {"samples", "filterSamples", 4, 32, 16, Unit::None},
+        {"center_x", "filterCenterX", 0, 100, 50, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterXPercent},
+        {"center_y", "filterCenterY", 0, 100, 50, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterYPercent}}},
       {"patchy.filters.edge_detect", Category::Stylize, false,
        {{"strength", "filterStrength", 0, 300, 100, Unit::Percent}}},
       {"patchy.filters.emboss", Category::Stylize, false,
-       {{"angle", "filterAngle", -180, 180, 135, Unit::Degrees},
+       {{"angle", "filterAngle", -180, 180, 135, Unit::Degrees, Scale::None,
+         Kind::Integer, 1.0, Presentation::Angle},
         {"height", "filterHeight", 1, 24, 2, Unit::Pixels, Scale::Pixels},
         {"amount", "filterDepth", 0, 300, 100, Unit::Percent}}},
       {"patchy.filters.glowing_edges", Category::Stylize, false,
@@ -2981,15 +3034,29 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
         {"brightness", "filterBrightness", 0, 300, 140, Unit::Percent},
         {"smoothness", "filterSmoothness", 0, 12, 2, Unit::Pixels, Scale::Pixels}}},
       {"patchy.filters.twirl", Category::Distort, false,
-       {{"angle", "filterAngle", -720, 720, 180, Unit::Degrees},
-        {"radius", "filterRadius", 1, 100, 100, Unit::Percent}}},
+       {{"angle", "filterAngle", -720, 720, 180, Unit::Degrees, Scale::None,
+         Kind::Integer, 1.0, Presentation::Angle},
+        {"radius", "filterRadius", 1, 100, 100, Unit::Percent, Scale::None,
+         Kind::Integer, 1.0, Presentation::EffectRadiusPercent},
+        {"center_x", "filterCenterX", 0, 100, 50, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterXPercent},
+        {"center_y", "filterCenterY", 0, 100, 50, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterYPercent}}},
       {"patchy.filters.wave", Category::Distort, false,
-       {{"amplitude", "filterAmplitude", 0, 64, 12, Unit::Pixels, Scale::Pixels},
-        {"wavelength", "filterWavelength", 4, 256, 48, Unit::Pixels, Scale::Pixels},
-        {"phase", "filterPhase", 0, 360, 0, Unit::Degrees}}},
+       {{"amplitude", "filterAmplitude", 0, 64, 12, Unit::Pixels, Scale::Pixels,
+         Kind::Integer, 1.0, Presentation::WaveAmplitude},
+        {"wavelength", "filterWavelength", 4, 256, 48, Unit::Pixels, Scale::Pixels,
+         Kind::Integer, 1.0, Presentation::WaveWavelength},
+        {"phase", "filterPhase", 0, 360, 0, Unit::Degrees, Scale::None,
+         Kind::Integer, 1.0, Presentation::WavePhase}}},
       {"patchy.filters.pinch_bloat", Category::Distort, false,
        {{"amount", "filterAmount", -100, 100, 35, Unit::Percent},
-        {"radius", "filterRadius", 1, 100, 100, Unit::Percent}}},
+        {"radius", "filterRadius", 1, 100, 100, Unit::Percent, Scale::None,
+         Kind::Integer, 1.0, Presentation::EffectRadiusPercent},
+        {"center_x", "filterCenterX", 0, 100, 50, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterXPercent},
+        {"center_y", "filterCenterY", 0, 100, 50, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterYPercent}}},
       {"patchy.filters.clouds", Category::Render, false,
        {{"scale", "filterScale", 12, 512, 96, Unit::Pixels, Scale::Pixels},
         {"detail", "filterDetail", 1, 8, 6, Unit::None},
@@ -3004,7 +3071,11 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
       {"patchy.filters.film_grain", Category::Noise, false,
        {{"amount", "filterAmount", 0, 100, 50, Unit::Percent}}},
       {"patchy.filters.vignette", Category::PhotoLooks, false,
-       {{"strength", "filterStrength", 0, 100, 55, Unit::Percent}}},
+       {{"strength", "filterStrength", 0, 100, 55, Unit::Percent},
+        {"center_x", "filterCenterX", 0, 100, 50, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterXPercent},
+        {"center_y", "filterCenterY", 0, 100, 50, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterYPercent}}},
   };
   return expected;
 }
@@ -3044,26 +3115,39 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
       const auto& wanted = expected_filter.parameters[parameter_index];
       CHECK(actual.key == wanted.key);
       CHECK(actual.control_object_name == wanted.object_name);
-      CHECK(actual.kind == patchy::FilterParameterKind::Integer);
-      const auto* default_value = std::get_if<std::int64_t>(&actual.default_value);
-      CHECK(default_value != nullptr);
-      CHECK(*default_value == wanted.default_value);
+      CHECK(actual.kind == wanted.kind);
+      if (wanted.kind == patchy::FilterParameterKind::Integer) {
+        const auto* default_value = std::get_if<std::int64_t>(&actual.default_value);
+        CHECK(default_value != nullptr);
+        CHECK(static_cast<double>(*default_value) == wanted.default_value);
+      } else if (wanted.kind == patchy::FilterParameterKind::Double) {
+        const auto* default_value = std::get_if<double>(&actual.default_value);
+        CHECK(default_value != nullptr);
+        CHECK(std::abs(*default_value - wanted.default_value) < 0.000001);
+      }
       CHECK(actual.minimum.has_value());
       CHECK(actual.maximum.has_value());
       CHECK(*actual.minimum == wanted.minimum);
       CHECK(*actual.maximum == wanted.maximum);
-      CHECK(actual.step.value_or(1.0) == 1.0);
+      CHECK(std::abs(actual.step.value_or(1.0) - wanted.step) < 0.000001);
       CHECK(actual.unit == wanted.unit);
       CHECK(actual.spatial_scale == wanted.spatial_scale);
+      CHECK(actual.presentation == wanted.presentation);
       CHECK(actual.display_name.empty() == false);
 
       const auto& control = dialog_spec.controls[parameter_index];
       CHECK(control.parameter_key == wanted.key);
       CHECK(control.object_name == QString::fromLatin1(wanted.object_name));
-      CHECK(control.kind == patchy::FilterParameterKind::Integer);
-      CHECK(control.minimum == wanted.minimum);
-      CHECK(control.maximum == wanted.maximum);
-      CHECK(control.value == wanted.default_value);
+      CHECK(control.kind == wanted.kind);
+      CHECK(control.minimum == static_cast<int>(std::lround(wanted.minimum)));
+      CHECK(control.maximum == static_cast<int>(std::lround(wanted.maximum)));
+      CHECK(control.value == static_cast<int>(std::lround(wanted.default_value)));
+      CHECK(control.typed_minimum.has_value());
+      CHECK(control.typed_maximum.has_value());
+      CHECK(*control.typed_minimum == wanted.minimum);
+      CHECK(*control.typed_maximum == wanted.maximum);
+      CHECK(std::abs(control.step.value_or(1.0) - wanted.step) < 0.000001);
+      CHECK(control.presentation == wanted.presentation);
       CHECK(!control.label.isEmpty());
     }
   }
@@ -5149,10 +5233,84 @@ void ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds() {
                                                        applied_bounds.height));
 }
 
+const QStringList& expected_filter_gallery_ids() {
+  static const QStringList ids = {
+      QStringLiteral("patchy.filters.soft_glow"),
+      QStringLiteral("patchy.filters.punchy_color"),
+      QStringLiteral("patchy.filters.noir"),
+      QStringLiteral("patchy.filters.cinematic_matte"),
+      QStringLiteral("patchy.filters.vintage_fade"),
+      QStringLiteral("patchy.filters.sepia"),
+      QStringLiteral("patchy.filters.vignette"),
+      QStringLiteral("patchy.filters.box_blur"),
+      QStringLiteral("patchy.filters.gaussian_blur"),
+      QStringLiteral("patchy.filters.motion_blur"),
+      QStringLiteral("patchy.filters.radial_blur"),
+      QStringLiteral("patchy.filters.sharpen"),
+      QStringLiteral("patchy.filters.unsharp_mask"),
+      QStringLiteral("patchy.filters.twirl"),
+      QStringLiteral("patchy.filters.wave"),
+      QStringLiteral("patchy.filters.pinch_bloat"),
+      QStringLiteral("patchy.filters.film_grain"),
+      QStringLiteral("patchy.filters.pixelate"),
+      QStringLiteral("patchy.filters.color_halftone"),
+      QStringLiteral("patchy.filters.edge_detect"),
+      QStringLiteral("patchy.filters.emboss"),
+      QStringLiteral("patchy.filters.glowing_edges"),
+      QStringLiteral("patchy.filters.clouds"),
+  };
+  return ids;
+}
+
+QListWidgetItem* require_gallery_filter_item(QListWidget& looks,
+                                             const QString& filter_id) {
+  for (int row = 0; row < looks.count(); ++row) {
+    auto* item = looks.item(row);
+    if (item != nullptr &&
+        item->data(Qt::UserRole + 1).toString() == filter_id) {
+      return item;
+    }
+  }
+  CHECK(false);
+  return nullptr;
+}
+
+QStringList visible_gallery_filter_ids(const QListWidget& looks) {
+  QStringList result;
+  for (int row = 0; row < looks.count(); ++row) {
+    const auto* item = looks.item(row);
+    if (item == nullptr || item->isHidden()) {
+      continue;
+    }
+    const auto id = item->data(Qt::UserRole + 1).toString();
+    if (!id.isEmpty()) {
+      result.push_back(id);
+    }
+  }
+  return result;
+}
+
+int require_combo_data_index(const QComboBox& combo, const QString& data) {
+  const auto index = combo.findData(data);
+  CHECK(index >= 0);
+  return index;
+}
+
+bool filter_invocations_equal(const patchy::FilterInvocation& lhs,
+                              const patchy::FilterInvocation& rhs) {
+  return lhs.filter_id == rhs.filter_id &&
+         lhs.schema_version == rhs.schema_version &&
+         lhs.parameters == rhs.parameters &&
+         filter_rgb_equal(lhs.foreground, rhs.foreground) &&
+         filter_rgb_equal(lhs.background, rhs.background);
+}
+
 void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() {
+  GallerySettingsRestorer gallery_settings;
   ensure_artifact_dir();
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
+  patchy::ui::MainWindow theme_host;
   const auto source = make_filter_stroke_source();
   const auto source_copy = source;
   const patchy::Rect bounds{48, 38, source.width(), source.height()};
@@ -5192,29 +5350,29 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
     CHECK(buttons->button(QDialogButtonBox::Cancel) != nullptr);
     CHECK(buttons->button(QDialogButtonBox::Reset) != nullptr);
 
-    const std::array<QString, 8> expected_ids{
-        QString(),
-        QStringLiteral("patchy.filters.soft_glow"),
-        QStringLiteral("patchy.filters.punchy_color"),
-        QStringLiteral("patchy.filters.noir"),
-        QStringLiteral("patchy.filters.cinematic_matte"),
-        QStringLiteral("patchy.filters.vintage_fade"),
-        QStringLiteral("patchy.filters.sepia"),
-        QStringLiteral("patchy.filters.vignette"),
-    };
-    const std::array<QString, 8> expected_names{
-        QStringLiteral("Original"),       QStringLiteral("Soft Glow"),
-        QStringLiteral("Punchy Color"),   QStringLiteral("Noir"),
+    QStringList expected_ids{QString()};
+    expected_ids.append(expected_filter_gallery_ids());
+    const QStringList expected_names{
+        QStringLiteral("Original"),        QStringLiteral("Soft Glow"),
+        QStringLiteral("Punchy Color"),    QStringLiteral("Noir"),
         QStringLiteral("Cinematic Matte"), QStringLiteral("Vintage Fade"),
-        QStringLiteral("Vintage Sepia"),  QStringLiteral("Lens Vignette"),
+        QStringLiteral("Vintage Sepia"),   QStringLiteral("Lens Vignette"),
+        QStringLiteral("Box Blur"),        QStringLiteral("Gaussian Blur"),
+        QStringLiteral("Motion Blur"),     QStringLiteral("Radial Blur"),
+        QStringLiteral("Sharpen"),         QStringLiteral("Unsharp Mask"),
+        QStringLiteral("Twirl"),           QStringLiteral("Wave"),
+        QStringLiteral("Pinch/Bloat"),     QStringLiteral("Analog Grain"),
+        QStringLiteral("Pixel Mosaic"),    QStringLiteral("Color Halftone"),
+        QStringLiteral("Edge Detect"),     QStringLiteral("Emboss"),
+        QStringLiteral("Glowing Edges"),   QStringLiteral("Clouds"),
     };
-    CHECK(looks->count() == static_cast<int>(expected_ids.size()));
+    CHECK(looks->count() == expected_ids.size());
     CHECK(looks->currentRow() == 0);
     for (int row = 0; row < looks->count(); ++row) {
       auto* item = looks->item(row);
       CHECK(item != nullptr);
-      CHECK(item->data(Qt::UserRole + 1).toString() == expected_ids[static_cast<std::size_t>(row)]);
-      CHECK(item->text() == expected_names[static_cast<std::size_t>(row)]);
+      CHECK(item->data(Qt::UserRole + 1).toString() == expected_ids[row]);
+      CHECK(item->text() == expected_names[row]);
     }
     CHECK(preview->property("previewFitMode").toBool());
     CHECK(process_events_until(
@@ -5226,7 +5384,7 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
           }
           return true;
         },
-        6000));
+        20000));
     const auto original_thumbnail = looks->item(0)->icon().pixmap(QSize(144, 96)).toImage();
     const auto noir_thumbnail = looks->item(3)->icon().pixmap(QSize(144, 96)).toImage();
     CHECK(!original_thumbnail.isNull());
@@ -5327,13 +5485,20 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
                  canvas_previews.back().invocation->filter_id == "patchy.filters.vignette";
         },
         1000));
+    CHECK(process_events_until(
+        [&] {
+          return status->text() ==
+                 QCoreApplication::translate("QObject", "Ready");
+        },
+        3000));
     save_widget_artifact("ui_filter_gallery_photo_looks", *dialog);
     drove_dialog = true;
     dialog->reject();
   });
 
   const auto result = patchy::ui::request_visual_filter_gallery(
-      nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{220, 28, 24},
+      &theme_host, source, bounds, QRegion(), registry,
+      patchy::RgbColor{220, 28, 24},
       patchy::RgbColor{255, 255, 255},
       [&](const patchy::ui::VisualFilterGalleryPreview& preview) { canvas_previews.push_back(preview); });
   CHECK(drove_dialog);
@@ -5343,6 +5508,7 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
 }
 
 void ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact() {
+  GallerySettingsRestorer gallery_settings;
   patchy::LayerId layer_id{};
   patchy::Rect bounds;
   patchy::PixelBuffer original_pixels;
@@ -5438,6 +5604,7 @@ void ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact() {
 }
 
 void ui_filter_gallery_original_noop_and_selected_apply_undo_redo() {
+  GallerySettingsRestorer gallery_settings;
   patchy::LayerId layer_id{};
   patchy::Rect bounds;
   patchy::PixelBuffer original_pixels;
@@ -5574,6 +5741,705 @@ void ui_filter_gallery_original_noop_and_selected_apply_undo_redo() {
     CHECK(filter_rect_equal(layer->bounds(), expected_bounds));
     CHECK(patchy::ui::pixel_buffers_equal(layer->pixels(), expected_pixels));
   }
+}
+
+void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
+  GallerySettingsRestorer gallery_settings;
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* category = dialog->findChild<QComboBox*>(QStringLiteral("filterGalleryCategoryCombo"));
+    auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("filterGallerySearchEdit"));
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* favorite = dialog->findChild<QToolButton*>(QStringLiteral("filterGalleryFavoriteButton"));
+    auto* empty = dialog->findChild<QLabel*>(QStringLiteral("filterGalleryEmptyLabel"));
+    auto* parameter_editor =
+        dialog->findChild<QWidget*>(QStringLiteral("filterGalleryParameterEditor"));
+    CHECK(category != nullptr && search != nullptr && looks != nullptr);
+    CHECK(favorite != nullptr && empty != nullptr && parameter_editor != nullptr);
+
+    const QStringList expected_tokens{
+        QStringLiteral("all"),         QStringLiteral("favorites"),
+        QStringLiteral("photo_looks"), QStringLiteral("blur"),
+        QStringLiteral("sharpen"),     QStringLiteral("distort"),
+        QStringLiteral("noise"),       QStringLiteral("pixelate"),
+        QStringLiteral("stylize"),     QStringLiteral("render"),
+    };
+    CHECK(category->count() == expected_tokens.size());
+    for (int index = 0; index < category->count(); ++index) {
+      CHECK(category->itemData(index).toString() == expected_tokens[index]);
+    }
+    CHECK(category->currentData().toString() == QStringLiteral("all"));
+    CHECK(visible_gallery_filter_ids(*looks) == expected_filter_gallery_ids());
+    CHECK(looks->count() == expected_filter_gallery_ids().size() + 1);
+
+    const std::array<std::pair<QString, QStringList>, 8> categories{{
+        {QStringLiteral("photo_looks"), expected_filter_gallery_ids().mid(0, 7)},
+        {QStringLiteral("blur"), expected_filter_gallery_ids().mid(7, 4)},
+        {QStringLiteral("sharpen"), expected_filter_gallery_ids().mid(11, 2)},
+        {QStringLiteral("distort"), expected_filter_gallery_ids().mid(13, 3)},
+        {QStringLiteral("noise"), expected_filter_gallery_ids().mid(16, 1)},
+        {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(17, 2)},
+        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(19, 3)},
+        {QStringLiteral("render"), expected_filter_gallery_ids().mid(22, 1)},
+    }};
+    for (const auto& [token, ids] : categories) {
+      category->setCurrentIndex(require_combo_data_index(*category, token));
+      QApplication::processEvents();
+      CHECK(visible_gallery_filter_ids(*looks) == ids);
+      CHECK(!looks->item(0)->isHidden());
+    }
+
+    category->setCurrentIndex(
+        require_combo_data_index(*category, QStringLiteral("favorites")));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks).isEmpty());
+    CHECK(empty->isVisible());
+    CHECK(!favorite->isEnabled());
+
+    drove_dialog = true;
+    dialog->reject();
+  });
+
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255});
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+}
+
+void ui_filter_gallery_search_matches_localized_and_canonical_names() {
+  GallerySettingsRestorer gallery_settings;
+  LanguageRestorer language;
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(
+      QStringLiteral("ja"), false));
+  QApplication::processEvents();
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  bool drove_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* category = dialog->findChild<QComboBox*>(QStringLiteral("filterGalleryCategoryCombo"));
+    auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("filterGallerySearchEdit"));
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* empty = dialog->findChild<QLabel*>(QStringLiteral("filterGalleryEmptyLabel"));
+    CHECK(category != nullptr && search != nullptr && looks != nullptr && empty != nullptr);
+    CHECK(search->placeholderText() == QStringLiteral("フィルターを検索"));
+    CHECK(category->itemText(require_combo_data_index(*category, QStringLiteral("all"))) ==
+          QStringLiteral("すべて"));
+    CHECK(category->itemText(require_combo_data_index(*category, QStringLiteral("favorites"))) ==
+          QStringLiteral("お気に入り"));
+    CHECK(category->itemText(require_combo_data_index(*category, QStringLiteral("blur"))) ==
+          QStringLiteral("ぼかし"));
+
+    search->setText(QStringLiteral("ガウス"));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks) ==
+          QStringList{QStringLiteral("patchy.filters.gaussian_blur")});
+    search->setText(QStringLiteral("Gaussian"));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks) ==
+          QStringList{QStringLiteral("patchy.filters.gaussian_blur")});
+
+    category->setCurrentIndex(
+        require_combo_data_index(*category, QStringLiteral("photo_looks")));
+    search->setText(QStringLiteral("Vintage"));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks) ==
+          (QStringList{QStringLiteral("patchy.filters.vintage_fade"),
+                       QStringLiteral("patchy.filters.sepia")}));
+
+    search->setText(QStringLiteral("一致しない検索"));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks).isEmpty());
+    CHECK(empty->isVisible());
+    drove_dialog = true;
+    dialog->reject();
+  });
+
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255});
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(
+      QStringLiteral("en"), false));
+  QApplication::processEvents();
+}
+
+void ui_filter_gallery_favorites_and_dialog_state_persist_across_reopen() {
+  GallerySettingsRestorer gallery_settings;
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(
+        QStringLiteral("filters/gallery/favorites"),
+        QStringList{QStringLiteral("patchy.filters.gaussian_blur"),
+                    QStringLiteral("patchy.filters.missing"),
+                    QStringLiteral("patchy.filters.invert"),
+                    QStringLiteral("patchy.filters.gaussian_blur")});
+    settings.setValue(QStringLiteral("filters/gallery/category"),
+                      QStringLiteral("missing_category"));
+    settings.setValue(QStringLiteral("filters/gallery/lastFilterId"),
+                      QStringLiteral("patchy.filters.missing"));
+    settings.setValue(QStringLiteral("filters/gallery/liveCanvasPreview"), false);
+    settings.setValue(QStringLiteral("filters/gallery/size"), QSize(1040, 640));
+    settings.sync();
+  }
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  bool drove_first = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* category = dialog->findChild<QComboBox*>(QStringLiteral("filterGalleryCategoryCombo"));
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* favorite = dialog->findChild<QToolButton*>(QStringLiteral("filterGalleryFavoriteButton"));
+    auto* empty = dialog->findChild<QLabel*>(QStringLiteral("filterGalleryEmptyLabel"));
+    auto* live = dialog->findChild<QCheckBox*>(QStringLiteral("filterGalleryCanvasPreviewCheck"));
+    CHECK(category != nullptr && looks != nullptr && favorite != nullptr && empty != nullptr && live != nullptr);
+    CHECK(dialog->size() == QSize(1040, 640));
+    CHECK(!live->isChecked());
+    CHECK(category->currentData().toString() == QStringLiteral("all"));
+    CHECK(looks->currentItem()->data(Qt::UserRole + 1).toString().isEmpty());
+
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("filters/gallery/favorites")).toStringList() ==
+          QStringList{QStringLiteral("patchy.filters.gaussian_blur")});
+    category->setCurrentIndex(
+        require_combo_data_index(*category, QStringLiteral("favorites")));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks) ==
+          QStringList{QStringLiteral("patchy.filters.gaussian_blur")});
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.gaussian_blur")));
+    QApplication::processEvents();
+    CHECK(favorite->isChecked());
+    favorite->click();
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks).isEmpty());
+    CHECK(empty->isVisible());
+
+    category->setCurrentIndex(
+        require_combo_data_index(*category, QStringLiteral("all")));
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.vignette")));
+    QApplication::processEvents();
+    favorite->click();
+    CHECK(favorite->isChecked());
+    live->setChecked(true);
+    dialog->resize(1010, 650);
+    QApplication::processEvents();
+    drove_first = true;
+    dialog->reject();
+  });
+  const auto first = patchy::ui::request_visual_filter_gallery(
+      nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255});
+  CHECK(drove_first);
+  CHECK(first.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("filters/gallery/favorites")).toStringList() ==
+          QStringList{QStringLiteral("patchy.filters.vignette")});
+    CHECK(settings.value(QStringLiteral("filters/gallery/category")).toString() ==
+          QStringLiteral("all"));
+    CHECK(settings.value(QStringLiteral("filters/gallery/lastFilterId")).toString() ==
+          QStringLiteral("patchy.filters.vignette"));
+    CHECK(settings.value(QStringLiteral("filters/gallery/liveCanvasPreview")).toBool());
+    CHECK(settings.value(QStringLiteral("filters/gallery/size")).toSize() == QSize(1010, 650));
+  }
+
+  bool drove_second = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* category = dialog->findChild<QComboBox*>(QStringLiteral("filterGalleryCategoryCombo"));
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* favorite = dialog->findChild<QToolButton*>(QStringLiteral("filterGalleryFavoriteButton"));
+    auto* live = dialog->findChild<QCheckBox*>(QStringLiteral("filterGalleryCanvasPreviewCheck"));
+    CHECK(category != nullptr && looks != nullptr && favorite != nullptr && live != nullptr);
+    CHECK(dialog->size() == QSize(1010, 650));
+    CHECK(live->isChecked());
+    CHECK(category->currentData().toString() == QStringLiteral("all"));
+    CHECK(looks->currentItem()->data(Qt::UserRole + 1).toString() ==
+          QStringLiteral("patchy.filters.vignette"));
+    CHECK(favorite->isChecked());
+    category->setCurrentIndex(
+        require_combo_data_index(*category, QStringLiteral("favorites")));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks) ==
+          QStringList{QStringLiteral("patchy.filters.vignette")});
+    drove_second = true;
+    dialog->reject();
+  });
+  const auto second = patchy::ui::request_visual_filter_gallery(
+      nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255});
+  CHECK(drove_second);
+  CHECK(second.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+}
+
+void ui_filter_gallery_generated_controls_match_catalog_and_direct_defaults() {
+  GallerySettingsRestorer gallery_settings;
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  const patchy::RgbColor foreground{220, 28, 24};
+  const patchy::RgbColor background{255, 255, 255};
+  std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
+  bool drove_gallery = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* editor = dialog->findChild<QWidget*>(QStringLiteral("filterGalleryParameterEditor"));
+    CHECK(looks != nullptr && editor != nullptr);
+    for (const auto& id : expected_filter_gallery_ids()) {
+      const auto* definition = registry.find(id.toStdString());
+      CHECK(definition != nullptr);
+      const auto spec = patchy::ui::filter_dialog_spec_for(*definition);
+      looks->setCurrentItem(require_gallery_filter_item(*looks, id));
+      QApplication::processEvents();
+      CHECK(!previews.empty() && previews.back().invocation.has_value());
+      CHECK(filter_invocations_equal(
+          *previews.back().invocation,
+          registry.default_invocation(definition->identifier, foreground,
+                                      background)));
+      for (const auto& control : spec.controls) {
+        if (control.kind == patchy::FilterParameterKind::Integer) {
+          auto* spin = editor->findChild<QSpinBox*>(
+              control.object_name + QStringLiteral("Spin"));
+          auto* slider = editor->findChild<QSlider*>(
+              control.object_name + QStringLiteral("Slider"));
+          CHECK(spin != nullptr && slider != nullptr);
+          const auto* value = std::get_if<std::int64_t>(&control.default_value);
+          CHECK(value != nullptr);
+          CHECK(spin->value() == *value && slider->value() == *value);
+        } else if (control.kind == patchy::FilterParameterKind::Double) {
+          auto* spin = editor->findChild<QDoubleSpinBox*>(
+              control.object_name + QStringLiteral("Spin"));
+          auto* slider = editor->findChild<QSlider*>(
+              control.object_name + QStringLiteral("Slider"));
+          CHECK(spin != nullptr && slider != nullptr);
+          const auto* value = std::get_if<double>(&control.default_value);
+          CHECK(value != nullptr);
+          CHECK(std::abs(spin->value() - *value) < 0.000001);
+          CHECK(spin->singleStep() == control.step.value_or(1.0));
+        }
+      }
+    }
+    drove_gallery = true;
+    dialog->reject();
+  });
+  const auto gallery_result = patchy::ui::request_visual_filter_gallery(
+      nullptr, source, bounds, QRegion(), registry, foreground, background,
+      [&](const patchy::ui::VisualFilterGalleryPreview& preview) {
+        previews.push_back(preview);
+      });
+  CHECK(drove_gallery);
+  CHECK(gallery_result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+
+  for (const auto& id : expected_filter_gallery_ids()) {
+    const auto* definition = registry.find(id.toStdString());
+    CHECK(definition != nullptr);
+    const auto spec = patchy::ui::filter_dialog_spec_for(*definition);
+    const auto expected = registry.default_invocation(definition->identifier,
+                                                      foreground, background);
+    bool inspected = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyFilterDialog"));
+      CHECK(dialog != nullptr);
+      for (const auto& control : spec.controls) {
+        if (control.kind == patchy::FilterParameterKind::Integer) {
+          auto* spin = dialog->findChild<QSpinBox*>(
+              control.object_name + QStringLiteral("Spin"));
+          CHECK(spin != nullptr);
+          const auto* value = std::get_if<std::int64_t>(&control.default_value);
+          CHECK(value != nullptr && spin->value() == *value);
+        } else if (control.kind == patchy::FilterParameterKind::Double) {
+          auto* spin = dialog->findChild<QDoubleSpinBox*>(
+              control.object_name + QStringLiteral("Spin"));
+          CHECK(spin != nullptr);
+          const auto* value = std::get_if<double>(&control.default_value);
+          CHECK(value != nullptr && std::abs(spin->value() - *value) < 0.000001);
+        }
+      }
+      inspected = true;
+      dialog->accept();
+    });
+    const auto direct = patchy::ui::request_filter_settings(
+        nullptr, spec, [](patchy::ui::FilterPreviewSettings) {}, expected);
+    CHECK(inspected && direct.has_value());
+    CHECK(filter_invocations_equal(*direct, expected));
+  }
+}
+
+void ui_filter_gallery_specialized_controls_sync_and_drag_in_expected_directions() {
+  GallerySettingsRestorer gallery_settings;
+  ensure_artifact_dir();
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  // Parent the artifact-producing dialog to the real application window so
+  // the visual canary exercises the production dark stylesheet as well as the
+  // native Windows widget metrics.
+  patchy::ui::MainWindow theme_host;
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* editor = dialog->findChild<QWidget*>(QStringLiteral("filterGalleryParameterEditor"));
+    auto* preview_widget = dialog->findChild<QWidget*>(QStringLiteral("filterGalleryPreview"));
+    auto* preview = dynamic_cast<patchy::ui::ZoomableImagePreview*>(preview_widget);
+    auto* status = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryStatusLabel"));
+    CHECK(looks != nullptr && editor != nullptr && preview != nullptr &&
+          status != nullptr);
+
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.motion_blur")));
+    QApplication::processEvents();
+    auto* angle_dial = editor->findChild<QWidget*>(QStringLiteral("filterAngleDial"));
+    auto* angle_spin = editor->findChild<QSpinBox*>(QStringLiteral("filterAngleSpin"));
+    CHECK(angle_dial != nullptr && angle_spin != nullptr);
+    CHECK(angle_dial->property("filterAngleDegrees").toInt() == 0);
+    angle_spin->setValue(-180);
+    const QPoint dial_top(angle_dial->width() / 2, 10);
+    send_mouse(*angle_dial, QEvent::MouseButtonPress, dial_top,
+               Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*angle_dial, QEvent::MouseButtonRelease, dial_top,
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(angle_spin->value() >= 88 && angle_spin->value() <= 92);
+    CHECK(angle_dial->property("filterAngleDegrees").toInt() == angle_spin->value());
+
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.radial_blur")));
+    QApplication::processEvents();
+    auto* center_x = editor->findChild<QDoubleSpinBox*>(QStringLiteral("filterCenterXSpin"));
+    auto* center_y = editor->findChild<QDoubleSpinBox*>(QStringLiteral("filterCenterYSpin"));
+    CHECK(center_x != nullptr && center_y != nullptr);
+    CHECK(center_x->value() == 50.0 && center_y->value() == 50.0);
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterSpatialOverlayVisible").toBool();
+        },
+        3000));
+    CHECK(preview->property("filterSpatialOverlayVisible").toBool());
+    CHECK(!preview->property("filterSpatialRadiusVisible").toBool());
+    center_x->setValue(20.0);
+    QApplication::processEvents();
+    const auto pending_size = preview->image().size();
+    const auto pending_display_size =
+        QSizeF(preview->image().width() * preview->zoom(),
+               preview->image().height() * preview->zoom());
+    const QRectF pending_displayed(
+        QPointF((preview->width() - pending_display_size.width()) / 2.0,
+                (preview->height() - pending_display_size.height()) / 2.0),
+        pending_display_size);
+    const auto pending_handle =
+        QPointF(pending_displayed.left() +
+                    preview->property("filterCenterXNormalized").toDouble() *
+                        pending_displayed.width(),
+                pending_displayed.top() +
+                    preview->property("filterCenterYNormalized").toDouble() *
+                        pending_displayed.height())
+            .toPoint();
+    send_mouse(*preview, QEvent::MouseButtonPress, pending_handle,
+               Qt::LeftButton, Qt::LeftButton);
+    process_events_for(300);
+    CHECK(preview->image().size() == pending_size);
+    CHECK(status->text() ==
+          QCoreApplication::translate("QObject", "Rendering preview..."));
+    send_mouse(*preview, QEvent::MouseButtonRelease, pending_handle,
+               Qt::LeftButton, Qt::NoButton);
+    CHECK(process_events_until(
+        [&] {
+          return status->text() ==
+                 QCoreApplication::translate("QObject", "Ready");
+        },
+        3000));
+    center_x->setValue(50.0);
+    center_y->setValue(50.0);
+    CHECK(process_events_until(
+        [&] {
+          return status->text() ==
+                 QCoreApplication::translate("QObject", "Ready");
+        },
+        3000));
+    const auto displayed_size = QSizeF(preview->image().width() * preview->zoom(),
+                                       preview->image().height() * preview->zoom());
+    const QRectF displayed(
+        QPointF((preview->width() - displayed_size.width()) / 2.0,
+                (preview->height() - displayed_size.height()) / 2.0),
+        displayed_size);
+    const QPointF overlay_center(
+        displayed.left() +
+            preview->property("filterCenterXNormalized").toDouble() *
+                displayed.width(),
+        displayed.top() +
+            preview->property("filterCenterYNormalized").toDouble() *
+                displayed.height());
+    const auto moved_center =
+        QPointF(displayed.left() + displayed.width() * 0.70,
+                displayed.top() + displayed.height() * 0.30)
+            .toPoint();
+    const auto centered_proxy_size = preview->image().size();
+    send_mouse(*preview, QEvent::MouseButtonPress, overlay_center.toPoint(),
+               Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseMove, moved_center, Qt::NoButton,
+               Qt::LeftButton);
+    process_events_for(80);
+    CHECK(preview->image().size() == centered_proxy_size);
+    send_mouse(*preview, QEvent::MouseButtonRelease, moved_center,
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(center_x->value() > 50.0 && center_x->value() <= 100.0);
+    CHECK(center_y->value() < 50.0 && center_y->value() >= 0.0);
+    CHECK(std::abs(preview->property("filterCenterXNormalized").toDouble() - 0.70) <= 0.002);
+    CHECK(std::abs(preview->property("filterCenterYNormalized").toDouble() - 0.30) <= 0.002);
+    CHECK(!previews.empty() && previews.back().invocation.has_value());
+    CHECK(std::abs(std::get<double>(
+                       previews.back().invocation->parameters.at("center_x")) -
+                   center_x->value()) < 0.000001);
+    CHECK(std::abs(std::get<double>(
+                       previews.back().invocation->parameters.at("center_y")) -
+                   center_y->value()) < 0.000001);
+    process_events_for(120);
+    auto* before = dialog->findChild<QPushButton*>(
+        QStringLiteral("filterGalleryBeforeButton"));
+    CHECK(before != nullptr);
+    preview->zoom_to(2.0);
+    const auto comparison_zoom =
+        preview->property("previewZoomPercent").toInt();
+    send_mouse(*before, QEvent::MouseButtonPress, before->rect().center(),
+               Qt::LeftButton, Qt::LeftButton);
+    QApplication::processEvents();
+    CHECK(preview->property("previewZoomPercent").toInt() ==
+          comparison_zoom);
+    send_mouse(*before, QEvent::MouseButtonRelease,
+               before->rect().center(), Qt::LeftButton, Qt::NoButton);
+    process_events_for(80);
+    CHECK(preview->property("previewZoomPercent").toInt() ==
+          comparison_zoom);
+    preview->zoom_to_fit();
+
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.twirl")));
+    QApplication::processEvents();
+    auto* radius = editor->findChild<QSpinBox*>(QStringLiteral("filterRadiusSpin"));
+    CHECK(radius != nullptr && radius->value() == 100);
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterSpatialRadiusVisible").toBool();
+        },
+        3000));
+    CHECK(preview->property("filterSpatialRadiusVisible").toBool());
+    const auto twirl_size = QSizeF(preview->image().width() * preview->zoom(),
+                                   preview->image().height() * preview->zoom());
+    const QRectF twirl_displayed(
+        QPointF((preview->width() - twirl_size.width()) / 2.0,
+                (preview->height() - twirl_size.height()) / 2.0),
+        twirl_size);
+    const auto twirl_center = twirl_displayed.center();
+    const auto full_radius = std::min(twirl_displayed.width(),
+                                      twirl_displayed.height()) /
+                             2.0;
+    drag(*preview, (twirl_center + QPointF(full_radius, 0.0)).toPoint(),
+         (twirl_center + QPointF(full_radius * 0.5, 0.0)).toPoint());
+    QApplication::processEvents();
+    CHECK(std::abs(radius->value() - 50) <= 1);
+    CHECK(std::abs(preview->property("filterRadiusNormalized").toDouble() - 0.5) <= 0.02);
+    radius->setValue(1);
+    process_events_for(80);
+    const auto small_radius_center = twirl_displayed.center();
+    const auto small_radius_handle =
+        small_radius_center + QPointF(full_radius * 0.01, 0.0);
+    drag(*preview, small_radius_handle.toPoint(),
+         (small_radius_center + QPointF(full_radius * 0.30, 0.0)).toPoint());
+    QApplication::processEvents();
+    CHECK(radius->value() >= 25);
+    auto* twirl_center_x = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterXSpin"));
+    auto* twirl_center_y = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterYSpin"));
+    CHECK(twirl_center_x != nullptr && twirl_center_y != nullptr);
+    CHECK(twirl_center_x->value() == 50.0 &&
+          twirl_center_y->value() == 50.0);
+    radius->setValue(50);
+    CHECK(process_events_until(
+        [&] {
+          return status->text() ==
+                 QCoreApplication::translate("QObject", "Ready");
+        },
+        3000));
+    dialog->repaint();
+    process_events_for(40);
+    save_widget_artifact("ui_filter_gallery_all_filters", *dialog);
+
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.wave")));
+    QApplication::processEvents();
+    auto* waveform = editor->findChild<QWidget*>(QStringLiteral("filterWaveformControl"));
+    auto* amplitude = editor->findChild<QSpinBox*>(QStringLiteral("filterAmplitudeSpin"));
+    auto* wavelength = editor->findChild<QSpinBox*>(QStringLiteral("filterWavelengthSpin"));
+    auto* phase = editor->findChild<QSpinBox*>(QStringLiteral("filterPhaseSpin"));
+    CHECK(waveform != nullptr && amplitude != nullptr && wavelength != nullptr && phase != nullptr);
+    CHECK(waveform->property("filterWaveAmplitude").toInt() == 12);
+    CHECK(waveform->property("filterWaveWavelength").toInt() == 48);
+    CHECK(waveform->property("filterWavePhase").toInt() == 0);
+    amplitude->setValue(20);
+    QApplication::processEvents();
+    CHECK(waveform->property("filterWaveAmplitude").toInt() == 20);
+    const auto wave_center = waveform->rect().center();
+    drag(*waveform, wave_center,
+         wave_center + QPoint(waveform->width() / 4, -waveform->height() / 4));
+    QApplication::processEvents();
+    CHECK(amplitude->value() > 20);
+    CHECK(phase->value() > 0);
+    CHECK(waveform->property("filterWaveAmplitude").toInt() == amplitude->value());
+    CHECK(waveform->property("filterWavePhase").toInt() == phase->value());
+    const auto wavelength_before = wavelength->value();
+    send_wheel(*waveform, waveform->rect().center(), 120);
+    QApplication::processEvents();
+    CHECK(wavelength->value() == wavelength_before + 1);
+    CHECK(waveform->property("filterWaveWavelength").toInt() == wavelength->value());
+
+    drove_dialog = true;
+    dialog->reject();
+  });
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      &theme_host, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255},
+      [&](const patchy::ui::VisualFilterGalleryPreview& preview) {
+        previews.push_back(preview);
+      });
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+}
+
+void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
+  GallerySettingsRestorer gallery_settings;
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto slow_started = std::make_shared<std::atomic_bool>(false);
+  auto release_slow = std::make_shared<std::atomic_bool>(false);
+  patchy::FilterCatalogMetadata slow_catalog;
+  slow_catalog.category = patchy::FilterCategory::Render;
+  slow_catalog.execute =
+      [slow_started, release_slow](
+          const patchy::FilterRegistry&, const patchy::FilterInvocation&,
+          patchy::PixelBuffer& pixels, const patchy::FilterProgress*) {
+        if (pixels.width() > 200) {
+          slow_started->store(true, std::memory_order_release);
+          for (int wait = 0;
+               wait < 500 &&
+               !release_slow->load(std::memory_order_acquire);
+               ++wait) {
+            QThread::msleep(1);
+          }
+        }
+      };
+  registry.register_filter({"test.filters.slow_proxy", "Slow Proxy Test",
+                            [](patchy::PixelBuffer&) {},
+                            std::move(slow_catalog)});
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* category = dialog->findChild<QComboBox*>(QStringLiteral("filterGalleryCategoryCombo"));
+    auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("filterGallerySearchEdit"));
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* preview = dialog->findChild<QWidget*>(
+        QStringLiteral("filterGalleryPreview"));
+    auto* status = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryStatusLabel"));
+    CHECK(category != nullptr && search != nullptr && looks != nullptr &&
+          preview != nullptr && status != nullptr);
+    int icons_at_first_tick = -1;
+    bool first_tick = false;
+    QTimer::singleShot(0, dialog, [&] {
+      first_tick = true;
+      icons_at_first_tick = 0;
+      for (int row = 0; row < looks->count(); ++row) {
+        icons_at_first_tick += looks->item(row)->icon().isNull() ? 0 : 1;
+      }
+    });
+    CHECK(process_events_until([&] { return first_tick; }, 500));
+    CHECK(icons_at_first_tick >= 1);
+    CHECK(icons_at_first_tick < looks->count());
+
+    category->setCurrentIndex(
+        require_combo_data_index(*category, QStringLiteral("render")));
+    search->setText(QStringLiteral("Clouds"));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks) ==
+          QStringList{QStringLiteral("patchy.filters.clouds")});
+    auto* clouds = require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.clouds"));
+    bool ui_marker = false;
+    QTimer::singleShot(0, dialog, [&] { ui_marker = true; });
+    CHECK(process_events_until([&] { return ui_marker; }, 500));
+    CHECK(dialog->isVisible());
+    CHECK(process_events_until([&] { return !clouds->icon().isNull(); }, 5000));
+
+    search->clear();
+    auto* slow = require_gallery_filter_item(
+        *looks, QStringLiteral("test.filters.slow_proxy"));
+    QElapsedTimer responsiveness;
+    responsiveness.start();
+    bool central_marker = false;
+    QTimer::singleShot(50, dialog, [&] { central_marker = true; });
+    looks->setCurrentItem(slow);
+    CHECK(process_events_until([&] { return central_marker; }, 500));
+    CHECK(responsiveness.elapsed() < 180);
+    CHECK(slow_started->load(std::memory_order_acquire));
+    auto* clouds_after_slow = require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.clouds"));
+    looks->setCurrentItem(clouds_after_slow);
+    release_slow->store(true, std::memory_order_release);
+    process_events_for(20);
+    CHECK(preview->property("filterGalleryRenderedFilterId").toString() !=
+          QStringLiteral("test.filters.slow_proxy"));
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterGalleryRenderedFilterId").toString() ==
+                     QStringLiteral("patchy.filters.clouds") &&
+                 status->text() ==
+                     QCoreApplication::translate("QObject", "Ready");
+        },
+        1500));
+    drove_dialog = true;
+    dialog->reject();
+  });
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255});
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
 }
 
 void ui_all_builtin_filters_render_stroke_contact_sheet() {
@@ -38765,6 +39631,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_image_adjustments_invert_desaturate.png",
       "ui_image_adjustments_auto_contrast.png",
       "ui_filter_gallery_photo_looks.png",
+      "ui_filter_gallery_all_filters.png",
       "ui_all_builtin_filters_stroke_contact_sheet.png",
       "ui_image_adjustment_selection_scope.png",
       "ui_hue_saturation_dialog.png",
@@ -41472,6 +42339,7 @@ int main(int argc, char* argv[]) {
     settings.remove(QStringLiteral("input"));
     settings.remove(QStringLiteral("imports"));
     settings.remove(QStringLiteral("window"));
+    settings.remove(QStringLiteral("filters/gallery"));
     settings.remove(QStringLiteral("preferences/language"));
     settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
     settings.sync();
@@ -41625,6 +42493,18 @@ int main(int argc, char* argv[]) {
        ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact},
       {"ui_filter_gallery_original_noop_and_selected_apply_undo_redo",
        ui_filter_gallery_original_noop_and_selected_apply_undo_redo},
+      {"ui_filter_gallery_categories_have_stable_tokens_and_exact_members",
+       ui_filter_gallery_categories_have_stable_tokens_and_exact_members},
+      {"ui_filter_gallery_search_matches_localized_and_canonical_names",
+       ui_filter_gallery_search_matches_localized_and_canonical_names},
+      {"ui_filter_gallery_favorites_and_dialog_state_persist_across_reopen",
+       ui_filter_gallery_favorites_and_dialog_state_persist_across_reopen},
+      {"ui_filter_gallery_generated_controls_match_catalog_and_direct_defaults",
+       ui_filter_gallery_generated_controls_match_catalog_and_direct_defaults},
+      {"ui_filter_gallery_specialized_controls_sync_and_drag_in_expected_directions",
+       ui_filter_gallery_specialized_controls_sync_and_drag_in_expected_directions},
+      {"ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop",
+       ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop},
       {"ui_all_builtin_filters_render_stroke_contact_sheet",
        ui_all_builtin_filters_render_stroke_contact_sheet},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},

@@ -30,9 +30,9 @@ struct VisualFilterGalleryPreview {
 using VisualFilterGalleryPreviewCallback =
     std::function<void(const VisualFilterGalleryPreview&)>;
 
-// Presents the seven built-in Photo Looks over an immutable, bounded proxy of
-// the supplied layer pixels. A null preview invocation means Original; the
-// result outcome distinguishes accepting Original from cancelling the dialog.
+// Presents every catalogued Filter-menu effect over an immutable, bounded
+// proxy of the supplied layer pixels. A null preview invocation means Original;
+// the result outcome distinguishes accepting Original from cancelling.
 [[nodiscard]] VisualFilterGalleryResult request_visual_filter_gallery(
     QWidget* parent, const PixelBuffer& immutable_original, Rect bounds,
     const QRegion& selection, const FilterRegistry& registry,

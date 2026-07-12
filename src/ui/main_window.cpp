@@ -11187,21 +11187,36 @@ void MainWindow::create_actions() {
   register_document_action(filter_gallery_action);
   filter_menu->addSeparator();
 
-  const auto add_filter_submenu = [this, filter_menu](const char* object_name, const char* source) {
-    auto* menu = filter_menu->addMenu(tr(source));
+  const auto add_filter_submenu = [this, filter_menu](
+                                      const char* object_name,
+                                      FilterCategory category) {
+    auto* menu = filter_menu->addMenu(filter_category_display_name(category));
     menu->setObjectName(QString::fromLatin1(object_name));
-    bind_action_text(menu->menuAction(), source);
+    QPointer<QAction> menu_action(menu->menuAction());
+    register_retranslation([menu_action, category] {
+      if (menu_action != nullptr) {
+        menu_action->setText(filter_category_display_name(category));
+      }
+    });
     register_document_action(menu->menuAction());
     return menu;
   };
-  auto* filter_photo_looks_menu = add_filter_submenu("filterPhotoLooksMenu", "Photo Looks");
-  auto* filter_blur_menu = add_filter_submenu("filterBlurMenu", "Blur");
-  auto* filter_sharpen_menu = add_filter_submenu("filterSharpenMenu", "Sharpen");
-  auto* filter_distort_menu = add_filter_submenu("filterDistortMenu", "Distort");
-  auto* filter_noise_menu = add_filter_submenu("filterNoiseMenu", "Noise");
-  auto* filter_pixelate_menu = add_filter_submenu("filterPixelateMenu", "Pixelate");
-  auto* filter_stylize_menu = add_filter_submenu("filterStylizeMenu", "Stylize");
-  auto* filter_render_menu = add_filter_submenu("filterRenderMenu", "Render");
+  auto* filter_photo_looks_menu = add_filter_submenu(
+      "filterPhotoLooksMenu", FilterCategory::PhotoLooks);
+  auto* filter_blur_menu =
+      add_filter_submenu("filterBlurMenu", FilterCategory::Blur);
+  auto* filter_sharpen_menu =
+      add_filter_submenu("filterSharpenMenu", FilterCategory::Sharpen);
+  auto* filter_distort_menu =
+      add_filter_submenu("filterDistortMenu", FilterCategory::Distort);
+  auto* filter_noise_menu =
+      add_filter_submenu("filterNoiseMenu", FilterCategory::Noise);
+  auto* filter_pixelate_menu =
+      add_filter_submenu("filterPixelateMenu", FilterCategory::Pixelate);
+  auto* filter_stylize_menu =
+      add_filter_submenu("filterStylizeMenu", FilterCategory::Stylize);
+  auto* filter_render_menu =
+      add_filter_submenu("filterRenderMenu", FilterCategory::Render);
   const auto menu_for_filter = [filter_menu, filter_photo_looks_menu, filter_blur_menu, filter_sharpen_menu,
                                 filter_distort_menu, filter_noise_menu, filter_pixelate_menu, filter_stylize_menu,
                                 filter_render_menu](FilterCategory category) {
