@@ -23,8 +23,11 @@ namespace patchy {
 [[nodiscard]] Rect clipped_mask_bounds(Rect full_bounds, Rect draw_rect, int sample_padding) noexcept;
 [[nodiscard]] Rect layer_pixel_bounds(const Layer& layer);
 [[nodiscard]] std::optional<Rect> visible_alpha_local_bounds(const PixelBuffer& pixels);
+[[nodiscard]] std::optional<Rect> visible_alpha_local_bounds(const Layer& layer);
 [[nodiscard]] std::optional<Rect> layer_visible_alpha_bounds(const PixelBuffer& pixels, Rect bounds);
 [[nodiscard]] std::optional<Rect> layer_visible_alpha_bounds(const Layer& layer, Rect bounds);
+[[nodiscard]] std::optional<Rect> layer_visible_alpha_bounds(const Layer& layer, const PixelBuffer& pixels,
+                                                             Rect bounds);
 [[nodiscard]] int layer_style_effect_padding(const LayerStyle& style) noexcept;
 [[nodiscard]] int layer_effect_padding(const Layer& layer) noexcept;
 [[nodiscard]] int document_effect_padding(const Document& document) noexcept;

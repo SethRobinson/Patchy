@@ -882,7 +882,7 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
   const auto radians = (180.0F - shadow.angle_degrees) * kPi / 180.0F;
   const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
   const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
-  const auto source_bounds = layer_visible_alpha_bounds(source, bounds);
+  const auto source_bounds = layer_visible_alpha_bounds(layer, source, bounds);
   if (!source_bounds.has_value()) {
     return;
   }
@@ -930,7 +930,7 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
   if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
     return;
   }
-  const auto source_bounds = layer_visible_alpha_bounds(source, bounds);
+  const auto source_bounds = layer_visible_alpha_bounds(layer, source, bounds);
   if (!source_bounds.has_value()) {
     return;
   }
@@ -1238,6 +1238,9 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
   }
   const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
+  const auto gradient_bounds = fill.gradient.align_with_layer
+                                   ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
+                                   : bounds;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       const auto source_alpha =
@@ -1245,7 +1248,7 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
       if (source_alpha <= 0.0F) {
         continue;
       }
-      const auto position = gradient_position(fill.gradient, bounds, x, y);
+      const auto position = gradient_position(fill.gradient, gradient_bounds, x, y);
       const auto alpha = source_alpha * fill.opacity * layer.opacity() * gradient_stop_opacity(fill.gradient, position);
       destination.composite_color(x, y, gradient_color_dithered(fill.gradient, position, x, y), alpha,
                                   fill.blend_mode);
@@ -1524,6 +1527,14 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
         StyleMaskEntry computed;
         if (stroke_emboss) {
           computed.secondary.assign(static_cast<std::size_t>(domain.width) * domain.height, 0.0F);
+          const auto has_aligned_gradient =
+              std::any_of(strokes->begin(), strokes->end(), [](const LayerStroke& stroke) {
+                return stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F && stroke.uses_gradient &&
+                       stroke.gradient.align_with_layer;
+              });
+          const auto aligned_gradient_bounds = has_aligned_gradient
+                                                   ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
+                                                   : bounds;
           for (const auto& stroke : *strokes) {
             if (!stroke.enabled || stroke.opacity <= 0.0F || stroke.size <= 0.0F) {
               continue;
@@ -1533,12 +1544,15 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
             const auto stroke_effect_bounds = stroke.position == LayerStrokePosition::Inside
                                                   ? bounds
                                                   : outset_rect(bounds, stroke_radius + 1);
+            const auto stroke_gradient_bounds = stroke.uses_gradient && stroke.gradient.align_with_layer
+                                                    ? aligned_gradient_bounds
+                                                    : stroke_effect_bounds;
             for (std::int32_t local_y = 0; local_y < domain.height; ++local_y) {
               for (std::int32_t local_x = 0; local_x < domain.width; ++local_x) {
                 const auto index = static_cast<std::size_t>(local_y) * domain.width + local_x;
                 auto alpha = stroke_mask[index] * clamp_unit(stroke.opacity);
                 if (alpha > 0.0F && stroke.uses_gradient) {
-                  const auto position = gradient_position(stroke.gradient, stroke_effect_bounds,
+                  const auto position = gradient_position(stroke.gradient, stroke_gradient_bounds,
                                                           domain.x + local_x, domain.y + local_y);
                   alpha *= gradient_stop_opacity(stroke.gradient, position);
                 }
@@ -1813,6 +1827,9 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
   const auto& mask = entry->primary;
   const auto mask_width = mask_bounds.width;
   const auto layer_has_mask = layer.mask().has_value() && !layer.mask()->disabled;
+  const auto gradient_bounds = stroke.uses_gradient && stroke.gradient.align_with_layer
+                                   ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
+                                   : effect_bounds;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       auto mask_alpha = mask[static_cast<std::size_t>((y - mask_bounds.y) * mask_width + (x - mask_bounds.x))];
@@ -1826,7 +1843,7 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
       auto color = stroke.color;
       auto alpha = mask_alpha * stroke.opacity * layer.opacity();
       if (stroke.uses_gradient) {
-        const auto position = gradient_position(stroke.gradient, effect_bounds, x, y);
+        const auto position = gradient_position(stroke.gradient, gradient_bounds, x, y);
         color = gradient_color_dithered(stroke.gradient, position, x, y);
         alpha *= gradient_stop_opacity(stroke.gradient, position);
       }

@@ -6,13 +6,81 @@
 
 #include <algorithm>
 #include <cmath>
+#include <condition_variable>
 #include <cstdlib>
+#include <list>
+#include <mutex>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace patchy {
 
 namespace {
 
 constexpr int kExpensiveStylePadding = 96;
+
+class VisibleAlphaBoundsCache {
+public:
+  [[nodiscard]] std::optional<Rect> fetch_or_compute(const Layer& layer) {
+    const auto revision = layer.pixel_revision();
+    {
+      std::unique_lock lock(mutex_);
+      while (true) {
+        if (const auto found = index_.find(revision); found != index_.end()) {
+          entries_.splice(entries_.begin(), entries_, found->second);
+          return found->second->bounds;
+        }
+        if (in_flight_.insert(revision).second) {
+          break;
+        }
+        in_flight_done_.wait(lock);
+      }
+    }
+
+    std::optional<Rect> result;
+    try {
+      result = visible_alpha_local_bounds(layer.pixels());
+    } catch (...) {
+      {
+        const std::lock_guard lock(mutex_);
+        in_flight_.erase(revision);
+      }
+      in_flight_done_.notify_all();
+      throw;
+    }
+
+    {
+      const std::lock_guard lock(mutex_);
+      in_flight_.erase(revision);
+      constexpr std::size_t kMaxEntries = 4096U;
+      if (entries_.size() >= kMaxEntries) {
+        index_.erase(entries_.back().revision);
+        entries_.pop_back();
+      }
+      entries_.push_front(Node{revision, result});
+      index_[revision] = entries_.begin();
+    }
+    in_flight_done_.notify_all();
+    return result;
+  }
+
+private:
+  struct Node {
+    std::uint64_t revision{0};
+    std::optional<Rect> bounds;
+  };
+
+  std::mutex mutex_;
+  std::condition_variable in_flight_done_;
+  std::list<Node> entries_;
+  std::unordered_map<std::uint64_t, std::list<Node>::iterator> index_;
+  std::unordered_set<std::uint64_t> in_flight_;
+};
+
+VisibleAlphaBoundsCache& visible_alpha_bounds_cache() {
+  static VisibleAlphaBoundsCache cache;
+  return cache;
+}
 
 int layer_style_falloff_radius(float size) noexcept {
   return std::max(0, static_cast<int>(std::ceil(std::max(0.0F, size))));
@@ -95,29 +163,52 @@ std::optional<Rect> visible_alpha_local_bounds(const PixelBuffer& pixels) {
     return Rect::from_size(pixels.width(), pixels.height());
   }
 
-  std::int32_t min_x = pixels.width();
-  std::int32_t min_y = pixels.height();
+  const auto width = pixels.width();
+  const auto height = pixels.height();
+  std::int32_t min_x = width;
+  std::int32_t min_y = height;
   std::int32_t max_x = -1;
   std::int32_t max_y = -1;
   const auto* bytes = pixels.data().data();
   const auto stride = pixels.stride_bytes();
   const auto channels = pixels.format().channels;
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    const auto* row = bytes + static_cast<std::size_t>(y) * stride;
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      if (row[static_cast<std::size_t>(x) * channels + 3U] == 0U) {
-        continue;
+  for (std::int32_t y = 0; y < height; ++y) {
+    const auto* alpha_row = bytes + static_cast<std::size_t>(y) * stride + 3U;
+    std::int32_t first = -1;
+    for (std::int32_t x = 0; x < width; ++x) {
+      if (alpha_row[static_cast<std::size_t>(x) * channels] != 0U) {
+        first = x;
+        break;
       }
-      min_x = std::min(min_x, x);
-      min_y = std::min(min_y, y);
-      max_x = std::max(max_x, x);
-      max_y = std::max(max_y, y);
     }
+    if (first < 0) {
+      continue;
+    }
+    auto last = first;
+    for (std::int32_t x = width - 1; x > first; --x) {
+      if (alpha_row[static_cast<std::size_t>(x) * channels] != 0U) {
+        last = x;
+        break;
+      }
+    }
+    min_x = std::min(min_x, first);
+    min_y = std::min(min_y, y);
+    max_x = std::max(max_x, last);
+    max_y = y;
   }
   if (max_x < min_x || max_y < min_y) {
     return std::nullopt;
   }
   return Rect{min_x, min_y, max_x - min_x + 1, max_y - min_y + 1};
+}
+
+std::optional<Rect> visible_alpha_local_bounds(const Layer& layer) {
+  // This scan is reachable from painting through layer effects. Cache the local
+  // result by the app-globally-unique pixel revision so moves and style edits
+  // can reuse it while pixel edits and undo snapshots cannot serve stale bounds.
+  // The per-revision in-flight latch prevents parallel render strips from
+  // repeating a cold scan without blocking hits or scans for unrelated layers.
+  return visible_alpha_bounds_cache().fetch_or_compute(layer);
 }
 
 std::optional<Rect> layer_visible_alpha_bounds(const PixelBuffer& pixels, Rect bounds) {
@@ -129,7 +220,20 @@ std::optional<Rect> layer_visible_alpha_bounds(const PixelBuffer& pixels, Rect b
 }
 
 std::optional<Rect> layer_visible_alpha_bounds(const Layer& layer, Rect bounds) {
-  return layer_visible_alpha_bounds(layer.pixels(), bounds);
+  const auto local_bounds = visible_alpha_local_bounds(layer);
+  if (!local_bounds.has_value()) {
+    return std::nullopt;
+  }
+  return Rect{bounds.x + local_bounds->x, bounds.y + local_bounds->y, local_bounds->width, local_bounds->height};
+}
+
+std::optional<Rect> layer_visible_alpha_bounds(const Layer& layer, const PixelBuffer& pixels, Rect bounds) {
+  // Bounds overrides can supply a transient pixel buffer. Only the layer's own
+  // pixels are safe to look up by its pixel revision.
+  if (&pixels == &layer.pixels()) {
+    return layer_visible_alpha_bounds(layer, bounds);
+  }
+  return layer_visible_alpha_bounds(pixels, bounds);
 }
 
 int layer_style_effect_padding(const LayerStyle& style) noexcept {

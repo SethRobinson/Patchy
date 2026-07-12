@@ -602,11 +602,11 @@ RgbColor gradient_color_dithered(const LayerStyleGradient& gradient,
   return color;
 }
 
-float gradient_position(const LayerStyleGradient &gradient, Rect bounds, std::int32_t x, std::int32_t y) {
+float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::int32_t x, std::int32_t y) {
   const auto center_x = static_cast<float>(bounds.x) + static_cast<float>(bounds.width) *
-                            ( 0.5F + gradient.offset_x_percent / 100.0F);
+                            (0.5F + gradient.offset_x_percent / 100.0F);
   const auto center_y = static_cast<float>(bounds.y) + static_cast<float>(bounds.height) *
-                            ( 0.5F + gradient.offset_y_percent / 100.0F);
+                            (0.5F + gradient.offset_y_percent / 100.0F);
   const auto px = static_cast<float>(x) + 0.5F;
   const auto py = static_cast<float>(y) + 0.5F;
   const auto radians = gradient.angle_degrees * kPi / 180.0F;
@@ -614,6 +614,14 @@ float gradient_position(const LayerStyleGradient &gradient, Rect bounds, std::in
       (px - center_x) * std::cos(radians) - (py - center_y) * std::sin(radians);
   const auto local_y =
       (px - center_x) * std::sin(radians) + (py - center_y) * std::cos(radians);
+  // Linear and Reflected gradients span the layer's projection onto the
+  // gradient axis. Using bounds.width unconditionally compresses vertical
+  // gradients on wide layers (the bevel_examine.psd text only reached the
+  // middle of its 90-degree gradient). At 0/90 degrees this is exactly the
+  // width/height; between them it is the projected corner-to-corner extent.
+  const auto projected_span =
+      std::max(1.0F, std::abs(std::cos(radians)) * static_cast<float>(bounds.width) +
+                         std::abs(std::sin(radians)) * static_cast<float>(bounds.height));
   float position = 0.0F;
   switch (gradient.type) {
     case LayerStyleGradientType::Radial: {
@@ -629,9 +637,7 @@ float gradient_position(const LayerStyleGradient &gradient, Rect bounds, std::in
       break;
     }
     case LayerStyleGradientType::Reflected:
-      position = std::abs(
-        0.5F + local_x / std::max(1.0F, static_cast<float>(bounds.width)));
-    position = std::abs(position * 2.0F - 1.0F);
+      position = std::abs(2.0F * local_x / projected_span);
       break;
     case LayerStyleGradientType::Diamond: {
       const auto dx = std::abs(local_x) / std::max(1.0F, static_cast<float>(bounds.width) * 0.5F);
@@ -640,8 +646,7 @@ float gradient_position(const LayerStyleGradient &gradient, Rect bounds, std::in
       break;
     }
     case LayerStyleGradientType::Linear:
-      position =
-        0.5F + local_x / std::max(1.0F, static_cast<float>(bounds.width));
+      position = 0.5F + local_x / projected_span;
       break;
   }
   const auto scale = std::max(0.01F, gradient.scale);

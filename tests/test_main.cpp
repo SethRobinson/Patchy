@@ -204,15 +204,18 @@ void layer_content_revision_ignores_translation_and_tracks_render_content() {
   patchy::Layer layer(7, "Paint", solid_rgba(4, 4, 20, 40, 60, 255));
   const auto initial_content_revision = layer.content_revision();
   const auto initial_render_revision = layer.render_revision();
+  const auto initial_pixel_revision = layer.pixel_revision();
 
   layer.raw_psd_blending_ranges() = {0, 12, 240, 255, 3, 18, 220, 251};
   layer.raw_psd_group_boundary_blending_ranges() = {5, 20, 210, 245, 9, 24, 200, 239};
   CHECK(layer.content_revision() == initial_content_revision);
   CHECK(layer.render_revision() == initial_render_revision);
+  CHECK(layer.pixel_revision() == initial_pixel_revision);
 
   layer.set_bounds(patchy::Rect{10, 12, 4, 4});
   CHECK(layer.content_revision() == initial_content_revision);
   CHECK(layer.render_revision() > initial_render_revision);
+  CHECK(layer.pixel_revision() == initial_pixel_revision);
 
   const auto after_move_content_revision = layer.content_revision();
   layer.set_name("Renamed Paint");
@@ -220,6 +223,7 @@ void layer_content_revision_ignores_translation_and_tracks_render_content() {
 
   layer.set_opacity(0.5F);
   CHECK(layer.content_revision() > after_move_content_revision);
+  CHECK(layer.pixel_revision() == initial_pixel_revision);
 
   const auto after_opacity_content_revision = layer.content_revision();
   layer.set_blend_mode(patchy::BlendMode::Multiply);
@@ -229,12 +233,15 @@ void layer_content_revision_ignores_translation_and_tracks_render_content() {
   auto* px = layer.pixels().pixel(0, 0);
   px[0] = 120;
   CHECK(layer.content_revision() > after_blend_content_revision);
+  CHECK(layer.pixel_revision() > initial_pixel_revision);
 
   const auto after_pixels_content_revision = layer.content_revision();
+  const auto after_pixels_pixel_revision = layer.pixel_revision();
   patchy::LayerStroke stroke;
   stroke.enabled = true;
   layer.layer_style().strokes.push_back(stroke);
   CHECK(layer.content_revision() > after_pixels_content_revision);
+  CHECK(layer.pixel_revision() == after_pixels_pixel_revision);
 
   const auto after_style_content_revision = layer.content_revision();
   patchy::LayerMask mask;
@@ -243,6 +250,7 @@ void layer_content_revision_ignores_translation_and_tracks_render_content() {
   mask.pixels.clear(255);
   layer.set_mask(std::move(mask));
   CHECK(layer.content_revision() > after_style_content_revision);
+  CHECK(layer.pixel_revision() == after_pixels_pixel_revision);
 }
 
 void layer_set_clipped_bumps_render_revision_only() {
@@ -3077,6 +3085,31 @@ void visible_alpha_bounds_track_sparse_rgba_pixels() {
   CHECK(document_bounds->width == 4);
   CHECK(document_bounds->height == 4);
 
+  const auto moved_bounds = patchy::layer_visible_alpha_bounds(layer, patchy::Rect{30, 40, 8, 6});
+  CHECK(moved_bounds.has_value());
+  CHECK(moved_bounds->x == 32);
+  CHECK(moved_bounds->y == 41);
+
+  auto& mutable_pixels = layer.pixels();
+  mutable_pixels.pixel(2, 1)[3] = 0;
+  mutable_pixels.pixel(7, 5)[3] = 255;
+  const auto edited_bounds = patchy::layer_visible_alpha_bounds(layer, patchy::Rect{12, 20, 8, 6});
+  CHECK(edited_bounds.has_value());
+  CHECK(edited_bounds->x == 17);
+  CHECK(edited_bounds->y == 24);
+  CHECK(edited_bounds->width == 3);
+  CHECK(edited_bounds->height == 2);
+
+  auto override_pixels = solid_rgba(8, 6, 0, 0, 0, 0);
+  override_pixels.pixel(1, 2)[3] = 255;
+  const auto override_bounds =
+      patchy::layer_visible_alpha_bounds(layer, override_pixels, patchy::Rect{12, 20, 8, 6});
+  CHECK(override_bounds.has_value());
+  CHECK(override_bounds->x == 13);
+  CHECK(override_bounds->y == 22);
+  CHECK(override_bounds->width == 1);
+  CHECK(override_bounds->height == 1);
+
   CHECK(!patchy::visible_alpha_local_bounds(solid_rgba(3, 2, 0, 0, 0, 0)).has_value());
   const auto opaque_rgb_bounds = patchy::visible_alpha_local_bounds(solid_rgb(4, 3, 10, 20, 30));
   CHECK(opaque_rgb_bounds.has_value());
@@ -3377,6 +3410,97 @@ void gradient_methods_noise_dither_and_geometry_are_deterministic() {
   }
 }
 
+void gradient_linear_geometry_uses_angle_projected_layer_span() {
+  patchy::LayerStyleGradient gradient;
+  gradient.type = patchy::LayerStyleGradientType::Linear;
+  gradient.scale = 1.0F;
+  const patchy::Rect wide_bounds{20, 30, 1000, 100};
+
+  gradient.angle_degrees = 90.0F;
+  const auto vertical_top = patchy::gradient_position(gradient, wide_bounds, 520, 30);
+  const auto vertical_bottom = patchy::gradient_position(gradient, wide_bounds, 520, 129);
+  CHECK(vertical_top > 0.99F);
+  CHECK(vertical_bottom < 0.01F);
+
+  gradient.angle_degrees = 0.0F;
+  const auto horizontal_left = patchy::gradient_position(gradient, wide_bounds, 20, 80);
+  const auto horizontal_right = patchy::gradient_position(gradient, wide_bounds, 1019, 80);
+  CHECK(horizontal_left < 0.01F);
+  CHECK(horizontal_right > 0.99F);
+
+  gradient.angle_degrees = 45.0F;
+  CHECK(patchy::gradient_position(gradient, wide_bounds, 20, 129) < 0.01F);
+  CHECK(patchy::gradient_position(gradient, wide_bounds, 1019, 30) > 0.99F);
+
+  gradient.type = patchy::LayerStyleGradientType::Reflected;
+  gradient.angle_degrees = 90.0F;
+  CHECK(patchy::gradient_position(gradient, wide_bounds, 520, 79) < 0.02F);
+  CHECK(patchy::gradient_position(gradient, wide_bounds, 520, 30) > 0.98F);
+}
+
+void compositor_aligned_gradients_use_visible_alpha_bounds() {
+  const auto gradient = [] {
+    patchy::LayerStyleGradient value;
+    value.type = patchy::LayerStyleGradientType::Linear;
+    value.angle_degrees = 90.0F;
+    value.align_with_layer = true;
+    value.color_stops = {{0.0F, patchy::RgbColor{0, 0, 0}},
+                         {1.0F, patchy::RgbColor{255, 255, 255}}};
+    return value;
+  }();
+
+  const auto make_layer = [](patchy::Document& document) -> patchy::Layer& {
+    auto pixels = solid_rgba(160, 160, 0, 0, 0, 0);
+    for (std::int32_t y = 50; y < 110; ++y) {
+      for (std::int32_t x = 40; x < 120; ++x) {
+        auto* pixel = pixels.pixel(x, y);
+        pixel[0] = 100;
+        pixel[1] = 100;
+        pixel[2] = 100;
+        pixel[3] = 255;
+      }
+    }
+    return document.add_pixel_layer("Padded", std::move(pixels));
+  };
+
+  patchy::Document overlay_document(160, 160, patchy::PixelFormat::rgb8());
+  overlay_document.add_pixel_layer("Base", solid_rgb(160, 160, 10, 120, 200));
+  auto& overlay_layer = make_layer(overlay_document);
+  patchy::LayerGradientFill fill;
+  fill.enabled = true;
+  fill.blend_mode = patchy::BlendMode::Normal;
+  fill.opacity = 1.0F;
+  fill.gradient = gradient;
+  overlay_layer.layer_style().gradient_fills.push_back(fill);
+
+  const auto overlay = patchy::Compositor{}.flatten_rgb8(overlay_document);
+  const auto overlay_top = overlay.pixel(80, 50)[0];
+  const auto overlay_bottom = overlay.pixel(80, 109)[0];
+  CHECK(overlay_top > 240U);
+  CHECK(overlay_bottom < 15U);
+  CHECK(static_cast<int>(overlay_top) - static_cast<int>(overlay_bottom) > 220);
+
+  patchy::Document stroke_document(160, 160, patchy::PixelFormat::rgb8());
+  stroke_document.add_pixel_layer("Base", solid_rgb(160, 160, 10, 120, 200));
+  auto& stroke_layer = make_layer(stroke_document);
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.opacity = 1.0F;
+  stroke.size = 4.0F;
+  stroke.position = patchy::LayerStrokePosition::Inside;
+  stroke.uses_gradient = true;
+  stroke.gradient = gradient;
+  stroke_layer.layer_style().strokes.push_back(stroke);
+
+  const auto stroked = patchy::Compositor{}.flatten_rgb8(stroke_document);
+  const auto stroke_top = stroked.pixel(80, 50)[0];
+  const auto stroke_bottom = stroked.pixel(80, 109)[0];
+  CHECK(stroke_top > 240U);
+  CHECK(stroke_bottom < 15U);
+  CHECK(static_cast<int>(stroke_top) - static_cast<int>(stroke_bottom) > 220);
+}
+
 void psd_bevel_examine_classic_gradient_matches_photoshop_if_available() {
   const auto psd_path = patchy::test::local_psd_fixture_path("bevel_examine.psd");
   const auto bmp_path = patchy::test::local_psd_fixture_path("bevel_examine_photoshop.bmp");
@@ -3385,8 +3509,9 @@ void psd_bevel_examine_classic_gradient_matches_photoshop_if_available() {
   const patchy::LayerStyleGradient* imported_gradient = nullptr;
   std::function<void(const std::vector<patchy::Layer>&)> find_gradient = [&](const auto& layers) {
     for (const auto& layer : layers) {
-      if (!layer.layer_style().gradient_fills.empty() && imported_gradient == nullptr)
+      if (!layer.layer_style().gradient_fills.empty() && imported_gradient == nullptr) {
         imported_gradient = &layer.layer_style().gradient_fills.front().gradient;
+      }
       find_gradient(layer.children());
     }
   };
@@ -3395,16 +3520,42 @@ void psd_bevel_examine_classic_gradient_matches_photoshop_if_available() {
   CHECK(imported_gradient->smoothness == 4096U);
   CHECK(imported_gradient->interpolation == patchy::GradientInterpolationMethod::Classic);
   CHECK(std::abs(imported_gradient->angle_degrees - 90.0F) < 0.01F);
+  CHECK(imported_gradient->align_with_layer);
   CHECK(imported_gradient->type == patchy::LayerStyleGradientType::Linear);
 
   if (!std::filesystem::exists(bmp_path)) return;
   const auto reference_document = patchy::bmp::DocumentIo::read_file(bmp_path);
   const auto reference = patchy::Compositor{}.flatten_rgb8(reference_document);
   const auto actual = patchy::Compositor{}.flatten_rgb8(document);
+  std::filesystem::create_directories("test-artifacts");
+  patchy::Document actual_document(document.width(), document.height(), patchy::PixelFormat::rgb8());
+  actual_document.add_pixel_layer("Background", solid_rgb(document.width(), document.height(), 255, 255, 255));
+  actual_document.add_pixel_layer("Patchy", actual);
+  patchy::bmp::DocumentIo::write_file(
+      actual_document, std::filesystem::path("test-artifacts") / "bevel_examine_patchy.bmp",
+      patchy::bmp::WriteOptions{patchy::bmp::BmpEncoding::Rgb24, patchy::bmp::BmpPaletteMode::Exact, true});
   const auto metrics = rgb_diff_metrics(reference, actual);
+  std::uint64_t styled_delta_sum = 0;
+  std::size_t styled_channel_count = 0;
+  for (std::int32_t y = 0; y < reference.height(); ++y) {
+    for (std::int32_t x = 0; x < reference.width(); ++x) {
+      const auto* expected = reference.pixel(x, y);
+      if (expected[0] >= 250 && expected[1] >= 250 && expected[2] >= 250) continue;
+      const auto* rendered = actual.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        const auto delta = static_cast<std::uint8_t>(
+            std::abs(static_cast<int>(expected[channel]) - static_cast<int>(rendered[channel])));
+        styled_delta_sum += delta;
+        ++styled_channel_count;
+      }
+    }
+  }
+  const auto styled_mean_delta = static_cast<double>(styled_delta_sum) /
+                                 static_cast<double>(std::max<std::size_t>(1, styled_channel_count));
   std::cout << "  bevel_examine PS diff: max " << metrics.max_channel_delta
-            << ", mean " << metrics.mean_abs_channel_delta << '\n';
-  CHECK(metrics.mean_abs_channel_delta <= 2.0);
+            << ", mean " << metrics.mean_abs_channel_delta << ", styled mean " << styled_mean_delta << '\n';
+  CHECK(metrics.mean_abs_channel_delta <= 1.0);
+  CHECK(styled_mean_delta <= 20.0);
 }
 
 void compositor_renders_photoshop_style_satin() {
@@ -18429,6 +18580,10 @@ int main() {
        grd_v5_round_trips_solid_dynamic_noise_and_hierarchy},
       {"gradient_methods_noise_dither_and_geometry_are_deterministic",
        gradient_methods_noise_dither_and_geometry_are_deterministic},
+      {"gradient_linear_geometry_uses_angle_projected_layer_span",
+       gradient_linear_geometry_uses_angle_projected_layer_span},
+      {"compositor_aligned_gradients_use_visible_alpha_bounds",
+       compositor_aligned_gradients_use_visible_alpha_bounds},
       {"psd_bevel_examine_classic_gradient_matches_photoshop_if_available",
        psd_bevel_examine_classic_gradient_matches_photoshop_if_available},
       {"compositor_renders_photoshop_style_satin", compositor_renders_photoshop_style_satin},

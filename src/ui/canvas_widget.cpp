@@ -56,10 +56,8 @@
 #include <functional>
 #include <iostream>
 #include <limits>
-#include <mutex>
 #include <queue>
 #include <thread>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -1222,75 +1220,11 @@ std::optional<QRect> opaque_pixel_local_rect(const Layer& layer) {
   if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
     return std::nullopt;
   }
-  if (pixels.format().channels < 4) {
-    return QRect(0, 0, pixels.width(), pixels.height());
+  const auto bounds = visible_alpha_local_bounds(layer);
+  if (!bounds.has_value()) {
+    return std::nullopt;
   }
-
-  // The alpha scan is O(w*h) and reaches paint via move_transform_controls_rect (the
-  // Move tool's passive box), so it must never re-run per repaint: with a 70 Mpx
-  // background layer selected it made every zoom/pan step take ~half a second (the
-  // July 2026 table-tent report; caught by stack-sampling the live app). Content
-  // revisions are app-globally unique, so one revision-keyed entry is correct across
-  // documents, canvases, and undo restores. UI-thread only, but the lock keeps any
-  // future worker caller safe for its negligible cost.
-  static std::mutex cache_mutex;
-  static std::unordered_map<std::uint64_t, std::optional<QRect>> cache;
-  const auto revision = layer.content_revision();
-  {
-    const std::lock_guard<std::mutex> lock(cache_mutex);
-    if (const auto found = cache.find(revision); found != cache.end()) {
-      return found->second;
-    }
-  }
-
-  const auto* bytes = pixels.data().data();
-  const auto stride = pixels.stride_bytes();
-  const auto channels = static_cast<int>(pixels.format().channels);
-  const int width = pixels.width();
-  const int height = pixels.height();
-  int min_x = width;
-  int min_y = height;
-  int max_x = -1;
-  int max_y = -1;
-  for (int y = 0; y < height; ++y) {
-    const auto* alpha_row = bytes + static_cast<std::size_t>(y) * stride + 3;
-    int first = -1;
-    for (int x = 0; x < width; ++x) {
-      if (alpha_row[static_cast<std::size_t>(x) * channels] != 0) {
-        first = x;
-        break;
-      }
-    }
-    if (first < 0) {
-      continue;
-    }
-    int last = first;
-    for (int x = width - 1; x > first; --x) {
-      if (alpha_row[static_cast<std::size_t>(x) * channels] != 0) {
-        last = x;
-        break;
-      }
-    }
-    if (min_y > y) {
-      min_y = y;
-    }
-    max_y = y;
-    min_x = std::min(min_x, first);
-    max_x = std::max(max_x, last);
-  }
-
-  std::optional<QRect> result;
-  if (max_x >= min_x && max_y >= min_y) {
-    result = QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1);
-  }
-  {
-    const std::lock_guard<std::mutex> lock(cache_mutex);
-    if (cache.size() > 256U) {
-      cache.clear();
-    }
-    cache.emplace(revision, result);
-  }
-  return result;
+  return QRect(bounds->x, bounds->y, bounds->width, bounds->height);
 }
 
 std::optional<Rect> opaque_pixel_document_bounds(const Layer& layer) {

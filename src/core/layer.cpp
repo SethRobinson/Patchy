@@ -195,12 +195,14 @@ Layer::Layer(LayerId id, std::string name, PixelBuffer pixels)
   // share their source's revisions, which is correct: identical content.
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
+  pixel_revision_ = next_layer_revision();
 }
 
 Layer::Layer(LayerId id, std::string name, LayerKind kind)
     : id_(id), name_(std::move(name)), kind_(kind) {
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
+  pixel_revision_ = next_layer_revision();
 }
 
 LayerId Layer::id() const noexcept {
@@ -243,6 +245,7 @@ PixelBuffer& Layer::pixels() noexcept {
   trace_revision_bump("pixels", name_);
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
+  pixel_revision_ = next_layer_revision();
   return pixels_;
 }
 
@@ -346,6 +349,10 @@ std::uint64_t Layer::content_revision() const noexcept {
   return content_revision_;
 }
 
+std::uint64_t Layer::pixel_revision() const noexcept {
+  return pixel_revision_;
+}
+
 Layer Layer::clone_with_id(LayerId id) const {
   auto cloned = *this;
   cloned.id_ = id;
@@ -401,6 +408,7 @@ void Layer::set_pixels(PixelBuffer pixels) {
   kind_ = LayerKind::Pixel;
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
+  pixel_revision_ = next_layer_revision();
 }
 
 void Layer::set_mask(LayerMask mask) {
