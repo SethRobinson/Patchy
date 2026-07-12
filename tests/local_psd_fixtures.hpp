@@ -32,4 +32,11 @@ inline std::filesystem::path committed_format_fixture_path(std::string_view form
   return source_root_path() / "test-fixtures" / std::string(format_dir) / std::string(file_name);
 }
 
+// Generic untracked local fixture path (files copied from outside the project
+// per AGENTS.md; tests using these skip when the file is absent, e.g. on the
+// remote builders).
+inline std::filesystem::path local_format_fixture_path(std::string_view format_dir, std::string_view file_name) {
+  return source_root_path() / "local-test-fixtures" / std::string(format_dir) / std::string(file_name);
+}
+
 }  // namespace patchy::test

@@ -19,6 +19,24 @@ namespace patchy::psd {
 
 struct DescriptorObject;
 
+// One item of an 'obj ' Action Manager reference value (e.g. the per-channel
+// 'Chnl' references inside a style's blendOptions 'Blnd' list). Every form
+// starts with the desired class (unicode name + id); the payload beyond that
+// depends on `form`: "prop"/"Enmr" carry ids, "rele"/"Idnt"/"indx" a number,
+// "name" a unicode string, "Clss" nothing.
+struct DescriptorReferenceItem {
+  std::string form;        // "prop", "Clss", "Enmr", "rele", "Idnt", "indx", "name"
+  std::string class_name;  // unicode name preceding the class id
+  std::string class_id;
+  bool class_id_long_form{false};
+  std::string id_a;  // prop: property id; Enmr: enum type
+  bool id_a_long_form{false};
+  std::string id_b;  // Enmr: enum value
+  bool id_b_long_form{false};
+  std::uint32_t number{0};  // rele (raw signed offset bytes) / Idnt / indx
+  std::string name_value;   // name form's unicode string
+};
+
 struct DescriptorValue {
   enum class Type {
     Empty,
@@ -34,7 +52,8 @@ struct DescriptorValue {
     List,
     Raw,
     UnitFloatArray,  // 'UnFl': one unit OSType + packed doubles (warp mesh coordinates)
-    ObjectArray      // 'ObAr': u32 item count + a standard descriptor body
+    ObjectArray,     // 'ObAr': u32 item count + a standard descriptor body
+    Reference        // 'obj ': u32 item count + DescriptorReferenceItem list
   };
 
   Type type{Type::Empty};
@@ -58,6 +77,7 @@ struct DescriptorValue {
   std::vector<DescriptorValue> list_value;
   std::vector<std::uint8_t> raw_value;
   std::vector<double> unit_floats;  // UnitFloatArray payload (unit rides in `unit`)
+  std::vector<DescriptorReferenceItem> reference_items;  // Reference ('obj ') payload
 };
 
 struct DescriptorObject {

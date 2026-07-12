@@ -186,6 +186,9 @@ struct LayerRecord {
   std::uint32_t protection_flags{0};
   bool layer_mask_hides_effects{false};
   LayerStyle layer_style;
+  // True once 'lmfx' supplied the style: the multi-instance block is
+  // authoritative over the single-instance compatibility lfx2 beside it.
+  bool layer_style_from_lmfx{false};
 };
 
 struct DecodedLayer {
@@ -3434,17 +3437,17 @@ std::optional<LayerStroke> parse_stroke(const DescriptorObject& effect,
   return stroke;
 }
 
-LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload,
-                                  const CmykColorConverter& cmyk) {
+}  // namespace
+
+// Exposed for the .asl style-preset codec (psd/psd_layer_effects.hpp): converts an
+// already-parsed effects descriptor (the lfx2 root, identical to an .asl 'Lefx'
+// object) into the modeled LayerStyle. Exception semantics match the historical
+// lfx2 parse: any descriptor surprise yields an empty style.
+LayerStyle layer_style_from_lefx_descriptor(const DescriptorObject& root,
+                                            const CmykToRgbTransform* cmyk_icc) {
+  const CmykColorConverter cmyk{cmyk_icc};
   LayerStyle style;
   try {
-    BigEndianReader reader(payload);
-    (void)reader.read_u32();  // object effects version
-    const auto descriptor_version = reader.read_u32();
-    if (descriptor_version != 16) {
-      return style;
-    }
-    const auto root = read_descriptor(reader);
     style.effects_visible = descriptor_bool(root, "masterFXSwitch", true);
     if (const auto* effect = descriptor_object(root, "DrSh"); effect != nullptr) {
       if (const auto shadow = parse_drop_shadow(*effect, cmyk); shadow.has_value()) {
@@ -3630,6 +3633,23 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload,
     return {};
   }
   return style;
+}
+
+namespace {
+
+LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload,
+                                  const CmykColorConverter& cmyk) {
+  try {
+    BigEndianReader reader(payload);
+    (void)reader.read_u32();  // object effects version
+    const auto descriptor_version = reader.read_u32();
+    if (descriptor_version != 16) {
+      return {};
+    }
+    return layer_style_from_lefx_descriptor(read_descriptor(reader), cmyk.icc);
+  } catch (const std::exception&) {
+    return {};
+  }
 }
 
 RgbColor read_legacy_effect_color(BigEndianReader& reader) {
@@ -7330,6 +7350,21 @@ void write_layer_effect_item(BigEndianWriter& writer, std::string_view single_ke
   }
 }
 
+}  // namespace
+
+// Exposed for the .asl style-preset codec (psd/psd_layer_effects.hpp): the same
+// 'BlnM' conversions the lfx2 effect descriptors use.
+BlendMode blend_mode_from_lfx2_enum(std::string_view value) {
+  return blend_mode_from_descriptor_enum(value, std::array<char, 4>{'n', 'o', 'r', 'm'});
+}
+
+std::string_view blend_mode_lfx2_string(BlendMode mode) {
+  return blend_mode_descriptor_value(mode);
+}
+
+// Exposed for the .asl style-preset codec (psd/psd_layer_effects.hpp). The payload
+// after its 8-byte header is exactly the serialized effects descriptor an .asl
+// 'Lefx' object embeds.
 std::vector<std::uint8_t> photoshop_lfx2_layer_style_payload(const LayerStyle& style) {
   BigEndianWriter payload;
   payload.write_u32(0);   // object effects version
@@ -7367,6 +7402,8 @@ std::vector<std::uint8_t> photoshop_lfx2_layer_style_payload(const LayerStyle& s
   write_layer_effect_item(payload, "FrFX", "frameFXMulti", style.strokes, write_stroke_descriptor);
   return payload.bytes();
 }
+
+namespace {
 
 PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bounds, bool boxed_text,
                                         const TextWarp* warp) {
@@ -7667,11 +7704,23 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
           record.text_geometry = extract_type_tool_geometry(text_payload);
         }
       }
-      if (key == "lfx2") {
-        merge_missing_layer_style_effects(record.layer_style,
-                                          parse_lfx2_layer_style(record.additional_blocks.back().payload, cmyk));
+      if (key == "lmfx") {
+        // Photoshop's multi-instance effects block (PS 2015.5+, written when a
+        // layer stacks several instances of one effect): the payload shape is
+        // identical to lfx2 (the parser reads the single keys and the *Multi
+        // lists), and it is authoritative over the single-instance
+        // compatibility lfx2 Photoshop writes beside it, in either block order.
+        record.layer_style = parse_lfx2_layer_style(record.additional_blocks.back().payload, cmyk);
+        record.layer_style_from_lmfx = true;
+      } else if (key == "lfx2") {
+        if (!record.layer_style_from_lmfx) {
+          merge_missing_layer_style_effects(record.layer_style,
+                                            parse_lfx2_layer_style(record.additional_blocks.back().payload, cmyk));
+        }
       } else if (key == "lrFX") {
-        merge_missing_layer_style_effects(record.layer_style, parse_lrfx_layer_style(record.additional_blocks.back().payload));
+        if (!record.layer_style_from_lmfx) {
+          merge_missing_layer_style_effects(record.layer_style, parse_lrfx_layer_style(record.additional_blocks.back().payload));
+        }
       } else if (key == "plFX") {
         if (auto patchy_style = parse_patchy_layer_style(record.additional_blocks.back().payload);
             patchy_style.has_value()) {
@@ -7800,7 +7849,7 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
       (block.key == "levl" || block.key == "curv" || block.key == "hue2")) {
     return true;
   }
-  if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX")) {
+  if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx")) {
     return true;
   }
   if (generated_text_block && (block.key == "TySh" || block.key == "tySh")) {
@@ -7811,7 +7860,9 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
 
 bool layer_preserves_photoshop_layer_style(const Layer& layer) {
   return std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
-                     [](const UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX"; });
+                     [](const UnknownPsdBlock& block) {
+                       return block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx";
+                     });
 }
 
 const UnknownPsdBlock* find_layer_block(const Layer& layer, std::string_view key) {

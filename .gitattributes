@@ -16,6 +16,7 @@ CMakeLists.txt text
 *.yaml text
 
 *.8bf binary -eol
+*.asl binary -eol
 *.pat binary -eol
 *.psd binary -eol
 *.psb binary -eol

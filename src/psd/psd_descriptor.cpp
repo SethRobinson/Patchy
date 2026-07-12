@@ -172,6 +172,32 @@ DescriptorValue read_descriptor_value(BigEndianReader& reader, const std::array<
     value.object_value = std::make_shared<DescriptorObject>(read_descriptor(reader));
     return value;
   }
+  if (type_key == "obj ") {
+    // Action Manager reference (e.g. blendOptions per-channel 'Chnl' references).
+    value.type = DescriptorValue::Type::Reference;
+    const auto count = reader.read_u32();
+    value.reference_items.reserve(count);
+    for (std::uint32_t index = 0; index < count; ++index) {
+      DescriptorReferenceItem item;
+      item.form = key_string(read_signature(reader));
+      item.class_name = read_descriptor_unicode_string(reader);
+      item.class_id = read_descriptor_id(reader, item.class_id_long_form);
+      if (item.form == "prop") {
+        item.id_a = read_descriptor_id(reader, item.id_a_long_form);
+      } else if (item.form == "Enmr") {
+        item.id_a = read_descriptor_id(reader, item.id_a_long_form);
+        item.id_b = read_descriptor_id(reader, item.id_b_long_form);
+      } else if (item.form == "rele" || item.form == "Idnt" || item.form == "indx") {
+        item.number = reader.read_u32();
+      } else if (item.form == "name") {
+        item.name_value = read_descriptor_unicode_string(reader);
+      } else if (item.form != "Clss") {
+        throw std::runtime_error("Unsupported PSD reference form: " + item.form);
+      }
+      value.reference_items.push_back(std::move(item));
+    }
+    return value;
+  }
   throw std::runtime_error("Unsupported PSD descriptor value type: " + type_key);
 }
 
@@ -385,6 +411,29 @@ void write_descriptor_value(BigEndianWriter& writer, const DescriptorValue& valu
         write_descriptor(writer, *value.object_value);
       } else {
         write_descriptor(writer, DescriptorObject{});
+      }
+      return;
+    case DescriptorValue::Type::Reference:
+      write_type_signature(writer, "obj ");
+      writer.write_u32(static_cast<std::uint32_t>(value.reference_items.size()));
+      for (const auto& item : value.reference_items) {
+        if (item.form.size() != 4U) {
+          throw std::runtime_error("PSD reference form must be a 4-character key");
+        }
+        write_type_signature(writer, item.form.c_str());
+        write_descriptor_unicode_string(writer, item.class_name);
+        write_descriptor_id(writer, item.class_id, item.class_id_long_form);
+        if (item.form == "prop") {
+          write_descriptor_id(writer, item.id_a, item.id_a_long_form);
+        } else if (item.form == "Enmr") {
+          write_descriptor_id(writer, item.id_a, item.id_a_long_form);
+          write_descriptor_id(writer, item.id_b, item.id_b_long_form);
+        } else if (item.form == "rele" || item.form == "Idnt" || item.form == "indx") {
+          writer.write_u32(item.number);
+        } else if (item.form == "name") {
+          write_descriptor_unicode_string(writer, item.name_value);
+        }
+        // "Clss" carries only the class fields written above.
       }
       return;
     case DescriptorValue::Type::Empty:

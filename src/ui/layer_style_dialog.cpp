@@ -10,6 +10,9 @@
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
+#include "ui/style_browser.hpp"
+#include "ui/style_library.hpp"
+#include "ui/style_manager_dialog.hpp"
 
 #include <QAbstractButton>
 #include <QCheckBox>
@@ -28,6 +31,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QObject>
 #include <QPainter>
@@ -452,8 +456,15 @@ enum class LayerStyleCategoryPage {
   DropShadow,
   PatternOverlay,
   BevelContour,
-  BevelTexture
+  BevelTexture,
+  // Appended: enum values are QStackedWidget indices, so the Styles page is
+  // created last even though its category row is listed first.
+  Styles
 };
+
+// The Styles row shares LayerStyleEffectKind::None with Blending Options; this
+// distinct effect-index marker lets rebuild_category_list re-select it.
+constexpr int kStylesCategoryIndex = -2;
 
 enum class LayerStyleEffectKind {
   None = 0,
@@ -597,7 +608,7 @@ void update_color_preview_label(QWidget* widget, int red, int green, int blue) {
 
 std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer, std::function<void(const LayerStyleSettings&)> preview_changed,
-    PatternStore* document_patterns, PatternLibrary* pattern_library) {
+    PatternStore* document_patterns, PatternLibrary* pattern_library, StyleLibrary* style_library) {
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)), layer.blend_mode(), layer.layer_style(),
       layer.blend_if(), false};
@@ -1357,6 +1368,35 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* pattern_overlay_layout = make_page(QStringLiteral("layerStylePatternOverlayPage"));
   auto* bevel_contour_layout = make_page(QStringLiteral("layerStyleBevelContourPage"));
   auto* bevel_texture_layout = make_page(QStringLiteral("layerStyleBevelTexturePage"));
+  auto* styles_layout = make_page(QStringLiteral("layerStyleStylesPage"));
+
+  // --- Styles page: the preset browser -------------------------------------
+  auto* styles_hint = new QLabel(
+      QObject::tr("Click a preset to replace the current effects. Right-click a folder or style "
+                  "to export it as a Photoshop .asl file."),
+      &dialog);
+  styles_hint->setObjectName(QStringLiteral("layerStyleStylesHint"));
+  styles_hint->setWordWrap(true);
+  styles_layout->addWidget(styles_hint);
+  auto* styles_browser = new StyleBrowserWidget(style_library, &dialog);
+  styles_browser->setObjectName(QStringLiteral("layerStyleStylesBrowser"));
+  styles_browser->set_icon_extent(48);
+  styles_browser->set_show_no_style_entry(true);
+  styles_layout->addWidget(styles_browser, 1);
+  auto* styles_buttons = new QHBoxLayout();
+  auto* new_style_button = new QPushButton(QObject::tr("New Style…"), &dialog);
+  new_style_button->setObjectName(QStringLiteral("layerStyleNewStyleButton"));
+  new_style_button->setToolTip(
+      QObject::tr("Save the current effects (and optionally blending options) as a preset"));
+  auto* manage_styles_button = new QPushButton(QObject::tr("Manage Styles…"), &dialog);
+  manage_styles_button->setObjectName(QStringLiteral("layerStyleManageStylesButton"));
+  styles_buttons->addWidget(new_style_button);
+  styles_buttons->addWidget(manage_styles_button);
+  styles_buttons->addStretch(1);
+  styles_layout->addLayout(styles_buttons);
+  new_style_button->setEnabled(style_library != nullptr);
+  manage_styles_button->setEnabled(style_library != nullptr);
+  styles_browser->reload();
 
   // Pattern pickers list document-embedded resources first, then the persistent
   // user library. A direct dialog caller that supplies no library retains the
@@ -3256,6 +3296,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       return item;
     };
 
+    add_row(QObject::tr("Style Presets"), LayerStyleCategoryPage::Styles, LayerStyleEffectKind::None,
+            kStylesCategoryIndex, true, false);
     add_row(QObject::tr("Blending Options"), LayerStyleCategoryPage::Blending, LayerStyleEffectKind::None, -1, true, false);
     add_row(QObject::tr("Bevel & Emboss"), LayerStyleCategoryPage::BevelEmboss,
             LayerStyleEffectKind::BevelEmboss, 0, !style.bevels.empty() && style.bevels.front().enabled, true);
@@ -3532,6 +3574,176 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&] { open_pattern_manager(bevel_texture_pattern); });
   QObject::connect(pattern_overlay_manage, &QPushButton::clicked, &dialog,
                    [&] { open_pattern_manager(pattern_overlay_pattern); });
+
+  // --- Styles page behavior -------------------------------------------------
+  const auto apply_style_library_entry = [&](const QString& storage_id) {
+    if (style_library == nullptr) {
+      return;
+    }
+    const auto* entry = style_library->find_entry(storage_id);
+    if (entry == nullptr) {
+      return;
+    }
+    auto applied = entry->style;
+    // Materialize the preset's pattern tiles. A library tile whose id already
+    // belongs to different document pixels is re-identified (the Pattern
+    // Manager collision path) and the applied style's references follow it.
+    if (document_patterns != nullptr) {
+      for (const auto& library_resource : style_library->patterns_for_entry(storage_id)) {
+        auto resource = library_resource;
+        if (const auto* embedded = document_patterns->find(resource.id);
+            embedded != nullptr && !pattern_tiles_equal(embedded->tile, resource.tile)) {
+          const auto original_id = resource.id;
+          const auto prior = std::find_if(
+              transient_manager_patterns.begin(), transient_manager_patterns.end(),
+              [&resource](const PatternResource& candidate) {
+                return candidate.name == resource.name &&
+                       pattern_tiles_equal(candidate.tile, resource.tile);
+              });
+          if (prior != transient_manager_patterns.end()) {
+            resource = *prior;
+          } else {
+            do {
+              resource.id = generate_pattern_uuid();
+            } while (document_patterns->find(resource.id) != nullptr ||
+                     (pattern_library != nullptr &&
+                      pattern_library->find_entry_by_pattern_id(
+                          QString::fromStdString(resource.id)) != nullptr));
+            resource.provenance = PatternProvenance::Authored;
+            transient_manager_patterns.push_back(resource);
+          }
+          for (auto& overlay : applied.pattern_overlays) {
+            if (overlay.pattern_id == original_id) {
+              overlay.pattern_id = resource.id;
+            }
+          }
+          for (auto& bevel_effect : applied.bevels) {
+            if (bevel_effect.texture.pattern_id == original_id) {
+              bevel_effect.texture.pattern_id = resource.id;
+            }
+          }
+        }
+        document_patterns->adopt(resource);
+      }
+    }
+    // Presets replace the effects; the dialog-level blending pieces a preset
+    // does not carry stay as the user set them.
+    applied.layer_mask_hides_effects = mask_hides_effects->isChecked();
+    applied.effects_visible = true;
+    loading_controls = true;
+    show_effects->setChecked(true);
+    loading_controls = false;
+    style = std::move(applied);
+    if (entry->blend_settings.has_value()) {
+      loading_controls = true;
+      opacity->setValue(entry->blend_settings->opacity);
+      set_combo_data(blend, static_cast<int>(entry->blend_settings->blend_mode));
+      loading_controls = false;
+      // Preserved-unsupported Blend If payloads stay untouched unless the user
+      // explicitly replaced them (the existing warning-banner flow).
+      if (blend_if_payload_status != BlendIfPayloadStatus::Unsupported ||
+          replace_unsupported_blend_if) {
+        blend_if = entry->blend_settings->blend_if;
+        load_blend_if_controls();
+      }
+    }
+    rebuild_category_list(LayerStyleEffectKind::None, kStylesCategoryIndex);
+    load_controls_from_style(categories->currentItem());
+    emit_preview(true);
+  };
+  QObject::connect(styles_browser, &StyleBrowserWidget::style_clicked, &dialog,
+                   apply_style_library_entry);
+  QObject::connect(styles_browser, &StyleBrowserWidget::style_double_clicked, &dialog,
+                   apply_style_library_entry);
+  QObject::connect(styles_browser, &StyleBrowserWidget::no_style_clicked, &dialog, [&] {
+    LayerStyle cleared;
+    cleared.effects_visible = show_effects->isChecked();
+    cleared.layer_mask_hides_effects = mask_hides_effects->isChecked();
+    style = std::move(cleared);
+    rebuild_category_list(LayerStyleEffectKind::None, kStylesCategoryIndex);
+    load_controls_from_style(categories->currentItem());
+    emit_preview(true);
+  });
+  QObject::connect(manage_styles_button, &QPushButton::clicked, &dialog, [&] {
+    if (style_library == nullptr) {
+      return;
+    }
+    const auto storage_id = request_style_manager(&dialog, *style_library);
+    if (!storage_id.isEmpty()) {
+      styles_browser->reload(storage_id);
+      apply_style_library_entry(storage_id);
+    }
+  });
+  QObject::connect(new_style_button, &QPushButton::clicked, &dialog, [&] {
+    if (style_library == nullptr) {
+      return;
+    }
+    QDialog prompt(&dialog);
+    prompt.setObjectName(QStringLiteral("layerStyleNewStyleDialog"));
+    prompt.setWindowTitle(QObject::tr("New Style"));
+    auto* form = new QFormLayout(&prompt);
+    auto* name_edit = new QLineEdit(&prompt);
+    name_edit->setObjectName(QStringLiteral("layerStyleNewStyleNameEdit"));
+    name_edit->setText(QObject::tr("Style %1").arg(style_library->entries().size() + 1));
+    name_edit->selectAll();
+    form->addRow(QObject::tr("Name:"), name_edit);
+    auto* folder_combo = new QComboBox(&prompt);
+    folder_combo->setObjectName(QStringLiteral("layerStyleNewStyleFolderCombo"));
+    folder_combo->setEditable(true);
+    folder_combo->addItem(QString());
+    folder_combo->addItems(style_library->folders());
+    form->addRow(QObject::tr("Folder:"), folder_combo);
+    auto* include_blend = new QCheckBox(
+        QObject::tr("Include blending options (opacity, blend mode, Blend If)"), &prompt);
+    include_blend->setObjectName(QStringLiteral("layerStyleNewStyleIncludeBlendCheck"));
+    form->addRow(QString(), include_blend);
+    auto* prompt_buttons =
+        new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &prompt);
+    form->addRow(prompt_buttons);
+    QObject::connect(prompt_buttons, &QDialogButtonBox::accepted, &prompt, &QDialog::accept);
+    QObject::connect(prompt_buttons, &QDialogButtonBox::rejected, &prompt, &QDialog::reject);
+    if (prompt.exec() != QDialog::Accepted || name_edit->text().trimmed().isEmpty()) {
+      return;
+    }
+    const auto settings = build_current_settings();
+    std::optional<psd::AslBlendSettings> blend_settings;
+    if (include_blend->isChecked()) {
+      blend_settings =
+          psd::AslBlendSettings{settings.opacity, settings.blend_mode, settings.blend_if};
+    }
+    // Carry the referenced tiles so the preset stays self-contained.
+    std::vector<PatternResource> preset_patterns;
+    std::vector<std::string> referenced_ids;
+    collect_referenced_pattern_ids(settings.style, referenced_ids);
+    for (const auto& id : referenced_ids) {
+      if (document_patterns != nullptr) {
+        if (const auto* resource = document_patterns->find(id); resource != nullptr) {
+          preset_patterns.push_back(*resource);
+          continue;
+        }
+      }
+      if (pattern_library != nullptr) {
+        if (auto resource = pattern_library->resource(QString::fromStdString(id));
+            resource.has_value()) {
+          preset_patterns.push_back(std::move(*resource));
+          continue;
+        }
+      }
+      if (find_builtin_pattern_preset(id) != nullptr) {
+        preset_patterns.push_back(builtin_pattern_resource(id));
+      }
+    }
+    const auto storage_id =
+        style_library->add_style(name_edit->text(), settings.style, blend_settings,
+                                 preset_patterns, folder_combo->currentText());
+    if (storage_id.isEmpty()) {
+      QMessageBox::warning(
+          &dialog, QObject::tr("New Style"),
+          QObject::tr("Could not save the style. Check that the style library folder is writable."));
+      return;
+    }
+    styles_browser->reload(storage_id);
+  });
   QObject::connect(bevel_texture_pattern, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(bevel_texture_invert, &QCheckBox::toggled, &dialog,

@@ -30,7 +30,10 @@ QString localized_adjustment_display_name(AdjustmentKind kind) {
 void clear_layer_psd_style_source(Layer& layer) {
   auto& blocks = layer.unknown_psd_blocks();
   std::erase_if(blocks, [](const UnknownPsdBlock& block) {
-    return block.key == "lfx2" || block.key == "lrFX" || block.key == "plFX";
+    // 'lmfx' must go too: a stale multi-instance block left beside a
+    // regenerated lfx2 would win in Photoshop and hide the edit.
+    return block.key == "lfx2" || block.key == "lrFX" || block.key == "plFX" ||
+           block.key == "lmfx";
   });
 }
 

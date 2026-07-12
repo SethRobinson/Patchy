@@ -19,9 +19,11 @@
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "plugins/plugin_host.hpp"
 #include "psd/abr_reader.hpp"
+#include "psd/asl_io.hpp"
 #include "psd/pat_reader.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
+#include "psd/psd_layer_effects.hpp"
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "core/text_warp.hpp"
@@ -33,6 +35,7 @@
 #include "core/palette_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/style_contour.hpp"
+#include "core/style_presets.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
 #include "render/compositor.hpp"
@@ -13135,6 +13138,374 @@ void pat_extreme_plane_origin_samples_safely() {
         indexed_pixel[3] == 255);
 }
 
+[[nodiscard]] const patchy::Layer* lmfx_fixture_layer(const patchy::Document& document,
+                                                      std::string_view name) {
+  for (const auto& layer : document.layers()) {
+    if (layer.name() == name) {
+      return &layer;
+    }
+  }
+  return nullptr;
+}
+
+void psd_photoshop_lmfx_multi_effects_fixture_round_trips() {
+  // PS 2026 re-save of Patchy's applied style presets: multi-instance effects
+  // live in the 'lmfx' block (authoritative) with a single-instance
+  // compatibility lfx2 beside it. The fixture's "Comic Pow" layer stacks two
+  // strokes; pre-fix readers saw only the compat block and lost them.
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-lmfx-multi-stroke.psd");
+  CHECK(std::filesystem::exists(path));
+
+  const auto layer_has_block = [](const patchy::Layer& layer, std::string_view key) {
+    return std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
+                       [&key](const patchy::UnknownPsdBlock& block) { return block.key == key; });
+  };
+  const auto assert_document = [&](const patchy::Document& document) {
+    const auto* comic = lmfx_fixture_layer(document, "Comic Pow");
+    CHECK(comic != nullptr);
+    const auto& style = comic->layer_style();
+    CHECK(style.strokes.size() == 2U);
+    CHECK(style.strokes[0].size == 3.0F);
+    CHECK(style.strokes[0].position == patchy::LayerStrokePosition::Inside);
+    CHECK(style.strokes[0].color.red == 226 && style.strokes[0].color.green == 6 &&
+          style.strokes[0].color.blue == 44);
+    CHECK(style.strokes[1].size == 6.0F);
+    CHECK(style.strokes[1].position == patchy::LayerStrokePosition::Outside);
+    CHECK(style.strokes[1].color.red == 255 && style.strokes[1].color.green == 255 &&
+          style.strokes[1].color.blue == 255);
+    CHECK(style.color_overlays.size() == 1U);
+    CHECK(style.color_overlays.front().color.red == 255);
+    CHECK(style.color_overlays.front().color.green == 205);
+    CHECK(style.color_overlays.front().color.blue == 0);
+    CHECK(style.drop_shadows.size() == 1U);
+    CHECK(layer_has_block(*comic, "lmfx"));
+
+    // Single-instance layers keep coming from the lfx2 path.
+    const auto* adventure = lmfx_fixture_layer(document, "Adventure");
+    CHECK(adventure != nullptr);
+    CHECK(adventure->layer_style().gradient_fills.size() == 1U);
+    CHECK(adventure->layer_style().strokes.size() == 1U);
+    CHECK(adventure->layer_style().bevels.size() == 1U);
+    CHECK(!layer_has_block(*adventure, "lmfx"));
+  };
+
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  assert_document(document);
+
+  // An untouched resave preserves the raw lmfx block byte-for-byte and reads
+  // back identically.
+  const auto resaved_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto resaved = patchy::psd::DocumentIo::read(resaved_bytes);
+  assert_document(resaved);
+
+  // Editing a style drops the stale lmfx (MainWindow's clear_layer_psd_style_source
+  // contract) so the regenerated lfx2 is the only style source Photoshop sees.
+  const auto* comic_before_edit = lmfx_fixture_layer(document, "Comic Pow");
+  CHECK(comic_before_edit != nullptr);
+  auto* comic = document.find_layer(comic_before_edit->id());
+  CHECK(comic != nullptr);
+  std::erase_if(comic->unknown_psd_blocks(), [](const patchy::UnknownPsdBlock& block) {
+    return block.key == "lfx2" || block.key == "lrFX" || block.key == "plFX" ||
+           block.key == "lmfx";
+  });
+  patchy::LayerStyle edited;
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.color = {12, 34, 56};
+  shadow.opacity = 0.5F;
+  shadow.distance = 4.0F;
+  shadow.size = 2.0F;
+  edited.drop_shadows.push_back(shadow);
+  comic->layer_style() = edited;
+  const auto edited_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(edited_bytes);
+  const auto* edited_comic = lmfx_fixture_layer(reread, "Comic Pow");
+  CHECK(edited_comic != nullptr);
+  CHECK(!layer_has_block(*edited_comic, "lmfx"));
+  CHECK(edited_comic->layer_style().strokes.empty());
+  CHECK(edited_comic->layer_style().drop_shadows.size() == 1U);
+  CHECK(edited_comic->layer_style().drop_shadows.front().color.red == 12);
+  CHECK(edited_comic->layer_style().drop_shadows.front().color.blue == 56);
+}
+
+// --- .asl style library codec ------------------------------------------------
+
+[[nodiscard]] patchy::LayerStyle asl_test_effects_style() {
+  patchy::LayerStyle style;
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.color = {10, 20, 30};
+  shadow.opacity = 0.8F;
+  shadow.angle_degrees = 135.0F;
+  shadow.distance = 7.0F;
+  shadow.size = 4.0F;
+  style.drop_shadows.push_back(shadow);
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.color = {200, 40, 90};
+  stroke.opacity = 0.9F;
+  stroke.size = 5.0F;
+  stroke.position = patchy::LayerStrokePosition::Inside;
+  style.strokes.push_back(stroke);
+  return style;
+}
+
+[[nodiscard]] std::vector<patchy::psd::AslStyle> asl_test_styles() {
+  std::vector<patchy::psd::AslStyle> styles;
+  patchy::psd::AslStyle plain;
+  plain.id = "11111111-2222-3333-4444-555555555555";
+  plain.name = "Plain Effects";
+  plain.style = asl_test_effects_style();
+  styles.push_back(std::move(plain));
+
+  patchy::psd::AslStyle rich;
+  rich.id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+  rich.name = "Rich Style";
+  rich.style = asl_test_effects_style();
+  patchy::LayerPatternOverlay overlay;
+  overlay.enabled = true;
+  overlay.pattern_id = "c4a11e00-000a-4b1d-9c3e-7a7c9e55b00a";  // built-in Bricks
+  overlay.pattern_name = "Bricks";
+  rich.style.pattern_overlays.push_back(overlay);
+  patchy::psd::AslBlendSettings blend;
+  blend.opacity = 63;
+  blend.blend_mode = patchy::BlendMode::Multiply;
+  blend.blend_if.channels[0].this_layer = {11, 37, 201, 239};
+  blend.blend_if.channels[0].underlying_layer = {19, 53, 187, 227};
+  blend.blend_if.channels[2].this_layer = {5, 35, 205, 235};
+  rich.blend_settings = blend;
+  styles.push_back(std::move(rich));
+  return styles;
+}
+
+[[nodiscard]] std::vector<patchy::PatternResource> asl_test_patterns() {
+  return {patchy::builtin_pattern_resource("c4a11e00-000a-4b1d-9c3e-7a7c9e55b00a")};
+}
+
+void asl_write_then_read_round_trips_styles_patterns_and_blend_options() {
+  const auto styles = asl_test_styles();
+  const auto patterns = asl_test_patterns();
+  const auto bytes = patchy::psd::write_asl(styles, patterns);
+  CHECK(!bytes.empty());
+  // Deterministic output.
+  CHECK(patchy::psd::write_asl(styles, patterns) == bytes);
+
+  std::string error;
+  const auto parsed = patchy::psd::read_asl(bytes, error);
+  CHECK(parsed.has_value());
+  CHECK(error.empty());
+  CHECK(parsed->warnings.empty());
+  CHECK(parsed->styles.size() == 2U);
+  CHECK(parsed->patterns.size() == 1U);
+  CHECK(parsed->patterns.front().id == patterns.front().id);
+  CHECK(parsed->patterns.front().provenance == patchy::PatternProvenance::Authored);
+  CHECK(parsed->patterns.front().tile.width() == patterns.front().tile.width());
+  CHECK(std::equal(parsed->patterns.front().tile.data().begin(),
+                   parsed->patterns.front().tile.data().end(),
+                   patterns.front().tile.data().begin()));
+
+  const auto& plain = parsed->styles[0];
+  CHECK(plain.id == styles[0].id);
+  CHECK(plain.name == styles[0].name);
+  CHECK(!plain.blend_settings.has_value());
+  CHECK(patchy::psd::photoshop_lfx2_layer_style_payload(plain.style) ==
+        patchy::psd::photoshop_lfx2_layer_style_payload(styles[0].style));
+
+  const auto& rich = parsed->styles[1];
+  CHECK(rich.id == styles[1].id);
+  CHECK(rich.name == styles[1].name);
+  CHECK(rich.blend_settings.has_value());
+  CHECK(*rich.blend_settings == *styles[1].blend_settings);
+  CHECK(patchy::psd::photoshop_lfx2_layer_style_payload(rich.style) ==
+        patchy::psd::photoshop_lfx2_layer_style_payload(styles[1].style));
+
+  // A rewrite of the parsed result is byte-identical to the original file.
+  CHECK(patchy::psd::write_asl(parsed->styles, parsed->patterns) == bytes);
+}
+
+void asl_writer_bytes_are_stable() {
+  // Byte-stability canary (FNV-1a): .asl output is a user-facing interchange
+  // format; re-pin only for deliberate format changes, never to make a
+  // refactor pass (the failure output prints the hash).
+  const auto bytes = patchy::psd::write_asl(asl_test_styles(), asl_test_patterns());
+  const auto hash = fnv1a_hash_bytes(bytes);
+  constexpr std::uint64_t kExpected = 0x11404e42246b7a3fULL;
+  if (hash != kExpected) {
+    std::cout << "asl writer hash: 0x" << std::hex << hash << std::dec << " size " << bytes.size()
+              << "\n";
+  }
+  CHECK(hash == kExpected);
+}
+
+void asl_reader_reads_photoshop_blend_options_fixture() {
+  // PS 2026-authored single-style export ("Patchy BO Probe"): drop shadow +
+  // blending options captured from the Blend If fixture layer at opacity 63%,
+  // fill 77%, Multiply. Pins the calibrated blendOptions layout.
+  const auto path =
+      patchy::test::committed_format_fixture_path("asl", "photoshop-style-blend-options.asl");
+  CHECK(std::filesystem::exists(path));
+  std::ifstream input(path, std::ios::binary);
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)),
+                                        std::istreambuf_iterator<char>());
+  std::string error;
+  const auto parsed = patchy::psd::read_asl(bytes, error);
+  CHECK(parsed.has_value());
+  CHECK(error.empty());
+  CHECK(parsed->styles.size() == 1U);
+  CHECK(parsed->patterns.empty());
+  const auto& style = parsed->styles.front();
+  CHECK(style.name == "Patchy BO Probe");
+  CHECK(style.id == "13761fc8-b0af-4e47-b9ce-354a5af46a2d");
+  CHECK(style.style.effects_visible);
+  CHECK(style.style.drop_shadows.size() == 1U);
+  const auto& shadow = style.style.drop_shadows.front();
+  CHECK(shadow.enabled);
+  CHECK(shadow.blend_mode == patchy::BlendMode::Multiply);
+  CHECK(std::abs(shadow.opacity - 0.75F) < 0.001F);
+  CHECK(shadow.distance == 5.0F);
+  CHECK(shadow.size == 5.0F);
+
+  CHECK(style.blend_settings.has_value());
+  CHECK(style.blend_settings->opacity == 63);
+  CHECK(style.blend_settings->blend_mode == patchy::BlendMode::Multiply);
+  const auto& blend_if = style.blend_settings->blend_if;
+  // The values match the pinned photoshop-blend-if-4b-roundtrip.psd normal layer.
+  CHECK(blend_if.channels[0].this_layer == (patchy::BlendIfThresholds{11, 37, 201, 239}));
+  CHECK(blend_if.channels[0].underlying_layer == (patchy::BlendIfThresholds{19, 53, 187, 227}));
+  CHECK(blend_if.channels[1].this_layer == (patchy::BlendIfThresholds{3, 33, 203, 233}));
+  CHECK(blend_if.channels[1].underlying_layer == (patchy::BlendIfThresholds{13, 43, 193, 223}));
+  CHECK(blend_if.channels[2].this_layer == (patchy::BlendIfThresholds{5, 35, 205, 235}));
+  CHECK(blend_if.channels[2].underlying_layer == (patchy::BlendIfThresholds{15, 45, 195, 225}));
+  CHECK(blend_if.channels[3].this_layer == (patchy::BlendIfThresholds{7, 37, 207, 237}));
+  CHECK(blend_if.channels[3].underlying_layer == (patchy::BlendIfThresholds{17, 47, 197, 227}));
+
+  // The unmodeled 77% fill opacity is reported, not silently dropped.
+  auto fill_warning = false;
+  for (const auto& warning : parsed->warnings) {
+    fill_warning = fill_warning || warning.find("Fill opacity 77%") != std::string::npos;
+  }
+  CHECK(fill_warning);
+}
+
+void asl_reader_skips_damaged_records_and_rejects_bad_files() {
+  const auto styles = asl_test_styles();
+  const auto bytes = patchy::psd::write_asl(styles, {});
+
+  const auto read_u32_at = [&bytes](std::size_t offset) {
+    return (static_cast<std::uint32_t>(bytes[offset]) << 24U) |
+           (static_cast<std::uint32_t>(bytes[offset + 1U]) << 16U) |
+           (static_cast<std::uint32_t>(bytes[offset + 2U]) << 8U) |
+           static_cast<std::uint32_t>(bytes[offset + 3U]);
+  };
+  CHECK(read_u32_at(8U) == 0U);   // no patterns section
+  CHECK(read_u32_at(12U) == 2U);  // two styles
+  const auto first_record_length = read_u32_at(16U);
+
+  // Truncation inside the second record keeps the decoded first style.
+  std::string error;
+  const auto truncated = std::vector<std::uint8_t>(
+      bytes.begin(),
+      bytes.begin() + static_cast<std::ptrdiff_t>(20U + first_record_length + 7U));
+  const auto partial = patchy::psd::read_asl(truncated, error);
+  CHECK(partial.has_value());
+  CHECK(partial->styles.size() == 1U);
+  CHECK(partial->styles.front().name == "Plain Effects");
+  CHECK(!partial->warnings.empty());
+
+  // A wrong signature is rejected.
+  auto bad_signature = bytes;
+  bad_signature[2] = 'X';
+  CHECK(!patchy::psd::read_asl(bad_signature, error).has_value());
+  CHECK(error == "Not a Photoshop ASL file");
+
+  // Unsupported container versions are rejected.
+  auto bad_version = bytes;
+  bad_version[1] = 9;
+  CHECK(!patchy::psd::read_asl(bad_version, error).has_value());
+  CHECK(error.find("Unsupported ASL version") != std::string::npos);
+
+  // An unsafe style count is rejected.
+  auto huge_count = bytes;
+  huge_count[12] = 0x7F;
+  CHECK(!patchy::psd::read_asl(huge_count, error).has_value());
+  CHECK(error.find("style count exceeds") != std::string::npos);
+
+  // Damage inside every record leaves nothing decodable.
+  auto no_styles = std::vector<std::uint8_t>(bytes.begin(), bytes.begin() + 18);
+  CHECK(!patchy::psd::read_asl(no_styles, error).has_value());
+  CHECK(!error.empty());
+}
+
+void style_presets_have_stable_ids_and_recipes() {
+  const auto presets = patchy::builtin_style_presets();
+  CHECK(presets.size() == 26U);
+  std::size_t text_count = 0;
+  std::size_t basics_count = 0;
+  for (const auto& preset : presets) {
+    CHECK(patchy::find_builtin_style_preset(preset.id) == &preset);
+    // Ids are unique.
+    for (const auto& other : presets) {
+      CHECK(&preset == &other || std::string_view(preset.id) != other.id);
+    }
+    const auto folder = std::string_view(preset.english_folder);
+    CHECK(folder == "Text" || folder == "Basics");
+    text_count += folder == "Text" ? 1U : 0U;
+    basics_count += folder == "Basics" ? 1U : 0U;
+
+    const auto style = patchy::builtin_style_preset_style(preset.id);
+    const auto effect_count = style.drop_shadows.size() + style.inner_shadows.size() +
+                              style.outer_glows.size() + style.inner_glows.size() +
+                              style.color_overlays.size() + style.gradient_fills.size() +
+                              style.pattern_overlays.size() + style.strokes.size() +
+                              style.bevels.size() + style.satins.size();
+    CHECK(effect_count > 0U);
+
+    // Every referenced pattern resolves among the built-in pattern presets, so
+    // applying a preset can always materialize its tiles.
+    std::vector<std::string> referenced;
+    patchy::collect_referenced_pattern_ids(style, referenced);
+    for (const auto& id : referenced) {
+      CHECK(patchy::find_builtin_pattern_preset(id) != nullptr);
+    }
+
+    // Every recipe survives the native lfx2 round trip losslessly (write ->
+    // parse -> write is byte-identical), so presets applied to layers reopen
+    // from PSDs exactly as authored.
+    const auto payload = patchy::psd::photoshop_lfx2_layer_style_payload(style);
+    patchy::psd::BigEndianReader reader(
+        std::span<const std::uint8_t>(payload).subspan(8));
+    const auto descriptor = patchy::psd::read_descriptor(reader);
+    const auto reparsed = patchy::psd::layer_style_from_lefx_descriptor(descriptor, nullptr);
+    CHECK(patchy::psd::photoshop_lfx2_layer_style_payload(reparsed) == payload);
+  }
+  CHECK(text_count == 20U);
+  CHECK(basics_count == 6U);
+  CHECK(patchy::builtin_style_preset_style("not-a-real-id").drop_shadows.empty());
+}
+
+void asl_reader_reads_photoshop_shipped_styles_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("asl", "Abstract Styles.asl");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local ASL fixture missing: " << path.string() << '\n';
+    return;
+  }
+  std::ifstream input(path, std::ios::binary);
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)),
+                                        std::istreambuf_iterator<char>());
+  std::string error;
+  const auto parsed = patchy::psd::read_asl(bytes, error);
+  CHECK(parsed.has_value());
+  CHECK(error.empty());
+  CHECK(parsed->styles.size() == 6U);
+  CHECK(parsed->patterns.size() == 6U);
+  // ZString display names resolve.
+  CHECK(parsed->styles.front().name == "White Grid on Orange");
+  for (const auto& style : parsed->styles) {
+    CHECK(!style.id.empty());
+    CHECK(!style.style.pattern_overlays.empty() || !style.style.color_overlays.empty());
+  }
+}
+
 void pat_attempt_budgets_include_failed_compressed_records() {
   {
     auto bytes = test_raw_rgb_pat_bytes();
@@ -18102,6 +18473,18 @@ int main() {
       {"pat_bounds_compressed_expansion_and_extreme_rectangles",
        pat_bounds_compressed_expansion_and_extreme_rectangles},
       {"pat_extreme_plane_origin_samples_safely", pat_extreme_plane_origin_samples_safely},
+      {"psd_photoshop_lmfx_multi_effects_fixture_round_trips",
+       psd_photoshop_lmfx_multi_effects_fixture_round_trips},
+      {"asl_write_then_read_round_trips_styles_patterns_and_blend_options",
+       asl_write_then_read_round_trips_styles_patterns_and_blend_options},
+      {"asl_writer_bytes_are_stable", asl_writer_bytes_are_stable},
+      {"asl_reader_reads_photoshop_blend_options_fixture",
+       asl_reader_reads_photoshop_blend_options_fixture},
+      {"asl_reader_skips_damaged_records_and_rejects_bad_files",
+       asl_reader_skips_damaged_records_and_rejects_bad_files},
+      {"style_presets_have_stable_ids_and_recipes", style_presets_have_stable_ids_and_recipes},
+      {"asl_reader_reads_photoshop_shipped_styles_if_available",
+       asl_reader_reads_photoshop_shipped_styles_if_available},
       {"pat_attempt_budgets_include_failed_compressed_records",
        pat_attempt_budgets_include_failed_compressed_records},
       {"psd_pattern_unused_vma_slot_is_not_decoded",

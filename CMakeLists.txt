@@ -67,6 +67,7 @@ add_library(patchy_core
   src/core/rect_utils.cpp
   src/core/smart_object.cpp
   src/core/style_contour.cpp
+  src/core/style_presets.cpp
   src/core/text_warp.cpp
   src/core/warp_mesh.hpp
   src/core/warp_mesh.cpp
@@ -125,6 +126,7 @@ endif()
 add_library(patchy_psd
   src/formats/acv_curves_io.cpp
   src/psd/abr_reader.cpp
+  src/psd/asl_io.cpp
   src/psd/pat_reader.cpp
   src/psd/psd_binary.cpp
   src/psd/psd_descriptor.cpp
@@ -445,6 +447,12 @@ if(PATCHY_BUILD_APP)
       src/ui/smart_object_render.cpp
       src/ui/sprite_sheet_dialog.hpp
       src/ui/sprite_sheet_dialog.cpp
+      src/ui/style_browser.hpp
+      src/ui/style_browser.cpp
+      src/ui/style_library.hpp
+      src/ui/style_library.cpp
+      src/ui/style_manager_dialog.hpp
+      src/ui/style_manager_dialog.cpp
       src/ui/tile_preview_window.hpp
       src/ui/tile_preview_window.cpp
       src/ui/splash_dialog.cpp

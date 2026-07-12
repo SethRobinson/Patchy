@@ -12,6 +12,12 @@
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
+#include "ui/style_browser.hpp"
+#include "ui/style_library.hpp"
+#include "ui/style_manager_dialog.hpp"
+#include "psd/asl_io.hpp"
+#include "psd/psd_layer_effects.hpp"
+#include "core/style_presets.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -12191,6 +12197,481 @@ void ui_layer_style_library_pattern_cancel_and_undo_restore_store() {
   }
   clear_pattern_test_state();
   clear_brush_tip_test_state();
+}
+
+// --- Layer style presets (Styles page, StyleLibrary, manager) ---------------
+
+[[nodiscard]] patchy::LayerStyle style_test_shadow_recipe() {
+  patchy::LayerStyle style;
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.color = {200, 16, 32};
+  shadow.opacity = 0.7F;
+  shadow.angle_degrees = 120.0F;
+  shadow.distance = 9.0F;
+  shadow.size = 3.0F;
+  style.drop_shadows.push_back(shadow);
+  return style;
+}
+
+// Depth-first search for the browser row carrying a storage id.
+[[nodiscard]] QTreeWidgetItem* style_tree_item_for_storage_id(QTreeWidget& tree,
+                                                              const QString& storage_id) {
+  const std::function<QTreeWidgetItem*(QTreeWidgetItem*)> visit =
+      [&](QTreeWidgetItem* item) -> QTreeWidgetItem* {
+    if (item->data(0, Qt::UserRole).toString() == storage_id) {
+      return item;
+    }
+    for (int child = 0; child < item->childCount(); ++child) {
+      if (auto* found = visit(item->child(child)); found != nullptr) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+  for (int index = 0; index < tree.topLevelItemCount(); ++index) {
+    if (auto* found = visit(tree.topLevelItem(index)); found != nullptr) {
+      return found;
+    }
+  }
+  return nullptr;
+}
+
+void click_style_tree_item(QTreeWidget& tree, QTreeWidgetItem* item) {
+  CHECK(item != nullptr);
+  if (item->parent() != nullptr) {
+    item->parent()->setExpanded(true);
+  }
+  tree.scrollToItem(item);
+  QApplication::processEvents();
+  const auto center = tree.visualItemRect(item).center();
+  send_mouse(*tree.viewport(), QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*tree.viewport(), QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+}
+
+void ui_style_library_defaults_restore_export_import_round_trip() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
+  CHECK(library.entries().empty());
+  CHECK(library.restore_default_styles() == 26);
+  CHECK(library.entries().size() == 26U);
+  CHECK(library.has_all_default_styles_introduced_after(0));
+  CHECK(library.default_styles_match_factory());
+  CHECK(library.folders().size() == 2);
+  for (const auto& entry : library.entries()) {
+    CHECK(!entry.thumbnail.isNull());
+    CHECK(!entry.blend_settings.has_value());
+  }
+
+  // Contact sheet of every built-in preset thumbnail for visual review.
+  {
+    constexpr int kColumns = 7;
+    const auto cell = patchy::ui::kStyleThumbnailExtent;
+    const auto count = static_cast<int>(library.entries().size());
+    const auto rows = (count + kColumns - 1) / kColumns;
+    QImage sheet(kColumns * cell, rows * cell, QImage::Format_RGB32);
+    sheet.fill(QColor(0x2B, 0x2B, 0x2B));
+    QPainter painter(&sheet);
+    int index = 0;
+    for (const auto& entry : library.entries()) {
+      painter.drawPixmap((index % kColumns) * cell, (index / kColumns) * cell, entry.thumbnail);
+      ++index;
+    }
+    painter.end();
+    ensure_artifact_dir();
+    CHECK(sheet.save(QStringLiteral("test-artifacts/style_preset_thumbnails.png")));
+  }
+
+  // Rename drifts from factory; the explicit reset repairs it.
+  const auto* adventure =
+      library.find_entry_by_style_id(QStringLiteral("57a1e500-0001-4c6d-8f2a-9b3d4e55c001"));
+  CHECK(adventure != nullptr);
+  CHECK(patchy::ui::style_library_entry_display_name(*adventure) == QStringLiteral("Adventure"));
+  const auto adventure_storage = adventure->storage_id;
+  CHECK(library.rename_style(adventure_storage, QStringLiteral("Renamed")));
+  CHECK(!library.default_styles_match_factory());
+  CHECK(library.reset_default_styles_to_factory() == 1);
+  CHECK(library.default_styles_match_factory());
+
+  // Export the Text folder; Stamped Steel carries its two pattern tiles.
+  QStringList text_ids;
+  const auto text_folder = patchy::ui::style_preset_folder_display_name("Text");
+  for (const auto& entry : library.entries()) {
+    if (entry.folder == text_folder) {
+      text_ids.append(entry.storage_id);
+    }
+  }
+  CHECK(text_ids.size() == 20);
+  const auto exported_path = directory.filePath(QStringLiteral("Text.asl"));
+  QString error;
+  CHECK(library.export_asl(text_ids, exported_path, error));
+  CHECK(error.isEmpty());
+  {
+    QFile exported(exported_path);
+    CHECK(exported.open(QIODevice::ReadOnly));
+    const auto bytes = exported.readAll();
+    std::string parse_error;
+    const auto parsed = patchy::psd::read_asl(
+        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                      static_cast<std::size_t>(bytes.size())),
+        parse_error);
+    CHECK(parsed.has_value());
+    CHECK(parsed->styles.size() == 20U);
+    CHECK(parsed->patterns.size() == 2U);  // Brushed Metal + Bumps (Stamped Steel)
+  }
+
+  // Import into a second library: grouped under the file name, dedupe on
+  // re-import, duplicates get fresh ids, deletes persist across reloads.
+  patchy::ui::StyleLibrary second(directory.filePath(QStringLiteral("second")));
+  QStringList warnings;
+  const auto first_imported = second.import_asl(exported_path, error, warnings);
+  CHECK(!first_imported.isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(warnings.isEmpty());
+  CHECK(second.entries().size() == 20U);
+  CHECK(second.folders() == QStringList{QStringLiteral("Text")});
+  CHECK(second.import_asl(exported_path, error, warnings) == first_imported);
+  CHECK(second.entries().size() == 20U);
+  const auto duplicate_storage = second.duplicate_style(first_imported);
+  CHECK(!duplicate_storage.isEmpty());
+  const auto* duplicate = second.find_entry(duplicate_storage);
+  CHECK(duplicate != nullptr);
+  CHECK(duplicate->id != second.find_entry(first_imported)->id);
+  patchy::ui::StyleLibrary reloaded(directory.filePath(QStringLiteral("second")));
+  CHECK(reloaded.entries().size() == 21U);
+  int changed_signals = 0;
+  QObject::connect(&second, &patchy::ui::StyleLibrary::changed, &second,
+                   [&changed_signals] { ++changed_signals; });
+  CHECK(second.remove_styles({first_imported, duplicate_storage}) == 2);
+  CHECK(changed_signals == 1);
+}
+
+void ui_layer_style_styles_page_applies_preset_and_previews() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
+  patchy::psd::AslBlendSettings blend_settings;
+  blend_settings.opacity = 63;
+  blend_settings.blend_mode = patchy::BlendMode::Multiply;
+  blend_settings.blend_if.channels[0].this_layer = {11, 37, 201, 239};
+  const auto storage_id =
+      library.add_style(QStringLiteral("Crimson Shadow"), style_test_shadow_recipe(),
+                        blend_settings, {}, QStringLiteral("Test Folder"));
+  CHECK(!storage_id.isEmpty());
+
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Styled",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog =
+        qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* browser =
+        dialog->findChild<patchy::ui::StyleBrowserWidget*>(QStringLiteral("layerStyleStylesBrowser"));
+    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOpacitySpin"));
+    auto* blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBlendModeCombo"));
+    CHECK(categories != nullptr && browser != nullptr && opacity != nullptr && blend != nullptr);
+    // The Styles row is first; the dialog still opens on Blending Options.
+    const auto styles_items = categories->findItems(QStringLiteral("Style Presets"), Qt::MatchExactly);
+    CHECK(!styles_items.empty());
+    CHECK(categories->row(styles_items.front()) == 0);
+    CHECK(categories->currentRow() == 1);
+    categories->setCurrentItem(styles_items.front());
+    QApplication::processEvents();
+    CHECK(!browser->visibleRegion().isEmpty());
+
+    click_style_tree_item(*browser, style_tree_item_for_storage_id(*browser, storage_id));
+    QApplication::processEvents();
+    // The preset's effects land in the category list and its blending options
+    // land in the master controls.
+    const auto shadow_items = categories->findItems(QStringLiteral("Drop Shadow"), Qt::MatchExactly);
+    CHECK(!shadow_items.empty());
+    CHECK(shadow_items.front()->checkState() == Qt::Checked);
+    CHECK(opacity->value() == 63);
+    CHECK(blend->currentData().toInt() == static_cast<int>(patchy::BlendMode::Multiply));
+    // The Styles row stays selected for continued browsing.
+    CHECK(categories->currentRow() == 0);
+    save_widget_artifact("ui_layer_style_styles_page", *dialog);
+    QTimer::singleShot(50, dialog, [dialog] { dialog->accept(); });
+  });
+
+  int previews = 0;
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, [&](const patchy::ui::LayerStyleSettings&) { ++previews; }, nullptr, nullptr,
+      &library);
+  CHECK(settings.has_value());
+  CHECK(previews >= 1);
+  CHECK(settings->opacity == 63);
+  CHECK(settings->blend_mode == patchy::BlendMode::Multiply);
+  CHECK(settings->blend_if.channels[0].this_layer == (patchy::BlendIfThresholds{11, 37, 201, 239}));
+  CHECK(settings->style.drop_shadows.size() == 1U);
+  const auto& shadow = settings->style.drop_shadows.front();
+  CHECK(shadow.enabled);
+  CHECK(shadow.color.red == 200 && shadow.color.green == 16 && shadow.color.blue == 32);
+  CHECK(shadow.distance == 9.0F);
+}
+
+void ui_layer_style_no_style_entry_clears_effects() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
+
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Styled",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  layer.layer_style() = style_test_shadow_recipe();
+  layer.set_opacity(0.4F);
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog =
+        qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* browser =
+        dialog->findChild<patchy::ui::StyleBrowserWidget*>(QStringLiteral("layerStyleStylesBrowser"));
+    CHECK(categories != nullptr && browser != nullptr);
+    const auto styles_items = categories->findItems(QStringLiteral("Style Presets"), Qt::MatchExactly);
+    CHECK(!styles_items.empty());
+    categories->setCurrentItem(styles_items.front());
+    QApplication::processEvents();
+    CHECK(browser->topLevelItemCount() >= 1);
+    auto* no_style = browser->topLevelItem(0);
+    CHECK(no_style->text(0).contains(QStringLiteral("No Style")));
+    click_style_tree_item(*browser, no_style);
+    QApplication::processEvents();
+    const auto shadow_items = categories->findItems(QStringLiteral("Drop Shadow"), Qt::MatchExactly);
+    CHECK(!shadow_items.empty());
+    CHECK(shadow_items.front()->checkState() == Qt::Unchecked);
+    QTimer::singleShot(50, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {}, nullptr,
+                                                                 nullptr, &library);
+  CHECK(settings.has_value());
+  CHECK(settings->style.drop_shadows.empty());
+  CHECK(settings->style.strokes.empty());
+  // Blending options survive No Style.
+  CHECK(settings->opacity == 40);
+}
+
+void ui_layer_style_new_style_saves_current_settings() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
+
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Styled",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  layer.layer_style() = style_test_shadow_recipe();
+  layer.set_opacity(0.35F);
+  layer.set_blend_mode(patchy::BlendMode::Screen);
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog =
+        qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* new_style = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleNewStyleButton"));
+    CHECK(categories != nullptr && new_style != nullptr);
+    const auto styles_items = categories->findItems(QStringLiteral("Style Presets"), Qt::MatchExactly);
+    CHECK(!styles_items.empty());
+    categories->setCurrentItem(styles_items.front());
+    QApplication::processEvents();
+    QTimer::singleShot(0, [&] {
+      auto* prompt =
+          qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("layerStyleNewStyleDialog")));
+      CHECK(prompt != nullptr);
+      auto* name = prompt->findChild<QLineEdit*>(QStringLiteral("layerStyleNewStyleNameEdit"));
+      auto* folder = prompt->findChild<QComboBox*>(QStringLiteral("layerStyleNewStyleFolderCombo"));
+      auto* include_blend =
+          prompt->findChild<QCheckBox*>(QStringLiteral("layerStyleNewStyleIncludeBlendCheck"));
+      CHECK(name != nullptr && folder != nullptr && include_blend != nullptr);
+      name->setText(QStringLiteral("Saved From Dialog"));
+      folder->setCurrentText(QStringLiteral("My Styles"));
+      include_blend->setChecked(true);
+      prompt->accept();
+    });
+    new_style->click();
+    QApplication::processEvents();
+    QTimer::singleShot(50, dialog, [dialog] { dialog->reject(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {}, nullptr,
+                                                                 nullptr, &library);
+  CHECK(!settings.has_value());  // dialog canceled; the preset was saved anyway
+  CHECK(library.entries().size() == 1U);
+  const auto& entry = library.entries().front();
+  CHECK(entry.name == QStringLiteral("Saved From Dialog"));
+  CHECK(entry.folder == QStringLiteral("My Styles"));
+  CHECK(patchy::psd::photoshop_lfx2_layer_style_payload(entry.style) ==
+        patchy::psd::photoshop_lfx2_layer_style_payload(style_test_shadow_recipe()));
+  CHECK(entry.blend_settings.has_value());
+  CHECK(entry.blend_settings->opacity == 35);
+  CHECK(entry.blend_settings->blend_mode == patchy::BlendMode::Screen);
+}
+
+void ui_style_browser_folder_selection_exports_asl() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
+  const auto in_folder_a =
+      library.add_style(QStringLiteral("A One"), style_test_shadow_recipe(), std::nullopt, {},
+                        QStringLiteral("Folder A"));
+  const auto in_folder_a2 =
+      library.add_style(QStringLiteral("A Two"), style_test_shadow_recipe(), std::nullopt, {},
+                        QStringLiteral("Folder A"));
+  const auto in_folder_b =
+      library.add_style(QStringLiteral("B One"), style_test_shadow_recipe(), std::nullopt, {},
+                        QStringLiteral("Folder B"));
+  CHECK(!in_folder_a.isEmpty() && !in_folder_a2.isEmpty() && !in_folder_b.isEmpty());
+
+  patchy::ui::StyleBrowserWidget browser(&library);
+  browser.reload();
+  browser.show();
+  QApplication::processEvents();
+  // Selecting the Folder A row expands to its two children.
+  QTreeWidgetItem* folder_a = nullptr;
+  for (int index = 0; index < browser.topLevelItemCount(); ++index) {
+    auto* item = browser.topLevelItem(index);
+    if (item->data(0, Qt::UserRole).toString() == QStringLiteral("Folder A")) {
+      folder_a = item;
+    }
+  }
+  CHECK(folder_a != nullptr);
+  browser.setCurrentItem(folder_a);
+  const auto ids = browser.selected_storage_ids();
+  CHECK(ids.size() == 2);
+  CHECK(ids.contains(in_folder_a) && ids.contains(in_folder_a2));
+
+  const auto exported_path = directory.filePath(QStringLiteral("Folder A.asl"));
+  CHECK(browser.export_selection_to(exported_path));
+  QFile exported(exported_path);
+  CHECK(exported.open(QIODevice::ReadOnly));
+  const auto bytes = exported.readAll();
+  std::string parse_error;
+  const auto parsed = patchy::psd::read_asl(
+      std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                    static_cast<std::size_t>(bytes.size())),
+      parse_error);
+  CHECK(parsed.has_value());
+  CHECK(parsed->styles.size() == 2U);
+  CHECK(parsed->styles[0].name == "A One");
+  CHECK(parsed->styles[1].name == "A Two");
+}
+
+void ui_style_manager_lists_renames_and_uses_styles() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
+  const auto storage_id =
+      library.add_style(QStringLiteral("Manager Style"), style_test_shadow_recipe(), std::nullopt,
+                        {}, QStringLiteral("Folder"));
+  CHECK(!storage_id.isEmpty());
+  const auto style_id = library.find_entry(storage_id)->id;
+
+  QTimer::singleShot(0, [&] {
+    auto* manager =
+        qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("styleManagerDialog")));
+    CHECK(manager != nullptr);
+    auto* tree = manager->findChild<patchy::ui::StyleBrowserWidget*>(
+        QStringLiteral("styleManagerTree"));
+    auto* name_edit = manager->findChild<QLineEdit*>(QStringLiteral("styleManagerNameEdit"));
+    auto* effects_label = manager->findChild<QLabel*>(QStringLiteral("styleManagerEffectsLabel"));
+    auto* use_button = manager->findChild<QPushButton*>(QStringLiteral("styleManagerUseButton"));
+    auto* preview = manager->findChild<QLabel*>(QStringLiteral("styleManagerPreview"));
+    CHECK(tree != nullptr && name_edit != nullptr && effects_label != nullptr &&
+          use_button != nullptr && preview != nullptr);
+    // The initial style id preselects the entry.
+    CHECK(tree->current_storage_id() == storage_id);
+    CHECK(name_edit->text() == QStringLiteral("Manager Style"));
+    CHECK(effects_label->text().contains(QStringLiteral("Drop Shadow")));
+    CHECK(preview->pixmap().width() > 0);
+    // Rename through the manager.
+    name_edit->setText(QStringLiteral("Renamed Style"));
+    QMetaObject::invokeMethod(name_edit, "editingFinished");
+    QApplication::processEvents();
+    save_widget_artifact("ui_style_manager_dialog", *manager);
+    CHECK(use_button->isEnabled());
+    use_button->click();
+  });
+
+  const auto chosen = patchy::ui::request_style_manager(nullptr, library, style_id);
+  CHECK(chosen == storage_id);
+  CHECK(library.find_entry(storage_id)->name == QStringLiteral("Renamed Style"));
+}
+
+void ui_style_preset_pattern_apply_cancel_restores_document_store() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
+  // A preset whose pattern id will collide with different document pixels.
+  const auto pattern_id = std::string("99999999-1111-2222-3333-444444444444");
+  patchy::PatternResource preset_tile;
+  preset_tile.id = pattern_id;
+  preset_tile.name = "Preset Tile";
+  preset_tile.tile = solid_pixels(4, 4, patchy::PixelFormat::rgba8(), QColor(40, 200, 90, 255));
+  preset_tile.provenance = patchy::PatternProvenance::Authored;
+  patchy::LayerStyle style;
+  patchy::LayerPatternOverlay overlay;
+  overlay.enabled = true;
+  overlay.pattern_id = pattern_id;
+  overlay.pattern_name = "Preset Tile";
+  style.pattern_overlays.push_back(overlay);
+  const auto storage_id =
+      library.add_style(QStringLiteral("Pattern Preset"), style, std::nullopt,
+                        std::span<const patchy::PatternResource>(&preset_tile, 1));
+  CHECK(!storage_id.isEmpty());
+
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::PatternResource embedded;
+  embedded.id = pattern_id;
+  embedded.name = "Embedded Collision";
+  embedded.tile = solid_pixels(3, 3, patchy::PixelFormat::rgba8(), QColor(180, 20, 30, 255));
+  embedded.provenance = patchy::PatternProvenance::ImportedRaw;
+  document.metadata().patterns.adopt(embedded);
+  patchy::Layer layer(document.allocate_layer_id(), "Styled",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+
+  std::string applied_alias;
+  QTimer::singleShot(0, [&] {
+    auto* dialog =
+        qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* browser =
+        dialog->findChild<patchy::ui::StyleBrowserWidget*>(QStringLiteral("layerStyleStylesBrowser"));
+    CHECK(categories != nullptr && browser != nullptr);
+    const auto styles_items = categories->findItems(QStringLiteral("Style Presets"), Qt::MatchExactly);
+    CHECK(!styles_items.empty());
+    categories->setCurrentItem(styles_items.front());
+    QApplication::processEvents();
+    click_style_tree_item(*browser, style_tree_item_for_storage_id(*browser, storage_id));
+    QApplication::processEvents();
+    // The collision produced a document-local alias with the preset pixels.
+    CHECK(document.metadata().patterns.patterns.size() == 2U);
+    for (const auto& resource : document.metadata().patterns.patterns) {
+      if (resource.id != pattern_id) {
+        applied_alias = resource.id;
+        CHECK(resource.tile.pixel(0, 0)[1] == 200);
+      }
+    }
+    CHECK(!applied_alias.empty());
+    QTimer::singleShot(50, dialog, [dialog] { dialog->reject(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, {}, &document.metadata().patterns, nullptr, &library);
+  CHECK(!settings.has_value());
+  // MainWindow restores the snapshot on cancel; here the dialog must not have
+  // touched the original embedded resource and the alias must reference the
+  // preset pixels it adopted.
+  CHECK(document.metadata().patterns.find(pattern_id) != nullptr);
+  CHECK(document.metadata().patterns.find(pattern_id)->tile.pixel(0, 0)[0] == 180);
+  CHECK(!applied_alias.empty());
+  CHECK(document.metadata().patterns.find(applied_alias) != nullptr);
 }
 
 void ui_default_brush_tips_seed_once_and_render_sheet() {
@@ -39578,6 +40059,20 @@ int main(int argc, char* argv[]) {
        ui_pattern_manager_remaps_document_id_collision},
       {"ui_layer_style_library_pattern_cancel_and_undo_restore_store",
        ui_layer_style_library_pattern_cancel_and_undo_restore_store},
+      {"ui_style_library_defaults_restore_export_import_round_trip",
+       ui_style_library_defaults_restore_export_import_round_trip},
+      {"ui_layer_style_styles_page_applies_preset_and_previews",
+       ui_layer_style_styles_page_applies_preset_and_previews},
+      {"ui_layer_style_no_style_entry_clears_effects",
+       ui_layer_style_no_style_entry_clears_effects},
+      {"ui_layer_style_new_style_saves_current_settings",
+       ui_layer_style_new_style_saves_current_settings},
+      {"ui_style_browser_folder_selection_exports_asl",
+       ui_style_browser_folder_selection_exports_asl},
+      {"ui_style_manager_lists_renames_and_uses_styles",
+       ui_style_manager_lists_renames_and_uses_styles},
+      {"ui_style_preset_pattern_apply_cancel_restores_document_store",
+       ui_style_preset_pattern_apply_cancel_restores_document_store},
       {"ui_layer_style_bevel_contour_and_texture_rows_round_trip",
        ui_layer_style_bevel_contour_and_texture_rows_round_trip},
       {"ui_layer_style_dialog_warns_that_group_effects_do_not_render",

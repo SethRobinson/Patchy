@@ -11,6 +11,7 @@ class QWidget;
 namespace patchy::ui {
 
 class PatternLibrary;
+class StyleLibrary;
 
 struct LayerStyleSettings {
   int opacity{100};
@@ -27,10 +28,13 @@ struct LayerStyleSettings {
 // Pattern Manager buttons. The dialog can add a transient document resource when
 // a chosen library pattern has the same Photoshop id as different embedded
 // pixels. MainWindow snapshots the store around the dialog so cancel stays clean.
+// style_library enables the Styles page's preset browser (apply on click, New
+// Style..., Manage Styles...); null leaves the page present but inert.
 [[nodiscard]] std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer,
     std::function<void(const LayerStyleSettings&)> preview_changed = {},
     PatternStore* document_patterns = nullptr,
-    PatternLibrary* pattern_library = nullptr);
+    PatternLibrary* pattern_library = nullptr,
+    StyleLibrary* style_library = nullptr);
 
 }  // namespace patchy::ui

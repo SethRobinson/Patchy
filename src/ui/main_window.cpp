@@ -44,6 +44,7 @@
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
+#include "ui/style_library.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
@@ -4730,7 +4731,7 @@ QString photoshop_style() {
       color: #cfd3d8;
       border-color: transparent;
     }
-    QListWidget, QComboBox, QSpinBox, QSlider, QLineEdit, QTextEdit {
+    QListWidget, QTreeWidget, QComboBox, QSpinBox, QSlider, QLineEdit, QTextEdit {
       background: #2b2b2b;
       color: #e6e6e6;
       border: 1px solid #5a5a5a;
@@ -19146,7 +19147,7 @@ void MainWindow::edit_active_layer_style() {
   auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings =
       request_layer_style_settings(this, *layer, apply_preview_settings, &doc.metadata().patterns,
-                                   &pattern_library());
+                                   &pattern_library(), &style_library());
   if (!settings.has_value()) {
     restore_original();
     preview_edit_lock.release();
@@ -21639,6 +21640,25 @@ PatternLibrary& MainWindow::pattern_library() {
     }
   }
   return *pattern_library_;
+}
+
+StyleLibrary& MainWindow::style_library() {
+  if (style_library_ == nullptr) {
+    style_library_ = new StyleLibrary({}, this);
+    // Seed code-generated defaults once. A user deletion stays deleted across
+    // launches; the Style Manager's explicit restore command brings it back.
+    auto settings = app_settings();
+    const auto stored_version =
+        settings.value(QStringLiteral("styles/defaultStylesVersion"), 0).toInt();
+    if (stored_version < kDefaultStylesVersion) {
+      style_library_->restore_default_styles(stored_version);
+      if (style_library_->has_all_default_styles_introduced_after(stored_version)) {
+        settings.setValue(QStringLiteral("styles/defaultStylesVersion"),
+                          kDefaultStylesVersion);
+      }
+    }
+  }
+  return *style_library_;
 }
 
 void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {

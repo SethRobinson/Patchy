@@ -4060,6 +4060,291 @@ Mixed selection</source>
             <numerusform>%n 個の標準パターンを初期設定に戻しました。</numerusform>
         </translation>
     </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Styles</source>
+        <translation>スタイル</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>Style Presets</source>
+        <translation>スタイルプリセット</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>Click a preset to replace the current effects. Right-click a folder or style to export it as a Photoshop .asl file.</source>
+        <translation>プリセットをクリックすると現在の効果が置き換わります。フォルダーやスタイルを右クリックすると Photoshop の .asl ファイルとして書き出せます。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>New Style…</source>
+        <translation>新規スタイル…</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>Save the current effects (and optionally blending options) as a preset</source>
+        <translation>現在の効果(必要に応じてブレンドオプションも)をプリセットとして保存します</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>Manage Styles…</source>
+        <translation>スタイルの管理…</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>New Style</source>
+        <translation>新規スタイル</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>Include blending options (opacity, blend mode, Blend If)</source>
+        <translation>ブレンドオプション(不透明度、描画モード、ブレンド条件)を含める</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/layer_style_dialog.cpp"/>
+        <source>Could not save the style. Check that the style library folder is writable.</source>
+        <translation>スタイルを保存できませんでした。スタイルライブラリのフォルダーに書き込めることを確認してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Contains:</source>
+        <translation>内容:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Import .asl…</source>
+        <translation>.asl を読み込み…</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Export…</source>
+        <translation>書き出し…</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Export the selected styles or folders to a .asl file</source>
+        <translation>選択したスタイルまたはフォルダーを .asl ファイルに書き出します</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Delete the selected styles or folders (Del)</source>
+        <translation>選択したスタイルまたはフォルダーを削除 (Del)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Restore Default Styles</source>
+        <translation>標準スタイルを復元</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Bring back deleted built-in styles and reset changed defaults</source>
+        <translation>削除した標準スタイルを復元し、変更された標準スタイルを初期設定に戻します</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Use Style</source>
+        <translation>スタイルを使用</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Folder for the selected style(s); leave empty to remove them from folders</source>
+        <translation>選択したスタイルのフォルダー。空にするとフォルダーから外れます</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Could not update the selected style. Check that the style library folder is writable.</source>
+        <translation>選択したスタイルを更新できませんでした。スタイルライブラリのフォルダーに書き込めることを確認してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>No effects</source>
+        <translation>効果なし</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>%n style(s) selected</source>
+        <translation>
+            <numerusform>%n 個のスタイルを選択中</numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Delete style &quot;%1&quot;?</source>
+        <translation>スタイル「%1」を削除しますか?</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Delete %n style(s)?</source>
+        <translation>
+            <numerusform>%n 個のスタイルを削除しますか?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Delete Styles</source>
+        <translation>スタイルの削除</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Could not delete %n style(s). Check that the style library folder is writable.</source>
+        <translation>
+            <numerusform>%n 個のスタイルを削除できませんでした。スタイルライブラリのフォルダーに書き込めることを確認してください。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Import Photoshop Styles</source>
+        <translation>Photoshop スタイルの読み込み</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Photoshop Styles (*.asl)</source>
+        <translation>Photoshop スタイル (*.asl)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Import Styles</source>
+        <translation>スタイルの読み込み</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Imported %n style(s).</source>
+        <translation>
+            <numerusform>%n 個のスタイルを読み込みました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>All default styles are already present with factory settings.</source>
+        <translation>すべての標準スタイルは既に初期設定の状態で揃っています。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Some default styles could not be restored. Check that the style library folder is writable.</source>
+        <translation>一部の標準スタイルを復元できませんでした。スタイルライブラリのフォルダーに書き込めることを確認してください。</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Restored %n default style(s).</source>
+        <translation>
+            <numerusform>%n 個の標準スタイルを復元しました。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/style_manager_dialog.cpp"/>
+        <source>Reset %n default style(s) to factory settings.</source>
+        <translation>
+            <numerusform>%n 個の標準スタイルを初期設定に戻しました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Basics</source>
+        <translation>基本</translation>
+    </message>
+    <message>
+        <source>Adventure</source>
+        <translation>アドベンチャー</translation>
+    </message>
+    <message>
+        <source>Hack the Gibson</source>
+        <translation>ハック・ザ・ギブソン</translation>
+    </message>
+    <message>
+        <source>A Galaxy Far Away</source>
+        <translation>遠い銀河</translation>
+    </message>
+    <message>
+        <source>Neon Nights</source>
+        <translation>ネオンナイト</translation>
+    </message>
+    <message>
+        <source>Arcade Cabinet</source>
+        <translation>アーケード筐体</translation>
+    </message>
+    <message>
+        <source>Chrome Bumper</source>
+        <translation>クロームバンパー</translation>
+    </message>
+    <message>
+        <source>Liquid Gold</source>
+        <translation>リキッドゴールド</translation>
+    </message>
+    <message>
+        <source>Ice Cold</source>
+        <translation>アイスコールド</translation>
+    </message>
+    <message>
+        <source>Molten Core</source>
+        <translation>溶岩コア</translation>
+    </message>
+    <message>
+        <source>Toxic Ooze</source>
+        <translation>毒スライム</translation>
+    </message>
+    <message>
+        <source>Midnight Horror</source>
+        <translation>ミッドナイトホラー</translation>
+    </message>
+    <message>
+        <source>Wanted Poster</source>
+        <translation>手配書</translation>
+    </message>
+    <message>
+        <source>Comic Pow</source>
+        <translation>コミックパウ</translation>
+    </message>
+    <message>
+        <source>Bubble Pop</source>
+        <translation>バブルポップ</translation>
+    </message>
+    <message>
+        <source>Saturday Cartoon</source>
+        <translation>サタデーカートゥーン</translation>
+    </message>
+    <message>
+        <source>Space Cadet</source>
+        <translation>スペースカデット</translation>
+    </message>
+    <message>
+        <source>Royal Decree</source>
+        <translation>王室の勅令</translation>
+    </message>
+    <message>
+        <source>Stamped Steel</source>
+        <translation>刻印スチール</translation>
+    </message>
+    <message>
+        <source>Honey Drip</source>
+        <translation>ハニードリップ</translation>
+    </message>
+    <message>
+        <source>Blueprint</source>
+        <translation>ブループリント</translation>
+    </message>
+    <message>
+        <source>Soft Shadow</source>
+        <translation>ソフトシャドウ</translation>
+    </message>
+    <message>
+        <source>Sticker Outline</source>
+        <translation>ステッカー縁取り</translation>
+    </message>
+    <message>
+        <source>Simple Emboss</source>
+        <translation>シンプルエンボス</translation>
+    </message>
+    <message>
+        <source>Warm Glow</source>
+        <translation>温かい光彩</translation>
+    </message>
+    <message>
+        <source>Neon Edge</source>
+        <translation>ネオンエッジ</translation>
+    </message>
+    <message>
+        <source>Letterpress</source>
+        <translation>活版印刷</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -10520,7 +10805,9 @@ Clipped to the layer below</source>
     </message>
 </context>
 <context>
-    <name>PatternLibrary</name>
+    <!-- tr() contexts are the fully qualified class name; the bare name never
+         matched at runtime, so these translations were dead until renamed. -->
+    <name>patchy::ui::PatternLibrary</name>
     <message>
         <location filename="../src/ui/pattern_library.cpp"/>
         <source>Untitled Pattern</source>
@@ -10583,6 +10870,124 @@ Clipped to the layer below</source>
     </message>
     <message>
         <location filename="../src/ui/pattern_library.cpp"/>
+        <source>%1 Copy</source>
+        <translation>%1 のコピー</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::StyleBrowserWidget</name>
+    <message>
+        <location filename="../src/ui/style_browser.cpp"/>
+        <source>No Style (remove all effects)</source>
+        <translation>スタイルなし(すべての効果を削除)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_browser.cpp"/>
+        <source>Remove every effect from the layer</source>
+        <translation>レイヤーからすべての効果を削除します</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_browser.cpp"/>
+        <source>%1 (%2)</source>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_browser.cpp"/>
+        <source>Styles</source>
+        <translation>スタイル</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_browser.cpp"/>
+        <source>Export Styles</source>
+        <translation>スタイルの書き出し</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_browser.cpp"/>
+        <source>Photoshop Styles (*.asl)</source>
+        <translation>Photoshop スタイル (*.asl)</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/style_browser.cpp"/>
+        <source>Exported %n style(s) to &quot;%1&quot;.</source>
+        <translation>
+            <numerusform>%n 個のスタイルを「%1」に書き出しました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_browser.cpp"/>
+        <source>Export Folder to .asl…</source>
+        <translation>フォルダーを .asl に書き出し…</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_browser.cpp"/>
+        <source>Export to .asl…</source>
+        <translation>.asl に書き出し…</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::StyleLibrary</name>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>Untitled Style</source>
+        <translation>無題のスタイル</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>Could not open &quot;%1&quot;.</source>
+        <translation>「%1」を開けませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>Could not read &quot;%1&quot;.</source>
+        <translation>「%1」を読み込めませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>&quot;%1&quot; is too large to import safely.</source>
+        <translation>「%1」は大きすぎるため安全に読み込めません。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>Could not import styles from &quot;%1&quot;. The file is not a supported Photoshop ASL file or is damaged.</source>
+        <translation>「%1」からスタイルを読み込めませんでした。サポートされていない Photoshop ASL ファイルか、破損しています。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>Imported Styles</source>
+        <translation>読み込んだスタイル</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>Style %1</source>
+        <translation>スタイル %1</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>Style &quot;%1&quot; used an id already assigned to a different style; it was imported with a new id.</source>
+        <translation>スタイル「%1」の ID は別のスタイルに割り当て済みだったため、新しい ID で読み込みました。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>Could not save style &quot;%1&quot;.</source>
+        <translation>スタイル「%1」を保存できませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>No styles could be imported from &quot;%1&quot;.</source>
+        <translation>「%1」から読み込めるスタイルがありませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>There are no styles to export.</source>
+        <translation>書き出すスタイルがありません。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
+        <source>Could not write &quot;%1&quot;.</source>
+        <translation>「%1」に書き込めませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/style_library.cpp"/>
         <source>%1 Copy</source>
         <translation>%1 のコピー</translation>
     </message>
