@@ -1,0 +1,26 @@
+# Gradients and Photoshop GRD presets
+
+Patchy uses `GradientDefinition` for reusable gradient content and `LayerStyleGradient` for placement. A definition contains the name, Solid or Noise form, Photoshop smoothness (`Intr`, 0-4096), independent color and opacity stops, destination-stop midpoints, and dynamic foreground/background roles. Noise definitions keep the Photoshop seed, roughness, transparency and color-restriction switches, RGB/HSB/Lab model, and four minimum/maximum channel ranges.
+
+Layer-style placement adds Linear, Radial, Angle, Reflected, and Diamond geometry, angle, scale, reverse, dither, interpolation method, Align with Layer, and X/Y percentage offsets. Preset selection replaces only the definition. It must not overwrite any placement field. Dynamic foreground/background stops stay live in the Gradient tool; layer-style preset selection resolves them from the current Patchy colors before the style is stored in the document.
+
+## Rendering
+
+- Classic applies the stored smoothness as cubic interpolation after destination-stop midpoint remapping.
+- Perceptual interpolates in OKLab.
+- Linear interpolates in linear-light RGB.
+- Noise and dither use fixed integer hashing. Do not replace this with a standard-library random distribution because output must remain identical across toolchains.
+
+`gradient_position` is the shared five-style geometry function. `gradient_color`, `gradient_stop_opacity`, and `gradient_color_dithered` are shared by layer effects and preset thumbnails.
+
+## GRD files
+
+`src/psd/grd_io.*` reads and writes Photoshop `8BGR` version 5 files containing a version-16 `GrdL` descriptor. It supports solid `CstS`, noise `ClNs`, dynamic `FrgC`/`BckC` stops, ZString display names, and the trailing `8BIMphry` hierarchy. Imports are limited to 32 MiB, 4096 gradients, and 256 stops per list. A damaged tail may return the valid decoded prefix with warnings; structural damage before the first usable gradient is an error.
+
+The application library lives under the settings directory's `gradients/` folder. Each entry is one single-gradient `.grd` plus a JSON sidecar with its fixed storage id, canonical name, and folder path. Default ids and English names in `src/core/gradient_presets.cpp` are persisted and append-only. New defaults need a new `introduced_version` and a `kDefaultGradientsVersion` bump; never rename or reuse an existing id.
+
+The quick picker and Gradient Manager read the same `GradientLibrary`. Manager writes are immediate. Restore repairs changed or deleted built-ins without deleting user gradients. Import deduplicates identical name/payload pairs but permits equal names with different definitions. Folder and subtree export includes matching `phry` markers.
+
+## PSD layer effects
+
+Gradient Overlay `GrFl` and gradient Stroke `FrFX` share the definition codec but have different required descriptor shapes. Untouched imported `lfx2`/`lmfx` remains byte-preserved. Once edited, writers must retain Photoshop's key order and types documented in `docs/ps-compat.md`, including `Grad`, `Angl`, `Type`, `Rvrs`, `Dthr`, interpolation, `Algn`, `Scl`, and `Ofst`.

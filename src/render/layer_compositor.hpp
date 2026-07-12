@@ -1247,7 +1247,8 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
       }
       const auto position = gradient_position(fill.gradient, bounds, x, y);
       const auto alpha = source_alpha * fill.opacity * layer.opacity() * gradient_stop_opacity(fill.gradient, position);
-      destination.composite_color(x, y, gradient_color(fill.gradient, position), alpha, fill.blend_mode);
+      destination.composite_color(x, y, gradient_color_dithered(fill.gradient, position, x, y), alpha,
+                                  fill.blend_mode);
     }
   }
 }
@@ -1826,7 +1827,7 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
       auto alpha = mask_alpha * stroke.opacity * layer.opacity();
       if (stroke.uses_gradient) {
         const auto position = gradient_position(stroke.gradient, effect_bounds, x, y);
-        color = gradient_color(stroke.gradient, position);
+        color = gradient_color_dithered(stroke.gradient, position, x, y);
         alpha *= gradient_stop_opacity(stroke.gradient, position);
       }
       destination.composite_color(x, y, color, alpha, stroke.blend_mode);

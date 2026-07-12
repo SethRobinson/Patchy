@@ -67,8 +67,9 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
       return std::max<std::uint8_t>(
           dst, static_cast<std::uint8_t>(std::clamp(2 * (static_cast<int>(src) - 128), 0, 255)));
     case BlendMode::Exclusion:
-      // Round the s*d/255 product BEFORE doubling (Photoshop/Aseprite's un8 multiply);
-      // rounding the doubled product instead is off by one on half the inputs.
+    // Round the s*d/255 product BEFORE doubling (Photoshop/Aseprite's un8
+    // multiply); rounding the doubled product instead is off by one on half the
+    // inputs.
       return static_cast<std::uint8_t>(
           static_cast<int>(src) + static_cast<int>(dst) -
           2 * ((static_cast<int>(src) * static_cast<int>(dst) + 127) / 255));
@@ -89,9 +90,9 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
   return src;
 }
 
-// PDF-spec non-separable blend components (the algorithm Photoshop and Aseprite share):
-// luma-weighted set_lum with clipping and min/mid/max-based set_sat. Double math with a
-// final lround keeps the output toolchain-deterministic.
+// PDF-spec non-separable blend components (the algorithm Photoshop and Aseprite
+// share): luma-weighted set_lum with clipping and min/mid/max-based set_sat.
+// Double math with a final lround keeps the output toolchain-deterministic.
 struct RgbDouble {
   double r{0.0};
   double g{0.0};
@@ -149,25 +150,122 @@ RgbDouble pdf_set_sat(RgbDouble c, double s) {
   return c;
 }
 
-float linear_gradient_position(Rect bounds, std::int32_t x, std::int32_t y, float angle_degrees) {
-  const auto radians = angle_degrees * kPi / 180.0F;
-  const auto dx = std::cos(radians);
-  const auto dy = -std::sin(radians);
-  const std::array<std::pair<float, float>, 4> corners = {
-      std::pair<float, float>{static_cast<float>(bounds.x), static_cast<float>(bounds.y)},
-      std::pair<float, float>{static_cast<float>(bounds.x + bounds.width), static_cast<float>(bounds.y)},
-      std::pair<float, float>{static_cast<float>(bounds.x), static_cast<float>(bounds.y + bounds.height)},
-      std::pair<float, float>{static_cast<float>(bounds.x + bounds.width),
-                              static_cast<float>(bounds.y + bounds.height)}};
-  auto minimum = corners.front().first * dx + corners.front().second * dy;
-  auto maximum = minimum;
-  for (const auto& corner : corners) {
-    const auto projection = corner.first * dx + corner.second * dy;
-    minimum = std::min(minimum, projection);
-    maximum = std::max(maximum, projection);
+float midpoint_remap(float value, float midpoint) {
+  value = std::clamp(value, 0.0F, 1.0F);
+  if (midpoint == 0.5F) {
+    return value;
   }
-  const auto projection = (static_cast<float>(x) + 0.5F) * dx + (static_cast<float>(y) + 0.5F) * dy;
-  return (projection - minimum) / std::max(0.0001F, maximum - minimum);
+  midpoint = std::clamp(midpoint, 0.0001F, 0.9999F);
+  return value <= midpoint
+             ? 0.5F * value / midpoint
+             : 0.5F + 0.5F * (value - midpoint) / (1.0F - midpoint);
+}
+
+double srgb_to_linear(double value) {
+  value = std::clamp(value, 0.0, 1.0);
+  return value <= 0.04045 ? value / 12.92
+                          : std::pow((value + 0.055) / 1.055, 2.4);
+}
+
+double linear_to_srgb(double value) {
+  value = std::clamp(value, 0.0, 1.0);
+  return value <= 0.0031308 ? value * 12.92
+                            : 1.055 * std::pow(value, 1.0 / 2.4) - 0.055;
+}
+
+struct Oklab {
+  double l{};
+  double a{};
+  double b{};
+};
+
+Oklab rgb_to_oklab(RgbColor color) {
+  const auto r = srgb_to_linear(color.red / 255.0);
+  const auto g = srgb_to_linear(color.green / 255.0);
+  const auto b = srgb_to_linear(color.blue / 255.0);
+  const auto l =
+      std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const auto m =
+      std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const auto s =
+      std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return Oklab{0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+               1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+               0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s};
+}
+
+RgbColor oklab_to_rgb(Oklab color) {
+  const auto l_ = color.l + 0.3963377774 * color.a + 0.2158037573 * color.b;
+  const auto m_ = color.l - 0.1055613458 * color.a - 0.0638541728 * color.b;
+  const auto s_ = color.l - 0.0894841775 * color.a - 1.2914855480 * color.b;
+  const auto l = l_ * l_ * l_;
+  const auto m = m_ * m_ * m_;
+  const auto s = s_ * s_ * s_;
+  const auto r = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+  const auto g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+  const auto b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+  return RgbColor{clamp_byte(static_cast<float>(linear_to_srgb(r) * 255.0)),
+                  clamp_byte(static_cast<float>(linear_to_srgb(g) * 255.0)),
+                  clamp_byte(static_cast<float>(linear_to_srgb(b) * 255.0))};
+}
+
+double catmull_rom(double p0, double p1, double p2, double p3, double t) {
+  const auto t2 = t * t;
+  const auto t3 = t2 * t;
+  return 0.5 * ((2.0 * p1) + (-p0 + p2) * t +
+                (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
+                (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3);
+}
+
+std::uint64_t splitmix64(std::uint64_t value) {
+  value += 0x9e3779b97f4a7c15ULL;
+  value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+  value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
+  return value ^ (value >> 31U);
+}
+
+double unit_hash(std::uint64_t value) {
+  return static_cast<double>(splitmix64(value) >> 11U) *
+         (1.0 / 9007199254740992.0);
+}
+
+double smooth_noise(std::uint32_t seed, int channel, double coordinate,
+                    double roughness) {
+  const auto cell = static_cast<std::int64_t>(std::floor(coordinate));
+  const auto fraction = coordinate - static_cast<double>(cell);
+  const auto smooth = fraction * fraction * (3.0 - 2.0 * fraction);
+  const auto sample = [&](std::int64_t index) {
+    return unit_hash(
+        static_cast<std::uint64_t>(index) ^
+        (static_cast<std::uint64_t>(seed) << 1U) ^
+        (static_cast<std::uint64_t>(channel + 1) * 0xd6e8feb86659fd93ULL));
+  };
+  const auto base = sample(cell) + (sample(cell + 1) - sample(cell)) * smooth;
+  // High roughness retains more local variation; low roughness trends toward a
+  // broad neutral ramp without introducing platform RNG differences.
+  return 0.5 + (base - 0.5) * std::clamp(roughness, 0.0, 1.0);
+}
+
+double gradient_noise_channel(const GradientNoiseSettings &noise, int channel,
+                              double position) {
+  const auto roughness = static_cast<double>(noise.roughness) / 4096.0;
+  double total = 0.0;
+  double weight = 0.0;
+  auto amplitude = 1.0;
+  auto frequency = 4.0 + roughness * 60.0;
+  for (int octave = 0; octave < 4; ++octave) {
+    total += smooth_noise(noise.seed + static_cast<std::uint32_t>(octave * 977),
+                          channel, position * frequency, roughness) *
+             amplitude;
+    weight += amplitude;
+    amplitude *= 0.5;
+    frequency *= 2.0;
+  }
+  const auto value = total / std::max(0.0001, weight);
+  const auto index = static_cast<std::size_t>(std::clamp(channel, 0, 3));
+  const auto minimum = noise.minimum[index] / 100.0;
+  const auto maximum = noise.maximum[index] / 100.0;
+  return std::clamp(minimum + (maximum - minimum) * value, 0.0, 1.0);
 }
 
 }  // namespace
@@ -279,9 +377,10 @@ std::uint8_t blend_if_underlying_alpha_byte(const LayerBlendIf& settings, RgbCol
 
 std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> source,
                                       std::array<std::uint8_t, 3> destination, BlendMode mode) {
-  // The four non-separable modes use the PDF-spec luma-based algorithm shared by Photoshop
-  // and Aseprite (July 2026: this replaced an HSL-lightness approximation for
-  // Saturation/Luminosity; the compositor blend table was re-pinned deliberately).
+  // The four non-separable modes use the PDF-spec luma-based algorithm shared
+  // by Photoshop and Aseprite (July 2026: this replaced an HSL-lightness
+  // approximation for Saturation/Luminosity; the compositor blend table was
+  // re-pinned deliberately).
   if (mode == BlendMode::Saturation || mode == BlendMode::Luminosity || mode == BlendMode::Hue ||
       mode == BlendMode::Color) {
     const RgbDouble src{source[0] / 255.0, source[1] / 255.0, source[2] / 255.0};
@@ -335,6 +434,12 @@ std::array<std::uint8_t, 3> composite_blended_rgb(std::array<std::uint8_t, 3> so
 }
 
 float gradient_stop_opacity(const LayerStyleGradient& gradient, float position) {
+  if (gradient.form == GradientDefinitionForm::Noise) {
+    return gradient.noise.add_transparency
+               ? static_cast<float>(
+                     gradient_noise_channel(gradient.noise, 3, position))
+               : 1.0F;
+  }
   if (gradient.alpha_stops.empty()) {
     return 1.0F;
   }
@@ -354,10 +459,7 @@ float gradient_stop_opacity(const LayerStyleGradient& gradient, float position) 
       // Keep the historical default path instruction-for-instruction identical.
       // Non-default Photoshop midpoints remap the segment around its 50% value.
       if (right.midpoint != 0.5F) {
-        t = std::clamp(t, 0.0F, 1.0F);
-        const auto midpoint = std::clamp(right.midpoint, 0.0001F, 0.9999F);
-        t = t <= midpoint ? 0.5F * t / midpoint
-                          : 0.5F + 0.5F * (t - midpoint) / (1.0F - midpoint);
+        t = midpoint_remap(t,right. midpoint);
       }
       return left.opacity + (right.opacity - left.opacity) * t;
     }
@@ -366,6 +468,55 @@ float gradient_stop_opacity(const LayerStyleGradient& gradient, float position) 
 }
 
 RgbColor gradient_color(const LayerStyleGradient& gradient, float position) {
+  if (gradient.form == GradientDefinitionForm::Noise) {
+    auto noise_channel = [&](int channel) {
+      return gradient_noise_channel(gradient.noise, channel, position);
+    };
+    if (gradient.noise.color_model == GradientNoiseColorModel::HSB) {
+      const auto h = noise_channel(0);
+      const auto s = noise_channel(1);
+      const auto v = noise_channel(2);
+      const auto sector = h * 6.0;
+      const auto index = static_cast<int>(std::floor(sector)) % 6;
+      const auto fraction = sector - std::floor(sector);
+      const auto p = v * (1.0 - s);
+      const auto q = v * (1.0 - fraction * s);
+      const auto t = v * (1.0 - (1.0 - fraction) * s);
+      std::array<double, 3> rgb{};
+      switch (index) {
+      case 0:
+        rgb = {v, t, p};
+        break;
+      case 1:
+        rgb = {q, v, p};
+        break;
+      case 2:
+        rgb = {p, v, t};
+        break;
+      case 3:
+        rgb = {p, q, v};
+        break;
+      case 4:
+        rgb = {t, p, v};
+        break;
+      default:
+        rgb = {v, p, q};
+        break;
+      }
+      return RgbColor{clamp_byte(static_cast<float>(rgb[0] * 255.0)),
+                      clamp_byte(static_cast<float>(rgb[1] * 255.0)),
+                      clamp_byte(static_cast<float>(rgb[2] * 255.0))};
+    }
+    // RGB is native. Lab noise is kept editable and deterministic; render its
+    // bounded channels through an OKLab-shaped approximation.
+    if (gradient.noise.color_model == GradientNoiseColorModel::Lab) {
+      return oklab_to_rgb(Oklab{noise_channel(0), noise_channel(1) - 0.5,
+                                noise_channel(2) - 0.5});
+    }
+    return RgbColor{clamp_byte(static_cast<float>(noise_channel(0) * 255.0)),
+                    clamp_byte(static_cast<float>(noise_channel(1) * 255.0)),
+                    clamp_byte(static_cast<float>(noise_channel(2) * 255.0))};
+  }
   if (gradient.color_stops.empty()) {
     const auto value = clamp_byte(position * 255.0F);
     return RgbColor{value, value, value};
@@ -384,50 +535,113 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position) {
       const auto span = std::max(0.0001F, right.location - left.location);
       auto t = (position - left.location) / span;
       if (right.midpoint != 0.5F) {
-        t = std::clamp(t, 0.0F, 1.0F);
-        const auto midpoint = std::clamp(right.midpoint, 0.0001F, 0.9999F);
-        t = t <= midpoint ? 0.5F * t / midpoint
-                          : 0.5F + 0.5F * (t - midpoint) / (1.0F - midpoint);
+        t = midpoint_remap(t, right. midpoint);
       }
-      return RgbColor{clamp_byte(static_cast<float>(left.color.red) +
-                                 (static_cast<float>(right.color.red) - static_cast<float>(left.color.red)) * t),
-                      clamp_byte(static_cast<float>(left.color.green) +
-                                 (static_cast<float>(right.color.green) - static_cast<float>(left.color.green)) * t),
-                      clamp_byte(static_cast<float>(left.color.blue) +
-                                 (static_cast<float>(right.color.blue) - static_cast<float>(left.color.blue)) * t)};
+      if (gradient.interpolation == GradientInterpolationMethod::Perceptual) {
+        const auto a = rgb_to_oklab(left.color);
+        const auto b = rgb_to_oklab(right.color);
+        return oklab_to_rgb(Oklab{a.l + (b.l - a.l) *
+        t, a.a + (b.a - a.a) * t,
+                                  a.b + (b.b - a.b) * t});
+      }
+      if (gradient.interpolation == GradientInterpolationMethod::Linear) {
+        auto channel = [t](std::uint8_t a, std::uint8_t b) {
+          const auto value =
+              srgb_to_linear(a / 255.0) +
+              (srgb_to_linear(b / 255.0) - srgb_to_linear(a / 255.0)) * t;
+          return clamp_byte(static_cast<float>(linear_to_srgb(value) * 255.0));
+        };
+        return RgbColor{channel(left.color.red, right.color.red),
+                        channel(left.color.green, right.color.green),
+                        channel(left.color.blue, right.color.blue)};
+      }
+      const auto linear_channel = [t](double a, double b) {
+        return a + (b - a) * t;
+      };
+      const auto previous = index > 1 ? stops[index - 2U].color : left.color;
+      const auto next =
+          index + 1U < stops.size() ? stops[index + 1U].color : right.color;
+      const auto smoothness =
+          stops.size() > 2U ? static_cast<double>(gradient.smoothness) / 4096.0
+                            : 0.0;
+      auto channel = [&](std::uint8_t p0, std::uint8_t p1, std::uint8_t p2,
+                         std::uint8_t p3) {
+        const auto linear = linear_channel(p1, p2);
+        const auto cubic = catmull_rom(p0, p1, p2, p3, t);
+        return clamp_byte(
+            static_cast<float>(linear + (cubic - linear) * smoothness));
+      };
+      return RgbColor{
+          channel(previous.red,left.color.red,right.color.red, next.red),
+          channel(previous.green,left.color.green, right.color.green,
+                  next.green),
+          channel(previous.blue,left.color.blue,right.color.blue, next.blue)};
     }
   }
   return stops.back().color;
 }
 
-float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::int32_t x, std::int32_t y) {
-  const auto center_x = static_cast<float>(bounds.x) + static_cast<float>(bounds.width) * 0.5F;
-  const auto center_y = static_cast<float>(bounds.y) + static_cast<float>(bounds.height) * 0.5F;
+RgbColor gradient_color_dithered(const LayerStyleGradient& gradient,
+                                 float position, std::int32_t x,
+                                 std::int32_t y) {
+  auto color = gradient_color(gradient, position);
+  if (!gradient.dither) {
+    return color;
+  }
+  const auto hash = splitmix64(
+      static_cast<std::uint64_t>(static_cast<std::uint32_t>(x)) |
+      (static_cast<std::uint64_t>(static_cast<std::uint32_t>(y)) << 32U));
+  const auto delta = static_cast<int>((hash >> 61U) & 3U) - 1;
+  const auto adjust = [delta](std::uint8_t value) {
+    return static_cast<std::uint8_t>(
+        std::clamp(static_cast<int>(value) + delta, 0, 255));
+  };
+  color.red = adjust(color.red);
+  color.green = adjust(color.green);
+  color.blue = adjust(color.blue);
+  return color;
+}
+
+float gradient_position(const LayerStyleGradient &gradient, Rect bounds, std::int32_t x, std::int32_t y) {
+  const auto center_x = static_cast<float>(bounds.x) + static_cast<float>(bounds.width) *
+                            ( 0.5F + gradient.offset_x_percent / 100.0F);
+  const auto center_y = static_cast<float>(bounds.y) + static_cast<float>(bounds.height) *
+                            ( 0.5F + gradient.offset_y_percent / 100.0F);
   const auto px = static_cast<float>(x) + 0.5F;
   const auto py = static_cast<float>(y) + 0.5F;
+  const auto radians = gradient.angle_degrees * kPi / 180.0F;
+  const auto local_x =
+      (px - center_x) * std::cos(radians) - (py - center_y) * std::sin(radians);
+  const auto local_y =
+      (px - center_x) * std::sin(radians) + (py - center_y) * std::cos(radians);
   float position = 0.0F;
   switch (gradient.type) {
     case LayerStyleGradientType::Radial: {
-      const auto dx = (px - center_x) / std::max(1.0F, static_cast<float>(bounds.width) * 0.5F);
-      const auto dy = (py - center_y) / std::max(1.0F, static_cast<float>(bounds.height) * 0.5F);
+      const auto dx =
+        local_x / std::max(1.0F, static_cast<float>(bounds.width) * 0.5F);
+      const auto dy =
+        local_y / std::max(1.0F, static_cast<float>(bounds.height) * 0.5F);
       position = std::sqrt(dx * dx + dy * dy);
       break;
     }
     case LayerStyleGradientType::Angle: {
-      position = (std::atan2(py - center_y, px - center_x) + kPi) / (2.0F * kPi);
+      position = (std::atan2(local_y, local_x) + kPi) / (2.0F * kPi);
       break;
     }
     case LayerStyleGradientType::Reflected:
-      position = std::abs(linear_gradient_position(bounds, x, y, gradient.angle_degrees) * 2.0F - 1.0F);
+      position = std::abs(
+        0.5F + local_x / std::max(1.0F, static_cast<float>(bounds.width)));
+    position = std::abs(position * 2.0F - 1.0F);
       break;
     case LayerStyleGradientType::Diamond: {
-      const auto dx = std::abs(px - center_x) / std::max(1.0F, static_cast<float>(bounds.width) * 0.5F);
-      const auto dy = std::abs(py - center_y) / std::max(1.0F, static_cast<float>(bounds.height) * 0.5F);
+      const auto dx = std::abs(local_x) / std::max(1.0F, static_cast<float>(bounds.width) * 0.5F);
+      const auto dy = std::abs(local_y) / std::max(1.0F, static_cast<float>(bounds.height) * 0.5F);
       position = std::max(dx, dy);
       break;
     }
     case LayerStyleGradientType::Linear:
-      position = linear_gradient_position(bounds, x, y, gradient.angle_degrees);
+      position =
+        0.5F + local_x / std::max(1.0F, static_cast<float>(bounds.width));
       break;
   }
   const auto scale = std::max(0.01F, gradient.scale);

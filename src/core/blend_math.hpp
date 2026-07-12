@@ -28,6 +28,9 @@ namespace patchy {
                                                                 float destination_alpha);
 [[nodiscard]] float gradient_stop_opacity(const LayerStyleGradient& gradient, float position);
 [[nodiscard]] RgbColor gradient_color(const LayerStyleGradient& gradient, float position);
+[[nodiscard]] RgbColor
+gradient_color_dithered(const LayerStyleGradient &gradient, float position,
+                        std::int32_t x, std::int32_t y);
 [[nodiscard]] float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::int32_t x, std::int32_t y);
 
 }  // namespace patchy

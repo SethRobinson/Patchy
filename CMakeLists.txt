@@ -45,6 +45,7 @@ function(patchy_configure_target target)
 endfunction()
 
 add_library(patchy_core
+  src/core/gradient_presets.cpp
   src/core/adjustment_layer.cpp
   src/core/blend_math.cpp
   src/core/brush_dynamics.cpp
@@ -127,6 +128,7 @@ add_library(patchy_psd
   src/formats/acv_curves_io.cpp
   src/psd/abr_reader.cpp
   src/psd/asl_io.cpp
+  src/psd/grd_io.cpp
   src/psd/pat_reader.cpp
   src/psd/psd_binary.cpp
   src/psd/psd_descriptor.cpp
@@ -375,6 +377,8 @@ if(PATCHY_BUILD_APP)
       src/ui/action_icons.cpp
       src/ui/app_settings.hpp
       src/ui/app_settings.cpp
+      src/ui/gradient_library.cpp
+      src/ui/gradient_manager_dialog.cpp
       src/ui/blend_mode_ui.cpp
       src/ui/brush_dynamics_popup.hpp
       src/ui/brush_dynamics_popup.cpp

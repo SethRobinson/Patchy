@@ -4,6 +4,7 @@
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
+#include "core/gradient_presets.hpp"
 #include "filters/filter_registry.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -19,6 +20,7 @@
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "plugins/plugin_host.hpp"
 #include "psd/abr_reader.hpp"
+#include "psd/grd_io.hpp"
 #include "psd/asl_io.hpp"
 #include "psd/pat_reader.hpp"
 #include "psd/psd_binary.hpp"
@@ -3257,6 +3259,152 @@ void gradient_midpoints_remap_color_and_alpha_segments() {
   CHECK(std::abs(patchy::gradient_stop_opacity(shifted, 0.875F) - 0.75F) < 1.0e-6F);
   CHECK(patchy::gradient_color(shifted, 0.0F).red == 0U);
   CHECK(patchy::gradient_color(shifted, 1.0F).red == 255U);
+}
+
+void gradient_presets_have_stable_ids_and_recipes() {
+  const auto presets = patchy::builtin_gradient_presets();
+  CHECK(presets.size() == 20U);
+  std::unordered_set<std::string> ids;
+  for (std::size_t index = 0; index < presets.size(); ++index) {
+    const auto& preset = presets[index];
+    CHECK(ids.insert(preset.id).second);
+    CHECK(preset.introduced_version == 1);
+    CHECK(preset.definition.smoothness == 4096U);
+    CHECK(preset.definition.color_stops.size() >= 2U);
+    CHECK(preset.definition.alpha_stops.size() >= 2U);
+    CHECK(std::string(preset.id).ends_with(std::to_string(200000000001ULL + index)));
+  }
+  CHECK(presets.front().definition.color_stops.front().kind == patchy::GradientColorStop::Kind::Foreground);
+  CHECK(presets.front().definition.color_stops.back().kind == patchy::GradientColorStop::Kind::Background);
+  CHECK(std::string(presets[5].english_folder) == "Photo Toning");
+  CHECK(std::string(presets[10].english_folder) == "Light & Atmosphere");
+  CHECK(std::string(presets[15].english_folder) == "Illustration");
+  CHECK(presets[18].definition.color_stops[1].location == 0.49F);
+  CHECK(presets[18].definition.color_stops[2].location == 0.50F);
+}
+
+void grd_v5_round_trips_solid_dynamic_noise_and_hierarchy() {
+  std::vector<patchy::psd::GrdGradient> source;
+  source.push_back({"Dynamic", "Essentials/Live", patchy::builtin_gradient_presets().front().definition});
+  patchy::GradientDefinition noise;
+  noise.name = "Noise";
+  noise.form = patchy::GradientDefinitionForm::Noise;
+  noise.noise.seed = 0x12345678U;
+  noise.noise.roughness = 1377U;
+  noise.noise.add_transparency = true;
+  noise.noise.restrict_colors = false;
+  noise.noise.color_model = patchy::GradientNoiseColorModel::Lab;
+  noise.noise.minimum = {3, 7, 11, 13};
+  noise.noise.maximum = {91, 87, 83, 79};
+  source.push_back({"Noise", "Photo Toning", noise});
+  auto solid = patchy::builtin_gradient_presets()[18].definition;
+  solid.smoothness = 2048U;
+  source.push_back({"Hard", "Illustration", solid});
+
+  const auto bytes = patchy::psd::write_grd(source);
+  CHECK(bytes.size() > 64U);
+  CHECK(bytes == patchy::psd::write_grd(source));
+  CHECK(std::search(bytes.begin(), bytes.end(), std::begin("8BIMphry"), std::end("8BIMphry") - 1) != bytes.end());
+  std::string error;
+  const auto decoded = patchy::psd::read_grd(bytes, error);
+  CHECK(decoded.has_value());
+  CHECK(error.empty());
+  CHECK(decoded->warnings.empty());
+  CHECK(decoded->gradients.size() == source.size());
+  CHECK(decoded->gradients[0].folder == "Essentials/Live");
+  CHECK(decoded->gradients[1].folder == "Photo Toning");
+  CHECK(decoded->gradients[2].folder == "Illustration");
+  CHECK(decoded->gradients[0].definition.color_stops.front().kind == patchy::GradientColorStop::Kind::Foreground);
+  CHECK(decoded->gradients[0].definition.color_stops.back().kind == patchy::GradientColorStop::Kind::Background);
+  CHECK(decoded->gradients[1].definition.form == patchy::GradientDefinitionForm::Noise);
+  CHECK(decoded->gradients[1].definition.noise.seed == noise.noise.seed);
+  CHECK(decoded->gradients[1].definition.noise.roughness == noise.noise.roughness);
+  CHECK(decoded->gradients[1].definition.noise.color_model == patchy::GradientNoiseColorModel::Lab);
+  CHECK(decoded->gradients[1].definition.noise.minimum == noise.noise.minimum);
+  CHECK(decoded->gradients[2].definition.smoothness == 2048U);
+
+  auto truncated = bytes;
+  truncated.resize(bytes.size() - 24U);
+  const auto recovered = patchy::psd::read_grd(truncated, error);
+  CHECK(recovered.has_value());
+  CHECK(recovered->gradients.size() == source.size());
+}
+
+void gradient_methods_noise_dither_and_geometry_are_deterministic() {
+  const auto same_color = [](patchy::RgbColor lhs, patchy::RgbColor rhs) {
+    return lhs.red == rhs.red && lhs.green == rhs.green && lhs.blue == rhs.blue;
+  };
+  patchy::LayerStyleGradient gradient;
+  gradient.color_stops = {{0.0F, patchy::RgbColor{255, 0, 0}}, {0.45F, patchy::RgbColor{0, 255, 0}},
+                          {1.0F, patchy::RgbColor{0, 0, 255}}};
+  gradient.alpha_stops = {{0.0F, 1.0F}, {1.0F, 1.0F}};
+  gradient.interpolation = patchy::GradientInterpolationMethod::Classic;
+  const auto classic = patchy::gradient_color(gradient, 0.25F);
+  gradient.interpolation = patchy::GradientInterpolationMethod::Perceptual;
+  const auto perceptual = patchy::gradient_color(gradient, 0.25F);
+  gradient.interpolation = patchy::GradientInterpolationMethod::Linear;
+  const auto linear = patchy::gradient_color(gradient, 0.25F);
+  CHECK(!same_color(classic, perceptual));
+  CHECK(!same_color(perceptual, linear));
+  CHECK(!same_color(classic, linear));
+
+  gradient.form = patchy::GradientDefinitionForm::Noise;
+  gradient.noise.seed = 991827U;
+  gradient.noise.roughness = 3171U;
+  gradient.noise.add_transparency = true;
+  gradient.noise.color_model = patchy::GradientNoiseColorModel::HSB;
+  const auto noise_color = patchy::gradient_color(gradient, 0.371F);
+  CHECK(same_color(noise_color, patchy::gradient_color(gradient, 0.371F)));
+  CHECK(std::abs(patchy::gradient_stop_opacity(gradient, 0.371F) -
+                 patchy::gradient_stop_opacity(gradient, 0.371F)) < 1.0e-7F);
+  gradient.dither = true;
+  CHECK(same_color(patchy::gradient_color_dithered(gradient, 0.371F, 17, 29),
+                   patchy::gradient_color_dithered(gradient, 0.371F, 17, 29)));
+
+  const patchy::Rect bounds{10, 20, 100, 80};
+  for (const auto type : {patchy::LayerStyleGradientType::Linear, patchy::LayerStyleGradientType::Radial,
+                          patchy::LayerStyleGradientType::Angle, patchy::LayerStyleGradientType::Reflected,
+                          patchy::LayerStyleGradientType::Diamond}) {
+    gradient.type = type;
+    gradient.angle_degrees = 37.0F;
+    gradient.scale = 0.73F;
+    gradient.offset_x_percent = 18.0F;
+    gradient.offset_y_percent = -11.0F;
+    const auto position = patchy::gradient_position(gradient, bounds, 73, 49);
+    CHECK(std::isfinite(position));
+    CHECK(position >= 0.0F);
+    CHECK(position <= 1.0F);
+  }
+}
+
+void psd_bevel_examine_classic_gradient_matches_photoshop_if_available() {
+  const auto psd_path = patchy::test::local_psd_fixture_path("bevel_examine.psd");
+  const auto bmp_path = patchy::test::local_psd_fixture_path("bevel_examine_photoshop.bmp");
+  if (!std::filesystem::exists(psd_path)) return;
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const patchy::LayerStyleGradient* imported_gradient = nullptr;
+  std::function<void(const std::vector<patchy::Layer>&)> find_gradient = [&](const auto& layers) {
+    for (const auto& layer : layers) {
+      if (!layer.layer_style().gradient_fills.empty() && imported_gradient == nullptr)
+        imported_gradient = &layer.layer_style().gradient_fills.front().gradient;
+      find_gradient(layer.children());
+    }
+  };
+  find_gradient(document.layers());
+  CHECK(imported_gradient != nullptr);
+  CHECK(imported_gradient->smoothness == 4096U);
+  CHECK(imported_gradient->interpolation == patchy::GradientInterpolationMethod::Classic);
+  CHECK(std::abs(imported_gradient->angle_degrees - 90.0F) < 0.01F);
+  CHECK(imported_gradient->type == patchy::LayerStyleGradientType::Linear);
+
+  if (!std::filesystem::exists(bmp_path)) return;
+  const auto reference_document = patchy::bmp::DocumentIo::read_file(bmp_path);
+  const auto reference = patchy::Compositor{}.flatten_rgb8(reference_document);
+  const auto actual = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference, actual);
+  std::cout << "  bevel_examine PS diff: max " << metrics.max_channel_delta
+            << ", mean " << metrics.mean_abs_channel_delta << '\n';
+  CHECK(metrics.mean_abs_channel_delta <= 2.0);
 }
 
 void compositor_renders_photoshop_style_satin() {
@@ -18276,6 +18424,13 @@ int main() {
       {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
       {"gradient_midpoints_remap_color_and_alpha_segments",
        gradient_midpoints_remap_color_and_alpha_segments},
+      {"gradient_presets_have_stable_ids_and_recipes", gradient_presets_have_stable_ids_and_recipes},
+      {"grd_v5_round_trips_solid_dynamic_noise_and_hierarchy",
+       grd_v5_round_trips_solid_dynamic_noise_and_hierarchy},
+      {"gradient_methods_noise_dither_and_geometry_are_deterministic",
+       gradient_methods_noise_dither_and_geometry_are_deterministic},
+      {"psd_bevel_examine_classic_gradient_matches_photoshop_if_available",
+       psd_bevel_examine_classic_gradient_matches_photoshop_if_available},
       {"compositor_renders_photoshop_style_satin", compositor_renders_photoshop_style_satin},
       {"compositor_renders_drop_shadow_spread", compositor_renders_drop_shadow_spread},
       {"compositor_drop_shadow_full_spread_keeps_rounded_support",

@@ -11199,4 +11199,68 @@ Clipped to the layer below</source>
         <translation>%1 のコピー</translation>
     </message>
 </context>
+<context>
+    <name>patchy::ui::GradientLibrary</name>
+    <message><source>Untitled Gradient</source><translation>無題のグラデーション</translation></message>
+    <message><source>%1 Copy</source><translation>%1 のコピー</translation></message>
+    <message><source>Could not read the GRD file.</source><translation>GRD ファイルを読み込めませんでした。</translation></message>
+    <message><source>Select at least one gradient to export.</source><translation>書き出すグラデーションを1つ以上選択してください。</translation></message>
+    <message><source>Could not write the GRD file.</source><translation>GRD ファイルを書き込めませんでした。</translation></message>
+</context>
+<context>
+    <name>QObject</name>
+    <message><source>Gradient Manager</source><translation>グラデーションマネージャー</translation></message>
+    <message><source>New from Current</source><translation>現在の設定から新規作成</translation></message>
+    <message><source>Import .grd...</source><translation>.grd を読み込み...</translation></message>
+    <message><source>Restore Default Gradients</source><translation>初期グラデーションを復元</translation></message>
+    <message><source>Use Gradient</source><translation>グラデーションを使用</translation></message>
+    <message><source>New Gradient</source><translation>新規グラデーション</translation></message>
+    <message><source>Import Photoshop Gradients</source><translation>Photoshop グラデーションを読み込み</translation></message>
+    <message><source>Export Photoshop Gradients</source><translation>Photoshop グラデーションを書き出し</translation></message>
+    <message><source>Photoshop Gradients (*.grd)</source><translation>Photoshop グラデーション (*.grd)</translation></message>
+    <message><source>Import Gradients</source><translation>グラデーションを読み込み</translation></message>
+    <message><source>Export Gradients</source><translation>グラデーションを書き出し</translation></message>
+    <message><source>Imported gradients with warnings.</source><translation>警告付きでグラデーションを読み込みました。</translation></message>
+    <message><source>Manage Gradients...</source><translation>グラデーションを管理...</translation></message>
+    <message><source>Preset...</source><translation>プリセット...</translation></message>
+    <message><source>Gradient Type</source><translation>グラデーションタイプ</translation></message>
+    <message><source>Solid</source><translation>ソリッド</translation></message>
+    <message><source>Noise</source><translation>ノイズ</translation></message>
+    <message><source>Roughness</source><translation>粗さ</translation></message>
+    <message><source>Color Model</source><translation>カラーモデル</translation></message>
+    <message><source>Channel %1 Range</source><translation>チャンネル %1 の範囲</translation></message>
+    <message><source>Add Transparency</source><translation>透明部分を追加</translation></message>
+    <message><source>Restrict Colors</source><translation>カラーを制限</translation></message>
+    <message><source>Dither</source><translation>ディザ</translation></message>
+    <message><source>Align with Layer</source><translation>レイヤーに整列</translation></message>
+    <message><source>Classic</source><translation>クラシック</translation></message>
+    <message><source>Perceptual</source><translation>知覚的</translation></message>
+    <message><source>Horizontal Offset</source><translation>水平オフセット</translation></message>
+    <message><source>Vertical Offset</source><translation>垂直オフセット</translation></message>
+    <message><source>Reset Alignment</source><translation>整列をリセット</translation></message>
+    <message><source>Essentials</source><translation>基本</translation></message>
+    <message><source>Photo Toning</source><translation>写真の色調</translation></message>
+    <message><source>Light &amp; Atmosphere</source><translation>光と空気感</translation></message>
+    <message><source>Illustration</source><translation>イラスト</translation></message>
+    <message><source>Foreground to Background</source><translation>描画色から背景色へ</translation></message>
+    <message><source>Foreground to Transparent</source><translation>描画色から透明へ</translation></message>
+    <message><source>Black to White</source><translation>黒から白へ</translation></message>
+    <message><source>White to Transparent</source><translation>白から透明へ</translation></message>
+    <message><source>Neutral Shine</source><translation>ニュートラルシャイン</translation></message>
+    <message><source>Teal Shadows, Warm Highlights</source><translation>ティールシャドウ、暖色ハイライト</translation></message>
+    <message><source>Blue Shadows, Gold Highlights</source><translation>ブルーシャドウ、ゴールドハイライト</translation></message>
+    <message><source>Sepia Wash</source><translation>セピアウォッシュ</translation></message>
+    <message><source>Cyanotype</source><translation>サイアノタイプ</translation></message>
+    <message><source>Faded Film</source><translation>フェードフィルム</translation></message>
+    <message><source>Golden Hour</source><translation>ゴールデンアワー</translation></message>
+    <message><source>Sunset Sky</source><translation>夕焼け空</translation></message>
+    <message><source>Dawn Mist</source><translation>夜明けの霧</translation></message>
+    <message><source>Night Sky</source><translation>夜空</translation></message>
+    <message><source>Firelight</source><translation>炎の光</translation></message>
+    <message><source>Comic Pop</source><translation>コミックポップ</translation></message>
+    <message><source>Neon Spectrum</source><translation>ネオンスペクトラム</translation></message>
+    <message><source>Metal Shine</source><translation>メタルシャイン</translation></message>
+    <message><source>Cel Shade</source><translation>セルシェード</translation></message>
+    <message><source>Jewel Tone</source><translation>ジュエルトーン</translation></message>
+</context>
 </TS>

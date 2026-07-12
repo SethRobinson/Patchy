@@ -5,8 +5,11 @@
 #include "core/style_contour.hpp"
 #include "ui/blend_if_range_editor.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/gradient_library.hpp"
+#include "ui/gradient_manager_dialog.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
@@ -25,8 +28,8 @@
 #include <QFormLayout>
 #include <QFrame>
 #include <QGroupBox>
-#include <QHash>
 #include <QHBoxLayout>
+#include <QHash>
 #include <QIcon>
 #include <QImage>
 #include <QLabel>
@@ -41,21 +44,22 @@
 #include <QPointer>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QScreen>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSizePolicy>
-#include <QScreen>
 #include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
-#include <QStyle>
 #include <QString>
+#include <QStyle>
 #include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWidget>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -70,9 +74,10 @@ namespace patchy::ui {
 
 namespace {
 
-// Forwards a left double-click on a passive color patch to its page's Choose Color
-// button, so the swatch itself opens the picker (Photoshop behavior). Parented to the
-// watched widget; the button is tracked by QPointer in case it dies first.
+// Forwards a left double-click on a passive color patch to its page's Choose
+// Color button, so the swatch itself opens the picker (Photoshop behavior).
+// Parented to the watched widget; the button is tracked by QPointer in case it
+// dies first.
 class DoubleClickClicksButton : public QObject {
  public:
   DoubleClickClicksButton(QAbstractButton* button, QWidget* watched)
@@ -92,6 +97,68 @@ class DoubleClickClicksButton : public QObject {
 
  private:
   QPointer<QAbstractButton> button_;
+};
+
+class GradientCanvasRepositionFilter final : public QObject {
+public:
+  GradientCanvasRepositionFilter(CanvasWidget *canvas, Rect layer_bounds,
+                                 std::function<bool()> enabled,
+                                 std::function<void(float, float)> moved,
+                                 QObject *parent)
+      : QObject(parent), canvas_(canvas), layer_bounds_(layer_bounds),
+        enabled_(std::move(enabled)), moved_(std::move(moved)) {
+    canvas_->installEventFilter(this);
+  }
+
+protected:
+  bool eventFilter(QObject *watched, QEvent *event) override {
+    if (watched != canvas_)
+      return QObject::eventFilter(watched, event);
+    if (event->type() == QEvent::MouseButtonPress) {
+      const auto *mouse = static_cast<QMouseEvent *>(event);
+      if (mouse->button() != Qt::LeftButton || !enabled_())
+        return false;
+      dragging_ = true;
+      last_position_ = mouse->position();
+      canvas_->grabMouse();
+      return true;
+    }
+    if (event->type() == QEvent::MouseMove && dragging_) {
+      const auto *mouse = static_cast<QMouseEvent *>(event);
+      const auto delta = mouse->position() - last_position_;
+      last_position_ = mouse->position();
+      const auto origin = canvas_->widget_position_for_document_point(
+          QPoint(layer_bounds_.x, layer_bounds_.y));
+      const auto opposite = canvas_->widget_position_for_document_point(
+          QPoint(layer_bounds_.x + std::max(1, layer_bounds_.width),
+                 layer_bounds_.y + std::max(1, layer_bounds_.height)));
+      const auto pixels_per_document_x = std::max(
+          0.0001, std::abs(opposite.x() - origin.x()) /
+                      static_cast<double>(std::max(1, layer_bounds_.width)));
+      const auto pixels_per_document_y = std::max(
+          0.0001, std::abs(opposite.y() - origin.y()) /
+                      static_cast<double>(std::max(1, layer_bounds_.height)));
+      moved_(static_cast<float>(delta.x() / pixels_per_document_x * 100.0 /
+                                std::max(1, layer_bounds_.width)),
+             static_cast<float>(delta.y() / pixels_per_document_y * 100.0 /
+                                std::max(1, layer_bounds_.height)));
+      return true;
+    }
+    if (event->type() == QEvent::MouseButtonRelease && dragging_) {
+      dragging_ = false;
+      canvas_->releaseMouse();
+      return true;
+    }
+    return false;
+  }
+
+private:
+  CanvasWidget *canvas_{};
+  Rect layer_bounds_{};
+  std::function<bool()> enabled_;
+  std::function<void(float, float)> moved_;
+  bool dragging_{false};
+  QPointF last_position_{};
 };
 
 LayerStyleGradient default_layer_style_gradient() {
@@ -275,6 +342,94 @@ constexpr int kPatternPersistNameRole = Qt::UserRole + 1;
 constexpr int kPatternPickerIndexRole = Qt::UserRole + 2;
 constexpr int kPatternPickerIsLeafRole = Qt::UserRole + 3;
 constexpr const char *kContourCustomId = "custom";
+
+GradientDefinition resolved_gradient_definition(GradientDefinition definition,
+                                                RgbColor foreground,
+                                                RgbColor background) {
+  for (auto &stop : definition.color_stops) {
+    if (stop.kind == GradientColorStop::Kind::Foreground)
+      stop.color = foreground;
+    if (stop.kind == GradientColorStop::Kind::Background)
+      stop.color = background;
+    stop.kind = GradientColorStop::Kind::User;
+  }
+  return definition;
+}
+
+void show_gradient_preset_popup(
+    QPushButton *anchor, GradientLibrary &library,
+    std::function<void(const GradientLibraryEntry &)> use_gradient,
+    std::function<void()> manage_gradients) {
+  auto *popup = new QFrame(anchor, Qt::Popup);
+  popup->setAttribute(Qt::WA_DeleteOnClose);
+  popup->setObjectName(anchor->objectName() + QStringLiteral("Popup"));
+  popup->setFrameShape(QFrame::StyledPanel);
+  auto *layout = new QVBoxLayout(popup);
+  layout->setContentsMargins(4, 4, 4, 4);
+  layout->setSpacing(4);
+  auto *tree = new QTreeWidget(popup);
+  tree->setObjectName(anchor->objectName() + QStringLiteral("Tree"));
+  tree->setHeaderHidden(true);
+  tree->setRootIsDecorated(true);
+  tree->setIconSize(QSize(112, 28));
+  QHash<QString, QTreeWidgetItem *> folders;
+  for (const auto &entry : library.entries()) {
+    QTreeWidgetItem *parent = nullptr;
+    QString path;
+    for (const auto &part :
+         entry.folder.split(QLatin1Char('/'), Qt::SkipEmptyParts)) {
+      if (!path.isEmpty())
+        path += QLatin1Char('/');
+      path += part;
+      auto *folder = folders.value(path, nullptr);
+      if (folder == nullptr) {
+        folder = parent != nullptr
+                     ? new QTreeWidgetItem(parent,
+                                           {gradient_folder_display_name(part)})
+                     : new QTreeWidgetItem(
+                           tree, {gradient_folder_display_name(part)});
+        folder->setIcon(0, anchor->style()->standardIcon(QStyle::SP_DirIcon));
+        folders.insert(path, folder);
+      }
+      parent = folder;
+    }
+    auto *item = parent != nullptr
+                     ? new QTreeWidgetItem(
+                           parent, {gradient_library_entry_display_name(entry)})
+                     : new QTreeWidgetItem(
+                           tree, {gradient_library_entry_display_name(entry)});
+    item->setIcon(0, QIcon(entry.thumbnail));
+    item->setData(0, Qt::UserRole, entry.storage_id);
+  }
+  tree->expandAll();
+  layout->addWidget(tree, 1);
+  auto *manage = new QPushButton(QObject::tr("Manage Gradients..."), popup);
+  manage->setObjectName(anchor->objectName() + QStringLiteral("ManageButton"));
+  layout->addWidget(manage);
+  const auto select = [popup, &library, use_gradient](QTreeWidgetItem *item) {
+    const auto id = item->data(0, Qt::UserRole).toString();
+    if (id.isEmpty()) {
+      item->setExpanded(!item->isExpanded());
+      return;
+    }
+    if (const auto *entry = library.find_entry(id); entry != nullptr)
+      use_gradient(*entry);
+    popup->close();
+  };
+  QObject::connect(tree, &QTreeWidget::itemClicked, popup,
+                   [select](QTreeWidgetItem *item, int) { select(item); });
+  QObject::connect(tree, &QTreeWidget::itemActivated, popup,
+                   [select](QTreeWidgetItem *item, int) { select(item); });
+  QObject::connect(manage, &QPushButton::clicked, popup,
+                   [popup, manage_gradients] {
+                     popup->close();
+                     manage_gradients();
+                   });
+  popup->resize(std::max(anchor->width(), 380), 440);
+  popup->move(anchor->mapToGlobal(QPoint(0, anchor->height())));
+  popup->show();
+  tree->setFocus(Qt::PopupFocusReason);
+}
 
 // QComboBox does not present hierarchical models as an expandable tree on all
 // Qt styles. Keep its flat model for the selected-value display and existing
@@ -541,10 +696,31 @@ struct LayerStyleGradientControls {
   QSpinBox* stop_midpoint{nullptr};
   QPushButton* add_stop{nullptr};
   QPushButton* remove_stop{nullptr};
-  QCheckBox* reverse{nullptr};
-  QComboBox* style_combo{nullptr};
+  QComboBox *form_combo{nullptr};
+  QSpinBox *smoothness{nullptr};
+  QWidget *solid_controls{nullptr};
+  QWidget *selected_stop_controls{nullptr};
+  QWidget *midpoint_controls{nullptr};
+  QWidget *stop_button_controls{nullptr};
+  QWidget *noise_controls{nullptr};
+  QSpinBox *noise_seed{nullptr};
+  QSpinBox *noise_roughness{nullptr};
+  QCheckBox*noise_transparency{nullptr};
+  QCheckBox *noise_restrict{nullptr};
+  QComboBox *noise_color_model{nullptr};
+  std::array<QSpinBox *, 4> noise_minimum{};
+  std::array<QSpinBox *, 4> noise_maximum{};
+  QCheckBox * reverse{nullptr};
+  QCheckBox *dither{nullptr};
+  QCheckBox *align{nullptr};
+  QComboBox*interpolation{nullptr};
+  QComboBox * style_combo{nullptr};
   QSpinBox* angle{nullptr};
   QSpinBox* scale{nullptr};
+  QSpinBox *offset_x{nullptr};
+  QSpinBox *offset_y{nullptr};
+  QPushButton *reset_alignment{nullptr};
+  LayerStyleGradient template_gradient;
   std::vector<GradientColorStop> color_stops;
   std::vector<GradientAlphaStop> alpha_stops;
   int selected_color_stop{0};
@@ -555,11 +731,35 @@ struct LayerStyleGradientControls {
   std::function<void(const LayerStyleGradient&)> load;
 
   [[nodiscard]] LayerStyleGradient value() const {
-    LayerStyleGradient result;
+    LayerStyleGradient result = template_gradient;
+    result.form =
+        static_cast<GradientDefinitionForm>(form_combo->currentData().toInt());
+    result.smoothness =
+        static_cast<std::uint16_t>(smoothness->value() * 4096 / 100);
+    result.noise.seed = static_cast<std::uint32_t>(noise_seed->value());
+    result.noise.roughness =
+        static_cast<std::uint16_t>(noise_roughness->value() * 4096 / 100);
+    result.noise.add_transparency = noise_transparency->isChecked();
+    result.noise.restrict_colors = noise_restrict->isChecked();
+    result.noise.color_model = static_cast<GradientNoiseColorModel>(
+        noise_color_model->currentData().toInt());
+    for (std::size_t channel = 0; channel < result.noise.minimum.size();
+         ++channel) {
+      result.noise.minimum[channel] =
+          static_cast<std::uint16_t>(noise_minimum[channel]->value());
+      result.noise.maximum[channel] =
+          static_cast<std::uint16_t>(noise_maximum[channel]->value());
+    }
     result.type = static_cast<LayerStyleGradientType>(style_combo->currentData().toInt());
     result.reverse = reverse->isChecked();
+    result.dither = dither->isChecked();
+    result.align_with_layer = align->isChecked();
+    result.interpolation = static_cast<GradientInterpolationMethod>(
+        interpolation->currentData().toInt());
     result.angle_degrees = static_cast<float>(angle->value());
     result.scale = static_cast<float>(scale->value()) / 100.0F;
+    result.offset_x_percent = static_cast<float>(offset_x->value());
+    result.offset_y_percent = static_cast<float>(offset_y->value());
     result.color_stops = color_stops;
     if (result.color_stops.empty()) {
       result.color_stops = default_layer_style_gradient().color_stops;
@@ -610,7 +810,9 @@ void update_color_preview_label(QWidget* widget, int red, int green, int blue) {
 std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer, std::function<void(const LayerStyleSettings&)> preview_changed,
     PatternStore* document_patterns, PatternLibrary* pattern_library, StyleLibrary* style_library,
-    std::function<void(const QString& name, const PixelBuffer& tile)> open_pattern_as_image) {
+    std::function<void(const QString& name, const PixelBuffer& tile)> open_pattern_as_image,
+    GradientLibrary *gradient_library, RgbColor foreground,
+    RgbColor background) {
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)), layer.blend_mode(), layer.layer_style(),
       layer.blend_if(), false};
@@ -647,8 +849,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       pattern_overlay.pattern_name.clear();
     }
   }
-  // Imported non-preset curves survive picker round trips: each picker keeps the
-  // original custom curve and only a deliberate preset pick replaces it.
+  // Imported non-preset curves survive picker round trips: each picker keeps
+  // the original custom curve and only a deliberate preset pick replaces it.
   StyleContour custom_gloss_contour = bevel.gloss_contour;
   StyleContour custom_bevel_sub_contour = bevel.contour.contour;
   if (gradient.gradient.color_stops.empty()) {
@@ -717,11 +919,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     warning->setWordWrap(true);
     warning->setProperty("warningBanner", true);
     warning->setText(
-        QObject::tr("Pattern \"%1\" is not embedded in this document, so the effect that references it cannot "
+        QObject::tr("Pattern \"%1\" is not embedded in this document, so the "
+                    "effect that references it cannot "
                     "render until you choose another pattern.")
             .arg(names.join(QStringLiteral("\", \""))));
     warning->setStyleSheet(QStringLiteral(
-        "QLabel#layerStyleMissingPatternWarning { background: #4a3a1f; border: 1px solid #9a7430; "
+        "QLabel#layerStyleMissingPatternWarning { background: #4a3a1f; border: "
+        "1px solid #9a7430; "
         "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
@@ -731,27 +935,33 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       });
   if (has_unsupported_satin_contour) {
     auto* warning = new QLabel(
-        QObject::tr("Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer "
-                    "styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour."),
+        QObject::tr("Photoshop Satin custom contours and contour anti-aliasing "
+                    "are preserved until you edit layer "
+                    "styles. Patchy previews and saves edited Satin with the "
+                    "non-anti-aliased Linear contour."),
         &dialog);
     warning->setObjectName(QStringLiteral("layerStyleSatinContourWarning"));
     warning->setWordWrap(true);
     warning->setProperty("warningBanner", true);
     warning->setStyleSheet(QStringLiteral(
-        "QLabel#layerStyleSatinContourWarning { background: #4a3a1f; border: 1px solid #9a7430; "
+        "QLabel#layerStyleSatinContourWarning { background: #4a3a1f; border: "
+        "1px solid #9a7430; "
         "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
   if (layer.kind() == LayerKind::Group) {
     auto* warning = new QLabel(
-        QObject::tr("Layer effects on groups are preserved for PSD round-trip but are not rendered yet. Satin "
-                    "controls remain editable, but Preview cannot show the group result."),
+        QObject::tr("Layer effects on groups are preserved for PSD "
+                               "round-trip but are not rendered yet. Satin "
+                               "controls remain editable, but Preview cannot "
+                               "show the group result."),
         &dialog);
     warning->setObjectName(QStringLiteral("layerStyleGroupEffectsWarning"));
     warning->setWordWrap(true);
     warning->setProperty("warningBanner", true);
     warning->setStyleSheet(QStringLiteral(
-        "QLabel#layerStyleGroupEffectsWarning { background: #4a3a1f; border: 1px solid #9a7430; "
+        "QLabel#layerStyleGroupEffectsWarning { background: #4a3a1f; border: "
+        "1px solid #9a7430; "
         "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
@@ -765,8 +975,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     warning_layout->setContentsMargins(8, 6, 8, 6);
     warning_layout->setSpacing(8);
     blend_if_unsupported_warning = new QLabel(
-        QObject::tr("This layer contains Photoshop Blend If data for an unsupported color mode or payload shape. "
-                    "Patchy preserves it unchanged and does not preview it unless you replace it."),
+        QObject::tr("This layer contains Photoshop Blend If data for an "
+                    "unsupported color mode or payload shape. "
+                    "Patchy preserves it unchanged and does not preview it "
+                    "unless you replace it."),
         warning_row);
     blend_if_unsupported_warning->setObjectName(QStringLiteral("layerStyleBlendIfUnsupportedWarning"));
     blend_if_unsupported_warning->setWordWrap(true);
@@ -775,8 +987,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     replace_blend_if_button = new QPushButton(QObject::tr("Replace with Editable Defaults"), warning_row);
     replace_blend_if_button->setObjectName(QStringLiteral("layerStyleBlendIfReplaceButton"));
     warning_layout->addWidget(replace_blend_if_button, 0, Qt::AlignVCenter);
-    warning_row->setStyleSheet(QStringLiteral(
-        "QWidget#layerStyleBlendIfUnsupportedWarningRow { background: #4a3a1f; border: 1px solid #9a7430; "
+    warning_row->setStyleSheet(QStringLiteral("QWidget#layerStyleBlendIfUnsupportedWarningRow { "
+                       "background: #4a3a1f; border: 1px solid #9a7430; "
         "border-radius: 3px; }"));
     root->addWidget(warning_row);
   }
@@ -786,14 +998,17 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       (boundary_blend_if.status == BlendIfPayloadStatus::Unsupported ||
        !blend_if_is_identity(boundary_blend_if.settings))) {
     auto* warning = new QLabel(
-        QObject::tr("This folder's closing PSD record contains separate Blend If data. Patchy preserves that "
-                    "boundary data unchanged; the controls below edit only the visible folder record."),
+        QObject::tr("This folder's closing PSD record contains "
+                               "separate Blend If data. Patchy preserves that "
+                               "boundary data unchanged; the controls below "
+                               "edit only the visible folder record."),
         &dialog);
     warning->setObjectName(QStringLiteral("layerStyleBlendIfBoundaryWarning"));
     warning->setWordWrap(true);
     warning->setProperty("warningBanner", true);
     warning->setStyleSheet(QStringLiteral(
-        "QLabel#layerStyleBlendIfBoundaryWarning { background: #4a3a1f; border: 1px solid #9a7430; "
+        "QLabel#layerStyleBlendIfBoundaryWarning { background: #4a3a1f; "
+        "border: 1px solid #9a7430; "
         "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
@@ -898,17 +1113,60 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     auto controls_state = std::make_unique<LayerStyleGradientControls>();
     auto* state = controls_state.get();
 
-    state->editor = new GradientStopsEditorWidget(parent_widget);
+    auto *preset_button = new QPushButton(QObject::tr("Preset..."),parent_widget);
+    preset_button->setObjectName(object_prefix + QStringLiteral("PresetButton"));
+    preset_button->setEnabled(gradient_library != nullptr);
+    form->addRow(QObject::tr("Preset"), preset_button);
+    if (gradient_library != nullptr) {
+      const auto apply_preset = [state, foreground, background](
+                                    const GradientLibraryEntry &entry) {
+        auto value = state->value();
+        static_cast<GradientDefinition &>(value) = resolved_gradient_definition(
+            entry.definition, foreground, background);
+        state->load(value);
+        if (state->changed)
+          state->changed(true);
+      };QObject::connect(preset_button, &QPushButton::clicked, &dialog,
+                       [&, state, preset_button, apply_preset] {
+                         show_gradient_preset_popup(
+                             preset_button, *gradient_library, apply_preset,
+                             [&, state, apply_preset] {
+                               const auto selected = request_gradient_manager(
+                                   &dialog, *gradient_library, {},
+                                   state->value());
+                               if (const auto *entry =
+                                       gradient_library->find_entry(selected);
+                                   entry != nullptr) {
+                                 apply_preset(*entry);
+                               }
+                             });
+                       });
+    }
+
+    state->form_combo = new QComboBox(parent_widget);
+    state->form_combo->setObjectName(object_prefix + QStringLiteral("FormCombo"));
+    state->form_combo->addItem(QObject::tr("Solid"),
+                               static_cast<int>(GradientDefinitionForm::Solid));
+    state->form_combo->addItem(QObject::tr("Noise"),
+                               static_cast<int>(GradientDefinitionForm::Noise));
+    form->addRow(QObject::tr("Gradient Type"), state->form_combo);
+
+    state->solid_controls = new QWidget(parent_widget);
+    auto *solid_layout = new QVBoxLayout(state->solid_controls);
+    solid_layout->setContentsMargins(0, 0, 0, 0);
+    solid_layout->setSpacing(6);
+    state->editor = new GradientStopsEditorWidget(state->solid_controls);
     state->editor->setObjectName(object_prefix + QStringLiteral("StopsEditor"));
     state->editor->set_opacity_track_enabled(true);
-    form->addRow(QObject::tr("Gradient"), state->editor);
+    solid_layout->addWidget(state->editor);
+    form->addRow(QObject::tr("Gradient"), state->solid_controls);
 
-    auto* selected_row = new QWidget(parent_widget);
-    selected_row->setObjectName(object_prefix + QStringLiteral("SelectedStopRow"));
-    auto* selected_layout = new QHBoxLayout(selected_row);
+    auto *selected_row = new QWidget(parent_widget);
+    state->selected_stop_controls = selected_row;selected_row->setObjectName(object_prefix + QStringLiteral("SelectedStopRow"));
+    auto *selected_layout = new QHBoxLayout(selected_row);
     selected_layout->setContentsMargins(0, 0, 0, 0);
     selected_layout->setSpacing(8);
-    auto* location_label = new QLabel(QObject::tr("Location"), selected_row);
+    auto *location_label = new QLabel(QObject::tr("Location"), selected_row);
     state->stop_location = new QSpinBox(selected_row);
     state->stop_location->setObjectName(object_prefix + QStringLiteral("StopLocationSpin"));
     state->stop_location->setRange(0, 100);
@@ -916,10 +1174,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     configure_dialog_spinbox(state->stop_location, 64);
     state->stop_color_label = new QLabel(QObject::tr("Color"), selected_row);
     state->stop_hex = new QLineEdit(selected_row);
-    state->stop_hex->setObjectName(object_prefix + QStringLiteral("StopHexEdit"));
-    state->stop_hex->setFixedWidth(72);
-    state->stop_hex->setMaxLength(7);
-    state->stop_swatch = new QPushButton(selected_row);
+    state->stop_hex->setObjectName(object_prefix + QStringLiteral("StopHexEdit"));state->stop_hex->setFixedWidth(72);
+    state->stop_hex->setMaxLength(7);state->stop_swatch = new QPushButton( selected_row);
     state->stop_swatch->setObjectName(object_prefix + QStringLiteral("StopSwatchButton"));
     state->stop_swatch->setFixedSize(34, 24);
     state->stop_swatch->setToolTip(QObject::tr("Choose Color..."));
@@ -939,11 +1195,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     selected_layout->addStretch(1);
     form->addRow(QString(), selected_row);
 
-    auto* midpoint_row = new QWidget(parent_widget);
-    auto* midpoint_layout = new QHBoxLayout(midpoint_row);
+    auto *midpoint_row = new QWidget(parent_widget);
+    state->midpoint_controls = midpoint_row;
+    auto *midpoint_layout = new QHBoxLayout(midpoint_row);
     midpoint_layout->setContentsMargins(0, 0, 0, 0);
     midpoint_layout->setSpacing(8);
-    state->stop_midpoint_label = new QLabel(QObject::tr("Midpoint"), midpoint_row);
+    state->stop_midpoint_label =
+        new QLabel(QObject::tr("Midpoint"), midpoint_row);
     state->stop_midpoint = new QSpinBox(midpoint_row);
     state->stop_midpoint->setObjectName(object_prefix + QStringLiteral("StopMidpointSpin"));
     state->stop_midpoint->setRange(5, 95);
@@ -954,11 +1212,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     midpoint_layout->addStretch(1);
     form->addRow(QString(), midpoint_row);
 
-    auto* stop_buttons = new QWidget(parent_widget);
-    auto* stop_button_layout = new QHBoxLayout(stop_buttons);
+    auto *stop_buttons = new QWidget(parent_widget);
+    state->stop_button_controls = stop_buttons;
+    auto *
+    stop_button_layout = new QHBoxLayout(stop_buttons);
     stop_button_layout->setContentsMargins(0, 0, 0, 0);
-    stop_button_layout->setSpacing(6);
-    state->add_stop = new QPushButton(QObject::tr("Add Stop"), stop_buttons);
+    stop_button_layout->setSpacing(6);state->add_stop = new QPushButton(QObject::tr("Add Stop"), stop_buttons);
+
     state->add_stop->setObjectName(object_prefix + QStringLiteral("AddStopButton"));
     state->remove_stop = new QPushButton(QObject::tr("Remove Stop"), stop_buttons);
     state->remove_stop->setObjectName(object_prefix + QStringLiteral("RemoveStopButton"));
@@ -967,25 +1227,144 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     stop_button_layout->addStretch(1);
     form->addRow(QString(), stop_buttons);
 
+    state->smoothness = add_slider_spin_row(
+        form, parent_widget,QObject::tr("Smoothness"),
+                                       object_prefix + QStringLiteral("SmoothnessSpin"), 0, 100,
+                                       static_cast<int>(std::lround(initial_gradient.smoothness * 100.0 / 4096.0)),
+        QStringLiteral("%"));
+
+    state->noise_controls = new QWidget( parent_widget);
+    auto *noise_form = new QFormLayout(state->noise_controls);
+    noise_form->setContentsMargins(0, 0, 0, 0);
+    state->noise_seed = new QSpinBox(state->noise_controls);
+    state->noise_seed->setObjectName(
+                                       object_prefix + QStringLiteral("NoiseSeedSpin"));
+    state->noise_seed->setRange(0, std::numeric_limits<int>::max());
+    configure_dialog_spinbox(state->noise_seed);
+    noise_form->addRow(QObject::tr("Seed"), state->noise_seed);
+    state->noise_roughness = new QSpinBox(state->noise_controls);
+    state->noise_roughness->setObjectName(object_prefix +
+                                          QStringLiteral("NoiseRoughnessSpin"));
+    state->noise_roughness->setRange(0, 100);
+    state->noise_roughness->setSuffix(QStringLiteral("%"));
+    configure_dialog_spinbox(state->noise_roughness);
+    noise_form->addRow(QObject::tr("Roughness"), state->noise_roughness);
+    state->noise_color_model = new QComboBox(state->noise_controls);
+    state->noise_color_model->setObjectName(
+        object_prefix + QStringLiteral("NoiseColorModelCombo"));
+    state->noise_color_model->addItem(
+        QStringLiteral("RGB"), static_cast<int>(GradientNoiseColorModel::RGB));
+    state->noise_color_model->addItem(
+        QStringLiteral("HSB"), static_cast<int>(GradientNoiseColorModel::HSB));
+    state->noise_color_model->addItem(
+        QStringLiteral("Lab"), static_cast<int>(GradientNoiseColorModel::Lab));
+    noise_form->addRow(QObject::tr("Color Model"), state->noise_color_model);
+    state->noise_transparency =
+        new QCheckBox(QObject::tr("Add Transparency"), state->noise_controls);
+    state->noise_transparency->setObjectName(
+        object_prefix + QStringLiteral("NoiseTransparencyCheck"));
+    noise_form->addRow(QString(), state->noise_transparency);
+    state->noise_restrict =
+        new QCheckBox(QObject::tr("Restrict Colors"), state->noise_controls);
+    state->noise_restrict->setObjectName(
+        object_prefix + QStringLiteral("NoiseRestrictColorsCheck"));
+    noise_form->addRow(QString(), state->noise_restrict);
+    for (std::size_t channel = 0; channel < state->noise_minimum.size();
+         ++channel) {
+      auto *range_row = new QWidget(state->noise_controls);
+      auto *range_layout = new QHBoxLayout(range_row);
+      range_layout->setContentsMargins(0, 0, 0, 0);
+      range_layout->setSpacing(6);
+      state->noise_minimum[channel] = new QSpinBox(range_row);
+      state->noise_minimum[channel]->setObjectName(
+          object_prefix +
+          QStringLiteral("NoiseChannel%1MinimumSpin").arg(channel + 1U));
+      state->noise_minimum[channel]->setRange(0, 100);
+      state->noise_minimum[channel]->setSuffix(QStringLiteral("%"));
+      configure_dialog_spinbox(state->noise_minimum[channel], 64);
+      state->noise_maximum[channel] = new QSpinBox(range_row);
+      state->noise_maximum[channel]->setObjectName(
+          object_prefix +
+          QStringLiteral("NoiseChannel%1MaximumSpin").arg(channel + 1U));
+      state->noise_maximum[channel]->setRange(0, 100);
+      state->noise_maximum[channel]->setSuffix(QStringLiteral("%"));
+      configure_dialog_spinbox(state->noise_maximum[channel], 64);
+      range_layout->addWidget(state->noise_minimum[channel]);
+      range_layout->addWidget(new QLabel(QObject::tr("to"), range_row));
+      range_layout->addWidget(state->noise_maximum[channel]);
+      range_layout->addStretch(1);
+      noise_form->addRow(QObject::tr("Channel %1 Range").arg(channel + 1U),
+                         range_row);
+    }
+    form->addRow(QString(), state->noise_controls);
+
     state->reverse = new QCheckBox(QObject::tr("Reverse"), parent_widget);
-    state->reverse->setObjectName(object_prefix + QStringLiteral("ReverseCheck"));
+    state->reverse->setObjectName(object_prefix +
+                                  QStringLiteral("ReverseCheck"));
     form->addRow(QString(), state->reverse);
+    state->dither = new QCheckBox(QObject::tr("Dither"), parent_widget);
+    state->dither->setObjectName(object_prefix + QStringLiteral("DitherCheck"));
+    form->addRow(QString(), state->dither);
+    state->align =
+        new QCheckBox(QObject::tr("Align with Layer"), parent_widget);
+    state->align->setObjectName(object_prefix + QStringLiteral("AlignCheck"));
+    form->addRow(QString(), state->align);
+    state->interpolation = new QComboBox(parent_widget);
+    state->interpolation->setObjectName(object_prefix +
+                                        QStringLiteral("InterpolationCombo"));
+    state->interpolation->addItem(
+        QObject::tr("Classic"),
+        static_cast<int>(GradientInterpolationMethod::Classic));
+    state->interpolation->addItem(
+        QObject::tr("Perceptual"),
+        static_cast<int>(GradientInterpolationMethod::Perceptual));
+    state->interpolation->addItem(
+        QObject::tr("Linear", "gradient interpolation"),
+        static_cast<int>(GradientInterpolationMethod::Linear));
+    form->addRow(QObject::tr("Method"), state->interpolation);
     state->style_combo = new QComboBox(parent_widget);
-    state->style_combo->setObjectName(object_prefix + QStringLiteral("StyleCombo"));
-    state->style_combo->addItem(QObject::tr("Linear"), static_cast<int>(LayerStyleGradientType::Linear));
-    state->style_combo->addItem(QObject::tr("Radial"), static_cast<int>(LayerStyleGradientType::Radial));
-    state->style_combo->addItem(QObject::tr("Angle", "gradient style"),
-                                static_cast<int>(LayerStyleGradientType::Angle));
-    state->style_combo->addItem(QObject::tr("Reflected"), static_cast<int>(LayerStyleGradientType::Reflected));
-    state->style_combo->addItem(QObject::tr("Diamond"), static_cast<int>(LayerStyleGradientType::Diamond));
+    state->style_combo->setObjectName(object_prefix +
+                                      QStringLiteral("StyleCombo"));
+    state->style_combo->addItem(
+        QObject::tr("Linear"),
+        static_cast<int>(LayerStyleGradientType::Linear));
+    state->style_combo->addItem(
+        QObject::tr("Radial"),
+        static_cast<int>(LayerStyleGradientType::Radial));
+    state->style_combo->addItem(
+        QObject::tr("Angle", "gradient style"),
+        static_cast<int>(LayerStyleGradientType::Angle));
+    state->style_combo->addItem(
+        QObject::tr("Reflected"),
+        static_cast<int>(LayerStyleGradientType::Reflected));
+    state->style_combo->addItem(
+        QObject::tr("Diamond"),
+        static_cast<int>(LayerStyleGradientType::Diamond));
     form->addRow(QObject::tr("Style"), state->style_combo);
-    state->angle = add_slider_spin_row(form, parent_widget, QObject::tr("Angle"),
-                                       object_prefix + QStringLiteral("AngleSpin"), -180, 180,
-                                       static_cast<int>(std::round(initial_gradient.angle_degrees)));
-    state->scale = add_slider_spin_row(form, parent_widget, QObject::tr("Scale"),
-                                       object_prefix + QStringLiteral("ScaleSpin"), 1, 1000,
+    state->angle = add_slider_spin_row(
+        form, parent_widget, QObject::tr("Angle"),
+        object_prefix + QStringLiteral("AngleSpin"), -180, 180,
+        static_cast<int>(std::round(initial_gradient.angle_degrees)));
+    state->scale = add_slider_spin_row(
+        form, parent_widget, QObject::tr("Scale"),
+        object_prefix + QStringLiteral("ScaleSpin"), 1, 1000,
                                        static_cast<int>(std::round(initial_gradient.scale * 100.0F)),
                                        QStringLiteral("%"));
+    state->offset_x = add_slider_spin_row(
+        form, parent_widget, QObject::tr("Horizontal Offset"),
+        object_prefix + QStringLiteral("OffsetXSpin"), -100, 100,
+        static_cast<int>(std::round(initial_gradient.offset_x_percent)),
+        QStringLiteral("%"));
+    state->offset_y = add_slider_spin_row(
+        form, parent_widget, QObject::tr("Vertical Offset"),
+        object_prefix + QStringLiteral("OffsetYSpin"), -100, 100,
+        static_cast<int>(std::round(initial_gradient.offset_y_percent)),
+        QStringLiteral("%"));
+    state->reset_alignment =
+        new QPushButton(QObject::tr("Reset Alignment"), parent_widget);
+    state->reset_alignment->setObjectName(
+        object_prefix + QStringLiteral("ResetAlignmentButton"));
+    form->addRow(QString(), state->reset_alignment);
 
     state->update_previews = [state] {
       if (state->color_stops.empty()) {
@@ -1074,15 +1453,55 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     };
     state->load = [state](const LayerStyleGradient& value) {
       state->loading = true;
+      state->template_gradient = value;
       state->color_stops = value.color_stops;
       state->alpha_stops = value.alpha_stops;
       state->selected_color_stop = 0;
       state->selected_alpha_stop = -1;
       state->reverse->setChecked(value.reverse);
+      state->dither->setChecked(value.dither);
+      state->align->setChecked(value.align_with_layer);
+      state->form_combo->setCurrentIndex(std::max(
+          0, state->form_combo->findData(static_cast<int>(value.form))));
+      state->smoothness->setValue(
+          static_cast<int>(std::lround(value.smoothness * 100.0 / 4096.0)));
+      state->noise_seed->setValue(static_cast<int>(std::min<std::uint32_t>(
+          value.noise.seed, std::numeric_limits<int>::max())));
+      state->noise_roughness->setValue(static_cast<int>(
+          std::lround(value.noise.roughness * 100.0 / 4096.0)));
+      state->noise_transparency->setChecked(value.noise.add_transparency);
+      state->noise_restrict->setChecked(value.noise.restrict_colors);
+      state->noise_color_model->setCurrentIndex(
+          std::max(0, state->noise_color_model->findData(
+                          static_cast<int>(value.noise.color_model))));
+      for (std::size_t channel = 0; channel < state->noise_minimum.size();
+           ++channel) {
+        state->noise_minimum[channel]->setValue(value.noise.minimum[channel]);
+        state->noise_maximum[channel]->setValue(value.noise.maximum[channel]);
+      }
+      state->interpolation->setCurrentIndex(
+          std::max(0, state->interpolation->findData(
+                          static_cast<int>(value.interpolation))));
       state->style_combo->setCurrentIndex(
           std::max(0, state->style_combo->findData(static_cast<int>(value.type))));
       state->angle->setValue(static_cast<int>(std::round(value.angle_degrees)));
       state->scale->setValue(static_cast<int>(std::round(value.scale * 100.0F)));
+      state->offset_x->setValue(
+          static_cast<int>(std::round(value.offset_x_percent)));
+      state->offset_y->setValue(
+          static_cast<int>(std::round(value.offset_y_percent)));
+      state->solid_controls->setVisible(value.form ==
+                                        GradientDefinitionForm::Solid);
+      state->selected_stop_controls->setVisible(value.form ==
+                                                GradientDefinitionForm::Solid);
+      state->midpoint_controls->setVisible(value.form ==
+                                           GradientDefinitionForm::Solid);
+      state->stop_button_controls->setVisible(value.form ==
+                                              GradientDefinitionForm::Solid);
+      state->smoothness->parentWidget()->setVisible(
+          value.form == GradientDefinitionForm::Solid);
+      state->noise_controls->setVisible(value.form ==
+                                        GradientDefinitionForm::Noise);
       state->update_previews();
       state->loading = false;
     };
@@ -1346,12 +1765,63 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     });
     QObject::connect(state->reverse, &QCheckBox::toggled, &dialog,
                      [notify_changed](bool) { notify_changed(true); });
-    QObject::connect(state->style_combo, &QComboBox::currentIndexChanged, &dialog,
+    QObject::connect(state->dither, &QCheckBox::toggled, &dialog,
+                     [notify_changed](bool) { notify_changed(true); });
+    QObject::connect(state->align, &QCheckBox::toggled, &dialog,
+                     [notify_changed](bool) { notify_changed(true); });
+    QObject::connect(state->form_combo, &QComboBox::currentIndexChanged,
+                     &dialog, [state, notify_changed](int) {
+                       const auto solid =
+                           state->form_combo->currentData().toInt() ==
+                           static_cast<int>(GradientDefinitionForm::Solid);
+                       state->solid_controls->setVisible(solid);
+                       state->selected_stop_controls->setVisible(solid);
+                       state->midpoint_controls->setVisible(solid);
+                       state->stop_button_controls->setVisible(solid);
+                       state->smoothness->parentWidget()->setVisible(solid);
+                       state->noise_controls->setVisible(!solid); notify_changed(true); });
+    QObject::connect(state->interpolation, &QComboBox::currentIndexChanged, &dialog,
                      [notify_changed](int) { notify_changed(true); });
-    QObject::connect(state->angle, qOverload<int>(&QSpinBox::valueChanged), &dialog,
-                     [notify_changed](int) { notify_changed(false); });
-    QObject::connect(state->scale, qOverload<int>(&QSpinBox::valueChanged), &dialog,
-                     [notify_changed](int) { notify_changed(false); });
+    QObject::connect(state->style_combo, &QComboBox::currentIndexChanged,
+                     &dialog, [notify_changed](int) { notify_changed(true); });
+    QObject::connect(state->angle, qOverload<int>(&QSpinBox::valueChanged),
+                     &dialog, [notify_changed](int) { notify_changed(false); });
+    QObject::connect(state->scale, qOverload<int>(&QSpinBox::valueChanged),
+                     &dialog, [notify_changed](int) { notify_changed(false); });
+    for (auto *spin :
+         {state->smoothness, state->noise_seed, state->noise_roughness,
+          state->offset_x, state->offset_y}) {
+      QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
+                       [notify_changed](int) { notify_changed(false); });
+    }
+    QObject::connect(state->noise_transparency, &QCheckBox::toggled, &dialog,
+                     [notify_changed](bool) { notify_changed(true); });
+    QObject::connect(state->noise_restrict, &QCheckBox::toggled, &dialog,
+                     [notify_changed](bool) { notify_changed(true); });
+    QObject::connect(state->noise_color_model, &QComboBox::currentIndexChanged,
+                     &dialog, [notify_changed](int) { notify_changed(true); });
+    for (std::size_t channel = 0; channel < state->noise_minimum.size();
+         ++channel) {
+      QObject::connect(state->noise_minimum[channel],
+                       qOverload<int>(&QSpinBox::valueChanged), &dialog,
+                       [state, notify_changed, channel](int value) {
+                         if (value > state->noise_maximum[channel]->value())
+                           state->noise_maximum[channel]->setValue(value);
+                         notify_changed(false);
+                       });
+      QObject::connect(state->noise_maximum[channel],
+                       qOverload<int>(&QSpinBox::valueChanged), &dialog,
+                       [state, notify_changed, channel](int value) {
+                         if (value < state->noise_minimum[channel]->value())
+                           state->noise_minimum[channel]->setValue(value);
+                         notify_changed(false);
+                       });
+    }
+    QObject::connect(state->reset_alignment, &QPushButton::clicked, &dialog,
+                     [state, notify_changed] {
+                       state->offset_x->setValue(0);
+                       state->offset_y->setValue(0);
+                       notify_changed(true); });
 
     state->load(initial_gradient);
     return controls_state;
@@ -1374,7 +1844,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   // --- Styles page: the preset browser -------------------------------------
   auto* styles_hint = new QLabel(
-      QObject::tr("Click a preset to replace the current effects. Right-click a folder or style "
+      QObject::tr("Click a preset to replace the current effects. "
+                             "Right-click a folder or style "
                   "to export it as a Photoshop .asl file."),
       &dialog);
   styles_hint->setObjectName(QStringLiteral("layerStyleStylesHint"));
@@ -1389,7 +1860,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* new_style_button = new QPushButton(QObject::tr("New Style…"), &dialog);
   new_style_button->setObjectName(QStringLiteral("layerStyleNewStyleButton"));
   new_style_button->setToolTip(
-      QObject::tr("Save the current effects (and optionally blending options) as a preset"));
+      QObject::tr("Save the current effects (and optionally blending options) "
+                  "as a preset"));
   auto* manage_styles_button = new QPushButton(QObject::tr("Manage Styles…"), &dialog);
   manage_styles_button->setObjectName(QStringLiteral("layerStyleManageStylesButton"));
   styles_buttons->addWidget(new_style_button);
@@ -1477,7 +1949,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   // Contour pickers: the built-in shape roster plus a leading "Custom" entry
   // whenever the current curve matches no preset (imported Photoshop curves).
-  // The host-retained custom curve is only replaced by a deliberate preset pick.
+  // The host-retained custom curve is only replaced by a deliberate preset
+  // pick.
   auto make_contour_combo = [&](QWidget* combo_parent, const QString& object_name,
                                 const StyleContour& current, const StyleContour& custom_value) {
     auto* combo = new QComboBox(combo_parent);
@@ -1541,7 +2014,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   mask_hides_effects->setObjectName(QStringLiteral("layerStyleMaskHidesEffectsCheck"));
   mask_hides_effects->setChecked(style.layer_mask_hides_effects);
   mask_hides_effects->setToolTip(
-      QObject::tr("Clip drop shadows, glows, and strokes with the layer mask instead of only shaping them"));
+      QObject::tr("Clip drop shadows, glows, and strokes with the layer mask "
+                  "instead of only shaping them"));
   blending_form->addRow(QString(), mask_hides_effects);
   blending_layout->addWidget(blending_group);
 
@@ -1672,7 +2146,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     row.editor->setObjectName(editor_object_name);
     row.editor->set_accessibility_text(
         QObject::tr("%1 Blend If range").arg(title),
-        QObject::tr("Use Page Up or Page Down to select a handle, arrow keys to move it, and Alt/Option-drag to "
+        QObject::tr("Use Page Up or Page Down to select a handle, arrow keys "
+                    "to move it, and Alt/Option-drag to "
                     "split a joined handle."));
     blend_if_layout->addWidget(row.editor);
 
@@ -3221,9 +3696,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     return QString();
   };
 
-  // The row widgets are opaque and cover their QListWidget items completely, so the built-in
-  // ::item:selected background would only peek out around the widget edges. Selection is
-  // therefore painted on the row widgets themselves, like the layers panel does.
+  // The row widgets are opaque and cover their QListWidget items completely, so
+  // the built-in
+  // ::item:selected background would only peek out around the widget edges.
+  // Selection is therefore painted on the row widgets themselves, like the
+  // layers panel does.
   auto restyle_category_rows = [categories] {
     for (int row = 0; row < categories->count(); ++row) {
       auto* item = categories->item(row);
@@ -3231,18 +3708,24 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       if (row_widget == nullptr) {
         continue;
       }
-      // The QLabel/QCheckBox backgrounds must be explicitly transparent: once the row's
-      // stylesheet applies to them, they would otherwise fill with the inherited palette.
+      // The QLabel/QCheckBox backgrounds must be explicitly transparent: once
+      // the row's stylesheet applies to them, they would otherwise fill with
+      // the inherited palette.
       row_widget->setStyleSheet(
           item->isSelected()
-              ? QStringLiteral("QWidget#layerStyleCategoryRow { background: #2d4c6d; border: 1px solid #4f91ca; }"
+              ? QStringLiteral("QWidget#layerStyleCategoryRow { background: "
+                               "#2d4c6d; border: 1px solid #4f91ca; }"
                                "QWidget#layerStyleCategoryRow QLabel {"
-                               " background: transparent; color: #ffffff; font-weight: 600; }"
-                               "QWidget#layerStyleCategoryRow QCheckBox { background: transparent; }")
+                               " background: transparent; color: #ffffff; "
+                               "font-weight: 600; }"
+                               "QWidget#layerStyleCategoryRow QCheckBox { "
+                               "background: transparent; }")
               : QStringLiteral("QWidget#layerStyleCategoryRow { background: #2b2b2b;"
                                " border: 0; border-bottom: 1px solid #3b3b3b; }"
-                               "QWidget#layerStyleCategoryRow QLabel { background: transparent; color: #e6e6e6; }"
-                               "QWidget#layerStyleCategoryRow QCheckBox { background: transparent; }"));
+                    "QWidget#layerStyleCategoryRow QLabel { background: "
+                    "transparent; color: #e6e6e6; }"
+                    "QWidget#layerStyleCategoryRow QCheckBox { background: "
+                    "transparent; }"));
     }
   };
 
@@ -3273,8 +3756,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       layout->setSpacing(4);
       QCheckBox* check = nullptr;
       if (!check_object_name.isEmpty()) {
-        // The checkbox holds only the indicator; the name lives in a separate label so
-        // clicking the name selects the row without toggling the effect on/off.
+        // The checkbox holds only the indicator; the name lives in a separate
+        // label so clicking the name selects the row without toggling the
+        // effect on/off.
         check = new QCheckBox(row);
         check->setObjectName(check_object_name);
         check->setChecked(item->checkState() == Qt::Checked);
@@ -3362,7 +3846,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                     style.drop_shadows);
 
     categories->setCurrentRow(std::clamp(selected_row, 0, std::max(0, categories->count() - 1)));
-    // Signals are blocked during the rebuild, so sync the row selection styling directly.
+    // Signals are blocked during the rebuild, so sync the row selection styling
+    // directly.
     restyle_category_rows();
     rebuilding_categories = false;
   };
@@ -3455,7 +3940,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       replace_blend_if_button->setEnabled(false);
       if (blend_if_unsupported_warning != nullptr) {
         blend_if_unsupported_warning->setText(
-            QObject::tr("The preserved Photoshop Blend If payload will be replaced with editable RGB defaults "
+            QObject::tr(
+                             "The preserved Photoshop Blend If payload will be "
+                             "replaced with editable RGB defaults "
                         "when you choose OK."));
       }
       load_blend_if_controls();
@@ -3772,7 +4259,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     if (storage_id.isEmpty()) {
       QMessageBox::warning(
           &dialog, QObject::tr("New Style"),
-          QObject::tr("Could not save the style. Check that the style library folder is writable."));
+          QObject::tr("Could not save the style. Check that the style library "
+                      "folder is writable."));
       return;
     }
     styles_browser->reload(storage_id);
@@ -3977,6 +4465,42 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   root->addLayout(footer);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  if (parent != nullptr) {
+    const auto canvases = parent->findChildren<CanvasWidget *>();
+    const auto visible =
+        std::find_if(canvases.begin(), canvases.end(),
+                     [](CanvasWidget *canvas) { return canvas->isVisible(); });
+    if (visible != canvases.end()) {
+      auto *overlay_gradient_state = gradient_controls.get();
+      auto *stroke_gradient_state = stroke_gradient_controls.get();
+      auto active_gradient_controls =
+          [categories, stroke_fill, overlay_gradient_state, item_kind,
+           stroke_gradient_state]() -> LayerStyleGradientControls * {
+        const auto *current = categories->currentItem();
+        if (item_kind(current) == LayerStyleEffectKind::GradientOverlay)
+          return overlay_gradient_state;
+        if (item_kind(current) == LayerStyleEffectKind::Stroke &&
+            stroke_fill->currentData().toBool())
+          return stroke_gradient_state;
+        return nullptr;
+      };
+      new GradientCanvasRepositionFilter(
+          *visible, layer.bounds(),
+          [active_gradient_controls] {
+            return active_gradient_controls() != nullptr;
+          },
+          [active_gradient_controls](float delta_x, float delta_y) {
+            if (auto *state = active_gradient_controls(); state != nullptr) {
+              state->offset_x->setValue(state->offset_x->value() +
+                                        static_cast<int>(std::lround(delta_x)));
+              state->offset_y->setValue(state->offset_y->value() +
+                                        static_cast<int>(std::lround(delta_y)));
+            }
+          },
+          &dialog);
+    }
+  }
 
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;

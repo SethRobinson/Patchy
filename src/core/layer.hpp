@@ -151,6 +151,11 @@ struct GradientColorStop {
   // the blend reaches 50%. Photoshop stores this as Mdpn (0..100); the first
   // stop's value is unused and 0.5 is the identity path.
   float midpoint{0.5F};
+  enum class Kind { User, Foreground, Background };
+  // Photoshop GRD presets may defer a stop to the current foreground or
+  // background color. Layer effects normally contain resolved User colors,
+  // while the application preset library preserves these roles.
+  Kind kind{Kind::User};
 };
 
 struct GradientAlphaStop {
@@ -168,13 +173,44 @@ enum class LayerStyleGradientType {
   Diamond
 };
 
-struct LayerStyleGradient {
+enum class GradientDefinitionForm { Solid, Noise };
+
+enum class GradientNoiseColorModel { RGB, HSB, Lab };
+
+enum class GradientInterpolationMethod { Classic, Perceptual, Linear };
+
+struct GradientNoiseSettings {
+  std::uint32_t seed{0};
+  // Photoshop stores roughness in the descriptor's Smth field on a 0..4096
+  // scale. Keeping the native integer avoids needless preset round-trip drift.
+  std::uint16_t roughness{2048};
+  bool add_transparency{false};
+  bool restrict_colors{true};
+  GradientNoiseColorModel color_model{GradientNoiseColorModel::RGB};
+  std::array<std::uint16_t, 4> minimum{0, 0, 0, 0};
+  std::array<std::uint16_t, 4> maximum{100, 100, 100, 100};
+};
+
+struct GradientDefinition {
+  std::string name{"Custom"};
+  GradientDefinitionForm form{GradientDefinitionForm::Solid};
+  // Photoshop descriptor Intr, 0..4096. 4096 is the normal 100% smoothness.
+  std::uint16_t smoothness{4096};
+  std::vector<GradientColorStop> color_stops;
+  std::vector<GradientAlphaStop> alpha_stops;
+  GradientNoiseSettings noise;
+};
+
+struct LayerStyleGradient : GradientDefinition {
   LayerStyleGradientType type{LayerStyleGradientType::Linear};
   float angle_degrees{90.0F};
   float scale{1.0F};
   bool reverse{false};
-  std::vector<GradientColorStop> color_stops;
-  std::vector<GradientAlphaStop> alpha_stops;
+  bool dither{false};
+  GradientInterpolationMethod interpolation{GradientInterpolationMethod::Classic};
+  bool align_with_layer{true};
+  float offset_x_percent{0.0F};
+  float offset_y_percent{0.0F};
 };
 
 struct LayerDropShadow {

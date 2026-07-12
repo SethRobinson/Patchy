@@ -3104,9 +3104,74 @@ LayerStyleGradientType gradient_type_from_descriptor(std::string_view value) {
   return LayerStyleGradientType::Linear;
 }
 
+GradientInterpolationMethod gradient_interpolation_from_descriptor(std::string_view value) {
+  if (value == "perceptual" || value == "Smoo") {
+    return GradientInterpolationMethod::Perceptual;
+  }
+  if (value == "linear") {
+    return GradientInterpolationMethod::Linear;
+  }
+  return GradientInterpolationMethod::Classic;
+}
+
+GradientNoiseColorModel gradient_noise_color_model_from_descriptor(std::string_view value) {
+  if (value == "HSBl" || value == "HSB " || value == "HSBC") {
+    return GradientNoiseColorModel::HSB;
+  }
+  if (value == "LbCl" || value == "Lab " || value == "LABC") {
+    return GradientNoiseColorModel::Lab;
+  }
+  return GradientNoiseColorModel::RGB;
+}
+
+std::array<std::uint16_t, 4> gradient_noise_range(const DescriptorObject& object, std::string_view key,
+                                                  std::uint16_t fallback) {
+  std::array<std::uint16_t, 4> result{fallback, fallback, fallback, fallback};
+  const auto* value = descriptor_value(object, key);
+  if (value == nullptr || value->type != DescriptorValue::Type::List) {
+    return result;
+  }
+  for (std::size_t index = 0; index < result.size() && index < value->list_value.size(); ++index) {
+    const auto& item = value->list_value[index];
+    if (item.type == DescriptorValue::Type::Integer) {
+      result[index] = static_cast<std::uint16_t>(std::clamp(item.integer_value, 0, 100));
+    }
+  }
+  return result;
+}
+
 LayerStyleGradient parse_gradient(const DescriptorObject& effect, const CmykColorConverter& cmyk) {
   LayerStyleGradient gradient;
   if (const auto* gradient_object = descriptor_object(effect, "Grad"); gradient_object != nullptr) {
+    if (const auto* name = descriptor_value(*gradient_object, "Nm  ");
+        name != nullptr && name->type == DescriptorValue::Type::String) {
+      gradient.name = name->string_value;
+    }
+    const auto form = descriptor_enum(*gradient_object, "GrdF", "CstS");
+    gradient.form = form == "ClNs" ? GradientDefinitionForm::Noise
+                                   : GradientDefinitionForm::Solid;
+    gradient.smoothness = static_cast<std::uint16_t>(
+        std::clamp(static_cast<int>(std::lround(
+                       descriptor_number(*gradient_object, "Intr", 4096.0))),
+                   0, 4096));
+    if (gradient.form == GradientDefinitionForm::Noise) {
+      gradient.noise.add_transparency =
+          descriptor_bool(*gradient_object, "ShTr", false);
+      gradient.noise.restrict_colors =
+          descriptor_bool(*gradient_object, "VctC", true);
+      gradient.noise.color_model = gradient_noise_color_model_from_descriptor(
+          descriptor_enum(*gradient_object, "ClrS", "RGBC"));
+      gradient.noise.seed = static_cast<std::uint32_t>(
+          std::max(0.0, descriptor_number(*gradient_object, "RndS", 0.0)));
+      gradient.noise.roughness = static_cast<std::uint16_t>(
+          std::clamp(static_cast<int>(std::lround(
+                         descriptor_number(*gradient_object, "Smth", 2048.0))),
+                     0, 4096));
+      gradient.noise.minimum =
+          gradient_noise_range(*gradient_object, "Mnm ", 0);
+      gradient.noise.maximum =
+          gradient_noise_range(*gradient_object, "Mxm ", 100);
+    }
     if (const auto* colors = descriptor_value(*gradient_object, "Clrs");
         colors != nullptr && colors->type == DescriptorValue::Type::List) {
       for (const auto& item : colors->list_value) {
@@ -3114,11 +3179,22 @@ LayerStyleGradient parse_gradient(const DescriptorObject& effect, const CmykColo
           continue;
         }
         const auto& stop = *item.object_value;
+        auto kind = GradientColorStop::Kind::User;
+        const auto type = descriptor_enum(stop, "Type", "UsrS");
+        if (type == "FrgC") {
+          kind = GradientColorStop::Kind::Foreground;
+        } else if (type == "BckC") {
+          kind = GradientColorStop::Kind::Background;
+        }
         gradient.color_stops.push_back(
             GradientColorStop{std::clamp(static_cast<float>(descriptor_number(stop, "Lctn") / 4096.0), 0.0F, 1.0F),
-                              descriptor_rgb_color(stop, "Clr ", cmyk),
+                              descriptor_rgb_color(stop, "Clr ", cmyk,
+                                 kind == GradientColorStop::Kind::Background
+                                     ? RgbColor{255, 255, 255}
+                                     : RgbColor{0, 0, 0}),
                               std::clamp(static_cast<float>(descriptor_number(stop, "Mdpn", 50.0) / 100.0),
-                                         0.0F, 1.0F)});
+                                         0.0F, 1.0F),
+            kind});
       }
     }
     if (const auto* transparency = descriptor_value(*gradient_object, "Trns");
@@ -3139,6 +3215,18 @@ LayerStyleGradient parse_gradient(const DescriptorObject& effect, const CmykColo
   gradient.angle_degrees = static_cast<float>(descriptor_number(effect, "Angl", 90.0));
   gradient.scale = std::max(0.01F, static_cast<float>(descriptor_number(effect, "Scl ", 100.0) / 100.0));
   gradient.reverse = descriptor_bool(effect, "Rvrs", false);
+  gradient.dither = descriptor_bool(effect, "Dthr", false);
+  gradient.interpolation =
+      gradient_interpolation_from_descriptor(descriptor_enum(
+          effect, "gs99",
+          descriptor_enum(effect, "gradientsInterpolationMethod", "Gcls")));
+  gradient.align_with_layer = descriptor_bool(effect, "Algn", true);
+  if (const auto* offset = descriptor_object(effect, "Ofst"); offset != nullptr) {
+    gradient.offset_x_percent =
+        static_cast<float>(descriptor_number(*offset, "Hrzn", 0.0));
+    gradient.offset_y_percent =
+        static_cast<float>(descriptor_number(*offset, "Vrtc", 0.0));
+  }
   gradient.type = gradient_type_from_descriptor(descriptor_enum(effect, "Type", "Lnr "));
   std::stable_sort(
       gradient.color_stops.begin(), gradient.color_stops.end(),
@@ -6868,13 +6956,19 @@ void write_rgb_color_descriptor_item(BigEndianWriter& writer, std::string_view k
 }
 
 void write_gradient_color_stop(BigEndianWriter& writer, const GradientColorStop& stop) {
-  write_descriptor_object_header(writer, "", "Clrt", 4);
-  write_descriptor_enum_item(writer, "Type", "Clry", "UsrS");
+  const auto dynamic = stop.kind != GradientColorStop::Kind::User;
+  write_descriptor_object_header(writer, "", "Clrt", dynamic ? 3U : 4U);
+  write_descriptor_enum_item(writer, "Type", "Clry", stop.kind == GradientColorStop::Kind::Foreground
+                                                        ? "FrgC"
+                                                        : stop.kind == GradientColorStop::Kind::Background ? "BckC"
+                                                                                                           : "UsrS");
   write_descriptor_long_item(writer, "Lctn", static_cast<std::int32_t>(std::lround(std::clamp(stop.location, 0.0F, 1.0F) * 4096.0F)));
   write_descriptor_long_item(
       writer, "Mdpn",
       static_cast<std::int32_t>(std::lround(std::clamp(stop.midpoint, 0.0F, 1.0F) * 100.0F)));
-  write_rgb_color_descriptor_item(writer, "Clr ", stop.color);
+  if (!dynamic) {
+    write_rgb_color_descriptor_item(writer, "Clr ", stop.color);
+  }
 }
 
 void write_gradient_alpha_stop(BigEndianWriter& writer, const GradientAlphaStop& stop) {
@@ -6902,6 +6996,18 @@ std::string_view gradient_type_descriptor_value(LayerStyleGradientType type) {
   return "Lnr ";
 }
 
+std::string_view gradient_interpolation_descriptor_value(GradientInterpolationMethod method) {
+  switch (method) {
+    case GradientInterpolationMethod::Perceptual:
+      return "perceptual";
+    case GradientInterpolationMethod::Linear:
+      return "linear";
+    case GradientInterpolationMethod::Classic:
+      return "Gcls";
+  }
+  return "Gcls";
+}
+
 void write_layer_style_gradient_descriptor(BigEndianWriter& writer, const LayerStyleGradient& gradient) {
   auto color_stops = gradient.color_stops;
   auto alpha_stops = gradient.alpha_stops;
@@ -6920,10 +7026,39 @@ void write_layer_style_gradient_descriptor(BigEndianWriter& writer, const LayerS
       alpha_stops.begin(), alpha_stops.end(),
       [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
 
+  if (gradient.form == GradientDefinitionForm::Noise) {
+    write_descriptor_object_header(writer, "", "Grdn", 9);
+    write_descriptor_text_item(
+        writer, "Nm  ", gradient.name.empty() ? "Custom" : gradient.name);
+    write_descriptor_enum_item(writer, "GrdF", "GrdF", "ClNs");
+    write_descriptor_bool_item(writer, "ShTr", gradient.noise.add_transparency);
+    write_descriptor_bool_item(writer, "VctC", gradient.noise.restrict_colors);
+    const auto color_space =
+        gradient.noise.color_model == GradientNoiseColorModel::HSB   ? "HSBC"
+        : gradient.noise.color_model == GradientNoiseColorModel::Lab ? "LABC"
+                                                                     : "RGBC";
+    write_descriptor_enum_item(writer, "ClrS", "ClrS", color_space);
+    write_descriptor_long_item(writer, "RndS",
+                               static_cast<std::int32_t>(gradient.noise.seed));
+    write_descriptor_long_item(writer, "Smth", gradient.noise.roughness);
+    const auto write_range = [&writer](std::string_view key, const std::array<std::uint16_t, 4>& values) {
+      write_descriptor_item_header(writer, key, {'V', 'l', 'L', 's'});
+      writer.write_u32(4);
+      for (const auto value : values) {
+        write_signature(writer, {'l', 'o', 'n', 'g'});
+        writer.write_u32(std::clamp<std::uint16_t>(value, 0, 100));
+      }
+    };
+    write_range("Mnm ", gradient.noise.minimum);
+    write_range("Mxm ", gradient.noise.maximum);
+    return;
+  }
+
   write_descriptor_object_header(writer, "", "Grdn", 5);
-  write_descriptor_text_item(writer, "Nm  ", "Custom");
+  write_descriptor_text_item(writer, "Nm  ",
+                             gradient.name.empty() ? "Custom" : gradient.name);
   write_descriptor_enum_item(writer, "GrdF", "GrdF", "CstS");
-  write_descriptor_double_item(writer, "Intr", 4096.0);
+  write_descriptor_double_item(writer, "Intr", gradient.smoothness);
 
   write_descriptor_item_header(writer, "Clrs", {'V', 'l', 'L', 's'});
   writer.write_u32(checked_u32(color_stops.size(), "gradient color stops"));
@@ -6975,6 +7110,10 @@ void write_stroke_gradient_color_stop(BigEndianWriter& writer, const GradientCol
 }
 
 void write_stroke_gradient_descriptor(BigEndianWriter& writer, const LayerStyleGradient& gradient) {
+  if (gradient.form == GradientDefinitionForm::Noise) {
+    write_layer_style_gradient_descriptor(writer, gradient);
+    return;
+  }
   auto color_stops = gradient.color_stops;
   auto alpha_stops = gradient.alpha_stops;
   if (color_stops.empty()) {
@@ -6993,9 +7132,10 @@ void write_stroke_gradient_descriptor(BigEndianWriter& writer, const LayerStyleG
       [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
 
   write_descriptor_object_header(writer, "Gradient", "Grdn", 5);
-  write_descriptor_text_item(writer, "Nm  ", "Custom");
+  write_descriptor_text_item(writer, "Nm  ",
+                             gradient.name.empty() ? "Custom" : gradient.name);
   write_descriptor_enum_item(writer, "GrdF", "GrdF", "CstS");
-  write_descriptor_double_item(writer, "Intr", 4096.0);
+  write_descriptor_double_item(writer, "Intr", gradient.smoothness);
 
   write_descriptor_item_header(writer, "Clrs", {'V', 'l', 'L', 's'});
   writer.write_u32(checked_u32(color_stops.size(), "gradient color stops"));
@@ -7040,8 +7180,9 @@ void write_drop_shadow_descriptor(BigEndianWriter& writer, const LayerDropShadow
   write_blend_mode_descriptor_item(writer, "Md  ", shadow.blend_mode);
   write_rgb_color_descriptor_item(writer, "Clr ", shadow.color);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, shadow.opacity * 100.0);
-  // Claiming "use global light" would make Photoshop ignore lagl and swing the shadow to the
-  // document's global angle; Patchy's angles are per-effect, so always declare them local.
+  // Claiming "use global light" would make Photoshop ignore lagl and swing the
+  // shadow to the document's global angle; Patchy's angles are per-effect, so
+  // always declare them local.
   write_descriptor_bool_item(writer, "uglg", shadow.use_global_light);
   write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, shadow.angle_degrees);
   write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, shadow.distance);
@@ -7118,17 +7259,17 @@ void write_gradient_fill_descriptor(BigEndianWriter& writer, const LayerGradient
   write_descriptor_unit_float_item(writer, "Angl", {'#', 'A', 'n', 'g'}, fill.gradient.angle_degrees);
   write_descriptor_enum_item(writer, "Type", "GrdT", gradient_type_descriptor_value(fill.gradient.type));
   write_descriptor_bool_item(writer, "Rvrs", fill.gradient.reverse);
-  write_descriptor_bool_item(writer, "Dthr", false);
-  // "Classic" gradient interpolation, matching Patchy's linear stop ramps.
-  write_descriptor_enum_item(writer, "gs99", "gradientInterpolationMethodType", "Gcls");
-  write_descriptor_bool_item(writer, "Algn", true);
+  write_descriptor_bool_item(writer, "Dthr", fill.gradient.dither);
+  write_descriptor_enum_item(writer, "gs99", "gradientInterpolationMethodType",
+      gradient_interpolation_descriptor_value(fill.gradient.interpolation));
+  write_descriptor_bool_item(writer, "Algn", fill.gradient.align_with_layer);
   write_descriptor_unit_float_item(writer, "Scl ", {'#', 'P', 'r', 'c'}, fill.gradient.scale * 100.0);
-  // Photoshop's draggable gradient offset; Patchy has no offset model, so the
-  // gradient stays centered.
   write_descriptor_item_header(writer, "Ofst", {'O', 'b', 'j', 'c'});
   write_descriptor_object_header(writer, "", "Pnt ", 2);
-  write_descriptor_unit_float_item(writer, "Hrzn", {'#', 'P', 'r', 'c'}, 0.0);
-  write_descriptor_unit_float_item(writer, "Vrtc", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_unit_float_item(writer, "Hrzn", {'#', 'P', 'r', 'c'},
+                                   fill.gradient.offset_x_percent);
+  write_descriptor_unit_float_item(writer, "Vrtc", {'#', 'P', 'r', 'c'},
+                                   fill.gradient.offset_y_percent);
 }
 
 void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke) {
@@ -7146,17 +7287,21 @@ void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke)
     // following gradient. Omitting it makes the descriptor non-native.
     write_native_rgb_color_descriptor_item(writer, "Clr ", RgbColor{0, 0, 0});
     write_stroke_gradient_descriptor_item(writer, "Grad", stroke.gradient);
-    write_descriptor_enum_item(writer, "gradientsInterpolationMethod", "gradientInterpolationMethodType", "Gcls");
+    write_descriptor_enum_item(writer, "gradientsInterpolationMethod", "gradientInterpolationMethodType",
+        gradient_interpolation_descriptor_value(stroke.gradient.interpolation));
     write_descriptor_unit_float_item(writer, "Angl", {'#', 'A', 'n', 'g'}, stroke.gradient.angle_degrees);
     write_descriptor_enum_item(writer, "Type", "GrdT", gradient_type_descriptor_value(stroke.gradient.type));
     write_descriptor_bool_item(writer, "Rvrs", stroke.gradient.reverse);
-    write_descriptor_bool_item(writer, "Dthr", false);
+    write_descriptor_bool_item(writer, "Dthr", stroke.gradient.dither);
     write_descriptor_unit_float_item(writer, "Scl ", {'#', 'P', 'r', 'c'}, stroke.gradient.scale * 100.0);
-    write_descriptor_bool_item(writer, "Algn", true);
+    write_descriptor_bool_item(writer, "Algn",
+                               stroke.gradient.align_with_layer);
     write_descriptor_item_header(writer, "Ofst", {'O', 'b', 'j', 'c'});
     write_descriptor_object_header(writer, "", "Pnt ", 2);
-    write_descriptor_unit_float_item(writer, "Hrzn", {'#', 'P', 'r', 'c'}, 0.0);
-    write_descriptor_unit_float_item(writer, "Vrtc", {'#', 'P', 'r', 'c'}, 0.0);
+    write_descriptor_unit_float_item(writer, "Hrzn", {'#', 'P', 'r', 'c'},
+                                     stroke.gradient.offset_x_percent);
+    write_descriptor_unit_float_item(writer, "Vrtc", {'#', 'P', 'r', 'c'},
+                                     stroke.gradient.offset_y_percent);
   } else {
     write_native_rgb_color_descriptor_item(writer, "Clr ", stroke.color);
   }
@@ -7164,8 +7309,8 @@ void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke)
 }
 
 // Writes a ShpC contour object. A Linear contour mirrors PS 27.8's default form
-// (name "Linear", the two-point identity Crv, no Cnty flags); custom curves carry
-// Cnty on every point (true = smooth), PS's canonical custom-curve form.
+// (name "Linear", the two-point identity Crv, no Cnty flags); custom curves
+// carry Cnty on every point (true = smooth), PS's canonical custom-curve form.
 void write_shape_contour_descriptor_item(BigEndianWriter& writer, std::string_view key,
                                          const StyleContour& contour) {
   write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
@@ -7223,10 +7368,11 @@ std::string_view bevel_technique_descriptor_value(BevelTechnique technique) {
 }
 
 void write_bevel_emboss_descriptor(BigEndianWriter& writer, const LayerBevelEmboss& bevel) {
-  // Photoshop 2026's native ebbl shape (COM captures; docs/ps-compat.md): 22 base
-  // items in this exact order, the Contour sub inserting MpgS/AntA/Inpr right
-  // after useShape and the Texture sub appending its six keys after useTexture.
-  // Conditional keys are omitted entirely while a sub-option is off, mirroring PS.
+  // Photoshop 2026's native ebbl shape (COM captures; docs/ps-compat.md): 22
+  // base items in this exact order, the Contour sub inserting MpgS/AntA/Inpr
+  // right after useShape and the Texture sub appending its six keys after
+  // useTexture. Conditional keys are omitted entirely while a sub-option is
+  // off, mirroring PS.
   std::uint32_t item_count = 22;
   if (bevel.contour.enabled) {
     item_count += 3;
@@ -7361,9 +7507,9 @@ std::string_view blend_mode_lfx2_string(BlendMode mode) {
   return blend_mode_descriptor_value(mode);
 }
 
-// Exposed for the .asl style-preset codec (psd/psd_layer_effects.hpp). The payload
-// after its 8-byte header is exactly the serialized effects descriptor an .asl
-// 'Lefx' object embeds.
+// Exposed for the .asl style-preset codec (psd/psd_layer_effects.hpp). The
+// payload after its 8-byte header is exactly the serialized effects descriptor
+// an .asl 'Lefx' object embeds.
 std::vector<std::uint8_t> photoshop_lfx2_layer_style_payload(const LayerStyle& style) {
   BigEndianWriter payload;
   payload.write_u32(0);   // object effects version

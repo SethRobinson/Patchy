@@ -73,6 +73,7 @@ class BrushTipPicker;
 class DocumentFloatWindow;
 class PalettePanel;
 class PatternLibrary;
+class GradientLibrary;
 class StyleLibrary;
 class ZoomPercentEdit;
 class ZoomStatusBar;
@@ -109,6 +110,7 @@ public:
   [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }
   [[nodiscard]] BrushTipLibrary& brush_tip_library();
   [[nodiscard]] PatternLibrary& pattern_library();
+  [[nodiscard]] GradientLibrary& gradient_library();
   [[nodiscard]] StyleLibrary& style_library();
   void set_active_brush_tip(const QString& tip_id, bool announce);
   void define_brush_tip_from_selection();
@@ -751,6 +753,7 @@ private:
   QComboBox* brush_preset_combo_{nullptr};
   BrushTipLibrary* brush_tip_library_{nullptr};
   PatternLibrary* pattern_library_{nullptr};
+  GradientLibrary* gradient_library_{nullptr};
   StyleLibrary* style_library_{nullptr};
   BrushTipPicker* brush_tip_picker_{nullptr};
   BrushDynamicsButton* brush_dynamics_button_{nullptr};

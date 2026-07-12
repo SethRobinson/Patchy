@@ -1,6 +1,7 @@
 #include "ui/canvas_widget.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
+#include "core/gradient_presets.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/smart_object.hpp"
@@ -33,6 +34,8 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/gradient_stops_editor.hpp"
+#include "ui/gradient_library.hpp"
+#include "ui/gradient_manager_dialog.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -12099,6 +12102,61 @@ void ui_pattern_manager_preview_zooms_and_opens_image() {
   CHECK(opened_tile->height() == 12);
   CHECK(opened_tile->data().size() == tile.data().size());
   CHECK(std::equal(tile.data().begin(), tile.data().end(), opened_tile->data().begin()));
+}
+
+void ui_gradient_manager_shows_defaults_and_supports_crud() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::GradientLibrary library(directory.filePath(QStringLiteral("gradients")));
+  CHECK(library.restore_default_gradients() == 20);
+  CHECK(library.entries().size() == 20U);
+  const auto initial_id = library.entries().front().storage_id;
+  bool drove_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("gradientManagerDialog")));
+    CHECK(manager != nullptr);
+    auto* tree = manager->findChild<QTreeWidget*>(QStringLiteral("gradientManagerTree"));
+    auto* duplicate = manager->findChild<QPushButton*>(QStringLiteral("gradientManagerDuplicateButton"));
+    auto* remove = manager->findChild<QPushButton*>(QStringLiteral("gradientManagerDeleteButton"));
+    auto* restore = manager->findChild<QPushButton*>(QStringLiteral("gradientManagerRestoreButton"));
+    auto* use = manager->findChild<QPushButton*>(QStringLiteral("gradientManagerUseButton"));
+    CHECK(tree != nullptr);
+    CHECK(duplicate != nullptr && remove != nullptr && restore != nullptr && use != nullptr);
+    CHECK(tree->topLevelItemCount() == 4);
+    int leaves = 0;
+    std::function<void(QTreeWidgetItem*)> count_leaves = [&](QTreeWidgetItem* item) {
+      if (item->childCount() == 0) {
+        ++leaves;
+        return;
+      }
+      item->setExpanded(true);
+      for (int child = 0; child < item->childCount(); ++child) count_leaves(item->child(child));
+    };
+    for (int top = 0; top < tree->topLevelItemCount(); ++top) count_leaves(tree->topLevelItem(top));
+    CHECK(leaves == 20);
+    save_widget_artifact("ui_gradient_manager_defaults", *manager);
+
+    CHECK(duplicate->isEnabled());
+    duplicate->click();
+    CHECK(library.entries().size() == 21U);
+    CHECK(remove->isEnabled());
+    remove->click();
+    CHECK(library.entries().size() == 20U);
+    restore->click();
+    CHECK(library.default_gradients_match_factory());
+    auto* first_folder = tree->topLevelItem(0);
+    CHECK(first_folder != nullptr && first_folder->childCount() > 0);
+    tree->setCurrentItem(first_folder->child(0));
+    QApplication::processEvents();
+    CHECK(use->isEnabled());
+    drove_dialog = true;
+    use->click();
+  });
+  const auto selected = patchy::ui::request_gradient_manager(
+      nullptr, library, initial_id, patchy::builtin_gradient_presets().front().definition);
+  CHECK(drove_dialog);
+  CHECK(!selected.isEmpty());
+  CHECK(library.entries().size() == 20U);
 }
 
 // "Open as Image" must never create a document while the Layer Style dialog holds the
@@ -37463,6 +37521,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_layer_style_result.png",
       "ui_blend_if_range_editor.png",
       "ui_gradient_stops_editor_two_track.png",
+      "ui_gradient_manager_defaults.png",
       "ui_new_document_dialog.png",
       "ui_new_document_result.png",
       "ui_image_size_dialog.png",
@@ -40367,6 +40426,8 @@ int main(int argc, char* argv[]) {
        ui_pattern_manager_and_layer_style_buttons_use_library_pattern},
       {"ui_pattern_manager_preview_zooms_and_opens_image",
        ui_pattern_manager_preview_zooms_and_opens_image},
+      {"ui_gradient_manager_shows_defaults_and_supports_crud",
+       ui_gradient_manager_shows_defaults_and_supports_crud},
       {"ui_layer_style_open_pattern_as_image_defers_until_dialog_closes",
        ui_layer_style_open_pattern_as_image_defers_until_dialog_closes},
       {"ui_layer_style_pattern_picker_groups_and_collapses_folders",

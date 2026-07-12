@@ -1,6 +1,7 @@
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
 
+#include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
@@ -32,6 +33,8 @@
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
+#include "ui/gradient_library.hpp"
+#include "ui/gradient_manager_dialog.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/font_picker.hpp"
@@ -469,7 +472,7 @@ public:
 
 std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_dialog(
     QWidget* parent, const std::vector<GradientStop>& initial_stops, bool has_custom_stops, QColor foreground,
-    QColor background) {
+    QColor background, GradientLibrary* gradient_library) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("gradientStopsDialog"));
   dialog.resize(560, 430);
@@ -504,6 +507,10 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
   remove_stop->setObjectName(QStringLiteral("gradientRemoveStopButton"));
   auto* reset_stops = new QPushButton(QObject::tr("Reset to FG/BG"), selected_row);
   reset_stops->setObjectName(QStringLiteral("gradientResetStopsButton"));
+  auto* presets = new QPushButton(QObject::tr("Preset..."), selected_row);
+  presets->setObjectName(QStringLiteral("gradientPresetButton"));
+  presets->setEnabled(gradient_library != nullptr);
+  selected_layout->addWidget(presets);
   selected_layout->addWidget(choose_color);
   selected_layout->addWidget(add_stop);
   selected_layout->addWidget(remove_stop);
@@ -610,6 +617,34 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
     loading = false;
     refresh_preview();
   };
+  const auto stops_from_definition = [&](GradientDefinition definition) {
+    LayerStyleGradient gradient;
+    static_cast<GradientDefinition&>(gradient) = std::move(definition);
+    for (auto& stop : gradient.color_stops) {
+      if (stop.kind == GradientColorStop::Kind::Foreground) {
+        stop.color = RgbColor{static_cast<std::uint8_t>(foreground.red()),
+                              static_cast<std::uint8_t>(foreground.green()),
+                              static_cast<std::uint8_t>(foreground.blue())};
+      } else if (stop.kind == GradientColorStop::Kind::Background) {
+        stop.color = RgbColor{static_cast<std::uint8_t>(background.red()),
+                              static_cast<std::uint8_t>(background.green()),
+                              static_cast<std::uint8_t>(background.blue())};
+      }
+      stop.kind = GradientColorStop::Kind::User;
+    }
+    std::vector<GradientStop> sampled;
+    const int sample_count = gradient.form == GradientDefinitionForm::Noise ? 65 : 33;
+    sampled.reserve(sample_count);
+    for (int index = 0; index < sample_count; ++index) {
+      const auto position = static_cast<float>(index) / static_cast<float>(sample_count - 1);
+      const auto color = gradient_color(gradient, position);
+      sampled.push_back(GradientStop{
+          position, EditColor{color.red, color.green, color.blue,
+                              static_cast<std::uint8_t>(std::clamp(
+                                  std::lround(gradient_stop_opacity(gradient, position) * 255.0F), 0L, 255L))}});
+    }
+    return sampled;
+  };
   const auto set_row_color = [&](int row, QColor color) {
     if (row < 0 || row >= table->rowCount() || !color.isValid()) {
       return;
@@ -697,6 +732,14 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
   QObject::connect(reset_stops, &QPushButton::clicked, &dialog, [&] {
     load_stops(default_stops());
     using_default_stops = true;
+  });
+  QObject::connect(presets, &QPushButton::clicked, &dialog, [&] {
+    if (gradient_library == nullptr) return;
+    const auto selected = request_gradient_manager(&dialog, *gradient_library, {});
+    if (const auto* entry = gradient_library->find_entry(selected); entry != nullptr) {
+      load_stops(stops_from_definition(entry->definition));
+      using_default_stops = false;
+    }
   });
   preview->stop_selected = [&](int row) {
     if (row >= 0 && row < table->rowCount()) {
@@ -19178,7 +19221,14 @@ void MainWindow::edit_active_layer_style() {
   auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings =
       request_layer_style_settings(this, *layer, apply_preview_settings, &doc.metadata().patterns,
-                                   &pattern_library(), &style_library(), queue_pattern_image);
+                                   &pattern_library(), &style_library(), queue_pattern_image,
+                                   &gradient_library(),
+                                   RgbColor{static_cast<std::uint8_t>(canvas_->primary_color().red()),
+                                            static_cast<std::uint8_t>(canvas_->primary_color().green()),
+                                            static_cast<std::uint8_t>(canvas_->primary_color().blue())},
+                                   RgbColor{static_cast<std::uint8_t>(canvas_->secondary_color().red()),
+                                            static_cast<std::uint8_t>(canvas_->secondary_color().green()),
+                                            static_cast<std::uint8_t>(canvas_->secondary_color().blue())});
   if (!settings.has_value()) {
     restore_original();
     preview_edit_lock.release();
@@ -21675,6 +21725,20 @@ PatternLibrary& MainWindow::pattern_library() {
   return *pattern_library_;
 }
 
+GradientLibrary& MainWindow::gradient_library() {
+  if (gradient_library_ == nullptr) {
+    gradient_library_ = new GradientLibrary({}, this);
+    auto settings = app_settings();
+    const auto stored_version = settings.value(QStringLiteral("gradients/defaultGradientsVersion"), 0).toInt();
+    if (stored_version < kDefaultGradientsVersion) {
+      gradient_library_->restore_default_gradients(stored_version);
+      if (gradient_library_->has_all_default_gradients_introduced_after(stored_version))
+        settings.setValue(QStringLiteral("gradients/defaultGradientsVersion"), kDefaultGradientsVersion);
+    }
+  }
+  return *gradient_library_;
+}
+
 StyleLibrary& MainWindow::style_library() {
   if (style_library_ == nullptr) {
     style_library_ = new StyleLibrary({}, this);
@@ -23443,7 +23507,7 @@ void MainWindow::edit_gradient_stops() {
   }
   const auto result = request_gradient_stops_dialog(this, canvas_->effective_gradient_stops(),
                                                     canvas_->gradient_stops().has_value(), canvas_->primary_color(),
-                                                    canvas_->secondary_color());
+                                                    canvas_->secondary_color(), &gradient_library());
   if (!result.has_value()) {
     return;
   }
