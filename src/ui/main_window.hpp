@@ -177,6 +177,9 @@ private:
     // Sources referenced by copied smart-object layers so a cross-document paste can
     // adopt them into the target's store (shared_ptr payloads: copies are cheap).
     std::vector<SmartObjectSource> smart_object_sources;
+    // Pattern tiles referenced by copied layers' styles (Pattern Overlay / Bevel
+    // Texture), adopted the same way on paste (implicitly shared pixels).
+    std::vector<PatternResource> pattern_resources;
   };
 
   // Defaults match the Round startup preset (brush_presets.cpp); load_tool_settings()
@@ -891,6 +894,9 @@ private:
   struct LayerStyleClipboard {
     LayerStyle style;
     std::optional<LayerBlendIf> blend_if;
+    // Pattern tiles the copied style references, so pasting into another
+    // document can embed them there too.
+    std::vector<PatternResource> patterns;
   };
   std::optional<LayerStyleClipboard> layer_style_clipboard_;
   std::optional<QByteArray> patchy_system_clipboard_signature_;

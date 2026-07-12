@@ -3,6 +3,7 @@
 #include "core/document_channel.hpp"
 #include "core/layer.hpp"
 #include "core/palette.hpp"
+#include "core/pattern_resource.hpp"
 #include "core/smart_object.hpp"
 
 #include <cstdint>
@@ -30,6 +31,12 @@ struct DocumentMetadata {
   // Smart-object sources ('lnkD'/'lnk2'/'lnk3' blocks) referenced by per-layer
   // 'PlLd'/'SoLd' blocks via uuid; see core/smart_object.hpp.
   SmartObjectStore smart_objects;
+  // Pattern tiles referenced by layer-style Pattern Overlay / Bevel Texture
+  // effects. Imported 'Patt'/'Pat2'/'Pat3' blocks stay raw in
+  // unknown_psd_resources above AND decode here (read-only); only Authored
+  // resources are written into a new pattern block on save. See
+  // core/pattern_resource.hpp.
+  PatternStore patterns;
   std::vector<std::uint8_t> raw_psd_global_layer_mask_info;
   std::vector<std::uint8_t> raw_psd_image_resources;
   std::optional<PixelBuffer> psd_flat_composite;

@@ -825,7 +825,7 @@ bool composite_cached_style_layer(QImageCompositeTarget& destination, const Laye
 void composite_document_layer(QImageCompositeTarget& target, const Layer& layer, Rect clip,
                               const std::vector<render_detail::LayerBoundsOverride>* overrides,
                               render_detail::StyleMaskProvider* masks = nullptr, RenderProfile* profile = nullptr,
-                              std::string_view parent_path = {}) {
+                              std::string_view parent_path = {}, const PatternStore* patterns = nullptr) {
   const auto profiling = profile != nullptr;
   const auto started = profiling ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
   const auto kind = layer.kind();
@@ -867,7 +867,7 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
     if (render_detail::layer_has_rendered_blend_if(layer)) {
       // A Blend-If group must be rendered as one isolated source so This Layer
       // samples the group result and Underlying Layer samples the outer stack.
-      render_detail::composite_layer(target, layer, clip, overrides, false, masks);
+      render_detail::composite_layer(target, layer, clip, overrides, false, masks, nullptr, patterns);
     } else {
       // Clip runs inside the children go through render_detail::composite_layer
       // (no per-member style cache/profiling); unclipped children keep this
@@ -875,8 +875,9 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
       render_detail::composite_sibling_layers(
           target, layer.children(), clip, overrides, false, masks,
           [&](QImageCompositeTarget& child_target, const Layer& child) {
-            composite_document_layer(child_target, child, clip, overrides, masks, profile, path);
-          });
+            composite_document_layer(child_target, child, clip, overrides, masks, profile, path, patterns);
+          },
+          patterns);
     }
     action = "group";
   } else if (kind == LayerKind::Adjustment) {
@@ -895,7 +896,7 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
     if (composite_cached_style_layer(target, layer, clip, overrides)) {
       action = "pixel_cached_or_empty";
     } else {
-      render_detail::composite_pixel_layer(target, layer, clip, overrides, false, masks);
+      render_detail::composite_pixel_layer(target, layer, clip, overrides, false, masks, nullptr, patterns);
       action = layer.layer_style().effects_visible && !layer.layer_style().empty() ? "pixel_style" : "pixel";
     }
   } else {
@@ -1055,8 +1056,10 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
             render_detail::composite_sibling_layers(
                 strip_target, document.layers(), strip_clip, overrides, false, masks,
                 [&](QImageCompositeTarget& target, const Layer& layer) {
-                  composite_document_layer(target, layer, strip_clip, overrides, masks);
-                });
+                  composite_document_layer(target, layer, strip_clip, overrides, masks, nullptr, {},
+                                           &document.metadata().patterns);
+                },
+                &document.metadata().patterns);
             return strip_image;
           })});
     }
@@ -1073,8 +1076,10 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
     render_detail::composite_sibling_layers(
         target, document.layers(), clip, overrides, false, masks,
         [&](QImageCompositeTarget& layer_target, const Layer& layer) {
-          composite_document_layer(layer_target, layer, clip, overrides, masks, profiling ? &profile : nullptr);
-        });
+          composite_document_layer(layer_target, layer, clip, overrides, masks, profiling ? &profile : nullptr,
+                                   {}, &document.metadata().patterns);
+        },
+        &document.metadata().patterns);
   }
   if (logical_alpha_render) {
     QImage matted(image.width(), image.height(), QImage::Format_RGB888);

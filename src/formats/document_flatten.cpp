@@ -95,7 +95,8 @@ PixelBuffer flatten_document_rgba8(const Document& document) {
   output.clear(0);
   Rgba8FlattenTarget target(output);
   const auto canvas = Rect::from_size(document.width(), document.height());
-  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true);
+  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true, nullptr,
+                                  &document.metadata().patterns);
   return output;
 }
 

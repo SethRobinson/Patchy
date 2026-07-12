@@ -25,9 +25,12 @@
 #include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
 #include "psd/psd_document_io.hpp"
+#include "core/contour_presets.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/palette.hpp"
 #include "core/palette_presets.hpp"
+#include "core/pattern_presets.hpp"
+#include "core/style_contour.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
 #include "render/compositor.hpp"
@@ -6870,6 +6873,457 @@ void psd_photoshop_layer_style_4a_round_trip_fixture_imports() {
   const auto resaved_payload = psd_layer_block_payload(psd_first_layer_extra_data(resaved), "lfx2");
   CHECK(resaved_payload.has_value());
   CHECK(*resaved_payload == preserved->payload);
+}
+
+std::uint64_t fnv1a_hash_bytes(std::span<const std::uint8_t> bytes) {
+  std::uint64_t hash = 14695981039346656037ULL;
+  for (const auto byte : bytes) {
+    hash ^= byte;
+    hash *= 1099511628211ULL;
+  }
+  return hash;
+}
+
+void pattern_presets_generate_stable_tiles() {
+  // Byte-stability canary: preset tiles are embedded into user PSDs, so the
+  // generators may never drift. Re-pin only for a deliberate art change.
+  const auto presets = patchy::builtin_pattern_presets();
+  CHECK(presets.size() == 12U);
+  for (const auto& preset : presets) {
+    const auto tile = patchy::generate_builtin_pattern_tile(preset.id);
+    CHECK(!tile.empty());
+    CHECK(tile.format() == patchy::PixelFormat::rgba8());
+    CHECK(patchy::find_builtin_pattern_preset(preset.id) == &preset);
+    const auto resource = patchy::builtin_pattern_resource(preset.id);
+    CHECK(resource.id == preset.id);
+    CHECK(resource.name == preset.english_name);
+    CHECK(!resource.tile.empty());
+  }
+  const auto tile_hash = [](std::string_view id) {
+    const auto tile = patchy::generate_builtin_pattern_tile(id);
+    return fnv1a_hash_bytes(tile.data());
+  };
+  struct PinnedTile {
+    const char* id;
+    std::uint64_t hash;
+  };
+  static constexpr PinnedTile kPins[] = {
+      {"c4a11e00-0001-4b1d-9c3e-7a7c9e55b001", 0x6137c1aa7e0f4b25ULL},  // Checkerboard
+      {"c4a11e00-0002-4b1d-9c3e-7a7c9e55b002", 0x7f79c7ddf5d50325ULL},  // Diagonal Stripes
+      {"c4a11e00-0003-4b1d-9c3e-7a7c9e55b003", 0x9ef6fbb8dfcb2565ULL},  // Polka Dots
+      {"c4a11e00-0004-4b1d-9c3e-7a7c9e55b004", 0xf176d3fb46b4db25ULL},  // Grid
+      {"c4a11e00-0005-4b1d-9c3e-7a7c9e55b005", 0x52c58a65db0dcd82ULL},  // Fine Grain
+      {"c4a11e00-0006-4b1d-9c3e-7a7c9e55b006", 0x1911819944c1c245ULL},  // Canvas Weave
+      {"c4a11e00-0007-4b1d-9c3e-7a7c9e55b007", 0xab6e44f661f0d545ULL},  // Wood Grain
+      {"c4a11e00-0008-4b1d-9c3e-7a7c9e55b008", 0xb945032d60433d4bULL},  // Brushed Metal
+      {"c4a11e00-0009-4b1d-9c3e-7a7c9e55b009", 0x623c8276985ebde9ULL},  // Bumps
+      {"c4a11e00-000a-4b1d-9c3e-7a7c9e55b00a", 0xcbaecc95b939c271ULL},  // Bricks
+      {"c4a11e00-000b-4b1d-9c3e-7a7c9e55b00b", 0xea2e47fb35c6f525ULL},  // Scales
+      {"c4a11e00-000c-4b1d-9c3e-7a7c9e55b00c", 0x99ab545bbb251625ULL},  // Basketweave
+  };
+  for (const auto& pin : kPins) {
+    CHECK(tile_hash(pin.id) == pin.hash);
+  }
+}
+
+void style_contour_lut_handles_presets_and_corners() {
+  // Empty points and the explicit two-point ramp are both the Linear identity.
+  const auto identity = patchy::build_style_contour_lut(patchy::StyleContour{});
+  for (int input = 0; input < 256; ++input) {
+    CHECK(identity[static_cast<std::size_t>(input)] == input);
+  }
+  const auto* linear = patchy::find_builtin_contour_preset("contour.linear");
+  CHECK(linear != nullptr);
+  CHECK(patchy::style_contour_is_linear(linear->contour));
+  CHECK(patchy::build_style_contour_lut(linear->contour) == identity);
+
+  // Cone is an all-corner polyline: exact linear ramps with the apex at 128.
+  const auto* cone = patchy::find_builtin_contour_preset("contour.cone");
+  CHECK(cone != nullptr);
+  const auto cone_lut = patchy::build_style_contour_lut(cone->contour);
+  CHECK(cone_lut[0] == 0);
+  CHECK(cone_lut[128] == 255);
+  CHECK(cone_lut[255] == 0);
+  CHECK(cone_lut[64] == 128);  // straight segment, not a spline bulge
+
+  // Ring is smooth: rises then falls, symmetric-ish, peak at the middle.
+  const auto* ring = patchy::find_builtin_contour_preset("contour.ring");
+  CHECK(ring != nullptr);
+  CHECK(patchy::find_builtin_contour_preset(ring->contour) == ring);
+  const auto ring_lut = patchy::build_style_contour_lut(ring->contour);
+  CHECK(ring_lut[128] == 255);
+  CHECK(ring_lut[0] == 0 && ring_lut[255] == 0);
+  CHECK(ring_lut[64] > 100);
+
+  // Anti-aliased sampling interpolates between entries; quantized snaps.
+  const auto smooth = patchy::sample_style_contour_lut(cone_lut, 0.25F + 0.5F / 255.0F, true);
+  const auto stepped = patchy::sample_style_contour_lut(cone_lut, 0.25F + 0.5F / 255.0F, false);
+  CHECK(std::abs(smooth - (cone_lut[static_cast<std::size_t>(std::lround(0.25F * 255.0F))] / 255.0F)) < 0.02F);
+  CHECK(stepped == cone_lut[64] / 255.0F || stepped == cone_lut[65] / 255.0F);
+}
+
+void psd_photoshop_pattern_overlay_fixture_imports() {
+  const auto document =
+      patchy::psd::DocumentIo::read_file(patchy::test::committed_psd_fixture_path("photoshop-pattern-overlay.psd"));
+  CHECK(document.metadata().patterns.patterns.size() == 1U);
+  const auto* resource = document.metadata().patterns.find("2317675a-e95e-b147-8612-bb6e28bcf146");
+  CHECK(resource != nullptr);
+  CHECK(resource->name == "PatchyProbePattern");
+  CHECK(resource->tile.width() == 8 && resource->tile.height() == 8);
+  const auto* corner = resource->tile.pixel(0, 0);
+  CHECK(corner[0] == 200 && corner[1] == 40 && corner[2] == 40 && corner[3] == 255);
+  const auto* marker = resource->tile.pixel(6, 6);
+  CHECK(marker[0] == 255 && marker[1] == 255 && marker[2] == 255);
+
+  const auto* layer = find_layer_named(document.layers(), "patterned");
+  CHECK(layer != nullptr);
+  CHECK(layer->layer_style().pattern_overlays.size() == 1U);
+  const auto& overlay = layer->layer_style().pattern_overlays.front();
+  CHECK(overlay.enabled);
+  CHECK(overlay.pattern_id == "2317675a-e95e-b147-8612-bb6e28bcf146");
+  CHECK(std::abs(overlay.scale - 1.0F) < 0.001F);
+  CHECK(overlay.link_with_layer);
+  CHECK(overlay.phase_x == 0.0F && overlay.phase_y == 0.0F);
+  CHECK(overlay.angle_degrees == 0.0F);
+
+  // Untouched resave: the raw Patt block re-emits byte-identically and the
+  // writer does not add a duplicate pattern block for the covered id.
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(resaved);
+  std::vector<std::vector<std::uint8_t>> original_blocks;
+  for (const auto& block : document.metadata().unknown_psd_resources) {
+    if (block.key == "Patt" || block.key == "Pat2" || block.key == "Pat3") {
+      original_blocks.push_back(block.payload);
+    }
+  }
+  std::vector<std::vector<std::uint8_t>> reread_blocks;
+  for (const auto& block : reread.metadata().unknown_psd_resources) {
+    if (block.key == "Patt" || block.key == "Pat2" || block.key == "Pat3") {
+      reread_blocks.push_back(block.payload);
+    }
+  }
+  CHECK(original_blocks.size() == 1U);
+  CHECK(reread_blocks == original_blocks);
+  CHECK(reread.metadata().patterns.patterns.size() == 1U);
+}
+
+void psd_photoshop_pattern_transparent_fixture_decodes_alpha() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-pattern-transparent.psd"));
+  const auto* resource = document.metadata().patterns.find("7c444b0a-d81e-0e4e-a721-239e25f8fc4f");
+  CHECK(resource != nullptr);
+  const auto* opaque = resource->tile.pixel(1, 1);
+  CHECK(opaque[0] == 255 && opaque[1] == 120 && opaque[2] == 0 && opaque[3] == 255);
+  CHECK(resource->tile.pixel(5, 1)[3] == 128);  // 50% fill
+  CHECK(resource->tile.pixel(5, 5)[3] == 0);    // untouched transparent quadrant
+
+  // 16-bit grayscale pattern (PS trims the tile to its 1-px repeating unit).
+  const auto deep = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-pattern-deep.psd"));
+  CHECK(deep.metadata().patterns.patterns.size() == 1U);
+  const auto& deep_tile = deep.metadata().patterns.patterns.front().tile;
+  CHECK(deep_tile.width() == 1 && deep_tile.height() == 8);
+  CHECK(deep_tile.pixel(0, 0)[0] < deep_tile.pixel(0, 7)[0]);  // dark band above light band
+  CHECK(deep_tile.pixel(0, 0)[0] == deep_tile.pixel(0, 0)[1]);
+}
+
+void psd_photoshop_bevel_subs_fixture_round_trips() {
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-bevel-subs.psd"));
+  const auto* contour_layer = find_layer_named(document.layers(), "contourSub");
+  const auto* texture_layer = find_layer_named(document.layers(), "textureSub");
+  CHECK(contour_layer != nullptr && texture_layer != nullptr);
+  const auto& contour_bevel = contour_layer->layer_style().bevels.front();
+  CHECK(contour_bevel.contour.enabled);
+  CHECK(!contour_bevel.texture.enabled);
+  CHECK(contour_bevel.contour.anti_aliased);
+  CHECK(std::abs(contour_bevel.contour.range - 0.73F) < 0.001F);
+  CHECK(contour_bevel.contour.contour.points.size() == 4U);
+  CHECK(contour_bevel.contour.contour.points[1].x == 80.0F);
+  CHECK(contour_bevel.contour.contour.points[1].y == 255.0F);
+  CHECK(contour_bevel.contour.contour.points[1].corner);   // Cnty=false in the file
+  CHECK(!contour_bevel.contour.contour.points[2].corner);  // smooth point
+  CHECK(contour_bevel.style == patchy::BevelEmbossStyleKind::OuterBevel);  // AM default
+  CHECK(contour_bevel.technique == patchy::BevelTechnique::Smooth);
+  const auto& texture_bevel = texture_layer->layer_style().bevels.front();
+  CHECK(texture_bevel.texture.enabled);
+  CHECK(texture_bevel.texture.invert);
+  CHECK(!texture_bevel.texture.link_with_layer);
+  CHECK(std::abs(texture_bevel.texture.scale - 1.52F) < 0.001F);
+  CHECK(std::abs(texture_bevel.texture.depth + 0.37F) < 0.001F);
+  CHECK(texture_bevel.texture.phase_x == -3.0F && texture_bevel.texture.phase_y == 5.0F);
+  CHECK(texture_bevel.texture.pattern_id == "2317675a-e95e-b147-8612-bb6e28bcf146");
+  CHECK(document.metadata().patterns.find(texture_bevel.texture.pattern_id) != nullptr);
+
+  // Simulate an edit (drop the preserved style blocks) and require the
+  // regenerated descriptors to re-read with identical modeled values —
+  // including EXACT custom contour points, the better-than-Satin guarantee.
+  for (auto& layer : document.layers()) {
+    std::erase_if(layer.unknown_psd_blocks(), [](const patchy::UnknownPsdBlock& block) {
+      return block.key == "lfx2" || block.key == "lrFX" || block.key == "plFX";
+    });
+  }
+  const auto regenerated = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(regenerated);
+  const auto* contour_reread = find_layer_named(reread.layers(), "contourSub");
+  const auto* texture_reread = find_layer_named(reread.layers(), "textureSub");
+  CHECK(contour_reread != nullptr && texture_reread != nullptr);
+  const auto& contour_after = contour_reread->layer_style().bevels.front();
+  CHECK(contour_after.contour.enabled == contour_bevel.contour.enabled);
+  CHECK(contour_after.contour.anti_aliased == contour_bevel.contour.anti_aliased);
+  CHECK(contour_after.contour.contour.points == contour_bevel.contour.contour.points);
+  CHECK(contour_after.contour.contour.name == contour_bevel.contour.contour.name);
+  CHECK(contour_after.style == contour_bevel.style);
+  CHECK(contour_after.technique == contour_bevel.technique);
+  const auto& texture_after = texture_reread->layer_style().bevels.front();
+  CHECK(texture_after.texture.enabled);
+  CHECK(texture_after.texture.invert == texture_bevel.texture.invert);
+  CHECK(texture_after.texture.link_with_layer == texture_bevel.texture.link_with_layer);
+  CHECK(texture_after.texture.pattern_id == texture_bevel.texture.pattern_id);
+  CHECK(texture_after.texture.phase_x == texture_bevel.texture.phase_x);
+  CHECK(texture_after.texture.phase_y == texture_bevel.texture.phase_y);
+  // The texture's pattern still resolves after the edited save: its pixels ride
+  // the preserved raw Patt block.
+  CHECK(reread.metadata().patterns.find(texture_bevel.texture.pattern_id) != nullptr);
+}
+
+void psd_photoshop_pattern_bevel_roundtrip_fixture_imports() {
+  // Photoshop 2026's resave of a Patchy-authored file (built-in Bricks overlay +
+  // Ring contour sub + Bumps texture sub). PS opened it without warnings and
+  // returned every modeled value through Action Manager; this pins the return trip.
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-pattern-bevel-roundtrip.psd"));
+  const auto* styled = find_layer_named(document.layers(), "styled");
+  CHECK(styled != nullptr);
+  const auto& style = styled->layer_style();
+  CHECK(style.pattern_overlays.size() == 1U);
+  const auto& overlay = style.pattern_overlays.front();
+  CHECK(overlay.enabled);
+  CHECK(overlay.blend_mode == patchy::BlendMode::Multiply);
+  CHECK(std::abs(overlay.opacity - 0.8F) < 0.01F);
+  CHECK(std::abs(overlay.scale - 2.0F) < 0.01F);
+  CHECK(overlay.pattern_id == "c4a11e00-000a-4b1d-9c3e-7a7c9e55b00a");
+  CHECK(style.bevels.size() == 1U);
+  const auto& bevel = style.bevels.front();
+  CHECK(bevel.contour.enabled);
+  CHECK(bevel.contour.anti_aliased);
+  CHECK(std::abs(bevel.contour.range - 0.75F) < 0.01F);
+  CHECK(bevel.contour.contour.points.size() == 3U);
+  CHECK(bevel.contour.contour.points[1].x == 128.0F && bevel.contour.contour.points[1].y == 255.0F);
+  CHECK(bevel.texture.enabled);
+  CHECK(std::abs(bevel.texture.depth - 2.0F) < 0.01F);
+  CHECK(bevel.texture.pattern_id == "c4a11e00-0009-4b1d-9c3e-7a7c9e55b009");
+  // Photoshop re-embedded both built-in tiles in its own pattern block.
+  CHECK(document.metadata().patterns.find("c4a11e00-000a-4b1d-9c3e-7a7c9e55b00a") != nullptr);
+  CHECK(document.metadata().patterns.find("c4a11e00-0009-4b1d-9c3e-7a7c9e55b009") != nullptr);
+}
+
+void psd_pattern_overlay_added_in_patchy_writes_pattern_block() {
+  patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Styled", solid_rgba(32, 32, 120, 120, 120, 255));
+  const auto presets = patchy::builtin_pattern_presets();
+  patchy::LayerPatternOverlay overlay;
+  overlay.enabled = true;
+  overlay.pattern_id = presets[0].id;
+  overlay.pattern_name = presets[0].english_name;
+  overlay.scale = 2.5F;
+  overlay.phase_x = 3.0F;
+  overlay.link_with_layer = false;
+  layer.layer_style().pattern_overlays.push_back(overlay);
+  patchy::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  bevel.texture.enabled = true;
+  bevel.texture.pattern_id = presets[8].id;  // Bumps
+  bevel.texture.pattern_name = presets[8].english_name;
+  bevel.texture.depth = -2.5F;
+  layer.layer_style().bevels.push_back(bevel);
+  document.metadata().patterns.adopt(patchy::builtin_pattern_resource(presets[0].id));
+  document.metadata().patterns.adopt(patchy::builtin_pattern_resource(presets[8].id));
+  // An unreferenced store entry must NOT be written (orphans prune at save).
+  document.metadata().patterns.adopt(patchy::builtin_pattern_resource(presets[3].id));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(patchy::psd::DocumentIo::write_layered_rgb8(document) == bytes);  // deterministic
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
+  CHECK(reread.metadata().patterns.patterns.size() == 2U);
+  const auto* checker = reread.metadata().patterns.find(presets[0].id);
+  CHECK(checker != nullptr);
+  const auto reference = patchy::generate_builtin_pattern_tile(presets[0].id);
+  CHECK(checker->tile.width() == reference.width() && checker->tile.height() == reference.height());
+  CHECK(std::equal(checker->tile.data().begin(), checker->tile.data().end(), reference.data().begin(),
+                   reference.data().end()));
+  const auto& style = reread.layers().front().layer_style();
+  CHECK(style.pattern_overlays.size() == 1U);
+  CHECK(std::abs(style.pattern_overlays.front().scale - 2.5F) < 0.001F);
+  CHECK(style.pattern_overlays.front().phase_x == 3.0F);
+  CHECK(!style.pattern_overlays.front().link_with_layer);
+  CHECK(style.bevels.size() == 1U);
+  CHECK(style.bevels.front().texture.enabled);
+  CHECK(style.bevels.front().texture.depth == -2.5F);
+}
+
+void compositor_renders_layer_style_pattern_overlay() {
+  patchy::Document document(12, 12, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(12, 12, 255, 255, 255));
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Patterned", solid_rgba(6, 6, 120, 120, 120, 255));
+  auto& layer = document.add_layer(std::move(styled_layer));
+  layer.set_bounds(patchy::Rect{3, 3, 6, 6});
+
+  patchy::PatternResource checker;
+  checker.id = "test-checker";
+  checker.name = "Test Checker";
+  checker.tile = patchy::PixelBuffer(2, 2, patchy::PixelFormat::rgba8());
+  const auto set_px = [&](int x, int y, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    auto* px = checker.tile.pixel(x, y);
+    px[0] = r;
+    px[1] = g;
+    px[2] = b;
+    px[3] = 255;
+  };
+  set_px(0, 0, 200, 40, 40);
+  set_px(1, 0, 40, 90, 200);
+  set_px(0, 1, 40, 90, 200);
+  set_px(1, 1, 200, 40, 40);
+  document.metadata().patterns.adopt(checker);
+
+  patchy::LayerPatternOverlay overlay;
+  overlay.enabled = true;
+  overlay.pattern_id = "test-checker";
+  layer.layer_style().pattern_overlays.push_back(overlay);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // Document-origin anchoring: pixel (3,3) samples tile cell (3%2, 3%2) = (1,1).
+  const auto* inside = flattened.pixel(3, 3);
+  CHECK(inside[0] == 200 && inside[1] == 40 && inside[2] == 40);
+  const auto* next = flattened.pixel(4, 3);
+  CHECK(next[0] == 40 && next[1] == 90 && next[2] == 200);
+  // Outside the layer the base stays untouched.
+  const auto* outside = flattened.pixel(1, 1);
+  CHECK(outside[0] == 255 && outside[1] == 255 && outside[2] == 255);
+
+  // A missing pattern id renders exactly nothing.
+  layer.layer_style().pattern_overlays.front().pattern_id = "no-such-pattern";
+  const auto missing = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* untouched = missing.pixel(3, 3);
+  CHECK(untouched[0] == 120 && untouched[1] == 120 && untouched[2] == 120);
+}
+
+void compositor_bevel_gloss_and_contour_subs_change_lighting() {
+  const auto render_with = [](auto configure) {
+    patchy::Document document(40, 40, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(40, 40, 255, 255, 255));
+    patchy::Layer styled_layer(document.allocate_layer_id(), "Bevel",
+                               solid_rgba(28, 28, 120, 120, 120, 255));
+    auto& layer = document.add_layer(std::move(styled_layer));
+    layer.set_bounds(patchy::Rect{6, 6, 28, 28});
+    patchy::LayerBevelEmboss bevel;
+    bevel.enabled = true;
+    bevel.highlight_blend_mode = patchy::BlendMode::Normal;
+    bevel.highlight_opacity = 1.0F;
+    bevel.shadow_blend_mode = patchy::BlendMode::Normal;
+    bevel.shadow_opacity = 1.0F;
+    bevel.size = 8.0F;
+    configure(bevel, document);
+    layer.layer_style().bevels.push_back(bevel);
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+
+  const auto plain = render_with([](patchy::LayerBevelEmboss&, patchy::Document&) {});
+  // An explicit two-point Linear gloss contour must stay bit-identical.
+  const auto linear_gloss = render_with([](patchy::LayerBevelEmboss& bevel, patchy::Document&) {
+    bevel.gloss_contour.points = {patchy::StyleContourPoint{0.0F, 0.0F, false},
+                                  patchy::StyleContourPoint{255.0F, 255.0F, false}};
+  });
+  CHECK(std::equal(plain.data().begin(), plain.data().end(), linear_gloss.data().begin(),
+                   linear_gloss.data().end()));
+
+  const auto* ring = patchy::find_builtin_contour_preset("contour.ring");
+  CHECK(ring != nullptr);
+  const auto ring_gloss = render_with([&](patchy::LayerBevelEmboss& bevel, patchy::Document&) {
+    bevel.gloss_contour = ring->contour;
+  });
+  CHECK(!std::equal(plain.data().begin(), plain.data().end(), ring_gloss.data().begin(),
+                    ring_gloss.data().end()));
+  // Ring gloss maps flat-face lighting (0) to full highlight.
+  const auto* face = ring_gloss.pixel(20, 20);
+  CHECK(face[0] > 250 && face[1] > 250 && face[2] > 250);
+
+  // The Contour sub with Ring flips the profile mid-band: the top edge gains a
+  // shadow run where the plain bevel is pure highlight.
+  const auto ring_sub = render_with([&](patchy::LayerBevelEmboss& bevel, patchy::Document&) {
+    bevel.contour.enabled = true;
+    bevel.contour.contour = ring->contour;
+    bevel.contour.range = 1.0F;
+  });
+  CHECK(!std::equal(plain.data().begin(), plain.data().end(), ring_sub.data().begin(),
+                    ring_sub.data().end()));
+  int plain_dark = 0;
+  int ring_dark = 0;
+  for (int y = 7; y < 13; ++y) {
+    if (plain.pixel(20, y)[0] < 100) {
+      ++plain_dark;
+    }
+    if (ring_sub.pixel(20, y)[0] < 100) {
+      ++ring_dark;
+    }
+  }
+  CHECK(plain_dark == 0);
+  CHECK(ring_dark > 0);
+
+  // A Linear sub contour at full range stays bit-identical to the plain bevel.
+  const auto linear_sub = render_with([](patchy::LayerBevelEmboss& bevel, patchy::Document&) {
+    bevel.contour.enabled = true;
+    bevel.contour.range = 1.0F;
+  });
+  CHECK(std::equal(plain.data().begin(), plain.data().end(), linear_sub.data().begin(),
+                   linear_sub.data().end()));
+}
+
+void compositor_bevel_texture_responds_to_depth_and_invert() {
+  const auto render_with = [](float depth, bool invert) {
+    patchy::Document document(40, 40, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(40, 40, 255, 255, 255));
+    patchy::Layer styled_layer(document.allocate_layer_id(), "Textured",
+                               solid_rgba(28, 28, 120, 120, 120, 255));
+    auto& layer = document.add_layer(std::move(styled_layer));
+    layer.set_bounds(patchy::Rect{6, 6, 28, 28});
+    document.metadata().patterns.adopt(
+        patchy::builtin_pattern_resource(patchy::builtin_pattern_presets()[0].id));  // Checkerboard
+    patchy::LayerBevelEmboss bevel;
+    bevel.enabled = true;
+    bevel.highlight_blend_mode = patchy::BlendMode::Normal;
+    bevel.highlight_opacity = 1.0F;
+    bevel.shadow_blend_mode = patchy::BlendMode::Normal;
+    bevel.shadow_opacity = 1.0F;
+    bevel.size = 6.0F;
+    bevel.texture.enabled = depth != 0.0F || invert;
+    bevel.texture.pattern_id = patchy::builtin_pattern_presets()[0].id;
+    bevel.texture.depth = depth;
+    bevel.texture.invert = invert;
+    layer.layer_style().bevels.push_back(bevel);
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+
+  const auto plain = render_with(0.0F, false);
+  const auto textured = render_with(1.0F, false);
+  CHECK(!std::equal(plain.data().begin(), plain.data().end(), textured.data().begin(),
+                    textured.data().end()));
+  // The bump shades the whole face, not just the bevel band.
+  bool face_changed = false;
+  for (int y = 16; y < 24 && !face_changed; ++y) {
+    for (int x = 16; x < 24 && !face_changed; ++x) {
+      face_changed = plain.pixel(x, y)[0] != textured.pixel(x, y)[0];
+    }
+  }
+  CHECK(face_changed);
+  // Invert equals negated depth, and renders are deterministic.
+  const auto inverted = render_with(1.0F, true);
+  const auto negated = render_with(-1.0F, false);
+  CHECK(std::equal(inverted.data().begin(), inverted.data().end(), negated.data().begin(),
+                   negated.data().end()));
+  const auto repeated = render_with(1.0F, false);
+  CHECK(std::equal(textured.data().begin(), textured.data().end(), repeated.data().begin(),
+                   repeated.data().end()));
 }
 
 void psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates() {
@@ -16932,6 +17386,21 @@ int main() {
        psd_photoshop_satin_fixture_preserves_native_lfx2},
       {"psd_photoshop_layer_style_4a_round_trip_fixture_imports",
        psd_photoshop_layer_style_4a_round_trip_fixture_imports},
+      {"pattern_presets_generate_stable_tiles", pattern_presets_generate_stable_tiles},
+      {"style_contour_lut_handles_presets_and_corners", style_contour_lut_handles_presets_and_corners},
+      {"psd_photoshop_pattern_overlay_fixture_imports", psd_photoshop_pattern_overlay_fixture_imports},
+      {"psd_photoshop_pattern_transparent_fixture_decodes_alpha",
+       psd_photoshop_pattern_transparent_fixture_decodes_alpha},
+      {"psd_photoshop_bevel_subs_fixture_round_trips", psd_photoshop_bevel_subs_fixture_round_trips},
+      {"psd_photoshop_pattern_bevel_roundtrip_fixture_imports",
+       psd_photoshop_pattern_bevel_roundtrip_fixture_imports},
+      {"psd_pattern_overlay_added_in_patchy_writes_pattern_block",
+       psd_pattern_overlay_added_in_patchy_writes_pattern_block},
+      {"compositor_renders_layer_style_pattern_overlay", compositor_renders_layer_style_pattern_overlay},
+      {"compositor_bevel_gloss_and_contour_subs_change_lighting",
+       compositor_bevel_gloss_and_contour_subs_change_lighting},
+      {"compositor_bevel_texture_responds_to_depth_and_invert",
+       compositor_bevel_texture_responds_to_depth_and_invert},
       {"psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates",
        psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates},
       {"psd_arrows_imports_photoshop_inner_effects",

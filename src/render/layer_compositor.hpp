@@ -3,8 +3,11 @@
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/pattern_resource.hpp"
+#include "core/style_contour.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -1225,10 +1228,224 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
   }
 }
 
+struct PatternSampleRgba {
+  RgbColor color{};
+  float alpha{0.0F};
+};
+
+// Wrap-tiled pattern sampler in document space. Anchoring follows the Photoshop
+// probes: "Link with Layer" anchors the grid at the layer's fxrp effects
+// reference point (updated by PS when a layer moves), unlinked at the document
+// origin; the descriptor phase adds on top in both cases. Filtering was fitted
+// against PS 2026 scale probes: 100% tiles nearest (byte-crisp), magnification
+// interpolates linearly between texels on the INTEGER grid, and minification
+// box-averages the source footprint each output pixel covers.
+class PatternTileSampler {
+public:
+  PatternTileSampler(const PixelBuffer& tile, const Layer& layer, float scale, float angle_degrees,
+                     bool link_with_layer, float phase_x, float phase_y)
+      : tile_(&tile) {
+    double anchor_x = phase_x;
+    double anchor_y = phase_y;
+    if (link_with_layer) {
+      const auto reference = layer_effects_reference_point(layer);
+      anchor_x += reference[0];
+      anchor_y += reference[1];
+    }
+    anchor_x_ = anchor_x;
+    anchor_y_ = anchor_y;
+    const auto clamped_scale = std::max(0.01, static_cast<double>(scale));
+    inverse_scale_ = 1.0 / clamped_scale;
+    constexpr double kPi = 3.14159265358979323846;
+    const auto radians = static_cast<double>(angle_degrees) * kPi / 180.0;
+    rotated_ = std::abs(radians) > 1e-9;
+    cosine_ = std::cos(radians);
+    sine_ = std::sin(radians);
+    nearest_ = !rotated_ && std::abs(clamped_scale - 1.0) < 1e-6;
+    // Rotated minification falls back to the linear tap (rare; box footprints
+    // do not stay axis-aligned under rotation).
+    box_filter_ = !nearest_ && !rotated_ && clamped_scale < 1.0;
+  }
+
+  [[nodiscard]] PatternSampleRgba sample(std::int32_t x, std::int32_t y) const noexcept {
+    const auto width = tile_->width();
+    const auto height = tile_->height();
+    if (box_filter_) {
+      // Output pixel [x, x+1) covers source [(x - a) / s, (x + 1 - a) / s):
+      // average texels with their covered fractions (PS's minification fit).
+      const auto u0 = (static_cast<double>(x) - anchor_x_) * inverse_scale_;
+      const auto u1 = (static_cast<double>(x) + 1.0 - anchor_x_) * inverse_scale_;
+      const auto v0 = (static_cast<double>(y) - anchor_y_) * inverse_scale_;
+      const auto v1 = (static_cast<double>(y) + 1.0 - anchor_y_) * inverse_scale_;
+      double sum_r = 0.0;
+      double sum_g = 0.0;
+      double sum_b = 0.0;
+      double sum_a = 0.0;
+      double total = 0.0;
+      const auto first_x = static_cast<std::int64_t>(std::floor(u0));
+      const auto last_x = static_cast<std::int64_t>(std::ceil(u1)) - 1;
+      const auto first_y = static_cast<std::int64_t>(std::floor(v0));
+      const auto last_y = static_cast<std::int64_t>(std::ceil(v1)) - 1;
+      for (auto ty = first_y; ty <= last_y; ++ty) {
+        const auto cover_y = std::min(v1, static_cast<double>(ty) + 1.0) - std::max(v0, static_cast<double>(ty));
+        if (cover_y <= 0.0) {
+          continue;
+        }
+        const auto row = wrap_index(ty, height);
+        for (auto tx = first_x; tx <= last_x; ++tx) {
+          const auto cover_x =
+              std::min(u1, static_cast<double>(tx) + 1.0) - std::max(u0, static_cast<double>(tx));
+          if (cover_x <= 0.0) {
+            continue;
+          }
+          const auto weight = cover_x * cover_y;
+          const auto value = texel(wrap_index(tx, width), row);
+          sum_r += weight * value.color.red;
+          sum_g += weight * value.color.green;
+          sum_b += weight * value.color.blue;
+          sum_a += weight * value.alpha;
+          total += weight;
+        }
+      }
+      PatternSampleRgba result;
+      if (total <= 0.0) {
+        return result;
+      }
+      result.color.red = static_cast<std::uint8_t>(std::clamp(std::lround(sum_r / total), 0L, 255L));
+      result.color.green = static_cast<std::uint8_t>(std::clamp(std::lround(sum_g / total), 0L, 255L));
+      result.color.blue = static_cast<std::uint8_t>(std::clamp(std::lround(sum_b / total), 0L, 255L));
+      result.alpha = clamp_unit(static_cast<float>(sum_a / total));
+      return result;
+    }
+
+    if (nearest_) {
+      // 100%: the tile grid lands on pixel cells directly (P1/P2b byte-exact).
+      const auto ix = wrap_index(
+          static_cast<std::int64_t>(std::floor(static_cast<double>(x) + 0.5 - anchor_x_)), width);
+      const auto iy = wrap_index(
+          static_cast<std::int64_t>(std::floor(static_cast<double>(y) + 0.5 - anchor_y_)), height);
+      return texel(ix, iy);
+    }
+    // Magnification sample positions fitted against the PS scale probe:
+    // src = (x - anchor) / scale, texel grid at integer coordinates.
+    auto u = static_cast<double>(x) - anchor_x_;
+    auto v = static_cast<double>(y) - anchor_y_;
+    if (rotated_) {
+      const auto ru = u * cosine_ + v * sine_;  // inverse rotation into tile space
+      const auto rv = -u * sine_ + v * cosine_;
+      u = ru;
+      v = rv;
+    }
+    u *= inverse_scale_;
+    v *= inverse_scale_;
+    // Magnification: linear taps between texels on the integer grid (PS fit).
+    const auto floor_u = std::floor(u);
+    const auto floor_v = std::floor(v);
+    const auto fraction_x = static_cast<float>(u - floor_u);
+    const auto fraction_y = static_cast<float>(v - floor_v);
+    const auto x0 = wrap_index(static_cast<std::int64_t>(floor_u), width);
+    const auto y0 = wrap_index(static_cast<std::int64_t>(floor_v), height);
+    const auto x1 = x0 + 1 == width ? 0 : x0 + 1;
+    const auto y1 = y0 + 1 == height ? 0 : y0 + 1;
+    const auto top_left = texel(x0, y0);
+    const auto top_right = texel(x1, y0);
+    const auto bottom_left = texel(x0, y1);
+    const auto bottom_right = texel(x1, y1);
+    const auto lerp = [](float a, float b, float t) { return a + (b - a) * t; };
+    const auto blend_channel = [&](float tl, float tr, float bl, float br) {
+      return lerp(lerp(tl, tr, fraction_x), lerp(bl, br, fraction_x), fraction_y);
+    };
+    PatternSampleRgba result;
+    result.color.red = static_cast<std::uint8_t>(std::clamp(
+        std::lround(blend_channel(top_left.color.red, top_right.color.red, bottom_left.color.red,
+                                  bottom_right.color.red)),
+        0L, 255L));
+    result.color.green = static_cast<std::uint8_t>(std::clamp(
+        std::lround(blend_channel(top_left.color.green, top_right.color.green, bottom_left.color.green,
+                                  bottom_right.color.green)),
+        0L, 255L));
+    result.color.blue = static_cast<std::uint8_t>(std::clamp(
+        std::lround(blend_channel(top_left.color.blue, top_right.color.blue, bottom_left.color.blue,
+                                  bottom_right.color.blue)),
+        0L, 255L));
+    result.alpha = clamp_unit(blend_channel(top_left.alpha, top_right.alpha, bottom_left.alpha,
+                                            bottom_right.alpha));
+    return result;
+  }
+
+  // Blend-If-calibrated integer luminance weights (299/590/111), 0..1.
+  [[nodiscard]] float sample_luminance(std::int32_t x, std::int32_t y) const noexcept {
+    const auto value = sample(x, y);
+    const auto weighted = 299L * value.color.red + 590L * value.color.green + 111L * value.color.blue;
+    return static_cast<float>(weighted) / 255000.0F;
+  }
+
+private:
+  [[nodiscard]] static std::int32_t wrap_index(std::int64_t value, std::int32_t extent) noexcept {
+    const auto wrapped = value % extent;
+    return static_cast<std::int32_t>(wrapped < 0 ? wrapped + extent : wrapped);
+  }
+
+  [[nodiscard]] PatternSampleRgba texel(std::int32_t x, std::int32_t y) const noexcept {
+    const auto* px = tile_->pixel(x, y);
+    PatternSampleRgba result;
+    result.color = RgbColor{px[0], px[1], px[2]};
+    result.alpha = tile_->format().channels >= 4 ? static_cast<float>(px[3]) / 255.0F : 1.0F;
+    return result;
+  }
+
+  const PixelBuffer* tile_{nullptr};
+  double anchor_x_{0.0};
+  double anchor_y_{0.0};
+  double inverse_scale_{1.0};
+  double cosine_{1.0};
+  double sine_{0.0};
+  bool rotated_{false};
+  bool nearest_{true};
+  bool box_filter_{false};
+};
+
+template <typename Target>
+void render_pattern_overlay(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip,
+                            Rect bounds, const LayerPatternOverlay& overlay,
+                            std::optional<Rect> layer_mask_bounds, const PatternStore* patterns) {
+  if (!overlay.enabled || overlay.opacity <= 0.0F || patterns == nullptr) {
+    return;
+  }
+  const auto* resource = patterns->find(overlay.pattern_id);
+  if (resource == nullptr || resource->tile.empty()) {
+    return;  // unresolvable pattern renders nothing, like Photoshop
+  }
+  const auto draw_rect = intersect_rect(clip, bounds);
+  if (draw_rect.empty()) {
+    return;
+  }
+  const PatternTileSampler sampler(resource->tile, layer, overlay.scale, overlay.angle_degrees,
+                                   overlay.link_with_layer, overlay.phase_x, overlay.phase_y);
+  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
+  const auto source_mask_width = draw_rect.width;
+  for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+    for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+      const auto source_alpha =
+          source_mask[static_cast<std::size_t>((y - draw_rect.y) * source_mask_width + (x - draw_rect.x))];
+      if (source_alpha <= 0.0F) {
+        continue;
+      }
+      const auto sample = sampler.sample(x, y);
+      const auto alpha = source_alpha * sample.alpha * overlay.opacity * layer.opacity();
+      if (alpha <= 0.0F) {
+        continue;
+      }
+      destination.composite_color(x, y, sample.color, alpha, overlay.blend_mode);
+    }
+  }
+}
+
 template <typename Target>
 void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                          const LayerBevelEmboss& bevel, std::optional<Rect> layer_mask_bounds,
-                         StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0) {
+                         StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0,
+                         const PatternStore* patterns = nullptr) {
   if (!bevel.enabled || bevel.size <= 0.0F ||
       (bevel.highlight_opacity <= 0.0F && bevel.shadow_opacity <= 0.0F)) {
     return;
@@ -1245,22 +1462,113 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
   const auto horizontal = std::cos(altitude);
   const auto light_x = -std::cos(angle) * horizontal;
   const auto light_y = -std::sin(angle) * horizontal;
+  const auto light_z = std::sin(altitude);
   const auto normal_scale = std::clamp(bevel.depth, 0.01F, 10.0F) * std::max(1.0F, bevel.size);
   const auto direction = bevel.direction_up ? 1.0F : -1.0F;
   const auto full_domain = outset_rect(bounds, sample_padding);
   const auto legacy_mask_bounds = clipped_mask_bounds(full_domain, draw_rect, sample_padding);
+  // Contour/texture parameters fold INTO the cached height mask. That is safe
+  // because style edits go through the revision-bumping mutable layer_style()
+  // accessor, so the provider's content_revision-keyed entries can never serve
+  // a stale sub-option state.
   const auto [entry, mask_bounds] = style_mask_for_render(
       masks, layer, StyleMaskKind::BevelHeight, effect_index, full_domain, bounds, legacy_mask_bounds, bounds,
       layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
         computed.secondary = layer_alpha_mask(source, layer, bounds, domain, 0, 0, layer_mask_bounds);
         computed.primary = inner_bevel_height_mask(computed.secondary, domain.width, domain.height, bevel.size);
+        if (bevel.contour.enabled && !style_contour_is_linear(bevel.contour.contour)) {
+          // The Contour sub-option reshapes the bevel's cross-section: the
+          // normalized edge profile (0 at the contour, 1 on the interior
+          // plateau) remaps through the curve, windowed by Range (smaller
+          // ranges compress the curve into the fraction of the profile nearest
+          // the edge). Linear stays bit-identical to the plain bevel.
+          const auto contour_lut = build_style_contour_lut(bevel.contour.contour);
+          const auto range = std::clamp(bevel.contour.range, 0.01F, 1.0F);
+          for (std::size_t index = 0; index < computed.primary.size(); ++index) {
+            const auto alpha = computed.secondary[index];
+            if (alpha <= 0.0F) {
+              continue;
+            }
+            const auto profile = computed.primary[index] / std::max(alpha, 0.0001F);
+            const auto remapped = sample_style_contour_lut(
+                contour_lut, clamp_unit(profile / range), bevel.contour.anti_aliased);
+            computed.primary[index] = remapped * alpha;
+          }
+        }
+        if (bevel.texture.enabled && patterns != nullptr) {
+          if (const auto* resource = patterns->find(bevel.texture.pattern_id);
+              resource != nullptr && !resource->tile.empty()) {
+            // Texture embosses the whole face: pattern luminance perturbs the
+            // height field before normals. PS calibration (checker probes):
+            // DARK texels are raised by default (Invert flips), and the bump
+            // plane is smoothed so texel plateaus become domes/pits whose
+            // slopes shade the whole cell, not just its edges.
+            constexpr float kTextureAmplitude = 3.0F;
+            constexpr std::int32_t blur_radius = 1;
+            const PatternTileSampler sampler(resource->tile, layer, bevel.texture.scale, 0.0F,
+                                             bevel.texture.link_with_layer, bevel.texture.phase_x,
+                                             bevel.texture.phase_y);
+            const auto plane_size = computed.primary.size();
+            std::vector<float> bump(plane_size, 0.0F);
+            for (std::int32_t local_y = 0; local_y < domain.height; ++local_y) {
+              for (std::int32_t local_x = 0; local_x < domain.width; ++local_x) {
+                const auto index = static_cast<std::size_t>(local_y) * static_cast<std::size_t>(domain.width) +
+                                   static_cast<std::size_t>(local_x);
+                const auto luminance = sampler.sample_luminance(domain.x + local_x, domain.y + local_y);
+                bump[index] = bevel.texture.invert ? luminance - 0.5F : 0.5F - luminance;
+              }
+            }
+            // Separable box blur (deterministic fixed-order float sums).
+            const auto box_pass = [&](bool horizontal) {
+              std::vector<float> blurred(plane_size, 0.0F);
+              const auto limit = horizontal ? domain.width : domain.height;
+              const auto lines = horizontal ? domain.height : domain.width;
+              for (std::int32_t line = 0; line < lines; ++line) {
+                for (std::int32_t position = 0; position < limit; ++position) {
+                  float sum = 0.0F;
+                  std::int32_t count = 0;
+                  for (std::int32_t offset = -blur_radius; offset <= blur_radius; ++offset) {
+                    const auto sample = position + offset;
+                    if (sample < 0 || sample >= limit) {
+                      continue;
+                    }
+                    const auto index = horizontal
+                                           ? static_cast<std::size_t>(line) * domain.width + sample
+                                           : static_cast<std::size_t>(sample) * domain.width + line;
+                    sum += bump[index];
+                    ++count;
+                  }
+                  const auto index = horizontal
+                                         ? static_cast<std::size_t>(line) * domain.width + position
+                                         : static_cast<std::size_t>(position) * domain.width + line;
+                  blurred[index] = count > 0 ? sum / static_cast<float>(count) : 0.0F;
+                }
+              }
+              bump.swap(blurred);
+            };
+            box_pass(true);
+            box_pass(false);
+            for (std::size_t index = 0; index < plane_size; ++index) {
+              const auto alpha = computed.secondary[index];
+              if (alpha <= 0.0F) {
+                continue;
+              }
+              computed.primary[index] += bump[index] * bevel.texture.depth * kTextureAmplitude * alpha;
+            }
+          }
+        }
         return computed;
       });
   const auto& alpha_mask = entry->secondary;
   const auto& height_mask = entry->primary;
   const auto mask_width = mask_bounds.width;
   const auto mask_height = mask_bounds.height;
+  const auto gloss_is_linear = style_contour_is_linear(bevel.gloss_contour);
+  std::array<std::uint8_t, 256> gloss_lut{};
+  if (!gloss_is_linear) {
+    gloss_lut = build_style_contour_lut(bevel.gloss_contour);
+  }
 
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
@@ -1281,7 +1589,20 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
       const auto length = std::sqrt(normal_x * normal_x + normal_y * normal_y + 1.0F);
       normal_x /= std::max(0.0001F, length);
       normal_y /= std::max(0.0001F, length);
-      const auto lighting = normal_x * light_x + normal_y * light_y;
+      const auto normal_z = 1.0F / std::max(0.0001F, length);
+      // Full 3D light: the (nz - 1) * lz term subtracts the flat-face ambient so
+      // level surfaces stay untouched while every slope loses altitude light.
+      // This is what shades slopes running PARALLEL to the light (PS darkens the
+      // left/right miters under a 90-degree light; a pure 2D dot product cannot).
+      auto lighting = normal_x * light_x + normal_y * light_y + (normal_z - 1.0F) * light_z;
+      if (!gloss_is_linear) {
+        // Gloss Contour remaps the signed lighting scalar before the
+        // highlight/shadow split; Linear short-circuits so plain bevels stay
+        // bit-identical to the historical render.
+        const auto remapped = sample_style_contour_lut(
+            gloss_lut, clamp_unit((lighting + 1.0F) * 0.5F), bevel.gloss_anti_aliased);
+        lighting = remapped * 2.0F - 1.0F;
+      }
       if (lighting > 0.0F) {
         destination.composite_color(x, y, bevel.highlight_color,
                                     clamp_unit(lighting) * source_alpha * bevel.highlight_opacity * layer.opacity(),
@@ -1419,7 +1740,8 @@ template <typename Target>
 void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides = nullptr,
                      bool throw_on_unsupported_pixel_format = false, StyleMaskProvider* masks = nullptr,
-                     const CompositeSnapshot* blend_if_backdrop = nullptr);
+                     const CompositeSnapshot* blend_if_backdrop = nullptr,
+                     const PatternStore* patterns = nullptr);
 
 template <typename Target>
 void composite_adjustment_layer(Target& destination, const Layer& layer, Rect clip,
@@ -1482,7 +1804,8 @@ template <typename Target>
 void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                            const std::vector<LayerBoundsOverride>* overrides,
                            bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks = nullptr,
-                           const CompositeSnapshot* blend_if_backdrop_override = nullptr) {
+                           const CompositeSnapshot* blend_if_backdrop_override = nullptr,
+                           const PatternStore* patterns = nullptr) {
   if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F || layer.kind() != LayerKind::Pixel) {
     return;
   }
@@ -1669,9 +1992,12 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
         render_inner_glow(destination, layer, source, clip, bounds, glow, layer_mask_bounds, masks, index);
       });
     }
-    for (const auto& overlay : style.color_overlays) {
-      profile_compositor_step(destination, layer, "color_overlay", clip, [&] {
-        render_color_overlay(destination, layer, source, clip, bounds, overlay, layer_mask_bounds);
+    // Overlay stacking pinned against Photoshop 2026 (pairwise 100%-opacity
+    // probes): pattern under gradient under color, i.e. Color Overlay paints
+    // last. The historical color-then-gradient order was inverted vs PS.
+    for (const auto& overlay : style.pattern_overlays) {
+      profile_compositor_step(destination, layer, "pattern_overlay", clip, [&] {
+        render_pattern_overlay(destination, layer, source, clip, bounds, overlay, layer_mask_bounds, patterns);
       });
     }
     for (const auto& fill : style.gradient_fills) {
@@ -1679,10 +2005,16 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
         render_gradient_fill(destination, layer, source, clip, bounds, fill, layer_mask_bounds);
       });
     }
+    for (const auto& overlay : style.color_overlays) {
+      profile_compositor_step(destination, layer, "color_overlay", clip, [&] {
+        render_color_overlay(destination, layer, source, clip, bounds, overlay, layer_mask_bounds);
+      });
+    }
     for (std::uint32_t index = 0; index < style.bevels.size(); ++index) {
       const auto& bevel = style.bevels[index];
       profile_compositor_step(destination, layer, "bevel_emboss", clip, [&] {
-        render_bevel_emboss(destination, layer, source, clip, bounds, bevel, layer_mask_bounds, masks, index);
+        render_bevel_emboss(destination, layer, source, clip, bounds, bevel, layer_mask_bounds, masks, index,
+                            patterns);
       });
     }
     for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
@@ -1898,7 +2230,7 @@ template <typename Target, typename CompositeOne>
 void composite_sibling_layers(Target& destination, const std::vector<Layer>& siblings, Rect clip,
                               const std::vector<LayerBoundsOverride>* overrides,
                               bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
-                              CompositeOne&& composite_one) {
+                              CompositeOne&& composite_one, const PatternStore* patterns = nullptr) {
   std::size_t index = 0;
   while (index < siblings.size()) {
     const Layer& layer = siblings[index];
@@ -1932,10 +2264,11 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
     }
     IsolatedClipGroupTarget group(group_rect, layer_has_rendered_blend_if(layer));
     composite_layer(group, layer, group_rect, overrides, throw_on_unsupported_pixel_format, masks,
-                    base_backdrop.has_value() ? &*base_backdrop : nullptr);
+                    base_backdrop.has_value() ? &*base_backdrop : nullptr, patterns);
     group.freeze_clip();
     for (std::size_t member = index + 1; member < run_end; ++member) {
-      composite_layer(group, siblings[member], group_rect, overrides, throw_on_unsupported_pixel_format, masks);
+      composite_layer(group, siblings[member], group_rect, overrides, throw_on_unsupported_pixel_format, masks,
+                      nullptr, patterns);
     }
     group.merge_into(destination, layer.blend_mode());
     index = run_end;
@@ -1945,19 +2278,22 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
 template <typename Target>
 void composite_layers(Target& destination, const std::vector<Layer>& layers, Rect clip,
                       const std::vector<LayerBoundsOverride>* overrides = nullptr,
-                      bool throw_on_unsupported_pixel_format = false, StyleMaskProvider* masks = nullptr) {
-  composite_sibling_layers(destination, layers, clip, overrides, throw_on_unsupported_pixel_format, masks,
-                           [&](Target& target, const Layer& layer) {
-                             composite_layer(target, layer, clip, overrides, throw_on_unsupported_pixel_format,
-                                             masks);
-                           });
+                      bool throw_on_unsupported_pixel_format = false, StyleMaskProvider* masks = nullptr,
+                      const PatternStore* patterns = nullptr) {
+  composite_sibling_layers(
+      destination, layers, clip, overrides, throw_on_unsupported_pixel_format, masks,
+      [&](Target& target, const Layer& layer) {
+        composite_layer(target, layer, clip, overrides, throw_on_unsupported_pixel_format, masks, nullptr,
+                        patterns);
+      },
+      patterns);
 }
 
 template <typename Target>
 void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides,
                      bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
-                     const CompositeSnapshot* blend_if_backdrop) {
+                     const CompositeSnapshot* blend_if_backdrop, const PatternStore* patterns) {
   if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
     return;
   }
@@ -1970,12 +2306,14 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
         backdrop.emplace(destination, clip);
       }
       IsolatedClipGroupTarget isolated(clip);
-      composite_layers(isolated, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks);
+      composite_layers(isolated, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
+                       patterns);
       isolated.merge_layer_into(destination, layer, blend_if, backdrop.has_value() ? &*backdrop : nullptr,
                                 layer_mask_bounds_for_render(layer, overrides));
       return;
     }
-    composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks);
+    composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
+                     patterns);
     return;
   }
 
@@ -1985,7 +2323,7 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   composite_pixel_layer(destination, layer, clip, overrides, throw_on_unsupported_pixel_format, masks,
-                        blend_if_backdrop);
+                        blend_if_backdrop, patterns);
 }
 
 }  // namespace patchy::render_detail

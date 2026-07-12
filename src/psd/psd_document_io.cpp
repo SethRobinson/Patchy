@@ -3,11 +3,14 @@
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pattern_resource.hpp"
 #include "core/smart_object.hpp"
+#include "core/style_contour.hpp"
 #include "core/text_warp.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
+#include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "render/compositor.hpp"
 #include "support/string_utils.hpp"
@@ -3232,6 +3235,38 @@ std::optional<LayerColorOverlay> parse_color_overlay(const DescriptorObject& eff
   return overlay;
 }
 
+std::string descriptor_string(const DescriptorObject& object, std::string_view key, std::string fallback = {}) {
+  const auto* value = descriptor_value(object, key);
+  if (value == nullptr || value->type != DescriptorValue::Type::String) {
+    return fallback;
+  }
+  return value->string_value;
+}
+
+// Reads a ShpC contour object (Nm + Crv list of CrPt{Hrzn, Vrtc[, Cnty]}) into
+// the exact-point StyleContour model. Cnty=true means smooth; an absent Cnty is
+// smooth too (Photoshop omits the flag on default Linear curves).
+StyleContour parse_shape_contour(const DescriptorObject& shape) {
+  StyleContour contour;
+  contour.name = descriptor_string(shape, "Nm  ", contour.name);
+  const auto* curve = descriptor_value(shape, "Crv ");
+  if (curve == nullptr || curve->type != DescriptorValue::Type::List) {
+    contour.points.clear();
+    return contour;
+  }
+  for (const auto& item : curve->list_value) {
+    if (item.type != DescriptorValue::Type::Object || item.object_value == nullptr) {
+      continue;
+    }
+    StyleContourPoint point;
+    point.x = static_cast<float>(descriptor_number(*item.object_value, "Hrzn"));
+    point.y = static_cast<float>(descriptor_number(*item.object_value, "Vrtc"));
+    point.corner = !descriptor_bool(*item.object_value, "Cnty", true);
+    contour.points.push_back(point);
+  }
+  return contour;
+}
+
 std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effect,
                                                    const CmykColorConverter& cmyk) {
   if (!descriptor_bool(effect, "enab", false)) {
@@ -3255,6 +3290,55 @@ std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effec
   bevel.depth = std::max(0.01F, static_cast<float>(descriptor_number(effect, "srgR", 100.0) / 100.0));
   bevel.size = std::max(1.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
   bevel.direction_up = descriptor_enum(effect, "bvlD", "In  ") != "Out ";
+  // Style/Technique/Soften round-trip losslessly even though the renderer still
+  // draws every bevel as a smooth inner bevel.
+  const auto style_value = descriptor_enum(effect, "bvlS", "InrB");
+  if (style_value == "OtrB") {
+    bevel.style = BevelEmbossStyleKind::OuterBevel;
+  } else if (style_value == "Embs") {
+    bevel.style = BevelEmbossStyleKind::Emboss;
+  } else if (style_value == "PlEb") {
+    bevel.style = BevelEmbossStyleKind::PillowEmboss;
+  } else if (style_value == "strokeEmboss") {
+    bevel.style = BevelEmbossStyleKind::StrokeEmboss;
+  } else {
+    bevel.style = BevelEmbossStyleKind::InnerBevel;
+  }
+  const auto technique_value = descriptor_enum(effect, "bvlT", "SfBL");
+  if (technique_value == "PrBL") {
+    bevel.technique = BevelTechnique::ChiselHard;
+  } else if (technique_value == "Slmt") {
+    bevel.technique = BevelTechnique::ChiselSoft;
+  } else {
+    bevel.technique = BevelTechnique::Smooth;
+  }
+  bevel.soften = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Sftn", 0.0)));
+  if (const auto* gloss = descriptor_object(effect, "TrnS"); gloss != nullptr) {
+    bevel.gloss_contour = parse_shape_contour(*gloss);
+  }
+  bevel.gloss_anti_aliased = descriptor_bool(effect, "antialiasGloss", false);
+  bevel.contour.enabled = descriptor_bool(effect, "useShape", false);
+  if (const auto* shape = descriptor_object(effect, "MpgS"); shape != nullptr) {
+    bevel.contour.contour = parse_shape_contour(*shape);
+  }
+  bevel.contour.anti_aliased = descriptor_bool(effect, "AntA", false);
+  bevel.contour.range =
+      std::clamp(static_cast<float>(descriptor_number(effect, "Inpr", 50.0) / 100.0), 0.0F, 1.0F);
+  bevel.texture.enabled = descriptor_bool(effect, "useTexture", false);
+  bevel.texture.invert = descriptor_bool(effect, "InvT", false);
+  bevel.texture.link_with_layer = descriptor_bool(effect, "Algn", true);
+  bevel.texture.scale =
+      std::max(0.01F, static_cast<float>(descriptor_number(effect, "Scl ", 100.0) / 100.0));
+  bevel.texture.depth =
+      std::clamp(static_cast<float>(descriptor_number(effect, "textureDepth", 100.0) / 100.0), -10.0F, 10.0F);
+  if (const auto* pattern_object = descriptor_object(effect, "Ptrn"); pattern_object != nullptr) {
+    bevel.texture.pattern_name = descriptor_string(*pattern_object, "Nm  ");
+    bevel.texture.pattern_id = descriptor_string(*pattern_object, "Idnt");
+  }
+  if (const auto* phase = descriptor_object(effect, "phase"); phase != nullptr) {
+    bevel.texture.phase_x = static_cast<float>(descriptor_number(*phase, "Hrzn", 0.0));
+    bevel.texture.phase_y = static_cast<float>(descriptor_number(*phase, "Vrtc", 0.0));
+  }
   return bevel;
 }
 
@@ -3288,26 +3372,13 @@ std::optional<LayerSatin> parse_satin(const DescriptorObject& effect,
   satin.invert = descriptor_bool(effect, "Invr", true);
   satin.unsupported_contour_options = descriptor_bool(effect, "AntA", false);
   if (const auto* contour = descriptor_object(effect, "MpgS"); contour != nullptr) {
-    const auto* curve = descriptor_value(*contour, "Crv ");
-    const auto point_matches = [](const DescriptorValue& value, double x, double y) {
-      return value.type == DescriptorValue::Type::Object && value.object_value != nullptr &&
-             std::abs(descriptor_number(*value.object_value, "Hrzn") - x) < 0.0001 &&
-             std::abs(descriptor_number(*value.object_value, "Vrtc") - y) < 0.0001;
-    };
-    satin.unsupported_contour_options =
-        satin.unsupported_contour_options || curve == nullptr || curve->type != DescriptorValue::Type::List ||
-        curve->list_value.size() != 2U || !point_matches(curve->list_value[0], 0.0, 0.0) ||
-        !point_matches(curve->list_value[1], 255.0, 255.0);
+    const auto parsed = parse_shape_contour(*contour);
+    // A missing/malformed Crv list (empty points) is unsupported too, matching
+    // the historical check; corner flags never affect a two-point identity.
+    satin.unsupported_contour_options = satin.unsupported_contour_options || parsed.points.empty() ||
+                                        !style_contour_is_linear(parsed);
   }
   return satin;
-}
-
-std::string descriptor_string(const DescriptorObject& object, std::string_view key, std::string fallback = {}) {
-  const auto* value = descriptor_value(object, key);
-  if (value == nullptr || value->type != DescriptorValue::Type::String) {
-    return fallback;
-  }
-  return value->string_value;
 }
 
 std::optional<LayerPatternOverlay> parse_pattern_overlay(const DescriptorObject& effect) {
@@ -3323,6 +3394,12 @@ std::optional<LayerPatternOverlay> parse_pattern_overlay(const DescriptorObject&
   if (const auto* pattern_object = descriptor_object(effect, "Ptrn"); pattern_object != nullptr) {
     pattern.pattern_name = descriptor_string(*pattern_object, "Nm  ");
     pattern.pattern_id = descriptor_string(*pattern_object, "Idnt");
+  }
+  pattern.angle_degrees = static_cast<float>(descriptor_number(effect, "Angl", 0.0));
+  pattern.link_with_layer = descriptor_bool(effect, "Algn", true);
+  if (const auto* phase = descriptor_object(effect, "phase"); phase != nullptr) {
+    pattern.phase_x = static_cast<float>(descriptor_number(*phase, "Hrzn", 0.0));
+    pattern.phase_y = static_cast<float>(descriptor_number(*phase, "Vrtc", 0.0));
   }
   return pattern;
 }
@@ -7067,21 +7144,120 @@ void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke)
   write_descriptor_bool_item(writer, "overprint", false);
 }
 
+// Writes a ShpC contour object. A Linear contour mirrors PS 27.8's default form
+// (name "Linear", the two-point identity Crv, no Cnty flags); custom curves carry
+// Cnty on every point (true = smooth), PS's canonical custom-curve form.
+void write_shape_contour_descriptor_item(BigEndianWriter& writer, std::string_view key,
+                                         const StyleContour& contour) {
+  write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
+  write_descriptor_object_header(writer, "", "ShpC", 2);
+  if (style_contour_is_linear(contour)) {
+    write_descriptor_text_item(writer, "Nm  ", "Linear");
+    write_descriptor_item_header(writer, "Crv ", {'V', 'l', 'L', 's'});
+    writer.write_u32(2);
+    for (const auto point : {0.0, 255.0}) {
+      write_signature(writer, {'O', 'b', 'j', 'c'});
+      write_descriptor_object_header(writer, "", "CrPt", 2);
+      write_descriptor_double_item(writer, "Hrzn", point);
+      write_descriptor_double_item(writer, "Vrtc", point);
+    }
+    return;
+  }
+  write_descriptor_text_item(writer, "Nm  ", contour.name.empty() ? "Custom" : contour.name);
+  write_descriptor_item_header(writer, "Crv ", {'V', 'l', 'L', 's'});
+  writer.write_u32(checked_u32(contour.points.size(), "contour points"));
+  for (const auto& point : contour.points) {
+    write_signature(writer, {'O', 'b', 'j', 'c'});
+    write_descriptor_object_header(writer, "", "CrPt", 3);
+    write_descriptor_double_item(writer, "Hrzn", point.x);
+    write_descriptor_double_item(writer, "Vrtc", point.y);
+    write_descriptor_bool_item(writer, "Cnty", !point.corner);
+  }
+}
+
+std::string_view bevel_style_descriptor_value(BevelEmbossStyleKind style) {
+  switch (style) {
+    case BevelEmbossStyleKind::OuterBevel:
+      return "OtrB";
+    case BevelEmbossStyleKind::Emboss:
+      return "Embs";
+    case BevelEmbossStyleKind::PillowEmboss:
+      return "PlEb";
+    case BevelEmbossStyleKind::StrokeEmboss:
+      return "strokeEmboss";
+    case BevelEmbossStyleKind::InnerBevel:
+    default:
+      return "InrB";
+  }
+}
+
+std::string_view bevel_technique_descriptor_value(BevelTechnique technique) {
+  switch (technique) {
+    case BevelTechnique::ChiselHard:
+      return "PrBL";
+    case BevelTechnique::ChiselSoft:
+      return "Slmt";
+    case BevelTechnique::Smooth:
+    default:
+      return "SfBL";
+  }
+}
+
 void write_bevel_emboss_descriptor(BigEndianWriter& writer, const LayerBevelEmboss& bevel) {
-  write_descriptor_object_header(writer, "", "ebbl", 13);
+  // Photoshop 2026's native ebbl shape (COM captures; docs/ps-compat.md): 22 base
+  // items in this exact order, the Contour sub inserting MpgS/AntA/Inpr right
+  // after useShape and the Texture sub appending its six keys after useTexture.
+  // Conditional keys are omitted entirely while a sub-option is off, mirroring PS.
+  std::uint32_t item_count = 22;
+  if (bevel.contour.enabled) {
+    item_count += 3;
+  }
+  if (bevel.texture.enabled) {
+    item_count += 6;
+  }
+  write_descriptor_object_header(writer, "", "ebbl", item_count);
   write_descriptor_bool_item(writer, "enab", bevel.enabled);
+  write_descriptor_bool_item(writer, "present", true);
+  write_descriptor_bool_item(writer, "showInDialog", true);
   write_blend_mode_descriptor_item(writer, "hglM", bevel.highlight_blend_mode);
   write_rgb_color_descriptor_item(writer, "hglC", bevel.highlight_color);
   write_descriptor_unit_float_item(writer, "hglO", {'#', 'P', 'r', 'c'}, bevel.highlight_opacity * 100.0);
   write_blend_mode_descriptor_item(writer, "sdwM", bevel.shadow_blend_mode);
   write_rgb_color_descriptor_item(writer, "sdwC", bevel.shadow_color);
   write_descriptor_unit_float_item(writer, "sdwO", {'#', 'P', 'r', 'c'}, bevel.shadow_opacity * 100.0);
+  write_descriptor_enum_item(writer, "bvlT", "bvlT", bevel_technique_descriptor_value(bevel.technique));
+  write_descriptor_enum_item(writer, "bvlS", "BESl", bevel_style_descriptor_value(bevel.style));
   write_descriptor_bool_item(writer, "uglg", bevel.use_global_light);
   write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, bevel.angle_degrees);
   write_descriptor_unit_float_item(writer, "Lald", {'#', 'A', 'n', 'g'}, bevel.altitude_degrees);
   write_descriptor_unit_float_item(writer, "srgR", {'#', 'P', 'r', 'c'}, bevel.depth * 100.0);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, bevel.size);
-  write_descriptor_enum_item(writer, "bvlD", "BESl", bevel.direction_up ? "In  " : "Out ");
+  write_descriptor_enum_item(writer, "bvlD", "BESs", bevel.direction_up ? "In  " : "Out ");
+  write_shape_contour_descriptor_item(writer, "TrnS", bevel.gloss_contour);
+  write_descriptor_bool_item(writer, "antialiasGloss", bevel.gloss_anti_aliased);
+  write_descriptor_unit_float_item(writer, "Sftn", {'#', 'P', 'x', 'l'}, bevel.soften);
+  write_descriptor_bool_item(writer, "useShape", bevel.contour.enabled);
+  if (bevel.contour.enabled) {
+    write_shape_contour_descriptor_item(writer, "MpgS", bevel.contour.contour);
+    write_descriptor_bool_item(writer, "AntA", bevel.contour.anti_aliased);
+    write_descriptor_unit_float_item(writer, "Inpr", {'#', 'P', 'r', 'c'}, bevel.contour.range * 100.0);
+  }
+  write_descriptor_bool_item(writer, "useTexture", bevel.texture.enabled);
+  if (bevel.texture.enabled) {
+    write_descriptor_bool_item(writer, "InvT", bevel.texture.invert);
+    write_descriptor_bool_item(writer, "Algn", bevel.texture.link_with_layer);
+    write_descriptor_unit_float_item(writer, "Scl ", {'#', 'P', 'r', 'c'}, bevel.texture.scale * 100.0);
+    write_descriptor_unit_float_item(writer, "textureDepth", {'#', 'P', 'r', 'c'},
+                                     bevel.texture.depth * 100.0);
+    write_descriptor_item_header(writer, "Ptrn", {'O', 'b', 'j', 'c'});
+    write_descriptor_object_header(writer, "", "Ptrn", 2);
+    write_descriptor_text_item(writer, "Nm  ", bevel.texture.pattern_name);
+    write_descriptor_text_item(writer, "Idnt", bevel.texture.pattern_id);
+    write_descriptor_item_header(writer, "phase", {'O', 'b', 'j', 'c'});
+    write_descriptor_object_header(writer, "", "Pnt ", 2);
+    write_descriptor_double_item(writer, "Hrzn", bevel.texture.phase_x);
+    write_descriptor_double_item(writer, "Vrtc", bevel.texture.phase_y);
+  }
 }
 
 void write_satin_descriptor(BigEndianWriter& writer, const LayerSatin& satin) {
@@ -7114,16 +7290,25 @@ void write_satin_descriptor(BigEndianWriter& writer, const LayerSatin& satin) {
 }
 
 void write_pattern_descriptor(BigEndianWriter& writer, const LayerPatternOverlay& pattern) {
-  write_descriptor_object_header(writer, "", "patternFill", 6);
+  // Photoshop 2026's native 10-item patternFill layout (COM capture; the GrFl
+  // shape-sensitivity precedent says mirror PS exactly).
+  write_descriptor_object_header(writer, "", "patternFill", 10);
   write_descriptor_bool_item(writer, "enab", pattern.enabled);
+  write_descriptor_bool_item(writer, "present", true);
+  write_descriptor_bool_item(writer, "showInDialog", true);
   write_blend_mode_descriptor_item(writer, "Md  ", pattern.blend_mode);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, pattern.opacity * 100.0);
-  write_descriptor_unit_float_item(writer, "Scl ", {'#', 'P', 'r', 'c'}, pattern.scale * 100.0);
-  write_descriptor_bool_item(writer, "Algn", true);
   write_descriptor_item_header(writer, "Ptrn", {'O', 'b', 'j', 'c'});
   write_descriptor_object_header(writer, "", "Ptrn", 2);
   write_descriptor_text_item(writer, "Nm  ", pattern.pattern_name);
   write_descriptor_text_item(writer, "Idnt", pattern.pattern_id);
+  write_descriptor_unit_float_item(writer, "Angl", {'#', 'A', 'n', 'g'}, pattern.angle_degrees);
+  write_descriptor_unit_float_item(writer, "Scl ", {'#', 'P', 'r', 'c'}, pattern.scale * 100.0);
+  write_descriptor_bool_item(writer, "Algn", pattern.link_with_layer);
+  write_descriptor_item_header(writer, "phase", {'O', 'b', 'j', 'c'});
+  write_descriptor_object_header(writer, "", "Pnt ", 2);
+  write_descriptor_double_item(writer, "Hrzn", pattern.phase_x);
+  write_descriptor_double_item(writer, "Vrtc", pattern.phase_y);
 }
 
 template <typename Effect, typename Writer>
@@ -8648,6 +8833,16 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
           link_block.opaque = true;
         }
         document.metadata().smart_objects.blocks.push_back(std::move(link_block));
+      } else if (key == "Patt" || key == "Pat2" || key == "Pat3") {
+        // Pattern pixel data: decode into the store so pattern overlays / bevel
+        // textures can render, AND keep the raw block preserved verbatim (Patchy
+        // never rewrites imported pattern blocks). Decode into a local before the
+        // payload moves — the argument-evaluation-order rule.
+        auto decoded = parse_patterns_block(payload, cmyk_icc);
+        for (auto& resource : decoded) {
+          document.metadata().patterns.adopt(resource);
+        }
+        document.metadata().unknown_psd_resources.push_back(UnknownPsdBlock{key, std::move(payload), wide_length});
       } else {
         document.metadata().unknown_psd_resources.push_back(UnknownPsdBlock{key, std::move(payload), wide_length});
       }
@@ -8898,6 +9093,50 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     for (std::size_t i = 0; i < store.blocks.size(); ++i) {
       if (!link_emitted[i]) {
         emit_global_payload(store.blocks[i].key, link_payloads[i], store.blocks[i].long_length);
+      }
+    }
+  }
+  {
+    // Patchy-authored pattern tiles: embed every pattern referenced by some
+    // layer's style (enabled or not, matching Photoshop) that the preserved raw
+    // pattern blocks do not already cover. The raw-block id scan is the
+    // authority — a cross-document adoption may claim ImportedRaw provenance
+    // this document's blocks never contained. Unreferenced store entries are
+    // simply not written (orphans prune at save).
+    std::vector<std::string> referenced_ids;
+    const auto collect_layer_ids = [&referenced_ids](const Layer& layer, const auto& recurse) -> void {
+      collect_referenced_pattern_ids(layer.layer_style(), referenced_ids);
+      for (const auto& child : layer.children()) {
+        recurse(child, recurse);
+      }
+    };
+    for (const auto& layer : document.layers()) {
+      collect_layer_ids(layer, collect_layer_ids);
+    }
+    if (!referenced_ids.empty()) {
+      std::vector<std::string> covered_ids;
+      for (const auto& block : global_blocks) {
+        if (block.key == "Patt" || block.key == "Pat2" || block.key == "Pat3") {
+          auto ids = pattern_ids_in_block(block.payload);
+          covered_ids.insert(covered_ids.end(), ids.begin(), ids.end());
+        }
+      }
+      std::vector<PatternResource> patterns_to_write;
+      for (const auto& id : referenced_ids) {
+        if (std::find(covered_ids.begin(), covered_ids.end(), id) != covered_ids.end()) {
+          continue;
+        }
+        if (const auto* resource = document.metadata().patterns.find(id); resource != nullptr) {
+          patterns_to_write.push_back(*resource);
+        }
+      }
+      if (!patterns_to_write.empty()) {
+        std::sort(patterns_to_write.begin(), patterns_to_write.end(),
+                  [](const PatternResource& lhs, const PatternResource& rhs) { return lhs.id < rhs.id; });
+        const auto payload = serialize_patterns_block(patterns_to_write);
+        if (!payload.empty()) {
+          emit_global_payload("Patt", payload, false);
+        }
       }
     }
   }

@@ -1245,9 +1245,144 @@
         <translation>%1 には、Patchy で描画または編集できない Photoshop のサテン輪郭設定（カスタムカーブまたはアンチエイリアス）が含まれています。レイヤースタイルを編集するまでは保持されますが、編集後はアンチエイリアスなしのリニア輪郭が使用されます。</translation>
     </message>
     <message>
-        <location line="+11"/>
-        <source>%1 contains a Pattern Overlay effect that Patchy preserves for PSD round-trip but does not render or edit.</source>
-        <translation>%1 にはパターンオーバーレイ効果が含まれています。Patchy は PSD 往復用に保持しますが、描画や編集は行いません。</translation>
+        <source>Pattern &quot;%1&quot; is not embedded in this document, so the effect that references it cannot render until you choose another pattern.</source>
+        <translation>パターン「%1」はこのドキュメントに埋め込まれていないため、別のパターンを選択するまでこのパターンを参照する効果は描画できません。</translation>
+    </message>
+    <message>
+        <source>Contour</source>
+        <translation>輪郭</translation>
+    </message>
+    <message>
+        <source>Texture</source>
+        <translation>テクスチャ</translation>
+    </message>
+    <message>
+        <source>Gloss Contour</source>
+        <translation>光沢輪郭</translation>
+    </message>
+    <message>
+        <source>Anti-aliased</source>
+        <translation>アンチエイリアス</translation>
+    </message>
+    <message>
+        <source>Range</source>
+        <translation>適用範囲</translation>
+    </message>
+    <message>
+        <source>Pattern</source>
+        <translation>パターン</translation>
+    </message>
+    <message>
+        <source>Link with Layer</source>
+        <translation>レイヤーにリンク</translation>
+    </message>
+    <message>
+        <source>Snap to Origin</source>
+        <translation>原点にスナップ</translation>
+    </message>
+    <message>
+        <source>Add Pattern Overlay</source>
+        <translation>パターンオーバーレイを追加</translation>
+    </message>
+    <message>
+        <source>%1 (missing)</source>
+        <translation>%1（見つかりません）</translation>
+    </message>
+    <message>
+        <source>Anchor the pattern to the layer so it follows when the layer moves</source>
+        <translation>パターンをレイヤーに固定し、レイヤーの移動に追従させます</translation>
+    </message>
+    <message>
+        <source>Checkerboard</source>
+        <translation>チェッカーボード</translation>
+    </message>
+    <message>
+        <source>Diagonal Stripes</source>
+        <translation>斜めストライプ</translation>
+    </message>
+    <message>
+        <source>Polka Dots</source>
+        <translation>水玉</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>グリッド</translation>
+    </message>
+    <message>
+        <source>Fine Grain</source>
+        <translation>細かい粒子</translation>
+    </message>
+    <message>
+        <source>Canvas Weave</source>
+        <translation>カンバス織り</translation>
+    </message>
+    <message>
+        <source>Wood Grain</source>
+        <translation>木目</translation>
+    </message>
+    <message>
+        <source>Brushed Metal</source>
+        <translation>ヘアライン金属</translation>
+    </message>
+    <message>
+        <source>Bumps</source>
+        <translation>凹凸</translation>
+    </message>
+    <message>
+        <source>Bricks</source>
+        <translation>レンガ</translation>
+    </message>
+    <message>
+        <source>Scales</source>
+        <translation>うろこ</translation>
+    </message>
+    <message>
+        <source>Basketweave</source>
+        <translation>バスケット編み</translation>
+    </message>
+    <message>
+        <source>Cone</source>
+        <translation>円錐</translation>
+    </message>
+    <message>
+        <source>Cone - Inverted</source>
+        <translation>円錐 - 反転</translation>
+    </message>
+    <message>
+        <source>Cove - Deep</source>
+        <translation>くぼみ - 深</translation>
+    </message>
+    <message>
+        <source>Cove - Shallow</source>
+        <translation>くぼみ - 浅</translation>
+    </message>
+    <message>
+        <source>Gaussian</source>
+        <translation>ガウス</translation>
+    </message>
+    <message>
+        <source>Half Round</source>
+        <translation>半円</translation>
+    </message>
+    <message>
+        <source>Ring</source>
+        <translation>リング</translation>
+    </message>
+    <message>
+        <source>Ring - Double</source>
+        <translation>リング - 二重</translation>
+    </message>
+    <message>
+        <source>Rolling Slope - Descending</source>
+        <translation>なだらかな下り坂</translation>
+    </message>
+    <message>
+        <source>Rounded Steps</source>
+        <translation>丸い階段</translation>
+    </message>
+    <message>
+        <source>Sawtooth</source>
+        <translation>のこぎり波</translation>
     </message>
     <message>
         <source>%1 contains non-default Photoshop Blend If data that Patchy preserves for PSD round-trip but does not render or edit.</source>
@@ -1454,20 +1589,6 @@
         <location line="+1036"/>
         <source>Pattern Overlay</source>
         <translation>パターンオーバーレイ</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="-2"/>
-        <source>Patchy preserved layer effects for PSD round-trip but does not render or edit them (%1).</source>
-        <translation>Patchy はレイヤー効果（%1）を PSD 往復用に保持しますが、描画や編集は行いません。</translation>
-    </message>
-    <message>
-        <source>Satin and Pattern Overlay are preserved for PSD round-trip, but Patchy does not render or edit them. Saving other layer style changes may normalize Photoshop-only effect options.</source>
-        <translation type="vanished">サテンとパターンオーバーレイは PSD 往復用に保持されますが、Patchy では描画も編集も行いません。他のレイヤースタイルを保存すると、Photoshop 固有の効果オプションが書き換えられる場合があります。</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/layer_style_dialog.cpp" line="-3"/>
-        <source>%1 is preserved for PSD round-trip, but Patchy does not render or edit it. Saving other layer style changes may normalize Photoshop-only effect options.</source>
-        <translation>%1 は PSD 往復用に保持されますが、Patchy では描画も編集も行いません。他のレイヤースタイルを保存すると、Photoshop 固有の効果オプションが書き換えられる場合があります。</translation>
     </message>
     <message>
         <location line="+658"/>
@@ -2405,11 +2526,6 @@
         <location line="+365"/>
         <source>Patchy preserved group layer effects for PSD round-trip but does not render them yet (groups: %1).</source>
         <translation>Patchy はグループのレイヤー効果を PSD 往復用に保持しましたが、まだ描画しません（グループ: %1）。</translation>
-    </message>
-    <message>
-        <location line="+4"/>
-        <source>Patchy preserved layer effects for PSD round-trip. Group layer effects are not rendered (groups: %1); Pattern Overlay is not rendered or editable (%2).</source>
-        <translation>Patchy はレイヤー効果を PSD 往復用に保持しました。グループのレイヤー効果は描画されません（グループ: %1）。パターンオーバーレイは描画も編集もされません（%2）。</translation>
     </message>
     <message>
         <location line="+31"/>

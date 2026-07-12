@@ -1,5 +1,8 @@
 #include "ui/layer_style_dialog.hpp"
 
+#include "core/contour_presets.hpp"
+#include "core/pattern_presets.hpp"
+#include "core/style_contour.hpp"
 #include "ui/blend_if_range_editor.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/color_panel.hpp"
@@ -16,12 +19,18 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QIcon>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QObject>
+#include <QPainter>
+#include <QPen>
+#include <QPixmap>
 #include <QPointer>
+#include <QPolygonF>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSize>
@@ -38,6 +47,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <numeric>
@@ -183,6 +193,70 @@ LayerSatin default_satin() {
   return satin;
 }
 
+LayerPatternOverlay default_pattern_overlay() {
+  LayerPatternOverlay overlay;
+  overlay.enabled = true;
+  const auto presets = builtin_pattern_presets();
+  if (!presets.empty()) {
+    overlay.pattern_id = presets.front().id;
+    overlay.pattern_name = presets.front().english_name;
+  }
+  return overlay;
+}
+
+// Thumbnail of a pattern tile for picker items (small tiles repeat 2x2 so they
+// still read at icon size).
+QIcon pattern_preset_icon(const PixelBuffer& tile, int extent = 24) {
+  if (tile.empty() || tile.format().channels < 4) {
+    return {};
+  }
+  QImage image(tile.width(), tile.height(), QImage::Format_RGBA8888);
+  for (std::int32_t y = 0; y < tile.height(); ++y) {
+    std::memcpy(image.scanLine(y), tile.pixel(0, y), static_cast<std::size_t>(tile.width()) * 4U);
+  }
+  QImage canvas_image(extent, extent, QImage::Format_RGBA8888);
+  canvas_image.fill(Qt::transparent);
+  QPainter painter(&canvas_image);
+  const auto repeats = tile.width() < extent || tile.height() < extent ? 2 : 1;
+  const auto cell_w = extent / repeats;
+  const auto cell_h = extent / repeats;
+  for (int ry = 0; ry < repeats; ++ry) {
+    for (int rx = 0; rx < repeats; ++rx) {
+      painter.drawImage(QRect(rx * cell_w, ry * cell_h, cell_w, cell_h), image);
+    }
+  }
+  painter.end();
+  return QIcon(QPixmap::fromImage(canvas_image));
+}
+
+// Thumbnail of a contour curve: the engine LUT drawn as a polyline on a chip.
+QIcon contour_preset_icon(const StyleContour& contour) {
+  constexpr int kWidth = 32;
+  constexpr int kHeight = 24;
+  QImage image(kWidth, kHeight, QImage::Format_RGBA8888);
+  image.fill(QColor(43, 43, 43));
+  QPainter painter(&image);
+  painter.setPen(QColor(90, 90, 90));
+  painter.drawRect(0, 0, kWidth - 1, kHeight - 1);
+  const auto lut = build_style_contour_lut(contour);
+  QPolygonF line;
+  for (int x = 0; x < kWidth; ++x) {
+    const auto t = static_cast<float>(x) / static_cast<float>(kWidth - 1);
+    const auto value = sample_style_contour_lut(lut, t, true);
+    line << QPointF(1.0 + x * (kWidth - 3.0) / (kWidth - 1.0),
+                    (kHeight - 2.0) - value * (kHeight - 4.0) + 1.0);
+  }
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setPen(QPen(QColor(220, 226, 235), 1.2));
+  painter.drawPolyline(line);
+  painter.end();
+  return QIcon(QPixmap::fromImage(image));
+}
+
+constexpr int kPatternIdRole = Qt::UserRole;
+constexpr int kPatternPersistNameRole = Qt::UserRole + 1;
+constexpr const char* kContourCustomId = "custom";
+
 enum class LayerStyleCategoryPage {
   Blending = 0,
   BevelEmboss,
@@ -193,7 +267,10 @@ enum class LayerStyleCategoryPage {
   ColorOverlay,
   GradientOverlay,
   OuterGlow,
-  DropShadow
+  DropShadow,
+  PatternOverlay,
+  BevelContour,
+  BevelTexture
 };
 
 enum class LayerStyleEffectKind {
@@ -206,7 +283,10 @@ enum class LayerStyleEffectKind {
   ColorOverlay,
   GradientOverlay,
   OuterGlow,
-  DropShadow
+  DropShadow,
+  PatternOverlay,
+  BevelContour,
+  BevelTexture
 };
 
 constexpr int kLayerStylePageRole = Qt::UserRole + 1;
@@ -334,7 +414,8 @@ void update_color_preview_label(QWidget* widget, int red, int green, int blue) {
 }  // namespace
 
 std::optional<LayerStyleSettings> request_layer_style_settings(
-    QWidget* parent, const Layer& layer, std::function<void(const LayerStyleSettings&)> preview_changed) {
+    QWidget* parent, const Layer& layer, std::function<void(const LayerStyleSettings&)> preview_changed,
+    const PatternStore* document_patterns) {
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)), layer.blend_mode(), layer.layer_style(),
       layer.blend_if(), false};
@@ -351,6 +432,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto stroke = style.strokes.empty() ? default_stroke() : style.strokes.front();
   auto bevel = style.bevels.empty() ? default_bevel_emboss() : style.bevels.front();
   auto satin = style.satins.empty() ? default_satin() : style.satins.front();
+  auto pattern_overlay =
+      style.pattern_overlays.empty() ? default_pattern_overlay() : style.pattern_overlays.front();
+  // Imported non-preset curves survive picker round trips: each picker keeps the
+  // original custom curve and only a deliberate preset pick replaces it.
+  StyleContour custom_gloss_contour = bevel.gloss_contour;
+  StyleContour custom_bevel_sub_contour = bevel.contour.contour;
   if (gradient.gradient.color_stops.empty()) {
     gradient.gradient = default_layer_style_gradient();
   }
@@ -372,21 +459,50 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   name_row->addWidget(name, 1);
   root->addLayout(name_row);
 
-  const bool has_enabled_pattern = std::any_of(
-      style.pattern_overlays.begin(), style.pattern_overlays.end(),
-      [](const LayerPatternOverlay& effect) { return effect.enabled; });
-  if (has_enabled_pattern) {
+  // A pattern reference resolves if its tile is embedded in the document or is
+  // one of Patchy's built-in presets (materialized into the document on apply).
+  const auto pattern_reference_resolves = [document_patterns](const std::string& id) {
+    if (id.empty()) {
+      return false;
+    }
+    if (document_patterns != nullptr && document_patterns->find(id) != nullptr) {
+      return true;
+    }
+    return find_builtin_pattern_preset(id) != nullptr;
+  };
+  std::vector<std::string> missing_pattern_names;
+  const auto note_missing_pattern = [&](const std::string& id, const std::string& effect_name, bool enabled) {
+    if (!enabled || id.empty() || pattern_reference_resolves(id)) {
+      return;
+    }
+    auto label = effect_name.empty() ? id : effect_name;
+    if (std::find(missing_pattern_names.begin(), missing_pattern_names.end(), label) ==
+        missing_pattern_names.end()) {
+      missing_pattern_names.push_back(std::move(label));
+    }
+  };
+  for (const auto& effect : style.pattern_overlays) {
+    note_missing_pattern(effect.pattern_id, effect.pattern_name, effect.enabled);
+  }
+  for (const auto& effect : style.bevels) {
+    note_missing_pattern(effect.texture.pattern_id, effect.texture.pattern_name,
+                         effect.enabled && effect.texture.enabled);
+  }
+  if (!missing_pattern_names.empty()) {
+    QStringList names;
+    for (const auto& missing : missing_pattern_names) {
+      names << QString::fromStdString(missing);
+    }
     auto* warning = new QLabel(&dialog);
-    warning->setObjectName(QStringLiteral("layerStyleUnsupportedEffectsWarning"));
+    warning->setObjectName(QStringLiteral("layerStyleMissingPatternWarning"));
     warning->setWordWrap(true);
     warning->setProperty("warningBanner", true);
     warning->setText(
-        QObject::tr(
-            "%1 is preserved for PSD round-trip, but Patchy does not render or edit it. Saving other layer style "
-            "changes may normalize Photoshop-only effect options.")
-            .arg(QObject::tr("Pattern Overlay")));
+        QObject::tr("Pattern \"%1\" is not embedded in this document, so the effect that references it cannot "
+                    "render until you choose another pattern.")
+            .arg(names.join(QStringLiteral("\", \""))));
     warning->setStyleSheet(QStringLiteral(
-        "QLabel#layerStyleUnsupportedEffectsWarning { background: #4a3a1f; border: 1px solid #9a7430; "
+        "QLabel#layerStyleMissingPatternWarning { background: #4a3a1f; border: 1px solid #9a7430; "
         "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
@@ -1032,6 +1148,106 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* gradient_layout = make_page(QStringLiteral("layerStyleGradientOverlayPage"));
   auto* outer_glow_layout = make_page(QStringLiteral("layerStyleOuterGlowPage"));
   auto* shadow_layout = make_page(QStringLiteral("layerStyleDropShadowPage"));
+  auto* pattern_overlay_layout = make_page(QStringLiteral("layerStylePatternOverlayPage"));
+  auto* bevel_contour_layout = make_page(QStringLiteral("layerStyleBevelContourPage"));
+  auto* bevel_texture_layout = make_page(QStringLiteral("layerStyleBevelTexturePage"));
+
+  // Pattern pickers: an icon combo listing the document's embedded patterns
+  // first, then the built-in presets (skipping ids the document already holds).
+  // Item data carries the persisted id + English name; the label is translated.
+  auto make_pattern_combo = [&](QWidget* combo_parent, const QString& object_name,
+                                const std::string& current_id, const std::string& current_name) {
+    auto* combo = new QComboBox(combo_parent);
+    combo->setObjectName(object_name);
+    combo->setIconSize(QSize(24, 24));
+    if (document_patterns != nullptr) {
+      for (const auto& resource : document_patterns->patterns) {
+        combo->addItem(pattern_preset_icon(resource.tile), QString::fromStdString(resource.name),
+                       QString::fromStdString(resource.id));
+        combo->setItemData(combo->count() - 1, QString::fromStdString(resource.name),
+                           kPatternPersistNameRole);
+      }
+    }
+    for (const auto& preset : builtin_pattern_presets()) {
+      if (document_patterns != nullptr && document_patterns->find(preset.id) != nullptr) {
+        continue;
+      }
+      combo->addItem(pattern_preset_icon(generate_builtin_pattern_tile(preset.id)),
+                     QObject::tr(preset.english_name), QString::fromLatin1(preset.id));
+      combo->setItemData(combo->count() - 1, QString::fromLatin1(preset.english_name),
+                         kPatternPersistNameRole);
+    }
+    const auto current = QString::fromStdString(current_id);
+    auto index = combo->findData(current, kPatternIdRole);
+    if (index < 0 && !current.isEmpty()) {
+      // Unresolvable reference: keep it selectable so opening and accepting the
+      // dialog never silently rewrites the file's pattern id.
+      const auto display = current_name.empty() ? current_id : current_name;
+      combo->addItem(QObject::tr("%1 (missing)").arg(QString::fromStdString(display)), current);
+      combo->setItemData(combo->count() - 1, QString::fromStdString(current_name), kPatternPersistNameRole);
+      index = combo->count() - 1;
+    }
+    combo->setCurrentIndex(std::max(0, index));
+    return combo;
+  };
+  auto pattern_combo_id = [](const QComboBox* combo) {
+    return combo->currentData(kPatternIdRole).toString().toStdString();
+  };
+  auto pattern_combo_persist_name = [](const QComboBox* combo) {
+    return combo->currentData(kPatternPersistNameRole).toString().toStdString();
+  };
+  auto set_pattern_combo_id = [](QComboBox* combo, const std::string& id) {
+    const auto index = combo->findData(QString::fromStdString(id), kPatternIdRole);
+    combo->setCurrentIndex(index >= 0 ? index : 0);
+  };
+
+  // Contour pickers: the built-in shape roster plus a leading "Custom" entry
+  // whenever the current curve matches no preset (imported Photoshop curves).
+  // The host-retained custom curve is only replaced by a deliberate preset pick.
+  auto make_contour_combo = [&](QWidget* combo_parent, const QString& object_name,
+                                const StyleContour& current, const StyleContour& custom_value) {
+    auto* combo = new QComboBox(combo_parent);
+    combo->setObjectName(object_name);
+    combo->setIconSize(QSize(32, 24));
+    const auto* matching = find_builtin_contour_preset(current);
+    if (matching == nullptr) {
+      combo->addItem(contour_preset_icon(custom_value), QObject::tr("Custom"),
+                     QString::fromLatin1(kContourCustomId));
+    }
+    for (const auto& preset : builtin_contour_presets()) {
+      combo->addItem(contour_preset_icon(preset.contour), QObject::tr(preset.english_name),
+                     QString::fromLatin1(preset.id));
+    }
+    if (matching != nullptr) {
+      combo->setCurrentIndex(
+          std::max(0, combo->findData(QString::fromLatin1(matching->id), kPatternIdRole)));
+    } else {
+      combo->setCurrentIndex(0);
+    }
+    return combo;
+  };
+  auto contour_combo_value = [](const QComboBox* combo, const StyleContour& custom_value) {
+    const auto id = combo->currentData().toString();
+    if (id == QLatin1String(kContourCustomId)) {
+      return custom_value;
+    }
+    if (const auto* preset = find_builtin_contour_preset(id.toStdString()); preset != nullptr) {
+      return preset->contour;
+    }
+    return custom_value;
+  };
+  auto set_contour_combo_value = [](QComboBox* combo, const StyleContour& value) {
+    const auto* matching = find_builtin_contour_preset(value);
+    if (matching != nullptr) {
+      const auto index = combo->findData(QString::fromLatin1(matching->id));
+      if (index >= 0) {
+        combo->setCurrentIndex(index);
+        return;
+      }
+    }
+    const auto custom_index = combo->findData(QString::fromLatin1(kContourCustomId));
+    combo->setCurrentIndex(std::max(0, custom_index));
+  };
 
   auto* blending_group = new QGroupBox(QObject::tr("Blending Options"), controls);
   auto* blending_form = new QFormLayout(blending_group);
@@ -1290,6 +1506,19 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   bevel_direction->addItem(QObject::tr("Down"), false);
   bevel_direction->setCurrentIndex(bevel.direction_up ? 0 : 1);
   bevel_form->addRow(QObject::tr("Direction"), bevel_direction);
+  auto* bevel_gloss_row = new QWidget(bevel_group);
+  auto* bevel_gloss_layout = new QHBoxLayout(bevel_gloss_row);
+  bevel_gloss_layout->setContentsMargins(0, 0, 0, 0);
+  bevel_gloss_layout->setSpacing(8);
+  auto* bevel_gloss_contour = make_contour_combo(bevel_gloss_row,
+                                                 QStringLiteral("layerStyleBevelGlossContourCombo"),
+                                                 bevel.gloss_contour, custom_gloss_contour);
+  bevel_gloss_layout->addWidget(bevel_gloss_contour, 1);
+  auto* bevel_gloss_anti_aliased = new QCheckBox(QObject::tr("Anti-aliased"), bevel_gloss_row);
+  bevel_gloss_anti_aliased->setObjectName(QStringLiteral("layerStyleBevelGlossAntiAliasedCheck"));
+  bevel_gloss_anti_aliased->setChecked(bevel.gloss_anti_aliased);
+  bevel_gloss_layout->addWidget(bevel_gloss_anti_aliased);
+  bevel_form->addRow(QObject::tr("Gloss Contour"), bevel_gloss_row);
 
   auto bevel_highlight_color = bevel.highlight_color;
   auto* bevel_highlight_group = new QGroupBox(QObject::tr("Highlight"), bevel_group);
@@ -1339,6 +1568,94 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   update_bevel_color_previews();
   bevel_layout->addWidget(bevel_group);
   bevel_layout->addStretch(1);
+
+  auto* bevel_contour_group = new QGroupBox(QObject::tr("Contour"), controls);
+  auto* bevel_contour_form = new QFormLayout(bevel_contour_group);
+  auto* bevel_contour_row = new QWidget(bevel_contour_group);
+  auto* bevel_contour_row_layout = new QHBoxLayout(bevel_contour_row);
+  bevel_contour_row_layout->setContentsMargins(0, 0, 0, 0);
+  bevel_contour_row_layout->setSpacing(8);
+  auto* bevel_contour_combo = make_contour_combo(bevel_contour_row,
+                                                 QStringLiteral("layerStyleBevelContourCombo"),
+                                                 bevel.contour.contour, custom_bevel_sub_contour);
+  bevel_contour_row_layout->addWidget(bevel_contour_combo, 1);
+  auto* bevel_contour_anti_aliased = new QCheckBox(QObject::tr("Anti-aliased"), bevel_contour_row);
+  bevel_contour_anti_aliased->setObjectName(QStringLiteral("layerStyleBevelContourAntiAliasedCheck"));
+  bevel_contour_anti_aliased->setChecked(bevel.contour.anti_aliased);
+  bevel_contour_row_layout->addWidget(bevel_contour_anti_aliased);
+  bevel_contour_form->addRow(QObject::tr("Contour"), bevel_contour_row);
+  auto* bevel_contour_range = add_slider_spin_row(
+      bevel_contour_form, bevel_contour_group, QObject::tr("Range"),
+      QStringLiteral("layerStyleBevelContourRangeSpin"), 1, 100,
+      static_cast<int>(std::round(bevel.contour.range * 100.0F)), QStringLiteral("%"));
+  bevel_contour_layout->addWidget(bevel_contour_group);
+  bevel_contour_layout->addStretch(1);
+
+  auto* bevel_texture_group = new QGroupBox(QObject::tr("Texture"), controls);
+  auto* bevel_texture_form = new QFormLayout(bevel_texture_group);
+  auto* bevel_texture_pattern = make_pattern_combo(bevel_texture_group,
+                                                   QStringLiteral("layerStyleBevelTexturePatternCombo"),
+                                                   bevel.texture.pattern_id, bevel.texture.pattern_name);
+  bevel_texture_form->addRow(QObject::tr("Pattern"), bevel_texture_pattern);
+  auto* bevel_texture_scale = add_slider_spin_row(
+      bevel_texture_form, bevel_texture_group, QObject::tr("Scale"),
+      QStringLiteral("layerStyleBevelTextureScaleSpin"), 1, 1000,
+      static_cast<int>(std::round(bevel.texture.scale * 100.0F)), QStringLiteral("%"));
+  auto* bevel_texture_depth = add_slider_spin_row(
+      bevel_texture_form, bevel_texture_group, QObject::tr("Depth"),
+      QStringLiteral("layerStyleBevelTextureDepthSpin"), -1000, 1000,
+      static_cast<int>(std::round(bevel.texture.depth * 100.0F)), QStringLiteral("%"));
+  auto* bevel_texture_invert = new QCheckBox(QObject::tr("Invert"), bevel_texture_group);
+  bevel_texture_invert->setObjectName(QStringLiteral("layerStyleBevelTextureInvertCheck"));
+  bevel_texture_invert->setChecked(bevel.texture.invert);
+  bevel_texture_form->addRow(QString(), bevel_texture_invert);
+  auto* bevel_texture_link = new QCheckBox(QObject::tr("Link with Layer"), bevel_texture_group);
+  bevel_texture_link->setObjectName(QStringLiteral("layerStyleBevelTextureLinkCheck"));
+  bevel_texture_link->setChecked(bevel.texture.link_with_layer);
+  bevel_texture_link->setToolTip(
+      QObject::tr("Anchor the pattern to the layer so it follows when the layer moves"));
+  bevel_texture_form->addRow(QString(), bevel_texture_link);
+  auto* bevel_texture_snap = new QPushButton(QObject::tr("Snap to Origin"), bevel_texture_group);
+  bevel_texture_snap->setObjectName(QStringLiteral("layerStyleBevelTextureSnapOriginButton"));
+  bevel_texture_form->addRow(QString(), bevel_texture_snap);
+  bevel_texture_layout->addWidget(bevel_texture_group);
+  bevel_texture_layout->addStretch(1);
+
+  auto* pattern_overlay_group = new QGroupBox(QObject::tr("Pattern Overlay"), controls);
+  auto* pattern_overlay_form = new QFormLayout(pattern_overlay_group);
+  auto* pattern_overlay_blend = new QComboBox(pattern_overlay_group);
+  pattern_overlay_blend->setObjectName(QStringLiteral("layerStylePatternOverlayBlendModeCombo"));
+  add_blend_mode_items(pattern_overlay_blend);
+  pattern_overlay_blend->setCurrentIndex(
+      std::max(0, pattern_overlay_blend->findData(static_cast<int>(pattern_overlay.blend_mode))));
+  pattern_overlay_form->addRow(QObject::tr("Blend Mode"), pattern_overlay_blend);
+  auto* pattern_overlay_opacity = add_slider_spin_row(
+      pattern_overlay_form, pattern_overlay_group, QObject::tr("Opacity"),
+      QStringLiteral("layerStylePatternOverlayOpacitySpin"), 0, 100,
+      static_cast<int>(std::round(pattern_overlay.opacity * 100.0F)), QStringLiteral("%"));
+  auto* pattern_overlay_pattern = make_pattern_combo(
+      pattern_overlay_group, QStringLiteral("layerStylePatternOverlayPatternCombo"),
+      pattern_overlay.pattern_id, pattern_overlay.pattern_name);
+  pattern_overlay_form->addRow(QObject::tr("Pattern"), pattern_overlay_pattern);
+  auto* pattern_overlay_angle = add_slider_spin_row(
+      pattern_overlay_form, pattern_overlay_group, QObject::tr("Angle"),
+      QStringLiteral("layerStylePatternOverlayAngleSpin"), -180, 180,
+      static_cast<int>(std::round(pattern_overlay.angle_degrees)));
+  auto* pattern_overlay_scale = add_slider_spin_row(
+      pattern_overlay_form, pattern_overlay_group, QObject::tr("Scale"),
+      QStringLiteral("layerStylePatternOverlayScaleSpin"), 1, 1000,
+      static_cast<int>(std::round(pattern_overlay.scale * 100.0F)), QStringLiteral("%"));
+  auto* pattern_overlay_link = new QCheckBox(QObject::tr("Link with Layer"), pattern_overlay_group);
+  pattern_overlay_link->setObjectName(QStringLiteral("layerStylePatternOverlayLinkCheck"));
+  pattern_overlay_link->setChecked(pattern_overlay.link_with_layer);
+  pattern_overlay_link->setToolTip(
+      QObject::tr("Anchor the pattern to the layer so it follows when the layer moves"));
+  pattern_overlay_form->addRow(QString(), pattern_overlay_link);
+  auto* pattern_overlay_snap = new QPushButton(QObject::tr("Snap to Origin"), pattern_overlay_group);
+  pattern_overlay_snap->setObjectName(QStringLiteral("layerStylePatternOverlaySnapOriginButton"));
+  pattern_overlay_form->addRow(QString(), pattern_overlay_snap);
+  pattern_overlay_layout->addWidget(pattern_overlay_group);
+  pattern_overlay_layout->addStretch(1);
 
   auto* stroke_group = new QGroupBox(QObject::tr("Stroke"), controls);
   auto* stroke_form = new QFormLayout(stroke_group);
@@ -1817,7 +2134,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
            kind == LayerStyleEffectKind::InnerGlow || kind == LayerStyleEffectKind::Satin ||
            kind == LayerStyleEffectKind::ColorOverlay ||
            kind == LayerStyleEffectKind::GradientOverlay || kind == LayerStyleEffectKind::OuterGlow ||
-           kind == LayerStyleEffectKind::DropShadow;
+           kind == LayerStyleEffectKind::DropShadow || kind == LayerStyleEffectKind::PatternOverlay;
   };
   auto vector_count_for_kind = [](const LayerStyle& source, LayerStyleEffectKind kind) -> std::size_t {
     switch (kind) {
@@ -1833,12 +2150,16 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return source.color_overlays.size();
       case LayerStyleEffectKind::GradientOverlay:
         return source.gradient_fills.size();
+      case LayerStyleEffectKind::PatternOverlay:
+        return source.pattern_overlays.size();
       case LayerStyleEffectKind::OuterGlow:
         return source.outer_glows.size();
       case LayerStyleEffectKind::DropShadow:
         return source.drop_shadows.size();
       case LayerStyleEffectKind::BevelEmboss:
         return source.bevels.size();
+      case LayerStyleEffectKind::BevelContour:
+      case LayerStyleEffectKind::BevelTexture:
       case LayerStyleEffectKind::None:
         return 0U;
     }
@@ -1885,6 +2206,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       target.gradient_fills.push_back(default_gradient_fill());
     }
     return target.gradient_fills[static_cast<std::size_t>(std::max(0, index))];
+  };
+  auto ensure_pattern_overlay = [](LayerStyle& target, int index) -> LayerPatternOverlay& {
+    while (index >= 0 && target.pattern_overlays.size() <= static_cast<std::size_t>(index)) {
+      target.pattern_overlays.push_back(default_pattern_overlay());
+    }
+    return target.pattern_overlays[static_cast<std::size_t>(std::max(0, index))];
   };
   auto ensure_outer_glow = [](LayerStyle& target, int index) -> LayerOuterGlow& {
     while (index >= 0 && target.outer_glows.size() <= static_cast<std::size_t>(index)) {
@@ -1939,6 +2266,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
             ensure_gradient_fill(result, index).enabled = enabled;
           }
           break;
+        case LayerStyleEffectKind::PatternOverlay:
+          if (enabled || result.pattern_overlays.size() > static_cast<std::size_t>(std::max(0, index))) {
+            ensure_pattern_overlay(result, index).enabled = enabled;
+          }
+          break;
         case LayerStyleEffectKind::OuterGlow:
           if (enabled || result.outer_glows.size() > static_cast<std::size_t>(std::max(0, index))) {
             ensure_outer_glow(result, index).enabled = enabled;
@@ -1947,6 +2279,28 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         case LayerStyleEffectKind::DropShadow:
           if (enabled || result.drop_shadows.size() > static_cast<std::size_t>(std::max(0, index))) {
             ensure_drop_shadow(result, index).enabled = enabled;
+          }
+          break;
+        case LayerStyleEffectKind::BevelContour:
+          // The sub-option checkbox never force-enables the bevel itself: a
+          // bevel created just to carry the flag stays disabled (PS behavior).
+          if (enabled || !result.bevels.empty()) {
+            const auto had_bevel = !result.bevels.empty();
+            auto& target = ensure_bevel(result, 0);
+            if (!had_bevel) {
+              target.enabled = false;
+            }
+            target.contour.enabled = enabled;
+          }
+          break;
+        case LayerStyleEffectKind::BevelTexture:
+          if (enabled || !result.bevels.empty()) {
+            const auto had_bevel = !result.bevels.empty();
+            auto& target = ensure_bevel(result, 0);
+            if (!had_bevel) {
+              target.enabled = false;
+            }
+            target.texture.enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::None:
@@ -1979,6 +2333,43 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.shadow_blend_mode = static_cast<BlendMode>(bevel_shadow_blend->currentData().toInt());
         target.shadow_color = bevel_shadow_color;
         target.shadow_opacity = static_cast<float>(bevel_shadow_opacity->value()) / 100.0F;
+        target.gloss_contour = contour_combo_value(bevel_gloss_contour, custom_gloss_contour);
+        target.gloss_anti_aliased = bevel_gloss_anti_aliased->isChecked();
+        break;
+      }
+      case LayerStyleEffectKind::BevelContour: {
+        if (!enabled && result.bevels.empty()) {
+          return;
+        }
+        const auto had_bevel = !result.bevels.empty();
+        auto& target = ensure_bevel(result, 0);
+        if (!had_bevel) {
+          target.enabled = false;
+        }
+        target.contour.enabled = enabled;
+        target.contour.contour = contour_combo_value(bevel_contour_combo, custom_bevel_sub_contour);
+        target.contour.anti_aliased = bevel_contour_anti_aliased->isChecked();
+        target.contour.range = static_cast<float>(bevel_contour_range->value()) / 100.0F;
+        break;
+      }
+      case LayerStyleEffectKind::BevelTexture: {
+        if (!enabled && result.bevels.empty()) {
+          return;
+        }
+        const auto had_bevel = !result.bevels.empty();
+        auto& target = ensure_bevel(result, 0);
+        if (!had_bevel) {
+          target.enabled = false;
+        }
+        target.texture.enabled = enabled;
+        target.texture.pattern_id = pattern_combo_id(bevel_texture_pattern);
+        target.texture.pattern_name = pattern_combo_persist_name(bevel_texture_pattern);
+        target.texture.scale = static_cast<float>(bevel_texture_scale->value()) / 100.0F;
+        target.texture.depth = static_cast<float>(bevel_texture_depth->value()) / 100.0F;
+        target.texture.invert = bevel_texture_invert->isChecked();
+        target.texture.link_with_layer = bevel_texture_link->isChecked();
+        target.texture.phase_x = bevel.texture.phase_x;
+        target.texture.phase_y = bevel.texture.phase_y;
         break;
       }
       case LayerStyleEffectKind::Stroke: {
@@ -2072,6 +2463,23 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.gradient = gradient_controls->value();
         break;
       }
+      case LayerStyleEffectKind::PatternOverlay: {
+        if (!enabled && result.pattern_overlays.size() <= static_cast<std::size_t>(index)) {
+          return;
+        }
+        auto& target = ensure_pattern_overlay(result, index);
+        target.enabled = enabled;
+        target.blend_mode = static_cast<BlendMode>(pattern_overlay_blend->currentData().toInt());
+        target.opacity = static_cast<float>(pattern_overlay_opacity->value()) / 100.0F;
+        target.pattern_id = pattern_combo_id(pattern_overlay_pattern);
+        target.pattern_name = pattern_combo_persist_name(pattern_overlay_pattern);
+        target.angle_degrees = static_cast<float>(pattern_overlay_angle->value());
+        target.scale = static_cast<float>(pattern_overlay_scale->value()) / 100.0F;
+        target.link_with_layer = pattern_overlay_link->isChecked();
+        target.phase_x = pattern_overlay.phase_x;
+        target.phase_y = pattern_overlay.phase_y;
+        break;
+      }
       case LayerStyleEffectKind::OuterGlow: {
         if (!enabled && result.outer_glows.size() <= static_cast<std::size_t>(index)) {
           return;
@@ -2157,7 +2565,36 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         set_combo_data(bevel_shadow_blend, static_cast<int>(value.shadow_blend_mode));
         bevel_shadow_color = value.shadow_color;
         bevel_shadow_opacity->setValue(static_cast<int>(std::round(value.shadow_opacity * 100.0F)));
+        if (find_builtin_contour_preset(value.gloss_contour) == nullptr) {
+          custom_gloss_contour = value.gloss_contour;
+        }
+        set_contour_combo_value(bevel_gloss_contour, value.gloss_contour);
+        bevel_gloss_anti_aliased->setChecked(value.gloss_anti_aliased);
         update_bevel_color_previews();
+        break;
+      }
+      case LayerStyleEffectKind::BevelContour: {
+        const auto value = style.bevels.empty() ? default_bevel_emboss() : style.bevels.front();
+        if (find_builtin_contour_preset(value.contour.contour) == nullptr) {
+          custom_bevel_sub_contour = value.contour.contour;
+        }
+        set_contour_combo_value(bevel_contour_combo, value.contour.contour);
+        bevel_contour_anti_aliased->setChecked(value.contour.anti_aliased);
+        bevel_contour_range->setValue(
+            std::clamp(static_cast<int>(std::round(value.contour.range * 100.0F)), 1, 100));
+        break;
+      }
+      case LayerStyleEffectKind::BevelTexture: {
+        const auto value = style.bevels.empty() ? default_bevel_emboss() : style.bevels.front();
+        set_pattern_combo_id(bevel_texture_pattern, value.texture.pattern_id);
+        bevel_texture_scale->setValue(
+            std::clamp(static_cast<int>(std::round(value.texture.scale * 100.0F)), 1, 1000));
+        bevel_texture_depth->setValue(
+            std::clamp(static_cast<int>(std::round(value.texture.depth * 100.0F)), -1000, 1000));
+        bevel_texture_invert->setChecked(value.texture.invert);
+        bevel_texture_link->setChecked(value.texture.link_with_layer);
+        bevel.texture.phase_x = value.texture.phase_x;
+        bevel.texture.phase_y = value.texture.phase_y;
         break;
       }
       case LayerStyleEffectKind::Stroke: {
@@ -2243,6 +2680,21 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         gradient_controls->load(value.gradient);
         break;
       }
+      case LayerStyleEffectKind::PatternOverlay: {
+        const auto value = style.pattern_overlays.size() > static_cast<std::size_t>(index)
+                               ? style.pattern_overlays[static_cast<std::size_t>(index)]
+                               : default_pattern_overlay();
+        pattern_overlay = value;
+        set_combo_data(pattern_overlay_blend, static_cast<int>(value.blend_mode));
+        pattern_overlay_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
+        set_pattern_combo_id(pattern_overlay_pattern, value.pattern_id);
+        pattern_overlay_angle->setValue(
+            std::clamp(static_cast<int>(std::round(value.angle_degrees)), -180, 180));
+        pattern_overlay_scale->setValue(
+            std::clamp(static_cast<int>(std::round(value.scale * 100.0F)), 1, 1000));
+        pattern_overlay_link->setChecked(value.link_with_layer);
+        break;
+      }
       case LayerStyleEffectKind::OuterGlow: {
         const auto value =
             style.outer_glows.size() > static_cast<std::size_t>(index) ? style.outer_glows[static_cast<std::size_t>(index)]
@@ -2313,11 +2765,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return duplicate(style.color_overlays, [] { return default_color_overlay(); });
       case LayerStyleEffectKind::GradientOverlay:
         return duplicate(style.gradient_fills, [] { return default_gradient_fill(); });
+      case LayerStyleEffectKind::PatternOverlay:
+        return duplicate(style.pattern_overlays, [] { return default_pattern_overlay(); });
       case LayerStyleEffectKind::OuterGlow:
         return duplicate(style.outer_glows, [] { return default_outer_glow(); });
       case LayerStyleEffectKind::DropShadow:
         return duplicate(style.drop_shadows, [] { return default_drop_shadow(); });
       case LayerStyleEffectKind::BevelEmboss:
+      case LayerStyleEffectKind::BevelContour:
+      case LayerStyleEffectKind::BevelTexture:
       case LayerStyleEffectKind::None:
         break;
     }
@@ -2344,11 +2800,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return remove(style.color_overlays);
       case LayerStyleEffectKind::GradientOverlay:
         return remove(style.gradient_fills);
+      case LayerStyleEffectKind::PatternOverlay:
+        return remove(style.pattern_overlays);
       case LayerStyleEffectKind::OuterGlow:
         return remove(style.outer_glows);
       case LayerStyleEffectKind::DropShadow:
         return remove(style.drop_shadows);
       case LayerStyleEffectKind::BevelEmboss:
+      case LayerStyleEffectKind::BevelContour:
+      case LayerStyleEffectKind::BevelTexture:
       case LayerStyleEffectKind::None:
         break;
     }
@@ -2371,10 +2831,16 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return indexed_object_name(QStringLiteral("layerStyleColorOverlayCategoryCheck"), index);
       case LayerStyleEffectKind::GradientOverlay:
         return indexed_object_name(QStringLiteral("layerStyleGradientOverlayCategoryCheck"), index);
+      case LayerStyleEffectKind::PatternOverlay:
+        return indexed_object_name(QStringLiteral("layerStylePatternOverlayCategoryCheck"), index);
       case LayerStyleEffectKind::OuterGlow:
         return indexed_object_name(QStringLiteral("layerStyleOuterGlowCategoryCheck"), index);
       case LayerStyleEffectKind::DropShadow:
         return indexed_object_name(QStringLiteral("layerStyleDropShadowCategoryCheck"), index);
+      case LayerStyleEffectKind::BevelContour:
+        return indexed_object_name(QStringLiteral("layerStyleBevelContourCategoryCheck"), index);
+      case LayerStyleEffectKind::BevelTexture:
+        return indexed_object_name(QStringLiteral("layerStyleBevelTextureCategoryCheck"), index);
       case LayerStyleEffectKind::None:
         break;
     }
@@ -2394,11 +2860,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return indexed_object_name(QStringLiteral("layerStyleAddColorOverlayInstanceButton"), index);
       case LayerStyleEffectKind::GradientOverlay:
         return indexed_object_name(QStringLiteral("layerStyleAddGradientOverlayInstanceButton"), index);
+      case LayerStyleEffectKind::PatternOverlay:
+        return indexed_object_name(QStringLiteral("layerStyleAddPatternOverlayInstanceButton"), index);
       case LayerStyleEffectKind::OuterGlow:
         return indexed_object_name(QStringLiteral("layerStyleAddOuterGlowInstanceButton"), index);
       case LayerStyleEffectKind::DropShadow:
         return indexed_object_name(QStringLiteral("layerStyleAddDropShadowInstanceButton"), index);
       case LayerStyleEffectKind::BevelEmboss:
+      case LayerStyleEffectKind::BevelContour:
+      case LayerStyleEffectKind::BevelTexture:
       case LayerStyleEffectKind::None:
         break;
     }
@@ -2418,11 +2888,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         return QObject::tr("Add Color Overlay");
       case LayerStyleEffectKind::GradientOverlay:
         return QObject::tr("Add Gradient Overlay");
+      case LayerStyleEffectKind::PatternOverlay:
+        return QObject::tr("Add Pattern Overlay");
       case LayerStyleEffectKind::OuterGlow:
         return QObject::tr("Add Outer Glow");
       case LayerStyleEffectKind::DropShadow:
         return QObject::tr("Add Drop Shadow");
       case LayerStyleEffectKind::BevelEmboss:
+      case LayerStyleEffectKind::BevelContour:
+      case LayerStyleEffectKind::BevelTexture:
       case LayerStyleEffectKind::None:
         break;
     }
@@ -2469,13 +2943,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     categories->clear();
     int selected_row = 0;
 
-    auto install_category_widget = [&](QListWidgetItem* item, const QString& check_object_name) {
+    auto install_category_widget = [&](QListWidgetItem* item, const QString& check_object_name,
+                                       bool indented = false) {
       auto* row = new QWidget(categories);
       row->setObjectName(QStringLiteral("layerStyleCategoryRow"));
       row->setAttribute(Qt::WA_StyledBackground, true);
       row->setMinimumHeight(30);
       auto* layout = new QHBoxLayout(row);
-      layout->setContentsMargins(10, 0, 10, 0);
+      // Sub-option rows (Bevel's Contour/Texture) indent under their parent.
+      layout->setContentsMargins(indented ? 28 : 10, 0, 10, 0);
       layout->setSpacing(4);
       QCheckBox* check = nullptr;
       if (!check_object_name.isEmpty()) {
@@ -2521,9 +2997,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     };
 
     auto add_row = [&](const QString& text, LayerStyleCategoryPage page, LayerStyleEffectKind kind, int index,
-                       bool checked, bool checkable) {
+                       bool checked, bool checkable, bool indented = false) {
       auto* item = add_layer_style_category(categories, text, checkable, checked, page, kind, index);
-      install_category_widget(item, checkable ? category_check_object_name(kind, index) : QString());
+      install_category_widget(item, checkable ? category_check_object_name(kind, index) : QString(), indented);
       if (kind == select_kind && index == select_index) {
         selected_row = categories->row(item);
       }
@@ -2533,6 +3009,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     add_row(QObject::tr("Blending Options"), LayerStyleCategoryPage::Blending, LayerStyleEffectKind::None, -1, true, false);
     add_row(QObject::tr("Bevel & Emboss"), LayerStyleCategoryPage::BevelEmboss,
             LayerStyleEffectKind::BevelEmboss, 0, !style.bevels.empty() && style.bevels.front().enabled, true);
+    add_row(QObject::tr("Contour"), LayerStyleCategoryPage::BevelContour, LayerStyleEffectKind::BevelContour, 0,
+            !style.bevels.empty() && style.bevels.front().contour.enabled, true, true);
+    add_row(QObject::tr("Texture"), LayerStyleCategoryPage::BevelTexture, LayerStyleEffectKind::BevelTexture, 0,
+            !style.bevels.empty() && style.bevels.front().texture.enabled, true, true);
 
     auto add_vector_rows = [&](const QString& text, LayerStyleCategoryPage page, LayerStyleEffectKind kind,
                                const auto& vector) {
@@ -2554,6 +3034,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                     LayerStyleEffectKind::ColorOverlay, style.color_overlays);
     add_vector_rows(QObject::tr("Gradient Overlay"), LayerStyleCategoryPage::GradientOverlay,
                     LayerStyleEffectKind::GradientOverlay, style.gradient_fills);
+    add_vector_rows(QObject::tr("Pattern Overlay"), LayerStyleCategoryPage::PatternOverlay,
+                    LayerStyleEffectKind::PatternOverlay, style.pattern_overlays);
     add_vector_rows(QObject::tr("Outer Glow"), LayerStyleCategoryPage::OuterGlow, LayerStyleEffectKind::OuterGlow,
                     style.outer_glows);
     add_vector_rows(QObject::tr("Drop Shadow"), LayerStyleCategoryPage::DropShadow, LayerStyleEffectKind::DropShadow,
@@ -2687,7 +3169,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(show_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(mask_hides_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   for (auto* spin : {bevel_size, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
-                     bevel_shadow_opacity, stroke_size, stroke_opacity, stroke_red, stroke_green, stroke_blue,
+                     bevel_shadow_opacity, bevel_contour_range, bevel_texture_scale, bevel_texture_depth,
+                     pattern_overlay_opacity, pattern_overlay_angle, pattern_overlay_scale,
+                     stroke_size, stroke_opacity, stroke_red, stroke_green, stroke_blue,
                      color_overlay_opacity, color_overlay_red, color_overlay_green, color_overlay_blue,
                      gradient_opacity, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_red,
                      outer_glow_green, outer_glow_blue, inner_glow_opacity, inner_glow_size, inner_glow_choke,
@@ -2705,6 +3189,36 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(bevel_shadow_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(bevel_gloss_contour, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(bevel_gloss_anti_aliased, &QCheckBox::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
+  QObject::connect(bevel_contour_combo, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(bevel_contour_anti_aliased, &QCheckBox::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
+  QObject::connect(bevel_texture_pattern, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(bevel_texture_invert, &QCheckBox::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
+  QObject::connect(bevel_texture_link, &QCheckBox::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
+  QObject::connect(bevel_texture_snap, &QPushButton::clicked, &dialog, [&] {
+    bevel.texture.phase_x = 0.0F;
+    bevel.texture.phase_y = 0.0F;
+    emit_preview(true);
+  });
+  QObject::connect(pattern_overlay_blend, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(pattern_overlay_pattern, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(pattern_overlay_link, &QCheckBox::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
+  QObject::connect(pattern_overlay_snap, &QPushButton::clicked, &dialog, [&] {
+    pattern_overlay.phase_x = 0.0F;
+    pattern_overlay.phase_y = 0.0F;
+    emit_preview(true);
+  });
   QObject::connect(color_overlay_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(outer_glow_blend, &QComboBox::currentIndexChanged, &dialog,

@@ -8,6 +8,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette_presets.hpp"
+#include "core/pattern_presets.hpp"
 #include "core/pixel_tools.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
@@ -2547,7 +2548,6 @@ bool is_supported_open_path(const QString& path) {
 
 struct UnrenderedLayerEffectCounts {
   std::size_t groups_with_layer_effects{0};
-  std::size_t pattern_overlay{0};
 };
 
 void count_unrendered_layer_effects(const std::vector<Layer>& layers, UnrenderedLayerEffectCounts& counts) {
@@ -2556,9 +2556,6 @@ void count_unrendered_layer_effects(const std::vector<Layer>& layers, Unrendered
     if (layer.kind() == LayerKind::Group && !style.empty()) {
       ++counts.groups_with_layer_effects;
     }
-    counts.pattern_overlay += static_cast<std::size_t>(
-        std::count_if(style.pattern_overlays.begin(), style.pattern_overlays.end(),
-                      [](const LayerPatternOverlay& pattern) { return pattern.enabled; }));
     count_unrendered_layer_effects(layer.children(), counts);
   }
 }
@@ -2566,24 +2563,12 @@ void count_unrendered_layer_effects(const std::vector<Layer>& layers, Unrendered
 QString unrendered_layer_effect_import_notice(const Document& document) {
   UnrenderedLayerEffectCounts counts;
   count_unrendered_layer_effects(document.layers(), counts);
-  if (counts.groups_with_layer_effects == 0U && counts.pattern_overlay == 0U) {
+  if (counts.groups_with_layer_effects == 0U) {
     return {};
   }
-
-  if (counts.groups_with_layer_effects == 0U) {
-    return QObject::tr(
-               "Patchy preserved layer effects for PSD round-trip but does not render or edit them (%1).")
-        .arg(QStringLiteral("%1: %2").arg(QObject::tr("Pattern Overlay")).arg(counts.pattern_overlay));
-  }
-  if (counts.pattern_overlay == 0U) {
-    return QObject::tr("Patchy preserved group layer effects for PSD round-trip but does not render them yet "
-                       "(groups: %1).")
-        .arg(counts.groups_with_layer_effects);
-  }
-  return QObject::tr("Patchy preserved layer effects for PSD round-trip. Group layer effects are not rendered "
-                     "(groups: %1); Pattern Overlay is not rendered or editable (%2).")
-      .arg(counts.groups_with_layer_effects)
-      .arg(counts.pattern_overlay);
+  return QObject::tr("Patchy preserved group layer effects for PSD round-trip but does not render them yet "
+                     "(groups: %1).")
+      .arg(counts.groups_with_layer_effects);
 }
 
 struct UnsupportedBlendIfCounts {
@@ -16842,6 +16827,8 @@ void MainWindow::copy_selection() {
       payload.layers_top_to_bottom.push_back(*layer);
       collect_referenced_smart_object_sources(*layer, document().metadata().smart_objects,
                                               payload.smart_object_sources);
+      collect_referenced_pattern_resources(*layer, document().metadata().patterns,
+                                           payload.pattern_resources);
     }
     clipboard_ = std::move(payload);
     clear_system_clipboard();
@@ -16954,6 +16941,11 @@ void MainWindow::paste_clipboard() {
     push_undo_snapshot(tr("Paste"));
     for (const auto& source : clipboard_->smart_object_sources) {
       doc.metadata().smart_objects.adopt(source);
+    }
+    for (const auto& resource : clipboard_->pattern_resources) {
+      PatternResource adopted = resource;
+      adopted.provenance = PatternProvenance::Authored;  // target file has no raw block for it
+      doc.metadata().patterns.adopt(adopted);
     }
     for (auto it = clipboard_->layers_top_to_bottom.rbegin(); it != clipboard_->layers_top_to_bottom.rend(); ++it) {
       auto pasted = clone_layer_tree_with_document_ids(doc, *it);
@@ -19023,6 +19015,23 @@ void MainWindow::rename_active_layer() {
   refresh_layer_controls();
 }
 
+namespace {
+
+// Materializes any built-in pattern preset a style references into the
+// document's pattern store, so previews and saves can resolve the tile. Store
+// insertions are benign; unreferenced entries prune at PSD write.
+void ensure_builtin_patterns_for_style(Document& doc, const LayerStyle& style) {
+  std::vector<std::string> referenced;
+  collect_referenced_pattern_ids(style, referenced);
+  for (const auto& id : referenced) {
+    if (doc.metadata().patterns.find(id) == nullptr && find_builtin_pattern_preset(id) != nullptr) {
+      doc.metadata().patterns.adopt(builtin_pattern_resource(id));
+    }
+  }
+}
+
+}  // namespace
+
 void MainWindow::edit_active_layer_style() {
   // A layer-style dialog is itself a preview dialog. Never open a second one on
   // top of an existing one (e.g. by double-clicking another layer in the list
@@ -19068,6 +19077,7 @@ void MainWindow::edit_active_layer_style() {
     if (target == nullptr) {
       return;
     }
+    ensure_builtin_patterns_for_style(doc, settings.style);
     set_layer_style_settings(*target, settings);
     if (canvas_ != nullptr) {
       canvas_->document_changed_async_preview();
@@ -19078,6 +19088,7 @@ void MainWindow::edit_active_layer_style() {
     if (target == nullptr) {
       return;
     }
+    ensure_builtin_patterns_for_style(doc, settings.style);
     const auto before = layer_render_bounds(*target);
     set_layer_style_settings(*target, settings);
     const auto after = layer_render_bounds(*target);
@@ -19103,7 +19114,8 @@ void MainWindow::edit_active_layer_style() {
   };
 
   auto preview_edit_lock = lock_preview_dialog_edits();
-  const auto settings = request_layer_style_settings(this, *layer, apply_preview_settings);
+  const auto settings =
+      request_layer_style_settings(this, *layer, apply_preview_settings, &doc.metadata().patterns);
   if (!settings.has_value()) {
     restore_original();
     preview_edit_lock.release();
@@ -19142,9 +19154,19 @@ void MainWindow::copy_active_layer_style() {
   }
 
   layer_style_clipboard_ = LayerStyleClipboard{
-      layer->layer_style(), layer->blend_if_payload_status() == BlendIfPayloadStatus::Unsupported
-                                ? std::optional<LayerBlendIf>{}
-                                : std::optional<LayerBlendIf>{layer->blend_if()}};
+      layer->layer_style(),
+      layer->blend_if_payload_status() == BlendIfPayloadStatus::Unsupported
+          ? std::optional<LayerBlendIf>{}
+          : std::optional<LayerBlendIf>{layer->blend_if()},
+      {}};
+  // Carry the referenced pattern tiles so a cross-document paste can embed them.
+  std::vector<std::string> referenced_pattern_ids;
+  collect_referenced_pattern_ids(layer_style_clipboard_->style, referenced_pattern_ids);
+  for (const auto& pattern_id : referenced_pattern_ids) {
+    if (const auto* resource = document().metadata().patterns.find(pattern_id); resource != nullptr) {
+      layer_style_clipboard_->patterns.push_back(*resource);
+    }
+  }
   // The style clipboard carries modeled settings, not the source layer's raw
   // lfx2 bytes. Pasted custom Satin curves and contour anti-aliasing are
   // therefore normalized to the Linear contour that Patchy can regenerate.
@@ -19178,6 +19200,12 @@ void MainWindow::paste_layer_style_to_selected_layers() {
 
   auto& mutable_doc = document();
   push_undo_snapshot(tr("Paste layer style"));
+  for (const auto& resource : layer_style_clipboard_->patterns) {
+    PatternResource adopted = resource;
+    adopted.provenance = PatternProvenance::Authored;  // the target file has no raw block for it
+    mutable_doc.metadata().patterns.adopt(adopted);
+  }
+  ensure_builtin_patterns_for_style(mutable_doc, layer_style_clipboard_->style);
   Rect affected;
   std::size_t pasted_count = 0;
   for (const auto id : targets) {
@@ -20271,6 +20299,13 @@ void MainWindow::convert_to_smart_object() {
     collect_referenced_smart_object_sources(copy, doc.metadata().smart_objects, referenced);
     for (const auto& nested_source : referenced) {
       child.metadata().smart_objects.adopt(nested_source);
+    }
+    std::vector<PatternResource> referenced_patterns;
+    collect_referenced_pattern_resources(copy, doc.metadata().patterns, referenced_patterns);
+    for (const auto& nested_pattern : referenced_patterns) {
+      PatternResource adopted = nested_pattern;
+      adopted.provenance = PatternProvenance::Authored;  // the child file has no raw block for it
+      child.metadata().patterns.adopt(adopted);
     }
     child.add_layer(std::move(copy));
   }

@@ -49,6 +49,7 @@ add_library(patchy_core
   src/core/blend_math.cpp
   src/core/brush_dynamics.cpp
   src/core/brush_tip.cpp
+  src/core/contour_presets.cpp
   src/core/document.cpp
   src/core/document_channel.cpp
   src/core/layer.cpp
@@ -58,11 +59,14 @@ add_library(patchy_core
   src/core/magnetic_lasso.cpp
   src/core/palette.cpp
   src/core/palette_presets.cpp
+  src/core/pattern_presets.cpp
+  src/core/pattern_resource.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_tools.cpp
   src/core/quick_select.cpp
   src/core/rect_utils.cpp
   src/core/smart_object.cpp
+  src/core/style_contour.cpp
   src/core/text_warp.cpp
   src/core/warp_mesh.hpp
   src/core/warp_mesh.cpp
@@ -124,6 +128,7 @@ add_library(patchy_psd
   src/psd/psd_binary.cpp
   src/psd/psd_descriptor.cpp
   src/psd/psd_document_io.cpp
+  src/psd/psd_patterns.cpp
   src/psd/psd_smart_objects.cpp
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render patchy_color)

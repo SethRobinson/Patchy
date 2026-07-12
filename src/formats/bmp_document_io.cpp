@@ -524,7 +524,8 @@ private:
     rgba.clear(0);
     Rgba8RenderTarget rgba_target(rgba);
     const auto canvas = Rect::from_size(document.width(), document.height());
-    render_detail::composite_layers(rgba_target, document.layers(), canvas, nullptr, true);
+    render_detail::composite_layers(rgba_target, document.layers(), canvas, nullptr, true, nullptr,
+                                    &document.metadata().patterns);
 
     PixelBuffer output(document.width(), document.height(), PixelFormat::rgb8());
     for (std::int32_t y = 0; y < document.height(); ++y) {
@@ -545,7 +546,8 @@ private:
   output.clear(255);
   Rgb8RenderTarget target(output, 1.0F);
   const auto canvas = Rect::from_size(document.width(), document.height());
-  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true);
+  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true, nullptr,
+                                  &document.metadata().patterns);
   return output;
 }
 
@@ -562,7 +564,8 @@ private:
   output.clear(0);
   Rgba8RenderTarget target(output);
   const auto canvas = Rect::from_size(document.width(), document.height());
-  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true);
+  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true, nullptr,
+                                  &document.metadata().patterns);
   return output;
 }
 

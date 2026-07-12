@@ -165,7 +165,8 @@ PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::
                                 strip.clear(0);
                                 Rgb8PixelBufferTarget target(strip, 0.0F, strip_clip.x, strip_clip.y);
                                 render_detail::composite_layers(target, document.layers(), strip_clip, nullptr,
-                                                                true);
+                                                                true, nullptr,
+                                                                &document.metadata().patterns);
                                 return StripResult{std::move(strip),
                                                    want_alpha ? target.alpha_bytes() : std::vector<std::uint8_t>{}};
                               })});
@@ -186,7 +187,8 @@ PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::
   }
 
   Rgb8PixelBufferTarget target(output, 0.0F);
-  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true);
+  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true, nullptr,
+                                  &document.metadata().patterns);
   if (merged_alpha != nullptr) {
     *merged_alpha = target.alpha_bytes();
   }

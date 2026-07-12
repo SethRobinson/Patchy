@@ -1,6 +1,8 @@
 #include "ui/canvas_widget.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/contour_presets.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pattern_presets.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
 #include "ui/smart_object_render.hpp"
@@ -87,6 +89,7 @@
 #include <QLineEdit>
 #include <QList>
 #include <QListView>
+#include <QLayout>
 #include <QListWidget>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -112,6 +115,7 @@
 #include <QPointingDevice>
 #include <QProgressDialog>
 #include <QPushButton>
+#include <QStackedWidget>
 #include <QRadioButton>
 #include <QSpinBox>
 #include <QStringList>
@@ -2554,10 +2558,14 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   CHECK(update_failed == QStringLiteral("更新確認に失敗しました: 更新マニフェストが無効です。"));
   const auto show_effects = QCoreApplication::translate("QObject", "Show Effects");
   CHECK(show_effects == QStringLiteral("効果を表示"));
-  const auto unrendered_effects = QCoreApplication::translate(
-      "QObject", "Patchy preserved layer effects for PSD round-trip but does not render or edit them (%1).");
-  CHECK(unrendered_effects ==
-        QStringLiteral("Patchy はレイヤー効果（%1）を PSD 往復用に保持しますが、描画や編集は行いません。"));
+  const auto gloss_contour = QCoreApplication::translate("QObject", "Gloss Contour");
+  CHECK(gloss_contour == QStringLiteral("光沢輪郭"));
+  const auto link_with_layer = QCoreApplication::translate("QObject", "Link with Layer");
+  CHECK(link_with_layer == QStringLiteral("レイヤーにリンク"));
+  const auto pattern_basketweave = QCoreApplication::translate("QObject", "Basketweave");
+  CHECK(pattern_basketweave == QStringLiteral("バスケット編み"));
+  const auto contour_ring_double = QCoreApplication::translate("QObject", "Ring - Double");
+  CHECK(contour_ring_double == QStringLiteral("リング - 二重"));
   const auto curves_graph = QCoreApplication::translate("QObject", "Curves graph");
   CHECK(curves_graph == QStringLiteral("トーンカーブグラフ"));
   const auto curves_input = QCoreApplication::translate("QObject", "Input:");
@@ -4146,36 +4154,199 @@ void ui_layer_style_satin_controls_map_to_settings() {
   CHECK(previews >= 1);
 }
 
-void ui_layer_style_dialog_warns_about_unrendered_effects() {
+void ui_layer_style_pattern_warning_follows_resolvability() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Photoshop Effects",
                       solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
-  patchy::LayerSatin satin;
-  satin.enabled = true;
-  layer.layer_style().satins.push_back(satin);
   patchy::LayerPatternOverlay pattern;
   pattern.enabled = true;
+  pattern.pattern_id = patchy::builtin_pattern_presets().front().id;
+  pattern.pattern_name = patchy::builtin_pattern_presets().front().english_name;
   layer.layer_style().pattern_overlays.push_back(pattern);
 
-  bool saw_warning = false;
+  // A resolvable reference (built-in preset) shows neither the legacy
+  // preserved-only banner nor the missing-pattern banner.
+  bool checked_resolvable = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
-    auto* warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleUnsupportedEffectsWarning"));
+    CHECK(dialog->findChild<QLabel*>(QStringLiteral("layerStyleUnsupportedEffectsWarning")) == nullptr);
+    CHECK(dialog->findChild<QLabel*>(QStringLiteral("layerStyleMissingPatternWarning")) == nullptr);
+    checked_resolvable = true;
+    dialog->reject();
+  });
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(!settings.has_value());
+  CHECK(checked_resolvable);
+
+  // An unresolvable reference (id absent from the document store and not a
+  // built-in) shows the missing-pattern banner naming the pattern.
+  layer.layer_style().pattern_overlays.front().pattern_id = "00000000-dead-beef-0000-000000000000";
+  layer.layer_style().pattern_overlays.front().pattern_name = "Lost Pattern";
+  bool checked_missing = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleMissingPatternWarning"));
     CHECK(warning != nullptr);
     CHECK(warning->isVisible());
-    CHECK(!warning->text().contains(QStringLiteral("Satin")));
-    CHECK(warning->text().contains(QStringLiteral("Pattern Overlay")));
-    CHECK(warning->text().contains(QStringLiteral("preserved for PSD round-trip")));
-    CHECK(warning->text().contains(QStringLiteral("does not render or edit")));
-    CHECK(warning->text().contains(QStringLiteral("normalize Photoshop-only effect options")));
-    saw_warning = true;
+    CHECK(warning->text().contains(QStringLiteral("Lost Pattern")));
+    CHECK(warning->text().contains(QStringLiteral("not embedded")));
+    checked_missing = true;
     dialog->reject();
+  });
+  const auto missing_settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(!missing_settings.has_value());
+  CHECK(checked_missing);
+}
+
+void ui_layer_style_pattern_overlay_controls_map_to_settings() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Patterned",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+
+  const auto bricks_id = QString::fromLatin1(patchy::builtin_pattern_presets()[9].id);
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePatternOverlayCategoryCheck"));
+    auto* blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStylePatternOverlayBlendModeCombo"));
+    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStylePatternOverlayOpacitySpin"));
+    auto* pattern_combo = dialog->findChild<QComboBox*>(QStringLiteral("layerStylePatternOverlayPatternCombo"));
+    auto* angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStylePatternOverlayAngleSpin"));
+    auto* scale = dialog->findChild<QSpinBox*>(QStringLiteral("layerStylePatternOverlayScaleSpin"));
+    auto* link = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePatternOverlayLinkCheck"));
+    auto* snap = dialog->findChild<QPushButton*>(QStringLiteral("layerStylePatternOverlaySnapOriginButton"));
+    CHECK(categories != nullptr);
+    CHECK(check != nullptr);
+    CHECK(blend != nullptr);
+    CHECK(opacity != nullptr);
+    CHECK(pattern_combo != nullptr);
+    CHECK(angle != nullptr);
+    CHECK(scale != nullptr);
+    CHECK(link != nullptr);
+    CHECK(snap != nullptr);
+    // Every built-in preset is offered with its persisted id.
+    CHECK(pattern_combo->count() >= static_cast<int>(patchy::builtin_pattern_presets().size()));
+    const auto pattern_items = categories->findItems(QStringLiteral("Pattern Overlay"), Qt::MatchExactly);
+    CHECK(!pattern_items.empty());
+    categories->setCurrentItem(pattern_items.front());
+    QApplication::processEvents();
+    check->setChecked(true);
+    blend->setCurrentIndex(std::max(0, blend->findData(static_cast<int>(patchy::BlendMode::Multiply))));
+    opacity->setValue(63);
+    pattern_combo->setCurrentIndex(std::max(0, pattern_combo->findData(bricks_id)));
+    angle->setValue(15);
+    scale->setValue(250);
+    link->setChecked(false);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
   });
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
-  CHECK(!settings.has_value());
-  CHECK(saw_warning);
+  CHECK(settings.has_value());
+  CHECK(settings->style.pattern_overlays.size() == 1);
+  const auto& result = settings->style.pattern_overlays.front();
+  CHECK(result.enabled);
+  CHECK(result.blend_mode == patchy::BlendMode::Multiply);
+  CHECK(std::abs(result.opacity - 0.63F) < 0.001F);
+  CHECK(result.pattern_id == patchy::builtin_pattern_presets()[9].id);
+  CHECK(result.pattern_name == patchy::builtin_pattern_presets()[9].english_name);
+  CHECK(result.angle_degrees == 15.0F);
+  CHECK(std::abs(result.scale - 2.5F) < 0.001F);
+  CHECK(!result.link_with_layer);
+}
+
+void ui_layer_style_bevel_contour_and_texture_rows_round_trip() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Bevelled",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  layer.layer_style().bevels.push_back(bevel);
+
+  const auto ring_id = QStringLiteral("contour.ring");
+  const auto bumps_id = QString::fromLatin1(patchy::builtin_pattern_presets()[8].id);
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* contour_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelContourCategoryCheck"));
+    auto* texture_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelTextureCategoryCheck"));
+    auto* stack = dialog->findChild<QStackedWidget*>(QStringLiteral("layerStyleOptionsStack"));
+    CHECK(categories != nullptr);
+    CHECK(contour_check != nullptr);
+    CHECK(texture_check != nullptr);
+    CHECK(stack != nullptr);
+
+    // The sub rows sit directly under Bevel & Emboss and are indented.
+    const auto bevel_items = categories->findItems(QStringLiteral("Bevel & Emboss"), Qt::MatchExactly);
+    const auto contour_items = categories->findItems(QStringLiteral("Contour"), Qt::MatchExactly);
+    const auto texture_items = categories->findItems(QStringLiteral("Texture"), Qt::MatchExactly);
+    CHECK(!bevel_items.empty());
+    CHECK(!contour_items.empty());
+    CHECK(!texture_items.empty());
+    CHECK(categories->row(contour_items.front()) == categories->row(bevel_items.front()) + 1);
+    CHECK(categories->row(texture_items.front()) == categories->row(bevel_items.front()) + 2);
+    auto* contour_row_widget = categories->itemWidget(contour_items.front());
+    CHECK(contour_row_widget != nullptr);
+    CHECK(contour_row_widget->layout()->contentsMargins().left() > 10);
+
+    // Contour page: pick Ring, anti-aliased, range 73.
+    categories->setCurrentItem(contour_items.front());
+    QApplication::processEvents();
+    CHECK(stack->currentWidget()->objectName() == QStringLiteral("layerStyleBevelContourPage"));
+    contour_check->setChecked(true);
+    auto* contour_combo = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBevelContourCombo"));
+    auto* contour_aa = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelContourAntiAliasedCheck"));
+    auto* contour_range = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelContourRangeSpin"));
+    CHECK(contour_combo != nullptr);
+    CHECK(contour_aa != nullptr);
+    CHECK(contour_range != nullptr);
+    contour_combo->setCurrentIndex(std::max(0, contour_combo->findData(ring_id)));
+    contour_aa->setChecked(true);
+    contour_range->setValue(73);
+
+    // Texture page: pick Bumps, scale 152, depth -300, invert, unlink.
+    categories->setCurrentItem(texture_items.front());
+    QApplication::processEvents();
+    CHECK(stack->currentWidget()->objectName() == QStringLiteral("layerStyleBevelTexturePage"));
+    texture_check->setChecked(true);
+    auto* texture_pattern = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBevelTexturePatternCombo"));
+    auto* texture_scale = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelTextureScaleSpin"));
+    auto* texture_depth = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelTextureDepthSpin"));
+    auto* texture_invert = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelTextureInvertCheck"));
+    auto* texture_link = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelTextureLinkCheck"));
+    CHECK(texture_pattern != nullptr);
+    CHECK(texture_scale != nullptr);
+    CHECK(texture_depth != nullptr);
+    CHECK(texture_invert != nullptr);
+    CHECK(texture_link != nullptr);
+    texture_pattern->setCurrentIndex(std::max(0, texture_pattern->findData(bumps_id)));
+    texture_scale->setValue(152);
+    texture_depth->setValue(-300);
+    texture_invert->setChecked(true);
+    texture_link->setChecked(false);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(settings.has_value());
+  CHECK(settings->style.bevels.size() == 1);
+  const auto& result = settings->style.bevels.front();
+  CHECK(result.enabled);
+  CHECK(result.contour.enabled);
+  const auto* ring = patchy::find_builtin_contour_preset("contour.ring");
+  CHECK(ring != nullptr);
+  CHECK(result.contour.contour.points.size() == ring->contour.points.size());
+  CHECK(result.contour.anti_aliased);
+  CHECK(std::abs(result.contour.range - 0.73F) < 0.001F);
+  CHECK(result.texture.enabled);
+  CHECK(result.texture.pattern_id == patchy::builtin_pattern_presets()[8].id);
+  CHECK(std::abs(result.texture.scale - 1.52F) < 0.001F);
+  CHECK(std::abs(result.texture.depth + 3.0F) < 0.001F);
+  CHECK(result.texture.invert);
+  CHECK(!result.texture.link_with_layer);
 }
 
 void ui_layer_style_dialog_warns_that_group_effects_do_not_render() {
@@ -4921,9 +5092,8 @@ void ui_compatibility_report_flags_unrendered_styles_on_groups() {
   CHECK(text.contains(QStringLiteral("Styled Group")));
   CHECK(text.contains(QStringLiteral("group with layer effects")));
   CHECK(text.contains(QStringLiteral("does not render group layer effects")));
-  CHECK(text.contains(QStringLiteral("Pattern Overlay")));
-  CHECK(text.contains(QStringLiteral("preserves for PSD round-trip")));
-  CHECK(text.contains(QStringLiteral("does not render or edit")));
+  // Pattern Overlay is a supported effect now; the report must not warn about it.
+  CHECK(!text.contains(QStringLiteral("Pattern Overlay")));
 
   auto& imported_satin = document.layers().front().layer_style().satins.front();
   imported_satin.enabled = false;
@@ -5078,9 +5248,9 @@ void ui_psd_import_notice_reports_unrendered_layer_effects() {
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
   const auto notice = window.statusBar()->currentMessage();
-  CHECK(notice.contains(
-      QStringLiteral("Patchy preserved layer effects for PSD round-trip. Group layer effects are not rendered "
-                     "(groups: 1); Pattern Overlay is not rendered or editable (1).")));
+  CHECK(notice.contains(QStringLiteral(
+      "Patchy preserved group layer effects for PSD round-trip but does not render them yet (groups: 1).")));
+  CHECK(!notice.contains(QStringLiteral("Pattern Overlay")));
 }
 
 void ui_psd_import_warning_dialog_is_hidden_by_default() {
@@ -38695,8 +38865,12 @@ int main(int argc, char* argv[]) {
       {"ui_layer_style_bevel_lighting_controls_map_to_settings",
        ui_layer_style_bevel_lighting_controls_map_to_settings},
       {"ui_layer_style_satin_controls_map_to_settings", ui_layer_style_satin_controls_map_to_settings},
-      {"ui_layer_style_dialog_warns_about_unrendered_effects",
-       ui_layer_style_dialog_warns_about_unrendered_effects},
+      {"ui_layer_style_pattern_warning_follows_resolvability",
+       ui_layer_style_pattern_warning_follows_resolvability},
+      {"ui_layer_style_pattern_overlay_controls_map_to_settings",
+       ui_layer_style_pattern_overlay_controls_map_to_settings},
+      {"ui_layer_style_bevel_contour_and_texture_rows_round_trip",
+       ui_layer_style_bevel_contour_and_texture_rows_round_trip},
       {"ui_layer_style_dialog_warns_that_group_effects_do_not_render",
        ui_layer_style_dialog_warns_that_group_effects_do_not_render},
       {"ui_gradient_stops_editor_two_track_renders_artifact",

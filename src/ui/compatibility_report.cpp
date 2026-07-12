@@ -86,15 +86,6 @@ void append_unrendered_style_warnings(const Layer& layer, QStringList& warnings)
                     .arg(QString::fromStdString(layer.name()));
   }
 
-  const auto has_pattern =
-      std::any_of(style.pattern_overlays.begin(), style.pattern_overlays.end(), [](const LayerPatternOverlay& pattern) {
-        return pattern.enabled;
-      });
-  if (has_pattern) {
-    warnings << QObject::tr("%1 contains a Pattern Overlay effect that Patchy preserves for PSD round-trip but "
-                            "does not render or edit.")
-                    .arg(QString::fromStdString(layer.name()));
-  }
 }
 
 void append_layer_warnings(const Layer& layer, QStringList& warnings) {

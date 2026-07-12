@@ -258,6 +258,66 @@ struct LayerStroke {
   LayerStyleGradient gradient;
 };
 
+// A layer-effect contour curve (the descriptor ShpC/CrPt shape shared by the
+// bevel gloss contour, the bevel Contour sub-option, and — preservation-only —
+// the shadow/glow/satin contours). Empty points mean the 2-point Linear
+// identity. Coordinates are 0..255 doubles in the file; corner points break the
+// smooth spline (Photoshop's contour editor "Corner" checkbox, stored per point
+// as Cnty=false). build_style_contour_lut (core/style_contour.hpp) renders it.
+struct StyleContourPoint {
+  float x{0.0F};
+  float y{0.0F};
+  bool corner{false};
+
+  friend bool operator==(const StyleContourPoint&, const StyleContourPoint&) = default;
+};
+
+struct StyleContour {
+  // Persisted display name (PS writes "Linear" for the default; imported names
+  // are kept verbatim so an untouched curve round-trips its label).
+  std::string name{"Linear"};
+  std::vector<StyleContourPoint> points;  // empty == Linear (0,0)-(255,255)
+
+  friend bool operator==(const StyleContour&, const StyleContour&) = default;
+};
+
+// Bevel & Emboss "Contour" sub-option (ebbl useShape/MpgS/AntA/Inpr).
+struct LayerBevelContour {
+  bool enabled{false};
+  StyleContour contour;
+  bool anti_aliased{false};
+  float range{0.5F};  // Inpr percent / 100; Photoshop default 50%
+};
+
+// Bevel & Emboss "Texture" sub-option (ebbl useTexture + pattern keys). The
+// pattern pixels live in the document's PatternStore, referenced by id.
+struct LayerBevelTexture {
+  bool enabled{false};
+  std::string pattern_name;
+  std::string pattern_id;
+  float scale{1.0F};           // Scl percent / 100
+  float depth{1.0F};           // textureDepth percent / 100; signed, -10..10
+  bool invert{false};          // InvT
+  bool link_with_layer{true};  // Algn: anchor to the layer's fxrp reference point
+  float phase_x{0.0F};         // phase Pnt, document pixels
+  float phase_y{0.0F};
+};
+
+// Append-only: combo item data and the PSD enum maps ride the existing order.
+enum class BevelEmbossStyleKind {
+  InnerBevel,   // InrB
+  OuterBevel,   // OtrB
+  Emboss,       // Embs
+  PillowEmboss, // PlEb
+  StrokeEmboss  // strokeEmboss (stringID-only)
+};
+
+enum class BevelTechnique {
+  Smooth,     // SfBL
+  ChiselHard, // PrBL
+  ChiselSoft  // Slmt
+};
+
 struct LayerBevelEmboss {
   bool enabled{false};
   BlendMode highlight_blend_mode{BlendMode::Screen};
@@ -272,6 +332,16 @@ struct LayerBevelEmboss {
   float size{5.0F};
   bool direction_up{true};
   bool use_global_light{false};
+  // Style/Technique/Soften are parsed and round-tripped losslessly but the
+  // renderer still draws every bevel as a smooth inner bevel and the dialog
+  // does not expose them yet.
+  BevelEmbossStyleKind style{BevelEmbossStyleKind::InnerBevel};
+  BevelTechnique technique{BevelTechnique::Smooth};
+  float soften{0.0F};  // Sftn pixels
+  StyleContour gloss_contour;      // TrnS (main-page Gloss Contour)
+  bool gloss_anti_aliased{false};  // antialiasGloss
+  LayerBevelContour contour;
+  LayerBevelTexture texture;
 };
 
 struct LayerSatin {
@@ -295,6 +365,10 @@ struct LayerPatternOverlay {
   float scale{1.0F};
   std::string pattern_name;
   std::string pattern_id;
+  float angle_degrees{0.0F};   // Angl (PS 2026 writes it; rotation of the tile grid)
+  bool link_with_layer{true};  // Algn: anchor to the layer's fxrp reference point
+  float phase_x{0.0F};         // phase Pnt, document pixels
+  float phase_y{0.0F};
 };
 
 struct LayerStyle {
