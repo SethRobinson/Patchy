@@ -609,7 +609,8 @@ void update_color_preview_label(QWidget* widget, int red, int green, int blue) {
 
 std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer, std::function<void(const LayerStyleSettings&)> preview_changed,
-    PatternStore* document_patterns, PatternLibrary* pattern_library, StyleLibrary* style_library) {
+    PatternStore* document_patterns, PatternLibrary* pattern_library, StyleLibrary* style_library,
+    std::function<void(const QString& name, const PixelBuffer& tile)> open_pattern_as_image) {
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)), layer.blend_mode(), layer.layer_style(),
       layer.blend_if(), false};
@@ -3536,7 +3537,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     const auto overlay_id = pattern_combo_id(pattern_overlay_pattern);
     const auto overlay_name = pattern_combo_persist_name(pattern_overlay_pattern);
     const auto selected_storage_id = request_pattern_manager(
-        &dialog, *pattern_library, target_combo->currentData(kPatternIdRole).toString());
+        &dialog, *pattern_library, target_combo->currentData(kPatternIdRole).toString(),
+        open_pattern_as_image);
     QString selected_pattern_id;
     QString selected_pattern_name;
     if (!selected_storage_id.isEmpty()) {

@@ -3997,6 +3997,26 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Open as Image</source>
+        <translation>画像として開く</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Open the selected pattern&apos;s texture as a new image</source>
+        <translation>選択したパターンのテクスチャを新しい画像として開きます</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Mouse wheel zooms. Double-click resets zoom.</source>
+        <translation>マウスホイールでズーム、ダブルクリックでズームをリセットします。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
+        <source>Could not load the selected pattern&apos;s texture.</source>
+        <translation>選択したパターンのテクスチャを読み込めませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_manager_dialog.cpp"/>
         <source>Delete the selected patterns or folders (Del)</source>
         <translation>選択したパターンまたはフォルダーを削除します (Del)</translation>
     </message>
@@ -8806,6 +8826,21 @@ To update, paste this into a terminal:
         <translation>レイヤースタイルを更新しました</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp"/>
+        <source>&quot;%1&quot; will open as a new image when the Layer Style dialog closes</source>
+        <translation>レイヤースタイルダイアログを閉じると「%1」が新しい画像として開きます</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp"/>
+        <source>Opened pattern &quot;%1&quot; as a new image</source>
+        <translation>パターン「%1」を新しい画像として開きました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp"/>
+        <source>Open pattern as image</source>
+        <translation>パターンを画像として開く</translation>
+    </message>
+    <message>
         <location line="+193"/>
         <source>No rasterizable layers selected</source>
         <translation>ラスタライズできるレイヤーが選択されていません</translation>
@@ -10972,8 +11007,8 @@ Clipped to the layer below</source>
     </message>
     <message>
         <location line="-55"/>
-        <source>Drag to pan. Double-click to recenter.</source>
-        <translation>ドラッグでパン、ダブルクリックで中央に戻します。</translation>
+        <source>Drag to pan. Mouse wheel zooms. Double-click to recenter.</source>
+        <translation>ドラッグでパン、マウスホイールでズーム、ダブルクリックで中央に戻します。</translation>
     </message>
 </context>
 <context>

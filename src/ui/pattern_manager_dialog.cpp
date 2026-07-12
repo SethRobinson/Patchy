@@ -11,6 +11,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
@@ -20,9 +21,12 @@
 #include <QSizePolicy>
 #include <QTreeWidget>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 #include <map>
+#include <utility>
 
 namespace patchy::ui {
 
@@ -30,16 +34,23 @@ namespace {
 
 constexpr int kFolderMarkerRole = Qt::UserRole + 1;
 
+// Tiles the pattern centered on the widget, with the same faint outline around the
+// center tile the Seamless Tile Preview uses so wrap boundaries are visible. The mouse
+// wheel zooms (nearest-neighbor when magnifying, smooth when shrinking photo textures);
+// double-click resets to 100%. Zoom persists across selection changes within one run.
 class PatternPreview final : public QWidget {
 public:
   explicit PatternPreview(QWidget* parent = nullptr) : QWidget(parent) {
     setObjectName(QStringLiteral("patternManagerPreview"));
     setMinimumSize(300, 180);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    setToolTip(QObject::tr("Mouse wheel zooms. Double-click resets zoom."));
+    publish_zoom();
   }
 
   void set_pattern(const PatternResource* pattern) {
     tile_ = {};
+    scaled_ = {};
     if (pattern != nullptr && !pattern->tile.empty() &&
         pattern->tile.format() == PixelFormat::rgba8()) {
       const auto& tile = pattern->tile;
@@ -49,6 +60,10 @@ public:
                     image.scanLine(y));
       }
       tile_ = QPixmap::fromImage(std::move(image));
+    }
+    // A zoom carried over from the previous selection may exceed the new tile's cap.
+    if (zoom_ != 1.0) {
+      set_zoom(std::clamp(zoom_, kMinZoom, max_zoom_for_tile()));
     }
     update();
   }
@@ -65,14 +80,109 @@ protected:
       }
     }
     if (!tile_.isNull()) {
-      painter.drawTiledPixmap(rect(), tile_);
+      const auto& scaled = scaled_tile();
+      const auto draw_w = scaled.width();
+      const auto draw_h = scaled.height();
+      // Center one tile on the widget; the wrap phase aligns the rest of the grid to it.
+      const QPoint center_origin((width() - draw_w) / 2, (height() - draw_h) / 2);
+      const auto phase = [](int origin, int step) {
+        const int rem = (-origin) % step;
+        return rem < 0 ? rem + step : rem;
+      };
+      painter.drawTiledPixmap(rect(), scaled,
+                              QPoint(phase(center_origin.x(), draw_w), phase(center_origin.y(), draw_h)));
+      // Same faint outline the Seamless Tile Preview draws around its center tile.
+      painter.setPen(QColor(255, 255, 255, 60));
+      painter.drawRect(QRect(center_origin, QSize(draw_w - 1, draw_h - 1)));
+      if (const auto percent = zoom_percent(); percent != 100) {
+        const auto text = QStringLiteral("%1%").arg(percent);
+        QRect badge(0, 0, painter.fontMetrics().horizontalAdvance(text) + 10,
+                    painter.fontMetrics().height() + 4);
+        badge.moveBottomRight(QPoint(width() - 6, height() - 6));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(20, 22, 26, 190));
+        painter.drawRoundedRect(badge, 3, 3);
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QColor(230, 233, 238));
+        painter.drawText(badge, Qt::AlignCenter, text);
+      }
     }
     painter.setPen(QColor(0, 0, 0, 80));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
   }
 
+  void wheelEvent(QWheelEvent* event) override {
+    const auto delta = event->angleDelta().y();
+    if (delta == 0 || tile_.isNull()) {
+      event->ignore();
+      return;
+    }
+    auto next = std::clamp(delta > 0 ? zoom_ * 1.25 : zoom_ / 1.25, kMinZoom, max_zoom_for_tile());
+    // The per-tile cap can sit below the current zoom (true 100% is always allowed);
+    // never let a zoom-in step move backwards through it.
+    if (delta > 0 ? next < zoom_ : next > zoom_) {
+      next = zoom_;
+    }
+    set_zoom(next);
+    event->accept();
+  }
+
+  void mouseDoubleClickEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      set_zoom(1.0);
+      event->accept();
+      return;
+    }
+    QWidget::mouseDoubleClickEvent(event);
+  }
+
 private:
+  static constexpr double kMinZoom = 1.0 / 16.0;
+  static constexpr double kMaxZoom = 16.0;
+  // Bounds the cached scaled pixmap: a 1024px photo texture at 16x would otherwise
+  // allocate a gigabyte. Exactly 100% bypasses the cap (scaled_tile reuses tile_
+  // without allocating), so huge tiles still preview at their real size.
+  static constexpr int kMaxScaledDimension = 4096;
+
+  [[nodiscard]] double max_zoom_for_tile() const {
+    const auto largest = std::max(tile_.width(), tile_.height());
+    return largest > 0
+               ? std::max(kMinZoom, std::min(kMaxZoom, static_cast<double>(kMaxScaledDimension) / largest))
+               : kMaxZoom;
+  }
+
+  [[nodiscard]] int zoom_percent() const {
+    return static_cast<int>(std::lround(zoom_ * 100.0));
+  }
+
+  void set_zoom(double zoom) {
+    zoom_ = zoom;
+    scaled_ = {};
+    publish_zoom();
+    update();
+  }
+
+  void publish_zoom() {
+    setProperty("previewZoomPercent", zoom_percent());  // test-visible state
+  }
+
+  // Scaling once per zoom/tile change keeps paint at one drawTiledPixmap call even when
+  // zoomed far out (a per-tile loop would explode for tiny tiles).
+  [[nodiscard]] const QPixmap& scaled_tile() {
+    const auto draw_w = std::max(1, static_cast<int>(std::lround(tile_.width() * zoom_)));
+    const auto draw_h = std::max(1, static_cast<int>(std::lround(tile_.height() * zoom_)));
+    if (scaled_.isNull() || scaled_.width() != draw_w || scaled_.height() != draw_h) {
+      scaled_ = draw_w == tile_.width() && draw_h == tile_.height()
+                    ? tile_
+                    : tile_.scaled(draw_w, draw_h, Qt::IgnoreAspectRatio,
+                                   zoom_ < 1.0 ? Qt::SmoothTransformation : Qt::FastTransformation);
+    }
+    return scaled_;
+  }
+
   QPixmap tile_;
+  QPixmap scaled_;
+  double zoom_{1.0};
 };
 
 [[nodiscard]] QString tree_item_storage_id(const QTreeWidgetItem* item) {
@@ -84,7 +194,8 @@ private:
 }  // namespace
 
 QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
-                                const QString& initial_pattern_id) {
+                                const QString& initial_pattern_id,
+                                std::function<void(const QString& name, const PixelBuffer& tile)> open_as_image) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patternManagerDialog"));
   dialog.setWindowTitle(QObject::tr("Patterns"));
@@ -123,12 +234,17 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
   auto* action_row = new QHBoxLayout();
   auto* import_button = new QPushButton(QObject::tr("Import .pat…"), &dialog);
   import_button->setObjectName(QStringLiteral("patternManagerImportButton"));
+  auto* open_image_button = new QPushButton(QObject::tr("Open as Image"), &dialog);
+  open_image_button->setObjectName(QStringLiteral("patternManagerOpenImageButton"));
+  open_image_button->setToolTip(QObject::tr("Open the selected pattern's texture as a new image"));
+  open_image_button->setVisible(open_as_image != nullptr);
   auto* duplicate_button = new QPushButton(QObject::tr("Duplicate"), &dialog);
   duplicate_button->setObjectName(QStringLiteral("patternManagerDuplicateButton"));
   auto* delete_button = new QPushButton(QObject::tr("Delete"), &dialog);
   delete_button->setObjectName(QStringLiteral("patternManagerDeleteButton"));
   delete_button->setToolTip(QObject::tr("Delete the selected patterns or folders (Del)"));
   action_row->addWidget(import_button);
+  action_row->addWidget(open_image_button);
   action_row->addStretch(1);
   action_row->addWidget(duplicate_button);
   action_row->addWidget(delete_button);
@@ -145,6 +261,7 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
   right->addWidget(buttons);
 
   QSet<QString> collapsed_folders;
+  QSet<QString> requested_open_ids;  // one queued document per pattern per dialog run
   QString selected_storage_id;
 
   const auto show_update_failure = [&] {
@@ -247,6 +364,8 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
     duplicate_button->setEnabled(single);
     delete_button->setEnabled(any);
     use_button->setEnabled(single);
+    open_image_button->setEnabled(single && open_as_image != nullptr &&
+                                  !requested_open_ids.contains(ids.front()));
     if (!any) {
       name_edit->clear();
       folder_edit->clear();
@@ -327,6 +446,26 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
   delete_shortcut->setContext(Qt::WidgetWithChildrenShortcut);
   QObject::connect(delete_shortcut, &QShortcut::activated, &dialog, delete_selected);
   QObject::connect(delete_button, &QPushButton::clicked, &dialog, delete_selected);
+
+  QObject::connect(open_image_button, &QPushButton::clicked, &dialog, [&] {
+    const auto ids = collect_selected_storage_ids();
+    const auto* entry = ids.size() == 1 ? library.find_entry(ids.front()) : nullptr;
+    if (entry == nullptr || open_as_image == nullptr ||
+        requested_open_ids.contains(entry->storage_id)) {
+      return;
+    }
+    // The exact row's pixels, not the Photoshop-id lookup: a same-id/different-pixel
+    // duplicate elsewhere in the library must not hijack this row.
+    const auto resource = library.resource_for_entry(entry->storage_id);
+    if (!resource.has_value()) {
+      QMessageBox::warning(&dialog, QObject::tr("Patterns"),
+                           QObject::tr("Could not load the selected pattern's texture."));
+      return;
+    }
+    requested_open_ids.insert(entry->storage_id);
+    open_as_image(pattern_library_entry_display_name(*entry), resource->tile);
+    refresh_details();  // disables the button for the queued pattern
+  });
 
   QObject::connect(name_edit, &QLineEdit::editingFinished, &dialog, [&] {
     const auto ids = collect_selected_storage_ids();

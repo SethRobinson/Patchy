@@ -13,8 +13,10 @@
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace patchy::ui {
@@ -45,13 +47,15 @@ std::uint64_t hash_layers(std::uint64_t hash, const std::vector<Layer>& layers) 
 
 // Paints the composite tiled across the whole viewport with nearest-neighbor scaling
 // (pixel-art WYSIWYG). Left-drag pans (the tiling wraps, so no pan can scroll off the
-// content); double-click recenters. "Fit" zoom means 3x3 tiles fit the viewport.
+// content); double-click recenters; the mouse wheel zooms about the cursor. "Fit" zoom
+// means 3x3 tiles fit the viewport.
 class TileViewWidget : public QWidget {
 public:
   explicit TileViewWidget(QWidget* parent) : QWidget(parent) {
     setMinimumSize(180, 180);
     setCursor(Qt::OpenHandCursor);
     set_pan(QPoint());
+    set_zoom(0);
   }
 
   void set_composite(QImage composite) {
@@ -61,7 +65,13 @@ public:
 
   void set_zoom(int percent_or_fit) {
     zoom_ = percent_or_fit;  // 0 = fit
+    setProperty("zoomPercent", zoom_);  // test-visible state, like panOffset
     update();
+  }
+
+  // Reports wheel-zoom percents so the window can mirror them in the zoom combo.
+  void set_zoom_changed_callback(std::function<void(int)> callback) {
+    zoom_changed_ = std::move(callback);
   }
 
 protected:
@@ -71,14 +81,9 @@ protected:
     if (composite_.isNull()) {
       return;
     }
-    const auto tile_w = composite_.width();
-    const auto tile_h = composite_.height();
-    double scale = zoom_ > 0 ? zoom_ / 100.0
-                             : std::min(static_cast<double>(width()) / (tile_w * 3.0),
-                                        static_cast<double>(height()) / (tile_h * 3.0));
-    scale = std::max(scale, 0.01);
-    const auto draw_w = std::max(1, static_cast<int>(tile_w * scale));
-    const auto draw_h = std::max(1, static_cast<int>(tile_h * scale));
+    const auto scale = effective_scale();
+    const auto draw_w = std::max(1, static_cast<int>(composite_.width() * scale));
+    const auto draw_h = std::max(1, static_cast<int>(composite_.height() * scale));
     // Anchor the grid at the unpanned 3x3 center tile, then wrap to the first tile origin
     // at or left of/above the viewport so tiles always cover the whole widget.
     const auto anchor_x = (width() - draw_w * 3) / 2 + draw_w + pan_.x();
@@ -131,6 +136,16 @@ protected:
     }
   }
 
+  void wheelEvent(QWheelEvent* event) override {
+    const auto delta = event->angleDelta().y();
+    if (delta == 0 || composite_.isNull()) {
+      event->ignore();
+      return;
+    }
+    zoom_at(event->position(), delta > 0);
+    event->accept();
+  }
+
 private:
   void set_pan(QPoint pan) {
     pan_ = pan;
@@ -138,11 +153,54 @@ private:
     update();
   }
 
+  [[nodiscard]] double effective_scale() const {
+    double scale = zoom_ > 0 ? zoom_ / 100.0
+                             : std::min(static_cast<double>(width()) / (composite_.width() * 3.0),
+                                        static_cast<double>(height()) / (composite_.height() * 3.0));
+    return std::max(scale, 0.01);
+  }
+
+  void zoom_at(QPointF pos, bool zoom_in) {
+    const auto old_scale = effective_scale();
+    const auto old_percent = old_scale * 100.0;
+    auto percent = static_cast<int>(std::lround(zoom_in ? old_percent * 1.25 : old_percent / 1.25));
+    // Integer percents: force at least one point of motion so low zooms never stick.
+    if (zoom_in) {
+      percent = std::max(percent, static_cast<int>(old_percent) + 1);
+    } else {
+      percent = std::min(percent, static_cast<int>(std::ceil(old_percent)) - 1);
+    }
+    // Floor zoom-out at ~24 tiles across the viewport: paintEvent draws one drawImage
+    // per tile, and 1px tiles of a small composite would mean hundreds of thousands.
+    const auto min_percent = std::clamp(
+        static_cast<int>(std::ceil(100.0 * std::max(width() / (24.0 * composite_.width()),
+                                                    height() / (24.0 * composite_.height())))),
+        1, 1600);
+    percent = std::clamp(percent, min_percent, 1600);
+    const auto new_scale = percent / 100.0;
+    // Keep the composite point under the cursor stationary. The painted grid steps in
+    // integer draw sizes (paintEvent truncates), so anchor in tile fractions of those.
+    const auto old_draw_w = std::max(1, static_cast<int>(composite_.width() * old_scale));
+    const auto old_draw_h = std::max(1, static_cast<int>(composite_.height() * old_scale));
+    const auto new_draw_w = std::max(1, static_cast<int>(composite_.width() * new_scale));
+    const auto new_draw_h = std::max(1, static_cast<int>(composite_.height() * new_scale));
+    const auto tile_x = (pos.x() - ((width() - old_draw_w * 3) / 2 + old_draw_w + pan_.x())) / old_draw_w;
+    const auto tile_y = (pos.y() - ((height() - old_draw_h * 3) / 2 + old_draw_h + pan_.y())) / old_draw_h;
+    set_pan(QPoint(
+        static_cast<int>(std::lround(pos.x() - tile_x * new_draw_w - (width() - new_draw_w * 3) / 2 - new_draw_w)),
+        static_cast<int>(std::lround(pos.y() - tile_y * new_draw_h - (height() - new_draw_h * 3) / 2 - new_draw_h))));
+    set_zoom(percent);
+    if (zoom_changed_) {
+      zoom_changed_(percent);
+    }
+  }
+
   QImage composite_;
   int zoom_{0};
   QPoint pan_;
   QPoint drag_position_;
   bool dragging_{false};
+  std::function<void(int)> zoom_changed_;
 };
 
 TilePreviewWindow::TilePreviewWindow(std::function<const Document*()> document_provider, QWidget* parent)
@@ -173,8 +231,19 @@ TilePreviewWindow::TilePreviewWindow(std::function<const Document*()> document_p
 
   view_ = new TileViewWidget(this);
   view_->setObjectName(QStringLiteral("tilePreviewView"));
-  view_->setToolTip(tr("Drag to pan. Double-click to recenter."));
+  view_->setToolTip(tr("Drag to pan. Mouse wheel zooms. Double-click to recenter."));
   content->addWidget(view_, 1);
+  view_->set_zoom_changed_callback([this](int percent) {
+    // Mirror wheel zooms in the combo. The blocker matters when clearing the index:
+    // index -1 has invalid currentData(), which toInt()s to 0 and would snap to Fit.
+    const QSignalBlocker blocker(zoom_combo_);
+    if (const auto index = zoom_combo_->findData(percent); index >= 0) {
+      zoom_combo_->setCurrentIndex(index);
+    } else {
+      zoom_combo_->setCurrentIndex(-1);
+      zoom_combo_->setPlaceholderText(QStringLiteral("%1%").arg(percent));
+    }
+  });
 
   // Frameless chrome has no native resize border; the corner grip is the resize handle.
   size_grip_ = new VisibleSizeGrip(this);

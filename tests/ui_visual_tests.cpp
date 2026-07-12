@@ -12030,6 +12030,150 @@ void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
   clear_pattern_test_state();
 }
 
+void ui_pattern_manager_preview_zooms_and_opens_image() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
+  auto tile = solid_pixels(16, 12, patchy::PixelFormat::rgba8(), QColor(200, 80, 40, 255));
+  {
+    auto* px = tile.pixel(3, 2);
+    px[0] = 10;
+    px[1] = 250;
+    px[2] = 120;
+  }
+  const auto storage_id = library.add_pattern(QStringLiteral("Lava"), tile);
+  CHECK(!storage_id.isEmpty());
+
+  QString opened_name;
+  std::optional<patchy::PixelBuffer> opened_tile;
+  bool drove_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* manager =
+        qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patternManagerDialog")));
+    CHECK(manager != nullptr);
+    auto* preview = manager->findChild<QWidget*>(QStringLiteral("patternManagerPreview"));
+    auto* open_button =
+        manager->findChild<QPushButton*>(QStringLiteral("patternManagerOpenImageButton"));
+    CHECK(preview != nullptr);
+    CHECK(open_button != nullptr);
+    CHECK(open_button->isVisible());
+    CHECK(open_button->isEnabled());
+
+    // Wheel zoom steps x1.25 from 100%; double-click resets.
+    CHECK(preview->property("previewZoomPercent").toInt() == 100);
+    const auto center = QPoint(preview->width() / 2, preview->height() / 2);
+    send_wheel(*preview, center, 120);
+    CHECK(preview->property("previewZoomPercent").toInt() == 125);
+    send_wheel(*preview, center, 120);
+    CHECK(preview->property("previewZoomPercent").toInt() == 156);
+    save_widget_artifact("ui_pattern_manager_preview_zoom", *manager);
+    send_wheel(*preview, center, -120);
+    CHECK(preview->property("previewZoomPercent").toInt() == 125);
+    send_double_click(*preview, center);
+    CHECK(preview->property("previewZoomPercent").toInt() == 100);
+
+    // The centered main tile carries the faint white outline (same as the tile preview),
+    // so its corner pixel reads lighter than the flat tile interior.
+    const auto grab = preview->grab().toImage();
+    const QPoint origin((preview->width() - 16) / 2, (preview->height() - 12) / 2);
+    const auto border_color = grab.pixelColor(origin);
+    const auto inside_color = grab.pixelColor(origin + QPoint(1, 1));
+    CHECK(border_color.green() > inside_color.green());
+    CHECK(border_color.blue() > inside_color.blue());
+
+    open_button->click();
+    CHECK(opened_name == QStringLiteral("Lava"));
+    CHECK(!open_button->isEnabled());  // one queued document per pattern per run
+    drove_dialog = true;
+    manager->reject();
+  });
+  const auto chosen = patchy::ui::request_pattern_manager(
+      nullptr, library, {}, [&](const QString& name, const patchy::PixelBuffer& out) {
+        opened_name = name;
+        opened_tile = out;
+      });
+  CHECK(drove_dialog);
+  CHECK(chosen.isEmpty());
+  CHECK(opened_tile.has_value());
+  CHECK(opened_tile->width() == 16);
+  CHECK(opened_tile->height() == 12);
+  CHECK(opened_tile->data().size() == tile.data().size());
+  CHECK(std::equal(tile.data().begin(), tile.data().end(), opened_tile->data().begin()));
+}
+
+// "Open as Image" must never create a document while the Layer Style dialog holds the
+// preview-dialog edit lock (add_document_session's activation tail assumes no lock);
+// the request is queued and flushed after the dialog closes — on the cancel path too.
+void ui_layer_style_open_pattern_as_image_defers_until_dialog_closes() {
+  clear_pattern_test_state();
+  {
+    patchy::ui::PatternLibrary seed(pattern_test_storage_dir());
+    const auto tile = solid_pixels(20, 14, patchy::PixelFormat::rgba8(), QColor(30, 200, 90, 255));
+    CHECK(!seed.add_pattern(QStringLiteral("Moss"), tile).isEmpty());
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  const auto initial_tabs = tabs->count();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* row_widget = layer_list->itemWidget(layer_list->item(0));
+  CHECK(row_widget != nullptr);
+  auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  CHECK(row_name != nullptr);
+
+  bool drove_style_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog =
+        qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* overlay_manage =
+        dialog->findChild<QPushButton*>(QStringLiteral("layerStylePatternOverlayManageButton"));
+    CHECK(overlay_manage != nullptr && overlay_manage->isEnabled());
+
+    bool drove_manager = false;
+    QTimer::singleShot(0, [&] {
+      auto* manager =
+          qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patternManagerDialog")));
+      CHECK(manager != nullptr);
+      auto* open_button =
+          manager->findChild<QPushButton*>(QStringLiteral("patternManagerOpenImageButton"));
+      CHECK(open_button != nullptr);
+      CHECK(open_button->isVisible());
+      CHECK(open_button->isEnabled());
+      open_button->click();
+      QApplication::processEvents();
+      // Deferred: nothing may open while the edit lock is held.
+      CHECK(tabs->count() == initial_tabs);
+      CHECK(!open_button->isEnabled());
+      CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Moss")));
+      drove_manager = true;
+      manager->reject();
+    });
+    overlay_manage->click();
+    CHECK(drove_manager);
+    CHECK(tabs->count() == initial_tabs);
+    drove_style_dialog = true;
+    dialog->reject();  // the cancel path must flush the queued document too
+  });
+  send_double_click(*row_name, row_name->rect().center());
+  QApplication::processEvents();
+  CHECK(drove_style_dialog);
+
+  CHECK(tabs->count() == initial_tabs + 1);
+  const auto& opened_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(opened_document.width() == 20);
+  CHECK(opened_document.height() == 14);
+  CHECK(opened_document.layers().size() == 1);
+  const auto* px = opened_document.layers().front().pixels().pixel(0, 0);
+  CHECK(px[0] == 30 && px[1] == 200 && px[2] == 90 && px[3] == 255);
+  CHECK(tabs->tabText(tabs->currentIndex()).startsWith(QStringLiteral("Moss")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Moss")));
+  clear_pattern_test_state();
+}
+
 void ui_layer_style_pattern_picker_groups_and_collapses_folders() {
   QTemporaryDir directory;
   CHECK(directory.isValid());
@@ -33625,6 +33769,23 @@ void ui_tile_preview_window_tracks_document_edits() {
   send_double_click(*view, view_center);
   CHECK(view->property("panOffset").toPoint() == QPoint(0, 0));
 
+  // The mouse wheel zooms and the combo mirrors the resulting percent (as a placeholder
+  // when it is not one of the presets).
+  auto* zoom_combo = preview->findChild<QComboBox*>(QStringLiteral("tilePreviewZoomCombo"));
+  CHECK(zoom_combo != nullptr);
+  CHECK(view->property("zoomPercent").toInt() == 0);  // Fit
+  send_wheel(*view, view_center, 120);
+  const auto wheeled_percent = view->property("zoomPercent").toInt();
+  CHECK(wheeled_percent > 0);
+  CHECK(zoom_combo->currentIndex() == -1
+            ? zoom_combo->placeholderText() == QStringLiteral("%1%").arg(wheeled_percent)
+            : zoom_combo->currentData().toInt() == wheeled_percent);
+  send_wheel(*view, view_center, -120);
+  CHECK(view->property("zoomPercent").toInt() < wheeled_percent);
+  zoom_combo->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(view->property("zoomPercent").toInt() == 0);
+
   // The frameless window resizes through its corner size grip.
   auto* grip = preview->findChild<QWidget*>(QStringLiteral("tilePreviewSizeGrip"));
   CHECK(grip != nullptr);
@@ -40204,6 +40365,10 @@ int main(int argc, char* argv[]) {
        ui_layer_style_pattern_overlay_controls_map_to_settings},
       {"ui_pattern_manager_and_layer_style_buttons_use_library_pattern",
        ui_pattern_manager_and_layer_style_buttons_use_library_pattern},
+      {"ui_pattern_manager_preview_zooms_and_opens_image",
+       ui_pattern_manager_preview_zooms_and_opens_image},
+      {"ui_layer_style_open_pattern_as_image_defers_until_dialog_closes",
+       ui_layer_style_open_pattern_as_image_defers_until_dialog_closes},
       {"ui_layer_style_pattern_picker_groups_and_collapses_folders",
        ui_layer_style_pattern_picker_groups_and_collapses_folders},
       {"ui_pattern_manager_remaps_document_id_collision",

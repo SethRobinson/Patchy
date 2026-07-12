@@ -19146,15 +19146,45 @@ void MainWindow::edit_active_layer_style() {
     }
   };
 
+  // "Open as Image" requests from the nested Pattern Manager are deferred until the
+  // dialog closes: add_document_session must never run while the preview-dialog edit
+  // lock is held (its activation tail and the preview lambdas' captured canvas/document
+  // would desync — see the comment in add_document_session).
+  std::vector<std::pair<QString, PixelBuffer>> pending_pattern_images;
+  auto queue_pattern_image = [this, &pending_pattern_images](const QString& name,
+                                                             const PixelBuffer& tile) {
+    pending_pattern_images.emplace_back(name, tile);
+    // The main-window status bar stays visible behind the modal dialogs.
+    statusBar()->showMessage(
+        tr("\"%1\" will open as a new image when the Layer Style dialog closes").arg(name));
+  };
+  auto open_pending_pattern_images = [this, &pending_pattern_images] {
+    for (auto& [name, tile] : pending_pattern_images) {
+      Document image_document(tile.width(), tile.height(), PixelFormat::rgba8());
+      image_document.add_pixel_layer(name.toStdString(), std::move(tile));
+      add_document_session(std::move(image_document), name);
+      auto& new_session = session();
+      new_session.undo_stack.clear();
+      new_session.redo_stack.clear();
+      if (history_list_ != nullptr) {
+        history_list_->clear();
+      }
+      update_history(tr("Open pattern as image"));
+      statusBar()->showMessage(tr("Opened pattern \"%1\" as a new image").arg(name));
+    }
+    pending_pattern_images.clear();
+  };
+
   auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings =
       request_layer_style_settings(this, *layer, apply_preview_settings, &doc.metadata().patterns,
-                                   &pattern_library(), &style_library());
+                                   &pattern_library(), &style_library(), queue_pattern_image);
   if (!settings.has_value()) {
     restore_original();
     preview_edit_lock.release();
     refresh_layer_list();
     refresh_layer_controls();
+    open_pending_pattern_images();
     return;
   }
 
@@ -19169,6 +19199,7 @@ void MainWindow::edit_active_layer_style() {
   refresh_layer_list();
   refresh_layer_controls();
   statusBar()->showMessage(tr("Updated layer style"));
+  open_pending_pattern_images();
 }
 
 void MainWindow::copy_active_layer_style() {
