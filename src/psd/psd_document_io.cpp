@@ -3293,8 +3293,7 @@ std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effec
   bevel.depth = std::max(0.01F, static_cast<float>(descriptor_number(effect, "srgR", 100.0) / 100.0));
   bevel.size = std::max(1.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
   bevel.direction_up = descriptor_enum(effect, "bvlD", "In  ") != "Out ";
-  // Style/Technique/Soften round-trip losslessly even though the renderer still
-  // draws every bevel as a smooth inner bevel.
+  // Style/Technique/Soften round-trip losslessly and drive the compositor.
   const auto style_value = descriptor_enum(effect, "bvlS", "InrB");
   if (style_value == "OtrB") {
     bevel.style = BevelEmbossStyleKind::OuterBevel;

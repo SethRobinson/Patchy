@@ -1761,9 +1761,29 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto* bevel_group = new QGroupBox(QObject::tr("Bevel & Emboss"), controls);
   auto* bevel_form = new QFormLayout(bevel_group);
+  auto* bevel_style = new QComboBox(bevel_group);
+  bevel_style->setObjectName(QStringLiteral("layerStyleBevelStyleCombo"));
+  bevel_style->addItem(QObject::tr("Inner Bevel"), static_cast<int>(BevelEmbossStyleKind::InnerBevel));
+  bevel_style->addItem(QObject::tr("Outer Bevel"), static_cast<int>(BevelEmbossStyleKind::OuterBevel));
+  bevel_style->addItem(QObject::tr("Emboss"), static_cast<int>(BevelEmbossStyleKind::Emboss));
+  bevel_style->addItem(QObject::tr("Pillow Emboss"), static_cast<int>(BevelEmbossStyleKind::PillowEmboss));
+  bevel_style->addItem(QObject::tr("Stroke Emboss"), static_cast<int>(BevelEmbossStyleKind::StrokeEmboss));
+  bevel_style->setCurrentIndex(std::max(0, bevel_style->findData(static_cast<int>(bevel.style))));
+  bevel_form->addRow(QObject::tr("Style"), bevel_style);
+  auto* bevel_technique = new QComboBox(bevel_group);
+  bevel_technique->setObjectName(QStringLiteral("layerStyleBevelTechniqueCombo"));
+  bevel_technique->addItem(QObject::tr("Smooth"), static_cast<int>(BevelTechnique::Smooth));
+  bevel_technique->addItem(QObject::tr("Chisel Hard"), static_cast<int>(BevelTechnique::ChiselHard));
+  bevel_technique->addItem(QObject::tr("Chisel Soft"), static_cast<int>(BevelTechnique::ChiselSoft));
+  bevel_technique->setCurrentIndex(
+      std::max(0, bevel_technique->findData(static_cast<int>(bevel.technique))));
+  bevel_form->addRow(QObject::tr("Technique"), bevel_technique);
   auto* bevel_size = add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Size"),
                                          QStringLiteral("layerStyleBevelSizeSpin"), 1, 250,
                                          static_cast<int>(std::round(bevel.size)));
+  auto* bevel_soften = add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Soften"),
+                                           QStringLiteral("layerStyleBevelSoftenSpin"), 0, 16,
+                                           static_cast<int>(std::round(bevel.soften)));
   auto* bevel_depth = add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Depth"),
                                           QStringLiteral("layerStyleBevelDepthSpin"), 1, 1000,
                                           static_cast<int>(std::round(bevel.depth * 100.0F)), QStringLiteral("%"));
@@ -2612,7 +2632,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         }
         auto& target = ensure_bevel(result, index);
         target.enabled = enabled;
+        target.style = static_cast<BevelEmbossStyleKind>(bevel_style->currentData().toInt());
+        target.technique = static_cast<BevelTechnique>(bevel_technique->currentData().toInt());
         target.size = static_cast<float>(bevel_size->value());
+        target.soften = static_cast<float>(bevel_soften->value());
         target.depth = static_cast<float>(bevel_depth->value()) / 100.0F;
         target.angle_degrees = static_cast<float>(bevel_angle->value());
         target.altitude_degrees = static_cast<float>(bevel_altitude->value());
@@ -2845,7 +2868,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       case LayerStyleEffectKind::BevelEmboss: {
         const auto value = style.bevels.size() > static_cast<std::size_t>(index) ? style.bevels[static_cast<std::size_t>(index)]
                                                                                  : default_bevel_emboss();
+        set_combo_data(bevel_style, static_cast<int>(value.style));
+        set_combo_data(bevel_technique, static_cast<int>(value.technique));
         bevel_size->setValue(static_cast<int>(std::round(value.size)));
+        bevel_soften->setValue(static_cast<int>(std::round(value.soften)));
         bevel_depth->setValue(static_cast<int>(std::round(value.depth * 100.0F)));
         bevel_angle->setValue(static_cast<int>(std::round(value.angle_degrees)));
         bevel_altitude->setValue(static_cast<int>(std::round(value.altitude_degrees)));
@@ -3466,7 +3492,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(show_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(mask_hides_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
-  for (auto* spin : {bevel_size, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
+  for (auto* spin : {bevel_size, bevel_soften, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
                      bevel_shadow_opacity, bevel_contour_range, bevel_texture_scale, bevel_texture_depth,
                      pattern_overlay_opacity, pattern_overlay_angle, pattern_overlay_scale,
                      stroke_size, stroke_opacity, stroke_red, stroke_green, stroke_blue,
@@ -3482,6 +3508,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                      [&emit_preview](int) { emit_preview(false); });
   }
   QObject::connect(bevel_direction, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(bevel_style, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(bevel_technique, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(bevel_highlight_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });

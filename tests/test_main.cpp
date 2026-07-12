@@ -2529,6 +2529,156 @@ void compositor_renders_bevel_across_thin_checkbox_edges() {
   write_rgb8_bmp_artifact("layer_style_bevel_checkbox", flattened);
 }
 
+void compositor_bevel_styles_techniques_and_soften_are_distinct() {
+  const auto equal_pixels = [](const patchy::PixelBuffer& lhs, const patchy::PixelBuffer& rhs) {
+    return lhs.data().size() == rhs.data().size() &&
+           std::equal(lhs.data().begin(), lhs.data().end(), rhs.data().begin());
+  };
+  const auto render = [](patchy::BevelEmbossStyleKind style, patchy::BevelTechnique technique, float soften,
+                         bool add_stroke, bool enable_bevel = true, bool direction_up = true,
+                         bool gradient_stroke = false, bool stacked_strokes = false) {
+    patchy::Document document(56, 56, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(56, 56, 100, 100, 100));
+    patchy::Layer styled(document.allocate_layer_id(), "Bevel", solid_rgba(28, 28, 120, 120, 120, 255));
+    auto& layer = document.add_layer(std::move(styled));
+    layer.set_bounds(patchy::Rect{14, 14, 28, 28});
+    if (add_stroke) {
+      patchy::LayerStroke stroke;
+      stroke.enabled = true;
+      stroke.blend_mode = patchy::BlendMode::Normal;
+      stroke.color = patchy::RgbColor{180, 150, 40};
+      stroke.opacity = 1.0F;
+      stroke.size = 4.0F;
+      stroke.position = patchy::LayerStrokePosition::Outside;
+      if (gradient_stroke) {
+        stroke.uses_gradient = true;
+        stroke.gradient.color_stops = {{0.0F, patchy::RgbColor{255, 255, 255}},
+                                       {1.0F, patchy::RgbColor{0, 0, 0}}};
+        stroke.gradient.alpha_stops = {{0.0F, 1.0F}, {0.5F, 0.25F}, {1.0F, 1.0F}};
+      }
+      layer.layer_style().strokes.push_back(stroke);
+      if (stacked_strokes) {
+        stroke.color = patchy::RgbColor{40, 150, 200};
+        stroke.size = 2.0F;
+        stroke.position = patchy::LayerStrokePosition::Inside;
+        stroke.uses_gradient = false;
+        layer.layer_style().strokes.push_back(stroke);
+      }
+    }
+    if (enable_bevel) {
+      patchy::LayerBevelEmboss bevel;
+      bevel.enabled = true;
+      bevel.style = style;
+      bevel.technique = technique;
+      bevel.soften = soften;
+      bevel.highlight_blend_mode = patchy::BlendMode::Normal;
+      bevel.highlight_color = patchy::RgbColor{255, 255, 255};
+      bevel.highlight_opacity = 1.0F;
+      bevel.shadow_blend_mode = patchy::BlendMode::Normal;
+      bevel.shadow_color = patchy::RgbColor{0, 0, 0};
+      bevel.shadow_opacity = 1.0F;
+      bevel.angle_degrees = 120.0F;
+      bevel.altitude_degrees = 30.0F;
+      bevel.depth = 2.0F;
+      bevel.size = 6.0F;
+      bevel.direction_up = direction_up;
+      layer.layer_style().bevels.push_back(bevel);
+    }
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+
+  const auto smooth = render(patchy::BevelEmbossStyleKind::InnerBevel, patchy::BevelTechnique::Smooth, 0.0F, false);
+  const auto hard =
+      render(patchy::BevelEmbossStyleKind::InnerBevel, patchy::BevelTechnique::ChiselHard, 0.0F, false);
+  const auto soft =
+      render(patchy::BevelEmbossStyleKind::InnerBevel, patchy::BevelTechnique::ChiselSoft, 0.0F, false);
+  const auto softened = render(patchy::BevelEmbossStyleKind::InnerBevel, patchy::BevelTechnique::Smooth, 4.0F, false);
+  CHECK(!equal_pixels(smooth, hard));
+  CHECK(!equal_pixels(hard, soft));
+  CHECK(!equal_pixels(smooth, softened));
+
+  const auto inner = smooth;
+  const auto outer =
+      render(patchy::BevelEmbossStyleKind::OuterBevel, patchy::BevelTechnique::Smooth, 0.0F, false);
+  int inner_exterior_pixels = 0;
+  int outer_exterior_pixels = 0;
+  for (std::int32_t y = 0; y < 56; ++y) {
+    for (std::int32_t x = 0; x < 56; ++x) {
+      if (x >= 14 && x < 42 && y >= 14 && y < 42) {
+        continue;
+      }
+      inner_exterior_pixels += inner.pixel(x, y)[0] != 100;
+      outer_exterior_pixels += outer.pixel(x, y)[0] != 100;
+    }
+  }
+  CHECK(inner_exterior_pixels == 0);
+  CHECK(outer_exterior_pixels > 0);
+
+  const auto emboss = render(patchy::BevelEmbossStyleKind::Emboss, patchy::BevelTechnique::Smooth, 0.0F, false);
+  const auto pillow =
+      render(patchy::BevelEmbossStyleKind::PillowEmboss, patchy::BevelTechnique::Smooth, 0.0F, false);
+  const auto pillow_down =
+      render(patchy::BevelEmbossStyleKind::PillowEmboss, patchy::BevelTechnique::Smooth, 0.0F, false, true, false);
+  CHECK(!equal_pixels(emboss, pillow));
+  CHECK(!equal_pixels(pillow, pillow_down));
+
+  const auto no_bevel =
+      render(patchy::BevelEmbossStyleKind::StrokeEmboss, patchy::BevelTechnique::Smooth, 0.0F, false, false);
+  const auto stroke_without_source =
+      render(patchy::BevelEmbossStyleKind::StrokeEmboss, patchy::BevelTechnique::Smooth, 0.0F, false);
+  CHECK(equal_pixels(no_bevel, stroke_without_source));
+  const auto stroke_only =
+      render(patchy::BevelEmbossStyleKind::StrokeEmboss, patchy::BevelTechnique::Smooth, 0.0F, true, false);
+  const auto stroke_emboss =
+      render(patchy::BevelEmbossStyleKind::StrokeEmboss, patchy::BevelTechnique::Smooth, 0.0F, true);
+  CHECK(!equal_pixels(stroke_only, stroke_emboss));
+  const auto gradient_stroke_emboss = render(patchy::BevelEmbossStyleKind::StrokeEmboss,
+                                             patchy::BevelTechnique::Smooth, 0.0F, true, true, true, true);
+  const auto stacked_stroke_emboss = render(patchy::BevelEmbossStyleKind::StrokeEmboss,
+                                            patchy::BevelTechnique::Smooth, 0.0F, true, true, true, false, true);
+  CHECK(!equal_pixels(stroke_emboss, gradient_stroke_emboss));
+  CHECK(!equal_pixels(stroke_emboss, stacked_stroke_emboss));
+
+  patchy::LayerStyle exterior_style;
+  patchy::LayerBevelEmboss exterior_bevel;
+  exterior_bevel.enabled = true;
+  exterior_bevel.style = patchy::BevelEmbossStyleKind::OuterBevel;
+  exterior_bevel.size = 6.0F;
+  exterior_bevel.soften = 4.0F;
+  exterior_style.bevels.push_back(exterior_bevel);
+  CHECK(patchy::layer_style_effect_padding(exterior_style) >= 12);
+}
+
+void psd_bevel_styles_techniques_and_soften_round_trip() {
+  constexpr std::array styles{
+      patchy::BevelEmbossStyleKind::InnerBevel, patchy::BevelEmbossStyleKind::OuterBevel,
+      patchy::BevelEmbossStyleKind::Emboss, patchy::BevelEmbossStyleKind::PillowEmboss,
+      patchy::BevelEmbossStyleKind::StrokeEmboss};
+  constexpr std::array techniques{patchy::BevelTechnique::Smooth, patchy::BevelTechnique::ChiselHard,
+                                  patchy::BevelTechnique::ChiselSoft};
+  for (const auto style : styles) {
+    for (const auto technique : techniques) {
+      patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
+      patchy::Layer layer(document.allocate_layer_id(), "Bevel", solid_rgba(4, 4, 120, 120, 120, 255));
+      layer.set_bounds(patchy::Rect{2, 2, 4, 4});
+      patchy::LayerBevelEmboss bevel;
+      bevel.enabled = true;
+      bevel.style = style;
+      bevel.technique = technique;
+      bevel.soften = 7.0F;
+      layer.layer_style().bevels.push_back(bevel);
+      document.add_layer(std::move(layer));
+      const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+      CHECK(reread.layers().size() == 1U);
+      CHECK(reread.layers().front().layer_style().bevels.size() == 1U);
+      const auto& imported = reread.layers().front().layer_style().bevels.front();
+      CHECK(imported.style == style);
+      CHECK(imported.technique == technique);
+      CHECK(imported.soften == 7.0F);
+    }
+  }
+}
+
 void compositor_renders_layer_style_outer_glow() {
   CHECK(patchy::LayerOuterGlow{}.blend_mode == patchy::BlendMode::Normal);
 
@@ -18093,6 +18243,10 @@ int main() {
       {"compositor_renders_layer_style_bevel_emboss", compositor_renders_layer_style_bevel_emboss},
       {"compositor_renders_bevel_across_thin_checkbox_edges",
        compositor_renders_bevel_across_thin_checkbox_edges},
+      {"compositor_bevel_styles_techniques_and_soften_are_distinct",
+       compositor_bevel_styles_techniques_and_soften_are_distinct},
+      {"psd_bevel_styles_techniques_and_soften_round_trip",
+       psd_bevel_styles_techniques_and_soften_round_trip},
       {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},
       {"compositor_outer_glow_spread_stays_within_size",
        compositor_outer_glow_spread_stays_within_size},

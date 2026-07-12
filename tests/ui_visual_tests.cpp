@@ -4028,6 +4028,9 @@ void ui_layer_style_bevel_lighting_controls_map_to_settings() {
   bevel.highlight_color = patchy::RgbColor{240, 230, 220};
   bevel.shadow_blend_mode = patchy::BlendMode::Multiply;
   bevel.shadow_color = patchy::RgbColor{20, 30, 40};
+  bevel.style = patchy::BevelEmbossStyleKind::OuterBevel;
+  bevel.technique = patchy::BevelTechnique::ChiselHard;
+  bevel.soften = 3.0F;
   layer.layer_style().bevels.push_back(bevel);
 
   QTimer::singleShot(0, [] {
@@ -4040,6 +4043,9 @@ void ui_layer_style_bevel_lighting_controls_map_to_settings() {
     auto* highlight_opacity =
         dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelHighlightOpacitySpin"));
     auto* shadow_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelShadowOpacitySpin"));
+    auto* style = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBevelStyleCombo"));
+    auto* technique = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBevelTechniqueCombo"));
+    auto* soften = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelSoftenSpin"));
     auto* highlight_color =
         dialog->findChild<QPushButton*>(QStringLiteral("layerStyleBevelHighlightColorButton"));
     auto* shadow_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleBevelShadowColorButton"));
@@ -4048,12 +4054,20 @@ void ui_layer_style_bevel_lighting_controls_map_to_settings() {
     CHECK(shadow_blend != nullptr);
     CHECK(highlight_opacity != nullptr);
     CHECK(shadow_opacity != nullptr);
+    CHECK(style != nullptr);
+    CHECK(technique != nullptr);
+    CHECK(soften != nullptr);
     CHECK(highlight_color != nullptr);
     CHECK(shadow_color != nullptr);
     const auto bevel_items = categories->findItems(QStringLiteral("Bevel & Emboss"), Qt::MatchExactly);
     CHECK(!bevel_items.empty());
     categories->setCurrentItem(bevel_items.front());
     QApplication::processEvents();
+    CHECK(style->count() == 5);
+    CHECK(technique->count() == 3);
+    CHECK(style->currentData().toInt() == static_cast<int>(patchy::BevelEmbossStyleKind::OuterBevel));
+    CHECK(technique->currentData().toInt() == static_cast<int>(patchy::BevelTechnique::ChiselHard));
+    CHECK(soften->value() == 3);
     CHECK(!highlight_color->visibleRegion().isEmpty());
     CHECK(!shadow_color->visibleRegion().isEmpty());
     highlight_blend->setCurrentIndex(
@@ -4062,6 +4076,11 @@ void ui_layer_style_bevel_lighting_controls_map_to_settings() {
         std::max(0, shadow_blend->findData(static_cast<int>(patchy::BlendMode::LinearBurn))));
     highlight_opacity->setValue(62);
     shadow_opacity->setValue(37);
+    style->setCurrentIndex(
+        std::max(0, style->findData(static_cast<int>(patchy::BevelEmbossStyleKind::PillowEmboss))));
+    technique->setCurrentIndex(
+        std::max(0, technique->findData(static_cast<int>(patchy::BevelTechnique::ChiselSoft))));
+    soften->setValue(5);
 
     const auto choose_color = [](QPushButton* button, QColor color) {
       QTimer::singleShot(0, [color] {
@@ -4090,6 +4109,9 @@ void ui_layer_style_bevel_lighting_controls_map_to_settings() {
   CHECK(result.shadow_blend_mode == patchy::BlendMode::LinearBurn);
   CHECK(result.shadow_color.red == 78 && result.shadow_color.green == 90 && result.shadow_color.blue == 123);
   CHECK(std::abs(result.shadow_opacity - 0.37F) < 0.001F);
+  CHECK(result.style == patchy::BevelEmbossStyleKind::PillowEmboss);
+  CHECK(result.technique == patchy::BevelTechnique::ChiselSoft);
+  CHECK(result.soften == 5.0F);
 }
 
 void ui_layer_style_satin_controls_map_to_settings() {

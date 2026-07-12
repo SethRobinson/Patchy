@@ -1529,6 +1529,38 @@
         <translation>ベベルとエンボス</translation>
     </message>
     <message>
+        <source>Inner Bevel</source>
+        <translation>ベベル（内側）</translation>
+    </message>
+    <message>
+        <source>Outer Bevel</source>
+        <translation>ベベル（外側）</translation>
+    </message>
+    <message>
+        <source>Pillow Emboss</source>
+        <translation>ピローエンボス</translation>
+    </message>
+    <message>
+        <source>Stroke Emboss</source>
+        <translation>境界線のエンボス</translation>
+    </message>
+    <message>
+        <source>Technique</source>
+        <translation>テクニック</translation>
+    </message>
+    <message>
+        <source>Chisel Hard</source>
+        <translation>シゼルハード</translation>
+    </message>
+    <message>
+        <source>Chisel Soft</source>
+        <translation>シゼルソフト</translation>
+    </message>
+    <message>
+        <source>Soften</source>
+        <translation>ソフト</translation>
+    </message>
+    <message>
         <location line="-1191"/>
         <location line="+1204"/>
         <location filename="../src/ui/main_window.cpp" line="-22"/>

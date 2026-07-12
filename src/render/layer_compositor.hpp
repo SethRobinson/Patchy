@@ -832,20 +832,44 @@ inline void expand_layer_style_mask_in_place(std::vector<float>& mask, int width
   }
 }
 
-inline std::vector<float> inner_bevel_height_mask(const std::vector<float>& alpha_mask, int width, int height,
-                                                  float size) {
-  std::vector<float> transparent_mask(alpha_mask.size(), 0.0F);
-  for (std::size_t index = 0; index < alpha_mask.size(); ++index) {
-    transparent_mask[index] = 1.0F - clamp_unit(alpha_mask[index]);
-  }
-
-  auto edge_nearness = distance_falloff_mask(transparent_mask, width, height, size, 0.0F);
+// A bevel technique produces one continuous height field: 0 on the exterior,
+// 1 on the interior. Styles decide which side is visible (or reshape it into a
+// pillow) without changing the lighting math. Keeping the fractional matte in
+// this stage is important: treating every non-zero edge pixel as a binary EDT
+// seed creates the one-pixel zipper normals that Smooth is meant to avoid.
+inline std::vector<float> bevel_technique_height_mask(const std::vector<float>& alpha_mask, int width, int height,
+                                                      const LayerBevelEmboss& bevel) {
   std::vector<float> height_mask(alpha_mask.size(), 0.0F);
-  for (std::size_t index = 0; index < alpha_mask.size(); ++index) {
-    height_mask[index] = clamp_unit(alpha_mask[index]) * (1.0F - edge_nearness[index]);
+  const auto size = std::max(0.01F, bevel.size);
+  if (bevel.technique == BevelTechnique::Smooth) {
+    height_mask = alpha_mask;
+    blur_layer_style_mask_in_place(height_mask, width, height, size);
+  } else {
+    const auto distance_to_painted = stroke_distance_field(alpha_mask, width, height, true);
+    const auto distance_to_clear = stroke_distance_field(alpha_mask, width, height, false);
+    for (std::size_t index = 0; index < alpha_mask.size(); ++index) {
+      const auto alpha = clamp_unit(alpha_mask[index]);
+      const auto inside = 0.5F + 0.5F * clamp_unit(distance_to_clear[index] / size);
+      const auto outside = 0.5F - 0.5F * clamp_unit(distance_to_painted[index] / size);
+      height_mask[index] = outside * (1.0F - alpha) + inside * alpha;
+    }
+    if (bevel.technique == BevelTechnique::ChiselSoft) {
+      // Chisel Soft retains the exact-distance roof but rounds its pixel-scale
+      // facets. It is deliberately much narrower than Smooth's size-wide blur.
+      blur_mask_in_place(height_mask, width, height, 1, 1);
+    }
+  }
+  if (bevel.soften > 0.0F) {
+    blur_layer_style_mask_in_place(height_mask, width, height, bevel.soften);
+  }
+  for (auto& value : height_mask) {
+    value = clamp_unit(value);
   }
   return height_mask;
 }
+
+inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, Rect bounds, Rect mask_bounds, float size,
+                                            LayerStrokePosition position);
 
 template <typename Target>
 void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
@@ -1445,18 +1469,40 @@ template <typename Target>
 void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                          const LayerBevelEmboss& bevel, std::optional<Rect> layer_mask_bounds,
                          StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0,
-                         const PatternStore* patterns = nullptr) {
+                         const PatternStore* patterns = nullptr,
+                         const std::vector<LayerStroke>* strokes = nullptr) {
   if (!bevel.enabled || bevel.size <= 0.0F ||
       (bevel.highlight_opacity <= 0.0F && bevel.shadow_opacity <= 0.0F)) {
     return;
   }
-  const auto draw_rect = intersect_rect(clip, bounds);
+  const auto stroke_emboss = bevel.style == BevelEmbossStyleKind::StrokeEmboss;
+  if (stroke_emboss &&
+      (strokes == nullptr || std::none_of(strokes->begin(), strokes->end(), [](const LayerStroke& stroke) {
+         return stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F;
+       }))) {
+    return;
+  }
+
+  auto stroke_padding = 0;
+  if (stroke_emboss) {
+    for (const auto& stroke : *strokes) {
+      if (stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F) {
+        stroke_padding = std::max(stroke_padding, static_cast<int>(std::ceil(stroke.size)) + 1);
+      }
+    }
+  }
+  const auto exterior_style = bevel.style == BevelEmbossStyleKind::OuterBevel ||
+                              bevel.style == BevelEmbossStyleKind::Emboss ||
+                              bevel.style == BevelEmbossStyleKind::PillowEmboss;
+  const auto effect_padding = layer_style_falloff_radius(bevel.size + bevel.soften) + stroke_padding + 2;
+  const auto effect_bounds = (exterior_style || stroke_emboss) ? outset_rect(bounds, effect_padding) : bounds;
+  const auto draw_rect = intersect_rect(clip, effect_bounds);
   if (draw_rect.empty()) {
     return;
   }
 
   constexpr float kPi = 3.14159265358979323846F;
-  const auto sample_padding = layer_style_falloff_radius(bevel.size) + 1;
+  const auto sample_padding = effect_padding + 1;
   const auto angle = (180.0F - bevel.angle_degrees) * kPi / 180.0F;
   const auto altitude = std::clamp(bevel.altitude_degrees, 0.0F, 90.0F) * kPi / 180.0F;
   const auto horizontal = std::cos(altitude);
@@ -1472,11 +1518,47 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
   // accessor, so the provider's content_revision-keyed entries can never serve
   // a stale sub-option state.
   const auto [entry, mask_bounds] = style_mask_for_render(
-      masks, layer, StyleMaskKind::BevelHeight, effect_index, full_domain, bounds, legacy_mask_bounds, bounds,
+      masks, layer, StyleMaskKind::BevelHeight, effect_index, full_domain, effect_bounds, legacy_mask_bounds, bounds,
       layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
-        computed.secondary = layer_alpha_mask(source, layer, bounds, domain, 0, 0, layer_mask_bounds);
-        computed.primary = inner_bevel_height_mask(computed.secondary, domain.width, domain.height, bevel.size);
+        if (stroke_emboss) {
+          computed.secondary.assign(static_cast<std::size_t>(domain.width) * domain.height, 0.0F);
+          for (const auto& stroke : *strokes) {
+            if (!stroke.enabled || stroke.opacity <= 0.0F || stroke.size <= 0.0F) {
+              continue;
+            }
+            const auto stroke_mask = stroke_alpha_mask(source, bounds, domain, stroke.size, stroke.position);
+            const auto stroke_radius = std::max(1, static_cast<int>(std::ceil(stroke.size)));
+            const auto stroke_effect_bounds = stroke.position == LayerStrokePosition::Inside
+                                                  ? bounds
+                                                  : outset_rect(bounds, stroke_radius + 1);
+            for (std::int32_t local_y = 0; local_y < domain.height; ++local_y) {
+              for (std::int32_t local_x = 0; local_x < domain.width; ++local_x) {
+                const auto index = static_cast<std::size_t>(local_y) * domain.width + local_x;
+                auto alpha = stroke_mask[index] * clamp_unit(stroke.opacity);
+                if (alpha > 0.0F && stroke.uses_gradient) {
+                  const auto position = gradient_position(stroke.gradient, stroke_effect_bounds,
+                                                          domain.x + local_x, domain.y + local_y);
+                  alpha *= gradient_stop_opacity(stroke.gradient, position);
+                }
+                if (alpha > 0.0F && layer.mask().has_value() && !layer.mask()->disabled) {
+                  alpha *= layer_mask_alpha_for_render(layer, domain.x + local_x, domain.y + local_y,
+                                                       layer_mask_bounds);
+                }
+                computed.secondary[index] = alpha + computed.secondary[index] * (1.0F - alpha);
+              }
+            }
+          }
+        } else {
+          computed.secondary = layer_alpha_mask(source, layer, bounds, domain, 0, 0, layer_mask_bounds);
+        }
+        computed.primary =
+            bevel_technique_height_mask(computed.secondary, domain.width, domain.height, bevel);
+        if (bevel.style == BevelEmbossStyleKind::PillowEmboss) {
+          for (auto& value : computed.primary) {
+            value = std::abs(value * 2.0F - 1.0F);
+          }
+        }
         if (bevel.contour.enabled && !style_contour_is_linear(bevel.contour.contour)) {
           // The Contour sub-option reshapes the bevel's cross-section: the
           // normalized edge profile (0 at the contour, 1 on the interior
@@ -1486,14 +1568,9 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
           const auto contour_lut = build_style_contour_lut(bevel.contour.contour);
           const auto range = std::clamp(bevel.contour.range, 0.01F, 1.0F);
           for (std::size_t index = 0; index < computed.primary.size(); ++index) {
-            const auto alpha = computed.secondary[index];
-            if (alpha <= 0.0F) {
-              continue;
-            }
-            const auto profile = computed.primary[index] / std::max(alpha, 0.0001F);
             const auto remapped = sample_style_contour_lut(
-                contour_lut, clamp_unit(profile / range), bevel.contour.anti_aliased);
-            computed.primary[index] = remapped * alpha;
+                contour_lut, clamp_unit(computed.primary[index] / range), bevel.contour.anti_aliased);
+            computed.primary[index] = remapped;
           }
         }
         if (bevel.texture.enabled && patterns != nullptr) {
@@ -1505,7 +1582,6 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
             // plane is smoothed so texel plateaus become domes/pits whose
             // slopes shade the whole cell, not just its edges.
             constexpr float kTextureAmplitude = 3.0F;
-            constexpr std::int32_t blur_radius = 1;
             const PatternTileSampler sampler(resource->tile, layer, bevel.texture.scale, 0.0F,
                                              bevel.texture.link_with_layer, bevel.texture.phase_x,
                                              bevel.texture.phase_y);
@@ -1521,6 +1597,7 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
             }
             // Separable box blur (deterministic fixed-order float sums).
             const auto box_pass = [&](bool horizontal) {
+              constexpr std::int32_t blur_radius = 1;
               std::vector<float> blurred(plane_size, 0.0F);
               const auto limit = horizontal ? domain.width : domain.height;
               const auto lines = horizontal ? domain.height : domain.width;
@@ -1550,11 +1627,15 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
             box_pass(true);
             box_pass(false);
             for (std::size_t index = 0; index < plane_size; ++index) {
-              const auto alpha = computed.secondary[index];
-              if (alpha <= 0.0F) {
-                continue;
+              float texture_coverage = 0.0F;
+              if (bevel.style == BevelEmbossStyleKind::InnerBevel ||
+                  bevel.style == BevelEmbossStyleKind::StrokeEmboss) {
+                texture_coverage = computed.secondary[index];
+              } else {
+                texture_coverage = 1.0F - std::abs(clamp_unit(computed.primary[index]) * 2.0F - 1.0F);
               }
-              computed.primary[index] += bump[index] * bevel.texture.depth * kTextureAmplitude * alpha;
+              computed.primary[index] +=
+                  bump[index] * bevel.texture.depth * kTextureAmplitude * clamp_unit(texture_coverage);
             }
           }
         }
@@ -1576,8 +1657,22 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
       const auto local_y = y - mask_bounds.y;
       const auto mask_index = static_cast<std::size_t>(local_y) * static_cast<std::size_t>(mask_width) +
                               static_cast<std::size_t>(local_x);
-      const auto source_alpha = alpha_mask[mask_index];
-      if (source_alpha <= 0.0F) {
+      const auto matte_alpha = clamp_unit(alpha_mask[mask_index]);
+      float effect_alpha = 0.0F;
+      switch (bevel.style) {
+        case BevelEmbossStyleKind::InnerBevel:
+        case BevelEmbossStyleKind::StrokeEmboss:
+          effect_alpha = matte_alpha;
+          break;
+        case BevelEmbossStyleKind::OuterBevel:
+          effect_alpha = 1.0F - matte_alpha;
+          break;
+        case BevelEmbossStyleKind::Emboss:
+        case BevelEmbossStyleKind::PillowEmboss:
+          effect_alpha = 1.0F;
+          break;
+      }
+      if (effect_alpha <= 0.0F) {
         continue;
       }
       const auto left = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x - 1, local_y);
@@ -1603,13 +1698,16 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
             gloss_lut, clamp_unit((lighting + 1.0F) * 0.5F), bevel.gloss_anti_aliased);
         lighting = remapped * 2.0F - 1.0F;
       }
+      if (layer_mask_clips_effect_output(layer)) {
+        effect_alpha *= layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+      }
       if (lighting > 0.0F) {
         destination.composite_color(x, y, bevel.highlight_color,
-                                    clamp_unit(lighting) * source_alpha * bevel.highlight_opacity * layer.opacity(),
+                                    clamp_unit(lighting) * effect_alpha * bevel.highlight_opacity * layer.opacity(),
                                     bevel.highlight_blend_mode);
       } else if (lighting < 0.0F) {
         destination.composite_color(x, y, bevel.shadow_color,
-                                    clamp_unit(-lighting) * source_alpha * bevel.shadow_opacity * layer.opacity(),
+                                    clamp_unit(-lighting) * effect_alpha * bevel.shadow_opacity * layer.opacity(),
                                     bevel.shadow_blend_mode);
       }
     }
@@ -2012,15 +2110,30 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     }
     for (std::uint32_t index = 0; index < style.bevels.size(); ++index) {
       const auto& bevel = style.bevels[index];
+      if (bevel.style == BevelEmbossStyleKind::StrokeEmboss) {
+        continue;
+      }
       profile_compositor_step(destination, layer, "bevel_emboss", clip, [&] {
         render_bevel_emboss(destination, layer, source, clip, bounds, bevel, layer_mask_bounds, masks, index,
-                            patterns);
+                            patterns, &style.strokes);
       });
     }
     for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
       const auto& stroke = style.strokes[index];
       profile_compositor_step(destination, layer, "stroke", clip, [&] {
         render_stroke(destination, layer, source, clip, bounds, stroke, layer_mask_bounds, masks, index);
+      });
+    }
+    // Stroke Emboss shades the rendered Stroke effect itself, so it must paint
+    // after the stroke base instead of being covered by it.
+    for (std::uint32_t index = 0; index < style.bevels.size(); ++index) {
+      const auto& bevel = style.bevels[index];
+      if (bevel.style != BevelEmbossStyleKind::StrokeEmboss) {
+        continue;
+      }
+      profile_compositor_step(destination, layer, "stroke_emboss", clip, [&] {
+        render_bevel_emboss(destination, layer, source, clip, bounds, bevel, layer_mask_bounds, masks, index,
+                            patterns, &style.strokes);
       });
     }
   }

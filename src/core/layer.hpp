@@ -332,9 +332,7 @@ struct LayerBevelEmboss {
   float size{5.0F};
   bool direction_up{true};
   bool use_global_light{false};
-  // Style/Technique/Soften are parsed and round-tripped losslessly but the
-  // renderer still draws every bevel as a smooth inner bevel and the dialog
-  // does not expose them yet.
+  // Persisted PSD enum/value fields and Layer Style dialog controls.
   BevelEmbossStyleKind style{BevelEmbossStyleKind::InnerBevel};
   BevelTechnique technique{BevelTechnique::Smooth};
   float soften{0.0F};  // Sftn pixels

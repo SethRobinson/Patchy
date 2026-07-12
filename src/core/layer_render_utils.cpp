@@ -164,6 +164,16 @@ int layer_style_effect_padding(const LayerStyle& style) noexcept {
       padding = std::max(padding, std::max(1, static_cast<int>(std::ceil(stroke.size))) + 1);
     }
   }
+  for (const auto& bevel : style.bevels) {
+    if (!bevel.enabled || bevel.size <= 0.0F ||
+        (bevel.highlight_opacity <= 0.0F && bevel.shadow_opacity <= 0.0F)) {
+      continue;
+    }
+    if (bevel.style == BevelEmbossStyleKind::OuterBevel || bevel.style == BevelEmbossStyleKind::Emboss ||
+        bevel.style == BevelEmbossStyleKind::PillowEmboss) {
+      padding = std::max(padding, layer_style_falloff_radius(bevel.size + bevel.soften) + 2);
+    }
+  }
   return padding;
 }
 
