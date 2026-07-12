@@ -133,6 +133,7 @@ private:
   [[nodiscard]] std::optional<PixelBuffer> tile_for_entry(
       const PatternLibraryEntry& entry) const;
   void invalidate_cached_tile(const QString& storage_id) const;
+  void cache_tile(const QString& storage_id, PixelBuffer tile) const;
 
   QString storage_dir_;
   std::vector<PatternLibraryEntry> entries_;

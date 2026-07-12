@@ -142,8 +142,7 @@ protected:
   void mousePressEvent(QMouseEvent* event) override {
     // Any button pans; the widget has no context menu, so right-drag is free.
     const auto button = event->button();
-    if (!dragging_ &&
-        (button == Qt::LeftButton || button == Qt::MiddleButton || button == Qt::RightButton)) {
+    if (!dragging_ && button != Qt::NoButton) {
       dragging_ = true;
       drag_button_ = button;
       drag_position_ = event->pos();
@@ -573,7 +572,9 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
   QObject::connect(import_button, &QPushButton::clicked, &dialog, [&] {
     QStringList image_globs;
     for (const auto& format : QImageReader::supportedImageFormats()) {
-      image_globs.append(QStringLiteral("*.") + QString::fromLatin1(format).toLower());
+      const auto extension = QString::fromLatin1(format);
+      image_globs.append(QStringLiteral("*.") + extension.toLower());
+      image_globs.append(QStringLiteral("*.") + extension.toUpper());
     }
     image_globs.removeDuplicates();
     const auto filter =

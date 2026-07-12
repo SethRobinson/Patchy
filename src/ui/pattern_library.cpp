@@ -32,10 +32,12 @@ namespace patchy::ui {
 namespace {
 
 constexpr std::size_t kTileCacheLimit = 16;
+constexpr std::size_t kTileCacheByteLimit = 64U * 1024U * 1024U;
 constexpr int kInitialBuiltinPatternVersion = 1;
 constexpr qint64 kMaxPatFileBytes = 32LL * 1024LL * 1024LL;
 // Mirrors pat_reader's per-pattern decode cap.
 constexpr std::int64_t kMaxImagePatternPixels = 8LL * 1024LL * 1024LL;
+constexpr int kMaxPatternDimension = 30'000;
 
 [[nodiscard]] QString default_storage_dir() {
   const auto settings = app_settings();
@@ -310,6 +312,27 @@ void PatternLibrary::invalidate_cached_tile(const QString& storage_id) const {
                     tile_cache_.end());
 }
 
+void PatternLibrary::cache_tile(const QString& storage_id, PixelBuffer tile) const {
+  invalidate_cached_tile(storage_id);
+  const auto tile_bytes = tile.byte_size();
+  if (tile_bytes > kTileCacheByteLimit) {
+    return;
+  }
+  const auto cached_bytes = [&] {
+    std::size_t result = 0;
+    for (const auto& cached : tile_cache_) {
+      result += cached.second.byte_size();
+    }
+    return result;
+  };
+  while (!tile_cache_.empty() &&
+         (tile_cache_.size() >= kTileCacheLimit ||
+          cached_bytes() > kTileCacheByteLimit - tile_bytes)) {
+    tile_cache_.erase(tile_cache_.begin());
+  }
+  tile_cache_.emplace_back(storage_id, std::move(tile));
+}
+
 std::optional<PixelBuffer> PatternLibrary::tile_for_entry(
     const PatternLibraryEntry& entry) const {
   for (const auto& cached : tile_cache_) {
@@ -321,10 +344,7 @@ std::optional<PixelBuffer> PatternLibrary::tile_for_entry(
   if (!loaded.has_value()) {
     return std::nullopt;
   }
-  if (tile_cache_.size() >= kTileCacheLimit) {
-    tile_cache_.erase(tile_cache_.begin());
-  }
-  tile_cache_.emplace_back(entry.storage_id, *loaded);
+  cache_tile(entry.storage_id, *loaded);
   return loaded;
 }
 
@@ -358,7 +378,8 @@ QString PatternLibrary::add_pattern_internal(const QString& name, const PixelBuf
                                              const QString& folder,
                                              const QString& requested_pattern_id,
                                              const QString& source_id) {
-  if (tile.empty() || tile.format() != PixelFormat::rgba8()) {
+  if (tile.empty() || tile.format() != PixelFormat::rgba8() ||
+      tile.width() > kMaxPatternDimension || tile.height() > kMaxPatternDimension) {
     return {};
   }
   auto pattern_id = requested_pattern_id;
@@ -397,10 +418,7 @@ QString PatternLibrary::add_pattern_internal(const QString& name, const PixelBuf
     return {};
   }
   entries_.push_back(entry);
-  if (tile_cache_.size() >= kTileCacheLimit) {
-    tile_cache_.erase(tile_cache_.begin());
-  }
-  tile_cache_.emplace_back(storage_id, tile);
+  cache_tile(storage_id, tile);
   return storage_id;
 }
 
@@ -545,12 +563,38 @@ QString PatternLibrary::import_image(const QString& path, QString& error, QStrin
   const auto file_name = QFileInfo(path).fileName();
   QImageReader reader(path);
   reader.setAutoTransform(true);  // apply EXIF orientation (phone photos)
+  const auto exceeds_pixel_cap = [](QSize size) {
+    return size.isValid() &&
+           static_cast<std::int64_t>(size.width()) * size.height() > kMaxImagePatternPixels;
+  };
+  const auto exceeds_dimension_cap = [](QSize size) {
+    return size.isValid() &&
+           (size.width() > kMaxPatternDimension || size.height() > kMaxPatternDimension);
+  };
+  // Reject oversized images from their header before asking the image plugin to
+  // allocate and decode the full raster. Keep the post-read check below for
+  // formats whose handlers cannot report dimensions up front.
+  const auto header_size = reader.size();
+  if (exceeds_dimension_cap(header_size)) {
+    error = tr("\"%1\" is too large to use as a pattern (over 30,000 pixels wide or tall).")
+                .arg(file_name);
+    return {};
+  }
+  if (exceeds_pixel_cap(header_size)) {
+    error = tr("\"%1\" is too large to use as a pattern (over 8 million pixels).").arg(file_name);
+    return {};
+  }
   const auto image = reader.read();
   if (image.isNull()) {
     error = tr("Could not read \"%1\" as an image.").arg(file_name);
     return {};
   }
-  if (static_cast<std::int64_t>(image.width()) * image.height() > kMaxImagePatternPixels) {
+  if (exceeds_dimension_cap(image.size())) {
+    error = tr("\"%1\" is too large to use as a pattern (over 30,000 pixels wide or tall).")
+                .arg(file_name);
+    return {};
+  }
+  if (exceeds_pixel_cap(image.size())) {
     error = tr("\"%1\" is too large to use as a pattern (over 8 million pixels).").arg(file_name);
     return {};
   }
@@ -794,11 +838,7 @@ int PatternLibrary::reset_default_patterns_to_factory() {
       if (save_png(expected_image, png_path(found->storage_id))) {
         found->size = QSize(expected.tile.width(), expected.tile.height());
         found->thumbnail = pattern_thumbnail(expected.tile);
-        invalidate_cached_tile(found->storage_id);
-        if (tile_cache_.size() >= kTileCacheLimit) {
-          tile_cache_.erase(tile_cache_.begin());
-        }
-        tile_cache_.emplace_back(found->storage_id, expected.tile);
+        cache_tile(found->storage_id, expected.tile);
         tile_saved = true;
         any_changed = true;
       }

@@ -11067,6 +11067,11 @@ Clipped to the layer below</source>
     </message>
     <message>
         <location filename="../src/ui/pattern_library.cpp"/>
+        <source>&quot;%1&quot; is too large to use as a pattern (over 30,000 pixels wide or tall).</source>
+        <translation>「%1」は大きすぎてパターンとして使用できません (幅または高さが 30,000 ピクセル超)。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/pattern_library.cpp"/>
         <source>Animated image &quot;%1&quot;: imported the first frame only.</source>
         <translation>アニメーション画像「%1」: 最初のフレームのみ読み込みました。</translation>
     </message>

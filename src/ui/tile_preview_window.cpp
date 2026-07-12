@@ -46,7 +46,7 @@ std::uint64_t hash_layers(std::uint64_t hash, const std::vector<Layer>& layers) 
 }  // namespace
 
 // Paints the composite tiled across the whole viewport with nearest-neighbor scaling
-// (pixel-art WYSIWYG). Left-drag pans (the tiling wraps, so no pan can scroll off the
+// (pixel-art WYSIWYG). Any mouse-button drag pans (the tiling wraps, so no pan can scroll off the
 // content); double-click recenters; the mouse wheel zooms about the cursor. "Fit" zoom
 // means 3x3 tiles fit the viewport.
 class TileViewWidget : public QWidget {
@@ -111,8 +111,7 @@ protected:
   void mousePressEvent(QMouseEvent* event) override {
     // Any button pans; the widget has no context menu, so right-drag is free.
     const auto button = event->button();
-    if (!dragging_ &&
-        (button == Qt::LeftButton || button == Qt::MiddleButton || button == Qt::RightButton)) {
+    if (!dragging_ && button != Qt::NoButton) {
       dragging_ = true;
       drag_button_ = button;
       drag_position_ = event->pos();

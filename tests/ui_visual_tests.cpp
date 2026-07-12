@@ -74,6 +74,7 @@
 #include <QContextMenuEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDataStream>
 #include <QDockWidget>
 #include <QDir>
 #include <QDoubleSpinBox>
@@ -11954,6 +11955,27 @@ void ui_pattern_library_imports_image_files() {
   CHECK(pixels_match);
   CHECK(resource->tile.pixel(3, 2)[3] == 128);  // alpha preserved
 
+  // Read through a fresh library so the PNG and sidecar on disk, rather than
+  // the importing instance's tile cache, carry the same name and straight-alpha pixels.
+  patchy::ui::PatternLibrary reloaded(library.storage_dir());
+  const auto* reloaded_entry = reloaded.find_entry(storage_id);
+  CHECK(reloaded_entry != nullptr);
+  CHECK(reloaded_entry->name == QStringLiteral("Mossy Rock"));
+  CHECK(reloaded_entry->folder.isEmpty());
+  CHECK(reloaded_entry->size == QSize(7, 5));
+  const auto reloaded_resource = reloaded.resource_for_entry(storage_id);
+  CHECK(reloaded_resource.has_value());
+  bool reloaded_pixels_match = true;
+  for (int y = 0; y < image.height() && reloaded_pixels_match; ++y) {
+    for (int x = 0; x < image.width() && reloaded_pixels_match; ++x) {
+      const auto* px = reloaded_resource->tile.pixel(x, y);
+      const auto expected = image.pixelColor(x, y);
+      reloaded_pixels_match = px[0] == expected.red() && px[1] == expected.green() &&
+                              px[2] == expected.blue() && px[3] == expected.alpha();
+    }
+  }
+  CHECK(reloaded_pixels_match);
+
   // A second import of the same file adds a new entry (no id-based dedup for images).
   const auto second = library.import_image(png_path, error, warnings);
   CHECK(!second.isEmpty());
@@ -11971,6 +11993,52 @@ void ui_pattern_library_imports_image_files() {
   CHECK(library.import_image(text_path, error, warnings).isEmpty());
   CHECK(error.contains(QStringLiteral("notes.txt")));
   CHECK(library.entries().size() == 2);
+
+  // Header-only BMPs prove dimension guards run before the decoder tries to
+  // allocate or rejects the deliberately missing pixel payload.
+  const auto write_header_only_bmp = [&](const QString& file_name, qint32 width, qint32 height) {
+    QByteArray bmp_header;
+    QDataStream stream(&bmp_header, QIODevice::WriteOnly);
+    stream.setByteOrder(QDataStream::LittleEndian);
+    CHECK(stream.writeRawData("BM", 2) == 2);
+    stream << quint32(54) << quint16(0) << quint16(0) << quint32(54);
+    stream << quint32(40) << width << height << quint16(1) << quint16(24);
+    stream << quint32(0) << quint32(0) << qint32(0) << qint32(0) << quint32(0) << quint32(0);
+    const auto path = directory.filePath(file_name);
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    CHECK(file.write(bmp_header) == bmp_header.size());
+    return path;
+  };
+
+  // Reject a declared >8 Mpx raster from its header.
+  const auto oversized_path =
+      write_header_only_bmp(QStringLiteral("oversized.bmp"), 4096, 2049);
+  CHECK(library.import_image(oversized_path, error, warnings).isEmpty());
+  CHECK(error.contains(QStringLiteral("8 million")));
+  CHECK(library.entries().size() == 2);
+
+  // A thin image can stay below the pixel budget while exceeding the maximum
+  // dimension that Patchy's PSD Patt writer can preserve.
+  const auto too_wide_path =
+      write_header_only_bmp(QStringLiteral("too-wide.bmp"), 30001, 1);
+  CHECK(library.import_image(too_wide_path, error, warnings).isEmpty());
+  CHECK(error.contains(QStringLiteral("30,000")));
+  CHECK(library.entries().size() == 2);
+
+  // Animated formats import frame one and make that loss explicit.
+  const auto gif_path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("gif", "pillow-animated.gif").wstring());
+  CHECK(QFileInfo::exists(gif_path));
+  const auto gif_storage_id = library.import_image(gif_path, error, warnings);
+  CHECK(!gif_storage_id.isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("first frame"),
+                                                  Qt::CaseInsensitive));
+  const auto* gif_entry = library.find_entry(gif_storage_id);
+  CHECK(gif_entry != nullptr);
+  CHECK(gif_entry->size == QSize(32, 24));
+  CHECK(library.entries().size() == 3);
 }
 
 void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
@@ -12146,9 +12214,13 @@ void ui_pattern_manager_preview_zooms_and_opens_image() {
     CHECK(preview->property("previewPanOffset").toPoint() == QPoint(6, 8));
     drag(*preview, center, center + QPoint(1, -4), Qt::NoModifier, Qt::RightButton);
     CHECK(preview->property("previewPanOffset").toPoint() == QPoint(7, 4));
+    drag(*preview, center, center + QPoint(2, 1), Qt::NoModifier, Qt::BackButton);
+    CHECK(preview->property("previewPanOffset").toPoint() == QPoint(9, 5));
+    const auto pan_before_zoom = preview->property("previewPanOffset").toPoint();
     send_wheel(*preview, center + QPoint(40, 25), 120);
     CHECK(preview->property("previewZoomPercent").toInt() == 125);
-    CHECK(preview->property("previewPanOffset").toPoint() != QPoint(7, 4));
+    CHECK(preview->property("previewPanOffset").toPoint() != pan_before_zoom);
+    save_widget_artifact("ui_pattern_manager_preview_pan_zoom", *manager);
     send_double_click(*preview, center);
     CHECK(preview->property("previewZoomPercent").toInt() == 100);
     CHECK(preview->property("previewPanOffset").toPoint() == QPoint(0, 0));
@@ -33898,6 +33970,8 @@ void ui_tile_preview_window_tracks_document_edits() {
   save_widget_artifact("ui_tile_preview_window", *preview);
 
   // Dragging pans the tiling with any mouse button; double-click recenters.
+  auto* zoom_combo = preview->findChild<QComboBox*>(QStringLiteral("tilePreviewZoomCombo"));
+  CHECK(zoom_combo != nullptr);
   CHECK(view->property("panOffset").toPoint() == QPoint(0, 0));
   const auto view_center = QPoint(view->width() / 2, view->height() / 2);
   drag(*view, view_center, view_center + QPoint(23, -17));
@@ -33906,13 +33980,19 @@ void ui_tile_preview_window_tracks_document_edits() {
   CHECK(view->property("panOffset").toPoint() == QPoint(17, -8));
   drag(*view, view_center, view_center + QPoint(4, 3), Qt::NoModifier, Qt::RightButton);
   CHECK(view->property("panOffset").toPoint() == QPoint(21, -5));
+  drag(*view, view_center, view_center + QPoint(2, -3), Qt::NoModifier, Qt::BackButton);
+  CHECK(view->property("panOffset").toPoint() == QPoint(23, -8));
+  send_wheel(*view, view_center + QPoint(37, 21), 120);
+  CHECK(view->property("zoomPercent").toInt() > 0);
+  save_widget_artifact("ui_tile_preview_window_pan_zoom", *preview);
+  zoom_combo->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(view->property("zoomPercent").toInt() == 0);
   send_double_click(*view, view_center);
   CHECK(view->property("panOffset").toPoint() == QPoint(0, 0));
 
   // The mouse wheel zooms and the combo mirrors the resulting percent (as a placeholder
   // when it is not one of the presets).
-  auto* zoom_combo = preview->findChild<QComboBox*>(QStringLiteral("tilePreviewZoomCombo"));
-  CHECK(zoom_combo != nullptr);
   CHECK(view->property("zoomPercent").toInt() == 0);  // Fit
   send_wheel(*view, view_center, 120);
   const auto wheeled_percent = view->property("zoomPercent").toInt();
