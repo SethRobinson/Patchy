@@ -10,6 +10,7 @@
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
+#include "ui/photo_pattern_presets.hpp"
 #include "ui/style_browser.hpp"
 #include "ui/style_library.hpp"
 #include "ui/style_manager_dialog.hpp"
@@ -683,7 +684,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         pattern_library->find_entry_by_pattern_id(QString::fromStdString(id)) != nullptr) {
       return true;
     }
-    return find_builtin_pattern_preset(id) != nullptr;
+    return is_bundled_pattern_id(id);
   };
   std::vector<std::string> missing_pattern_names;
   const auto note_missing_pattern = [&](const std::string& id, const std::string& effect_name, bool enabled) {
@@ -3729,8 +3730,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
           continue;
         }
       }
-      if (find_builtin_pattern_preset(id) != nullptr) {
-        preset_patterns.push_back(builtin_pattern_resource(id));
+      if (auto bundled = bundled_pattern_resource(id); bundled.has_value()) {
+        preset_patterns.push_back(std::move(*bundled));
       }
     }
     const auto storage_id =

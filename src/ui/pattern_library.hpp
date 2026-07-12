@@ -18,7 +18,9 @@ namespace patchy::ui {
 // patterns/defaultPatternsVersion and passes the previous value to
 // restore_default_patterns(), so an upgrade adds only newly introduced defaults
 // without resurrecting older defaults that the user deliberately deleted.
-inline constexpr int kDefaultPatternsVersion = 1;
+// Version 2 added the bundled photo-texture presets (core PhotoPatternPreset
+// table, per-entry introduced_version).
+inline constexpr int kDefaultPatternsVersion = 2;
 
 struct PatternLibraryEntry {
   QString storage_id;  // safe UUID filename stem; never written into PSDs
@@ -129,8 +131,10 @@ private:
   mutable std::vector<std::pair<QString, PixelBuffer>> tile_cache_;
 };
 
-// Localized folder name used when defaults are first seeded/reset.
+// Localized folder names used when defaults are first seeded/reset: the
+// code-generated presets and the bundled photo textures each get their own.
 [[nodiscard]] QString default_patterns_folder_name();
+[[nodiscard]] QString photo_patterns_folder_name();
 
 // Canonical built-in names stay English in sidecars and PSD descriptors. This
 // helper translates one only while it is still equal to the shipped English

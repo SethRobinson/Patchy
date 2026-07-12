@@ -13438,9 +13438,10 @@ void asl_reader_skips_damaged_records_and_rejects_bad_files() {
 
 void style_presets_have_stable_ids_and_recipes() {
   const auto presets = patchy::builtin_style_presets();
-  CHECK(presets.size() == 26U);
+  CHECK(presets.size() == 39U);
   std::size_t text_count = 0;
   std::size_t basics_count = 0;
+  std::size_t materials_count = 0;
   for (const auto& preset : presets) {
     CHECK(patchy::find_builtin_style_preset(preset.id) == &preset);
     // Ids are unique.
@@ -13448,9 +13449,12 @@ void style_presets_have_stable_ids_and_recipes() {
       CHECK(&preset == &other || std::string_view(preset.id) != other.id);
     }
     const auto folder = std::string_view(preset.english_folder);
-    CHECK(folder == "Text" || folder == "Basics");
+    CHECK(folder == "Text" || folder == "Basics" || folder == "Materials");
     text_count += folder == "Text" ? 1U : 0U;
     basics_count += folder == "Basics" ? 1U : 0U;
+    materials_count += folder == "Materials" ? 1U : 0U;
+    // Text/Basics shipped with defaults version 1, Materials with version 2.
+    CHECK(preset.introduced_version == (folder == "Materials" ? 2 : 1));
 
     const auto style = patchy::builtin_style_preset_style(preset.id);
     const auto effect_count = style.drop_shadows.size() + style.inner_shadows.size() +
@@ -13460,12 +13464,14 @@ void style_presets_have_stable_ids_and_recipes() {
                               style.bevels.size() + style.satins.size();
     CHECK(effect_count > 0U);
 
-    // Every referenced pattern resolves among the built-in pattern presets, so
-    // applying a preset can always materialize its tiles.
+    // Every referenced pattern resolves among the bundled pattern presets
+    // (code-generated or photo texture), so applying a preset can always
+    // materialize its tiles.
     std::vector<std::string> referenced;
     patchy::collect_referenced_pattern_ids(style, referenced);
     for (const auto& id : referenced) {
-      CHECK(patchy::find_builtin_pattern_preset(id) != nullptr);
+      CHECK(patchy::find_builtin_pattern_preset(id) != nullptr ||
+            patchy::find_photo_pattern_preset(id) != nullptr);
     }
 
     // Every recipe survives the native lfx2 round trip losslessly (write ->
@@ -13480,6 +13486,7 @@ void style_presets_have_stable_ids_and_recipes() {
   }
   CHECK(text_count == 20U);
   CHECK(basics_count == 6U);
+  CHECK(materials_count == 13U);
   CHECK(patchy::builtin_style_preset_style("not-a-real-id").drop_shadows.empty());
 }
 

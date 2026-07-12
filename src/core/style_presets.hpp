@@ -22,6 +22,9 @@ struct StylePreset {
   const char* id;
   const char* english_name;
   const char* english_folder;
+  // Feeds the style library's defaults gate so upgrades add only new entries
+  // (mirrors PhotoPatternPreset::introduced_version).
+  int introduced_version;
 };
 
 [[nodiscard]] std::span<const StylePreset> builtin_style_presets() noexcept;

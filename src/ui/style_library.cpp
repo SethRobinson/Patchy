@@ -6,6 +6,7 @@
 #include "psd/psd_layer_effects.hpp"
 #include "render/compositor.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/photo_pattern_presets.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -32,7 +33,6 @@ namespace patchy::ui {
 namespace {
 
 constexpr std::size_t kPatternCacheLimit = 8;
-constexpr int kInitialBuiltinStyleVersion = 1;
 constexpr qint64 kMaxAslFileBytes = 32LL * 1024LL * 1024LL;
 
 [[nodiscard]] QString default_storage_dir() {
@@ -99,8 +99,8 @@ constexpr qint64 kMaxAslFileBytes = 32LL * 1024LL * 1024LL;
                                     });
     if (found != available.end()) {
       result.push_back(*found);
-    } else if (find_builtin_pattern_preset(id) != nullptr) {
-      result.push_back(builtin_pattern_resource(id));
+    } else if (auto bundled = bundled_pattern_resource(id); bundled.has_value()) {
+      result.push_back(std::move(*bundled));
     }
   }
   return result;
@@ -215,9 +215,11 @@ QPixmap render_style_preview(const LayerStyle& style,
   std::vector<std::string> referenced_ids;
   collect_referenced_pattern_ids(style, referenced_ids);
   for (const auto& id : referenced_ids) {
-    if (document.metadata().patterns.find(id) == nullptr &&
-        find_builtin_pattern_preset(id) != nullptr) {
-      document.metadata().patterns.adopt(builtin_pattern_resource(id));
+    if (document.metadata().patterns.find(id) != nullptr) {
+      continue;
+    }
+    if (auto bundled = bundled_pattern_resource(id); bundled.has_value()) {
+      document.metadata().patterns.adopt(*bundled);
     }
   }
 
@@ -783,14 +785,11 @@ int StyleLibrary::remove_styles(const QStringList& storage_ids) {
 }
 
 int StyleLibrary::restore_default_styles(int newer_than_version) {
-  // All currently shipped styles were introduced with library version 1. When
-  // future presets are added, give them a per-entry version here (or on
-  // StylePreset) and bump kDefaultStylesVersion.
-  if (newer_than_version >= kInitialBuiltinStyleVersion) {
-    return 0;
-  }
   int restored = 0;
   for (const auto& preset : builtin_style_presets()) {
+    if (preset.introduced_version <= newer_than_version) {
+      continue;
+    }
     const auto style_id = QString::fromLatin1(preset.id);
     if (find_entry_by_style_id(style_id) != nullptr) {
       continue;
@@ -812,13 +811,12 @@ int StyleLibrary::restore_default_styles(int newer_than_version) {
 }
 
 bool StyleLibrary::has_all_default_styles_introduced_after(int newer_than_version) const {
-  if (newer_than_version >= kInitialBuiltinStyleVersion) {
-    return true;
-  }
   const auto presets = builtin_style_presets();
-  return std::all_of(presets.begin(), presets.end(), [this](const StylePreset& preset) {
-    return find_entry_by_style_id(QString::fromLatin1(preset.id)) != nullptr;
-  });
+  return std::all_of(presets.begin(), presets.end(),
+                     [this, newer_than_version](const StylePreset& preset) {
+                       return preset.introduced_version <= newer_than_version ||
+                              find_entry_by_style_id(QString::fromLatin1(preset.id)) != nullptr;
+                     });
 }
 
 bool StyleLibrary::default_styles_match_factory() const {

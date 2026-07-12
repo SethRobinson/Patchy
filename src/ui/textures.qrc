@@ -1,0 +1,24 @@
+<RCC>
+  <qresource prefix="/patchy/textures">
+    <file alias="bark_brown_01.png">textures/bark_brown_01.png</file>
+    <file alias="brown_leather.png">textures/brown_leather.png</file>
+    <file alias="damp_sand.png">textures/damp_sand.png</file>
+    <file alias="dark_wood.png">textures/dark_wood.png</file>
+    <file alias="denim_fabric.png">textures/denim_fabric.png</file>
+    <file alias="fine_grained_wood.png">textures/fine_grained_wood.png</file>
+    <file alias="forest_leaves_02.png">textures/forest_leaves_02.png</file>
+    <file alias="hessian_230.png">textures/hessian_230.png</file>
+    <file alias="japanese_stone_wall.png">textures/japanese_stone_wall.png</file>
+    <file alias="marble_rock_01.png">textures/marble_rock_01.png</file>
+    <file alias="medieval_wood.png">textures/medieval_wood.png</file>
+    <file alias="metal_plate.png">textures/metal_plate.png</file>
+    <file alias="mud_cracked_dry_03.png">textures/mud_cracked_dry_03.png</file>
+    <file alias="oak_veneer_01.png">textures/oak_veneer_01.png</file>
+    <file alias="old_planks_02.png">textures/old_planks_02.png</file>
+    <file alias="rock_face.png">textures/rock_face.png</file>
+    <file alias="rough_wood.png">textures/rough_wood.png</file>
+    <file alias="rust_coarse_01.png">textures/rust_coarse_01.png</file>
+    <file alias="slab_tiles.png">textures/slab_tiles.png</file>
+    <file alias="snow_02.png">textures/snow_02.png</file>
+  </qresource>
+</RCC>

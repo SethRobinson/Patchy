@@ -438,6 +438,8 @@ if(PATCHY_BUILD_APP)
       src/ui/pattern_library.cpp
       src/ui/pattern_manager_dialog.hpp
       src/ui/pattern_manager_dialog.cpp
+      src/ui/photo_pattern_presets.hpp
+      src/ui/photo_pattern_presets.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
       src/ui/scanner_import.hpp
@@ -465,6 +467,7 @@ if(PATCHY_BUILD_APP)
       src/ui/zoom_status_bar.hpp
       src/ui/zoom_status_bar.cpp
       src/ui/icons.qrc
+      src/ui/textures.qrc
     )
     target_link_libraries(patchy_ui PUBLIC
       Qt6::Widgets

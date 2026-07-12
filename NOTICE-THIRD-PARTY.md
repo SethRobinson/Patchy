@@ -59,6 +59,45 @@ their embedded ICC color profile on import. Only the MIT-licensed core is
 vendored (the optional lcms2 speed plugins are GPL-licensed and are not
 included); the license text is included at `src/color/lcms2/LICENSE`.
 
+## Bundled photo-texture pattern presets (Poly Haven, CC0)
+
+The 20 photo-based pattern presets under the "Textures" folder (embedded as
+512x512 PNG tiles in `src/ui/textures/`, ids in `src/core/pattern_presets.cpp`)
+are downscaled diffuse maps from Poly Haven (https://polyhaven.com), published
+under CC0 ("You can use our assets for any purpose, including commercial work.
+You do not need to give credit or attribution"). All are real photo-scanned
+surfaces created by named human artists (no AI generation, per the AGENTS.md
+sourcing rule); the 1K PNG masters were fetched from dl.polyhaven.org on
+2026-07-12 and downscaled losslessly (no JPEG step) with a seam-preserving
+3x3-tile filter.
+
+| Patchy preset | Poly Haven asset | Author(s) |
+| --- | --- | --- |
+| Fine Wood Grain | fine_grained_wood | Rob Tuytel |
+| Dark Walnut | dark_wood | Dario Barresi, Dimitrios Savva, Rico Cilliers |
+| Oak Veneer | oak_veneer_01 | Jenelle van Heerden |
+| Weathered Wood | rough_wood | Rob Tuytel |
+| Old Planks | old_planks_02 | Rob Tuytel |
+| Medieval Wood | medieval_wood | Rob Tuytel |
+| Tree Bark | bark_brown_01 | Rob Tuytel |
+| Weathered Marble | marble_rock_01 | (Poly Haven) |
+| Slate Slabs | slab_tiles | (Poly Haven) |
+| Granite Blocks | japanese_stone_wall | (Poly Haven) |
+| Rock Face | rock_face | (Poly Haven) |
+| Coarse Rust | rust_coarse_01 | Dimitrios Savva, Rico Cilliers |
+| Steel Plate | metal_plate | Rob Tuytel |
+| Brown Leather | brown_leather | Rob Tuytel |
+| Denim Weave | denim_fabric | (Poly Haven) |
+| Burlap | hessian_230 | (Poly Haven) |
+| Rippled Sand | damp_sand | (Poly Haven) |
+| Snow | snow_02 | (Poly Haven) |
+| Cracked Earth | mud_cracked_dry_03 | (Poly Haven) |
+| Mossy Forest Floor | forest_leaves_02 | (Poly Haven) |
+
+Each asset page is `https://polyhaven.com/a/<asset id>`. CC0 requires no
+attribution; the authors are credited here voluntarily (authors marked
+"(Poly Haven)" are listed on the asset pages).
+
 ## Test fixtures (not distributed with the application)
 
 Files under `test-fixtures/` are used only by the automated test suites and are

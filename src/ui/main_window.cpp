@@ -44,6 +44,7 @@
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
+#include "ui/photo_pattern_presets.hpp"
 #include "ui/style_library.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
@@ -19043,9 +19044,10 @@ void ensure_patterns_for_style(Document& doc, const LayerStyle& style,
     if (auto resource = library.resource(QString::fromStdString(id)); resource.has_value()) {
       resource->provenance = PatternProvenance::Authored;
       doc.metadata().patterns.adopt(*resource);
-    } else if (find_builtin_pattern_preset(id) != nullptr) {
-      // Legacy repair path for settings/files created before PatternLibrary.
-      doc.metadata().patterns.adopt(builtin_pattern_resource(id));
+    } else if (auto bundled = bundled_pattern_resource(id); bundled.has_value()) {
+      // Repair path when the library entry is gone: generated and photo
+      // presets both re-materialize from the application bundle.
+      doc.metadata().patterns.adopt(*bundled);
     }
   }
 }

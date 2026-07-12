@@ -361,4 +361,47 @@ PatternResource builtin_pattern_resource(std::string_view id) {
   return resource;
 }
 
+namespace {
+
+// Bundled photo textures (Poly Haven, CC0; provenance in NOTICE-THIRD-PARTY.md).
+// Append-only: ids and canonical names persist in user PSDs and library
+// sidecars. All current entries shipped with pattern-library defaults version 2.
+constexpr std::array<PhotoPatternPreset, 20> kPhotoPatternPresets{{
+    {"f0705a00-0001-4c8b-9e3d-2a5b6c77e001", "Fine Wood Grain", "fine_grained_wood.png", 2},
+    {"f0705a00-0002-4c8b-9e3d-2a5b6c77e002", "Dark Walnut", "dark_wood.png", 2},
+    {"f0705a00-0003-4c8b-9e3d-2a5b6c77e003", "Oak Veneer", "oak_veneer_01.png", 2},
+    {"f0705a00-0004-4c8b-9e3d-2a5b6c77e004", "Weathered Wood", "rough_wood.png", 2},
+    {"f0705a00-0005-4c8b-9e3d-2a5b6c77e005", "Old Planks", "old_planks_02.png", 2},
+    {"f0705a00-0006-4c8b-9e3d-2a5b6c77e006", "Medieval Wood", "medieval_wood.png", 2},
+    {"f0705a00-0007-4c8b-9e3d-2a5b6c77e007", "Tree Bark", "bark_brown_01.png", 2},
+    {"f0705a00-0008-4c8b-9e3d-2a5b6c77e008", "Weathered Marble", "marble_rock_01.png", 2},
+    {"f0705a00-0009-4c8b-9e3d-2a5b6c77e009", "Slate Slabs", "slab_tiles.png", 2},
+    {"f0705a00-000a-4c8b-9e3d-2a5b6c77e00a", "Granite Blocks", "japanese_stone_wall.png", 2},
+    {"f0705a00-000b-4c8b-9e3d-2a5b6c77e00b", "Rock Face", "rock_face.png", 2},
+    {"f0705a00-000c-4c8b-9e3d-2a5b6c77e00c", "Coarse Rust", "rust_coarse_01.png", 2},
+    {"f0705a00-000d-4c8b-9e3d-2a5b6c77e00d", "Steel Plate", "metal_plate.png", 2},
+    {"f0705a00-000e-4c8b-9e3d-2a5b6c77e00e", "Brown Leather", "brown_leather.png", 2},
+    {"f0705a00-000f-4c8b-9e3d-2a5b6c77e00f", "Denim Weave", "denim_fabric.png", 2},
+    {"f0705a00-0010-4c8b-9e3d-2a5b6c77e010", "Burlap", "hessian_230.png", 2},
+    {"f0705a00-0011-4c8b-9e3d-2a5b6c77e011", "Rippled Sand", "damp_sand.png", 2},
+    {"f0705a00-0012-4c8b-9e3d-2a5b6c77e012", "Snow", "snow_02.png", 2},
+    {"f0705a00-0013-4c8b-9e3d-2a5b6c77e013", "Cracked Earth", "mud_cracked_dry_03.png", 2},
+    {"f0705a00-0014-4c8b-9e3d-2a5b6c77e014", "Mossy Forest Floor", "forest_leaves_02.png", 2},
+}};
+
+}  // namespace
+
+std::span<const PhotoPatternPreset> photo_pattern_presets() noexcept {
+  return kPhotoPatternPresets;
+}
+
+const PhotoPatternPreset* find_photo_pattern_preset(std::string_view id) noexcept {
+  for (const auto& preset : kPhotoPatternPresets) {
+    if (id == preset.id) {
+      return &preset;
+    }
+  }
+  return nullptr;
+}
+
 }  // namespace patchy

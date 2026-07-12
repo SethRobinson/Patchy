@@ -16,10 +16,27 @@ namespace {
 // defaults folder).
 constexpr const char* kTextFolder = "Text";
 constexpr const char* kBasicsFolder = "Basics";
+constexpr const char* kMaterialsFolder = "Materials";
 
 // Built-in pattern preset ids (core/pattern_presets.cpp); fixed forever.
 constexpr const char* kBrushedMetalPatternId = "c4a11e00-0008-4b1d-9c3e-7a7c9e55b008";
 constexpr const char* kBumpsPatternId = "c4a11e00-0009-4b1d-9c3e-7a7c9e55b009";
+
+// Bundled photo-texture pattern ids (PhotoPatternPreset table); fixed forever.
+constexpr const char* kFineWoodGrainPatternId = "f0705a00-0001-4c8b-9e3d-2a5b6c77e001";
+constexpr const char* kDarkWalnutPatternId = "f0705a00-0002-4c8b-9e3d-2a5b6c77e002";
+constexpr const char* kOakVeneerPatternId = "f0705a00-0003-4c8b-9e3d-2a5b6c77e003";
+constexpr const char* kWeatheredWoodPatternId = "f0705a00-0004-4c8b-9e3d-2a5b6c77e004";
+constexpr const char* kOldPlanksPatternId = "f0705a00-0005-4c8b-9e3d-2a5b6c77e005";
+constexpr const char* kTreeBarkPatternId = "f0705a00-0007-4c8b-9e3d-2a5b6c77e007";
+constexpr const char* kWeatheredMarblePatternId = "f0705a00-0008-4c8b-9e3d-2a5b6c77e008";
+constexpr const char* kSlateSlabsPatternId = "f0705a00-0009-4c8b-9e3d-2a5b6c77e009";
+constexpr const char* kGraniteBlocksPatternId = "f0705a00-000a-4c8b-9e3d-2a5b6c77e00a";
+constexpr const char* kCoarseRustPatternId = "f0705a00-000c-4c8b-9e3d-2a5b6c77e00c";
+constexpr const char* kSteelPlatePatternId = "f0705a00-000d-4c8b-9e3d-2a5b6c77e00d";
+constexpr const char* kBrownLeatherPatternId = "f0705a00-000e-4c8b-9e3d-2a5b6c77e00e";
+constexpr const char* kSnowPatternId = "f0705a00-0012-4c8b-9e3d-2a5b6c77e012";
+constexpr const char* kCrackedEarthPatternId = "f0705a00-0013-4c8b-9e3d-2a5b6c77e013";
 
 constexpr RgbColor rgb(std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
   return RgbColor{red, green, blue};
@@ -461,6 +478,144 @@ LayerStyle style_letterpress() {
   return style;
 }
 
+// --- Materials folder (bundled photo textures) ------------------------------
+
+LayerPatternOverlay photo_overlay(const char* pattern_id, const char* pattern_name,
+                                  float scale = 1.0F) {
+  return pattern_overlay(pattern_id, pattern_name, scale);
+}
+
+LayerStyle style_carved_oak() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kOakVeneerPatternId, "Oak Veneer", 0.5F));
+  auto carved = bevel(5.0F, 1.8F, rgb(255, 244, 220), 0.7F, rgb(56, 34, 14), 0.7F);
+  carved.texture.enabled = true;
+  carved.texture.pattern_id = kTreeBarkPatternId;
+  carved.texture.pattern_name = "Tree Bark";
+  carved.texture.scale = 0.35F;
+  carved.texture.depth = 0.35F;
+  style.bevels.push_back(std::move(carved));
+  style.strokes.push_back(stroke(rgb(74, 46, 20), 2.0F, LayerStrokePosition::Outside));
+  style.drop_shadows.push_back(drop_shadow(rgb(30, 18, 8), 0.55F, 120.0F, 5.0F, 6.0F));
+  return style;
+}
+
+LayerStyle style_walnut_gloss() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kDarkWalnutPatternId, "Dark Walnut", 0.5F));
+  style.bevels.push_back(bevel(4.0F, 1.5F, rgb(255, 240, 214), 0.75F, rgb(24, 12, 4), 0.7F));
+  style.satins.push_back(satin(rgb(255, 236, 200), 0.3F, 8.0F, 12.0F));
+  style.drop_shadows.push_back(drop_shadow(rgb(0, 0, 0), 0.5F, 120.0F, 4.0F, 6.0F));
+  return style;
+}
+
+LayerStyle style_weathered_sign() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kOldPlanksPatternId, "Old Planks", 0.5F));
+  style.bevels.push_back(bevel(3.0F, 1.2F, rgb(240, 228, 205), 0.6F, rgb(32, 22, 12), 0.65F));
+  style.strokes.push_back(stroke(rgb(40, 26, 12), 3.0F, LayerStrokePosition::Outside));
+  style.drop_shadows.push_back(drop_shadow(rgb(0, 0, 0), 0.75F, 120.0F, 5.0F, 0.0F));
+  return style;
+}
+
+LayerStyle style_driftwood() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kWeatheredWoodPatternId, "Weathered Wood", 0.5F));
+  style.strokes.push_back(stroke(rgb(90, 88, 82), 2.0F, LayerStrokePosition::Outside));
+  style.inner_glows.push_back(inner_glow(rgb(230, 225, 210), 0.4F, 5.0F));
+  style.drop_shadows.push_back(drop_shadow(rgb(20, 22, 24), 0.45F, 120.0F, 4.0F, 7.0F));
+  return style;
+}
+
+LayerStyle style_timber_grain() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kFineWoodGrainPatternId, "Fine Wood Grain", 0.5F));
+  style.bevels.push_back(bevel(4.0F, 1.5F, rgb(250, 232, 200), 0.65F, rgb(26, 16, 6), 0.7F));
+  style.strokes.push_back(stroke(rgb(48, 30, 12), 2.0F, LayerStrokePosition::Outside));
+  style.drop_shadows.push_back(drop_shadow(rgb(0, 0, 0), 0.55F, 120.0F, 5.0F, 5.0F));
+  return style;
+}
+
+LayerStyle style_marble_monument() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(
+      photo_overlay(kWeatheredMarblePatternId, "Weathered Marble", 0.5F));
+  style.bevels.push_back(bevel(6.0F, 1.6F, rgb(255, 255, 255), 0.7F, rgb(40, 40, 44), 0.65F));
+  style.inner_shadows.push_back(inner_shadow(rgb(30, 30, 34), 0.5F, 120.0F, 3.0F, 5.0F));
+  style.strokes.push_back(stroke(rgb(70, 70, 74), 2.0F, LayerStrokePosition::Outside));
+  style.drop_shadows.push_back(drop_shadow(rgb(0, 0, 0), 0.5F, 120.0F, 5.0F, 8.0F));
+  return style;
+}
+
+LayerStyle style_slate_etched() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kSlateSlabsPatternId, "Slate Slabs", 0.5F));
+  style.inner_shadows.push_back(inner_shadow(rgb(0, 0, 0), 0.7F, 120.0F, 2.0F, 3.0F));
+  auto edge = drop_shadow(rgb(196, 200, 206), 0.7F, 120.0F, 1.0F, 0.0F);
+  edge.blend_mode = BlendMode::Normal;
+  style.drop_shadows.push_back(std::move(edge));
+  return style;
+}
+
+LayerStyle style_granite_bold() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kGraniteBlocksPatternId, "Granite Blocks", 0.5F));
+  style.bevels.push_back(bevel(7.0F, 2.0F, rgb(235, 235, 235), 0.7F, rgb(18, 18, 20), 0.75F));
+  style.drop_shadows.push_back(drop_shadow(rgb(0, 0, 0), 0.7F, 120.0F, 6.0F, 0.0F));
+  return style;
+}
+
+LayerStyle style_rust_bucket() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kCoarseRustPatternId, "Coarse Rust", 0.5F));
+  style.bevels.push_back(bevel(4.0F, 1.4F, rgb(255, 214, 170), 0.6F, rgb(30, 12, 6), 0.7F));
+  style.strokes.push_back(stroke(rgb(46, 20, 10), 2.0F, LayerStrokePosition::Outside));
+  style.drop_shadows.push_back(drop_shadow(rgb(20, 8, 4), 0.6F, 120.0F, 5.0F, 5.0F));
+  return style;
+}
+
+LayerStyle style_riveted_steel() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kSteelPlatePatternId, "Steel Plate", 0.5F));
+  auto plated = bevel(5.0F, 1.6F, rgb(240, 246, 252), 0.75F, rgb(12, 16, 22), 0.7F);
+  plated.texture.enabled = true;
+  plated.texture.pattern_id = kBumpsPatternId;
+  plated.texture.pattern_name = "Bumps";
+  plated.texture.scale = 1.0F;
+  plated.texture.depth = 0.4F;
+  style.bevels.push_back(std::move(plated));
+  style.strokes.push_back(stroke(rgb(24, 28, 34), 2.0F, LayerStrokePosition::Outside));
+  style.drop_shadows.push_back(drop_shadow(rgb(0, 0, 0), 0.6F, 120.0F, 4.0F, 5.0F));
+  return style;
+}
+
+LayerStyle style_leather_stamp() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kBrownLeatherPatternId, "Brown Leather", 0.5F));
+  style.inner_shadows.push_back(inner_shadow(rgb(30, 14, 6), 0.75F, 120.0F, 3.0F, 5.0F));
+  style.strokes.push_back(stroke(rgb(52, 28, 14), 2.0F, LayerStrokePosition::Inside));
+  style.drop_shadows.push_back(drop_shadow(rgb(24, 12, 6), 0.35F, 120.0F, 3.0F, 4.0F));
+  return style;
+}
+
+LayerStyle style_frost_drift() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kSnowPatternId, "Snow", 0.5F));
+  style.outer_glows.push_back(outer_glow(rgb(170, 215, 255), 0.6F, 0.0F, 12.0F));
+  style.inner_glows.push_back(inner_glow(rgb(255, 255, 255), 0.6F, 5.0F));
+  style.bevels.push_back(bevel(3.0F, 1.2F, rgb(255, 255, 255), 0.7F, rgb(120, 160, 200), 0.4F));
+  return style;
+}
+
+LayerStyle style_cracked_desert() {
+  LayerStyle style;
+  style.pattern_overlays.push_back(photo_overlay(kCrackedEarthPatternId, "Cracked Earth", 0.5F));
+  style.bevels.push_back(bevel(3.0F, 1.3F, rgb(255, 240, 210), 0.6F, rgb(60, 36, 16), 0.65F));
+  style.strokes.push_back(stroke(rgb(96, 64, 34), 2.0F, LayerStrokePosition::Outside));
+  style.drop_shadows.push_back(drop_shadow(rgb(60, 30, 10), 0.6F, 120.0F, 5.0F, 6.0F));
+  return style;
+}
+
 using StyleBuilder = LayerStyle (*)();
 
 struct StylePresetEntry {
@@ -469,34 +624,48 @@ struct StylePresetEntry {
 };
 
 // Append-only; ids and canonical names persist in user libraries and .asl
-// exports. New presets go on the end with fresh ids.
-constexpr std::array<StylePresetEntry, 26> kBuiltinStylePresets{{
-    {{"57a1e500-0001-4c6d-8f2a-9b3d4e55c001", "Adventure", kTextFolder}, style_adventure},
-    {{"57a1e500-0002-4c6d-8f2a-9b3d4e55c002", "Hack the Gibson", kTextFolder}, style_hack_the_gibson},
-    {{"57a1e500-0003-4c6d-8f2a-9b3d4e55c003", "A Galaxy Far Away", kTextFolder}, style_a_galaxy_far_away},
-    {{"57a1e500-0004-4c6d-8f2a-9b3d4e55c004", "Neon Nights", kTextFolder}, style_neon_nights},
-    {{"57a1e500-0005-4c6d-8f2a-9b3d4e55c005", "Arcade Cabinet", kTextFolder}, style_arcade_cabinet},
-    {{"57a1e500-0006-4c6d-8f2a-9b3d4e55c006", "Chrome Bumper", kTextFolder}, style_chrome_bumper},
-    {{"57a1e500-0007-4c6d-8f2a-9b3d4e55c007", "Liquid Gold", kTextFolder}, style_liquid_gold},
-    {{"57a1e500-0008-4c6d-8f2a-9b3d4e55c008", "Ice Cold", kTextFolder}, style_ice_cold},
-    {{"57a1e500-0009-4c6d-8f2a-9b3d4e55c009", "Molten Core", kTextFolder}, style_molten_core},
-    {{"57a1e500-000a-4c6d-8f2a-9b3d4e55c00a", "Toxic Ooze", kTextFolder}, style_toxic_ooze},
-    {{"57a1e500-000b-4c6d-8f2a-9b3d4e55c00b", "Midnight Horror", kTextFolder}, style_midnight_horror},
-    {{"57a1e500-000c-4c6d-8f2a-9b3d4e55c00c", "Wanted Poster", kTextFolder}, style_wanted_poster},
-    {{"57a1e500-000d-4c6d-8f2a-9b3d4e55c00d", "Comic Pow", kTextFolder}, style_comic_pow},
-    {{"57a1e500-000e-4c6d-8f2a-9b3d4e55c00e", "Bubble Pop", kTextFolder}, style_bubble_pop},
-    {{"57a1e500-000f-4c6d-8f2a-9b3d4e55c00f", "Saturday Cartoon", kTextFolder}, style_saturday_cartoon},
-    {{"57a1e500-0010-4c6d-8f2a-9b3d4e55c010", "Space Cadet", kTextFolder}, style_space_cadet},
-    {{"57a1e500-0011-4c6d-8f2a-9b3d4e55c011", "Royal Decree", kTextFolder}, style_royal_decree},
-    {{"57a1e500-0012-4c6d-8f2a-9b3d4e55c012", "Stamped Steel", kTextFolder}, style_stamped_steel},
-    {{"57a1e500-0013-4c6d-8f2a-9b3d4e55c013", "Honey Drip", kTextFolder}, style_honey_drip},
-    {{"57a1e500-0014-4c6d-8f2a-9b3d4e55c014", "Blueprint", kTextFolder}, style_blueprint},
-    {{"57a1e500-0015-4c6d-8f2a-9b3d4e55c015", "Soft Shadow", kBasicsFolder}, style_soft_shadow},
-    {{"57a1e500-0016-4c6d-8f2a-9b3d4e55c016", "Sticker Outline", kBasicsFolder}, style_sticker_outline},
-    {{"57a1e500-0017-4c6d-8f2a-9b3d4e55c017", "Simple Emboss", kBasicsFolder}, style_simple_emboss},
-    {{"57a1e500-0018-4c6d-8f2a-9b3d4e55c018", "Warm Glow", kBasicsFolder}, style_warm_glow},
-    {{"57a1e500-0019-4c6d-8f2a-9b3d4e55c019", "Neon Edge", kBasicsFolder}, style_neon_edge},
-    {{"57a1e500-001a-4c6d-8f2a-9b3d4e55c01a", "Letterpress", kBasicsFolder}, style_letterpress},
+// exports. New presets go on the end with fresh ids and the defaults version
+// that introduced them.
+constexpr std::array<StylePresetEntry, 39> kBuiltinStylePresets{{
+    {{"57a1e500-0001-4c6d-8f2a-9b3d4e55c001", "Adventure", kTextFolder, 1}, style_adventure},
+    {{"57a1e500-0002-4c6d-8f2a-9b3d4e55c002", "Hack the Gibson", kTextFolder, 1}, style_hack_the_gibson},
+    {{"57a1e500-0003-4c6d-8f2a-9b3d4e55c003", "A Galaxy Far Away", kTextFolder, 1}, style_a_galaxy_far_away},
+    {{"57a1e500-0004-4c6d-8f2a-9b3d4e55c004", "Neon Nights", kTextFolder, 1}, style_neon_nights},
+    {{"57a1e500-0005-4c6d-8f2a-9b3d4e55c005", "Arcade Cabinet", kTextFolder, 1}, style_arcade_cabinet},
+    {{"57a1e500-0006-4c6d-8f2a-9b3d4e55c006", "Chrome Bumper", kTextFolder, 1}, style_chrome_bumper},
+    {{"57a1e500-0007-4c6d-8f2a-9b3d4e55c007", "Liquid Gold", kTextFolder, 1}, style_liquid_gold},
+    {{"57a1e500-0008-4c6d-8f2a-9b3d4e55c008", "Ice Cold", kTextFolder, 1}, style_ice_cold},
+    {{"57a1e500-0009-4c6d-8f2a-9b3d4e55c009", "Molten Core", kTextFolder, 1}, style_molten_core},
+    {{"57a1e500-000a-4c6d-8f2a-9b3d4e55c00a", "Toxic Ooze", kTextFolder, 1}, style_toxic_ooze},
+    {{"57a1e500-000b-4c6d-8f2a-9b3d4e55c00b", "Midnight Horror", kTextFolder, 1}, style_midnight_horror},
+    {{"57a1e500-000c-4c6d-8f2a-9b3d4e55c00c", "Wanted Poster", kTextFolder, 1}, style_wanted_poster},
+    {{"57a1e500-000d-4c6d-8f2a-9b3d4e55c00d", "Comic Pow", kTextFolder, 1}, style_comic_pow},
+    {{"57a1e500-000e-4c6d-8f2a-9b3d4e55c00e", "Bubble Pop", kTextFolder, 1}, style_bubble_pop},
+    {{"57a1e500-000f-4c6d-8f2a-9b3d4e55c00f", "Saturday Cartoon", kTextFolder, 1}, style_saturday_cartoon},
+    {{"57a1e500-0010-4c6d-8f2a-9b3d4e55c010", "Space Cadet", kTextFolder, 1}, style_space_cadet},
+    {{"57a1e500-0011-4c6d-8f2a-9b3d4e55c011", "Royal Decree", kTextFolder, 1}, style_royal_decree},
+    {{"57a1e500-0012-4c6d-8f2a-9b3d4e55c012", "Stamped Steel", kTextFolder, 1}, style_stamped_steel},
+    {{"57a1e500-0013-4c6d-8f2a-9b3d4e55c013", "Honey Drip", kTextFolder, 1}, style_honey_drip},
+    {{"57a1e500-0014-4c6d-8f2a-9b3d4e55c014", "Blueprint", kTextFolder, 1}, style_blueprint},
+    {{"57a1e500-0015-4c6d-8f2a-9b3d4e55c015", "Soft Shadow", kBasicsFolder, 1}, style_soft_shadow},
+    {{"57a1e500-0016-4c6d-8f2a-9b3d4e55c016", "Sticker Outline", kBasicsFolder, 1}, style_sticker_outline},
+    {{"57a1e500-0017-4c6d-8f2a-9b3d4e55c017", "Simple Emboss", kBasicsFolder, 1}, style_simple_emboss},
+    {{"57a1e500-0018-4c6d-8f2a-9b3d4e55c018", "Warm Glow", kBasicsFolder, 1}, style_warm_glow},
+    {{"57a1e500-0019-4c6d-8f2a-9b3d4e55c019", "Neon Edge", kBasicsFolder, 1}, style_neon_edge},
+    {{"57a1e500-001a-4c6d-8f2a-9b3d4e55c01a", "Letterpress", kBasicsFolder, 1}, style_letterpress},
+    {{"57a1e500-001b-4c6d-8f2a-9b3d4e55c01b", "Carved Oak", kMaterialsFolder, 2}, style_carved_oak},
+    {{"57a1e500-001c-4c6d-8f2a-9b3d4e55c01c", "Walnut Gloss", kMaterialsFolder, 2}, style_walnut_gloss},
+    {{"57a1e500-001d-4c6d-8f2a-9b3d4e55c01d", "Weathered Sign", kMaterialsFolder, 2}, style_weathered_sign},
+    {{"57a1e500-001e-4c6d-8f2a-9b3d4e55c01e", "Driftwood", kMaterialsFolder, 2}, style_driftwood},
+    {{"57a1e500-001f-4c6d-8f2a-9b3d4e55c01f", "Timber Grain", kMaterialsFolder, 2}, style_timber_grain},
+    {{"57a1e500-0020-4c6d-8f2a-9b3d4e55c020", "Marble Monument", kMaterialsFolder, 2}, style_marble_monument},
+    {{"57a1e500-0021-4c6d-8f2a-9b3d4e55c021", "Slate Etched", kMaterialsFolder, 2}, style_slate_etched},
+    {{"57a1e500-0022-4c6d-8f2a-9b3d4e55c022", "Granite Bold", kMaterialsFolder, 2}, style_granite_bold},
+    {{"57a1e500-0023-4c6d-8f2a-9b3d4e55c023", "Rust Bucket", kMaterialsFolder, 2}, style_rust_bucket},
+    {{"57a1e500-0024-4c6d-8f2a-9b3d4e55c024", "Riveted Steel", kMaterialsFolder, 2}, style_riveted_steel},
+    {{"57a1e500-0025-4c6d-8f2a-9b3d4e55c025", "Leather Stamp", kMaterialsFolder, 2}, style_leather_stamp},
+    {{"57a1e500-0026-4c6d-8f2a-9b3d4e55c026", "Frost Drift", kMaterialsFolder, 2}, style_frost_drift},
+    {{"57a1e500-0027-4c6d-8f2a-9b3d4e55c027", "Cracked Desert", kMaterialsFolder, 2}, style_cracked_desert},
 }};
 
 // The presets table exposed without the builder pointers.

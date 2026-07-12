@@ -12,6 +12,7 @@
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
+#include "ui/photo_pattern_presets.hpp"
 #include "ui/style_browser.hpp"
 #include "ui/style_library.hpp"
 #include "ui/style_manager_dialog.hpp"
@@ -11710,15 +11711,18 @@ void ui_default_patterns_seed_once_and_restore() {
   }
 
   const auto presets = patchy::builtin_pattern_presets();
+  const auto photo_presets = patchy::photo_pattern_presets();
+  const auto total = presets.size() + photo_presets.size();
   QString deleted_pattern_id;
   {
     patchy::ui::MainWindow window;
     show_window(window);
     auto& library = window.pattern_library();
-    CHECK(library.entries().size() == presets.size());
+    CHECK(library.entries().size() == total);
     CHECK(library.has_all_default_patterns_introduced_after(0));
     CHECK(library.default_patterns_match_factory());
-    CHECK(library.folders() == QStringList{patchy::ui::default_patterns_folder_name()});
+    CHECK(library.folders() == (QStringList{patchy::ui::default_patterns_folder_name(),
+                                            patchy::ui::photo_patterns_folder_name()}));
     for (const auto& preset : presets) {
       const auto* entry =
           library.find_entry_by_pattern_id(QString::fromLatin1(preset.id));
@@ -11726,10 +11730,18 @@ void ui_default_patterns_seed_once_and_restore() {
       CHECK(entry->folder == patchy::ui::default_patterns_folder_name());
       CHECK(entry->name == QString::fromLatin1(preset.english_name));
     }
+    for (const auto& preset : photo_presets) {
+      const auto* entry =
+          library.find_entry_by_pattern_id(QString::fromLatin1(preset.id));
+      CHECK(entry != nullptr);
+      CHECK(entry->folder == patchy::ui::photo_patterns_folder_name());
+      CHECK(entry->name == QString::fromLatin1(preset.english_name));
+      CHECK(entry->size == QSize(512, 512));
+    }
     const auto first = library.entries().front();
     deleted_pattern_id = first.id;
     CHECK(library.remove_pattern(first.storage_id));
-    CHECK(library.entries().size() == presets.size() - 1);
+    CHECK(library.entries().size() == total - 1);
     CHECK(!library.has_all_default_patterns_introduced_after(0));
     CHECK(!library.default_patterns_match_factory());
     CHECK(library.has_all_default_patterns_introduced_after(
@@ -11743,11 +11755,11 @@ void ui_default_patterns_seed_once_and_restore() {
     patchy::ui::MainWindow window;
     show_window(window);
     auto& library = window.pattern_library();
-    CHECK(library.entries().size() == presets.size() - 1);
+    CHECK(library.entries().size() == total - 1);
     CHECK(library.find_entry_by_pattern_id(deleted_pattern_id) == nullptr);
     CHECK(!library.has_all_default_patterns_introduced_after(0));
     CHECK(library.restore_default_patterns() == 1);
-    CHECK(library.entries().size() == presets.size());
+    CHECK(library.entries().size() == total);
     CHECK(library.find_entry_by_pattern_id(deleted_pattern_id) != nullptr);
     CHECK(library.has_all_default_patterns_introduced_after(0));
     CHECK(library.default_patterns_match_factory());
@@ -11756,6 +11768,122 @@ void ui_default_patterns_seed_once_and_restore() {
   }
   clear_pattern_test_state();
   clear_brush_tip_test_state();
+}
+
+void ui_version_two_defaults_seed_only_new_entries() {
+  // A version-1 install (generated patterns, Text/Basics styles already
+  // seeded, photo-era entries absent) upgrades by adding ONLY the newly
+  // introduced defaults; deliberate deletions of old defaults stay deleted.
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::PatternLibrary patterns(directory.filePath(QStringLiteral("patterns")));
+  for (const auto& preset : patchy::builtin_pattern_presets()) {
+    const auto resource = patchy::builtin_pattern_resource(preset.id);
+    CHECK(!patterns
+               .add_pattern(QString::fromLatin1(preset.english_name), resource.tile,
+                            patchy::ui::default_patterns_folder_name(),
+                            QString::fromLatin1(preset.id))
+               .isEmpty());
+  }
+  // Simulate a deliberate deletion from the version-1 era.
+  const auto deleted = patterns.entries().front().storage_id;
+  CHECK(patterns.remove_pattern(deleted));
+  CHECK(patterns.has_all_default_patterns_introduced_after(1) == false);
+  const auto added = patterns.restore_default_patterns(1);
+  CHECK(added == static_cast<int>(patchy::photo_pattern_presets().size()));
+  CHECK(patterns.has_all_default_patterns_introduced_after(1));
+  CHECK(!patterns.has_all_default_patterns_introduced_after(0));  // the deletion stays
+
+  patchy::ui::StyleLibrary styles(directory.filePath(QStringLiteral("styles")));
+  int version_one_styles = 0;
+  for (const auto& preset : patchy::builtin_style_presets()) {
+    version_one_styles += preset.introduced_version <= 1 ? 1 : 0;
+  }
+  CHECK(styles.restore_default_styles(2) == 0);
+  CHECK(styles.restore_default_styles(1) ==
+        static_cast<int>(patchy::builtin_style_presets().size()) - version_one_styles);
+  CHECK(styles.has_all_default_styles_introduced_after(1));
+  CHECK(!styles.has_all_default_styles_introduced_after(0));
+  // The Materials styles carry their photo-pattern tiles into the entry files.
+  const auto* carved = styles.find_entry_by_style_id(
+      QStringLiteral("57a1e500-001b-4c6d-8f2a-9b3d4e55c01b"));
+  CHECK(carved != nullptr);
+  const auto carved_patterns = styles.patterns_for_entry(carved->storage_id);
+  CHECK(carved_patterns.size() == 2U);  // Oak Veneer overlay + Tree Bark texture
+}
+
+void ui_photo_pattern_presets_load_stable_tiles() {
+  // Bundled photo-texture tiles are embedded into user PSDs, so the decoded
+  // bytes may never drift. Re-pin only when a texture is deliberately
+  // replaced (the failure output prints the hashes).
+  const auto presets = patchy::photo_pattern_presets();
+  CHECK(presets.size() == 20U);
+  const auto tile_hash = [](const patchy::PixelBuffer& tile) {
+    std::uint64_t hash = 1469598103934665603ULL;
+    for (const auto byte : tile.data()) {
+      hash ^= byte;
+      hash *= 1099511628211ULL;
+    }
+    return hash;
+  };
+  struct PinnedTile {
+    const char* id;
+    std::uint64_t hash;
+  };
+  static constexpr PinnedTile kPins[] = {
+      {"f0705a00-0001-4c8b-9e3d-2a5b6c77e001", 0x7a674bbae4b82028ULL},  // Fine Wood Grain
+      {"f0705a00-0002-4c8b-9e3d-2a5b6c77e002", 0xbeda164fc7cf4e53ULL},  // Dark Walnut
+      {"f0705a00-0003-4c8b-9e3d-2a5b6c77e003", 0x1f627ddc7ab7b307ULL},  // Oak Veneer
+      {"f0705a00-0004-4c8b-9e3d-2a5b6c77e004", 0xc70bd4b8150f9690ULL},  // Weathered Wood
+      {"f0705a00-0005-4c8b-9e3d-2a5b6c77e005", 0xbc5a05917d6d8e1aULL},  // Old Planks
+      {"f0705a00-0006-4c8b-9e3d-2a5b6c77e006", 0xdbad1bf7ae21b605ULL},  // Medieval Wood
+      {"f0705a00-0007-4c8b-9e3d-2a5b6c77e007", 0x77b373ff3e214290ULL},  // Tree Bark
+      {"f0705a00-0008-4c8b-9e3d-2a5b6c77e008", 0x19126e68c80e79fbULL},  // Weathered Marble
+      {"f0705a00-0009-4c8b-9e3d-2a5b6c77e009", 0x825c03fdfe334785ULL},  // Slate Slabs
+      {"f0705a00-000a-4c8b-9e3d-2a5b6c77e00a", 0xd37d8e486b479927ULL},  // Granite Blocks
+      {"f0705a00-000b-4c8b-9e3d-2a5b6c77e00b", 0x12b48689ac3e5e05ULL},  // Rock Face
+      {"f0705a00-000c-4c8b-9e3d-2a5b6c77e00c", 0xcd75e7b0f7764102ULL},  // Coarse Rust
+      {"f0705a00-000d-4c8b-9e3d-2a5b6c77e00d", 0xfc4ca1567e7786ebULL},  // Steel Plate
+      {"f0705a00-000e-4c8b-9e3d-2a5b6c77e00e", 0x4f00027ab93049aaULL},  // Brown Leather
+      {"f0705a00-000f-4c8b-9e3d-2a5b6c77e00f", 0xdbdc506732348678ULL},  // Denim Weave
+      {"f0705a00-0010-4c8b-9e3d-2a5b6c77e010", 0x1428e978e8df0d1fULL},  // Burlap
+      {"f0705a00-0011-4c8b-9e3d-2a5b6c77e011", 0xf9719e308b09f9edULL},  // Rippled Sand
+      {"f0705a00-0012-4c8b-9e3d-2a5b6c77e012", 0x89214778bd4f9c54ULL},  // Snow
+      {"f0705a00-0013-4c8b-9e3d-2a5b6c77e013", 0x7e47a903e5677d97ULL},  // Cracked Earth
+      {"f0705a00-0014-4c8b-9e3d-2a5b6c77e014", 0xc1761be42e05f33eULL},  // Mossy Forest Floor
+  };
+  QImage sheet(5 * 96, 4 * 96, QImage::Format_RGB32);
+  sheet.fill(QColor(0x2B, 0x2B, 0x2B));
+  QPainter painter(&sheet);
+  int index = 0;
+  auto all_pinned = true;
+  for (const auto& pin : kPins) {
+    CHECK(patchy::find_photo_pattern_preset(pin.id) != nullptr);
+    const auto resource = patchy::ui::photo_pattern_resource(pin.id);
+    CHECK(resource.has_value());
+    CHECK(resource->tile.width() == 512 && resource->tile.height() == 512);
+    CHECK(resource->tile.format() == patchy::PixelFormat::rgba8());
+    CHECK(resource->provenance == patchy::PatternProvenance::Authored);
+    const auto hash = tile_hash(resource->tile);
+    if (hash != pin.hash) {
+      std::cout << "photo tile hash " << pin.id << ": 0x" << std::hex << hash << std::dec << "\n";
+      all_pinned = false;
+    }
+    painter.drawPixmap((index % 5) * 96, (index / 5) * 96,
+                       patchy::ui::pattern_thumbnail(resource->tile, 96));
+    ++index;
+  }
+  painter.end();
+  ensure_artifact_dir();
+  CHECK(sheet.save(QStringLiteral("test-artifacts/photo_pattern_tiles.png")));
+  CHECK(all_pinned);
+  CHECK(!patchy::ui::photo_pattern_resource("not-a-real-id").has_value());
+  CHECK(patchy::ui::is_bundled_pattern_id("c4a11e00-0001-4b1d-9c3e-7a7c9e55b001"));
+  CHECK(patchy::ui::is_bundled_pattern_id(presets.front().id));
+  CHECK(!patchy::ui::is_bundled_pattern_id("not-a-real-id"));
+  const auto generated = patchy::ui::bundled_pattern_resource("c4a11e00-0001-4b1d-9c3e-7a7c9e55b001");
+  CHECK(generated.has_value());
+  CHECK(!generated->tile.empty());
 }
 
 void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
@@ -11886,7 +12014,8 @@ void ui_layer_style_pattern_picker_groups_and_collapses_folders() {
   patchy::ui::PatternLibrary library(
       directory.filePath(QStringLiteral("library")));
   CHECK(library.restore_default_patterns() ==
-        static_cast<int>(patchy::builtin_pattern_presets().size()));
+        static_cast<int>(patchy::builtin_pattern_presets().size() +
+                         patchy::photo_pattern_presets().size()));
   QString error;
   QStringList warnings;
   const auto fixture = QString::fromStdString(
@@ -12254,11 +12383,11 @@ void ui_style_library_defaults_restore_export_import_round_trip() {
   CHECK(directory.isValid());
   patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
   CHECK(library.entries().empty());
-  CHECK(library.restore_default_styles() == 26);
-  CHECK(library.entries().size() == 26U);
+  CHECK(library.restore_default_styles() == 39);
+  CHECK(library.entries().size() == 39U);
   CHECK(library.has_all_default_styles_introduced_after(0));
   CHECK(library.default_styles_match_factory());
-  CHECK(library.folders().size() == 2);
+  CHECK(library.folders().size() == 3);
   for (const auto& entry : library.entries()) {
     CHECK(!entry.thumbnail.isNull());
     CHECK(!entry.blend_settings.has_value());
@@ -40061,6 +40190,9 @@ int main(int argc, char* argv[]) {
        ui_layer_style_library_pattern_cancel_and_undo_restore_store},
       {"ui_style_library_defaults_restore_export_import_round_trip",
        ui_style_library_defaults_restore_export_import_round_trip},
+      {"ui_photo_pattern_presets_load_stable_tiles", ui_photo_pattern_presets_load_stable_tiles},
+      {"ui_version_two_defaults_seed_only_new_entries",
+       ui_version_two_defaults_seed_only_new_entries},
       {"ui_layer_style_styles_page_applies_preset_and_previews",
        ui_layer_style_styles_page_applies_preset_and_previews},
       {"ui_layer_style_no_style_entry_clears_effects",

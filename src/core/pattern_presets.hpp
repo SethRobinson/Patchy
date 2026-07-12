@@ -29,4 +29,22 @@ struct PatternPreset {
 // Convenience: {id, name, tile, Authored} ready for PatternStore::adopt.
 [[nodiscard]] PatternResource builtin_pattern_resource(std::string_view id);
 
+// A built-in pattern backed by a bundled photo texture (real photographs under
+// CC0, never AI-generated — see the AGENTS.md sourcing rule and the
+// NOTICE-THIRD-PARTY.md provenance table). This core table carries the metadata
+// only; the pixels live in the UI layer's Qt resources
+// (":/patchy/textures/<resource_alias>", loaded by
+// ui/photo_pattern_presets.hpp). Ids and canonical names persist in PSDs and
+// library sidecars — append-only, never rename or re-seed. introduced_version
+// feeds the pattern library's defaults gate so upgrades add only new entries.
+struct PhotoPatternPreset {
+  const char* id;
+  const char* english_name;
+  const char* resource_alias;  // file name inside :/patchy/textures/
+  int introduced_version;
+};
+
+[[nodiscard]] std::span<const PhotoPatternPreset> photo_pattern_presets() noexcept;
+[[nodiscard]] const PhotoPatternPreset* find_photo_pattern_preset(std::string_view id) noexcept;
+
 }  // namespace patchy

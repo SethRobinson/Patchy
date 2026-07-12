@@ -3,6 +3,7 @@
 #include "core/pattern_presets.hpp"
 #include "psd/pat_reader.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/photo_pattern_presets.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -18,6 +19,7 @@
 #include <algorithm>
 #include <cstring>
 #include <exception>
+#include <functional>
 #include <span>
 #include <string>
 #include <utility>
@@ -107,15 +109,22 @@ QString default_patterns_folder_name() {
   return QObject::tr("Patchy Defaults");
 }
 
+QString photo_patterns_folder_name() {
+  return QObject::tr("Textures");
+}
+
 QString pattern_library_entry_display_name(const PatternLibraryEntry& entry) {
   const auto id = utf8_from_qstring(entry.id);
+  const char* canonical_english = nullptr;
   if (const auto* preset = find_builtin_pattern_preset(id); preset != nullptr) {
-    const auto canonical = QString::fromLatin1(preset->english_name);
-    if (entry.name == canonical) {
-      // Keep the existing QObject translation context used by the layer-style
-      // pattern picker and the Japanese pattern-name translations.
-      return QCoreApplication::translate("QObject", preset->english_name);
-    }
+    canonical_english = preset->english_name;
+  } else if (const auto* photo = find_photo_pattern_preset(id); photo != nullptr) {
+    canonical_english = photo->english_name;
+  }
+  if (canonical_english != nullptr && entry.name == QString::fromLatin1(canonical_english)) {
+    // Keep the existing QObject translation context used by the layer-style
+    // pattern picker and the Japanese pattern-name translations.
+    return QCoreApplication::translate("QObject", canonical_english);
   }
   return entry.name;
 }
@@ -628,25 +637,54 @@ int PatternLibrary::remove_patterns(const QStringList& storage_ids) {
   return removed;
 }
 
-int PatternLibrary::restore_default_patterns(int newer_than_version) {
-  // All currently shipped patterns were introduced with library version 1.
-  // When future presets are added, give them a per-entry version here (or on
-  // PatternPreset) and bump kDefaultPatternsVersion.
-  if (newer_than_version >= kInitialBuiltinPatternVersion) {
-    return 0;
-  }
-  const auto folder = default_patterns_folder_name();
-  int restored = 0;
+namespace {
+
+// One row of the factory roster: the code-generated presets (library version 1)
+// plus the bundled photo textures (introduced_version per entry). Tiles resolve
+// lazily so has-all checks stay cheap.
+struct FactoryPatternEntry {
+  QString id;
+  QString english_name;
+  QString folder;
+  int introduced_version;
+  std::function<PixelBuffer()> tile;
+};
+
+[[nodiscard]] std::vector<FactoryPatternEntry> factory_pattern_roster() {
+  std::vector<FactoryPatternEntry> roster;
+  const auto generated_folder = default_patterns_folder_name();
   for (const auto& preset : builtin_pattern_presets()) {
-    const auto pattern_id = QString::fromLatin1(preset.id);
-    if (find_entry_by_pattern_id(pattern_id) != nullptr) {
+    roster.push_back(FactoryPatternEntry{
+        QString::fromLatin1(preset.id), QString::fromLatin1(preset.english_name),
+        generated_folder, kInitialBuiltinPatternVersion,
+        [id = preset.id] { return builtin_pattern_resource(id).tile; }});
+  }
+  const auto photo_folder = photo_patterns_folder_name();
+  for (const auto& preset : photo_pattern_presets()) {
+    roster.push_back(FactoryPatternEntry{
+        QString::fromLatin1(preset.id), QString::fromLatin1(preset.english_name), photo_folder,
+        preset.introduced_version, [id = preset.id] {
+          const auto resource = photo_pattern_resource(id);
+          return resource.has_value() ? resource->tile : PixelBuffer{};
+        }});
+  }
+  return roster;
+}
+
+}  // namespace
+
+int PatternLibrary::restore_default_patterns(int newer_than_version) {
+  int restored = 0;
+  for (const auto& preset : factory_pattern_roster()) {
+    if (preset.introduced_version <= newer_than_version) {
       continue;
     }
-    const auto resource = builtin_pattern_resource(preset.id);
-    if (!resource.tile.empty() &&
-        !add_pattern_internal(QString::fromLatin1(preset.english_name), resource.tile, folder,
-                              pattern_id)
-             .isEmpty()) {
+    if (find_entry_by_pattern_id(preset.id) != nullptr) {
+      continue;
+    }
+    const auto tile = preset.tile();
+    if (!tile.empty() &&
+        !add_pattern_internal(preset.english_name, tile, preset.folder, preset.id).isEmpty()) {
       ++restored;
     }
   }
@@ -659,30 +697,23 @@ int PatternLibrary::restore_default_patterns(int newer_than_version) {
 
 bool PatternLibrary::has_all_default_patterns_introduced_after(
     int newer_than_version) const {
-  // All currently shipped patterns were introduced with library version 1.
-  // Give future additions a per-entry version here alongside the matching
-  // restore_default_patterns() filtering.
-  if (newer_than_version >= kInitialBuiltinPatternVersion) {
-    return true;
-  }
-  const auto presets = builtin_pattern_presets();
-  return std::all_of(presets.begin(), presets.end(), [this](const PatternPreset& preset) {
-    return find_entry_by_pattern_id(QString::fromLatin1(preset.id)) != nullptr;
+  const auto roster = factory_pattern_roster();
+  return std::all_of(roster.begin(), roster.end(), [&](const FactoryPatternEntry& preset) {
+    return preset.introduced_version <= newer_than_version ||
+           find_entry_by_pattern_id(preset.id) != nullptr;
   });
 }
 
 bool PatternLibrary::default_patterns_match_factory() const {
-  const auto folder = default_patterns_folder_name();
-  for (const auto& preset : builtin_pattern_presets()) {
-    const auto* entry = find_entry_by_pattern_id(QString::fromLatin1(preset.id));
-    if (entry == nullptr || !entry->source_id.isEmpty() ||
-        entry->name != QString::fromLatin1(preset.english_name) || entry->folder != folder) {
+  for (const auto& preset : factory_pattern_roster()) {
+    const auto* entry = find_entry_by_pattern_id(preset.id);
+    if (entry == nullptr || !entry->source_id.isEmpty() || entry->name != preset.english_name ||
+        entry->folder != preset.folder) {
       return false;
     }
     const auto current = tile_for_entry(*entry);
-    const auto expected = builtin_pattern_resource(preset.id);
-    if (!current.has_value() || expected.tile.empty() ||
-        !pattern_tiles_equal(*current, expected.tile)) {
+    const auto expected = preset.tile();
+    if (!current.has_value() || expected.empty() || !pattern_tiles_equal(*current, expected)) {
       return false;
     }
   }
@@ -690,11 +721,11 @@ bool PatternLibrary::default_patterns_match_factory() const {
 }
 
 int PatternLibrary::reset_default_patterns_to_factory() {
-  const auto folder = default_patterns_folder_name();
   int reset = 0;
   bool any_changed = false;
-  for (const auto& preset : builtin_pattern_presets()) {
-    const auto pattern_id = QString::fromLatin1(preset.id);
+  for (const auto& preset : factory_pattern_roster()) {
+    const auto pattern_id = preset.id;
+    const auto folder = preset.folder;
     const auto found = std::find_if(entries_.begin(), entries_.end(),
                                     [&pattern_id](const PatternLibraryEntry& entry) {
                                       return entry.id == pattern_id;
@@ -702,14 +733,15 @@ int PatternLibrary::reset_default_patterns_to_factory() {
     if (found == entries_.end()) {
       continue;  // restore_default_patterns() owns missing entries
     }
-    const auto expected = builtin_pattern_resource(preset.id);
+    PatternResource expected;
+    expected.tile = preset.tile();
     if (expected.tile.empty()) {
       continue;
     }
     const auto current_tile = tile_for_entry(*found);
     const auto tile_changed =
         !current_tile.has_value() || !pattern_tiles_equal(*current_tile, expected.tile);
-    const auto canonical_name = QString::fromLatin1(preset.english_name);
+    const auto& canonical_name = preset.english_name;
     const auto metadata_changed = found->name != canonical_name || found->folder != folder ||
                                   !found->source_id.isEmpty();
     if (!tile_changed && !metadata_changed) {

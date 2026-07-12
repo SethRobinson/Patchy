@@ -20,7 +20,9 @@ namespace patchy::ui {
 // styles/defaultStylesVersion and passes the previous value to
 // restore_default_styles(), so an upgrade adds only newly introduced defaults
 // without resurrecting older defaults that the user deliberately deleted.
-inline constexpr int kDefaultStylesVersion = 1;
+// Version 2 added the Materials folder (photo-texture styles); entries carry
+// StylePreset::introduced_version.
+inline constexpr int kDefaultStylesVersion = 2;
 
 struct StyleLibraryEntry {
   QString storage_id;  // safe UUID filename stem; never written into .asl files

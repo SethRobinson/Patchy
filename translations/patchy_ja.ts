@@ -4345,6 +4345,146 @@ Mixed selection</source>
         <source>Letterpress</source>
         <translation>活版印刷</translation>
     </message>
+    <message>
+        <source>Materials</source>
+        <translation>マテリアル</translation>
+    </message>
+    <message>
+        <source>Textures</source>
+        <translation>テクスチャ</translation>
+    </message>
+    <message>
+        <source>Fine Wood Grain</source>
+        <translation>細かい木目</translation>
+    </message>
+    <message>
+        <source>Dark Walnut</source>
+        <translation>ダークウォールナット</translation>
+    </message>
+    <message>
+        <source>Oak Veneer</source>
+        <translation>オーク突板</translation>
+    </message>
+    <message>
+        <source>Weathered Wood</source>
+        <translation>風化した木材</translation>
+    </message>
+    <message>
+        <source>Old Planks</source>
+        <translation>古い板材</translation>
+    </message>
+    <message>
+        <source>Medieval Wood</source>
+        <translation>中世の木材</translation>
+    </message>
+    <message>
+        <source>Tree Bark</source>
+        <translation>樹皮</translation>
+    </message>
+    <message>
+        <source>Weathered Marble</source>
+        <translation>風化した大理石</translation>
+    </message>
+    <message>
+        <source>Slate Slabs</source>
+        <translation>スレート板</translation>
+    </message>
+    <message>
+        <source>Granite Blocks</source>
+        <translation>御影石ブロック</translation>
+    </message>
+    <message>
+        <source>Rock Face</source>
+        <translation>岩肌</translation>
+    </message>
+    <message>
+        <source>Coarse Rust</source>
+        <translation>粗い錆</translation>
+    </message>
+    <message>
+        <source>Steel Plate</source>
+        <translation>鋼板</translation>
+    </message>
+    <message>
+        <source>Brown Leather</source>
+        <translation>ブラウンレザー</translation>
+    </message>
+    <message>
+        <source>Denim Weave</source>
+        <translation>デニム織り</translation>
+    </message>
+    <message>
+        <source>Burlap</source>
+        <translation>麻布</translation>
+    </message>
+    <message>
+        <source>Rippled Sand</source>
+        <translation>波紋の砂</translation>
+    </message>
+    <message>
+        <source>Snow</source>
+        <translation>雪</translation>
+    </message>
+    <message>
+        <source>Cracked Earth</source>
+        <translation>ひび割れた大地</translation>
+    </message>
+    <message>
+        <source>Mossy Forest Floor</source>
+        <translation>苔むした森の地面</translation>
+    </message>
+    <message>
+        <source>Carved Oak</source>
+        <translation>オーク彫刻</translation>
+    </message>
+    <message>
+        <source>Walnut Gloss</source>
+        <translation>ウォールナット光沢</translation>
+    </message>
+    <message>
+        <source>Weathered Sign</source>
+        <translation>風化した看板</translation>
+    </message>
+    <message>
+        <source>Driftwood</source>
+        <translation>流木</translation>
+    </message>
+    <message>
+        <source>Timber Grain</source>
+        <translation>木目材</translation>
+    </message>
+    <message>
+        <source>Marble Monument</source>
+        <translation>大理石の碑</translation>
+    </message>
+    <message>
+        <source>Slate Etched</source>
+        <translation>スレート刻印</translation>
+    </message>
+    <message>
+        <source>Granite Bold</source>
+        <translation>御影石ボールド</translation>
+    </message>
+    <message>
+        <source>Rust Bucket</source>
+        <translation>錆びた鉄</translation>
+    </message>
+    <message>
+        <source>Riveted Steel</source>
+        <translation>リベット鋼板</translation>
+    </message>
+    <message>
+        <source>Leather Stamp</source>
+        <translation>レザー型押し</translation>
+    </message>
+    <message>
+        <source>Frost Drift</source>
+        <translation>雪だまり</translation>
+    </message>
+    <message>
+        <source>Cracked Desert</source>
+        <translation>ひび割れた砂漠</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
