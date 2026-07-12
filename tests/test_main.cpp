@@ -65,6 +65,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -16364,6 +16365,360 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(vignetted.pixel(0, 0)[0] < 130);
 }
 
+void filter_catalog_defines_stable_named_contracts() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+
+  using Category = patchy::FilterCategory;
+  struct ExpectedFilter {
+    const char* identifier;
+    Category category;
+    bool adjustment_only;
+    std::vector<std::pair<const char*, std::int64_t>> defaults;
+  };
+  const std::vector<ExpectedFilter> expected = {
+      {"patchy.filters.invert", Category::Adjustment, true, {{"amount", 100}}},
+      {"patchy.filters.brightness_contrast", Category::Adjustment, true,
+       {{"brightness", 0}, {"contrast", 0}}},
+      {"patchy.filters.grayscale", Category::Adjustment, true, {{"amount", 100}}},
+      {"patchy.filters.desaturate", Category::Adjustment, true, {{"amount", 100}}},
+      {"patchy.filters.auto_contrast", Category::Adjustment, true, {{"amount", 100}}},
+      {"patchy.filters.soft_glow", Category::PhotoLooks, false, {{"amount", 100}}},
+      {"patchy.filters.punchy_color", Category::PhotoLooks, false, {{"amount", 100}}},
+      {"patchy.filters.noir", Category::PhotoLooks, false, {{"amount", 100}}},
+      {"patchy.filters.cinematic_matte", Category::PhotoLooks, false, {{"amount", 100}}},
+      {"patchy.filters.vintage_fade", Category::PhotoLooks, false, {{"amount", 100}}},
+      {"patchy.filters.sepia", Category::PhotoLooks, false, {{"amount", 100}}},
+      {"patchy.filters.threshold", Category::Adjustment, true, {{"threshold", 128}}},
+      {"patchy.filters.posterize", Category::Adjustment, true, {{"levels", 4}}},
+      {"patchy.filters.box_blur", Category::Blur, false, {{"radius", 1}}},
+      {"patchy.filters.sharpen", Category::Sharpen, false, {{"amount", 100}}},
+      {"patchy.filters.unsharp_mask", Category::Sharpen, false,
+       {{"amount", 150}, {"radius", 2}, {"threshold", 8}}},
+      {"patchy.filters.gaussian_blur", Category::Blur, false, {{"radius", 2}}},
+      {"patchy.filters.motion_blur", Category::Blur, false, {{"angle", 0}, {"distance", 12}}},
+      {"patchy.filters.radial_blur", Category::Blur, false, {{"amount", 35}, {"samples", 16}}},
+      {"patchy.filters.edge_detect", Category::Stylize, false, {{"strength", 100}}},
+      {"patchy.filters.emboss", Category::Stylize, false,
+       {{"angle", 135}, {"height", 2}, {"amount", 100}}},
+      {"patchy.filters.glowing_edges", Category::Stylize, false,
+       {{"edge_width", 2}, {"brightness", 140}, {"smoothness", 2}}},
+      {"patchy.filters.twirl", Category::Distort, false, {{"angle", 180}, {"radius", 100}}},
+      {"patchy.filters.wave", Category::Distort, false,
+       {{"amplitude", 12}, {"wavelength", 48}, {"phase", 0}}},
+      {"patchy.filters.pinch_bloat", Category::Distort, false,
+       {{"amount", 35}, {"radius", 100}}},
+      {"patchy.filters.clouds", Category::Render, false,
+       {{"scale", 96}, {"detail", 6}, {"contrast", 40}, {"seed", 1}}},
+      {"patchy.filters.pixelate", Category::Pixelate, false, {{"block_size", 4}}},
+      {"patchy.filters.color_halftone", Category::Pixelate, false,
+       {{"cell_size", 10}, {"intensity", 75}, {"contrast", 60}}},
+      {"patchy.filters.film_grain", Category::Noise, false, {{"amount", 50}}},
+      {"patchy.filters.vignette", Category::PhotoLooks, false, {{"strength", 55}}},
+  };
+
+  CHECK(registry.filters().size() == expected.size());
+  std::unordered_set<std::string> spatial_parameters;
+  for (std::size_t filter_index = 0; filter_index < expected.size(); ++filter_index) {
+    const auto& actual = registry.filters()[filter_index];
+    const auto& wanted = expected[filter_index];
+    CHECK(actual.identifier == wanted.identifier);
+    CHECK(actual.catalog.category == wanted.category);
+    CHECK(actual.catalog.adjustment_only == wanted.adjustment_only);
+    CHECK(actual.catalog.schema_version == 1);
+    CHECK(static_cast<bool>(actual.catalog.execute));
+    CHECK(actual.catalog.parameters.size() == wanted.defaults.size());
+    const auto invocation = registry.default_invocation(actual.identifier);
+    CHECK(invocation.filter_id == actual.identifier);
+    CHECK(invocation.schema_version == 1);
+    for (std::size_t parameter_index = 0; parameter_index < wanted.defaults.size(); ++parameter_index) {
+      const auto& parameter = actual.catalog.parameters[parameter_index];
+      const auto& [key, default_value] = wanted.defaults[parameter_index];
+      CHECK(parameter.key == key);
+      CHECK(parameter.kind == patchy::FilterParameterKind::Integer);
+      CHECK(parameter.display_name.size() > 0);
+      CHECK(parameter.control_object_name.size() > 0);
+      CHECK(parameter.minimum.has_value());
+      CHECK(parameter.maximum.has_value());
+      CHECK(parameter.step == 1.0);
+      CHECK(std::get<std::int64_t>(parameter.default_value) == default_value);
+      CHECK(std::get<std::int64_t>(invocation.parameters.at(key)) == default_value);
+      CHECK(static_cast<double>(default_value) >= *parameter.minimum);
+      CHECK(static_cast<double>(default_value) <= *parameter.maximum);
+      if (parameter.spatial_scale == patchy::FilterSpatialScale::Pixels) {
+        spatial_parameters.insert(actual.identifier + "/" + parameter.key);
+        CHECK(parameter.unit == patchy::FilterParameterUnit::Pixels);
+      }
+    }
+  }
+
+  const std::unordered_set<std::string> expected_spatial = {
+      "patchy.filters.box_blur/radius",          "patchy.filters.unsharp_mask/radius",
+      "patchy.filters.gaussian_blur/radius",     "patchy.filters.motion_blur/distance",
+      "patchy.filters.emboss/height",             "patchy.filters.glowing_edges/edge_width",
+      "patchy.filters.glowing_edges/smoothness",  "patchy.filters.wave/amplitude",
+      "patchy.filters.wave/wavelength",           "patchy.filters.clouds/scale",
+      "patchy.filters.pixelate/block_size",        "patchy.filters.color_halftone/cell_size",
+  };
+  CHECK(spatial_parameters == expected_spatial);
+}
+
+void filter_invocations_normalize_scale_and_reject_bad_data() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+
+  auto gaussian = registry.default_invocation("patchy.filters.gaussian_blur",
+                                              patchy::RgbColor{1, 2, 3}, patchy::RgbColor{4, 5, 6});
+  gaussian.parameters.erase("radius");
+  gaussian.parameters["future_parameter"] = std::string("ignored");
+  const auto normalized = registry.normalize(gaussian);
+  CHECK(normalized.has_value());
+  CHECK(normalized->parameters.size() == 1);
+  CHECK(std::get<std::int64_t>(normalized->parameters.at("radius")) == 2);
+  CHECK(normalized->foreground.red == 1);
+  CHECK(normalized->background.blue == 6);
+
+  gaussian.parameters["radius"] = std::int64_t{999};
+  const auto clamped = registry.normalize(gaussian);
+  CHECK(clamped.has_value());
+  CHECK(std::get<std::int64_t>(clamped->parameters.at("radius")) == 12);
+  gaussian.parameters["radius"] = 2.0;
+  CHECK(!registry.supports(gaussian));
+  gaussian.parameters["radius"] = std::int64_t{2};
+  gaussian.schema_version = 2;
+  CHECK(!registry.supports(gaussian));
+  gaussian.schema_version = 1;
+  gaussian.filter_id = "patchy.filters.missing";
+  CHECK(!registry.supports(gaussian));
+
+  auto wave = registry.default_invocation("patchy.filters.wave");
+  const auto scaled_wave = registry.scale(wave, 0.25);
+  CHECK(scaled_wave.has_value());
+  CHECK(std::get<std::int64_t>(scaled_wave->parameters.at("amplitude")) == 3);
+  CHECK(std::get<std::int64_t>(scaled_wave->parameters.at("wavelength")) == 12);
+  CHECK(std::get<std::int64_t>(scaled_wave->parameters.at("phase")) == 0);
+  auto twirl = registry.default_invocation("patchy.filters.twirl");
+  const auto scaled_twirl = registry.scale(twirl, 0.25);
+  CHECK(scaled_twirl.has_value());
+  CHECK(std::get<std::int64_t>(scaled_twirl->parameters.at("radius")) == 100);
+  CHECK(!registry.scale(twirl, 0.0).has_value());
+
+  patchy::FilterCatalogMetadata custom_catalog;
+  custom_catalog.schema_version = 1;
+  custom_catalog.parameters = {
+      patchy::FilterParameterDefinition{"real", "Real", "testReal", patchy::FilterParameterKind::Double,
+                                        1.5, 0.0, 2.0, 0.1},
+      patchy::FilterParameterDefinition{"flag", "Flag", "testFlag", patchy::FilterParameterKind::Boolean,
+                                        true},
+      patchy::FilterParameterDefinition{
+          "option", "Option", "testOption", patchy::FilterParameterKind::Option, std::string("one"),
+          std::nullopt, std::nullopt, std::nullopt, patchy::FilterParameterUnit::None,
+          patchy::FilterSpatialScale::None,
+          {patchy::FilterParameterOption{"one", "One"}, patchy::FilterParameterOption{"two", "Two"}}},
+  };
+  custom_catalog.execute = [](const patchy::FilterRegistry&, const patchy::FilterInvocation&,
+                              patchy::PixelBuffer&, const patchy::FilterProgress*) {};
+  registry.register_filter(
+      {"test.filters.typed", "Typed", [](patchy::PixelBuffer&) {}, std::move(custom_catalog)});
+  auto typed = registry.default_invocation("test.filters.typed");
+  CHECK(registry.supports(typed));
+  typed.parameters["real"] = 5.0;
+  const auto typed_clamped = registry.normalize(typed);
+  CHECK(typed_clamped.has_value());
+  CHECK(std::get<double>(typed_clamped->parameters.at("real")) == 2.0);
+  typed.parameters["real"] = std::int64_t{1};
+  CHECK(!registry.supports(typed));
+  typed = registry.default_invocation("test.filters.typed");
+  typed.parameters["option"] = std::string("missing");
+  CHECK(!registry.supports(typed));
+  typed = registry.default_invocation("test.filters.typed");
+  typed.parameters["flag"] = std::string("true");
+  CHECK(!registry.supports(typed));
+}
+
+void filter_named_engine_recipes_bounds_colors_and_legacy_stay_distinct() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+
+  auto posterize_source = solid_rgb(1, 1, 50, 50, 50);
+  auto legacy_posterize = posterize_source;
+  registry.apply("patchy.filters.posterize", legacy_posterize);
+  CHECK(legacy_posterize.pixel(0, 0)[0] == 0);
+  auto named_posterize = posterize_source;
+  registry.apply(registry.default_invocation("patchy.filters.posterize"), named_posterize);
+  CHECK(named_posterize.pixel(0, 0)[0] == 85);
+
+  patchy::PixelBuffer blur_source(5, 5, patchy::PixelFormat::rgb8());
+  blur_source.pixel(2, 2)[0] = 255;
+  blur_source.pixel(2, 2)[1] = 255;
+  blur_source.pixel(2, 2)[2] = 255;
+  auto legacy_gaussian = blur_source;
+  registry.apply("patchy.filters.gaussian_blur", legacy_gaussian);
+  CHECK(legacy_gaussian.pixel(2, 2)[0] == 36);
+  auto named_gaussian = blur_source;
+  registry.apply(registry.default_invocation("patchy.filters.gaussian_blur"), named_gaussian);
+  CHECK(named_gaussian.pixel(2, 2)[0] == 28);
+
+  auto clouds = registry.default_invocation("patchy.filters.clouds", patchy::RgbColor{240, 20, 10},
+                                            patchy::RgbColor{5, 15, 230});
+  auto cloud_pixels = solid_rgba(32, 24, 0, 0, 0, 0);
+  registry.apply(clouds, cloud_pixels);
+  bool saw_red_bias = false;
+  bool saw_blue_bias = false;
+  for (std::int32_t y = 0; y < cloud_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < cloud_pixels.width(); ++x) {
+      const auto* px = cloud_pixels.pixel(x, y);
+      CHECK(px[3] == 255);
+      saw_red_bias = saw_red_bias || px[0] > px[2];
+      saw_blue_bias = saw_blue_bias || px[2] > px[0];
+    }
+  }
+  CHECK(saw_red_bias);
+  CHECK(saw_blue_bias);
+
+  auto rgba_source = solid_rgba(24, 24, 220, 28, 24, 255);
+  auto box = registry.default_invocation("patchy.filters.box_blur");
+  box.parameters["radius"] = std::int64_t{4};
+  CHECK(registry.output_margin(box, 24, 24) == 4);
+  CHECK(registry.translation_invariant_support(box) == 4);
+  const patchy::Rect source_bounds{10, 20, 24, 24};
+  const auto grown = registry.render(box, rgba_source, source_bounds);
+  CHECK(grown.bounds.x == 6);
+  CHECK(grown.bounds.y == 16);
+  CHECK(grown.bounds.width == 32);
+  CHECK(grown.bounds.height == 32);
+  CHECK(grown.pixels.width() == 32);
+  const auto confined = registry.render(box, rgba_source, source_bounds, false);
+  CHECK(confined.bounds.x == source_bounds.x);
+  CHECK(confined.bounds.width == source_bounds.width);
+  CHECK(confined.pixels.width() == rgba_source.width());
+  auto motion = registry.default_invocation("patchy.filters.motion_blur");
+  motion.parameters["distance"] = std::int64_t{12};
+  CHECK(registry.translation_invariant_support(motion) == 13);
+  CHECK(!registry.translation_invariant_support(
+             registry.default_invocation("patchy.filters.clouds"))
+             .has_value());
+
+  const auto recipe_source = solid_rgb(4, 3, 20, 40, 80);
+  const auto invert = registry.default_invocation("patchy.filters.invert");
+  patchy::FilterRecipe twice{{patchy::FilterRecipeEntry{invert}, patchy::FilterRecipeEntry{invert}}};
+  auto twice_pixels = recipe_source;
+  registry.apply(twice, twice_pixels);
+  CHECK(std::equal(twice_pixels.data().begin(), twice_pixels.data().end(), recipe_source.data().begin()));
+  patchy::FilterRecipe disabled{{patchy::FilterRecipeEntry{invert, false}}};
+  auto disabled_pixels = recipe_source;
+  registry.apply(disabled, disabled_pixels);
+  CHECK(std::equal(disabled_pixels.data().begin(), disabled_pixels.data().end(), recipe_source.data().begin()));
+  patchy::FilterRecipe transparent{{patchy::FilterRecipeEntry{invert, true, 0.0}}};
+  auto transparent_pixels = recipe_source;
+  registry.apply(transparent, transparent_pixels);
+  CHECK(std::equal(transparent_pixels.data().begin(), transparent_pixels.data().end(),
+                   recipe_source.data().begin()));
+  patchy::FilterRecipe multiply{{patchy::FilterRecipeEntry{invert, true, 0.5,
+                                                           patchy::BlendMode::Multiply}}};
+  auto multiply_pixels = recipe_source;
+  registry.apply(multiply, multiply_pixels);
+  CHECK(!std::equal(multiply_pixels.data().begin(), multiply_pixels.data().end(),
+                    recipe_source.data().begin()));
+  patchy::FilterRecipe pass_through{{patchy::FilterRecipeEntry{invert, true, 1.0,
+                                                               patchy::BlendMode::PassThrough}}};
+  CHECK(!registry.supports(pass_through));
+  patchy::FilterRecipe bad_opacity{{patchy::FilterRecipeEntry{invert, true, 1.5}}};
+  CHECK(!registry.supports(bad_opacity));
+
+  bool saw_blur = false;
+  patchy::FilterProgress progress{[&](int completed, int, patchy::FilterProgressStage stage) {
+    saw_blur = saw_blur || stage == patchy::FilterProgressStage::Blurring;
+    return completed < 2;
+  }};
+  bool cancelled = false;
+  try {
+    auto pixels = solid_rgb(32, 32, 80, 120, 160);
+    registry.apply(registry.default_invocation("patchy.filters.gaussian_blur"), pixels, &progress);
+  } catch (const patchy::FilterCancelled&) {
+    cancelled = true;
+  }
+  CHECK(cancelled);
+  CHECK(saw_blur);
+}
+
+void filter_recipe_opacity_interpolates_rgba_results() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto invert = registry.default_invocation("patchy.filters.invert");
+
+  // A replacement filter that preserves alpha must not inflate that alpha when
+  // its recipe opacity is below 100%.
+  auto equal_alpha = solid_rgba(1, 1, 20, 40, 80, 128);
+  const patchy::FilterRecipe half_invert{
+      {patchy::FilterRecipeEntry{invert, true, 0.5, patchy::BlendMode::Normal}}};
+  registry.apply(half_invert, equal_alpha);
+  const auto* equal_px = equal_alpha.pixel(0, 0);
+  CHECK(equal_px[0] == 128);
+  CHECK(equal_px[1] == 128);
+  CHECK(equal_px[2] == 128);
+  CHECK(equal_px[3] == 128);
+
+  auto box = registry.default_invocation("patchy.filters.box_blur");
+  box.parameters["radius"] = std::int64_t{2};
+  const patchy::Rect bounds{10, 20, 7, 7};
+  const auto opaque_red = solid_rgba(7, 7, 220, 28, 24, 255);
+  const auto full_blur = registry.render(box, opaque_red, bounds);
+  const patchy::FilterRecipe half_blur{
+      {patchy::FilterRecipeEntry{box, true, 0.5, patchy::BlendMode::Normal}}};
+  const auto faded_blur = registry.render(half_blur, opaque_red, bounds);
+  CHECK(faded_blur.bounds.x == full_blur.bounds.x);
+  CHECK(faded_blur.bounds.y == full_blur.bounds.y);
+  CHECK(faded_blur.pixels.width() == full_blur.pixels.width());
+  const auto halo_y = full_blur.pixels.height() / 2;
+  const auto* full_halo = full_blur.pixels.pixel(0, halo_y);
+  const auto* faded_halo = faded_blur.pixels.pixel(0, halo_y);
+  CHECK(full_halo[3] > 0 && full_halo[3] < 255);
+  constexpr std::uint64_t kOpacityScale = 65535U;
+  constexpr std::uint64_t kHalfWeight = 32768U;
+  const auto expected_halo_alpha = static_cast<std::uint8_t>(
+      (static_cast<std::uint64_t>(full_halo[3]) * kHalfWeight + kOpacityScale / 2U) /
+      kOpacityScale);
+  CHECK(faded_halo[3] == expected_halo_alpha);
+  CHECK(faded_halo[0] == full_halo[0]);
+  CHECK(faded_halo[1] == full_halo[1]);
+  CHECK(faded_halo[2] == full_halo[2]);
+
+  // A non-Normal entry still keeps the filtered color on source-only expanded
+  // pixels instead of blending that halo against transparent black.
+  const patchy::FilterRecipe multiply_blur{
+      {patchy::FilterRecipeEntry{box, true, 0.5, patchy::BlendMode::Multiply}}};
+  const auto multiplied_blur = registry.render(multiply_blur, opaque_red, bounds);
+  const auto* multiplied_halo = multiplied_blur.pixels.pixel(0, halo_y);
+  CHECK(multiplied_halo[3] == expected_halo_alpha);
+  CHECK(multiplied_halo[0] == full_halo[0]);
+  CHECK(multiplied_halo[1] == full_halo[1]);
+  CHECK(multiplied_halo[2] == full_halo[2]);
+
+  // When the filter itself changes coverage, opacity interpolates toward that
+  // replacement alpha rather than compositing it over the old coverage.
+  patchy::PixelBuffer alpha_source(3, 1, patchy::PixelFormat::rgba8());
+  alpha_source.clear(0);
+  auto* center = alpha_source.pixel(1, 0);
+  center[0] = 200;
+  center[1] = 40;
+  center[2] = 20;
+  center[3] = 255;
+  auto radius_one = registry.default_invocation("patchy.filters.box_blur");
+  auto filtered_alpha = alpha_source;
+  registry.apply(radius_one, filtered_alpha);
+  CHECK(filtered_alpha.pixel(1, 0)[3] == 85);
+  const patchy::FilterRecipe half_alpha{
+      {patchy::FilterRecipeEntry{radius_one, true, 0.5, patchy::BlendMode::Normal}}};
+  auto interpolated_alpha = alpha_source;
+  registry.apply(half_alpha, interpolated_alpha);
+  const auto* interpolated_center = interpolated_alpha.pixel(1, 0);
+  CHECK(interpolated_center[0] == 200);
+  CHECK(interpolated_center[1] == 40);
+  CHECK(interpolated_center[2] == 20);
+  CHECK(interpolated_center[3] == 170);
+}
+
 void bmp_reader_rejects_invalid_headers() {
   CHECK(!patchy::bmp::DocumentIo::can_read({}));
   const std::vector<std::uint8_t> not_bmp{'N', 'O'};
@@ -19038,6 +19393,13 @@ int main() {
       {"layer_merge_visible_creates_flattened_artifact", layer_merge_visible_creates_flattened_artifact},
       {"filters_register_and_apply", filters_register_and_apply},
       {"filters_builtin_effects_apply_and_write_artifacts", filters_builtin_effects_apply_and_write_artifacts},
+      {"filter_catalog_defines_stable_named_contracts", filter_catalog_defines_stable_named_contracts},
+      {"filter_invocations_normalize_scale_and_reject_bad_data",
+       filter_invocations_normalize_scale_and_reject_bad_data},
+      {"filter_named_engine_recipes_bounds_colors_and_legacy_stay_distinct",
+       filter_named_engine_recipes_bounds_colors_and_legacy_stay_distinct},
+      {"filter_recipe_opacity_interpolates_rgba_results",
+       filter_recipe_opacity_interpolates_rgba_results},
       {"bmp_reader_rejects_invalid_headers", bmp_reader_rejects_invalid_headers},
       {"bmp_indexed_reads_2_4_8_bit_palettes_and_rows", bmp_indexed_reads_2_4_8_bit_palettes_and_rows},
       {"bmp_exact_indexed_writes_and_round_trips", bmp_exact_indexed_writes_and_round_trips},

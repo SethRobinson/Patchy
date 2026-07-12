@@ -386,13 +386,11 @@ FilterProgress progress_dialog_filter_progress(QProgressDialog& progress,
   auto last_progress_value = std::make_shared<int>(-1);
   return FilterProgress{[&progress, label_text = std::move(label_text), event_flags,
                          tick_processing = std::move(tick_processing),
-                         last_progress_value](int completed, int total, const QString& detail) {
+                         last_progress_value](int completed, int total, FilterProgressStage stage) {
     const auto value = total <= 0 ? 100 : std::clamp((completed * 100) / total, 0, 100);
     if (value != *last_progress_value) {
       progress.setValue(value);
-      if (!detail.isEmpty()) {
-        progress.setLabelText(label_text(detail));
-      }
+      progress.setLabelText(label_text(filter_progress_stage_text(stage)));
       *last_progress_value = value;
       QApplication::processEvents(event_flags);
     }
@@ -446,13 +444,19 @@ void MainWindow::apply_filter(const QString& identifier) {
     // filters grow the layer, so each swap must repaint the union of the previous
     // and new bounds to erase any stale halo left behind when the layer shrinks.
     auto last_preview_bounds = std::make_shared<Rect>(bounds);
-    const auto foreground = canvas_->primary_color();
-    const auto background = canvas_->secondary_color();
+    const auto foreground_color = canvas_->primary_color();
+    const auto background_color = canvas_->secondary_color();
+    const auto to_rgb = [](const QColor& color) {
+      return RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                      static_cast<std::uint8_t>(color.blue())};
+    };
+    auto initial_invocation = filters_.default_invocation(identifier_text, to_rgb(foreground_color),
+                                                          to_rgb(background_color));
     auto preview_registry = std::make_shared<FilterRegistry>(filters_);
     auto preview_state = std::make_shared<AsyncPixelPreviewState<FilterPreviewSettings>>();
     preview_state->start =
-        [this, preview_state, active, original_pixels, last_preview_bounds, selection, bounds, identifier, foreground,
-         background, preview_registry](const FilterPreviewSettings& settings) {
+        [this, preview_state, active, original_pixels, last_preview_bounds, selection, bounds,
+         preview_registry](const FilterPreviewSettings& settings) {
           if (!settings.preview_enabled) {
             preview_state->pending.reset();
             ++preview_state->generation;
@@ -472,12 +476,12 @@ void MainWindow::apply_filter(const QString& identifier) {
           auto* app = QCoreApplication::instance();
           auto window = QPointer<MainWindow>(this);
           std::thread([app, window, preview_state, generation, original_pixels, result_bounds, last_preview_bounds,
-                       selection, bounds, identifier, settings, foreground, background, preview_registry, active] {
+                       selection, bounds, settings, preview_registry, active] {
             auto result = std::make_shared<PixelBuffer>();
             auto error = std::make_shared<QString>();
             try {
-              *result = build_filter_preview_pixels(*original_pixels, selection, bounds, identifier, *preview_registry,
-                                                    settings, foreground, background, nullptr, &*result_bounds);
+              *result = build_filter_preview_pixels(*original_pixels, selection, bounds, *preview_registry, settings,
+                                                    nullptr, &*result_bounds);
             } catch (const std::exception& caught) {
               *error = QString::fromUtf8(caught.what());
             }
@@ -520,7 +524,7 @@ void MainWindow::apply_filter(const QString& identifier) {
     };
 
     auto preview_edit_lock = lock_preview_dialog_edits();
-    const auto settings = request_filter_settings(this, dialog_spec, preview_changed);
+    const auto settings = request_filter_settings(this, dialog_spec, preview_changed, std::move(initial_invocation));
     close_async_pixel_preview(preview_state);
     layer = doc.find_layer(*active);
     if (layer == nullptr) {
@@ -550,13 +554,11 @@ void MainWindow::apply_filter(const QString& identifier) {
     remember_dialog_position(progress);
     progress.setValue(0);
     int last_progress_value = -1;
-    FilterProgress filter_progress{[&](int completed, int total, const QString& detail) {
+    FilterProgress filter_progress{[&](int completed, int total, FilterProgressStage stage) {
       const auto value = total <= 0 ? 100 : std::clamp((completed * 100) / total, 0, 100);
       if (value != last_progress_value) {
         progress.setValue(value);
-        if (!detail.isEmpty()) {
-          progress.setLabelText(tr("Applying %1...\n%2").arg(display_name, detail));
-        }
+        progress.setLabelText(tr("Applying %1...\n%2").arg(display_name, filter_progress_stage_text(stage)));
         last_progress_value = value;
         QApplication::processEvents();
       }
@@ -569,9 +571,9 @@ void MainWindow::apply_filter(const QString& identifier) {
     PixelBuffer final_pixels;
     Rect final_bounds = bounds;
     try {
-      final_pixels = build_filter_preview_pixels(*original_pixels, selection, bounds, identifier, filters_,
-                                                 FilterPreviewSettings{true, *settings}, foreground, background,
-                                                 &filter_progress, &final_bounds);
+      final_pixels = build_filter_preview_pixels(*original_pixels, selection, bounds, filters_,
+                                                 FilterPreviewSettings{true, *settings}, &filter_progress,
+                                                 &final_bounds);
       progress.setValue(100);
     } catch (const FilterCancelled&) {
       layer = doc.find_layer(*active);

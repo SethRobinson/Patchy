@@ -11189,56 +11189,39 @@ void MainWindow::create_actions() {
   auto* filter_stylize_menu = add_filter_submenu("filterStylizeMenu", "Stylize");
   auto* filter_render_menu = add_filter_submenu("filterRenderMenu", "Render");
   const auto menu_for_filter = [filter_menu, filter_photo_looks_menu, filter_blur_menu, filter_sharpen_menu,
-                               filter_distort_menu, filter_noise_menu, filter_pixelate_menu, filter_stylize_menu,
-                               filter_render_menu](const QString& identifier) {
-    if (identifier == QStringLiteral("patchy.filters.soft_glow") ||
-        identifier == QStringLiteral("patchy.filters.punchy_color") ||
-        identifier == QStringLiteral("patchy.filters.noir") ||
-        identifier == QStringLiteral("patchy.filters.cinematic_matte") ||
-        identifier == QStringLiteral("patchy.filters.vintage_fade") ||
-        identifier == QStringLiteral("patchy.filters.sepia") ||
-        identifier == QStringLiteral("patchy.filters.vignette")) {
-      return filter_photo_looks_menu;
-    }
-    if (identifier == QStringLiteral("patchy.filters.box_blur") ||
-        identifier == QStringLiteral("patchy.filters.gaussian_blur") ||
-        identifier == QStringLiteral("patchy.filters.motion_blur") ||
-        identifier == QStringLiteral("patchy.filters.radial_blur")) {
-      return filter_blur_menu;
-    }
-    if (identifier == QStringLiteral("patchy.filters.sharpen") ||
-        identifier == QStringLiteral("patchy.filters.unsharp_mask")) {
-      return filter_sharpen_menu;
-    }
-    if (identifier == QStringLiteral("patchy.filters.twirl") || identifier == QStringLiteral("patchy.filters.wave") ||
-        identifier == QStringLiteral("patchy.filters.pinch_bloat")) {
-      return filter_distort_menu;
-    }
-    if (identifier == QStringLiteral("patchy.filters.film_grain")) {
-      return filter_noise_menu;
-    }
-    if (identifier == QStringLiteral("patchy.filters.pixelate") ||
-        identifier == QStringLiteral("patchy.filters.color_halftone")) {
-      return filter_pixelate_menu;
-    }
-    if (identifier == QStringLiteral("patchy.filters.edge_detect") ||
-        identifier == QStringLiteral("patchy.filters.emboss") ||
-        identifier == QStringLiteral("patchy.filters.glowing_edges")) {
-      return filter_stylize_menu;
-    }
-    if (identifier == QStringLiteral("patchy.filters.clouds")) {
-      return filter_render_menu;
+                                filter_distort_menu, filter_noise_menu, filter_pixelate_menu, filter_stylize_menu,
+                                filter_render_menu](FilterCategory category) {
+    switch (category) {
+      case FilterCategory::PhotoLooks:
+        return filter_photo_looks_menu;
+      case FilterCategory::Blur:
+        return filter_blur_menu;
+      case FilterCategory::Sharpen:
+        return filter_sharpen_menu;
+      case FilterCategory::Distort:
+        return filter_distort_menu;
+      case FilterCategory::Noise:
+        return filter_noise_menu;
+      case FilterCategory::Pixelate:
+        return filter_pixelate_menu;
+      case FilterCategory::Stylize:
+        return filter_stylize_menu;
+      case FilterCategory::Render:
+        return filter_render_menu;
+      case FilterCategory::Uncategorized:
+      case FilterCategory::Adjustment:
+        return filter_menu;
     }
     return filter_menu;
   };
 
   for (const auto& filter : filters_.filters()) {
     const auto identifier = QString::fromStdString(filter.identifier);
-    if (is_adjustment_only_filter(identifier)) {
+    if (is_adjustment_only_filter(filter)) {
       continue;
     }
     const auto display_name = filter_display_name(filter);
-    auto* action = menu_for_filter(identifier)->addAction(display_name);
+    auto* action = menu_for_filter(filter.catalog.category)->addAction(display_name);
     action->setObjectName(filter_action_object_name(identifier));
     action->setProperty("patchy.channelViewBlocked", true);
     action->setIcon(simple_icon(display_name.left(3).toUpper()));

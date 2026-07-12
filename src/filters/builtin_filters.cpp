@@ -1,3 +1,4 @@
+#include "filters/filter_engine.hpp"
 #include "filters/filter_registry.hpp"
 
 #include <algorithm>
@@ -6,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace patchy {
 
@@ -907,36 +909,39 @@ void vintage_fade(PixelBuffer& pixels) {
 }  // namespace
 
 void register_builtin_filters(FilterRegistry& registry) {
-  registry.register_filter({"patchy.filters.invert", "Invert", invert});
-  registry.register_filter({"patchy.filters.brightness_contrast", "Brightness/Contrast", brightness_contrast});
-  registry.register_filter({"patchy.filters.grayscale", "Grayscale", grayscale});
-  registry.register_filter({"patchy.filters.desaturate", "Desaturate", desaturate});
-  registry.register_filter({"patchy.filters.auto_contrast", "Auto Contrast", auto_contrast});
-  registry.register_filter({"patchy.filters.soft_glow", "Soft Glow", soft_glow});
-  registry.register_filter({"patchy.filters.punchy_color", "Punchy Color", punchy_color});
-  registry.register_filter({"patchy.filters.noir", "Noir", noir});
-  registry.register_filter({"patchy.filters.cinematic_matte", "Cinematic Matte", cinematic_matte});
-  registry.register_filter({"patchy.filters.vintage_fade", "Vintage Fade", vintage_fade});
-  registry.register_filter({"patchy.filters.sepia", "Vintage Sepia", sepia});
-  registry.register_filter({"patchy.filters.threshold", "Threshold", threshold});
-  registry.register_filter({"patchy.filters.posterize", "Posterize", posterize});
-  registry.register_filter({"patchy.filters.box_blur", "Box Blur", box_blur});
-  registry.register_filter({"patchy.filters.sharpen", "Sharpen", sharpen});
-  registry.register_filter({"patchy.filters.unsharp_mask", "Unsharp Mask", unsharp_mask});
-  registry.register_filter({"patchy.filters.gaussian_blur", "Gaussian Blur", gaussian_blur});
-  registry.register_filter({"patchy.filters.motion_blur", "Motion Blur", motion_blur});
-  registry.register_filter({"patchy.filters.radial_blur", "Radial Blur", radial_blur});
-  registry.register_filter({"patchy.filters.edge_detect", "Edge Detect", edge_detect});
-  registry.register_filter({"patchy.filters.emboss", "Emboss", emboss});
-  registry.register_filter({"patchy.filters.glowing_edges", "Glowing Edges", glowing_edges});
-  registry.register_filter({"patchy.filters.twirl", "Twirl", twirl});
-  registry.register_filter({"patchy.filters.wave", "Wave", wave});
-  registry.register_filter({"patchy.filters.pinch_bloat", "Pinch/Bloat", pinch_bloat});
-  registry.register_filter({"patchy.filters.clouds", "Clouds", clouds});
-  registry.register_filter({"patchy.filters.pixelate", "Pixel Mosaic", pixelate});
-  registry.register_filter({"patchy.filters.color_halftone", "Color Halftone", color_halftone});
-  registry.register_filter({"patchy.filters.film_grain", "Analog Grain", film_grain});
-  registry.register_filter({"patchy.filters.vignette", "Lens Vignette", vignette});
+  const auto add = [&registry](const char* identifier, const char* display_name, PixelFilterFn apply) {
+    registry.register_filter({identifier, display_name, std::move(apply), builtin_filter_catalog(identifier)});
+  };
+  add("patchy.filters.invert", "Invert", invert);
+  add("patchy.filters.brightness_contrast", "Brightness/Contrast", brightness_contrast);
+  add("patchy.filters.grayscale", "Grayscale", grayscale);
+  add("patchy.filters.desaturate", "Desaturate", desaturate);
+  add("patchy.filters.auto_contrast", "Auto Contrast", auto_contrast);
+  add("patchy.filters.soft_glow", "Soft Glow", soft_glow);
+  add("patchy.filters.punchy_color", "Punchy Color", punchy_color);
+  add("patchy.filters.noir", "Noir", noir);
+  add("patchy.filters.cinematic_matte", "Cinematic Matte", cinematic_matte);
+  add("patchy.filters.vintage_fade", "Vintage Fade", vintage_fade);
+  add("patchy.filters.sepia", "Vintage Sepia", sepia);
+  add("patchy.filters.threshold", "Threshold", threshold);
+  add("patchy.filters.posterize", "Posterize", posterize);
+  add("patchy.filters.box_blur", "Box Blur", box_blur);
+  add("patchy.filters.sharpen", "Sharpen", sharpen);
+  add("patchy.filters.unsharp_mask", "Unsharp Mask", unsharp_mask);
+  add("patchy.filters.gaussian_blur", "Gaussian Blur", gaussian_blur);
+  add("patchy.filters.motion_blur", "Motion Blur", motion_blur);
+  add("patchy.filters.radial_blur", "Radial Blur", radial_blur);
+  add("patchy.filters.edge_detect", "Edge Detect", edge_detect);
+  add("patchy.filters.emboss", "Emboss", emboss);
+  add("patchy.filters.glowing_edges", "Glowing Edges", glowing_edges);
+  add("patchy.filters.twirl", "Twirl", twirl);
+  add("patchy.filters.wave", "Wave", wave);
+  add("patchy.filters.pinch_bloat", "Pinch/Bloat", pinch_bloat);
+  add("patchy.filters.clouds", "Clouds", clouds);
+  add("patchy.filters.pixelate", "Pixel Mosaic", pixelate);
+  add("patchy.filters.color_halftone", "Color Halftone", color_halftone);
+  add("patchy.filters.film_grain", "Analog Grain", film_grain);
+  add("patchy.filters.vignette", "Lens Vignette", vignette);
 }
 
 }  // namespace patchy

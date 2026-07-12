@@ -983,7 +983,8 @@ private:
   }
 
   // The commit tail of MainWindow::apply_filter, without the settings dialog.
-  void apply_filter_direct(const QString& identifier, const std::vector<int>& values, const QString& undo_label) {
+  void apply_filter_direct(const QString& identifier, const FilterParameterMap& parameters,
+                           const QString& undo_label) {
     auto active = doc().active_layer_id();
     if (!active.has_value()) {
       return;
@@ -995,11 +996,21 @@ private:
     const auto selection = canvas()->selected_document_region();
     const auto bounds = layer->bounds();
     const auto original = layer->pixels();
+    const auto primary = canvas()->primary_color();
+    const auto secondary = canvas()->secondary_color();
+    auto invocation = w.filters_.default_invocation(
+        identifier.toStdString(),
+        RgbColor{static_cast<std::uint8_t>(primary.red()), static_cast<std::uint8_t>(primary.green()),
+                 static_cast<std::uint8_t>(primary.blue())},
+        RgbColor{static_cast<std::uint8_t>(secondary.red()), static_cast<std::uint8_t>(secondary.green()),
+                 static_cast<std::uint8_t>(secondary.blue())});
+    for (const auto& [key, value] : parameters) {
+      invocation.parameters[key] = value;
+    }
     Rect final_bounds = bounds;
-    auto final_pixels =
-        build_filter_preview_pixels(original, selection, bounds, identifier, w.filters_,
-                                    FilterPreviewSettings{true, values}, canvas()->primary_color(),
-                                    canvas()->secondary_color(), nullptr, &final_bounds);
+    auto final_pixels = build_filter_preview_pixels(
+        original, selection, bounds, w.filters_, FilterPreviewSettings{true, std::move(invocation)}, nullptr,
+        &final_bounds);
     w.push_undo_snapshot(undo_label);
     layer = doc().find_layer(*active);
     if (layer == nullptr) {
@@ -1269,8 +1280,13 @@ void StressTestRunner::phase_paint_hardware() {
     wall_texture_id_ = add_named_layer(QStringLiteral("Wall texture"));
     use_solid_fill_settings();
     w.fill_active_layer_with_color(QColor(128, 128, 128), MainWindow::tr("Texture base"));
-    apply_filter_direct(QStringLiteral("patchy.filters.clouds"),
-                        {std::clamp(size_ / 16, 12, 512), 5, 45, 7}, QStringLiteral("Clouds"));
+    apply_filter_direct(
+        QStringLiteral("patchy.filters.clouds"),
+        {{"scale", std::int64_t{std::clamp(size_ / 16, 12, 512)}},
+         {"detail", std::int64_t{5}},
+         {"contrast", std::int64_t{45}},
+         {"seed", std::int64_t{7}}},
+        QStringLiteral("Clouds"));
     set_layer_blend_mode(BlendMode::Multiply);
     set_layer_opacity_percent(24);
   }, canvas_megapixels());
@@ -1284,7 +1300,8 @@ void StressTestRunner::phase_paint_hardware() {
     set_linear_gradient({gradient_stop(0.0F, QColor(134, 96, 62)), gradient_stop(1.0F, QColor(74, 50, 34))}, 60);
     drag(pt(0.5, 0.70), pt(0.5, 1.0), motion_steps(12));
     canvas()->clear_selection();
-    apply_filter_direct(QStringLiteral("patchy.filters.film_grain"), {18}, QStringLiteral("Desk grain"));
+    apply_filter_direct(QStringLiteral("patchy.filters.film_grain"), {{"amount", std::int64_t{18}}},
+                        QStringLiteral("Desk grain"));
   }, canvas_megapixels() * 0.3);
 
   // 05: CRT monitor case (bevel styled).
@@ -1408,7 +1425,8 @@ void StressTestRunner::phase_paint_hardware() {
     set_foreground(QColor(236, 236, 232));
     drag_path({pt(0.678, 0.655), pt(0.670, 0.615), pt(0.684, 0.575), pt(0.674, 0.540)}, motion_steps(10));
     drag_path({pt(0.690, 0.650), pt(0.697, 0.605), pt(0.688, 0.565)}, motion_steps(10));
-    apply_filter_direct(QStringLiteral("patchy.filters.twirl"), {35}, QStringLiteral("Steam twirl"));
+    apply_filter_direct(QStringLiteral("patchy.filters.twirl"), {{"angle", std::int64_t{35}}},
+                        QStringLiteral("Steam twirl"));
     set_layer_opacity_percent(70);
     tighten_layer_to_opaque(mug_id_);
     tighten_layer_to_opaque(steam_id_);
@@ -1704,8 +1722,9 @@ void StressTestRunner::phase_filters() {
     }
     w.activate_tool(CanvasTool::EllipticalMarquee);
     drag(pt(0.04, 0.72), pt(0.55, 0.99), motion_steps(10));
-    apply_filter_direct(QStringLiteral("patchy.filters.gaussian_blur"),
-                        {std::clamp(size_ / 1024 * 3, 1, 12)}, QStringLiteral("Selection blur"));
+    apply_filter_direct(
+        QStringLiteral("patchy.filters.gaussian_blur"),
+        {{"radius", std::int64_t{std::clamp(size_ / 1024 * 3, 1, 12)}}}, QStringLiteral("Selection blur"));
     canvas()->clear_selection();
   }, canvas_megapixels() * 0.2);
 
@@ -1714,7 +1733,8 @@ void StressTestRunner::phase_filters() {
     add_named_layer(QStringLiteral("Vignette"));
     use_solid_fill_settings();
     w.fill_active_layer_with_color(QColor(255, 255, 255), MainWindow::tr("Vignette base"));
-    apply_filter_direct(QStringLiteral("patchy.filters.vignette"), {70}, QStringLiteral("Vignette"));
+    apply_filter_direct(QStringLiteral("patchy.filters.vignette"), {{"strength", std::int64_t{70}}},
+                        QStringLiteral("Vignette"));
     set_layer_blend_mode(BlendMode::Multiply);
     set_layer_opacity_percent(45);
   }, canvas_megapixels());
@@ -1724,7 +1744,8 @@ void StressTestRunner::phase_filters() {
     add_named_layer(QStringLiteral("Grain"));
     use_solid_fill_settings();
     w.fill_active_layer_with_color(QColor(128, 128, 128), MainWindow::tr("Grain base"));
-    apply_filter_direct(QStringLiteral("patchy.filters.film_grain"), {55}, QStringLiteral("Grain"));
+    apply_filter_direct(QStringLiteral("patchy.filters.film_grain"), {{"amount", std::int64_t{55}}},
+                        QStringLiteral("Grain"));
     set_layer_blend_mode(BlendMode::Overlay);
     set_layer_opacity_percent(18);
   }, canvas_megapixels());

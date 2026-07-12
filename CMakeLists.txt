@@ -151,6 +151,7 @@ patchy_configure_target(patchy_plugins)
 
 add_library(patchy_filters
   src/filters/builtin_filters.cpp
+  src/filters/filter_engine.cpp
   src/filters/filter_registry.cpp
 )
 target_link_libraries(patchy_filters PUBLIC patchy_core)

@@ -12,7 +12,7 @@
 
 #include <functional>
 #include <optional>
-#include <stdexcept>
+#include <string>
 #include <vector>
 
 class QWidget;
@@ -74,40 +74,46 @@ struct ColorBalanceSettings {
 };
 
 struct FilterControlSpec {
+  // The first six fields retain the legacy aggregate shape used by existing UI
+  // tests and helpers. Catalog-generated specs also fill the typed fields below.
   QString label;
   QString object_name;
   int minimum{0};
   int maximum{100};
   int value{100};
   QString suffix;
+  std::string parameter_key;
+  FilterParameterKind kind{FilterParameterKind::Integer};
+  FilterParameterValue default_value{std::int64_t{100}};
+  std::optional<double> typed_minimum;
+  std::optional<double> typed_maximum;
+  std::optional<double> step;
+  std::vector<FilterParameterOption> options;
 };
 
 struct FilterDialogSpec {
   QString identifier;
   QString display_name;
   std::vector<FilterControlSpec> controls;
+  std::uint32_t schema_version{1};
 };
 
 struct FilterPreviewSettings {
   bool preview_enabled{true};
-  std::vector<int> values;
+  FilterInvocation invocation;
 };
 
-struct FilterProgress {
-  std::function<bool(int completed, int total, const QString& detail)> update;
-};
-
-class FilterCancelled final : public std::runtime_error {
-public:
-  FilterCancelled();
-};
+using FilterProgress = ::patchy::FilterProgress;
+using FilterCancelled = ::patchy::FilterCancelled;
 
 [[nodiscard]] QString filter_action_object_name(const QString& identifier);
 [[nodiscard]] QString filter_display_name(const FilterDefinition& filter);
-[[nodiscard]] bool is_adjustment_only_filter(const QString& identifier);
+[[nodiscard]] QString filter_progress_stage_text(FilterProgressStage stage);
+[[nodiscard]] bool is_adjustment_only_filter(const FilterDefinition& filter);
 [[nodiscard]] FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter);
-[[nodiscard]] std::optional<std::vector<int>> request_filter_settings(
-    QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed);
+[[nodiscard]] std::optional<FilterInvocation> request_filter_settings(
+    QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed,
+    FilterInvocation initial = {});
 [[nodiscard]] std::optional<LevelsSettings> request_levels_settings(
     QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {},
     LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr);
@@ -120,17 +126,13 @@ public:
 [[nodiscard]] std::optional<ColorBalanceSettings> request_color_balance_settings(
     QWidget* parent, std::function<void(bool, const ColorBalanceSettings&)> preview_changed = {},
     ColorBalanceSettings initial = {});
-void apply_filter_with_settings(const QString& identifier, const FilterRegistry& registry, PixelBuffer& pixels,
-                                const std::vector<int>& values, QColor foreground = QColor(Qt::black),
-                                QColor background = QColor(Qt::white), const FilterProgress* progress = nullptr);
 // When a blur-family filter grows the layer (see build_filter_preview_pixels), the
 // returned buffer is larger than `original` and `result_bounds`, if provided,
 // receives the new document-space bounds (origin shifted, size grown). For other
 // filters the buffer keeps its size and `result_bounds` is set to `bounds`.
 [[nodiscard]] PixelBuffer build_filter_preview_pixels(
-    const PixelBuffer& original, const QRegion& selection, Rect bounds, const QString& identifier,
-    const FilterRegistry& registry, const FilterPreviewSettings& settings, QColor foreground = QColor(Qt::black),
-    QColor background = QColor(Qt::white), const FilterProgress* progress = nullptr, Rect* result_bounds = nullptr);
+    const PixelBuffer& original, const QRegion& selection, Rect bounds, const FilterRegistry& registry,
+    const FilterPreviewSettings& settings, const FilterProgress* progress = nullptr, Rect* result_bounds = nullptr);
 [[nodiscard]] bool pixel_buffers_equal(const PixelBuffer& lhs, const PixelBuffer& rhs);
 [[nodiscard]] bool editable_rgb8_layer(const Layer* layer);
 void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings,
