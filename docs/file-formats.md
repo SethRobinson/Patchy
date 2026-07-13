@@ -10,7 +10,7 @@ Deep reference for file-format work. The cross-cutting rules (how to add a forma
 
 ## Per-format catalogue
 
-All read AND write; modules in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).
+All read AND write (camera raw below is the one read-only entry); modules in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).
 
 - **PSD/PSB** — see the PSB section below and docs/ps-compat.md.
 - **BMP** — including 32-bit `BI_RGB`/compression 0, whose 4th byte Patchy keeps (feeds document-alpha import below).
@@ -21,6 +21,59 @@ All read AND write; modules in src/formats/, Qt-free, explicit-endian via `binar
 - **PCX** — 8-bit indexed EOF-palette + 24-bit 3-plane RLE.
 - **ILBM/PBM** — ByteRun1 via the shared `psd::decode_packbits`/`encode_packbits_row` (the encoder was promoted from psd_document_io.cpp to psd_descriptor.{hpp,cpp}); EHB supported, HAM rejected, writer emits planar ILBM with masking type 2 for transparency.
 - PNG/JPEG/TIFF/WebP stay on Qt.
+- **Camera raw** — read-only; see the section below.
+
+## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
+
+Backed by vendored LibRaw 0.22.1 (`src/formats/libraw/`, static target `patchy_libraw`).
+Licensing and build rules live in the CMake comment and NOTICE-THIRD-PARTY.md: Patchy elects
+CDDL-1.0 from LibRaw's LGPL/CDDL dual license, only the stock tarball may be vendored (the
+separate demosaic-pack repos are GPL), and the build defines neither USE_JPEG, USE_ZLIB, nor
+LIBRAW_NOTHREADS — no new transitive deps, per-instance decoder state (two sessions may run
+on different threads), and lossy-/deflate-compressed DNG variants fail with a clear message.
+
+- **`formats/raw_document_io.{hpp,cpp}`** is the Qt-free wrapper (the public header is
+  LibRaw-free; `patchy_libraw` links PRIVATE into `patchy_formats`). `DevelopParams` maps to
+  LibRaw's output params (as-shot/auto/custom white balance, exposure EV within LibRaw's
+  -2..+3 supported range, highlight clip/unclip/blend/rebuild, auto-brighten + brightness,
+  demosaic algorithm, wavelet + FBDD noise reduction, half-size). Output is always 8-bit
+  sRGB (sRGB gamma explicitly set; LibRaw's default is BT.709) because the editing pipeline
+  is 8-bit — every raw-precision decision happens in this develop step. `DevelopSession`
+  keeps the unpacked sensor data so previews re-run `dcraw_process` without re-decoding
+  (LibRaw's documented multirender pattern); `read_camera_raw` is the one-shot headless
+  path. All decoding goes through `open_buffer` (never file paths, avoiding Windows
+  wide-path issues).
+- **`formats/raw_white_balance.{hpp,cpp}`** converts temperature/tint to camera-space
+  multipliers through the file's `cam_xyz` matrix (Planckian locus below 4000 K, CIE
+  daylight above; tint = Duv offset, ~ACR slider scale) and back (bisection) so As Shot
+  displays real kelvin values. Files without a usable matrix fall back to treating the
+  camera as sRGB. Plain double math only — but LibRaw's own float pipeline is NOT
+  byte-stable across toolchains, so raw tests assert statistics, never hashes.
+- **The develop dialog** (`src/ui/raw_develop_dialog.{hpp,cpp}`) intercepts raw extensions
+  in `open_document_path` when `imports/showRawDevelopDialog` (default true; Preferences
+  checkbox) is set; Cancel aborts the open. Previews always develop at HALF size on a
+  worker thread (one in-flight develop, one-deep latest-wins queue — the filter-gallery
+  async pattern); the embedded JPEG thumbnail paints first. Accept develops at full
+  resolution through the same serialized state machine and returns the finished document.
+  Last-used settings persist under the `imports/rawDevelop*` keys (persisted contract —
+  never rename). With the preference off (and for every headless path: tests, CLI opens,
+  linked smart-object refresh) the format-registry handler develops camera-JPEG-like
+  defaults: as-shot WB, auto-brighten, AHD, sRGB.
+- **Raws are read-only sources**: the registry handler has no writer and the
+  `file_format_entries()` row has empty save_extensions, so open dialogs list raws but
+  Save As/Export never do. `save_document()` routes a raw-backed session to Save As
+  defaulting `<basename>.psd` (`is_read_only_source_extension`, next to the layered-flat
+  guard). The session opens clean with its real path (Photoshop parity: the raw on disk is
+  untouched source material).
+- **Extension list** lives in `raw::camera_raw_extensions()` (single source of truth for
+  the registry and the dialog filter); deliberately excludes ambiguous `.raw`, and
+  TIFF-based raws saved as `.tif` stay with Qt's TIFF path.
+- **Tests**: `tests/synthetic_dng.hpp` builds a minimal uncompressed 16-bit Bayer DNG
+  byte-by-byte (sRGB ColorMatrix1, AsShotNeutral (1,1,1) = D65) shared by the core develop
+  tests and the `ui_raw_*` dialog tests. Real camera samples (CC0, raw.pixls.us) live in
+  untracked `local-test-fixtures/raw/` behind `raw_decodes_real_camera_samples_if_available`
+  (remotes [SKIP]). Known gaps that surface as clean errors: lossy/deflate DNG (no
+  jpeg/zlib), JPEG-XL DNG 1.7, Nikon Z8/Z9 High Efficiency NEF.
 
 ## Layered documents and flat formats (the Photoshop-style save guard)
 

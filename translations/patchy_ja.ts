@@ -195,6 +195,202 @@
         <translation>Amiga IFF 画像</translation>
     </message>
     <message>
+        <source>Camera Raw Image</source>
+        <translation>カメラ Raw 画像</translation>
+    </message>
+    <message>
+        <source>Develop Raw - %1</source>
+        <translation>Raw 現像 - %1</translation>
+    </message>
+    <message>
+        <source>White Balance</source>
+        <translation>ホワイトバランス</translation>
+    </message>
+    <message>
+        <source>As Shot</source>
+        <translation>撮影時の設定</translation>
+    </message>
+    <message>
+        <source>Daylight</source>
+        <translation>昼光</translation>
+    </message>
+    <message>
+        <source>Cloudy</source>
+        <translation>曇天</translation>
+    </message>
+    <message>
+        <source>Shade</source>
+        <translation>日陰</translation>
+    </message>
+    <message>
+        <source>Tungsten</source>
+        <translation>白熱灯</translation>
+    </message>
+    <message>
+        <source>Fluorescent</source>
+        <translation>蛍光灯</translation>
+    </message>
+    <message>
+        <source>Flash</source>
+        <translation>フラッシュ</translation>
+    </message>
+    <message>
+        <source>Temperature:</source>
+        <translation>色温度:</translation>
+    </message>
+    <message>
+        <source>Tint:</source>
+        <translation>色かぶり補正:</translation>
+    </message>
+    <message>
+        <source>Exposure</source>
+        <translation>露出</translation>
+    </message>
+    <message>
+        <source>Exposure:</source>
+        <translation>露出:</translation>
+    </message>
+    <message>
+        <source>%1 EV</source>
+        <translation>%1 EV</translation>
+    </message>
+    <message>
+        <source>Highlights:</source>
+        <translation>ハイライト:</translation>
+    </message>
+    <message>
+        <source>Clip to white</source>
+        <translation>白にクリップ</translation>
+    </message>
+    <message>
+        <source>Unclipped</source>
+        <translation>クリップしない</translation>
+    </message>
+    <message>
+        <source>Blend</source>
+        <translation>ブレンド</translation>
+    </message>
+    <message>
+        <source>Rebuild detail</source>
+        <translation>ディテールを復元</translation>
+    </message>
+    <message>
+        <source>Auto brighten</source>
+        <translation>自動明るさ補正</translation>
+    </message>
+    <message>
+        <source>Brightness:</source>
+        <translation>明るさ:</translation>
+    </message>
+    <message>
+        <source>Demosaic:</source>
+        <translation>デモザイク:</translation>
+    </message>
+    <message>
+        <source>AHD (default)</source>
+        <translation>AHD (標準)</translation>
+    </message>
+    <message>
+        <source>DHT (good for high ISO)</source>
+        <translation>DHT (高感度向き)</translation>
+    </message>
+    <message>
+        <source>Modified AHD</source>
+        <translation>改良型 AHD</translation>
+    </message>
+    <message>
+        <source>DCB</source>
+        <translation>DCB</translation>
+    </message>
+    <message>
+        <source>PPG</source>
+        <translation>PPG</translation>
+    </message>
+    <message>
+        <source>VNG</source>
+        <translation>VNG</translation>
+    </message>
+    <message>
+        <source>Bilinear (fastest)</source>
+        <translation>バイリニア (最速)</translation>
+    </message>
+    <message>
+        <source>Denoise:</source>
+        <translation>ノイズ除去:</translation>
+    </message>
+    <message>
+        <source>FBDD noise reduction:</source>
+        <translation>FBDD ノイズ低減:</translation>
+    </message>
+    <message>
+        <source>Off</source>
+        <translation>オフ</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>弱</translation>
+    </message>
+    <message>
+        <source>Full</source>
+        <translation>強</translation>
+    </message>
+    <message>
+        <source>Open at half size (faster)</source>
+        <translation>1/2 サイズで開く (高速)</translation>
+    </message>
+    <message>
+        <source>Reading raw file...</source>
+        <translation>Raw ファイルを読み込み中...</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>開く</translation>
+    </message>
+    <message>
+        <source>%1 K</source>
+        <translation>%1 K</translation>
+    </message>
+    <message>
+        <source>ISO %1</source>
+        <translation>ISO %1</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 秒</translation>
+    </message>
+    <message>
+        <source>1/%1 s</source>
+        <translation>1/%1 秒</translation>
+    </message>
+    <message>
+        <source>f/%1</source>
+        <translation>f/%1</translation>
+    </message>
+    <message>
+        <source>%1 mm</source>
+        <translation>%1 mm</translation>
+    </message>
+    <message>
+        <source>%1 x %2 (%3 MP)</source>
+        <translation>%1 x %2 (%3 MP)</translation>
+    </message>
+    <message>
+        <source>Developing preview...</source>
+        <translation>プレビューを現像中...</translation>
+    </message>
+    <message>
+        <source>Developing full resolution...</source>
+        <translation>フル解像度で現像中...</translation>
+    </message>
+    <message>
+        <source>Developing half size...</source>
+        <translation>1/2 サイズで現像中...</translation>
+    </message>
+    <message>
+        <source>Could not read %1</source>
+        <translation>%1 を読み込めませんでした</translation>
+    </message>
+    <message>
         <location line="-20"/>
         <source>Targa Image</source>
         <translation>Targa 画像</translation>
@@ -9483,6 +9679,14 @@ To update, paste this into a terminal:
         <location line="+3"/>
         <source>When enabled, opening a file shows the PSD compatibility report and an Import Notes popup. When disabled, import notes appear only in the status bar.</source>
         <translation>オンにすると、ファイルを開いたときに PSD 互換性レポートとインポートノートのポップアップを表示します。オフの場合、インポートノートはステータスバーにのみ表示されます。</translation>
+    </message>
+    <message>
+        <source>Show the develop dialog when opening camera raw files</source>
+        <translation>カメラ Raw ファイルを開くときに現像ダイアログを表示する</translation>
+    </message>
+    <message>
+        <source>When disabled, camera raw files open immediately using the camera&apos;s own settings (as-shot white balance, automatic brightness).</source>
+        <translation>オフにすると、カメラ Raw ファイルはカメラ自身の設定 (撮影時のホワイトバランス、自動明るさ補正) ですぐに開きます。</translation>
     </message>
     <message>
         <location line="+3515"/>

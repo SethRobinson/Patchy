@@ -59,6 +59,21 @@ their embedded ICC color profile on import. Only the MIT-licensed core is
 vendored (the optional lcms2 speed plugins are GPL-licensed and are not
 included); the license text is included at `src/color/lcms2/LICENSE`.
 
+## LibRaw
+
+`src/formats/libraw/` vendors LibRaw 0.22.1 (https://www.libraw.org,
+Copyright (C) 2008-2025 LibRaw LLC), the camera raw decoder and develop
+pipeline behind opening CR2/CR3/NEF/ARW/RAF/DNG and other camera raw files.
+LibRaw is dual-licensed and may be used under either the GNU LGPL 2.1 or the
+CDDL 1.0; Patchy uses it under the CDDL 1.0. Only the stock release tarball is
+vendored: the separate LibRaw demosaic-pack repositories are GPL-licensed and
+are not included. LibRaw itself incorporates code from dcraw (Dave Coffin,
+non-restricted portions), the BSD-licensed DCB demosaic and FBDD denoise
+(Jacek Gozdz), the BSD-licensed X3F tools (Roland Karlsson), and MIT-licensed
+Adobe DNG SDK fragments. The license texts are included at
+`src/formats/libraw/LICENSE.CDDL`, `src/formats/libraw/LICENSE.LGPL`, and
+`src/formats/libraw/COPYRIGHT`.
+
 ## Bundled photo-texture pattern presets (Poly Haven, CC0)
 
 The 20 photo-based pattern presets under the "Textures" folder (embedded as

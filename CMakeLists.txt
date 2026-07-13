@@ -124,6 +124,113 @@ if(UNIX AND NOT APPLE)
   target_link_libraries(patchy_lcms2 PUBLIC m)
 endif()
 
+# Vendored LibRaw 0.22.1 (dual LGPL-2.1/CDDL-1.0; Patchy elects CDDL-1.0 — see
+# NOTICE-THIRD-PARTY.md), the camera raw decoder + dcraw-style develop pipeline behind
+# formats/raw_document_io. Stock tarball contents only: the separate LibRaw "demosaic pack"
+# repositories are GPL and must never be vendored (DCB/DHT/AAHD here come from the stock
+# tarball and are BSD/LGPL/CDDL-clean). Built WITHOUT jpeg/zlib/lcms (USE_* undefined), so
+# lossy- and deflate-compressed DNGs report clear errors instead of adding dependencies, and
+# WITHOUT LIBRAW_NOTHREADS (per-instance decoder state; instances may be used on different
+# threads concurrently, which the raw develop preview relies on). A separate target skipped
+# by patchy_configure_target keeps the strict-warning flags off the vendored sources.
+add_library(patchy_libraw STATIC
+  src/formats/libraw/src/decoders/canon_600.cpp
+  src/formats/libraw/src/decoders/crx.cpp
+  src/formats/libraw/src/decoders/decoders_dcraw.cpp
+  src/formats/libraw/src/decoders/decoders_libraw.cpp
+  src/formats/libraw/src/decoders/decoders_libraw_dcrdefs.cpp
+  src/formats/libraw/src/decoders/dng.cpp
+  src/formats/libraw/src/decoders/fp_dng.cpp
+  src/formats/libraw/src/decoders/fuji_compressed.cpp
+  src/formats/libraw/src/decoders/generic.cpp
+  src/formats/libraw/src/decoders/kodak_decoders.cpp
+  src/formats/libraw/src/decoders/load_mfbacks.cpp
+  src/formats/libraw/src/decoders/olympus14.cpp
+  src/formats/libraw/src/decoders/pana8.cpp
+  src/formats/libraw/src/decoders/smal.cpp
+  src/formats/libraw/src/decoders/sonycc.cpp
+  src/formats/libraw/src/decoders/unpack.cpp
+  src/formats/libraw/src/decoders/unpack_thumb.cpp
+  src/formats/libraw/src/decompressors/losslessjpeg.cpp
+  src/formats/libraw/src/demosaic/aahd_demosaic.cpp
+  src/formats/libraw/src/demosaic/ahd_demosaic.cpp
+  src/formats/libraw/src/demosaic/dcb_demosaic.cpp
+  src/formats/libraw/src/demosaic/dht_demosaic.cpp
+  src/formats/libraw/src/demosaic/misc_demosaic.cpp
+  src/formats/libraw/src/demosaic/xtrans_demosaic.cpp
+  src/formats/libraw/src/integration/dngsdk_glue.cpp
+  src/formats/libraw/src/integration/rawspeed_glue.cpp
+  src/formats/libraw/src/libraw_c_api.cpp
+  src/formats/libraw/src/libraw_datastream.cpp
+  src/formats/libraw/src/metadata/adobepano.cpp
+  src/formats/libraw/src/metadata/canon.cpp
+  src/formats/libraw/src/metadata/ciff.cpp
+  src/formats/libraw/src/metadata/cr3_parser.cpp
+  src/formats/libraw/src/metadata/epson.cpp
+  src/formats/libraw/src/metadata/exif_gps.cpp
+  src/formats/libraw/src/metadata/fuji.cpp
+  src/formats/libraw/src/metadata/hasselblad_model.cpp
+  src/formats/libraw/src/metadata/identify.cpp
+  src/formats/libraw/src/metadata/identify_tools.cpp
+  src/formats/libraw/src/metadata/kodak.cpp
+  src/formats/libraw/src/metadata/leica.cpp
+  src/formats/libraw/src/metadata/makernotes.cpp
+  src/formats/libraw/src/metadata/mediumformat.cpp
+  src/formats/libraw/src/metadata/minolta.cpp
+  src/formats/libraw/src/metadata/misc_parsers.cpp
+  src/formats/libraw/src/metadata/nikon.cpp
+  src/formats/libraw/src/metadata/normalize_model.cpp
+  src/formats/libraw/src/metadata/olympus.cpp
+  src/formats/libraw/src/metadata/p1.cpp
+  src/formats/libraw/src/metadata/pentax.cpp
+  src/formats/libraw/src/metadata/samsung.cpp
+  src/formats/libraw/src/metadata/sony.cpp
+  src/formats/libraw/src/metadata/tiff.cpp
+  src/formats/libraw/src/postprocessing/aspect_ratio.cpp
+  src/formats/libraw/src/postprocessing/dcraw_process.cpp
+  src/formats/libraw/src/postprocessing/mem_image.cpp
+  src/formats/libraw/src/postprocessing/postprocessing_aux.cpp
+  src/formats/libraw/src/postprocessing/postprocessing_utils.cpp
+  src/formats/libraw/src/postprocessing/postprocessing_utils_dcrdefs.cpp
+  src/formats/libraw/src/preprocessing/ext_preprocess.cpp
+  src/formats/libraw/src/preprocessing/raw2image.cpp
+  src/formats/libraw/src/preprocessing/subtract_black.cpp
+  src/formats/libraw/src/tables/cameralist.cpp
+  src/formats/libraw/src/tables/colorconst.cpp
+  src/formats/libraw/src/tables/colordata.cpp
+  src/formats/libraw/src/tables/wblists.cpp
+  src/formats/libraw/src/utils/curves.cpp
+  src/formats/libraw/src/utils/decoder_info.cpp
+  src/formats/libraw/src/utils/init_close_utils.cpp
+  src/formats/libraw/src/utils/open.cpp
+  src/formats/libraw/src/utils/phaseone_processing.cpp
+  src/formats/libraw/src/utils/read_utils.cpp
+  src/formats/libraw/src/utils/thumb_utils.cpp
+  src/formats/libraw/src/utils/utils_dcraw.cpp
+  src/formats/libraw/src/utils/utils_libraw.cpp
+  src/formats/libraw/src/write/apply_profile.cpp
+  src/formats/libraw/src/write/file_write.cpp
+  src/formats/libraw/src/write/tiff_writer.cpp
+  src/formats/libraw/src/x3f/x3f_parse_process.cpp
+  src/formats/libraw/src/x3f/x3f_utils_patched.cpp
+)
+target_include_directories(patchy_libraw PUBLIC ${PROJECT_SOURCE_DIR}/src/formats/libraw)
+# LibRaw's own code predates C++20; pin the standard it is developed against.
+set_target_properties(patchy_libraw PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+if(MSVC)
+  target_compile_definitions(patchy_libraw PRIVATE _CRT_SECURE_NO_WARNINGS WIN32)
+  target_compile_options(patchy_libraw PRIVATE /w)
+else()
+  target_compile_options(patchy_libraw PRIVATE -w)
+endif()
+if(WIN32)
+  # Static build: without LIBRAW_NODLL the headers declare every entry point dllimport.
+  # PUBLIC because consumers include libraw/libraw.h through this target too.
+  target_compile_definitions(patchy_libraw PUBLIC LIBRAW_NODLL)
+  # ntohs/htons in the datastream and metadata parsers.
+  target_link_libraries(patchy_libraw PUBLIC ws2_32)
+endif()
+
 add_library(patchy_psd
   src/formats/acv_curves_io.cpp
   src/psd/abr_reader.cpp
@@ -167,10 +274,14 @@ add_library(patchy_formats
   src/formats/ilbm_document_io.cpp
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
+  src/formats/raw_document_io.cpp
+  src/formats/raw_white_balance.cpp
   src/formats/tga_document_io.cpp
   src/formats/miniz/miniz.c
 )
-target_link_libraries(patchy_formats PUBLIC patchy_core patchy_render patchy_psd)
+# patchy_libraw stays PRIVATE: only raw_document_io.cpp touches LibRaw types; the public
+# raw_document_io.hpp is LibRaw-free like the rest of the formats API.
+target_link_libraries(patchy_formats PUBLIC patchy_core patchy_render patchy_psd PRIVATE patchy_libraw)
 patchy_configure_target(patchy_formats)
 
 add_library(patchy_color
@@ -455,6 +566,8 @@ if(PATCHY_BUILD_APP)
       src/ui/photo_pattern_presets.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
+      src/ui/raw_develop_dialog.hpp
+      src/ui/raw_develop_dialog.cpp
       src/ui/scanner_import.hpp
       src/ui/selection_outline.hpp
       src/ui/selection_outline.cpp

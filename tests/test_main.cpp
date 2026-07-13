@@ -16,6 +16,8 @@
 #include "formats/ilbm_document_io.hpp"
 #include "formats/palette_io.hpp"
 #include "formats/pcx_document_io.hpp"
+#include "formats/raw_document_io.hpp"
+#include "formats/raw_white_balance.hpp"
 #include "formats/tga_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "plugins/plugin_host.hpp"
@@ -46,10 +48,12 @@
 #include "support/string_utils.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
+#include "synthetic_dng.hpp"
 
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -60,6 +64,7 @@
 #include <functional>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <span>
@@ -18577,6 +18582,247 @@ void format_registry_allows_read_only_handlers() {
   CHECK(patchy::builtin_format_registry().find_by_extension(".bmp")->can_write());
 }
 
+// ---- Camera raw (vendored LibRaw behind formats/raw_document_io) ----
+//
+// The synthetic fixture is a minimal uncompressed 16-bit Bayer DNG built byte-by-byte
+// (tests/synthetic_dng.hpp; the house adversarial-file pattern), so the raw pipeline is
+// exercised on every platform with no committed camera files. Assertions are statistical
+// (dimensions, channel means, monotonic responses) — LibRaw's float pipeline is NOT
+// byte-stable across toolchains, so exact-hash pinning is deliberately avoided (AGENTS.md
+// determinism rules).
+
+using patchy::test::synthetic_bayer_dng;
+using patchy::test::SyntheticDngOptions;
+
+struct RawChannelMeans {
+  double red{0.0};
+  double green{0.0};
+  double blue{0.0};
+};
+
+RawChannelMeans raw_channel_means(const patchy::Document& document) {
+  const auto& pixels = document.layers().front().pixels();
+  RawChannelMeans means;
+  const auto pixel_count =
+      static_cast<double>(pixels.width()) * static_cast<double>(pixels.height());
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      means.red += px[0];
+      means.green += px[1];
+      means.blue += px[2];
+    }
+  }
+  means.red /= pixel_count;
+  means.green /= pixel_count;
+  means.blue /= pixel_count;
+  return means;
+}
+
+void raw_white_balance_round_trips_temperature_and_tint() {
+  // The inverse (multipliers -> kelvin/tint) must recover what the forward direction
+  // produced; run a spread of plausible photographic values through the sRGB fallback
+  // matrix and a Canon-ish matrix.
+  const patchy::raw::CameraMatrix canonish = {{
+      {{0.6844, -0.0996, -0.0856}},
+      {{-0.3876, 1.1761, 0.2396}},
+      {{-0.0593, 0.1772, 0.6198}},
+      {{0.0, 0.0, 0.0}},
+  }};
+  const std::array<patchy::raw::CameraMatrix, 2> matrices = {patchy::raw::CameraMatrix{}, canonish};
+  const std::array<patchy::raw::WhiteBalance, 5> cases = {{
+      {2850.0, 0.0},
+      {3800.0, 21.0},
+      {5500.0, 10.0},
+      {6500.0, -20.0},
+      {12000.0, 0.0},
+  }};
+  for (const auto& matrix : matrices) {
+    for (const auto& expected : cases) {
+      const auto multipliers = patchy::raw::multipliers_for_white_balance(expected, matrix);
+      CHECK(multipliers[0] > 0.0);
+      CHECK(multipliers[1] == 1.0);
+      CHECK(multipliers[2] > 0.0);
+      const auto recovered = patchy::raw::white_balance_for_multipliers(multipliers, matrix);
+      CHECK(recovered.has_value());
+      CHECK(std::abs(recovered->temperature_k - expected.temperature_k) <
+            expected.temperature_k * 0.02);
+      CHECK(std::abs(recovered->tint - expected.tint) < 3.0);
+    }
+  }
+}
+
+void raw_develop_reads_synthetic_dng() {
+  const auto dng = synthetic_bayer_dng(128, 96);
+  patchy::raw::DevelopParams params;
+  params.auto_brighten = false;  // a uniform field would auto-stretch to white
+  auto result = patchy::raw::read_camera_raw(dng, params);
+  CHECK(result.document.width() == 128);
+  CHECK(result.document.height() == 96);
+  CHECK(result.document.layers().size() == 1);
+  CHECK(result.document.layers().front().name() == "Background");
+  CHECK(result.document.format().bit_depth == patchy::BitDepth::UInt8);
+  // A gray card under the as-shot illuminant develops to a near-neutral mid tone
+  // (borders excluded by averaging the whole frame; demosaic edges are a tiny fraction).
+  const auto means = raw_channel_means(result.document);
+  CHECK(means.green > 40.0);
+  CHECK(means.green < 220.0);
+  CHECK(std::abs(means.red - means.green) < 14.0);
+  CHECK(std::abs(means.blue - means.green) < 14.0);
+
+  // Registry dispatch: .dng routes to the read-only camera raw handler.
+  const auto* handler = patchy::builtin_format_registry().find_by_extension(".dng");
+  CHECK(handler != nullptr);
+  CHECK(!handler->can_write());
+  CHECK(patchy::raw::is_camera_raw_extension("cr3"));
+  CHECK(!patchy::raw::is_camera_raw_extension("raw"));
+  const auto via_registry = handler->read(dng);
+  CHECK(via_registry.document.width() == 128);
+  CHECK(via_registry.document.height() == 96);
+}
+
+void raw_develop_exposure_and_white_balance_shift_output() {
+  const auto dng = synthetic_bayer_dng(128, 96);
+  patchy::raw::DevelopParams params;
+  params.auto_brighten = false;
+  const auto base = raw_channel_means(patchy::raw::read_camera_raw(dng, params).document);
+
+  auto brighter_params = params;
+  brighter_params.exposure_ev = 1.5;
+  const auto brighter = raw_channel_means(patchy::raw::read_camera_raw(dng, brighter_params).document);
+  CHECK(brighter.green > base.green + 8.0);
+
+  auto darker_params = params;
+  darker_params.exposure_ev = -1.5;
+  const auto darker = raw_channel_means(patchy::raw::read_camera_raw(dng, darker_params).document);
+  CHECK(darker.green + 8.0 < base.green);
+
+  // Raising the temperature renders warmer (more red, less blue) than lowering it.
+  auto warm_params = params;
+  warm_params.white_balance = patchy::raw::WhiteBalanceMode::Custom;
+  warm_params.custom_white_balance = {8000.0, 0.0};
+  auto cool_params = warm_params;
+  cool_params.custom_white_balance = {3000.0, 0.0};
+  const auto warm = raw_channel_means(patchy::raw::read_camera_raw(dng, warm_params).document);
+  const auto cool = raw_channel_means(patchy::raw::read_camera_raw(dng, cool_params).document);
+  CHECK(warm.red - warm.blue > cool.red - cool.blue + 10.0);
+}
+
+void raw_develop_half_size_and_denoise_run() {
+  const auto dng = synthetic_bayer_dng(128, 96);
+  patchy::raw::DevelopParams params;
+  params.auto_brighten = false;
+  params.half_size = true;
+  const auto half = patchy::raw::read_camera_raw(dng, params).document;
+  CHECK(half.width() == 64);
+  CHECK(half.height() == 48);
+
+  // The remaining pipeline stages must at least run cleanly end to end.
+  patchy::raw::DevelopParams heavy;
+  heavy.auto_brighten = true;
+  heavy.exposure_ev = 0.5;
+  heavy.highlights = patchy::raw::HighlightMode::Rebuild;
+  heavy.demosaic = patchy::raw::DemosaicAlgorithm::Dht;
+  heavy.wavelet_denoise_threshold = 300;
+  heavy.fbdd = patchy::raw::FbddNoiseReduction::Full;
+  const auto processed = patchy::raw::read_camera_raw(dng, heavy).document;
+  CHECK(processed.width() == 128);
+  CHECK(processed.height() == 96);
+}
+
+void raw_develop_session_reports_info_and_orientation() {
+  SyntheticDngOptions options;
+  options.orientation = 6;  // rotate 90 CW: output swaps to portrait
+  const auto dng = synthetic_bayer_dng(128, 96, options);
+  patchy::raw::DevelopSession session(std::vector<std::uint8_t>(dng.begin(), dng.end()));
+  const auto& info = session.info();
+  CHECK(info.camera_model.find("Synthetic") != std::string::npos);
+  CHECK(info.output_width == 96);
+  CHECK(info.output_height == 128);
+  CHECK(info.orientation_flip == 6);
+  CHECK(!info.is_xtrans);
+  // AsShotNeutral encodes D65 through the sRGB matrix; the derived display value must
+  // land near daylight with a small tint.
+  CHECK(info.as_shot_white_balance.has_value());
+  CHECK(info.as_shot_white_balance->temperature_k > 5000.0);
+  CHECK(info.as_shot_white_balance->temperature_k < 8000.0);
+  CHECK(std::abs(info.as_shot_white_balance->tint) < 15.0);
+
+  patchy::raw::DevelopParams params;
+  params.auto_brighten = false;
+  const auto developed = session.develop(params);
+  CHECK(developed.width == 96);
+  CHECK(developed.height == 128);
+  // Re-develop with new parameters on the same session (the preview loop's contract).
+  auto brighter = params;
+  brighter.exposure_ev = 1.0;
+  const auto second = session.develop(brighter);
+  CHECK(second.width == 96);
+  CHECK(second.height == 128);
+}
+
+void raw_develop_rejects_non_raw_bytes() {
+  bool rejected = false;
+  try {
+    const std::vector<std::uint8_t> garbage(4096, 0x5A);
+    (void)patchy::raw::read_camera_raw(garbage, {});
+  } catch (const std::exception& error) {
+    rejected = true;
+    CHECK(std::string(error.what()).find("not a supported camera raw file") != std::string::npos);
+  }
+  CHECK(rejected);
+
+  // A structurally valid DNG whose pixel strip is cut short must error, not crash.
+  auto truncated = synthetic_bayer_dng(128, 96);
+  truncated.resize(truncated.size() - 128 * 96);  // drop half the samples
+  bool truncated_rejected = false;
+  try {
+    (void)patchy::raw::read_camera_raw(truncated, {});
+  } catch (const std::exception&) {
+    truncated_rejected = true;
+  }
+  CHECK(truncated_rejected);
+}
+
+void raw_decodes_real_camera_samples_if_available() {
+  const auto directory = patchy::test::source_root_path() / "local-test-fixtures" / "raw";
+  if (!std::filesystem::exists(directory)) {
+    std::cout << "[SKIP] local raw fixtures missing: " << directory.string() << '\n';
+    return;
+  }
+  std::size_t decoded = 0;
+  for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+    if (!entry.is_regular_file()) {
+      continue;
+    }
+    auto extension = entry.path().extension().string();
+    if (!extension.empty() && extension.front() == '.') {
+      extension.erase(extension.begin());
+    }
+    std::transform(extension.begin(), extension.end(), extension.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (!patchy::raw::is_camera_raw_extension(extension)) {
+      continue;
+    }
+    std::ifstream stream(entry.path(), std::ios::binary);
+    std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                    std::istreambuf_iterator<char>());
+    patchy::raw::DevelopSession session(std::move(bytes));
+    CHECK(session.info().output_width > 0);
+    CHECK(session.info().output_height > 0);
+    patchy::raw::DevelopParams params;
+    params.half_size = true;  // keep the suite fast on 40+ MP samples
+    const auto developed = session.develop(params);
+    CHECK(developed.width > 0);
+    CHECK(developed.height > 0);
+    ++decoded;
+    std::cout << "[INFO] developed " << entry.path().filename().string() << " ("
+              << session.info().camera_make << ' ' << session.info().camera_model << ", "
+              << developed.width << 'x' << developed.height << " half size)\n";
+  }
+  CHECK(decoded > 0);
+}
+
 void string_utils_normalize_extensions_and_names() {
   CHECK(patchy::ascii_lower_copy("BackGround") == "background");
   CHECK(patchy::normalized_extension("PSD") == ".psd");
@@ -19903,6 +20149,14 @@ int main() {
       {"string_utils_normalize_extensions_and_names", string_utils_normalize_extensions_and_names},
       {"format_registry_finds_psd", format_registry_finds_psd},
       {"format_registry_allows_read_only_handlers", format_registry_allows_read_only_handlers},
+      {"raw_white_balance_round_trips_temperature_and_tint", raw_white_balance_round_trips_temperature_and_tint},
+      {"raw_develop_reads_synthetic_dng", raw_develop_reads_synthetic_dng},
+      {"raw_develop_exposure_and_white_balance_shift_output",
+       raw_develop_exposure_and_white_balance_shift_output},
+      {"raw_develop_half_size_and_denoise_run", raw_develop_half_size_and_denoise_run},
+      {"raw_develop_session_reports_info_and_orientation", raw_develop_session_reports_info_and_orientation},
+      {"raw_develop_rejects_non_raw_bytes", raw_develop_rejects_non_raw_bytes},
+      {"raw_decodes_real_camera_samples_if_available", raw_decodes_real_camera_samples_if_available},
       {"ico_reads_multi_size_and_round_trips_named_layers", ico_reads_multi_size_and_round_trips_named_layers},
       {"ico_transparent_pixels_round_trip_and_mask_fallback_applies",
        ico_transparent_pixels_round_trip_and_mask_fallback_applies},

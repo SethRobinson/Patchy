@@ -5,6 +5,7 @@
 #include "formats/ico_document_io.hpp"
 #include "formats/ilbm_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
+#include "formats/raw_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "psd/psd_document_io.hpp"
 #include "support/string_utils.hpp"
@@ -111,6 +112,17 @@ void register_builtin_formats(FormatRegistry& registry) {
                              },
                              [](const Document& document) { return ilbm::DocumentIo::write(document); },
                              [](std::span<const std::uint8_t> bytes) { return ilbm::DocumentIo::can_read(bytes); }});
+  // Camera raws are read-only sources (write stays null). This headless path develops with
+  // camera-JPEG-like defaults; the interactive develop dialog lives in the UI layer and runs
+  // BEFORE load_document_from_path reaches the registry.
+  registry.register_handler({"patchy.formats.camera_raw",
+                             "Camera Raw Image",
+                             raw::camera_raw_extensions(),
+                             [](std::span<const std::uint8_t> bytes) {
+                               return raw::read_camera_raw(bytes, raw::DevelopParams{});
+                             },
+                             nullptr,
+                             nullptr});
 }
 
 const FormatRegistry& builtin_format_registry() {

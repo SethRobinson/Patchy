@@ -15,6 +15,7 @@
 #include "filters/builtin_filters.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
+#include "formats/raw_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_smart_objects.hpp"
@@ -31,6 +32,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/raw_develop_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/gradient_library.hpp"
@@ -2309,6 +2311,16 @@ bool save_extension_preserves_layers(const QString& extension) {
          extension == QStringLiteral("cur");
 }
 
+// True when the session's file came from a format Patchy can only read (camera raw):
+// Save can never write back to such a path, so it must become Save As.
+bool is_read_only_source_extension(const QString& extension) {
+  if (extension.isEmpty()) {
+    return false;
+  }
+  const auto* handler = builtin_format_registry().find_by_extension(extension.toStdString());
+  return handler != nullptr && !handler->can_write();
+}
+
 // Photoshop's "this format cannot store the document's features" test, reduced to what a
 // flat save discards in Patchy: a second layer or group, a non-pixel layer (group,
 // adjustment, text, smart object), a hand-authored mask, or layer styles. A single pixel
@@ -2348,7 +2360,8 @@ struct FileFormatEntry {
 };
 
 const QList<FileFormatEntry>& file_format_entries() {
-  static const QList<FileFormatEntry> entries = {
+  static const QList<FileFormatEntry> entries = [] {
+    QList<FileFormatEntry> list = {
       {QT_TRANSLATE_NOOP("QObject", "Photoshop Document"),
        {QStringLiteral("psd"), QStringLiteral("psb")},
        {QStringLiteral("psd"), QStringLiteral("psb")},
@@ -2414,7 +2427,21 @@ const QList<FileFormatEntry>& file_format_entries() {
        {QStringLiteral("lbm"), QStringLiteral("iff")},
        true,
        true},
-  };
+    };
+    // Camera raws open through the develop pipeline and are never written: empty
+    // save_extensions marks the entry read-only, so Save As/Export skip it. The extension
+    // list lives with the raw reader so the registry and the dialogs cannot drift apart.
+    QStringList camera_raw_extensions;
+    for (const auto& extension : raw::camera_raw_extensions()) {
+      camera_raw_extensions.push_back(QString::fromStdString(extension));
+    }
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "Camera Raw Image"),
+                    camera_raw_extensions,
+                    {},
+                    false,
+                    false});
+    return list;
+  }();
   return entries;
 }
 
@@ -15339,33 +15366,50 @@ void MainWindow::open_document_path(QString path) {
   try {
     const auto info = QFileInfo(path);
 
-    QProgressDialog progress(tr("Opening %1...").arg(info.fileName()), QString(), 0, 0, this);
-    progress.setObjectName(QStringLiteral("openProgressDialog"));
-    progress.setWindowTitle(tr("Opening %1").arg(elided_open_progress_title_file_name(progress, info.fileName())));
-    progress.setWindowModality(Qt::WindowModal);
-    progress.setMinimumDuration(0);
-    progress.setCancelButton(nullptr);
-    progress.setAutoClose(false);
-    progress.setAutoReset(false);
-    remember_dialog_position(progress);
-    progress.show();
-    progress.raise();
-    progress.activateWindow();
-    QApplication::processEvents();
-    const auto close_progress = qScopeGuard([&progress] {
-      progress.close();
+    OpenDocumentResult loaded;
+    const auto extension = info.suffix().toLower();
+    if (raw::is_camera_raw_extension(extension.toStdString()) &&
+        app_settings().value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool()) {
+      // Camera raws get the interactive develop step (white balance, exposure, ...).
+      // Cancel means the open never happened. With the preference off, raws fall through
+      // to the normal path below, where the format registry develops camera defaults.
+      auto outcome = run_raw_develop_dialog(this, path);
+      if (!outcome.has_value()) {
+        return;
+      }
+      loaded = OpenDocumentResult{std::move(outcome->document), info.fileName(), extension, {}};
+      if (const auto default_layer_id = default_non_group_layer_id(loaded.document.layers());
+          default_layer_id.has_value()) {
+        loaded.document.set_active_layer(*default_layer_id);
+      }
+    } else {
+      QProgressDialog progress(tr("Opening %1...").arg(info.fileName()), QString(), 0, 0, this);
+      progress.setObjectName(QStringLiteral("openProgressDialog"));
+      progress.setWindowTitle(
+          tr("Opening %1").arg(elided_open_progress_title_file_name(progress, info.fileName())));
+      progress.setWindowModality(Qt::WindowModal);
+      progress.setMinimumDuration(0);
+      progress.setCancelButton(nullptr);
+      progress.setAutoClose(false);
+      progress.setAutoReset(false);
+      remember_dialog_position(progress);
+      progress.show();
+      progress.raise();
+      progress.activateWindow();
       QApplication::processEvents();
-    });
-    Q_UNUSED(close_progress);
+      const auto close_progress = qScopeGuard([&progress] {
+        progress.close();
+        QApplication::processEvents();
+      });
+      Q_UNUSED(close_progress);
 
-    auto open_future = std::async(std::launch::async, [path] { return load_document_from_path(path); });
-    while (open_future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
-      QApplication::processEvents(QEventLoop::AllEvents, 15);
+      auto open_future = std::async(std::launch::async, [path] { return load_document_from_path(path); });
+      while (open_future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
+        QApplication::processEvents(QEventLoop::AllEvents, 15);
+      }
+
+      loaded = open_future.get();
     }
-
-    auto loaded = open_future.get();
-    progress.close();
-    QApplication::processEvents();
 
     add_document_session(std::move(loaded.document), loaded.file_name, path);
     if (is_photoshop_document_extension(loaded.extension) &&
@@ -15648,6 +15692,11 @@ bool MainWindow::save_document() {
   if (session().path.isEmpty()) {
     return save_document_as();
   }
+  if (is_read_only_source_extension(extension_for_path(session().path))) {
+    // The document was developed from a read-only source (camera raw); writing the raw
+    // back is impossible, so Save is really Save As (defaulting to <basename>.psd).
+    return save_document_as();
+  }
   if (!save_extension_preserves_layers(extension_for_path(session().path)) &&
       flat_save_discards_layers(std::as_const(document()))) {
     // Photoshop behavior: Save on a document whose file format cannot hold its layers
@@ -15667,9 +15716,11 @@ bool MainWindow::save_document_as() {
   const auto fallback_name = session().title.isEmpty() ? tr("Untitled.psd") : session().title;
   auto initial_path = file_dialog_initial_path(session().path, fallback_name);
   const bool layered_document = flat_save_discards_layers(std::as_const(document()));
-  if (layered_document && !save_extension_preserves_layers(extension_for_path(initial_path))) {
+  if ((layered_document && !save_extension_preserves_layers(extension_for_path(initial_path))) ||
+      is_read_only_source_extension(extension_for_path(initial_path))) {
     // Photoshop behavior: Save As for a layered document defaults to PSD, not the flat
-    // format the document was opened from.
+    // format the document was opened from. Read-only sources (camera raw) also default
+    // to PSD: their own extension can never be written.
     const QFileInfo initial_info(initial_path);
     const auto base_name = is_supported_image_extension(extension_for_path(initial_path))
                                ? initial_info.completeBaseName()
@@ -16003,6 +16054,14 @@ void MainWindow::show_preferences() {
   psd_import_warnings_check->setChecked(
       settings.value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool());
   application_form->addRow(psd_import_warnings_check);
+  auto* raw_develop_check =
+      new QCheckBox(tr("Show the develop dialog when opening camera raw files"), application_group);
+  raw_develop_check->setObjectName(QStringLiteral("preferencesShowRawDevelopCheck"));
+  raw_develop_check->setToolTip(
+      tr("When disabled, camera raw files open immediately using the camera's own settings "
+         "(as-shot white balance, automatic brightness)."));
+  raw_develop_check->setChecked(settings.value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool());
+  application_form->addRow(raw_develop_check);
   // Resets the "Do this for every indexed image" choice remembered by the
   // indexed-image adoption prompt.
   auto* indexed_open_combo = new QComboBox(application_group);
@@ -16431,6 +16490,7 @@ void MainWindow::show_preferences() {
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
     settings.setValue(QStringLiteral("updates/checkOnStartup"), update_check->isChecked());
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
+    settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());
     const int selected_gui_scale = gui_scale_combo->currentData().toInt();
     const int previous_gui_scale =

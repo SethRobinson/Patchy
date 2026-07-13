@@ -60,6 +60,7 @@
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
 #include "render/compositor.hpp"
+#include "synthetic_dng.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -24109,6 +24110,238 @@ void ui_flat_save_of_layered_document_warns_and_saves_copy() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == psd_path);
 }
 
+// ---- Camera raw develop dialog ----
+
+QString write_raw_dng_fixture(const QString& file_name) {
+  ensure_artifact_dir();
+  const auto path = QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(file_name)).absoluteFilePath();
+  const auto bytes = patchy::test::synthetic_bayer_dng(128, 96);
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  CHECK(file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())) ==
+        static_cast<qsizetype>(bytes.size()));
+  return path;
+}
+
+// Repeatedly runs `step` on a short timer while open_document_path blocks in the raw
+// develop dialog's exec() loop; `step` returns true when its work is done.
+void drive_raw_develop_dialog(const std::shared_ptr<std::function<bool()>>& step, int attempts = 2400) {
+  QTimer::singleShot(25, [step, attempts] {
+    if (step == nullptr || !static_cast<bool>(*step)) {
+      return;
+    }
+    if ((*step)()) {
+      return;
+    }
+    if (attempts > 0) {
+      drive_raw_develop_dialog(step, attempts - 1);
+    }
+  });
+}
+
+void ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd() {
+  SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), true);
+    settings.sync();
+  }
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_develop_accept.dng"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto clicked = std::make_shared<bool>(false);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [clicked] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("rawDevelopDialog"));
+    if (dialog == nullptr) {
+      return false;
+    }
+    auto* open_button = dialog->findChild<QPushButton*>(QStringLiteral("rawOpenButton"));
+    if (open_button == nullptr || !open_button->isEnabled()) {
+      return false;
+    }
+    open_button->click();
+    *clicked = true;
+    return true;
+  };
+  drive_raw_develop_dialog(step);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  CHECK(*clicked);
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 128);
+  CHECK(document.height() == 96);
+  CHECK(document.layers().size() == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == path);
+  // Photoshop parity: the developed document is clean; the raw file on disk stays the
+  // untouched source, so closing without editing must not prompt.
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  save_widget_artifact("ui_raw_developed_document", window);
+
+  // Save can never write the raw back: it must route to Save As defaulting to
+  // <basename>.psd (the read-only-source counterpart of the layered-JPEG routing).
+  bool saw_dialog = false;
+  QString default_name;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    CHECK(dialog != nullptr);
+    const auto selected = dialog->selectedFiles();
+    if (!selected.isEmpty()) {
+      default_name = QFileInfo(selected.first()).fileName();
+    }
+    saw_dialog = true;
+    dialog->reject();
+  });
+  CHECK(!patchy::ui::MainWindowTestAccess::save_document(window));
+  CHECK(saw_dialog);
+  CHECK(default_name == QStringLiteral("raw_develop_accept.psd"));
+}
+
+void ui_raw_develop_dialog_cancel_aborts_open() {
+  SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), true);
+    settings.sync();
+  }
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_develop_cancel.dng"));
+  patchy::ui::MainWindow window;
+  patchy::Document starter(24, 18, patchy::PixelFormat::rgb8());
+  starter.add_pixel_layer("Base", solid_pixels(24, 18, patchy::PixelFormat::rgb8(), QColor(10, 20, 30)));
+  window.add_document_session(std::move(starter), QStringLiteral("Starter"));
+  show_window(window);
+
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("rawDevelopDialog"));
+    if (dialog == nullptr) {
+      return false;
+    }
+    dialog->reject();
+    return true;
+  };
+  drive_raw_develop_dialog(step);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+
+  // The cancelled open added nothing: the starter document is still active and untouched.
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 24);
+  CHECK(document.height() == 18);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window).isEmpty());
+}
+
+void ui_raw_develop_dialog_exposure_slider_brightens_preview() {
+  SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), true);
+    settings.sync();
+  }
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_develop_preview.dng"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  const auto mean_green = [](const QImage& image) {
+    double total = 0.0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        total += qGreen(image.pixel(x, y));
+      }
+    }
+    return total / (static_cast<double>(image.width()) * image.height());
+  };
+
+  auto stage = std::make_shared<int>(0);
+  auto last_image_key = std::make_shared<qint64>(0);
+  auto base_mean = std::make_shared<double>(0.0);
+  auto bright_mean = std::make_shared<double>(0.0);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [=] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("rawDevelopDialog"));
+    if (dialog == nullptr) {
+      return false;
+    }
+    // ZoomableImagePreview has no Q_OBJECT macro, so findChild cannot cast to it.
+    auto* preview = static_cast<patchy::ui::ZoomableImagePreview*>(
+        dialog->findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
+    auto* status = dialog->findChild<QLabel*>(QStringLiteral("rawDevelopStatus"));
+    auto* auto_brighten = dialog->findChild<QCheckBox*>(QStringLiteral("rawAutoBrightenCheck"));
+    auto* exposure = dialog->findChild<QSlider*>(QStringLiteral("rawExposureSlider"));
+    if (preview == nullptr || status == nullptr || auto_brighten == nullptr || exposure == nullptr) {
+      return false;
+    }
+    const auto& image = preview->image();
+    switch (*stage) {
+      case 0:
+        // Wait for the first develop: previews always run at half size (64x48).
+        if (image.isNull() || image.width() != 64 || !status->text().isEmpty()) {
+          return false;
+        }
+        *last_image_key = image.cacheKey();
+        // Auto-brighten would rescale the histogram and mask the exposure shift.
+        auto_brighten->setChecked(false);
+        *stage = 1;
+        return false;
+      case 1:
+        if (image.isNull() || image.cacheKey() == *last_image_key || !status->text().isEmpty()) {
+          return false;
+        }
+        *last_image_key = image.cacheKey();
+        *base_mean = mean_green(image);
+        exposure->setValue(150);  // +1.5 EV
+        *stage = 2;
+        return false;
+      case 2:
+        if (image.isNull() || image.cacheKey() == *last_image_key || !status->text().isEmpty()) {
+          return false;
+        }
+        *bright_mean = mean_green(image);
+        save_widget_artifact("ui_raw_develop_dialog", *dialog);
+        *stage = 3;
+        dialog->reject();
+        return true;
+    }
+    return true;
+  };
+  drive_raw_develop_dialog(step);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+
+  CHECK(*stage == 3);
+  CHECK(*base_mean > 10.0);
+  CHECK(*bright_mean > *base_mean + 5.0);
+}
+
+void ui_raw_preference_disabled_opens_with_camera_defaults() {
+  SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), false);
+    settings.sync();
+  }
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_develop_silent.dng"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto saw_dialog = std::make_shared<bool>(false);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [saw_dialog] {
+    if (find_top_level_dialog(QStringLiteral("rawDevelopDialog")) != nullptr) {
+      *saw_dialog = true;
+      return true;
+    }
+    return false;
+  };
+  drive_raw_develop_dialog(step, 300);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+
+  CHECK(!*saw_dialog);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 128);
+  CHECK(document.height() == 96);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == path);
+}
+
 void ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -44126,6 +44359,13 @@ int main(int argc, char* argv[]) {
        ui_non_psd_save_warns_before_discarding_channels},
       {"ui_save_layered_flat_format_routes_to_save_as_with_psd_default",
        ui_save_layered_flat_format_routes_to_save_as_with_psd_default},
+      {"ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd",
+       ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd},
+      {"ui_raw_develop_dialog_cancel_aborts_open", ui_raw_develop_dialog_cancel_aborts_open},
+      {"ui_raw_develop_dialog_exposure_slider_brightens_preview",
+       ui_raw_develop_dialog_exposure_slider_brightens_preview},
+      {"ui_raw_preference_disabled_opens_with_camera_defaults",
+       ui_raw_preference_disabled_opens_with_camera_defaults},
       {"ui_flat_save_of_layered_document_warns_and_saves_copy",
        ui_flat_save_of_layered_document_warns_and_saves_copy},
       {"ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail",
