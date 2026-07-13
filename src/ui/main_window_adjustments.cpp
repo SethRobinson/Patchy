@@ -15,9 +15,12 @@
 #include "core/pixel_tools.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
+#include "filters/smart_filter_renderer.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_filter_effects.hpp"
+#include "psd/psd_smart_objects.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "render/compositor.hpp"
@@ -45,6 +48,7 @@
 #include "ui/print_dialog.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/splash_dialog.hpp"
+#include "ui/smart_object_render.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/visual_filter_gallery_dialog.hpp"
 #include "ui/zoom_status_bar.hpp"
@@ -484,8 +488,567 @@ void snap_filter_result_to_palette(PixelBuffer& pixels, Rect bounds, const QRegi
   }
 }
 
+double gaussian_radius_from_invocation(const FilterInvocation& invocation,
+                                       double fallback) {
+  const auto found = invocation.parameters.find("radius");
+  if (found == invocation.parameters.end()) {
+    return fallback;
+  }
+  if (const auto* value = std::get_if<double>(&found->second); value != nullptr) {
+    return std::clamp(*value, 0.1, 1000.0);
+  }
+  if (const auto* value = std::get_if<std::int64_t>(&found->second);
+      value != nullptr) {
+    return std::clamp(static_cast<double>(*value), 0.1, 1000.0);
+  }
+  return fallback;
+}
+
+FilterDialogSpec gaussian_smart_filter_dialog_spec() {
+  FilterDialogSpec spec;
+  spec.identifier = QStringLiteral("patchy.smart_filters.gaussian_blur");
+  spec.display_name = QObject::tr("Gaussian Blur");
+  FilterControlSpec radius{QObject::tr("Radius"),
+                           QStringLiteral("filterRadius"), 0, 12, 2,
+                           QObject::tr(" px")};
+  radius.parameter_key = "radius";
+  radius.kind = FilterParameterKind::Double;
+  radius.default_value = 2.0;
+  radius.typed_minimum = 0.1;
+  radius.typed_maximum = 1000.0;
+  // Photoshop keeps hundredth-pixel native radii distinct (0.49, 0.50, and
+  // 0.51 produce different rasters), so accepting the dialog must not round an
+  // imported value merely because the spin box was opened.
+  radius.step = 0.01;
+  spec.controls.push_back(std::move(radius));
+  return spec;
+}
+
+bool smart_filter_descriptor_edit_is_writable(
+    const Layer& layer, const SmartFilterStack* stack,
+    psd::SmartFilterDescriptorAction action) {
+  const auto placement = smart_object_placement_from_layer(layer);
+  if (!placement.has_value()) {
+    return false;
+  }
+  const auto warp = smart_object_warp_from_layer(layer);
+  const auto placed_uuid = smart_object_placed_uuid(layer);
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.key != "SoLd" && block.key != "SoLE") {
+      continue;
+    }
+    return psd::regenerate_placed_layer_payload(
+               block.key, block.payload, *placement,
+               warp.has_value() ? &*warp : nullptr, placed_uuid,
+               psd::SmartFilterDescriptorEdit{action, stack})
+        .has_value();
+  }
+  return false;
+}
+
+SmartFilterStack gaussian_stack_with_radius(SmartFilterStack stack,
+                                            std::size_t index,
+                                            double radius) {
+  auto* gaussian =
+      std::get_if<GaussianBlurSmartFilter>(&stack.entries.at(index).parameters);
+  if (gaussian == nullptr) {
+    throw std::invalid_argument("Smart Filter is not Gaussian Blur");
+  }
+  gaussian->radius_pixels = std::clamp(radius, 0.1, 1000.0);
+  return stack;
+}
+
 
 }  // namespace
+
+void MainWindow::convert_for_smart_filters() {
+  if (!has_active_document()) {
+    return;
+  }
+  const auto active = std::as_const(document()).active_layer_id();
+  const auto* layer = active.has_value()
+                          ? std::as_const(document()).find_layer(*active)
+                          : nullptr;
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel ||
+      layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(
+        tr("Select a normal pixel layer to convert for Smart Filters"));
+    return;
+  }
+  convert_to_smart_object();
+}
+
+void MainWindow::gaussian_smart_filter_dialog(
+    LayerId layer_id, std::optional<std::size_t> execution_index) {
+  if (!has_active_document() || canvas_ == nullptr) {
+    return;
+  }
+  if (layer_id_locks_image_pixels(layer_id)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
+    return;
+  }
+  const auto document_pixels =
+      static_cast<std::uint64_t>(document().width()) *
+      static_cast<std::uint64_t>(document().height());
+  if (document_pixels > psd::kMaximumEditableSmartFilterMaskPixels) {
+    statusBar()->showMessage(tr(
+        "Editable Smart Filters currently support documents up to 64 megapixels"));
+    return;
+  }
+  auto& doc = document();
+  auto* layer = doc.find_layer(layer_id);
+  const auto lock = layer != nullptr ? smart_object_lock_reason(*layer)
+                                     : std::string{};
+  if (layer == nullptr || !layer_is_smart_object(*layer) ||
+      (!lock.empty() && lock != "external")) {
+    statusBar()->showMessage(
+        tr("This Smart Object can only preserve its imported filters"));
+    return;
+  }
+
+  const auto parent_document_dir =
+      session().path.isEmpty() ? QString()
+                               : QFileInfo(session().path).absolutePath();
+
+  SmartFilterStack stack;
+  std::size_t filter_index = 0;
+  double initial_radius = 2.0;
+  const bool adding = !execution_index.has_value();
+  if (adding) {
+    if (layer->smart_filter_stack() != nullptr) {
+      statusBar()->showMessage(
+          tr("Multiple editable Smart Filters are not available yet"));
+      return;
+    }
+    stack.enabled = true;
+    stack.valid_at_position = true;
+    stack.support = SmartFilterStackSupport::Supported;
+    stack.mask.bounds = Rect::from_size(doc.width(), doc.height());
+    stack.mask.enabled = true;
+    stack.mask.linked = false;
+    if (canvas_->has_selection()) {
+      stack.mask.pixels = canvas_->selection_as_grayscale();
+      stack.mask.default_color = 0U;
+      stack.mask.extend_with_white = false;
+    } else {
+      stack.mask.pixels =
+          PixelBuffer(doc.width(), doc.height(), PixelFormat::gray8());
+      stack.mask.pixels.clear(255U);
+      stack.mask.default_color = 255U;
+      stack.mask.extend_with_white = true;
+    }
+    const auto to_rgb = [](const QColor& color) {
+      return RgbColor{static_cast<std::uint8_t>(color.red()),
+                      static_cast<std::uint8_t>(color.green()),
+                      static_cast<std::uint8_t>(color.blue())};
+    };
+    SmartFilterEntry entry;
+    entry.kind = SmartFilterKind::GaussianBlur;
+    entry.native_name = "Gaussian Blur...";
+    entry.native_class_id = "GsnB";
+    entry.native_filter_id = 0x47736e42U;
+    entry.enabled = true;
+    entry.has_options = true;
+    entry.opacity = 1.0;
+    entry.blend_mode = BlendMode::Normal;
+    entry.foreground = to_rgb(canvas_->primary_color());
+    entry.background = to_rgb(canvas_->secondary_color());
+    entry.parameters = GaussianBlurSmartFilter{initial_radius};
+    stack.entries.push_back(std::move(entry));
+  } else {
+    const auto* current = layer->smart_filter_stack();
+    if (current == nullptr ||
+        current->support != SmartFilterStackSupport::Supported ||
+        *execution_index >= current->entries.size()) {
+      statusBar()->showMessage(
+          tr("This Smart Filter can only be preserved, not edited"));
+      return;
+    }
+    stack = *current;
+    filter_index = *execution_index;
+    const auto* gaussian = std::get_if<GaussianBlurSmartFilter>(
+        &stack.entries[filter_index].parameters);
+    if (stack.entries[filter_index].kind != SmartFilterKind::GaussianBlur ||
+        gaussian == nullptr) {
+      statusBar()->showMessage(
+          tr("This Smart Filter can only be preserved, not edited"));
+      return;
+    }
+    initial_radius = gaussian->radius_pixels;
+  }
+
+  const auto interpolation = canvas_->transform_interpolation();
+  const auto unfiltered_preview = render_smart_object_unfiltered_layer_preview(
+      std::as_const(doc), std::as_const(*layer), interpolation,
+      parent_document_dir);
+  if (!unfiltered_preview.has_value()) {
+    statusBar()->showMessage(tr("Could not render this Smart Object"));
+    return;
+  }
+  auto unfiltered_pixels =
+      std::make_shared<const PixelBuffer>(unfiltered_preview->pixels);
+  const auto unfiltered_bounds = unfiltered_preview->bounds;
+  const auto filter_canvas_bounds =
+      Rect::from_size(doc.width(), doc.height());
+  auto original_pixels =
+      std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
+  const auto original_bounds = layer->bounds();
+  auto last_preview_bounds = std::make_shared<Rect>(original_bounds);
+  auto preview_state =
+      std::make_shared<AsyncPixelPreviewState<FilterPreviewSettings>>();
+  preview_state->start =
+      [this, preview_state, layer_id, stack, filter_index,
+       initial_radius, unfiltered_pixels, unfiltered_bounds, original_pixels,
+       original_bounds, filter_canvas_bounds,
+       last_preview_bounds](const FilterPreviewSettings& settings) {
+        if (!settings.preview_enabled) {
+          preview_state->pending.reset();
+          ++preview_state->generation;
+          if (auto* preview_layer = document().find_layer(layer_id);
+              preview_layer != nullptr) {
+            preview_layer->set_pixels(*original_pixels);
+            preview_layer->set_bounds(original_bounds);
+            if (canvas_ != nullptr) {
+              canvas_->document_changed(
+                  to_qrect(*last_preview_bounds).united(
+                      to_qrect(original_bounds)));
+            }
+            *last_preview_bounds = original_bounds;
+          }
+          return;
+        }
+
+        const auto radius = gaussian_radius_from_invocation(
+            settings.invocation, initial_radius);
+        const auto candidate =
+            gaussian_stack_with_radius(stack, filter_index, radius);
+        preview_state->in_flight = true;
+        const auto generation = ++preview_state->generation;
+        auto* app = QCoreApplication::instance();
+        auto window = QPointer<MainWindow>(this);
+        std::thread([app, window, preview_state, generation, layer_id,
+                     unfiltered_pixels, unfiltered_bounds, last_preview_bounds,
+                     filter_canvas_bounds, candidate] {
+          auto result = std::make_shared<FilterRenderResult>();
+          auto error = std::make_shared<QString>();
+          try {
+            *result = render_smart_filter_stack(
+                *unfiltered_pixels, unfiltered_bounds, filter_canvas_bounds,
+                candidate);
+          } catch (const std::exception& caught) {
+            *error = QString::fromUtf8(caught.what());
+          }
+          if (app == nullptr) {
+            return;
+          }
+          QMetaObject::invokeMethod(
+              app,
+              [window, preview_state, generation, layer_id, last_preview_bounds,
+               result, error]() mutable {
+                preview_state->in_flight = false;
+                const bool has_pending = preview_state->pending.has_value();
+                if (!preview_state->closed && !has_pending &&
+                    generation == preview_state->generation &&
+                    window != nullptr) {
+                  if (error->isEmpty()) {
+                    if (auto* preview_layer =
+                            window->document().find_layer(layer_id);
+                        preview_layer != nullptr) {
+                      preview_layer->set_pixels(std::move(result->pixels));
+                      preview_layer->set_bounds(result->bounds);
+                      if (window->canvas_ != nullptr) {
+                        window->canvas_->document_changed(
+                            to_qrect(*last_preview_bounds)
+                                .united(to_qrect(result->bounds)));
+                      }
+                      *last_preview_bounds = result->bounds;
+                    }
+                  } else {
+                    window->statusBar()->showMessage(
+                        window->tr("Smart Filter preview failed: %1")
+                            .arg(*error));
+                  }
+                }
+                if (!preview_state->closed &&
+                    preview_state->pending.has_value() &&
+                    preview_state->start) {
+                  auto next = *preview_state->pending;
+                  preview_state->pending.reset();
+                  preview_state->start(next);
+                }
+              },
+              Qt::QueuedConnection);
+        }).detach();
+      };
+  const auto preview_changed =
+      [preview_state](FilterPreviewSettings settings) {
+        enqueue_async_pixel_preview(preview_state, std::move(settings),
+                                    !settings.preview_enabled);
+      };
+
+  auto invocation = FilterInvocation{};
+  invocation.filter_id = "patchy.smart_filters.gaussian_blur";
+  invocation.schema_version = 1U;
+  invocation.parameters["radius"] = initial_radius;
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_filter_settings(
+      this, gaussian_smart_filter_dialog_spec(), preview_changed,
+      std::move(invocation));
+  close_async_pixel_preview(preview_state);
+  layer = doc.find_layer(layer_id);
+  if (layer == nullptr) {
+    return;
+  }
+  layer->set_pixels(*original_pixels);
+  layer->set_bounds(original_bounds);
+  canvas_->document_changed(to_qrect(*last_preview_bounds)
+                                .united(to_qrect(original_bounds)));
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Gaussian Blur"));
+    return;
+  }
+
+  const auto radius =
+      gaussian_radius_from_invocation(*settings, initial_radius);
+  auto candidate =
+      gaussian_stack_with_radius(std::move(stack), filter_index, radius);
+  FilterRenderResult final_render;
+  try {
+    final_render = render_smart_filter_stack(
+        *unfiltered_pixels, unfiltered_bounds, filter_canvas_bounds,
+        candidate);
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Smart Filter failed"),
+                          QString::fromUtf8(error.what()),
+                          QStringLiteral("smartFilterFailedMessageBox"));
+    return;
+  }
+  if (!smart_filter_descriptor_edit_is_writable(
+          *layer, &candidate, psd::SmartFilterDescriptorAction::Replace)) {
+    statusBar()->showMessage(
+        tr("This Smart Filter descriptor cannot be edited safely"));
+    return;
+  }
+
+  auto filter_effects = doc.metadata().smart_filter_effects;
+  if (adding) {
+    auto record = psd::author_filter_effects_record(
+        smart_object_placed_uuid(*layer),
+        Rect::from_size(doc.width(), doc.height()), *unfiltered_pixels,
+        unfiltered_bounds, candidate.mask);
+    if (!record.has_value() ||
+        !filter_effects.upsert_authored(std::move(*record))) {
+      statusBar()->showMessage(
+          tr("Smart Filter cache data could not be written safely"));
+      return;
+    }
+  } else {
+    const auto* record = filter_effects.find_unique(
+        smart_object_placed_uuid(*layer));
+    if (record == nullptr || !record->semantic_supported()) {
+      statusBar()->showMessage(
+          tr("Smart Filter cache data could not be written safely"));
+      return;
+    }
+  }
+
+  push_undo_snapshot(adding ? tr("Add Gaussian Blur Smart Filter")
+                            : tr("Edit Gaussian Blur Smart Filter"));
+  layer = doc.find_layer(layer_id);
+  if (layer == nullptr) {
+    return;
+  }
+  if (adding) {
+    doc.metadata().smart_filter_effects = std::move(filter_effects);
+  }
+  layer->set_smart_filter_stack(std::move(candidate));
+  mark_layer_smart_object_block_dirty(*layer);
+  layer->set_pixels(std::move(final_render.pixels));
+  layer->set_bounds(final_render.bounds);
+  layer->metadata()[kLayerMetadataSmartObjectRasterStatus] =
+      kSmartObjectRasterStatusPatchy;
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed(
+      to_qrect(original_bounds).united(to_qrect(final_render.bounds)));
+  statusBar()->showMessage(
+      adding ? tr("Added Gaussian Blur as a Smart Filter")
+             : tr("Updated Gaussian Blur Smart Filter"));
+}
+
+void MainWindow::edit_smart_filter(LayerId layer_id,
+                                   std::size_t execution_index) {
+  gaussian_smart_filter_dialog(layer_id, execution_index);
+}
+
+void MainWindow::set_smart_filter_stack_enabled(LayerId layer_id,
+                                                bool enabled) {
+  if (!has_active_document() || canvas_ == nullptr) {
+    return;
+  }
+  if (layer_id_locks_image_pixels(layer_id)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
+    refresh_layer_list();
+    return;
+  }
+  auto& doc = document();
+  auto* layer = doc.find_layer(layer_id);
+  const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
+  if (layer == nullptr || current == nullptr ||
+      current->support != SmartFilterStackSupport::Supported ||
+      current->enabled == enabled ||
+      (!smart_object_lock_reason(*layer).empty() &&
+       smart_object_lock_reason(*layer) != "external")) {
+    return;
+  }
+  auto candidate = *current;
+  candidate.enabled = enabled;
+  const auto parent_document_dir =
+      session().path.isEmpty() ? QString()
+                               : QFileInfo(session().path).absolutePath();
+  const auto rendered = render_smart_object_layer_preview(
+      std::as_const(doc), std::as_const(*layer),
+      canvas_->transform_interpolation(), &candidate, parent_document_dir);
+  if (!rendered.has_value() ||
+      !smart_filter_descriptor_edit_is_writable(
+          *layer, &candidate, psd::SmartFilterDescriptorAction::Replace)) {
+    statusBar()->showMessage(
+        tr("This Smart Filter descriptor cannot be edited safely"));
+    refresh_layer_list();
+    return;
+  }
+  const auto old_bounds = layer->bounds();
+  push_undo_snapshot(enabled ? tr("Show Smart Filters")
+                             : tr("Hide Smart Filters"));
+  layer = doc.find_layer(layer_id);
+  layer->set_smart_filter_stack(std::move(candidate));
+  mark_layer_smart_object_block_dirty(*layer);
+  layer->set_pixels(rendered->rendered.pixels);
+  layer->set_bounds(rendered->rendered.bounds);
+  layer->metadata()[kLayerMetadataSmartObjectRasterStatus] =
+      kSmartObjectRasterStatusPatchy;
+  refresh_layer_list();
+  canvas_->document_changed(
+      to_qrect(old_bounds).united(to_qrect(rendered->rendered.bounds)));
+}
+
+void MainWindow::set_smart_filter_enabled(LayerId layer_id,
+                                          std::size_t execution_index,
+                                          bool enabled) {
+  if (!has_active_document() || canvas_ == nullptr) {
+    return;
+  }
+  if (layer_id_locks_image_pixels(layer_id)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
+    refresh_layer_list();
+    return;
+  }
+  auto& doc = document();
+  auto* layer = doc.find_layer(layer_id);
+  const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
+  if (layer == nullptr || current == nullptr ||
+      current->support != SmartFilterStackSupport::Supported ||
+      execution_index >= current->entries.size() ||
+      current->entries[execution_index].enabled == enabled ||
+      (!smart_object_lock_reason(*layer).empty() &&
+       smart_object_lock_reason(*layer) != "external")) {
+    return;
+  }
+  auto candidate = *current;
+  candidate.entries[execution_index].enabled = enabled;
+  const auto parent_document_dir =
+      session().path.isEmpty() ? QString()
+                               : QFileInfo(session().path).absolutePath();
+  const auto rendered = render_smart_object_layer_preview(
+      std::as_const(doc), std::as_const(*layer),
+      canvas_->transform_interpolation(), &candidate, parent_document_dir);
+  if (!rendered.has_value() ||
+      !smart_filter_descriptor_edit_is_writable(
+          *layer, &candidate, psd::SmartFilterDescriptorAction::Replace)) {
+    statusBar()->showMessage(
+        tr("This Smart Filter descriptor cannot be edited safely"));
+    refresh_layer_list();
+    return;
+  }
+  const auto old_bounds = layer->bounds();
+  push_undo_snapshot(enabled ? tr("Show Smart Filter")
+                             : tr("Hide Smart Filter"));
+  layer = doc.find_layer(layer_id);
+  layer->set_smart_filter_stack(std::move(candidate));
+  mark_layer_smart_object_block_dirty(*layer);
+  layer->set_pixels(rendered->rendered.pixels);
+  layer->set_bounds(rendered->rendered.bounds);
+  layer->metadata()[kLayerMetadataSmartObjectRasterStatus] =
+      kSmartObjectRasterStatusPatchy;
+  refresh_layer_list();
+  canvas_->document_changed(
+      to_qrect(old_bounds).united(to_qrect(rendered->rendered.bounds)));
+}
+
+void MainWindow::delete_smart_filter(LayerId layer_id,
+                                     std::size_t execution_index) {
+  if (!has_active_document() || canvas_ == nullptr) {
+    return;
+  }
+  if (layer_id_locks_image_pixels(layer_id)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
+    refresh_layer_list();
+    return;
+  }
+  auto& doc = document();
+  auto* layer = doc.find_layer(layer_id);
+  const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
+  if (layer == nullptr || current == nullptr ||
+      current->support != SmartFilterStackSupport::Supported ||
+      execution_index >= current->entries.size() ||
+      (!smart_object_lock_reason(*layer).empty() &&
+       smart_object_lock_reason(*layer) != "external")) {
+    return;
+  }
+  if (current->entries.size() != 1U) {
+    statusBar()->showMessage(
+        tr("Editing multiple Smart Filters is not available yet"));
+    refresh_layer_list();
+    return;
+  }
+  const auto parent_document_dir =
+      session().path.isEmpty() ? QString()
+                               : QFileInfo(session().path).absolutePath();
+  const auto unfiltered = render_smart_object_unfiltered_layer_preview(
+      std::as_const(doc), std::as_const(*layer),
+      canvas_->transform_interpolation(), parent_document_dir);
+  if (!unfiltered.has_value() ||
+      !smart_filter_descriptor_edit_is_writable(
+          *layer, nullptr, psd::SmartFilterDescriptorAction::Remove)) {
+    statusBar()->showMessage(
+        tr("This Smart Filter descriptor cannot be edited safely"));
+    refresh_layer_list();
+    return;
+  }
+  auto filter_effects = doc.metadata().smart_filter_effects;
+  if (!filter_effects.remove(smart_object_placed_uuid(*layer))) {
+    statusBar()->showMessage(
+        tr("Smart Filter cache data could not be removed safely"));
+    refresh_layer_list();
+    return;
+  }
+  const auto old_bounds = layer->bounds();
+  push_undo_snapshot(tr("Delete Smart Filter"));
+  layer = doc.find_layer(layer_id);
+  doc.metadata().smart_filter_effects = std::move(filter_effects);
+  layer->clear_smart_filter_stack();
+  mark_layer_smart_object_block_dirty(*layer);
+  layer->set_pixels(unfiltered->pixels);
+  layer->set_bounds(unfiltered->bounds);
+  layer->metadata()[kLayerMetadataSmartObjectRasterStatus] =
+      kSmartObjectRasterStatusPatchy;
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed(
+      to_qrect(old_bounds).united(to_qrect(unfiltered->bounds)));
+  statusBar()->showMessage(tr("Deleted Smart Filter"));
+}
 
 void MainWindow::apply_filter(const QString& identifier) {
   if (canvas_ != nullptr && canvas_->quick_mask_active()) {
@@ -507,8 +1070,9 @@ void MainWindow::apply_filter(const QString& identifier) {
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
-      layer->pixels().format().channels < 3) {
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel ||
+      std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8 ||
+      std::as_const(*layer).pixels().format().channels < 3) {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -516,7 +1080,24 @@ void MainWindow::apply_filter(const QString& identifier) {
     statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
-
+  if (layer_is_smart_object(*layer)) {
+    const auto lock = smart_object_lock_reason(*layer);
+    if ((!lock.empty() && lock != "external") ||
+        (layer->smart_filter_stack() != nullptr &&
+         layer->smart_filter_stack()->support !=
+             SmartFilterStackSupport::Supported)) {
+      statusBar()->showMessage(
+          tr("This Smart Object can only preserve its imported filters"));
+      return;
+    }
+    if (identifier == QStringLiteral("patchy.filters.gaussian_blur")) {
+      gaussian_smart_filter_dialog(*active);
+      return;
+    }
+    statusBar()->showMessage(
+        tr("Only Gaussian Blur is currently editable as a Smart Filter"));
+    return;
+  }
   try {
     const auto identifier_text = identifier.toStdString();
     const auto* filter = filters_.find(identifier_text);
@@ -527,7 +1108,8 @@ void MainWindow::apply_filter(const QString& identifier) {
     const auto dialog_spec = filter_dialog_spec_for(*filter);
     const auto selection = canvas_->selected_document_region();
     const auto bounds = layer->bounds();
-    auto original_pixels = std::make_shared<const PixelBuffer>(layer->pixels());
+    auto original_pixels =
+        std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
     // Tracks the bounds the layer currently shows in the preview. Blur-family
     // filters grow the layer, so each swap must repaint the union of the previous
     // and new bounds to erase any stale halo left behind when the layer shrinks.
@@ -727,6 +1309,11 @@ void MainWindow::visual_filter_gallery_dialog() {
   const auto* source_layer = source_document.find_layer(*active);
   if (!editable_rgb8_layer(source_layer)) {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  if (layer_is_smart_object(*source_layer)) {
+    statusBar()->showMessage(tr(
+        "Rasterize the Smart Object before applying destructive filters or adjustments"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
@@ -1042,13 +1629,19 @@ void MainWindow::levels_dialog() {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
+  if (layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(tr(
+        "Rasterize the Smart Object before applying destructive filters or adjustments"));
+    return;
+  }
   if (layer_id_locks_image_pixels(*active)) {
     statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
   const auto active_id = *active;
   const auto bounds = layer->bounds();
-  auto original_pixels = std::make_shared<const PixelBuffer>(layer->pixels());
+  auto original_pixels =
+      std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
   const auto selection = canvas_->selected_document_region();
   using LevelsPreviewRequest = AdjustmentPixelPreviewRequest<LevelsSettings>;
   auto preview_state = std::make_shared<AsyncPixelPreviewState<LevelsPreviewRequest>>();
@@ -1224,6 +1817,11 @@ void MainWindow::curves_dialog() {
   auto* layer = doc.find_layer(*active);
   if (!editable_rgb8_layer(layer)) {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  if (layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(tr(
+        "Rasterize the Smart Object before applying destructive filters or adjustments"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
@@ -1404,9 +2002,15 @@ void MainWindow::hue_saturation_dialog() {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
+  if (layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(tr(
+        "Rasterize the Smart Object before applying destructive filters or adjustments"));
+    return;
+  }
   const auto active_id = *active;
   const auto bounds = layer->bounds();
-  auto original_pixels = std::make_shared<const PixelBuffer>(layer->pixels());
+  auto original_pixels =
+      std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
   const auto selection = canvas_->selected_document_region();
   using HueSaturationPreviewRequest = AdjustmentPixelPreviewRequest<HueSaturationSettings>;
   const auto hue_saturation_has_effect = [](const HueSaturationSettings& settings) {
@@ -1533,9 +2137,15 @@ void MainWindow::color_balance_dialog() {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
+  if (layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(tr(
+        "Rasterize the Smart Object before applying destructive filters or adjustments"));
+    return;
+  }
   const auto active_id = *active;
   const auto bounds = layer->bounds();
-  auto original_pixels = std::make_shared<const PixelBuffer>(layer->pixels());
+  auto original_pixels =
+      std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
   const auto selection = canvas_->selected_document_region();
   using ColorBalancePreviewRequest = AdjustmentPixelPreviewRequest<ColorBalanceSettings>;
   const auto color_balance_has_effect = [](const ColorBalanceSettings& settings) {

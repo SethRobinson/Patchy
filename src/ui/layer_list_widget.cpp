@@ -97,7 +97,11 @@ bool layer_row_button_owns_clicks(const QString& object_name) {
          object_name == QLatin1String("layerMaskLinkButton") ||
          object_name == QLatin1String("layerFxBadgeButton") ||
          object_name == QLatin1String("layerSmartObjectBadgeButton") ||
-         object_name == QLatin1String("layerClippingBadgeButton");
+         object_name == QLatin1String("layerClippingBadgeButton") ||
+         object_name == QLatin1String("layerSmartFiltersVisibilityButton") ||
+         object_name == QLatin1String("layerSmartFilterVisibilityButton") ||
+         object_name == QLatin1String("layerSmartFilterEditButton") ||
+         object_name == QLatin1String("layerSmartFilterDeleteButton");
 }
 
 }  // namespace

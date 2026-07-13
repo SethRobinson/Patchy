@@ -67,9 +67,9 @@ void snap_pixel_to_palette(std::uint8_t* px, std::uint16_t channels, const Palet
 // coordinates, empty when nothing matched or from == to.
 [[nodiscard]] Rect remap_exact_color(PixelBuffer& pixels, RgbColor from, RgbColor to);
 
-// Recolors every pixel layer, recursing into groups; masks and non-pixel layers
-// are untouched. Lossless for palette-clean documents because enforced pixels are
-// exact palette colors.
+// Recolors every ordinary pixel layer, recursing into groups; masks,
+// Smart Object preview caches, and non-pixel layers are untouched. Lossless for
+// palette-clean documents because enforced pixels are exact palette colors.
 void remap_document_exact_color(Document& document, RgbColor from, RgbColor to);
 
 struct PaletteColorCount {

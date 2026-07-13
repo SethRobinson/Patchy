@@ -32,6 +32,17 @@ struct PlacedLayerInfo {
   std::optional<SmartObjectWarp> warp;
 };
 
+enum class SmartFilterDescriptorAction {
+  Preserve,
+  Replace,
+  Remove,
+};
+
+struct SmartFilterDescriptorEdit {
+  SmartFilterDescriptorAction action{SmartFilterDescriptorAction::Preserve};
+  const SmartFilterStack* stack{nullptr};
+};
+
 // Parses a 'SoLd'/'SoLE' (descriptor) or 'PlLd'/'plLd' (fixed layout) payload.
 // Returns nullopt when the payload cannot be understood (caller treats the layer as
 // preview-locked with reason "unparsed").
@@ -54,13 +65,15 @@ struct PlacedLayerInfo {
 // Returns nullopt if the original cannot be parsed (caller keeps the original bytes).
 [[nodiscard]] std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
     std::string_view key, std::span<const std::uint8_t> original_payload, const SmartObjectPlacement& placement,
-    const SmartObjectWarp* warp = nullptr, std::string_view placed_uuid = {});
+    const SmartObjectWarp* warp = nullptr, std::string_view placed_uuid = {},
+    SmartFilterDescriptorEdit smart_filter_edit = {});
 
 // Builds a from-scratch 'SoLd' payload for a freshly authored smart object (Convert /
 // Place, M3), mirroring Photoshop 2026's exact field order and id forms (E1 captures,
 // see docs/smart-objects.md). The caller stores it in the layer's unknown blocks so the normal
 // preserve-unless-edited machinery emits it (and later edits patch it in place).
 [[nodiscard]] std::vector<std::uint8_t> author_placed_layer_sold_payload(const SmartObjectPlacement& placement,
-                                                                         std::string_view placed_uuid);
+                                                                         std::string_view placed_uuid,
+                                                                         const SmartFilterStack* smart_filters = nullptr);
 
 }  // namespace patchy::psd

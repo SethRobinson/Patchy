@@ -2,8 +2,10 @@
 
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
+#include "core/smart_filter.hpp"
 
 #include <algorithm>
+#include <functional>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -18,7 +20,6 @@ constexpr std::uint32_t kSupportedRecordVersion = 1;
 constexpr std::uint32_t kSupportedCacheDepth = 8;
 constexpr std::uint32_t kMaximumSupportedCacheChannels = 64;
 constexpr std::int64_t kMaximumPsdDimension = 300000;
-constexpr std::uint64_t kMaximumDecodedMaskPixels = 64ULL * 1024ULL * 1024ULL;
 
 [[nodiscard]] std::int32_t read_i32(BigEndianReader &reader) {
   return static_cast<std::int32_t>(reader.read_u32());
@@ -106,7 +107,8 @@ raw_record_range_is_valid(const SmartFilterEffectsRecord &record) noexcept {
                                       SmartFilterEffectsRecord &record) {
   const auto pixels64 = static_cast<std::uint64_t>(bounds.width) *
                         static_cast<std::uint64_t>(bounds.height);
-  if (pixels64 == 0U || pixels64 > kMaximumDecodedMaskPixels) {
+  if (pixels64 == 0U ||
+      pixels64 > kMaximumEditableSmartFilterMaskPixels) {
     return false;
   }
   const auto expected = static_cast<std::size_t>(pixels64);
@@ -416,6 +418,199 @@ serialize_filter_effects_block(const SmartFilterEffectsBlock &block) {
     writer.write_u8(0);
   }
   return writer.bytes();
+}
+
+std::optional<SmartFilterEffectsRecord>
+author_filter_effects_record(std::string_view placed_uuid,
+                             Rect document_bounds,
+                             const PixelBuffer &unfiltered_pixels,
+                             Rect unfiltered_bounds,
+                             const SmartFilterMask &mask) {
+  if (placed_uuid.empty() || placed_uuid.size() > 255U ||
+      document_bounds.empty() || unfiltered_pixels.empty() ||
+      document_bounds.width > kMaximumPsdDimension ||
+      document_bounds.height > kMaximumPsdDimension ||
+      unfiltered_pixels.format().bit_depth != BitDepth::UInt8 ||
+      unfiltered_pixels.format().channels < 3U ||
+      unfiltered_pixels.format().channels > 4U ||
+      unfiltered_bounds.width != unfiltered_pixels.width() ||
+      unfiltered_bounds.height != unfiltered_pixels.height() ||
+      (!mask.pixels.empty() &&
+       (mask.pixels.format() != PixelFormat::gray8() ||
+        mask.bounds.width != mask.pixels.width() ||
+        mask.bounds.height != mask.pixels.height()))) {
+    return std::nullopt;
+  }
+
+  const auto checked_edge = [](std::int32_t start,
+                               std::int32_t extent) -> std::optional<std::int32_t> {
+    const auto edge = static_cast<std::int64_t>(start) + extent;
+    if (edge < std::numeric_limits<std::int32_t>::min() ||
+        edge > std::numeric_limits<std::int32_t>::max()) {
+      return std::nullopt;
+    }
+    return static_cast<std::int32_t>(edge);
+  };
+  const auto document_right =
+      checked_edge(document_bounds.x, document_bounds.width);
+  const auto document_bottom =
+      checked_edge(document_bounds.y, document_bounds.height);
+  if (!document_right.has_value() || !document_bottom.has_value()) {
+    return std::nullopt;
+  }
+
+  const auto pixel_count =
+      static_cast<std::uint64_t>(document_bounds.width) *
+      static_cast<std::uint64_t>(document_bounds.height);
+  if (pixel_count > std::numeric_limits<std::size_t>::max() ||
+      pixel_count > kMaximumEditableSmartFilterMaskPixels) {
+    return std::nullopt;
+  }
+  const auto encode_plane = [&](const std::function<std::uint8_t(
+                                     std::int32_t, std::int32_t)> &sample,
+                                 std::vector<std::uint8_t>* decoded = nullptr) {
+    std::vector<std::vector<std::uint8_t>> rows;
+    rows.reserve(static_cast<std::size_t>(document_bounds.height));
+    std::vector<std::uint8_t> raw_row(
+        static_cast<std::size_t>(document_bounds.width));
+    if (decoded != nullptr) {
+      decoded->resize(static_cast<std::size_t>(pixel_count));
+    }
+    for (std::int32_t y = 0; y < document_bounds.height; ++y) {
+      const auto document_y = document_bounds.y + y;
+      for (std::int32_t x = 0; x < document_bounds.width; ++x) {
+        raw_row[static_cast<std::size_t>(x)] =
+            sample(document_bounds.x + x, document_y);
+      }
+      if (decoded != nullptr) {
+        std::copy(raw_row.begin(), raw_row.end(),
+                  decoded->begin() +
+                      static_cast<std::ptrdiff_t>(y) *
+                          document_bounds.width);
+      }
+      rows.push_back(encode_packbits_row(raw_row));
+    }
+
+    BigEndianWriter plane;
+    plane.write_u16(1U);
+    for (const auto &row : rows) {
+      plane.write_u32(static_cast<std::uint32_t>(row.size()));
+    }
+    for (const auto &row : rows) {
+      plane.write_bytes(row);
+    }
+    return plane.bytes();
+  };
+
+  const auto source_sample = [&](std::int32_t document_x,
+                                 std::int32_t document_y,
+                                 std::uint16_t channel) -> std::uint8_t {
+    const auto local_x = static_cast<std::int64_t>(document_x) -
+                         unfiltered_bounds.x;
+    const auto local_y = static_cast<std::int64_t>(document_y) -
+                         unfiltered_bounds.y;
+    if (local_x < 0 || local_y < 0 || local_x >= unfiltered_bounds.width ||
+        local_y >= unfiltered_bounds.height) {
+      return 0U;
+    }
+    const auto *pixel = unfiltered_pixels.pixel(
+        static_cast<std::int32_t>(local_x),
+        static_cast<std::int32_t>(local_y));
+    if (channel == 3U) {
+      return unfiltered_pixels.format().channels >= 4U ? pixel[3] : 255U;
+    }
+    return pixel[channel];
+  };
+  const auto mask_sample = [&](std::int32_t document_x,
+                               std::int32_t document_y) -> std::uint8_t {
+    if (!mask.pixels.empty()) {
+      const auto local_x =
+          static_cast<std::int64_t>(document_x) - mask.bounds.x;
+      const auto local_y =
+          static_cast<std::int64_t>(document_y) - mask.bounds.y;
+      if (local_x >= 0 && local_y >= 0 && local_x < mask.bounds.width &&
+          local_y < mask.bounds.height) {
+        return mask.pixels.pixel(static_cast<std::int32_t>(local_x),
+                                 static_cast<std::int32_t>(local_y))[0];
+      }
+    }
+    return mask.extend_with_white ? 255U : mask.default_color;
+  };
+
+  std::array<std::vector<std::uint8_t>, 4> cache_planes;
+  for (std::uint16_t channel = 0; channel < 4U; ++channel) {
+    cache_planes[channel] = encode_plane(
+        [&](std::int32_t x, std::int32_t y) {
+          return source_sample(x, y, channel);
+        });
+  }
+  std::vector<std::uint8_t> decoded_mask;
+  const auto mask_plane = encode_plane(mask_sample, &decoded_mask);
+
+  BigEndianWriter cache;
+  cache.write_u32(static_cast<std::uint32_t>(document_bounds.y));
+  cache.write_u32(static_cast<std::uint32_t>(document_bounds.x));
+  cache.write_u32(static_cast<std::uint32_t>(*document_bottom));
+  cache.write_u32(static_cast<std::uint32_t>(*document_right));
+  cache.write_u32(kSupportedCacheDepth);
+  constexpr std::uint32_t kPhotoshopMaximumChannels = 24U;
+  cache.write_u32(kPhotoshopMaximumChannels);
+  for (std::uint32_t slot = 0; slot < kPhotoshopMaximumChannels + 2U;
+       ++slot) {
+    const int plane_index =
+        slot <= 2U ? static_cast<int>(slot) : (slot == 25U ? 3 : -1);
+    if (plane_index < 0) {
+      cache.write_u32(0U);
+      continue;
+    }
+    const auto &plane = cache_planes[static_cast<std::size_t>(plane_index)];
+    cache.write_u32(1U);
+    cache.write_u64(static_cast<std::uint64_t>(plane.size()));
+    cache.write_bytes(plane);
+  }
+
+  BigEndianWriter body;
+  body.write_u8(static_cast<std::uint8_t>(placed_uuid.size()));
+  body.write_bytes(std::span<const std::uint8_t>(
+      reinterpret_cast<const std::uint8_t *>(placed_uuid.data()),
+      placed_uuid.size()));
+  body.write_u32(kSupportedRecordVersion);
+  body.write_u64(static_cast<std::uint64_t>(cache.bytes().size()));
+  body.write_bytes(cache.bytes());
+  body.write_u8(1U);
+  body.write_u32(static_cast<std::uint32_t>(document_bounds.y));
+  body.write_u32(static_cast<std::uint32_t>(document_bounds.x));
+  body.write_u32(static_cast<std::uint32_t>(*document_bottom));
+  body.write_u32(static_cast<std::uint32_t>(*document_right));
+  body.write_u64(static_cast<std::uint64_t>(mask_plane.size()));
+  body.write_bytes(mask_plane);
+
+  SmartFilterEffectsRecord record;
+  record.source_block_key = "FEid";
+  record.source_block_version = 3U;
+  record.source_long_length = false;
+  record.placed_uuid = std::string(placed_uuid);
+  record.original_placed_uuid = record.placed_uuid;
+  record.record_version = kSupportedRecordVersion;
+  record.raw_storage =
+      std::make_shared<const std::vector<std::uint8_t>>(
+          std::move(body.bytes()));
+  record.raw_body_offset = 0U;
+  record.raw_body_length = record.raw_storage->size();
+  record.cache_bounds = document_bounds;
+  record.cache_depth = kSupportedCacheDepth;
+  record.cache_max_channels = kPhotoshopMaximumChannels;
+  record.cache_layout_valid = true;
+  record.mask_present = true;
+  record.mask_decoded = true;
+  SmartFilterEffectsMask decoded;
+  decoded.bounds = document_bounds;
+  decoded.samples = std::make_shared<const std::vector<std::uint8_t>>(
+      std::move(decoded_mask));
+  record.mask = std::move(decoded);
+  record.data_supported = true;
+  record.association_unique = true;
+  return record;
 }
 
 } // namespace patchy::psd

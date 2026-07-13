@@ -5863,6 +5863,10 @@ Mixed selection</source>
         <source>Select All is unavailable in Quick Mask mode</source>
         <translation>クイックマスクモードでは「すべてを選択」は使用できません</translation>
     </message>
+    <message>
+        <source>Could not rebuild the Smart Filter preview and cache</source>
+        <translation>スマートフィルターのプレビューとキャッシュを再構築できませんでした</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -11351,6 +11355,142 @@ Clipped to the layer below</source>
         <source>Exited Quick Mask mode</source>
         <translation>クイックマスクモードを終了しました</translation>
     </message>
+    <message>
+        <source>Convert for Smart Filters</source>
+        <translation>スマートフィルター用に変換</translation>
+    </message>
+    <message>
+        <source>Convert the active layer to a Smart Object for editable filters</source>
+        <translation>アクティブなレイヤーをスマートオブジェクトに変換してフィルターを編集可能にします</translation>
+    </message>
+    <message>
+        <source>Select a normal pixel layer to convert for Smart Filters</source>
+        <translation>スマートフィルター用に変換する通常のピクセルレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>This Smart Object can only preserve its imported filters</source>
+        <translation>このスマートオブジェクトでは読み込んだフィルターの保持のみ可能です</translation>
+    </message>
+    <message>
+        <source>Multiple editable Smart Filters are not available yet</source>
+        <translation>複数の編集可能なスマートフィルターはまだ利用できません</translation>
+    </message>
+    <message>
+        <source>This Smart Filter can only be preserved, not edited</source>
+        <translation>このスマートフィルターは保持のみ可能で、編集できません</translation>
+    </message>
+    <message>
+        <source>Could not render this Smart Object</source>
+        <translation>このスマートオブジェクトを描画できませんでした</translation>
+    </message>
+    <message>
+        <source>Smart Filter preview failed: %1</source>
+        <translation>スマートフィルターのプレビューに失敗しました: %1</translation>
+    </message>
+    <message>
+        <source>Cancelled Gaussian Blur</source>
+        <translation>ガウスぼかしをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Smart Filter failed</source>
+        <translation>スマートフィルターの処理に失敗しました</translation>
+    </message>
+    <message>
+        <source>This Smart Filter descriptor cannot be edited safely</source>
+        <translation>このスマートフィルターのディスクリプターは安全に編集できません</translation>
+    </message>
+    <message>
+        <source>Smart Filter cache data could not be written safely</source>
+        <translation>スマートフィルターのキャッシュデータを安全に書き込めませんでした</translation>
+    </message>
+    <message>
+        <source>Add Gaussian Blur Smart Filter</source>
+        <translation>ガウスぼかしスマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Gaussian Blur Smart Filter</source>
+        <translation>ガウスぼかしスマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Gaussian Blur as a Smart Filter</source>
+        <translation>ガウスぼかしをスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Gaussian Blur Smart Filter</source>
+        <translation>ガウスぼかしスマートフィルターを更新しました</translation>
+    </message>
+    <message>
+        <source>Show Smart Filters</source>
+        <translation>スマートフィルターを表示</translation>
+    </message>
+    <message>
+        <source>Hide Smart Filters</source>
+        <translation>スマートフィルターを非表示</translation>
+    </message>
+    <message>
+        <source>Show Smart Filter</source>
+        <translation>スマートフィルターを表示</translation>
+    </message>
+    <message>
+        <source>Hide Smart Filter</source>
+        <translation>スマートフィルターを非表示</translation>
+    </message>
+    <message>
+        <source>Editing multiple Smart Filters is not available yet</source>
+        <translation>複数のスマートフィルターの編集はまだ利用できません</translation>
+    </message>
+    <message>
+        <source>Smart Filter cache data could not be removed safely</source>
+        <translation>スマートフィルターのキャッシュデータを安全に削除できませんでした</translation>
+    </message>
+    <message>
+        <source>Delete Smart Filter</source>
+        <translation>スマートフィルターを削除</translation>
+    </message>
+    <message>
+        <source>Deleted Smart Filter</source>
+        <translation>スマートフィルターを削除しました</translation>
+    </message>
+    <message>
+        <source>Only Gaussian Blur is currently editable as a Smart Filter</source>
+        <translation>現在、スマートフィルターとして編集できるのはガウスぼかしだけです</translation>
+    </message>
+    <message>
+        <source>Could not rebuild the Smart Filter preview and cache</source>
+        <translation>スマートフィルターのプレビューとキャッシュを再構築できませんでした</translation>
+    </message>
+    <message>
+        <source>Editable Smart Filters currently support documents up to 64 megapixels</source>
+        <translation>編集可能なスマートフィルターは現在、最大64メガピクセルのドキュメントに対応しています</translation>
+    </message>
+    <message>
+        <source>Smart Objects with Smart Filters cannot be wrapped in another Smart Object yet</source>
+        <translation>スマートフィルター付きスマートオブジェクトは、まだ別のスマートオブジェクト内にまとめられません</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Objects before changing document geometry</source>
+        <translation>ドキュメントの形状を変更する前に、スマートオブジェクトをラスタライズしてください</translation>
+    </message>
+    <message>
+        <source>Use Free Transform or rasterize Smart Objects before flipping</source>
+        <translation>スマートオブジェクトを反転するには、自由変形を使用するかラスタライズしてください</translation>
+    </message>
+    <message>
+        <source>Rasterize the Smart Object before applying destructive filters or adjustments</source>
+        <translation>破壊的なフィルターや色調補正を適用する前に、スマートオブジェクトをラスタライズしてください</translation>
+    </message>
+    <message>
+        <source>Text and Smart Object pixels cannot be filled. Rasterize the layer first.</source>
+        <translation>テキストとスマートオブジェクトのピクセルは塗りつぶせません。先にレイヤーをラスタライズしてください。</translation>
+    </message>
+    <message>
+        <source>Rasterize Text and Smart Object layers before editing their pixels</source>
+        <translation>ピクセルを編集する前に、テキストとスマートオブジェクトのレイヤーをラスタライズしてください</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Objects before changing palette pixels</source>
+        <translation>パレットのピクセルを変更する前に、スマートオブジェクトをラスタライズしてください</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -11919,6 +12059,19 @@ Clipped to the layer below</source>
     <message><source>Metal Shine</source><translation>メタルシャイン</translation></message>
     <message><source>Cel Shade</source><translation>セルシェード</translation></message>
     <message><source>Jewel Tone</source><translation>ジュエルトーン</translation></message>
+    <message><source>This Smart Object is preview-locked. Its Smart Filters are preserved unchanged.</source><translation>このスマートオブジェクトはプレビュー専用です。スマートフィルターは変更せずに保持されます。</translation></message>
+    <message><source>This Smart Filter stack contains unsupported Photoshop data. Patchy preserves it unchanged, so the controls are disabled.</source><translation>このスマートフィルタースタックには未対応の Photoshop データが含まれています。Patchy はデータを変更せずに保持するため、コントロールは無効です。</translation></message>
+    <message><source>Smart Filters visible. Click to hide.</source><translation>スマートフィルターは表示中です。クリックで非表示にします。</translation></message>
+    <message><source>Smart Filters hidden. Click to show.</source><translation>スマートフィルターは非表示です。クリックで表示します。</translation></message>
+    <message><source>Smart Filters</source><translation>スマートフィルター</translation></message>
+    <message><source>Shared Smart Filter mask</source><translation>共有スマートフィルターマスク</translation></message>
+    <message><source>Smart Filter visible. Click to hide.</source><translation>スマートフィルターは表示中です。クリックで非表示にします。</translation></message>
+    <message><source>Smart Filter hidden. Click to show.</source><translation>スマートフィルターは非表示です。クリックで表示します。</translation></message>
+    <message><source> (%1 px)</source><translation> (%1 px)</translation></message>
+    <message><source>Unsupported Smart Filter</source><translation>未対応のスマートフィルター</translation></message>
+    <message><source>Edit Smart Filter</source><translation>スマートフィルターを編集</translation></message>
+    <message><source>Delete Smart Filter</source><translation>スマートフィルターを削除</translation></message>
+    <message><source> px</source><translation> px</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

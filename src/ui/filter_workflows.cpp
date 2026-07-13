@@ -1009,8 +1009,16 @@ std::optional<FilterInvocation> request_filter_settings(
     if (control.kind == FilterParameterKind::Double) {
       const auto minimum = control.typed_minimum.value_or(static_cast<double>(control.minimum));
       const auto maximum = control.typed_maximum.value_or(static_cast<double>(control.maximum));
+      const auto slider_minimum =
+          std::clamp(static_cast<double>(control.minimum), minimum, maximum);
+      const auto slider_maximum =
+          std::clamp(static_cast<double>(control.maximum), slider_minimum,
+                     maximum);
       const auto step = std::max(0.000001, control.step.value_or(0.01));
-      const auto ticks = std::clamp(static_cast<int>(std::lround((maximum - minimum) / step)), 1, 1'000'000);
+      const auto ticks = std::clamp(
+          static_cast<int>(
+              std::lround((slider_maximum - slider_minimum) / step)),
+          1, 1'000'000);
       auto* spin = new QDoubleSpinBox(container);
       spin->setObjectName(control.object_name + QStringLiteral("Spin"));
       spin->setRange(minimum, maximum);
@@ -1029,15 +1037,24 @@ std::optional<FilterInvocation> request_filter_settings(
       const auto number = std::clamp(numeric_filter_value(initial_value, numeric_filter_value(control.default_value)),
                                      minimum, maximum);
       spin->setValue(number);
-      slider->setValue(std::clamp(static_cast<int>(std::lround((number - minimum) / step)), 0, ticks));
+      slider->setValue(std::clamp(
+          static_cast<int>(
+              std::lround((number - slider_minimum) / step)),
+          0, ticks));
       QObject::connect(slider, &QSlider::valueChanged, spin,
-                       [spin, minimum, maximum, step](int tick) {
-                         spin->setValue(std::clamp(minimum + static_cast<double>(tick) * step, minimum, maximum));
+                       [spin, slider_minimum, slider_maximum, step](int tick) {
+                         spin->setValue(std::clamp(
+                             slider_minimum + static_cast<double>(tick) * step,
+                             slider_minimum, slider_maximum));
                        });
       QObject::connect(spin, qOverload<double>(&QDoubleSpinBox::valueChanged), slider,
-                       [slider, minimum, step, ticks](double value) {
+                       [slider, slider_minimum, step, ticks](double value) {
+                         const QSignalBlocker blocker(slider);
                          slider->setValue(
-                             std::clamp(static_cast<int>(std::lround((value - minimum) / step)), 0, ticks));
+                             std::clamp(
+                                 static_cast<int>(std::lround(
+                                     (value - slider_minimum) / step)),
+                                 0, ticks));
                        });
       QObject::connect(spin, qOverload<double>(&QDoubleSpinBox::valueChanged), &dialog,
                        [changed](double) { changed(); });

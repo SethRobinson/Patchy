@@ -1,5 +1,8 @@
 #include "ui/smart_object_render.hpp"
 
+#include "filters/smart_filter_renderer.hpp"
+#include "psd/psd_filter_effects.hpp"
+
 #include "formats/format_registry.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/image_document_io.hpp"
@@ -7,6 +10,7 @@
 #include <QBuffer>
 #include <QByteArray>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QPolygonF>
@@ -179,6 +183,33 @@ std::optional<QImage> decode_smart_object_source_image(const SmartObjectSource& 
   return std::nullopt;
 }
 
+std::optional<QImage> decode_smart_object_source_image(
+    const SmartObjectSource& source, const QString& parent_document_dir) {
+  if (source.kind == SmartObjectSourceKind::Embedded) {
+    return decode_smart_object_source_image(source);
+  }
+  if (source.kind != SmartObjectSourceKind::ExternalFile) {
+    return std::nullopt;
+  }
+  const auto path = resolve_smart_object_external_path(source, parent_document_dir);
+  if (!path.has_value()) {
+    return std::nullopt;
+  }
+  QFile file(*path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return std::nullopt;
+  }
+  const auto bytes = file.readAll();
+  if (bytes.isEmpty()) {
+    return std::nullopt;
+  }
+  SmartObjectSource probe = source;
+  probe.kind = SmartObjectSourceKind::Embedded;
+  probe.file_bytes = std::make_shared<const std::vector<std::uint8_t>>(
+      bytes.begin(), bytes.end());
+  return decode_smart_object_source_image(probe);
+}
+
 std::optional<Document> decode_smart_object_source_document(const SmartObjectSource& source) {
   const auto bytes = source_bytes(source);
   if (bytes.empty()) {
@@ -315,32 +346,139 @@ std::optional<TransformedImage> render_smart_object_pixels(
   return resample_transformed_rgba8(source_image, source_to_document, interpolation);
 }
 
-bool refresh_smart_object_layer_preview(Document& document, Layer& layer,
-                                        CanvasWidget::TransformInterpolation interpolation) {
-  if (!layer_is_smart_object(layer) || !smart_object_lock_reason(layer).empty()) {
-    return false;
+std::optional<SmartObjectLayerPreview> render_smart_object_layer_preview(
+    const Document& document, const Layer& layer,
+    CanvasWidget::TransformInterpolation interpolation,
+    const SmartFilterStack* override_stack,
+    const QString& parent_document_dir) {
+  const auto unfiltered = render_smart_object_unfiltered_layer_preview(
+      document, layer, interpolation, parent_document_dir);
+  if (!unfiltered.has_value()) {
+    return std::nullopt;
+  }
+  SmartObjectLayerPreview result;
+  result.unfiltered = *unfiltered;
+  const auto* stack = override_stack != nullptr ? override_stack
+                                                 : layer.smart_filter_stack();
+  try {
+    result.rendered = stack == nullptr
+                          ? result.unfiltered
+                          : render_smart_filter_stack(result.unfiltered.pixels,
+                                                      result.unfiltered.bounds,
+                                                      Rect::from_size(
+                                                          document.width(),
+                                                          document.height()),
+                                                      *stack);
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+  return result;
+}
+
+std::optional<FilterRenderResult> render_smart_object_unfiltered_layer_preview(
+    const Document& document, const Layer& layer,
+    CanvasWidget::TransformInterpolation interpolation,
+    const QString& parent_document_dir) {
+  const auto lock = smart_object_lock_reason(layer);
+  if (!layer_is_smart_object(layer) ||
+      (!lock.empty() && lock != "external")) {
+    return std::nullopt;
   }
   const auto placement = smart_object_placement_from_layer(layer);
   if (!placement.has_value()) {
-    return false;
+    return std::nullopt;
   }
   const auto* source = document.metadata().smart_objects.find(placement->uuid);
-  if (source == nullptr || source->kind != SmartObjectSourceKind::Embedded) {
-    return false;
+  if (source == nullptr) {
+    return std::nullopt;
   }
-  const auto image = decode_smart_object_source_image(*source);
+  const auto image = decode_smart_object_source_image(
+      *source, parent_document_dir);
   if (!image.has_value()) {
-    return false;
+    return std::nullopt;
   }
-  auto rendered = render_smart_object_pixels(*image, *placement, smart_object_warp_from_layer(layer),
-                                             interpolation);
+  const auto rendered = render_smart_object_pixels(
+      *image, *placement, smart_object_warp_from_layer(layer), interpolation);
+  if (!rendered.has_value()) {
+    return std::nullopt;
+  }
+  return FilterRenderResult{pixels_from_image_rgba(rendered->image),
+                            rendered->bounds};
+}
+
+std::optional<SmartObjectLayerPreview> render_smart_object_image_preview(
+    const QImage& source_image, const SmartObjectPlacement& placement,
+    const std::optional<SmartObjectWarp>& warp,
+    CanvasWidget::TransformInterpolation interpolation,
+    const SmartFilterStack* stack, Rect document_bounds) {
+  auto rendered =
+      render_smart_object_pixels(source_image, placement, warp, interpolation);
+  if (!rendered.has_value()) {
+    return std::nullopt;
+  }
+  SmartObjectLayerPreview result;
+  result.unfiltered =
+      FilterRenderResult{pixels_from_image_rgba(rendered->image), rendered->bounds};
+  try {
+    result.rendered = stack == nullptr
+                          ? result.unfiltered
+                          : render_smart_filter_stack(result.unfiltered.pixels,
+                                                      result.unfiltered.bounds,
+                                                      document_bounds,
+                                                      *stack);
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+  return result;
+}
+
+bool install_smart_object_layer_preview(Document& document, Layer& layer,
+                                        SmartObjectLayerPreview preview,
+                                        bool refresh_native_cache) {
+  auto filter_effects = document.metadata().smart_filter_effects;
+  if (const auto* stack = std::as_const(layer).smart_filter_stack();
+      stack != nullptr) {
+    const auto placed_uuid = smart_object_placed_uuid(std::as_const(layer));
+    if (placed_uuid.empty()) {
+      return false;
+    }
+    if (refresh_native_cache) {
+      auto record = psd::author_filter_effects_record(
+          placed_uuid, Rect::from_size(document.width(), document.height()),
+          preview.unfiltered.pixels, preview.unfiltered.bounds, stack->mask);
+      if (!record.has_value() ||
+          !filter_effects.upsert_authored(std::move(*record))) {
+        return false;
+      }
+    } else {
+      const auto* record = filter_effects.find_unique(placed_uuid);
+      if (record == nullptr || !record->semantic_supported()) {
+        return false;
+      }
+    }
+  }
+
+  document.metadata().smart_filter_effects = std::move(filter_effects);
+  layer.set_pixels(std::move(preview.rendered.pixels));
+  layer.set_bounds(preview.rendered.bounds);
+  layer.metadata()[kLayerMetadataSmartObjectRasterStatus] =
+      kSmartObjectRasterStatusPatchy;
+  return true;
+}
+
+bool refresh_smart_object_layer_preview(
+    Document& document, Layer& layer,
+    CanvasWidget::TransformInterpolation interpolation,
+    bool refresh_native_cache, const QString& parent_document_dir) {
+  const auto rendered = render_smart_object_layer_preview(
+      std::as_const(document), std::as_const(layer), interpolation, nullptr,
+      parent_document_dir);
   if (!rendered.has_value()) {
     return false;
   }
-  layer.set_pixels(pixels_from_image_rgba(rendered->image));
-  layer.set_bounds(rendered->bounds);
-  layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
-  return true;
+
+  return install_smart_object_layer_preview(
+      document, layer, std::move(*rendered), refresh_native_cache);
 }
 
 }  // namespace patchy::ui

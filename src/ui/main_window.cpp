@@ -2073,7 +2073,11 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                bool content_target_active = false, bool mask_target_active = false,
                                std::function<void(LayerId)> open_layer_styles = {},
                                std::function<void(LayerId)> open_smart_object = {}, bool clipped = false,
-                               std::function<void(LayerId)> toggle_clipping = {}) {
+                               std::function<void(LayerId)> toggle_clipping = {},
+                               std::function<void(LayerId, bool)> set_smart_filter_stack_enabled = {},
+                               std::function<void(LayerId, std::size_t, bool)> set_smart_filter_enabled = {},
+                               std::function<void(LayerId, std::size_t)> edit_smart_filter = {},
+                               std::function<void(LayerId, std::size_t)> delete_smart_filter = {}) {
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
   row->setAttribute(Qt::WA_StyledBackground, true);
@@ -2082,7 +2086,20 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   if (list_parent != nullptr) {
     row->installEventFilter(list_parent);
   }
-  auto* layout = new QHBoxLayout(row);
+  auto* row_layout = new QVBoxLayout(row);
+  row_layout->setContentsMargins(0, 0, 0, 0);
+  row_layout->setSpacing(0);
+
+  auto* main_row = new QWidget(row);
+  main_row->setObjectName(QStringLiteral("layerMainRow"));
+  main_row->setFixedHeight(44);
+  main_row->setAutoFillBackground(false);
+  if (list_parent != nullptr) {
+    main_row->installEventFilter(list_parent);
+  }
+  row_layout->addWidget(main_row);
+
+  auto* layout = new QHBoxLayout(main_row);
   layout->setContentsMargins(kLayerRowBaseIndent, 4, 8, 4);
   layout->setSpacing(kLayerRowHorizontalSpacing);
 
@@ -2317,6 +2334,287 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
     }
   });
+
+  if (const auto* smart_filters = layer.smart_filter_stack(); smart_filters != nullptr) {
+    constexpr int kSmartFilterRowHeight = 26;
+    const auto stack_supported =
+        smart_filters->support == SmartFilterStackSupport::Supported;
+    const auto smart_object_lock = smart_object_lock_reason(layer);
+    const auto image_pixels_locked =
+        (effective_lock_flags & kLayerLockImagePixels) != kLayerLockNone;
+    const auto controls_supported =
+        stack_supported &&
+        (smart_object_lock.empty() || smart_object_lock == "external") &&
+        !image_pixels_locked;
+    const auto preservation_tooltip = image_pixels_locked
+        ? QObject::tr("Layer pixels are locked.")
+        : stack_supported
+            ? QObject::tr(
+              "This Smart Object is preview-locked. Its Smart Filters are preserved unchanged.")
+            : QObject::tr(
+              "This Smart Filter stack contains unsupported Photoshop data. Patchy preserves it unchanged, so the "
+              "controls are disabled.");
+    const auto button_style = QStringLiteral(
+        "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 0; "
+        "min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; } "
+        "QToolButton:hover { background: #30343a; border-color: #59636f; } "
+        "QToolButton:disabled { background: transparent; border-color: transparent; }");
+    const auto configure_visibility_button = [&](QToolButton* button, bool visible,
+                                                  const QString& visible_tooltip,
+                                                  const QString& hidden_tooltip) {
+      button->setCheckable(true);
+      button->setChecked(visible);
+      button->setText(QString());
+      button->setIcon(simple_icon(visible ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
+                                  visible ? QColor(228, 236, 246) : QColor(118, 126, 136)));
+      button->setIconSize(QSize(15, 15));
+      button->setFixedSize(20, 20);
+      button->setFocusPolicy(Qt::NoFocus);
+      button->setStyleSheet(button_style);
+      button->setToolTip(controls_supported
+                             ? (visible ? visible_tooltip : hidden_tooltip)
+                             : preservation_tooltip);
+      button->setEnabled(controls_supported && ancestors_visible);
+      if (list_parent != nullptr) {
+        button->installEventFilter(list_parent);
+      }
+    };
+    const auto mask_pixmap = [](const SmartFilterMask& mask) {
+      constexpr int kSize = 22;
+      QImage image(kSize, kSize, QImage::Format_RGB888);
+      image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
+      if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
+        for (int y = 0; y < kSize; ++y) {
+          const auto source_y = std::clamp(
+              static_cast<int>((static_cast<double>(y) / kSize) * mask.pixels.height()), 0,
+              std::max(0, mask.pixels.height() - 1));
+          for (int x = 0; x < kSize; ++x) {
+            const auto source_x = std::clamp(
+                static_cast<int>((static_cast<double>(x) / kSize) * mask.pixels.width()), 0,
+                std::max(0, mask.pixels.width() - 1));
+            const auto value = *mask.pixels.pixel(source_x, source_y);
+            image.setPixelColor(x, y, QColor(value, value, value));
+          }
+        }
+      }
+      QPixmap pixmap = QPixmap::fromImage(image);
+      QPainter painter(&pixmap);
+      painter.setPen(QPen(QColor(150, 158, 168), 1));
+      painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+      if (!mask.enabled) {
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setPen(QPen(QColor(232, 70, 70), 2));
+        painter.drawLine(QPoint(3, 3), QPoint(kSize - 4, kSize - 4));
+        painter.drawLine(QPoint(kSize - 4, 3), QPoint(3, kSize - 4));
+      }
+      return pixmap;
+    };
+    const auto make_nested_row = [&](const QString& object_name, int extra_indent) {
+      auto* nested_row = new QWidget(row);
+      nested_row->setObjectName(object_name);
+      nested_row->setFixedHeight(kSmartFilterRowHeight);
+      nested_row->setAutoFillBackground(false);
+      if (!controls_supported) {
+        nested_row->setToolTip(preservation_tooltip);
+      }
+      if (list_parent != nullptr) {
+        nested_row->installEventFilter(list_parent);
+      }
+      auto* nested_layout = new QHBoxLayout(nested_row);
+      const auto indent = kLayerRowBaseIndent + 22 + kLayerRowHorizontalSpacing +
+                          layer_tree_indent_width(depth) + kLayerFolderDisclosureWidth +
+                          kLayerRowHorizontalSpacing + extra_indent;
+      nested_layout->setContentsMargins(indent, 1, 8, 1);
+      nested_layout->setSpacing(5);
+      row_layout->addWidget(nested_row);
+      return std::pair{nested_row, nested_layout};
+    };
+
+    auto [header, header_layout] =
+        make_nested_row(QStringLiteral("layerSmartFiltersRow"), 0);
+    auto* stack_visibility = new QToolButton(header);
+    stack_visibility->setObjectName(QStringLiteral("layerSmartFiltersVisibilityButton"));
+    configure_visibility_button(
+        stack_visibility, smart_filters->enabled,
+        QObject::tr("Smart Filters visible. Click to hide."),
+        QObject::tr("Smart Filters hidden. Click to show."));
+    QObject::connect(
+        stack_visibility, &QToolButton::toggled, row,
+        [parent, id = layer.id(), stack_visibility, controls_supported,
+         preservation_tooltip, set_smart_filter_stack_enabled](bool checked) {
+          stack_visibility->setIcon(simple_icon(
+              checked ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
+              checked ? QColor(228, 236, 246) : QColor(118, 126, 136)));
+          stack_visibility->setToolTip(
+              controls_supported
+                  ? (checked ? QObject::tr("Smart Filters visible. Click to hide.")
+                             : QObject::tr("Smart Filters hidden. Click to show."))
+                  : preservation_tooltip);
+          if (set_smart_filter_stack_enabled) {
+            QTimer::singleShot(0, parent,
+                               [id, checked, set_smart_filter_stack_enabled] {
+              set_smart_filter_stack_enabled(id, checked);
+            });
+          }
+        });
+    header_layout->addWidget(stack_visibility, 0, Qt::AlignVCenter);
+
+    auto* header_label = new LayerRowElidingLabel(QObject::tr("Smart Filters"), header);
+    header_label->setObjectName(QStringLiteral("layerSmartFiltersLabel"));
+    header_label->setStyleSheet(QStringLiteral("background: transparent;"));
+    auto header_font = header_label->font();
+    header_font.setBold(true);
+    header_label->setFont(header_font);
+    header_label->setEnabled(ancestors_visible && layer.visible());
+    if (list_parent != nullptr) {
+      header_label->installEventFilter(list_parent);
+    }
+    header_layout->addWidget(header_label, 1, Qt::AlignVCenter);
+
+    if (!smart_filters->mask.pixels.empty()) {
+      auto* smart_filter_mask_thumbnail = new QLabel(header);
+      smart_filter_mask_thumbnail->setObjectName(QStringLiteral("layerSmartFilterMaskThumbnail"));
+      smart_filter_mask_thumbnail->setFixedSize(22, 22);
+      smart_filter_mask_thumbnail->setPixmap(mask_pixmap(smart_filters->mask));
+      smart_filter_mask_thumbnail->setStyleSheet(QStringLiteral("background: transparent;"));
+      smart_filter_mask_thumbnail->setToolTip(
+          controls_supported ? QObject::tr("Shared Smart Filter mask") : preservation_tooltip);
+      if (list_parent != nullptr) {
+        smart_filter_mask_thumbnail->installEventFilter(list_parent);
+      }
+      header_layout->addWidget(smart_filter_mask_thumbnail, 0, Qt::AlignVCenter);
+    }
+
+    for (std::size_t execution_index = smart_filters->entries.size(); execution_index-- > 0;) {
+      const auto& entry = smart_filters->entries[execution_index];
+      auto [entry_row, entry_layout] =
+          make_nested_row(QStringLiteral("layerSmartFilterEntryRow"), 14);
+      entry_row->setProperty("smartFilterExecutionIndex",
+                             QVariant::fromValue<qulonglong>(
+                                 static_cast<qulonglong>(execution_index)));
+
+      auto* entry_visibility = new QToolButton(entry_row);
+      entry_visibility->setObjectName(QStringLiteral("layerSmartFilterVisibilityButton"));
+      entry_visibility->setProperty("smartFilterExecutionIndex",
+                                    QVariant::fromValue<qulonglong>(
+                                        static_cast<qulonglong>(execution_index)));
+      configure_visibility_button(
+          entry_visibility, entry.enabled,
+          QObject::tr("Smart Filter visible. Click to hide."),
+          QObject::tr("Smart Filter hidden. Click to show."));
+      QObject::connect(
+          entry_visibility, &QToolButton::toggled, row,
+          [parent, id = layer.id(), execution_index, entry_visibility,
+           controls_supported, preservation_tooltip,
+           set_smart_filter_enabled](bool checked) {
+            entry_visibility->setIcon(simple_icon(
+                checked ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
+                checked ? QColor(228, 236, 246) : QColor(118, 126, 136)));
+            entry_visibility->setToolTip(
+                controls_supported
+                    ? (checked ? QObject::tr("Smart Filter visible. Click to hide.")
+                               : QObject::tr("Smart Filter hidden. Click to show."))
+                    : preservation_tooltip);
+            if (set_smart_filter_enabled) {
+              QTimer::singleShot(0, parent,
+                                 [id, execution_index, checked,
+                                  set_smart_filter_enabled] {
+                set_smart_filter_enabled(id, execution_index, checked);
+              });
+            }
+          });
+      entry_layout->addWidget(entry_visibility, 0, Qt::AlignVCenter);
+
+      QString entry_name;
+      if (entry.kind == SmartFilterKind::GaussianBlur) {
+        entry_name = QObject::tr("Gaussian Blur");
+        if (const auto* gaussian =
+                std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
+            gaussian != nullptr) {
+          auto radius = QString::number(gaussian->radius_pixels, 'f', 2);
+          while (radius.endsWith(QLatin1Char('0'))) {
+            radius.chop(1);
+          }
+          if (radius.endsWith(QLatin1Char('.'))) {
+            radius.chop(1);
+          }
+          entry_name += QObject::tr(" (%1 px)").arg(radius);
+        }
+      } else if (!entry.native_name.empty()) {
+        entry_name = QString::fromStdString(entry.native_name);
+      } else {
+        entry_name = QObject::tr("Unsupported Smart Filter");
+      }
+      auto* entry_label = new LayerRowElidingLabel(entry_name, entry_row);
+      entry_label->setObjectName(QStringLiteral("layerSmartFilterEntryLabel"));
+      entry_label->setProperty("smartFilterExecutionIndex",
+                               QVariant::fromValue<qulonglong>(
+                                   static_cast<qulonglong>(execution_index)));
+      entry_label->setStyleSheet(QStringLiteral("background: transparent;"));
+      entry_label->setEnabled(ancestors_visible && layer.visible() && entry.enabled &&
+                              smart_filters->enabled);
+      entry_label->setToolTip(controls_supported ? entry_name : preservation_tooltip);
+      if (list_parent != nullptr) {
+        entry_label->installEventFilter(list_parent);
+      }
+      entry_layout->addWidget(entry_label, 1, Qt::AlignVCenter);
+
+      auto* edit_button = new QToolButton(entry_row);
+      edit_button->setObjectName(QStringLiteral("layerSmartFilterEditButton"));
+      edit_button->setProperty("smartFilterExecutionIndex",
+                               QVariant::fromValue<qulonglong>(
+                                   static_cast<qulonglong>(execution_index)));
+      edit_button->setIcon(simple_icon(QStringLiteral("RN")));
+      edit_button->setIconSize(QSize(15, 15));
+      edit_button->setFixedSize(20, 20);
+      edit_button->setFocusPolicy(Qt::NoFocus);
+      edit_button->setStyleSheet(button_style);
+      edit_button->setToolTip(controls_supported ? QObject::tr("Edit Smart Filter")
+                                                  : preservation_tooltip);
+      edit_button->setEnabled(controls_supported && ancestors_visible);
+      if (list_parent != nullptr) {
+        edit_button->installEventFilter(list_parent);
+      }
+      QObject::connect(edit_button, &QToolButton::clicked, row,
+                       [parent, id = layer.id(), execution_index,
+                        edit_smart_filter] {
+        if (edit_smart_filter) {
+          QTimer::singleShot(0, parent, [id, execution_index, edit_smart_filter] {
+            edit_smart_filter(id, execution_index);
+          });
+        }
+      });
+      entry_layout->addWidget(edit_button, 0, Qt::AlignVCenter);
+
+      auto* delete_button = new QToolButton(entry_row);
+      delete_button->setObjectName(QStringLiteral("layerSmartFilterDeleteButton"));
+      delete_button->setProperty("smartFilterExecutionIndex",
+                                 QVariant::fromValue<qulonglong>(
+                                     static_cast<qulonglong>(execution_index)));
+      delete_button->setIcon(simple_icon(QStringLiteral("trash")));
+      delete_button->setIconSize(QSize(15, 15));
+      delete_button->setFixedSize(20, 20);
+      delete_button->setFocusPolicy(Qt::NoFocus);
+      delete_button->setStyleSheet(button_style);
+      delete_button->setToolTip(controls_supported ? QObject::tr("Delete Smart Filter")
+                                                    : preservation_tooltip);
+      delete_button->setEnabled(controls_supported && ancestors_visible);
+      if (list_parent != nullptr) {
+        delete_button->installEventFilter(list_parent);
+      }
+      QObject::connect(delete_button, &QToolButton::clicked, row,
+                       [parent, id = layer.id(), execution_index,
+                        delete_smart_filter] {
+        if (delete_smart_filter) {
+          QTimer::singleShot(0, parent,
+                             [id, execution_index, delete_smart_filter] {
+            delete_smart_filter(id, execution_index);
+          });
+        }
+      });
+      entry_layout->addWidget(delete_button, 0, Qt::AlignVCenter);
+    }
+  }
   // Hover moves must reach the list's event filter for the Alt-hover clip
   // boundary cursor; untracked children would swallow them.
   row->setMouseTracking(true);
@@ -2604,6 +2902,30 @@ std::string psd_element_filetype_for_extension(const QString& extension) {
     return "BMP ";
   }
   return "png ";
+}
+
+std::optional<SmartObjectWarp> rescaled_warp_for_replaced_contents(
+    const std::optional<SmartObjectWarp>& original,
+    const SmartObjectPlacement& placement, double new_width,
+    double new_height) {
+  if (!original.has_value()) {
+    return std::nullopt;
+  }
+  auto warp = scaled_smart_object_warp(
+      *original, new_width / std::max(1.0, placement.width),
+      new_height / std::max(1.0, placement.height));
+  if (warp.mesh_generated) {
+    if (const auto regenerated = generate_style_warp_mesh(
+            warp.style, warp.value, warp.rotate == "Vrtc",
+            warp.bounds_right - warp.bounds_left,
+            warp.bounds_bottom - warp.bounds_top)) {
+      warp.u_order = regenerated->u_order;
+      warp.v_order = regenerated->v_order;
+      warp.mesh_xs = regenerated->xs;
+      warp.mesh_ys = regenerated->ys;
+    }
+  }
+  return warp;
 }
 
 QString file_dialog_initial_path(const QString& existing_path, const QString& filename) {
@@ -11462,6 +11784,30 @@ void MainWindow::create_actions() {
     register_document_action(action);
   }
 
+  filter_convert_smart_filters_action_ =
+      filter_menu->addAction(tr("Convert for Smart Filters"));
+  filter_convert_smart_filters_action_->setObjectName(
+      QStringLiteral("filterConvertForSmartFiltersAction"));
+  filter_convert_smart_filters_action_->setProperty(
+      "patchy.channelViewBlocked", true);
+  filter_convert_smart_filters_action_->setIcon(
+      simple_icon(QStringLiteral("SO")));
+  filter_convert_smart_filters_action_->setStatusTip(
+      tr("Convert the active layer to a Smart Object for editable filters"));
+  bind_action_text(filter_convert_smart_filters_action_,
+                   "Convert for Smart Filters");
+  bind_translated_status_tip(
+      filter_convert_smart_filters_action_,
+      "Convert the active layer to a Smart Object for editable filters");
+  apply_bound_translation(filter_convert_smart_filters_action_);
+  refresh_action_tooltip(filter_convert_smart_filters_action_);
+  register_hotkey(filter_convert_smart_filters_action_,
+                  "filter.convert_for_smart_filters");
+  connect(filter_convert_smart_filters_action_, &QAction::triggered, this,
+          [this] { convert_for_smart_filters(); });
+  register_document_action(filter_convert_smart_filters_action_);
+  filter_menu->addSeparator();
+
   auto* filter_gallery_action = filter_menu->addAction(tr("&Visual Filters && Looks..."));
   filter_gallery_action->setObjectName(QStringLiteral("filterGalleryAction"));
   filter_gallery_action->setProperty("patchy.channelViewBlocked", true);
@@ -14211,15 +14557,26 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
   });
   canvas->set_smart_object_transform_render_callback([this, canvas](LayerId id) -> bool {
-    auto* session = session_for_canvas(canvas);
-    if (session == nullptr) {
+    auto* owner_session = session_for_canvas(canvas);
+    if (owner_session == nullptr) {
       return false;
     }
-    auto* layer = session->document.find_layer(id);
+    auto* layer = owner_session->document.find_layer(id);
     if (layer == nullptr) {
       return false;
     }
-    return refresh_smart_object_layer_preview(session->document, *layer, canvas->transform_interpolation());
+    const auto parent_document_dir =
+        owner_session->path.isEmpty()
+            ? QString()
+            : QFileInfo(owner_session->path).absolutePath();
+    const auto refreshed = refresh_smart_object_layer_preview(
+        owner_session->document, *layer, canvas->transform_interpolation(),
+        true, parent_document_dir);
+    if (!refreshed) {
+      statusBar()->showMessage(
+          tr("Could not rebuild the Smart Filter preview and cache"));
+    }
+    return refreshed;
   });
   canvas->set_text_layer_transform_render_callback([this, canvas](LayerId id) -> bool {
     auto* session = session_for_canvas(canvas);
@@ -15441,6 +15798,12 @@ void MainWindow::resize_image_dialog() {
   if (!dimensions_changed && !resolution_changed) {
     return;
   }
+  if (dimensions_changed &&
+      document_contains_smart_objects(std::as_const(doc))) {
+    statusBar()->showMessage(
+        tr("Rasterize Smart Objects before changing document geometry"));
+    return;
+  }
 
   push_undo_snapshot(tr("Image size"));
   if (dimensions_changed) {
@@ -15471,6 +15834,11 @@ void MainWindow::resize_canvas_dialog() {
     return;
   }
   if (settings->width == doc.width() && settings->height == doc.height()) {
+    return;
+  }
+  if (document_contains_smart_objects(std::as_const(doc))) {
+    statusBar()->showMessage(
+        tr("Rasterize Smart Objects before changing document geometry"));
     return;
   }
 
@@ -17069,9 +17437,18 @@ void MainWindow::run_legacy_plugin(QString identifier) {
     return;
   }
   auto* layer = document().find_layer(*active);
-  if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
-      layer->pixels().format().channels < 3) {
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
     statusBar()->showMessage(tr("Select an editable 8-bit pixel layer before running the plug-in"));
+    return;
+  }
+  const auto& source_pixels = std::as_const(*layer).pixels();
+  if (source_pixels.format().bit_depth != BitDepth::UInt8 || source_pixels.format().channels < 3) {
+    statusBar()->showMessage(tr("Select an editable 8-bit pixel layer before running the plug-in"));
+    return;
+  }
+  if (layer_is_text(*layer) || layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(
+        tr("Rasterize Text and Smart Object layers before editing their pixels"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
@@ -17181,6 +17558,14 @@ void MainWindow::cut_selection() {
     clipboard_.reset();
     clear_system_clipboard();
     statusBar()->showMessage(tr("Selected layers are hidden or not editable; nothing cut"));
+    return;
+  }
+  if (std::any_of(layers_to_cut.begin(), layers_to_cut.end(), [this](LayerId id) {
+        const auto* layer = std::as_const(document()).find_layer(id);
+        return layer != nullptr && (layer_is_text(*layer) || layer_is_smart_object(*layer));
+      })) {
+    statusBar()->showMessage(
+        tr("Rasterize Text and Smart Object layers before editing their pixels"));
     return;
   }
 
@@ -19099,6 +19484,14 @@ void MainWindow::layer_via_cut() {
     statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
+  if (std::any_of(payload->source_layer_ids.begin(), payload->source_layer_ids.end(), [this](LayerId id) {
+        const auto* layer = std::as_const(document()).find_layer(id);
+        return layer != nullptr && (layer_is_text(*layer) || layer_is_smart_object(*layer));
+      })) {
+    statusBar()->showMessage(
+        tr("Rasterize Text and Smart Object layers before editing their pixels"));
+    return;
+  }
 
   auto& doc = document();
   push_undo_snapshot(tr("Layer via cut"));
@@ -19368,8 +19761,14 @@ void MainWindow::apply_active_layer_mask() {
     statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
-  if (layer->kind() != LayerKind::Pixel || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
-      layer->pixels().format().channels < 3) {
+  if (layer_is_text(*layer) || layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(
+        tr("Rasterize Text and Smart Object layers before editing their pixels"));
+    return;
+  }
+  const auto& source_pixels = std::as_const(*layer).pixels();
+  if (layer->kind() != LayerKind::Pixel || source_pixels.format().bit_depth != BitDepth::UInt8 ||
+      source_pixels.format().channels < 3) {
     statusBar()->showMessage(tr("Apply mask supports editable 8-bit pixel layers"));
     return;
   }
@@ -20174,6 +20573,37 @@ bool MainWindow::commit_smart_object_child_session(DocumentSession& child_sessio
     return false;
   }
 
+  const auto refreshed_source_uuid = generate_smart_object_uuid();
+  updated.uuid = refreshed_source_uuid;
+  auto updated_document = parent->document;
+  bool source_replaced = false;
+  for (auto& block : updated_document.metadata().smart_objects.blocks) {
+    for (auto& candidate_source : block.sources) {
+      if (candidate_source.uuid != link.source_uuid) {
+        continue;
+      }
+      candidate_source = std::move(updated);
+      block.original_payload.reset();
+      source_replaced = true;
+      break;
+    }
+    if (source_replaced) {
+      break;
+    }
+  }
+  if (!source_replaced) {
+    return false;
+  }
+  if (!refresh_smart_object_layers_for_source(
+          updated_document, link.source_uuid, *rendered_image, content_dpi,
+          false, true, refreshed_source_uuid)) {
+    show_critical_message(
+        this, tr("Save failed"),
+        tr("Could not rebuild the Smart Filter preview and cache"),
+        QStringLiteral("smartObjectCommitFailedMessageBox"));
+    return false;
+  }
+
   // One parent undo step for the whole commit (same 40-entry cap as push_undo_snapshot,
   // which only operates on the active session).
   parent->undo_stack.push_back(DocumentSession::HistoryState{
@@ -20186,13 +20616,10 @@ bool MainWindow::commit_smart_object_child_session(DocumentSession& child_sessio
   }
   parent->redo_stack.clear();
   parent->selection_move_coalescing = false;
-
-  *source = updated;
-
-  // Re-render every layer sharing this source (duplicates track the shared
-  // contents, Photoshop's rule).
-  refresh_smart_object_layers_for_source(parent->document, link.source_uuid, *rendered_image, content_dpi,
-                                         false);
+  parent->document = std::move(updated_document);
+  if (child_session.smart_object_link.has_value()) {
+    child_session.smart_object_link->source_uuid = refreshed_source_uuid;
+  }
 
   if (parent->canvas != nullptr) {
     parent->canvas->document_changed();
@@ -20207,29 +20634,38 @@ bool MainWindow::commit_smart_object_child_session(DocumentSession& child_sessio
   return true;
 }
 
-void MainWindow::refresh_smart_object_layers_for_source(Document& target_document,
-                                                        const std::string& source_uuid,
-                                                        const QImage& rendered_image, double content_dpi,
-                                                        bool include_external_locked) {
+bool MainWindow::refresh_smart_object_layers_for_source(
+    Document& target_document, const std::string& source_uuid,
+    const QImage& rendered_image, double content_dpi,
+    bool include_external_locked, bool rekey_placed_instances,
+    std::string_view replacement_source_uuid) {
   const double new_width = rendered_image.width();
   const double new_height = rendered_image.height();
-  std::function<void(std::vector<Layer>&)> refresh_layers = [&](std::vector<Layer>& layers) {
+  std::function<bool(std::vector<Layer>&)> refresh_layers =
+      [&](std::vector<Layer>& layers) {
     for (auto& layer : layers) {
-      if (!layer.children().empty()) {
-        refresh_layers(layer.children());
+      if (!layer.children().empty() && !refresh_layers(layer.children())) {
+        return false;
       }
       if (!layer_is_smart_object(layer) || smart_object_source_uuid(layer) != source_uuid) {
         continue;
       }
       const auto lock = smart_object_lock_reason(layer);
       if (!lock.empty() && !(include_external_locked && lock == "external")) {
+        if (rekey_placed_instances || !replacement_source_uuid.empty()) {
+          return false;
+        }
         continue;
       }
       const auto placement = smart_object_placement_from_layer(layer);
       if (!placement.has_value()) {
+        if (rekey_placed_instances || !replacement_source_uuid.empty()) {
+          return false;
+        }
         continue;
       }
       auto updated_placement = *placement;
+      const auto old_placed_uuid = smart_object_placed_uuid(layer);
       auto warp = smart_object_warp_from_layer(layer);
       const bool size_changed =
           std::abs(placement->width - new_width) > 0.5 || std::abs(placement->height - new_height) > 0.5;
@@ -20238,35 +20674,48 @@ void MainWindow::refresh_smart_object_layers_for_source(Document& target_documen
         updated_placement = rescaled_smart_object_placement(*placement, new_width, new_height, dpi);
         store_smart_object_placement(layer, updated_placement);
         mark_layer_smart_object_block_dirty(layer);
+        warp = rescaled_warp_for_replaced_contents(
+            warp, *placement, new_width, new_height);
         if (warp.has_value()) {
-          // Warp bounds/mesh are content-space: scale them with the content (the
-          // E5-consistent linear rule).
-          warp = scaled_smart_object_warp(*warp, new_width / std::max(1.0, placement->width),
-                                          new_height / std::max(1.0, placement->height));
-          if (warp->mesh_generated) {
-            // Preset-style bakes re-derive at the new content size: the arc
-            // constructions are trigonometric in the bounds, not linear.
-            if (const auto regenerated = generate_style_warp_mesh(
-                    warp->style, warp->value, warp->rotate == "Vrtc",
-                    warp->bounds_right - warp->bounds_left, warp->bounds_bottom - warp->bounds_top)) {
-              warp->u_order = regenerated->u_order;
-              warp->v_order = regenerated->v_order;
-              warp->mesh_xs = regenerated->xs;
-              warp->mesh_ys = regenerated->ys;
-            }
-          }
           layer.metadata()[kLayerMetadataSmartObjectWarp] = serialize_smart_object_warp(*warp);
         }
       }
-      if (auto rendered = render_smart_object_pixels(rendered_image, updated_placement, warp,
-                                                     CanvasWidget::TransformInterpolation::Bicubic)) {
-        layer.set_pixels(pixels_from_image_rgba(rendered->image));
-        layer.set_bounds(rendered->bounds);
-        layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+      if (!replacement_source_uuid.empty()) {
+        updated_placement.uuid = std::string(replacement_source_uuid);
+        layer.metadata()[kLayerMetadataSmartObject] =
+            std::string(replacement_source_uuid);
+        mark_layer_smart_object_block_dirty(layer);
+      }
+      if (rekey_placed_instances) {
+        layer.metadata()[kLayerMetadataSmartObjectPlaced] =
+            generate_smart_object_uuid();
+        mark_layer_smart_object_block_dirty(layer);
+      }
+      if (auto rendered = render_smart_object_image_preview(
+              rendered_image, updated_placement, warp,
+              CanvasWidget::TransformInterpolation::Bicubic,
+              std::as_const(layer).smart_filter_stack(),
+              Rect::from_size(target_document.width(),
+                              target_document.height()))) {
+        if (!install_smart_object_layer_preview(
+                target_document, layer, std::move(*rendered), true)) {
+          return false;
+        }
+        if (rekey_placed_instances && !old_placed_uuid.empty() &&
+            old_placed_uuid != smart_object_placed_uuid(layer) &&
+            target_document.metadata().smart_filter_effects.find_unique(
+                old_placed_uuid) != nullptr &&
+            !target_document.metadata().smart_filter_effects.remove(
+                old_placed_uuid)) {
+          return false;
+        }
+      } else {
+        return false;
       }
     }
+    return true;
   };
-  refresh_layers(target_document.layers());
+  return refresh_layers(target_document.layers());
 }
 
 void MainWindow::refresh_external_smart_object_after_save(DocumentSession& child_session) {
@@ -20304,6 +20753,36 @@ void MainWindow::refresh_external_smart_object_after_save(DocumentSession& child
           ? smart_object_source_dpi(probe)
           : 0.0;
 
+  auto updated_document = parent->document;
+  auto* updated_source =
+      updated_document.metadata().smart_objects.find(link.source_uuid);
+  if (updated_source == nullptr) {
+    return;
+  }
+  const QFileInfo saved_info(child_session.path);
+  const auto modified = saved_info.lastModified();
+  updated_source->external_mod_year = modified.date().year();
+  updated_source->external_mod_month =
+      static_cast<std::uint8_t>(modified.date().month());
+  updated_source->external_mod_day =
+      static_cast<std::uint8_t>(modified.date().day());
+  updated_source->external_mod_hour =
+      static_cast<std::uint8_t>(modified.time().hour());
+  updated_source->external_mod_minute =
+      static_cast<std::uint8_t>(modified.time().minute());
+  updated_source->external_mod_seconds =
+      modified.time().second() + modified.time().msec() / 1000.0;
+  updated_source->external_file_size =
+      static_cast<std::uint64_t>(saved_info.size());
+  updated_source->dirty = true;
+  if (!refresh_smart_object_layers_for_source(
+          updated_document, link.source_uuid, *rendered_image, content_dpi,
+          true)) {
+    statusBar()->showMessage(
+        tr("Could not rebuild the Smart Filter preview and cache"));
+    return;
+  }
+
   // One parent undo step for the refresh (same cap as push_undo_snapshot, which only
   // operates on the active session).
   parent->undo_stack.push_back(DocumentSession::HistoryState{
@@ -20316,24 +20795,7 @@ void MainWindow::refresh_external_smart_object_after_save(DocumentSession& child
   }
   parent->redo_stack.clear();
   parent->selection_move_coalescing = false;
-
-  source = parent->document.metadata().smart_objects.find(link.source_uuid);
-  if (source == nullptr) {
-    return;
-  }
-  const QFileInfo saved_info(child_session.path);
-  const auto modified = saved_info.lastModified();
-  source->external_mod_year = modified.date().year();
-  source->external_mod_month = static_cast<std::uint8_t>(modified.date().month());
-  source->external_mod_day = static_cast<std::uint8_t>(modified.date().day());
-  source->external_mod_hour = static_cast<std::uint8_t>(modified.time().hour());
-  source->external_mod_minute = static_cast<std::uint8_t>(modified.time().minute());
-  source->external_mod_seconds = modified.time().second() + modified.time().msec() / 1000.0;
-  source->external_file_size = static_cast<std::uint64_t>(saved_info.size());
-  source->dirty = true;
-
-  refresh_smart_object_layers_for_source(parent->document, link.source_uuid, *rendered_image, content_dpi,
-                                         true);
+  parent->document = std::move(updated_document);
   if (parent->canvas != nullptr) {
     parent->canvas->document_changed();
   }
@@ -20388,22 +20850,35 @@ void MainWindow::update_smart_object_content() {
           ? smart_object_source_dpi(probe)
           : 0.0;
 
-  push_undo_snapshot(tr("Update Smart Object Content"));
-  source = doc.metadata().smart_objects.find(uuid);
-  if (source == nullptr) {
+  auto updated_document = doc;
+  auto* updated_source = updated_document.metadata().smart_objects.find(uuid);
+  if (updated_source == nullptr) {
     return;
   }
   const QFileInfo linked_info(*resolved);
   const auto modified = linked_info.lastModified();
-  source->external_mod_year = modified.date().year();
-  source->external_mod_month = static_cast<std::uint8_t>(modified.date().month());
-  source->external_mod_day = static_cast<std::uint8_t>(modified.date().day());
-  source->external_mod_hour = static_cast<std::uint8_t>(modified.time().hour());
-  source->external_mod_minute = static_cast<std::uint8_t>(modified.time().minute());
-  source->external_mod_seconds = modified.time().second() + modified.time().msec() / 1000.0;
-  source->external_file_size = static_cast<std::uint64_t>(linked_info.size());
-  source->dirty = true;
-  refresh_smart_object_layers_for_source(doc, uuid, *rendered_image, content_dpi, true);
+  updated_source->external_mod_year = modified.date().year();
+  updated_source->external_mod_month =
+      static_cast<std::uint8_t>(modified.date().month());
+  updated_source->external_mod_day =
+      static_cast<std::uint8_t>(modified.date().day());
+  updated_source->external_mod_hour =
+      static_cast<std::uint8_t>(modified.time().hour());
+  updated_source->external_mod_minute =
+      static_cast<std::uint8_t>(modified.time().minute());
+  updated_source->external_mod_seconds =
+      modified.time().second() + modified.time().msec() / 1000.0;
+  updated_source->external_file_size =
+      static_cast<std::uint64_t>(linked_info.size());
+  updated_source->dirty = true;
+  if (!refresh_smart_object_layers_for_source(
+          updated_document, uuid, *rendered_image, content_dpi, true)) {
+    statusBar()->showMessage(
+        tr("Could not rebuild the Smart Filter preview and cache"));
+    return;
+  }
+  push_undo_snapshot(tr("Update Smart Object Content"));
+  doc = std::move(updated_document);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
@@ -20461,7 +20936,6 @@ void MainWindow::relink_smart_object_contents_with_path(const QString& path) {
   }
   const auto content_dpi = smart_object_source_dpi(probe);
 
-  push_undo_snapshot(tr("Relink Smart Object"));
   const auto* old_source = doc.metadata().smart_objects.find(uuid);
   if (old_source == nullptr) {
     return;
@@ -20492,7 +20966,8 @@ void MainWindow::relink_smart_object_contents_with_path(const QString& path) {
   relinked.external_mod_seconds = modified.time().second() + modified.time().msec() / 1000.0;
   relinked.external_file_size = static_cast<std::uint64_t>(info.size());
   relinked.dirty = true;
-  auto& store = doc.metadata().smart_objects;
+  auto updated_document = doc;
+  auto& store = updated_document.metadata().smart_objects;
   SmartObjectLinkBlock* external_block = nullptr;
   for (auto& block : store.blocks) {
     if (block.key == "lnkE" && !block.opaque) {
@@ -20509,39 +20984,82 @@ void MainWindow::relink_smart_object_contents_with_path(const QString& path) {
   external_block->sources.push_back(relinked);
 
   const auto new_stem = info.completeBaseName();
-  std::function<void(std::vector<Layer>&)> repoint_layers = [&](std::vector<Layer>& layers) {
+  std::function<bool(std::vector<Layer>&)> repoint_layers =
+      [&](std::vector<Layer>& layers) {
     for (auto& target : layers) {
-      if (!target.children().empty()) {
-        repoint_layers(target.children());
+      if (!target.children().empty() && !repoint_layers(target.children())) {
+        return false;
       }
       if (!layer_is_smart_object(target) || smart_object_source_uuid(target) != uuid ||
           smart_object_lock_reason(target) != "external") {
+        if (layer_is_smart_object(target) &&
+            smart_object_source_uuid(target) == uuid) {
+          return false;
+        }
         continue;
       }
       const auto placement = smart_object_placement_from_layer(target);
       if (!placement.has_value()) {
-        continue;
+        return false;
       }
       auto updated_placement =
           rescaled_smart_object_placement(*placement, rendered_image->width(), rendered_image->height(),
                                           content_dpi > 0.0 ? content_dpi : placement->resolution);
+      auto warp = smart_object_warp_from_layer(std::as_const(target));
+      const bool size_changed =
+          std::abs(placement->width - rendered_image->width()) > 0.5 ||
+          std::abs(placement->height - rendered_image->height()) > 0.5;
+      if (size_changed) {
+        warp = rescaled_warp_for_replaced_contents(
+            warp, *placement, rendered_image->width(),
+            rendered_image->height());
+        if (warp.has_value()) {
+          target.metadata()[kLayerMetadataSmartObjectWarp] =
+              serialize_smart_object_warp(*warp);
+        }
+      }
       updated_placement.uuid = relinked.uuid;
+      const auto old_placed_uuid = smart_object_placed_uuid(target);
+      target.metadata()[kLayerMetadataSmartObjectPlaced] =
+          generate_smart_object_uuid();
       store_smart_object_placement(target, updated_placement);
       mark_layer_smart_object_block_dirty(target);
       const auto name = QString::fromStdString(target.name());
       if (!old_stem.isEmpty() && name.startsWith(old_stem)) {
         target.set_name((new_stem + name.mid(old_stem.size())).toStdString());
       }
-      if (auto rendered = render_smart_object_pixels(*rendered_image, updated_placement,
-                                                     CanvasWidget::TransformInterpolation::Bicubic)) {
-        target.set_pixels(pixels_from_image_rgba(rendered->image));
-        target.set_bounds(rendered->bounds);
-        target.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+      if (auto rendered = render_smart_object_image_preview(
+              *rendered_image, updated_placement, warp,
+              CanvasWidget::TransformInterpolation::Bicubic,
+              std::as_const(target).smart_filter_stack(),
+              Rect::from_size(updated_document.width(),
+                              updated_document.height()))) {
+        if (!install_smart_object_layer_preview(
+                updated_document, target, std::move(*rendered), true)) {
+          return false;
+        }
+        if (!old_placed_uuid.empty() &&
+            old_placed_uuid != smart_object_placed_uuid(target) &&
+            updated_document.metadata().smart_filter_effects.find_unique(
+                old_placed_uuid) != nullptr &&
+            !updated_document.metadata().smart_filter_effects.remove(
+                old_placed_uuid)) {
+          return false;
+        }
+      } else {
+        return false;
       }
     }
+    return true;
   };
-  repoint_layers(doc.layers());
+  if (!repoint_layers(updated_document.layers())) {
+    statusBar()->showMessage(
+        tr("Could not rebuild the Smart Filter preview and cache"));
+    return;
+  }
   store.remove(uuid);
+  push_undo_snapshot(tr("Relink Smart Object"));
+  doc = std::move(updated_document);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
@@ -20712,49 +21230,90 @@ void MainWindow::replace_smart_object_contents_with_path(const QString& path) {
   const auto old_stem = QFileInfo(QString::fromStdString(old_source->filename)).completeBaseName();
   const auto new_stem = info.completeBaseName();
 
-  push_undo_snapshot(tr("Replace Smart Object Contents"));
-
   // Photoshop semantics (E5 captures): a fresh element replaces the old one and
   // EVERY layer referencing the old uuid repoints to it, each rebuilt about its own
   // quad center with the content-inch map preserved; the old element is removed and
   // layer names swap the old source stem for the new one.
-  auto& store = doc.metadata().smart_objects;
+  auto updated_document = doc;
+  auto& store = updated_document.metadata().smart_objects;
   store.add_embedded(replacement.uuid, replacement.filename, replacement.filetype, replacement.file_bytes);
   if (auto* added = store.find(replacement.uuid); added != nullptr) {
     added->creator = replacement.creator;
   }
 
-  std::function<void(std::vector<Layer>&)> repoint_layers = [&](std::vector<Layer>& layers) {
+  std::function<bool(std::vector<Layer>&)> repoint_layers =
+      [&](std::vector<Layer>& layers) {
     for (auto& target : layers) {
-      if (!target.children().empty()) {
-        repoint_layers(target.children());
+      if (!target.children().empty() && !repoint_layers(target.children())) {
+        return false;
       }
       if (!layer_is_smart_object(target) || smart_object_source_uuid(target) != old_uuid ||
           !smart_object_lock_reason(target).empty()) {
+        if (layer_is_smart_object(target) &&
+            smart_object_source_uuid(target) == old_uuid) {
+          return false;
+        }
         continue;
       }
       const auto placement = smart_object_placement_from_layer(target);
       if (!placement.has_value()) {
-        continue;
+        return false;
       }
       auto updated_placement = rescaled_smart_object_placement(*placement, new_width, new_height, content_dpi);
+      auto warp = smart_object_warp_from_layer(std::as_const(target));
+      const bool size_changed =
+          std::abs(placement->width - new_width) > 0.5 ||
+          std::abs(placement->height - new_height) > 0.5;
+      if (size_changed) {
+        warp = rescaled_warp_for_replaced_contents(
+            warp, *placement, new_width, new_height);
+        if (warp.has_value()) {
+          target.metadata()[kLayerMetadataSmartObjectWarp] =
+              serialize_smart_object_warp(*warp);
+        }
+      }
       updated_placement.uuid = replacement.uuid;
+      const auto old_placed_uuid = smart_object_placed_uuid(target);
+      target.metadata()[kLayerMetadataSmartObjectPlaced] =
+          generate_smart_object_uuid();
       store_smart_object_placement(target, updated_placement);
       mark_layer_smart_object_block_dirty(target);
       const auto name = QString::fromStdString(target.name());
       if (!old_stem.isEmpty() && name.startsWith(old_stem)) {
         target.set_name((new_stem + name.mid(old_stem.size())).toStdString());
       }
-      if (auto rendered = render_smart_object_pixels(*rendered_image, updated_placement,
-                                                     CanvasWidget::TransformInterpolation::Bicubic)) {
-        target.set_pixels(pixels_from_image_rgba(rendered->image));
-        target.set_bounds(rendered->bounds);
-        target.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+      if (auto rendered = render_smart_object_image_preview(
+              *rendered_image, updated_placement, warp,
+              CanvasWidget::TransformInterpolation::Bicubic,
+              std::as_const(target).smart_filter_stack(),
+              Rect::from_size(updated_document.width(),
+                              updated_document.height()))) {
+        if (!install_smart_object_layer_preview(
+                updated_document, target, std::move(*rendered), true)) {
+          return false;
+        }
+        if (!old_placed_uuid.empty() &&
+            old_placed_uuid != smart_object_placed_uuid(target) &&
+            updated_document.metadata().smart_filter_effects.find_unique(
+                old_placed_uuid) != nullptr &&
+            !updated_document.metadata().smart_filter_effects.remove(
+                old_placed_uuid)) {
+          return false;
+        }
+      } else {
+        return false;
       }
     }
+    return true;
   };
-  repoint_layers(doc.layers());
+  if (!repoint_layers(updated_document.layers())) {
+    statusBar()->showMessage(
+        tr("Could not rebuild the Smart Filter preview and cache"));
+    return;
+  }
   store.remove(old_uuid);
+  push_undo_snapshot(tr("Replace Smart Object Contents"));
+  doc = std::move(updated_document);
 
   refresh_layer_list();
   refresh_layer_controls();
@@ -20775,6 +21334,16 @@ void MainWindow::convert_to_smart_object() {
   const auto selected_ids = root_drop_layer_ids(doc.layers(), selected_or_active_layer_ids());
   if (selected_ids.empty()) {
     statusBar()->showMessage(tr("Select layers to convert to a smart object"));
+    return;
+  }
+  if (std::any_of(selected_ids.begin(), selected_ids.end(),
+                  [&doc](LayerId id) {
+                    const auto* layer = std::as_const(doc).find_layer(id);
+                    return layer != nullptr &&
+                           layer_tree_contains_smart_filters(*layer);
+                  })) {
+    statusBar()->showMessage(
+        tr("Smart Objects with Smart Filters cannot be wrapped in another Smart Object yet"));
     return;
   }
   // Re-order the selection by tree walk (the layers vector is bottom-to-top) so the
@@ -21883,6 +22452,20 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
   }
 
   auto& doc = document();
+  std::vector<LayerId> fillable_ids;
+  fillable_ids.reserve(editable_ids.size());
+  for (const auto id : editable_ids) {
+    const auto* layer = std::as_const(doc).find_layer(id);
+    if (layer != nullptr && layer->kind() == LayerKind::Pixel &&
+        !layer_is_text(*layer) && !layer_is_smart_object(*layer)) {
+      fillable_ids.push_back(id);
+    }
+  }
+  if (fillable_ids.empty()) {
+    statusBar()->showMessage(
+        tr("Text and Smart Object pixels cannot be filled. Rasterize the layer first."));
+    return;
+  }
   canvas_->begin_processing_operation();
   const auto finish_processing = qScopeGuard([this] {
     if (canvas_ != nullptr) {
@@ -21899,7 +22482,7 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
       std::clamp(std::lround(static_cast<double>(options.primary.a) * canvas_->fill_opacity() / 100.0), 0L, 255L));
   options.fill_softness_feather = std::clamp(canvas_->fill_softness(), 0, 100) / 100.0 * kFillMaxFeatherPixels;
   Rect affected;
-  for (const auto id : editable_ids) {
+  for (const auto id : fillable_ids) {
     auto* layer = doc.find_layer(id);
     if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
       continue;
@@ -22111,6 +22694,11 @@ void MainWindow::stroke_selection() {
   auto* layer = doc.find_layer(*active);
   if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
     statusBar()->showMessage(tr("Select an editable pixel layer first"));
+    return;
+  }
+  if (layer_is_text(*layer) || layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(
+        tr("Rasterize Text and Smart Object layers before editing their pixels"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
@@ -22427,6 +23015,14 @@ void MainWindow::flip_active_layer_horizontal() {
   if (ids.empty()) {
     return;
   }
+  if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) {
+        const auto* layer = std::as_const(document()).find_layer(id);
+        return layer != nullptr && layer_tree_contains_smart_object(*layer);
+      })) {
+    statusBar()->showMessage(
+        tr("Use Free Transform or rasterize Smart Objects before flipping"));
+    return;
+  }
   const auto editable_ids = layer_ids_without_image_pixel_lock(ids);
   if (show_pixel_lock_message_if_all_locked(ids, editable_ids)) {
     return;
@@ -22457,6 +23053,14 @@ void MainWindow::flip_active_layer_vertical() {
   if (ids.empty()) {
     return;
   }
+  if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) {
+        const auto* layer = std::as_const(document()).find_layer(id);
+        return layer != nullptr && layer_tree_contains_smart_object(*layer);
+      })) {
+    statusBar()->showMessage(
+        tr("Use Free Transform or rasterize Smart Objects before flipping"));
+    return;
+  }
   const auto editable_ids = layer_ids_without_image_pixel_lock(ids);
   if (show_pixel_lock_message_if_all_locked(ids, editable_ids)) {
     return;
@@ -22475,6 +23079,11 @@ void MainWindow::crop_to_selection() {
   const auto selection = canvas_->selected_document_rect();
   if (!selection.has_value() || selection->isEmpty()) {
     statusBar()->showMessage(tr("Make a rectangular selection before cropping"));
+    return;
+  }
+  if (document_contains_smart_objects(std::as_const(document()))) {
+    statusBar()->showMessage(
+        tr("Rasterize Smart Objects before changing document geometry"));
     return;
   }
 
@@ -22501,6 +23110,11 @@ void MainWindow::crop_to_selection() {
 
 void MainWindow::rotate_canvas_clockwise() {
   auto& doc = document();
+  if (document_contains_smart_objects(std::as_const(doc))) {
+    statusBar()->showMessage(
+        tr("Rasterize Smart Objects before changing document geometry"));
+    return;
+  }
   push_undo_snapshot(tr("Rotate canvas"));
   patchy::rotate_document_clockwise(doc);
   canvas_->clear_selection();
@@ -22518,6 +23132,11 @@ void MainWindow::rotate_canvas_clockwise() {
 
 void MainWindow::rotate_canvas_counterclockwise() {
   auto& doc = document();
+  if (document_contains_smart_objects(std::as_const(doc))) {
+    statusBar()->showMessage(
+        tr("Rasterize Smart Objects before changing document geometry"));
+    return;
+  }
   push_undo_snapshot(tr("Rotate canvas"));
   patchy::rotate_document_counterclockwise(doc);
   canvas_->clear_selection();
@@ -23267,7 +23886,12 @@ void MainWindow::refresh_layer_list() {
                            .arg(it->mask().has_value() ? tr("\nLayer mask") : QString())
                            .arg(folder_detail)
                            .arg(row_clipped ? tr("\nClipped to the layer below") : QString()));
-      item->setSizeHint(QSize(0, 44));
+      const auto* smart_filters = it->smart_filter_stack();
+      const auto smart_filter_row_count =
+          smart_filters != nullptr
+              ? 1 + static_cast<int>(smart_filters->entries.size())
+              : 0;
+      item->setSizeHint(QSize(0, 44 + 26 * smart_filter_row_count));
       item->setForeground(effective_visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
       if (active.has_value() && *active == it->id()) {
         auto font = item->font();
@@ -23326,6 +23950,19 @@ void MainWindow::refresh_layer_list() {
           document().set_active_layer(layer_id);
         }
         toggle_active_layer_clipping();
+      },
+                                      [this](LayerId layer_id, bool enabled) {
+        set_smart_filter_stack_enabled(layer_id, enabled);
+      },
+                                      [this](LayerId layer_id, std::size_t execution_index,
+                                             bool enabled) {
+        set_smart_filter_enabled(layer_id, execution_index, enabled);
+      },
+                                      [this](LayerId layer_id, std::size_t execution_index) {
+        edit_smart_filter(layer_id, execution_index);
+      },
+                                      [this](LayerId layer_id, std::size_t execution_index) {
+        delete_smart_filter(layer_id, execution_index);
       }));
       if (is_group && group_expanded) {
         append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags);
@@ -25981,6 +26618,22 @@ void MainWindow::update_document_action_state() {
                                   std::as_const(document()).maximum_saved_channel_count();
     channel_panel_->set_channel_creation_available(!locked && has_capacity &&
                                                    !quick_mask_view);
+  }
+  if (filter_convert_smart_filters_action_ != nullptr) {
+    const Layer* active_layer = nullptr;
+    if (has_document) {
+      const auto active_id = std::as_const(document()).active_layer_id();
+      if (active_id.has_value()) {
+        active_layer = std::as_const(document()).find_layer(*active_id);
+      }
+    }
+    const bool eligible =
+        active_layer != nullptr && active_layer->kind() == LayerKind::Pixel &&
+        !layer_is_smart_object(*active_layer) &&
+        active_layer->pixels().format().bit_depth == BitDepth::UInt8 &&
+        active_layer->pixels().format().channels >= 3U;
+    filter_convert_smart_filters_action_->setEnabled(
+        has_document && !locked && !channel_view && eligible);
   }
   refresh_options_bar();
 }

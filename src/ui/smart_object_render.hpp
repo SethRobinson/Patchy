@@ -2,9 +2,11 @@
 
 #include "core/document.hpp"
 #include "core/smart_object.hpp"
+#include "filters/filter_registry.hpp"
 #include "ui/canvas_widget.hpp"
 
 #include <QImage>
+#include <QString>
 
 #include <optional>
 
@@ -13,6 +15,13 @@
 // file's own flattened composite when present (Photoshop's pixels, not a Patchy
 // re-composite), so an untouched child renders exactly as Photoshop would show it.
 namespace patchy::ui {
+
+struct SmartObjectLayerPreview {
+  // Photoshop's FEid cache stores this unfiltered placed/warped result.
+  FilterRenderResult unfiltered;
+  // Cached pixels displayed by the layer after its Smart Filter stack.
+  FilterRenderResult rendered;
+};
 
 // How Patchy can round-trip an embedded source's format; this decides the Edit
 // Contents guard. PsdDocument children keep their layer stack through DocumentIo;
@@ -30,6 +39,11 @@ enum class SmartObjectContentsFormat {
 
 // Decoded flat pixels of the embedded source (RGBA8888), for preview rendering.
 [[nodiscard]] std::optional<QImage> decode_smart_object_source_image(const SmartObjectSource& source);
+
+// Decodes either embedded bytes or a linked file resolved relative to the
+// owning document. Alias sources remain preservation-only.
+[[nodiscard]] std::optional<QImage> decode_smart_object_source_image(
+    const SmartObjectSource& source, const QString& parent_document_dir);
 
 // Full child document for Edit Contents: PSD/PSB keep their layer stack, Qt image
 // formats arrive as a single-layer document named after the source file.
@@ -60,11 +74,48 @@ enum class SmartObjectContentsFormat {
     const QImage& source_image, const SmartObjectPlacement& placement,
     const std::optional<SmartObjectWarp>& warp, CanvasWidget::TransformInterpolation interpolation);
 
-// Re-renders `layer`'s preview from its embedded source in `document`'s store:
-// decode + resample, then replace the layer's pixels/bounds and mark
+// Renders one editable embedded or resolved linked Smart Object from its
+// immutable source. Passing an override stack is used by the Gaussian dialog
+// preview; nullptr uses the layer's current stack. No layer or document state
+// is changed.
+[[nodiscard]] std::optional<SmartObjectLayerPreview>
+render_smart_object_layer_preview(
+    const Document& document, const Layer& layer,
+    CanvasWidget::TransformInterpolation interpolation,
+    const SmartFilterStack* override_stack = nullptr,
+    const QString& parent_document_dir = {});
+
+// Renders only the immutable placed/warped source. Dialog setup and filter
+// deletion use this path so they never execute the existing filter merely to
+// obtain the FEid source raster.
+[[nodiscard]] std::optional<FilterRenderResult>
+render_smart_object_unfiltered_layer_preview(
+    const Document& document, const Layer& layer,
+    CanvasWidget::TransformInterpolation interpolation,
+    const QString& parent_document_dir = {});
+
+// Same pipeline for callers that already decoded fresh embedded/linked bytes.
+// This is used by Edit/Replace/Relink Contents before the source store settles.
+[[nodiscard]] std::optional<SmartObjectLayerPreview>
+render_smart_object_image_preview(
+    const QImage& source_image, const SmartObjectPlacement& placement,
+    const std::optional<SmartObjectWarp>& warp,
+    CanvasWidget::TransformInterpolation interpolation,
+    const SmartFilterStack* stack, Rect document_bounds);
+
+// Atomically installs a pre-rendered preview and, when requested, regenerates
+// the associated FEid cache before touching layer pixels.
+bool install_smart_object_layer_preview(Document& document, Layer& layer,
+                                        SmartObjectLayerPreview preview,
+                                        bool refresh_native_cache = true);
+
+// Re-renders `layer`'s preview from its embedded or resolved linked source in
+// `document`'s store: decode + resample, then replace the layer's pixels/bounds and mark
 // raster_status=patchy_raster. Returns false (layer untouched) when the layer is not
 // an editable embedded smart object or its source cannot be decoded.
 bool refresh_smart_object_layer_preview(Document& document, Layer& layer,
-                                        CanvasWidget::TransformInterpolation interpolation);
+                                        CanvasWidget::TransformInterpolation interpolation,
+                                        bool refresh_native_cache = true,
+                                        const QString& parent_document_dir = {});
 
 }  // namespace patchy::ui

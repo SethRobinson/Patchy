@@ -4,6 +4,7 @@
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
+#include "core/smart_filter.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
@@ -740,6 +741,11 @@ bool layer_has_movable_pixels(const Layer& layer) {
   if (layer_is_smart_object(layer) && smart_object_lock_reason(layer) == "unparsed") {
     return false;
   }
+  if (const auto* stack = layer.smart_filter_stack();
+      stack != nullptr &&
+      stack->support == SmartFilterStackSupport::Unsupported) {
+    return false;
+  }
   const auto& pixels = layer.pixels();
   return !pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 && pixels.format().channels >= 3;
 }
@@ -771,6 +777,12 @@ std::optional<Rect> move_layer_outline_bounds(const Layer& layer) {
 bool move_layer_has_expensive_style(const Layer& layer) {
   const auto& style = layer.layer_style();
   return style.effects_visible && !style.empty();
+}
+
+bool move_layer_requires_smart_filter_rerender(const Layer& layer) {
+  const auto* stack = layer.smart_filter_stack();
+  return layer_is_smart_object(layer) && stack != nullptr &&
+         stack->support == SmartFilterStackSupport::Supported;
 }
 
 std::optional<QRect> move_layer_transform_local_rect(const Layer& layer) {
@@ -6057,20 +6069,36 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     bool reused_preview_patch = false;
     const auto move_layer_count = moving_layers_.size();
     const auto move_operation_active = !move_preview_delta_.isNull();
+    const bool rerender_smart_filters =
+        document_ != nullptr &&
+        std::any_of(moving_layers_.begin(), moving_layers_.end(),
+                    [this](const MovingLayer& moving_layer) {
+                      const auto* layer = document_->find_layer(moving_layer.id);
+                      return layer != nullptr &&
+                             move_layer_requires_smart_filter_rerender(*layer);
+                    });
     if (move_operation_active) {
       begin_processing_operation();
     }
     if (!move_preview_delta_.isNull()) {
+      const auto move_label =
+          moving_layers_.size() > 1U ? tr("Move layers") : tr("Move layer");
+      std::optional<Document> rollback_document;
+      if (rerender_smart_filters && document_ != nullptr) {
+        rollback_document.emplace(*document_);
+      }
       dirty_region = moving_layers_dirty_region(QPoint(), move_preview_delta_);
       patched_region = dirty_region;
       if (document_ != nullptr) {
         patched_region = patched_region.intersected(QRect(0, 0, document_->width(), document_->height()));
       }
       tick_processing_operation();
-      if (before_edit_callback_) {
-        before_edit_callback_(moving_layers_.size() > 1U ? tr("Move layers") : tr("Move layer"));
+      if (!rerender_smart_filters && before_edit_callback_) {
+        before_edit_callback_(move_label);
       }
-      if (document_ != nullptr && !patched_region.isEmpty() && !render_cache_dirty_ && !render_cache_.isNull() &&
+      if (document_ != nullptr && !rerender_smart_filters &&
+          !patched_region.isEmpty() && !render_cache_dirty_ &&
+          !render_cache_.isNull() &&
           render_cache_.size() == QSize(document_->width(), document_->height())) {
         attempted_precommit_patch = true;
         if (move_preview_patches_delta_.has_value() && *move_preview_patches_delta_ == move_preview_delta_ &&
@@ -6090,6 +6118,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
           }
         }
       }
+      bool smart_filter_rerender_failed = false;
       for (const auto& moving_layer : moving_layers_) {
         auto* layer = document_->find_layer(moving_layer.id);
         if (layer == nullptr) {
@@ -6101,6 +6130,29 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         layer->set_bounds(new_bounds);
         patchy::translate_moved_layer_metadata(*layer, move_preview_delta_.x(), move_preview_delta_.y(),
                                                document_->width(), document_->height());
+        if (move_layer_requires_smart_filter_rerender(*layer)) {
+          if (!smart_object_transform_render_callback_ ||
+              !smart_object_transform_render_callback_(moving_layer.id)) {
+            smart_filter_rerender_failed = true;
+            break;
+          }
+          layer = document_->find_layer(moving_layer.id);
+          if (layer != nullptr) {
+            dirty_region +=
+                to_qrect(layer_bounds_with_effects(*layer, layer->bounds()));
+          }
+        }
+      }
+      if (smart_filter_rerender_failed && rollback_document.has_value()) {
+        *document_ = std::move(*rollback_document);
+        precommit_patches.clear();
+      } else if (rerender_smart_filters && rollback_document.has_value()) {
+        auto committed_document = *document_;
+        *document_ = std::move(*rollback_document);
+        if (before_edit_callback_) {
+          before_edit_callback_(move_label);
+        }
+        *document_ = std::move(committed_document);
       }
     }
     moving_layer_ = false;
@@ -6736,9 +6788,6 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     if (!delta.isNull() && !movable_ids.empty()) {
       begin_processing_operation();
       tick_processing_operation();
-      if (before_edit_callback_) {
-        before_edit_callback_(movable_ids.size() >= 2U ? tr("Nudge layers") : tr("Nudge layer"));
-      }
       const auto dirty = move_active_layer_by(delta);
       if (!dirty.isEmpty()) {
         document_changed_effect_bounds(dirty);
@@ -13395,9 +13444,15 @@ void CanvasWidget::commit_free_transform() {
                        new_bounds.y != original_transform_bounds.y ||
                        new_bounds.width != original_transform_bounds.width ||
                        new_bounds.height != original_transform_bounds.height;
-  if (changed && before_edit_callback_) {
+  const bool transactional_smart_filter =
+      changed && move_layer_requires_smart_filter_rerender(*layer);
+  std::optional<Document> rollback_document;
+  if (transactional_smart_filter) {
+    rollback_document.emplace(*document_);
+  } else if (changed && before_edit_callback_) {
     before_edit_callback_(tr("Free Transform"));
   }
+  bool smart_filter_rerender_failed = false;
   if (changed) {
     layer->set_pixels(pixels_from_image_rgba(transformed));
     layer->set_bounds(new_bounds);
@@ -13428,18 +13483,37 @@ void CanvasWidget::commit_free_transform() {
         store_smart_object_placement(*layer, updated);
         mark_layer_smart_object_block_dirty(*layer);
         layer->metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
-        if (smart_object_transform_render_callback_ && smart_object_transform_render_callback_(*transform_layer_id_)) {
+        if (smart_object_transform_render_callback_ &&
+            smart_object_transform_render_callback_(*transform_layer_id_)) {
           new_bounds = layer->bounds();
+        } else if (transactional_smart_filter) {
+          smart_filter_rerender_failed = true;
         }
+      } else if (transactional_smart_filter) {
+        smart_filter_rerender_failed = true;
       }
     }
+  }
+
+  if (smart_filter_rerender_failed && rollback_document.has_value()) {
+    *document_ = std::move(*rollback_document);
+  } else if (transactional_smart_filter && rollback_document.has_value()) {
+    auto committed_document = *document_;
+    *document_ = std::move(*rollback_document);
+    if (before_edit_callback_) {
+      before_edit_callback_(tr("Free Transform"));
+    }
+    *document_ = std::move(committed_document);
   }
 
   reset_free_transform_session_state();
   update_tool_cursor();
   document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
   if (status_callback_) {
-    status_callback_(changed ? tr("Transformed layer") : tr("Free Transform cancelled"));
+    status_callback_(smart_filter_rerender_failed
+                         ? tr("Could not rebuild the Smart Filter preview and cache")
+                         : changed ? tr("Transformed layer")
+                                   : tr("Free Transform cancelled"));
   }
   notify_transform_controls_changed();
 }
@@ -13463,22 +13537,45 @@ void CanvasWidget::commit_free_transform_with_pending_warp() {
   }
   const auto old_bounds = layer->bounds();
   auto new_bounds = old_bounds;
+  const bool transactional_smart_filter =
+      changed && move_layer_requires_smart_filter_rerender(*layer);
+  std::optional<Document> rollback_document;
+  if (transactional_smart_filter) {
+    rollback_document.emplace(*document_);
+  }
+  bool smart_filter_rerender_failed = false;
   if (changed) {
-    if (before_edit_callback_) {
+    if (!transactional_smart_filter && before_edit_callback_) {
       before_edit_callback_(tr("Warp Transform"));
     }
     // ONE bake from the original content source through mesh + composed map: the
     // baked preview the affine stage displayed never resamples into the document.
-    bake_warp_into_layer(*layer, pending_warp_mesh_, content_to_document, pending_warp_content_width_,
-                         pending_warp_content_height_, pending_warp_source_image_, pending_warp_smart_object_,
-                         layer_id, new_bounds);
+    const auto baked = bake_warp_into_layer(
+        *layer, pending_warp_mesh_, content_to_document,
+        pending_warp_content_width_, pending_warp_content_height_,
+        pending_warp_source_image_, pending_warp_smart_object_, layer_id,
+        new_bounds);
+    smart_filter_rerender_failed = transactional_smart_filter && !baked;
+  }
+  if (smart_filter_rerender_failed && rollback_document.has_value()) {
+    *document_ = std::move(*rollback_document);
+  } else if (transactional_smart_filter && rollback_document.has_value()) {
+    auto committed_document = *document_;
+    *document_ = std::move(*rollback_document);
+    if (before_edit_callback_) {
+      before_edit_callback_(tr("Warp Transform"));
+    }
+    *document_ = std::move(committed_document);
   }
   reset_free_transform_session_state();
   clear_pending_warp();
   update_tool_cursor();
   document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
   if (status_callback_) {
-    status_callback_(changed ? tr("Warped layer") : tr("Warp Transform cancelled"));
+    status_callback_(smart_filter_rerender_failed
+                         ? tr("Could not rebuild the Smart Filter preview and cache")
+                         : changed ? tr("Warped layer")
+                                   : tr("Warp Transform cancelled"));
   }
   notify_transform_controls_changed();
 }
@@ -13875,19 +13972,41 @@ void CanvasWidget::commit_warp_transform() {
                        warp_mesh_.ys != warp_original_mesh_.ys;
   const auto old_bounds = layer->bounds();
   auto new_bounds = old_bounds;
+  const bool transactional_smart_filter =
+      changed && move_layer_requires_smart_filter_rerender(*layer);
+  std::optional<Document> rollback_document;
+  if (transactional_smart_filter) {
+    rollback_document.emplace(*document_);
+  }
+  bool smart_filter_rerender_failed = false;
   if (changed) {
+    if (!transactional_smart_filter && before_edit_callback_) {
+      before_edit_callback_(tr("Warp Transform"));
+    }
+    const auto baked = bake_warp_into_layer(
+        *layer, warp_mesh_, warp_content_to_document_, warp_content_width_,
+        warp_content_height_, warp_source_image_, warp_target_smart_object_,
+        *warp_layer_id_, new_bounds);
+    smart_filter_rerender_failed = transactional_smart_filter && !baked;
+  }
+  if (smart_filter_rerender_failed && rollback_document.has_value()) {
+    *document_ = std::move(*rollback_document);
+  } else if (transactional_smart_filter && rollback_document.has_value()) {
+    auto committed_document = *document_;
+    *document_ = std::move(*rollback_document);
     if (before_edit_callback_) {
       before_edit_callback_(tr("Warp Transform"));
     }
-    bake_warp_into_layer(*layer, warp_mesh_, warp_content_to_document_, warp_content_width_,
-                         warp_content_height_, warp_source_image_, warp_target_smart_object_, *warp_layer_id_,
-                         new_bounds);
+    *document_ = std::move(committed_document);
   }
   reset_warp_state();
   update_tool_cursor();
   document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
   if (status_callback_) {
-    status_callback_(changed ? tr("Warped layer") : tr("Warp Transform cancelled"));
+    status_callback_(smart_filter_rerender_failed
+                         ? tr("Could not rebuild the Smart Filter preview and cache")
+                         : changed ? tr("Warped layer")
+                                   : tr("Warp Transform cancelled"));
   }
   notify_transform_controls_changed();
 }
@@ -13932,6 +14051,8 @@ bool CanvasWidget::bake_warp_into_layer(Layer& layer, const WarpMeshGrid& mesh,
     }
   }
   if (smart_object) {
+    const bool requires_smart_filter_rerender =
+        move_layer_requires_smart_filter_rerender(layer);
     // Non-destructive: the mesh + hull quad go into the placement metadata, the
     // SoLd regenerates on save, and the callback re-renders crisply from source
     // (the 4 px bake above stays as the fallback).
@@ -13955,8 +14076,11 @@ bool CanvasWidget::bake_warp_into_layer(Layer& layer, const WarpMeshGrid& mesh,
     }
     mark_layer_smart_object_block_dirty(layer);
     layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
-    if (smart_object_transform_render_callback_ && smart_object_transform_render_callback_(layer_id)) {
+    if (smart_object_transform_render_callback_ &&
+        smart_object_transform_render_callback_(layer_id)) {
       new_bounds = layer.bounds();
+    } else if (requires_smart_filter_rerender) {
+      return false;
     }
   }
   return baked_pixels || smart_object;
@@ -14345,20 +14469,54 @@ QRegion CanvasWidget::move_active_layer_by(QPoint delta) {
   if (document_ == nullptr || delta.isNull()) {
     return {};
   }
+  const auto layer_ids = movable_layer_ids();
+  const bool rerender_smart_filters =
+      std::any_of(layer_ids.begin(), layer_ids.end(), [this](LayerId id) {
+        const auto* layer = document_->find_layer(id);
+        return layer != nullptr &&
+               move_layer_requires_smart_filter_rerender(*layer);
+      });
+  std::optional<Document> rollback_document;
+  if (rerender_smart_filters) {
+    rollback_document.emplace(*document_);
+  } else if (before_edit_callback_) {
+    before_edit_callback_(layer_ids.size() >= 2U ? tr("Nudge layers")
+                                                  : tr("Nudge layer"));
+  }
   QRegion dirty;
-  for (const auto id : movable_layer_ids()) {
+  for (const auto id : layer_ids) {
     auto* layer = document_->find_layer(id);
     if (layer == nullptr) {
       continue;
     }
     const auto old_bounds = layer->bounds();
+    dirty += to_qrect(layer_bounds_with_effects(*layer, old_bounds));
     auto bounds = old_bounds;
     bounds.x += delta.x();
     bounds.y += delta.y();
     layer->set_bounds(bounds);
     patchy::translate_moved_layer_metadata(*layer, delta.x(), delta.y(), document_->width(), document_->height());
-    dirty += to_qrect(layer_bounds_with_effects(*layer, old_bounds));
-    dirty += to_qrect(layer_bounds_with_effects(*layer, bounds));
+    if (move_layer_requires_smart_filter_rerender(*layer) &&
+        (!smart_object_transform_render_callback_ ||
+         !smart_object_transform_render_callback_(id))) {
+      if (rollback_document.has_value()) {
+        *document_ = std::move(*rollback_document);
+      }
+      return dirty;
+    }
+    layer = document_->find_layer(id);
+    if (layer != nullptr) {
+      dirty += to_qrect(layer_bounds_with_effects(*layer, layer->bounds()));
+    }
+  }
+  if (rerender_smart_filters && rollback_document.has_value()) {
+    auto committed_document = *document_;
+    *document_ = std::move(*rollback_document);
+    if (before_edit_callback_) {
+      before_edit_callback_(layer_ids.size() >= 2U ? tr("Nudge layers")
+                                                    : tr("Nudge layer"));
+    }
+    *document_ = std::move(committed_document);
   }
   return dirty;
 }

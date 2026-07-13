@@ -8194,7 +8194,17 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
         if (placement.has_value()) {
           regenerated = regenerate_placed_layer_payload(
               block.key, block.payload, *placement, warp.has_value() ? &*warp : nullptr,
-              smart_object_placed_uuid(*encoded.layer));
+              smart_object_placed_uuid(*encoded.layer),
+              [&] {
+                const auto* stack = encoded.layer->smart_filter_stack();
+                const auto action =
+                    stack == nullptr
+                        ? SmartFilterDescriptorAction::Remove
+                        : stack->support == SmartFilterStackSupport::Supported
+                              ? SmartFilterDescriptorAction::Replace
+                              : SmartFilterDescriptorAction::Preserve;
+                return SmartFilterDescriptorEdit{action, stack};
+              }());
         }
         if (regenerated.has_value()) {
           write_additional_layer_block(extra, *key, *regenerated, large_document, block.long_length);
@@ -8426,7 +8436,12 @@ void finalize_smart_filter_layers(std::vector<Layer>& layers,
         }
       }
     }
+    const bool executable =
+        stack.support == SmartFilterStackSupport::Supported;
     layer.set_smart_filter_stack(std::move(stack));
+    if (executable && smart_object_lock_reason(std::as_const(layer)) == "filters") {
+      layer.metadata().erase(kLayerMetadataSmartObjectLock);
+    }
   }
 }
 

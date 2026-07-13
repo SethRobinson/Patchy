@@ -103,6 +103,12 @@ struct SmartFilterEffectsStore {
   bool adopt(const SmartFilterEffectsRecord &source,
              std::string new_placed_uuid);
 
+  // Inserts or replaces one authored record by its placed id. The supplied
+  // record must already own a complete native record body. Existing parsed
+  // blocks keep their dialect and ordering; a new record uses a Photoshop-style
+  // version-3 FEid block. Opaque blocks and duplicate associations fail closed.
+  bool upsert_authored(SmartFilterEffectsRecord record);
+
   // Removes exactly one uniquely-associated record and drops its block if that
   // was the final record. Ambiguous associations are left untouched.
   bool remove(std::string_view placed_uuid);

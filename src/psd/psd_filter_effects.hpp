@@ -1,16 +1,23 @@
 #pragma once
 
 #include "core/smart_filter_effects.hpp"
+#include "core/smart_filter.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace patchy::psd {
+
+// Defensive decoded-mask ceiling for editable imported/authored Smart Filters.
+// Larger native records remain byte-preserved but preview-locked.
+inline constexpr std::uint64_t kMaximumEditableSmartFilterMaskPixels =
+    64ULL * 1024ULL * 1024ULL;
 
 // Parses a document-global FEid/FXid payload. Broken outer version/record
 // boundaries return an opaque block holding the exact shared payload. A record
@@ -35,5 +42,16 @@ serialize_filter_effects_block(const SmartFilterEffectsBlock &block);
 // range.
 [[nodiscard]] std::span<const std::uint8_t>
 raw_filter_effects_record_body(const SmartFilterEffectsRecord &record) noexcept;
+
+// Builds the Photoshop version-1 FEid record used by a freshly rendered Smart
+// Filter instance. Cache planes contain the unfiltered placed/warped Smart
+// Object on the full document rectangle; the shared filter mask is always
+// written as an explicit 8-bit PackBits plane.
+[[nodiscard]] std::optional<SmartFilterEffectsRecord>
+author_filter_effects_record(std::string_view placed_uuid,
+                             Rect document_bounds,
+                             const PixelBuffer &unfiltered_pixels,
+                             Rect unfiltered_bounds,
+                             const SmartFilterMask &mask);
 
 } // namespace patchy::psd

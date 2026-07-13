@@ -1,6 +1,7 @@
 #include "ui/main_window_shared.hpp"
 
 #include "core/document.hpp"
+#include "core/smart_object.hpp"
 #include "ui/canvas_widget.hpp"
 
 #include <QObject>
@@ -12,6 +13,27 @@
 #include <cstdint>
 
 namespace patchy::ui {
+
+bool layer_tree_contains_smart_filters(const Layer& layer) {
+  if (layer.smart_filter_stack() != nullptr) {
+    return true;
+  }
+  return std::any_of(layer.children().begin(), layer.children().end(),
+                     layer_tree_contains_smart_filters);
+}
+
+bool layer_tree_contains_smart_object(const Layer& layer) {
+  if (layer_is_smart_object(layer)) {
+    return true;
+  }
+  return std::any_of(layer.children().begin(), layer.children().end(),
+                     layer_tree_contains_smart_object);
+}
+
+bool document_contains_smart_objects(const Document& document) {
+  return std::any_of(document.layers().begin(), document.layers().end(),
+                     layer_tree_contains_smart_object);
+}
 
 QString localized_adjustment_display_name(AdjustmentKind kind) {
   switch (kind) {

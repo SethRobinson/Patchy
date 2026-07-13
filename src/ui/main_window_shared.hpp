@@ -23,6 +23,14 @@ namespace patchy::ui {
 
 class CanvasWidget;
 
+// Recursive content checks shared by the split MainWindow translation units.
+// These deliberately inspect groups as well as the selected root because a
+// whole-document operation can otherwise rewrite a nested Smart Object's
+// cached preview without updating its native source data.
+[[nodiscard]] bool layer_tree_contains_smart_filters(const Layer& layer);
+[[nodiscard]] bool layer_tree_contains_smart_object(const Layer& layer);
+[[nodiscard]] bool document_contains_smart_objects(const Document& document);
+
 // Localized display name for an adjustment layer kind ("Levels", "Curves", ...).
 [[nodiscard]] QString localized_adjustment_display_name(AdjustmentKind kind);
 

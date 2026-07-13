@@ -1,6 +1,7 @@
 #include "core/palette.hpp"
 
 #include "core/document.hpp"
+#include "core/smart_object.hpp"
 
 #include <algorithm>
 #include <array>
@@ -252,6 +253,12 @@ void remap_layers_exact_color(std::vector<Layer>& layers, RgbColor from, RgbColo
       continue;
     }
     if (layer.kind() == LayerKind::Adjustment) {
+      continue;
+    }
+    // Smart Object pixels are a derived preview cache, not editable source
+    // pixels. UI callers preflight these operations; keep this core walk safe
+    // as well so a future caller cannot silently detach cache from source.
+    if (layer_is_smart_object(layer)) {
       continue;
     }
     auto& pixels = layer.pixels();

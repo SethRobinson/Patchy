@@ -32,6 +32,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -425,6 +426,15 @@ private:
   bool cancel_active_text_editor();
   void finish_active_text_editor();
   void apply_filter(const QString& identifier);
+  void convert_for_smart_filters();
+  void gaussian_smart_filter_dialog(
+      LayerId layer_id,
+      std::optional<std::size_t> execution_index = std::nullopt);
+  void edit_smart_filter(LayerId layer_id, std::size_t execution_index);
+  void set_smart_filter_stack_enabled(LayerId layer_id, bool enabled);
+  void set_smart_filter_enabled(LayerId layer_id, std::size_t execution_index,
+                                bool enabled);
+  void delete_smart_filter(LayerId layer_id, std::size_t execution_index);
   void visual_filter_gallery_dialog();
   void populate_new_adjustment_layer_menu(QMenu* menu, const QString& object_name_prefix = {});
   void new_levels_adjustment_layer();
@@ -480,9 +490,13 @@ private:
   void relink_smart_object_contents();
   void relink_smart_object_contents_with_path(const QString& path);
   void embed_linked_smart_object();
-  void refresh_smart_object_layers_for_source(Document& target_document, const std::string& source_uuid,
-                                              const QImage& rendered_image, double content_dpi,
-                                              bool include_external_locked);
+  bool refresh_smart_object_layers_for_source(Document& target_document,
+                                              const std::string& source_uuid,
+                                              const QImage& rendered_image,
+                                              double content_dpi,
+                                              bool include_external_locked,
+                                              bool rekey_placed_instances = false,
+                                              std::string_view replacement_source_uuid = {});
   void replace_smart_object_contents();
   void replace_smart_object_contents_with_path(const QString& path);
   void convert_to_smart_object();
@@ -869,6 +883,7 @@ private:
   QAction* image_mode_indexed_action_{nullptr};
   QAction* snap_image_to_palette_action_{nullptr};
   QAction* snap_layer_to_palette_action_{nullptr};
+  QAction* filter_convert_smart_filters_action_{nullptr};
   ZoomStatusBar* zoom_status_bar_{nullptr};
   ZoomPercentEdit* zoom_status_edit_{nullptr};
   QAction* move_tool_action_{nullptr};

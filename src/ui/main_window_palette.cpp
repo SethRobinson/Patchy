@@ -10,6 +10,7 @@
 #include "core/layer_tree.hpp"
 #include "core/palette_presets.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/smart_object.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -38,6 +39,7 @@
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/print_dialog.hpp"
@@ -231,6 +233,12 @@ void apply_palette_to_layers(std::vector<Layer>& layers, const patchy::PaletteLu
     if (layer.kind() == LayerKind::Adjustment) {
       continue;
     }
+    // A Smart Object's pixels are a derived cache. Rewriting that cache without
+    // changing its source and native descriptor would make the document lie on
+    // its next render or Photoshop round-trip.
+    if (layer_is_smart_object(layer)) {
+      continue;
+    }
     auto& pixels = layer.pixels();
     if (pixels.width() <= 0 || pixels.height() <= 0 || pixels.format().channels < 3) {
       continue;
@@ -252,6 +260,9 @@ void apply_palette_to_layers(std::vector<Layer>& layers, const patchy::PaletteLu
       continue;
     }
     if (layer.kind() == LayerKind::Adjustment) {
+      continue;
+    }
+    if (layer_is_smart_object(layer)) {
       continue;
     }
     const auto& pixels = layer.pixels();
@@ -392,6 +403,12 @@ void MainWindow::apply_palette_entry_color(int index, RgbColor color, bool remap
   }
   const auto before = colors[static_cast<std::size_t>(index)];
   if (before.red == color.red && before.green == color.green && before.blue == color.blue) {
+    return;
+  }
+  if (remap_pixels && document().palette_editing().has_value() &&
+      document_contains_smart_objects(std::as_const(document()))) {
+    statusBar()->showMessage(
+        tr("Rasterize Smart Objects before changing palette pixels"));
     return;
   }
 
@@ -619,6 +636,12 @@ void MainWindow::convert_document_to_indexed() {
   if (!has_active_document()) {
     return;
   }
+  if (document_contains_smart_objects(std::as_const(document()))) {
+    statusBar()->showMessage(
+        tr("Rasterize Smart Objects before changing palette pixels"));
+    refresh_palette_panel();
+    return;
+  }
   const auto flattened = Compositor().flatten_rgb8(document());
   std::optional<Palette> current_palette;
   if (auto colors = displayed_palette_colors(); !colors.empty()) {
@@ -725,6 +748,12 @@ void MainWindow::convert_document_to_rgb() {
     }
     snap_pixels = box.clickedButton() == keep_button;
   }
+  if (snap_pixels && document_contains_smart_objects(std::as_const(doc))) {
+    statusBar()->showMessage(
+        tr("Rasterize Smart Objects before changing palette pixels"));
+    refresh_palette_panel();
+    return;
+  }
 
   push_undo_snapshot(tr("Convert to RGB Color"));
   if (snap_pixels) {
@@ -760,6 +789,20 @@ void MainWindow::snap_layers_to_palette(bool active_layer_only) {
   }
   const auto* snap = canvas_->palette_snap_context();
   if (snap == nullptr || snap->lut == nullptr) {
+    return;
+  }
+  const auto& current_doc = std::as_const(document());
+  const bool would_rewrite_smart_object = [&] {
+    if (!active_layer_only) {
+      return document_contains_smart_objects(current_doc);
+    }
+    const auto active = current_doc.active_layer_id();
+    const auto* layer = active.has_value() ? current_doc.find_layer(*active) : nullptr;
+    return layer != nullptr && layer_tree_contains_smart_object(*layer);
+  }();
+  if (would_rewrite_smart_object) {
+    statusBar()->showMessage(
+        tr("Rasterize Smart Objects before changing palette pixels"));
     return;
   }
   push_undo_snapshot(active_layer_only ? tr("Snap layer to palette") : tr("Snap image to palette"));

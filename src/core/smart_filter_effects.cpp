@@ -218,6 +218,71 @@ bool SmartFilterEffectsStore::adopt(const SmartFilterEffectsRecord &source,
   return true;
 }
 
+bool SmartFilterEffectsStore::upsert_authored(
+    SmartFilterEffectsRecord record) {
+  if (record.placed_uuid.empty() || !record_has_raw_body(record) ||
+      std::any_of(blocks.begin(), blocks.end(),
+                  [](const SmartFilterEffectsBlock& block) {
+                    return block.opaque;
+                  })) {
+    return false;
+  }
+
+  std::size_t found_block = 0;
+  std::size_t found_record = 0;
+  std::size_t matches = 0;
+  for (std::size_t block_index = 0; block_index < blocks.size();
+       ++block_index) {
+    for (std::size_t record_index = 0;
+         record_index < blocks[block_index].records.size(); ++record_index) {
+      if (blocks[block_index].records[record_index].placed_uuid ==
+          record.placed_uuid) {
+        found_block = block_index;
+        found_record = record_index;
+        ++matches;
+      }
+    }
+  }
+  if (matches > 1U) {
+    return false;
+  }
+
+  SmartFilterEffectsBlock* target = nullptr;
+  if (matches == 1U) {
+    target = &blocks[found_block];
+  } else {
+    const auto compatible = std::find_if(
+        blocks.begin(), blocks.end(), [](const SmartFilterEffectsBlock& block) {
+          return !block.opaque && block.key == "FEid" && block.version == 3U &&
+                 !block.long_length;
+        });
+    if (compatible != blocks.end()) {
+      target = &*compatible;
+    } else {
+      SmartFilterEffectsBlock block;
+      block.key = "FEid";
+      block.version = 3U;
+      block.long_length = false;
+      blocks.push_back(std::move(block));
+      target = &blocks.back();
+    }
+  }
+
+  record.source_block_key = target->key;
+  record.source_block_version = target->version;
+  record.source_long_length = target->long_length;
+  record.original_placed_uuid = record.placed_uuid;
+  record.association_unique = true;
+  target->original_payload.reset();
+  if (matches == 1U) {
+    target->records[found_record] = std::move(record);
+  } else {
+    target->records.push_back(std::move(record));
+  }
+  refresh_association_uniqueness(*this);
+  return true;
+}
+
 bool SmartFilterEffectsStore::remove(std::string_view placed_uuid) {
   if (placed_uuid.empty() ||
       std::any_of(blocks.begin(), blocks.end(),
