@@ -6,6 +6,7 @@
 #include "core/layer_tree.hpp"
 #include "core/gradient_presets.hpp"
 #include "filters/filter_registry.hpp"
+#include "filters/smart_filter_recipe_mapping.hpp"
 #include "filters/smart_filter_renderer.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -7376,6 +7377,141 @@ void smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes() {
   CHECK(alias_key_is_long(regenerated_alias_entry, "Nm"));
   CHECK(alias_key_is_long(*regenerated_alias_blend, "Md"));
   CHECK(alias_key_is_long(*regenerated_alias_filter, "Rds"));
+
+  // Structural edits use the desired entry's source index to retain every
+  // unknown field and on-disk id form from a native item. Repeated indices
+  // must deep-clone descriptor objects: the independently patched radii below
+  // would collapse to the last value if the shared_ptr object graph aliased.
+  auto native_pair = stack;
+  native_pair.entries.push_back(native_pair.entries.front());
+  native_pair.entries[0].native_name = "Native A";
+  native_pair.entries[1].native_name = "Native B";
+  std::get<patchy::GaussianBlurSmartFilter>(
+      native_pair.entries[0].parameters).radius_pixels = 1.25;
+  std::get<patchy::GaussianBlurSmartFilter>(
+      native_pair.entries[1].parameters).radius_pixels = 6.75;
+  auto native_pair_descriptor = descriptor_from_sold(
+      patchy::psd::author_placed_layer_sold_payload(
+          placement, placed_uuid, &native_pair));
+  auto* native_pair_root = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(native_pair_descriptor, "filterFX"));
+  CHECK(native_pair_root != nullptr);
+  auto* native_pair_list = const_cast<patchy::psd::DescriptorValue*>(
+      patchy::psd::descriptor_value(*native_pair_root, "filterFXList"));
+  CHECK(native_pair_list != nullptr &&
+        native_pair_list->type == patchy::psd::DescriptorValue::Type::List &&
+        native_pair_list->list_value.size() == 2U);
+  for (std::size_t index = 0; index < 2U; ++index) {
+    auto& item = *native_pair_list->list_value[index].object_value;
+    patchy::psd::DescriptorValue future_value;
+    future_value.type = patchy::psd::DescriptorValue::Type::String;
+    future_value.string_value = index == 0U ? "unknown-a" : "unknown-b";
+    item.key_order.push_back({"futureNativeField", true});
+    item.values.emplace("futureNativeField", std::move(future_value));
+  }
+  const auto native_pair_payload = sold_from_descriptor(native_pair_descriptor);
+
+  auto desired = native_pair;
+  desired.entries = {native_pair.entries[1], native_pair.entries[0],
+                     native_pair.entries[1], native_pair.entries[0]};
+  const std::array<double, 4> desired_radii{2.0, 3.0, 4.0, 5.0};
+  for (std::size_t index = 0; index < desired.entries.size(); ++index) {
+    desired.entries[index].native_name = "Desired " + std::to_string(index);
+    std::get<patchy::GaussianBlurSmartFilter>(
+        desired.entries[index].parameters).radius_pixels =
+        desired_radii[index];
+  }
+  patchy::psd::SmartFilterDescriptorEdit structural_edit{
+      patchy::psd::SmartFilterDescriptorAction::Replace, &desired};
+  structural_edit.entry_sources = {
+      std::size_t{1}, std::size_t{0}, std::size_t{1}, std::nullopt};
+  const auto structurally_regenerated =
+      patchy::psd::regenerate_placed_layer_payload(
+          "SoLd", native_pair_payload, placement, nullptr, placed_uuid,
+          structural_edit);
+  CHECK(structurally_regenerated.has_value());
+  const auto structural_info = patchy::psd::parse_placed_layer_block(
+      "SoLd", *structurally_regenerated);
+  CHECK(structural_info.has_value() &&
+        structural_info->smart_filters.has_value());
+  CHECK(structural_info->smart_filters->entries.size() == 4U);
+  for (std::size_t index = 0; index < desired_radii.size(); ++index) {
+    CHECK(std::abs(require_gaussian_filter(
+                       structural_info->smart_filters->entries[index])
+                       .radius_pixels -
+                   desired_radii[index]) < 1e-9);
+  }
+  const auto structural_descriptor =
+      descriptor_from_sold(*structurally_regenerated);
+  const auto* structural_root =
+      patchy::psd::descriptor_object(structural_descriptor, "filterFX");
+  CHECK(structural_root != nullptr);
+  const auto* structural_list =
+      patchy::psd::descriptor_value(*structural_root, "filterFXList");
+  CHECK(structural_list != nullptr &&
+        structural_list->type == patchy::psd::DescriptorValue::Type::List &&
+        structural_list->list_value.size() == 4U);
+  const std::array<std::optional<std::string_view>, 4> expected_unknowns{
+      "unknown-b", "unknown-a", "unknown-b", std::nullopt};
+  for (std::size_t index = 0; index < expected_unknowns.size(); ++index) {
+    const auto& item = *structural_list->list_value[index].object_value;
+    const auto* future =
+        patchy::psd::descriptor_value(item, "futureNativeField");
+    if (!expected_unknowns[index].has_value()) {
+      CHECK(future == nullptr);
+      continue;
+    }
+    CHECK(future != nullptr &&
+          future->type == patchy::psd::DescriptorValue::Type::String);
+    CHECK(future->string_value == *expected_unknowns[index]);
+    CHECK(alias_key_is_long(item, "futureNativeField"));
+  }
+
+  // Omitting source indices deletes those native items. The retained item
+  // continues to carry its unknown native field and stringID key form.
+  auto reduced = desired;
+  reduced.entries = {desired.entries[1]};
+  std::get<patchy::GaussianBlurSmartFilter>(
+      reduced.entries.front().parameters).radius_pixels = 8.5;
+  patchy::psd::SmartFilterDescriptorEdit delete_edit{
+      patchy::psd::SmartFilterDescriptorAction::Replace, &reduced};
+  delete_edit.entry_sources = {std::size_t{1}};
+  const auto reduced_payload = patchy::psd::regenerate_placed_layer_payload(
+      "SoLd", *structurally_regenerated, placement, nullptr, placed_uuid,
+      delete_edit);
+  CHECK(reduced_payload.has_value());
+  const auto reduced_descriptor = descriptor_from_sold(*reduced_payload);
+  const auto* reduced_root =
+      patchy::psd::descriptor_object(reduced_descriptor, "filterFX");
+  CHECK(reduced_root != nullptr);
+  const auto* reduced_list =
+      patchy::psd::descriptor_value(*reduced_root, "filterFXList");
+  CHECK(reduced_list != nullptr &&
+        reduced_list->type == patchy::psd::DescriptorValue::Type::List &&
+        reduced_list->list_value.size() == 1U &&
+        reduced_list->list_value.front().object_value != nullptr);
+  const auto& reduced_item = *reduced_list->list_value.front().object_value;
+  const auto* reduced_future =
+      patchy::psd::descriptor_value(reduced_item, "futureNativeField");
+  CHECK(reduced_future != nullptr &&
+        reduced_future->type == patchy::psd::DescriptorValue::Type::String &&
+        reduced_future->string_value == "unknown-a");
+  CHECK(alias_key_is_long(reduced_item, "futureNativeField"));
+
+  // A structural source map is a strict contract. It cannot refer past the
+  // original list and must line up one-for-one with the desired entries.
+  auto invalid_edit = structural_edit;
+  invalid_edit.entry_sources = {std::size_t{0}};
+  CHECK(!patchy::psd::regenerate_placed_layer_payload(
+             "SoLd", native_pair_payload, placement, nullptr, placed_uuid,
+             invalid_edit)
+             .has_value());
+  invalid_edit.entry_sources = {
+      std::size_t{0}, std::size_t{1}, std::size_t{2}, std::nullopt};
+  CHECK(!patchy::psd::regenerate_placed_layer_payload(
+             "SoLd", native_pair_payload, placement, nullptr, placed_uuid,
+             invalid_edit)
+             .has_value());
 
   // The entry name is part of the Photoshop filterFX shape. A missing name or
   // a non-TEXT value cannot be safely rewritten as an editable Gaussian entry.
@@ -18847,6 +18983,52 @@ void filter_recipe_opacity_interpolates_rgba_results() {
   CHECK(interpolated_center[3] == 170);
 }
 
+void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto first = registry.default_invocation(
+      "patchy.filters.gaussian_blur", patchy::RgbColor{1, 2, 3},
+      patchy::RgbColor{4, 5, 6});
+  first.parameters["radius"] = std::int64_t{3};
+  auto second = first;
+  second.parameters["radius"] = std::int64_t{9};
+  const patchy::FilterRecipe recipe{{
+      patchy::FilterRecipeEntry{first, true, 0.37,
+                                patchy::BlendMode::Multiply},
+      patchy::FilterRecipeEntry{second, false, 1.0,
+                                patchy::BlendMode::Normal},
+  }};
+  const auto mapped =
+      patchy::smart_filter_entries_from_recipe(recipe, registry);
+  CHECK(mapped.has_value() && mapped->size() == 2U);
+  CHECK((*mapped)[0].kind == patchy::SmartFilterKind::GaussianBlur);
+  CHECK((*mapped)[0].enabled);
+  CHECK(std::abs((*mapped)[0].opacity - 0.37) < 0.000001);
+  CHECK((*mapped)[0].blend_mode == patchy::BlendMode::Multiply);
+  CHECK((*mapped)[0].foreground.red == 1U);
+  CHECK((*mapped)[0].background.blue == 6U);
+  CHECK(std::abs(std::get<patchy::GaussianBlurSmartFilter>(
+                     (*mapped)[0].parameters)
+                     .radius_pixels -
+                 3.0) < 0.000001);
+  CHECK(!(*mapped)[1].enabled);
+  CHECK(std::abs(std::get<patchy::GaussianBlurSmartFilter>(
+                     (*mapped)[1].parameters)
+                     .radius_pixels -
+                 9.0) < 0.000001);
+
+  auto mixed = recipe;
+  mixed.entries.push_back(patchy::FilterRecipeEntry{
+      registry.default_invocation("patchy.filters.sharpen"), false});
+  CHECK(!patchy::smart_filter_entries_from_recipe(mixed, registry)
+             .has_value());
+  auto wrong_schema = recipe;
+  wrong_schema.entries.front().invocation.schema_version = 2U;
+  CHECK(!patchy::smart_filter_entries_from_recipe(wrong_schema, registry)
+             .has_value());
+  CHECK(!patchy::smart_filter_entries_from_recipe({}, registry).has_value());
+}
+
 void filter_recipe_scales_supports_validates_and_skips_zero_opacity() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -22459,6 +22641,8 @@ int main() {
        filter_named_engine_recipes_bounds_colors_and_legacy_stay_distinct},
       {"filter_recipe_opacity_interpolates_rgba_results",
        filter_recipe_opacity_interpolates_rgba_results},
+      {"filter_recipe_native_smart_filter_mapping_is_all_or_nothing",
+       filter_recipe_native_smart_filter_mapping_is_all_or_nothing},
       {"filter_recipe_scales_supports_validates_and_skips_zero_opacity",
        filter_recipe_scales_supports_validates_and_skips_zero_opacity},
       {"filter_recipe_order_and_bounds_match_explicit_execution",

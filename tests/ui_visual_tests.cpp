@@ -35087,8 +35087,8 @@ void ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete() {
             QStringLiteral("layerSmartFilterMaskThumbnail")) != nullptr);
   auto* label = row->findChild<QLabel*>(
       QStringLiteral("layerSmartFilterEntryLabel"));
-  CHECK(label != nullptr &&
-        label->text().contains(QStringLiteral("Gaussian Blur (2.5 px)")));
+  CHECK(label != nullptr && label->text() == QStringLiteral("Gaussian Blur"));
+  CHECK(label->toolTip().contains(QStringLiteral("2.5 px")));
   auto* entry_visibility = row->findChild<QToolButton*>(
       QStringLiteral("layerSmartFilterVisibilityButton"));
   auto* stack_visibility = row->findChild<QToolButton*>(
@@ -35098,7 +35098,9 @@ void ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete() {
   CHECK(row->findChild<QToolButton*>(
             QStringLiteral("layerSmartFilterEditButton")) != nullptr);
   CHECK(row->findChild<QToolButton*>(
-            QStringLiteral("layerSmartFilterDeleteButton")) != nullptr);
+            QStringLiteral("layerSmartFilterMoreButton")) != nullptr);
+  CHECK(row->findChild<QAction*>(
+            QStringLiteral("layerSmartFilterDeleteAction")) != nullptr);
   ensure_artifact_dir();
   save_widget_artifact("ui_smart_filter_gaussian_layer_rows", *row);
 
@@ -35172,8 +35174,8 @@ void ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete() {
         std::abs(radius->radius_pixels - 3.7) < 0.000001);
   label = active_row()->findChild<QLabel*>(
       QStringLiteral("layerSmartFilterEntryLabel"));
-  CHECK(label != nullptr &&
-        label->text().contains(QStringLiteral("Gaussian Blur (3.7 px)")));
+  CHECK(label != nullptr && label->text() == QStringLiteral("Gaussian Blur"));
+  CHECK(label->toolTip().contains(QStringLiteral("3.7 px")));
   cache = std::as_const(document)
               .metadata()
               .smart_filter_effects.find_unique(placed_uuid);
@@ -35181,10 +35183,10 @@ void ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete() {
   CHECK(cache->raw_body_offset == cache_offset);
   CHECK(cache->raw_body_length == cache_length);
 
-  auto* remove = active_row()->findChild<QToolButton*>(
-      QStringLiteral("layerSmartFilterDeleteButton"));
+  auto* remove = active_row()->findChild<QAction*>(
+      QStringLiteral("layerSmartFilterDeleteAction"));
   CHECK(remove != nullptr && remove->isEnabled());
-  remove->click();
+  remove->trigger();
   CHECK(process_events_until([&] {
     const auto* current = std::as_const(document).find_layer(layer_id);
     return current != nullptr && current->smart_filter_stack() == nullptr;
@@ -35354,9 +35356,434 @@ void ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache() {
       QStringLiteral("layerSmartFilterEntryLabel"));
   auto* edit = row->findChild<QToolButton*>(
       QStringLiteral("layerSmartFilterEditButton"));
-  CHECK(label != nullptr &&
-        label->text().contains(QStringLiteral("Gaussian Blur (4.5 px)")));
+  CHECK(label != nullptr && label->text() == QStringLiteral("Gaussian Blur"));
+  CHECK(label->toolTip().contains(QStringLiteral("4.5 px")));
   CHECK(edit != nullptr && edit->isEnabled());
+}
+
+void ui_smart_filter_multiple_gaussian_duplicate_reorder_delete_roundtrip() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* gaussian = require_action(
+      window, "filterAction_patchy_filters_gaussian_blur");
+
+  const auto add_radius = [&](double wanted) {
+    bool accepted = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(
+          find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+      CHECK(dialog != nullptr);
+      auto* radius = dialog->findChild<QDoubleSpinBox*>(
+          QStringLiteral("filterRadiusSpin"));
+      CHECK(radius != nullptr);
+      radius->setValue(wanted);
+      accepted = true;
+      dialog->accept();
+    });
+    gaussian->trigger();
+    QApplication::processEvents();
+    CHECK(accepted);
+  };
+  const auto stack = [&]() -> const patchy::SmartFilterStack& {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr && layer->smart_filter_stack() != nullptr);
+    return *layer->smart_filter_stack();
+  };
+  const auto radius_at = [&](std::size_t index) {
+    const auto* radius = std::get_if<patchy::GaussianBlurSmartFilter>(
+        &stack().entries.at(index).parameters);
+    CHECK(radius != nullptr);
+    return radius->radius_pixels;
+  };
+  const auto active_row = [&]() -> QWidget* {
+    auto* list =
+        window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(list != nullptr);
+    auto* row = list->itemWidget(
+        require_layer_item(*list, QStringLiteral("small")));
+    CHECK(row != nullptr);
+    return row;
+  };
+  const auto button_for = [&](const QString& object_name,
+                              std::size_t execution_index) {
+    const auto buttons = active_row()->findChildren<QToolButton*>(object_name);
+    const auto found = std::find_if(
+        buttons.begin(), buttons.end(), [execution_index](QToolButton* button) {
+          return button->property("smartFilterExecutionIndex").toULongLong() ==
+                 static_cast<qulonglong>(execution_index);
+        });
+    CHECK(found != buttons.end());
+    return *found;
+  };
+  const auto action_for = [&](const QString& object_name,
+                              std::size_t execution_index) {
+    const auto actions = active_row()->findChildren<QAction*>(object_name);
+    const auto found = std::find_if(
+        actions.begin(), actions.end(), [execution_index](QAction* action) {
+          return action->property("smartFilterExecutionIndex").toULongLong() ==
+                 static_cast<qulonglong>(execution_index);
+        });
+    CHECK(found != actions.end());
+    return *found;
+  };
+
+  add_radius(2.0);
+  const auto placed_uuid = patchy::smart_object_placed_uuid(
+      *std::as_const(document).find_layer(layer_id));
+  const auto* first_record = std::as_const(document)
+                                 .metadata()
+                                 .smart_filter_effects.find_unique(placed_uuid);
+  CHECK(first_record != nullptr);
+  const auto first_record_bytes =
+      patchy::psd::raw_filter_effects_record_body(*first_record);
+  const std::vector<std::uint8_t> preserved_cache(
+      first_record_bytes.begin(), first_record_bytes.end());
+
+  add_radius(7.0);
+  CHECK(stack().entries.size() == 2U);
+  CHECK(std::abs(radius_at(0) - 2.0) < 0.000001);
+  CHECK(std::abs(radius_at(1) - 7.0) < 0.000001);
+  auto labels = active_row()->findChildren<QLabel*>(
+      QStringLiteral("layerSmartFilterEntryLabel"));
+  CHECK(labels.size() == 2);
+  CHECK(labels[0]->property("smartFilterExecutionIndex").toULongLong() == 1U);
+  CHECK(labels[0]->text() == QStringLiteral("Gaussian Blur"));
+  CHECK(labels[0]->toolTip().contains(QStringLiteral("7 px")));
+  CHECK(labels[1]->property("smartFilterExecutionIndex").toULongLong() == 0U);
+
+  auto* more =
+      button_for(QStringLiteral("layerSmartFilterMoreButton"), 0U);
+  CHECK(more->menu() != nullptr);
+  auto* duplicate =
+      action_for(QStringLiteral("layerSmartFilterDuplicateAction"), 0U);
+  bool popup_path_reached = false;
+  bool duplicate_rect_valid = false;
+  QTimer::singleShot(20, [&] {
+    popup_path_reached = more->menu()->isVisible();
+    const auto duplicate_rect = more->menu()->actionGeometry(duplicate);
+    duplicate_rect_valid = duplicate_rect.isValid();
+    if (duplicate_rect_valid) {
+      QTest::mouseClick(more->menu(), Qt::LeftButton, Qt::NoModifier,
+                        duplicate_rect.center());
+    } else {
+      more->menu()->close();
+    }
+  });
+  QTest::mouseClick(more, Qt::LeftButton);
+  CHECK(popup_path_reached);
+  CHECK(duplicate_rect_valid);
+  CHECK(process_events_until([&] { return stack().entries.size() == 3U; }));
+  CHECK(std::abs(radius_at(0) - 2.0) < 0.000001);
+  CHECK(std::abs(radius_at(1) - 2.0) < 0.000001);
+  CHECK(std::abs(radius_at(2) - 7.0) < 0.000001);
+
+  bool edited_duplicate = false;
+  QTimer::singleShot(20, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterRadiusSpin"));
+    CHECK(radius != nullptr && std::abs(radius->value() - 2.0) < 0.000001);
+    radius->setValue(4.5);
+    edited_duplicate = true;
+    dialog->accept();
+  });
+  button_for(QStringLiteral("layerSmartFilterEditButton"), 1U)->click();
+  CHECK(process_events_until([&] { return edited_duplicate; }));
+  CHECK(std::abs(radius_at(0) - 2.0) < 0.000001);
+  CHECK(std::abs(radius_at(1) - 4.5) < 0.000001);
+  CHECK(std::abs(radius_at(2) - 7.0) < 0.000001);
+
+  const auto undo_before_move =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  action_for(QStringLiteral("layerSmartFilterMoveUpAction"), 1U)->trigger();
+  CHECK(process_events_until(
+      [&] { return std::abs(radius_at(2) - 4.5) < 0.000001; }));
+  CHECK(std::abs(radius_at(1) - 7.0) < 0.000001);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before_move + 1U);
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(std::abs(radius_at(1) - 4.5) < 0.000001);
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  QApplication::processEvents();
+  CHECK(std::abs(radius_at(2) - 4.5) < 0.000001);
+  action_for(QStringLiteral("layerSmartFilterMoveDownAction"), 2U)->trigger();
+  CHECK(process_events_until(
+      [&] { return std::abs(radius_at(1) - 4.5) < 0.000001; }));
+
+  action_for(QStringLiteral("layerSmartFilterDeleteAction"), 1U)->trigger();
+  CHECK(process_events_until([&] { return stack().entries.size() == 2U; }));
+  CHECK(std::abs(radius_at(0) - 2.0) < 0.000001);
+  CHECK(std::abs(radius_at(1) - 7.0) < 0.000001);
+
+  const auto effects_before_missing_record_guard =
+      document.metadata().smart_filter_effects;
+  CHECK(document.metadata().smart_filter_effects.remove(placed_uuid));
+  const auto guard_undo_depth =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  action_for(QStringLiteral("layerSmartFilterDuplicateAction"), 0U)->trigger();
+  QApplication::processEvents();
+  CHECK(stack().entries.size() == 2U);
+  CHECK(std::abs(radius_at(0) - 2.0) < 0.000001);
+  CHECK(std::abs(radius_at(1) - 7.0) < 0.000001);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        guard_undo_depth);
+  CHECK(window.statusBar()->currentMessage().contains(
+      QStringLiteral("cannot be edited safely")));
+  document.metadata().smart_filter_effects =
+      effects_before_missing_record_guard;
+
+  const auto* final_record = std::as_const(document)
+                                 .metadata()
+                                 .smart_filter_effects.find_unique(placed_uuid);
+  CHECK(final_record != nullptr);
+  const auto final_record_bytes =
+      patchy::psd::raw_filter_effects_record_body(*final_record);
+  CHECK(final_record_bytes.size() == preserved_cache.size());
+  CHECK(std::equal(final_record_bytes.begin(), final_record_bytes.end(),
+                   preserved_cache.begin()));
+
+  const auto reopened = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto reopened_it = std::find_if(
+      reopened.layers().begin(), reopened.layers().end(),
+      [](const patchy::Layer& layer) { return layer.name() == "small"; });
+  CHECK(reopened_it != reopened.layers().end());
+  CHECK(reopened_it->smart_filter_stack() != nullptr);
+  CHECK(reopened_it->smart_filter_stack()->entries.size() == 2U);
+  const auto reopened_radius = [&](std::size_t index) {
+    const auto* value = std::get_if<patchy::GaussianBlurSmartFilter>(
+        &reopened_it->smart_filter_stack()->entries[index].parameters);
+    CHECK(value != nullptr);
+    return value->radius_pixels;
+  };
+  CHECK(std::abs(reopened_radius(0) - 2.0) < 0.000001);
+  CHECK(std::abs(reopened_radius(1) - 7.0) < 0.000001);
+  ensure_artifact_dir();
+  const auto artifact_path = std::filesystem::absolute(
+      std::filesystem::path("test-artifacts") /
+      "ui_smart_filter_multiple_gaussian.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact_path);
+  CHECK(std::filesystem::exists(artifact_path));
+  save_widget_artifact("ui_smart_filter_multiple_gaussian_rows",
+                       *active_row());
+}
+
+void ui_smart_filter_gallery_gaussian_recipe_applies_native_atomically() {
+  GallerySettingsRestorer gallery_settings;
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* original = std::as_const(document).find_layer(layer_id);
+  CHECK(original != nullptr && original->smart_filter_stack() == nullptr);
+  const auto original_pixels = original->pixels();
+  const auto original_bounds = original->bounds();
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  const auto configure_gaussian_recipe = [&](QDialog& dialog,
+                                             bool mixed_recipe) {
+    auto* looks = dialog.findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* applied = dialog.findChild<QListWidget*>(
+        QStringLiteral("filterGalleryAppliedEffectsList"));
+    auto* duplicate = dialog.findChild<QPushButton*>(
+        QStringLiteral("filterGalleryDuplicateEffectButton"));
+    CHECK(looks != nullptr && applied != nullptr && duplicate != nullptr);
+    auto* gaussian_item = require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.gaussian_blur"));
+    looks->setCurrentItem(gaussian_item);
+    QApplication::processEvents();
+    auto* preview = dialog.findChild<QWidget*>(
+        QStringLiteral("filterGalleryPreview"));
+    CHECK(preview != nullptr);
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterGalleryExactPreview").toBool() &&
+                 gaussian_item->data(Qt::UserRole + 5).toBool();
+        },
+        10000));
+    auto* radius = dialog.findChild<QSpinBox*>(
+        QStringLiteral("filterRadiusSpin"));
+    CHECK(radius != nullptr);
+    radius->setValue(3);
+    duplicate->click();
+    QApplication::processEvents();
+    if (mixed_recipe) {
+      looks->setCurrentItem(require_gallery_filter_item(
+          *looks, QStringLiteral("patchy.filters.box_blur")));
+    } else {
+      radius = dialog.findChild<QSpinBox*>(
+          QStringLiteral("filterRadiusSpin"));
+      CHECK(radius != nullptr);
+      radius->setValue(7);
+    }
+    QApplication::processEvents();
+    CHECK(applied->count() == 2);
+  };
+
+  bool applied_native = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
+    CHECK(dialog != nullptr);
+    configure_gaussian_recipe(*dialog, false);
+    CHECK(process_events_until(
+        [&] {
+          const auto* layer = std::as_const(document).find_layer(layer_id);
+          return layer != nullptr && layer->smart_filter_stack() == nullptr &&
+                 (!filter_rect_equal(layer->bounds(), original_bounds) ||
+                  !patchy::ui::pixel_buffers_equal(layer->pixels(),
+                                                   original_pixels));
+        },
+        7000));
+    auto* buttons = dialog->findChild<QDialogButtonBox*>(
+        QStringLiteral("filterGalleryButtonBox"));
+    CHECK(buttons != nullptr &&
+          buttons->button(QDialogButtonBox::Ok) != nullptr);
+    applied_native = true;
+    buttons->button(QDialogButtonBox::Ok)->click();
+  });
+  require_action(window, "filterGalleryAction")->trigger();
+  CHECK(applied_native);
+
+  const auto* filtered = std::as_const(document).find_layer(layer_id);
+  CHECK(filtered != nullptr && filtered->smart_filter_stack() != nullptr);
+  CHECK(filtered->smart_filter_stack()->entries.size() == 2U);
+  const auto native_radius = [&](std::size_t index) {
+    const auto* radius = std::get_if<patchy::GaussianBlurSmartFilter>(
+        &filtered->smart_filter_stack()->entries[index].parameters);
+    CHECK(radius != nullptr);
+    return radius->radius_pixels;
+  };
+  CHECK(std::abs(native_radius(0) - 3.0) < 0.000001);
+  CHECK(std::abs(native_radius(1) - 7.0) < 0.000001);
+  CHECK(patchy::smart_object_lock_reason(*filtered).empty());
+  const auto placed_uuid = patchy::smart_object_placed_uuid(*filtered);
+  CHECK(std::as_const(document)
+            .metadata()
+            .smart_filter_effects.find_unique(placed_uuid) != nullptr);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+  const auto reopened = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto reopened_it = std::find_if(
+      reopened.layers().begin(), reopened.layers().end(),
+      [](const patchy::Layer& layer) { return layer.name() == "small"; });
+  CHECK(reopened_it != reopened.layers().end());
+  CHECK(reopened_it->smart_filter_stack() != nullptr &&
+        reopened_it->smart_filter_stack()->entries.size() == 2U);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* undone = std::as_const(document).find_layer(layer_id);
+  CHECK(undone != nullptr && undone->smart_filter_stack() == nullptr);
+  CHECK(filter_rect_equal(undone->bounds(), original_bounds));
+  CHECK(patchy::ui::pixel_buffers_equal(undone->pixels(), original_pixels));
+  CHECK(std::as_const(document)
+            .metadata()
+            .smart_filter_effects.find_unique(placed_uuid) == nullptr);
+
+  bool applied_mixed = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
+    CHECK(dialog != nullptr);
+    configure_gaussian_recipe(*dialog, true);
+    auto* buttons = dialog->findChild<QDialogButtonBox*>(
+        QStringLiteral("filterGalleryButtonBox"));
+    CHECK(buttons != nullptr &&
+          buttons->button(QDialogButtonBox::Ok) != nullptr);
+    QTimer::singleShot(0, [&] {
+      auto* warning = qobject_cast<QMessageBox*>(find_top_level_dialog(
+          QStringLiteral("filterGalleryRasterizeMessageBox")));
+      CHECK(warning != nullptr);
+      auto* yes = warning->button(QMessageBox::Yes);
+      CHECK(yes != nullptr);
+      yes->click();
+    });
+    applied_mixed = true;
+    buttons->button(QDialogButtonBox::Ok)->click();
+  });
+  require_action(window, "filterGalleryAction")->trigger();
+  CHECK(applied_mixed);
+  const auto* rasterized = std::as_const(document).find_layer(layer_id);
+  CHECK(rasterized != nullptr && !patchy::layer_is_smart_object(*rasterized));
+  CHECK(rasterized->smart_filter_stack() == nullptr);
+  CHECK(!filter_rect_equal(rasterized->bounds(), original_bounds) ||
+        !patchy::ui::pixel_buffers_equal(rasterized->pixels(),
+                                         original_pixels));
+  CHECK(std::as_const(document)
+            .metadata()
+            .smart_filter_effects.find_unique(placed_uuid) == nullptr);
+  CHECK(window.statusBar()->currentMessage().contains(
+      QStringLiteral("Rasterized Smart Object")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(document).find_layer(layer_id);
+  CHECK(restored != nullptr && patchy::layer_is_smart_object(*restored));
+  CHECK(restored->smart_filter_stack() == nullptr);
+  CHECK(filter_rect_equal(restored->bounds(), original_bounds));
+  CHECK(patchy::ui::pixel_buffers_equal(restored->pixels(), original_pixels));
+
+  // Once a recipe grows beyond the native stack limit, the gallery falls
+  // back to its destructive proxy. That transition must also remove the last
+  // accepted exact render from the live layer.
+  bool rejected_oversized_native_preview = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* applied = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryAppliedEffectsList"));
+    auto* duplicate = dialog->findChild<QPushButton*>(
+        QStringLiteral("filterGalleryDuplicateEffectButton"));
+    auto* preview = dialog->findChild<QWidget*>(
+        QStringLiteral("filterGalleryPreview"));
+    CHECK(looks != nullptr && applied != nullptr && duplicate != nullptr &&
+          preview != nullptr);
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.gaussian_blur")));
+    CHECK(process_events_until(
+        [&] {
+          const auto* layer = std::as_const(document).find_layer(layer_id);
+          return preview->property("filterGalleryExactPreview").toBool() &&
+                 layer != nullptr &&
+                 (!filter_rect_equal(layer->bounds(), original_bounds) ||
+                  !patchy::ui::pixel_buffers_equal(layer->pixels(),
+                                                   original_pixels));
+        },
+        7000));
+    for (int count = 1; count < 65; ++count) {
+      duplicate->click();
+    }
+    CHECK(applied->count() == 65);
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr);
+    CHECK(filter_rect_equal(layer->bounds(), original_bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(layer->pixels(), original_pixels));
+    rejected_oversized_native_preview = true;
+    dialog->reject();
+  });
+  require_action(window, "filterGalleryAction")->trigger();
+  CHECK(rejected_oversized_native_preview);
 }
 
 void ui_smart_filter_move_drag_and_nudge_rerender_cache_and_roundtrip() {
@@ -35766,7 +36193,18 @@ void ui_smart_filter_native_integrity_guards_reject_destructive_actions() {
       require_hotkey_action(window, QStringLiteral("layer.flip_vertical")));
   trigger_without_dialog(require_action(window, "layerFillForegroundAction"));
   trigger_without_dialog(require_action(window, "layerFillBackgroundAction"));
-  trigger_without_dialog(require_action(window, "filterGalleryAction"));
+  bool gallery_opened = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
+    CHECK(dialog != nullptr);
+    gallery_opened = true;
+    dialog->reject();
+  });
+  require_action(window, "filterGalleryAction")->trigger();
+  QApplication::processEvents();
+  CHECK(gallery_opened);
+  verify_unchanged();
   trigger_without_dialog(require_action(window, "imageAdjustLevelsAction"));
   trigger_without_dialog(require_action(window, "imageAdjustInvertAction"));
   trigger_without_dialog(require_action(window, "editCutAction"));
@@ -37112,8 +37550,8 @@ void ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete() {
       QStringLiteral("layerSmartFiltersVisibilityButton"));
   auto* edit = row->findChild<QToolButton*>(
       QStringLiteral("layerSmartFilterEditButton"));
-  auto* remove = row->findChild<QToolButton*>(
-      QStringLiteral("layerSmartFilterDeleteButton"));
+  auto* remove = row->findChild<QAction*>(
+      QStringLiteral("layerSmartFilterDeleteAction"));
   CHECK(entry_visibility != nullptr && entry_visibility->isEnabled());
   CHECK(stack_visibility != nullptr && stack_visibility->isEnabled());
   CHECK(edit != nullptr && edit->isEnabled());
@@ -37184,8 +37622,8 @@ void ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete() {
       QStringLiteral("layerSmartFiltersVisibilityButton"));
   edit = row->findChild<QToolButton*>(
       QStringLiteral("layerSmartFilterEditButton"));
-  remove = row->findChild<QToolButton*>(
-      QStringLiteral("layerSmartFilterDeleteButton"));
+  remove = row->findChild<QAction*>(
+      QStringLiteral("layerSmartFilterDeleteAction"));
   CHECK(entry_visibility != nullptr && !entry_visibility->isEnabled());
   CHECK(stack_visibility != nullptr && !stack_visibility->isEnabled());
   CHECK(edit != nullptr && !edit->isEnabled());
@@ -37212,7 +37650,7 @@ void ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete() {
       QStringLiteral("pixels are locked"), Qt::CaseInsensitive));
   entry_visibility->click();
   edit->click();
-  remove->click();
+  remove->trigger();
   QApplication::processEvents();
   linked = std::as_const(document).find_layer(layer_id);
   CHECK(linked != nullptr && linked->smart_filter_stack() != nullptr);
@@ -37230,10 +37668,10 @@ void ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete() {
   patchy::set_layer_lock_flags(*mutable_linked, patchy::kLayerLockNone);
   patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
   QApplication::processEvents();
-  remove = active_row()->findChild<QToolButton*>(
-      QStringLiteral("layerSmartFilterDeleteButton"));
+  remove = active_row()->findChild<QAction*>(
+      QStringLiteral("layerSmartFilterDeleteAction"));
   CHECK(remove != nullptr && remove->isEnabled());
-  remove->click();
+  remove->trigger();
   CHECK(process_events_until([&] {
     const auto* current = std::as_const(document).find_layer(layer_id);
     return current != nullptr && current->smart_filter_stack() == nullptr;
@@ -46639,6 +47077,10 @@ int main(int argc, char* argv[]) {
        ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete},
       {"ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache",
        ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache},
+      {"ui_smart_filter_multiple_gaussian_duplicate_reorder_delete_roundtrip",
+       ui_smart_filter_multiple_gaussian_duplicate_reorder_delete_roundtrip},
+      {"ui_smart_filter_gallery_gaussian_recipe_applies_native_atomically",
+       ui_smart_filter_gallery_gaussian_recipe_applies_native_atomically},
       {"ui_smart_filter_move_drag_and_nudge_rerender_cache_and_roundtrip",
        ui_smart_filter_move_drag_and_nudge_rerender_cache_and_roundtrip},
       {"ui_convert_to_smart_object_rejects_tree_containing_smart_filter",

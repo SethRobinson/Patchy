@@ -48,6 +48,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -62,6 +63,7 @@ constexpr int kFilterIdRole = Qt::UserRole + 1;
 constexpr int kThumbnailReadyRole = Qt::UserRole + 2;
 constexpr int kFilterCategoryRole = Qt::UserRole + 3;
 constexpr int kRecipeEntryIdRole = Qt::UserRole + 4;
+constexpr int kThumbnailExactRole = Qt::UserRole + 5;
 constexpr int kMaximumProxyDimension = 640;
 constexpr int kMaximumThumbnailDimension = 180;
 
@@ -152,6 +154,7 @@ struct GalleryProxyRender {
   QImage image;
   Rect bounds{};
   std::vector<Rect> entry_input_bounds;
+  std::shared_ptr<const FilterRenderResult> exact_result;
 };
 
 struct GalleryRecipeEntry {
@@ -173,10 +176,16 @@ struct GalleryProxyPreviewState {
   std::atomic<std::uint64_t> generation{0};
   std::optional<Work> pending;
   std::function<void(Work)> start;
-  std::function<void(GalleryProxyRender, std::vector<std::uint64_t>,
-                     std::uint64_t, std::string)>
+  std::function<void(GalleryProxyRender, FilterRecipe,
+                     std::vector<std::uint64_t>, std::uint64_t, std::string)>
       apply;
   std::function<void(QString)> fail;
+};
+
+struct GalleryThumbnailRenderState {
+  bool closed{false};
+  bool in_flight{false};
+  std::atomic<std::uint64_t> generation{0};
 };
 
 void enqueue_gallery_proxy_preview(
@@ -358,6 +367,43 @@ void close_gallery_proxy_preview(
   return aligned;
 }
 
+// Exact renderers return full-resolution document-space bounds. Convert both
+// the image and those bounds to the proxy's local coordinate system so the
+// result and the immutable Before image share one origin and scale.
+[[nodiscard]] GalleryProxyRender exact_render_to_proxy(
+    std::shared_ptr<const FilterRenderResult> exact, Rect source_bounds,
+    const GalleryProxy& proxy) {
+  if (exact == nullptr || exact->pixels.empty() || exact->bounds.empty() ||
+      proxy.original.empty() || source_bounds.width <= 0 ||
+      source_bounds.height <= 0 ||
+      exact->pixels.width() != exact->bounds.width ||
+      exact->pixels.height() != exact->bounds.height) {
+    throw std::invalid_argument("Invalid exact visual-filter render result");
+  }
+
+  const auto scale_x = static_cast<double>(proxy.original.width()) /
+                       static_cast<double>(source_bounds.width);
+  const auto scale_y = static_cast<double>(proxy.original.height()) /
+                       static_cast<double>(source_bounds.height);
+  const auto left = static_cast<int>(std::floor(
+      (static_cast<double>(exact->bounds.x) - source_bounds.x) * scale_x));
+  const auto top = static_cast<int>(std::floor(
+      (static_cast<double>(exact->bounds.y) - source_bounds.y) * scale_y));
+  const auto right = static_cast<int>(std::ceil(
+      (static_cast<double>(exact->bounds.x) + exact->bounds.width -
+       source_bounds.x) *
+      scale_x));
+  const auto bottom = static_cast<int>(std::ceil(
+      (static_cast<double>(exact->bounds.y) + exact->bounds.height -
+       source_bounds.y) *
+      scale_y));
+  const auto width = std::max(1, right - left);
+  const auto height = std::max(1, bottom - top);
+  auto pixels = make_proxy_pixels(exact->pixels, width, height);
+  return {image_from_pixels(pixels), Rect{left, top, width, height}, {},
+          std::move(exact)};
+}
+
 [[nodiscard]] GalleryProxyRender render_proxy(
     const GalleryProxy& proxy, const FilterRegistry& registry,
     const FilterInvocation& invocation,
@@ -366,18 +412,18 @@ void close_gallery_proxy_preview(
       Rect::from_size(proxy.original.width(), proxy.original.height());
   if (proxy.original.empty() ||
       (proxy.selection_restricted && proxy.selection.isEmpty())) {
-    return {image_from_pixels(proxy.original), local_bounds, {}};
+    return {image_from_pixels(proxy.original), local_bounds, {}, nullptr};
   }
   const auto scaled = registry.scale(invocation, proxy.spatial_scale);
   if (!scaled.has_value()) {
-    return {image_from_pixels(proxy.original), local_bounds, {}};
+    return {image_from_pixels(proxy.original), local_bounds, {}, nullptr};
   }
   const FilterPreviewSettings settings{true, *scaled};
   auto result_bounds = local_bounds;
   auto pixels = build_filter_preview_pixels(proxy.original, proxy.selection,
                                             local_bounds, registry, settings,
                                             progress, &result_bounds);
-  return {image_from_pixels(pixels), result_bounds, {}};
+  return {image_from_pixels(pixels), result_bounds, {}, nullptr};
 }
 
 [[nodiscard]] GalleryProxyRender render_proxy(
@@ -389,26 +435,26 @@ void close_gallery_proxy_preview(
   if (proxy.original.empty() || recipe.entries.empty() ||
       (proxy.selection_restricted && proxy.selection.isEmpty())) {
     return {image_from_pixels(proxy.original), local_bounds,
-            std::vector<Rect>(recipe.entries.size(), local_bounds)};
+            std::vector<Rect>(recipe.entries.size(), local_bounds), nullptr};
   }
   const auto scaled = registry.scale(recipe, proxy.spatial_scale);
   if (!scaled.has_value()) {
     return {image_from_pixels(proxy.original), local_bounds,
-            std::vector<Rect>(recipe.entries.size(), local_bounds)};
+            std::vector<Rect>(recipe.entries.size(), local_bounds), nullptr};
   }
   if (!proxy.selection_restricted) {
     FilterRecipeRenderTrace trace;
     auto rendered = registry.render(*scaled, proxy.original, local_bounds,
                                     true, progress, &trace);
     return {image_from_pixels(rendered.pixels), rendered.bounds,
-            std::move(trace.entry_input_bounds)};
+            std::move(trace.entry_input_bounds), nullptr};
   }
   auto result_bounds = local_bounds;
   auto pixels = build_filter_preview_pixels(
       proxy.original, proxy.selection, local_bounds, registry, *scaled,
       progress, &result_bounds);
   return {image_from_pixels(pixels), result_bounds,
-          std::vector<Rect>(recipe.entries.size(), local_bounds)};
+          std::vector<Rect>(recipe.entries.size(), local_bounds), nullptr};
 }
 
 [[nodiscard]] QIcon thumbnail_icon(const QImage& source) {
@@ -453,7 +499,12 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     const QRegion& selection, const FilterRegistry& registry,
     RgbColor foreground, RgbColor background,
     VisualFilterGalleryPreviewCallback preview_changed,
-    FilterLookLibrary* look_library) {
+    FilterLookLibrary* look_library,
+    VisualFilterGalleryExactRecipeRenderer exact_renderer,
+    VisualFilterGalleryExactPreviewCallback exact_preview_ready) {
+  const Rect exact_source_bounds{bounds.x, bounds.y,
+                                 immutable_original.width(),
+                                 immutable_original.height()};
   const auto proxy =
       make_gallery_proxy(immutable_original, bounds, selection,
                          kMaximumProxyDimension);
@@ -745,6 +796,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   original_item->setData(kFilterIdRole, QString());
   original_item->setIcon(thumbnail_icon(original_thumbnail));
   original_item->setData(kThumbnailReadyRole, true);
+  original_item->setData(kThumbnailExactRole, false);
   for (const auto* definition : available_filters) {
     const auto& id = definition->identifier;
     catalog_invocations.emplace(
@@ -752,6 +804,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     auto* item = new QListWidgetItem(filter_display_name(*definition), looks);
     item->setData(kFilterIdRole, QString::fromStdString(id));
     item->setData(kThumbnailReadyRole, false);
+    item->setData(kThumbnailExactRole, false);
     item->setData(kFilterCategoryRole,
                   gallery_category_token(definition->catalog.category));
     filter_items.emplace(id, item);
@@ -981,6 +1034,13 @@ VisualFilterGalleryResult request_visual_filter_gallery(
           canvas_preview->isChecked(), current_recipe()});
     }
   };
+  std::optional<VisualFilterGalleryExactPreview> accepted_exact_preview;
+  const auto emit_accepted_exact_preview = [&] {
+    if (exact_preview_ready && accepted_exact_preview.has_value()) {
+      accepted_exact_preview->canvas_enabled = canvas_preview->isChecked();
+      exact_preview_ready(*accepted_exact_preview);
+    }
+  };
 
   auto current_proxy_bounds =
       Rect::from_size(proxy.original.width(), proxy.original.height());
@@ -989,12 +1049,22 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   auto proxy_preview_state = std::make_shared<GalleryProxyPreviewState>();
   auto proxy_registry = std::make_shared<const FilterRegistry>(registry);
   proxy_preview_state->apply =
-      [&](GalleryProxyRender rendered, std::vector<std::uint64_t> entry_ids,
-          std::uint64_t, std::string filter_id) {
+      [&](GalleryProxyRender rendered, FilterRecipe rendered_recipe,
+          std::vector<std::uint64_t> entry_ids, std::uint64_t,
+          std::string filter_id) {
         preview->set_image(rendered.image);
         preview->setProperty(
             "filterGalleryRenderedFilterId",
             QString::fromStdString(filter_id));
+        const auto used_exact = rendered.exact_result != nullptr;
+        preview->setProperty("filterGalleryExactPreview", used_exact);
+        if (used_exact) {
+          accepted_exact_preview = VisualFilterGalleryExactPreview{
+              canvas_preview->isChecked(), std::move(rendered_recipe),
+              rendered.exact_result};
+        } else {
+          accepted_exact_preview.reset();
+        }
         current_proxy_bounds = rendered.bounds;
         rendered_entry_input_bounds.clear();
         const auto traced_count = std::min(
@@ -1007,11 +1077,13 @@ VisualFilterGalleryResult request_visual_filter_gallery(
           refresh_spatial_overlay();
         }
         status->setText(QObject::tr("Ready"));
+        emit_accepted_exact_preview();
       };
   proxy_preview_state->fail =
       [status](QString) { status->setText(QObject::tr("Ready")); };
   proxy_preview_state->start =
-      [proxy_preview_state, proxy_registry, proxy](
+      [proxy_preview_state, proxy_registry, proxy, exact_source_bounds,
+       exact_renderer](
           GalleryProxyPreviewState::Work work) {
         proxy_preview_state->in_flight = true;
         auto rendered = std::make_shared<GalleryProxyRender>();
@@ -1024,6 +1096,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         auto entry_ids = std::move(work.entry_ids);
         auto recipe = std::move(work.recipe);
         std::thread([app, proxy_preview_state, proxy_registry, proxy,
+                     exact_source_bounds, exact_renderer,
                      recipe = std::move(recipe),
                      entry_ids = std::move(entry_ids), generation,
                      active_entry_id, filter_id, rendered, error,
@@ -1035,8 +1108,23 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                            std::memory_order_acquire) == generation;
               }};
           try {
-            *rendered =
-                render_proxy(proxy, *proxy_registry, recipe, &progress);
+            std::optional<FilterRenderResult> exact;
+            if (exact_renderer) {
+              exact = exact_renderer(recipe, &progress);
+            }
+            if (exact.has_value()) {
+              auto shared_exact = std::make_shared<const FilterRenderResult>(
+                  std::move(*exact));
+              *rendered = exact_render_to_proxy(
+                  std::move(shared_exact), exact_source_bounds, proxy);
+            } else {
+              if (progress.update &&
+                  !progress.update(0, 1, FilterProgressStage::Filtering)) {
+                throw FilterCancelled();
+              }
+              *rendered =
+                  render_proxy(proxy, *proxy_registry, recipe, &progress);
+            }
           } catch (const FilterCancelled&) {
             *cancelled = true;
           } catch (const std::exception& caught) {
@@ -1048,6 +1136,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
           QMetaObject::invokeMethod(
               app,
               [proxy_preview_state, generation, active_entry_id, filter_id,
+               recipe = std::move(recipe),
                entry_ids = std::move(entry_ids), rendered, error,
                cancelled]() mutable {
                 proxy_preview_state->in_flight = false;
@@ -1058,8 +1147,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                     !*cancelled) {
                   if (error->isEmpty() && proxy_preview_state->apply) {
                     proxy_preview_state->apply(
-                        std::move(*rendered), std::move(entry_ids),
-                        active_entry_id, filter_id);
+                        std::move(*rendered), std::move(recipe),
+                        std::move(entry_ids), active_entry_id, filter_id);
                   } else if (!error->isEmpty() &&
                              proxy_preview_state->fail) {
                     proxy_preview_state->fail(*error);
@@ -1085,8 +1174,10 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     const auto* active = active_recipe_entry();
     if (!recipe.has_value() || active == nullptr) {
       cancel_gallery_proxy_preview(proxy_preview_state);
+      accepted_exact_preview.reset();
       preview->set_image(original_image);
       preview->setProperty("filterGalleryRenderedFilterId", QString());
+      preview->setProperty("filterGalleryExactPreview", false);
       current_proxy_bounds =
           Rect::from_size(proxy.original.width(), proxy.original.height());
       rendered_entry_input_bounds.clear();
@@ -1108,8 +1199,10 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   };
   QObject::connect(central_timer, &QTimer::timeout, &dialog, render_current);
   const auto schedule_render =
-      [central_timer, status, proxy_preview_state] {
+      [central_timer, status, proxy_preview_state,
+       &accepted_exact_preview] {
     cancel_gallery_proxy_preview(proxy_preview_state);
+    accepted_exact_preview.reset();
     status->setText(QObject::tr("Rendering preview..."));
     central_timer->start();
   };
@@ -1155,6 +1248,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                       filter_items.find(entry->value.invocation.filter_id);
                   item != filter_items.end()) {
                 item->second->setData(kThumbnailReadyRole, false);
+                item->second->setData(kThumbnailExactRole, false);
               }
             }
             if (schedule_thumbnails) {
@@ -1423,6 +1517,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                         filter_items.find(entry->value.invocation.filter_id);
                     item != filter_items.end()) {
                   item->second->setData(kThumbnailReadyRole, false);
+                  item->second->setData(kThumbnailExactRole, false);
                 }
               }
               if (schedule_thumbnails) {
@@ -1660,6 +1755,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         if (const auto item = filter_items.find(id);
             item != filter_items.end()) {
           item->second->setData(kThumbnailReadyRole, false);
+          item->second->setData(kThumbnailExactRole, false);
         }
         if (schedule_thumbnails) {
           schedule_thumbnails();
@@ -1671,6 +1767,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         } else {
           central_timer->stop();
           cancel_gallery_proxy_preview(proxy_preview_state);
+          accepted_exact_preview.reset();
         }
         emit_canvas_preview();
       });
@@ -1692,6 +1789,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   QObject::connect(before, &QPushButton::pressed, &dialog, [&] {
     central_timer->stop();
     cancel_gallery_proxy_preview(proxy_preview_state);
+    accepted_exact_preview.reset();
     preview->set_image(
         align_original_to_bounds(original_image, current_proxy_bounds));
     preview->set_center_radius_overlay(std::nullopt);
@@ -1699,7 +1797,10 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   });
   QObject::connect(before, &QPushButton::released, &dialog, schedule_render);
   QObject::connect(canvas_preview, &QCheckBox::toggled, &dialog,
-                   [&](bool) { emit_canvas_preview(); });
+                   [&](bool) {
+                     emit_canvas_preview();
+                     emit_accepted_exact_preview();
+                   });
 
   const auto sync_catalog_to_active = [&] {
     synchronizing_catalog = true;
@@ -2067,6 +2168,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         if (const auto item = filter_items.find(id);
             item != filter_items.end()) {
           item->second->setData(kThumbnailReadyRole, false);
+          item->second->setData(kThumbnailExactRole, false);
         }
         if (schedule_thumbnails) {
           schedule_thumbnails();
@@ -2079,11 +2181,18 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     });
   }
 
-  // One proxy render per event-loop turn keeps opening the dialog immediate and
-  // never lets thumbnail work block interaction for a whole batch.
+  // Thumbnails are generated lazily, one worker job at a time. Exact renderers
+  // may need the full-resolution source, so neither they nor the catalog
+  // fallback are allowed to block the UI event loop.
   auto* thumbnail_timer = new QTimer(&dialog);
   thumbnail_timer->setInterval(1);
-  QObject::connect(thumbnail_timer, &QTimer::timeout, &dialog, [&] {
+  auto thumbnail_render_state =
+      std::make_shared<GalleryThumbnailRenderState>();
+  QObject::connect(thumbnail_timer, &QTimer::timeout, &dialog, [&, proxy_registry] {
+    if (thumbnail_render_state->in_flight) {
+      thumbnail_timer->stop();
+      return;
+    }
     for (int row = 1; row < looks->count(); ++row) {
       auto* item = looks->item(row);
       if (item->isHidden() || item->data(kThumbnailReadyRole).toBool()) {
@@ -2092,16 +2201,95 @@ VisualFilterGalleryResult request_visual_filter_gallery(
       const auto id = item->data(kFilterIdRole).toString().toStdString();
       if (const auto found = catalog_invocations.find(id);
           found != catalog_invocations.end()) {
-        item->setIcon(thumbnail_icon(
-            render_proxy(thumbnail_proxy, registry, found->second).image));
-        item->setData(kThumbnailReadyRole, true);
+        thumbnail_timer->stop();
+        thumbnail_render_state->in_flight = true;
+        const auto generation = thumbnail_render_state->generation.load(
+            std::memory_order_acquire);
+        const auto invocation = found->second;
+        FilterRecipe recipe;
+        recipe.entries.push_back(FilterRecipeEntry{invocation});
+        auto rendered = std::make_shared<GalleryProxyRender>();
+        auto error = std::make_shared<QString>();
+        auto cancelled = std::make_shared<bool>(false);
+        auto* app = QCoreApplication::instance();
+        std::thread([app, thumbnail_render_state, proxy_registry,
+                     thumbnail_proxy, exact_source_bounds, exact_renderer,
+                     recipe = std::move(recipe), invocation, id, generation,
+                     rendered, error, cancelled, thumbnail_timer,
+                     &filter_items]() mutable {
+          FilterProgress progress{
+              [thumbnail_render_state, generation](int, int,
+                                                   FilterProgressStage) {
+                return thumbnail_render_state->generation.load(
+                           std::memory_order_acquire) == generation;
+              }};
+          try {
+            std::optional<FilterRenderResult> exact;
+            if (exact_renderer) {
+              exact = exact_renderer(recipe, &progress);
+            }
+            if (exact.has_value()) {
+              auto shared_exact = std::make_shared<const FilterRenderResult>(
+                  std::move(*exact));
+              *rendered = exact_render_to_proxy(
+                  std::move(shared_exact), exact_source_bounds,
+                  thumbnail_proxy);
+            } else {
+              if (progress.update &&
+                  !progress.update(0, 1, FilterProgressStage::Filtering)) {
+                throw FilterCancelled();
+              }
+              *rendered = render_proxy(thumbnail_proxy, *proxy_registry,
+                                       invocation, &progress);
+            }
+          } catch (const FilterCancelled&) {
+            *cancelled = true;
+          } catch (const std::exception& caught) {
+            *error = QString::fromUtf8(caught.what());
+          }
+          if (app == nullptr) {
+            return;
+          }
+          QMetaObject::invokeMethod(
+              app,
+              [thumbnail_render_state, generation, id, rendered, error,
+               cancelled, thumbnail_timer, &filter_items]() mutable {
+                thumbnail_render_state->in_flight = false;
+                const auto is_latest =
+                    generation == thumbnail_render_state->generation.load(
+                                      std::memory_order_acquire);
+                if (!thumbnail_render_state->closed && is_latest &&
+                    !*cancelled) {
+                  if (const auto found = filter_items.find(id);
+                      found != filter_items.end()) {
+                    if (error->isEmpty()) {
+                      found->second->setIcon(
+                          thumbnail_icon(rendered->image));
+                      found->second->setData(
+                          kThumbnailExactRole,
+                          rendered->exact_result != nullptr);
+                    }
+                    // A failed exact renderer must not create a tight retry
+                    // loop; changing this invocation invalidates it again.
+                    found->second->setData(kThumbnailReadyRole, true);
+                  }
+                }
+                if (!thumbnail_render_state->closed) {
+                  thumbnail_timer->start();
+                }
+              },
+              Qt::QueuedConnection);
+        }).detach();
       }
       return;
     }
     thumbnail_timer->stop();
   });
-  schedule_thumbnails = [thumbnail_timer] {
-    if (!thumbnail_timer->isActive()) {
+  schedule_thumbnails = [thumbnail_timer, thumbnail_render_state] {
+    thumbnail_render_state->generation.fetch_add(1,
+                                                 std::memory_order_acq_rel);
+    if (!thumbnail_render_state->in_flight &&
+        !thumbnail_timer->isActive()) {
       thumbnail_timer->start();
     }
   };
@@ -2134,6 +2322,10 @@ VisualFilterGalleryResult request_visual_filter_gallery(
 
   const auto dialog_result = run_non_modal_dialog(dialog);
   close_gallery_proxy_preview(proxy_preview_state);
+  thumbnail_render_state->closed = true;
+  thumbnail_render_state->generation.fetch_add(1,
+                                               std::memory_order_acq_rel);
+  thumbnail_timer->stop();
   save_dialog_state();
   if (dialog_result != QDialog::Accepted) {
     return {};

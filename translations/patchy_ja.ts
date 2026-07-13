@@ -11416,6 +11416,10 @@ Clipped to the layer below</source>
         <translation>ガウスぼかしをスマートフィルターとして追加しました</translation>
     </message>
     <message>
+        <source>Added another Gaussian Blur Smart Filter</source>
+        <translation>ガウスぼかしスマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
         <source>Updated Gaussian Blur Smart Filter</source>
         <translation>ガウスぼかしスマートフィルターを更新しました</translation>
     </message>
@@ -11436,6 +11440,38 @@ Clipped to the layer below</source>
         <translation>スマートフィルターを非表示</translation>
     </message>
     <message>
+        <source>Smart Filters shown</source>
+        <translation>スマートフィルターを表示しました</translation>
+    </message>
+    <message>
+        <source>Smart Filters hidden</source>
+        <translation>スマートフィルターを非表示にしました</translation>
+    </message>
+    <message>
+        <source>Smart Filter shown</source>
+        <translation>スマートフィルターを表示しました</translation>
+    </message>
+    <message>
+        <source>Smart Filter hidden</source>
+        <translation>スマートフィルターを非表示にしました</translation>
+    </message>
+    <message>
+        <source>Duplicate Smart Filter</source>
+        <translation>スマートフィルターを複製</translation>
+    </message>
+    <message>
+        <source>Duplicated Smart Filter</source>
+        <translation>スマートフィルターを複製しました</translation>
+    </message>
+    <message>
+        <source>Reorder Smart Filters</source>
+        <translation>スマートフィルターを並べ替え</translation>
+    </message>
+    <message>
+        <source>Reordered Smart Filters</source>
+        <translation>スマートフィルターを並べ替えました</translation>
+    </message>
+    <message>
         <source>Editing multiple Smart Filters is not available yet</source>
         <translation>複数のスマートフィルターの編集はまだ利用できません</translation>
     </message>
@@ -11454,6 +11490,30 @@ Clipped to the layer below</source>
     <message>
         <source>Only Gaussian Blur is currently editable as a Smart Filter</source>
         <translation>現在、スマートフィルターとして編集できるのはガウスぼかしだけです</translation>
+    </message>
+    <message>
+        <source>Add Smart Filter Stack</source>
+        <translation>スマートフィルタースタックを追加</translation>
+    </message>
+    <message>
+        <source>Added %1 as editable Smart Filters</source>
+        <translation>%1 を編集可能なスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Object?</source>
+        <translation>スマートオブジェクトをラスタライズしますか？</translation>
+    </message>
+    <message>
+        <source>This Look includes effects without an editable Photoshop Smart Filter mapping. Rasterize the Smart Object and apply the complete Look destructively?</source>
+        <translation>このルックには、編集可能な Photoshop スマートフィルターへの対応がないエフェクトが含まれています。スマートオブジェクトをラスタライズして、ルック全体を破壊的に適用しますか？</translation>
+    </message>
+    <message>
+        <source>Rasterized Smart Object and applied %1</source>
+        <translation>スマートオブジェクトをラスタライズして %1 を適用しました</translation>
+    </message>
+    <message>
+        <source>This filter stack has effects without a verified native Smart Filter mapping. Rasterize the Smart Object to apply it destructively.</source>
+        <translation>このフィルタースタックには、確認済みのネイティブスマートフィルター対応がないエフェクトが含まれています。破壊的に適用するにはスマートオブジェクトをラスタライズしてください。</translation>
     </message>
     <message>
         <source>Could not rebuild the Smart Filter preview and cache</source>
@@ -12070,6 +12130,10 @@ Clipped to the layer below</source>
     <message><source> (%1 px)</source><translation> (%1 px)</translation></message>
     <message><source>Unsupported Smart Filter</source><translation>未対応のスマートフィルター</translation></message>
     <message><source>Edit Smart Filter</source><translation>スマートフィルターを編集</translation></message>
+    <message><source>Smart Filter actions</source><translation>スマートフィルターの操作</translation></message>
+    <message><source>Duplicate Smart Filter</source><translation>スマートフィルターを複製</translation></message>
+    <message><source>Move Smart Filter up</source><translation>スマートフィルターを上へ移動</translation></message>
+    <message><source>Move Smart Filter down</source><translation>スマートフィルターを下へ移動</translation></message>
     <message><source>Delete Smart Filter</source><translation>スマートフィルターを削除</translation></message>
     <message><source> px</source><translation> px</translation></message>
 </context>

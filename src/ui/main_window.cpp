@@ -2077,6 +2077,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId, bool)> set_smart_filter_stack_enabled = {},
                                std::function<void(LayerId, std::size_t, bool)> set_smart_filter_enabled = {},
                                std::function<void(LayerId, std::size_t)> edit_smart_filter = {},
+                               std::function<void(LayerId, std::size_t)> duplicate_smart_filter = {},
+                               std::function<void(LayerId, std::size_t, int)> move_smart_filter = {},
                                std::function<void(LayerId, std::size_t)> delete_smart_filter = {}) {
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
@@ -2526,8 +2528,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       entry_layout->addWidget(entry_visibility, 0, Qt::AlignVCenter);
 
       QString entry_name;
+      QString entry_tooltip;
       if (entry.kind == SmartFilterKind::GaussianBlur) {
         entry_name = QObject::tr("Gaussian Blur");
+        entry_tooltip = entry_name;
         if (const auto* gaussian =
                 std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
             gaussian != nullptr) {
@@ -2538,12 +2542,14 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
           if (radius.endsWith(QLatin1Char('.'))) {
             radius.chop(1);
           }
-          entry_name += QObject::tr(" (%1 px)").arg(radius);
+          entry_tooltip += QObject::tr(" (%1 px)").arg(radius);
         }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
+        entry_tooltip = entry_name;
       } else {
         entry_name = QObject::tr("Unsupported Smart Filter");
+        entry_tooltip = entry_name;
       }
       auto* entry_label = new LayerRowElidingLabel(entry_name, entry_row);
       entry_label->setObjectName(QStringLiteral("layerSmartFilterEntryLabel"));
@@ -2553,7 +2559,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       entry_label->setStyleSheet(QStringLiteral("background: transparent;"));
       entry_label->setEnabled(ancestors_visible && layer.visible() && entry.enabled &&
                               smart_filters->enabled);
-      entry_label->setToolTip(controls_supported ? entry_name : preservation_tooltip);
+      entry_label->setToolTip(controls_supported ? entry_tooltip
+                                                 : preservation_tooltip);
       if (list_parent != nullptr) {
         entry_label->installEventFilter(list_parent);
       }
@@ -2586,23 +2593,101 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       });
       entry_layout->addWidget(edit_button, 0, Qt::AlignVCenter);
 
-      auto* delete_button = new QToolButton(entry_row);
-      delete_button->setObjectName(QStringLiteral("layerSmartFilterDeleteButton"));
-      delete_button->setProperty("smartFilterExecutionIndex",
-                                 QVariant::fromValue<qulonglong>(
-                                     static_cast<qulonglong>(execution_index)));
-      delete_button->setIcon(simple_icon(QStringLiteral("trash")));
-      delete_button->setIconSize(QSize(15, 15));
-      delete_button->setFixedSize(20, 20);
-      delete_button->setFocusPolicy(Qt::NoFocus);
-      delete_button->setStyleSheet(button_style);
-      delete_button->setToolTip(controls_supported ? QObject::tr("Delete Smart Filter")
-                                                    : preservation_tooltip);
-      delete_button->setEnabled(controls_supported && ancestors_visible);
+      auto* more_button = new QToolButton(entry_row);
+      more_button->setObjectName(QStringLiteral("layerSmartFilterMoreButton"));
+      more_button->setProperty("smartFilterExecutionIndex",
+                               QVariant::fromValue<qulonglong>(
+                                   static_cast<qulonglong>(execution_index)));
+      more_button->setText(QString::fromUtf8("\xE2\x8B\xAF"));
+      auto more_font = more_button->font();
+      more_font.setBold(true);
+      more_font.setPointSize(std::max(11, more_font.pointSize()));
+      more_button->setFont(more_font);
+      more_button->setFixedSize(20, 20);
+      more_button->setFocusPolicy(Qt::NoFocus);
+      more_button->setStyleSheet(
+          button_style +
+          QStringLiteral(" QToolButton::menu-indicator { image: none; width: 0px; }"));
+      more_button->setToolTip(controls_supported
+                                  ? QObject::tr("Smart Filter actions")
+                                  : preservation_tooltip);
+      more_button->setEnabled(controls_supported && ancestors_visible);
+      more_button->setPopupMode(QToolButton::InstantPopup);
       if (list_parent != nullptr) {
-        delete_button->installEventFilter(list_parent);
+        more_button->installEventFilter(list_parent);
       }
-      QObject::connect(delete_button, &QToolButton::clicked, row,
+
+      auto* action_menu = new QMenu(more_button);
+      more_button->setMenu(action_menu);
+      const auto configure_action = [&](QAction* action,
+                                        const QString& object_name) {
+        action->setObjectName(object_name);
+        action->setProperty(
+            "smartFilterExecutionIndex",
+            QVariant::fromValue<qulonglong>(
+                static_cast<qulonglong>(execution_index)));
+      };
+
+      auto* duplicate_action =
+          action_menu->addAction(QObject::tr("Duplicate Smart Filter"));
+      configure_action(duplicate_action,
+                       QStringLiteral("layerSmartFilterDuplicateAction"));
+      duplicate_action->setEnabled(controls_supported && ancestors_visible);
+      QObject::connect(
+          duplicate_action, &QAction::triggered, row,
+          [parent, id = layer.id(), execution_index,
+           duplicate_smart_filter] {
+            if (duplicate_smart_filter) {
+              QTimer::singleShot(
+                  0, parent,
+                  [id, execution_index, duplicate_smart_filter] {
+                    duplicate_smart_filter(id, execution_index);
+                  });
+            }
+          });
+
+      auto* move_up_action =
+          action_menu->addAction(QObject::tr("Move Smart Filter up"));
+      configure_action(move_up_action,
+                       QStringLiteral("layerSmartFilterMoveUpAction"));
+      move_up_action->setEnabled(
+          controls_supported && ancestors_visible &&
+          execution_index + 1U < smart_filters->entries.size());
+      QObject::connect(
+          move_up_action, &QAction::triggered, row,
+          [parent, id = layer.id(), execution_index, move_smart_filter] {
+            if (move_smart_filter) {
+              QTimer::singleShot(0, parent,
+                                 [id, execution_index, move_smart_filter] {
+                move_smart_filter(id, execution_index, -1);
+              });
+            }
+          });
+
+      auto* move_down_action =
+          action_menu->addAction(QObject::tr("Move Smart Filter down"));
+      configure_action(move_down_action,
+                       QStringLiteral("layerSmartFilterMoveDownAction"));
+      move_down_action->setEnabled(controls_supported && ancestors_visible &&
+                                   execution_index > 0U);
+      QObject::connect(
+          move_down_action, &QAction::triggered, row,
+          [parent, id = layer.id(), execution_index, move_smart_filter] {
+            if (move_smart_filter) {
+              QTimer::singleShot(0, parent,
+                                 [id, execution_index, move_smart_filter] {
+                move_smart_filter(id, execution_index, 1);
+              });
+            }
+          });
+
+      action_menu->addSeparator();
+      auto* delete_action =
+          action_menu->addAction(QObject::tr("Delete Smart Filter"));
+      configure_action(delete_action,
+                       QStringLiteral("layerSmartFilterDeleteAction"));
+      delete_action->setEnabled(controls_supported && ancestors_visible);
+      QObject::connect(delete_action, &QAction::triggered, row,
                        [parent, id = layer.id(), execution_index,
                         delete_smart_filter] {
         if (delete_smart_filter) {
@@ -2612,7 +2697,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
           });
         }
       });
-      entry_layout->addWidget(delete_button, 0, Qt::AlignVCenter);
+      entry_layout->addWidget(more_button, 0, Qt::AlignVCenter);
     }
   }
   // Hover moves must reach the list's event filter for the Alt-hover clip
@@ -23960,6 +24045,13 @@ void MainWindow::refresh_layer_list() {
       },
                                       [this](LayerId layer_id, std::size_t execution_index) {
         edit_smart_filter(layer_id, execution_index);
+      },
+                                      [this](LayerId layer_id, std::size_t execution_index) {
+        duplicate_smart_filter(layer_id, execution_index);
+      },
+                                      [this](LayerId layer_id, std::size_t execution_index,
+                                             int visual_direction) {
+        move_smart_filter(layer_id, execution_index, visual_direction);
       },
                                       [this](LayerId layer_id, std::size_t execution_index) {
         delete_smart_filter(layer_id, execution_index);

@@ -3,6 +3,7 @@
 #include "core/smart_filter.hpp"
 #include "core/smart_object.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -41,6 +42,18 @@ enum class SmartFilterDescriptorAction {
 struct SmartFilterDescriptorEdit {
   SmartFilterDescriptorAction action{SmartFilterDescriptorAction::Preserve};
   const SmartFilterStack* stack{nullptr};
+  // When non-empty, one source accompanies each desired stack entry. An index
+  // deep-clones that item from the original native filterFXList; nullopt
+  // authors a canonical Gaussian item. Repeated indices duplicate an entry,
+  // omitted indices delete entries, and a different order reorders them.
+  // Leaving the vector empty retains the legacy patch-in-place rule
+  // that the native and modeled lists must already have the same size.
+  std::vector<std::optional<std::size_t>> entry_sources;
+
+  SmartFilterDescriptorEdit() = default;
+  SmartFilterDescriptorEdit(SmartFilterDescriptorAction wanted_action,
+                            const SmartFilterStack* wanted_stack)
+      : action(wanted_action), stack(wanted_stack) {}
 };
 
 // Parses a 'SoLd'/'SoLE' (descriptor) or 'PlLd'/'plLd' (fixed layout) payload.

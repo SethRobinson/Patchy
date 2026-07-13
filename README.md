@@ -90,7 +90,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 - Open and save layered PSD files with groups, masks, saved alpha and spot channels, text objects, the full Photoshop blend mode set, layer styles and more
 - Common raster editing tools (brush, eraser, selection, transform, gradients, shapes, etc.)
-- Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and add an editable native Gaussian Blur Smart Filter
+- Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Gaussian Blur Smart Filter stacks
 - Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
 - Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement
 - Rich text: color, font, size, and style changes within a single text layer
@@ -259,7 +259,7 @@ Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-
 Important Photoshop features that are not supported yet, or are only partially supported:
 
 - Vector/path workflows, including pen paths, editable shape layers, vector masks, and editable stroke/fill appearance
-- Smart Filters are currently limited to one editable native Gaussian Blur per Smart Object. Multiple filters and unsupported imported stacks remain preview-locked and byte-preserved
+- Editable Smart Filters currently support Gaussian Blur stacks. Unsupported imported filter types remain preview-locked and byte-preserved
 - Full Photoshop adjustment-layer compatibility beyond Patchy's current adjustment support
 - CMYK/Lab editing and export, editable spot separations and RGB component channels, multi-channel overlays, 16/32-bit editing, HDR/EXR, and full color-management parity (Patchy converts CMYK/Lab to RGB on open, but does not edit or save in those color modes)
 - Layer comps, timeline/video/animation workflows, Camera Raw, Liquify, content-aware tools, and generative tools

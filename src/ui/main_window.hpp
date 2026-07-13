@@ -434,6 +434,15 @@ private:
   void set_smart_filter_stack_enabled(LayerId layer_id, bool enabled);
   void set_smart_filter_enabled(LayerId layer_id, std::size_t execution_index,
                                 bool enabled);
+  bool commit_smart_filter_stack_edit(
+      LayerId layer_id, std::optional<SmartFilterStack> candidate,
+      std::vector<std::optional<std::size_t>> entry_sources,
+      const QString& undo_text, const QString& status_text,
+      bool rebuild_native_cache = false);
+  void duplicate_smart_filter(LayerId layer_id,
+                              std::size_t execution_index);
+  void move_smart_filter(LayerId layer_id, std::size_t execution_index,
+                         int visual_direction);
   void delete_smart_filter(LayerId layer_id, std::size_t execution_index);
   void visual_filter_gallery_dialog();
   void populate_new_adjustment_layer_menu(QMenu* menu, const QString& object_name_prefix = {});

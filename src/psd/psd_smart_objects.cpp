@@ -156,6 +156,50 @@ DescriptorValue smart_filter_color(RgbColor color) {
   return value;
 }
 
+std::optional<DescriptorValue> make_smart_filter_entry_descriptor(
+    const SmartFilterEntry& entry) {
+  const auto* gaussian =
+      std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
+  if (entry.kind != SmartFilterKind::GaussianBlur || gaussian == nullptr ||
+      !std::isfinite(gaussian->radius_pixels) ||
+      gaussian->radius_pixels < 0.1 || gaussian->radius_pixels > 1000.0) {
+    return std::nullopt;
+  }
+  auto item = smart_filter_object("filterFX", true);
+  add_smart_filter_value(
+      *item.object_value, "Nm  ", false,
+      smart_filter_text(entry.native_name.empty() ? "Gaussian Blur..."
+                                                  : entry.native_name));
+  auto blend = smart_filter_object("blendOptions", true);
+  add_smart_filter_value(
+      *blend.object_value, "Opct", false,
+      smart_filter_unit("#Prc", std::clamp(entry.opacity, 0.0, 1.0) * 100.0));
+  add_smart_filter_value(
+      *blend.object_value, "Md  ", false,
+      smart_filter_enum("BlnM", false,
+                        std::string(blend_mode_lfx2_string(entry.blend_mode)),
+                        true));
+  add_smart_filter_value(*item.object_value, "blendOptions", true,
+                         std::move(blend));
+  add_smart_filter_value(*item.object_value, "enab", false,
+                         smart_filter_bool(entry.enabled));
+  add_smart_filter_value(*item.object_value, "hasoptions", true,
+                         smart_filter_bool(entry.has_options));
+  add_smart_filter_value(*item.object_value, "FrgC", false,
+                         smart_filter_color(entry.foreground));
+  add_smart_filter_value(*item.object_value, "BckC", false,
+                         smart_filter_color(entry.background));
+  auto filter = smart_filter_object("GsnB", false, "Gaussian Blur");
+  add_smart_filter_value(*filter.object_value, "Rds ", false,
+                         smart_filter_unit("#Pxl", gaussian->radius_pixels));
+  add_smart_filter_value(*item.object_value, "Fltr", false,
+                         std::move(filter));
+  add_smart_filter_value(
+      *item.object_value, "filterID", true,
+      smart_filter_integer(static_cast<std::int32_t>(0x47736e42U)));
+  return item;
+}
+
 std::optional<DescriptorValue>
 make_smart_filter_descriptor(const SmartFilterStack& stack) {
   if (stack.support != SmartFilterStackSupport::Supported ||
@@ -178,49 +222,43 @@ make_smart_filter_descriptor(const SmartFilterStack& stack) {
   list.type = DescriptorValue::Type::List;
   list.list_value.reserve(stack.entries.size());
   for (const auto& entry : stack.entries) {
-    const auto* gaussian =
-        std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
-    if (entry.kind != SmartFilterKind::GaussianBlur || gaussian == nullptr ||
-        !std::isfinite(gaussian->radius_pixels) ||
-        gaussian->radius_pixels < 0.1 || gaussian->radius_pixels > 1000.0) {
+    auto item = make_smart_filter_entry_descriptor(entry);
+    if (!item.has_value()) {
       return std::nullopt;
     }
-    auto item = smart_filter_object("filterFX", true);
-    add_smart_filter_value(
-        *item.object_value, "Nm  ", false,
-        smart_filter_text(entry.native_name.empty() ? "Gaussian Blur..."
-                                                    : entry.native_name));
-    auto blend = smart_filter_object("blendOptions", true);
-    add_smart_filter_value(*blend.object_value, "Opct", false,
-                           smart_filter_unit("#Prc", std::clamp(entry.opacity, 0.0, 1.0) * 100.0));
-    add_smart_filter_value(
-        *blend.object_value, "Md  ", false,
-        smart_filter_enum("BlnM", false,
-                          std::string(blend_mode_lfx2_string(entry.blend_mode)),
-                          true));
-    add_smart_filter_value(*item.object_value, "blendOptions", true,
-                           std::move(blend));
-    add_smart_filter_value(*item.object_value, "enab", false,
-                           smart_filter_bool(entry.enabled));
-    add_smart_filter_value(*item.object_value, "hasoptions", true,
-                           smart_filter_bool(entry.has_options));
-    add_smart_filter_value(*item.object_value, "FrgC", false,
-                           smart_filter_color(entry.foreground));
-    add_smart_filter_value(*item.object_value, "BckC", false,
-                           smart_filter_color(entry.background));
-    auto filter = smart_filter_object("GsnB", false, "Gaussian Blur");
-    add_smart_filter_value(*filter.object_value, "Rds ", false,
-                           smart_filter_unit("#Pxl", gaussian->radius_pixels));
-    add_smart_filter_value(*item.object_value, "Fltr", false,
-                           std::move(filter));
-    add_smart_filter_value(
-        *item.object_value, "filterID", true,
-        smart_filter_integer(static_cast<std::int32_t>(0x47736e42U)));
-    list.list_value.push_back(std::move(item));
+    list.list_value.push_back(std::move(*item));
   }
   add_smart_filter_value(*root.object_value, "filterFXList", true,
                          std::move(list));
   return root;
+}
+
+DescriptorValue clone_descriptor_value(const DescriptorValue& source);
+
+std::shared_ptr<DescriptorObject> clone_descriptor_object(
+    const DescriptorObject& source) {
+  auto result = std::make_shared<DescriptorObject>();
+  result->name = source.name;
+  result->class_id = source.class_id;
+  result->class_id_long_form = source.class_id_long_form;
+  result->key_order = source.key_order;
+  for (const auto& [key, value] : source.values) {
+    result->values.emplace(key, clone_descriptor_value(value));
+  }
+  return result;
+}
+
+DescriptorValue clone_descriptor_value(const DescriptorValue& source) {
+  DescriptorValue result = source;
+  if (source.object_value != nullptr) {
+    result.object_value = clone_descriptor_object(*source.object_value);
+  }
+  result.list_value.clear();
+  result.list_value.reserve(source.list_value.size());
+  for (const auto& item : source.list_value) {
+    result.list_value.push_back(clone_descriptor_value(item));
+  }
+  return result;
 }
 
 bool set_smart_filter_bool(DescriptorObject& object, std::string_view key,
@@ -257,8 +295,9 @@ bool set_smart_filter_color(DescriptorObject& object, std::string_view key,
   return true;
 }
 
-bool patch_smart_filter_descriptor(DescriptorValue& value,
-                                   const SmartFilterStack& stack) {
+bool patch_smart_filter_descriptor(
+    DescriptorValue& value, const SmartFilterStack& stack,
+    const std::vector<std::optional<std::size_t>>& entry_sources) {
   if (value.type != DescriptorValue::Type::Object ||
       value.object_value == nullptr ||
       value.object_value->class_id != "filterFXStyle" ||
@@ -275,8 +314,34 @@ bool patch_smart_filter_descriptor(DescriptorValue& value,
     return false;
   }
   auto* list = const_cast<DescriptorValue*>(descriptor_value(root, "filterFXList"));
-  if (list == nullptr || list->type != DescriptorValue::Type::List ||
-      list->list_value.size() != stack.entries.size()) {
+  if (list == nullptr || list->type != DescriptorValue::Type::List) {
+    return false;
+  }
+  if (!entry_sources.empty()) {
+    if (entry_sources.size() != stack.entries.size()) {
+      return false;
+    }
+    const auto& original_entries = list->list_value;
+    std::vector<DescriptorValue> desired_entries;
+    desired_entries.reserve(stack.entries.size());
+    for (std::size_t index = 0; index < stack.entries.size(); ++index) {
+      const auto source = entry_sources[index];
+      if (source.has_value()) {
+        if (*source >= original_entries.size()) {
+          return false;
+        }
+        desired_entries.push_back(
+            clone_descriptor_value(original_entries[*source]));
+        continue;
+      }
+      auto authored = make_smart_filter_entry_descriptor(stack.entries[index]);
+      if (!authored.has_value()) {
+        return false;
+      }
+      desired_entries.push_back(std::move(*authored));
+    }
+    list->list_value = std::move(desired_entries);
+  } else if (list->list_value.size() != stack.entries.size()) {
     return false;
   }
   const auto mutable_value_either = [](DescriptorObject& object,
@@ -367,8 +432,20 @@ bool apply_smart_filter_descriptor_edit(DescriptorObject& descriptor,
   if (edit.stack == nullptr) {
     return false;
   }
+  if (!edit.entry_sources.empty() &&
+      edit.entry_sources.size() != edit.stack->entries.size()) {
+    return false;
+  }
   if (found != descriptor.values.end()) {
-    return patch_smart_filter_descriptor(found->second, *edit.stack);
+    return patch_smart_filter_descriptor(found->second, *edit.stack,
+                                         edit.entry_sources);
+  }
+  if (!edit.entry_sources.empty() &&
+      std::any_of(edit.entry_sources.begin(), edit.entry_sources.end(),
+                  [](const std::optional<std::size_t>& source) {
+                    return source.has_value();
+                  })) {
+    return false;
   }
   auto authored = make_smart_filter_descriptor(*edit.stack);
   if (!authored.has_value()) {

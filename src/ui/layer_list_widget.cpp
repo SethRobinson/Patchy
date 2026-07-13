@@ -101,7 +101,7 @@ bool layer_row_button_owns_clicks(const QString& object_name) {
          object_name == QLatin1String("layerSmartFiltersVisibilityButton") ||
          object_name == QLatin1String("layerSmartFilterVisibilityButton") ||
          object_name == QLatin1String("layerSmartFilterEditButton") ||
-         object_name == QLatin1String("layerSmartFilterDeleteButton");
+         object_name == QLatin1String("layerSmartFilterMoreButton");
 }
 
 }  // namespace

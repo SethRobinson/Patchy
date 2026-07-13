@@ -5,6 +5,7 @@
 #include <QRegion>
 
 #include <functional>
+#include <memory>
 #include <optional>
 
 class QWidget;
@@ -32,6 +33,26 @@ struct VisualFilterGalleryPreview {
 using VisualFilterGalleryPreviewCallback =
     std::function<void(const VisualFilterGalleryPreview&)>;
 
+// An exact renderer may opt into a recipe by returning its full-resolution,
+// document-space result. Returning nullopt keeps the gallery's catalog proxy
+// renderer as the fallback. The gallery invokes this callback only from a
+// worker thread; implementations should use progress to stop stale work.
+using VisualFilterGalleryExactRecipeRenderer =
+    std::function<std::optional<FilterRenderResult>(
+        const FilterRecipe&, const FilterProgress*)>;
+
+struct VisualFilterGalleryExactPreview {
+  bool canvas_enabled{true};
+  FilterRecipe recipe;
+  std::shared_ptr<const FilterRenderResult> rendered;
+};
+
+// Runs on the UI thread after the newest central exact render is accepted.
+// The shared result is also emitted when Live Canvas Preview is toggled, so a
+// host can reuse it without rendering the recipe a second time.
+using VisualFilterGalleryExactPreviewCallback =
+    std::function<void(const VisualFilterGalleryExactPreview&)>;
+
 // Presents every catalogued Filter-menu effect over an immutable, bounded
 // proxy of the supplied layer pixels. A null preview recipe means Original;
 // the result outcome distinguishes accepting Original from cancelling.
@@ -40,6 +61,8 @@ using VisualFilterGalleryPreviewCallback =
     const QRegion& selection, const FilterRegistry& registry,
     RgbColor foreground, RgbColor background,
     VisualFilterGalleryPreviewCallback preview_changed = {},
-    FilterLookLibrary* look_library = nullptr);
+    FilterLookLibrary* look_library = nullptr,
+    VisualFilterGalleryExactRecipeRenderer exact_renderer = {},
+    VisualFilterGalleryExactPreviewCallback exact_preview_ready = {});
 
 }  // namespace patchy::ui
