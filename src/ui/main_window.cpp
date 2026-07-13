@@ -15554,45 +15554,69 @@ void MainWindow::import_from_scanner() {
   }
   // PATCHY_FAKE_SCANNER_FILE bypasses native acquisition so offscreen tests can exercise
   // the import/session plumbing (WIA and AppKit scanner dialogs cannot run in CI).
-  QString acquired_path = qEnvironmentVariable("PATCHY_FAKE_SCANNER_FILE");
-  bool delete_after = false;
-  if (acquired_path.isEmpty()) {
-#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
-    if (scanner_import_active_) {
+  const auto fake_path = qEnvironmentVariable("PATCHY_FAKE_SCANNER_FILE");
+  if (!fake_path.isEmpty()) {
+    finish_scanner_import({ScannerAcquireStatus::Acquired, fake_path, {}}, false);
+    return;
+  }
+
+#ifdef Q_OS_WIN
+  if (scanner_import_active_) {
+    return;
+  }
+  scanner_import_active_ = true;
+  const auto reentry_guard = qScopeGuard([this] { scanner_import_active_ = false; });
+  finish_scanner_import(acquire_image_from_scanner(this), true);
+#elif defined(Q_OS_MACOS)
+  if (scanner_import_active_) {
+    return;
+  }
+  scanner_import_active_ = true;
+  const QPointer<MainWindow> window(this);
+  acquire_image_from_scanner_async(this, [window](ScannerAcquireResult result) {
+    if (window == nullptr) {
+      if (result.status == ScannerAcquireStatus::Acquired) {
+        QFile::remove(result.file_path);
+      }
       return;
     }
-    scanner_import_active_ = true;
-    const auto reentry_guard = qScopeGuard([this] { scanner_import_active_ = false; });
-    const auto result = acquire_image_from_scanner(this);
-    switch (result.status) {
-      case ScannerAcquireStatus::Cancelled:
-        return;
-      case ScannerAcquireStatus::NoDevice:
-#ifdef Q_OS_WIN
-        show_information_message(
-            this, tr("Import from Scanner"),
-            tr("No scanner or camera was found. Connect a WIA-compatible device and try again."),
-            QStringLiteral("scannerNoDeviceMessageBox"));
-#else
-        show_information_message(
-            this, tr("Import from Scanner"),
-            tr("No scanner was found. Connect a scanner recognized by macOS and try again."),
-            QStringLiteral("scannerNoDeviceMessageBox"));
+    window->scanner_import_active_ = false;
+    window->finish_scanner_import(std::move(result), true);
+  });
 #endif
-        return;
-      case ScannerAcquireStatus::Failed:
-        show_critical_message(this, tr("Import from Scanner"), result.error,
-                              QStringLiteral("scannerFailedMessageBox"));
-        return;
-      case ScannerAcquireStatus::Acquired:
-        acquired_path = result.file_path;
-        delete_after = true;
-        break;
+}
+
+void MainWindow::finish_scanner_import(ScannerAcquireResult result, bool delete_after) {
+  const auto remove_temporary_scan = qScopeGuard([&result, delete_after] {
+    if (delete_after && !result.file_path.isEmpty()) {
+      QFile::remove(result.file_path);
     }
+  });
+  switch (result.status) {
+    case ScannerAcquireStatus::Cancelled:
+      return;
+    case ScannerAcquireStatus::NoDevice:
+#ifdef Q_OS_WIN
+      show_information_message(
+          this, tr("Import from Scanner"),
+          tr("No scanner or camera was found. Connect a WIA-compatible device and try again."),
+          QStringLiteral("scannerNoDeviceMessageBox"));
 #else
-    return;
+      show_information_message(
+          this, tr("Import from Scanner"),
+          tr("No scanner was found. Connect a scanner recognized by macOS and try again."),
+          QStringLiteral("scannerNoDeviceMessageBox"));
 #endif
+      return;
+    case ScannerAcquireStatus::Failed:
+      show_critical_message(this, tr("Import from Scanner"), result.error,
+                            QStringLiteral("scannerFailedMessageBox"));
+      return;
+    case ScannerAcquireStatus::Acquired:
+      break;
   }
+
+  const auto& acquired_path = result.file_path;
   try {
     // Load by content: some scanner drivers save JPEG bytes regardless of the requested
     // format, and QImageReader's fallback probes plugins by content when the extension
@@ -15624,9 +15648,6 @@ void MainWindow::import_from_scanner() {
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Import failed"), QString::fromUtf8(error.what()),
                           QStringLiteral("openFailedMessageBox"));
-  }
-  if (delete_after) {
-    QFile::remove(acquired_path);
   }
 }
 

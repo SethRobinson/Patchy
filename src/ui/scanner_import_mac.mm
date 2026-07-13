@@ -6,7 +6,6 @@
 
 #include <QCoreApplication>
 #include <QDir>
-#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -16,6 +15,7 @@
 #include <QWindow>
 
 #include <algorithm>
+#include <utility>
 
 #import <AppKit/AppKit.h>
 #import <ImageCaptureCore/ImageCaptureCore.h>
@@ -83,6 +83,13 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
   }
 }
 
+struct ScannerAsyncState {
+  patchy::ui::ScannerAcquireResult result;
+  patchy::ui::ScannerAcquireCallback completion;
+  QString downloads_folder;
+  QString document_name;
+};
+
 }  // namespace
 
 @interface PatchyScannerSheetController
@@ -93,20 +100,17 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
   IKDeviceBrowserView* _browserView;
   IKScannerDeviceView* _scannerView;
   __strong ICScannerDevice* _selectedScanner;
-  QEventLoop* _eventLoop;
-  patchy::ui::ScannerAcquireResult* _result;
+  ScannerAsyncState* _state;
   BOOL _finished;
+  BOOL _completionDelivered;
 }
 
 - (instancetype)initWithParentWindow:(NSWindow*)parentWindow
-                            eventLoop:(QEventLoop*)eventLoop
-                               result:(patchy::ui::ScannerAcquireResult*)result
-                    downloadsFolder:(NSString*)downloadsFolder
-                        documentName:(NSString*)documentName;
+                                state:(ScannerAsyncState*)state;
 - (void)beginSheet;
-- (void)invalidateAfterRun;
 - (void)cancelCurrentScanner;
 - (void)handleSheetEnded;
+- (void)handleCompletedScanToURL:(NSURL*)url error:(NSError*)error;
 - (void)tearDownAndEndSheet;
 
 @end
@@ -114,19 +118,16 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
 @implementation PatchyScannerSheetController
 
 - (instancetype)initWithParentWindow:(NSWindow*)parentWindow
-                            eventLoop:(QEventLoop*)eventLoop
-                               result:(patchy::ui::ScannerAcquireResult*)result
-                    downloadsFolder:(NSString*)downloadsFolder
-                        documentName:(NSString*)documentName {
+                                state:(ScannerAsyncState*)state {
   self = [super init];
   if (self == nil) {
     return nil;
   }
 
   _parentWindow = parentWindow;
-  _eventLoop = eventLoop;
-  _result = result;
+  _state = state;
   _finished = NO;
+  _completionDelivered = NO;
 
   constexpr CGFloat kWindowWidth = 1000.0;
   constexpr CGFloat kWindowHeight = 650.0;
@@ -173,8 +174,9 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
   _scannerView.mode = IKScannerDeviceViewDisplayModeAdvanced;
   _scannerView.transferMode = IKScannerDeviceViewTransferModeFileBased;
   _scannerView.displaysDownloadsDirectoryControl = NO;
-  _scannerView.downloadsDirectory = [NSURL fileURLWithPath:downloadsFolder isDirectory:YES];
-  _scannerView.documentName = documentName;
+  _scannerView.downloadsDirectory =
+      [NSURL fileURLWithPath:ns_string(_state->downloads_folder) isDirectory:YES];
+  _scannerView.documentName = ns_string(_state->document_name);
   _scannerView.displaysPostProcessApplicationControl = NO;
   _scannerView.postProcessApplication = nil;
 
@@ -201,27 +203,19 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
   return self;
 }
 
-- (void)beginSheet {
-  __weak PatchyScannerSheetController* weakSelf = self;
-  [_parentWindow beginSheet:_sheet
-          completionHandler:^(__unused NSModalResponse returnCode) {
-            PatchyScannerSheetController* strongSelf = weakSelf;
-            if (strongSelf != nil) {
-              [strongSelf handleSheetEnded];
-              if (strongSelf->_eventLoop != nullptr) {
-                strongSelf->_eventLoop->quit();
-              }
-            }
-          }];
+- (void)dealloc {
+  delete _state;
 }
 
-- (void)invalidateAfterRun {
-  [self handleSheetEnded];
-  _browserView.delegate = nil;
-  _scannerView.delegate = nil;
-  _sheet.delegate = nil;
-  _eventLoop = nullptr;
-  _result = nullptr;
+- (void)beginSheet {
+  // AppKit retains this completion block for the lifetime of the sheet. Capture the
+  // controller strongly so its delegates and C++ completion state stay alive after the
+  // asynchronous entry point returns to the application's normal event loop.
+  PatchyScannerSheetController* controller = self;
+  [_parentWindow beginSheet:_sheet
+          completionHandler:^(__unused NSModalResponse returnCode) {
+            [controller handleSheetEnded];
+          }];
 }
 
 - (void)cancelCurrentScanner {
@@ -235,15 +229,31 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
 }
 
 - (void)handleSheetEnded {
-  if (!_finished && _result != nullptr) {
-    _result->status = patchy::ui::ScannerAcquireStatus::Cancelled;
-    _result->file_path.clear();
-    _result->error.clear();
+  if (!_finished && _state != nullptr) {
+    _state->result.status = patchy::ui::ScannerAcquireStatus::Cancelled;
+    _state->result.file_path.clear();
+    _state->result.error.clear();
     _finished = YES;
   }
   _browserView.delegate = nil;
   _scannerView.delegate = nil;
+  _sheet.delegate = nil;
   [self cancelCurrentScanner];
+
+  if (_completionDelivered || _state == nullptr) {
+    return;
+  }
+  _completionDelivered = YES;
+  remove_scan_files_except(
+      _state->downloads_folder, _state->document_name,
+      _state->result.status == patchy::ui::ScannerAcquireStatus::Acquired ? _state->result.file_path
+                                                                         : QString());
+  auto result = std::move(_state->result);
+  auto completion = std::move(_state->completion);
+  _parentWindow = nil;
+  if (completion) {
+    completion(std::move(result));
+  }
 }
 
 - (void)tearDownAndEndSheet {
@@ -255,9 +265,7 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
     [_sheet.sheetParent endSheet:_sheet];
   } else {
     [_sheet orderOut:nil];
-    if (_eventLoop != nullptr) {
-      _eventLoop->quit();
-    }
+    [self handleSheetEnded];
   }
 }
 
@@ -281,44 +289,45 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
 }
 
 - (void)finishCancelled {
-  if (_finished || _result == nullptr) {
+  if (_finished || _state == nullptr) {
     return;
   }
-  _result->status = patchy::ui::ScannerAcquireStatus::Cancelled;
-  _result->file_path.clear();
-  _result->error.clear();
+  _state->result.status = patchy::ui::ScannerAcquireStatus::Cancelled;
+  _state->result.file_path.clear();
+  _state->result.error.clear();
   [self finishSheetImmediately];
 }
 
 - (void)finishFailedWithError:(NSError*)error {
-  if (_finished || _result == nullptr || error_is_scan_cancelled(error)) {
+  if (_finished || _state == nullptr || error_is_scan_cancelled(error)) {
     return;
   }
-  _result->status = patchy::ui::ScannerAcquireStatus::Failed;
-  _result->file_path.clear();
-  _result->error = QCoreApplication::translate("ScannerImport", "The scan could not be completed (%1)")
-                       .arg(error_description(error));
+  _state->result.status = patchy::ui::ScannerAcquireStatus::Failed;
+  _state->result.file_path.clear();
+  _state->result.error = QCoreApplication::translate("ScannerImport", "The scan could not be completed (%1)")
+                             .arg(error_description(error));
   [self finishSheetAfterDelegateReturns];
 }
 
 - (void)finishFailedWithoutImage {
-  if (_finished || _result == nullptr) {
+  if (_finished || _state == nullptr) {
     return;
   }
-  _result->status = patchy::ui::ScannerAcquireStatus::Failed;
-  _result->file_path.clear();
-  _result->error = QCoreApplication::translate("ScannerImport", "The scanner did not return an image file.");
+  _state->result.status = patchy::ui::ScannerAcquireStatus::Failed;
+  _state->result.file_path.clear();
+  _state->result.error =
+      QCoreApplication::translate("ScannerImport", "The scanner did not return an image file.");
   [self finishSheetAfterDelegateReturns];
 }
 
 - (void)finishAcquiredPath:(const QString&)path {
-  if (_finished || _result == nullptr) {
+  if (_finished || _state == nullptr) {
     QFile::remove(path);
     return;
   }
-  _result->status = patchy::ui::ScannerAcquireStatus::Acquired;
-  _result->file_path = path;
-  _result->error.clear();
+  _state->result.status = patchy::ui::ScannerAcquireStatus::Acquired;
+  _state->result.file_path = path;
+  _state->result.error.clear();
   [self finishSheetAfterDelegateReturns];
 }
 
@@ -365,10 +374,7 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
   [self finishFailedWithError:error];
 }
 
-- (void)scannerDeviceView:(IKScannerDeviceView*)scannerDeviceView
-             didScanToURL:(NSURL*)url
-                    error:(NSError*)error {
-  Q_UNUSED(scannerDeviceView);
+- (void)handleCompletedScanToURL:(NSURL*)url error:(NSError*)error {
   if (error != nil) {
     [self finishFailedWithError:error];
     return;
@@ -381,6 +387,22 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
   [self finishAcquiredPath:path];
 }
 
+- (void)scannerDeviceView:(IKScannerDeviceView*)scannerDeviceView
+             didScanToURL:(NSURL*)url
+                 fileData:(NSData*)data
+                    error:(NSError*)error {
+  Q_UNUSED(scannerDeviceView);
+  Q_UNUSED(data);
+  [self handleCompletedScanToURL:url error:error];
+}
+
+- (void)scannerDeviceView:(IKScannerDeviceView*)scannerDeviceView
+             didScanToURL:(NSURL*)url
+                    error:(NSError*)error {
+  Q_UNUSED(scannerDeviceView);
+  [self handleCompletedScanToURL:url error:error];
+}
+
 - (void)scannerDeviceView:(IKScannerDeviceView*)scannerDeviceView didEncounterError:(NSError*)error {
   Q_UNUSED(scannerDeviceView);
   [self finishFailedWithError:error];
@@ -390,46 +412,50 @@ void remove_scan_files_except(const QString& folderPath, const QString& document
 
 namespace patchy::ui {
 
-ScannerAcquireResult acquire_image_from_scanner(QWidget* parent) {
+void acquire_image_from_scanner_async(QWidget* parent, ScannerAcquireCallback callback) {
+  if (!callback) {
+    return;
+  }
   ScannerAcquireResult result;
   if (!platform_is_cocoa()) {
     result.error = QCoreApplication::translate("ScannerImport", "macOS scanner import requires the Cocoa platform.");
-    return result;
+    callback(std::move(result));
+    return;
   }
 
   NSWindow* parentWindow = ns_window_for_widget(parent);
   if (parentWindow == nil) {
     result.error = QCoreApplication::translate("ScannerImport", "The scanner window could not be opened.");
-    return result;
+    callback(std::move(result));
+    return;
   }
 
   const auto downloadsFolder = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
   if (downloadsFolder.isEmpty() || !QDir().mkpath(downloadsFolder)) {
     result.error = QCoreApplication::translate("ScannerImport", "The temporary scan folder could not be created.");
-    return result;
+    callback(std::move(result));
+    return;
   }
   const auto documentName = QStringLiteral("patchy-scan-%1-%2")
                                 .arg(QCoreApplication::applicationPid())
                                 .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
 
-  QEventLoop eventLoop;
+  auto* state = new ScannerAsyncState;
+  state->completion = std::move(callback);
+  state->downloads_folder = downloadsFolder;
+  state->document_name = documentName;
   PatchyScannerSheetController* controller =
       [[PatchyScannerSheetController alloc] initWithParentWindow:parentWindow
-                                                       eventLoop:&eventLoop
-                                                          result:&result
-                                               downloadsFolder:ns_string(downloadsFolder)
-                                                   documentName:ns_string(documentName)];
+                                                          state:state];
   if (controller == nil) {
+    auto completion = std::move(state->completion);
+    delete state;
     result.error = QCoreApplication::translate("ScannerImport", "The scanner window could not be opened.");
-    return result;
+    completion(std::move(result));
+    return;
   }
 
   [controller beginSheet];
-  eventLoop.exec(QEventLoop::DialogExec);
-  [controller invalidateAfterRun];
-  remove_scan_files_except(downloadsFolder, documentName,
-                           result.status == ScannerAcquireStatus::Acquired ? result.file_path : QString());
-  return result;
 }
 
 }  // namespace patchy::ui

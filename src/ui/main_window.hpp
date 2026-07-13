@@ -66,6 +66,7 @@ namespace patchy::ui {
 
 struct HueSaturationSettings;
 struct LevelsSettings;
+struct ScannerAcquireResult;
 struct UpdateInfo;
 class BrushDynamicsButton;
 class BrushTipLibrary;
@@ -370,6 +371,7 @@ private:
   void open_document();
   void open_document_path(QString path);
   void import_from_scanner();
+  void finish_scanner_import(ScannerAcquireResult result, bool delete_after);
   void import_sprite_sheet();
   void export_sprite_sheet();
   void set_tile_preview_visible(bool visible, QAction* toggle_action);

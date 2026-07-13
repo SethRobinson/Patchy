@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <functional>
 
 class QWidget;
 
@@ -22,6 +23,13 @@ struct ScannerAcquireResult {
   QString error;
 };
 
+#ifdef Q_OS_WIN
 [[nodiscard]] ScannerAcquireResult acquire_image_from_scanner(QWidget* parent);
+#elif defined(Q_OS_MACOS)
+// AppKit sheets must return to the application's main run loop before they can receive
+// input, so macOS acquisition completes through this callback instead of a nested Qt loop.
+using ScannerAcquireCallback = std::function<void(ScannerAcquireResult)>;
+void acquire_image_from_scanner_async(QWidget* parent, ScannerAcquireCallback callback);
+#endif
 
 }  // namespace patchy::ui
