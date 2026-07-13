@@ -2,6 +2,7 @@
 
 #include "formats/aseprite_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
+#include "formats/heif_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/ilbm_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
@@ -112,6 +113,16 @@ void register_builtin_formats(FormatRegistry& registry) {
                              },
                              [](const Document& document) { return ilbm::DocumentIo::write(document); },
                              [](std::span<const std::uint8_t> bytes) { return ilbm::DocumentIo::can_read(bytes); }});
+  // HEIF/HEIC is a read-only source (write stays null) decoded by PLATFORM codecs only:
+  // WIC on Windows; on macOS/Linux this read always throws and the registry-error ->
+  // QImageReader fallback in load_document_from_path decodes via qmacheif / kimg_heif
+  // (see heif_document_io.hpp for the licensing rationale).
+  registry.register_handler({"patchy.formats.heif",
+                             "HEIF Image",
+                             heif::heif_extensions(),
+                             [](std::span<const std::uint8_t> bytes) { return heif::read_heif(bytes); },
+                             nullptr,
+                             [](std::span<const std::uint8_t> bytes) { return heif::sniff(bytes); }});
   // Camera raws are read-only sources (write stays null). This headless path develops with
   // camera-JPEG-like defaults; the interactive develop dialog lives in the UI layer and runs
   // BEFORE load_document_from_path reaches the registry.

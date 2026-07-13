@@ -12,6 +12,7 @@
 #include "formats/document_flatten.hpp"
 #include "formats/format_registry.hpp"
 #include "formats/gif_document_io.hpp"
+#include "formats/heif_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/ilbm_document_io.hpp"
 #include "formats/palette_io.hpp"
@@ -19158,6 +19159,220 @@ void raw_decodes_real_camera_samples_if_available() {
   CHECK(decoded > 0);
 }
 
+void heif_extensions_sniff_and_registry_routing() {
+  CHECK(patchy::heif::is_heif_extension("heic"));
+  CHECK(patchy::heif::is_heif_extension(".HEIF"));
+  CHECK(patchy::heif::is_heif_extension("hif"));
+  CHECK(!patchy::heif::is_heif_extension("jpg"));
+
+  // Registry dispatch is read-only (no writer), which is what routes Save to Save As.
+  const auto* handler = patchy::builtin_format_registry().find_by_extension(".heic");
+  CHECK(handler != nullptr);
+  CHECK(!handler->can_write());
+  CHECK(patchy::builtin_format_registry().find_by_extension(".hif") == handler);
+
+  // The committed fixture (authored from a Patchy PNG via macOS sips) is brand "heic".
+  const auto fixture =
+      read_binary_file(patchy::test::committed_format_fixture_path("heif", "quadrants.heic"));
+  CHECK(fixture.size() > 16);
+  CHECK(patchy::heif::sniff(fixture));
+
+  const auto synthetic_ftyp = [](std::string_view brand) {
+    std::vector<std::uint8_t> bytes = {0, 0, 0, 16, 'f', 't', 'y', 'p'};
+    bytes.insert(bytes.end(), brand.begin(), brand.end());
+    bytes.insert(bytes.end(), {0, 0, 0, 0});
+    return bytes;
+  };
+  CHECK(patchy::heif::sniff(synthetic_ftyp("heix")));  // Sony/Fuji .hif
+  CHECK(patchy::heif::sniff(synthetic_ftyp("msf1")));
+  // AVIF shares the container but is deliberately not routed to the HEIF reader.
+  CHECK(!patchy::heif::sniff(synthetic_ftyp("avif")));
+  const std::vector<std::uint8_t> png_magic = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n',
+                                               0,    0,   0,   13,  'I',  'H',  'D',  'R'};
+  CHECK(!patchy::heif::sniff(png_magic));
+}
+
+void heif_orientation_mapping_matches_exif_semantics() {
+  // 2x2 source (red channel carries the pixel id):  1 2 / 3 4.
+  std::vector<std::uint8_t> source;
+  for (std::uint8_t id = 1; id <= 4; ++id) {
+    source.insert(source.end(), {id, 0, 0, 255});
+  }
+  const auto red_at = [](const patchy::heif::OrientedImage& image, std::int32_t x, std::int32_t y) {
+    return image.rgba[(static_cast<std::size_t>(y) * static_cast<std::size_t>(image.width) +
+                       static_cast<std::size_t>(x)) *
+                      4U];
+  };
+  // Expected row-major ids per EXIF orientation, derived from "value describes where the
+  // stored 0th row/column appear visually".
+  const std::array<std::array<std::uint8_t, 4>, 9> expected = {{
+      {1, 2, 3, 4},  // [0] unused
+      {1, 2, 3, 4},  // 1 identity
+      {2, 1, 4, 3},  // 2 mirrored horizontally
+      {4, 3, 2, 1},  // 3 rotated 180
+      {3, 4, 1, 2},  // 4 mirrored vertically
+      {1, 3, 2, 4},  // 5 transposed
+      {3, 1, 4, 2},  // 6 rotate 90 CW to display
+      {4, 2, 3, 1},  // 7 transverse
+      {2, 4, 1, 3},  // 8 rotate 90 CCW to display
+  }};
+  for (int orientation = 1; orientation <= 8; ++orientation) {
+    const auto oriented = patchy::heif::apply_exif_orientation(source, 2, 2, orientation);
+    CHECK(oriented.width == 2);
+    CHECK(oriented.height == 2);
+    for (std::int32_t index = 0; index < 4; ++index) {
+      CHECK(red_at(oriented, index % 2, index / 2) ==
+            expected[static_cast<std::size_t>(orientation)][static_cast<std::size_t>(index)]);
+    }
+  }
+
+  // Orientations 5-8 swap the dimensions: a 2x3 source rotated 90 CW displays as 3x2.
+  std::vector<std::uint8_t> tall;
+  for (std::uint8_t id = 1; id <= 6; ++id) {
+    tall.insert(tall.end(), {id, 0, 0, 255});
+  }
+  const auto rotated = patchy::heif::apply_exif_orientation(tall, 2, 3, 6);
+  CHECK(rotated.width == 3);
+  CHECK(rotated.height == 2);
+  const std::array<std::uint8_t, 6> rotated_expected = {5, 3, 1, 6, 4, 2};
+  for (std::int32_t index = 0; index < 6; ++index) {
+    CHECK(red_at(rotated, index % 3, index / 3) == rotated_expected[static_cast<std::size_t>(index)]);
+  }
+
+  // Out-of-range values are treated as "no orientation", matching the reader's fallback.
+  const auto passthrough = patchy::heif::apply_exif_orientation(source, 2, 2, 0);
+  CHECK(passthrough.rgba == std::vector<std::uint8_t>(source.begin(), source.end()));
+}
+
+void heif_reads_quadrant_fixture_if_available() {
+  const auto bytes =
+      read_binary_file(patchy::test::committed_format_fixture_path("heif", "quadrants.heic"));
+  CHECK(!bytes.empty());
+  patchy::FormatReadResult result;
+  try {
+    result = patchy::heif::read_heif(bytes);
+  } catch (const std::exception& error) {
+    // Expected wherever no platform decoder exists: the non-Windows read always throws
+    // (macOS/Linux decode through Qt plugins the core suite does not link), and Windows
+    // throws marker-prefixed errors when the Store codec packages are absent. Anything
+    // else is a real failure.
+    const std::string message = error.what();
+    const auto starts_with = [&message](std::string_view prefix) {
+      return message.rfind(std::string(prefix), 0) == 0;
+    };
+    if (starts_with(patchy::heif::kHeifPackageMissingMarker) ||
+        starts_with(patchy::heif::kHevcPackageMissingMarker) ||
+        message.find("system codec") != std::string::npos ||
+        message.find("Flatpak codec extension") != std::string::npos) {
+      std::cout << "[SKIP] HEIC platform decoder unavailable: " << message << '\n';
+      return;
+    }
+    throw;
+  }
+
+  CHECK(result.document.width() == 64);
+  CHECK(result.document.height() == 48);
+  CHECK(result.document.layers().size() == 1);
+  CHECK(result.document.layers().front().name() == "Background");
+
+  // Statistics only, never byte pins: HEVC decode is lossy-coded (4:2:0) and the color
+  // conversion runs through the platform CMS. Sample quadrant interiors (6 px inset keeps
+  // chroma-subsampling edge bleed out of the means).
+  const auto& pixels = std::as_const(result.document.layers().front()).pixels();
+  const auto channels = pixels.format().channels;
+  CHECK(channels >= 3);
+  const auto quadrant_mean = [&](std::int32_t x0, std::int32_t y0) {
+    double sums[3] = {0.0, 0.0, 0.0};
+    int count = 0;
+    for (std::int32_t y = y0 + 6; y < y0 + 24 - 6; ++y) {
+      for (std::int32_t x = x0 + 6; x < x0 + 32 - 6; ++x) {
+        const auto* px = pixels.pixel(x, y);
+        for (int channel = 0; channel < 3; ++channel) {
+          sums[channel] += px[channel];
+        }
+        ++count;
+      }
+    }
+    return std::array<double, 3>{sums[0] / count, sums[1] / count, sums[2] / count};
+  };
+  const auto top_left = quadrant_mean(0, 0);       // red
+  const auto top_right = quadrant_mean(32, 0);     // green
+  const auto bottom_left = quadrant_mean(0, 24);   // blue
+  const auto bottom_right = quadrant_mean(32, 24); // white
+  CHECK(top_left[0] > 200.0);
+  CHECK(top_left[1] < 80.0);
+  CHECK(top_left[2] < 80.0);
+  CHECK(top_right[1] > 200.0);
+  CHECK(top_right[0] < 100.0);
+  CHECK(top_right[2] < 100.0);
+  CHECK(bottom_left[2] > 200.0);
+  CHECK(bottom_left[0] < 80.0);
+  CHECK(bottom_left[1] < 80.0);
+  CHECK(bottom_right[0] > 200.0);
+  CHECK(bottom_right[1] > 200.0);
+  CHECK(bottom_right[2] > 200.0);
+}
+
+void heif_decodes_real_photos_if_available() {
+  // Real HEICs (e.g. iPhone captures: Display P3, camera orientation) live in the
+  // untracked local fixtures; remotes and codec-less machines [SKIP].
+  const auto directory = patchy::test::source_root_path() / "local-test-fixtures" / "heif";
+  if (!std::filesystem::exists(directory)) {
+    std::cout << "[SKIP] local heif fixtures missing: " << directory.string() << '\n';
+    return;
+  }
+  std::size_t decoded = 0;
+  for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+    if (!entry.is_regular_file()) {
+      continue;
+    }
+    auto extension = entry.path().extension().string();
+    if (!extension.empty() && extension.front() == '.') {
+      extension.erase(extension.begin());
+    }
+    std::transform(extension.begin(), extension.end(), extension.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (!patchy::heif::is_heif_extension(extension)) {
+      continue;
+    }
+    const auto bytes = read_binary_file(entry.path());
+    CHECK(patchy::heif::sniff(bytes));
+    try {
+      const auto result = patchy::heif::read_heif(bytes);
+      CHECK(result.document.width() > 0);
+      CHECK(result.document.height() > 0);
+      // quadrants-p3.heic is the committed quadrant art re-encoded through the Display P3
+      // profile (macOS sips --matchTo). Its top-left quadrant stores sRGB-pure red as P3
+      // coordinates (~234, 51, 35); only a decoder that APPLIES the embedded profile
+      // returns ~ (255, 0, 0), so these thresholds pin the ICC -> sRGB conversion (an
+      // unmanaged decode reads green ~51 and fails).
+      if (entry.path().filename().string().rfind("quadrants-p3", 0) == 0) {
+        const auto& pixels = std::as_const(result.document.layers().front()).pixels();
+        double red_sum = 0.0;
+        double green_sum = 0.0;
+        int count = 0;
+        for (std::int32_t y = 6; y < 18; ++y) {
+          for (std::int32_t x = 6; x < 26; ++x) {
+            const auto* px = pixels.pixel(x, y);
+            red_sum += px[0];
+            green_sum += px[1];
+            ++count;
+          }
+        }
+        CHECK(red_sum / count > 245.0);
+        CHECK(green_sum / count < 30.0);
+      }
+      ++decoded;
+      std::cout << "[INFO] decoded " << entry.path().filename().string() << " ("
+                << result.document.width() << 'x' << result.document.height() << ")\n";
+    } catch (const std::exception& error) {
+      std::cout << "[SKIP] HEIC platform decoder unavailable: " << error.what() << '\n';
+      return;
+    }
+  }
+  CHECK(decoded > 0);
+}
+
 void string_utils_normalize_extensions_and_names() {
   CHECK(patchy::ascii_lower_copy("BackGround") == "background");
   CHECK(patchy::normalized_extension("PSD") == ".psd");
@@ -20499,6 +20714,10 @@ int main() {
       {"raw_develop_session_reports_info_and_orientation", raw_develop_session_reports_info_and_orientation},
       {"raw_develop_rejects_non_raw_bytes", raw_develop_rejects_non_raw_bytes},
       {"raw_decodes_real_camera_samples_if_available", raw_decodes_real_camera_samples_if_available},
+      {"heif_extensions_sniff_and_registry_routing", heif_extensions_sniff_and_registry_routing},
+      {"heif_orientation_mapping_matches_exif_semantics", heif_orientation_mapping_matches_exif_semantics},
+      {"heif_reads_quadrant_fixture_if_available", heif_reads_quadrant_fixture_if_available},
+      {"heif_decodes_real_photos_if_available", heif_decodes_real_photos_if_available},
       {"ico_reads_multi_size_and_round_trips_named_layers", ico_reads_multi_size_and_round_trips_named_layers},
       {"ico_transparent_pixels_round_trip_and_mask_fallback_applies",
        ico_transparent_pixels_round_trip_and_mask_fallback_applies},

@@ -7,6 +7,7 @@
 #include "formats/bmp_document_io.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/gif_document_io.hpp"
+#include "formats/heif_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/ilbm_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
@@ -1524,6 +1525,13 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   }
   const auto extension_bytes = extension.toStdString();
   const auto lower = lower_extension(extension_bytes);
+  // HEIF is decode-only everywhere. Without this guard a hand-typed .heic in Save As
+  // would reach QImageWriter, whose platform plugins (qmacheif on macOS, kimg_heif +
+  // x265 on the Flatpak runtime) can silently HEVC-encode on some platforms but not
+  // others; Patchy never writes HEVC.
+  if (heif::is_heif_extension(lower)) {
+    throw std::runtime_error("HEIC/HEIF images are read-only in Patchy; save as PNG or PSD instead.");
+  }
   if (lower == "tga") {
     tga::DocumentIo::write_file(document, path.toStdString());
     return;

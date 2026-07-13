@@ -15,6 +15,7 @@
 #include "filters/builtin_filters.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
+#include "formats/heif_document_io.hpp"
 #include "formats/raw_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
@@ -84,6 +85,7 @@
 #include <QContextMenuEvent>
 #include <QCoreApplication>
 #include <QCursor>
+#include <QColorSpace>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
@@ -2466,6 +2468,17 @@ const QList<FileFormatEntry>& file_format_entries() {
                     {},
                     false,
                     false});
+    // HEIF/HEIC is decode-only like camera raw (platform codecs never encode for us and
+    // Patchy must not ship an HEVC encoder), so its entry is read-only too.
+    QStringList heif_extensions;
+    for (const auto& extension : heif::heif_extensions()) {
+      heif_extensions.push_back(QString::fromStdString(extension));
+    }
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "HEIF Image"),
+                    heif_extensions,
+                    {},
+                    false,
+                    false});
     return list;
   }();
   return entries;
@@ -2830,14 +2843,26 @@ OpenDocumentResult load_document_from_path(QString path) {
     } catch (const std::exception& registry_error) {
       // Nonstandard files that a Qt plugin still understands (e.g. OS/2 BMPs) keep opening
       // through the Qt fallback; when Qt cannot read them either, report the registry
-      // reader's error, which names the real problem.
+      // reader's error, which names the real problem. HEIC/HEIF relies on this on
+      // macOS/Linux by design: the registry read always throws there and Qt's platform
+      // plugin (qmacheif / the KDE runtime's kimg_heif) does the decoding.
       QImageReader reader(path);
       reader.setAutoTransform(true);
-      const auto image = reader.read();
+      auto image = reader.read();
       if (image.isNull()) {
         throw std::runtime_error(registry_error.what());
       }
-      opened = document_from_qimage(image, info.completeBaseName().toStdString());
+      const bool heif_family = heif::is_heif_extension(extension.toStdString());
+      if (heif_family && image.colorSpace().isValid() && image.colorSpace() != QColorSpace::SRgb) {
+        // kimg_heif attaches the file's color space (iPhone = Display P3) without
+        // converting; bake to sRGB so pixels match the Windows/macOS decode paths. Scoped
+        // to HEIF so existing PNG/JPEG opens keep their bytes.
+        image.convertToColorSpace(QColorSpace::SRgb);
+      }
+      // HEIF opens name their layer "Background" on every platform (the Windows WIC
+      // reader's convention); other fallback formats keep the historical file-name label.
+      opened = document_from_qimage(image, heif_family ? std::string("Background")
+                                                       : info.completeBaseName().toStdString());
     }
   } else {
     load_via_qt();
@@ -2858,6 +2883,38 @@ OpenDocumentResult load_document_from_path(QString path) {
     opened.clear_active_layer();
   }
   return OpenDocumentResult{std::move(opened), info.fileName(), extension, std::move(import_notices)};
+}
+
+// Shows the open-failure box. Windows HEIC errors carry a marker naming the missing
+// Microsoft Store codec package (heif_document_io.hpp); those get an extra button that
+// deep-links to that package's Store page, Photos-app style.
+void show_open_failed_message_box(QWidget* parent, const QString& error_text) {
+  QString display_text = error_text;
+  QString store_product_id;
+  const auto try_marker = [&](std::string_view marker, std::string_view product_id) {
+    const auto prefix = QString::fromUtf8(marker.data(), static_cast<qsizetype>(marker.size()));
+    if (!error_text.startsWith(prefix)) {
+      return false;
+    }
+    display_text = error_text.mid(prefix.size()).trimmed();
+    store_product_id = QString::fromUtf8(product_id.data(), static_cast<qsizetype>(product_id.size()));
+    return true;
+  };
+  if (!try_marker(heif::kHeifPackageMissingMarker, heif::kHeifStoreProductId)) {
+    try_marker(heif::kHevcPackageMissingMarker, heif::kHevcStoreProductId);
+  }
+  if (store_product_id.isEmpty()) {
+    show_critical_message(parent, QObject::tr("Open failed"), display_text, QStringLiteral("openFailedMessageBox"));
+    return;
+  }
+  QMessageBox dialog(QMessageBox::Critical, QObject::tr("Open failed"), display_text, QMessageBox::Ok, parent);
+  dialog.setObjectName(QStringLiteral("openFailedMessageBox"));
+  auto* store_button = dialog.addButton(QObject::tr("Open Microsoft Store"), QMessageBox::ActionRole);
+  dialog.setDefaultButton(store_button);
+  exec_dialog(dialog);
+  if (dialog.clickedButton() == store_button) {
+    QDesktopServices::openUrl(QUrl(QStringLiteral("ms-windows-store://pdp/?ProductId=%1").arg(store_product_id)));
+  }
 }
 
 QString path_with_default_extension(QString path, const QString& selected_filter) {
@@ -15482,8 +15539,7 @@ void MainWindow::open_document_path(QString path) {
       }
     }
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Open failed"), QString::fromUtf8(error.what()),
-                          QStringLiteral("openFailedMessageBox"));
+    show_open_failed_message_box(this, QString::fromUtf8(error.what()));
   }
 }
 

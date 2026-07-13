@@ -12,7 +12,17 @@ automatically from Flathub.
   The manifest is kept Flathub-compliant so a Flathub submission stays a cheap later
   option. `--filesystem=home` is the deliberate v1 choice (recents, CLI file
   arguments, and brush/palette folders behave like a desktop editor; file dialogs
-  still go through the portal).
+  still go through the portal). The `add-extensions` block declares
+  `org.freedesktop.Platform.ffmpeg-full//24.08`, which supplies the HEVC decode
+  plugin the runtime's libheif loads for HEIC opens. Verified 2026-07:
+  single-file BUNDLE installs never auto-pull the extension (even with flathub
+  visible to the installation; repo-based installs such as a future Flathub
+  listing would). Everything else works without it; only HEIC opens are
+  affected, and Patchy's open-error dialog shows the exact one-line
+  `flatpak install` fix, which the README download section also documents.
+  Patchy bundles no HEVC code, and the block goes away if the runtime moves to
+  6.10+, whose base inherits codecs-extra instead (auto-installed with the
+  runtime, so HEIC then works with zero user action).
 - `com.rtsoft.patchy.desktop`, `com.rtsoft.patchy.metainfo.xml`, `icons/hicolor/*` —
   freedesktop integration, installed by CMake's `UNIX AND NOT APPLE` install rules
   (binary in `bin/`, fonts/translations under `share/patchy/`). The icons were

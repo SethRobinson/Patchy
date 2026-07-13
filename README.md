@@ -78,6 +78,14 @@ pulling the shared KDE runtime from Flathub automatically):
 curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak && flatpak install -y /tmp/PatchyLinux.flatpak
 ```
 
+Optional: opening iPhone HEIC photos on Linux uses the shared Freedesktop codec
+extension, which bundle installs do not fetch on their own. Patchy will show this
+command if it is needed:
+
+```sh
+flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
+```
+
 ## Features
 
 - Open and save layered PSD files with groups, masks, saved alpha and spot channels, text objects, the full Photoshop blend mode set, layer styles and more

@@ -270,6 +270,7 @@ add_library(patchy_formats
   src/formats/document_flatten.cpp
   src/formats/format_registry.cpp
   src/formats/gif_document_io.cpp
+  src/formats/heif_document_io.cpp
   src/formats/ico_document_io.cpp
   src/formats/ilbm_document_io.cpp
   src/formats/palette_io.cpp
@@ -283,6 +284,14 @@ add_library(patchy_formats
 # patchy_libraw stays PRIVATE: only raw_document_io.cpp touches LibRaw types; the public
 # raw_document_io.hpp is LibRaw-free like the rest of the formats API.
 target_link_libraries(patchy_formats PUBLIC patchy_core patchy_render patchy_psd PRIVATE patchy_libraw)
+if(WIN32)
+  # HEIF/HEIC decodes through Windows Imaging Component (the Microsoft Store HEIF/HEVC
+  # codec packages carry the HEVC patent licensing -- Patchy must never vendor an HEVC
+  # decoder). macOS/Linux decode HEIC via Qt image plugins instead, so they compile only
+  # the stub in heif_document_io.cpp.
+  target_sources(patchy_formats PRIVATE src/formats/heif_document_io_win.cpp)
+  target_link_libraries(patchy_formats PRIVATE windowscodecs ole32)
+endif()
 patchy_configure_target(patchy_formats)
 
 add_library(patchy_color

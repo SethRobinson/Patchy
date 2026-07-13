@@ -19,9 +19,26 @@ finish-args:
   # portal. A portal-only tightening is possible later at the cost of the recents menu
   # not reopening unexported paths.
   - --filesystem=home
+# HEIC/HEIF decode: the KDE 6.8 runtime ships kimageformats' HEIF plugin, and the
+# freedesktop 24.08 base ships libheif with its codec-plugin search dir compiled to
+# /app/lib/ffmpeg/libheif -- but the HEVC decoder itself (libheif-libde265.so) lives in
+# the ffmpeg-full extension for patent reasons. Declaring the extension point makes
+# flatpak auto-install it with the app; Patchy bundles no HEVC code (deliberate, see
+# AGENTS.md "Legal constraints"). If the runtime ever moves to org.kde.Platform 6.10+
+# (freedesktop 25.08 base), DROP this block: codecs-extra is inherited automatically
+# there and 25.08's libheif no longer searches /app/lib/ffmpeg.
+add-extensions:
+  org.freedesktop.Platform.ffmpeg-full:
+    directory: lib/ffmpeg
+    version: '24.08'
+    add-ld-path: '.'
+    autodelete: false
 cleanup:
   - /include
   - /lib/cmake
+cleanup-commands:
+  # The ffmpeg-full extension's mount point must exist in the app tree.
+  - mkdir -p /app/lib/ffmpeg
 modules:
   - name: patchy
     buildsystem: cmake-ninja

@@ -22,6 +22,7 @@ All read AND write (camera raw below is the one read-only entry); modules in src
 - **ILBM/PBM** — ByteRun1 via the shared `psd::decode_packbits`/`encode_packbits_row` (the encoder was promoted from psd_document_io.cpp to psd_descriptor.{hpp,cpp}); EHB supported, HAM rejected, writer emits planar ILBM with masking type 2 for transparency.
 - PNG/JPEG/TIFF/WebP stay on Qt.
 - **Camera raw** — read-only; see the section below.
+- **HEIF/HEIC** — read-only, platform codecs only; see the section below.
 
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
 
@@ -83,6 +84,56 @@ on different threads), and lossy-/deflate-compressed DNG variants fail with a cl
   untracked `local-test-fixtures/raw/` behind `raw_decodes_real_camera_samples_if_available`
   (remotes [SKIP]). Known gaps that surface as clean errors: lossy/deflate DNG (no
   jpeg/zlib), JPEG-XL DNG 1.7, Nikon Z8/Z9 High Efficiency NEF.
+
+## HEIF/HEIC (iPhone photos; .heic/.heif/.hif)
+
+Read-only, decoded by PLATFORM codecs only. **Never vendor an HEVC decoder or encoder
+(libheif/libde265/x265): the whole design exists so Microsoft/Apple/the Flatpak codec
+extension carry the HEVC patent licenses** (AGENTS.md "Legal constraints" has the rule;
+the GIMP/Krita bundle-libde265 posture was researched and deliberately rejected, July
+2026). Encoding stays impossible everywhere: the registry handler has no writer (so Save
+routes to Save As .psd like camera raw) and `write_flat_image_file` rejects heif
+extensions, because QImageWriter's platform plugins COULD silently HEVC-encode on
+macOS/Linux but not Windows.
+
+- **`formats/heif_document_io.{hpp,cpp}` + `heif_document_io_win.cpp`**: extensions
+  (`heif::heif_extensions()`, single source of truth), ftyp-brand sniff (HEVC brands
+  only; AVIF deliberately rejected), and per-OS `read_heif`:
+  - **Windows** (the real decoder): WIC. The codecs are the Store's "HEIF Image
+    Extensions" + "HEVC Video Extensions" packages (in-box on Windows 11 22H2+). A stub
+    codec is ALWAYS registered, so availability cannot be enumerated -- attempt the
+    decode and map the two failure shapes: `WINCODEC_ERR_COMPONENTNOTFOUND` at decoder
+    creation = HEIF package missing; `MF_E_TOPO_CODEC_NOT_FOUND` (0xC00D5212) at pixel
+    request = HEVC package missing (decoder creation and GetFrame SUCCEED in that state).
+    Those errors carry marker prefixes (`heif::k*PackageMissingMarker`) that
+    `show_open_failed_message_box` (main_window.cpp) strips and turns into an "Open
+    Microsoft Store" button (`ms-windows-store://pdp/?ProductId=...`). WIC returns
+    UNROTATED pixels; the container rotation arrives as an EXIF-style value at
+    `/heifProps/Orientation` and is applied by `heif::apply_exif_orientation` (pure,
+    pinned by codec-free unit tests). ICC profiles (iPhone = Display P3) convert to sRGB
+    via `IWICColorTransform`, falling back to unmanaged pixels.
+  - **macOS/Linux**: `read_heif` always throws, and the registry-error -> QImageReader
+    fallback in `load_document_from_path` decodes instead -- qmacheif (Qt's Apple-only
+    ImageIO plugin, already in the aqt install and deployed by macdeployqt; outputs sRGB,
+    orientation via the existing `setAutoTransform(true)`) or the KDE runtime's
+    kimg_heif. kimg_heif ATTACHES the P3 color space without converting, so the fallback
+    branch bakes heif-family images to sRGB via `convertToColorSpace` (scoped to heif so
+    PNG/JPEG opens keep their bytes). The stub's thrown message doubles as the
+    missing-codec/corrupt-file text when Qt also fails.
+- **Flatpak**: the KDE 6.8 runtime ships kimg_heif and libheif, but the HEVC decode
+  plugin lives in `org.freedesktop.Platform.ffmpeg-full//24.08`, declared by the
+  manifest's `add-extensions` block. Single-file BUNDLE installs never auto-pull it
+  (verified 2026-07; repo/Flathub installs would): without it only HEIC opens are
+  affected and the error dialog shows the exact install command (also in the README
+  download section). packaging/linux/README.md has the details and when the block can
+  be dropped. The remote Linux test machine uses aqt Qt (no kimageformats), so heif
+  tests [SKIP] there while the extension-equipped Flatpak decodes (verified in-sandbox).
+- **Tests**: statistics only, never byte pins (lossy HEVC + per-platform CMS).
+  `test-fixtures/heif/quadrants.heic` was encoded from a Patchy-authored PNG with macOS
+  `sips`; decoder-dependent tests [SKIP] on the known codec-unavailable messages and
+  hard-fail on anything else. `ui_heif_open_is_read_only_if_available` needs the
+  repeating-QTimer dismisser for the potential `openFailedMessageBox` (dismiss via
+  `reject()` so the Store button can never fire in a test).
 
 ## Layered documents and flat formats (the Photoshop-style save guard)
 

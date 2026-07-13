@@ -199,6 +199,18 @@
         <translation>カメラ Raw 画像</translation>
     </message>
     <message>
+        <source>HEIF Image</source>
+        <translation>HEIF 画像</translation>
+    </message>
+    <message>
+        <source>Open failed</source>
+        <translation>開けませんでした</translation>
+    </message>
+    <message>
+        <source>Open Microsoft Store</source>
+        <translation>Microsoft Store を開く</translation>
+    </message>
+    <message>
         <source>Develop Raw - %1</source>
         <translation>Raw 現像 - %1</translation>
     </message>

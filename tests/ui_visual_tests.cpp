@@ -24505,6 +24505,87 @@ void ui_raw_preference_disabled_opens_with_camera_defaults() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == path);
 }
 
+void ui_heif_open_is_read_only_if_available() {
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("heif", "quadrants.heic").wstring());
+  CHECK(QFileInfo::exists(path));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // Machines without a platform HEIC decoder (the remote Linux builder's aqt Qt has no
+  // kimg_heif; Windows may lack the Store codec packages) raise the open-failed box,
+  // which would hang the offscreen suite without this repeating dismisser. Dismiss via
+  // reject() so the Microsoft Store button can never be triggered from a test.
+  bool saw_error = false;
+  QString error_text;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&saw_error, &error_text, &poll_attempts, &poller] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("openFailedMessageBox") && box->isVisible()) {
+        saw_error = true;
+        error_text = box->text();
+        box->reject();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(10);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  poller.stop();
+
+  if (saw_error) {
+    // Only a missing platform decoder is an acceptable failure; note that the marker
+    // prefix has already been stripped for display by then.
+    const bool codec_unavailable = error_text.contains(QStringLiteral("Microsoft Store")) ||
+                                   error_text.contains(QStringLiteral("system codec")) ||
+                                   error_text.contains(QStringLiteral("Flatpak codec extension"));
+    CHECK(codec_unavailable);
+    std::cout << "[SKIP] HEIC platform decoder unavailable: " << error_text.toStdString() << '\n';
+    return;
+  }
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 64);
+  CHECK(document.height() == 48);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == path);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  // Same layer name on every platform, whichever decode path ran (WIC or Qt fallback).
+  CHECK(std::as_const(document).layers().front().name() == "Background");
+  // Quadrant sanity on the decoded pixels (fixture: red / green / blue / white).
+  const auto& pixels = std::as_const(document.layers().front()).pixels();
+  CHECK(pixels.pixel(10, 10)[0] > 200);
+  CHECK(pixels.pixel(54, 10)[1] > 200);
+  CHECK(pixels.pixel(10, 40)[2] > 200);
+  save_widget_artifact("ui_heif_opened_document", window);
+
+  // HEIC is a read-only source: Save must route to Save As defaulting <basename>.psd
+  // (the camera-raw routing, driven by the registry handler having no writer).
+  bool saw_dialog = false;
+  QString default_name;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    CHECK(dialog != nullptr);
+    const auto selected = dialog->selectedFiles();
+    if (!selected.isEmpty()) {
+      default_name = QFileInfo(selected.first()).fileName();
+    }
+    saw_dialog = true;
+    dialog->reject();
+  });
+  CHECK(!patchy::ui::MainWindowTestAccess::save_document(window));
+  CHECK(saw_dialog);
+  CHECK(default_name == QStringLiteral("quadrants.psd"));
+}
+
 void ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -44612,6 +44693,7 @@ int main(int argc, char* argv[]) {
        ui_raw_develop_dialog_exposure_slider_brightens_preview},
       {"ui_raw_preference_disabled_opens_with_camera_defaults",
        ui_raw_preference_disabled_opens_with_camera_defaults},
+      {"ui_heif_open_is_read_only_if_available", ui_heif_open_is_read_only_if_available},
       {"ui_flat_save_of_layered_document_warns_and_saves_copy",
        ui_flat_save_of_layered_document_warns_and_saves_copy},
       {"ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail",

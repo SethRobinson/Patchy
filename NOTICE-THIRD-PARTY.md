@@ -136,6 +136,9 @@ not part of any release package.
   Bereza's `jardicc/pat-parser` repository, included under the MIT License.
   The pinned source URL, checksum, copyright notice, and full license text are
   in `test-fixtures/pat/NOTICE.txt`.
+- `test-fixtures/heif/quadrants.heic`: encoded from a self-authored
+  quadrant-color PNG with Apple's `sips` tool on macOS (self-authored art; no
+  third-party content).
 
 ## Built-in color palette presets
 
