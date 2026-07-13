@@ -374,6 +374,46 @@ protected:
   }
 };
 
+class DragEventRecorder final : public QObject {
+public:
+  explicit DragEventRecorder(bool consume = false) : consume_(consume) {}
+
+  int enters{0};
+  int moves{0};
+  int drops{0};
+  int leaves{0};
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    bool drag_event = true;
+    switch (event->type()) {
+      case QEvent::DragEnter:
+        ++enters;
+        break;
+      case QEvent::DragMove:
+        ++moves;
+        break;
+      case QEvent::Drop:
+        ++drops;
+        break;
+      case QEvent::DragLeave:
+        ++leaves;
+        break;
+      default:
+        drag_event = false;
+        break;
+    }
+    if (drag_event && consume_) {
+      event->accept();
+      return true;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  bool consume_{false};
+};
+
 patchy::PixelBuffer solid_pixels(std::int32_t width, std::int32_t height, patchy::PixelFormat format,
                                     QColor color) {
   patchy::PixelBuffer pixels(width, height, format);
@@ -5584,9 +5624,10 @@ void ui_filter_gallery_stack_edits_reverse_order_and_stay_independent() {
     CHECK(applied->model()
               ->flags(QModelIndex())
               .testFlag(Qt::ItemIsDropEnabled));
-    // Offscreen Qt cannot synthesize the nested native QDrag loop. The flags
-    // above pin the pointer-drop classification (between rows, never OnItem),
-    // while moveRow pins the signal path used by that native drop.
+    // Offscreen Qt cannot complete the nested native QDrag loop. This call
+    // covers the model move and rowsMoved recipe synchronization; the
+    // MainWindow integration test separately pins drag-event delivery through
+    // the preview edit lock.
     CHECK(applied->model()->moveRow(QModelIndex(), 0, QModelIndex(), 3));
     CHECK(process_events_until(
         [&] {
@@ -5620,6 +5661,93 @@ void ui_filter_gallery_stack_edits_reverse_order_and_stay_independent() {
   CHECK(result.recipe.has_value());
   CHECK(previews.back().recipe.has_value());
   CHECK(filter_recipes_equal(*result.recipe, *previews.back().recipe));
+}
+
+void ui_filter_gallery_drag_events_reach_stack_during_preview_lock() {
+  GallerySettingsRestorer gallery_settings;
+  patchy::LayerId layer_id{};
+  patchy::Rect original_bounds;
+  patchy::PixelBuffer original_pixels;
+  auto document = make_filter_gallery_document(
+      layer_id, original_bounds, original_pixels);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document),
+                              QStringLiteral("Gallery Drag Routing"));
+  show_window(window);
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* applied = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryAppliedEffectsList"));
+    auto* duplicate = dialog->findChild<QPushButton*>(
+        QStringLiteral("filterGalleryDuplicateEffectButton"));
+    auto* layer_duplicate = window.findChild<QPushButton*>(
+        QStringLiteral("layerDuplicateButton"));
+    CHECK(looks != nullptr && applied != nullptr && duplicate != nullptr &&
+          layer_duplicate != nullptr);
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.soft_glow")));
+    QApplication::processEvents();
+    duplicate->click();
+    QApplication::processEvents();
+    CHECK(applied->count() == 2);
+    DragEventRecorder stack_events(true);
+    DragEventRecorder layer_button_events(true);
+    applied->viewport()->installEventFilter(&stack_events);
+    layer_duplicate->installEventFilter(&layer_button_events);
+
+    QMimeData stack_mime_data;
+    stack_mime_data.setData(
+        QStringLiteral("application/x-qabstractitemmodeldatalist"),
+        QByteArrayLiteral("filter-recipe-entry"));
+    QMimeData layer_mime_data;
+    layer_mime_data.setData(
+        QString::fromLatin1(patchy::ui::kLayerDragMimeType),
+        patchy::ui::layer_ids_to_mime_data({layer_id}));
+    const auto send_drag_sequence = [&](QWidget& target,
+                                        QMimeData& mime_data) {
+      const auto position = target.rect().center();
+      QDragEnterEvent enter(position, Qt::MoveAction, &mime_data,
+                            Qt::LeftButton, Qt::NoModifier);
+      QApplication::sendEvent(&target, &enter);
+      QDragMoveEvent move(position, Qt::MoveAction, &mime_data,
+                          Qt::LeftButton, Qt::NoModifier);
+      QApplication::sendEvent(&target, &move);
+      QDropEvent drop(QPointF(position), Qt::MoveAction, &mime_data,
+                      Qt::LeftButton, Qt::NoModifier);
+      QApplication::sendEvent(&target, &drop);
+      QDragLeaveEvent leave;
+      QApplication::sendEvent(&target, &leave);
+    };
+
+    // The application-wide MainWindow filter must not consume drags owned by
+    // the preview dialog. Qt's list view can then classify the real native
+    // InternalMove and paint its insertion marker.
+    send_drag_sequence(*applied->viewport(), stack_mime_data);
+    CHECK(stack_events.enters == 1);
+    CHECK(stack_events.moves == 1);
+    CHECK(stack_events.drops == 1);
+    CHECK(stack_events.leaves == 1);
+
+    // The same preview lock still blocks document-mutating layer action drops.
+    send_drag_sequence(*layer_duplicate, layer_mime_data);
+    CHECK(layer_button_events.enters == 0);
+    CHECK(layer_button_events.moves == 0);
+    CHECK(layer_button_events.drops == 0);
+    CHECK(layer_button_events.leaves == 0);
+
+    applied->viewport()->removeEventFilter(&stack_events);
+    layer_duplicate->removeEventFilter(&layer_button_events);
+    drove_dialog = true;
+    dialog->reject();
+  });
+
+  require_action(window, "filterGalleryAction")->trigger();
+  CHECK(drove_dialog);
 }
 
 void ui_filter_gallery_stack_spatial_overlay_tracks_active_input_bounds() {
@@ -43974,6 +44102,8 @@ int main(int argc, char* argv[]) {
        ui_filter_recipe_selection_is_restored_once_after_the_full_stack},
       {"ui_filter_gallery_stack_edits_reverse_order_and_stay_independent",
        ui_filter_gallery_stack_edits_reverse_order_and_stay_independent},
+      {"ui_filter_gallery_drag_events_reach_stack_during_preview_lock",
+       ui_filter_gallery_drag_events_reach_stack_during_preview_lock},
       {"ui_filter_gallery_stack_spatial_overlay_tracks_active_input_bounds",
        ui_filter_gallery_stack_spatial_overlay_tracks_active_input_bounds},
       {"ui_filter_gallery_explicit_original_click_clears_filtered_stack",

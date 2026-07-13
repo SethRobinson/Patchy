@@ -9514,6 +9514,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent* event) {
+  auto* button = qobject_cast<QWidget*>(watched);
+  if (button == nullptr || !button->property("layerDropAction").isValid()) {
+    return false;
+  }
+
   if (preview_dialog_edit_locked()) {
     if (auto* drop_event = dynamic_cast<QDropEvent*>(event); drop_event != nullptr) {
       // Color drags (the color picker's swatch drag-and-drop) never touch the
@@ -9526,10 +9531,6 @@ bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent*
     }
     return event != nullptr && (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove ||
                                 event->type() == QEvent::Drop || event->type() == QEvent::DragLeave);
-  }
-  auto* button = qobject_cast<QWidget*>(watched);
-  if (button == nullptr || !button->property("layerDropAction").isValid()) {
-    return false;
   }
 
   const auto set_drop_active = [button](bool active) {
