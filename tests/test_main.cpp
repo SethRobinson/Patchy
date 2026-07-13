@@ -4888,11 +4888,15 @@ void psd_photoshop_mask_hides_effects_fixture_clips_shadow() {
 }
 
 void layer_stroke_outlines_semi_transparent_regions_without_fill() {
-  // Content under a 50% gray layer mask must be stroked along its pixel contour
-  // only, with the mask attenuating the stroke where it lands. The old formula
-  // derived the stroke from alpha x mask, painting a constant wash across the
-  // region's whole interior and hiding the half-visible content beneath;
-  // Photoshop draws no stroke there.
+  // Content under a UNIFORM 50% gray layer mask keeps its raw-pixel stroke
+  // contour: only fully-black mask regions reshape the shape (see
+  // layer_stroke_follows_mask_contour). The band paints at full strength — the
+  // July 2026 PS re-probe killed the old "mask attenuates the stroke where it
+  // lands" model. Fractional mask values also must not fold into the coverage
+  // math: the pre-June-2026 formula derived the stroke from alpha x mask and
+  // painted a constant wash across the region's whole interior. (Photoshop
+  // actually composites gray masks with its content-knockout model — the same
+  // documented divergence as semi-transparent fills, docs/ps-compat.md.)
   patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(64, 64, 255, 255, 255));
   patchy::Layer stroked(document.allocate_layer_id(), "Stroked", solid_rgba(32, 32, 20, 90, 200, 255));
@@ -4914,10 +4918,201 @@ void layer_stroke_outlines_semi_transparent_regions_without_fill() {
   const auto* interior = flattened.pixel(32, 32);
   CHECK(interior[2] > 200);
   CHECK(interior[0] < 150);
-  // Just outside the square: the stroke band attenuated to the mask's 50%.
+  // Just outside the square: the full-strength stroke band along the pixel
+  // contour (the gray mask neither moves nor attenuates it).
   const auto* edge = flattened.pixel(14, 32);
-  CHECK(edge[0] > 180);
-  CHECK(edge[1] < 180);
+  CHECK(edge[0] > 240);
+  CHECK(edge[1] < 40);
+}
+
+void layer_stroke_follows_mask_contour() {
+  // A fully-black mask region reshapes the stroke contour exactly like pixel
+  // transparency, and the band paints on mask-hidden ground at full strength
+  // (Photoshop 2026 COM probes, July 2026): an opaque layer covering the whole
+  // canvas with an inset rectangular mask strokes the MASK rectangle, not the
+  // canvas edge. Pre-fix Patchy derived the contour from raw pixels and then
+  // attenuated the output by the mask, which rendered no stroke at all here
+  // (the stroke_test.psd bug: masked smart object + Stroke showed nothing).
+  // PS band runs at y=48 around the mask contour at x=39.5, size 8:
+  // Outside 32..39, Center 36..43, Inside 40..47 — full (255,0,0).
+  struct Case {
+    patchy::LayerStrokePosition position;
+    int band_left;
+    int band_right;
+  };
+  const std::array<Case, 3> cases{{{patchy::LayerStrokePosition::Outside, 32, 39},
+                                   {patchy::LayerStrokePosition::Center, 36, 43},
+                                   {patchy::LayerStrokePosition::Inside, 40, 47}}};
+  for (const auto& test_case : cases) {
+    patchy::Document document(160, 96, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(160, 96, 255, 255, 255));
+    patchy::Layer stroked(document.allocate_layer_id(), "Stroked", solid_rgba(160, 96, 0, 0, 200, 255));
+    patchy::PixelBuffer mask_pixels(160, 96, patchy::PixelFormat::gray8());
+    mask_pixels.clear(0);
+    for (std::int32_t y = 24; y < 72; ++y) {
+      for (std::int32_t x = 40; x < 120; ++x) {
+        *mask_pixels.pixel(x, y) = 255;
+      }
+    }
+    stroked.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 160, 96}, std::move(mask_pixels), 0, false});
+    patchy::LayerStroke stroke;
+    stroke.enabled = true;
+    stroke.opacity = 1.0F;
+    stroke.size = 8.0F;
+    stroke.position = test_case.position;
+    stroke.color = patchy::RgbColor{255, 0, 0};
+    stroked.layer_style().strokes.push_back(stroke);
+    document.add_layer(std::move(stroked));
+
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    const auto expect_full_red = [&](int x, int y) {
+      const auto* px = flattened.pixel(x, y);
+      CHECK(px[0] > 240 && px[1] < 15 && px[2] < 15);
+    };
+    const auto expect_not_red = [&](int x, int y) {
+      const auto* px = flattened.pixel(x, y);
+      CHECK(px[0] < 150 || px[1] > 150);
+    };
+    expect_not_red(test_case.band_left - 2, 48);
+    expect_full_red(test_case.band_left, 48);
+    expect_full_red(test_case.band_right, 48);
+    expect_not_red(test_case.band_right + 2, 48);
+    // Mirrored band on the right mask edge (contour 119.5) and above the top
+    // edge (contour 23.5, band rows = band columns shifted by the contour
+    // offset: 24 + (band_x - 40)).
+    expect_full_red(159 - test_case.band_right, 48);
+    expect_full_red(159 - test_case.band_left, 48);
+    expect_full_red(80, test_case.band_left - 16);
+    expect_full_red(80, test_case.band_right - 16);
+    // The raw pixel contour (canvas edge) is not stroked, and the mask-hidden
+    // ground shows the white background.
+    expect_not_red(1, 48);
+    expect_not_red(158, 48);
+    expect_not_red(80, 2);
+    // Content stays visible inside the mask.
+    const auto* content = flattened.pixel(80, 48);
+    CHECK(content[2] > 150 && content[0] < 90);
+  }
+}
+
+void layer_stroke_mask_hides_effects_keeps_pixel_contour() {
+  // "Layer Mask Hides Effects" (lmgm): the stroke keeps its raw-pixel contour
+  // and the mask hides the output where it lands instead of reshaping it
+  // (Photoshop 2026 COM probes, July 2026: opaque rect x=48..111 with a mask
+  // revealing x<80 renders Outside at 40..47 and Inside at 48..55 on the
+  // revealed side only — nothing at the mask cut, nothing on hidden ground).
+  struct Case {
+    patchy::LayerStrokePosition position;
+    int band_left;
+    int band_right;
+  };
+  const std::array<Case, 2> cases{{{patchy::LayerStrokePosition::Outside, 40, 47},
+                                   {patchy::LayerStrokePosition::Inside, 48, 55}}};
+  for (const auto& test_case : cases) {
+    patchy::Document document(160, 96, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(160, 96, 255, 255, 255));
+    patchy::Layer stroked(document.allocate_layer_id(), "Stroked", solid_rgba(64, 48, 0, 0, 200, 255));
+    stroked.set_bounds(patchy::Rect{48, 24, 64, 48});
+    patchy::PixelBuffer mask_pixels(160, 96, patchy::PixelFormat::gray8());
+    mask_pixels.clear(0);
+    for (std::int32_t y = 0; y < 96; ++y) {
+      for (std::int32_t x = 0; x < 80; ++x) {
+        *mask_pixels.pixel(x, y) = 255;
+      }
+    }
+    stroked.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 160, 96}, std::move(mask_pixels), 0, false});
+    patchy::LayerStroke stroke;
+    stroke.enabled = true;
+    stroke.opacity = 1.0F;
+    stroke.size = 8.0F;
+    stroke.position = test_case.position;
+    stroke.color = patchy::RgbColor{255, 0, 0};
+    stroked.layer_style().strokes.push_back(stroke);
+    stroked.layer_style().layer_mask_hides_effects = true;
+    document.add_layer(std::move(stroked));
+
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    const auto expect_full_red = [&](int x, int y) {
+      const auto* px = flattened.pixel(x, y);
+      CHECK(px[0] > 240 && px[1] < 15 && px[2] < 15);
+    };
+    const auto expect_not_red = [&](int x, int y) {
+      const auto* px = flattened.pixel(x, y);
+      CHECK(px[0] < 150 || px[1] > 150);
+    };
+    // Band along the visible half of the raw pixel contour.
+    expect_full_red(test_case.band_left, 48);
+    expect_full_red(test_case.band_right, 48);
+    // No band at the mask cut (x=79.5): the mask does not reshape the contour.
+    expect_not_red(76, 48);
+    expect_not_red(82, 48);
+    // The right pixel contour's band is hidden by the mask.
+    expect_not_red(108, 48);
+    expect_not_red(116, 48);
+  }
+}
+
+void psd_photoshop_stroke_masked_fixture_matches() {
+  // Photoshop-authored reference: three opaque blue 40x40 rects, each with a
+  // binary mask revealing an inner 24x24 and a green size-6 stroke — Outside
+  // (mask x16..39), Center (x72..95), Inside (x128..151), mask rows y20..43.
+  // Band runs measured from Photoshop 2026's flatten, which the mask-gated
+  // stroke matches run-for-run: at y=32 Outside spans 10..15|40..45, Center
+  // 69..74|93..98, Inside 128..133|146..151; blue content only inside each
+  // mask; the raw pixel rects (x8.., x64.., x120..) stay unstroked white.
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-stroke-masked.psd"));
+  const auto rendered = patchy::Compositor{}.flatten_rgb8(document);
+  const auto expect_green = [&](int x, int y) {
+    const auto* px = rendered.pixel(x, y);
+    CHECK(px[1] > 150 && px[0] < 110 && px[2] < 110);
+  };
+  const auto expect_blue = [&](int x, int y) {
+    const auto* px = rendered.pixel(x, y);
+    CHECK(px[2] > 150 && px[1] < 110 && px[0] < 110);
+  };
+  const auto expect_white = [&](int x, int y) {
+    const auto* px = rendered.pixel(x, y);
+    CHECK(px[0] > 240 && px[1] > 240 && px[2] > 240);
+  };
+  // Outside: 6px band strictly beyond the mask contour; pixel rect edge white.
+  expect_white(8, 32);
+  expect_white(9, 32);
+  expect_green(10, 32);
+  expect_green(15, 32);
+  expect_blue(16, 32);
+  expect_blue(39, 32);
+  expect_green(40, 32);
+  expect_green(45, 32);
+  expect_white(46, 32);
+  // Center: 3px out + 3px in around the mask contour.
+  expect_white(68, 32);
+  expect_green(69, 32);
+  expect_green(74, 32);
+  expect_blue(75, 32);
+  expect_blue(92, 32);
+  expect_green(93, 32);
+  expect_green(98, 32);
+  expect_white(99, 32);
+  // Inside: 6px band strictly within the mask contour.
+  expect_white(121, 32);
+  expect_white(127, 32);
+  expect_green(128, 32);
+  expect_green(133, 32);
+  expect_blue(134, 32);
+  expect_blue(145, 32);
+  expect_green(146, 32);
+  expect_green(151, 32);
+  expect_white(152, 32);
+  // Vertical band through the Outside rect's mask (rows 20..43 at x=28).
+  expect_white(28, 13);
+  expect_green(28, 14);
+  expect_green(28, 19);
+  expect_blue(28, 20);
+  expect_blue(28, 43);
+  expect_green(28, 44);
+  expect_green(28, 49);
+  expect_white(28, 50);
 }
 
 void exact_squared_distance_transform_matches_bruteforce() {
@@ -19876,6 +20071,10 @@ int main() {
        psd_photoshop_mask_hides_effects_fixture_clips_shadow},
       {"layer_stroke_outlines_semi_transparent_regions_without_fill",
        layer_stroke_outlines_semi_transparent_regions_without_fill},
+      {"layer_stroke_follows_mask_contour", layer_stroke_follows_mask_contour},
+      {"layer_stroke_mask_hides_effects_keeps_pixel_contour",
+       layer_stroke_mask_hides_effects_keeps_pixel_contour},
+      {"psd_photoshop_stroke_masked_fixture_matches", psd_photoshop_stroke_masked_fixture_matches},
       {"exact_squared_distance_transform_matches_bruteforce",
        exact_squared_distance_transform_matches_bruteforce},
       {"layer_stroke_center_band_width_matches_size", layer_stroke_center_band_width_matches_size},

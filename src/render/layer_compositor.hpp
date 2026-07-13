@@ -868,8 +868,9 @@ inline std::vector<float> bevel_technique_height_mask(const std::vector<float>& 
   return height_mask;
 }
 
-inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, Rect bounds, Rect mask_bounds, float size,
-                                            LayerStrokePosition position);
+inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds,
+                                            Rect mask_bounds, float size, LayerStrokePosition position,
+                                            std::optional<Rect> layer_mask_bounds, bool mask_shapes_source);
 
 template <typename Target>
 void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
@@ -1527,6 +1528,8 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
         StyleMaskEntry computed;
         if (stroke_emboss) {
           computed.secondary.assign(static_cast<std::size_t>(domain.width) * domain.height, 0.0F);
+          const auto mask_shapes_source = !layer.layer_style().layer_mask_hides_effects;
+          const auto clip_to_mask = layer_mask_clips_effect_output(layer);
           const auto has_aligned_gradient =
               std::any_of(strokes->begin(), strokes->end(), [](const LayerStroke& stroke) {
                 return stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F && stroke.uses_gradient &&
@@ -1539,7 +1542,8 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
             if (!stroke.enabled || stroke.opacity <= 0.0F || stroke.size <= 0.0F) {
               continue;
             }
-            const auto stroke_mask = stroke_alpha_mask(source, bounds, domain, stroke.size, stroke.position);
+            const auto stroke_mask = stroke_alpha_mask(source, layer, bounds, domain, stroke.size, stroke.position,
+                                                       layer_mask_bounds, mask_shapes_source);
             const auto stroke_radius = std::max(1, static_cast<int>(std::ceil(stroke.size)));
             const auto stroke_effect_bounds = stroke.position == LayerStrokePosition::Inside
                                                   ? bounds
@@ -1556,7 +1560,9 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
                                                           domain.x + local_x, domain.y + local_y);
                   alpha *= gradient_stop_opacity(stroke.gradient, position);
                 }
-                if (alpha > 0.0F && layer.mask().has_value() && !layer.mask()->disabled) {
+                if (alpha > 0.0F && clip_to_mask) {
+                  // "Layer Mask Hides Effects": hide the embossed stroke where it
+                  // lands instead of reshaping its contour.
                   alpha *= layer_mask_alpha_for_render(layer, domain.x + local_x, domain.y + local_y,
                                                        layer_mask_bounds);
                 }
@@ -1729,13 +1735,22 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
   }
 }
 
-inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, Rect bounds, Rect mask_bounds, float size,
-                                            LayerStrokePosition position) {
-  // Photoshop derives the stroke from the layer's pixel coverage alone, treating any
-  // painted pixel as inside the shape: the stroke fills the (dilated) binary shape and
-  // the layer's own pixels cover it according to their alpha, so semi-transparent fills
-  // let it show through. The layer mask never reshapes this contour — it only attenuates
-  // the stroke where it lands (applied by the caller). Verified against Photoshop 2026.
+inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds,
+                                            Rect mask_bounds, float size, LayerStrokePosition position,
+                                            std::optional<Rect> layer_mask_bounds, bool mask_shapes_source) {
+  // Photoshop derives the stroke from the layer's pixel coverage, treating any painted
+  // pixel as inside the shape: the stroke fills the (dilated) binary shape and the
+  // layer's own pixels cover it according to their alpha, so semi-transparent fills let
+  // it show through. By default the layer mask reshapes that coverage where it is fully
+  // black — the contour follows {alpha > 0 AND mask > 0} and the band lands on
+  // mask-hidden ground at full strength; with "Layer Mask Hides Effects" the caller
+  // passes mask_shapes_source = false, keeps the raw-pixel contour, and hides the output
+  // where it lands instead. Fractional (gray/feathered) mask values deliberately keep
+  // the raw pixel alpha: Photoshop folds them into the matte with content-knockout
+  // compositing (a gray mask washes the whole interior), the same knockout model this
+  // renderer already skips for semi-transparent fills (docs/ps-compat.md). Calibrated
+  // against Photoshop 2026 COM renders, July 2026: binary-mask band runs match PS
+  // run-for-run at every position, including bands over fully-masked ground.
   //
   // The band is measured with an exact Euclidean distance field from the binary contour:
   // Outside reaches `size` px outward, Inside `size` px inward, Center `size/2` px each
@@ -1758,7 +1773,12 @@ inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, Rect boun
       auto* output = base.data() + static_cast<std::size_t>(y - mask_bounds.y) * width + (draw_left - mask_bounds.x);
       for (std::int32_t x = draw_left; x < draw_right; ++x) {
         const auto* pixel = source_row + static_cast<std::size_t>(x - bounds.x) * format.channels;
-        *output++ = static_cast<float>(pixel[3]) / 255.0F;
+        auto alpha = static_cast<float>(pixel[3]) / 255.0F;
+        if (mask_shapes_source && alpha > 0.0F &&
+            layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) <= 0.0F) {
+          alpha = 0.0F;
+        }
+        *output++ = alpha;
       }
     }
   } else if (!source.empty()) {
@@ -1770,7 +1790,9 @@ inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, Rect boun
     for (std::int32_t y = draw_top; y < draw_bottom; ++y) {
       auto* output = base.data() + static_cast<std::size_t>(y - mask_bounds.y) * width + (draw_left - mask_bounds.x);
       for (std::int32_t x = draw_left; x < draw_right; ++x) {
-        *output++ = 1.0F;
+        *output++ = mask_shapes_source && layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) <= 0.0F
+                        ? 0.0F
+                        : 1.0F;
       }
     }
   }
@@ -1817,24 +1839,27 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
     return;
   }
   const auto legacy_mask_bounds = clipped_mask_bounds(full_mask_bounds, draw_rect, radius + 1);
+  const auto mask_shapes_source = !layer.layer_style().layer_mask_hides_effects;
   const auto [entry, mask_bounds] = style_mask_for_render(
       masks, layer, StyleMaskKind::Stroke, effect_index, full_mask_bounds, full_mask_bounds, legacy_mask_bounds,
       bounds, layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
-        computed.primary = stroke_alpha_mask(source, bounds, domain, stroke.size, stroke.position);
+        computed.primary = stroke_alpha_mask(source, layer, bounds, domain, stroke.size, stroke.position,
+                                             layer_mask_bounds, mask_shapes_source);
         return computed;
       });
   const auto& mask = entry->primary;
   const auto mask_width = mask_bounds.width;
-  const auto layer_has_mask = layer.mask().has_value() && !layer.mask()->disabled;
+  const auto clip_to_mask = layer_mask_clips_effect_output(layer);
   const auto gradient_bounds = stroke.uses_gradient && stroke.gradient.align_with_layer
                                    ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
                                    : effect_bounds;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       auto mask_alpha = mask[static_cast<std::size_t>((y - mask_bounds.y) * mask_width + (x - mask_bounds.x))];
-      if (layer_has_mask && mask_alpha > 0.0F) {
-        // The layer mask attenuates the stroke where it lands rather than reshaping it.
+      if (clip_to_mask && mask_alpha > 0.0F) {
+        // "Layer Mask Hides Effects": the mask hides the stroke where it lands
+        // instead of reshaping its contour.
         mask_alpha *= layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
       }
       if (mask_alpha <= 0.0F) {
