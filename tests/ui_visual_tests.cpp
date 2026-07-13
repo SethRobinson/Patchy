@@ -264,6 +264,10 @@ public:
     window.refresh_layer_controls();
   }
 
+  static void set_right_dock_stack_width(MainWindow& window, int width) {
+    window.set_right_dock_stack_width(width);
+  }
+
   static void update_document_action_state(MainWindow& window) {
     window.update_document_action_state();
   }
@@ -34402,6 +34406,87 @@ patchy::LayerId open_smart_object_fixture(patchy::ui::MainWindow& window) {
   return id;
 }
 
+void ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+
+  const auto long_name = QStringLiteral(
+      "Placed artwork with an intentionally long layer name that must yield space to its badges");
+  layer->set_name(long_name.toStdString());
+  layer->set_blend_mode(patchy::BlendMode::LinearDodge);
+  patchy::PixelBuffer mask_pixels(document.width(), document.height(), patchy::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  layer->set_mask(patchy::LayerMask{patchy::Rect{0, 0, document.width(), document.height()},
+                                    std::move(mask_pixels), 0, true});
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 0.75F;
+  shadow.distance = 4.0F;
+  shadow.size = 3.0F;
+  layer->layer_style().drop_shadows.push_back(shadow);
+
+  auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers_dock != nullptr);
+  CHECK(layer_list != nullptr);
+  const int narrow_width = layers_dock->minimumWidth();
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, narrow_width);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  CHECK(layers_dock->width() == narrow_width);
+
+  auto* item = require_layer_item(*layer_list, long_name);
+  auto* row = layer_list->itemWidget(item);
+  CHECK(row != nullptr);
+  auto* name = row->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  auto* details = row->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+  auto* fx_badge = row->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton"));
+  auto* smart_badge = row->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
+  CHECK(name != nullptr);
+  CHECK(details != nullptr);
+  CHECK(fx_badge != nullptr);
+  CHECK(smart_badge != nullptr);
+
+  const auto assert_badges_visible = [&] {
+    layer_list->scrollToItem(item, QAbstractItemView::EnsureVisible);
+    layer_list->horizontalScrollBar()->setValue(layer_list->horizontalScrollBar()->minimum());
+    QApplication::processEvents();
+    auto* viewport = layer_list->viewport();
+    CHECK(viewport != nullptr);
+    const QRect fx_rect(fx_badge->mapTo(viewport, QPoint()), fx_badge->size());
+    const QRect smart_rect(smart_badge->mapTo(viewport, QPoint()), smart_badge->size());
+    CHECK(fx_badge->isEnabled());
+    CHECK(smart_badge->isEnabled());
+    CHECK(viewport->rect().contains(fx_rect));
+    CHECK(viewport->rect().contains(smart_rect));
+    CHECK(!fx_rect.intersects(smart_rect));
+    CHECK(fx_rect.right() < smart_rect.left());
+    auto* fx_hit = viewport->childAt(fx_rect.center());
+    auto* smart_hit = viewport->childAt(smart_rect.center());
+    CHECK(fx_hit == fx_badge || (fx_hit != nullptr && fx_badge->isAncestorOf(fx_hit)));
+    CHECK(smart_hit == smart_badge || (smart_hit != nullptr && smart_badge->isAncestorOf(smart_hit)));
+  };
+
+  assert_badges_visible();
+  CHECK(name->text() == long_name);
+  CHECK(name->fontMetrics().horizontalAdvance(name->text()) > name->width());
+  CHECK(details->fontMetrics().horizontalAdvance(details->text()) > details->width());
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, narrow_width + 180);
+  QApplication::processEvents();
+  assert_badges_visible();
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, narrow_width);
+  QApplication::processEvents();
+  CHECK(layers_dock->width() == narrow_width);
+  assert_badges_visible();
+  save_widget_artifact("ui_layer_fx_smart_badges_narrow_panel", *layers_dock);
+}
+
 // The smart-object badge is a clickable icon button on the row's details line (it
 // replaced the old "smart" text): clicking it opens the smart object's contents,
 // exactly like Edit Smart Object Contents (row double-click opens layer styles).
@@ -44753,6 +44838,8 @@ int main(int argc, char* argv[]) {
        ui_import_notices_dialog_shown_when_setting_enabled},
       {"ui_smart_object_import_badges_protects_and_rasterizes",
        ui_smart_object_import_badges_protects_and_rasterizes},
+      {"ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel",
+       ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel},
       {"ui_layer_smart_object_badge_button_opens_contents", ui_layer_smart_object_badge_button_opens_contents},
       {"ui_smart_object_to_normal_layer_action_rasterizes", ui_smart_object_to_normal_layer_action_rasterizes},
       {"ui_layer_smart_object_badge_shows_linked_variant", ui_layer_smart_object_badge_shows_linked_variant},

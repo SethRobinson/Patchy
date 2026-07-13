@@ -176,6 +176,7 @@
 #include <QStringList>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QStyleOption>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -392,6 +393,36 @@ protected:
 
 private:
   int depth_{0};
+};
+
+class LayerRowElidingLabel final : public QLabel {
+public:
+  explicit LayerRowElidingLabel(const QString& text, QWidget* parent = nullptr) : QLabel(text, parent) {
+    setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    setMinimumWidth(fontMetrics().horizontalAdvance(QStringLiteral("…")));
+  }
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    QPainter painter(this);
+    drawFrame(&painter);
+
+    auto text_rect = contentsRect();
+    const auto label_margin = margin();
+    text_rect.adjust(label_margin, label_margin, -label_margin, -label_margin);
+    if (text_rect.isEmpty()) {
+      return;
+    }
+
+    QStyleOption option;
+    option.initFrom(this);
+    painter.setFont(font());
+    const auto flags = QStyle::visualAlignment(layoutDirection(), alignment()) | Qt::TextSingleLine;
+    const auto visible_text =
+        painter.fontMetrics().elidedText(text(), Qt::ElideRight, text_rect.width(), Qt::TextSingleLine);
+    style()->drawItemText(&painter, text_rect, flags, option.palette,
+                          option.state.testFlag(QStyle::State_Enabled), visible_text, foregroundRole());
+  }
 };
 
 QString elided_open_progress_title_file_name(const QWidget& widget, const QString& file_name) {
@@ -2188,11 +2219,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   layout->addLayout(text_column, 1);
 
   const auto display_name = QString::fromStdString(layer.name());
-  auto* name = new QLabel(display_name, row);
+  auto* name = new LayerRowElidingLabel(display_name, row);
   name->setObjectName(QStringLiteral("layerRowName"));
   name->setTextFormat(Qt::PlainText);
-  name->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-  name->setMinimumWidth(0);
   name->setEnabled(ancestors_visible && layer.visible());
   if (list_parent != nullptr) {
     name->installEventFilter(list_parent);
@@ -2209,11 +2238,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   if (clipped) {
     detail_text += QStringLiteral("  %1").arg(QObject::tr("clipped"));
   }
-  auto* details = new QLabel(detail_text, row);
+  auto* details = new LayerRowElidingLabel(detail_text, row);
   details->setObjectName(QStringLiteral("layerRowDetails"));
   details->setTextFormat(Qt::PlainText);
-  details->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-  details->setMinimumWidth(0);
   details->setEnabled(ancestors_visible && layer.visible());
   if (list_parent != nullptr) {
     details->installEventFilter(list_parent);
@@ -2221,7 +2248,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   auto* details_row = new QHBoxLayout();
   details_row->setContentsMargins(0, 0, 0, 0);
   details_row->setSpacing(3);
-  details_row->addWidget(details, 0, Qt::AlignVCenter);
+  details_row->addWidget(details, 1, Qt::AlignVCenter);
 
   // The old "fx"/"smart" text badges are icon buttons now: clicking one opens the
   // layer styles dialog / the smart object contents for this row's layer.
@@ -2265,7 +2292,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         std::move(open_smart_object));
     smart_badge->setProperty("smartObjectLinked", linked);
   }
-  details_row->addStretch(1);
   text_column->addLayout(details_row);
 
   const auto direct_lock_flags = layer_lock_flags(layer);
