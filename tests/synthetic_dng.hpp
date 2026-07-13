@@ -20,6 +20,9 @@ struct SyntheticDngOptions {
   std::uint16_t red_value{11796};
   std::uint16_t green_value{11796};
   std::uint16_t blue_value{11796};
+  // Scale every site by x/(width-1): a black-to-bright horizontal ramp, giving tone-curve
+  // tests distinct shadow and highlight regions in one frame.
+  bool horizontal_ramp{false};
 };
 
 inline std::vector<std::uint8_t> synthetic_bayer_dng(std::int32_t width, std::int32_t height,
@@ -140,6 +143,10 @@ inline std::vector<std::uint8_t> synthetic_bayer_dng(std::int32_t width, std::in
         value = options.red_value;
       } else if (!even_row && !even_column) {
         value = options.blue_value;
+      }
+      if (options.horizontal_ramp && width > 1) {
+        value = static_cast<std::uint16_t>(static_cast<std::uint32_t>(value) * static_cast<std::uint32_t>(x) /
+                                           static_cast<std::uint32_t>(width - 1));
       }
       put16(bytes, value);
     }

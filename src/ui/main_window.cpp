@@ -16059,8 +16059,8 @@ void MainWindow::show_preferences() {
       new QCheckBox(tr("Show the develop dialog when opening camera raw files"), application_group);
   raw_develop_check->setObjectName(QStringLiteral("preferencesShowRawDevelopCheck"));
   raw_develop_check->setToolTip(
-      tr("When disabled, camera raw files open immediately using the camera's own settings "
-         "(as-shot white balance, automatic brightness)."));
+      tr("When disabled, camera raw files open immediately with neutral develop settings "
+         "(as-shot white balance, no adjustments)."));
   raw_develop_check->setChecked(settings.value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool());
   application_form->addRow(raw_develop_check);
   // Resets the "Do this for every indexed image" choice remembered by the

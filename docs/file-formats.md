@@ -35,14 +35,21 @@ on different threads), and lossy-/deflate-compressed DNG variants fail with a cl
 - **`formats/raw_document_io.{hpp,cpp}`** is the Qt-free wrapper (the public header is
   LibRaw-free; `patchy_libraw` links PRIVATE into `patchy_formats`). `DevelopParams` maps to
   LibRaw's output params (as-shot/auto/custom white balance, exposure EV within LibRaw's
-  -2..+3 supported range, highlight clip/unclip/blend/rebuild, auto-brighten + brightness,
-  demosaic algorithm, wavelet + FBDD noise reduction, half-size). Output is always 8-bit
-  sRGB (sRGB gamma explicitly set; LibRaw's default is BT.709) because the editing pipeline
-  is 8-bit — every raw-precision decision happens in this develop step. `DevelopSession`
-  keeps the unpacked sensor data so previews re-run `dcraw_process` without re-decoding
-  (LibRaw's documented multirender pattern); `read_camera_raw` is the one-shot headless
-  path. All decoding goes through `open_buffer` (never file paths, avoiding Windows
-  wide-path issues).
+  -2..+3 supported range, highlight-recovery clip/unclip/blend/rebuild, auto-brighten +
+  brightness, demosaic algorithm, wavelet + FBDD noise reduction, half-size) plus Patchy's
+  own tone/color controls below. LibRaw develops to 16-bit sRGB (sRGB gamma explicitly
+  set; LibRaw's default is BT.709), then **`formats/raw_tone.{hpp,cpp}`** applies
+  contrast/highlights/shadows (one composed 65536-entry LUT: bell-shaped shadow lift
+  pinned at black, highlight ramp deliberately NOT pinned at white so -100 dims blown
+  areas, smoothstep-blend S-curve and its exact inverse for contrast) and
+  saturation/vibrance (Rec.709-luma scaling; vibrance weighted by how unsaturated the
+  pixel is) before the final rounded 8-bit bake — every raw-precision decision happens
+  before the editing pipeline's 8 bits. Defaults are neutral: auto-brighten is OFF (no
+  surprise histogram stretch), all tone/color sliders 0. `DevelopSession` keeps the
+  unpacked sensor data so previews re-run `dcraw_process` without re-decoding (LibRaw's
+  documented multirender pattern); `read_camera_raw` is the one-shot headless path. All
+  decoding goes through `open_buffer` (never file paths, avoiding Windows wide-path
+  issues).
 - **`formats/raw_white_balance.{hpp,cpp}`** converts temperature/tint to camera-space
   multipliers through the file's `cam_xyz` matrix (Planckian locus below 4000 K, CIE
   daylight above; tint = Duv offset, ~ACR slider scale) and back (bisection) so As Shot
@@ -56,9 +63,11 @@ on different threads), and lossy-/deflate-compressed DNG variants fail with a cl
   async pattern); the embedded JPEG thumbnail paints first. Accept develops at full
   resolution through the same serialized state machine and returns the finished document.
   Last-used settings persist under the `imports/rawDevelop*` keys (persisted contract —
-  never rename). With the preference off (and for every headless path: tests, CLI opens,
-  linked smart-object refresh) the format-registry handler develops camera-JPEG-like
-  defaults: as-shot WB, auto-brighten, AHD, sRGB.
+  never rename; note `rawDevelopHighlights` stores the RECOVERY mode for historical
+  reasons while the tonal slider uses `rawDevelopToneHighlights`). With the preference
+  off (and for every headless path: tests, CLI opens, linked smart-object refresh) the
+  format-registry handler develops neutral defaults: as-shot WB, AHD, sRGB, no
+  auto-brighten, all tone/color sliders at 0.
 - **Raws are read-only sources**: the registry handler has no writer and the
   `file_format_entries()` row has empty save_extensions, so open dialogs list raws but
   Save As/Export never do. `save_document()` routes a raw-backed session to Save As

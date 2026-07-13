@@ -259,6 +259,30 @@
         <translation>ハイライト:</translation>
     </message>
     <message>
+        <source>Tone</source>
+        <translation>トーン</translation>
+    </message>
+    <message>
+        <source>Contrast:</source>
+        <translation>コントラスト:</translation>
+    </message>
+    <message>
+        <source>Shadows:</source>
+        <translation>シャドウ:</translation>
+    </message>
+    <message>
+        <source>Highlight recovery:</source>
+        <translation>ハイライト復元:</translation>
+    </message>
+    <message>
+        <source>Saturation:</source>
+        <translation>彩度:</translation>
+    </message>
+    <message>
+        <source>Vibrance:</source>
+        <translation>自然な彩度:</translation>
+    </message>
+    <message>
         <source>Clip to white</source>
         <translation>白にクリップ</translation>
     </message>
@@ -9685,8 +9709,8 @@ To update, paste this into a terminal:
         <translation>カメラ Raw ファイルを開くときに現像ダイアログを表示する</translation>
     </message>
     <message>
-        <source>When disabled, camera raw files open immediately using the camera&apos;s own settings (as-shot white balance, automatic brightness).</source>
-        <translation>オフにすると、カメラ Raw ファイルはカメラ自身の設定 (撮影時のホワイトバランス、自動明るさ補正) ですぐに開きます。</translation>
+        <source>When disabled, camera raw files open immediately with neutral develop settings (as-shot white balance, no adjustments).</source>
+        <translation>オフにすると、カメラ Raw ファイルはニュートラルな現像設定 (撮影時のホワイトバランス、調整なし) ですぐに開きます。</translation>
     </message>
     <message>
         <location line="+3515"/>

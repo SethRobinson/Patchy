@@ -55,11 +55,20 @@ struct DevelopParams {
   WhiteBalance custom_white_balance{};
   // Linear exposure shift in EV; LibRaw supports -2 (darken) .. +3 (brighten).
   double exposure_ev{0.0};
-  HighlightMode highlights{HighlightMode::Clip};
-  // Histogram-based auto brightening (dcraw behavior, on = camera-JPEG-like defaults).
-  bool auto_brighten{true};
+  // Reconstruction of CLIPPED sensor data (distinct from the tonal `highlights` slider).
+  HighlightMode highlight_recovery{HighlightMode::Clip};
+  // Histogram-based auto brightening (dcraw behavior). Off by default: predictable
+  // rendering beats a surprise histogram stretch; exposure/brightness are explicit.
+  bool auto_brighten{false};
   // Manual brightness multiplier applied with (or instead of) auto brightening.
   double brightness{1.0};
+  // Tone/color adjustments (-100..100, 0 = neutral), applied by Patchy to LibRaw's
+  // 16-bit output before the 8-bit bake (see formats/raw_tone.hpp).
+  double contrast{0.0};
+  double highlights{0.0};
+  double shadows{0.0};
+  double saturation{0.0};
+  double vibrance{0.0};
   DemosaicAlgorithm demosaic{DemosaicAlgorithm::Ahd};
   // Wavelet denoise threshold, 0 (off) .. 1000; 100-350 is a typical high-ISO range.
   int wavelet_denoise_threshold{0};

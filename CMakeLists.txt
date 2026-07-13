@@ -275,6 +275,7 @@ add_library(patchy_formats
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
   src/formats/raw_document_io.cpp
+  src/formats/raw_tone.cpp
   src/formats/raw_white_balance.cpp
   src/formats/tga_document_io.cpp
   src/formats/miniz/miniz.c

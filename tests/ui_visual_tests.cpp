@@ -24251,6 +24251,41 @@ QString write_raw_dng_fixture(const QString& file_name) {
   return path;
 }
 
+// The develop dialog persists its parameters on accept (last-used-as-defaults), so raw
+// UI tests must not inherit each other's (or the user's) imports/rawDevelop* values.
+// Snapshots and removes them, restoring the original state afterwards. The
+// imports/showRawDevelopDialog preference has a different prefix and is unaffected.
+class RawDevelopSettingsSanitizer {
+public:
+  RawDevelopSettingsSanitizer() : settings_(patchy::ui::app_settings()) {
+    const auto keys = settings_.allKeys();
+    for (const auto& key : keys) {
+      if (key.startsWith(QStringLiteral("imports/rawDevelop"))) {
+        saved_.insert(key, settings_.value(key));
+        settings_.remove(key);
+      }
+    }
+    settings_.sync();
+  }
+
+  ~RawDevelopSettingsSanitizer() {
+    const auto keys = settings_.allKeys();
+    for (const auto& key : keys) {
+      if (key.startsWith(QStringLiteral("imports/rawDevelop")) && !saved_.contains(key)) {
+        settings_.remove(key);
+      }
+    }
+    for (auto it = saved_.constBegin(); it != saved_.constEnd(); ++it) {
+      settings_.setValue(it.key(), it.value());
+    }
+    settings_.sync();
+  }
+
+private:
+  QSettings settings_;
+  QMap<QString, QVariant> saved_;
+};
+
 // Repeatedly runs `step` on a short timer while open_document_path blocks in the raw
 // develop dialog's exec() loop; `step` returns true when its work is done.
 void drive_raw_develop_dialog(const std::shared_ptr<std::function<bool()>>& step, int attempts = 2400) {
@@ -24268,6 +24303,7 @@ void drive_raw_develop_dialog(const std::shared_ptr<std::function<bool()>>& step
 }
 
 void ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd() {
+  RawDevelopSettingsSanitizer raw_settings_sanitizer;
   SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
   {
     auto settings = patchy::ui::app_settings();
@@ -24327,6 +24363,7 @@ void ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd() {
 }
 
 void ui_raw_develop_dialog_cancel_aborts_open() {
+  RawDevelopSettingsSanitizer raw_settings_sanitizer;
   SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
   {
     auto settings = patchy::ui::app_settings();
@@ -24360,6 +24397,7 @@ void ui_raw_develop_dialog_cancel_aborts_open() {
 }
 
 void ui_raw_develop_dialog_exposure_slider_brightens_preview() {
+  RawDevelopSettingsSanitizer raw_settings_sanitizer;
   SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
   {
     auto settings = patchy::ui::app_settings();
@@ -24394,39 +24432,31 @@ void ui_raw_develop_dialog_exposure_slider_brightens_preview() {
     auto* preview = static_cast<patchy::ui::ZoomableImagePreview*>(
         dialog->findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
     auto* status = dialog->findChild<QLabel*>(QStringLiteral("rawDevelopStatus"));
-    auto* auto_brighten = dialog->findChild<QCheckBox*>(QStringLiteral("rawAutoBrightenCheck"));
     auto* exposure = dialog->findChild<QSlider*>(QStringLiteral("rawExposureSlider"));
-    if (preview == nullptr || status == nullptr || auto_brighten == nullptr || exposure == nullptr) {
+    if (preview == nullptr || status == nullptr || exposure == nullptr) {
       return false;
     }
     const auto& image = preview->image();
     switch (*stage) {
       case 0:
-        // Wait for the first develop: previews always run at half size (64x48).
+        // Wait for the first develop: previews always run at half size (64x48). The
+        // sanitized defaults have auto-brighten off, so the exposure shift below is
+        // monotonic with no extra setup.
         if (image.isNull() || image.width() != 64 || !status->text().isEmpty()) {
           return false;
         }
         *last_image_key = image.cacheKey();
-        // Auto-brighten would rescale the histogram and mask the exposure shift.
-        auto_brighten->setChecked(false);
+        *base_mean = mean_green(image);
+        exposure->setValue(150);  // +1.5 EV
         *stage = 1;
         return false;
       case 1:
         if (image.isNull() || image.cacheKey() == *last_image_key || !status->text().isEmpty()) {
           return false;
         }
-        *last_image_key = image.cacheKey();
-        *base_mean = mean_green(image);
-        exposure->setValue(150);  // +1.5 EV
-        *stage = 2;
-        return false;
-      case 2:
-        if (image.isNull() || image.cacheKey() == *last_image_key || !status->text().isEmpty()) {
-          return false;
-        }
         *bright_mean = mean_green(image);
         save_widget_artifact("ui_raw_develop_dialog", *dialog);
-        *stage = 3;
+        *stage = 2;
         dialog->reject();
         return true;
     }
@@ -24435,12 +24465,13 @@ void ui_raw_develop_dialog_exposure_slider_brightens_preview() {
   drive_raw_develop_dialog(step);
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
 
-  CHECK(*stage == 3);
+  CHECK(*stage == 2);
   CHECK(*base_mean > 10.0);
   CHECK(*bright_mean > *base_mean + 5.0);
 }
 
 void ui_raw_preference_disabled_opens_with_camera_defaults() {
+  RawDevelopSettingsSanitizer raw_settings_sanitizer;
   SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
   {
     auto settings = patchy::ui::app_settings();

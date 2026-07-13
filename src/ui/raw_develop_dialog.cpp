@@ -19,6 +19,7 @@
 #include <QLabel>
 #include <QLocale>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QStringList>
@@ -50,6 +51,8 @@ constexpr int kTemperatureSliderSteps = 1000;
 constexpr int kPreviewDebounceMs = 200;
 
 // The persisted imports/rawDevelop* keys are a contract: never rename them.
+// kSettingHighlights stores the clipped-highlight RECOVERY mode (its historical meaning);
+// the tonal highlights slider uses kSettingToneHighlights.
 constexpr auto kSettingWhiteBalance = "imports/rawDevelopWhiteBalance";
 constexpr auto kSettingTemperature = "imports/rawDevelopTemperature";
 constexpr auto kSettingTint = "imports/rawDevelopTint";
@@ -57,6 +60,11 @@ constexpr auto kSettingExposure = "imports/rawDevelopExposure";
 constexpr auto kSettingHighlights = "imports/rawDevelopHighlights";
 constexpr auto kSettingAutoBrighten = "imports/rawDevelopAutoBrighten";
 constexpr auto kSettingBrightness = "imports/rawDevelopBrightness";
+constexpr auto kSettingContrast = "imports/rawDevelopContrast";
+constexpr auto kSettingToneHighlights = "imports/rawDevelopToneHighlights";
+constexpr auto kSettingToneShadows = "imports/rawDevelopToneShadows";
+constexpr auto kSettingSaturation = "imports/rawDevelopSaturation";
+constexpr auto kSettingVibrance = "imports/rawDevelopVibrance";
 constexpr auto kSettingDemosaic = "imports/rawDevelopDemosaic";
 constexpr auto kSettingDenoise = "imports/rawDevelopDenoise";
 constexpr auto kSettingFbdd = "imports/rawDevelopFbdd";
@@ -303,10 +311,17 @@ raw::DevelopParams saved_raw_develop_params() {
   params.custom_white_balance.tint =
       std::clamp(settings.value(kSettingTint, params.custom_white_balance.tint).toDouble(), -150.0, 150.0);
   params.exposure_ev = std::clamp(settings.value(kSettingExposure, params.exposure_ev).toDouble(), -2.0, 3.0);
-  params.highlights = highlight_from_token(
-      settings.value(kSettingHighlights, highlight_token(params.highlights)).toString());
+  params.highlight_recovery = highlight_from_token(
+      settings.value(kSettingHighlights, highlight_token(params.highlight_recovery)).toString());
   params.auto_brighten = settings.value(kSettingAutoBrighten, params.auto_brighten).toBool();
   params.brightness = std::clamp(settings.value(kSettingBrightness, params.brightness).toDouble(), 0.25, 4.0);
+  params.contrast = std::clamp(settings.value(kSettingContrast, params.contrast).toDouble(), -100.0, 100.0);
+  params.highlights =
+      std::clamp(settings.value(kSettingToneHighlights, params.highlights).toDouble(), -100.0, 100.0);
+  params.shadows = std::clamp(settings.value(kSettingToneShadows, params.shadows).toDouble(), -100.0, 100.0);
+  params.saturation =
+      std::clamp(settings.value(kSettingSaturation, params.saturation).toDouble(), -100.0, 100.0);
+  params.vibrance = std::clamp(settings.value(kSettingVibrance, params.vibrance).toDouble(), -100.0, 100.0);
   params.demosaic =
       demosaic_from_token(settings.value(kSettingDemosaic, demosaic_token(params.demosaic)).toString());
   params.wavelet_denoise_threshold =
@@ -322,9 +337,14 @@ void save_raw_develop_params(const raw::DevelopParams& params) {
   settings.setValue(kSettingTemperature, params.custom_white_balance.temperature_k);
   settings.setValue(kSettingTint, params.custom_white_balance.tint);
   settings.setValue(kSettingExposure, params.exposure_ev);
-  settings.setValue(kSettingHighlights, highlight_token(params.highlights));
+  settings.setValue(kSettingHighlights, highlight_token(params.highlight_recovery));
   settings.setValue(kSettingAutoBrighten, params.auto_brighten);
   settings.setValue(kSettingBrightness, params.brightness);
+  settings.setValue(kSettingContrast, params.contrast);
+  settings.setValue(kSettingToneHighlights, params.highlights);
+  settings.setValue(kSettingToneShadows, params.shadows);
+  settings.setValue(kSettingSaturation, params.saturation);
+  settings.setValue(kSettingVibrance, params.vibrance);
   settings.setValue(kSettingDemosaic, demosaic_token(params.demosaic));
   settings.setValue(kSettingDenoise, params.wavelet_denoise_threshold);
   settings.setValue(kSettingFbdd, fbdd_token(params.fbdd));
@@ -338,7 +358,10 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("rawDevelopDialog"));
   dialog.setWindowTitle(QObject::tr("Develop Raw - %1").arg(file_info.fileName()));
-  dialog.resize(1080, 680);
+  dialog.resize(1120, 760);
+  dialog.setStyleSheet(dialog.styleSheet() +
+                       QStringLiteral("QScrollArea#rawDevelopControlsScroll,"
+                                      "QWidget#rawDevelopControlsPage { background: transparent; }"));
 
   auto* layout = new QVBoxLayout(&dialog);
   auto* content_row = new QHBoxLayout();
@@ -349,8 +372,20 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   preview->setMinimumSize(420, 320);
   content_row->addWidget(preview, 1);
 
-  auto* controls_column = new QVBoxLayout();
-  content_row->addLayout(controls_column);
+  // The controls live inside a scroll area so the taller Tone/Color panel still fits
+  // short screens (the Preferences-tab pattern).
+  auto* controls_scroll = new QScrollArea(&dialog);
+  controls_scroll->setObjectName(QStringLiteral("rawDevelopControlsScroll"));
+  controls_scroll->setWidgetResizable(true);
+  controls_scroll->setFrameShape(QFrame::NoFrame);
+  controls_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  auto* controls_page = new QWidget(controls_scroll);
+  controls_page->setObjectName(QStringLiteral("rawDevelopControlsPage"));
+  auto* controls_column = new QVBoxLayout(controls_page);
+  controls_column->setContentsMargins(0, 0, 6, 0);
+  controls_scroll->setWidget(controls_page);
+  controls_scroll->setMinimumWidth(390);
+  content_row->addWidget(controls_scroll);
 
   const auto add_slider_row = [](QFormLayout* form, const QString& label, int minimum, int maximum,
                                  const char* object_name) {
@@ -404,25 +439,42 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       add_slider_row(white_balance_form, QObject::tr("Tint:"), -150, 150, "rawTintSlider");
   controls_column->addWidget(white_balance_group);
 
-  // --- Exposure ---
-  auto* exposure_group = new QGroupBox(QObject::tr("Exposure"), &dialog);
-  auto* exposure_form = new QFormLayout(exposure_group);
+  // --- Tone ---
+  auto* tone_group = new QGroupBox(QObject::tr("Tone"), &dialog);
+  auto* tone_form = new QFormLayout(tone_group);
   // LibRaw's linear exposure correction spans -2..+3 EV.
   auto [exposure_slider, exposure_value] =
-      add_slider_row(exposure_form, QObject::tr("Exposure:"), -200, 300, "rawExposureSlider");
-  auto* highlights_combo = new QComboBox(exposure_group);
+      add_slider_row(tone_form, QObject::tr("Exposure:"), -200, 300, "rawExposureSlider");
+  auto [contrast_slider, contrast_value] =
+      add_slider_row(tone_form, QObject::tr("Contrast:"), -100, 100, "rawContrastSlider");
+  auto [tone_highlights_slider, tone_highlights_value] =
+      add_slider_row(tone_form, QObject::tr("Highlights:"), -100, 100, "rawToneHighlightsSlider");
+  auto [shadows_slider, shadows_value] =
+      add_slider_row(tone_form, QObject::tr("Shadows:"), -100, 100, "rawShadowsSlider");
+  // Reconstruction of clipped sensor data — a different job than the Highlights slider
+  // above, which is tonal compression of intact data.
+  auto* highlights_combo = new QComboBox(tone_group);
   highlights_combo->setObjectName(QStringLiteral("rawHighlightsCombo"));
   highlights_combo->addItem(QObject::tr("Clip to white"), QStringLiteral("clip"));
   highlights_combo->addItem(QObject::tr("Unclipped"), QStringLiteral("unclip"));
   highlights_combo->addItem(QObject::tr("Blend"), QStringLiteral("blend"));
   highlights_combo->addItem(QObject::tr("Rebuild detail"), QStringLiteral("rebuild"));
-  exposure_form->addRow(QObject::tr("Highlights:"), highlights_combo);
-  auto* auto_brighten_check = new QCheckBox(QObject::tr("Auto brighten"), exposure_group);
+  tone_form->addRow(QObject::tr("Highlight recovery:"), highlights_combo);
+  auto* auto_brighten_check = new QCheckBox(QObject::tr("Auto brighten"), tone_group);
   auto_brighten_check->setObjectName(QStringLiteral("rawAutoBrightenCheck"));
-  exposure_form->addRow(auto_brighten_check);
+  tone_form->addRow(auto_brighten_check);
   auto [brightness_slider, brightness_value] =
-      add_slider_row(exposure_form, QObject::tr("Brightness:"), 25, 400, "rawBrightnessSlider");
-  controls_column->addWidget(exposure_group);
+      add_slider_row(tone_form, QObject::tr("Brightness:"), 25, 400, "rawBrightnessSlider");
+  controls_column->addWidget(tone_group);
+
+  // --- Color ---
+  auto* color_group = new QGroupBox(QObject::tr("Color"), &dialog);
+  auto* color_form = new QFormLayout(color_group);
+  auto [saturation_slider, saturation_value] =
+      add_slider_row(color_form, QObject::tr("Saturation:"), -100, 100, "rawSaturationSlider");
+  auto [vibrance_slider, vibrance_value] =
+      add_slider_row(color_form, QObject::tr("Vibrance:"), -100, 100, "rawVibranceSlider");
+  controls_column->addWidget(color_group);
 
   // --- Detail ---
   auto* detail_group = new QGroupBox(QObject::tr("Detail"), &dialog);
@@ -481,7 +533,12 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     tint_value->setText(QString::number(tint_slider->value()));
     const auto ev = exposure_slider->value() / 100.0;
     exposure_value->setText(QObject::tr("%1 EV").arg(QString::number(ev, 'f', 2)));
+    contrast_value->setText(QString::number(contrast_slider->value()));
+    tone_highlights_value->setText(QString::number(tone_highlights_slider->value()));
+    shadows_value->setText(QString::number(shadows_slider->value()));
     brightness_value->setText(QString::number(brightness_slider->value() / 100.0, 'f', 2));
+    saturation_value->setText(QString::number(saturation_slider->value()));
+    vibrance_value->setText(QString::number(vibrance_slider->value()));
     denoise_value->setText(denoise_slider->value() == 0 ? QObject::tr("Off")
                                                         : QString::number(denoise_slider->value()));
   };
@@ -497,9 +554,14 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     const QSignalBlocker block_temperature(temperature_slider);
     const QSignalBlocker block_tint(tint_slider);
     const QSignalBlocker block_exposure(exposure_slider);
+    const QSignalBlocker block_contrast(contrast_slider);
+    const QSignalBlocker block_tone_highlights(tone_highlights_slider);
+    const QSignalBlocker block_shadows(shadows_slider);
     const QSignalBlocker block_highlights(highlights_combo);
     const QSignalBlocker block_auto_brighten(auto_brighten_check);
     const QSignalBlocker block_brightness(brightness_slider);
+    const QSignalBlocker block_saturation(saturation_slider);
+    const QSignalBlocker block_vibrance(vibrance_slider);
     const QSignalBlocker block_demosaic(demosaic_combo);
     const QSignalBlocker block_denoise(denoise_slider);
     const QSignalBlocker block_fbdd(fbdd_combo);
@@ -513,9 +575,14 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     temperature_slider->setValue(temperature_to_slider(displayed_white_balance.temperature_k));
     tint_slider->setValue(static_cast<int>(std::lround(std::clamp(displayed_white_balance.tint, -150.0, 150.0))));
     exposure_slider->setValue(static_cast<int>(std::lround(params.exposure_ev * 100.0)));
-    select_combo_data(highlights_combo, highlight_token(params.highlights));
+    contrast_slider->setValue(static_cast<int>(std::lround(params.contrast)));
+    tone_highlights_slider->setValue(static_cast<int>(std::lround(params.highlights)));
+    shadows_slider->setValue(static_cast<int>(std::lround(params.shadows)));
+    select_combo_data(highlights_combo, highlight_token(params.highlight_recovery));
     auto_brighten_check->setChecked(params.auto_brighten);
     brightness_slider->setValue(static_cast<int>(std::lround(params.brightness * 100.0)));
+    saturation_slider->setValue(static_cast<int>(std::lround(params.saturation)));
+    vibrance_slider->setValue(static_cast<int>(std::lround(params.vibrance)));
     select_combo_data(demosaic_combo, demosaic_token(params.demosaic));
     denoise_slider->setValue(params.wavelet_denoise_threshold);
     select_combo_data(fbdd_combo, fbdd_token(params.fbdd));
@@ -538,9 +605,14 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       params.custom_white_balance.tint = tint_slider->value();
     }
     params.exposure_ev = exposure_slider->value() / 100.0;
-    params.highlights = highlight_from_token(highlights_combo->currentData().toString());
+    params.contrast = contrast_slider->value();
+    params.highlights = tone_highlights_slider->value();
+    params.shadows = shadows_slider->value();
+    params.highlight_recovery = highlight_from_token(highlights_combo->currentData().toString());
     params.auto_brighten = auto_brighten_check->isChecked();
     params.brightness = brightness_slider->value() / 100.0;
+    params.saturation = saturation_slider->value();
+    params.vibrance = vibrance_slider->value();
     params.demosaic = demosaic_from_token(demosaic_combo->currentData().toString());
     params.wavelet_denoise_threshold = denoise_slider->value();
     params.fbdd = fbdd_from_token(fbdd_combo->currentData().toString());
@@ -559,7 +631,8 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
 
   const auto set_controls_enabled = [&](bool enabled) {
     white_balance_group->setEnabled(enabled);
-    exposure_group->setEnabled(enabled);
+    tone_group->setEnabled(enabled);
+    color_group->setEnabled(enabled);
     detail_group->setEnabled(enabled);
     reset_button->setEnabled(enabled);
     open_button->setEnabled(enabled);
@@ -765,18 +838,13 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     }
     debounce->start();
   });
-  QObject::connect(exposure_slider, &QSlider::valueChanged, &dialog, [&] {
-    refresh_value_labels();
-    on_control_changed();
-  });
-  QObject::connect(brightness_slider, &QSlider::valueChanged, &dialog, [&] {
-    refresh_value_labels();
-    on_control_changed();
-  });
-  QObject::connect(denoise_slider, &QSlider::valueChanged, &dialog, [&] {
-    refresh_value_labels();
-    on_control_changed();
-  });
+  for (auto* value_slider : {exposure_slider, contrast_slider, tone_highlights_slider, shadows_slider,
+                             brightness_slider, saturation_slider, vibrance_slider, denoise_slider}) {
+    QObject::connect(value_slider, &QSlider::valueChanged, &dialog, [&] {
+      refresh_value_labels();
+      on_control_changed();
+    });
+  }
   QObject::connect(highlights_combo, &QComboBox::currentIndexChanged, &dialog, on_control_changed);
   QObject::connect(auto_brighten_check, &QCheckBox::toggled, &dialog, on_control_changed);
   QObject::connect(demosaic_combo, &QComboBox::currentIndexChanged, &dialog, on_control_changed);

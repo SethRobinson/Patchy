@@ -17,6 +17,7 @@
 #include "formats/palette_io.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/raw_document_io.hpp"
+#include "formats/raw_tone.hpp"
 #include "formats/raw_white_balance.hpp"
 #include "formats/tga_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
@@ -18653,6 +18654,9 @@ void raw_white_balance_round_trips_temperature_and_tint() {
 }
 
 void raw_develop_reads_synthetic_dng() {
+  // Camera-raw defaults are deliberately neutral: no auto histogram stretch.
+  CHECK(!patchy::raw::DevelopParams{}.auto_brighten);
+
   const auto dng = synthetic_bayer_dng(128, 96);
   patchy::raw::DevelopParams params;
   params.auto_brighten = false;  // a uniform field would auto-stretch to white
@@ -18708,6 +18712,142 @@ void raw_develop_exposure_and_white_balance_shift_output() {
   CHECK(warm.red - warm.blue > cool.red - cool.blue + 10.0);
 }
 
+void raw_tone_lut_and_color_math() {
+  // Neutral parameters must be an exact identity table.
+  const auto identity = patchy::raw::build_tone_lut({});
+  for (const int index : {0, 1, 255, 12345, 32768, 54321, 65534, 65535}) {
+    CHECK(identity[static_cast<std::size_t>(index)] == index);
+  }
+
+  // Contrast: S-curve around the midpoint, endpoints pinned.
+  patchy::raw::ToneParams contrast;
+  contrast.contrast = 100.0;
+  const auto contrasty = patchy::raw::build_tone_lut(contrast);
+  CHECK(contrasty[16384] < 16384);
+  CHECK(contrasty[49151] > 49151);
+  CHECK(contrasty[0] == 0);
+  CHECK(contrasty[65535] == 65535);
+  contrast.contrast = -100.0;
+  const auto flat = patchy::raw::build_tone_lut(contrast);
+  CHECK(flat[16384] > 16384);
+  CHECK(flat[49151] < 49151);
+
+  // Shadows: lifts the dark band, pins pure black, leaves highlights alone.
+  patchy::raw::ToneParams shadows;
+  shadows.shadows = 100.0;
+  const auto lifted = patchy::raw::build_tone_lut(shadows);
+  CHECK(lifted[0] == 0);
+  CHECK(lifted[9830] > 9830 + 3000);   // 0.15: band center clearly lifted
+  CHECK(lifted[58982] == 58982);       // 0.9: untouched
+
+  // Highlights: negative values dim the bright end (including full white) and leave
+  // shadows alone.
+  patchy::raw::ToneParams highlights;
+  highlights.highlights = -100.0;
+  const auto recovered = patchy::raw::build_tone_lut(highlights);
+  CHECK(recovered[65535] < 65535 - 10000);
+  CHECK(recovered[6553] == 6553);  // 0.1: untouched
+
+  // Saturation converges channels to luma at -100 and widens the spread at +100;
+  // vibrance moves an already-saturated pixel LESS than plain saturation does.
+  const std::array<std::uint16_t, 3> source = {40000, 20000, 10000};
+  auto desaturated = source;
+  patchy::raw::apply_color(std::span<std::uint16_t>(desaturated), -100.0, 0.0);
+  CHECK(std::abs(int(desaturated[0]) - int(desaturated[1])) <= 1);
+  CHECK(std::abs(int(desaturated[2]) - int(desaturated[1])) <= 1);
+  auto saturated = source;
+  patchy::raw::apply_color(std::span<std::uint16_t>(saturated), 80.0, 0.0);
+  auto vibrant = source;
+  patchy::raw::apply_color(std::span<std::uint16_t>(vibrant), 0.0, 80.0);
+  const auto source_spread = int(source[0]) - int(source[2]);
+  const auto saturated_spread = int(saturated[0]) - int(saturated[2]);
+  const auto vibrant_spread = int(vibrant[0]) - int(vibrant[2]);
+  CHECK(saturated_spread > source_spread);
+  CHECK(vibrant_spread > source_spread);
+  CHECK(vibrant_spread < saturated_spread);
+}
+
+void raw_develop_tone_and_color_controls_shift_output() {
+  // Bright ramp (0 -> 90% full scale): distinct shadow and highlight regions.
+  SyntheticDngOptions ramp;
+  ramp.red_value = 58982;
+  ramp.green_value = 58982;
+  ramp.blue_value = 58982;
+  ramp.horizontal_ramp = true;
+  const auto ramp_dng = synthetic_bayer_dng(128, 96, ramp);
+
+  const auto quarter_green_mean = [](const patchy::Document& document, bool right_quarter) {
+    const auto& pixels = document.layers().front().pixels();
+    const auto begin_x = right_quarter ? pixels.width() * 3 / 4 : 0;
+    const auto end_x = right_quarter ? pixels.width() : pixels.width() / 4;
+    double total = 0.0;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = begin_x; x < end_x; ++x) {
+        total += pixels.pixel(x, y)[1];
+      }
+    }
+    return total / (static_cast<double>(end_x - begin_x) * pixels.height());
+  };
+
+  patchy::raw::DevelopParams neutral;
+  const auto base = patchy::raw::read_camera_raw(ramp_dng, neutral).document;
+  const auto base_dark = quarter_green_mean(base, false);
+  const auto base_bright = quarter_green_mean(base, true);
+  CHECK(base_dark > 5.0);
+  CHECK(base_bright > base_dark + 60.0);
+
+  auto contrast_params = neutral;
+  contrast_params.contrast = 80.0;
+  const auto contrasty = patchy::raw::read_camera_raw(ramp_dng, contrast_params).document;
+  CHECK(quarter_green_mean(contrasty, false) < base_dark - 4.0);
+  CHECK(quarter_green_mean(contrasty, true) > base_bright + 1.0);
+
+  auto shadow_params = neutral;
+  shadow_params.shadows = 80.0;
+  const auto shadow_lifted = patchy::raw::read_camera_raw(ramp_dng, shadow_params).document;
+  const auto lifted_dark_delta = quarter_green_mean(shadow_lifted, false) - base_dark;
+  const auto lifted_bright_delta = std::abs(quarter_green_mean(shadow_lifted, true) - base_bright);
+  CHECK(lifted_dark_delta > 8.0);
+  CHECK(lifted_bright_delta < 2.0);
+
+  auto highlight_params = neutral;
+  highlight_params.highlights = -80.0;
+  const auto highlight_recovered = patchy::raw::read_camera_raw(ramp_dng, highlight_params).document;
+  const auto recovered_bright_delta = base_bright - quarter_green_mean(highlight_recovered, true);
+  const auto recovered_dark_delta = std::abs(base_dark - quarter_green_mean(highlight_recovered, false));
+  CHECK(recovered_bright_delta > 20.0);
+  CHECK(recovered_dark_delta * 4.0 < recovered_bright_delta);
+
+  // Colored scene (red-heavy) for the color controls.
+  SyntheticDngOptions colored;
+  colored.red_value = 23592;
+  colored.green_value = 11796;
+  colored.blue_value = 5898;
+  const auto colored_dng = synthetic_bayer_dng(128, 96, colored);
+  const auto colored_base = raw_channel_means(patchy::raw::read_camera_raw(colored_dng, neutral).document);
+  const auto base_spread = colored_base.red - colored_base.blue;
+  CHECK(base_spread > 20.0);
+
+  auto desaturate_params = neutral;
+  desaturate_params.saturation = -100.0;
+  const auto gray = raw_channel_means(patchy::raw::read_camera_raw(colored_dng, desaturate_params).document);
+  CHECK(std::abs(gray.red - gray.green) < 3.0);
+  CHECK(std::abs(gray.blue - gray.green) < 3.0);
+
+  auto saturate_params = neutral;
+  saturate_params.saturation = 80.0;
+  const auto vivid = raw_channel_means(patchy::raw::read_camera_raw(colored_dng, saturate_params).document);
+  auto vibrance_params = neutral;
+  vibrance_params.vibrance = 80.0;
+  const auto vibrant = raw_channel_means(patchy::raw::read_camera_raw(colored_dng, vibrance_params).document);
+  const auto vivid_spread = vivid.red - vivid.blue;
+  const auto vibrant_spread = vibrant.red - vibrant.blue;
+  CHECK(vivid_spread > base_spread + 8.0);
+  CHECK(vibrant_spread > base_spread + 2.0);
+  // Vibrance holds back on an already-saturated subject.
+  CHECK(vibrant_spread < vivid_spread);
+}
+
 void raw_develop_half_size_and_denoise_run() {
   const auto dng = synthetic_bayer_dng(128, 96);
   patchy::raw::DevelopParams params;
@@ -18721,7 +18861,7 @@ void raw_develop_half_size_and_denoise_run() {
   patchy::raw::DevelopParams heavy;
   heavy.auto_brighten = true;
   heavy.exposure_ev = 0.5;
-  heavy.highlights = patchy::raw::HighlightMode::Rebuild;
+  heavy.highlight_recovery = patchy::raw::HighlightMode::Rebuild;
   heavy.demosaic = patchy::raw::DemosaicAlgorithm::Dht;
   heavy.wavelet_denoise_threshold = 300;
   heavy.fbdd = patchy::raw::FbddNoiseReduction::Full;
@@ -20153,6 +20293,9 @@ int main() {
       {"raw_develop_reads_synthetic_dng", raw_develop_reads_synthetic_dng},
       {"raw_develop_exposure_and_white_balance_shift_output",
        raw_develop_exposure_and_white_balance_shift_output},
+      {"raw_tone_lut_and_color_math", raw_tone_lut_and_color_math},
+      {"raw_develop_tone_and_color_controls_shift_output",
+       raw_develop_tone_and_color_controls_shift_output},
       {"raw_develop_half_size_and_denoise_run", raw_develop_half_size_and_denoise_run},
       {"raw_develop_session_reports_info_and_orientation", raw_develop_session_reports_info_and_orientation},
       {"raw_develop_rejects_non_raw_bytes", raw_develop_rejects_non_raw_bytes},

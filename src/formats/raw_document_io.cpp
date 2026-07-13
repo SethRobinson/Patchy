@@ -1,5 +1,7 @@
 #include "formats/raw_document_io.hpp"
 
+#include "formats/raw_tone.hpp"
+
 #include "libraw/libraw.h"
 
 #include <algorithm>
@@ -140,7 +142,9 @@ struct DevelopSession::Impl {
 
   void apply_params(const DevelopParams& params) {
     auto& output = processor.imgdata.params;
-    output.output_bps = 8;
+    // 16-bit output: the tone/color stage below runs at raw precision and quantizes to
+    // 8 bits only at the very end.
+    output.output_bps = 16;
     output.output_color = 1;  // sRGB primaries
     // sRGB transfer curve (dcraw -g 2.4 12.92); LibRaw's default is BT.709.
     output.gamm[0] = 1.0 / 2.4;
@@ -173,7 +177,7 @@ struct DevelopSession::Impl {
     // Keep some highlight detail when pushing exposure up; no effect when darkening.
     output.exp_preser = 0.8f;
 
-    output.highlight = libraw_highlight_for(params.highlights);
+    output.highlight = libraw_highlight_for(params.highlight_recovery);
     output.no_auto_bright = params.auto_brighten ? 0 : 1;
     output.bright = static_cast<float>(std::clamp(params.brightness, 0.25, 4.0));
     output.user_qual = libraw_quality_for(params.demosaic);
@@ -252,7 +256,7 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& para
   const auto release = [](libraw_processed_image_t* image) { LibRaw::dcraw_clear_mem(image); };
   const std::unique_ptr<libraw_processed_image_t, decltype(release)> guard(processed, release);
 
-  if (processed->type != LIBRAW_IMAGE_BITMAP || processed->bits != 8 ||
+  if (processed->type != LIBRAW_IMAGE_BITMAP || processed->bits != 16 ||
       (processed->colors != 3 && processed->colors != 1)) {
     throw std::runtime_error("Camera raw develop failed: unexpected decoder output format");
   }
@@ -261,19 +265,48 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& para
   image.width = processed->width;
   image.height = processed->height;
   const auto pixel_count = static_cast<std::size_t>(image.width) * static_cast<std::size_t>(image.height);
+  const auto channel_count = static_cast<std::size_t>(processed->colors);
+  if (processed->data_size < pixel_count * channel_count * 2) {
+    throw std::runtime_error("Camera raw develop failed: decoder returned a short image");
+  }
+  // libraw_processed_image_t's data payload starts 2-byte aligned (fixed 16-byte header).
+  const auto* source = reinterpret_cast<const std::uint16_t*>(processed->data);
+
+  // Patchy's tone/color stage runs here, on the 16-bit data, then bakes to 8 bits.
+  const ToneParams tone{params.contrast, params.highlights, params.shadows};
+  const bool color_active = params.saturation != 0.0 || params.vibrance != 0.0;
+  const auto lut = build_tone_lut(tone);
+  const auto quantize8 = [](std::uint32_t value16) {
+    return static_cast<std::uint8_t>((value16 * 255U + 32767U) / 65535U);
+  };
+
   image.rgb.resize(pixel_count * 3);
-  if (processed->colors == 3) {
-    if (processed->data_size < pixel_count * 3) {
-      throw std::runtime_error("Camera raw develop failed: decoder returned a short image");
+  if (channel_count == 3) {
+    if (color_active) {
+      std::array<std::uint16_t, 3> pixel_channels{};
+      for (std::size_t pixel = 0; pixel < pixel_count; ++pixel) {
+        const auto* in = source + pixel * 3;
+        pixel_channels = {lut[in[0]], lut[in[1]], lut[in[2]]};
+        apply_color(std::span<std::uint16_t>(pixel_channels), params.saturation, params.vibrance);
+        auto* out = image.rgb.data() + pixel * 3;
+        out[0] = quantize8(pixel_channels[0]);
+        out[1] = quantize8(pixel_channels[1]);
+        out[2] = quantize8(pixel_channels[2]);
+      }
+    } else {
+      for (std::size_t pixel = 0; pixel < pixel_count; ++pixel) {
+        const auto* in = source + pixel * 3;
+        auto* out = image.rgb.data() + pixel * 3;
+        out[0] = quantize8(lut[in[0]]);
+        out[1] = quantize8(lut[in[1]]);
+        out[2] = quantize8(lut[in[2]]);
+      }
     }
-    std::memcpy(image.rgb.data(), processed->data, pixel_count * 3);
   } else {
-    // Monochrome sensors (Leica M Monochrom and similar) develop to one channel.
-    if (processed->data_size < pixel_count) {
-      throw std::runtime_error("Camera raw develop failed: decoder returned a short image");
-    }
+    // Monochrome sensors (Leica M Monochrom and similar) develop to one channel;
+    // saturation/vibrance are no-ops on gray, so only the tone curve applies.
     for (std::size_t pixel = 0; pixel < pixel_count; ++pixel) {
-      const auto value = processed->data[pixel];
+      const auto value = quantize8(lut[source[pixel]]);
       image.rgb[pixel * 3 + 0] = value;
       image.rgb[pixel * 3 + 1] = value;
       image.rgb[pixel * 3 + 2] = value;
