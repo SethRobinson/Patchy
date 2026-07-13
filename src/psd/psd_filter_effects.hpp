@@ -43,6 +43,16 @@ serialize_filter_effects_block(const SmartFilterEffectsBlock &block);
 [[nodiscard]] std::span<const std::uint8_t>
 raw_filter_effects_record_body(const SmartFilterEffectsRecord &record) noexcept;
 
+// Replaces only the optional native filter-mask tail of the one record
+// associated with placed_uuid. The record's cache prefix, its block's
+// FEid/FXid dialect/version/length form, and every other record remain raw.
+// Empty mask pixels remove the optional tail. Mask enabled/link/extension
+// flags belong to SoLd and are deliberately not encoded here. Opaque,
+// ambiguous, unsupported, or malformed native data fails closed.
+[[nodiscard]] bool replace_filter_effects_mask(
+    SmartFilterEffectsStore &store, std::string_view placed_uuid,
+    const SmartFilterMask &mask);
+
 // Builds the Photoshop version-1 FEid record used by a freshly rendered Smart
 // Filter instance. Cache planes contain the unfiltered placed/warped Smart
 // Object on the full document rectangle; the shared filter mask is always

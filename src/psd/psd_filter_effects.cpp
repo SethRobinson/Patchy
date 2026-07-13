@@ -5,6 +5,7 @@
 #include "core/smart_filter.hpp"
 
 #include <algorithm>
+#include <exception>
 #include <functional>
 #include <limits>
 #include <stdexcept>
@@ -49,6 +50,77 @@ raw_record_range_is_valid(const SmartFilterEffectsRecord &record) noexcept {
          record.raw_body_offset <= record.raw_storage->size() &&
          record.raw_body_length <=
              record.raw_storage->size() - record.raw_body_offset;
+}
+
+[[nodiscard]] std::optional<std::int32_t>
+checked_edge(std::int32_t start, std::int32_t extent) noexcept {
+  const auto edge = static_cast<std::int64_t>(start) + extent;
+  if (edge < std::numeric_limits<std::int32_t>::min() ||
+      edge > std::numeric_limits<std::int32_t>::max()) {
+    return std::nullopt;
+  }
+  return static_cast<std::int32_t>(edge);
+}
+
+[[nodiscard]] bool editable_mask_is_valid(
+    const SmartFilterMask &mask) noexcept {
+  if (mask.pixels.empty()) {
+    return true;
+  }
+  if (mask.pixels.format() != PixelFormat::gray8() || mask.bounds.empty() ||
+      mask.bounds.width != mask.pixels.width() ||
+      mask.bounds.height != mask.pixels.height() ||
+      mask.bounds.width > kMaximumPsdDimension ||
+      mask.bounds.height > kMaximumPsdDimension ||
+      !checked_edge(mask.bounds.x, mask.bounds.width).has_value() ||
+      !checked_edge(mask.bounds.y, mask.bounds.height).has_value()) {
+    return false;
+  }
+  const auto pixels64 = static_cast<std::uint64_t>(mask.bounds.width) *
+                        static_cast<std::uint64_t>(mask.bounds.height);
+  return pixels64 != 0U &&
+         pixels64 <= kMaximumEditableSmartFilterMaskPixels &&
+         pixels64 == mask.pixels.data().size();
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+encode_filter_mask_tail(const SmartFilterMask &mask) {
+  if (mask.pixels.empty()) {
+    return {};
+  }
+
+  std::vector<std::vector<std::uint8_t>> rows;
+  rows.reserve(static_cast<std::size_t>(mask.bounds.height));
+  for (std::int32_t y = 0; y < mask.bounds.height; ++y) {
+    const auto row_begin = mask.pixels.data().begin() +
+                           static_cast<std::ptrdiff_t>(y) * mask.bounds.width;
+    rows.push_back(encode_packbits_row(std::span<const std::uint8_t>(
+        row_begin, static_cast<std::size_t>(mask.bounds.width))));
+  }
+
+  BigEndianWriter plane;
+  plane.write_u16(1U);
+  for (const auto &row : rows) {
+    plane.write_u32(static_cast<std::uint32_t>(row.size()));
+  }
+  for (const auto &row : rows) {
+    plane.write_bytes(row);
+  }
+
+  const auto right = checked_edge(mask.bounds.x, mask.bounds.width);
+  const auto bottom = checked_edge(mask.bounds.y, mask.bounds.height);
+  if (!right.has_value() || !bottom.has_value()) {
+    throw std::runtime_error("PSD filter mask bounds overflow");
+  }
+  BigEndianWriter tail;
+  tail.write_u8(1U);
+  tail.write_u32(static_cast<std::uint32_t>(mask.bounds.y));
+  tail.write_u32(static_cast<std::uint32_t>(mask.bounds.x));
+  tail.write_u32(static_cast<std::uint32_t>(*bottom));
+  tail.write_u32(static_cast<std::uint32_t>(*right));
+  tail.write_u64(static_cast<std::uint64_t>(plane.bytes().size()));
+  tail.write_bytes(plane.bytes());
+  return tail.bytes();
 }
 
 [[nodiscard]] bool parse_cache_layout(std::span<const std::uint8_t> bytes,
@@ -323,6 +395,137 @@ std::span<const std::uint8_t> raw_filter_effects_record_body(
   }
   return std::span<const std::uint8_t>(*record.raw_storage)
       .subspan(record.raw_body_offset, record.raw_body_length);
+}
+
+bool replace_filter_effects_mask(SmartFilterEffectsStore &store,
+                                 std::string_view placed_uuid,
+                                 const SmartFilterMask &mask) {
+  if (placed_uuid.empty() || !editable_mask_is_valid(mask)) {
+    return false;
+  }
+
+  std::size_t target_block_index = 0U;
+  std::size_t target_record_index = 0U;
+  std::size_t matches = 0U;
+  for (std::size_t block_index = 0U; block_index < store.blocks.size();
+       ++block_index) {
+    const auto &block = store.blocks[block_index];
+    if (block.opaque || (block.key != "FEid" && block.key != "FXid") ||
+        block.version < kMinimumOuterVersion ||
+        block.version > kMaximumOuterVersion) {
+      return false;
+    }
+    for (std::size_t record_index = 0U;
+         record_index < block.records.size(); ++record_index) {
+      if (block.records[record_index].placed_uuid == placed_uuid) {
+        target_block_index = block_index;
+        target_record_index = record_index;
+        ++matches;
+      }
+    }
+  }
+  if (matches != 1U) {
+    return false;
+  }
+
+  const auto &target_block = store.blocks[target_block_index];
+  const auto &target = target_block.records[target_record_index];
+  if (!target.semantic_supported() || !raw_record_range_is_valid(target) ||
+      target.source_block_key != target_block.key ||
+      target.source_block_version != target_block.version ||
+      target.source_long_length != target_block.long_length) {
+    return false;
+  }
+
+  // SoLd owns enabled/linked/extension flags. A flag-only change therefore
+  // leaves the native FEid/FXid mask bytes exactly untouched.
+  if (mask.pixels.empty()) {
+    if (!target.mask_present) {
+      return true;
+    }
+  } else if (target.mask_present && target.mask_decoded &&
+             target.mask.has_value() && target.mask->samples != nullptr &&
+             target.mask->bounds.x == mask.bounds.x &&
+             target.mask->bounds.y == mask.bounds.y &&
+             target.mask->bounds.width == mask.bounds.width &&
+             target.mask->bounds.height == mask.bounds.height &&
+             target.mask->samples->size() == mask.pixels.data().size() &&
+             std::equal(target.mask->samples->begin(),
+                        target.mask->samples->end(),
+                        mask.pixels.data().begin())) {
+    return true;
+  }
+
+  try {
+    // Rebuilding this one block must be safe for every retained raw record.
+    // This check occurs before any state changes so failures stay atomic.
+    for (const auto &record : target_block.records) {
+      (void)serialize_filter_effects_record_body(record);
+    }
+
+    auto current_body = serialize_filter_effects_record_body(target);
+    auto current_storage =
+        std::make_shared<const std::vector<std::uint8_t>>(current_body);
+    auto current = parse_filter_effects_record(
+        target_block, current_storage, 0U, current_storage->size());
+    if (!current.data_supported || current.placed_uuid != placed_uuid ||
+        current.record_version != kSupportedRecordVersion) {
+      return false;
+    }
+
+    BigEndianReader reader(current_body);
+    const auto id_length = reader.read_u8();
+    const auto id = reader.read_bytes(id_length);
+    if (std::string_view(reinterpret_cast<const char *>(id.data()), id.size()) !=
+            placed_uuid ||
+        reader.read_u32() != kSupportedRecordVersion) {
+      return false;
+    }
+    const auto cache_length = reader.read_u64();
+    if (cache_length > reader.remaining()) {
+      return false;
+    }
+    reader.skip(static_cast<std::size_t>(cache_length));
+    const auto cache_prefix_length = reader.position();
+    const auto replacement_tail = encode_filter_mask_tail(mask);
+
+    std::vector<std::uint8_t> replacement_body;
+    replacement_body.reserve(cache_prefix_length + replacement_tail.size());
+    replacement_body.insert(
+        replacement_body.end(), current_body.begin(),
+        current_body.begin() + static_cast<std::ptrdiff_t>(cache_prefix_length));
+    replacement_body.insert(replacement_body.end(), replacement_tail.begin(),
+                            replacement_tail.end());
+
+    auto replacement_storage =
+        std::make_shared<const std::vector<std::uint8_t>>(
+            std::move(replacement_body));
+    auto replacement = parse_filter_effects_record(
+        target_block, replacement_storage, 0U, replacement_storage->size());
+    if (!replacement.data_supported || replacement.placed_uuid != placed_uuid ||
+        replacement.mask_present != !mask.pixels.empty() ||
+        (!mask.pixels.empty() &&
+         (!replacement.mask_decoded || !replacement.mask.has_value() ||
+          replacement.mask->samples == nullptr ||
+          replacement.mask->bounds.x != mask.bounds.x ||
+          replacement.mask->bounds.y != mask.bounds.y ||
+          replacement.mask->bounds.width != mask.bounds.width ||
+          replacement.mask->bounds.height != mask.bounds.height ||
+          replacement.mask->samples->size() != mask.pixels.data().size() ||
+          !std::equal(replacement.mask->samples->begin(),
+                      replacement.mask->samples->end(),
+                      mask.pixels.data().begin())))) {
+      return false;
+    }
+    replacement.association_unique = true;
+
+    auto &mutated_block = store.blocks[target_block_index];
+    mutated_block.records[target_record_index] = std::move(replacement);
+    mutated_block.original_payload.reset();
+    return true;
+  } catch (const std::exception &) {
+    return false;
+  }
 }
 
 SmartFilterEffectsBlock parse_filter_effects_block(

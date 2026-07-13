@@ -20,6 +20,7 @@
 #include "ui/style_library.hpp"
 #include "ui/style_manager_dialog.hpp"
 #include "psd/asl_io.hpp"
+#include "psd/psd_binary.hpp"
 #include "psd/psd_layer_effects.hpp"
 #include "core/style_presets.hpp"
 #include "ui/brush_tip_library.hpp"
@@ -34501,6 +34502,52 @@ std::size_t smart_filter_effect_record_count(const patchy::Document& document) {
   return count;
 }
 
+std::vector<std::uint8_t> smart_filter_cache_prefix(
+    const patchy::SmartFilterEffectsRecord& record) {
+  const auto body = patchy::psd::raw_filter_effects_record_body(record);
+  patchy::psd::BigEndianReader reader(body);
+  const auto id_length = reader.read_u8();
+  CHECK(id_length <= reader.remaining());
+  reader.skip(id_length);
+  CHECK(reader.read_u32() == 1U);
+  const auto cache_length = reader.read_u64();
+  CHECK(cache_length <= reader.remaining());
+  reader.skip(static_cast<std::size_t>(cache_length));
+  return std::vector<std::uint8_t>(
+      body.begin(),
+      body.begin() + static_cast<std::ptrdiff_t>(reader.position()));
+}
+
+std::vector<std::uint8_t> smart_filter_record_body_copy(
+    const patchy::SmartFilterEffectsRecord& record) {
+  const auto body = patchy::psd::raw_filter_effects_record_body(record);
+  return std::vector<std::uint8_t>(body.begin(), body.end());
+}
+
+patchy::PixelBuffer materialize_smart_filter_mask_for_ui_test(
+    const patchy::SmartFilterMask& mask, std::int32_t document_width,
+    std::int32_t document_height) {
+  patchy::PixelBuffer result(document_width, document_height,
+                             patchy::PixelFormat::gray8());
+  result.clear(mask.default_color);
+  if (mask.pixels.empty() || mask.pixels.format() != patchy::PixelFormat::gray8()) {
+    return result;
+  }
+  const auto left = std::max<std::int32_t>(0, mask.bounds.x);
+  const auto top = std::max<std::int32_t>(0, mask.bounds.y);
+  const auto right = std::min<std::int32_t>(
+      document_width, mask.bounds.x + mask.pixels.width());
+  const auto bottom = std::min<std::int32_t>(
+      document_height, mask.bounds.y + mask.pixels.height());
+  for (auto y = top; y < bottom; ++y) {
+    for (auto x = left; x < right; ++x) {
+      result.pixel(x, y)[0] =
+          mask.pixels.pixel(x - mask.bounds.x, y - mask.bounds.y)[0];
+    }
+  }
+  return result;
+}
+
 patchy::LayerId select_named_layer(patchy::ui::MainWindow& window, const QString& name) {
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
@@ -35210,6 +35257,421 @@ void ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete() {
   CHECK(std::as_const(document)
             .metadata()
             .smart_filter_effects.find_unique(placed_uuid) != nullptr);
+}
+
+void ui_smart_filter_mask_thumbnail_routes_edits_and_resyncs_undo() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path(
+          "photoshop-smart-filter-model.psd")
+          .wstring());
+  CHECK(QFileInfo::exists(path));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  const auto layer_id = select_named_layer(
+      window, QStringLiteral("Layer mask plus Smart Filter mask"));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(canvas != nullptr && layers != nullptr);
+  layers->scrollToItem(
+      require_layer_item(*layers,
+                         QStringLiteral("Layer mask plus Smart Filter mask")),
+      QAbstractItemView::PositionAtCenter);
+  QApplication::processEvents();
+
+  const auto current_stack = [&]() -> const patchy::SmartFilterStack& {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr && layer->smart_filter_stack() != nullptr);
+    CHECK(layer->smart_filter_stack()->support ==
+          patchy::SmartFilterStackSupport::Supported);
+    return *layer->smart_filter_stack();
+  };
+  const auto current_record = [&]()
+      -> const patchy::SmartFilterEffectsRecord& {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr);
+    const auto placed_uuid = patchy::smart_object_placed_uuid(*layer);
+    CHECK(!placed_uuid.empty());
+    const auto* record =
+        std::as_const(document).metadata().smart_filter_effects.find_unique(
+            placed_uuid);
+    CHECK(record != nullptr && record->semantic_supported());
+    return *record;
+  };
+  const auto active_row = [&]() -> QWidget* {
+    auto* item = require_layer_item(
+        *layers, QStringLiteral("Layer mask plus Smart Filter mask"));
+    auto* row = layers->itemWidget(item);
+    CHECK(row != nullptr);
+    return row;
+  };
+
+  const auto* original_layer = std::as_const(document).find_layer(layer_id);
+  CHECK(original_layer != nullptr && original_layer->mask().has_value());
+  const auto ordinary_layer_mask_before = original_layer->mask()->pixels;
+  const auto initial_mask = current_stack().mask;
+  CHECK(initial_mask.enabled && !initial_mask.pixels.empty());
+  const auto materialized_initial = materialize_smart_filter_mask_for_ui_test(
+      initial_mask, document.width(), document.height());
+  const auto initial_cache_prefix =
+      smart_filter_cache_prefix(current_record());
+
+  // The nested thumbnail must be recognized as its own edit target rather than
+  // falling through to the row/content click path.
+  auto* smart_mask_thumbnail = active_row()->findChild<QLabel*>(
+      QStringLiteral("layerSmartFilterMaskThumbnail"));
+  CHECK(smart_mask_thumbnail != nullptr && smart_mask_thumbnail->isEnabled());
+  CHECK(!smart_mask_thumbnail->property("layerTargetActive").toBool());
+  click_layer_row_thumbnail(
+      *layers, QStringLiteral("Layer mask plus Smart Filter mask"),
+      QStringLiteral("layerSmartFilterMaskThumbnail"));
+  CHECK(canvas->layer_edit_target() ==
+        patchy::ui::CanvasWidget::LayerEditTarget::SmartFilterMask);
+  CHECK(canvas->editing_smart_filter_mask());
+  CHECK(canvas->smart_filter_mask_owner_id() == layer_id);
+  CHECK(patchy::ui::pixel_buffers_equal(
+      canvas->smart_filter_mask_pixels(), materialized_initial));
+  smart_mask_thumbnail = active_row()->findChild<QLabel*>(
+      QStringLiteral("layerSmartFilterMaskThumbnail"));
+  CHECK(smart_mask_thumbnail != nullptr);
+  CHECK(smart_mask_thumbnail->property("layerTargetActive").toBool());
+
+  click_layer_row_thumbnail(
+      *layers, QStringLiteral("Layer mask plus Smart Filter mask"),
+      QStringLiteral("layerContentThumbnail"));
+  CHECK(canvas->layer_edit_target() ==
+        patchy::ui::CanvasWidget::LayerEditTarget::Content);
+
+  // Ctrl-click loads the native filter mask as selection alpha without
+  // switching the pixel edit target.
+  canvas->clear_selection();
+  click_layer_row_thumbnail(
+      *layers, QStringLiteral("Layer mask plus Smart Filter mask"),
+      QStringLiteral("layerSmartFilterMaskThumbnail"), Qt::ControlModifier);
+  CHECK(canvas->has_selection());
+  CHECK(patchy::ui::pixel_buffers_equal(canvas->selection_as_grayscale(),
+                                        materialized_initial));
+  CHECK(canvas->layer_edit_target() ==
+        patchy::ui::CanvasWidget::LayerEditTarget::Content);
+
+  // Shift-click changes the SoLd enable flag but leaves every native FEid byte
+  // alone. Re-enable it so the later mask edit begins from the fixture state.
+  const auto cache_body_before_toggle =
+      smart_filter_record_body_copy(current_record());
+  const auto undo_before_toggle =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  click_layer_row_thumbnail(
+      *layers, QStringLiteral("Layer mask plus Smart Filter mask"),
+      QStringLiteral("layerSmartFilterMaskThumbnail"), Qt::ShiftModifier);
+  CHECK(!current_stack().mask.enabled);
+  CHECK(smart_filter_record_body_copy(current_record()) ==
+        cache_body_before_toggle);
+  click_layer_row_thumbnail(
+      *layers, QStringLiteral("Layer mask plus Smart Filter mask"),
+      QStringLiteral("layerSmartFilterMaskThumbnail"), Qt::ShiftModifier);
+  CHECK(current_stack().mask.enabled);
+  CHECK(smart_filter_record_body_copy(current_record()) ==
+        cache_body_before_toggle);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before_toggle + 2U);
+
+  // Alt-click selects the Smart Filter mask and enters the grayscale
+  // inspection mode, independently of the ordinary layer mask on this layer.
+  click_layer_row_thumbnail(
+      *layers, QStringLiteral("Layer mask plus Smart Filter mask"),
+      QStringLiteral("layerSmartFilterMaskThumbnail"), Qt::AltModifier);
+  CHECK(canvas->layer_edit_target() ==
+        patchy::ui::CanvasWidget::LayerEditTarget::SmartFilterMask);
+  CHECK(canvas->mask_display_mode() ==
+        patchy::ui::CanvasWidget::MaskDisplayMode::Grayscale);
+  CHECK(patchy::ui::pixel_buffers_equal(
+      canvas->smart_filter_mask_pixels(), materialized_initial));
+
+  // Use the canvas-owned temporary buffer but complete it through the real
+  // MainWindow callback. The document changes only at completion, in one undo
+  // step; only the optional FEid mask tail is regenerated.
+  canvas->clear_selection();
+  const auto cache_body_before_edit =
+      smart_filter_record_body_copy(current_record());
+  const auto undo_before_edit =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(!canvas
+             ->fill_smart_filter_mask(
+                 QColor(Qt::black), QStringLiteral("Fill Smart Filter Mask"))
+             .isEmpty());
+  canvas->finish_smart_filter_mask_edit();
+  CHECK(process_events_until([&] {
+    const auto& mask = current_stack().mask;
+    return mask.bounds.x == 0 && mask.bounds.y == 0 &&
+           mask.bounds.width == document.width() &&
+           mask.bounds.height == document.height() &&
+           !mask.pixels.empty() &&
+           std::all_of(mask.pixels.data().begin(), mask.pixels.data().end(),
+                       [](std::uint8_t value) { return value == 0U; });
+  }));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before_edit + 1U);
+  CHECK(canvas->editing_smart_filter_mask());
+  CHECK(std::all_of(canvas->smart_filter_mask_pixels().data().begin(),
+                    canvas->smart_filter_mask_pixels().data().end(),
+                    [](std::uint8_t value) { return value == 0U; }));
+  const auto cache_body_after_edit =
+      smart_filter_record_body_copy(current_record());
+  CHECK(cache_body_after_edit != cache_body_before_edit);
+  CHECK(smart_filter_cache_prefix(current_record()) == initial_cache_prefix);
+  CHECK(current_record().mask.has_value() &&
+        current_record().mask->samples != nullptr);
+  CHECK(std::all_of(current_record().mask->samples->begin(),
+                    current_record().mask->samples->end(),
+                    [](std::uint8_t value) { return value == 0U; }));
+  const auto* layer_after_edit = std::as_const(document).find_layer(layer_id);
+  CHECK(layer_after_edit != nullptr && layer_after_edit->mask().has_value());
+  CHECK(patchy::ui::pixel_buffers_equal(layer_after_edit->mask()->pixels,
+                                        ordinary_layer_mask_before));
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  CHECK(process_events_until([&] {
+    return patchy::ui::pixel_buffers_equal(current_stack().mask.pixels,
+                                           initial_mask.pixels);
+  }));
+  CHECK(canvas->editing_smart_filter_mask());
+  CHECK(patchy::ui::pixel_buffers_equal(
+      canvas->smart_filter_mask_pixels(), materialized_initial));
+  CHECK(smart_filter_record_body_copy(current_record()) ==
+        cache_body_before_edit);
+
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  CHECK(process_events_until([&] {
+    return std::all_of(current_stack().mask.pixels.data().begin(),
+                       current_stack().mask.pixels.data().end(),
+                       [](std::uint8_t value) { return value == 0U; });
+  }));
+  CHECK(canvas->editing_smart_filter_mask());
+  CHECK(std::all_of(canvas->smart_filter_mask_pixels().data().begin(),
+                    canvas->smart_filter_mask_pixels().data().end(),
+                    [](std::uint8_t value) { return value == 0U; }));
+  CHECK(smart_filter_cache_prefix(current_record()) == initial_cache_prefix);
+
+  ensure_artifact_dir();
+  const auto artifact_path = std::filesystem::absolute(
+      std::filesystem::path("test-artifacts") /
+      "ui_smart_filter_mask_edited.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact_path);
+  const auto reopened = patchy::psd::DocumentIo::read_file(artifact_path);
+  const auto reopened_layer = std::find_if(
+      reopened.layers().begin(), reopened.layers().end(),
+      [](const patchy::Layer& layer) {
+        return layer.name() == "Layer mask plus Smart Filter mask";
+      });
+  CHECK(reopened_layer != reopened.layers().end());
+  CHECK(reopened_layer->smart_filter_stack() != nullptr);
+  const auto& reopened_mask = reopened_layer->smart_filter_stack()->mask;
+  CHECK(filter_rect_equal(
+      reopened_mask.bounds,
+      patchy::Rect::from_size(reopened.width(), reopened.height())));
+  CHECK(std::all_of(reopened_mask.pixels.data().begin(),
+                    reopened_mask.pixels.data().end(),
+                    [](std::uint8_t value) { return value == 0U; }));
+  const auto* reopened_record =
+      reopened.metadata().smart_filter_effects.find_unique(
+          patchy::smart_object_placed_uuid(*reopened_layer));
+  CHECK(reopened_record != nullptr && reopened_record->semantic_supported());
+  CHECK(smart_filter_cache_prefix(*reopened_record) == initial_cache_prefix);
+}
+
+void ui_smart_filter_blending_more_menu_cancel_apply_is_atomic() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path(
+          "photoshop-smart-filter-model.psd")
+          .wstring());
+  CHECK(QFileInfo::exists(path));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  const auto layer_id =
+      select_named_layer(window, QStringLiteral("Gaussian radius 2.0"));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  layers->scrollToItem(
+      require_layer_item(*layers, QStringLiteral("Gaussian radius 2.0")),
+      QAbstractItemView::PositionAtCenter);
+  QApplication::processEvents();
+
+  const auto current_layer = [&]() -> const patchy::Layer& {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr && layer->smart_filter_stack() != nullptr);
+    CHECK(layer->smart_filter_stack()->entries.size() == 1U);
+    return *layer;
+  };
+  const auto current_entry = [&]() -> const patchy::SmartFilterEntry& {
+    return current_layer().smart_filter_stack()->entries.front();
+  };
+  const auto current_record = [&]()
+      -> const patchy::SmartFilterEffectsRecord& {
+    const auto placed_uuid =
+        patchy::smart_object_placed_uuid(current_layer());
+    CHECK(!placed_uuid.empty());
+    const auto* record =
+        std::as_const(document).metadata().smart_filter_effects.find_unique(
+            placed_uuid);
+    CHECK(record != nullptr && record->semantic_supported());
+    return *record;
+  };
+  const auto active_row = [&]() -> QWidget* {
+    auto* item =
+        require_layer_item(*layers, QStringLiteral("Gaussian radius 2.0"));
+    auto* row = layers->itemWidget(item);
+    CHECK(row != nullptr);
+    return row;
+  };
+  const auto blending_action = [&]() -> QAction* {
+    auto* row = active_row();
+    auto* more = row->findChild<QToolButton*>(
+        QStringLiteral("layerSmartFilterMoreButton"));
+    auto* action = row->findChild<QAction*>(
+        QStringLiteral("layerSmartFilterBlendingAction"));
+    CHECK(more != nullptr && more->menu() != nullptr);
+    CHECK(action != nullptr && action->isEnabled());
+    CHECK(more->menu()->actions().contains(action));
+    CHECK(action->property("smartFilterExecutionIndex").toULongLong() == 0U);
+    return action;
+  };
+
+  CHECK(current_entry().blend_mode == patchy::BlendMode::Normal);
+  CHECK(std::abs(current_entry().opacity - 1.0) < 0.0000001);
+  const auto original_pixels = current_layer().pixels();
+  const auto original_bounds = current_layer().bounds();
+  const auto original_cache_body =
+      smart_filter_record_body_copy(current_record());
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto modified_before =
+      patchy::ui::MainWindowTestAccess::active_session_is_modified(window);
+
+  // The action is owned by the entry's More menu. Exercise its real signal path
+  // and let a changed live preview render before cancelling.
+  bool cancel_dialog_opened = false;
+  QTimer::singleShot(20, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("smartFilterBlendingDialog")));
+    CHECK(dialog != nullptr);
+    auto* mode = dialog->findChild<QComboBox*>(
+        QStringLiteral("smartFilterBlendModeCombo"));
+    auto* opacity = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("smartFilterOpacitySpin"));
+    auto* preview = dialog->findChild<QCheckBox*>(
+        QStringLiteral("smartFilterBlendingPreviewCheck"));
+    CHECK(mode != nullptr && opacity != nullptr && preview != nullptr);
+    CHECK(preview->isChecked());
+    const auto multiply =
+        mode->findData(static_cast<int>(patchy::BlendMode::Multiply));
+    CHECK(multiply >= 0);
+    mode->setCurrentIndex(multiply);
+    opacity->setValue(21.5);
+    cancel_dialog_opened = true;
+    QTimer::singleShot(75, dialog, [dialog] { dialog->reject(); });
+  });
+  blending_action()->trigger();
+  process_events_for(100);
+  CHECK(cancel_dialog_opened);
+  CHECK(current_entry().blend_mode == patchy::BlendMode::Normal);
+  CHECK(std::abs(current_entry().opacity - 1.0) < 0.0000001);
+  CHECK(filter_rect_equal(current_layer().bounds(), original_bounds));
+  CHECK(patchy::ui::pixel_buffers_equal(current_layer().pixels(),
+                                        original_pixels));
+  CHECK(smart_filter_record_body_copy(current_record()) ==
+        original_cache_body);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window) ==
+        modified_before);
+
+  bool apply_dialog_opened = false;
+  QTimer::singleShot(20, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("smartFilterBlendingDialog")));
+    CHECK(dialog != nullptr);
+    auto* mode = dialog->findChild<QComboBox*>(
+        QStringLiteral("smartFilterBlendModeCombo"));
+    auto* opacity = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("smartFilterOpacitySpin"));
+    CHECK(mode != nullptr && opacity != nullptr);
+    const auto multiply =
+        mode->findData(static_cast<int>(patchy::BlendMode::Multiply));
+    CHECK(multiply >= 0);
+    mode->setCurrentIndex(multiply);
+    opacity->setValue(37.0);
+    apply_dialog_opened = true;
+    dialog->accept();
+  });
+  blending_action()->trigger();
+  CHECK(process_events_until([&] {
+    return current_entry().blend_mode == patchy::BlendMode::Multiply &&
+           std::abs(current_entry().opacity - 0.37) < 0.0000001;
+  }));
+  CHECK(apply_dialog_opened);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+  CHECK(smart_filter_record_body_copy(current_record()) ==
+        original_cache_body);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  CHECK(process_events_until([&] {
+    return current_entry().blend_mode == patchy::BlendMode::Normal &&
+           std::abs(current_entry().opacity - 1.0) < 0.0000001;
+  }));
+  CHECK(filter_rect_equal(current_layer().bounds(), original_bounds));
+  CHECK(patchy::ui::pixel_buffers_equal(current_layer().pixels(),
+                                        original_pixels));
+  CHECK(smart_filter_record_body_copy(current_record()) ==
+        original_cache_body);
+
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  CHECK(process_events_until([&] {
+    return current_entry().blend_mode == patchy::BlendMode::Multiply &&
+           std::abs(current_entry().opacity - 0.37) < 0.0000001;
+  }));
+  CHECK(smart_filter_record_body_copy(current_record()) ==
+        original_cache_body);
+
+  ensure_artifact_dir();
+  const auto artifact_path = std::filesystem::absolute(
+      std::filesystem::path("test-artifacts") /
+      "ui_smart_filter_blending_edited.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact_path);
+  const auto reopened = patchy::psd::DocumentIo::read_file(artifact_path);
+  const auto reopened_layer = std::find_if(
+      reopened.layers().begin(), reopened.layers().end(),
+      [](const patchy::Layer& layer) {
+        return layer.name() == "Gaussian radius 2.0";
+      });
+  CHECK(reopened_layer != reopened.layers().end());
+  CHECK(reopened_layer->smart_filter_stack() != nullptr);
+  CHECK(reopened_layer->smart_filter_stack()->entries.size() == 1U);
+  const auto& reopened_entry =
+      reopened_layer->smart_filter_stack()->entries.front();
+  CHECK(reopened_entry.blend_mode == patchy::BlendMode::Multiply);
+  CHECK(std::abs(reopened_entry.opacity - 0.37) < 0.0000001);
+  const auto* reopened_record =
+      reopened.metadata().smart_filter_effects.find_unique(
+          patchy::smart_object_placed_uuid(*reopened_layer));
+  CHECK(reopened_record != nullptr && reopened_record->semantic_supported());
+  CHECK(smart_filter_record_body_copy(*reopened_record) ==
+        original_cache_body);
 }
 
 void ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache() {
@@ -47075,6 +47537,10 @@ int main(int argc, char* argv[]) {
        ui_convert_for_smart_filters_action_converts_eligible_pixel_layer},
       {"ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete",
        ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete},
+      {"ui_smart_filter_mask_thumbnail_routes_edits_and_resyncs_undo",
+       ui_smart_filter_mask_thumbnail_routes_edits_and_resyncs_undo},
+      {"ui_smart_filter_blending_more_menu_cancel_apply_is_atomic",
+       ui_smart_filter_blending_more_menu_cancel_apply_is_atomic},
       {"ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache",
        ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache},
       {"ui_smart_filter_multiple_gaussian_duplicate_reorder_delete_roundtrip",

@@ -405,6 +405,7 @@ void MainWindow::refresh_channel_panel() {
         break;
       case CanvasWidget::LayerEditTarget::Content:
       case CanvasWidget::LayerEditTarget::Mask:
+      case CanvasWidget::LayerEditTarget::SmartFilterMask:
         break;
     }
   }
@@ -746,6 +747,14 @@ void MainWindow::refresh_edit_target_chip() {
     mask_edit_mode_chip_->show();
     return;
   }
+  if (canvas_->editing_smart_filter_mask()) {
+    mask_edit_mode_chip_->setText(
+        tr("Editing Smart Filter mask (click to exit)"));
+    mask_edit_mode_chip_->setToolTip(
+        tr("Paint tools are editing the shared Smart Filter mask. Click to edit the layer pixels again."));
+    mask_edit_mode_chip_->show();
+    return;
+  }
   QString component_name;
   switch (canvas_->layer_edit_target()) {
     case CanvasWidget::LayerEditTarget::ComponentRed:
@@ -760,6 +769,7 @@ void MainWindow::refresh_edit_target_chip() {
     case CanvasWidget::LayerEditTarget::Content:
     case CanvasWidget::LayerEditTarget::Mask:
     case CanvasWidget::LayerEditTarget::DocumentChannel:
+    case CanvasWidget::LayerEditTarget::SmartFilterMask:
       break;
   }
   if (!component_name.isEmpty()) {

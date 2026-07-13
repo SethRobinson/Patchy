@@ -19,6 +19,7 @@
 #include "formats/raw_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_filter_effects.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
@@ -1450,6 +1451,50 @@ void restyle_layer_rows(QListWidget* list) {
   }
 }
 
+bool smart_filter_mask_document_editing_supported(
+    std::int32_t document_width, std::int32_t document_height) noexcept {
+  const auto document_pixels =
+      document_width > 0 && document_height > 0
+          ? static_cast<std::uint64_t>(document_width) *
+                static_cast<std::uint64_t>(document_height)
+          : 0;
+  return document_pixels > 0 &&
+         document_pixels <= psd::kMaximumEditableSmartFilterMaskPixels;
+}
+
+std::optional<PixelBuffer> materialize_smart_filter_mask(
+    const SmartFilterMask& mask, std::int32_t document_width,
+    std::int32_t document_height) {
+  if (!smart_filter_mask_document_editing_supported(document_width,
+                                                     document_height) ||
+      mask.pixels.empty() ||
+      mask.pixels.format() != PixelFormat::gray8() ||
+      mask.bounds.width != mask.pixels.width() ||
+      mask.bounds.height != mask.pixels.height()) {
+    return std::nullopt;
+  }
+  PixelBuffer pixels(document_width, document_height, PixelFormat::gray8());
+  pixels.clear(mask.extend_with_white ? 255U : mask.default_color);
+  const auto left = std::max<std::int64_t>(0, mask.bounds.x);
+  const auto top = std::max<std::int64_t>(0, mask.bounds.y);
+  const auto right = std::min<std::int64_t>(
+      document_width, static_cast<std::int64_t>(mask.bounds.x) +
+                          mask.bounds.width);
+  const auto bottom = std::min<std::int64_t>(
+      document_height, static_cast<std::int64_t>(mask.bounds.y) +
+                           mask.bounds.height);
+  for (auto y = top; y < bottom; ++y) {
+    for (auto x = left; x < right; ++x) {
+      *pixels.pixel(static_cast<std::int32_t>(x),
+                    static_cast<std::int32_t>(y)) =
+          *mask.pixels.pixel(
+              static_cast<std::int32_t>(x - mask.bounds.x),
+              static_cast<std::int32_t>(y - mask.bounds.y));
+    }
+  }
+  return pixels;
+}
+
 void update_layer_target_styles(QListWidget* list, std::optional<LayerId> active_layer,
                                 CanvasWidget::LayerEditTarget edit_target) {
   if (list == nullptr) {
@@ -1478,6 +1523,11 @@ void update_layer_target_styles(QListWidget* list, std::optional<LayerId> active
                       row_active && edit_target == CanvasWidget::LayerEditTarget::Content);
     set_target_active(row_widget->findChild<QWidget*>(QStringLiteral("layerMaskThumbnail")),
                       row_active && edit_target == CanvasWidget::LayerEditTarget::Mask);
+    set_target_active(
+        row_widget->findChild<QWidget*>(
+            QStringLiteral("layerSmartFilterMaskThumbnail")),
+        row_active &&
+            edit_target == CanvasWidget::LayerEditTarget::SmartFilterMask);
   }
 }
 
@@ -2071,12 +2121,15 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId)> toggle_group_expanded = {},
                                std::function<void(LayerId, bool)> set_mask_linked = {},
                                bool content_target_active = false, bool mask_target_active = false,
+                               bool smart_filter_mask_target_active = false,
+                               bool smart_filter_mask_size_supported = true,
                                std::function<void(LayerId)> open_layer_styles = {},
                                std::function<void(LayerId)> open_smart_object = {}, bool clipped = false,
                                std::function<void(LayerId)> toggle_clipping = {},
                                std::function<void(LayerId, bool)> set_smart_filter_stack_enabled = {},
                                std::function<void(LayerId, std::size_t, bool)> set_smart_filter_enabled = {},
                                std::function<void(LayerId, std::size_t)> edit_smart_filter = {},
+                               std::function<void(LayerId, std::size_t)> edit_smart_filter_blending = {},
                                std::function<void(LayerId, std::size_t)> duplicate_smart_filter = {},
                                std::function<void(LayerId, std::size_t, int)> move_smart_filter = {},
                                std::function<void(LayerId, std::size_t)> delete_smart_filter = {}) {
@@ -2480,7 +2533,19 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       smart_filter_mask_thumbnail->setPixmap(mask_pixmap(smart_filters->mask));
       smart_filter_mask_thumbnail->setStyleSheet(QStringLiteral("background: transparent;"));
       smart_filter_mask_thumbnail->setToolTip(
-          controls_supported ? QObject::tr("Shared Smart Filter mask") : preservation_tooltip);
+          controls_supported && smart_filter_mask_size_supported
+              ? QObject::tr(
+                    "Shared Smart Filter mask. Click to edit it, Ctrl-click to load it as a selection, Alt-click to view it, or Shift-click to disable it.")
+              : smart_filter_mask_size_supported
+                    ? preservation_tooltip
+                    : QObject::tr(
+                          "This Smart Filter mask can only be preserved, not edited"));
+      smart_filter_mask_thumbnail->setProperty(
+          "layerTargetActive", smart_filter_mask_target_active);
+      smart_filter_mask_thumbnail->setEnabled(controls_supported &&
+                                              smart_filter_mask_size_supported &&
+                                              ancestors_visible &&
+                                              layer.visible());
       if (list_parent != nullptr) {
         smart_filter_mask_thumbnail->installEventFilter(list_parent);
       }
@@ -2627,6 +2692,26 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
             QVariant::fromValue<qulonglong>(
                 static_cast<qulonglong>(execution_index)));
       };
+
+      auto* blending_action =
+          action_menu->addAction(QObject::tr("Edit Blending Options..."));
+      configure_action(blending_action,
+                       QStringLiteral("layerSmartFilterBlendingAction"));
+      blending_action->setEnabled(controls_supported && ancestors_visible);
+      QObject::connect(
+          blending_action, &QAction::triggered, row,
+          [parent, id = layer.id(), execution_index,
+           edit_smart_filter_blending] {
+            if (edit_smart_filter_blending) {
+              QTimer::singleShot(
+                  0, parent,
+                  [id, execution_index, edit_smart_filter_blending] {
+                    edit_smart_filter_blending(id, execution_index);
+                  });
+            }
+          });
+
+      action_menu->addSeparator();
 
       auto* duplicate_action =
           action_menu->addAction(QObject::tr("Duplicate Smart Filter"));
@@ -5359,7 +5444,9 @@ QString photoshop_style() {
       color: #aeb6c2;
       font-size: 10px;
     }
-    QLabel#layerContentThumbnail[layerTargetActive="true"], QLabel#layerMaskThumbnail[layerTargetActive="true"] {
+    QLabel#layerContentThumbnail[layerTargetActive="true"],
+    QLabel#layerMaskThumbnail[layerTargetActive="true"],
+    QLabel#layerSmartFilterMaskThumbnail[layerTargetActive="true"] {
       border: 2px solid #31a8ff;
       padding: 0;
     }
@@ -11697,8 +11784,20 @@ void MainWindow::create_actions() {
   connect(layer_via_cut_action, &QAction::triggered, this, [this] { layer_via_cut(); });
   connect(add_mask_action, &QAction::triggered, this, [this] { add_layer_mask(); });
   connect(edit_layer_mask_action_, &QAction::triggered, this, [this](bool checked) {
-    set_layer_edit_target_ui(checked ? CanvasWidget::LayerEditTarget::Mask : CanvasWidget::LayerEditTarget::Content,
-                             true);
+    if (!checked) {
+      set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, true);
+      return;
+    }
+    const auto active = std::as_const(document()).active_layer_id();
+    const auto* layer = active.has_value()
+                            ? std::as_const(document()).find_layer(*active)
+                            : nullptr;
+    if (layer != nullptr && layer->mask().has_value()) {
+      set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, true);
+    } else if (active.has_value()) {
+      static_cast<void>(set_smart_filter_mask_edit_target_ui(
+          *active, CanvasWidget::MaskDisplayMode::Overlay, true));
+    }
   });
   connect(mask_overlay_action_, &QAction::triggered, this, [this](bool checked) { set_mask_overlay_shown(checked); });
   connect(view_layer_mask_action_, &QAction::triggered, this,
@@ -14032,6 +14131,20 @@ void MainWindow::create_docks() {
     const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
     if (target == LayerCtrlClickTarget::MaskThumbnail) {
       canvas_->select_layer_mask_pixels(id);
+    } else if (target == LayerCtrlClickTarget::SmartFilterMaskThumbnail) {
+      const auto* layer = std::as_const(document()).find_layer(id);
+      const auto* stack = layer != nullptr ? layer->smart_filter_stack() : nullptr;
+      const auto pixels = stack != nullptr
+                              ? materialize_smart_filter_mask(
+                                    stack->mask, document().width(),
+                                    document().height())
+                              : std::nullopt;
+      if (pixels.has_value()) {
+        canvas_->replace_selection_from_grayscale(
+            *pixels, tr("Load Smart Filter mask selection"));
+        statusBar()->showMessage(
+            tr("Loaded the Smart Filter mask as a selection"));
+      }
     } else {
       canvas_->select_layer_opaque_pixels(id);
     }
@@ -14052,9 +14165,49 @@ void MainWindow::create_docks() {
       set_active_layer_mask_disabled(!disabled);
       return;
     }
+    if (target == LayerCtrlClickTarget::SmartFilterMaskThumbnail &&
+        (modifiers & Qt::ShiftModifier) != 0) {
+      const auto* stack = std::as_const(*layer).smart_filter_stack();
+      if (stack != nullptr) {
+        document().set_active_layer(id);
+        set_smart_filter_mask_enabled(id, !stack->mask.enabled);
+      }
+      return;
+    }
     const auto was_active = document().active_layer_id().has_value() && *document().active_layer_id() == id;
     document().set_active_layer(id);
     restyle_layer_rows(layer_list_);
+    if (target == LayerCtrlClickTarget::SmartFilterMaskThumbnail) {
+      const auto editing_mask =
+          was_active && canvas_->editing_smart_filter_mask() &&
+          canvas_->smart_filter_mask_owner_id() == id;
+      if ((modifiers & Qt::AltModifier) != 0) {
+        const auto showing_mask =
+            editing_mask && canvas_->mask_display_mode() ==
+                                CanvasWidget::MaskDisplayMode::Grayscale;
+        if (!editing_mask &&
+            !set_smart_filter_mask_edit_target_ui(
+                id, CanvasWidget::MaskDisplayMode::Grayscale, false)) {
+          return;
+        }
+        canvas_->set_mask_display_mode(
+            showing_mask ? CanvasWidget::MaskDisplayMode::None
+                         : CanvasWidget::MaskDisplayMode::Grayscale);
+        refresh_layer_controls();
+        statusBar()->showMessage(
+            showing_mask
+                ? tr("Editing Smart Filter mask")
+                : tr("Showing the Smart Filter mask. Alt-click the mask thumbnail to return."));
+        return;
+      }
+      if (editing_mask) {
+        set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, true);
+      } else {
+        static_cast<void>(set_smart_filter_mask_edit_target_ui(
+            id, CanvasWidget::MaskDisplayMode::Overlay, true));
+      }
+      return;
+    }
     if (target == LayerCtrlClickTarget::MaskThumbnail && (modifiers & Qt::AltModifier) != 0) {
       const auto showing_mask =
           was_active && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask &&
@@ -14537,6 +14690,12 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       push_undo_snapshot(*target_session, std::move(label));
     }
   });
+  canvas->set_smart_filter_mask_committed_callback(
+      [this, canvas](LayerId layer_id, QString label, PixelBuffer pixels,
+                     QRegion) {
+        return commit_smart_filter_mask_edit(
+            canvas, layer_id, std::move(label), std::move(pixels));
+      });
   canvas->set_selection_history_callback(
       [this, canvas](QString label, CanvasWidget::SelectionSnapshot before, bool coalesce) {
         if (auto* target_session = session_for_canvas(canvas); target_session != nullptr) {
@@ -19704,6 +19863,48 @@ void MainWindow::set_active_layer_mask_linked(bool linked) {
   statusBar()->showMessage(linked ? tr("Layer and mask linked") : tr("Layer and mask unlinked"));
 }
 
+bool MainWindow::set_smart_filter_mask_edit_target_ui(
+    LayerId layer_id, CanvasWidget::MaskDisplayMode mode, bool announce) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return false;
+  }
+  const auto* layer = std::as_const(document()).find_layer(layer_id);
+  const auto* stack = layer != nullptr ? layer->smart_filter_stack() : nullptr;
+  if (layer == nullptr || stack == nullptr ||
+      stack->support != SmartFilterStackSupport::Supported ||
+      stack->mask.pixels.empty() ||
+      !smart_filter_mask_document_editing_supported(
+          document().width(), document().height()) ||
+      (!smart_object_lock_reason(*layer).empty() &&
+       smart_object_lock_reason(*layer) != "external")) {
+    statusBar()->showMessage(
+        tr("This Smart Filter mask can only be preserved, not edited"));
+    return false;
+  }
+  auto pixels = materialize_smart_filter_mask(
+      stack->mask, document().width(), document().height());
+  if (!pixels.has_value()) {
+    statusBar()->showMessage(tr("Could not prepare this Smart Filter mask"));
+    return false;
+  }
+  document().set_active_layer(layer_id);
+  if (!canvas_->set_smart_filter_mask_edit_target(
+          layer_id, std::move(*pixels), mode)) {
+    statusBar()->showMessage(tr("Could not edit this Smart Filter mask"));
+    return false;
+  }
+  restyle_layer_rows(layer_list_);
+  update_layer_target_styles(layer_list_, document().active_layer_id(),
+                             CanvasWidget::LayerEditTarget::SmartFilterMask);
+  refresh_layer_controls();
+  refresh_channel_panel();
+  update_document_action_state();
+  if (announce) {
+    statusBar()->showMessage(tr("Editing Smart Filter mask"));
+  }
+  return true;
+}
+
 void MainWindow::set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, bool announce) {
   if (canvas_ == nullptr) {
     return;
@@ -19715,6 +19916,9 @@ void MainWindow::set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, 
     if (layer == nullptr || !layer->mask().has_value()) {
       target = CanvasWidget::LayerEditTarget::Content;
     }
+  } else if (target == CanvasWidget::LayerEditTarget::SmartFilterMask &&
+             !canvas_->editing_smart_filter_mask()) {
+    target = CanvasWidget::LayerEditTarget::Content;
   }
   const bool leaving_document_channel = previous_target == CanvasWidget::LayerEditTarget::DocumentChannel ||
                                         previous_target == CanvasWidget::LayerEditTarget::ComponentRed ||
@@ -19732,8 +19936,12 @@ void MainWindow::set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, 
   refresh_channel_panel();
   update_document_action_state();
   if (announce) {
-    statusBar()->showMessage(target == CanvasWidget::LayerEditTarget::Mask ? tr("Editing layer mask")
-                                                                           : tr("Editing layer pixels"));
+    statusBar()->showMessage(
+        target == CanvasWidget::LayerEditTarget::Mask
+            ? tr("Editing layer mask")
+            : target == CanvasWidget::LayerEditTarget::SmartFilterMask
+                  ? tr("Editing Smart Filter mask")
+                  : tr("Editing layer pixels"));
   }
 }
 
@@ -19741,8 +19949,19 @@ void MainWindow::set_mask_overlay_shown(bool shown) {
   if (canvas_ == nullptr) {
     return;
   }
-  if (shown && canvas_->layer_edit_target() != CanvasWidget::LayerEditTarget::Mask) {
-    set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
+  const auto smart_target = canvas_->editing_smart_filter_mask();
+  if (shown && canvas_->layer_edit_target() != CanvasWidget::LayerEditTarget::Mask &&
+      !smart_target) {
+    const auto active = std::as_const(document()).active_layer_id();
+    const auto* layer = active.has_value()
+                            ? std::as_const(document()).find_layer(*active)
+                            : nullptr;
+    if (layer != nullptr && layer->mask().has_value()) {
+      set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
+    } else if (active.has_value()) {
+      static_cast<void>(set_smart_filter_mask_edit_target_ui(
+          *active, CanvasWidget::MaskDisplayMode::Overlay, false));
+    }
   }
   canvas_->set_mask_display_mode(shown ? CanvasWidget::MaskDisplayMode::Overlay
                                        : CanvasWidget::MaskDisplayMode::None);
@@ -19759,18 +19978,37 @@ void MainWindow::set_layer_mask_view_shown(bool shown) {
   }
   const auto active = document().active_layer_id();
   const auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
-  if (layer == nullptr || !std::as_const(*layer).mask().has_value()) {
+  const auto smart_target = canvas_->editing_smart_filter_mask();
+  const auto* smart_filters = layer != nullptr ? layer->smart_filter_stack() : nullptr;
+  const auto has_smart_mask = smart_filters != nullptr &&
+                              smart_filters->support ==
+                                  SmartFilterStackSupport::Supported &&
+                              !smart_filters->mask.pixels.empty();
+  if (layer == nullptr ||
+      (!std::as_const(*layer).mask().has_value() && !has_smart_mask)) {
     refresh_layer_controls();
     statusBar()->showMessage(tr("Active layer has no mask"));
     return;
   }
   if (shown) {
-    set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
+    if (!smart_target && std::as_const(*layer).mask().has_value()) {
+      set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
+    } else if (!smart_target && active.has_value() &&
+               !set_smart_filter_mask_edit_target_ui(
+                   *active, CanvasWidget::MaskDisplayMode::Grayscale,
+                   false)) {
+      return;
+    }
     canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::Grayscale);
-    statusBar()->showMessage(tr("Showing the layer mask. Alt-click the mask thumbnail to return."));
+    statusBar()->showMessage(
+        smart_target || canvas_->editing_smart_filter_mask()
+            ? tr("Showing the Smart Filter mask. Alt-click the mask thumbnail to return.")
+            : tr("Showing the layer mask. Alt-click the mask thumbnail to return."));
   } else {
     canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::None);
-    statusBar()->showMessage(tr("Editing layer mask"));
+    statusBar()->showMessage(canvas_->editing_smart_filter_mask()
+                                 ? tr("Editing Smart Filter mask")
+                                 : tr("Editing layer mask"));
   }
   refresh_layer_controls();
 }
@@ -19779,6 +20017,11 @@ void MainWindow::set_active_layer_mask_disabled(bool disabled) {
   auto& doc = document();
   const auto active = doc.active_layer_id();
   auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (canvas_ != nullptr && canvas_->editing_smart_filter_mask() &&
+      active.has_value() && canvas_->smart_filter_mask_owner_id() == active) {
+    set_smart_filter_mask_enabled(*active, !disabled);
+    return;
+  }
   if (layer == nullptr || !layer->mask().has_value()) {
     statusBar()->showMessage(tr("Active layer has no mask"));
     refresh_layer_controls();
@@ -19808,6 +20051,12 @@ void MainWindow::set_active_layer_mask_disabled(bool disabled) {
 void MainWindow::invert_active_layer_mask() {
   auto& doc = document();
   const auto active = doc.active_layer_id();
+  if (canvas_ != nullptr && canvas_->editing_smart_filter_mask() &&
+      active.has_value() && canvas_->smart_filter_mask_owner_id() == active) {
+    static_cast<void>(canvas_->invert_smart_filter_mask(
+        tr("Invert Smart Filter mask")));
+    return;
+  }
   auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || !layer->mask().has_value()) {
     statusBar()->showMessage(tr("Active layer has no mask"));
@@ -22160,6 +22409,22 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   all_lock_action->setCheckable(true);
   all_lock_action->setChecked(all_selected_have_lock(kLayerLockAll));
   auto* select_opaque_action = menu.addAction(tr("Load Layer Transparency"));
+  const auto* active_smart_filters =
+      active_layer != nullptr ? active_layer->smart_filter_stack() : nullptr;
+  const auto has_editable_smart_mask =
+      active_smart_filters != nullptr &&
+      active_smart_filters->support == SmartFilterStackSupport::Supported &&
+      !active_smart_filters->mask.pixels.empty() &&
+      smart_filter_mask_document_editing_supported(
+          document().width(), document().height());
+  const auto editing_smart_mask =
+      active_layer != nullptr && canvas_ != nullptr &&
+      canvas_->editing_smart_filter_mask() &&
+      canvas_->smart_filter_mask_owner_id() == active_layer->id();
+  const auto smart_mask_context =
+      editing_smart_mask ||
+      (active_layer != nullptr && !active_layer->mask().has_value() &&
+       has_editable_smart_mask);
   auto* mask_menu = menu.addMenu(tr("Layer Mask"));
   mask_menu->setObjectName(QStringLiteral("layerContextMaskMenu"));
   auto* add_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)),
@@ -22167,20 +22432,27 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   auto* edit_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(150, 205, 255)),
                                                 tr("Edit Layer Mask"));
   edit_mask_action->setCheckable(true);
-  edit_mask_action->setChecked(active_layer != nullptr && active_layer->mask().has_value() && canvas_ != nullptr &&
-                               canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask);
+  edit_mask_action->setChecked(
+      canvas_ != nullptr &&
+      ((active_layer != nullptr && active_layer->mask().has_value() &&
+        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask) ||
+       editing_smart_mask));
   auto* overlay_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(255, 120, 120)),
                                                    tr("Show Mask Overlay"));
   overlay_mask_action->setCheckable(true);
-  overlay_mask_action->setChecked(canvas_ != nullptr &&
-                                  canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask &&
-                                  canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay);
+  overlay_mask_action->setChecked(
+      canvas_ != nullptr &&
+      (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask ||
+       editing_smart_mask) &&
+      canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay);
   auto* view_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(235, 235, 235)),
                                                 tr("View Layer Mask"));
   view_mask_action->setCheckable(true);
-  view_mask_action->setChecked(canvas_ != nullptr &&
-                               canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask &&
-                               canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale);
+  view_mask_action->setChecked(
+      canvas_ != nullptr &&
+      (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask ||
+       editing_smart_mask) &&
+      canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale);
   mask_menu->addSeparator();
   auto* link_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)),
                                                 tr("Link Layer Mask"));
@@ -22189,8 +22461,11 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   auto* disable_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("off"), QColor(220, 185, 120)),
                                                    tr("Disable Layer Mask"));
   disable_mask_action->setCheckable(true);
-  disable_mask_action->setChecked(active_layer != nullptr && active_layer->mask().has_value() &&
-                                  active_layer->mask()->disabled);
+  disable_mask_action->setChecked(
+      smart_mask_context ? !active_smart_filters->mask.enabled
+                         : active_layer != nullptr &&
+                               active_layer->mask().has_value() &&
+                               active_layer->mask()->disabled);
   auto* invert_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("inv"), QColor(210, 220, 230)),
                                                   tr("Invert Layer Mask"));
   mask_menu->addSeparator();
@@ -22212,13 +22487,23 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                                active_layer->kind() == LayerKind::Adjustment) &&
                               canvas_ != nullptr &&
                               (canvas_->has_selection() || !active_layer->mask().has_value()));
-  edit_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
-  overlay_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
-  view_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
+  edit_mask_action->setEnabled(
+      active_layer != nullptr &&
+      (active_layer->mask().has_value() || has_editable_smart_mask));
+  overlay_mask_action->setEnabled(
+      active_layer != nullptr &&
+      (active_layer->mask().has_value() || has_editable_smart_mask));
+  view_mask_action->setEnabled(
+      active_layer != nullptr &&
+      (active_layer->mask().has_value() || has_editable_smart_mask));
   delete_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
   link_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
-  disable_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
-  invert_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
+  disable_mask_action->setEnabled(
+      active_layer != nullptr && !active_pixels_locked &&
+      (active_layer->mask().has_value() || has_editable_smart_mask));
+  invert_mask_action->setEnabled(
+      active_layer != nullptr && !active_pixels_locked &&
+      (active_layer->mask().has_value() || has_editable_smart_mask));
   apply_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value() &&
                                 active_layer->kind() == LayerKind::Pixel);
 
@@ -22266,9 +22551,14 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   } else if (chosen == add_mask_action) {
     add_layer_mask();
   } else if (chosen == edit_mask_action) {
-    set_layer_edit_target_ui(edit_mask_action->isChecked() ? CanvasWidget::LayerEditTarget::Mask
-                                                           : CanvasWidget::LayerEditTarget::Content,
-                             true);
+    if (!edit_mask_action->isChecked()) {
+      set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, true);
+    } else if (smart_mask_context && active_layer != nullptr) {
+      static_cast<void>(set_smart_filter_mask_edit_target_ui(
+          active_layer->id(), CanvasWidget::MaskDisplayMode::Overlay, true));
+    } else {
+      set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, true);
+    }
   } else if (chosen == overlay_mask_action) {
     set_mask_overlay_shown(overlay_mask_action->isChecked());
   } else if (chosen == view_mask_action) {
@@ -22278,8 +22568,19 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   } else if (chosen == link_mask_action) {
     set_active_layer_mask_linked(link_mask_action->isChecked());
   } else if (chosen == disable_mask_action) {
-    set_active_layer_mask_disabled(disable_mask_action->isChecked());
+    if (smart_mask_context && active_layer != nullptr) {
+      set_smart_filter_mask_enabled(active_layer->id(),
+                                    !disable_mask_action->isChecked());
+    } else {
+      set_active_layer_mask_disabled(disable_mask_action->isChecked());
+    }
   } else if (chosen == invert_mask_action) {
+    if (smart_mask_context && active_layer != nullptr &&
+        (!canvas_->editing_smart_filter_mask() ||
+         canvas_->smart_filter_mask_owner_id() != active_layer->id())) {
+      static_cast<void>(set_smart_filter_mask_edit_target_ui(
+          active_layer->id(), CanvasWidget::MaskDisplayMode::Overlay, false));
+    }
     invert_active_layer_mask();
   } else if (chosen == apply_mask_action) {
     apply_active_layer_mask();
@@ -22488,6 +22789,14 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
     (void)canvas_->fill_quick_mask(color, std::move(label));
     return;
   }
+  if (canvas_ != nullptr && canvas_->editing_smart_filter_mask()) {
+    const auto dirty =
+        canvas_->fill_smart_filter_mask(color, std::move(label));
+    if (!dirty.isEmpty()) {
+      statusBar()->showMessage(tr("Filled Smart Filter mask"));
+    }
+    return;
+  }
   const auto edit_target = canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
   const bool document_channel = edit_target == CanvasWidget::LayerEditTarget::DocumentChannel;
   const bool component_channel = edit_target == CanvasWidget::LayerEditTarget::ComponentRed ||
@@ -22592,6 +22901,14 @@ void MainWindow::clear_active_layer() {
       }
     });
     (void)canvas_->fill_quick_mask(Qt::black, tr("Clear Quick Mask"));
+    return;
+  }
+  if (canvas_ != nullptr && canvas_->editing_smart_filter_mask()) {
+    const auto dirty = canvas_->fill_smart_filter_mask(
+        Qt::black, tr("Clear Smart Filter mask"));
+    if (!dirty.isEmpty()) {
+      statusBar()->showMessage(tr("Cleared Smart Filter mask"));
+    }
     return;
   }
   const auto edit_target = canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
@@ -23755,6 +24072,9 @@ void MainWindow::undo() {
   if (active_session.undo_stack.empty()) {
     return;
   }
+  const auto restore_smart_filter_mask_owner =
+      canvas_->smart_filter_mask_owner_id();
+  const auto restore_smart_filter_mask_mode = canvas_->mask_display_mode();
   // Braced-init evaluation is left to right, so the document moves out before
   // revision/selection are read; both history hops are moves (a copy here is a
   // full multi-hundred-MB Document duplication on large canvases).
@@ -23769,6 +24089,25 @@ void MainWindow::undo() {
       history_restore_changed_region(active_session.redo_stack.back().document, active_session.document);
   const bool normal_composite_unchanged = changed_region.has_value() && changed_region->isEmpty();
   canvas_->set_document_for_history_restore(&active_session.document, normal_composite_unchanged);
+  if (restore_smart_filter_mask_owner.has_value()) {
+    const auto* restored_layer = std::as_const(active_session.document)
+                                     .find_layer(*restore_smart_filter_mask_owner);
+    const auto* restored_stack = restored_layer != nullptr
+                                     ? restored_layer->smart_filter_stack()
+                                     : nullptr;
+    auto restored_pixels =
+        restored_stack != nullptr &&
+                restored_stack->support == SmartFilterStackSupport::Supported
+            ? materialize_smart_filter_mask(
+                  restored_stack->mask, active_session.document.width(),
+                  active_session.document.height())
+            : std::nullopt;
+    if (restored_pixels.has_value()) {
+      static_cast<void>(canvas_->set_smart_filter_mask_edit_target(
+          *restore_smart_filter_mask_owner, std::move(*restored_pixels),
+          restore_smart_filter_mask_mode));
+    }
+  }
   canvas_->apply_selection_snapshot(restored_selection);
   refresh_layer_list();
   refresh_layer_controls();
@@ -23789,6 +24128,9 @@ void MainWindow::redo() {
   if (active_session.redo_stack.empty()) {
     return;
   }
+  const auto restore_smart_filter_mask_owner =
+      canvas_->smart_filter_mask_owner_id();
+  const auto restore_smart_filter_mask_mode = canvas_->mask_display_mode();
   active_session.undo_stack.push_back(DocumentSession::HistoryState{
       std::move(active_session.document), active_session.revision, canvas_->capture_selection_snapshot()});
   active_session.document = std::move(active_session.redo_stack.back().document);
@@ -23800,6 +24142,25 @@ void MainWindow::redo() {
       history_restore_changed_region(active_session.undo_stack.back().document, active_session.document);
   const bool normal_composite_unchanged = changed_region.has_value() && changed_region->isEmpty();
   canvas_->set_document_for_history_restore(&active_session.document, normal_composite_unchanged);
+  if (restore_smart_filter_mask_owner.has_value()) {
+    const auto* restored_layer = std::as_const(active_session.document)
+                                     .find_layer(*restore_smart_filter_mask_owner);
+    const auto* restored_stack = restored_layer != nullptr
+                                     ? restored_layer->smart_filter_stack()
+                                     : nullptr;
+    auto restored_pixels =
+        restored_stack != nullptr &&
+                restored_stack->support == SmartFilterStackSupport::Supported
+            ? materialize_smart_filter_mask(
+                  restored_stack->mask, active_session.document.width(),
+                  active_session.document.height())
+            : std::nullopt;
+    if (restored_pixels.has_value()) {
+      static_cast<void>(canvas_->set_smart_filter_mask_edit_target(
+          *restore_smart_filter_mask_owner, std::move(*restored_pixels),
+          restore_smart_filter_mask_mode));
+    }
+  }
   canvas_->apply_selection_snapshot(restored_selection);
   refresh_layer_list();
   refresh_layer_controls();
@@ -24000,6 +24361,10 @@ void MainWindow::refresh_layer_list() {
                                           edit_target == CanvasWidget::LayerEditTarget::Content,
                                       active.has_value() && *active == it->id() &&
                                           edit_target == CanvasWidget::LayerEditTarget::Mask,
+                                      active.has_value() && *active == it->id() &&
+                                          edit_target == CanvasWidget::LayerEditTarget::SmartFilterMask,
+                                      smart_filter_mask_document_editing_supported(
+                                          document().width(), document().height()),
                                       [this](LayerId layer_id) {
         if (!has_active_document()) {
           return;
@@ -24045,6 +24410,9 @@ void MainWindow::refresh_layer_list() {
       },
                                       [this](LayerId layer_id, std::size_t execution_index) {
         edit_smart_filter(layer_id, execution_index);
+      },
+                                      [this](LayerId layer_id, std::size_t execution_index) {
+        edit_smart_filter_blending(layer_id, execution_index);
       },
                                       [this](LayerId layer_id, std::size_t execution_index) {
         duplicate_smart_filter(layer_id, execution_index);
@@ -24319,11 +24687,35 @@ void MainWindow::refresh_layer_controls() {
     link_layer_mask_action_->setChecked(layer_mask_linked(*layer));
   }
   if (disable_layer_mask_action_ != nullptr) {
-    disable_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value());
-    disable_layer_mask_action_->setChecked(layer->mask().has_value() && layer->mask()->disabled);
+    const auto* smart_filters = std::as_const(*layer).smart_filter_stack();
+    const auto has_editable_smart_mask =
+        smart_filters != nullptr &&
+        smart_filters->support == SmartFilterStackSupport::Supported &&
+        !smart_filters->mask.pixels.empty() &&
+        smart_filter_mask_document_editing_supported(
+            document().width(), document().height());
+    const auto editing_smart_mask =
+        canvas_ != nullptr && canvas_->editing_smart_filter_mask() &&
+        canvas_->smart_filter_mask_owner_id() == layer->id();
+    disable_layer_mask_action_->setEnabled(
+        edit_allowed && !active_pixels_locked &&
+        (layer->mask().has_value() || has_editable_smart_mask));
+    disable_layer_mask_action_->setChecked(
+        editing_smart_mask ? !smart_filters->mask.enabled
+                           : layer->mask().has_value() &&
+                                 layer->mask()->disabled);
   }
   if (invert_layer_mask_action_ != nullptr) {
-    invert_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value());
+    const auto* smart_filters = std::as_const(*layer).smart_filter_stack();
+    const auto has_editable_smart_mask =
+        smart_filters != nullptr &&
+        smart_filters->support == SmartFilterStackSupport::Supported &&
+        !smart_filters->mask.pixels.empty() &&
+        smart_filter_mask_document_editing_supported(
+            document().width(), document().height());
+    invert_layer_mask_action_->setEnabled(
+        edit_allowed && !active_pixels_locked &&
+        (layer->mask().has_value() || has_editable_smart_mask));
   }
   if (apply_layer_mask_action_ != nullptr) {
     apply_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value() && layer->kind() == LayerKind::Pixel);
@@ -24340,19 +24732,59 @@ void MainWindow::refresh_layer_controls() {
       canvas_->mask_display_mode() != CanvasWidget::MaskDisplayMode::None) {
     canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::None);
   }
-  const auto editing_mask = canvas_ != nullptr && layer->mask().has_value() &&
-                            canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask;
+  if (canvas_ != nullptr && canvas_->editing_smart_filter_mask()) {
+    const auto owner = canvas_->smart_filter_mask_owner_id();
+    const auto* owner_layer = owner.has_value()
+                                  ? std::as_const(document()).find_layer(*owner)
+                                  : nullptr;
+    const auto* owner_stack = owner_layer != nullptr
+                                  ? owner_layer->smart_filter_stack()
+                                  : nullptr;
+    const auto pixels = owner_stack != nullptr &&
+                                owner_stack->support ==
+                                    SmartFilterStackSupport::Supported
+                            ? materialize_smart_filter_mask(
+                                  owner_stack->mask, document().width(),
+                                  document().height())
+                            : std::nullopt;
+    if (!owner.has_value() || !pixels.has_value() ||
+        active != owner) {
+      canvas_->clear_smart_filter_mask_edit_target();
+      update_layer_target_styles(layer_list_, active,
+                                 CanvasWidget::LayerEditTarget::Content);
+    } else {
+      static_cast<void>(canvas_->resync_smart_filter_mask_edit_target(
+          *owner, std::move(*pixels)));
+    }
+  }
+  const auto editing_layer_mask =
+      canvas_ != nullptr && layer->mask().has_value() &&
+      canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask;
+  const auto* smart_filters = std::as_const(*layer).smart_filter_stack();
+  const auto has_editable_smart_mask =
+      smart_filters != nullptr &&
+      smart_filters->support == SmartFilterStackSupport::Supported &&
+      !smart_filters->mask.pixels.empty() &&
+      smart_filter_mask_document_editing_supported(
+          document().width(), document().height());
+  const auto editing_smart_mask =
+      canvas_ != nullptr && canvas_->editing_smart_filter_mask() &&
+      canvas_->smart_filter_mask_owner_id() == layer->id();
+  const auto editing_mask = editing_layer_mask || editing_smart_mask;
   if (edit_layer_mask_action_ != nullptr) {
-    edit_layer_mask_action_->setEnabled(edit_allowed && layer->mask().has_value());
+    edit_layer_mask_action_->setEnabled(
+        edit_allowed && (layer->mask().has_value() || has_editable_smart_mask));
     edit_layer_mask_action_->setChecked(editing_mask);
   }
   if (mask_overlay_action_ != nullptr) {
-    mask_overlay_action_->setEnabled(layer->mask().has_value());
+    mask_overlay_action_->setEnabled(layer->mask().has_value() ||
+                                     has_editable_smart_mask);
     mask_overlay_action_->setChecked(canvas_ != nullptr && editing_mask &&
                                      canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay);
   }
   if (view_layer_mask_action_ != nullptr) {
-    view_layer_mask_action_->setEnabled(layer->mask().has_value());
+    view_layer_mask_action_->setEnabled(layer->mask().has_value() ||
+                                        has_editable_smart_mask);
     view_layer_mask_action_->setChecked(canvas_ != nullptr && editing_mask &&
                                         canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale);
   }
@@ -26607,14 +27039,16 @@ void MainWindow::update_document_action_state() {
   }
   const bool quick_mask_view =
       canvas_ != nullptr && canvas_->quick_mask_active();
+  const bool smart_filter_mask_view =
+      canvas_ != nullptr && canvas_->editing_smart_filter_mask();
   const bool channel_view = canvas_ != nullptr &&
-                            (quick_mask_view ||
+                            (quick_mask_view || smart_filter_mask_view ||
                              canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
                              canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
                              canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentGreen ||
                              canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentBlue);
   const bool writable_channel =
-      quick_mask_view ||
+      quick_mask_view || smart_filter_mask_view ||
       (channel_view && canvas_->document_channel_is_editable());
   const auto set_command_enabled = [this, has_document, locked](const QString& id, bool enabled) {
     if (const auto* command = hotkey_registry_.find_command(id); command != nullptr && command->action != nullptr) {
@@ -26650,9 +27084,9 @@ void MainWindow::update_document_action_state() {
                            QStringLiteral("tools.ellipse"), QStringLiteral("tools.fill")}) {
       set_command_enabled(id, writable_channel);
     }
-    if (quick_mask_view) {
+    if (quick_mask_view || smart_filter_mask_view) {
       for (auto* action : document_actions_) {
-        if (action != nullptr &&
+        if (action != nullptr && quick_mask_view &&
             action->property("patchy.quickMaskBlocked").toBool()) {
           action->setEnabled(false);
         }

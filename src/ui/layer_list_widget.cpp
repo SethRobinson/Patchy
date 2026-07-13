@@ -527,7 +527,8 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       if (auto* item = itemAt(viewport_pos); item != nullptr) {
         if (const auto target = ctrl_click_target(item, viewport_pos);
-            target.has_value() && *target == LayerCtrlClickTarget::MaskThumbnail && thumbnail_click_callback_) {
+            target.has_value() && *target != LayerCtrlClickTarget::ContentThumbnail &&
+            thumbnail_click_callback_) {
           thumbnail_click_callback_(item, *target, mouse_event->modifiers());
           event->accept();
           return true;
@@ -671,7 +672,8 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     } else if (mouse_event->button() == Qt::LeftButton && (mouse_event->modifiers() & Qt::ShiftModifier) != 0) {
       if (auto* item = itemAt(mouse_event->pos()); item != nullptr) {
         if (const auto target = ctrl_click_target(item, mouse_event->pos());
-            target.has_value() && *target == LayerCtrlClickTarget::MaskThumbnail && thumbnail_click_callback_) {
+            target.has_value() && *target != LayerCtrlClickTarget::ContentThumbnail &&
+            thumbnail_click_callback_) {
           thumbnail_click_callback_(item, *target, mouse_event->modifiers());
           event->accept();
           return true;
@@ -733,14 +735,23 @@ std::optional<LayerCtrlClickTarget> LayerListWidget::ctrl_click_target(QListWidg
   if (row == nullptr) {
     return std::nullopt;
   }
-  const auto row_pos = row->mapFrom(viewport(), viewport_pos);
+  const auto global_pos = viewport()->mapToGlobal(viewport_pos);
+  const auto contains_global_point = [global_pos](const QWidget* widget) {
+    return widget != nullptr && widget->isVisible() &&
+           widget->rect().contains(widget->mapFromGlobal(global_pos));
+  };
   if (auto* content_thumbnail = row->findChild<QWidget*>(QStringLiteral("layerContentThumbnail"));
-      content_thumbnail != nullptr && content_thumbnail->geometry().contains(row_pos)) {
+      contains_global_point(content_thumbnail)) {
     return LayerCtrlClickTarget::ContentThumbnail;
   }
   if (auto* mask_thumbnail = row->findChild<QWidget*>(QStringLiteral("layerMaskThumbnail"));
-      mask_thumbnail != nullptr && mask_thumbnail->geometry().contains(row_pos)) {
+      contains_global_point(mask_thumbnail)) {
     return LayerCtrlClickTarget::MaskThumbnail;
+  }
+  if (auto* smart_filter_mask_thumbnail =
+          row->findChild<QWidget*>(QStringLiteral("layerSmartFilterMaskThumbnail"));
+      contains_global_point(smart_filter_mask_thumbnail)) {
+    return LayerCtrlClickTarget::SmartFilterMaskThumbnail;
   }
   return std::nullopt;
 }

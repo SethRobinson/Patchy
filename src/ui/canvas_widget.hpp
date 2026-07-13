@@ -155,7 +155,11 @@ public:
     DocumentChannel,
     ComponentRed,
     ComponentGreen,
-    ComponentBlue
+    ComponentBlue,
+    // Temporary, full-document grayscale buffer owned by the canvas while a
+    // native Smart Filter mask is being edited. The document model is updated
+    // only through smart_filter_mask_committed_callback_.
+    SmartFilterMask
   };
 
   enum class MaskDisplayMode {
@@ -476,6 +480,22 @@ public:
   [[nodiscard]] const PixelBuffer& quick_mask_pixels() const noexcept;
   [[nodiscard]] std::uint64_t quick_mask_revision() const noexcept;
   [[nodiscard]] QRect fill_quick_mask(QColor color, QString history_label);
+  // Smart Filter masks are edited in a canvas-owned gray8 buffer so a brush
+  // gesture can update the overlay without regenerating the native filter
+  // stack for every dab. `set` enters the target, `resync` replaces it after
+  // undo/model changes without emitting a commit, and `clear` safely exits.
+  [[nodiscard]] bool set_smart_filter_mask_edit_target(
+      LayerId owner_id, PixelBuffer pixels, MaskDisplayMode mode = MaskDisplayMode::Overlay);
+  [[nodiscard]] bool resync_smart_filter_mask_edit_target(LayerId owner_id, PixelBuffer pixels);
+  void clear_smart_filter_mask_edit_target();
+  [[nodiscard]] bool editing_smart_filter_mask() const noexcept;
+  [[nodiscard]] std::optional<LayerId> smart_filter_mask_owner_id() const noexcept;
+  [[nodiscard]] const PixelBuffer& smart_filter_mask_pixels() const noexcept;
+  [[nodiscard]] std::uint64_t smart_filter_mask_revision() const noexcept;
+  [[nodiscard]] QRect fill_smart_filter_mask(QColor color, QString history_label);
+  [[nodiscard]] QRect invert_smart_filter_mask(QString history_label);
+  void finish_smart_filter_mask_edit();
+  void cancel_smart_filter_mask_edit();
   void set_selection_edges_visible(bool visible) noexcept;
   [[nodiscard]] bool selection_edges_visible() const noexcept;
   void toggle_selection_edges_visible();
@@ -538,6 +558,10 @@ public:
   // state, so a run of moves is one undo step.
   void set_selection_history_callback(std::function<void(QString, SelectionSnapshot, bool coalesce)> callback);
   void set_quick_mask_changed_callback(std::function<void()> callback);
+  // Receives one completed gesture/command. PixelBuffer copies are COW, so the
+  // host may retain the result while rebuilding FEid and the filtered preview.
+  void set_smart_filter_mask_committed_callback(
+      std::function<bool(LayerId, QString, PixelBuffer, QRegion)> callback);
   // Invoked when the effective combine mode changes (tool switch, mode button,
   // or live Shift/Alt) so the Options-bar mode buttons can follow.
   void set_selection_mode_changed_callback(std::function<void(SelectionMode)> callback);
@@ -726,6 +750,7 @@ private:
   [[nodiscard]] Layer* active_pixel_layer() const noexcept;
   [[nodiscard]] LayerMask* active_layer_mask() const noexcept;
   [[nodiscard]] bool editing_layer_mask() const noexcept;
+  [[nodiscard]] bool smart_filter_mask_pixels_are_valid(const PixelBuffer& pixels) const noexcept;
   [[nodiscard]] DocumentChannel* active_document_channel() const noexcept;
   [[nodiscard]] const DocumentChannel* active_document_channel_const() const noexcept;
   struct GrayscaleEditTarget {
@@ -1183,6 +1208,12 @@ private:
   std::optional<SelectionSnapshot> quick_mask_edit_before_;
   QString quick_mask_edit_label_;
   QRegion quick_mask_edit_dirty_;
+  PixelBuffer smart_filter_mask_pixels_;
+  LayerId smart_filter_mask_owner_id_{0};
+  std::uint64_t smart_filter_mask_revision_{0};
+  std::optional<PixelBuffer> smart_filter_mask_edit_before_;
+  QString smart_filter_mask_edit_label_;
+  QRegion smart_filter_mask_edit_dirty_;
   bool rulers_visible_{false};
   bool grid_visible_{false};
   bool guides_visible_{true};
@@ -1319,6 +1350,7 @@ private:
   std::function<void(QString)> before_edit_callback_;
   std::function<void(QString, SelectionSnapshot, bool)> selection_history_callback_;
   std::function<void()> quick_mask_changed_callback_;
+  std::function<bool(LayerId, QString, PixelBuffer, QRegion)> smart_filter_mask_committed_callback_;
   std::function<void(SelectionMode)> selection_mode_changed_callback_;
   std::function<void(QColor)> color_picked_callback_;
   std::function<void(const CanvasReadGesture&)> transient_read_callback_;

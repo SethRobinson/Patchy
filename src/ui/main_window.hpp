@@ -431,14 +431,31 @@ private:
       LayerId layer_id,
       std::optional<std::size_t> execution_index = std::nullopt);
   void edit_smart_filter(LayerId layer_id, std::size_t execution_index);
+  void edit_smart_filter_blending(LayerId layer_id,
+                                  std::size_t execution_index);
   void set_smart_filter_stack_enabled(LayerId layer_id, bool enabled);
   void set_smart_filter_enabled(LayerId layer_id, std::size_t execution_index,
                                 bool enabled);
+  void set_smart_filter_mask_enabled(LayerId layer_id, bool enabled);
+  enum class SmartFilterCacheEdit {
+    Preserve,
+    Rebuild,
+    ReplaceMask
+  };
   bool commit_smart_filter_stack_edit(
       LayerId layer_id, std::optional<SmartFilterStack> candidate,
       std::vector<std::optional<std::size_t>> entry_sources,
       const QString& undo_text, const QString& status_text,
-      bool rebuild_native_cache = false);
+      SmartFilterCacheEdit cache_edit = SmartFilterCacheEdit::Preserve);
+  bool commit_smart_filter_stack_edit(
+      DocumentSession& target_session, CanvasWidget* target_canvas,
+      LayerId layer_id, std::optional<SmartFilterStack> candidate,
+      std::vector<std::optional<std::size_t>> entry_sources,
+      const QString& undo_text, const QString& status_text,
+      SmartFilterCacheEdit cache_edit);
+  [[nodiscard]] bool commit_smart_filter_mask_edit(
+      CanvasWidget* source_canvas, LayerId layer_id, QString undo_text,
+      PixelBuffer pixels);
   void duplicate_smart_filter(LayerId layer_id,
                               std::size_t execution_index);
   void move_smart_filter(LayerId layer_id, std::size_t execution_index,
@@ -476,6 +493,8 @@ private:
   void delete_active_layer_mask();
   void set_active_layer_mask_linked(bool linked);
   void set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, bool announce);
+  [[nodiscard]] bool set_smart_filter_mask_edit_target_ui(
+      LayerId layer_id, CanvasWidget::MaskDisplayMode mode, bool announce);
   void set_channel_edit_target(ChannelPanel::RowKind kind, ChannelId id, bool overlay, bool announce = true);
   void set_mask_overlay_shown(bool shown);
   void set_active_layer_mask_disabled(bool disabled);

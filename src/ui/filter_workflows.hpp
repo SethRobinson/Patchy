@@ -105,6 +105,11 @@ struct FilterPreviewSettings {
   FilterInvocation invocation;
 };
 
+struct SmartFilterBlendingSettings {
+  BlendMode blend_mode{BlendMode::Normal};
+  double opacity{1.0};
+};
+
 using FilterProgress = ::patchy::FilterProgress;
 using FilterCancelled = ::patchy::FilterCancelled;
 
@@ -117,6 +122,9 @@ using FilterCancelled = ::patchy::FilterCancelled;
 [[nodiscard]] std::optional<FilterInvocation> request_filter_settings(
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed,
     FilterInvocation initial = {});
+[[nodiscard]] std::optional<SmartFilterBlendingSettings> request_smart_filter_blending_settings(
+    QWidget* parent, std::function<void(bool, const SmartFilterBlendingSettings&)> preview_changed = {},
+    SmartFilterBlendingSettings initial = {});
 [[nodiscard]] std::optional<LevelsSettings> request_levels_settings(
     QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {},
     LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr);

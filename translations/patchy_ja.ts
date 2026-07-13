@@ -5867,6 +5867,14 @@ Mixed selection</source>
         <source>Could not rebuild the Smart Filter preview and cache</source>
         <translation>スマートフィルターのプレビューとキャッシュを再構築できませんでした</translation>
     </message>
+    <message>
+        <source>This tool is unavailable while editing a Smart Filter mask</source>
+        <translation>スマートフィルターマスクの編集中はこのツールを使用できません</translation>
+    </message>
+    <message>
+        <source>The Smart Filter mask is no longer available</source>
+        <translation>スマートフィルターマスクは利用できなくなりました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -11528,6 +11536,98 @@ Clipped to the layer below</source>
         <translation>スマートフィルター付きスマートオブジェクトは、まだ別のスマートオブジェクト内にまとめられません</translation>
     </message>
     <message>
+        <source>Load Smart Filter mask selection</source>
+        <translation>スマートフィルターマスクの選択範囲を読み込み</translation>
+    </message>
+    <message>
+        <source>Loaded the Smart Filter mask as a selection</source>
+        <translation>スマートフィルターマスクを選択範囲として読み込みました</translation>
+    </message>
+    <message>
+        <source>Editing Smart Filter mask</source>
+        <translation>スマートフィルターマスクを編集中</translation>
+    </message>
+    <message>
+        <source>Showing the Smart Filter mask. Alt-click the mask thumbnail to return.</source>
+        <translation>スマートフィルターマスクを表示中です。マスクサムネイルを Alt+クリックすると戻ります。</translation>
+    </message>
+    <message>
+        <source>This Smart Filter mask can only be preserved, not edited</source>
+        <translation>このスマートフィルターマスクは保持のみ可能で、編集できません</translation>
+    </message>
+    <message>
+        <source>Could not prepare this Smart Filter mask</source>
+        <translation>このスマートフィルターマスクを編集用に準備できませんでした</translation>
+    </message>
+    <message>
+        <source>Could not edit this Smart Filter mask</source>
+        <translation>このスマートフィルターマスクを編集できませんでした</translation>
+    </message>
+    <message>
+        <source>Invert Smart Filter mask</source>
+        <translation>スマートフィルターマスクを反転</translation>
+    </message>
+    <message>
+        <source>Filled Smart Filter mask</source>
+        <translation>スマートフィルターマスクを塗りつぶしました</translation>
+    </message>
+    <message>
+        <source>Clear Smart Filter mask</source>
+        <translation>スマートフィルターマスクを消去</translation>
+    </message>
+    <message>
+        <source>Cleared Smart Filter mask</source>
+        <translation>スマートフィルターマスクを消去しました</translation>
+    </message>
+    <message>
+        <source>Cancelled Smart Filter blending options</source>
+        <translation>スマートフィルターの描画オプションをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Smart Filter blending options unchanged</source>
+        <translation>スマートフィルターの描画オプションは変更されていません</translation>
+    </message>
+    <message>
+        <source>Edit Smart Filter Blending Options</source>
+        <translation>スマートフィルターの描画オプションを編集</translation>
+    </message>
+    <message>
+        <source>Updated Smart Filter blending options</source>
+        <translation>スマートフィルターの描画オプションを更新しました</translation>
+    </message>
+    <message>
+        <source>Enable Smart Filter Mask</source>
+        <translation>スマートフィルターマスクを有効化</translation>
+    </message>
+    <message>
+        <source>Disable Smart Filter Mask</source>
+        <translation>スマートフィルターマスクを無効化</translation>
+    </message>
+    <message>
+        <source>Smart Filter mask enabled</source>
+        <translation>スマートフィルターマスクを有効にしました</translation>
+    </message>
+    <message>
+        <source>Smart Filter mask disabled</source>
+        <translation>スマートフィルターマスクを無効にしました</translation>
+    </message>
+    <message>
+        <source>Updated Smart Filter mask</source>
+        <translation>スマートフィルターマスクを更新しました</translation>
+    </message>
+    <message>
+        <source>This Smart Filter mask cannot be edited safely</source>
+        <translation>このスマートフィルターマスクは安全に編集できません</translation>
+    </message>
+    <message>
+        <source>Editing Smart Filter mask (click to exit)</source>
+        <translation>スマートフィルターマスクを編集中（クリックして終了）</translation>
+    </message>
+    <message>
+        <source>Paint tools are editing the shared Smart Filter mask. Click to edit the layer pixels again.</source>
+        <translation>ペイントツールは共有スマートフィルターマスクを編集しています。クリックするとレイヤーピクセルの編集に戻ります。</translation>
+    </message>
+    <message>
         <source>Rasterize Smart Objects before changing document geometry</source>
         <translation>ドキュメントの形状を変更する前に、スマートオブジェクトをラスタライズしてください</translation>
     </message>
@@ -12131,6 +12231,12 @@ Clipped to the layer below</source>
     <message><source>Unsupported Smart Filter</source><translation>未対応のスマートフィルター</translation></message>
     <message><source>Edit Smart Filter</source><translation>スマートフィルターを編集</translation></message>
     <message><source>Smart Filter actions</source><translation>スマートフィルターの操作</translation></message>
+    <message><source>Shared Smart Filter mask. Click to edit it, Ctrl-click to load it as a selection, Alt-click to view it, or Shift-click to disable it.</source><translation>共有スマートフィルターマスク。クリックで編集、Ctrl+クリックで選択範囲として読み込み、Alt+クリックで表示、Shift+クリックで無効にします。</translation></message>
+    <message><source>Edit Blending Options...</source><translation>描画オプションを編集...</translation></message>
+    <message><source>Smart Filter Blending Options</source><translation>スマートフィルターの描画オプション</translation></message>
+    <message><source>Mode:</source><translation>描画モード:</translation></message>
+    <message><source>Opacity:</source><translation>不透明度:</translation></message>
+    <message><source>%</source><translation>%</translation></message>
     <message><source>Duplicate Smart Filter</source><translation>スマートフィルターを複製</translation></message>
     <message><source>Move Smart Filter up</source><translation>スマートフィルターを上へ移動</translation></message>
     <message><source>Move Smart Filter down</source><translation>スマートフィルターを下へ移動</translation></message>

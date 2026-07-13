@@ -596,12 +596,28 @@ bool MainWindow::commit_smart_filter_stack_edit(
     LayerId layer_id, std::optional<SmartFilterStack> candidate,
     std::vector<std::optional<std::size_t>> entry_sources,
     const QString& undo_text, const QString& status_text,
-    bool rebuild_native_cache) {
-  if (!has_active_document() || canvas_ == nullptr ||
-      layer_id_locks_image_pixels(layer_id)) {
+    SmartFilterCacheEdit cache_edit) {
+  if (!has_active_document() || canvas_ == nullptr) {
     return false;
   }
-  auto& doc = document();
+  return commit_smart_filter_stack_edit(
+      session(), canvas_, layer_id, std::move(candidate),
+      std::move(entry_sources), undo_text, status_text, cache_edit);
+}
+
+bool MainWindow::commit_smart_filter_stack_edit(
+    DocumentSession& target_session, CanvasWidget* target_canvas,
+    LayerId layer_id, std::optional<SmartFilterStack> candidate,
+    std::vector<std::optional<std::size_t>> entry_sources,
+    const QString& undo_text, const QString& status_text,
+    SmartFilterCacheEdit cache_edit) {
+  if (target_canvas == nullptr ||
+      (patchy::layer_effective_lock_flags(target_session.document.layers(),
+                                          layer_id) &
+       kLayerLockImagePixels) != kLayerLockNone) {
+    return false;
+  }
+  auto& doc = target_session.document;
   auto* layer = doc.find_layer(layer_id);
   if (layer == nullptr || !layer_is_smart_object(*layer)) {
     return false;
@@ -622,14 +638,15 @@ bool MainWindow::commit_smart_filter_stack_edit(
   }
 
   const auto parent_document_dir =
-      session().path.isEmpty() ? QString()
-                               : QFileInfo(session().path).absolutePath();
+      target_session.path.isEmpty()
+          ? QString()
+          : QFileInfo(target_session.path).absolutePath();
   std::optional<SmartObjectLayerPreview> preview;
   std::optional<FilterRenderResult> unfiltered_only;
   if (candidate.has_value()) {
     preview = render_smart_object_layer_preview(
         std::as_const(doc), std::as_const(*layer),
-        canvas_->transform_interpolation(), &*candidate,
+        target_canvas->transform_interpolation(), &*candidate,
         parent_document_dir);
     if (!preview.has_value()) {
       return false;
@@ -637,7 +654,7 @@ bool MainWindow::commit_smart_filter_stack_edit(
   } else {
     unfiltered_only = render_smart_object_unfiltered_layer_preview(
         std::as_const(doc), std::as_const(*layer),
-        canvas_->transform_interpolation(), parent_document_dir);
+        target_canvas->transform_interpolation(), parent_document_dir);
     if (!unfiltered_only.has_value()) {
       return false;
     }
@@ -647,7 +664,7 @@ bool MainWindow::commit_smart_filter_stack_edit(
   if (!placement.has_value()) {
     return false;
   }
-  if (current != nullptr && !rebuild_native_cache) {
+  if (current != nullptr && cache_edit != SmartFilterCacheEdit::Rebuild) {
     const auto* record = std::as_const(doc)
                              .metadata()
                              .smart_filter_effects.find_unique(
@@ -687,7 +704,7 @@ bool MainWindow::commit_smart_filter_stack_edit(
   auto filter_effects = doc.metadata().smart_filter_effects;
   const auto creating_stack = current == nullptr && candidate.has_value();
   const auto removing_stack = current != nullptr && !candidate.has_value();
-  if (creating_stack || rebuild_native_cache) {
+  if (creating_stack || cache_edit == SmartFilterCacheEdit::Rebuild) {
     const auto& unfiltered = preview->unfiltered;
     auto record = psd::author_filter_effects_record(
         smart_object_placed_uuid(*layer),
@@ -697,13 +714,20 @@ bool MainWindow::commit_smart_filter_stack_edit(
         !filter_effects.upsert_authored(std::move(*record))) {
       return false;
     }
+  } else if (cache_edit == SmartFilterCacheEdit::ReplaceMask) {
+    if (!candidate.has_value() ||
+        !psd::replace_filter_effects_mask(
+            filter_effects, smart_object_placed_uuid(*layer),
+            candidate->mask)) {
+      return false;
+    }
   } else if (removing_stack &&
              !filter_effects.remove(smart_object_placed_uuid(*layer))) {
     return false;
   }
 
   const auto old_bounds = layer->bounds();
-  push_undo_snapshot(undo_text);
+  push_undo_snapshot(target_session, undo_text);
   layer = doc.find_layer(layer_id);
   if (layer == nullptr) {
     return false;
@@ -729,9 +753,11 @@ bool MainWindow::commit_smart_filter_stack_edit(
   layer->metadata()[kLayerMetadataSmartObjectRasterStatus] =
       kSmartObjectRasterStatusPatchy;
   const auto new_bounds = layer->bounds();
-  refresh_layer_list();
-  refresh_layer_controls();
-  canvas_->document_changed(
+  if (target_canvas == canvas_) {
+    refresh_layer_list();
+    refresh_layer_controls();
+  }
+  target_canvas->document_changed(
       to_qrect(old_bounds).united(to_qrect(new_bounds)));
   statusBar()->showMessage(status_text);
   return true;
@@ -1011,6 +1037,181 @@ void MainWindow::edit_smart_filter(LayerId layer_id,
   gaussian_smart_filter_dialog(layer_id, execution_index);
 }
 
+void MainWindow::edit_smart_filter_blending(
+    LayerId layer_id, std::size_t execution_index) {
+  if (!has_active_document() || canvas_ == nullptr ||
+      layer_id_locks_image_pixels(layer_id)) {
+    return;
+  }
+  auto& doc = document();
+  auto* layer = doc.find_layer(layer_id);
+  const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
+  if (layer == nullptr || current == nullptr ||
+      current->support != SmartFilterStackSupport::Supported ||
+      execution_index >= current->entries.size() ||
+      (!smart_object_lock_reason(*layer).empty() &&
+       smart_object_lock_reason(*layer) != "external")) {
+    statusBar()->showMessage(
+        tr("This Smart Filter can only be preserved, not edited"));
+    return;
+  }
+
+  const auto parent_document_dir =
+      session().path.isEmpty() ? QString()
+                               : QFileInfo(session().path).absolutePath();
+  const auto interpolation = canvas_->transform_interpolation();
+  const auto unfiltered_preview = render_smart_object_unfiltered_layer_preview(
+      std::as_const(doc), std::as_const(*layer), interpolation,
+      parent_document_dir);
+  if (!unfiltered_preview.has_value()) {
+    statusBar()->showMessage(tr("Could not render this Smart Object"));
+    return;
+  }
+
+  const auto original_stack = *current;
+  const auto initial = SmartFilterBlendingSettings{
+      original_stack.entries[execution_index].blend_mode,
+      original_stack.entries[execution_index].opacity};
+  auto unfiltered_pixels =
+      std::make_shared<const PixelBuffer>(unfiltered_preview->pixels);
+  const auto unfiltered_bounds = unfiltered_preview->bounds;
+  const auto filter_canvas_bounds = Rect::from_size(doc.width(), doc.height());
+  auto original_pixels =
+      std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
+  const auto original_bounds = layer->bounds();
+  auto last_preview_bounds = std::make_shared<Rect>(original_bounds);
+  using PreviewRequest =
+      AdjustmentPixelPreviewRequest<SmartFilterBlendingSettings>;
+  auto preview_state =
+      std::make_shared<AsyncPixelPreviewState<PreviewRequest>>();
+  preview_state->start =
+      [this, preview_state, layer_id, original_stack, execution_index,
+       unfiltered_pixels, unfiltered_bounds, original_pixels, original_bounds,
+       filter_canvas_bounds,
+       last_preview_bounds](const PreviewRequest& request) {
+        if (!request.enabled) {
+          preview_state->pending.reset();
+          ++preview_state->generation;
+          if (auto* preview_layer = document().find_layer(layer_id);
+              preview_layer != nullptr) {
+            preview_layer->set_pixels(*original_pixels);
+            preview_layer->set_bounds(original_bounds);
+            if (canvas_ != nullptr) {
+              canvas_->document_changed(
+                  to_qrect(*last_preview_bounds).united(
+                      to_qrect(original_bounds)));
+            }
+            *last_preview_bounds = original_bounds;
+          }
+          return;
+        }
+
+        auto candidate = original_stack;
+        candidate.entries[execution_index].blend_mode =
+            request.settings.blend_mode;
+        candidate.entries[execution_index].opacity =
+            std::clamp(request.settings.opacity, 0.0, 1.0);
+        preview_state->in_flight = true;
+        const auto generation = ++preview_state->generation;
+        auto* app = QCoreApplication::instance();
+        auto window = QPointer<MainWindow>(this);
+        std::thread([app, window, preview_state, generation, layer_id,
+                     unfiltered_pixels, unfiltered_bounds, last_preview_bounds,
+                     filter_canvas_bounds, candidate = std::move(candidate)] {
+          auto result = std::make_shared<FilterRenderResult>();
+          auto error = std::make_shared<QString>();
+          try {
+            *result = render_smart_filter_stack(
+                *unfiltered_pixels, unfiltered_bounds, filter_canvas_bounds,
+                candidate);
+          } catch (const std::exception& caught) {
+            *error = QString::fromUtf8(caught.what());
+          }
+          if (app == nullptr) {
+            return;
+          }
+          QMetaObject::invokeMethod(
+              app,
+              [window, preview_state, generation, layer_id,
+               last_preview_bounds, result, error]() mutable {
+                preview_state->in_flight = false;
+                const bool has_pending = preview_state->pending.has_value();
+                if (!preview_state->closed && !has_pending &&
+                    generation == preview_state->generation &&
+                    window != nullptr) {
+                  if (error->isEmpty()) {
+                    if (auto* preview_layer =
+                            window->document().find_layer(layer_id);
+                        preview_layer != nullptr) {
+                      preview_layer->set_pixels(std::move(result->pixels));
+                      preview_layer->set_bounds(result->bounds);
+                      if (window->canvas_ != nullptr) {
+                        window->canvas_->document_changed(
+                            to_qrect(*last_preview_bounds)
+                                .united(to_qrect(result->bounds)));
+                      }
+                      *last_preview_bounds = result->bounds;
+                    }
+                  } else {
+                    window->statusBar()->showMessage(
+                        window->tr("Smart Filter preview failed: %1")
+                            .arg(*error));
+                  }
+                }
+                if (!preview_state->closed &&
+                    preview_state->pending.has_value() &&
+                    preview_state->start) {
+                  auto next = *preview_state->pending;
+                  preview_state->pending.reset();
+                  preview_state->start(next);
+                }
+              },
+              Qt::QueuedConnection);
+        }).detach();
+      };
+  const auto preview_changed =
+      [preview_state](bool enabled,
+                      const SmartFilterBlendingSettings& settings) {
+        enqueue_async_pixel_preview(
+            preview_state, PreviewRequest{enabled, settings}, !enabled);
+      };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_smart_filter_blending_settings(
+      this, preview_changed, initial);
+  close_async_pixel_preview(preview_state);
+  layer = doc.find_layer(layer_id);
+  if (layer == nullptr) {
+    return;
+  }
+  layer->set_pixels(*original_pixels);
+  layer->set_bounds(original_bounds);
+  canvas_->document_changed(
+      to_qrect(*last_preview_bounds).united(to_qrect(original_bounds)));
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Smart Filter blending options"));
+    return;
+  }
+  if (settings->blend_mode == initial.blend_mode &&
+      std::abs(settings->opacity - initial.opacity) < 0.0000001) {
+    statusBar()->showMessage(tr("Smart Filter blending options unchanged"));
+    return;
+  }
+
+  auto candidate = original_stack;
+  candidate.entries[execution_index].blend_mode = settings->blend_mode;
+  candidate.entries[execution_index].opacity =
+      std::clamp(settings->opacity, 0.0, 1.0);
+  if (!commit_smart_filter_stack_edit(
+          layer_id, std::move(candidate), {},
+          tr("Edit Smart Filter Blending Options"),
+          tr("Updated Smart Filter blending options"))) {
+    statusBar()->showMessage(
+        tr("This Smart Filter descriptor cannot be edited safely"));
+  }
+}
+
 void MainWindow::set_smart_filter_stack_enabled(LayerId layer_id,
                                                 bool enabled) {
   if (!has_active_document() || canvas_ == nullptr) {
@@ -1075,6 +1276,70 @@ void MainWindow::set_smart_filter_enabled(LayerId layer_id,
         tr("This Smart Filter descriptor cannot be edited safely"));
     refresh_layer_list();
   }
+}
+
+void MainWindow::set_smart_filter_mask_enabled(LayerId layer_id,
+                                               bool enabled) {
+  if (!has_active_document() || canvas_ == nullptr ||
+      layer_id_locks_image_pixels(layer_id)) {
+    return;
+  }
+  const auto* layer = std::as_const(document()).find_layer(layer_id);
+  const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
+  if (current == nullptr ||
+      current->support != SmartFilterStackSupport::Supported ||
+      current->mask.pixels.empty() || current->mask.enabled == enabled ||
+      (!smart_object_lock_reason(*layer).empty() &&
+       smart_object_lock_reason(*layer) != "external")) {
+    return;
+  }
+  auto candidate = *current;
+  candidate.mask.enabled = enabled;
+  if (!commit_smart_filter_stack_edit(
+          layer_id, std::move(candidate), {},
+          enabled ? tr("Enable Smart Filter Mask")
+                  : tr("Disable Smart Filter Mask"),
+          enabled ? tr("Smart Filter mask enabled")
+                  : tr("Smart Filter mask disabled"))) {
+    statusBar()->showMessage(
+        tr("This Smart Filter descriptor cannot be edited safely"));
+    refresh_layer_list();
+  }
+}
+
+bool MainWindow::commit_smart_filter_mask_edit(
+    CanvasWidget* source_canvas, LayerId layer_id, QString undo_text,
+    PixelBuffer pixels) {
+  auto* target_session = session_for_canvas(source_canvas);
+  if (target_session == nullptr || source_canvas == nullptr || pixels.empty() ||
+      pixels.format() != PixelFormat::gray8() ||
+      pixels.width() != target_session->document.width() ||
+      pixels.height() != target_session->document.height()) {
+    return false;
+  }
+  const auto* layer =
+      std::as_const(target_session->document).find_layer(layer_id);
+  const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
+  if (current == nullptr ||
+      current->support != SmartFilterStackSupport::Supported ||
+      current->mask.pixels.empty() ||
+      (!smart_object_lock_reason(*layer).empty() &&
+       smart_object_lock_reason(*layer) != "external")) {
+    return false;
+  }
+  auto candidate = *current;
+  candidate.mask.bounds = Rect::from_size(target_session->document.width(),
+                                          target_session->document.height());
+  candidate.mask.pixels = std::move(pixels);
+  if (!commit_smart_filter_stack_edit(
+          *target_session, source_canvas, layer_id, std::move(candidate), {},
+          undo_text, tr("Updated Smart Filter mask"),
+          SmartFilterCacheEdit::ReplaceMask)) {
+    statusBar()->showMessage(
+        tr("This Smart Filter mask cannot be edited safely"));
+    return false;
+  }
+  return true;
 }
 
 void MainWindow::duplicate_smart_filter(LayerId layer_id,

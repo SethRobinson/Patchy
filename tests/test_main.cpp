@@ -7079,6 +7079,279 @@ void smart_filter_effects_author_rejects_oversized_bounds() {
   CHECK(rejected(patchy::Rect{0, 0, 8193, 8192}));
 }
 
+void smart_filter_effects_mask_replacement_preserves_native_structure() {
+  const std::string placed_a = "11111111-2222-3333-8444-555555555555";
+  const std::string placed_b = "66666666-7777-4888-9999-aaaaaaaaaaaa";
+  const patchy::Rect bounds{-2, 3, 3, 2};
+  auto source = solid_rgba(3, 2, 10, 20, 30, 255);
+  source.pixel(1, 0)[3] = 128U;
+
+  patchy::SmartFilterMask initial_mask;
+  initial_mask.bounds = bounds;
+  initial_mask.pixels = patchy::PixelBuffer(3, 2, patchy::PixelFormat::gray8());
+  const std::array<std::uint8_t, 6> initial_samples{0, 0, 255, 255, 0, 255};
+  std::copy(initial_samples.begin(), initial_samples.end(),
+            initial_mask.pixels.data().begin());
+  const auto authored_a = patchy::psd::author_filter_effects_record(
+      placed_a, bounds, source, bounds, initial_mask);
+  const auto authored_b = patchy::psd::author_filter_effects_record(
+      placed_b, bounds, source, bounds, initial_mask);
+  CHECK(authored_a.has_value() && authored_b.has_value());
+
+  // Exercise a preserved Photoshop dialect that differs from Patchy's authored
+  // FEid-v3 default. The long-length form lives on the enclosing tagged block.
+  patchy::SmartFilterEffectsBlock source_block;
+  source_block.key = "FXid";
+  source_block.version = 2U;
+  source_block.long_length = true;
+  source_block.original_global_index = 91U;
+  source_block.records = {*authored_a, *authored_b};
+  const auto source_payload =
+      patchy::psd::serialize_filter_effects_block(source_block);
+  auto parsed = patchy::psd::parse_filter_effects_block(
+      "FXid", source_payload, true, 91U);
+  CHECK(!parsed.opaque && parsed.records.size() == 2U);
+  patchy::SmartFilterEffectsStore store;
+  store.add_block(std::move(parsed));
+
+  const auto cache_prefix = [](const patchy::SmartFilterEffectsRecord& record) {
+    const auto body = patchy::psd::raw_filter_effects_record_body(record);
+    patchy::psd::BigEndianReader reader(body);
+    const auto id_length = reader.read_u8();
+    reader.skip(id_length);
+    CHECK(reader.read_u32() == 1U);
+    const auto cache_length = reader.read_u64();
+    CHECK(cache_length <= reader.remaining());
+    reader.skip(static_cast<std::size_t>(cache_length));
+    return std::vector<std::uint8_t>(
+        body.begin(),
+        body.begin() + static_cast<std::ptrdiff_t>(reader.position()));
+  };
+  const auto prefix_before = cache_prefix(store.blocks.front().records[0]);
+  const auto other_body_before = std::vector<std::uint8_t>(
+      patchy::psd::raw_filter_effects_record_body(
+          store.blocks.front().records[1])
+          .begin(),
+      patchy::psd::raw_filter_effects_record_body(
+          store.blocks.front().records[1])
+          .end());
+
+  patchy::SmartFilterMask fractional;
+  fractional.bounds = bounds;
+  fractional.pixels = patchy::PixelBuffer(3, 2, patchy::PixelFormat::gray8());
+  const std::array<std::uint8_t, 6> fractional_samples{0, 32, 96, 160, 224,
+                                                       255};
+  std::copy(fractional_samples.begin(), fractional_samples.end(),
+            fractional.pixels.data().begin());
+  fractional.enabled = false;
+  fractional.linked = false;
+  fractional.extend_with_white = false;
+  CHECK(patchy::psd::replace_filter_effects_mask(store, placed_a,
+                                                  fractional));
+  CHECK(store.blocks.size() == 1U);
+  const auto& mutated_block = store.blocks.front();
+  CHECK(mutated_block.key == "FXid" && mutated_block.version == 2U);
+  CHECK(mutated_block.long_length && mutated_block.original_global_index == 91U);
+  CHECK(mutated_block.records.size() == 2U);
+  CHECK(mutated_block.records[0].placed_uuid == placed_a);
+  CHECK(mutated_block.records[1].placed_uuid == placed_b);
+  CHECK(cache_prefix(mutated_block.records[0]) == prefix_before);
+  CHECK(std::equal(
+      other_body_before.begin(), other_body_before.end(),
+      patchy::psd::raw_filter_effects_record_body(mutated_block.records[1])
+          .begin(),
+      patchy::psd::raw_filter_effects_record_body(mutated_block.records[1])
+          .end()));
+  CHECK(mutated_block.records[0].mask.has_value());
+  CHECK(std::equal(fractional_samples.begin(), fractional_samples.end(),
+                   mutated_block.records[0].mask->samples->begin()));
+
+  const auto fractional_payload =
+      patchy::psd::serialize_filter_effects_block(mutated_block);
+  CHECK((fractional_payload.size() % 4U) == 0U);
+  const auto round_trip = patchy::psd::parse_filter_effects_block(
+      "FXid", fractional_payload, true, 91U);
+  CHECK(!round_trip.opaque && round_trip.records.size() == 2U);
+  CHECK(round_trip.long_length && round_trip.version == 2U);
+  CHECK(round_trip.records[0].semantic_supported());
+  CHECK(round_trip.records[0].mask.has_value());
+  CHECK(std::equal(fractional_samples.begin(), fractional_samples.end(),
+                   round_trip.records[0].mask->samples->begin()));
+  CHECK(patchy::psd::serialize_filter_effects_block(round_trip) ==
+        fractional_payload);
+
+  // Enabled/link/extension are SoLd descriptor leaves, not FEid bytes. A
+  // flag-only update must be an exact no-op on the native cache block.
+  auto flags_only = fractional;
+  flags_only.enabled = true;
+  flags_only.linked = true;
+  flags_only.extend_with_white = true;
+  CHECK(patchy::psd::replace_filter_effects_mask(store, placed_a,
+                                                  flags_only));
+  CHECK(patchy::psd::serialize_filter_effects_block(store.blocks.front()) ==
+        fractional_payload);
+
+  // A subsequent hard mask uses the same bounded replacement path.
+  patchy::SmartFilterMask hard = fractional;
+  const std::array<std::uint8_t, 6> hard_samples{255, 0, 255, 0, 255, 0};
+  std::copy(hard_samples.begin(), hard_samples.end(),
+            hard.pixels.data().begin());
+  hard.enabled = false;
+  CHECK(patchy::psd::replace_filter_effects_mask(store, placed_a, hard));
+  const auto hard_payload =
+      patchy::psd::serialize_filter_effects_block(store.blocks.front());
+  const auto hard_round_trip = patchy::psd::parse_filter_effects_block(
+      "FXid", hard_payload, true, 91U);
+  CHECK(hard_round_trip.records[0].mask.has_value());
+  CHECK(std::equal(hard_samples.begin(), hard_samples.end(),
+                   hard_round_trip.records[0].mask->samples->begin()));
+  CHECK(cache_prefix(hard_round_trip.records[0]) == prefix_before);
+}
+
+void smart_filter_effects_mask_replacement_adds_removes_and_fails_closed() {
+  const std::string placed = "01234567-89ab-cdef-8123-456789abcdef";
+  const patchy::Rect bounds{0, 0, 2, 1};
+  const auto source = solid_rgba(2, 1, 10, 20, 30, 255);
+  patchy::SmartFilterMask authored_mask;
+  authored_mask.bounds = bounds;
+  authored_mask.pixels = patchy::PixelBuffer(2, 1, patchy::PixelFormat::gray8());
+  authored_mask.pixels.clear(255U);
+  const auto authored = patchy::psd::author_filter_effects_record(
+      placed, bounds, source, bounds, authored_mask);
+  CHECK(authored.has_value());
+
+  const auto record_prefix = [](const patchy::SmartFilterEffectsRecord& record) {
+    const auto body = patchy::psd::raw_filter_effects_record_body(record);
+    patchy::psd::BigEndianReader reader(body);
+    const auto id_length = reader.read_u8();
+    reader.skip(id_length);
+    CHECK(reader.read_u32() == 1U);
+    const auto cache_length = reader.read_u64();
+    CHECK(cache_length <= reader.remaining());
+    reader.skip(static_cast<std::size_t>(cache_length));
+    return std::vector<std::uint8_t>(
+        body.begin(),
+        body.begin() + static_cast<std::ptrdiff_t>(reader.position()));
+  };
+  const auto prefix = record_prefix(*authored);
+  const auto wrap_body = [](std::span<const std::uint8_t> body,
+                            std::uint32_t version = 3U) {
+    patchy::psd::BigEndianWriter writer;
+    writer.write_u32(version);
+    writer.write_u64(static_cast<std::uint64_t>(body.size()));
+    writer.write_bytes(body);
+    while ((writer.bytes().size() % 4U) != 0U) {
+      writer.write_u8(0U);
+    }
+    return writer.bytes();
+  };
+  const auto make_no_mask_store = [&]() {
+    patchy::SmartFilterEffectsStore result;
+    result.add_block(patchy::psd::parse_filter_effects_block(
+        "FEid", wrap_body(prefix)));
+    return result;
+  };
+
+  auto store = make_no_mask_store();
+  const auto* no_mask = store.find_unique(placed);
+  CHECK(no_mask != nullptr && no_mask->semantic_supported());
+  CHECK(!no_mask->mask_present && !no_mask->mask.has_value());
+
+  patchy::SmartFilterMask hard;
+  hard.bounds = bounds;
+  hard.pixels = patchy::PixelBuffer(2, 1, patchy::PixelFormat::gray8());
+  hard.pixels.pixel(0, 0)[0] = 0U;
+  hard.pixels.pixel(1, 0)[0] = 255U;
+  CHECK(patchy::psd::replace_filter_effects_mask(store, placed, hard));
+  const auto with_mask_payload =
+      patchy::psd::serialize_filter_effects_block(store.blocks.front());
+  const auto with_mask = patchy::psd::parse_filter_effects_block(
+      "FEid", with_mask_payload);
+  CHECK(with_mask.records.front().semantic_supported());
+  CHECK(with_mask.records.front().mask_present);
+  CHECK(with_mask.records.front().mask->samples->at(0) == 0U);
+  CHECK(with_mask.records.front().mask->samples->at(1) == 255U);
+  CHECK(record_prefix(with_mask.records.front()) == prefix);
+
+  // Empty pixels intentionally remove the entire optional tail rather than
+  // writing the alternate one-byte zero-presence form.
+  patchy::SmartFilterMask none;
+  CHECK(patchy::psd::replace_filter_effects_mask(store, placed, none));
+  const auto without_mask_payload =
+      patchy::psd::serialize_filter_effects_block(store.blocks.front());
+  const auto without_mask = patchy::psd::parse_filter_effects_block(
+      "FEid", without_mask_payload);
+  CHECK(without_mask.records.front().semantic_supported());
+  CHECK(!without_mask.records.front().mask_present);
+  const auto without_mask_body =
+      patchy::psd::raw_filter_effects_record_body(without_mask.records.front());
+  CHECK(std::equal(prefix.begin(), prefix.end(), without_mask_body.begin(),
+                   without_mask_body.end()));
+
+  // Invalid gray buffers fail before touching the store.
+  auto invalid_store = make_no_mask_store();
+  const auto invalid_before = patchy::psd::serialize_filter_effects_block(
+      invalid_store.blocks.front());
+  auto invalid_format = hard;
+  invalid_format.pixels = patchy::PixelBuffer(2, 1, patchy::PixelFormat::rgba8());
+  CHECK(!patchy::psd::replace_filter_effects_mask(invalid_store, placed,
+                                                   invalid_format));
+  auto invalid_bounds = hard;
+  invalid_bounds.bounds.width = 1;
+  CHECK(!patchy::psd::replace_filter_effects_mask(invalid_store, placed,
+                                                   invalid_bounds));
+  auto overflow_bounds = hard;
+  overflow_bounds.bounds =
+      patchy::Rect{std::numeric_limits<std::int32_t>::max(), 0, 2, 1};
+  CHECK(!patchy::psd::replace_filter_effects_mask(invalid_store, placed,
+                                                   overflow_bounds));
+  CHECK(patchy::psd::serialize_filter_effects_block(
+            invalid_store.blocks.front()) == invalid_before);
+
+  // Duplicate associations, unsupported targets, and an opaque sibling block
+  // all make the operation fail closed and retain the exact original bytes.
+  patchy::psd::BigEndianWriter duplicate_writer;
+  duplicate_writer.write_u32(3U);
+  for (int copy = 0; copy < 2; ++copy) {
+    duplicate_writer.write_u64(static_cast<std::uint64_t>(prefix.size()));
+    duplicate_writer.write_bytes(prefix);
+  }
+  auto duplicate_payload = duplicate_writer.bytes();
+  while ((duplicate_payload.size() % 4U) != 0U) {
+    duplicate_payload.push_back(0U);
+  }
+  patchy::SmartFilterEffectsStore duplicate_store;
+  duplicate_store.add_block(patchy::psd::parse_filter_effects_block(
+      "FEid", duplicate_payload));
+  CHECK(!patchy::psd::replace_filter_effects_mask(duplicate_store, placed,
+                                                   hard));
+  CHECK(patchy::psd::serialize_filter_effects_block(
+            duplicate_store.blocks.front()) == duplicate_payload);
+
+  auto unsupported_store = make_no_mask_store();
+  unsupported_store.blocks.front().records.front().data_supported = false;
+  const auto unsupported_before = patchy::psd::serialize_filter_effects_block(
+      unsupported_store.blocks.front());
+  CHECK(!patchy::psd::replace_filter_effects_mask(unsupported_store, placed,
+                                                   hard));
+  CHECK(patchy::psd::serialize_filter_effects_block(
+            unsupported_store.blocks.front()) == unsupported_before);
+
+  auto opaque_store = make_no_mask_store();
+  patchy::psd::BigEndianWriter opaque_writer;
+  opaque_writer.write_u32(99U);
+  const auto opaque_payload = opaque_writer.bytes();
+  opaque_store.add_block(patchy::psd::parse_filter_effects_block(
+      "FXid", opaque_payload));
+  const auto valid_before = patchy::psd::serialize_filter_effects_block(
+      opaque_store.blocks.front());
+  CHECK(!patchy::psd::replace_filter_effects_mask(opaque_store, placed, hard));
+  CHECK(patchy::psd::serialize_filter_effects_block(
+            opaque_store.blocks.front()) == valid_before);
+  CHECK(patchy::psd::serialize_filter_effects_block(
+            opaque_store.blocks.back()) == opaque_payload);
+}
+
 void smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes() {
   patchy::SmartObjectPlacement placement;
   placement.uuid = "11111111-2222-3333-8444-555555555555";
@@ -22281,6 +22554,10 @@ int main() {
        smart_filter_authored_effects_record_round_trips_and_mutates},
       {"smart_filter_effects_author_rejects_oversized_bounds",
        smart_filter_effects_author_rejects_oversized_bounds},
+      {"smart_filter_effects_mask_replacement_preserves_native_structure",
+       smart_filter_effects_mask_replacement_preserves_native_structure},
+      {"smart_filter_effects_mask_replacement_adds_removes_and_fails_closed",
+       smart_filter_effects_mask_replacement_adds_removes_and_fails_closed},
       {"smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes",
        smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes},
       {"psd_smart_filter_descriptor_semantics_parse_if_available",
