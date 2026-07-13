@@ -3,8 +3,10 @@
 #include "core/warp_mesh.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
+#include "psd/psd_layer_effects.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 
@@ -55,6 +57,202 @@ bool quad_is_affine(const std::array<double, 8>& quad) {
   // A parallelogram satisfies corner0 + corner2 == corner1 + corner3.
   return std::abs((quad[0] + quad[4]) - (quad[2] + quad[6])) <= kAffineEpsilon &&
          std::abs((quad[1] + quad[5]) - (quad[3] + quad[7])) <= kAffineEpsilon;
+}
+
+bool known_smart_filter_blend_mode(std::string_view value, BlendMode& mode) {
+  // Photoshop 2026 writes full stringIDs here, just like lfx2. Do not let the
+  // shared converter's unknown-to-Normal fallback make an imported stack look
+  // executable when its native blend mode is actually unsupported.
+  static constexpr std::array<std::string_view, 22> kKnown{
+      "passThrough",      "normal",     "multiply",         "screen",
+      "overlay",          "darken",     "lighten",          "colorDodge",
+      "colorBurn",        "hardLight",  "softLight",        "difference",
+      "linearBurn",       "pinLight",   "saturation",       "luminosity",
+      "exclusion",        "hue",        "color",            "linearDodge",
+      "blendSubtraction", "blendDivide",
+  };
+  if (std::find(kKnown.begin(), kKnown.end(), value) == kKnown.end()) {
+    return false;
+  }
+  mode = blend_mode_from_lfx2_enum(value);
+  return true;
+}
+
+const DescriptorValue* descriptor_value_either(const DescriptorObject& object,
+                                                std::string_view first,
+                                                std::string_view second) {
+  if (const auto* value = descriptor_value(object, first); value != nullptr) {
+    return value;
+  }
+  return descriptor_value(object, second);
+}
+
+bool read_smart_filter_bool(const DescriptorObject& object, std::string_view key,
+                            bool& result) {
+  const auto* value = descriptor_value(object, key);
+  if (value == nullptr || value->type != DescriptorValue::Type::Bool) {
+    return false;
+  }
+  result = value->bool_value;
+  return true;
+}
+
+std::optional<RgbColor> smart_filter_rgb_color(const DescriptorObject& parent,
+                                               std::string_view key) {
+  const auto* color = descriptor_object(parent, key);
+  if (color == nullptr || color->class_id != "RGBC") {
+    return std::nullopt;
+  }
+  const auto read_channel = [color](std::string_view key_text) -> std::optional<std::uint8_t> {
+    const auto* value = descriptor_value(*color, key_text);
+    if (value == nullptr || (value->type != DescriptorValue::Type::Double &&
+                             value->type != DescriptorValue::Type::Integer)) {
+      return std::nullopt;
+    }
+    const double number = value->type == DescriptorValue::Type::Double
+                              ? value->double_value
+                              : static_cast<double>(value->integer_value);
+    if (!std::isfinite(number)) {
+      return std::nullopt;
+    }
+    return static_cast<std::uint8_t>(std::clamp(std::lround(number), 0L, 255L));
+  };
+  const auto red = read_channel("Rd  ");
+  const auto green = read_channel("Grn ");
+  const auto blue = read_channel("Bl  ");
+  if (!red.has_value() || !green.has_value() || !blue.has_value()) {
+    return std::nullopt;
+  }
+  return RgbColor{*red, *green, *blue};
+}
+
+std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
+    const DescriptorObject& placed_descriptor) {
+  const auto* filter_value = descriptor_value(placed_descriptor, "filterFX");
+  if (filter_value == nullptr) {
+    return std::nullopt;
+  }
+
+  SmartFilterStack stack;
+  bool supported = filter_value->type == DescriptorValue::Type::Object &&
+                   filter_value->object_value != nullptr;
+  if (!supported) {
+    return stack;
+  }
+  const auto& root = *filter_value->object_value;
+  supported = root.class_id == "filterFXStyle";
+  const bool root_enabled_valid = read_smart_filter_bool(root, "enab", stack.enabled);
+  const bool root_position_valid =
+      read_smart_filter_bool(root, "validAtPosition", stack.valid_at_position);
+  const bool mask_enabled_valid =
+      read_smart_filter_bool(root, "filterMaskEnable", stack.mask.enabled);
+  const bool mask_linked_valid =
+      read_smart_filter_bool(root, "filterMaskLinked", stack.mask.linked);
+  const bool mask_extension_valid = read_smart_filter_bool(
+      root, "filterMaskExtendWithWhite", stack.mask.extend_with_white);
+  const bool root_flags_valid = root_enabled_valid && root_position_valid &&
+                                mask_enabled_valid && mask_linked_valid &&
+                                mask_extension_valid;
+  supported = supported && root_flags_valid;
+  stack.mask.default_color = stack.mask.extend_with_white ? 255 : 0;
+
+  const auto* list = descriptor_value(root, "filterFXList");
+  if (list == nullptr || list->type != DescriptorValue::Type::List || list->list_value.empty()) {
+    supported = false;
+  } else {
+    stack.entries.reserve(list->list_value.size());
+    for (const auto& item : list->list_value) {
+      SmartFilterEntry entry;
+      bool entry_supported = item.type == DescriptorValue::Type::Object && item.object_value != nullptr;
+      if (!entry_supported) {
+        stack.entries.push_back(std::move(entry));
+        supported = false;
+        continue;
+      }
+
+      const auto& native_entry = *item.object_value;
+      entry_supported = native_entry.class_id == "filterFX";
+      if (const auto* name = descriptor_value_either(native_entry, "Nm  ", "Nm");
+          name != nullptr && name->type == DescriptorValue::Type::String) {
+        entry.native_name = name->string_value;
+      }
+      const bool entry_enabled_valid =
+          read_smart_filter_bool(native_entry, "enab", entry.enabled);
+      const bool entry_options_valid =
+          read_smart_filter_bool(native_entry, "hasoptions", entry.has_options);
+      const bool entry_flags_valid = entry_enabled_valid && entry_options_valid;
+      entry_supported = entry_supported && entry_flags_valid;
+      if (const auto* id = descriptor_value(native_entry, "filterID");
+          id != nullptr && id->type == DescriptorValue::Type::Integer) {
+        entry.native_filter_id = static_cast<std::uint32_t>(id->integer_value);
+      } else {
+        entry_supported = false;
+      }
+
+      if (const auto* blend = descriptor_object(native_entry, "blendOptions");
+          blend != nullptr && blend->class_id == "blendOptions") {
+        const auto* opacity = descriptor_value_either(*blend, "Opct", "Opct");
+        if (opacity != nullptr && opacity->type == DescriptorValue::Type::UnitFloat &&
+            opacity->unit == "#Prc" && std::isfinite(opacity->double_value) &&
+            opacity->double_value >= 0.0 && opacity->double_value <= 100.0) {
+          entry.opacity = opacity->double_value / 100.0;
+        } else {
+          entry_supported = false;
+        }
+        const auto* blend_mode = descriptor_value_either(*blend, "Md  ", "Md");
+        if (blend_mode == nullptr || blend_mode->type != DescriptorValue::Type::Enum ||
+            blend_mode->enum_type != "BlnM" ||
+            !known_smart_filter_blend_mode(blend_mode->enum_value, entry.blend_mode)) {
+          entry_supported = false;
+        }
+      } else {
+        entry_supported = false;
+      }
+
+      if (const auto foreground = smart_filter_rgb_color(native_entry, "FrgC");
+          foreground.has_value()) {
+        entry.foreground = *foreground;
+      } else {
+        entry_supported = false;
+      }
+      if (const auto background = smart_filter_rgb_color(native_entry, "BckC");
+          background.has_value()) {
+        entry.background = *background;
+      } else {
+        entry_supported = false;
+      }
+
+      const auto* filter = descriptor_object(native_entry, "Fltr");
+      if (filter != nullptr) {
+        entry.native_class_id = filter->class_id;
+      }
+      if (filter != nullptr && filter->class_id == "GsnB" &&
+          entry.native_filter_id == 0x47736e42U) {
+        const auto* radius = descriptor_value_either(*filter, "Rds ", "Rds");
+        if (radius != nullptr && radius->type == DescriptorValue::Type::UnitFloat &&
+            radius->unit == "#Pxl" && std::isfinite(radius->double_value) &&
+            radius->double_value >= 0.0) {
+          entry.kind = SmartFilterKind::GaussianBlur;
+          entry.parameters = GaussianBlurSmartFilter{radius->double_value};
+        } else {
+          entry_supported = false;
+        }
+      } else {
+        entry_supported = false;
+      }
+
+      if (!entry_supported) {
+        entry.kind = SmartFilterKind::Unsupported;
+      }
+      supported = supported && entry_supported;
+      // Photoshop serializes filterFXList in native execution order; its layer
+      // panel presents the reverse order. Multi-filter COM fixtures pin this.
+      stack.entries.push_back(std::move(entry));
+    }
+  }
+  stack.support = supported ? SmartFilterStackSupport::Supported
+                            : SmartFilterStackSupport::Unsupported;
+  return stack;
 }
 
 // "" when the warp descriptor is absent or an identity ("warpNone") warp.
@@ -113,6 +311,7 @@ std::optional<PlacedLayerInfo> parse_sold_block(std::span<const std::uint8_t> pa
         placed != nullptr && placed->type == DescriptorValue::Type::String) {
       info.placed_uuid = placed->string_value;
     }
+    info.smart_filters = smart_filter_stack_from_descriptor(descriptor);
 
     // Extract the warp object (present in every SoLd; meaningful when style is not
     // warpNone or a custom envelope mesh exists).
@@ -156,7 +355,7 @@ std::optional<PlacedLayerInfo> parse_sold_block(std::span<const std::uint8_t> pa
       }
     }
 
-    if (descriptor_value(descriptor, "filterFX") != nullptr) {
+    if (info.smart_filters.has_value()) {
       info.lock_reason = "filters";
     } else if (auto warp_reason = warp_lock_reason(descriptor); !warp_reason.empty()) {
       // A SUPPORTED warp re-renders in Patchy: zero perspective, no quiltWarp, and
@@ -530,7 +729,7 @@ std::vector<std::uint8_t> serialize_linked_layer_block(const SmartObjectLinkBloc
 
 std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
     std::string_view key, std::span<const std::uint8_t> original_payload, const SmartObjectPlacement& placement,
-    const SmartObjectWarp* warp) {
+    const SmartObjectWarp* warp, std::string_view placed_uuid) {
   try {
     if (key == "SoLd" || key == "SoLE") {
       BigEndianReader reader(original_payload);
@@ -544,6 +743,12 @@ std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
       if (auto* identifier = const_cast<DescriptorValue*>(descriptor_value(descriptor, "Idnt"));
           identifier != nullptr && identifier->type == DescriptorValue::Type::String) {
         identifier->string_value = placement.uuid;
+      }
+      if (!placed_uuid.empty()) {
+        if (auto* placed = const_cast<DescriptorValue*>(descriptor_value(descriptor, "placed"));
+            placed != nullptr && placed->type == DescriptorValue::Type::String) {
+          placed->string_value = std::string(placed_uuid);
+        }
       }
       // Trnf takes the new quad; nonAffineTransform moves by the SAME per-corner
       // delta instead of being overwritten, so a translated non-affine placement

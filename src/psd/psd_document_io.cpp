@@ -10,6 +10,7 @@
 #include "formats/acv_curves_io.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
+#include "psd/psd_filter_effects.hpp"
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "render/compositor.hpp"
@@ -8191,8 +8192,9 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
         }
         std::optional<std::vector<std::uint8_t>> regenerated;
         if (placement.has_value()) {
-          regenerated = regenerate_placed_layer_payload(block.key, block.payload, *placement,
-                                                        warp.has_value() ? &*warp : nullptr);
+          regenerated = regenerate_placed_layer_payload(
+              block.key, block.payload, *placement, warp.has_value() ? &*warp : nullptr,
+              smart_object_placed_uuid(*encoded.layer));
         }
         if (regenerated.has_value()) {
           write_additional_layer_block(extra, *key, *regenerated, large_document, block.long_length);
@@ -8384,6 +8386,50 @@ struct SmartObjectImportCounts {
   std::size_t dangling{0};
 };
 
+void finalize_smart_filter_layers(std::vector<Layer>& layers,
+                                  const SmartFilterEffectsStore& store) {
+  for (auto& layer : layers) {
+    if (!std::as_const(layer).children().empty()) {
+      finalize_smart_filter_layers(layer.children(), store);
+    }
+    const auto* imported = std::as_const(layer).smart_filter_stack();
+    if (imported == nullptr) {
+      continue;
+    }
+
+    auto stack = *imported;
+    const auto placed_uuid = smart_object_placed_uuid(std::as_const(layer));
+    const auto* record = store.find_unique(placed_uuid);
+    if (record == nullptr || !record->semantic_supported()) {
+      stack.support = SmartFilterStackSupport::Unsupported;
+      layer.set_smart_filter_stack(std::move(stack));
+      continue;
+    }
+
+    if (record->mask_present) {
+      if (!record->mask_decoded || !record->mask.has_value() ||
+          record->mask->samples == nullptr) {
+        stack.support = SmartFilterStackSupport::Unsupported;
+      } else {
+        const auto& native_mask = *record->mask;
+        const auto expected = static_cast<std::size_t>(native_mask.bounds.width) *
+                              static_cast<std::size_t>(native_mask.bounds.height);
+        if (native_mask.bounds.empty() || native_mask.samples->size() != expected) {
+          stack.support = SmartFilterStackSupport::Unsupported;
+        } else {
+          PixelBuffer mask_pixels(native_mask.bounds.width, native_mask.bounds.height,
+                                  PixelFormat::gray8());
+          std::copy(native_mask.samples->begin(), native_mask.samples->end(),
+                    mask_pixels.data().begin());
+          stack.mask.bounds = native_mask.bounds;
+          stack.mask.pixels = std::move(mask_pixels);
+        }
+      }
+    }
+    layer.set_smart_filter_stack(std::move(stack));
+  }
+}
+
 // Resolves each smart-object layer's uuid against the parsed source store: layers with
 // missing sources drop their metadata (the preserved blobs stay; the writer's existing
 // dangling-reference strip keeps the file Photoshop-safe), and layers whose source is
@@ -8472,6 +8518,9 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.set_blend_if_rgb_compatible(source.blend_if_rgb_compatible());
   target.raw_psd_group_boundary_blending_ranges() = source.raw_psd_group_boundary_blending_ranges();
   target.unknown_psd_blocks() = source.unknown_psd_blocks();
+  if (const auto* smart_filters = source.smart_filter_stack(); smart_filters != nullptr) {
+    target.set_smart_filter_stack(*smart_filters);
+  }
 }
 
 std::vector<Layer> build_group_hierarchy(std::vector<DecodedLayer> flat_layers) {
@@ -8747,6 +8796,9 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       set_layer_smart_object_metadata(layer, record.placed->placement, record.placed->placed_uuid,
                                       record.placed_source_block, record.placed->lock_reason,
                                       kSmartObjectRasterStatusPhotoshop);
+      if (record.placed->smart_filters.has_value()) {
+        layer.set_smart_filter_stack(*record.placed->smart_filters);
+      }
       if (record.placed->warp.has_value() && record.placed->lock_reason.empty()) {
         // A supported (re-renderable) warp rides layer metadata so every re-render
         // and regeneration path sees it.
@@ -9029,6 +9081,15 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
           link_block.opaque = true;
         }
         document.metadata().smart_objects.blocks.push_back(std::move(link_block));
+      } else if (key == "FEid" || key == "FXid") {
+        // Native Smart Filter caches are per placed-layer INSTANCE (SoLd
+        // `placed`), not per shared embedded source (`Idnt`). Keep each record's
+        // large byte ranges shared across undo snapshots and preserve opaque
+        // variants verbatim.
+        auto shared_payload =
+            std::make_shared<const std::vector<std::uint8_t>>(std::move(payload));
+        document.metadata().smart_filter_effects.add_block(parse_filter_effects_block(
+            key, std::move(shared_payload), wide_length, global_block_index));
       } else if (key == "Patt" || key == "Pat2" || key == "Pat3") {
         // Pattern pixel data: decode into the store so pattern overlays / bevel
         // textures can render, AND keep the raw block preserved verbatim (Patchy
@@ -9038,9 +9099,11 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         for (auto& resource : decoded) {
           document.metadata().patterns.adopt(resource);
         }
-        document.metadata().unknown_psd_resources.push_back(UnknownPsdBlock{key, std::move(payload), wide_length});
+        document.metadata().unknown_psd_resources.push_back(
+            UnknownPsdBlock{key, std::move(payload), wide_length, global_block_index});
       } else {
-        document.metadata().unknown_psd_resources.push_back(UnknownPsdBlock{key, std::move(payload), wide_length});
+        document.metadata().unknown_psd_resources.push_back(
+            UnknownPsdBlock{key, std::move(payload), wide_length, global_block_index});
       }
       ++global_block_index;
       // Global tagged blocks are padded to 4-byte boundaries.
@@ -9103,6 +9166,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     }
   }
 
+  finalize_smart_filter_layers(document.layers(), document.metadata().smart_filter_effects);
   SmartObjectImportCounts smart_object_counts;
   finalize_smart_object_layers(document.layers(), document.metadata().smart_objects, smart_object_counts);
   append_smart_object_notices(smart_object_counts, options.notices);
@@ -9264,31 +9328,58 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   };
   {
     const auto& store = document.metadata().smart_objects;
+    const auto& filter_store = document.metadata().smart_filter_effects;
     std::vector<std::vector<std::uint8_t>> link_payloads(store.blocks.size());
-    std::vector<bool> link_emitted(store.blocks.size(), false);
     for (std::size_t i = 0; i < store.blocks.size(); ++i) {
       link_payloads[i] = serialize_linked_layer_block(store.blocks[i]);
     }
-    std::size_t unknown_cursor = 0;
-    const auto total_positions = store.blocks.size() + global_blocks.size();
-    for (std::size_t position = 0; position < total_positions; ++position) {
-      bool emitted_link = false;
-      for (std::size_t i = 0; i < store.blocks.size(); ++i) {
-        if (!link_emitted[i] && store.blocks[i].original_global_index == position) {
-          emit_global_payload(store.blocks[i].key, link_payloads[i], store.blocks[i].long_length);
-          link_emitted[i] = true;
-          emitted_link = true;
-          break;
-        }
-      }
-      if (!emitted_link && unknown_cursor < global_blocks.size()) {
-        const auto& block = global_blocks[unknown_cursor++];
-        emit_global_payload(block.key, block.payload, block.long_length);
-      }
+    std::vector<std::vector<std::uint8_t>> filter_payloads(filter_store.blocks.size());
+    for (std::size_t i = 0; i < filter_store.blocks.size(); ++i) {
+      filter_payloads[i] = serialize_filter_effects_block(filter_store.blocks[i]);
+    }
+    enum class GlobalEmissionKind { Unknown, Link, Filter };
+    struct GlobalEmission {
+      std::size_t original_index;
+      GlobalEmissionKind kind;
+      std::size_t item_index;
+    };
+    std::vector<GlobalEmission> emissions;
+    emissions.reserve(global_blocks.size() + store.blocks.size() + filter_store.blocks.size());
+    // The insertion order below intentionally matches the old authored-block
+    // behavior for SIZE_MAX entries: unknown globals, then links, then filters.
+    for (std::size_t i = 0; i < global_blocks.size(); ++i) {
+      emissions.push_back(
+          {global_blocks[i].original_global_index, GlobalEmissionKind::Unknown, i});
     }
     for (std::size_t i = 0; i < store.blocks.size(); ++i) {
-      if (!link_emitted[i]) {
-        emit_global_payload(store.blocks[i].key, link_payloads[i], store.blocks[i].long_length);
+      emissions.push_back(
+          {store.blocks[i].original_global_index, GlobalEmissionKind::Link, i});
+    }
+    for (std::size_t i = 0; i < filter_store.blocks.size(); ++i) {
+      emissions.push_back({filter_store.blocks[i].original_global_index,
+                           GlobalEmissionKind::Filter, i});
+    }
+    std::stable_sort(emissions.begin(), emissions.end(),
+                     [](const GlobalEmission& lhs, const GlobalEmission& rhs) {
+                       return lhs.original_index < rhs.original_index;
+                     });
+    for (const auto& emission : emissions) {
+      switch (emission.kind) {
+        case GlobalEmissionKind::Unknown: {
+          const auto& block = global_blocks[emission.item_index];
+          emit_global_payload(block.key, block.payload, block.long_length);
+          break;
+        }
+        case GlobalEmissionKind::Link: {
+          const auto& block = store.blocks[emission.item_index];
+          emit_global_payload(block.key, link_payloads[emission.item_index], block.long_length);
+          break;
+        }
+        case GlobalEmissionKind::Filter: {
+          const auto& block = filter_store.blocks[emission.item_index];
+          emit_global_payload(block.key, filter_payloads[emission.item_index], block.long_length);
+          break;
+        }
       }
     }
   }

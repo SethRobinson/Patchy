@@ -184,6 +184,9 @@ private:
     // Sources referenced by copied smart-object layers so a cross-document paste can
     // adopt them into the target's store (shared_ptr payloads: copies are cheap).
     std::vector<SmartObjectSource> smart_object_sources;
+    // Native FEid/FXid records for copied filtered Smart Object instances. Paste
+    // adopts each raw record directly under a fresh `placed` uuid.
+    std::vector<SmartFilterEffectsRecord> smart_filter_effect_records;
     // Pattern tiles referenced by copied layers' styles (Pattern Overlay / Bevel
     // Texture), adopted the same way on paste (implicitly shared pixels).
     std::vector<PatternResource> pattern_resources;

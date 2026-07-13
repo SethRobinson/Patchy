@@ -3,8 +3,10 @@
 #include "core/pixel_buffer.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -12,6 +14,8 @@
 #include <vector>
 
 namespace patchy {
+
+struct SmartFilterStack;
 
 using LayerId = std::uint64_t;
 using LayerLockFlags = std::uint32_t;
@@ -77,6 +81,11 @@ struct UnknownPsdBlock {
   // 8-byte length (PSB); the writer re-emits the same form so Photoshop's key-based
   // parser stays in sync. False for the common '8BIM' + 4-byte form.
   bool long_length{false};
+  // Position among document-global tagged blocks. Layer-level blocks and
+  // newly-authored globals leave this at SIZE_MAX. Tracking unknown globals as
+  // well as parsed stores keeps surviving blocks in their original order when
+  // a Smart Object or Smart Filter record is removed.
+  std::size_t original_global_index{static_cast<std::size_t>(-1)};
 };
 
 struct LayerMask {
@@ -462,6 +471,10 @@ public:
   [[nodiscard]] const std::vector<UnknownPsdBlock>& unknown_psd_blocks() const noexcept;
   [[nodiscard]] LayerStyle& layer_style() noexcept;
   [[nodiscard]] const LayerStyle& layer_style() const noexcept;
+  // Smart Filter semantics are immutable through Layer: PSD import and later
+  // editors replace the whole stack through set_smart_filter_stack(), so a
+  // read can never silently bypass revision tracking.
+  [[nodiscard]] const SmartFilterStack* smart_filter_stack() const noexcept;
   [[nodiscard]] std::uint64_t render_revision() const noexcept;
   [[nodiscard]] std::uint64_t content_revision() const noexcept;
   // Changes only when the pixel buffer may have changed. Alpha-bound caches
@@ -485,6 +498,8 @@ public:
   [[nodiscard]] bool set_blend_if(const LayerBlendIf& settings, bool replace_unsupported = false);
   void set_blend_if_payload(std::vector<std::uint8_t> payload, bool rgb_compatible = true);
   void set_blend_if_rgb_compatible(bool compatible) noexcept;
+  void set_smart_filter_stack(SmartFilterStack stack);
+  void clear_smart_filter_stack() noexcept;
   void add_child(Layer child);
   // For composition-affecting state changes that live on ANOTHER layer (e.g. a
   // sibling joining/leaving this layer's clipping group): bumps the render
@@ -511,9 +526,19 @@ private:
   bool blend_if_rgb_compatible_{true};
   std::vector<UnknownPsdBlock> unknown_psd_blocks_{};
   LayerStyle layer_style_{};
+  std::shared_ptr<const SmartFilterStack> smart_filter_stack_{};
   std::uint64_t render_revision_{1};
   std::uint64_t content_revision_{1};
   std::uint64_t pixel_revision_{1};
 };
+
+// Photoshop's optional `lyid` block is a per-layer identity. Imported blocks
+// are preserved, while duplication uses these helpers to assign a distinct id
+// without confusing it with Patchy's runtime LayerId.
+[[nodiscard]] std::optional<std::uint32_t>
+photoshop_layer_id(const Layer& layer) noexcept;
+void set_photoshop_layer_id(Layer& layer, std::uint32_t id);
+[[nodiscard]] std::uint32_t
+next_photoshop_layer_id(const std::vector<Layer>& layers);
 
 }  // namespace patchy

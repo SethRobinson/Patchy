@@ -66,6 +66,7 @@ add_library(patchy_core
   src/core/pixel_tools.cpp
   src/core/quick_select.cpp
   src/core/rect_utils.cpp
+  src/core/smart_filter_effects.cpp
   src/core/smart_object.cpp
   src/core/style_contour.cpp
   src/core/style_presets.cpp
@@ -240,6 +241,7 @@ add_library(patchy_psd
   src/psd/psd_binary.cpp
   src/psd/psd_descriptor.cpp
   src/psd/psd_document_io.cpp
+  src/psd/psd_filter_effects.cpp
   src/psd/psd_patterns.cpp
   src/psd/psd_smart_objects.cpp
 )

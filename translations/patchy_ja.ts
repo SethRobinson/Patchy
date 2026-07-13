@@ -9816,6 +9816,10 @@ To update, paste this into a terminal:
         <translation>このスマートオブジェクトは保持のみ可能で、編集はできません</translation>
     </message>
     <message>
+        <source>Smart Filter cache data could not be duplicated safely</source>
+        <translation>スマートフィルターのキャッシュデータを安全に複製できませんでした</translation>
+    </message>
+    <message>
         <location line="-871"/>
         <location line="+24"/>
         <location line="+560"/>

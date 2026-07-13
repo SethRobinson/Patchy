@@ -18,6 +18,8 @@
 // are shared_ptr-held so whole-Document undo snapshots share one copy.
 namespace patchy {
 
+class Document;
+
 inline constexpr const char* kLayerMetadataSmartObject = "patchy.smart_object";  // = source uuid
 inline constexpr const char* kLayerMetadataSmartObjectPlaced = "patchy.smart_object.placed";
 inline constexpr const char* kLayerMetadataSmartObjectTransform = "patchy.smart_object.transform";
@@ -128,6 +130,7 @@ struct SmartObjectPlacement {
 
 [[nodiscard]] bool layer_is_smart_object(const Layer& layer);
 [[nodiscard]] std::string smart_object_source_uuid(const Layer& layer);
+[[nodiscard]] std::string smart_object_placed_uuid(const Layer& layer);
 [[nodiscard]] std::string smart_object_lock_reason(const Layer& layer);
 [[nodiscard]] bool layer_smart_object_block_dirty(const Layer& layer);
 void mark_layer_smart_object_block_dirty(Layer& layer);
@@ -142,6 +145,9 @@ void clear_layer_smart_object_metadata(Layer& layer);
 // Removes the preserved SoLd/SoLE/PlLd/plLd blocks too — the rasterize / merge-target
 // semantic (the layer becomes a plain pixel layer everywhere, including on resave).
 void strip_layer_smart_object_data(Layer& layer);
+// Document-aware rasterize/merge form: also removes the matching native FEid/
+// FXid cache record once no remaining layer references the placed instance.
+void strip_layer_smart_object_data(Document& document, Layer& layer);
 
 [[nodiscard]] std::string serialize_smart_object_transform(const std::array<double, 8>& transform);
 [[nodiscard]] std::optional<std::array<double, 8>> parse_smart_object_transform(std::string_view text);

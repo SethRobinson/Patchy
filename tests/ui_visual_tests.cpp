@@ -4,6 +4,7 @@
 #include "core/gradient_presets.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pattern_presets.hpp"
+#include "core/smart_filter_effects.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
 #include "ui/smart_object_render.hpp"
@@ -34463,6 +34464,332 @@ void ui_smart_object_import_badges_protects_and_rasterizes() {
   CHECK(patchy::layer_is_smart_object(*restored));
 }
 
+constexpr auto kSmartFilterInstanceAName = "Instance A Gaussian 1.5";
+constexpr auto kSmartFilterInstanceBName = "Instance B Gaussian 4.5 transformed masked";
+
+std::size_t smart_filter_effect_record_count(const patchy::Document& document) {
+  std::size_t count = 0;
+  for (const auto& block : document.metadata().smart_filter_effects.blocks) {
+    count += block.records.size();
+  }
+  return count;
+}
+
+patchy::LayerId select_named_layer(patchy::ui::MainWindow& window, const QString& name) {
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* item = require_layer_item(*layer_list, name);
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
+  item->setSelected(true);
+  QApplication::processEvents();
+
+  const auto id = static_cast<patchy::LayerId>(
+      item->data(patchy::ui::kLayerIdRole).toULongLong());
+  CHECK(id != 0);
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).active_layer_id() == id);
+  return id;
+}
+
+void open_smart_filter_instances_fixture(patchy::ui::MainWindow& window) {
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path(
+          "photoshop-smart-filter-instances-base.psd")
+          .wstring());
+  CHECK(QFileInfo::exists(path));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  const auto& document =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(std::any_of(document.layers().begin(), document.layers().end(),
+                    [](const patchy::Layer& layer) {
+                      return layer.name() == kSmartFilterInstanceAName;
+                    }));
+  CHECK(std::any_of(document.layers().begin(), document.layers().end(),
+                    [](const patchy::Layer& layer) {
+                      return layer.name() == kSmartFilterInstanceBName;
+                    }));
+}
+
+// Duplicate runs through MainWindow's real layer action. The clone keeps the
+// shared Smart Object source but receives a fresh per-instance SoLd `placed`
+// id and a distinct FEid record backed by the original immutable cache bytes.
+void ui_smart_filter_duplicate_rekeys_native_cache() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  open_smart_filter_instances_fixture(window);
+
+  const auto source_id = select_named_layer(
+      window, QString::fromLatin1(kSmartFilterInstanceAName));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* source_for_ids = document.find_layer(source_id);
+  CHECK(source_for_ids != nullptr);
+  patchy::set_photoshop_layer_id(
+      *source_for_ids, std::numeric_limits<std::uint32_t>::max());
+  const auto other_it = std::find_if(
+      std::as_const(document).layers().begin(),
+      std::as_const(document).layers().end(), [](const patchy::Layer& layer) {
+        return layer.name() == kSmartFilterInstanceBName;
+      });
+  CHECK(other_it != std::as_const(document).layers().end());
+  auto* other_for_ids = document.find_layer(other_it->id());
+  CHECK(other_for_ids != nullptr);
+  patchy::set_photoshop_layer_id(*other_for_ids, 1U);
+  const auto* source = std::as_const(document).find_layer(source_id);
+  CHECK(source != nullptr);
+  CHECK(patchy::layer_is_smart_object(*source));
+  CHECK(source->smart_filter_stack() != nullptr);
+  const auto source_uuid = patchy::smart_object_source_uuid(*source);
+  const auto source_placed = patchy::smart_object_placed_uuid(*source);
+  const auto source_native_layer_id = patchy::photoshop_layer_id(*source);
+  CHECK(!source_uuid.empty());
+  CHECK(!source_placed.empty());
+  CHECK(source_native_layer_id.has_value());
+  const auto* source_record =
+      std::as_const(document).metadata().smart_filter_effects.find_unique(
+          source_placed);
+  CHECK(source_record != nullptr);
+  const auto original_record_count = smart_filter_effect_record_count(document);
+  const auto raw_storage = source_record->raw_storage;
+  const auto raw_offset = source_record->raw_body_offset;
+  const auto raw_length = source_record->raw_body_length;
+  const auto original_placed = source_record->original_placed_uuid;
+
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+
+  const auto duplicate_id = select_named_layer(
+      window,
+      QString::fromLatin1(kSmartFilterInstanceAName) + QStringLiteral(" copy"));
+  const auto* duplicate = std::as_const(document).find_layer(duplicate_id);
+  CHECK(duplicate != nullptr);
+  CHECK(patchy::layer_is_smart_object(*duplicate));
+  CHECK(duplicate->smart_filter_stack() != nullptr);
+  CHECK(patchy::smart_object_source_uuid(*duplicate) == source_uuid);
+  const auto duplicate_placed = patchy::smart_object_placed_uuid(*duplicate);
+  CHECK(!duplicate_placed.empty());
+  CHECK(duplicate_placed != source_placed);
+  const auto duplicate_native_layer_id =
+      patchy::photoshop_layer_id(*duplicate);
+  CHECK(duplicate_native_layer_id.has_value());
+  CHECK(duplicate_native_layer_id != source_native_layer_id);
+  CHECK(*duplicate_native_layer_id == 2U);
+  CHECK(smart_filter_effect_record_count(document) == original_record_count + 1U);
+
+  source_record =
+      std::as_const(document).metadata().smart_filter_effects.find_unique(
+          source_placed);
+  const auto* duplicate_record =
+      std::as_const(document).metadata().smart_filter_effects.find_unique(
+          duplicate_placed);
+  CHECK(source_record != nullptr);
+  CHECK(duplicate_record != nullptr);
+  CHECK(source_record != duplicate_record);
+  CHECK(duplicate_record->placed_uuid == duplicate_placed);
+  CHECK(duplicate_record->original_placed_uuid == original_placed);
+  CHECK(duplicate_record->raw_storage == raw_storage);
+  CHECK(duplicate_record->raw_body_offset == raw_offset);
+  CHECK(duplicate_record->raw_body_length == raw_length);
+  bool cache_is_adjacent_to_source = false;
+  for (const auto& block :
+       std::as_const(document).metadata().smart_filter_effects.blocks) {
+    for (std::size_t index = 0; index + 1U < block.records.size(); ++index) {
+      if (block.records[index].placed_uuid == source_placed &&
+          block.records[index + 1U].placed_uuid == duplicate_placed) {
+        cache_is_adjacent_to_source = true;
+      }
+    }
+  }
+  CHECK(cache_is_adjacent_to_source);
+}
+
+// Copy/Paste in the same document takes the clipboard adoption path rather
+// than Duplicate Layer's clone-rekey path. It still needs Photoshop's adjacent
+// FEid record layout, plus fresh placed and native layer ids.
+void ui_smart_filter_same_document_paste_keeps_native_cache_adjacent() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  open_smart_filter_instances_fixture(window);
+
+  const auto source_id = select_named_layer(
+      window, QString::fromLatin1(kSmartFilterInstanceAName));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* source = std::as_const(document).find_layer(source_id);
+  CHECK(source != nullptr);
+  const auto source_placed = patchy::smart_object_placed_uuid(*source);
+  const auto source_native_layer_id = patchy::photoshop_layer_id(*source);
+  CHECK(!source_placed.empty());
+  CHECK(source_native_layer_id.has_value());
+  const auto expected_pasted_native_layer_id =
+      patchy::next_photoshop_layer_id(document.layers());
+  const auto original_record_count = smart_filter_effect_record_count(document);
+
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+
+  const auto pasted_id = select_named_layer(
+      window,
+      QString::fromLatin1(kSmartFilterInstanceAName) + QStringLiteral(" copy"));
+  const auto* pasted = std::as_const(document).find_layer(pasted_id);
+  CHECK(pasted != nullptr);
+  CHECK(pasted->smart_filter_stack() != nullptr);
+  const auto pasted_placed = patchy::smart_object_placed_uuid(*pasted);
+  CHECK(!pasted_placed.empty());
+  CHECK(pasted_placed != source_placed);
+  const auto pasted_native_layer_id = patchy::photoshop_layer_id(*pasted);
+  CHECK(pasted_native_layer_id.has_value());
+  CHECK(*pasted_native_layer_id == expected_pasted_native_layer_id);
+  CHECK(smart_filter_effect_record_count(document) == original_record_count + 1U);
+
+  bool cache_is_adjacent_to_source = false;
+  for (const auto& block :
+       std::as_const(document).metadata().smart_filter_effects.blocks) {
+    for (std::size_t index = 0; index + 1U < block.records.size(); ++index) {
+      if (block.records[index].placed_uuid == source_placed &&
+          block.records[index + 1U].placed_uuid == pasted_placed) {
+        cache_is_adjacent_to_source = true;
+      }
+    }
+  }
+  CHECK(cache_is_adjacent_to_source);
+}
+
+// Cross-document copy/paste must carry the source plus the opaque native cache
+// record. The destination creates its own `placed` id and adopts the raw FEid
+// body without depending on the source document remaining open.
+void ui_smart_filter_cross_document_paste_adopts_native_cache() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  open_smart_filter_instances_fixture(window);
+
+  const auto source_id = select_named_layer(
+      window, QString::fromLatin1(kSmartFilterInstanceBName));
+  const auto& source_document =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto* source = source_document.find_layer(source_id);
+  CHECK(source != nullptr);
+  CHECK(source->smart_filter_stack() != nullptr);
+  const auto source_uuid = patchy::smart_object_source_uuid(*source);
+  const auto source_placed = patchy::smart_object_placed_uuid(*source);
+  const auto* source_record =
+      source_document.metadata().smart_filter_effects.find_unique(source_placed);
+  CHECK(source_record != nullptr);
+  const auto raw_storage = source_record->raw_storage;
+  const auto raw_offset = source_record->raw_body_offset;
+  const auto raw_length = source_record->raw_body_length;
+  const auto original_placed = source_record->original_placed_uuid;
+
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+
+  patchy::Document destination(96, 96, patchy::PixelFormat::rgba8());
+  destination.add_pixel_layer(
+      "Destination Background",
+      solid_pixels(96, 96, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  window.add_document_session(std::move(destination),
+                              QStringLiteral("Smart Filter Paste Target"));
+  QApplication::processEvents();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+
+  const auto pasted_id = select_named_layer(
+      window,
+      QString::fromLatin1(kSmartFilterInstanceBName) + QStringLiteral(" copy"));
+  const auto& pasted_document =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto* pasted = pasted_document.find_layer(pasted_id);
+  CHECK(pasted != nullptr);
+  CHECK(patchy::layer_is_smart_object(*pasted));
+  CHECK(pasted->smart_filter_stack() != nullptr);
+  CHECK(patchy::smart_object_source_uuid(*pasted) == source_uuid);
+  CHECK(pasted_document.metadata().smart_objects.find(source_uuid) != nullptr);
+  const auto pasted_placed = patchy::smart_object_placed_uuid(*pasted);
+  CHECK(!pasted_placed.empty());
+  CHECK(pasted_placed != source_placed);
+  CHECK(patchy::photoshop_layer_id(*pasted).has_value());
+  CHECK(smart_filter_effect_record_count(pasted_document) == 1U);
+
+  const auto* pasted_record =
+      pasted_document.metadata().smart_filter_effects.find_unique(pasted_placed);
+  CHECK(pasted_record != nullptr);
+  CHECK(pasted_record->placed_uuid == pasted_placed);
+  CHECK(pasted_record->original_placed_uuid == original_placed);
+  CHECK(pasted_record->raw_storage == raw_storage);
+  CHECK(pasted_record->raw_body_offset == raw_offset);
+  CHECK(pasted_record->raw_body_length == raw_length);
+}
+
+// Rasterize removes only the selected instance's native cache. Whole-document
+// history snapshots restore both the Smart Object layer and that FEid record.
+void ui_smart_filter_rasterize_and_undo_restore_native_cache() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  open_smart_filter_instances_fixture(window);
+
+  const auto layer_id = select_named_layer(
+      window, QString::fromLatin1(kSmartFilterInstanceAName));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* original = std::as_const(document).find_layer(layer_id);
+  CHECK(original != nullptr);
+  CHECK(original->smart_filter_stack() != nullptr);
+  const auto original_placed = patchy::smart_object_placed_uuid(*original);
+  CHECK(!original_placed.empty());
+  CHECK(std::as_const(document)
+            .metadata()
+            .smart_filter_effects.find_unique(original_placed) != nullptr);
+  const auto original_record_count = smart_filter_effect_record_count(document);
+  const auto undo_depth =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  require_action(window, "layerRasterizeAction")->trigger();
+  QApplication::processEvents();
+
+  const auto* rasterized = std::as_const(document).find_layer(layer_id);
+  CHECK(rasterized != nullptr);
+  CHECK(!patchy::layer_is_smart_object(*rasterized));
+  CHECK(rasterized->smart_filter_stack() == nullptr);
+  CHECK(std::as_const(document)
+            .metadata()
+            .smart_filter_effects.find_unique(original_placed) == nullptr);
+  CHECK(smart_filter_effect_record_count(document) + 1U == original_record_count);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_depth + 1U);
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+
+  const auto* restored = std::as_const(document).find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(patchy::layer_is_smart_object(*restored));
+  CHECK(restored->smart_filter_stack() != nullptr);
+  CHECK(patchy::smart_object_placed_uuid(*restored) == original_placed);
+  CHECK(std::as_const(document)
+            .metadata()
+            .smart_filter_effects.find_unique(original_placed) != nullptr);
+  CHECK(smart_filter_effect_record_count(document) == original_record_count);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_depth);
+}
+
 // Opens the committed placed-smart-object fixture and activates its "small"
 // smart-object layer; returns that layer's id. Import notes stay in the status bar
 // (the popup only appears when imports/showPsdWarningsAndInfo is on).
@@ -44931,6 +45258,14 @@ int main(int argc, char* argv[]) {
        ui_import_notices_dialog_shown_when_setting_enabled},
       {"ui_smart_object_import_badges_protects_and_rasterizes",
        ui_smart_object_import_badges_protects_and_rasterizes},
+      {"ui_smart_filter_duplicate_rekeys_native_cache",
+       ui_smart_filter_duplicate_rekeys_native_cache},
+      {"ui_smart_filter_same_document_paste_keeps_native_cache_adjacent",
+       ui_smart_filter_same_document_paste_keeps_native_cache_adjacent},
+      {"ui_smart_filter_cross_document_paste_adopts_native_cache",
+       ui_smart_filter_cross_document_paste_adopts_native_cache},
+      {"ui_smart_filter_rasterize_and_undo_restore_native_cache",
+       ui_smart_filter_rasterize_and_undo_restore_native_cache},
       {"ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel",
        ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel},
       {"ui_layer_smart_object_badge_button_opens_contents", ui_layer_smart_object_badge_button_opens_contents},

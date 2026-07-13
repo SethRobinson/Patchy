@@ -4,6 +4,7 @@
 #include "core/layer.hpp"
 #include "core/palette.hpp"
 #include "core/pattern_resource.hpp"
+#include "core/smart_filter_effects.hpp"
 #include "core/smart_object.hpp"
 
 #include <cstdint>
@@ -31,6 +32,10 @@ struct DocumentMetadata {
   // Smart-object sources ('lnkD'/'lnk2'/'lnk3' blocks) referenced by per-layer
   // 'PlLd'/'SoLd' blocks via uuid; see core/smart_object.hpp.
   SmartObjectStore smart_objects;
+  // Photoshop Smart Filter render caches ('FEid'/'FXid'), associated with each
+  // layer's per-instance SoLd `placed` uuid. Raw record bodies use shared backing
+  // storage so undo snapshots do not copy large cached planes.
+  SmartFilterEffectsStore smart_filter_effects;
   // Pattern tiles referenced by layer-style Pattern Overlay / Bevel Texture
   // effects. Imported 'Patt'/'Pat2'/'Pat3' blocks stay raw in
   // unknown_psd_resources above AND decode here (read-only); only Authored

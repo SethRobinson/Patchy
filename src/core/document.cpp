@@ -7,6 +7,30 @@
 
 namespace patchy {
 
+namespace {
+
+void collect_smart_filter_placed_uuids(const Layer& layer,
+                                       std::vector<std::string>& placed_uuids) {
+  const auto placed_uuid = smart_object_placed_uuid(layer);
+  if (!placed_uuid.empty() &&
+      std::find(placed_uuids.begin(), placed_uuids.end(), placed_uuid) == placed_uuids.end()) {
+    placed_uuids.push_back(placed_uuid);
+  }
+  for (const auto& child : layer.children()) {
+    collect_smart_filter_placed_uuids(child, placed_uuids);
+  }
+}
+
+bool layer_tree_references_placed_uuid(const std::vector<Layer>& layers,
+                                       std::string_view placed_uuid) {
+  return std::any_of(layers.begin(), layers.end(), [placed_uuid](const Layer& layer) {
+    return smart_object_placed_uuid(layer) == placed_uuid ||
+           layer_tree_references_placed_uuid(layer.children(), placed_uuid);
+  });
+}
+
+}  // namespace
+
 Document::Document(std::int32_t width, std::int32_t height, PixelFormat format)
     : width_(width), height_(height), format_(format) {
   if (width < 0 || height < 0) {
@@ -186,6 +210,10 @@ void Document::clear_active_layer() noexcept {
 }
 
 bool Document::remove_layer(LayerId id) {
+  std::vector<std::string> removed_placed_uuids;
+  if (const auto* layer = std::as_const(*this).find_layer(id); layer != nullptr) {
+    collect_smart_filter_placed_uuids(*layer, removed_placed_uuids);
+  }
   const auto removed = remove_layer_recursive(layers_, id);
   if (!removed) {
     return false;
@@ -193,6 +221,11 @@ bool Document::remove_layer(LayerId id) {
 
   if (active_layer_id_ == id || (active_layer_id_.has_value() && find_layer(*active_layer_id_) == nullptr)) {
     active_layer_id_ = last_layer_id(layers_);
+  }
+  for (const auto& placed_uuid : removed_placed_uuids) {
+    if (!layer_tree_references_placed_uuid(std::as_const(*this).layers(), placed_uuid)) {
+      (void)metadata_.smart_filter_effects.remove(placed_uuid);
+    }
   }
   return true;
 }

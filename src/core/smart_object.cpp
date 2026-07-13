@@ -1,5 +1,7 @@
 #include "core/smart_object.hpp"
 
+#include "core/document.hpp"
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -35,6 +37,17 @@ std::string format_double(double value) {
   // %.17g round-trips every finite double exactly.
   std::snprintf(buffer.data(), buffer.size(), "%.17g", value);
   return std::string(buffer.data());
+}
+
+bool layer_tree_references_placed_uuid(const std::vector<Layer>& layers,
+                                       std::string_view placed_uuid) {
+  for (const auto& layer : layers) {
+    if (smart_object_placed_uuid(layer) == placed_uuid ||
+        layer_tree_references_placed_uuid(layer.children(), placed_uuid)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace
@@ -139,6 +152,10 @@ bool layer_is_smart_object(const Layer& layer) {
 
 std::string smart_object_source_uuid(const Layer& layer) {
   return std::string(metadata_value(layer, kLayerMetadataSmartObject).value_or(std::string_view{}));
+}
+
+std::string smart_object_placed_uuid(const Layer& layer) {
+  return std::string(metadata_value(layer, kLayerMetadataSmartObjectPlaced).value_or(std::string_view{}));
 }
 
 std::string smart_object_lock_reason(const Layer& layer) {
@@ -309,6 +326,9 @@ std::string generate_smart_object_uuid() {
       uuid.push_back(hex_digits[engine() & 0xF]);
     }
   }
+  // Photoshop's authored placed-instance ids use the RFC 4122 variant shape
+  // even though their version nibble is not fixed. Match that native form.
+  uuid[19] = hex_digits[8U + (engine() & 0x3U)];
   return uuid;
 }
 
@@ -413,6 +433,7 @@ void clear_layer_smart_object_metadata(Layer& layer) {
   if (!layer_is_smart_object(layer)) {
     return;
   }
+  layer.clear_smart_filter_stack();
   auto& metadata = layer.metadata();
   for (auto it = metadata.begin(); it != metadata.end();) {
     if (it->first.rfind(kLayerMetadataSmartObject, 0) == 0) {
@@ -440,6 +461,15 @@ void strip_layer_smart_object_data(Layer& layer) {
                                        block.key == "plLd";
                               }),
                blocks.end());
+}
+
+void strip_layer_smart_object_data(Document& document, Layer& layer) {
+  const auto placed_uuid = smart_object_placed_uuid(std::as_const(layer));
+  strip_layer_smart_object_data(layer);
+  if (!placed_uuid.empty() &&
+      !layer_tree_references_placed_uuid(std::as_const(document).layers(), placed_uuid)) {
+    (void)document.metadata().smart_filter_effects.remove(placed_uuid);
+  }
 }
 
 }  // namespace patchy

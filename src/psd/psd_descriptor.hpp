@@ -128,7 +128,8 @@ void write_descriptor(BigEndianWriter& writer, const DescriptorObject& object);
                                        double fallback = 0.0);
 
 [[nodiscard]] std::vector<std::uint8_t> decode_packbits(std::span<const std::uint8_t> encoded,
-                                                        std::size_t expected_size);
+                                                        std::size_t expected_size,
+                                                        std::size_t* consumed_bytes = nullptr);
 // One row of PackBits/ByteRun1 encoding (shared by the PSD RLE writer and the ILBM BODY
 // writer; the algorithms are identical).
 [[nodiscard]] std::vector<std::uint8_t> encode_packbits_row(std::span<const std::uint8_t> row);

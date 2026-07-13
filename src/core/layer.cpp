@@ -1,10 +1,12 @@
 #include "core/layer.hpp"
+#include "core/smart_filter.hpp"
 
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <stdexcept>
 
 namespace patchy {
@@ -341,6 +343,10 @@ const LayerStyle& Layer::layer_style() const noexcept {
   return layer_style_;
 }
 
+const SmartFilterStack* Layer::smart_filter_stack() const noexcept {
+  return smart_filter_stack_.get();
+}
+
 std::uint64_t Layer::render_revision() const noexcept {
   return render_revision_;
 }
@@ -357,6 +363,78 @@ Layer Layer::clone_with_id(LayerId id) const {
   auto cloned = *this;
   cloned.id_ = id;
   return cloned;
+}
+
+std::optional<std::uint32_t>
+photoshop_layer_id(const Layer& layer) noexcept {
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.key != "lyid" || block.payload.size() != 4U) {
+      continue;
+    }
+    const auto id = (static_cast<std::uint32_t>(block.payload[0]) << 24U) |
+                    (static_cast<std::uint32_t>(block.payload[1]) << 16U) |
+                    (static_cast<std::uint32_t>(block.payload[2]) << 8U) |
+                    static_cast<std::uint32_t>(block.payload[3]);
+    if (id != 0U) {
+      return id;
+    }
+  }
+  return std::nullopt;
+}
+
+void set_photoshop_layer_id(Layer& layer, std::uint32_t id) {
+  if (id == 0U) {
+    throw std::invalid_argument("Photoshop layer id 0 is reserved");
+  }
+  auto& blocks = layer.unknown_psd_blocks();
+  const auto first = std::find_if(blocks.begin(), blocks.end(),
+                                  [](const UnknownPsdBlock& block) {
+                                    return block.key == "lyid";
+                                  });
+  const auto index = first == blocks.end()
+                         ? blocks.size()
+                         : static_cast<std::size_t>(first - blocks.begin());
+  auto replacement = first == blocks.end() ? UnknownPsdBlock{} : *first;
+  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
+    return block.key == "lyid";
+  });
+  replacement.key = "lyid";
+  replacement.payload = {
+      static_cast<std::uint8_t>((id >> 24U) & 0xFFU),
+      static_cast<std::uint8_t>((id >> 16U) & 0xFFU),
+      static_cast<std::uint8_t>((id >> 8U) & 0xFFU),
+      static_cast<std::uint8_t>(id & 0xFFU),
+  };
+  blocks.insert(blocks.begin() +
+                    static_cast<std::ptrdiff_t>(std::min(index, blocks.size())),
+                std::move(replacement));
+}
+
+std::uint32_t
+next_photoshop_layer_id(const std::vector<Layer>& layers) {
+  std::vector<std::uint32_t> ids;
+  const auto collect = [&ids](const auto& self,
+                              const std::vector<Layer>& siblings) -> void {
+    for (const auto& layer : siblings) {
+      if (const auto id = photoshop_layer_id(layer); id.has_value()) {
+        ids.push_back(*id);
+      }
+      self(self, layer.children());
+    }
+  };
+  collect(collect, layers);
+  const auto maximum = ids.empty()
+                           ? 0U
+                           : *std::max_element(ids.begin(), ids.end());
+  if (maximum != std::numeric_limits<std::uint32_t>::max()) {
+    return maximum + 1U;
+  }
+  for (std::uint32_t candidate = 1U; candidate != 0U; ++candidate) {
+    if (std::find(ids.begin(), ids.end(), candidate) == ids.end()) {
+      return candidate;
+    }
+  }
+  return 1U;
 }
 
 void Layer::set_name(std::string name) {
@@ -458,6 +536,21 @@ void Layer::set_blend_if_payload(std::vector<std::uint8_t> payload, bool rgb_com
 
 void Layer::set_blend_if_rgb_compatible(bool compatible) noexcept {
   blend_if_rgb_compatible_ = compatible;
+}
+
+void Layer::set_smart_filter_stack(SmartFilterStack stack) {
+  smart_filter_stack_ = std::make_shared<const SmartFilterStack>(std::move(stack));
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+}
+
+void Layer::clear_smart_filter_stack() noexcept {
+  if (!smart_filter_stack_) {
+    return;
+  }
+  smart_filter_stack_.reset();
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
 }
 
 void Layer::add_child(Layer child) {

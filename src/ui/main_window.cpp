@@ -5521,11 +5521,159 @@ std::string next_duplicate_layer_name(std::string_view source_name, const std::s
   }
 }
 
-Layer clone_layer_tree_with_document_ids(Document& document, const Layer& source) {
+bool smart_filter_record_is_cloneable(const SmartFilterEffectsRecord& record) {
+  return !record.original_placed_uuid.empty() && record.raw_storage != nullptr &&
+         record.raw_body_offset <= record.raw_storage->size() &&
+         record.raw_body_length <= record.raw_storage->size() - record.raw_body_offset;
+}
+
+const SmartFilterEffectsRecord* transferred_smart_filter_record(
+    const std::vector<SmartFilterEffectsRecord>& records, std::string_view placed_uuid) {
+  const SmartFilterEffectsRecord* found = nullptr;
+  for (const auto& record : records) {
+    if (record.placed_uuid != placed_uuid) {
+      continue;
+    }
+    if (found != nullptr) {
+      return nullptr;
+    }
+    found = &record;
+  }
+  return found;
+}
+
+bool smart_filter_records_available_for_clone(
+    const Layer& source, const SmartFilterEffectsStore& store,
+    const std::vector<SmartFilterEffectsRecord>* transferred_records = nullptr) {
+  if (source.smart_filter_stack() != nullptr) {
+    const auto placed_uuid = smart_object_placed_uuid(source);
+    const auto* record = transferred_records != nullptr
+                             ? transferred_smart_filter_record(*transferred_records, placed_uuid)
+                             : store.find_unique(placed_uuid);
+    if (record == nullptr || !smart_filter_record_is_cloneable(*record)) {
+      return false;
+    }
+  }
+  return std::all_of(source.children().begin(), source.children().end(),
+                     [&](const Layer& child) {
+                       return smart_filter_records_available_for_clone(
+                           child, store, transferred_records);
+                     });
+}
+
+void collect_referenced_smart_filter_records(const Layer& layer,
+                                             const SmartFilterEffectsStore& store,
+                                             std::vector<SmartFilterEffectsRecord>& records) {
+  if (layer.smart_filter_stack() != nullptr) {
+    const auto placed_uuid = smart_object_placed_uuid(layer);
+    const auto already_collected = std::any_of(
+        records.begin(), records.end(), [&](const SmartFilterEffectsRecord& record) {
+          return record.placed_uuid == placed_uuid;
+        });
+    if (!already_collected) {
+      if (const auto* record = store.find_unique(placed_uuid); record != nullptr) {
+        records.push_back(*record);
+      }
+    }
+  }
+  for (const auto& child : layer.children()) {
+    collect_referenced_smart_filter_records(child, store, records);
+  }
+}
+
+class PhotoshopLayerIdAllocator {
+public:
+  explicit PhotoshopLayerIdAllocator(const std::vector<Layer>& layers) {
+    const auto collect = [this](const auto& self,
+                                const std::vector<Layer>& siblings) -> void {
+      for (const auto& layer : siblings) {
+        if (const auto id = patchy::photoshop_layer_id(layer); id.has_value()) {
+          used_.insert(*id);
+        }
+        self(self, layer.children());
+      }
+    };
+    collect(collect, layers);
+    if (!used_.empty() &&
+        *used_.rbegin() != std::numeric_limits<std::uint32_t>::max()) {
+      next_ = *used_.rbegin() + 1U;
+    }
+  }
+
+  [[nodiscard]] std::optional<std::uint32_t> allocate() {
+    // A run of occupied candidates cannot be longer than used_.size(). Trying
+    // one more value therefore either finds a hole or proves the id space full.
+    const auto attempts = used_.size() + 1U;
+    for (std::size_t attempt = 0; attempt < attempts; ++attempt) {
+      const auto candidate = next_;
+      next_ = candidate == std::numeric_limits<std::uint32_t>::max()
+                  ? 1U
+                  : candidate + 1U;
+      if (used_.insert(candidate).second) {
+        return candidate;
+      }
+    }
+    return std::nullopt;
+  }
+
+private:
+  std::set<std::uint32_t> used_;
+  std::uint32_t next_{1U};
+};
+
+std::optional<Layer> clone_layer_tree_with_document_ids(
+    Document& document, const Layer& source,
+    const std::vector<SmartFilterEffectsRecord>* transferred_records = nullptr,
+    PhotoshopLayerIdAllocator* native_layer_ids = nullptr) {
+  std::optional<PhotoshopLayerIdAllocator> owned_native_layer_ids;
+  if (native_layer_ids == nullptr) {
+    owned_native_layer_ids.emplace(document.layers());
+    native_layer_ids = &*owned_native_layer_ids;
+  }
   auto cloned = source.clone_with_id(document.allocate_layer_id());
   cloned.children().clear();
+  if (patchy::photoshop_layer_id(source).has_value()) {
+    const auto new_native_layer_id = native_layer_ids->allocate();
+    if (!new_native_layer_id.has_value()) {
+      return std::nullopt;
+    }
+    patchy::set_photoshop_layer_id(cloned, *new_native_layer_id);
+  }
+
+  if (layer_is_smart_object(source)) {
+    const auto old_placed_uuid = smart_object_placed_uuid(source);
+    if (!old_placed_uuid.empty()) {
+      const auto new_placed_uuid = generate_smart_object_uuid();
+      if (source.smart_filter_stack() != nullptr) {
+        bool cache_cloned = false;
+        if (transferred_records != nullptr) {
+          if (const auto* record = transferred_smart_filter_record(
+                  *transferred_records, old_placed_uuid);
+              record != nullptr) {
+            cache_cloned = document.metadata().smart_filter_effects.adopt(
+                *record, new_placed_uuid);
+          }
+        } else {
+          cache_cloned = document.metadata().smart_filter_effects.clone_rekey(
+              old_placed_uuid, new_placed_uuid);
+        }
+        if (!cache_cloned) {
+          return std::nullopt;
+        }
+      }
+      cloned.metadata()[kLayerMetadataSmartObjectPlaced] = new_placed_uuid;
+      mark_layer_smart_object_block_dirty(cloned);
+    }
+  }
+
   for (const auto& child : source.children()) {
-    cloned.add_child(clone_layer_tree_with_document_ids(document, child));
+    auto child_clone = clone_layer_tree_with_document_ids(document, child,
+                                                          transferred_records,
+                                                          native_layer_ids);
+    if (!child_clone.has_value()) {
+      return std::nullopt;
+    }
+    cloned.add_child(std::move(*child_clone));
   }
   return cloned;
 }
@@ -17114,6 +17262,9 @@ void MainWindow::copy_selection() {
       payload.layers_top_to_bottom.push_back(*layer);
       collect_referenced_smart_object_sources(*layer, document().metadata().smart_objects,
                                               payload.smart_object_sources);
+      collect_referenced_smart_filter_records(
+          *layer, document().metadata().smart_filter_effects,
+          payload.smart_filter_effect_records);
       collect_referenced_pattern_resources(*layer, document().metadata().patterns,
                                            payload.pattern_resources);
     }
@@ -17222,6 +17373,18 @@ void MainWindow::paste_clipboard() {
   }
   if (clipboard_.has_value() && !clipboard_->layers_top_to_bottom.empty()) {
     auto& doc = document();
+    const auto caches_available = std::all_of(
+        clipboard_->layers_top_to_bottom.begin(), clipboard_->layers_top_to_bottom.end(),
+        [&](const Layer& layer) {
+          return smart_filter_records_available_for_clone(
+              layer, doc.metadata().smart_filter_effects,
+              &clipboard_->smart_filter_effect_records);
+        });
+    if (!caches_available) {
+      statusBar()->showMessage(
+          tr("Smart Filter cache data could not be duplicated safely"));
+      return;
+    }
     std::set<std::string> existing_names;
     collect_layer_names(doc.layers(), existing_names);
 
@@ -17235,10 +17398,17 @@ void MainWindow::paste_clipboard() {
       doc.metadata().patterns.adopt(adopted);
     }
     for (auto it = clipboard_->layers_top_to_bottom.rbegin(); it != clipboard_->layers_top_to_bottom.rend(); ++it) {
-      auto pasted = clone_layer_tree_with_document_ids(doc, *it);
-      pasted.set_name(next_duplicate_layer_name(it->name(), existing_names));
-      existing_names.insert(pasted.name());
-      doc.add_layer(std::move(pasted));
+      auto pasted = clone_layer_tree_with_document_ids(
+          doc, *it, &clipboard_->smart_filter_effect_records);
+      if (!pasted.has_value()) {
+        undo();
+        statusBar()->showMessage(
+            tr("Smart Filter cache data could not be duplicated safely"));
+        return;
+      }
+      pasted->set_name(next_duplicate_layer_name(it->name(), existing_names));
+      existing_names.insert(pasted->name());
+      doc.add_layer(std::move(*pasted));
     }
     refresh_layer_list();
     refresh_layer_controls();
@@ -19259,6 +19429,16 @@ void MainWindow::duplicate_layers(std::vector<LayerId> ids) {
   }
 
   auto& doc = document();
+  const auto caches_available = std::all_of(ids.begin(), ids.end(), [&](LayerId id) {
+    const auto* source = std::as_const(doc).find_layer(id);
+    return source == nullptr || smart_filter_records_available_for_clone(
+                                    *source, doc.metadata().smart_filter_effects);
+  });
+  if (!caches_available) {
+    statusBar()->showMessage(
+        tr("Smart Filter cache data could not be duplicated safely"));
+    return;
+  }
   std::set<std::string> existing_names;
   collect_layer_names(doc.layers(), existing_names);
 
@@ -19271,9 +19451,15 @@ void MainWindow::duplicate_layers(std::vector<LayerId> ids) {
     }
 
     auto duplicate = clone_layer_tree_with_document_ids(doc, *source);
-    duplicate.set_name(next_duplicate_layer_name(source->name(), existing_names));
-    existing_names.insert(duplicate.name());
-    doc.add_layer(std::move(duplicate));
+    if (!duplicate.has_value()) {
+      undo();
+      statusBar()->showMessage(
+          tr("Smart Filter cache data could not be duplicated safely"));
+      return;
+    }
+    duplicate->set_name(next_duplicate_layer_name(source->name(), existing_names));
+    existing_names.insert(duplicate->name());
+    doc.add_layer(std::move(*duplicate));
   }
   refresh_layer_list();
   refresh_layer_controls();
@@ -19720,7 +19906,7 @@ void MainWindow::rasterize_active_layers() {
     if (change.clear_smart_object) {
       // The pixels already are the preview; dropping the metadata and the preserved
       // placed-layer blocks makes this a plain pixel layer everywhere, resave included.
-      strip_layer_smart_object_data(*layer);
+      strip_layer_smart_object_data(doc, *layer);
     }
     affected = unite_rect(affected, layer_render_bounds(*layer));
   }
@@ -19785,7 +19971,7 @@ void MainWindow::rasterize_active_layer_styles() {
     }
     // Baking effects into the pixels breaks the preview's tie to the placed source, so
     // a smart object also demotes to a plain pixel layer here.
-    strip_layer_smart_object_data(*layer);
+    strip_layer_smart_object_data(doc, *layer);
     affected = unite_rect(affected, layer_render_bounds(*layer));
   }
   refresh_layer_list();
@@ -20747,6 +20933,12 @@ void MainWindow::new_smart_object_via_copy() {
     statusBar()->showMessage(tr("This smart object can only be preserved, not edited"));
     return;
   }
+  if (!smart_filter_records_available_for_clone(
+          *layer, doc.metadata().smart_filter_effects)) {
+    statusBar()->showMessage(
+        tr("Smart Filter cache data could not be duplicated safely"));
+    return;
+  }
 
   push_undo_snapshot(tr("New Smart Object via Copy"));
 
@@ -20763,14 +20955,20 @@ void MainWindow::new_smart_object_via_copy() {
     return;
   }
   auto copy = clone_layer_tree_with_document_ids(doc, *layer);
-  copy.set_name(layer->name() + " copy");
+  if (!copy.has_value()) {
+    undo();
+    statusBar()->showMessage(
+        tr("Smart Filter cache data could not be duplicated safely"));
+    return;
+  }
+  copy->set_name(layer->name() + " copy");
   auto copied_placement = *placement;
   copied_placement.uuid = fresh_uuid;
-  store_smart_object_placement(copy, copied_placement);
-  mark_layer_smart_object_block_dirty(copy);  // the preserved SoLd's Idnt repoints on save
-  const auto copy_id = copy.id();
+  store_smart_object_placement(*copy, copied_placement);
+  mark_layer_smart_object_block_dirty(*copy);  // the preserved SoLd's Idnt repoints on save
+  const auto copy_id = copy->id();
   location->siblings->insert(location->siblings->begin() + static_cast<std::ptrdiff_t>(location->index) + 1,
-                             std::move(copy));
+                             std::move(*copy));
   doc.set_active_layer(copy_id);
   refresh_layer_list();
   refresh_layer_controls();
@@ -21600,7 +21798,7 @@ void MainWindow::merge_down() {
     target.clear_mask();
     target.layer_style() = {};
     clear_layer_text_metadata(target);
-    strip_layer_smart_object_data(target);
+    strip_layer_smart_object_data(doc, target);
     clear_layer_psd_style_source(target);
     target.set_visible(true);
   }

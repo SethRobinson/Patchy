@@ -476,7 +476,9 @@ void write_descriptor(BigEndianWriter& writer, const DescriptorObject& object) {
   }
 }
 
-std::vector<std::uint8_t> decode_packbits(std::span<const std::uint8_t> encoded, std::size_t expected_size) {
+std::vector<std::uint8_t> decode_packbits(std::span<const std::uint8_t> encoded,
+                                         std::size_t expected_size,
+                                         std::size_t* consumed_bytes) {
   std::vector<std::uint8_t> decoded;
   decoded.reserve(expected_size);
   std::size_t cursor = 0;
@@ -501,6 +503,9 @@ std::vector<std::uint8_t> decode_packbits(std::span<const std::uint8_t> encoded,
 
   if (decoded.size() != expected_size) {
     throw std::runtime_error("PSD PackBits row decoded to the wrong length");
+  }
+  if (consumed_bytes != nullptr) {
+    *consumed_bytes = cursor;
   }
   return decoded;
 }
