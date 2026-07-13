@@ -261,6 +261,41 @@ QPixmap grayscale_channel_thumbnail(const PixelBuffer& pixels) {
   return result;
 }
 
+QPixmap sampled_grayscale_channel_thumbnail(const PixelBuffer& pixels) {
+  if (pixels.empty() || pixels.format() != PixelFormat::gray8()) {
+    return {};
+  }
+  const auto scaled_size =
+      QSize(pixels.width(), pixels.height())
+          .scaled(QSize(42, 30), Qt::KeepAspectRatio);
+  QImage scaled(scaled_size, QImage::Format_Grayscale8);
+  for (int y = 0; y < scaled.height(); ++y) {
+    auto* destination = scaled.scanLine(y);
+    const auto source_y = std::clamp(
+        static_cast<int>((static_cast<std::int64_t>(y) * pixels.height()) /
+                         std::max(1, scaled.height())),
+        0, pixels.height() - 1);
+    const auto source = pixels.row(source_y);
+    for (int x = 0; x < scaled.width(); ++x) {
+      const auto source_x = std::clamp(
+          static_cast<int>((static_cast<std::int64_t>(x) * pixels.width()) /
+                           std::max(1, scaled.width())),
+          0, pixels.width() - 1);
+      destination[x] = source[static_cast<std::size_t>(source_x)];
+    }
+  }
+  QPixmap result(42, 30);
+  result.fill(QColor(30, 32, 35));
+  QPainter painter(&result);
+  painter.drawImage(
+      QPoint((result.width() - scaled.width()) / 2,
+             (result.height() - scaled.height()) / 2),
+      scaled);
+  painter.setPen(QColor(92, 96, 102));
+  painter.drawRect(result.rect().adjusted(0, 0, -1, -1));
+  return result;
+}
+
 std::uint8_t white_backed_component(std::uint8_t component, std::uint8_t alpha) {
   return static_cast<std::uint8_t>((static_cast<int>(component) * static_cast<int>(alpha) +
                                     255 * (255 - static_cast<int>(alpha))) /
@@ -290,6 +325,9 @@ void MainWindow::refresh_channel_panel() {
   }
   if (!has_active_document() || canvas_ == nullptr) {
     channel_thumbnail_cache_.clear();
+    quick_mask_thumbnail_canvas_ = nullptr;
+    quick_mask_thumbnail_revision_ = 0;
+    quick_mask_thumbnail_ = QPixmap();
     channel_panel_->set_rows({});
     channel_panel_->set_document_available(false);
     refresh_edit_target_chip();
@@ -298,7 +336,7 @@ void MainWindow::refresh_channel_panel() {
 
   const auto& doc = std::as_const(document());
   std::vector<ChannelPanel::Row> rows;
-  rows.reserve(4U + doc.channels().size());
+  rows.reserve(5U + doc.channels().size());
   rows.push_back({ChannelPanel::RowKind::Composite, 0, tr("Composite"),
                   component_channel_thumbnail(QColor(230, 230, 230)), false});
   rows.push_back({ChannelPanel::RowKind::Red, 0, tr("Red"), component_channel_thumbnail(QColor(235, 70, 70)),
@@ -307,6 +345,19 @@ void MainWindow::refresh_channel_panel() {
                   component_channel_thumbnail(QColor(65, 210, 90)), false});
   rows.push_back({ChannelPanel::RowKind::Blue, 0, tr("Blue"),
                   component_channel_thumbnail(QColor(70, 120, 245)), false});
+
+  if (canvas_->quick_mask_active()) {
+    if (quick_mask_thumbnail_canvas_ != canvas_ ||
+        quick_mask_thumbnail_revision_ != canvas_->quick_mask_revision() ||
+        quick_mask_thumbnail_.isNull()) {
+      quick_mask_thumbnail_canvas_ = canvas_;
+      quick_mask_thumbnail_revision_ = canvas_->quick_mask_revision();
+      quick_mask_thumbnail_ =
+          sampled_grayscale_channel_thumbnail(canvas_->quick_mask_pixels());
+    }
+    rows.push_back({ChannelPanel::RowKind::QuickMask, 0, tr("Quick Mask"),
+                    quick_mask_thumbnail_, false});
+  }
 
   std::set<ChannelId> current_ids;
   const auto selected_channel_id = canvas_->active_document_channel_id();
@@ -327,29 +378,35 @@ void MainWindow::refresh_channel_panel() {
   }
 
   ChannelPanel::Row selected = rows.front();
-  switch (canvas_->layer_edit_target()) {
-    case CanvasWidget::LayerEditTarget::ComponentRed:
-      selected = rows[1];
-      break;
-    case CanvasWidget::LayerEditTarget::ComponentGreen:
-      selected = rows[2];
-      break;
-    case CanvasWidget::LayerEditTarget::ComponentBlue:
-      selected = rows[3];
-      break;
-    case CanvasWidget::LayerEditTarget::DocumentChannel:
-      if (selected_channel_id.has_value()) {
-        if (const auto found = std::find_if(rows.begin() + 4, rows.end(), [&](const ChannelPanel::Row& row) {
-              return row.id == *selected_channel_id;
-            });
-            found != rows.end()) {
-          selected = *found;
+  if (canvas_->quick_mask_active()) {
+    selected = rows[4];
+  } else {
+    switch (canvas_->layer_edit_target()) {
+      case CanvasWidget::LayerEditTarget::ComponentRed:
+        selected = rows[1];
+        break;
+      case CanvasWidget::LayerEditTarget::ComponentGreen:
+        selected = rows[2];
+        break;
+      case CanvasWidget::LayerEditTarget::ComponentBlue:
+        selected = rows[3];
+        break;
+      case CanvasWidget::LayerEditTarget::DocumentChannel:
+        if (selected_channel_id.has_value()) {
+          if (const auto found = std::find_if(
+                  rows.begin() + 4, rows.end(),
+                  [&](const ChannelPanel::Row& row) {
+                    return row.id == *selected_channel_id;
+                  });
+              found != rows.end()) {
+            selected = *found;
+          }
         }
-      }
-      break;
-    case CanvasWidget::LayerEditTarget::Content:
-    case CanvasWidget::LayerEditTarget::Mask:
-      break;
+        break;
+      case CanvasWidget::LayerEditTarget::Content:
+      case CanvasWidget::LayerEditTarget::Mask:
+        break;
+    }
   }
   channel_panel_->set_rows(std::move(rows), selected);
   const bool editing_available = !preview_dialog_edit_locked();
@@ -366,6 +423,9 @@ void MainWindow::set_channel_edit_target(ChannelPanel::RowKind kind, ChannelId i
   finish_active_text_editor();
   canvas_->finish_free_transform();
   canvas_->finish_warp_transform();
+  if (canvas_->quick_mask_active() && kind != ChannelPanel::RowKind::QuickMask) {
+    canvas_->set_quick_mask_active(false);
+  }
   QString message;
   switch (kind) {
     case ChannelPanel::RowKind::Composite:
@@ -400,6 +460,12 @@ void MainWindow::set_channel_edit_target(ChannelPanel::RowKind kind, ChannelId i
                               : tr("Editing channel: %1").arg(QString::fromStdString(channel->name()));
       break;
     }
+    case ChannelPanel::RowKind::QuickMask:
+      if (!canvas_->quick_mask_active()) {
+        canvas_->set_quick_mask_active(true);
+      }
+      message = tr("Editing Quick Mask");
+      break;
   }
   refresh_layer_controls();
   refresh_options_bar();
@@ -495,6 +561,9 @@ void MainWindow::load_channel_as_selection(ChannelPanel::RowKind kind, ChannelId
   if (canvas_ == nullptr || !has_active_document()) {
     return;
   }
+  if (kind == ChannelPanel::RowKind::QuickMask) {
+    return;
+  }
 
   const PixelBuffer* selection_pixels = nullptr;
   PixelBuffer derived_pixels;
@@ -536,6 +605,7 @@ void MainWindow::load_channel_as_selection(ChannelPanel::RowKind kind, ChannelId
             break;
           case ChannelPanel::RowKind::Alpha:
           case ChannelPanel::RowKind::Spot:
+          case ChannelPanel::RowKind::QuickMask:
             break;
         }
       }
@@ -556,6 +626,7 @@ void MainWindow::load_channel_as_selection(ChannelPanel::RowKind kind, ChannelId
         break;
       case ChannelPanel::RowKind::Alpha:
       case ChannelPanel::RowKind::Spot:
+      case ChannelPanel::RowKind::QuickMask:
         break;
     }
   }
@@ -661,6 +732,13 @@ void MainWindow::refresh_edit_target_chip() {
     }
     return;
   }
+  if (canvas_->quick_mask_active()) {
+    mask_edit_mode_chip_->setText(tr("Editing Quick Mask (click to exit)"));
+    mask_edit_mode_chip_->setToolTip(
+        tr("Paint white to select, black to mask, or gray for partial selection."));
+    mask_edit_mode_chip_->show();
+    return;
+  }
   if (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask) {
     mask_edit_mode_chip_->setText(tr("Editing layer mask (click to exit)"));
     mask_edit_mode_chip_->setToolTip(
@@ -723,6 +801,38 @@ void MainWindow::restore_channel_target_after_document_reset(CanvasWidget::Layer
   }
   refresh_channel_panel();
   update_document_action_state();
+}
+
+void MainWindow::toggle_quick_mask_mode() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_quick_mask_ui();
+    return;
+  }
+  finish_active_text_editor();
+  canvas_->finish_free_transform();
+  canvas_->finish_warp_transform();
+  const auto active = !canvas_->quick_mask_active();
+  canvas_->set_quick_mask_active(active);
+  refresh_quick_mask_ui();
+  statusBar()->showMessage(active ? tr("Entered Quick Mask mode")
+                                  : tr("Exited Quick Mask mode"));
+}
+
+void MainWindow::refresh_quick_mask_ui() {
+  const auto active = canvas_ != nullptr && has_active_document() &&
+                      canvas_->quick_mask_active();
+  if (quick_mask_action_ != nullptr) {
+    const QSignalBlocker blocker(quick_mask_action_);
+    quick_mask_action_->setChecked(active);
+  }
+  refresh_color_buttons();
+  refresh_channel_panel();
+  update_document_action_state();
+  refresh_document_info();
 }
 
 }  // namespace patchy::ui

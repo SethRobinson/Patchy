@@ -137,6 +137,11 @@ public:
     QRegion display_region;
     QRect mask_bounds;
     QImage mask_alpha;
+    // Quick Mask is temporary canvas state rather than document data. History
+    // snapshots carry its COW buffer so a gesture can undo without copying or
+    // serializing the document, and can still restore the resulting selection
+    // after Quick Mask has been exited.
+    std::optional<PixelBuffer> quick_mask_pixels;
   };
 
   // Tools whose combine mode (New/Add/Subtract/Intersect) is tracked separately,
@@ -466,6 +471,11 @@ public:
   void invert_selection();
   void clear_selection();
   void reselect();
+  [[nodiscard]] bool quick_mask_active() const noexcept;
+  void set_quick_mask_active(bool active);
+  [[nodiscard]] const PixelBuffer& quick_mask_pixels() const noexcept;
+  [[nodiscard]] std::uint64_t quick_mask_revision() const noexcept;
+  [[nodiscard]] QRect fill_quick_mask(QColor color, QString history_label);
   void set_selection_edges_visible(bool visible) noexcept;
   [[nodiscard]] bool selection_edges_visible() const noexcept;
   void toggle_selection_edges_visible();
@@ -527,6 +537,7 @@ public:
   // coalescing edits collapse into the single entry holding the pre-sequence
   // state, so a run of moves is one undo step.
   void set_selection_history_callback(std::function<void(QString, SelectionSnapshot, bool coalesce)> callback);
+  void set_quick_mask_changed_callback(std::function<void()> callback);
   // Invoked when the effective combine mode changes (tool switch, mode button,
   // or live Shift/Alt) so the Options-bar mode buttons can follow.
   void set_selection_mode_changed_callback(std::function<void(SelectionMode)> callback);
@@ -711,6 +722,7 @@ private:
   void cancel_guide_drag();
   [[nodiscard]] bool document_contains(QPoint point) const noexcept;
   [[nodiscard]] bool selection_allows(QPoint point) const noexcept;
+  [[nodiscard]] bool selection_clips_grayscale_edits() const noexcept;
   [[nodiscard]] Layer* active_pixel_layer() const noexcept;
   [[nodiscard]] LayerMask* active_layer_mask() const noexcept;
   [[nodiscard]] bool editing_layer_mask() const noexcept;
@@ -858,6 +870,9 @@ private:
   void set_selection_from_region(QRegion selection);
   void set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha);
   void restore_selection_before_edit();
+  void apply_grayscale_to_selection(const PixelBuffer& pixels);
+  void finish_quick_mask_edit();
+  void invalidate_quick_mask_display() noexcept;
   // Marks the cached marching-ants outline stale. Must be called by any code
   // that writes selection_ / selection_display_region_ directly instead of
   // going through the setters above.
@@ -1160,6 +1175,14 @@ private:
   QRect selection_mask_before_edit_bounds_;
   QImage selection_mask_before_edit_alpha_;
   bool selection_edges_visible_{true};
+  bool quick_mask_active_{false};
+  PixelBuffer quick_mask_pixels_;
+  std::uint64_t quick_mask_revision_{0};
+  QColor quick_mask_saved_primary_{Qt::black};
+  QColor quick_mask_saved_secondary_{Qt::white};
+  std::optional<SelectionSnapshot> quick_mask_edit_before_;
+  QString quick_mask_edit_label_;
+  QRegion quick_mask_edit_dirty_;
   bool rulers_visible_{false};
   bool grid_visible_{false};
   bool guides_visible_{true};
@@ -1295,6 +1318,7 @@ private:
   std::optional<LayerId> move_transform_controls_layer_id_{};
   std::function<void(QString)> before_edit_callback_;
   std::function<void(QString, SelectionSnapshot, bool)> selection_history_callback_;
+  std::function<void()> quick_mask_changed_callback_;
   std::function<void(SelectionMode)> selection_mode_changed_callback_;
   std::function<void(QColor)> color_picked_callback_;
   std::function<void(const CanvasReadGesture&)> transient_read_callback_;

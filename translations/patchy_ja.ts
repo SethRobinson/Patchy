@@ -5583,6 +5583,18 @@ Mixed selection</source>
         <source>Move Guide</source>
         <translation>ガイドを移動</translation>
     </message>
+    <message>
+        <source>Inverted Quick Mask</source>
+        <translation>クイックマスクを反転しました</translation>
+    </message>
+    <message>
+        <source>This tool is unavailable in Quick Mask mode</source>
+        <translation>このツールはクイックマスクモードでは使用できません</translation>
+    </message>
+    <message>
+        <source>Select All is unavailable in Quick Mask mode</source>
+        <translation>クイックマスクモードでは「すべてを選択」は使用できません</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -5666,6 +5678,10 @@ Mixed selection</source>
         <location line="+1"/>
         <source>Delete channel</source>
         <translation>チャンネルを削除</translation>
+    </message>
+    <message>
+        <source>Temporary selection mask. White selects, black masks, and gray creates partial selection.</source>
+        <translation>一時的な選択マスクです。白で選択、黒でマスク、グレーで部分選択を作成します。</translation>
     </message>
 </context>
 <context>
@@ -11004,6 +11020,46 @@ Clipped to the layer below</source>
         <location line="+13"/>
         <source>Click to return to the composite image.</source>
         <translation>クリックするとコンポジット画像に戻ります。</translation>
+    </message>
+    <message>
+        <source>Edit in &amp;Quick Mask Mode</source>
+        <translation>クイックマスクモードで編集(&amp;Q)</translation>
+    </message>
+    <message>
+        <source>Edit in Quick Mask Mode (Q)</source>
+        <translation>クイックマスクモードで編集 (Q)</translation>
+    </message>
+    <message>
+        <source>Filters are unavailable in Quick Mask mode</source>
+        <translation>フィルターはクイックマスクモードでは使用できません</translation>
+    </message>
+    <message>
+        <source>Clear Quick Mask</source>
+        <translation>クイックマスクを消去</translation>
+    </message>
+    <message>
+        <source>Quick Mask</source>
+        <translation>クイックマスク</translation>
+    </message>
+    <message>
+        <source>Editing Quick Mask</source>
+        <translation>クイックマスクを編集中</translation>
+    </message>
+    <message>
+        <source>Editing Quick Mask (click to exit)</source>
+        <translation>クイックマスクを編集中（クリックして終了）</translation>
+    </message>
+    <message>
+        <source>Paint white to select, black to mask, or gray for partial selection.</source>
+        <translation>白で選択、黒でマスク、グレーで部分選択を描画します。</translation>
+    </message>
+    <message>
+        <source>Entered Quick Mask mode</source>
+        <translation>クイックマスクモードに入りました</translation>
+    </message>
+    <message>
+        <source>Exited Quick Mask mode</source>
+        <translation>クイックマスクモードを終了しました</translation>
     </message>
 </context>
 <context>

@@ -488,6 +488,11 @@ void snap_filter_result_to_palette(PixelBuffer& pixels, Rect bounds, const QRegi
 }  // namespace
 
 void MainWindow::apply_filter(const QString& identifier) {
+  if (canvas_ != nullptr && canvas_->quick_mask_active()) {
+    statusBar()->showMessage(
+        tr("Filters are unavailable in Quick Mask mode"));
+    return;
+  }
   if (canvas_ != nullptr &&
       (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
@@ -693,6 +698,11 @@ void MainWindow::apply_filter(const QString& identifier) {
 }
 
 void MainWindow::visual_filter_gallery_dialog() {
+  if (canvas_ != nullptr && canvas_->quick_mask_active()) {
+    statusBar()->showMessage(
+        tr("Filters are unavailable in Quick Mask mode"));
+    return;
+  }
   if (canvas_ != nullptr &&
       (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||

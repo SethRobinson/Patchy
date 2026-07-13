@@ -8,6 +8,7 @@ Patchy keeps Photoshop document channels separate from layer masks. `Layer::mask
 - Mutable pixel access bumps the channel revision. Read-only code must use a const channel so thumbnail and overlay caches stay valid.
 - Alpha channels use black for new canvas area. Spot channels use white, which means no spot ink. Image resize, canvas resize, crop, and canvas rotation transform every channel with the document.
 - Saved alpha channels do not affect the normal layer composite. The Channels dock can show one as grayscale or as a colored overlay, and the mask-capable paint tools can edit it.
+- Quick Mask appears in the same dock as a temporary fixed row, but remains canvas-owned selection state. It is never added to `Document::channels()` and never affects PSD channel counts or output.
 - Imported spot channels are preserved and previewable but read-only. Their display record and pixel plane must survive PSD/PSB saves even when Patchy cannot interpret every field.
 - Composite, Red, Green, and Blue rows are derived views of the rendered document. They are not stored channels and are read-only.
 
@@ -49,4 +50,4 @@ A saved alpha read from PSD/PSB always becomes a document channel, including cha
 - Ctrl-clicking a layer or layer-mask thumbnail keeps its exact soft alpha. Marching ants follow the 50% boundary, while saving the selection copies mask rows or hard-region spans directly instead of probing a complex region once per canvas pixel.
 - Save and Save As warn before a non-PSD/PSB format discards saved channels. Export is always an explicitly flattened operation and does not warn.
 
-Deferred work: editable component channels, multiple simultaneous overlays, channel-options editing, Quick Mask, spot separations, multichannel/CMYK/Lab document modes, 16/32-bit channel editing, vector masks, and PSD real-user-mask channel `-3`.
+Deferred work: editable component channels, multiple simultaneous overlays, channel-options editing, spot separations, multichannel/CMYK/Lab document modes, 16/32-bit channel editing, vector masks, and PSD real-user-mask channel `-3`.

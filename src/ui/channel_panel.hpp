@@ -33,7 +33,8 @@ public:
     Green,
     Blue,
     Alpha,
-    Spot
+    Spot,
+    QuickMask
   };
 
   struct Row {

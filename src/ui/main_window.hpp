@@ -506,6 +506,8 @@ private:
   void expand_selection_dialog();
   void contract_selection_dialog();
   void border_selection_dialog();
+  void toggle_quick_mask_mode();
+  void refresh_quick_mask_ui();
   void flip_active_layer_horizontal();
   void flip_active_layer_vertical();
   void crop_to_selection();
@@ -707,6 +709,9 @@ private:
     QPixmap thumbnail;
   };
   std::unordered_map<ChannelId, ChannelThumbnailCacheEntry> channel_thumbnail_cache_;
+  CanvasWidget* quick_mask_thumbnail_canvas_{nullptr};
+  std::uint64_t quick_mask_thumbnail_revision_{0};
+  QPixmap quick_mask_thumbnail_;
   bool swallow_next_canvas_left_press_{false};
   QListWidget* layer_list_{nullptr};
   ChannelPanel* channel_panel_{nullptr};
@@ -726,6 +731,7 @@ private:
   QAction* selection_add_mode_action_{nullptr};
   QAction* selection_subtract_mode_action_{nullptr};
   QAction* selection_intersect_mode_action_{nullptr};
+  QAction* quick_mask_action_{nullptr};
   QPushButton* primary_color_button_{nullptr};
   QPushButton* secondary_color_button_{nullptr};
   QDialog* color_dialog_{nullptr};

@@ -99,7 +99,7 @@ void ChannelPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) 
     item->setData(kChannelIdRole, QVariant::fromValue<qulonglong>(row.id));
     auto flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
     if (row.kind == RowKind::Alpha) {
-      flags |= Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled | Qt::ItemIsUserCheckable;
+      flags |= Qt::ItemIsDragEnabled | Qt::ItemIsUserCheckable;
       item->setCheckState(row.overlay ? Qt::Checked : Qt::Unchecked);
       item->setToolTip(tr("Select for a grayscale view. Check to show a colored overlay.") + QLatin1Char('\n') +
                        tr("Ctrl-click to load this channel as a selection."));
@@ -108,6 +108,8 @@ void ChannelPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) 
       item->setCheckState(row.overlay ? Qt::Checked : Qt::Unchecked);
       item->setToolTip(tr("Spot channels can be previewed but not edited.") + QLatin1Char('\n') +
                        tr("Ctrl-click to load this channel as a selection."));
+    } else if (row.kind == RowKind::QuickMask) {
+      item->setToolTip(tr("Temporary selection mask. White selects, black masks, and gray creates partial selection."));
     } else {
       const auto preview_tip = row.kind == RowKind::Composite
                                    ? tr("Show the normal composite image.")
@@ -284,12 +286,19 @@ void ChannelPanel::handle_rows_moved() {
   if (updating_) {
     return;
   }
+  const bool expects_quick_mask =
+      committed_rows_.size() >= 5 &&
+      committed_rows_[4].kind == RowKind::QuickMask;
   const bool derived_rows_moved =
       list_->count() < 4 ||
       static_cast<RowKind>(list_->item(0)->data(kKindRole).toInt()) != RowKind::Composite ||
       static_cast<RowKind>(list_->item(1)->data(kKindRole).toInt()) != RowKind::Red ||
       static_cast<RowKind>(list_->item(2)->data(kKindRole).toInt()) != RowKind::Green ||
-      static_cast<RowKind>(list_->item(3)->data(kKindRole).toInt()) != RowKind::Blue;
+      static_cast<RowKind>(list_->item(3)->data(kKindRole).toInt()) != RowKind::Blue ||
+      (expects_quick_mask &&
+       (list_->count() < 5 ||
+        static_cast<RowKind>(list_->item(4)->data(kKindRole).toInt()) !=
+            RowKind::QuickMask));
   const auto order = saved_channel_order();
   const auto spot_moved = std::any_of(fixed_spot_positions_.begin(), fixed_spot_positions_.end(),
                                       [&order](const auto& fixed) {
@@ -325,7 +334,8 @@ void ChannelPanel::show_context_menu(const QPoint& position) {
 
 void ChannelPanel::refresh_action_states() {
   const auto selected = selected_row();
-  const bool loadable = selected.has_value();
+  const bool loadable = selected.has_value() &&
+                        selected->kind != RowKind::QuickMask;
   const bool editable_alpha = selected.has_value() && selected->kind == RowKind::Alpha;
   if (create_button_->defaultAction() != nullptr) {
     create_button_->defaultAction()->setEnabled(document_available_ && channel_creation_available_);

@@ -9448,8 +9448,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   mask_edit_mode_chip_->setFocusPolicy(Qt::NoFocus);
   bind_widget_text(mask_edit_mode_chip_, "Editing layer mask (click to exit)");
   bind_tooltip(mask_edit_mode_chip_, "Paint tools are editing the layer mask. Click to edit the layer pixels again.");
-  connect(mask_edit_mode_chip_, &QToolButton::clicked, this,
-          [this] { set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, true); });
+  connect(mask_edit_mode_chip_, &QToolButton::clicked, this, [this] {
+    if (canvas_ != nullptr && canvas_->quick_mask_active()) {
+      toggle_quick_mask_mode();
+    } else {
+      set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, true);
+    }
+  });
   statusBar()->addPermanentWidget(mask_edit_mode_chip_);
   mask_edit_mode_chip_->hide();
   palette_mode_chip_ = new QToolButton(statusBar());
@@ -10739,6 +10744,12 @@ void MainWindow::create_actions() {
   auto* clear_selection_action = edit_menu->addAction(tr("&Clear Selection"));
   auto* reselect_action = edit_menu->addAction(tr("&Reselect"));
   auto* inverse_selection_action = edit_menu->addAction(tr("&Inverse"));
+  quick_mask_action_ = new QAction(tr("Edit in &Quick Mask Mode"), this);
+  quick_mask_action_->setObjectName(QStringLiteral("selectQuickMaskAction"));
+  quick_mask_action_->setCheckable(true);
+  quick_mask_action_->setIcon(
+      simple_icon(QStringLiteral("QM"), QColor(235, 95, 110)));
+  bind_action_text(quick_mask_action_, "Edit in &Quick Mask Mode");
   auto* grow_selection_action = new QAction(tr("&Grow"), this);
   auto* similar_selection_action = new QAction(tr("Simi&lar"), this);
   auto* expand_selection_action = new QAction(tr("&Expand..."), this);
@@ -10777,6 +10788,8 @@ void MainWindow::create_actions() {
   register_hotkey(clear_selection_action, "select.deselect", QKeySequence(Qt::CTRL | Qt::Key_D));
   register_hotkey(reselect_action, "select.reselect", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
   register_hotkey(inverse_selection_action, "select.inverse", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I));
+  register_hotkey(quick_mask_action_, "select.quick_mask",
+                  QKeySequence(Qt::Key_Q));
   register_hotkey(grow_selection_action, "select.grow");
   register_hotkey(similar_selection_action, "select.similar");
   register_hotkey(expand_selection_action, "select.expand");
@@ -10792,6 +10805,8 @@ void MainWindow::create_actions() {
           [this] { canvas_->run_selection_command(tr("Reselect"), [this] { canvas_->reselect(); }); });
   connect(inverse_selection_action, &QAction::triggered, this,
           [this] { canvas_->run_selection_command(tr("Inverse Selection"), [this] { canvas_->invert_selection(); }); });
+  connect(quick_mask_action_, &QAction::triggered, this,
+          [this] { toggle_quick_mask_mode(); });
   connect(grow_selection_action, &QAction::triggered, this,
           [this] { canvas_->run_selection_command(tr("Grow Selection"), [this] { canvas_->grow_selection(); }); });
   connect(similar_selection_action, &QAction::triggered, this, [this] {
@@ -10806,15 +10821,26 @@ void MainWindow::create_actions() {
   });
   connect(stroke_selection_action, &QAction::triggered, this, [this] { stroke_selection(); });
   for (auto* action : {select_all_action, clear_selection_action, reselect_action, inverse_selection_action,
+                       quick_mask_action_,
                        grow_selection_action, similar_selection_action, expand_selection_action,
                        contract_selection_action, border_selection_action, layer_transparency_action,
                        stroke_selection_action}) {
     register_document_action(action);
   }
+  for (auto* action : {select_all_action, clear_selection_action, reselect_action,
+                       grow_selection_action, similar_selection_action,
+                       expand_selection_action, contract_selection_action,
+                       border_selection_action, layer_transparency_action,
+                       stroke_selection_action}) {
+    action->setProperty("patchy.quickMaskBlocked", true);
+  }
   select_menu->addAction(select_all_action);
   select_menu->addAction(clear_selection_action);
   select_menu->addAction(reselect_action);
   select_menu->addAction(inverse_selection_action);
+  select_menu->addSeparator();
+  select_menu->addAction(quick_mask_action_);
+  select_menu->addSeparator();
   select_menu->addAction(grow_selection_action);
   select_menu->addAction(similar_selection_action);
   select_menu->addAction(expand_selection_action);
@@ -11794,6 +11820,15 @@ void MainWindow::create_actions() {
   secondary_color_button_->setToolTip(tr("Background color"));
   tool_palette->addWidget(primary_color_button_);
   tool_palette->addWidget(secondary_color_button_);
+  tool_palette->addSeparator();
+  tool_palette->addAction(quick_mask_action_);
+  if (auto* quick_mask_button = qobject_cast<QToolButton*>(
+          tool_palette->widgetForAction(quick_mask_action_));
+      quick_mask_button != nullptr) {
+    quick_mask_button->setObjectName(QStringLiteral("quickMaskButton"));
+    quick_mask_button->setToolTip(tr("Edit in Quick Mask Mode (Q)"));
+    bind_tooltip(quick_mask_button, "Edit in Quick Mask Mode (Q)");
+  }
   connect(primary_color_button_, &QPushButton::clicked, this, [this] { choose_primary_color(); });
   connect(secondary_color_button_, &QPushButton::clicked, this, [this] { choose_secondary_color(); });
   connect(swap_colors_action, &QAction::triggered, this, [this] { swap_colors(); });
@@ -13126,6 +13161,7 @@ void MainWindow::create_actions() {
       {clear_selection_action, "&Clear Selection"},
       {reselect_action, "&Reselect"},
       {inverse_selection_action, "&Inverse"},
+      {quick_mask_action_, "Edit in &Quick Mask Mode"},
       {grow_selection_action, "&Grow"},
       {similar_selection_action, "Simi&lar"},
       {expand_selection_action, "&Expand..."},
@@ -13813,6 +13849,13 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
           push_selection_history(*target_session, std::move(label), std::move(before), coalesce);
         }
       });
+  canvas->set_quick_mask_changed_callback([this, canvas] {
+    QTimer::singleShot(0, this, [this, canvas] {
+      if (canvas == canvas_) {
+        refresh_quick_mask_ui();
+      }
+    });
+  });
   canvas->set_selection_mode_changed_callback([this, canvas](CanvasWidget::SelectionMode mode) {
     if (canvas == canvas_) {
       update_selection_mode_buttons(mode);
@@ -14150,7 +14193,12 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
     refresh_layer_controls();
     refresh_channel_panel();
     refresh_document_info();
-    refresh_color_buttons();    update_undo_redo_actions();
+    refresh_color_buttons();
+    if (quick_mask_action_ != nullptr) {
+      const QSignalBlocker blocker(quick_mask_action_);
+      quick_mask_action_->setChecked(false);
+    }
+    update_undo_redo_actions();
     update_document_action_state();
     refresh_document_window_title();
     return;
@@ -14179,7 +14227,13 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
   refresh_layer_controls();
   refresh_channel_panel();
   refresh_document_info();
-  canvas_->refresh_info_display();  update_undo_redo_actions();
+  refresh_color_buttons();
+  if (quick_mask_action_ != nullptr) {
+    const QSignalBlocker blocker(quick_mask_action_);
+    quick_mask_action_->setChecked(canvas_->quick_mask_active());
+  }
+  canvas_->refresh_info_display();
+  update_undo_redo_actions();
   update_document_action_state();
   refresh_document_window_title();
 }
@@ -21397,6 +21451,16 @@ void MainWindow::fill_active_layer() {
 }
 
 void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
+  if (canvas_ != nullptr && canvas_->quick_mask_active()) {
+    canvas_->begin_processing_operation();
+    const auto finish_processing = qScopeGuard([this] {
+      if (canvas_ != nullptr) {
+        canvas_->end_processing_operation();
+      }
+    });
+    (void)canvas_->fill_quick_mask(color, std::move(label));
+    return;
+  }
   const auto edit_target = canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
   const bool document_channel = edit_target == CanvasWidget::LayerEditTarget::DocumentChannel;
   const bool component_channel = edit_target == CanvasWidget::LayerEditTarget::ComponentRed ||
@@ -21479,6 +21543,16 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
 }
 
 void MainWindow::clear_active_layer() {
+  if (canvas_ != nullptr && canvas_->quick_mask_active()) {
+    canvas_->begin_processing_operation();
+    const auto finish_processing = qScopeGuard([this] {
+      if (canvas_ != nullptr) {
+        canvas_->end_processing_operation();
+      }
+    });
+    (void)canvas_->fill_quick_mask(Qt::black, tr("Clear Quick Mask"));
+    return;
+  }
   const auto edit_target = canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
   const bool document_channel = edit_target == CanvasWidget::LayerEditTarget::DocumentChannel;
   const bool component_channel = edit_target == CanvasWidget::LayerEditTarget::ComponentRed ||
@@ -25429,12 +25503,17 @@ void MainWindow::update_document_action_state() {
   if (layer_list_ != nullptr) {
     layer_list_->setEnabled(has_document && !locked);
   }
+  const bool quick_mask_view =
+      canvas_ != nullptr && canvas_->quick_mask_active();
   const bool channel_view = canvas_ != nullptr &&
-                            (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
+                            (quick_mask_view ||
+                             canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
                              canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
                              canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentGreen ||
                              canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentBlue);
-  const bool writable_channel = channel_view && canvas_->document_channel_is_editable();
+  const bool writable_channel =
+      quick_mask_view ||
+      (channel_view && canvas_->document_channel_is_editable());
   const auto set_command_enabled = [this, has_document, locked](const QString& id, bool enabled) {
     if (const auto* command = hotkey_registry_.find_command(id); command != nullptr && command->action != nullptr) {
       command->action->setEnabled(has_document && !locked && enabled);
@@ -25461,12 +25540,40 @@ void MainWindow::update_document_action_state() {
         command.action->setEnabled(false);
       }
     }
+    set_command_enabled(QStringLiteral("filter.gallery"), false);
     for (const auto& id : {QStringLiteral("layer.fill"), QStringLiteral("layer.fill_background"),
                            QStringLiteral("layer.clear"), QStringLiteral("tools.brush"),
                            QStringLiteral("tools.eraser"), QStringLiteral("tools.gradient"),
                            QStringLiteral("tools.line"), QStringLiteral("tools.rect"),
                            QStringLiteral("tools.ellipse"), QStringLiteral("tools.fill")}) {
       set_command_enabled(id, writable_channel);
+    }
+    if (quick_mask_view) {
+      for (auto* action : document_actions_) {
+        if (action != nullptr &&
+            action->property("patchy.quickMaskBlocked").toBool()) {
+          action->setEnabled(false);
+        }
+      }
+      for (const auto& id : {
+               QStringLiteral("tools.move"),
+               QStringLiteral("tools.marquee"),
+               QStringLiteral("tools.elliptical_marquee"),
+               QStringLiteral("tools.lasso"),
+               QStringLiteral("tools.magnetic_lasso"),
+               QStringLiteral("tools.magic_wand"),
+               QStringLiteral("tools.quick_select"),
+               QStringLiteral("select.deselect"),
+               QStringLiteral("select.reselect"),
+               QStringLiteral("select.grow"),
+               QStringLiteral("select.similar"),
+               QStringLiteral("select.expand"),
+               QStringLiteral("select.contract"),
+               QStringLiteral("select.border"),
+               QStringLiteral("select.layer_transparency"),
+               QStringLiteral("edit.stroke_selection")}) {
+        set_command_enabled(id, false);
+      }
     }
   }
   const auto* current_session = active_session();
@@ -25499,7 +25606,8 @@ void MainWindow::update_document_action_state() {
     const bool has_capacity = has_document &&
                               std::as_const(document()).channels().size() <
                                   std::as_const(document()).maximum_saved_channel_count();
-    channel_panel_->set_channel_creation_available(!locked && has_capacity);
+    channel_panel_->set_channel_creation_available(!locked && has_capacity &&
+                                                   !quick_mask_view);
   }
   refresh_options_bar();
 }

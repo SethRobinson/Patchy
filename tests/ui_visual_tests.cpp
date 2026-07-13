@@ -39504,6 +39504,353 @@ void ui_magic_wand_contiguous_and_sample_all_layers_options_work() {
   save_widget_artifact("ui_magic_wand_options", *canvas);
 }
 
+void ui_quick_mask_feathered_round_trip_is_exact_and_temporary() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer(
+      "Pixels", solid_pixels(96, 72, patchy::PixelFormat::rgba8(), QColor(40, 150, 220)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Quick Mask Round Trip"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  patchy::PixelBuffer feathered(96, 72, patchy::PixelFormat::gray8());
+  feathered.clear(0);
+  for (int y = 16; y < 56; ++y) {
+    for (int x = 20; x < 76; ++x) {
+      const auto edge_distance = std::min({x - 20, 75 - x, y - 16, 55 - y});
+      *feathered.pixel(x, y) = static_cast<std::uint8_t>(
+          std::clamp(edge_distance * 32, 0, 255));
+    }
+  }
+  canvas->replace_selection_from_grayscale(
+      feathered, QStringLiteral("Feathered Quick Mask fixture"));
+  CHECK(canvas->selection_has_partial_alpha());
+
+  std::vector<std::uint8_t> alpha_before;
+  alpha_before.reserve(96U * 72U);
+  for (int y = 0; y < 72; ++y) {
+    for (int x = 0; x < 96; ++x) {
+      alpha_before.push_back(canvas->selection_alpha_at(QPoint(x, y)));
+    }
+  }
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  auto* quick_mask = require_hotkey_action(window, QStringLiteral("select.quick_mask"));
+  CHECK(quick_mask == require_action(window, "selectQuickMaskAction"));
+  CHECK(quick_mask->isCheckable());
+  CHECK(quick_mask->shortcut() == QKeySequence(Qt::Key_Q));
+  quick_mask->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+  CHECK(quick_mask->isChecked());
+  quick_mask->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->quick_mask_active());
+  CHECK(!quick_mask->isChecked());
+
+  std::size_t index = 0;
+  for (int y = 0; y < 72; ++y) {
+    for (int x = 0; x < 96; ++x) {
+      CHECK(canvas->selection_alpha_at(QPoint(x, y)) == alpha_before[index++]);
+    }
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+}
+
+void ui_quick_mask_overlay_channels_and_tab_state_are_temporary() {
+  const auto make_document = [](QColor color) {
+    patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer(
+        "Pixels", solid_pixels(80, 60, patchy::PixelFormat::rgba8(), color));
+    return document;
+  };
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(make_document(QColor(40, 150, 220)),
+                              QStringLiteral("Quick Mask First"));
+  auto* first_canvas = require_canvas(window);
+  const QColor first_primary(31, 92, 201);
+  const QColor first_secondary(241, 188, 63);
+  first_canvas->set_primary_color(first_primary);
+  first_canvas->set_secondary_color(first_secondary);
+
+  window.add_document_session(make_document(QColor(80, 130, 190)),
+                              QStringLiteral("Quick Mask Second"));
+  auto* second_canvas = require_canvas(window);
+  const QColor second_primary(183, 44, 96);
+  const QColor second_secondary(24, 202, 125);
+  second_canvas->set_primary_color(second_primary);
+  second_canvas->set_secondary_color(second_secondary);
+  show_window(window);
+
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
+  auto* channels_dock =
+      window.findChild<QDockWidget*>(QStringLiteral("channelsDock"));
+  auto* quick_mask_button =
+      window.findChild<QToolButton*>(QStringLiteral("quickMaskButton"));
+  auto* quick_mask = require_hotkey_action(window, QStringLiteral("select.quick_mask"));
+  CHECK(tabs != nullptr);
+  CHECK(channels != nullptr);
+  CHECK(channels_dock != nullptr);
+  CHECK(quick_mask_button != nullptr);
+  CHECK(quick_mask_button->defaultAction() == quick_mask);
+  CHECK(quick_mask_button->isCheckable());
+
+  tabs->setCurrentIndex(tabs->indexOf(first_canvas));
+  QApplication::processEvents();
+  CHECK(require_canvas(window) == first_canvas);
+  CHECK(first_canvas->primary_color() == first_primary);
+  CHECK(first_canvas->secondary_color() == first_secondary);
+  quick_mask->trigger();
+  QApplication::processEvents();
+  CHECK(first_canvas->quick_mask_active());
+  CHECK(first_canvas->primary_color() == QColor(Qt::black));
+  CHECK(first_canvas->secondary_color() == QColor(Qt::white));
+  CHECK(channels->count() == 5);
+  CHECK(channels->currentRow() == 4);
+  auto* row = channels->item(4);
+  CHECK(row != nullptr);
+  CHECK(row->text() == QStringLiteral("Quick Mask"));
+  CHECK(row->flags().testFlag(Qt::ItemIsEnabled));
+  CHECK(row->flags().testFlag(Qt::ItemIsSelectable));
+  CHECK(!row->flags().testFlag(Qt::ItemIsDragEnabled));
+  CHECK(!row->flags().testFlag(Qt::ItemIsDropEnabled));
+  CHECK(!row->flags().testFlag(Qt::ItemIsUserCheckable));
+  CHECK(!row->toolTip().isEmpty());
+  CHECK(std::all_of(first_canvas->quick_mask_pixels().data().begin(),
+                    first_canvas->quick_mask_pixels().data().end(),
+                    [](std::uint8_t value) { return value == 0; }));
+
+  const auto overlaid = canvas_pixel_center(*first_canvas, QPoint(40, 30));
+  CHECK(overlaid.red() > 135);
+  CHECK(overlaid.green() >= 70 && overlaid.green() <= 82);
+  CHECK(overlaid.blue() >= 105 && overlaid.blue() <= 116);
+  channels_dock->raise();
+  process_events_for(100);
+  CHECK(channels->isVisible());
+  save_widget_artifact("ui_quick_mask_overlay_channels", window);
+
+  tabs->setCurrentIndex(tabs->indexOf(second_canvas));
+  QApplication::processEvents();
+  CHECK(require_canvas(window) == second_canvas);
+  CHECK(!quick_mask->isChecked());
+  CHECK(second_canvas->primary_color() == second_primary);
+  CHECK(second_canvas->secondary_color() == second_secondary);
+  CHECK(channels->count() == 4);
+
+  tabs->setCurrentIndex(tabs->indexOf(first_canvas));
+  QApplication::processEvents();
+  CHECK(require_canvas(window) == first_canvas);
+  CHECK(quick_mask->isChecked());
+  CHECK(channels->count() == 5);
+  quick_mask->trigger();
+  QApplication::processEvents();
+  CHECK(!first_canvas->quick_mask_active());
+  CHECK(first_canvas->primary_color() == first_primary);
+  CHECK(first_canvas->secondary_color() == first_secondary);
+  CHECK(channels->count() == 4);
+
+  tabs->setCurrentIndex(tabs->indexOf(second_canvas));
+  QApplication::processEvents();
+  CHECK(second_canvas->primary_color() == second_primary);
+  CHECK(second_canvas->secondary_color() == second_secondary);
+}
+
+void ui_quick_mask_brush_gestures_edit_outside_selection_with_selection_history() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer(
+      "Pixels", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(55, 125, 205)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Quick Mask Brush"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  patchy::PixelBuffer initial_selection(120, 90, patchy::PixelFormat::gray8());
+  initial_selection.clear(0);
+  for (int y = 28; y <= 62; ++y) {
+    auto row = initial_selection.row(y);
+    std::fill(row.begin() + 44, row.begin() + 78, std::uint8_t{255});
+  }
+  canvas->replace_selection_from_grayscale(initial_selection,
+                                           QStringLiteral("Quick Mask initial selection"));
+  const auto& active_document =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto layer_id = active_document.active_layer_id();
+  CHECK(layer_id.has_value());
+  const auto* layer = active_document.find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  const auto layer_pixels_before = layer->pixels();
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  require_hotkey_action(window, QStringLiteral("select.quick_mask"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+  canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  canvas->set_brush_size(10);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+
+  const auto paint_at = [&](QPoint point, QColor color) {
+    canvas->set_primary_color(color);
+    const auto widget_point = canvas->widget_position_for_document_point(point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton,
+               Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point,
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  const QPoint white_outside(16, 18);
+  paint_at(white_outside, Qt::white);
+  CHECK(*canvas->quick_mask_pixels().pixel(white_outside.x(), white_outside.y()) ==
+        255);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+
+  const QPoint black_inside(58, 44);
+  paint_at(black_inside, Qt::black);
+  CHECK(*canvas->quick_mask_pixels().pixel(black_inside.x(), black_inside.y()) ==
+        0);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 2U);
+
+  const QPoint gray_outside(102, 70);
+  paint_at(gray_outside, QColor(128, 128, 128));
+  CHECK(*canvas->quick_mask_pixels().pixel(gray_outside.x(), gray_outside.y()) ==
+        128);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 3U);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+  CHECK(*canvas->quick_mask_pixels().pixel(gray_outside.x(), gray_outside.y()) ==
+        0);
+  CHECK(*canvas->quick_mask_pixels().pixel(white_outside.x(), white_outside.y()) ==
+        255);
+  CHECK(*canvas->quick_mask_pixels().pixel(black_inside.x(), black_inside.y()) ==
+        0);
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  QApplication::processEvents();
+  CHECK(*canvas->quick_mask_pixels().pixel(gray_outside.x(), gray_outside.y()) ==
+        128);
+  const auto undo_after_gestures =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  require_hotkey_action(window, QStringLiteral("select.quick_mask"))->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->quick_mask_active());
+  CHECK(canvas->selection_alpha_at(white_outside) == 255);
+  CHECK(canvas->selection_alpha_at(black_inside) == 0);
+  CHECK(canvas->selection_alpha_at(gray_outside) == 128);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_after_gestures);
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selection_alpha_at(gray_outside) == 0);
+  CHECK(canvas->selection_alpha_at(white_outside) == 255);
+  CHECK(canvas->selection_alpha_at(black_inside) == 0);
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selection_alpha_at(gray_outside) == 128);
+
+  const auto& after_document =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto* after_layer = after_document.find_layer(*layer_id);
+  CHECK(after_layer != nullptr);
+  CHECK(patchy::ui::pixel_buffers_equal(after_layer->pixels(), layer_pixels_before));
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+}
+
+void ui_quick_mask_fill_clear_invert_and_blocked_tools_are_selection_only() {
+  patchy::Document document(84, 64, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer(
+      "Pixels", solid_pixels(84, 64, patchy::PixelFormat::rgba8(), QColor(70, 135, 210)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Quick Mask Commands"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto& initial_document =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto layer_id = initial_document.active_layer_id();
+  CHECK(layer_id.has_value());
+  const auto* initial_layer = initial_document.find_layer(*layer_id);
+  CHECK(initial_layer != nullptr);
+  const auto layer_pixels_before = initial_layer->pixels();
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  require_hotkey_action(window, QStringLiteral("select.quick_mask"))->trigger();
+  QApplication::processEvents();
+  canvas->set_primary_color(QColor(128, 128, 128));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(std::all_of(canvas->quick_mask_pixels().data().begin(),
+                    canvas->quick_mask_pixels().data().end(),
+                    [](std::uint8_t value) { return value == 128; }));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+
+  require_action(window, "selectInverseAction")->trigger();
+  QApplication::processEvents();
+  CHECK(std::all_of(canvas->quick_mask_pixels().data().begin(),
+                    canvas->quick_mask_pixels().data().end(),
+                    [](std::uint8_t value) { return value == 127; }));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 2U);
+
+  require_action(window, "layerClearAction")->trigger();
+  QApplication::processEvents();
+  CHECK(std::all_of(canvas->quick_mask_pixels().data().begin(),
+                    canvas->quick_mask_pixels().data().end(),
+                    [](std::uint8_t value) { return value == 0; }));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 3U);
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(std::all_of(canvas->quick_mask_pixels().data().begin(),
+                    canvas->quick_mask_pixels().data().end(),
+                    [](std::uint8_t value) { return value == 127; }));
+
+  CHECK(!require_hotkey_action(window, QStringLiteral("tools.clone"))->isEnabled());
+  CHECK(!require_hotkey_action(window, QStringLiteral("tools.smudge"))->isEnabled());
+  CHECK(!require_hotkey_action(window, QStringLiteral("tools.type"))->isEnabled());
+  auto* filter = require_action(window, "filterAction_patchy_filters_edge_detect");
+  CHECK(!filter->isEnabled());
+  const auto mask_before_blocked_tools = canvas->quick_mask_pixels();
+  const auto undo_before_blocked_tools =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto click_with_tool = [&](patchy::ui::CanvasTool tool, QPoint point) {
+    canvas->set_tool(tool);
+    const auto widget_point = canvas->widget_position_for_document_point(point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton,
+               Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point,
+               Qt::LeftButton, Qt::NoButton);
+  };
+  click_with_tool(patchy::ui::CanvasTool::Clone, QPoint(18, 18));
+  click_with_tool(patchy::ui::CanvasTool::Smudge, QPoint(34, 28));
+  click_with_tool(patchy::ui::CanvasTool::Text, QPoint(52, 42));
+  filter->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::pixel_buffers_equal(canvas->quick_mask_pixels(),
+                                        mask_before_blocked_tools));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before_blocked_tools);
+
+  const auto& final_document =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto* final_layer = final_document.find_layer(*layer_id);
+  CHECK(final_layer != nullptr);
+  CHECK(patchy::ui::pixel_buffers_equal(final_layer->pixels(), layer_pixels_before));
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+}
+
 void ui_quick_select_stroke_selects_object_and_is_undoable() {
   patchy::Document document(320, 220, patchy::PixelFormat::rgba8());
   auto pixels = solid_pixels(320, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white));
@@ -44136,6 +44483,14 @@ int main(int argc, char* argv[]) {
        ui_radial_gradient_tool_renders_custom_transparency},
       {"ui_magic_wand_contiguous_and_sample_all_layers_options_work",
        ui_magic_wand_contiguous_and_sample_all_layers_options_work},
+      {"ui_quick_mask_feathered_round_trip_is_exact_and_temporary",
+       ui_quick_mask_feathered_round_trip_is_exact_and_temporary},
+      {"ui_quick_mask_overlay_channels_and_tab_state_are_temporary",
+       ui_quick_mask_overlay_channels_and_tab_state_are_temporary},
+      {"ui_quick_mask_brush_gestures_edit_outside_selection_with_selection_history",
+       ui_quick_mask_brush_gestures_edit_outside_selection_with_selection_history},
+      {"ui_quick_mask_fill_clear_invert_and_blocked_tools_are_selection_only",
+       ui_quick_mask_fill_clear_invert_and_blocked_tools_are_selection_only},
       {"ui_quick_select_stroke_selects_object_and_is_undoable",
        ui_quick_select_stroke_selects_object_and_is_undoable},
       {"ui_quick_select_add_and_subtract_strokes", ui_quick_select_add_and_subtract_strokes},

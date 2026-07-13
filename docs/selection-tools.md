@@ -2,6 +2,18 @@
 
 Deep reference for the selection-tool engines. THE LEGAL CONSTRAINTS ARE BINDING and are duplicated in AGENTS.md's "Legal constraints (patents)" section — read them before touching Quick Select or Magnetic Lasso behavior.
 
+## Quick Mask: temporary selection-alpha editing
+
+Quick Mask is separate from Quick Select. `Select > Edit in Quick Mask Mode` (`select.quick_mask`, default `Q`) turns the active canvas's exact selection alpha into a temporary full-canvas `gray8` buffer. The buffer belongs to `CanvasWidget`, not `Document`, so it is never serialized and never marks the document modified. White is selected, black is protected, and gray is partial selection. With no selection the buffer starts black, producing a fully masked canvas.
+
+- The display uses Photoshop's masked-area convention: `(255 - selection alpha) * 50%` red over the normal composite. The cached overlay image is patched only in dirty regions during a gesture. Marching ants are suppressed until Quick Mask exits.
+- Brush, Eraser, Fill/Clear, Gradient, Line, Rectangle/Ellipse, and Invert share the grayscale mask renderers. Quick Mask bypasses the original selection clip, allowing white to add selection outside the entry boundary. Move, selection tools, Clone, Smudge, Text, adjustments, filters, and transforms are disabled while active.
+- Entering saves the canvas's foreground/background colors and installs black/white. Exiting restores the exact prior colors and rebuilds the hard or feathered selection from the current buffer.
+- Each completed gesture pushes one selection-only history entry. `SelectionSnapshot` carries the temporary buffer through copy-on-write storage, so Undo/Redo works both while Quick Mask is active and after it exits without copying or dirtying the document.
+- The Channels dock presents a temporary, fixed `Quick Mask` row after Composite/Red/Green/Blue. It is neither a `DocumentChannel` nor reorderable. Each document canvas keeps its own mode, mask, and saved colors across tab and floating-window activation.
+
+Quick Mask does not call or modify the Quick Select classifier. In particular, it does not change Quick Select's solve-on-release boundary described below.
+
 ## Quick Select: solve-on-release is a patent constraint, not a UX choice
 
 The Quick Select tool (`CanvasTool::QuickSelect`, Shift+W, flyout shared with the Magic Wand) segments each brush stroke ONCE on mouse-release: the drag only accumulates a seed footprint (`stamp_quick_select_segment`) and draws a translucent capsule overlay, then `finish_quick_select_stroke` runs the cut and commits one undo entry. **Do not add live per-mouse-move classification or selection preview before Nov 3, 2029**: Adobe's US 8050498 ("Live coherent image selection", term-adjusted) claims classify-and-display while brush input is being received. Related design rules, all deliberate: Enhance Edge is purely geometric majority smoothing (US 8013870 claims local-color-model edge opacity until 2028), the solve uses ONE window per stroke (US 8121407 claims overlapping-tile decomposition until 2030), and there is no input-driven auto-switching between segmentation algorithms (US 10698588). The foundations used are expired: Boykov-Jolly seeded min-cut (US 6973212), GrabCut color models (US 7660463), MSR Paint Selection (US 8452087, fee-lapsed). `ui_quick_select_stroke_selects_object_and_is_undoable` asserts the no-mid-drag-selection behavior, so a live-preview change will fail it.
