@@ -36954,18 +36954,27 @@ void ui_file_import_menu_actions_registered() {
   auto* import_menu = window.findChild<QMenu*>(QStringLiteral("fileImportMenu"));
   CHECK(import_menu != nullptr);
   auto* scanner_action = window.findChild<QAction*>(QStringLiteral("fileImportScannerAction"));
-#ifdef Q_OS_WIN
-  // WIA acquisition is Windows-only; the action must exist and carry its hotkey id.
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+  // Native scanner acquisition exists on Windows and macOS and keeps one persisted id.
   CHECK(scanner_action != nullptr);
   CHECK(import_menu->actions().contains(scanner_action));
+  const auto* scanner_command = window.hotkey_registry().find_command(QStringLiteral("file.import_scanner"));
+  CHECK(scanner_command != nullptr);
+  CHECK(scanner_command->action == scanner_action);
+#ifdef Q_OS_MACOS
+  CHECK(scanner_action->text() == QStringLiteral("From &Scanner..."));
+#else
+  CHECK(scanner_action->text() == QStringLiteral("From &Scanner or Camera..."));
+#endif
 #else
   CHECK(scanner_action == nullptr);
+  CHECK(window.hotkey_registry().find_command(QStringLiteral("file.import_scanner")) == nullptr);
 #endif
 }
 
 void ui_scanner_import_creates_untitled_document() {
-  // PATCHY_FAKE_SCANNER_FILE bypasses the COM dialog so the session/cleanup plumbing runs
-  // offscreen; the real WIA acquire path is manual-verify with a physical device.
+  // PATCHY_FAKE_SCANNER_FILE bypasses native acquisition so the session/cleanup plumbing
+  // runs offscreen; real WIA/ImageKit acquisition needs physical hardware.
   std::filesystem::create_directories("test-artifacts");
   const auto scan_path = QFileInfo(QStringLiteral("test-artifacts/ui_fake_scan.png")).absoluteFilePath();
   {
@@ -36994,7 +37003,9 @@ void ui_scanner_import_creates_untitled_document() {
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr);
   CHECK(tabs->tabText(tabs->currentIndex()).contains(QStringLiteral("Scanned Image")));
-  // The fake scan file is NOT deleted (only WIA temp files are), so it can be re-imported.
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window).isEmpty());
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  // Fake fixtures are retained; only files returned by native acquisition are temporary.
   CHECK(QFileInfo::exists(scan_path));
 }
 

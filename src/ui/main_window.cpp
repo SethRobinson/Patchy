@@ -10718,8 +10718,12 @@ void MainWindow::create_actions() {
   recent_folders_menu_->setProperty(kRecentFoldersMenuProperty, true);
   auto* import_menu = file_menu->addMenu(tr("I&mport"));
   import_menu->setObjectName(QStringLiteral("fileImportMenu"));
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+#ifdef Q_OS_MACOS
+  auto* import_scanner_action = import_menu->addAction(tr("From &Scanner..."));
+#else
   auto* import_scanner_action = import_menu->addAction(tr("From &Scanner or Camera..."));
+#endif
   import_scanner_action->setObjectName(QStringLiteral("fileImportScannerAction"));
   register_hotkey(import_scanner_action, "file.import_scanner");
   connect(import_scanner_action, &QAction::triggered, this, [this] { import_from_scanner(); });
@@ -15548,12 +15552,12 @@ void MainWindow::import_from_scanner() {
     show_preview_dialog_edit_lock_message();
     return;
   }
-  // PATCHY_FAKE_SCANNER_FILE bypasses the WIA dialog so offscreen tests can exercise the
-  // import/session plumbing (COM dialogs cannot run in CI).
+  // PATCHY_FAKE_SCANNER_FILE bypasses native acquisition so offscreen tests can exercise
+  // the import/session plumbing (WIA and AppKit scanner dialogs cannot run in CI).
   QString acquired_path = qEnvironmentVariable("PATCHY_FAKE_SCANNER_FILE");
   bool delete_after = false;
   if (acquired_path.isEmpty()) {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     if (scanner_import_active_) {
       return;
     }
@@ -15564,10 +15568,17 @@ void MainWindow::import_from_scanner() {
       case ScannerAcquireStatus::Cancelled:
         return;
       case ScannerAcquireStatus::NoDevice:
+#ifdef Q_OS_WIN
         show_information_message(
             this, tr("Import from Scanner"),
             tr("No scanner or camera was found. Connect a WIA-compatible device and try again."),
             QStringLiteral("scannerNoDeviceMessageBox"));
+#else
+        show_information_message(
+            this, tr("Import from Scanner"),
+            tr("No scanner was found. Connect a scanner recognized by macOS and try again."),
+            QStringLiteral("scannerNoDeviceMessageBox"));
+#endif
         return;
       case ScannerAcquireStatus::Failed:
         show_critical_message(this, tr("Import from Scanner"), result.error,
@@ -15583,7 +15594,7 @@ void MainWindow::import_from_scanner() {
 #endif
   }
   try {
-    // Load by content: some WIA drivers save JPEG bytes regardless of the requested
+    // Load by content: some scanner drivers save JPEG bytes regardless of the requested
     // format, and QImageReader's fallback probes plugins by content when the extension
     // path fails.
     auto loaded = load_document_from_path(acquired_path);

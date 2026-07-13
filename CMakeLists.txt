@@ -623,8 +623,19 @@ if(PATCHY_BUILD_APP)
     # main_window.cpp exceeds the default COFF section limit under MSVC.
     target_compile_options(patchy_ui PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
     if(APPLE)
-      target_sources(patchy_ui PRIVATE src/ui/dialog_utils_mac.mm)
-      target_link_libraries(patchy_ui PUBLIC "-framework AppKit")
+      target_sources(patchy_ui PRIVATE
+        src/ui/dialog_utils_mac.mm
+        src/ui/scanner_import_mac.mm
+      )
+      # The scanner controller uses weak delegates and an asynchronous AppKit sheet;
+      # keep its Objective-C object lifetime explicit through ARC without changing the
+      # existing dialog utility translation unit.
+      set_source_files_properties(src/ui/scanner_import_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+      target_link_libraries(patchy_ui PUBLIC
+        "-framework AppKit"
+        "-framework Quartz"
+        "-framework ImageCaptureCore"
+      )
     endif()
     if(WIN32)
       # WIA scanner/camera acquisition (File > Import > From Scanner or Camera...).

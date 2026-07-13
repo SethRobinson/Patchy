@@ -5039,6 +5039,21 @@ Mixed selection</source>
 <context>
     <name>ScannerImport</name>
     <message>
+        <location filename="../src/ui/scanner_import_mac.mm" line="+149"/>
+        <source>Import from Scanner</source>
+        <translation>スキャナーから読み込み</translation>
+    </message>
+    <message>
+        <location line="+72"/>
+        <source>Cancel</source>
+        <translation>キャンセル</translation>
+    </message>
+    <message>
+        <location line="-181"/>
+        <source>Unknown scanner error</source>
+        <translation>不明なスキャナーエラー</translation>
+    </message>
+    <message>
         <location filename="../src/ui/scanner_import_win.cpp" line="+39"/>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>Windows Image Acquisition を利用できません (%1)</translation>
@@ -5047,6 +5062,27 @@ Mixed selection</source>
         <location line="+34"/>
         <source>The scan could not be completed (%1)</source>
         <translation>スキャンを完了できませんでした (%1)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/scanner_import_mac.mm" line="+307"/>
+        <source>The scanner did not return an image file.</source>
+        <translation>スキャナーから画像ファイルが返されませんでした。</translation>
+    </message>
+    <message>
+        <location line="+76"/>
+        <source>macOS scanner import requires the Cocoa platform.</source>
+        <translation>macOS のスキャナー読み込みには Cocoa プラットフォームが必要です。</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <location line="+25"/>
+        <source>The scanner window could not be opened.</source>
+        <translation>スキャナーウィンドウを開けませんでした。</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>The temporary scan folder could not be created.</source>
+        <translation>スキャン用の一時フォルダーを作成できませんでした。</translation>
     </message>
 </context>
 <context>
@@ -6081,6 +6117,11 @@ Mixed selection</source>
         <translation>スキャナーまたはカメラから(&amp;S)...</translation>
     </message>
     <message>
+        <location line="+1"/>
+        <source>From &amp;Scanner...</source>
+        <translation>スキャナーから(&amp;S)...</translation>
+    </message>
+    <message>
         <location line="+4769"/>
         <location line="+5"/>
         <source>Import from Scanner</source>
@@ -6090,6 +6131,11 @@ Mixed selection</source>
         <location line="-4"/>
         <source>No scanner or camera was found. Connect a WIA-compatible device and try again.</source>
         <translation>スキャナーまたはカメラが見つかりませんでした。WIA 対応デバイスを接続して再試行してください。</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>No scanner was found. Connect a scanner recognized by macOS and try again.</source>
+        <translation>スキャナーが見つかりませんでした。macOS で認識されるスキャナーを接続して再試行してください。</translation>
     </message>
     <message>
         <location line="+31"/>
