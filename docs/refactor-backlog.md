@@ -59,9 +59,13 @@ Filters (~800 lines, canary-gated):
 - filter_engine.cpp re-implements ~20 builtin_filters.cpp kernels near-identically with
   progress added (docs/filters.md pins the two PATHS as separate contracts — extraction
   must keep both outputs byte-identical; never redirect legacy through default_invocation).
-- The ~30-line RGB->RGBA staging block around render_photoshop_* appears 8x (4 in each
-  file). One wrapper removes ~240 lines; outputs must stay byte-identical. This is pure
-  scaffolding OUTSIDE the patent design-around kernels.
+- DONE (July 2026): the ~30-line RGB->RGBA staging block around render_photoshop_*
+  (8x, 4 per file) now shares stage_rgba_and_render in filters/rgba_filter_staging.hpp
+  (internal to src/filters; never include it elsewhere). Each site keeps its own
+  guard/progress preamble and passes its exact render_photoshop_* call as a lambda;
+  the helper's copy loops are the historical block verbatim (the two files had differed
+  only in pointer-star whitespace). Outputs stayed bit-identical (calibrated filter
+  tests and catalog canaries green, no re-pin).
 - filter progress trio + filter_progress_phase duplicated across filter_engine,
   filter_registry, smart_filter_renderer; recipe_blend_mode_supported and
   union_bounds/checked_union_bounds duplicated between filter_registry and
@@ -136,10 +140,11 @@ MainWindow/adjustments internals:
 
 ## Second-tier extractions
 
-- core/pixel_tools.cpp (~2.6k): the document/layer geometry half (crop/rotate/flip/
-  resize/scale + DocumentChannel geometry) is nearly disjoint from painting — pure-move
-  into core/document_geometry.cpp; keep pixel_tools.hpp as umbrella initially;
-  tool_write_paths_digest_baseline gates it.
+- core/pixel_tools.cpp: DONE (July 2026) — the geometry half moved verbatim into
+  core/document_geometry.cpp; pixel_tools.hpp stays the umbrella header and the seven
+  both-halves helpers stay defined in pixel_tools.cpp, declared in
+  core/pixel_tools_internal.hpp (never include it outside src/core).
+  tool_write_paths_digest_baseline still gates both files.
 - render/layer_compositor.hpp (2.5k-line header): ~1,000 lines are non-template mask
   machinery (EDT, dilate/blur, PatternTileSampler) movable to a .cpp behind a small
   header; the composite_* templates STAY (type-erasing Target would put a virtual call
@@ -148,9 +153,11 @@ MainWindow/adjustments internals:
   facade — promote the real API (composite_layers, CompositeSample, LayerBoundsOverride,
   StyleMaskProvider) or widen the facade; composite_layers' four trailing defaulted
   parameters want a CompositeOptions struct.
-- ui/filter_workflows.cpp (~2.4k): the Levels widgets + the four request_*_settings
-  adjustment dialogs (~1,300 lines) move cleanly to a new adjustment_dialogs.cpp
-  (declarations already in filter_workflows.hpp; keep the header whole).
+- ui/filter_workflows.cpp: DONE (July 2026) — the Levels widgets + the four
+  request_*_settings adjustment dialogs moved verbatim to ui/adjustment_dialogs.cpp;
+  filter_workflows.hpp stays the shared header for both halves, and the two
+  both-sides helpers (clamp_levels_settings, AdjustmentPreviewRequest) are declared
+  in ui/filter_workflows_internal.hpp (never include it outside those two TUs).
 
 ## Megafunction dialogs (defer until the next feature forces them open)
 

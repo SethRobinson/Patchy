@@ -1,5 +1,6 @@
 #include "filters/filter_engine.hpp"
 
+#include "filters/rgba_filter_staging.hpp"
 #include "filters/smart_filter_renderer.hpp"
 
 #include <algorithm>
@@ -452,31 +453,10 @@ void apply_high_pass_filter_pixels(PixelBuffer &pixels, double radius,
                            FilterProgressStage::Sharpening);
     return;
   }
-  PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      const auto *source = pixels.pixel(x, y);
-      auto *destination = rgba.pixel(x, y);
-      destination[0] = source[0];
-      destination[1] = source[1];
-      destination[2] = source[2];
-      destination[3] = pixels.format().channels >= 4 ? source[3] : 255U;
-    }
-  }
-  const auto result = render_photoshop_high_pass(
-      rgba, Rect::from_size(rgba.width(), rgba.height()), radius, progress);
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      auto *destination = pixels.pixel(x, y);
-      const auto *source = result.pixels.pixel(x, y);
-      destination[0] = source[0];
-      destination[1] = source[1];
-      destination[2] = source[2];
-      if (pixels.format().channels >= 4) {
-        destination[3] = source[3];
-      }
-    }
-  }
+  stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
+    return render_photoshop_high_pass(
+        rgba, Rect::from_size(rgba.width(), rgba.height()), radius, progress);
+  });
 }
 
 void apply_median_filter_pixels(PixelBuffer &pixels, double radius,
@@ -486,31 +466,10 @@ void apply_median_filter_pixels(PixelBuffer &pixels, double radius,
                            FilterProgressStage::Filtering);
     return;
   }
-  PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      const auto *source = pixels.pixel(x, y);
-      auto *destination = rgba.pixel(x, y);
-      destination[0] = source[0];
-      destination[1] = source[1];
-      destination[2] = source[2];
-      destination[3] = pixels.format().channels >= 4 ? source[3] : 255U;
-    }
-  }
-  const auto result = render_photoshop_median(
-      rgba, Rect::from_size(rgba.width(), rgba.height()), radius, progress);
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      auto *destination = pixels.pixel(x, y);
-      const auto *source = result.pixels.pixel(x, y);
-      destination[0] = source[0];
-      destination[1] = source[1];
-      destination[2] = source[2];
-      if (pixels.format().channels >= 4) {
-        destination[3] = source[3];
-      }
-    }
-  }
+  stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
+    return render_photoshop_median(
+        rgba, Rect::from_size(rgba.width(), rgba.height()), radius, progress);
+  });
 }
 
 void apply_dust_and_scratches_filter_pixels(PixelBuffer &pixels,
@@ -522,32 +481,11 @@ void apply_dust_and_scratches_filter_pixels(PixelBuffer &pixels,
                            FilterProgressStage::Filtering);
     return;
   }
-  PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      const auto *source = pixels.pixel(x, y);
-      auto *destination = rgba.pixel(x, y);
-      destination[0] = source[0];
-      destination[1] = source[1];
-      destination[2] = source[2];
-      destination[3] = pixels.format().channels >= 4 ? source[3] : 255U;
-    }
-  }
-  const auto result = render_photoshop_dust_and_scratches(
-      rgba, Rect::from_size(rgba.width(), rgba.height()), radius, threshold,
-      progress);
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      auto *destination = pixels.pixel(x, y);
-      const auto *source = result.pixels.pixel(x, y);
-      destination[0] = source[0];
-      destination[1] = source[1];
-      destination[2] = source[2];
-      if (pixels.format().channels >= 4) {
-        destination[3] = source[3];
-      }
-    }
-  }
+  stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
+    return render_photoshop_dust_and_scratches(
+        rgba, Rect::from_size(rgba.width(), rgba.height()), radius, threshold,
+        progress);
+  });
 }
 
 void apply_surface_blur_filter_pixels(PixelBuffer &pixels, double radius,
@@ -558,32 +496,11 @@ void apply_surface_blur_filter_pixels(PixelBuffer &pixels, double radius,
                            FilterProgressStage::Filtering);
     return;
   }
-  PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      const auto *source = pixels.pixel(x, y);
-      auto *destination = rgba.pixel(x, y);
-      destination[0] = source[0];
-      destination[1] = source[1];
-      destination[2] = source[2];
-      destination[3] = pixels.format().channels >= 4 ? source[3] : 255U;
-    }
-  }
-  const auto result = render_photoshop_surface_blur(
-      rgba, Rect::from_size(rgba.width(), rgba.height()), radius, threshold,
-      progress);
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      auto *destination = pixels.pixel(x, y);
-      const auto *source = result.pixels.pixel(x, y);
-      destination[0] = source[0];
-      destination[1] = source[1];
-      destination[2] = source[2];
-      if (pixels.format().channels >= 4) {
-        destination[3] = source[3];
-      }
-    }
-  }
+  stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
+    return render_photoshop_surface_blur(
+        rgba, Rect::from_size(rgba.width(), rgba.height()), radius, threshold,
+        progress);
+  });
 }
 
 constexpr std::uint64_t kTiltWeightScale = 65536U;

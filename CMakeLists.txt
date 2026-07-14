@@ -53,6 +53,7 @@ add_library(patchy_core
   src/core/contour_presets.cpp
   src/core/document.cpp
   src/core/document_channel.cpp
+  src/core/document_geometry.cpp
   src/core/layer.cpp
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
@@ -271,6 +272,7 @@ add_library(patchy_filters
   src/filters/builtin_filters.cpp
   src/filters/filter_engine.cpp
   src/filters/filter_registry.cpp
+  src/filters/rgba_filter_staging.hpp
   src/filters/smart_filter_recipe_mapping.cpp
   src/filters/smart_filter_renderer.cpp
 )
@@ -560,6 +562,7 @@ if(PATCHY_BUILD_APP)
       src/ui/curves_presets.hpp
       src/ui/curves_presets.cpp
       src/ui/filter_workflows.cpp
+      src/ui/adjustment_dialogs.cpp
       src/ui/filter_look_library.hpp
       src/ui/filter_look_library.cpp
       src/ui/visual_filter_gallery_dialog.hpp
