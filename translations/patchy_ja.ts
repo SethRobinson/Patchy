@@ -749,6 +749,10 @@
         <translation>ガウスぼかし</translation>
     </message>
     <message>
+        <source>High Pass</source>
+        <translation>ハイパス</translation>
+    </message>
+    <message>
         <location line="+9"/>
         <source>Edge Detect</source>
         <translation>エッジ検出</translation>
@@ -11400,6 +11404,10 @@ Clipped to the layer below</source>
         <translation>ガウスぼかしをキャンセルしました</translation>
     </message>
     <message>
+        <source>Cancelled High Pass</source>
+        <translation>ハイパスをキャンセルしました</translation>
+    </message>
+    <message>
         <source>Smart Filter failed</source>
         <translation>スマートフィルターの処理に失敗しました</translation>
     </message>
@@ -11430,6 +11438,26 @@ Clipped to the layer below</source>
     <message>
         <source>Updated Gaussian Blur Smart Filter</source>
         <translation>ガウスぼかしスマートフィルターを更新しました</translation>
+    </message>
+    <message>
+        <source>Add High Pass Smart Filter</source>
+        <translation>ハイパススマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit High Pass Smart Filter</source>
+        <translation>ハイパススマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added High Pass as a Smart Filter</source>
+        <translation>ハイパスをスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another High Pass Smart Filter</source>
+        <translation>ハイパススマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated High Pass Smart Filter</source>
+        <translation>ハイパススマートフィルターを更新しました</translation>
     </message>
     <message>
         <source>Show Smart Filters</source>
@@ -11496,8 +11524,8 @@ Clipped to the layer below</source>
         <translation>スマートフィルターを削除しました</translation>
     </message>
     <message>
-        <source>Only Gaussian Blur is currently editable as a Smart Filter</source>
-        <translation>現在、スマートフィルターとして編集できるのはガウスぼかしだけです</translation>
+        <source>Only Gaussian Blur and High Pass are currently editable as Smart Filters</source>
+        <translation>現在、スマートフィルターとして編集できるのはガウスぼかしとハイパスだけです</translation>
     </message>
     <message>
         <source>Add Smart Filter Stack</source>

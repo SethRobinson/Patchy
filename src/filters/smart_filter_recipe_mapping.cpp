@@ -16,9 +16,9 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
   mapped.reserve(recipe.entries.size());
   for (const auto& recipe_entry : recipe.entries) {
     const auto normalized = registry.normalize(recipe_entry.invocation);
-    if (!normalized.has_value() ||
-        normalized->filter_id != "patchy.filters.gaussian_blur" ||
-        normalized->schema_version != 1U) {
+    if (!normalized.has_value() || normalized->schema_version != 1U ||
+        (normalized->filter_id != "patchy.filters.gaussian_blur" &&
+         normalized->filter_id != "patchy.filters.high_pass")) {
       return std::nullopt;
     }
     const auto radius_value = normalized->parameters.find("radius");
@@ -40,18 +40,25 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
       return std::nullopt;
     }
 
+    const auto high_pass =
+        normalized->filter_id == "patchy.filters.high_pass";
     SmartFilterEntry entry;
-    entry.kind = SmartFilterKind::GaussianBlur;
-    entry.native_name = "Gaussian Blur...";
-    entry.native_class_id = "GsnB";
-    entry.native_filter_id = 0x47736e42U;
+    entry.kind = high_pass ? SmartFilterKind::HighPass
+                           : SmartFilterKind::GaussianBlur;
+    entry.native_name = high_pass ? "High Pass..." : "Gaussian Blur...";
+    entry.native_class_id = high_pass ? "HghP" : "GsnB";
+    entry.native_filter_id = high_pass ? 0x48676850U : 0x47736e42U;
     entry.enabled = recipe_entry.enabled;
     entry.has_options = true;
     entry.opacity = recipe_entry.opacity;
     entry.blend_mode = recipe_entry.blend_mode;
     entry.foreground = normalized->foreground;
     entry.background = normalized->background;
-    entry.parameters = GaussianBlurSmartFilter{radius};
+    if (high_pass) {
+      entry.parameters = HighPassSmartFilter{radius};
+    } else {
+      entry.parameters = GaussianBlurSmartFilter{radius};
+    }
     mapped.push_back(std::move(entry));
   }
   return mapped;

@@ -716,6 +716,7 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Box Blur"),
     QT_TRANSLATE_NOOP("QObject", "Sharpen"),
     QT_TRANSLATE_NOOP("QObject", "Unsharp Mask"),
+    QT_TRANSLATE_NOOP("QObject", "High Pass"),
     QT_TRANSLATE_NOOP("QObject", "Gaussian Blur"),
     QT_TRANSLATE_NOOP("QObject", "Motion Blur"),
     QT_TRANSLATE_NOOP("QObject", "Radial Blur"),
@@ -872,8 +873,10 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
     FilterControlSpec control{
         translate_filter_catalog_text(parameter.display_name),
         QString::fromStdString(parameter.control_object_name),
-        static_cast<int>(std::lround(parameter.minimum.value_or(0.0))),
-        static_cast<int>(std::lround(parameter.maximum.value_or(100.0))),
+        static_cast<int>(std::lround(parameter.practical_minimum.value_or(
+            parameter.minimum.value_or(0.0)))),
+        static_cast<int>(std::lround(parameter.practical_maximum.value_or(
+            parameter.maximum.value_or(100.0)))),
         static_cast<int>(std::lround(default_number)),
         filter_parameter_suffix(parameter.unit)};
     control.parameter_key = parameter.key;

@@ -9,6 +9,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <numeric>
+#include <span>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -280,6 +282,75 @@ struct GaussianLinePlan {
   return plan;
 }
 
+[[nodiscard]] GaussianLinePlan make_high_pass_line_plan(double radius,
+                                                        int margin) {
+  if (radius < 8.0 || radius > 12.0) {
+    return make_gaussian_line_plan(radius, margin);
+  }
+  struct Calibration {
+    double radius;
+    std::span<const double> weights;
+  };
+  static constexpr std::array<double, 39> kRadius8Weights{
+      1, 1, 1, 2, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 11,
+      12, 12, 13, 13, 13, 12, 12, 11, 11, 10, 9, 8, 7, 6, 5, 4,
+      4, 3, 2, 2, 1, 1, 1};
+  static constexpr std::array<double, 47> kRadius10Weights{
+      1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 5, 5, 6, 6, 7, 7,
+      8, 8, 9, 9, 10, 10, 10, 10, 10, 10, 10, 9, 9, 8, 8, 7,
+      7, 6, 6, 5, 5, 4, 3, 3, 2, 2, 2, 1, 1, 1, 1};
+  static constexpr std::array<double, 51> kRadius11Weights{
+      1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7,
+      7, 7, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 8, 8, 8, 7, 7,
+      7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 2, 1, 1, 1, 1, 1};
+  static constexpr std::array<double, 57> kRadius12Weights{
+      1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6,
+      6, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 7, 7, 6,
+      6, 5, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1};
+  static constexpr std::array<Calibration, 4> kCalibrations{{
+      {8.0, kRadius8Weights},
+      {10.0, kRadius10Weights},
+      {11.0, kRadius11Weights},
+      {12.0, kRadius12Weights},
+  }};
+  const auto upper = std::lower_bound(
+      kCalibrations.begin(), kCalibrations.end(), radius,
+      [](const Calibration &calibration, double value) {
+        return calibration.radius < value;
+      });
+  const auto &high = upper == kCalibrations.end()
+                         ? kCalibrations.back()
+                         : *upper;
+  const auto &low = upper == kCalibrations.begin() ? *upper : *(upper - 1);
+  const auto low_sum =
+      std::accumulate(low.weights.begin(), low.weights.end(), 0.0);
+  const auto high_sum =
+      std::accumulate(high.weights.begin(), high.weights.end(), 0.0);
+  const auto normalized_weight = [](const Calibration &calibration,
+                                    double sum, std::ptrdiff_t offset) {
+    const auto support =
+        static_cast<std::ptrdiff_t>(calibration.weights.size() / 2U);
+    if (offset < -support || offset > support) {
+      return 0.0;
+    }
+    return calibration.weights[static_cast<std::size_t>(offset + support)] /
+           sum;
+  };
+  const auto span = high.radius - low.radius;
+  const auto mix = span <= 0.0 ? 0.0 : (radius - low.radius) / span;
+  GaussianLinePlan plan;
+  plan.direct = true;
+  const auto support = static_cast<std::ptrdiff_t>(
+      std::max(low.weights.size(), high.weights.size()) / 2U);
+  plan.kernel.assign(static_cast<std::size_t>(support) * 2U + 1U, 0.0);
+  for (std::ptrdiff_t offset = -support; offset <= support; ++offset) {
+    plan.kernel[static_cast<std::size_t>(offset + support)] =
+        normalized_weight(low, low_sum, offset) * (1.0 - mix) +
+        normalized_weight(high, high_sum, offset) * mix;
+  }
+  return plan;
+}
+
 void filter_gaussian_line(std::vector<double> &values,
                           std::vector<double> &scratch,
                           const GaussianLinePlan &plan) {
@@ -426,6 +497,99 @@ render_gaussian(const FilterRenderResult &input, double radius,
   report_fraction(progress, total_lines, total_lines,
                   FilterProgressStage::Blurring);
   return FilterRenderResult{std::move(output), bounds};
+}
+
+[[nodiscard]] FilterRenderResult
+render_straight_gaussian(const FilterRenderResult &input, double radius,
+                         const FilterProgress *progress) {
+  const auto margin =
+      static_cast<int>(std::ceil(kGaussianMarginScale * radius));
+  const auto plan = make_high_pass_line_plan(radius, margin);
+  auto output = input.pixels;
+  const auto width = input.bounds.width;
+  const auto height = input.bounds.height;
+  const auto pixel_count = static_cast<std::uint64_t>(width) *
+                           static_cast<std::uint64_t>(height);
+  if (pixel_count > std::numeric_limits<std::size_t>::max() / sizeof(float)) {
+    throw std::overflow_error("Smart Filter working buffer overflow");
+  }
+  std::vector<float> horizontal(static_cast<std::size_t>(pixel_count));
+  std::vector<double> values;
+  std::vector<double> scratch;
+  const auto total_lines = 3U *
+                           (static_cast<std::uint64_t>(width) +
+                            static_cast<std::uint64_t>(height));
+  std::uint64_t completed_lines = 0U;
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    values.resize(static_cast<std::size_t>(width));
+    scratch.resize(static_cast<std::size_t>(width));
+    for (std::int32_t y = 0; y < height; ++y) {
+      report_fraction(progress, completed_lines++, total_lines,
+                      FilterProgressStage::Blurring);
+      for (std::int32_t x = 0; x < width; ++x) {
+        values[static_cast<std::size_t>(x)] =
+            input.pixels.pixel(x, y)[channel];
+      }
+      filter_gaussian_line(values, scratch, plan);
+      const auto row_offset =
+          static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+      for (std::int32_t x = 0; x < width; ++x) {
+        horizontal[row_offset + static_cast<std::size_t>(x)] =
+            rounded_byte(values[static_cast<std::size_t>(x)]);
+      }
+    }
+
+    values.resize(static_cast<std::size_t>(height));
+    scratch.resize(static_cast<std::size_t>(height));
+    for (std::int32_t x = 0; x < width; ++x) {
+      report_fraction(progress, completed_lines++, total_lines,
+                      FilterProgressStage::Blurring);
+      for (std::int32_t y = 0; y < height; ++y) {
+        values[static_cast<std::size_t>(y)] =
+            horizontal[static_cast<std::size_t>(y) *
+                           static_cast<std::size_t>(width) +
+                       static_cast<std::size_t>(x)];
+      }
+      filter_gaussian_line(values, scratch, plan);
+      for (std::int32_t y = 0; y < height; ++y) {
+        output.pixel(x, y)[channel] =
+            rounded_byte(values[static_cast<std::size_t>(y)]);
+      }
+    }
+  }
+  report_fraction(progress, total_lines, total_lines,
+                  FilterProgressStage::Blurring);
+  return FilterRenderResult{std::move(output), input.bounds};
+}
+
+[[nodiscard]] FilterRenderResult
+render_high_pass(const FilterRenderResult &input, double radius,
+                 const FilterProgress *progress) {
+  auto blur_progress = phase_progress(progress, 0, 2);
+  const auto blurred =
+      render_straight_gaussian(input, radius, &blur_progress);
+  PixelBuffer output(input.bounds.width, input.bounds.height,
+                     PixelFormat::rgba8());
+  auto detail_progress = phase_progress(progress, 1, 2);
+  for (std::int32_t y = 0; y < input.bounds.height; ++y) {
+    report_progress(&detail_progress, y, input.bounds.height,
+                    FilterProgressStage::Sharpening);
+    for (std::int32_t x = 0; x < input.bounds.width; ++x) {
+      const auto *source = input.pixels.pixel(x, y);
+      const auto *low_frequency = blurred.pixels.pixel(x, y);
+      auto *destination = output.pixel(x, y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        destination[channel] = static_cast<std::uint8_t>(std::clamp(
+            static_cast<int>(source[channel]) -
+                static_cast<int>(low_frequency[channel]) + 128,
+            0, 255));
+      }
+      destination[3] = source[3];
+    }
+  }
+  report_progress(&detail_progress, input.bounds.height, input.bounds.height,
+                  FilterProgressStage::Sharpening);
+  return FilterRenderResult{std::move(output), input.bounds};
 }
 
 [[nodiscard]] FilterRenderResult
@@ -675,20 +839,60 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
     throw std::invalid_argument("Unsupported Smart Filter mask");
   }
   for (const auto &entry : stack.entries) {
-    const auto *gaussian =
-        std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
-    if (entry.kind != SmartFilterKind::GaussianBlur || gaussian == nullptr ||
-        !std::isfinite(gaussian->radius_pixels) ||
-        gaussian->radius_pixels < kMinimumGaussianRadius ||
-        gaussian->radius_pixels > kMaximumGaussianRadius ||
-        !std::isfinite(entry.opacity) || entry.opacity < 0.0 ||
-        entry.opacity > 1.0 || !supported_blend_mode(entry.blend_mode)) {
+    double radius = 0.0;
+    if (entry.kind == SmartFilterKind::GaussianBlur) {
+      const auto *gaussian =
+          std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
+      if (gaussian == nullptr) {
+        throw std::invalid_argument("Unsupported Smart Filter entry");
+      }
+      radius = gaussian->radius_pixels;
+    } else if (entry.kind == SmartFilterKind::HighPass) {
+      const auto *high_pass =
+          std::get_if<HighPassSmartFilter>(&entry.parameters);
+      if (high_pass == nullptr) {
+        throw std::invalid_argument("Unsupported Smart Filter entry");
+      }
+      radius = high_pass->radius_pixels;
+    } else {
+      throw std::invalid_argument("Unsupported Smart Filter entry");
+    }
+    if (!std::isfinite(radius) || radius < kMinimumGaussianRadius ||
+        radius > kMaximumGaussianRadius || !std::isfinite(entry.opacity) ||
+        entry.opacity < 0.0 || entry.opacity > 1.0 ||
+        !supported_blend_mode(entry.blend_mode)) {
       throw std::invalid_argument("Unsupported Smart Filter entry");
     }
   }
 }
 
 } // namespace
+
+FilterRenderResult render_photoshop_gaussian_blur(
+    const PixelBuffer &pixels, Rect bounds, double radius_pixels,
+    const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() || pixels.width() != bounds.width ||
+      pixels.height() != bounds.height || !std::isfinite(radius_pixels) ||
+      radius_pixels < kMinimumGaussianRadius ||
+      radius_pixels > kMaximumGaussianRadius) {
+    throw std::invalid_argument("Invalid Photoshop Gaussian Blur input");
+  }
+  return render_gaussian(FilterRenderResult{pixels, bounds}, radius_pixels,
+                         progress);
+}
+
+FilterRenderResult render_photoshop_high_pass(
+    const PixelBuffer &pixels, Rect bounds, double radius_pixels,
+    const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() || pixels.width() != bounds.width ||
+      pixels.height() != bounds.height || !std::isfinite(radius_pixels) ||
+      radius_pixels < kMinimumGaussianRadius ||
+      radius_pixels > kMaximumGaussianRadius) {
+    throw std::invalid_argument("Invalid Photoshop High Pass input");
+  }
+  return render_high_pass(FilterRenderResult{pixels, bounds}, radius_pixels,
+                          progress);
+}
 
 FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                              Rect placed_bounds,
@@ -721,15 +925,26 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
   int phase = 0;
   auto base = embed_in_filter_canvas(placed_pixels, placed_bounds,
                                      filter_canvas_bounds);
-  auto current = base;
+  auto current = placed;
   for (const auto &entry : stack.entries) {
     if (!entry.enabled || entry.opacity <= 0.0) {
       continue;
     }
-    const auto &gaussian = std::get<GaussianBlurSmartFilter>(entry.parameters);
-    auto blur_progress = phase_progress(progress, phase++, phase_count);
-    auto filtered =
-        render_gaussian(current, gaussian.radius_pixels, &blur_progress);
+    auto filter_progress = phase_progress(progress, phase++, phase_count);
+    FilterRenderResult filtered;
+    if (entry.kind == SmartFilterKind::GaussianBlur) {
+      const auto &gaussian =
+          std::get<GaussianBlurSmartFilter>(entry.parameters);
+      auto gaussian_input = embed_in_filter_canvas(
+          current.pixels, current.bounds, filter_canvas_bounds);
+      filtered = trim_transparent_result(render_gaussian(
+          gaussian_input, gaussian.radius_pixels, &filter_progress));
+    } else {
+      const auto &high_pass =
+          std::get<HighPassSmartFilter>(entry.parameters);
+      filtered =
+          render_high_pass(current, high_pass.radius_pixels, &filter_progress);
+    }
     auto blend_progress = phase_progress(progress, phase++, phase_count);
     current = blend_entry_result(current, std::move(filtered), entry.opacity,
                                  entry.blend_mode, &blend_progress);

@@ -2609,6 +2609,21 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
           }
           entry_tooltip += QObject::tr(" (%1 px)").arg(radius);
         }
+      } else if (entry.kind == SmartFilterKind::HighPass) {
+        entry_name = QObject::tr("High Pass");
+        entry_tooltip = entry_name;
+        if (const auto* high_pass =
+                std::get_if<HighPassSmartFilter>(&entry.parameters);
+            high_pass != nullptr) {
+          auto radius = QString::number(high_pass->radius_pixels, 'f', 2);
+          while (radius.endsWith(QLatin1Char('0'))) {
+            radius.chop(1);
+          }
+          if (radius.endsWith(QLatin1Char('.'))) {
+            radius.chop(1);
+          }
+          entry_tooltip += QObject::tr(" (%1 px)").arg(radius);
+        }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
         entry_tooltip = entry_name;

@@ -15,14 +15,20 @@ namespace patchy {
 enum class SmartFilterKind {
   Unsupported,
   GaussianBlur,
+  HighPass,
 };
 
 struct GaussianBlurSmartFilter {
   double radius_pixels{0.0};
 };
 
+struct HighPassSmartFilter {
+  double radius_pixels{0.0};
+};
+
 using SmartFilterParameters =
-    std::variant<std::monostate, GaussianBlurSmartFilter>;
+    std::variant<std::monostate, GaussianBlurSmartFilter,
+                 HighPassSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};

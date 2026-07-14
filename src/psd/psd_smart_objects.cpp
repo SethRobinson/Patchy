@@ -156,19 +156,59 @@ DescriptorValue smart_filter_color(RgbColor color) {
   return value;
 }
 
+struct SmartFilterRadiusDescriptorSpec {
+  double radius{0.0};
+  const char* default_entry_name{nullptr};
+  const char* filter_name{nullptr};
+  const char* filter_class_id{nullptr};
+  std::uint32_t filter_id{0};
+};
+
+std::optional<SmartFilterRadiusDescriptorSpec>
+smart_filter_radius_descriptor_spec(const SmartFilterEntry& entry) {
+  SmartFilterRadiusDescriptorSpec spec;
+  if (entry.kind == SmartFilterKind::GaussianBlur) {
+    const auto* gaussian =
+        std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
+    if (gaussian == nullptr) {
+      return std::nullopt;
+    }
+    spec.radius = gaussian->radius_pixels;
+    spec.default_entry_name = "Gaussian Blur...";
+    spec.filter_name = "Gaussian Blur";
+    spec.filter_class_id = "GsnB";
+    spec.filter_id = 0x47736e42U;
+  } else if (entry.kind == SmartFilterKind::HighPass) {
+    const auto* high_pass =
+        std::get_if<HighPassSmartFilter>(&entry.parameters);
+    if (high_pass == nullptr) {
+      return std::nullopt;
+    }
+    spec.radius = high_pass->radius_pixels;
+    spec.default_entry_name = "High Pass...";
+    spec.filter_name = "High Pass";
+    spec.filter_class_id = "HghP";
+    spec.filter_id = 0x48676850U;
+  } else {
+    return std::nullopt;
+  }
+  if (!std::isfinite(spec.radius) || spec.radius < 0.1 ||
+      spec.radius > 1000.0) {
+    return std::nullopt;
+  }
+  return spec;
+}
+
 std::optional<DescriptorValue> make_smart_filter_entry_descriptor(
     const SmartFilterEntry& entry) {
-  const auto* gaussian =
-      std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
-  if (entry.kind != SmartFilterKind::GaussianBlur || gaussian == nullptr ||
-      !std::isfinite(gaussian->radius_pixels) ||
-      gaussian->radius_pixels < 0.1 || gaussian->radius_pixels > 1000.0) {
+  const auto spec = smart_filter_radius_descriptor_spec(entry);
+  if (!spec.has_value()) {
     return std::nullopt;
   }
   auto item = smart_filter_object("filterFX", true);
   add_smart_filter_value(
       *item.object_value, "Nm  ", false,
-      smart_filter_text(entry.native_name.empty() ? "Gaussian Blur..."
+      smart_filter_text(entry.native_name.empty() ? spec->default_entry_name
                                                   : entry.native_name));
   auto blend = smart_filter_object("blendOptions", true);
   add_smart_filter_value(
@@ -189,14 +229,15 @@ std::optional<DescriptorValue> make_smart_filter_entry_descriptor(
                          smart_filter_color(entry.foreground));
   add_smart_filter_value(*item.object_value, "BckC", false,
                          smart_filter_color(entry.background));
-  auto filter = smart_filter_object("GsnB", false, "Gaussian Blur");
+  auto filter = smart_filter_object(spec->filter_class_id, false,
+                                    spec->filter_name);
   add_smart_filter_value(*filter.object_value, "Rds ", false,
-                         smart_filter_unit("#Pxl", gaussian->radius_pixels));
+                         smart_filter_unit("#Pxl", spec->radius));
   add_smart_filter_value(*item.object_value, "Fltr", false,
                          std::move(filter));
   add_smart_filter_value(
       *item.object_value, "filterID", true,
-      smart_filter_integer(static_cast<std::int32_t>(0x47736e42U)));
+      smart_filter_integer(static_cast<std::int32_t>(spec->filter_id)));
   return item;
 }
 
@@ -360,13 +401,9 @@ bool patch_smart_filter_descriptor(
   };
   for (std::size_t index = 0; index < stack.entries.size(); ++index) {
     const auto& entry = stack.entries[index];
-    const auto* gaussian =
-        std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
+    const auto spec = smart_filter_radius_descriptor_spec(entry);
     auto& item_value = list->list_value[index];
-    if (entry.kind != SmartFilterKind::GaussianBlur || gaussian == nullptr ||
-        !std::isfinite(gaussian->radius_pixels) ||
-        gaussian->radius_pixels < 0.1 || gaussian->radius_pixels > 1000.0 ||
-        item_value.type != DescriptorValue::Type::Object ||
+    if (!spec.has_value() || item_value.type != DescriptorValue::Type::Object ||
         item_value.object_value == nullptr ||
         item_value.object_value->class_id != "filterFX") {
       return false;
@@ -387,13 +424,13 @@ bool patch_smart_filter_descriptor(
     if (name == nullptr || name->type != DescriptorValue::Type::String ||
         filter_id == nullptr || filter_id->type != DescriptorValue::Type::Integer ||
         blend == nullptr || blend->class_id != "blendOptions" || filter == nullptr ||
-        filter->class_id != "GsnB") {
+        filter->class_id != spec->filter_class_id) {
       return false;
     }
     if (!entry.native_name.empty()) {
       name->string_value = entry.native_name;
     }
-    filter_id->integer_value = static_cast<std::int32_t>(0x47736e42U);
+    filter_id->integer_value = static_cast<std::int32_t>(spec->filter_id);
     auto* opacity =
         const_cast<DescriptorValue*>(descriptor_value(*blend, "Opct"));
     auto* mode = mutable_value_either(*blend, "Md  ", "Md");
@@ -408,7 +445,7 @@ bool patch_smart_filter_descriptor(
     opacity->double_value = std::clamp(entry.opacity, 0.0, 1.0) * 100.0;
     mode->enum_value = std::string(blend_mode_lfx2_string(entry.blend_mode));
     mode->enum_value_long_form = true;
-    radius->double_value = gaussian->radius_pixels;
+    radius->double_value = spec->radius;
   }
   return true;
 }
@@ -613,14 +650,22 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
       if (filter != nullptr) {
         entry.native_class_id = filter->class_id;
       }
-      if (filter != nullptr && filter->class_id == "GsnB" &&
-          entry.native_filter_id == 0x47736e42U) {
+      if (filter != nullptr &&
+          ((filter->class_id == "GsnB" &&
+            entry.native_filter_id == 0x47736e42U) ||
+           (filter->class_id == "HghP" &&
+            entry.native_filter_id == 0x48676850U))) {
         const auto* radius = descriptor_value_either(*filter, "Rds ", "Rds");
         if (radius != nullptr && radius->type == DescriptorValue::Type::UnitFloat &&
             radius->unit == "#Pxl" && std::isfinite(radius->double_value) &&
             radius->double_value >= 0.1 && radius->double_value <= 1000.0) {
-          entry.kind = SmartFilterKind::GaussianBlur;
-          entry.parameters = GaussianBlurSmartFilter{radius->double_value};
+          if (filter->class_id == "GsnB") {
+            entry.kind = SmartFilterKind::GaussianBlur;
+            entry.parameters = GaussianBlurSmartFilter{radius->double_value};
+          } else {
+            entry.kind = SmartFilterKind::HighPass;
+            entry.parameters = HighPassSmartFilter{radius->double_value};
+          }
         } else {
           entry_supported = false;
         }

@@ -5,6 +5,16 @@
 
 namespace patchy {
 
+// Photoshop-calibrated primitives shared by destructive filters and native
+// Smart Filters. Inputs and outputs retain the supplied bounds and require
+// RGBA8 pixels.
+[[nodiscard]] FilterRenderResult render_photoshop_gaussian_blur(
+    const PixelBuffer &pixels, Rect bounds, double radius_pixels,
+    const FilterProgress *progress = nullptr);
+[[nodiscard]] FilterRenderResult render_photoshop_high_pass(
+    const PixelBuffer &pixels, Rect bounds, double radius_pixels,
+    const FilterProgress *progress = nullptr);
+
 // Renders a complete native Smart Filter stack from the immutable placed or
 // warped Smart Object preview. Unsupported semantics throw
 // std::invalid_argument; cancellation throws FilterCancelled.

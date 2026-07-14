@@ -71,6 +71,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <numeric>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -6622,6 +6623,15 @@ const patchy::GaussianBlurSmartFilter& require_gaussian_filter(const patchy::Sma
   return *gaussian;
 }
 
+const patchy::HighPassSmartFilter& require_high_pass_filter(
+    const patchy::SmartFilterEntry& entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::HighPass);
+  const auto* high_pass =
+      std::get_if<patchy::HighPassSmartFilter>(&entry.parameters);
+  CHECK(high_pass != nullptr);
+  return *high_pass;
+}
+
 patchy::SmartFilterStack test_gaussian_smart_filter_stack(double radius) {
   patchy::SmartFilterStack stack;
   stack.support = patchy::SmartFilterStackSupport::Supported;
@@ -6632,6 +6642,20 @@ patchy::SmartFilterStack test_gaussian_smart_filter_stack(double radius) {
   entry.native_class_id = "GsnB";
   entry.native_filter_id = 0x47736e42U;
   entry.parameters = patchy::GaussianBlurSmartFilter{radius};
+  stack.entries.push_back(std::move(entry));
+  return stack;
+}
+
+patchy::SmartFilterStack test_high_pass_smart_filter_stack(double radius) {
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::HighPass;
+  entry.native_name = "High Pass...";
+  entry.native_class_id = "HghP";
+  entry.native_filter_id = 0x48676850U;
+  entry.parameters = patchy::HighPassSmartFilter{radius};
   stack.entries.push_back(std::move(entry));
   return stack;
 }
@@ -6781,6 +6805,251 @@ void smart_filter_gaussian_repeats_canvas_edges_and_blurs_premultiplied() {
     }
   }
   CHECK(saw_transparent_corner);
+}
+
+void smart_filter_high_pass_matches_photoshop_formula_and_preserves_hidden_rgb() {
+  patchy::PixelBuffer alpha_ramp(6, 1, patchy::PixelFormat::rgba8());
+  constexpr std::array<std::uint8_t, 6> alphas{0, 1, 64, 128, 254, 255};
+  for (std::int32_t x = 0; x < alpha_ramp.width(); ++x) {
+    auto* pixel = alpha_ramp.pixel(x, 0);
+    pixel[0] = 23;
+    pixel[1] = 141;
+    pixel[2] = 219;
+    pixel[3] = alphas[static_cast<std::size_t>(x)];
+  }
+  const patchy::Rect ramp_bounds{17, 29, alpha_ramp.width(), 1};
+  const auto ramp_result = patchy::render_photoshop_high_pass(
+      alpha_ramp, ramp_bounds, 4.25);
+  CHECK(ramp_result.bounds.x == ramp_bounds.x &&
+        ramp_result.bounds.y == ramp_bounds.y &&
+        ramp_result.bounds.width == ramp_bounds.width &&
+        ramp_result.bounds.height == ramp_bounds.height);
+  for (std::int32_t x = 0; x < alpha_ramp.width(); ++x) {
+    const auto* pixel = ramp_result.pixels.pixel(x, 0);
+    CHECK(pixel[0] == 128U && pixel[1] == 128U && pixel[2] == 128U);
+    CHECK(pixel[3] == alphas[static_cast<std::size_t>(x)]);
+  }
+
+  // Photoshop 27.8 destructive High Pass captures pin straight-RGB edge
+  // repeat and the practical-range radius-10 kernel independently of
+  // Patchy's Gaussian implementation.
+  patchy::PixelBuffer edge_impulse(4, 1, patchy::PixelFormat::rgba8());
+  edge_impulse.clear(0);
+  edge_impulse.pixel(0, 0)[0] = 255U;
+  edge_impulse.pixel(0, 0)[1] = 255U;
+  edge_impulse.pixel(0, 0)[2] = 255U;
+  for (std::int32_t x = 0; x < edge_impulse.width(); ++x) {
+    edge_impulse.pixel(x, 0)[3] = 255U;
+  }
+  const auto edge_result = patchy::render_photoshop_high_pass(
+      edge_impulse, patchy::Rect::from_size(4, 1), 1.0);
+  constexpr std::array<std::uint8_t, 4> kPhotoshopRadius1Edge{
+      208, 48, 108, 126};
+  for (std::int32_t x = 0; x < edge_impulse.width(); ++x) {
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+      CHECK(edge_result.pixels.pixel(x, 0)[channel] ==
+            kPhotoshopRadius1Edge[static_cast<std::size_t>(x)]);
+    }
+    CHECK(edge_result.pixels.pixel(x, 0)[3] == 255U);
+  }
+
+  patchy::PixelBuffer radius10_impulse(61, 1,
+                                       patchy::PixelFormat::rgba8());
+  radius10_impulse.clear(0);
+  for (std::int32_t x = 0; x < radius10_impulse.width(); ++x) {
+    radius10_impulse.pixel(x, 0)[3] = 255U;
+  }
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    radius10_impulse.pixel(30, 0)[channel] = 255U;
+  }
+  const auto radius10_result = patchy::render_photoshop_high_pass(
+      radius10_impulse, patchy::Rect::from_size(61, 1), 10.0);
+  constexpr std::array<std::uint8_t, 47> kPhotoshopRadius10HighPass{
+      127, 127, 127, 127, 126, 126, 126, 125, 125, 124, 123, 123,
+      122, 122, 121, 121, 120, 120, 119, 119, 118, 118, 118, 255,
+      118, 118, 118, 119, 119, 120, 120, 121, 121, 122, 122, 123,
+      123, 124, 125, 125, 126, 126, 126, 127, 127, 127, 127};
+  for (std::int32_t x = 0; x < radius10_impulse.width(); ++x) {
+    const auto local = x - 7;
+    const auto expected =
+        local >= 0 && local < static_cast<std::int32_t>(
+                                   kPhotoshopRadius10HighPass.size())
+            ? kPhotoshopRadius10HighPass[static_cast<std::size_t>(local)]
+            : 128U;
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+      CHECK(radius10_result.pixels.pixel(x, 0)[channel] == expected);
+    }
+    CHECK(radius10_result.pixels.pixel(x, 0)[3] == 255U);
+  }
+
+  const auto check_photoshop_impulse_kernel =
+      [](double radius, const auto& weights) {
+        const auto support =
+            static_cast<std::int32_t>(weights.size() / 2U);
+        const auto width = support * 2 + 15;
+        const auto center = width / 2;
+        patchy::PixelBuffer impulse(width, 1,
+                                    patchy::PixelFormat::rgba8());
+        impulse.clear(0);
+        for (std::int32_t x = 0; x < width; ++x) {
+          impulse.pixel(x, 0)[3] = 255U;
+        }
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          impulse.pixel(center, 0)[channel] = 255U;
+        }
+        const auto rendered = patchy::render_photoshop_high_pass(
+            impulse, patchy::Rect::from_size(width, 1), radius);
+        const auto sum = std::accumulate(weights.begin(), weights.end(), 0.0);
+        for (std::int32_t x = 0; x < width; ++x) {
+          const auto offset = x - center;
+          const auto in_support = offset >= -support && offset <= support;
+          const auto blurred = in_support
+                                   ? static_cast<int>(std::floor(
+                                         255.0 * weights[static_cast<std::size_t>(
+                                                     offset + support)] /
+                                             sum +
+                                         0.5))
+                                   : 0;
+          const auto source = offset == 0 ? 255 : 0;
+          const auto expected = std::clamp(source - blurred + 128, 0, 255);
+          for (std::size_t channel = 0; channel < 3U; ++channel) {
+            CHECK(rendered.pixels.pixel(x, 0)[channel] == expected);
+          }
+          CHECK(rendered.pixels.pixel(x, 0)[3] == 255U);
+        }
+      };
+  constexpr std::array<double, 51> kPhotoshopRadius11Kernel{
+      1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7,
+      7, 7, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 8, 8, 8, 7, 7,
+      7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 2, 1, 1, 1, 1, 1};
+  constexpr std::array<double, 57> kPhotoshopRadius12Kernel{
+      1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6,
+      6, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 7, 7, 6,
+      6, 5, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1};
+  check_photoshop_impulse_kernel(11.0, kPhotoshopRadius11Kernel);
+  check_photoshop_impulse_kernel(12.0, kPhotoshopRadius12Kernel);
+
+  patchy::PixelBuffer placed_constant(5, 3,
+                                      patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < placed_constant.height(); ++y) {
+    for (std::int32_t x = 0; x < placed_constant.width(); ++x) {
+      auto* pixel = placed_constant.pixel(x, y);
+      pixel[0] = 23U;
+      pixel[1] = 141U;
+      pixel[2] = 219U;
+      pixel[3] = 255U;
+    }
+  }
+  const patchy::Rect placed_constant_bounds{4, 5, 5, 3};
+  const patchy::Rect larger_filter_canvas{0, 0, 16, 12};
+  const auto native_constant = patchy::render_smart_filter_stack(
+      placed_constant, placed_constant_bounds, larger_filter_canvas,
+      test_high_pass_smart_filter_stack(4.25));
+  CHECK(native_constant.bounds.x == placed_constant_bounds.x &&
+        native_constant.bounds.y == placed_constant_bounds.y &&
+        native_constant.bounds.width == placed_constant_bounds.width &&
+        native_constant.bounds.height == placed_constant_bounds.height);
+  for (std::int32_t y = 0; y < native_constant.pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < native_constant.pixels.width(); ++x) {
+      const auto* pixel = native_constant.pixels.pixel(x, y);
+      CHECK(pixel[0] == 128U && pixel[1] == 128U && pixel[2] == 128U &&
+            pixel[3] == 255U);
+    }
+  }
+
+  patchy::PixelBuffer placed_impulse(3, 3,
+                                     patchy::PixelFormat::rgba8());
+  placed_impulse.clear(0);
+  auto* placed_center = placed_impulse.pixel(1, 1);
+  placed_center[0] = 240U;
+  placed_center[1] = 80U;
+  placed_center[2] = 20U;
+  placed_center[3] = 255U;
+  const patchy::Rect placed_impulse_bounds{6, 4, 3, 3};
+  const auto gaussian_only = patchy::render_smart_filter_stack(
+      placed_impulse, placed_impulse_bounds, larger_filter_canvas,
+      test_gaussian_smart_filter_stack(1.0));
+  auto gaussian_then_high_pass = test_gaussian_smart_filter_stack(1.0);
+  gaussian_then_high_pass.entries.push_back(
+      test_high_pass_smart_filter_stack(1.0).entries.front());
+  const auto gaussian_then_high_pass_result =
+      patchy::render_smart_filter_stack(
+          placed_impulse, placed_impulse_bounds, larger_filter_canvas,
+          gaussian_then_high_pass);
+  CHECK(gaussian_then_high_pass_result.bounds.x == gaussian_only.bounds.x &&
+        gaussian_then_high_pass_result.bounds.y == gaussian_only.bounds.y &&
+        gaussian_then_high_pass_result.bounds.width ==
+            gaussian_only.bounds.width &&
+        gaussian_then_high_pass_result.bounds.height ==
+            gaussian_only.bounds.height);
+  auto high_pass_then_gaussian = test_high_pass_smart_filter_stack(1.0);
+  high_pass_then_gaussian.entries.push_back(
+      test_gaussian_smart_filter_stack(1.0).entries.front());
+  const auto high_pass_then_gaussian_result =
+      patchy::render_smart_filter_stack(
+          placed_impulse, placed_impulse_bounds, larger_filter_canvas,
+          high_pass_then_gaussian);
+  CHECK(high_pass_then_gaussian_result.bounds.x < placed_impulse_bounds.x &&
+        high_pass_then_gaussian_result.bounds.y < placed_impulse_bounds.y &&
+        high_pass_then_gaussian_result.bounds.width >
+            placed_impulse_bounds.width &&
+        high_pass_then_gaussian_result.bounds.height >
+            placed_impulse_bounds.height);
+
+  patchy::PixelBuffer source(7, 5, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      auto* pixel = source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 37 + y * 13 + 11) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 17 + y * 53 + 29) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 71 + y * 7 + 3) % 256);
+      pixel[3] = 255U;
+    }
+  }
+  const patchy::Rect bounds{41, 67, source.width(), source.height()};
+  const auto blurred = patchy::render_photoshop_gaussian_blur(
+      source, bounds, 1.0);
+  const auto high_pass = patchy::render_photoshop_high_pass(
+      source, bounds, 1.0);
+  CHECK(high_pass.bounds.x == bounds.x && high_pass.bounds.y == bounds.y &&
+        high_pass.bounds.width == bounds.width &&
+        high_pass.bounds.height == bounds.height);
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      const auto* original = source.pixel(x, y);
+      const auto* low_frequency = blurred.pixels.pixel(x, y);
+      const auto* actual = high_pass.pixels.pixel(x, y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        const auto expected = std::clamp(
+            static_cast<int>(original[channel]) -
+                static_cast<int>(low_frequency[channel]) + 128,
+            0, 255);
+        CHECK(actual[channel] == expected);
+      }
+      CHECK(actual[3] == original[3]);
+    }
+  }
+
+  const auto native = patchy::render_smart_filter_stack(
+      source, bounds, bounds, test_high_pass_smart_filter_stack(1.0));
+  check_filter_result_equal(high_pass, native);
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto invocation = registry.default_invocation("patchy.filters.high_pass");
+  invocation.parameters["radius"] = 1.0;
+  auto destructive = source;
+  registry.apply(invocation, destructive);
+  CHECK(std::equal(destructive.data().begin(), destructive.data().end(),
+                   high_pass.pixels.data().begin()));
+
+  auto compatibility = source;
+  auto named_default = source;
+  registry.apply("patchy.filters.high_pass", compatibility);
+  registry.apply(registry.default_invocation("patchy.filters.high_pass"),
+                 named_default);
+  CHECK(std::equal(compatibility.data().begin(), compatibility.data().end(),
+                   named_default.data().begin()));
 }
 
 void smart_filter_shared_mask_and_disable_states_are_applied_once() {
@@ -7918,6 +8187,131 @@ void smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes() {
   CHECK(pass_through->lock_reason == "filters");
 }
 
+void smart_filter_canonical_high_pass_descriptor_round_trips_and_preserves_unknowns() {
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "10101010-2020-3030-8444-505050505050";
+  placement.transform = {7.0, 9.0, 39.0, 9.0, 39.0, 33.0, 7.0, 33.0};
+  placement.width = 32.0;
+  placement.height = 24.0;
+  placement.resolution = 72.0;
+  const std::string placed_uuid = "abababab-cdcd-efef-8111-232323232323";
+
+  auto stack = test_gaussian_smart_filter_stack(2.5);
+  auto high_pass = test_high_pass_smart_filter_stack(4.25).entries.front();
+  high_pass.opacity = 0.61;
+  high_pass.blend_mode = patchy::BlendMode::Overlay;
+  high_pass.foreground = patchy::RgbColor{9, 8, 7};
+  high_pass.background = patchy::RgbColor{246, 247, 248};
+  stack.entries.push_back(high_pass);
+
+  const auto descriptor_from_sold = [](std::span<const std::uint8_t> sold) {
+    patchy::psd::BigEndianReader reader(sold);
+    CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) ==
+          "soLD");
+    CHECK(reader.read_u32() == 4U);
+    CHECK(reader.read_u32() == 16U);
+    return patchy::psd::read_descriptor(reader);
+  };
+  const auto sold_from_descriptor =
+      [](const patchy::psd::DescriptorObject& descriptor) {
+        patchy::psd::BigEndianWriter writer;
+        for (const char ch : {'s', 'o', 'L', 'D'}) {
+          writer.write_u8(static_cast<std::uint8_t>(ch));
+        }
+        writer.write_u32(4U);
+        writer.write_u32(16U);
+        patchy::psd::write_descriptor(writer, descriptor);
+        while ((writer.bytes().size() % 4U) != 0U) {
+          writer.write_u8(0U);
+        }
+        return writer.bytes();
+      };
+
+  const auto authored = patchy::psd::author_placed_layer_sold_payload(
+      placement, placed_uuid, &stack);
+  const auto authored_info =
+      patchy::psd::parse_placed_layer_block("SoLd", authored);
+  CHECK(authored_info.has_value() && authored_info->smart_filters.has_value());
+  CHECK(authored_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(authored_info->smart_filters->entries.size() == 2U);
+  const auto& parsed_high_pass = authored_info->smart_filters->entries[1];
+  CHECK(parsed_high_pass.native_name == "High Pass...");
+  CHECK(parsed_high_pass.native_class_id == "HghP");
+  CHECK(parsed_high_pass.native_filter_id == 0x48676850U);
+  CHECK(std::abs(require_high_pass_filter(parsed_high_pass).radius_pixels -
+                 4.25) < 1e-9);
+  CHECK(std::abs(parsed_high_pass.opacity - 0.61) < 1e-9);
+  CHECK(parsed_high_pass.blend_mode == patchy::BlendMode::Overlay);
+
+  auto descriptor = descriptor_from_sold(authored);
+  auto* root = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(descriptor, "filterFX"));
+  CHECK(root != nullptr);
+  auto* list = const_cast<patchy::psd::DescriptorValue*>(
+      patchy::psd::descriptor_value(*root, "filterFXList"));
+  CHECK(list != nullptr &&
+        list->type == patchy::psd::DescriptorValue::Type::List &&
+        list->list_value.size() == 2U &&
+        list->list_value[1].object_value != nullptr);
+  auto& native_entry = *list->list_value[1].object_value;
+  auto* native_filter = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(native_entry, "Fltr"));
+  CHECK(native_filter != nullptr && native_filter->class_id == "HghP" &&
+        !native_filter->class_id_long_form);
+  const auto* native_radius =
+      patchy::psd::descriptor_value(*native_filter, "Rds ");
+  CHECK(native_radius != nullptr &&
+        native_radius->type == patchy::psd::DescriptorValue::Type::UnitFloat &&
+        native_radius->unit == "#Pxl" &&
+        std::abs(native_radius->double_value - 4.25) < 1e-9);
+  patchy::psd::DescriptorValue future;
+  future.type = patchy::psd::DescriptorValue::Type::String;
+  future.string_value = "keep-high-pass-native-data";
+  native_entry.key_order.push_back({"futureHighPassField", true});
+  native_entry.values.emplace("futureHighPassField", std::move(future));
+  const auto payload_with_unknown = sold_from_descriptor(descriptor);
+
+  auto edited = stack;
+  auto& edited_high_pass = edited.entries[1];
+  std::get<patchy::HighPassSmartFilter>(edited_high_pass.parameters)
+      .radius_pixels = 1000.0;
+  edited_high_pass.opacity = 0.37;
+  edited_high_pass.blend_mode = patchy::BlendMode::Multiply;
+  const patchy::psd::SmartFilterDescriptorEdit edit{
+      patchy::psd::SmartFilterDescriptorAction::Replace, &edited};
+  const auto regenerated = patchy::psd::regenerate_placed_layer_payload(
+      "SoLd", payload_with_unknown, placement, nullptr, placed_uuid, edit);
+  CHECK(regenerated.has_value());
+  const auto regenerated_info =
+      patchy::psd::parse_placed_layer_block("SoLd", *regenerated);
+  CHECK(regenerated_info.has_value() &&
+        regenerated_info->smart_filters.has_value());
+  CHECK(regenerated_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  const auto& reread_high_pass =
+      regenerated_info->smart_filters->entries[1];
+  CHECK(std::abs(require_high_pass_filter(reread_high_pass).radius_pixels -
+                 1000.0) < 1e-9);
+  CHECK(std::abs(reread_high_pass.opacity - 0.37) < 1e-9);
+  CHECK(reread_high_pass.blend_mode == patchy::BlendMode::Multiply);
+
+  const auto regenerated_descriptor = descriptor_from_sold(*regenerated);
+  const auto* regenerated_root =
+      patchy::psd::descriptor_object(regenerated_descriptor, "filterFX");
+  CHECK(regenerated_root != nullptr);
+  const auto* regenerated_list =
+      patchy::psd::descriptor_value(*regenerated_root, "filterFXList");
+  CHECK(regenerated_list != nullptr &&
+        regenerated_list->list_value.size() == 2U &&
+        regenerated_list->list_value[1].object_value != nullptr);
+  const auto* preserved = patchy::psd::descriptor_value(
+      *regenerated_list->list_value[1].object_value, "futureHighPassField");
+  CHECK(preserved != nullptr &&
+        preserved->type == patchy::psd::DescriptorValue::Type::String &&
+        preserved->string_value == "keep-high-pass-native-data");
+}
+
 const patchy::UnknownPsdBlock& require_placed_layer_block(const patchy::Layer& layer) {
   const auto& blocks = layer.unknown_psd_blocks();
   const auto found = std::find_if(blocks.begin(), blocks.end(), [](const patchy::UnknownPsdBlock& block) {
@@ -7973,6 +8367,75 @@ void check_pixel_layer_storage_equal(const patchy::Layer& expected, const patchy
         patchy::bytes_per_pixel(actual_pixels.format()));
   CHECK(expected_pixels.data().size() == actual_pixels.data().size());
   CHECK(std::equal(expected_pixels.data().begin(), expected_pixels.data().end(), actual_pixels.data().begin()));
+}
+
+void psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits() {
+  const auto fixture_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-high-pass.psd");
+  const auto original = patchy::psd::DocumentIo::read_file(fixture_path);
+  const patchy::Layer* filtered_layer = nullptr;
+  for (const auto& layer : original.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      CHECK(filtered_layer == nullptr);
+      filtered_layer = &layer;
+    }
+  }
+  CHECK(filtered_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*filtered_layer));
+  CHECK(patchy::smart_object_lock_reason(*filtered_layer).empty());
+  const auto* stack = filtered_layer->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto& entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::HighPass);
+  CHECK(entry.native_name == "High Pass...");
+  CHECK(entry.native_class_id == "HghP");
+  CHECK(entry.native_filter_id == 0x48676850U);
+  CHECK(std::abs(require_high_pass_filter(entry).radius_pixels - 4.25) <
+        1e-9);
+
+  const auto original_globals = test_global_psd_blocks(original);
+  const auto& original_sold = require_placed_layer_block(*filtered_layer);
+  const auto original_sold_payload = original_sold.payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(original));
+  CHECK(test_global_psd_blocks(clean) == original_globals);
+  const auto& clean_layer = require_layer_named(clean, filtered_layer->name());
+  check_pixel_layer_storage_equal(*filtered_layer, clean_layer);
+  CHECK(require_placed_layer_block(clean_layer).payload ==
+        original_sold_payload);
+  CHECK(std::abs(require_high_pass_filter(
+                     require_smart_filter_stack(clean, clean_layer.name())
+                         .entries.front())
+                     .radius_pixels -
+                 4.25) < 1e-9);
+
+  auto edited = original;
+  auto* edited_layer = edited.find_layer(filtered_layer->id());
+  CHECK(edited_layer != nullptr &&
+        edited_layer->smart_filter_stack() != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  std::get<patchy::HighPassSmartFilter>(
+      edited_stack.entries.front().parameters).radius_pixels = 9.75;
+  edited_stack.entries.front().opacity = 0.42;
+  edited_stack.entries.front().blend_mode = patchy::BlendMode::SoftLight;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto& edited_reread_layer =
+      require_layer_named(edited_reread, filtered_layer->name());
+  const auto& edited_reread_entry =
+      require_smart_filter_stack(edited_reread, filtered_layer->name())
+          .entries.front();
+  CHECK(std::abs(require_high_pass_filter(edited_reread_entry).radius_pixels -
+                 9.75) < 1e-9);
+  CHECK(std::abs(edited_reread_entry.opacity - 0.42) < 1e-9);
+  CHECK(edited_reread_entry.blend_mode == patchy::BlendMode::SoftLight);
+  CHECK(require_placed_layer_block(edited_reread_layer).payload !=
+        original_sold_payload);
+  CHECK(test_global_psd_blocks(edited_reread) == original_globals);
 }
 
 void psd_descriptor_writer_round_trips_smart_filter_sold_if_available() {
@@ -18767,6 +19230,7 @@ void filter_catalog_defines_stable_named_contracts() {
        {{"cell_size", 10}, {"intensity", 75}, {"contrast", 60}}},
       {"patchy.filters.film_grain", Category::Noise, false, {{"amount", 50}}},
       {"patchy.filters.vignette", Category::PhotoLooks, false, {{"strength", 55}}},
+      {"patchy.filters.high_pass", Category::Sharpen, false, {{"radius", 10}}},
   };
 
   const auto has_center_parameters = [](std::string_view identifier) {
@@ -18828,18 +19292,40 @@ void filter_catalog_defines_stable_named_contracts() {
       const auto& parameter = actual.catalog.parameters[parameter_index];
       const auto& [key, default_value] = wanted.defaults[parameter_index];
       CHECK(parameter.key == key);
-      CHECK(parameter.kind == patchy::FilterParameterKind::Integer);
+      const auto is_high_pass_radius =
+          actual.identifier == "patchy.filters.high_pass" &&
+          parameter.key == "radius";
+      CHECK(parameter.kind ==
+            (is_high_pass_radius ? patchy::FilterParameterKind::Double
+                                 : patchy::FilterParameterKind::Integer));
       CHECK(parameter.display_name.size() > 0);
       CHECK(parameter.control_object_name.size() > 0);
       CHECK(parameter.minimum.has_value());
       CHECK(parameter.maximum.has_value());
-      CHECK(parameter.step == 1.0);
-      CHECK(std::get<std::int64_t>(parameter.default_value) == default_value);
-      CHECK(std::get<std::int64_t>(invocation.parameters.at(key)) == default_value);
+      CHECK(parameter.step == (is_high_pass_radius ? 0.1 : 1.0));
+      if (is_high_pass_radius) {
+        CHECK(std::get<double>(parameter.default_value) ==
+              static_cast<double>(default_value));
+        CHECK(std::get<double>(invocation.parameters.at(key)) ==
+              static_cast<double>(default_value));
+      } else {
+        CHECK(std::get<std::int64_t>(parameter.default_value) == default_value);
+        CHECK(std::get<std::int64_t>(invocation.parameters.at(key)) ==
+              default_value);
+      }
       CHECK(parameter.presentation ==
             expected_presentation(actual.identifier, parameter.key));
       CHECK(static_cast<double>(default_value) >= *parameter.minimum);
       CHECK(static_cast<double>(default_value) <= *parameter.maximum);
+      if (is_high_pass_radius) {
+        CHECK(parameter.minimum == 0.1);
+        CHECK(parameter.maximum == 1000.0);
+        CHECK(parameter.practical_minimum == 0.1);
+        CHECK(parameter.practical_maximum == 12.0);
+      } else {
+        CHECK(!parameter.practical_minimum.has_value());
+        CHECK(!parameter.practical_maximum.has_value());
+      }
       if (parameter.spatial_scale == patchy::FilterSpatialScale::Pixels) {
         spatial_parameters.insert(actual.identifier + "/" + parameter.key);
         CHECK(parameter.unit == patchy::FilterParameterUnit::Pixels);
@@ -18876,6 +19362,7 @@ void filter_catalog_defines_stable_named_contracts() {
       "patchy.filters.glowing_edges/smoothness",  "patchy.filters.wave/amplitude",
       "patchy.filters.wave/wavelength",           "patchy.filters.clouds/scale",
       "patchy.filters.pixelate/block_size",        "patchy.filters.color_halftone/cell_size",
+      "patchy.filters.high_pass/radius",
   };
   CHECK(spatial_parameters == expected_spatial);
 }
@@ -18907,6 +19394,25 @@ void filter_invocations_normalize_scale_and_reject_bad_data() {
   gaussian.schema_version = 1;
   gaussian.filter_id = "patchy.filters.missing";
   CHECK(!registry.supports(gaussian));
+
+  auto high_pass = registry.default_invocation("patchy.filters.high_pass");
+  CHECK(std::abs(std::get<double>(
+                     high_pass.parameters.at("radius")) -
+                 10.0) < 0.000001);
+  high_pass.parameters["radius"] = 999.0;
+  const auto clamped_high_pass = registry.normalize(high_pass);
+  CHECK(clamped_high_pass.has_value());
+  CHECK(std::abs(std::get<double>(
+                     clamped_high_pass->parameters.at("radius")) -
+                 999.0) < 0.000001);
+  high_pass.parameters["radius"] = 2000.0;
+  const auto maximum_high_pass = registry.normalize(high_pass);
+  CHECK(maximum_high_pass.has_value());
+  CHECK(std::abs(std::get<double>(
+                     maximum_high_pass->parameters.at("radius")) -
+                 1000.0) < 0.000001);
+  high_pass.parameters["radius"] = std::int64_t{4};
+  CHECK(!registry.supports(high_pass));
 
   auto wave = registry.default_invocation("patchy.filters.wave");
   const auto scaled_wave = registry.scale(wave, 0.25);
@@ -19265,15 +19771,20 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   first.parameters["radius"] = std::int64_t{3};
   auto second = first;
   second.parameters["radius"] = std::int64_t{9};
+  auto high_pass =
+      registry.default_invocation("patchy.filters.high_pass");
+  high_pass.parameters["radius"] = 4.25;
   const patchy::FilterRecipe recipe{{
       patchy::FilterRecipeEntry{first, true, 0.37,
                                 patchy::BlendMode::Multiply},
+      patchy::FilterRecipeEntry{high_pass, true, 0.75,
+                                patchy::BlendMode::Overlay},
       patchy::FilterRecipeEntry{second, false, 1.0,
                                 patchy::BlendMode::Normal},
   }};
   const auto mapped =
       patchy::smart_filter_entries_from_recipe(recipe, registry);
-  CHECK(mapped.has_value() && mapped->size() == 2U);
+  CHECK(mapped.has_value() && mapped->size() == 3U);
   CHECK((*mapped)[0].kind == patchy::SmartFilterKind::GaussianBlur);
   CHECK((*mapped)[0].enabled);
   CHECK(std::abs((*mapped)[0].opacity - 0.37) < 0.000001);
@@ -19284,9 +19795,17 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
                      (*mapped)[0].parameters)
                      .radius_pixels -
                  3.0) < 0.000001);
-  CHECK(!(*mapped)[1].enabled);
-  CHECK(std::abs(std::get<patchy::GaussianBlurSmartFilter>(
+  CHECK((*mapped)[1].kind == patchy::SmartFilterKind::HighPass);
+  CHECK((*mapped)[1].enabled);
+  CHECK(std::abs((*mapped)[1].opacity - 0.75) < 0.000001);
+  CHECK((*mapped)[1].blend_mode == patchy::BlendMode::Overlay);
+  CHECK(std::abs(std::get<patchy::HighPassSmartFilter>(
                      (*mapped)[1].parameters)
+                     .radius_pixels -
+                 4.25) < 0.000001);
+  CHECK(!(*mapped)[2].enabled);
+  CHECK(std::abs(std::get<patchy::GaussianBlurSmartFilter>(
+                     (*mapped)[2].parameters)
                      .radius_pixels -
                  9.0) < 0.000001);
 
@@ -22546,6 +23065,8 @@ int main() {
        smart_filter_gaussian_matches_photoshop_calibrated_kernels},
       {"smart_filter_gaussian_repeats_canvas_edges_and_blurs_premultiplied",
        smart_filter_gaussian_repeats_canvas_edges_and_blurs_premultiplied},
+      {"smart_filter_high_pass_matches_photoshop_formula_and_preserves_hidden_rgb",
+       smart_filter_high_pass_matches_photoshop_formula_and_preserves_hidden_rgb},
       {"smart_filter_shared_mask_and_disable_states_are_applied_once",
        smart_filter_shared_mask_and_disable_states_are_applied_once},
       {"smart_filter_entry_blending_matches_photoshop_baked_pixels",
@@ -22560,6 +23081,10 @@ int main() {
        smart_filter_effects_mask_replacement_adds_removes_and_fails_closed},
       {"smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes",
        smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes},
+      {"smart_filter_canonical_high_pass_descriptor_round_trips_and_preserves_unknowns",
+       smart_filter_canonical_high_pass_descriptor_round_trips_and_preserves_unknowns},
+      {"psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits",
+       psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits},
       {"psd_smart_filter_descriptor_semantics_parse_if_available",
        psd_smart_filter_descriptor_semantics_parse_if_available},
       {"psd_smart_filter_masks_decode_and_coexist_with_layer_mask",

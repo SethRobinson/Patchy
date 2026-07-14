@@ -2,6 +2,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
+#include "core/smart_filter.hpp"
 #include "core/text_warp.hpp"
 #include "filters/filter_registry.hpp"
 #include "formats/format_registry.hpp"
@@ -429,6 +430,12 @@ private:
   void convert_for_smart_filters();
   void gaussian_smart_filter_dialog(
       LayerId layer_id,
+      std::optional<std::size_t> execution_index = std::nullopt);
+  void high_pass_smart_filter_dialog(
+      LayerId layer_id,
+      std::optional<std::size_t> execution_index = std::nullopt);
+  void radius_smart_filter_dialog(
+      LayerId layer_id, SmartFilterKind kind,
       std::optional<std::size_t> execution_index = std::nullopt);
   void edit_smart_filter(LayerId layer_id, std::size_t execution_index);
   void edit_smart_filter_blending(LayerId layer_id,

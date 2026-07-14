@@ -89,6 +89,11 @@ struct FilterParameterDefinition {
   std::vector<FilterParameterOption> options;
   FilterParameterPresentation presentation{
       FilterParameterPresentation::Standard};
+  // Optional compact range for linked sliders and other coarse visual
+  // controls. Typed values, normalization, recipes, and persistence always
+  // use minimum/maximum above.
+  std::optional<double> practical_minimum;
+  std::optional<double> practical_maximum;
 };
 
 enum class FilterProgressStage {

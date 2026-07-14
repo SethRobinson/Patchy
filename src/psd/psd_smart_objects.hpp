@@ -44,7 +44,7 @@ struct SmartFilterDescriptorEdit {
   const SmartFilterStack* stack{nullptr};
   // When non-empty, one source accompanies each desired stack entry. An index
   // deep-clones that item from the original native filterFXList; nullopt
-  // authors a canonical Gaussian item. Repeated indices duplicate an entry,
+  // authors a canonical supported item. Repeated indices duplicate an entry,
   // omitted indices delete entries, and a different order reorders them.
   // Leaving the vector empty retains the legacy patch-in-place rule
   // that the native and modeled lists must already have the same size.

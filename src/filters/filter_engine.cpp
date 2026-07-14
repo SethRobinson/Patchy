@@ -1,5 +1,7 @@
 #include "filters/filter_engine.hpp"
 
+#include "filters/smart_filter_renderer.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -441,6 +443,40 @@ void apply_builtin_gaussian_blur_filter_pixels(PixelBuffer &pixels,
   }
   report_filter_progress(progress, pixels.height(), pixels.height(),
                          FilterProgressStage::Blurring);
+}
+
+void apply_high_pass_filter_pixels(PixelBuffer &pixels, double radius,
+                                   const FilterProgress *progress) {
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    report_filter_progress(progress, 1, 1,
+                           FilterProgressStage::Sharpening);
+    return;
+  }
+  PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto *source = pixels.pixel(x, y);
+      auto *destination = rgba.pixel(x, y);
+      destination[0] = source[0];
+      destination[1] = source[1];
+      destination[2] = source[2];
+      destination[3] = pixels.format().channels >= 4 ? source[3] : 255U;
+    }
+  }
+  const auto result = render_photoshop_high_pass(
+      rgba, Rect::from_size(rgba.width(), rgba.height()), radius, progress);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto *destination = pixels.pixel(x, y);
+      const auto *source = result.pixels.pixel(x, y);
+      destination[0] = source[0];
+      destination[1] = source[1];
+      destination[2] = source[2];
+      if (pixels.format().channels >= 4) {
+        destination[3] = source[3];
+      }
+    }
+  }
 }
 
 std::uint32_t filter_coordinate_hash(std::int32_t x, std::int32_t y,
@@ -1235,6 +1271,13 @@ void execute_builtin_filter(const FilterRegistry &registry,
     return;
   }
 
+  if (identifier == "patchy.filters.high_pass") {
+    const auto radius = std::clamp(
+        filter_number(invocation, "radius", 10.0), 0.1, 1000.0);
+    apply_high_pass_filter_pixels(pixels, radius, progress);
+    return;
+  }
+
   if (identifier == "patchy.filters.sharpen") {
     const auto amount =
         std::clamp(filter_value(invocation, "amount", 100), 0, 300);
@@ -1717,6 +1760,14 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                            Unit::Pixels, Scale::Pixels),
          integer_parameter("threshold", "Threshold", "filterThreshold", 0, 255,
                            8)});
+  } else if (identifier == "patchy.filters.high_pass") {
+    auto radius = double_parameter("radius", "Radius", "filterRadius", 0.1,
+                                   1000.0, 10.0, 0.1, Unit::Pixels,
+                                   Scale::Pixels);
+    radius.practical_minimum = 0.1;
+    radius.practical_maximum = 12.0;
+    metadata = catalog_metadata(
+        Category::Sharpen, false, {std::move(radius)});
   } else if (identifier == "patchy.filters.gaussian_blur") {
     metadata = catalog_metadata(
         Category::Blur, false,
@@ -1858,6 +1909,13 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
     metadata.translation_support =
         [](const FilterInvocation &invocation) -> std::optional<int> {
       return std::clamp(catalog_integer(invocation, "radius", 2), 1, 12);
+    };
+  } else if (identifier == "patchy.filters.high_pass") {
+    metadata.translation_support =
+        [](const FilterInvocation &invocation) -> std::optional<int> {
+      const auto radius = std::clamp(
+          catalog_number(invocation, "radius", 10.0), 0.1, 1000.0);
+      return std::max(1, static_cast<int>(std::ceil(radius * 3.0)));
     };
   } else if (identifier == "patchy.filters.motion_blur") {
     metadata.output_margin = [](const FilterInvocation &invocation,
