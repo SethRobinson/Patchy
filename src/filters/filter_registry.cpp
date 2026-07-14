@@ -106,9 +106,15 @@ void remap_center_parameter_for_padding(
   }
 }
 
-void remap_center_parameters_for_padding(
+void remap_spatial_parameters_for_padding(
     FilterInvocation &invocation, const FilterDefinition &definition,
     std::int32_t original_width, std::int32_t original_height, int margin) {
+  const auto original_shorter = static_cast<double>(
+      std::max<std::int32_t>(1, std::min(original_width, original_height)));
+  const auto padded_shorter = static_cast<double>(std::max<std::int64_t>(
+      1, std::min<std::int64_t>(
+             static_cast<std::int64_t>(original_width) + margin * 2LL,
+             static_cast<std::int64_t>(original_height) + margin * 2LL)));
   for (const auto &parameter : definition.catalog.parameters) {
     if (parameter.presentation ==
         FilterParameterPresentation::CenterXPercent) {
@@ -118,6 +124,17 @@ void remap_center_parameters_for_padding(
                FilterParameterPresentation::CenterYPercent) {
       remap_center_parameter_for_padding(invocation, parameter, original_height,
                                          margin);
+    } else if (parameter.presentation ==
+                   FilterParameterPresentation::TiltFocusHalfWidthPercent ||
+               parameter.presentation ==
+                   FilterParameterPresentation::TiltTransitionWidthPercent) {
+      const auto found = invocation.parameters.find(parameter.key);
+      if (found != invocation.parameters.end()) {
+        if (auto *value = std::get_if<double>(&found->second);
+            value != nullptr) {
+          *value *= original_shorter / padded_shorter;
+        }
+      }
     }
   }
 }
@@ -635,9 +652,9 @@ FilterRegistry::render(const FilterInvocation &invocation,
   auto padded_invocation = *normalized;
   if (const auto *filter = find(padded_invocation.filter_id);
       filter != nullptr) {
-    remap_center_parameters_for_padding(padded_invocation, *filter,
-                                        original.width(), original.height(),
-                                        margin);
+    remap_spatial_parameters_for_padding(padded_invocation, *filter,
+                                         original.width(), original.height(),
+                                         margin);
   }
   apply(padded_invocation, pixels, progress);
   const auto grown_x = static_cast<std::int64_t>(bounds.x) - margin;

@@ -586,6 +586,318 @@ void apply_surface_blur_filter_pixels(PixelBuffer &pixels, double radius,
   }
 }
 
+constexpr std::uint64_t kTiltWeightScale = 65536U;
+constexpr std::uint64_t kTiltMixScale = 65535U;
+constexpr std::uint64_t kTiltIntermediateScale = 256U;
+constexpr std::int64_t kTiltGeometryScale = 65536;
+constexpr std::int64_t kTiltNormalScale = 16777216;
+
+struct TiltPremultipliedPixel {
+  // The horizontal pass retains eight fractional bits. RGB start as
+  // straight-byte * alpha-byte; alpha starts as 0..255. The extra precision
+  // prevents low-alpha color drift before the vertical pass.
+  std::array<std::uint32_t, 4> component{};
+};
+
+[[nodiscard]] std::uint64_t tilt_divide_rounded(std::uint64_t numerator,
+                                                std::uint64_t denominator) {
+  return denominator == 0U ? 0U : (numerator + denominator / 2U) / denominator;
+}
+
+[[nodiscard]] std::uint64_t tilt_prefix_range(
+    const std::vector<std::uint64_t> &prefix, int first, int last) {
+  if (first > last) {
+    return 0U;
+  }
+  return prefix[static_cast<std::size_t>(last) + 1U] -
+         prefix[static_cast<std::size_t>(first)];
+}
+
+[[nodiscard]] std::uint64_t tilt_missing_weight(
+    int first_distance, int radius, std::uint64_t base_weight) {
+  if (first_distance > radius) {
+    return 0U;
+  }
+  const auto count = static_cast<std::uint64_t>(radius - first_distance + 1);
+  const auto distance_sum =
+      (static_cast<std::uint64_t>(first_distance + radius) * count) / 2U;
+  return count * base_weight - kTiltWeightScale * distance_sum;
+}
+
+[[nodiscard]] std::uint64_t tilt_weighted_axis_sum(
+    const std::vector<std::uint64_t> &prefix,
+    const std::vector<std::uint64_t> &moment_prefix, int index, int count,
+    int radius, std::uint64_t base_weight, bool repeat_edge,
+    std::uint32_t first_value, std::uint32_t last_value) {
+  const auto left_first = std::max(0, index - radius);
+  const auto left_sum = tilt_prefix_range(prefix, left_first, index);
+  const auto left_moment =
+      tilt_prefix_range(moment_prefix, left_first, index);
+  const auto left_distance =
+      static_cast<std::uint64_t>(index) * left_sum - left_moment;
+  auto weighted = base_weight * left_sum -
+                  kTiltWeightScale * left_distance;
+
+  const auto right_first = index + 1;
+  const auto right_last = std::min(count - 1, index + radius);
+  if (right_first <= right_last) {
+    const auto right_sum =
+        tilt_prefix_range(prefix, right_first, right_last);
+    const auto right_moment =
+        tilt_prefix_range(moment_prefix, right_first, right_last);
+    const auto right_distance =
+        right_moment - static_cast<std::uint64_t>(index) * right_sum;
+    weighted += base_weight * right_sum -
+                kTiltWeightScale * right_distance;
+  }
+
+  if (repeat_edge) {
+    weighted += tilt_missing_weight(index + 1, radius, base_weight) *
+                static_cast<std::uint64_t>(first_value);
+    weighted += tilt_missing_weight(count - index, radius, base_weight) *
+                static_cast<std::uint64_t>(last_value);
+  }
+  return weighted;
+}
+
+[[nodiscard]] PixelBuffer tilt_tent_blur_level(
+    const PixelBuffer &source, std::uint64_t radius_fixed,
+    const FilterProgress *progress) {
+  const auto width = source.width();
+  const auto height = source.height();
+  PixelBuffer output(width, height, source.format());
+  output.clear(0);
+  if (width <= 0 || height <= 0 || radius_fixed == 0U) {
+    output = source;
+    report_filter_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return output;
+  }
+
+  const auto radius = static_cast<int>(
+      (radius_fixed + kTiltWeightScale - 1U) / kTiltWeightScale);
+  const auto base_weight = radius_fixed + kTiltWeightScale;
+  const auto positive_weight_sum =
+      static_cast<std::uint64_t>(radius) * base_weight -
+      kTiltWeightScale * static_cast<std::uint64_t>(radius) *
+          static_cast<std::uint64_t>(radius + 1) / 2U;
+  const auto kernel_weight = base_weight + positive_weight_sum * 2U;
+  if (kernel_weight == 0U) {
+    throw std::overflow_error("Tilt-Shift Blur kernel overflow");
+  }
+
+  const auto pixel_count = static_cast<std::uint64_t>(width) *
+                           static_cast<std::uint64_t>(height);
+  if (pixel_count > std::numeric_limits<std::size_t>::max() /
+                        sizeof(TiltPremultipliedPixel)) {
+    throw std::overflow_error("Tilt-Shift Blur working buffer overflow");
+  }
+  std::vector<TiltPremultipliedPixel> horizontal(
+      static_cast<std::size_t>(pixel_count));
+  std::array<std::vector<std::uint64_t>, 4> prefixes;
+  std::array<std::vector<std::uint64_t>, 4> moment_prefixes;
+  const auto prefix_size =
+      static_cast<std::size_t>(std::max(width, height)) + 1U;
+  for (auto &prefix : prefixes) {
+    prefix.resize(prefix_size);
+  }
+  for (auto &prefix : moment_prefixes) {
+    prefix.resize(prefix_size);
+  }
+  const auto has_alpha = source.format().channels >= 4;
+  const auto repeat_edge = !has_alpha;
+  const auto total_lines = static_cast<std::uint64_t>(height) +
+                           static_cast<std::uint64_t>(width);
+  std::uint64_t completed_lines = 0U;
+
+  const auto source_components = [&](const std::uint8_t *pixel) {
+    const auto alpha = static_cast<std::uint32_t>(has_alpha ? pixel[3] : 255U);
+    return std::array<std::uint32_t, 4>{
+        static_cast<std::uint32_t>(pixel[0]) * alpha,
+        static_cast<std::uint32_t>(pixel[1]) * alpha,
+        static_cast<std::uint32_t>(pixel[2]) * alpha, alpha};
+  };
+
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_filter_progress(
+        progress,
+        static_cast<int>(std::min<std::uint64_t>(
+            completed_lines++, std::numeric_limits<int>::max())),
+        static_cast<int>(std::min<std::uint64_t>(
+            total_lines, std::numeric_limits<int>::max())),
+        FilterProgressStage::Blurring);
+    for (std::size_t component = 0; component < 4U; ++component) {
+      prefixes[component][0] = 0U;
+      moment_prefixes[component][0] = 0U;
+    }
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto values = source_components(source.pixel(x, y));
+      for (std::size_t component = 0; component < 4U; ++component) {
+        prefixes[component][static_cast<std::size_t>(x) + 1U] =
+            prefixes[component][static_cast<std::size_t>(x)] +
+            values[component];
+        moment_prefixes[component][static_cast<std::size_t>(x) + 1U] =
+            moment_prefixes[component][static_cast<std::size_t>(x)] +
+            static_cast<std::uint64_t>(x) * values[component];
+      }
+    }
+    const auto first = source_components(source.pixel(0, y));
+    const auto last = source_components(source.pixel(width - 1, y));
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto &destination =
+          horizontal[static_cast<std::size_t>(y) *
+                         static_cast<std::size_t>(width) +
+                     static_cast<std::size_t>(x)];
+      for (std::size_t component = 0; component < 4U; ++component) {
+        const auto numerator = tilt_weighted_axis_sum(
+            prefixes[component], moment_prefixes[component], x, width, radius,
+            base_weight, repeat_edge, first[component], last[component]);
+        destination.component[component] = static_cast<std::uint32_t>(
+            tilt_divide_rounded(numerator * kTiltIntermediateScale,
+                                kernel_weight));
+      }
+    }
+  }
+
+  for (std::int32_t x = 0; x < width; ++x) {
+    report_filter_progress(
+        progress,
+        static_cast<int>(std::min<std::uint64_t>(
+            completed_lines++, std::numeric_limits<int>::max())),
+        static_cast<int>(std::min<std::uint64_t>(
+            total_lines, std::numeric_limits<int>::max())),
+        FilterProgressStage::Blurring);
+    for (std::size_t component = 0; component < 4U; ++component) {
+      prefixes[component][0] = 0U;
+      moment_prefixes[component][0] = 0U;
+    }
+    for (std::int32_t y = 0; y < height; ++y) {
+      const auto &values = horizontal[
+                               static_cast<std::size_t>(y) *
+                                   static_cast<std::size_t>(width) +
+                               static_cast<std::size_t>(x)]
+                               .component;
+      for (std::size_t component = 0; component < 4U; ++component) {
+        prefixes[component][static_cast<std::size_t>(y) + 1U] =
+            prefixes[component][static_cast<std::size_t>(y)] +
+            values[component];
+        moment_prefixes[component][static_cast<std::size_t>(y) + 1U] =
+            moment_prefixes[component][static_cast<std::size_t>(y)] +
+            static_cast<std::uint64_t>(y) * values[component];
+      }
+    }
+    const auto &first = horizontal[static_cast<std::size_t>(x)].component;
+    const auto &last =
+        horizontal[static_cast<std::size_t>(height - 1) *
+                       static_cast<std::size_t>(width) +
+                   static_cast<std::size_t>(x)]
+            .component;
+    for (std::int32_t y = 0; y < height; ++y) {
+      std::array<std::uint32_t, 4> values{};
+      for (std::size_t component = 0; component < 4U; ++component) {
+        const auto numerator = tilt_weighted_axis_sum(
+            prefixes[component], moment_prefixes[component], y, height, radius,
+            base_weight, repeat_edge, first[component], last[component]);
+        values[component] = static_cast<std::uint32_t>(
+            tilt_divide_rounded(numerator, kernel_weight));
+      }
+      auto *pixel = output.pixel(x, y);
+      const auto alpha = has_alpha
+                             ? std::min<std::uint32_t>(
+                                   255U, static_cast<std::uint32_t>(
+                                             tilt_divide_rounded(
+                                                 values[3],
+                                                 kTiltIntermediateScale)))
+                             : 255U;
+      if (has_alpha) {
+        pixel[3] = static_cast<std::uint8_t>(alpha);
+      }
+      for (std::size_t component = 0; component < 3U; ++component) {
+        pixel[component] =
+            alpha == 0U || values[3] == 0U
+                ? 0U
+                : static_cast<std::uint8_t>(std::min<std::uint32_t>(
+                      255U, static_cast<std::uint32_t>(tilt_divide_rounded(
+                                values[component], values[3]))));
+      }
+    }
+  }
+  report_filter_progress(
+      progress,
+      static_cast<int>(std::min<std::uint64_t>(
+          total_lines, std::numeric_limits<int>::max())),
+      static_cast<int>(std::min<std::uint64_t>(
+          total_lines, std::numeric_limits<int>::max())),
+      FilterProgressStage::Blurring);
+  return output;
+}
+
+void tilt_blend_levels(PixelBuffer &output, const PixelBuffer &low,
+                       const PixelBuffer &high,
+                       const std::vector<std::uint16_t> &blur_mask,
+                       std::uint64_t maximum_radius_fixed,
+                       std::uint64_t low_radius_fixed,
+                       std::uint64_t high_radius_fixed,
+                       const FilterProgress *progress) {
+  const auto radius_span = high_radius_fixed - low_radius_fixed;
+  const auto has_alpha = output.format().channels >= 4;
+  for (std::int32_t y = 0; y < output.height(); ++y) {
+    report_filter_progress(progress, y, output.height(),
+                           FilterProgressStage::Blurring);
+    for (std::int32_t x = 0; x < output.width(); ++x) {
+      const auto index = static_cast<std::size_t>(y) *
+                             static_cast<std::size_t>(output.width()) +
+                         static_cast<std::size_t>(x);
+      const auto target_radius =
+          (maximum_radius_fixed * blur_mask[index] + kTiltMixScale / 2U) /
+          kTiltMixScale;
+      // Level zero already initialized the result. Every positive target falls
+      // in exactly one half-open radius interval (low, high].
+      if (target_radius <= low_radius_fixed ||
+          target_radius > high_radius_fixed || radius_span == 0U) {
+        continue;
+      }
+      const auto mix = std::min<std::uint64_t>(
+          kTiltMixScale,
+          ((target_radius - low_radius_fixed) * kTiltMixScale +
+           radius_span / 2U) /
+              radius_span);
+      const auto inverse_mix = kTiltMixScale - mix;
+      const auto *low_pixel = low.pixel(x, y);
+      const auto *high_pixel = high.pixel(x, y);
+      auto *destination = output.pixel(x, y);
+      const auto low_alpha =
+          static_cast<std::uint64_t>(has_alpha ? low_pixel[3] : 255U);
+      const auto high_alpha =
+          static_cast<std::uint64_t>(has_alpha ? high_pixel[3] : 255U);
+      const auto alpha_numerator =
+          low_alpha * inverse_mix + high_alpha * mix;
+      for (std::size_t component = 0; component < 3U; ++component) {
+        if (alpha_numerator == 0U) {
+          destination[component] = 0U;
+          continue;
+        }
+        const auto premultiplied_numerator =
+            static_cast<std::uint64_t>(low_pixel[component]) * low_alpha *
+                inverse_mix +
+            static_cast<std::uint64_t>(high_pixel[component]) * high_alpha *
+                mix;
+        destination[component] = static_cast<std::uint8_t>(
+            std::min<std::uint64_t>(
+                255U, (premultiplied_numerator + alpha_numerator / 2U) /
+                          alpha_numerator));
+      }
+      if (has_alpha) {
+        destination[3] = static_cast<std::uint8_t>(
+            std::min<std::uint64_t>(
+                255U, (alpha_numerator + kTiltMixScale / 2U) /
+                          kTiltMixScale));
+      }
+    }
+  }
+  report_filter_progress(progress, output.height(), output.height(),
+                         FilterProgressStage::Blurring);
+}
+
 std::uint32_t filter_coordinate_hash(std::int32_t x, std::int32_t y,
                                      std::uint16_t channel) noexcept {
   auto value = static_cast<std::uint32_t>(x + 1) * 73856093U;
@@ -1411,6 +1723,25 @@ void execute_builtin_filter(const FilterRegistry &registry,
     return;
   }
 
+  if (identifier == "patchy.filters.tilt_shift_blur") {
+    const auto blur = std::clamp(
+        filter_number(invocation, "blur", 15.0), 0.0, 500.0);
+    const auto center_x = std::clamp(
+        filter_number(invocation, "center_x", 50.0), 0.0, 100.0);
+    const auto center_y = std::clamp(
+        filter_number(invocation, "center_y", 50.0), 0.0, 100.0);
+    const auto angle = std::clamp(
+        filter_value(invocation, "angle", 0), -180, 180);
+    const auto focus_half_width = std::clamp(
+        filter_number(invocation, "focus_half_width", 10.0), 0.0, 100.0);
+    const auto transition_width = std::clamp(
+        filter_number(invocation, "transition_width", 20.0), 0.0, 100.0);
+    apply_tilt_shift_blur_filter(
+        pixels, blur, center_x, center_y, angle, focus_half_width,
+        transition_width, progress);
+    return;
+  }
+
   if (identifier == "patchy.filters.sharpen") {
     const auto amount =
         std::clamp(filter_value(invocation, "amount", 100), 0, 300);
@@ -1818,6 +2149,176 @@ int off_center_radial_blur_margin(const FilterInvocation &invocation,
 
 } // namespace
 
+void apply_tilt_shift_blur_filter(PixelBuffer &pixels, double blur_pixels,
+                                  double center_x_percent,
+                                  double center_y_percent, int angle_degrees,
+                                  double focus_half_width_percent,
+                                  double transition_width_percent,
+                                  const FilterProgress *progress) {
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    throw std::invalid_argument(
+        "Tilt-Shift Blur supports UInt8 buffers only");
+  }
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    report_filter_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return;
+  }
+  if (!std::isfinite(blur_pixels) ||
+      !std::isfinite(center_x_percent) ||
+      !std::isfinite(center_y_percent) ||
+      !std::isfinite(focus_half_width_percent) ||
+      !std::isfinite(transition_width_percent)) {
+    throw std::invalid_argument("Invalid Tilt-Shift Blur settings");
+  }
+
+  blur_pixels = std::clamp(blur_pixels, 0.0, 500.0);
+  center_x_percent = std::clamp(center_x_percent, 0.0, 100.0);
+  center_y_percent = std::clamp(center_y_percent, 0.0, 100.0);
+  angle_degrees = std::clamp(angle_degrees, -180, 180);
+  focus_half_width_percent =
+      std::clamp(focus_half_width_percent, 0.0, 100.0);
+  transition_width_percent =
+      std::clamp(transition_width_percent, 0.0, 100.0);
+  const auto maximum_radius_fixed = static_cast<std::uint64_t>(
+      std::llround(blur_pixels * static_cast<double>(kTiltWeightScale)));
+  if (maximum_radius_fixed == 0U) {
+    report_filter_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return;
+  }
+
+  std::vector<std::uint64_t> radii{0U};
+  auto radius = std::min(kTiltWeightScale, maximum_radius_fixed);
+  radii.push_back(radius);
+  while (radius < maximum_radius_fixed) {
+    radius = std::min(maximum_radius_fixed, radius * 2U);
+    radii.push_back(radius);
+  }
+  const auto interval_count = static_cast<int>(radii.size() - 1U);
+  const auto phase_count = 1 + interval_count * 2;
+  auto mask_progress = filter_progress_phase(progress, 0, phase_count);
+
+  const auto width = pixels.width();
+  const auto height = pixels.height();
+  constexpr auto kMaximumGeometryExtent =
+      std::numeric_limits<std::int64_t>::max() /
+      (2LL * kTiltGeometryScale * kTiltNormalScale);
+  // The vertical moment prefix stores the Q8 horizontal result. One million
+  // rows is already well above Patchy's document limit and keeps its largest
+  // possible prefix below uint64_t's ceiling.
+  constexpr std::int64_t kMaximumIntermediateExtent = 1'000'000;
+  if (width > kMaximumGeometryExtent || height > kMaximumGeometryExtent ||
+      height > kMaximumIntermediateExtent) {
+    throw std::overflow_error("Tilt-Shift Blur geometry overflow");
+  }
+  const auto pixel_count = static_cast<std::uint64_t>(width) *
+                           static_cast<std::uint64_t>(height);
+  if (pixel_count > std::numeric_limits<std::size_t>::max() /
+                        sizeof(std::uint16_t)) {
+    throw std::overflow_error("Tilt-Shift Blur mask overflow");
+  }
+  std::vector<std::uint16_t> blur_mask(
+      static_cast<std::size_t>(pixel_count));
+  const auto angle = static_cast<double>(angle_degrees) * kFilterPi / 180.0;
+  // Patchy's filter angle dial increases counterclockwise in image
+  // coordinates, so the band tangent is (+cos, -sin) and its normal is
+  // (+sin, +cos). Quantizing the normal once makes the geometry and smoothstep
+  // mask byte-identical across the supported toolchains even if their libm
+  // implementations differ in the final bits of sin/cos.
+  const auto normal_x = static_cast<std::int64_t>(
+      std::llround(std::sin(angle) * kTiltNormalScale));
+  const auto normal_y = static_cast<std::int64_t>(
+      std::llround(std::cos(angle) * kTiltNormalScale));
+  const auto center_x = static_cast<std::int64_t>(std::llround(
+      filter_center_coordinate(width, center_x_percent) *
+      kTiltGeometryScale));
+  const auto center_y = static_cast<std::int64_t>(std::llround(
+      filter_center_coordinate(height, center_y_percent) *
+      kTiltGeometryScale));
+  const auto shorter_extent =
+      static_cast<double>(std::max<std::int32_t>(1, std::min(width, height)));
+  const auto focus_distance = static_cast<std::int64_t>(std::llround(
+      shorter_extent * focus_half_width_percent * kTiltGeometryScale /
+      100.0));
+  const auto transition_distance = static_cast<std::int64_t>(std::llround(
+      shorter_extent * transition_width_percent * kTiltGeometryScale /
+      100.0));
+  const auto smoothstep_denominator = kTiltMixScale * kTiltMixScale;
+  std::uint16_t maximum_mask = 0U;
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_filter_progress(&mask_progress, y, height,
+                           FilterProgressStage::Blurring);
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto x_offset =
+          static_cast<std::int64_t>(x) * kTiltGeometryScale - center_x;
+      const auto y_offset =
+          static_cast<std::int64_t>(y) * kTiltGeometryScale - center_y;
+      const auto projection = x_offset * normal_x + y_offset * normal_y;
+      const auto distance =
+          (std::abs(projection) + kTiltNormalScale / 2) / kTiltNormalScale;
+      std::uint64_t amount = 0U;
+      if (distance > focus_distance) {
+        if (transition_distance <= 0) {
+          amount = kTiltMixScale;
+        } else {
+          const auto delta = std::min(distance - focus_distance,
+                                      transition_distance);
+          const auto position = std::min<std::uint64_t>(
+              kTiltMixScale,
+              (static_cast<std::uint64_t>(delta) * kTiltMixScale +
+               static_cast<std::uint64_t>(transition_distance) / 2U) /
+                  static_cast<std::uint64_t>(transition_distance));
+          const auto smoothstep_numerator =
+              position * position * (3U * kTiltMixScale - 2U * position);
+          amount = (smoothstep_numerator + smoothstep_denominator / 2U) /
+                   smoothstep_denominator;
+        }
+      }
+      const auto quantized = static_cast<std::uint16_t>(amount);
+      blur_mask[static_cast<std::size_t>(y) *
+                    static_cast<std::size_t>(width) +
+                static_cast<std::size_t>(x)] = quantized;
+      maximum_mask = std::max(maximum_mask, quantized);
+    }
+  }
+  report_filter_progress(&mask_progress, height, height,
+                         FilterProgressStage::Blurring);
+  if (maximum_mask == 0U) {
+    report_filter_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return;
+  }
+
+  const auto source = pixels;
+  const PixelBuffer *low_level = &source;
+  PixelBuffer owned_low_level;
+  for (int interval = 0; interval < interval_count; ++interval) {
+    auto level_progress =
+        filter_progress_phase(progress, 1 + interval * 2, phase_count);
+    auto high_level = tilt_tent_blur_level(
+        source, radii[static_cast<std::size_t>(interval) + 1U],
+        &level_progress);
+    auto blend_progress =
+        filter_progress_phase(progress, 2 + interval * 2, phase_count);
+    tilt_blend_levels(
+        pixels, *low_level, high_level, blur_mask, maximum_radius_fixed,
+        radii[static_cast<std::size_t>(interval)],
+        radii[static_cast<std::size_t>(interval) + 1U], &blend_progress);
+    owned_low_level = std::move(high_level);
+    low_level = &owned_low_level;
+  }
+  if (pixels.format().channels >= 4) {
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto *pixel = pixels.pixel(x, y);
+        if (pixel[3] == 0U) {
+          pixel[0] = 0U;
+          pixel[1] = 0U;
+          pixel[2] = 0U;
+        }
+      }
+    }
+  }
+}
+
 FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
   using Category = FilterCategory;
   using Presentation = FilterParameterPresentation;
@@ -1930,6 +2431,28 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
         {std::move(radius),
          integer_parameter("threshold", "Threshold", "filterThreshold", 2,
                            255, 15)});
+  } else if (identifier == "patchy.filters.tilt_shift_blur") {
+    auto blur = double_parameter("blur", "Blur", "filterBlur", 0.0, 500.0,
+                                 15.0, 0.1, Unit::Pixels, Scale::Pixels);
+    blur.practical_minimum = 0.0;
+    blur.practical_maximum = 50.0;
+    metadata = catalog_metadata(
+        Category::Blur, false,
+        {std::move(blur),
+         center("center_x", "Center X", "filterCenterX",
+                Presentation::CenterXPercent),
+         center("center_y", "Center Y", "filterCenterY",
+                Presentation::CenterYPercent),
+         integer_parameter("angle", "Angle", "filterAngle", -180, 180, 0,
+                           Unit::Degrees, Scale::None, Presentation::Angle),
+         double_parameter(
+             "focus_half_width", "Focus Half-Width", "filterFocusHalfWidth",
+             0.0, 100.0, 10.0, 0.1, Unit::Percent, Scale::None,
+             Presentation::TiltFocusHalfWidthPercent),
+         double_parameter(
+             "transition_width", "Transition Width", "filterTransitionWidth",
+             0.0, 100.0, 20.0, 0.1, Unit::Percent, Scale::None,
+             Presentation::TiltTransitionWidthPercent)});
   } else if (identifier == "patchy.filters.gaussian_blur") {
     metadata = catalog_metadata(
         Category::Blur, false,
@@ -2085,6 +2608,13 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
       const auto radius = std::clamp(
           catalog_number(invocation, "radius", 5.0), 1.0, 100.0);
       return std::max(1, static_cast<int>(std::floor(radius + 0.5)));
+    };
+  } else if (identifier == "patchy.filters.tilt_shift_blur") {
+    metadata.output_margin = [](const FilterInvocation &invocation,
+                                std::int32_t, std::int32_t) {
+      const auto blur = std::clamp(
+          catalog_number(invocation, "blur", 15.0), 0.0, 500.0);
+      return static_cast<int>(std::ceil(blur));
     };
   } else if (identifier == "patchy.filters.motion_blur") {
     metadata.output_margin = [](const FilterInvocation &invocation,

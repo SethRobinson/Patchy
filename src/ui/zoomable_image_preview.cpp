@@ -1,5 +1,7 @@
 #include "ui/zoomable_image_preview.hpp"
 
+#include <QCursor>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QResizeEvent>
@@ -20,6 +22,30 @@ constexpr double kMinimumZoom = 0.0625;
 constexpr double kMaximumZoom = 16.0;
 constexpr double kOverlayHandleHitRadius = 11.0;
 constexpr QColor kOverlayAccent{76, 154, 255};
+constexpr double kPi = 3.14159265358979323846;
+
+[[nodiscard]] double normalized_degrees(double degrees) {
+  if (!std::isfinite(degrees)) {
+    return 0.0;
+  }
+  auto normalized = std::remainder(degrees, 360.0);
+  if (normalized < -180.0) {
+    normalized += 360.0;
+  }
+  return normalized;
+}
+
+[[nodiscard]] QPointF tilt_tangent(double degrees) {
+  const auto radians = degrees * kPi / 180.0;
+  // Match Patchy's Angle presentation: positive degrees turn
+  // counterclockwise in image space, whose Y axis points down.
+  return {std::cos(radians), -std::sin(radians)};
+}
+
+[[nodiscard]] QPointF tilt_normal(double degrees) {
+  const auto tangent = tilt_tangent(degrees);
+  return {-tangent.y(), tangent.x()};
+}
 
 }  // namespace
 
@@ -27,6 +53,7 @@ ZoomableImagePreview::ZoomableImagePreview(QWidget* parent) : QWidget(parent) {
   setMinimumSize(420, 300);
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   setMouseTracking(true);
+  setFocusPolicy(Qt::StrongFocus);
   setCursor(Qt::OpenHandCursor);
   const auto description =
       QObject::tr("Drag to pan. The mouse wheel zooms.");
@@ -127,9 +154,11 @@ void ZoomableImagePreview::set_center_radius_overlay(
   if (center_radius_overlay_ == overlay) {
     return;
   }
-  if (!overlay) {
+  if (!overlay && (active_overlay_handle_ == OverlayHandle::Center ||
+                   active_overlay_handle_ == OverlayHandle::Radius)) {
     active_overlay_handle_ = OverlayHandle::None;
     overlay_drag_changed_ = false;
+    center_radius_gesture_start_.reset();
   }
   center_radius_overlay_ = std::move(overlay);
   if (active_overlay_handle_ == OverlayHandle::None &&
@@ -157,6 +186,47 @@ ZoomableImagePreview::center_radius_overlay() const noexcept {
 void ZoomableImagePreview::set_center_radius_changed_callback(
     std::function<void(NormalizedCenterRadiusOverlay, bool)> callback) {
   center_radius_changed_ = std::move(callback);
+}
+
+void ZoomableImagePreview::set_tilt_shift_overlay(
+    std::optional<NormalizedTiltShiftOverlay> overlay) {
+  if (overlay) {
+    overlay->center.setX(std::clamp(overlay->center.x(), 0.0, 1.0));
+    overlay->center.setY(std::clamp(overlay->center.y(), 0.0, 1.0));
+    overlay->angle_degrees = normalized_degrees(overlay->angle_degrees);
+    overlay->focus_half_width =
+        std::clamp(overlay->focus_half_width, 0.0, 1.0);
+    overlay->transition_width =
+        std::clamp(overlay->transition_width, 0.0, 1.0);
+  }
+  if (tilt_shift_overlay_ == overlay) {
+    return;
+  }
+  if (!overlay &&
+      (active_overlay_handle_ == OverlayHandle::TiltCenter ||
+       active_overlay_handle_ == OverlayHandle::TiltAngle ||
+       active_overlay_handle_ == OverlayHandle::TiltFocus ||
+       active_overlay_handle_ == OverlayHandle::TiltTransition)) {
+    active_overlay_handle_ = OverlayHandle::None;
+    overlay_drag_changed_ = false;
+    tilt_shift_gesture_start_.reset();
+  }
+  tilt_shift_overlay_ = std::move(overlay);
+  if (active_overlay_handle_ == OverlayHandle::None && tilt_shift_overlay_) {
+    last_requested_tilt_shift_overlay_ = *tilt_shift_overlay_;
+  }
+  publish_overlay_state();
+  update();
+}
+
+const std::optional<NormalizedTiltShiftOverlay>&
+ZoomableImagePreview::tilt_shift_overlay() const noexcept {
+  return tilt_shift_overlay_;
+}
+
+void ZoomableImagePreview::set_tilt_shift_changed_callback(
+    std::function<void(NormalizedTiltShiftOverlay, bool)> callback) {
+  tilt_shift_changed_ = std::move(callback);
 }
 
 void ZoomableImagePreview::paintEvent(QPaintEvent*) {
@@ -193,6 +263,7 @@ void ZoomableImagePreview::paintEvent(QPaintEvent*) {
   painter.setPen(QColor(18, 20, 23));
   painter.drawRect(target.adjusted(-1.0, -1.0, 0.0, 0.0));
   draw_center_radius_overlay(painter);
+  draw_tilt_shift_overlay(painter);
 }
 
 void ZoomableImagePreview::resizeEvent(QResizeEvent* event) {
@@ -204,15 +275,25 @@ void ZoomableImagePreview::resizeEvent(QResizeEvent* event) {
 void ZoomableImagePreview::mousePressEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton) {
     const auto overlay_handle = overlay_handle_at(event->position());
-    if (overlay_handle != OverlayHandle::None && center_radius_overlay_) {
+    if (overlay_handle != OverlayHandle::None) {
       active_overlay_handle_ = overlay_handle;
       overlay_drag_changed_ = false;
-      last_requested_overlay_ = *center_radius_overlay_;
+      setFocus(Qt::MouseFocusReason);
       update_interaction_cursor(event->position());
       publish_overlay_state();
       // Notify the host at gesture start so it can freeze any size-changing
       // preview before the pointer's coordinate system is captured.
-      request_center_radius_overlay(last_requested_overlay_, false);
+      if ((overlay_handle == OverlayHandle::Center ||
+           overlay_handle == OverlayHandle::Radius) &&
+          center_radius_overlay_) {
+        last_requested_overlay_ = *center_radius_overlay_;
+        center_radius_gesture_start_ = last_requested_overlay_;
+        request_center_radius_overlay(last_requested_overlay_, false);
+      } else if (tilt_shift_overlay_) {
+        last_requested_tilt_shift_overlay_ = *tilt_shift_overlay_;
+        tilt_shift_gesture_start_ = last_requested_tilt_shift_overlay_;
+        request_tilt_shift_overlay(last_requested_tilt_shift_overlay_, false);
+      }
       update();
       event->accept();
       return;
@@ -230,11 +311,21 @@ void ZoomableImagePreview::mousePressEvent(QMouseEvent* event) {
 void ZoomableImagePreview::mouseMoveEvent(QMouseEvent* event) {
   if (active_overlay_handle_ != OverlayHandle::None &&
       (event->buttons() & Qt::LeftButton) != 0) {
-    const auto requested = requested_overlay_at(event->position());
-    if (requested != last_requested_overlay_) {
-      last_requested_overlay_ = requested;
-      overlay_drag_changed_ = true;
-      request_center_radius_overlay(requested, false);
+    if (active_overlay_handle_ == OverlayHandle::Center ||
+        active_overlay_handle_ == OverlayHandle::Radius) {
+      const auto requested = requested_overlay_at(event->position());
+      if (requested != last_requested_overlay_) {
+        last_requested_overlay_ = requested;
+        overlay_drag_changed_ = true;
+        request_center_radius_overlay(requested, false);
+      }
+    } else {
+      const auto requested = requested_tilt_overlay_at(event->position());
+      if (requested != last_requested_tilt_shift_overlay_) {
+        last_requested_tilt_shift_overlay_ = requested;
+        overlay_drag_changed_ = true;
+        request_tilt_shift_overlay(requested, false);
+      }
     }
     event->accept();
     return;
@@ -254,17 +345,35 @@ void ZoomableImagePreview::mouseMoveEvent(QMouseEvent* event) {
 void ZoomableImagePreview::mouseReleaseEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton &&
       active_overlay_handle_ != OverlayHandle::None) {
-    const auto requested = requested_overlay_at(event->position());
-    if (requested != last_requested_overlay_) {
-      last_requested_overlay_ = requested;
-      overlay_drag_changed_ = true;
-      request_center_radius_overlay(requested, false);
+    const auto finished_handle = active_overlay_handle_;
+    if (finished_handle == OverlayHandle::Center ||
+        finished_handle == OverlayHandle::Radius) {
+      const auto requested = requested_overlay_at(event->position());
+      if (requested != last_requested_overlay_) {
+        last_requested_overlay_ = requested;
+        overlay_drag_changed_ = true;
+        request_center_radius_overlay(requested, false);
+      }
+    } else {
+      const auto requested = requested_tilt_overlay_at(event->position());
+      if (requested != last_requested_tilt_shift_overlay_) {
+        last_requested_tilt_shift_overlay_ = requested;
+        overlay_drag_changed_ = true;
+        request_tilt_shift_overlay(requested, false);
+      }
     }
     active_overlay_handle_ = OverlayHandle::None;
     publish_overlay_state();
     // Always finish a gesture that was announced on press. Even an unmoved
     // click lets the host resume a preview it froze for pointer stability.
-    request_center_radius_overlay(last_requested_overlay_, true);
+    if (finished_handle == OverlayHandle::Center ||
+        finished_handle == OverlayHandle::Radius) {
+      request_center_radius_overlay(last_requested_overlay_, true);
+      center_radius_gesture_start_.reset();
+    } else {
+      request_tilt_shift_overlay(last_requested_tilt_shift_overlay_, true);
+      tilt_shift_gesture_start_.reset();
+    }
     overlay_drag_changed_ = false;
     update_interaction_cursor(event->position());
     update();
@@ -295,6 +404,34 @@ void ZoomableImagePreview::mouseDoubleClickEvent(QMouseEvent* event) {
     return;
   }
   QWidget::mouseDoubleClickEvent(event);
+}
+
+void ZoomableImagePreview::keyPressEvent(QKeyEvent* event) {
+  if (event->key() == Qt::Key_Escape &&
+      active_overlay_handle_ != OverlayHandle::None) {
+    const auto cancelled_handle = active_overlay_handle_;
+    active_overlay_handle_ = OverlayHandle::None;
+    overlay_drag_changed_ = false;
+    if ((cancelled_handle == OverlayHandle::Center ||
+         cancelled_handle == OverlayHandle::Radius) &&
+        center_radius_gesture_start_) {
+      last_requested_overlay_ = *center_radius_gesture_start_;
+      request_center_radius_overlay(last_requested_overlay_, false);
+      request_center_radius_overlay(last_requested_overlay_, true);
+      center_radius_gesture_start_.reset();
+    } else if (tilt_shift_gesture_start_) {
+      last_requested_tilt_shift_overlay_ = *tilt_shift_gesture_start_;
+      request_tilt_shift_overlay(last_requested_tilt_shift_overlay_, false);
+      request_tilt_shift_overlay(last_requested_tilt_shift_overlay_, true);
+      tilt_shift_gesture_start_.reset();
+    }
+    publish_overlay_state();
+    update_interaction_cursor(mapFromGlobal(QCursor::pos()));
+    update();
+    event->accept();
+    return;
+  }
+  QWidget::keyPressEvent(event);
 }
 
 void ZoomableImagePreview::wheelEvent(QWheelEvent* event) {
@@ -365,7 +502,10 @@ QPointF ZoomableImagePreview::overlay_radius_handle_point(
 
 ZoomableImagePreview::OverlayHandle ZoomableImagePreview::overlay_handle_at(
     QPointF position) const {
-  if (!center_radius_overlay_ || image_.isNull()) {
+  if (!center_radius_overlay_) {
+    return tilt_overlay_handle_at(position);
+  }
+  if (image_.isNull()) {
     return OverlayHandle::None;
   }
 
@@ -430,6 +570,123 @@ NormalizedCenterRadiusOverlay ZoomableImagePreview::requested_overlay_at(
   return requested;
 }
 
+QPointF ZoomableImagePreview::tilt_center_point(
+    const NormalizedTiltShiftOverlay& overlay) const {
+  const auto target = displayed_rect();
+  return QPointF(target.left() + overlay.center.x() * target.width(),
+                 target.top() + overlay.center.y() * target.height());
+}
+
+QPointF ZoomableImagePreview::tilt_angle_handle_point(
+    const NormalizedTiltShiftOverlay& overlay) const {
+  const auto target = displayed_rect();
+  const auto distance = std::clamp(
+      std::min(target.width(), target.height()) * 0.18, 36.0, 72.0);
+  return tilt_center_point(overlay) +
+         tilt_tangent(overlay.angle_degrees) * distance;
+}
+
+QPointF ZoomableImagePreview::tilt_focus_handle_point(
+    const NormalizedTiltShiftOverlay& overlay, double side) const {
+  const auto target = displayed_rect();
+  const auto distance = overlay.focus_half_width *
+                        std::min(target.width(), target.height());
+  return tilt_center_point(overlay) +
+         tilt_normal(overlay.angle_degrees) * (side * distance) +
+         tilt_tangent(overlay.angle_degrees) * (side * 7.0);
+}
+
+QPointF ZoomableImagePreview::tilt_transition_handle_point(
+    const NormalizedTiltShiftOverlay& overlay, double side) const {
+  const auto target = displayed_rect();
+  const auto distance =
+      (overlay.focus_half_width + overlay.transition_width) *
+      std::min(target.width(), target.height());
+  return tilt_center_point(overlay) +
+         tilt_normal(overlay.angle_degrees) * (side * distance) +
+         tilt_tangent(overlay.angle_degrees) * (side * 14.0);
+}
+
+ZoomableImagePreview::OverlayHandle
+ZoomableImagePreview::tilt_overlay_handle_at(QPointF position) const {
+  if (!tilt_shift_overlay_ || image_.isNull()) {
+    return OverlayHandle::None;
+  }
+  auto visible_target = displayed_rect().intersected(QRectF(rect()));
+  if (visible_target.isEmpty()) {
+    return OverlayHandle::None;
+  }
+  visible_target.adjust(-kOverlayHandleHitRadius, -kOverlayHandleHitRadius,
+                        kOverlayHandleHitRadius, kOverlayHandleHitRadius);
+  if (!visible_target.contains(position)) {
+    return OverlayHandle::None;
+  }
+
+  const auto distance_squared = [position](QPointF point) {
+    const auto delta = position - point;
+    return delta.x() * delta.x() + delta.y() * delta.y();
+  };
+  const auto& overlay = *tilt_shift_overlay_;
+  const std::array<std::pair<OverlayHandle, QPointF>, 6> handles = {{
+      {OverlayHandle::TiltCenter, tilt_center_point(overlay)},
+      {OverlayHandle::TiltAngle, tilt_angle_handle_point(overlay)},
+      {OverlayHandle::TiltFocus, tilt_focus_handle_point(overlay, 1.0)},
+      {OverlayHandle::TiltFocus, tilt_focus_handle_point(overlay, -1.0)},
+      {OverlayHandle::TiltTransition,
+       tilt_transition_handle_point(overlay, 1.0)},
+      {OverlayHandle::TiltTransition,
+       tilt_transition_handle_point(overlay, -1.0)},
+  }};
+  auto closest = OverlayHandle::None;
+  auto closest_distance = std::numeric_limits<double>::infinity();
+  const auto hit_distance =
+      kOverlayHandleHitRadius * kOverlayHandleHitRadius;
+  for (const auto& [handle, point] : handles) {
+    const auto distance = distance_squared(point);
+    if (distance <= hit_distance && distance < closest_distance) {
+      closest = handle;
+      closest_distance = distance;
+    }
+  }
+  return closest;
+}
+
+NormalizedTiltShiftOverlay ZoomableImagePreview::requested_tilt_overlay_at(
+    QPointF position) const {
+  auto requested = last_requested_tilt_shift_overlay_;
+  const auto target = displayed_rect();
+  const auto shorter = std::min(target.width(), target.height());
+  if (target.width() <= 0.0 || target.height() <= 0.0 || shorter <= 0.0) {
+    return requested;
+  }
+  if (active_overlay_handle_ == OverlayHandle::TiltCenter) {
+    requested.center.setX(
+        std::clamp((position.x() - target.left()) / target.width(), 0.0, 1.0));
+    requested.center.setY(
+        std::clamp((position.y() - target.top()) / target.height(), 0.0, 1.0));
+    return requested;
+  }
+
+  const auto center = tilt_center_point(requested);
+  const auto delta = position - center;
+  if (active_overlay_handle_ == OverlayHandle::TiltAngle) {
+    requested.angle_degrees = normalized_degrees(
+        std::atan2(-delta.y(), delta.x()) * 180.0 / kPi);
+    return requested;
+  }
+  const auto distance =
+      std::abs(QPointF::dotProduct(
+          delta, tilt_normal(requested.angle_degrees))) /
+      shorter;
+  if (active_overlay_handle_ == OverlayHandle::TiltFocus) {
+    requested.focus_half_width = std::clamp(distance, 0.0, 1.0);
+  } else if (active_overlay_handle_ == OverlayHandle::TiltTransition) {
+    requested.transition_width =
+        std::clamp(distance - requested.focus_half_width, 0.0, 1.0);
+  }
+  return requested;
+}
+
 void ZoomableImagePreview::draw_center_radius_overlay(
     QPainter& painter) const {
   if (!center_radius_overlay_ || image_.isNull()) {
@@ -484,6 +741,84 @@ void ZoomableImagePreview::draw_center_radius_overlay(
   painter.restore();
 }
 
+void ZoomableImagePreview::draw_tilt_shift_overlay(QPainter& painter) const {
+  if (!tilt_shift_overlay_ || image_.isNull()) {
+    return;
+  }
+  const auto target = displayed_rect();
+  const auto visible_target = target.intersected(QRectF(rect()));
+  if (visible_target.isEmpty()) {
+    return;
+  }
+
+  const auto& overlay = *tilt_shift_overlay_;
+  const auto center = tilt_center_point(overlay);
+  const auto tangent = tilt_tangent(overlay.angle_degrees);
+  const auto normal = tilt_normal(overlay.angle_degrees);
+  const auto shorter = std::min(target.width(), target.height());
+  const auto focus_distance = overlay.focus_half_width * shorter;
+  const auto transition_distance =
+      (overlay.focus_half_width + overlay.transition_width) * shorter;
+  const auto line_half_length = std::hypot(target.width(), target.height());
+
+  painter.save();
+  painter.setClipRect(visible_target);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setBrush(Qt::NoBrush);
+
+  const auto draw_boundary = [&](double distance, Qt::PenStyle style) {
+    for (const auto side : {-1.0, 1.0}) {
+      const auto midpoint = center + normal * (side * distance);
+      const auto start = midpoint - tangent * line_half_length;
+      const auto end = midpoint + tangent * line_half_length;
+      painter.setPen(QPen(QColor(18, 20, 23, 225), 4.0, style,
+                          Qt::RoundCap));
+      painter.drawLine(start, end);
+      painter.setPen(QPen(kOverlayAccent, 2.0, style, Qt::RoundCap));
+      painter.drawLine(start, end);
+    }
+  };
+  draw_boundary(focus_distance, Qt::SolidLine);
+  draw_boundary(transition_distance, Qt::DashLine);
+
+  const auto angle_handle = tilt_angle_handle_point(overlay);
+  const auto opposite_angle_handle = center - (angle_handle - center);
+  painter.setPen(QPen(QColor(18, 20, 23, 225), 4.0,
+                      Qt::SolidLine, Qt::RoundCap));
+  painter.drawLine(opposite_angle_handle, angle_handle);
+  painter.setPen(QPen(kOverlayAccent, 2.0, Qt::SolidLine, Qt::RoundCap));
+  painter.drawLine(opposite_angle_handle, angle_handle);
+
+  const auto draw_handle = [&](QPointF point, bool filled) {
+    painter.setPen(QPen(QColor(18, 20, 23, 230), 2.0));
+    painter.setBrush(filled ? kOverlayAccent : QColor(31, 33, 37, 225));
+    painter.drawEllipse(point, 5.5, 5.5);
+    if (!filled) {
+      painter.setPen(QPen(kOverlayAccent, 2.0));
+      painter.setBrush(Qt::NoBrush);
+      painter.drawEllipse(point, 4.0, 4.0);
+    }
+  };
+  draw_handle(angle_handle, true);
+  draw_handle(tilt_focus_handle_point(overlay, 1.0), true);
+  draw_handle(tilt_focus_handle_point(overlay, -1.0), true);
+  draw_handle(tilt_transition_handle_point(overlay, 1.0), false);
+  draw_handle(tilt_transition_handle_point(overlay, -1.0), false);
+
+  painter.setPen(QPen(QColor(18, 20, 23, 230), 5.0,
+                      Qt::SolidLine, Qt::RoundCap));
+  painter.drawLine(center + QPointF(-9.0, 0.0),
+                   center + QPointF(9.0, 0.0));
+  painter.drawLine(center + QPointF(0.0, -9.0),
+                   center + QPointF(0.0, 9.0));
+  painter.setPen(QPen(kOverlayAccent, 2.0, Qt::SolidLine, Qt::RoundCap));
+  painter.drawLine(center + QPointF(-9.0, 0.0),
+                   center + QPointF(9.0, 0.0));
+  painter.drawLine(center + QPointF(0.0, -9.0),
+                   center + QPointF(0.0, 9.0));
+  painter.restore();
+}
+
 void ZoomableImagePreview::request_center_radius_overlay(
     NormalizedCenterRadiusOverlay overlay, bool gesture_finished) {
   overlay.center.setX(std::clamp(overlay.center.x(), 0.0, 1.0));
@@ -493,6 +828,20 @@ void ZoomableImagePreview::request_center_radius_overlay(
   }
   if (center_radius_changed_) {
     center_radius_changed_(std::move(overlay), gesture_finished);
+  }
+}
+
+void ZoomableImagePreview::request_tilt_shift_overlay(
+    NormalizedTiltShiftOverlay overlay, bool gesture_finished) {
+  overlay.center.setX(std::clamp(overlay.center.x(), 0.0, 1.0));
+  overlay.center.setY(std::clamp(overlay.center.y(), 0.0, 1.0));
+  overlay.angle_degrees = normalized_degrees(overlay.angle_degrees);
+  overlay.focus_half_width =
+      std::clamp(overlay.focus_half_width, 0.0, 1.0);
+  overlay.transition_width =
+      std::clamp(overlay.transition_width, 0.0, 1.0);
+  if (tilt_shift_changed_) {
+    tilt_shift_changed_(std::move(overlay), gesture_finished);
   }
 }
 
@@ -508,6 +857,13 @@ void ZoomableImagePreview::update_interaction_cursor(QPointF position) {
     setCursor(Qt::SizeAllCursor);
   } else if (handle == OverlayHandle::Radius) {
     setCursor(Qt::SizeHorCursor);
+  } else if (handle == OverlayHandle::TiltCenter) {
+    setCursor(Qt::SizeAllCursor);
+  } else if (handle == OverlayHandle::TiltAngle) {
+    setCursor(Qt::CrossCursor);
+  } else if (handle == OverlayHandle::TiltFocus ||
+             handle == OverlayHandle::TiltTransition) {
+    setCursor(Qt::SizeVerCursor);
   } else {
     setCursor(Qt::OpenHandCursor);
   }
@@ -534,6 +890,7 @@ void ZoomableImagePreview::publish_state() {
   setProperty("previewPanOffset",
               QPoint(static_cast<int>(std::lround(pan_offset_.x())),
                      static_cast<int>(std::lround(pan_offset_.y()))));
+  publish_overlay_state();
   if (zoom_changed_) {
     zoom_changed_();
   }
@@ -541,6 +898,7 @@ void ZoomableImagePreview::publish_state() {
 
 void ZoomableImagePreview::publish_overlay_state() {
   const auto visible = center_radius_overlay_.has_value();
+  const auto tilt_visible = tilt_shift_overlay_.has_value();
   const auto radius_visible =
       visible && center_radius_overlay_->radius.has_value();
   const auto center =
@@ -554,11 +912,19 @@ void ZoomableImagePreview::publish_overlay_state() {
         return QStringLiteral("center");
       case OverlayHandle::Radius:
         return QStringLiteral("radius");
+      case OverlayHandle::TiltCenter:
+        return QStringLiteral("tiltCenter");
+      case OverlayHandle::TiltAngle:
+        return QStringLiteral("tiltAngle");
+      case OverlayHandle::TiltFocus:
+        return QStringLiteral("tiltFocus");
+      case OverlayHandle::TiltTransition:
+        return QStringLiteral("tiltTransition");
     }
     return QStringLiteral("none");
   }();
 
-  setProperty("filterSpatialOverlayVisible", visible);
+  setProperty("filterSpatialOverlayVisible", visible || tilt_visible);
   setProperty("filterSpatialRadiusVisible", radius_visible);
   setProperty("filterCenterXNormalized", center.x());
   setProperty("filterCenterYNormalized", center.y());
@@ -573,6 +939,47 @@ void ZoomableImagePreview::publish_overlay_state() {
   setProperty("filterSpatialDragging",
               active_overlay_handle_ != OverlayHandle::None);
   setProperty("filterSpatialDragHandle", handle_name);
+
+  const auto tilt_center = tilt_visible
+                               ? tilt_shift_overlay_->center
+                               : QPointF(-1.0, -1.0);
+  const auto tilt_angle =
+      tilt_visible ? tilt_shift_overlay_->angle_degrees : 0.0;
+  const auto tilt_focus =
+      tilt_visible ? tilt_shift_overlay_->focus_half_width : -1.0;
+  const auto tilt_transition =
+      tilt_visible ? tilt_shift_overlay_->transition_width : -1.0;
+  setProperty("filterTiltShiftOverlayVisible", tilt_visible);
+  setProperty("filterTiltShiftCenterXNormalized", tilt_center.x());
+  setProperty("filterTiltShiftCenterYNormalized", tilt_center.y());
+  setProperty("filterTiltShiftAngleDegrees", tilt_angle);
+  setProperty("filterTiltShiftFocusHalfWidthNormalized", tilt_focus);
+  setProperty("filterTiltShiftTransitionWidthNormalized", tilt_transition);
+  setProperty("filterTiltShiftFocusHalfWidthPercent",
+              tilt_visible ? tilt_focus * 100.0 : -1.0);
+  setProperty("filterTiltShiftTransitionWidthPercent",
+              tilt_visible ? tilt_transition * 100.0 : -1.0);
+  setProperty("filterTiltShiftDragging",
+              active_overlay_handle_ == OverlayHandle::TiltCenter ||
+                  active_overlay_handle_ == OverlayHandle::TiltAngle ||
+                  active_overlay_handle_ == OverlayHandle::TiltFocus ||
+                  active_overlay_handle_ == OverlayHandle::TiltTransition);
+  setProperty("filterTiltShiftDragHandle",
+              tilt_visible ? handle_name : QStringLiteral("none"));
+  setProperty("filterTiltShiftCenterPoint",
+              tilt_visible ? tilt_center_point(*tilt_shift_overlay_)
+                           : QPointF(-1.0, -1.0));
+  setProperty("filterTiltShiftAngleHandlePoint",
+              tilt_visible ? tilt_angle_handle_point(*tilt_shift_overlay_)
+                           : QPointF(-1.0, -1.0));
+  setProperty("filterTiltShiftFocusHandlePoint",
+              tilt_visible
+                  ? tilt_focus_handle_point(*tilt_shift_overlay_, 1.0)
+                  : QPointF(-1.0, -1.0));
+  setProperty("filterTiltShiftTransitionHandlePoint",
+              tilt_visible
+                  ? tilt_transition_handle_point(*tilt_shift_overlay_, 1.0)
+                  : QPointF(-1.0, -1.0));
 }
 
 }  // namespace patchy::ui

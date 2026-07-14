@@ -9,6 +9,7 @@
 
 class QMouseEvent;
 class QPainter;
+class QKeyEvent;
 class QResizeEvent;
 class QWheelEvent;
 
@@ -23,6 +24,19 @@ struct NormalizedCenterRadiusOverlay {
 
   friend bool operator==(const NormalizedCenterRadiusOverlay&,
                          const NormalizedCenterRadiusOverlay&) = default;
+};
+
+// Coordinates are relative to the displayed image. Both widths are fractions
+// of the image's shorter edge. The transition width is measured outwards from
+// each focus boundary, matching the catalog's two independent percentages.
+struct NormalizedTiltShiftOverlay {
+  QPointF center{0.5, 0.5};
+  double angle_degrees{0.0};
+  double focus_half_width{0.1};
+  double transition_width{0.2};
+
+  friend bool operator==(const NormalizedTiltShiftOverlay&,
+                         const NormalizedTiltShiftOverlay&) = default;
 };
 
 // A bounded-image viewer used by dialogs that need Photoshop-style fit, 100%,
@@ -54,6 +68,13 @@ public:
   void set_center_radius_changed_callback(
       std::function<void(NormalizedCenterRadiusOverlay overlay,
                          bool gesture_finished)> callback);
+  void set_tilt_shift_overlay(
+      std::optional<NormalizedTiltShiftOverlay> overlay);
+  [[nodiscard]] const std::optional<NormalizedTiltShiftOverlay>&
+  tilt_shift_overlay() const noexcept;
+  void set_tilt_shift_changed_callback(
+      std::function<void(NormalizedTiltShiftOverlay overlay,
+                         bool gesture_finished)> callback);
 
 protected:
   void paintEvent(QPaintEvent* event) override;
@@ -62,6 +83,7 @@ protected:
   void mouseMoveEvent(QMouseEvent* event) override;
   void mouseReleaseEvent(QMouseEvent* event) override;
   void mouseDoubleClickEvent(QMouseEvent* event) override;
+  void keyPressEvent(QKeyEvent* event) override;
   void wheelEvent(QWheelEvent* event) override;
   void leaveEvent(QEvent* event) override;
 
@@ -70,6 +92,10 @@ private:
     None,
     Center,
     Radius,
+    TiltCenter,
+    TiltAngle,
+    TiltFocus,
+    TiltTransition,
   };
 
   [[nodiscard]] double fit_zoom() const;
@@ -83,9 +109,23 @@ private:
   [[nodiscard]] OverlayHandle overlay_handle_at(QPointF position) const;
   [[nodiscard]] NormalizedCenterRadiusOverlay requested_overlay_at(
       QPointF position) const;
+  [[nodiscard]] QPointF tilt_center_point(
+      const NormalizedTiltShiftOverlay& overlay) const;
+  [[nodiscard]] QPointF tilt_angle_handle_point(
+      const NormalizedTiltShiftOverlay& overlay) const;
+  [[nodiscard]] QPointF tilt_focus_handle_point(
+      const NormalizedTiltShiftOverlay& overlay, double side) const;
+  [[nodiscard]] QPointF tilt_transition_handle_point(
+      const NormalizedTiltShiftOverlay& overlay, double side) const;
+  [[nodiscard]] OverlayHandle tilt_overlay_handle_at(QPointF position) const;
+  [[nodiscard]] NormalizedTiltShiftOverlay requested_tilt_overlay_at(
+      QPointF position) const;
   void draw_center_radius_overlay(QPainter& painter) const;
+  void draw_tilt_shift_overlay(QPainter& painter) const;
   void request_center_radius_overlay(NormalizedCenterRadiusOverlay overlay,
                                      bool gesture_finished);
+  void request_tilt_shift_overlay(NormalizedTiltShiftOverlay overlay,
+                                  bool gesture_finished);
   void update_interaction_cursor(QPointF position);
   void clamp_pan();
   void publish_state();
@@ -100,6 +140,13 @@ private:
   NormalizedCenterRadiusOverlay last_requested_overlay_{};
   std::function<void(NormalizedCenterRadiusOverlay, bool)>
       center_radius_changed_;
+  std::optional<NormalizedCenterRadiusOverlay>
+      center_radius_gesture_start_;
+  std::optional<NormalizedTiltShiftOverlay> tilt_shift_overlay_;
+  NormalizedTiltShiftOverlay last_requested_tilt_shift_overlay_{};
+  std::function<void(NormalizedTiltShiftOverlay, bool)>
+      tilt_shift_changed_;
+  std::optional<NormalizedTiltShiftOverlay> tilt_shift_gesture_start_;
   double zoom_{1.0};
   bool fit_mode_{true};
   bool panning_{false};

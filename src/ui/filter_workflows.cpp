@@ -720,6 +720,7 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Median"),
     QT_TRANSLATE_NOOP("QObject", "Dust & Scratches"),
     QT_TRANSLATE_NOOP("QObject", "Surface Blur"),
+    QT_TRANSLATE_NOOP("QObject", "Tilt-Shift Blur"),
     QT_TRANSLATE_NOOP("QObject", "Gaussian Blur"),
     QT_TRANSLATE_NOOP("QObject", "Motion Blur"),
     QT_TRANSLATE_NOOP("QObject", "Radial Blur"),
@@ -769,6 +770,8 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Cell Size"),
     QT_TRANSLATE_NOOP("QObject", "Center X"),
     QT_TRANSLATE_NOOP("QObject", "Center Y"),
+    QT_TRANSLATE_NOOP("QObject", "Focus Half-Width"),
+    QT_TRANSLATE_NOOP("QObject", "Transition Width"),
 };
 
 QString translate_filter_catalog_text(const std::string& source) {

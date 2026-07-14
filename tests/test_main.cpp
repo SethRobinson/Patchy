@@ -5,6 +5,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
 #include "core/gradient_presets.hpp"
+#include "filters/filter_engine.hpp"
 #include "filters/filter_registry.hpp"
 #include "filters/smart_filter_recipe_mapping.hpp"
 #include "filters/smart_filter_renderer.hpp"
@@ -7789,6 +7790,220 @@ void smart_filter_surface_blur_matches_photoshop_weighting_bounds_and_native_pat
   CHECK(cancelled);
 }
 
+void tilt_shift_blur_is_deterministic_respects_focus_geometry_and_bounds() {
+  patchy::PixelBuffer source(17, 13, patchy::PixelFormat::rgba8());
+  source.clear(0);
+  auto* impulse = source.pixel(8, 6);
+  impulse[0] = 240U;
+  impulse[1] = 80U;
+  impulse[2] = 20U;
+  impulse[3] = 255U;
+
+  auto identity = source;
+  patchy::apply_tilt_shift_blur_filter(identity, 0.0, 50.0, 50.0, 0,
+                                       10.0, 20.0);
+  CHECK(std::equal(identity.data().begin(), identity.data().end(),
+                   source.data().begin()));
+
+  auto horizontal = source;
+  auto repeated = source;
+  patchy::apply_tilt_shift_blur_filter(horizontal, 4.0, 50.0, 50.0, 0,
+                                       10.0, 20.0);
+  patchy::apply_tilt_shift_blur_filter(repeated, 4.0, 50.0, 50.0, 0,
+                                       10.0, 20.0);
+  CHECK(std::equal(horizontal.data().begin(), horizontal.data().end(),
+                   repeated.data().begin()));
+  // The horizontal focus band retains the exact center row, while the fully
+  // blurred outer band receives part of the impulse's premultiplied alpha.
+  for (std::int32_t x = 0; x < source.width(); ++x) {
+    CHECK(std::equal(horizontal.pixel(x, 6), horizontal.pixel(x, 6) + 4,
+                     source.pixel(x, 6)));
+  }
+  CHECK(horizontal.pixel(8, 2)[3] > 0U);
+  CHECK(horizontal.pixel(8, 2)[3] < 255U);
+
+  auto vertical = source;
+  patchy::apply_tilt_shift_blur_filter(vertical, 4.0, 50.0, 50.0, 90,
+                                       10.0, 20.0);
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    CHECK(std::equal(vertical.pixel(8, y), vertical.pixel(8, y) + 4,
+                     source.pixel(8, y)));
+  }
+  CHECK(vertical.pixel(4, 6)[3] > 0U);
+  CHECK(vertical.pixel(4, 6)[3] < 255U);
+  CHECK(!std::equal(horizontal.data().begin(), horizontal.data().end(),
+                    vertical.data().begin()));
+
+  // Positive filter angles rotate counterclockwise in image coordinates.
+  // Therefore the +45-degree focus line runs from lower-left to upper-right:
+  // the impulse at (6,2) stays exact for +45, but is blurred for -45.
+  patchy::PixelBuffer angle_source(9, 9, patchy::PixelFormat::rgba8());
+  angle_source.clear(0);
+  auto* angle_impulse = angle_source.pixel(6, 2);
+  angle_impulse[0] = 40U;
+  angle_impulse[1] = 180U;
+  angle_impulse[2] = 230U;
+  angle_impulse[3] = 255U;
+  auto positive_angle = angle_source;
+  auto negative_angle = angle_source;
+  patchy::apply_tilt_shift_blur_filter(positive_angle, 2.0, 50.0, 50.0,
+                                       45, 0.0, 0.0);
+  patchy::apply_tilt_shift_blur_filter(negative_angle, 2.0, 50.0, 50.0,
+                                       -45, 0.0, 0.0);
+  CHECK(std::equal(positive_angle.pixel(6, 2),
+                   positive_angle.pixel(6, 2) + 4,
+                   angle_source.pixel(6, 2)));
+  CHECK(negative_angle.pixel(6, 2)[3] > 0U);
+  CHECK(negative_angle.pixel(6, 2)[3] < 255U);
+
+  // The transition band selects a smaller interpolated blur radius than the
+  // fully blurred outer region. At the same off-focus impulse, it therefore
+  // retains more of the source alpha without becoming an unchanged hard edge.
+  patchy::PixelBuffer transition_source(17, 13,
+                                         patchy::PixelFormat::rgba8());
+  transition_source.clear(0);
+  auto* transition_impulse = transition_source.pixel(8, 10);
+  transition_impulse[0] = 210U;
+  transition_impulse[1] = 90U;
+  transition_impulse[2] = 35U;
+  transition_impulse[3] = 255U;
+  auto smooth_transition = transition_source;
+  auto full_blur = transition_source;
+  patchy::apply_tilt_shift_blur_filter(smooth_transition, 4.0, 50.0, 50.0,
+                                       0, 0.0, 100.0);
+  patchy::apply_tilt_shift_blur_filter(full_blur, 4.0, 50.0, 50.0, 0, 0.0,
+                                       0.0);
+  CHECK(smooth_transition.pixel(8, 10)[3] > full_blur.pixel(8, 10)[3]);
+  CHECK(smooth_transition.pixel(8, 10)[3] < 255U);
+
+  // Blur is performed in premultiplied RGBA. Hidden red under transparent
+  // pixels must never fringe the one visible blue-green sample.
+  patchy::PixelBuffer fringe(9, 9, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < fringe.height(); ++y) {
+    for (std::int32_t x = 0; x < fringe.width(); ++x) {
+      auto* pixel = fringe.pixel(x, y);
+      pixel[0] = 255U;
+      pixel[1] = 0U;
+      pixel[2] = 0U;
+      pixel[3] = 0U;
+    }
+  }
+  auto* visible = fringe.pixel(4, 4);
+  visible[0] = 20U;
+  visible[1] = 100U;
+  visible[2] = 220U;
+  visible[3] = 255U;
+  patchy::apply_tilt_shift_blur_filter(fringe, 3.0, 50.0, 0.0, 0, 0.0,
+                                       0.0);
+  bool saw_translucent = false;
+  for (std::int32_t y = 0; y < fringe.height(); ++y) {
+    for (std::int32_t x = 0; x < fringe.width(); ++x) {
+      const auto* pixel = fringe.pixel(x, y);
+      if (pixel[3] == 0U) {
+        CHECK(pixel[0] == 0U && pixel[1] == 0U && pixel[2] == 0U);
+        continue;
+      }
+      saw_translucent = saw_translucent || pixel[3] < 255U;
+      CHECK(pixel[0] == 20U && pixel[1] == 100U && pixel[2] == 220U);
+    }
+  }
+  CHECK(saw_translucent);
+
+  bool saw_progress = false;
+  patchy::FilterProgress cancel{
+      [&](int completed, int total, patchy::FilterProgressStage stage) {
+        saw_progress = true;
+        CHECK(completed >= 0 && completed <= total);
+        CHECK(stage == patchy::FilterProgressStage::Blurring);
+        return false;
+      }};
+  bool cancelled = false;
+  try {
+    auto cancelled_pixels = source;
+    patchy::apply_tilt_shift_blur_filter(cancelled_pixels, 4.0, 50.0, 50.0,
+                                         0, 10.0, 20.0, &cancel);
+  } catch (const patchy::FilterCancelled&) {
+    cancelled = true;
+  }
+  CHECK(saw_progress);
+  CHECK(cancelled);
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto invocation =
+      registry.default_invocation("patchy.filters.tilt_shift_blur");
+  invocation.parameters["blur"] = 2.5;
+  invocation.parameters["center_y"] = 0.0;
+  invocation.parameters["focus_half_width"] = 0.0;
+  invocation.parameters["transition_width"] = 0.0;
+  CHECK(registry.output_margin(invocation, 5, 5) == 3);
+  CHECK(!registry.translation_invariant_support(invocation).has_value());
+
+  patchy::PixelBuffer point(5, 5, patchy::PixelFormat::rgba8());
+  point.clear(0);
+  auto* point_pixel = point.pixel(2, 4);
+  point_pixel[0] = 30U;
+  point_pixel[1] = 170U;
+  point_pixel[2] = 240U;
+  point_pixel[3] = 255U;
+  const patchy::Rect bounds{10, 20, 5, 5};
+  const auto grown = registry.render(invocation, point, bounds);
+  CHECK(grown.bounds.x >= bounds.x - 3);
+  CHECK(grown.bounds.y >= bounds.y - 3);
+  CHECK(grown.bounds.x + grown.bounds.width <=
+        bounds.x + bounds.width + 3);
+  CHECK(grown.bounds.y + grown.bounds.height <=
+        bounds.y + bounds.height + 3);
+  CHECK(grown.bounds.x < bounds.x || grown.bounds.y < bounds.y ||
+        grown.bounds.x + grown.bounds.width > bounds.x + bounds.width ||
+        grown.bounds.y + grown.bounds.height > bounds.y + bounds.height);
+
+  const auto confined = registry.render(invocation, point, bounds, false);
+  CHECK(confined.bounds.x == bounds.x && confined.bounds.y == bounds.y);
+  CHECK(confined.bounds.width == bounds.width &&
+        confined.bounds.height == bounds.height);
+
+  // Padding remaps centers and the two percentage widths into the larger
+  // working buffer. The original-bounds region must remain byte-identical to
+  // a direct apply using the unpadded geometry.
+  patchy::PixelBuffer geometry_source(11, 9,
+                                       patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < geometry_source.height(); ++y) {
+    for (std::int32_t x = 0; x < geometry_source.width(); ++x) {
+      auto* pixel = geometry_source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 37 + y * 11 + 5) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 13 + y * 53 + 17) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 71 + y * 19 + 31) % 256);
+      pixel[3] = static_cast<std::uint8_t>(64 + (x * 17 + y * 29) % 192);
+    }
+  }
+  auto geometry =
+      registry.default_invocation("patchy.filters.tilt_shift_blur");
+  geometry.parameters["blur"] = 3.5;
+  geometry.parameters["center_x"] = 22.5;
+  geometry.parameters["center_y"] = 71.5;
+  geometry.parameters["angle"] = std::int64_t{37};
+  geometry.parameters["focus_half_width"] = 12.5;
+  geometry.parameters["transition_width"] = 31.25;
+  auto direct_geometry = geometry_source;
+  registry.apply(geometry, direct_geometry);
+  const patchy::Rect geometry_bounds{31, 47, geometry_source.width(),
+                                     geometry_source.height()};
+  const auto expanded_geometry =
+      registry.render(geometry, geometry_source, geometry_bounds, true);
+  for (std::int32_t y = 0; y < geometry_source.height(); ++y) {
+    for (std::int32_t x = 0; x < geometry_source.width(); ++x) {
+      const auto result_x = geometry_bounds.x + x - expanded_geometry.bounds.x;
+      const auto result_y = geometry_bounds.y + y - expanded_geometry.bounds.y;
+      CHECK(result_x >= 0 && result_x < expanded_geometry.pixels.width());
+      CHECK(result_y >= 0 && result_y < expanded_geometry.pixels.height());
+      CHECK(std::equal(direct_geometry.pixel(x, y),
+                       direct_geometry.pixel(x, y) + 4,
+                       expanded_geometry.pixels.pixel(result_x, result_y)));
+    }
+  }
+}
+
 void smart_filter_shared_mask_and_disable_states_are_applied_once() {
   auto source = solid_rgba(5, 5, 0, 0, 0, 255);
   for (std::int32_t y = 0; y < source.height(); ++y) {
@@ -9867,6 +10082,59 @@ void psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits() {
   // These settings live only in SoLd. The unfiltered FEid cache must remain
   // byte-exact across the descriptor edit.
   CHECK(test_global_psd_blocks(edited_reread) == original_globals);
+}
+
+void psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_locked() {
+  const auto fixture_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-tilt-shift.psd");
+  const auto original = patchy::psd::DocumentIo::read_file(fixture_path);
+  const patchy::Layer* filtered_layer = nullptr;
+  for (const auto& layer : original.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      CHECK(filtered_layer == nullptr);
+      filtered_layer = &layer;
+    }
+  }
+  CHECK(filtered_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*filtered_layer));
+  CHECK(patchy::smart_object_lock_reason(*filtered_layer) == "filters");
+  const auto* stack = filtered_layer->smart_filter_stack();
+  CHECK(stack != nullptr);
+  CHECK(stack->support == patchy::SmartFilterStackSupport::Unsupported);
+  CHECK(stack->entries.size() == 1U);
+  const auto& entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::Unsupported);
+  CHECK(entry.native_name == "Blur Gallery...");
+  CHECK(entry.native_class_id == "blurbTransform");
+  CHECK(entry.native_filter_id == 712U);
+
+  const auto original_globals = test_global_psd_blocks(original);
+  const auto original_sold_payload =
+      require_placed_layer_block(*filtered_layer).payload;
+  const auto serialized = patchy::psd::DocumentIo::write_layered_rgb8(original);
+  const auto clean = patchy::psd::DocumentIo::read(serialized);
+  CHECK(test_global_psd_blocks(clean) == original_globals);
+  const auto& clean_layer = require_layer_named(clean, filtered_layer->name());
+  check_pixel_layer_storage_equal(*filtered_layer, clean_layer);
+  CHECK(require_placed_layer_block(clean_layer).payload ==
+        original_sold_payload);
+  CHECK(patchy::smart_object_lock_reason(clean_layer) == "filters");
+  const auto& clean_stack =
+      require_smart_filter_stack(clean, clean_layer.name());
+  CHECK(clean_stack.support == patchy::SmartFilterStackSupport::Unsupported);
+  CHECK(clean_stack.entries.size() == 1U);
+  CHECK(clean_stack.entries.front().kind ==
+        patchy::SmartFilterKind::Unsupported);
+  CHECK(clean_stack.entries.front().native_class_id == "blurbTransform");
+  CHECK(clean_stack.entries.front().native_filter_id == 712U);
+  CHECK(patchy::psd::DocumentIo::write_layered_rgb8(clean) == serialized);
+
+  std::filesystem::create_directories("test-artifacts");
+  const auto acceptance_path = std::filesystem::path("test-artifacts") /
+                               "patchy-smart-filter-tilt-shift-resaved.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(original,
+                                                    acceptance_path);
+  CHECK(std::filesystem::exists(acceptance_path));
 }
 
 void psd_descriptor_writer_round_trips_smart_filter_sold_if_available() {
@@ -20713,6 +20981,7 @@ void filter_catalog_defines_stable_named_contracts() {
        {{"radius", 1}, {"threshold", 0}}},
       {"patchy.filters.surface_blur", Category::Blur, false,
        {{"radius", 5}, {"threshold", 15}}},
+      {"patchy.filters.tilt_shift_blur", Category::Blur, false, {}},
   };
 
   const auto has_center_parameters = [](std::string_view identifier) {
@@ -20765,6 +21034,66 @@ void filter_catalog_defines_stable_named_contracts() {
     CHECK(actual.catalog.adjustment_only == wanted.adjustment_only);
     CHECK(actual.catalog.schema_version == 1);
     CHECK(static_cast<bool>(actual.catalog.execute));
+    if (actual.identifier == "patchy.filters.tilt_shift_blur") {
+      using Kind = patchy::FilterParameterKind;
+      using Presentation = patchy::FilterParameterPresentation;
+      using Scale = patchy::FilterSpatialScale;
+      using Unit = patchy::FilterParameterUnit;
+      CHECK(actual.catalog.parameters.size() == 6U);
+      const auto invocation = registry.default_invocation(actual.identifier);
+      const auto check_double = [&](std::size_t index, std::string_view key,
+                                    std::string_view object_name,
+                                    double minimum, double maximum,
+                                    double default_value, Unit unit,
+                                    Scale scale, Presentation presentation) {
+        const auto& parameter = actual.catalog.parameters[index];
+        CHECK(parameter.key == key);
+        CHECK(parameter.control_object_name == object_name);
+        CHECK(parameter.kind == Kind::Double);
+        CHECK(parameter.minimum == minimum);
+        CHECK(parameter.maximum == maximum);
+        CHECK(parameter.step == 0.1);
+        CHECK(parameter.unit == unit);
+        CHECK(parameter.spatial_scale == scale);
+        CHECK(parameter.presentation == presentation);
+        CHECK(std::get<double>(parameter.default_value) == default_value);
+        CHECK(std::get<double>(invocation.parameters.at(std::string(key))) ==
+              default_value);
+      };
+      check_double(0, "blur", "filterBlur", 0.0, 500.0, 15.0,
+                   Unit::Pixels, Scale::Pixels, Presentation::Standard);
+      CHECK(actual.catalog.parameters[0].practical_minimum == 0.0);
+      CHECK(actual.catalog.parameters[0].practical_maximum == 50.0);
+      check_double(1, "center_x", "filterCenterX", 0.0, 100.0, 50.0,
+                   Unit::Percent, Scale::None,
+                   Presentation::CenterXPercent);
+      check_double(2, "center_y", "filterCenterY", 0.0, 100.0, 50.0,
+                   Unit::Percent, Scale::None,
+                   Presentation::CenterYPercent);
+      const auto& angle = actual.catalog.parameters[3];
+      CHECK(angle.key == "angle");
+      CHECK(angle.control_object_name == "filterAngle");
+      CHECK(angle.kind == Kind::Integer);
+      CHECK(angle.minimum == -180.0 && angle.maximum == 180.0);
+      CHECK(angle.step == 1.0);
+      CHECK(angle.unit == Unit::Degrees);
+      CHECK(angle.spatial_scale == Scale::None);
+      CHECK(angle.presentation == Presentation::Angle);
+      CHECK(std::get<std::int64_t>(angle.default_value) == 0);
+      CHECK(std::get<std::int64_t>(invocation.parameters.at("angle")) == 0);
+      check_double(4, "focus_half_width", "filterFocusHalfWidth", 0.0,
+                   100.0, 10.0, Unit::Percent, Scale::None,
+                   Presentation::TiltFocusHalfWidthPercent);
+      check_double(5, "transition_width", "filterTransitionWidth", 0.0,
+                   100.0, 20.0, Unit::Percent, Scale::None,
+                   Presentation::TiltTransitionWidthPercent);
+      for (std::size_t index = 1; index < 6U; ++index) {
+        CHECK(!actual.catalog.parameters[index].practical_minimum.has_value());
+        CHECK(!actual.catalog.parameters[index].practical_maximum.has_value());
+      }
+      spatial_parameters.insert("patchy.filters.tilt_shift_blur/blur");
+      continue;
+    }
     const auto center_count = has_center_parameters(actual.identifier) ? 2U : 0U;
     CHECK(actual.catalog.parameters.size() == wanted.defaults.size() + center_count);
     const auto invocation = registry.default_invocation(actual.identifier);
@@ -20876,6 +21205,7 @@ void filter_catalog_defines_stable_named_contracts() {
       "patchy.filters.median/radius",
       "patchy.filters.dust_and_scratches/radius",
       "patchy.filters.surface_blur/radius",
+      "patchy.filters.tilt_shift_blur/blur",
   };
   CHECK(spatial_parameters == expected_spatial);
 }
@@ -21009,6 +21339,57 @@ void filter_invocations_normalize_scale_and_reject_bad_data() {
   surface = registry.default_invocation("patchy.filters.surface_blur");
   surface.parameters["threshold"] = 31.0;
   CHECK(!registry.supports(surface));
+
+  auto tilt =
+      registry.default_invocation("patchy.filters.tilt_shift_blur");
+  CHECK(std::get<double>(tilt.parameters.at("blur")) == 15.0);
+  CHECK(std::get<double>(tilt.parameters.at("center_x")) == 50.0);
+  CHECK(std::get<double>(tilt.parameters.at("center_y")) == 50.0);
+  CHECK(std::get<std::int64_t>(tilt.parameters.at("angle")) == 0);
+  CHECK(std::get<double>(tilt.parameters.at("focus_half_width")) == 10.0);
+  CHECK(std::get<double>(tilt.parameters.at("transition_width")) == 20.0);
+  tilt.parameters["blur"] = 900.0;
+  tilt.parameters["center_x"] = -5.0;
+  tilt.parameters["center_y"] = 105.0;
+  tilt.parameters["angle"] = std::int64_t{240};
+  tilt.parameters["focus_half_width"] = -1.0;
+  tilt.parameters["transition_width"] = 120.0;
+  const auto normalized_tilt = registry.normalize(tilt);
+  CHECK(normalized_tilt.has_value());
+  CHECK(std::get<double>(normalized_tilt->parameters.at("blur")) == 500.0);
+  CHECK(std::get<double>(normalized_tilt->parameters.at("center_x")) == 0.0);
+  CHECK(std::get<double>(normalized_tilt->parameters.at("center_y")) ==
+        100.0);
+  CHECK(std::get<std::int64_t>(normalized_tilt->parameters.at("angle")) ==
+        180);
+  CHECK(std::get<double>(
+            normalized_tilt->parameters.at("focus_half_width")) == 0.0);
+  CHECK(std::get<double>(
+            normalized_tilt->parameters.at("transition_width")) == 100.0);
+  CHECK(!registry.translation_invariant_support(*normalized_tilt)
+             .has_value());
+  tilt = registry.default_invocation("patchy.filters.tilt_shift_blur");
+  tilt.parameters["blur"] = 40.0;
+  tilt.parameters["center_x"] = 25.5;
+  tilt.parameters["center_y"] = 75.5;
+  tilt.parameters["angle"] = std::int64_t{-37};
+  tilt.parameters["focus_half_width"] = 12.5;
+  tilt.parameters["transition_width"] = 32.5;
+  const auto scaled_tilt = registry.scale(tilt, 0.25);
+  CHECK(scaled_tilt.has_value());
+  CHECK(std::get<double>(scaled_tilt->parameters.at("blur")) == 10.0);
+  CHECK(std::get<double>(scaled_tilt->parameters.at("center_x")) == 25.5);
+  CHECK(std::get<double>(scaled_tilt->parameters.at("center_y")) == 75.5);
+  CHECK(std::get<std::int64_t>(scaled_tilt->parameters.at("angle")) == -37);
+  CHECK(std::get<double>(
+            scaled_tilt->parameters.at("focus_half_width")) == 12.5);
+  CHECK(std::get<double>(
+            scaled_tilt->parameters.at("transition_width")) == 32.5);
+  tilt.parameters["blur"] = std::int64_t{40};
+  CHECK(!registry.supports(tilt));
+  tilt = registry.default_invocation("patchy.filters.tilt_shift_blur");
+  tilt.parameters["angle"] = 10.0;
+  CHECK(!registry.supports(tilt));
 
   auto wave = registry.default_invocation("patchy.filters.wave");
   const auto scaled_wave = registry.scale(wave, 0.25);
@@ -24727,6 +25108,8 @@ int main(int argc, char** argv) {
        smart_filter_dust_and_scratches_matches_photoshop_threshold_and_native_paths},
       {"smart_filter_surface_blur_matches_photoshop_weighting_bounds_and_native_paths",
        smart_filter_surface_blur_matches_photoshop_weighting_bounds_and_native_paths},
+      {"tilt_shift_blur_is_deterministic_respects_focus_geometry_and_bounds",
+       tilt_shift_blur_is_deterministic_respects_focus_geometry_and_bounds},
       {"smart_filter_shared_mask_and_disable_states_are_applied_once",
        smart_filter_shared_mask_and_disable_states_are_applied_once},
       {"smart_filter_entry_blending_matches_photoshop_baked_pixels",
@@ -24757,6 +25140,8 @@ int main(int argc, char** argv) {
        psd_photoshop_dust_and_scratches_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits},
+      {"psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_locked",
+       psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_locked},
       {"psd_smart_filter_descriptor_semantics_parse_if_available",
        psd_smart_filter_descriptor_semantics_parse_if_available},
       {"psd_smart_filter_masks_decode_and_coexist_with_layer_mask",

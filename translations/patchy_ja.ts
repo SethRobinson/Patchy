@@ -765,6 +765,10 @@
         <translation>ぼかし（表面）</translation>
     </message>
     <message>
+        <source>Tilt-Shift Blur</source>
+        <translation>チルトシフトぼかし</translation>
+    </message>
+    <message>
         <location line="+9"/>
         <source>Edge Detect</source>
         <translation>エッジ検出</translation>
@@ -848,6 +852,14 @@
         <location line="+1"/>
         <source>Center Y</source>
         <translation>中心 Y</translation>
+    </message>
+    <message>
+        <source>Focus Half-Width</source>
+        <translation>フォーカス半幅</translation>
+    </message>
+    <message>
+        <source>Transition Width</source>
+        <translation>移行幅</translation>
     </message>
     <message>
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="231"/>

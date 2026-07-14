@@ -656,7 +656,9 @@ VisualFilterGalleryResult request_visual_filter_gallery(
 
   auto* parameters = new QWidget(&dialog);
   parameters->setObjectName(QStringLiteral("filterGalleryParameters"));
-  parameters->setFixedWidth(280);
+  // Leave enough room for the longer spatial-control labels without
+  // collapsing their sliders to a handle-sized sliver.
+  parameters->setFixedWidth(340);
   auto* parameter_layout = new QVBoxLayout(parameters);
   parameter_layout->setContentsMargins(10, 8, 10, 8);
 
@@ -1317,10 +1319,17 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         if (control.kind == FilterParameterKind::Double) {
           const auto minimum = control.typed_minimum.value_or(0.0);
           const auto maximum = control.typed_maximum.value_or(100.0);
+          const auto slider_minimum =
+              std::clamp(static_cast<double>(control.minimum), minimum,
+                         maximum);
+          const auto slider_maximum =
+              std::clamp(static_cast<double>(control.maximum),
+                         slider_minimum, maximum);
           const auto step = std::max(0.000001, control.step.value_or(0.01));
           const auto ticks = std::clamp(
-              static_cast<int>(std::lround((maximum - minimum) / step)), 1,
-              1'000'000);
+              static_cast<int>(
+                  std::lround((slider_maximum - slider_minimum) / step)),
+              1, 1'000'000);
           auto* spin = new QDoubleSpinBox(row_host);
           spin->setObjectName(control.object_name + QStringLiteral("Spin"));
           spin->setRange(minimum, maximum);
@@ -1345,21 +1354,23 @@ VisualFilterGalleryResult request_visual_filter_gallery(
               minimum, maximum);
           spin->setValue(value);
           slider->setValue(std::clamp(
-              static_cast<int>(std::lround((value - minimum) / step)), 0,
-              ticks));
+              static_cast<int>(
+                  std::lround((value - slider_minimum) / step)),
+              0, ticks));
           QObject::connect(
               slider, &QSlider::valueChanged, spin,
-              [spin, minimum, maximum, step](int tick) {
+              [spin, slider_minimum, slider_maximum, step](int tick) {
                 spin->setValue(std::clamp(
-                    minimum + static_cast<double>(tick) * step, minimum,
-                    maximum));
+                    slider_minimum + static_cast<double>(tick) * step,
+                    slider_minimum, slider_maximum));
               });
           QObject::connect(
               spin, qOverload<double>(&QDoubleSpinBox::valueChanged), slider,
-              [slider, minimum, step, ticks](double changed) {
+              [slider, slider_minimum, step, ticks](double changed) {
+                const QSignalBlocker blocker(slider);
                 slider->setValue(std::clamp(
                     static_cast<int>(
-                        std::lround((changed - minimum) / step)),
+                        std::lround((changed - slider_minimum) / step)),
                     0, ticks));
               });
           QObject::connect(
@@ -1570,6 +1581,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     if (entry == nullptr || definition == nullptr ||
         input_bounds == rendered_entry_input_bounds.end()) {
       preview->set_center_radius_overlay(std::nullopt);
+      preview->set_tilt_shift_overlay(std::nullopt);
       return;
     }
     const auto spec = filter_dialog_spec_for(*definition);
@@ -1588,6 +1600,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         find_control(FilterParameterPresentation::CenterYPercent);
     if (center_x == nullptr || center_y == nullptr) {
       preview->set_center_radius_overlay(std::nullopt);
+      preview->set_tilt_shift_overlay(std::nullopt);
       return;
     }
     const auto value_for = [&](const FilterControlSpec& control) {
@@ -1612,27 +1625,53 @@ VisualFilterGalleryResult request_visual_filter_gallery(
               static_cast<double>(result_extent - 1),
           0.0, 1.0);
     };
-    NormalizedCenterRadiusOverlay overlay;
-    overlay.center = QPointF(
+    const QPointF mapped_overlay_center(
         mapped_center(value_for(*center_x), input_bounds->second.x,
                       input_bounds->second.width,
                       current_proxy_bounds.x, current_proxy_bounds.width),
         mapped_center(value_for(*center_y), input_bounds->second.y,
                       input_bounds->second.height,
                       current_proxy_bounds.y, current_proxy_bounds.height));
+    const auto source_shorter =
+        std::max(1, std::min(input_bounds->second.width,
+                             input_bounds->second.height));
+    const auto result_shorter = std::max(
+        1, std::min(current_proxy_bounds.width, current_proxy_bounds.height));
+
+    const auto* focus_half_width = find_control(
+        FilterParameterPresentation::TiltFocusHalfWidthPercent);
+    const auto* transition_width = find_control(
+        FilterParameterPresentation::TiltTransitionWidthPercent);
+    const auto* angle = find_control(FilterParameterPresentation::Angle);
+    if (focus_half_width != nullptr && transition_width != nullptr &&
+        angle != nullptr) {
+      NormalizedTiltShiftOverlay overlay;
+      overlay.center = mapped_overlay_center;
+      overlay.angle_degrees = value_for(*angle);
+      overlay.focus_half_width = std::clamp(
+          value_for(*focus_half_width) / 100.0 *
+              static_cast<double>(source_shorter) / result_shorter,
+          0.0, 1.0);
+      overlay.transition_width = std::clamp(
+          value_for(*transition_width) / 100.0 *
+              static_cast<double>(source_shorter) / result_shorter,
+          0.0, 1.0);
+      preview->set_center_radius_overlay(std::nullopt);
+      preview->set_tilt_shift_overlay(overlay);
+      return;
+    }
+
+    NormalizedCenterRadiusOverlay overlay;
+    overlay.center = mapped_overlay_center;
     if (const auto* radius = find_control(
             FilterParameterPresentation::EffectRadiusPercent);
         radius != nullptr) {
-      const auto source_shorter =
-          std::max(1, std::min(input_bounds->second.width,
-                               input_bounds->second.height));
-      const auto result_shorter = std::max(
-          1, std::min(current_proxy_bounds.width, current_proxy_bounds.height));
       overlay.radius = std::clamp(
           value_for(*radius) / 100.0 *
               static_cast<double>(source_shorter) / result_shorter,
           0.01, 1.0);
     }
+    preview->set_tilt_shift_overlay(std::nullopt);
     preview->set_center_radius_overlay(overlay);
   };
   preview->set_center_radius_changed_callback(
@@ -1771,6 +1810,157 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         }
         emit_canvas_preview();
       });
+  preview->set_tilt_shift_changed_callback(
+      [&](NormalizedTiltShiftOverlay overlay, bool gesture_finished) {
+        auto* entry = active_recipe_entry();
+        const auto id = entry != nullptr
+                            ? entry->value.invocation.filter_id
+                            : std::string{};
+        const auto* definition = registry.find(id);
+        const auto input_bounds =
+            entry != nullptr ? rendered_entry_input_bounds.find(entry->ui_id)
+                             : rendered_entry_input_bounds.end();
+        if (entry == nullptr || definition == nullptr ||
+            input_bounds == rendered_entry_input_bounds.end()) {
+          return;
+        }
+        const auto spec = filter_dialog_spec_for(*definition);
+        const auto find_control = [&](FilterParameterPresentation presentation)
+            -> const FilterControlSpec* {
+          const auto found = std::find_if(
+              spec.controls.begin(), spec.controls.end(),
+              [presentation](const FilterControlSpec& control) {
+                return control.presentation == presentation;
+              });
+          return found == spec.controls.end() ? nullptr : &*found;
+        };
+        const auto sync_numeric = [&](const FilterControlSpec* control,
+                                      double requested) {
+          if (control == nullptr) {
+            return;
+          }
+          if (control->kind == FilterParameterKind::Double) {
+            const auto minimum = control->typed_minimum.value_or(0.0);
+            const auto maximum = control->typed_maximum.value_or(100.0);
+            const auto step =
+                std::max(0.000001, control->step.value_or(0.01));
+            auto value = std::clamp(
+                minimum + std::round((requested - minimum) / step) * step,
+                minimum, maximum);
+            if (auto* spin = parameter_form_host->findChild<QDoubleSpinBox*>(
+                    control->object_name + QStringLiteral("Spin"));
+                spin != nullptr) {
+              const QSignalBlocker blocker(spin);
+              spin->setValue(value);
+              value = spin->value();
+            }
+            entry->value.invocation.parameters[control->parameter_key] = value;
+            if (auto* slider = parameter_form_host->findChild<QSlider*>(
+                    control->object_name + QStringLiteral("Slider"));
+                slider != nullptr) {
+              const QSignalBlocker blocker(slider);
+              slider->setValue(static_cast<int>(
+                  std::lround((value - minimum) / step)));
+            }
+            return;
+          }
+
+          const auto value = std::clamp(
+              static_cast<int>(std::lround(requested)), control->minimum,
+              control->maximum);
+          entry->value.invocation.parameters[control->parameter_key] =
+              static_cast<std::int64_t>(value);
+          if (auto* spin = parameter_form_host->findChild<QSpinBox*>(
+                  control->object_name + QStringLiteral("Spin"));
+              spin != nullptr) {
+            const QSignalBlocker blocker(spin);
+            spin->setValue(value);
+          }
+          if (auto* slider = parameter_form_host->findChild<QSlider*>(
+                  control->object_name + QStringLiteral("Slider"));
+              slider != nullptr) {
+            const QSignalBlocker blocker(slider);
+            slider->setValue(value);
+          }
+          if (control->presentation == FilterParameterPresentation::Angle) {
+            auto* dial_widget = parameter_form_host->findChild<QWidget*>(
+                QStringLiteral("filterAngleDial"));
+            if (auto* dial = dynamic_cast<FilterAngleDial*>(dial_widget);
+                dial != nullptr) {
+              dial->set_angle(value);
+            }
+          }
+        };
+        const auto source_percent = [](double normalized, int source_origin,
+                                       int source_extent, int result_origin,
+                                       int result_extent) {
+          if (source_extent <= 1 || result_extent <= 1) {
+            return 50.0;
+          }
+          const auto source_coordinate =
+              static_cast<double>(result_origin) +
+              normalized * static_cast<double>(result_extent - 1);
+          return std::clamp(
+              (source_coordinate - static_cast<double>(source_origin)) /
+                  static_cast<double>(source_extent - 1) *
+                  100.0,
+              0.0, 100.0);
+        };
+        sync_numeric(
+            find_control(FilterParameterPresentation::CenterXPercent),
+            source_percent(overlay.center.x(), input_bounds->second.x,
+                           input_bounds->second.width,
+                           current_proxy_bounds.x,
+                           current_proxy_bounds.width));
+        sync_numeric(
+            find_control(FilterParameterPresentation::CenterYPercent),
+            source_percent(overlay.center.y(), input_bounds->second.y,
+                           input_bounds->second.height,
+                           current_proxy_bounds.y,
+                           current_proxy_bounds.height));
+        sync_numeric(find_control(FilterParameterPresentation::Angle),
+                     overlay.angle_degrees);
+
+        const auto source_shorter = std::max(
+            1, std::min(input_bounds->second.width,
+                        input_bounds->second.height));
+        const auto result_shorter = std::max(
+            1,
+            std::min(current_proxy_bounds.width, current_proxy_bounds.height));
+        const auto source_width_percent =
+            [source_shorter, result_shorter](double normalized) {
+              return normalized * static_cast<double>(result_shorter) /
+                     source_shorter * 100.0;
+            };
+        sync_numeric(
+            find_control(
+                FilterParameterPresentation::TiltFocusHalfWidthPercent),
+            source_width_percent(overlay.focus_half_width));
+        sync_numeric(
+            find_control(
+                FilterParameterPresentation::TiltTransitionWidthPercent),
+            source_width_percent(overlay.transition_width));
+
+        catalog_invocations[id] = entry->value.invocation;
+        if (const auto item = filter_items.find(id);
+            item != filter_items.end()) {
+          item->second->setData(kThumbnailReadyRole, false);
+          item->second->setData(kThumbnailExactRole, false);
+        }
+        mark_recipe_custom();
+        refresh_spatial_overlay();
+        if (gesture_finished) {
+          if (schedule_thumbnails) {
+            schedule_thumbnails();
+          }
+          schedule_render();
+          emit_canvas_preview();
+        } else {
+          central_timer->stop();
+          cancel_gallery_proxy_preview(proxy_preview_state);
+          accepted_exact_preview.reset();
+        }
+      });
 
   preview->set_zoom_changed_callback([preview, zoom_label] {
     const auto percent = preview->property("previewZoomPercent").toInt();
@@ -1793,6 +1983,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     preview->set_image(
         align_original_to_bounds(original_image, current_proxy_bounds));
     preview->set_center_radius_overlay(std::nullopt);
+    preview->set_tilt_shift_overlay(std::nullopt);
     status->setText(QObject::tr("Before"));
   });
   QObject::connect(before, &QPushButton::released, &dialog, schedule_render);
@@ -1822,6 +2013,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   const auto invalidate_spatial_trace = [&] {
     rendered_entry_input_bounds.clear();
     preview->set_center_radius_overlay(std::nullopt);
+    preview->set_tilt_shift_overlay(std::nullopt);
   };
   const auto refresh_recipe_ui = [&](bool sync_catalog,
                                      bool recipe_changed = true) {

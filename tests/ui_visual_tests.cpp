@@ -3152,6 +3152,21 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
        {{"radius", "filterRadius", 1, 100, 5, Unit::Pixels, Scale::Pixels,
          Kind::Double, 0.01},
         {"threshold", "filterThreshold", 2, 255, 15, Unit::None}}},
+      {"patchy.filters.tilt_shift_blur", Category::Blur, false,
+       {{"blur", "filterBlur", 0, 500, 15, Unit::Pixels, Scale::Pixels,
+         Kind::Double, 0.1},
+        {"center_x", "filterCenterX", 0, 100, 50, Unit::Percent,
+         Scale::None, Kind::Double, 0.1, Presentation::CenterXPercent},
+        {"center_y", "filterCenterY", 0, 100, 50, Unit::Percent,
+         Scale::None, Kind::Double, 0.1, Presentation::CenterYPercent},
+        {"angle", "filterAngle", -180, 180, 0, Unit::Degrees, Scale::None,
+         Kind::Integer, 1.0, Presentation::Angle},
+        {"focus_half_width", "filterFocusHalfWidth", 0, 100, 10,
+         Unit::Percent, Scale::None, Kind::Double, 0.1,
+         Presentation::TiltFocusHalfWidthPercent},
+        {"transition_width", "filterTransitionWidth", 0, 100, 20,
+         Unit::Percent, Scale::None, Kind::Double, 0.1,
+         Presentation::TiltTransitionWidthPercent}}},
   };
   return expected;
 }
@@ -3249,6 +3264,11 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
                  actual.key == "radius") {
         CHECK(actual.practical_minimum == 1.0);
         CHECK(actual.practical_maximum == 25.0);
+      } else if (actual_filter.identifier ==
+                     "patchy.filters.tilt_shift_blur" &&
+                 actual.key == "blur") {
+        CHECK(actual.practical_minimum == 0.0);
+        CHECK(actual.practical_maximum == 50.0);
       } else {
         CHECK(!actual.practical_minimum.has_value());
         CHECK(!actual.practical_maximum.has_value());
@@ -3300,7 +3320,8 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
         QStringLiteral("filterAction_patchy_filters_gaussian_blur"),
         QStringLiteral("filterAction_patchy_filters_motion_blur"),
         QStringLiteral("filterAction_patchy_filters_radial_blur"),
-        QStringLiteral("filterAction_patchy_filters_surface_blur")}},
+        QStringLiteral("filterAction_patchy_filters_surface_blur"),
+        QStringLiteral("filterAction_patchy_filters_tilt_shift_blur")}},
       {"filterSharpenMenu",
        {QStringLiteral("filterAction_patchy_filters_sharpen"),
         QStringLiteral("filterAction_patchy_filters_unsharp_mask"),
@@ -3343,6 +3364,10 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
       window, "filterAction_patchy_filters_surface_blur");
   CHECK(surface_action->text() == QStringLiteral("Surface Blur"));
   CHECK(surface_action->toolTip() == QStringLiteral("Surface Blur"));
+  auto* tilt_action = require_action(
+      window, "filterAction_patchy_filters_tilt_shift_blur");
+  CHECK(tilt_action->text() == QStringLiteral("Tilt-Shift Blur"));
+  CHECK(tilt_action->toolTip() == QStringLiteral("Tilt-Shift Blur"));
 
   struct ExpectedHotkeyAction {
     const char* id;
@@ -5320,6 +5345,189 @@ void ui_surface_blur_selection_uses_full_layer_transparent_color_extension() {
         selected[2] == 57U && selected[3] == 0U);
 }
 
+void ui_tilt_shift_blur_dialog_cancel_selection_apply_and_undo() {
+  patchy::Document built(64, 52, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(29, 23, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 41 + y * 17 + 3) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 13 + y * 59 + 11) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 73 + y * 7 + 29) % 256);
+      pixel[3] = static_cast<std::uint8_t>(96 + (x * 19 + y * 23) % 160);
+    }
+  }
+  patchy::Layer layer(built.allocate_layer_id(), "Tilt Pixels",
+                      std::move(pixels));
+  const auto layer_id = layer.id();
+  const patchy::Rect original_bounds{16, 13, 29, 23};
+  layer.set_bounds(original_bounds);
+  const auto original_pixels = layer.pixels();
+  built.add_layer(std::move(layer));
+  built.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built),
+                              QStringLiteral("Tilt-Shift Blur Dialog"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* action = require_action(
+      window, "filterAction_patchy_filters_tilt_shift_blur");
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  bool inspected_controls = false;
+  bool saw_cancel_preview = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* blur = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterBlurSpin"));
+    auto* blur_slider = dialog->findChild<QSlider*>(
+        QStringLiteral("filterBlurSlider"));
+    auto* center_x = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterXSpin"));
+    auto* center_y = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterYSpin"));
+    auto* angle = dialog->findChild<QSpinBox*>(
+        QStringLiteral("filterAngleSpin"));
+    auto* focus = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterFocusHalfWidthSpin"));
+    auto* transition = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterTransitionWidthSpin"));
+    CHECK(blur != nullptr && blur_slider != nullptr && center_x != nullptr &&
+          center_y != nullptr && angle != nullptr && focus != nullptr &&
+          transition != nullptr);
+    CHECK(blur->minimum() == 0.0 && blur->maximum() == 500.0);
+    CHECK(blur->singleStep() == 0.1 && blur->value() == 15.0);
+    CHECK(blur_slider->minimum() == 0 && blur_slider->maximum() == 500);
+    CHECK(center_x->minimum() == 0.0 && center_x->maximum() == 100.0 &&
+          center_x->value() == 50.0);
+    CHECK(center_y->minimum() == 0.0 && center_y->maximum() == 100.0 &&
+          center_y->value() == 50.0);
+    CHECK(angle->minimum() == -180 && angle->maximum() == 180 &&
+          angle->value() == 0);
+    CHECK(focus->minimum() == 0.0 && focus->maximum() == 100.0 &&
+          focus->value() == 10.0);
+    CHECK(transition->minimum() == 0.0 && transition->maximum() == 100.0 &&
+          transition->value() == 20.0);
+    inspected_controls = true;
+
+    blur->setValue(4.0);
+    center_y->setValue(0.0);
+    focus->setValue(0.0);
+    transition->setValue(0.0);
+    CHECK(process_events_until(
+        [&] {
+          const auto& document = std::as_const(
+              patchy::ui::MainWindowTestAccess::document(window));
+          const auto* preview = document.find_layer(layer_id);
+          if (preview == nullptr) {
+            return false;
+          }
+          saw_cancel_preview =
+              !filter_rect_equal(preview->bounds(), original_bounds) ||
+              !patchy::ui::pixel_buffers_equal(preview->pixels(),
+                                               original_pixels);
+          return saw_cancel_preview;
+        },
+        5000));
+    dialog->reject();
+  });
+  action->trigger();
+  process_events_for(100);
+  CHECK(inspected_controls && saw_cancel_preview);
+  {
+    const auto& document = std::as_const(
+        patchy::ui::MainWindowTestAccess::document(window));
+    const auto* cancelled = document.find_layer(layer_id);
+    CHECK(cancelled != nullptr);
+    CHECK(filter_rect_equal(cancelled->bounds(), original_bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(cancelled->pixels(),
+                                          original_pixels));
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  patchy::PixelBuffer selection(64, 52, patchy::PixelFormat::gray8());
+  selection.clear(0U);
+  const QRect selected_rect(original_bounds.x + 5, original_bounds.y + 6,
+                            original_bounds.width - 10,
+                            original_bounds.height - 11);
+  for (int y = selected_rect.top(); y <= selected_rect.bottom(); ++y) {
+    for (int x = selected_rect.left(); x <= selected_rect.right(); ++x) {
+      selection.pixel(x, y)[0] = 255U;
+    }
+  }
+  canvas->replace_selection_from_grayscale(
+      selection, QStringLiteral("Tilt-Shift selection"));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  const auto undo_before_apply =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  bool accepted = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* blur = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterBlurSpin"));
+    auto* center_y = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterYSpin"));
+    auto* focus = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterFocusHalfWidthSpin"));
+    auto* transition = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterTransitionWidthSpin"));
+    CHECK(blur != nullptr && center_y != nullptr && focus != nullptr &&
+          transition != nullptr);
+    blur->setValue(3.5);
+    center_y->setValue(0.0);
+    focus->setValue(0.0);
+    transition->setValue(0.0);
+    accepted = true;
+    dialog->accept();
+  });
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(accepted);
+
+  const auto& applied_document = std::as_const(
+      patchy::ui::MainWindowTestAccess::document(window));
+  const auto* applied = applied_document.find_layer(layer_id);
+  CHECK(applied != nullptr);
+  CHECK(filter_rect_equal(applied->bounds(), original_bounds));
+  bool changed_inside = false;
+  for (std::int32_t y = 0; y < original_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < original_pixels.width(); ++x) {
+      const auto equal = std::equal(original_pixels.pixel(x, y),
+                                    original_pixels.pixel(x, y) + 4,
+                                    applied->pixels().pixel(x, y));
+      if (selected_rect.contains(original_bounds.x + x,
+                                 original_bounds.y + y)) {
+        changed_inside = changed_inside || !equal;
+      } else {
+        CHECK(equal);
+      }
+    }
+  }
+  CHECK(changed_inside);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before_apply + 1U);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(
+      patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(filter_rect_equal(restored->bounds(), original_bounds));
+  CHECK(patchy::ui::pixel_buffers_equal(restored->pixels(), original_pixels));
+}
+
 void ui_blur_grows_layer_into_transparency() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -5492,6 +5700,7 @@ const QStringList& expected_filter_gallery_ids() {
       QStringLiteral("patchy.filters.motion_blur"),
       QStringLiteral("patchy.filters.radial_blur"),
       QStringLiteral("patchy.filters.surface_blur"),
+      QStringLiteral("patchy.filters.tilt_shift_blur"),
       QStringLiteral("patchy.filters.sharpen"),
       QStringLiteral("patchy.filters.unsharp_mask"),
       QStringLiteral("patchy.filters.high_pass"),
@@ -6589,7 +6798,7 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
         QStringLiteral("Vintage Sepia"),   QStringLiteral("Lens Vignette"),
         QStringLiteral("Box Blur"),        QStringLiteral("Gaussian Blur"),
         QStringLiteral("Motion Blur"),     QStringLiteral("Radial Blur"),
-        QStringLiteral("Surface Blur"),
+        QStringLiteral("Surface Blur"),    QStringLiteral("Tilt-Shift Blur"),
         QStringLiteral("Sharpen"),         QStringLiteral("Unsharp Mask"),
         QStringLiteral("High Pass"),       QStringLiteral("Twirl"),
         QStringLiteral("Wave"),
@@ -7020,13 +7229,13 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
 
     const std::array<std::pair<QString, QStringList>, 8> categories{{
         {QStringLiteral("photo_looks"), expected_filter_gallery_ids().mid(0, 7)},
-        {QStringLiteral("blur"), expected_filter_gallery_ids().mid(7, 5)},
-        {QStringLiteral("sharpen"), expected_filter_gallery_ids().mid(12, 3)},
-        {QStringLiteral("distort"), expected_filter_gallery_ids().mid(15, 3)},
-        {QStringLiteral("noise"), expected_filter_gallery_ids().mid(18, 3)},
-        {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(21, 2)},
-        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(23, 3)},
-        {QStringLiteral("render"), expected_filter_gallery_ids().mid(26, 1)},
+        {QStringLiteral("blur"), expected_filter_gallery_ids().mid(7, 6)},
+        {QStringLiteral("sharpen"), expected_filter_gallery_ids().mid(13, 3)},
+        {QStringLiteral("distort"), expected_filter_gallery_ids().mid(16, 3)},
+        {QStringLiteral("noise"), expected_filter_gallery_ids().mid(19, 3)},
+        {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(22, 2)},
+        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(24, 3)},
+        {QStringLiteral("render"), expected_filter_gallery_ids().mid(27, 1)},
     }};
     for (const auto& [token, ids] : categories) {
       category->setCurrentIndex(require_combo_data_index(*category, token));
@@ -7105,6 +7314,14 @@ void ui_filter_gallery_search_matches_localized_and_canonical_names() {
     QApplication::processEvents();
     CHECK(visible_gallery_filter_ids(*looks) ==
           QStringList{QStringLiteral("patchy.filters.surface_blur")});
+    search->setText(QStringLiteral("チルトシフト"));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks) ==
+          QStringList{QStringLiteral("patchy.filters.tilt_shift_blur")});
+    search->setText(QStringLiteral("Tilt-Shift"));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks) ==
+          QStringList{QStringLiteral("patchy.filters.tilt_shift_blur")});
 
     category->setCurrentIndex(
         require_combo_data_index(*category, QStringLiteral("photo_looks")));
@@ -7584,6 +7801,197 @@ void ui_filter_gallery_specialized_controls_sync_and_drag_in_expected_directions
     drove_dialog = true;
     dialog->reject();
   });
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      &theme_host, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255},
+      [&](const patchy::ui::VisualFilterGalleryPreview& preview) {
+        previews.push_back(preview);
+      });
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+}
+
+void ui_filter_gallery_tilt_shift_overlay_syncs_and_freezes_during_drag() {
+  GallerySettingsRestorer gallery_settings;
+  ensure_artifact_dir();
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  patchy::ui::MainWindow theme_host;
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* editor = dialog->findChild<QWidget*>(
+        QStringLiteral("filterGalleryParameterEditor"));
+    auto* preview = dynamic_cast<patchy::ui::ZoomableImagePreview*>(
+        dialog->findChild<QWidget*>(QStringLiteral("filterGalleryPreview")));
+    auto* status = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryStatusLabel"));
+    CHECK(looks != nullptr && editor != nullptr && preview != nullptr &&
+          status != nullptr);
+
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.tilt_shift_blur")));
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterTiltShiftOverlayVisible").toBool() &&
+                 status->text() ==
+                     QCoreApplication::translate("QObject", "Ready");
+        },
+        7000));
+
+    auto* blur = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterBlurSpin"));
+    auto* blur_slider = editor->findChild<QSlider*>(
+        QStringLiteral("filterBlurSlider"));
+    auto* center_x = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterXSpin"));
+    auto* center_y = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterYSpin"));
+    auto* angle = editor->findChild<QSpinBox*>(
+        QStringLiteral("filterAngleSpin"));
+    auto* angle_dial = editor->findChild<QWidget*>(
+        QStringLiteral("filterAngleDial"));
+    auto* focus = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterFocusHalfWidthSpin"));
+    auto* transition = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterTransitionWidthSpin"));
+    CHECK(blur != nullptr && blur_slider != nullptr && center_x != nullptr &&
+          center_y != nullptr && angle != nullptr && angle_dial != nullptr &&
+          focus != nullptr && transition != nullptr);
+    CHECK(blur->minimum() == 0.0 && blur->maximum() == 500.0 &&
+          blur->value() == 15.0 && blur->singleStep() == 0.1);
+    CHECK(blur_slider->minimum() == 0 && blur_slider->maximum() == 500);
+    CHECK(center_x->value() == 50.0 && center_y->value() == 50.0);
+    CHECK(angle->minimum() == -180 && angle->maximum() == 180 &&
+          angle->value() == 0);
+    CHECK(focus->value() == 10.0 && transition->value() == 20.0);
+    CHECK(std::abs(
+              preview->property("filterTiltShiftCenterXNormalized").toDouble() -
+              0.5) < 0.02);
+    CHECK(std::abs(
+              preview->property("filterTiltShiftCenterYNormalized").toDouble() -
+              0.5) < 0.02);
+    CHECK(preview->property("filterTiltShiftAngleDegrees").toDouble() == 0.0);
+    const auto default_mapped_focus =
+        preview->property("filterTiltShiftFocusHalfWidthPercent").toDouble();
+    const auto default_mapped_transition =
+        preview->property("filterTiltShiftTransitionWidthPercent").toDouble();
+    const auto source_shorter =
+        std::max(1, std::min(source.width(), source.height()));
+    const auto default_proxy_shorter = std::max(
+        1, std::min(preview->image().width(), preview->image().height()));
+    CHECK(std::abs(default_mapped_focus -
+                   std::min(100.0, 10.0 * source_shorter /
+                                       default_proxy_shorter)) < 0.000001);
+    CHECK(std::abs(default_mapped_transition -
+                   std::min(100.0, 20.0 * source_shorter /
+                                       default_proxy_shorter)) < 0.000001);
+
+    blur->setValue(3.0);
+    center_x->setValue(43.0);
+    center_y->setValue(57.0);
+    angle->setValue(25);
+    focus->setValue(15.0);
+    transition->setValue(18.0);
+    CHECK(process_events_until(
+        [&] {
+          return status->text() ==
+                     QCoreApplication::translate("QObject", "Ready") &&
+                 std::abs(preview
+                              ->property("filterTiltShiftAngleDegrees")
+                              .toDouble() -
+                          25.0) < 0.000001;
+        },
+        7000));
+    CHECK(angle_dial->property("filterAngleDegrees").toInt() == 25);
+    const auto configured_proxy_shorter = std::max(
+        1, std::min(preview->image().width(), preview->image().height()));
+    CHECK(std::abs(
+              preview->property("filterTiltShiftFocusHalfWidthPercent")
+                      .toDouble() -
+              std::min(100.0, 15.0 * source_shorter /
+                                  configured_proxy_shorter)) < 0.000001);
+    CHECK(std::abs(
+              preview->property("filterTiltShiftTransitionWidthPercent")
+                      .toDouble() -
+              std::min(100.0, 18.0 * source_shorter /
+                                  configured_proxy_shorter)) < 0.000001);
+
+    const auto center_point =
+        preview->property("filterTiltShiftCenterPoint").toPointF();
+    const auto angle_point =
+        preview->property("filterTiltShiftAngleHandlePoint").toPointF();
+    const auto focus_point =
+        preview->property("filterTiltShiftFocusHandlePoint").toPointF();
+    const auto transition_point =
+        preview->property("filterTiltShiftTransitionHandlePoint").toPointF();
+    CHECK(center_point.x() >= 0.0 && center_point.x() <= preview->width());
+    CHECK(center_point.y() >= 0.0 && center_point.y() <= preview->height());
+    CHECK(angle_point != center_point);
+    CHECK(angle_point.x() > center_point.x());
+    CHECK(angle_point.y() < center_point.y());
+    CHECK(focus_point != center_point);
+    CHECK(transition_point != focus_point);
+
+    dialog->repaint();
+    process_events_for(80);
+    save_widget_artifact("ui_filter_gallery_tilt_shift_overlay", *dialog);
+
+    const auto frozen_image = preview->image();
+    const auto preview_count_before_drag = previews.size();
+    const auto moved_center =
+        (center_point + QPointF(42.0, -31.0)).toPoint();
+    send_mouse(*preview, QEvent::MouseButtonPress, center_point.toPoint(),
+               Qt::LeftButton, Qt::LeftButton);
+    CHECK(preview->property("filterTiltShiftDragging").toBool());
+    CHECK(preview->property("filterTiltShiftDragHandle").toString() ==
+          QStringLiteral("tiltCenter"));
+    send_mouse(*preview, QEvent::MouseMove, moved_center, Qt::NoButton,
+               Qt::LeftButton);
+    process_events_for(100);
+    CHECK(preview->property("filterTiltShiftDragging").toBool());
+    CHECK(center_x->value() > 43.0);
+    CHECK(center_y->value() < 57.0);
+    CHECK(preview->image() == frozen_image);
+    CHECK(previews.size() == preview_count_before_drag);
+    send_mouse(*preview, QEvent::MouseButtonRelease, moved_center,
+               Qt::LeftButton, Qt::NoButton);
+    CHECK(!preview->property("filterTiltShiftDragging").toBool());
+    CHECK(process_events_until(
+        [&] {
+          return previews.size() > preview_count_before_drag &&
+                 status->text() ==
+                     QCoreApplication::translate("QObject", "Ready");
+        },
+        7000));
+    CHECK(!previews.empty() && previews.back().recipe.has_value());
+    CHECK(previews.back().recipe->entries.size() == 1U);
+    const auto& invocation =
+        previews.back().recipe->entries.front().invocation;
+    CHECK(invocation.filter_id == "patchy.filters.tilt_shift_blur");
+    CHECK(std::abs(std::get<double>(invocation.parameters.at("center_x")) -
+                   center_x->value()) < 0.000001);
+    CHECK(std::abs(std::get<double>(invocation.parameters.at("center_y")) -
+                   center_y->value()) < 0.000001);
+    CHECK(std::get<std::int64_t>(invocation.parameters.at("angle")) == 25);
+    CHECK(std::abs(
+              std::get<double>(invocation.parameters.at("focus_half_width")) -
+              focus->value()) < 0.000001);
+    CHECK(std::abs(
+              std::get<double>(invocation.parameters.at("transition_width")) -
+              transition->value()) < 0.000001);
+
+    drove_dialog = true;
+    dialog->reject();
+  });
+
   const auto result = patchy::ui::request_visual_filter_gallery(
       &theme_host, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255},
@@ -48189,6 +48597,8 @@ int main(int argc, char* argv[]) {
        ui_dust_and_scratches_selection_uses_full_layer_transparent_color_extension},
       {"ui_surface_blur_selection_uses_full_layer_transparent_color_extension",
        ui_surface_blur_selection_uses_full_layer_transparent_color_extension},
+      {"ui_tilt_shift_blur_dialog_cancel_selection_apply_and_undo",
+       ui_tilt_shift_blur_dialog_cancel_selection_apply_and_undo},
       {"ui_blur_grows_layer_into_transparency", ui_blur_grows_layer_into_transparency},
       {"ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds",
        ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds},
@@ -48224,6 +48634,8 @@ int main(int argc, char* argv[]) {
        ui_filter_gallery_generated_controls_match_catalog_and_direct_defaults},
       {"ui_filter_gallery_specialized_controls_sync_and_drag_in_expected_directions",
        ui_filter_gallery_specialized_controls_sync_and_drag_in_expected_directions},
+      {"ui_filter_gallery_tilt_shift_overlay_syncs_and_freezes_during_drag",
+       ui_filter_gallery_tilt_shift_overlay_syncs_and_freezes_during_drag},
       {"ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop",
        ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop},
       {"ui_all_builtin_filters_render_stroke_contact_sheet",

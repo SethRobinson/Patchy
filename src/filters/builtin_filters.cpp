@@ -624,6 +624,11 @@ void surface_blur(PixelBuffer& pixels) {
   }
 }
 
+void tilt_shift_blur(PixelBuffer& pixels) {
+  require_uint8(pixels);
+  apply_tilt_shift_blur_filter(pixels, 15.0, 50.0, 50.0, 0, 10.0, 20.0);
+}
+
 void edge_detect(PixelBuffer& pixels) {
   require_uint8(pixels);
   if (pixels.format().channels < 3 || pixels.width() == 0 || pixels.height() == 0) {
@@ -1076,6 +1081,7 @@ void register_builtin_filters(FilterRegistry& registry) {
   add("patchy.filters.dust_and_scratches", "Dust & Scratches",
       dust_and_scratches);
   add("patchy.filters.surface_blur", "Surface Blur", surface_blur);
+  add("patchy.filters.tilt_shift_blur", "Tilt-Shift Blur", tilt_shift_blur);
 }
 
 }  // namespace patchy
