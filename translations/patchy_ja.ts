@@ -4723,8 +4723,8 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp"/>
-        <source>Include blending options (opacity, blend mode, Blend If)</source>
-        <translation>ブレンドオプション(不透明度、描画モード、ブレンド条件)を含める</translation>
+        <source>Include blending options (opacity, Fill, blend mode, Blend If)</source>
+        <translation>ブレンドオプション(不透明度、塗り、描画モード、ブレンド条件)を含める</translation>
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp"/>
@@ -5110,6 +5110,10 @@ Mixed selection</source>
     <message>
         <source>Cracked Desert</source>
         <translation>ひび割れた砂漠</translation>
+    </message>
+    <message>
+        <source>Fill Opacity</source>
+        <translation>塗りの不透明度</translation>
     </message>
 </context>
 <context>
@@ -11822,6 +11826,18 @@ Clipped to the layer below</source>
     <message>
         <source>Rasterize Smart Objects before changing palette pixels</source>
         <translation>パレットのピクセルを変更する前に、スマートオブジェクトをラスタライズしてください</translation>
+    </message>
+    <message>
+        <source>Fill Opacity</source>
+        <translation>塗りの不透明度</translation>
+    </message>
+    <message>
+        <source>Fill Opacity Will Be Discarded</source>
+        <translation>塗りの不透明度は破棄されます</translation>
+    </message>
+    <message>
+        <source>Aseprite files cannot store Photoshop Fill Opacity. Continue saving without Fill Opacity?</source>
+        <translation>Aseprite ファイルには Photoshop の塗りの不透明度を保存できません。塗りの不透明度を破棄して保存を続けますか？</translation>
     </message>
 </context>
 <context>

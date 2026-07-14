@@ -1075,7 +1075,8 @@ bool layer_should_edit_with_psd_text_frame(const Layer& layer, bool boxed_text) 
 }
 
 bool layer_requires_text_editor_preview(const Layer& layer) {
-  return std::abs(layer.opacity() - 1.0F) > 0.001F || layer.blend_mode() != BlendMode::Normal ||
+  return std::abs(layer.opacity() - 1.0F) > 0.001F || std::abs(layer.fill_opacity() - 1.0F) > 0.001F ||
+         layer.blend_mode() != BlendMode::Normal ||
          (layer.layer_style().effects_visible && !layer.layer_style().empty()) ||
          layer_has_non_translation_text_transform(layer);
 }
@@ -6039,6 +6040,9 @@ std::optional<RasterizedLayerPixels> render_rasterized_layer_pixels(const Docume
   auto layer = source;
   layer.set_visible(true);
   layer.set_opacity(1.0F);
+  if (!include_layer_style) {
+    layer.set_fill_opacity(1.0F);
+  }
   layer.set_blend_mode(BlendMode::Normal);
   layer.clear_mask();
   // Blend If remains a live advanced-blending option on the source layer; do
@@ -6206,6 +6210,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   layer_opacity_idle_timer_->setSingleShot(true);
   layer_opacity_idle_timer_->setInterval(kLayerOpacityIdleFinishDelayMs);
   connect(layer_opacity_idle_timer_, &QTimer::timeout, this, [this] { finish_pending_layer_opacity_edit(); });
+  layer_fill_opacity_apply_timer_ = new QTimer(this);
+  layer_fill_opacity_apply_timer_->setSingleShot(true);
+  layer_fill_opacity_apply_timer_->setInterval(kLayerOpacityApplyDelayMs);
+  connect(layer_fill_opacity_apply_timer_, &QTimer::timeout, this,
+          [this] { apply_pending_layer_fill_opacity(); });
+  layer_fill_opacity_idle_timer_ = new QTimer(this);
+  layer_fill_opacity_idle_timer_->setSingleShot(true);
+  layer_fill_opacity_idle_timer_->setInterval(kLayerOpacityIdleFinishDelayMs);
+  connect(layer_fill_opacity_idle_timer_, &QTimer::timeout, this,
+          [this] { finish_pending_layer_fill_opacity_edit(); });
   tool_settings_save_timer_ = new QTimer(this);
   tool_settings_save_timer_->setSingleShot(true);
   tool_settings_save_timer_->setInterval(kToolSettingsSaveDelayMs);
@@ -10129,6 +10143,7 @@ void MainWindow::edit_active_layer_style() {
   }
 
   const auto original_opacity = layer->opacity();
+  const auto original_fill_opacity = layer->fill_opacity();
   const auto original_blend_mode = layer->blend_mode();
   const auto original_style = layer->layer_style();
   const auto original_blend_if = layer->blend_if();
@@ -10139,6 +10154,7 @@ void MainWindow::edit_active_layer_style() {
                                    original_blend_if_rgb_compatible](Layer& target,
                                                                      const LayerStyleSettings& settings) {
     target.set_opacity(static_cast<float>(settings.opacity) / 100.0F);
+    target.set_fill_opacity(static_cast<float>(settings.fill_opacity) / 100.0F);
     target.set_blend_mode(settings.blend_mode);
     target.layer_style() = settings.style;
     if (!settings.replace_unsupported_blend_if && settings.blend_if == original_blend_if) {
@@ -10179,7 +10195,8 @@ void MainWindow::edit_active_layer_style() {
       canvas_->document_changed(to_qrect(unite_rect(before, after)));
     }
   };
-  auto restore_original = [this, &doc, layer_id, original_opacity, original_blend_mode, original_style,
+  auto restore_original = [this, &doc, layer_id, original_opacity, original_fill_opacity,
+                           original_blend_mode, original_style,
                            original_blend_if_payload, original_blend_if_rgb_compatible,
                            original_patterns] {
     doc.metadata().patterns = original_patterns;
@@ -10189,6 +10206,7 @@ void MainWindow::edit_active_layer_style() {
     }
     const auto before = layer_render_bounds(*target);
     target->set_opacity(original_opacity);
+    target->set_fill_opacity(original_fill_opacity);
     target->set_blend_mode(original_blend_mode);
     target->layer_style() = original_style;
     target->set_blend_if_payload(original_blend_if_payload, original_blend_if_rgb_compatible);
@@ -10547,6 +10565,7 @@ void MainWindow::rasterize_active_layer_styles() {
     layer->set_bounds(change.pixels.bounds);
     clear_layer_psd_style_source(*layer);
     layer->layer_style() = {};
+    layer->set_fill_opacity(1.0F);
     if (change.clear_text) {
       layer->set_name(rasterized_text_layer_name(*layer).toStdString());
       clear_layer_text_metadata(*layer);
@@ -11124,6 +11143,7 @@ void MainWindow::merge_down() {
     target.set_pixels(std::move(merged_pixels));
     target.set_bounds(merge_bounds);
     target.set_opacity(1.0F);
+    target.set_fill_opacity(1.0F);
     target.set_blend_mode(BlendMode::Normal);
     target.clear_mask();
     target.layer_style() = {};
@@ -12119,6 +12139,60 @@ void MainWindow::reset_pending_layer_opacity_edit() {
   pending_layer_opacity_ids_.clear();
   pending_layer_opacity_value_.reset();
   pending_layer_opacity_edit_active_ = false;
+}
+
+void MainWindow::set_active_layer_fill_opacity(int value) {
+  if (updating_layer_controls_) return;
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_controls();
+    return;
+  }
+  if (!pending_layer_fill_opacity_edit_active_) {
+    if (!has_active_document()) return;
+    auto ids = selected_or_active_layer_ids();
+    auto& doc = document();
+    ids.erase(std::remove_if(ids.begin(), ids.end(), [&doc](LayerId id) {
+                const auto* layer = doc.find_layer(id);
+                return layer == nullptr || layer->kind() == LayerKind::Group;
+              }), ids.end());
+    if (ids.empty()) return;
+    push_undo_snapshot(tr("Fill Opacity"));
+    pending_layer_fill_opacity_ids_ = std::move(ids);
+    pending_layer_fill_opacity_edit_active_ = true;
+  }
+  pending_layer_fill_opacity_value_ = std::clamp(value, 0, 100);
+  if (layer_fill_opacity_apply_timer_ != nullptr) layer_fill_opacity_apply_timer_->start();
+  else apply_pending_layer_fill_opacity();
+  if (layer_fill_opacity_idle_timer_ != nullptr) layer_fill_opacity_idle_timer_->start();
+}
+
+void MainWindow::apply_pending_layer_fill_opacity() {
+  if (!pending_layer_fill_opacity_value_.has_value()) return;
+  const auto value = *pending_layer_fill_opacity_value_;
+  pending_layer_fill_opacity_value_.reset();
+  if (!has_active_document()) return;
+  bool changed = false;
+  for (const auto id : pending_layer_fill_opacity_ids_) {
+    if (auto* layer = document().find_layer(id); layer != nullptr && layer->kind() != LayerKind::Group) {
+      layer->set_fill_opacity(static_cast<float>(value) / 100.0F);
+      changed = true;
+    }
+  }
+  if (changed && canvas_ != nullptr) canvas_->document_changed_async_preview();
+}
+
+void MainWindow::finish_pending_layer_fill_opacity_edit() {
+  if (layer_fill_opacity_apply_timer_ != nullptr) layer_fill_opacity_apply_timer_->stop();
+  if (layer_fill_opacity_idle_timer_ != nullptr) layer_fill_opacity_idle_timer_->stop();
+  apply_pending_layer_fill_opacity();
+  reset_pending_layer_fill_opacity_edit();
+}
+
+void MainWindow::reset_pending_layer_fill_opacity_edit() {
+  pending_layer_fill_opacity_ids_.clear();
+  pending_layer_fill_opacity_value_.reset();
+  pending_layer_fill_opacity_edit_active_ = false;
 }
 
 void MainWindow::set_active_layer_blend(int index) {
@@ -13419,6 +13493,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
       layer->set_pixels(std::move(pixels));
       layer->set_bounds(preview_bounds);
       layer->set_opacity(source->opacity());
+      layer->set_fill_opacity(source->fill_opacity());
       layer->set_blend_mode(source->blend_mode());
       layer->layer_style() = source->layer_style();
       dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
@@ -13436,6 +13511,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   preview.set_bounds(preview_bounds);
   preview.metadata()["patchy.internal.text_preview"] = "true";
   preview.set_opacity(source->opacity());
+  preview.set_fill_opacity(source->fill_opacity());
   preview.set_blend_mode(source->blend_mode());
   preview.layer_style() = source->layer_style();
   const auto preview_id = preview.id();

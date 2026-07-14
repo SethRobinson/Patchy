@@ -1913,7 +1913,8 @@ void composite_adjustment_layer(Target& destination, const Layer& layer, Rect cl
   const auto blend_if = has_blend_if ? layer.blend_if() : LayerBlendIf{};
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-      auto amount = layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) * layer.opacity();
+      auto amount = layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) * layer.opacity() *
+                    layer.fill_opacity();
       if (amount <= 0.0F) {
         continue;
       }
@@ -2012,7 +2013,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       const auto source_stride = source.stride_bytes();
       const auto has_enabled_mask = layer.mask().has_value() && !layer.mask()->disabled;
       bool composited_by_target = false;
-      if (!has_blend_if && !has_enabled_mask && prepared_satins.empty() &&
+      if (!has_blend_if && !has_enabled_mask && prepared_satins.empty() && layer.fill_opacity() == 1.0F &&
           layer.blend_mode() == BlendMode::Normal) {
         if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
                                 std::int32_t width, std::uint16_t channel_count, float opacity) {
@@ -2036,8 +2037,14 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             const auto sx = x - bounds.x;
             const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
             const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-            auto alpha = source_alpha * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) *
-                         layer.opacity();
+            const auto source_coverage =
+                source_alpha * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+            const auto special_fill = layer.fill_opacity() != 1.0F &&
+                                      blend_mode_has_special_fill(layer.blend_mode());
+            auto alpha = source_coverage * layer.opacity();
+            if (layer.fill_opacity() != 1.0F) {
+              alpha *= layer.fill_opacity();
+            }
             if (alpha <= 0.0F) {
               continue;
             }
@@ -2047,18 +2054,21 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             }
 
             const auto source_color = RgbColor{src[0], src[1], src[2]};
+            auto blend_if_factor = 1.0F;
             if (has_blend_if) {
-              alpha *= blend_if_source_alpha_factor(blend_if, source_color);
+              blend_if_factor *= blend_if_source_alpha_factor(blend_if, source_color);
               if (has_underlying_blend_if) {
-                alpha *= blend_if_underlying_alpha_factor(blend_if, blend_if_backdrop->sample_color(x, y));
+                blend_if_factor *=
+                    blend_if_underlying_alpha_factor(blend_if, blend_if_backdrop->sample_color(x, y));
               }
+              alpha *= blend_if_factor;
               if (alpha <= 0.0F) {
                 continue;
               }
             }
 
             std::array<std::uint8_t, 3> styled_color{src[0], src[1], src[2]};
-            if (!has_blend_if) {
+            if (!has_blend_if && layer.fill_opacity() == 1.0F) {
               for (const auto& prepared : prepared_satins) {
                 const auto mask_index =
                     static_cast<std::size_t>(y - prepared.mask_bounds.y) *
@@ -2074,8 +2084,14 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                                                       prepared.effect->blend_mode, coverage, 1.0F);
               }
             }
-            destination.composite_color(x, y, RgbColor{styled_color[0], styled_color[1], styled_color[2]}, alpha,
-                                        layer.blend_mode());
+            if (special_fill) {
+              destination.composite_special_fill_color(
+                  x, y, RgbColor{styled_color[0], styled_color[1], styled_color[2]},
+                  source_coverage * blend_if_factor, layer.fill_opacity(), layer.opacity(), layer.blend_mode());
+            } else {
+              destination.composite_color(x, y, RgbColor{styled_color[0], styled_color[1], styled_color[2]}, alpha,
+                                          layer.blend_mode());
+            }
           }
         }
       }
@@ -2086,7 +2102,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   // established identity-path bytes. Photoshop does not gate layer effects
   // with Blend If, however, so a Blend-If layer renders Satin as its own
   // interior effect using the original (ungated) layer matte.
-  if (has_blend_if && !draw_rect.empty() && !prepared_satins.empty()) {
+  if ((has_blend_if || layer.fill_opacity() != 1.0F) && !draw_rect.empty() && !prepared_satins.empty()) {
     profile_compositor_step(destination, layer, "satin_effect", draw_rect, [&] {
       const auto format = source.format();
       const auto channels = format.channels;
@@ -2247,6 +2263,41 @@ public:
       destination_alpha = std::max(destination_alpha, clipped_output_alpha);
     } else {
       destination_alpha = alpha + destination_alpha * (1.0F - alpha);
+    }
+  }
+
+  void composite_special_fill_color(std::int32_t x, std::int32_t y, RgbColor color,
+                                    float source_coverage, float fill_opacity, float layer_opacity,
+                                    BlendMode mode) {
+    source_coverage = clamp_unit(source_coverage);
+    const auto effective_alpha = source_coverage * clamp_unit(fill_opacity) * clamp_unit(layer_opacity);
+    x -= rect_.x;
+    y -= rect_.y;
+    if (effective_alpha <= 0.0F || x < 0 || y < 0 || x >= rect_.width || y >= rect_.height) {
+      return;
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+    auto& destination_alpha = alpha_[index];
+    const auto clip_alpha = clip_alpha_[index];
+    if (frozen_ && clip_alpha <= 0.0F) {
+      return;
+    }
+    auto* dst = rgb_.data() + index * 3U;
+    const auto result = composite_special_fill_rgb(
+        {color.red, color.green, color.blue}, {dst[0], dst[1], dst[2]}, mode, source_coverage,
+        fill_opacity, layer_opacity, frozen_ ? 1.0F : destination_alpha);
+    dst[0] = result.color[0];
+    dst[1] = result.color[1];
+    dst[2] = result.color[2];
+    if (frozen_) {
+      const auto normalized_destination_alpha =
+          clip_alpha > 0.0F ? std::min(destination_alpha, clip_alpha) / clip_alpha : 0.0F;
+      destination_alpha = std::max(
+          destination_alpha,
+          clip_alpha * (effective_alpha + normalized_destination_alpha * (1.0F - effective_alpha)));
+    } else {
+      destination_alpha = result.alpha;
     }
   }
 
@@ -2418,7 +2469,8 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
     if (layer_has_rendered_underlying_blend_if(layer)) {
       base_backdrop.emplace(destination, group_rect);
     }
-    IsolatedClipGroupTarget group(group_rect, layer_has_rendered_blend_if(layer));
+    IsolatedClipGroupTarget group(
+        group_rect, layer_has_rendered_blend_if(layer) || layer.fill_opacity() != 1.0F);
     composite_layer(group, layer, group_rect, overrides, throw_on_unsupported_pixel_format, masks,
                     base_backdrop.has_value() ? &*base_backdrop : nullptr, patterns);
     group.freeze_clip();

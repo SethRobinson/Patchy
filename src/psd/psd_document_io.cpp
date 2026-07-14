@@ -286,6 +286,7 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.set_bounds(source.bounds());
   target.set_blend_mode(source.blend_mode());
   target.set_opacity(source.opacity());
+  target.set_fill_opacity(source.fill_opacity());
   target.set_visible(source.visible());
   target.set_clipped(source.clipped());
   target.set_lock_flags(source.lock_flags());
@@ -548,6 +549,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     }
     layer.set_blend_mode(record.blend_mode);
     layer.set_opacity(static_cast<float>(record.opacity) / 255.0F);
+    layer.set_fill_opacity(static_cast<float>(record.fill_opacity.value_or(255U)) / 255.0F);
     layer.set_visible(record.visible);
     layer.set_blend_if_payload(record.blending_ranges, source_color_mode == kColorModeRgb);
     if (record.section_divider_type == 0U) {

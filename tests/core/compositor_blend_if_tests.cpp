@@ -610,6 +610,33 @@ void compositor_applies_extended_blend_modes() {
   }
 }
 
+void compositor_fill_opacity_matches_photoshop_modes() {
+  struct Expected {
+    patchy::BlendMode mode;
+    std::array<std::uint8_t, 3> rgb;
+  };
+  const std::vector<Expected> expected{
+      {patchy::BlendMode::Normal, {120, 80, 150}},
+      {patchy::BlendMode::ColorBurn, {13, 3, 153}},
+      {patchy::BlendMode::LinearBurn, {12, 2, 112}},
+      {patchy::BlendMode::ColorDodge, {66, 113, 235}},
+      {patchy::BlendMode::LinearDodge, {140, 130, 240}},
+      {patchy::BlendMode::Difference, {60, 70, 120}},
+  };
+  for (const auto& item : expected) {
+    patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(1, 1, 40, 100, 180));
+    auto& top = document.add_pixel_layer("Fill", solid_rgba(1, 1, 200, 60, 120, 255));
+    top.set_blend_mode(item.mode);
+    top.set_fill_opacity(128.0F / 255.0F);
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    const auto* pixel = flattened.pixel(0, 0);
+    CHECK(pixel[0] == item.rgb[0]);
+    CHECK(pixel[1] == item.rgb[1]);
+    CHECK(pixel[2] == item.rgb[2]);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
@@ -618,6 +645,8 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
       {"compositor_multiply_uses_empty_backdrop_as_transparent",
        compositor_multiply_uses_empty_backdrop_as_transparent},
       {"compositor_applies_extended_blend_modes", compositor_applies_extended_blend_modes},
+      {"compositor_fill_opacity_matches_photoshop_modes",
+       compositor_fill_opacity_matches_photoshop_modes},
       {"blend_if_codec_decodes_default_and_identity", blend_if_codec_decodes_default_and_identity},
       {"blend_if_codec_round_trips_unique_rgb_ranges", blend_if_codec_round_trips_unique_rgb_ranges},
       {"blend_if_codec_rejects_unsupported_payloads", blend_if_codec_rejects_unsupported_payloads},

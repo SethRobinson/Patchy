@@ -2260,6 +2260,7 @@ void MainWindow::refresh_layer_controls() {
   refresh_convert_for_smart_filters_action_state();
   if (!updating_layer_controls_) {
     finish_pending_layer_opacity_edit();
+    finish_pending_layer_fill_opacity_edit();
   }
   updating_layer_controls_ = true;
   const auto reset = [this] {
@@ -2271,6 +2272,14 @@ void MainWindow::refresh_layer_controls() {
     }
     if (opacity_spin_ != nullptr) {
       opacity_spin_->setValue(100);
+    }
+    if (fill_opacity_slider_ != nullptr) {
+      fill_opacity_slider_->setValue(100);
+      fill_opacity_slider_->setEnabled(false);
+    }
+    if (fill_opacity_spin_ != nullptr) {
+      fill_opacity_spin_->setValue(100);
+      fill_opacity_spin_->setEnabled(false);
     }
     if (blend_combo_ != nullptr) {
       blend_combo_->setCurrentIndex(0);
@@ -2353,6 +2362,15 @@ void MainWindow::refresh_layer_controls() {
   }
   if (opacity_spin_ != nullptr) {
     opacity_spin_->setValue(static_cast<int>(std::round(layer->opacity() * 100.0F)));
+  }
+  const bool fill_enabled = layer->kind() != LayerKind::Group;
+  if (fill_opacity_slider_ != nullptr) {
+    fill_opacity_slider_->setValue(static_cast<int>(std::round(layer->fill_opacity() * 100.0F)));
+    fill_opacity_slider_->setEnabled(fill_enabled);
+  }
+  if (fill_opacity_spin_ != nullptr) {
+    fill_opacity_spin_->setValue(static_cast<int>(std::round(layer->fill_opacity() * 100.0F)));
+    fill_opacity_spin_->setEnabled(fill_enabled);
   }
   if (visible_check_ != nullptr) {
     visible_check_->setChecked(layer->visible());

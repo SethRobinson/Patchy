@@ -180,8 +180,13 @@ void layer_content_revision_ignores_translation_and_tracks_render_content() {
   CHECK(layer.pixel_revision() == initial_pixel_revision);
 
   const auto after_opacity_content_revision = layer.content_revision();
-  layer.set_blend_mode(patchy::BlendMode::Multiply);
+  layer.set_fill_opacity(0.37F);
   CHECK(layer.content_revision() > after_opacity_content_revision);
+  CHECK(layer.pixel_revision() == initial_pixel_revision);
+
+  const auto after_fill_opacity_content_revision = layer.content_revision();
+  layer.set_blend_mode(patchy::BlendMode::Multiply);
+  CHECK(layer.content_revision() > after_fill_opacity_content_revision);
 
   const auto after_blend_content_revision = layer.content_revision();
   auto* px = layer.pixels().pixel(0, 0);

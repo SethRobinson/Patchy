@@ -24,6 +24,7 @@ struct LayerStyleSettings {
   // Malformed, non-RGB, or otherwise unknown native payloads remain raw until
   // the user explicitly chooses to replace them with editable RGB defaults.
   bool replace_unsupported_blend_if{false};
+  int fill_opacity{100};
 };
 
 // document_patterns (optional) lists the document's embedded pattern tiles.

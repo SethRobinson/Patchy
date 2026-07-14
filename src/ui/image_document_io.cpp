@@ -87,6 +87,28 @@ public:
     }
   }
 
+  void composite_special_fill_color(std::int32_t x, std::int32_t y, RgbColor color,
+                                    float source_coverage, float fill_opacity, float layer_opacity,
+                                    BlendMode mode) {
+    const auto image_x = x - origin_x_;
+    const auto image_y = y - origin_y_;
+    if (source_coverage <= 0.0F || fill_opacity <= 0.0F || layer_opacity <= 0.0F || image_x < 0 ||
+        image_y < 0 || image_x >= destination_.width() || image_y >= destination_.height()) {
+      return;
+    }
+    auto* dst = destination_.scanLine(image_y) + static_cast<std::size_t>(image_x) * (preserve_alpha_ ? 4U : 3U);
+    const auto destination_alpha = preserve_alpha_ ? static_cast<float>(dst[3]) / 255.0F : 1.0F;
+    const auto result = composite_special_fill_rgb(
+        {color.red, color.green, color.blue}, {dst[0], dst[1], dst[2]}, mode, source_coverage,
+        fill_opacity, layer_opacity, destination_alpha);
+    dst[0] = result.color[0];
+    dst[1] = result.color[1];
+    dst[2] = result.color[2];
+    if (preserve_alpha_) {
+      dst[3] = clamp_byte(result.alpha * 255.0F);
+    }
+  }
+
   [[nodiscard]] render_detail::CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
     const auto image_x = x - origin_x_;
     const auto image_y = y - origin_y_;

@@ -587,6 +587,10 @@ private:
   void apply_pending_layer_opacity();
   void finish_pending_layer_opacity_edit();
   void reset_pending_layer_opacity_edit();
+  void set_active_layer_fill_opacity(int value);
+  void apply_pending_layer_fill_opacity();
+  void finish_pending_layer_fill_opacity_edit();
+  void reset_pending_layer_fill_opacity_edit();
   void set_active_layer_blend(int index);
   void set_active_layer_visible(bool visible);
   void set_layer_lock_flag_state(LayerId id, LayerLockFlags flag, bool locked);
@@ -786,8 +790,12 @@ private:
   QDockWidget* channel_dock_{nullptr};
   QSlider* opacity_slider_{nullptr};
   QSpinBox* opacity_spin_{nullptr};
+  QSlider* fill_opacity_slider_{nullptr};
+  QSpinBox* fill_opacity_spin_{nullptr};
   QTimer* layer_opacity_apply_timer_{nullptr};
   QTimer* layer_opacity_idle_timer_{nullptr};
+  QTimer* layer_fill_opacity_apply_timer_{nullptr};
+  QTimer* layer_fill_opacity_idle_timer_{nullptr};
   QTimer* tool_settings_save_timer_{nullptr};
   QComboBox* blend_combo_{nullptr};
   QCheckBox* visible_check_{nullptr};
@@ -986,9 +994,11 @@ private:
   std::optional<LayerStyleClipboard> layer_style_clipboard_;
   std::optional<QByteArray> patchy_system_clipboard_signature_;
   std::vector<LayerId> pending_layer_opacity_ids_;
+  std::vector<LayerId> pending_layer_fill_opacity_ids_;
   QStringList recent_files_;
   QStringList recent_folders_;
   std::optional<int> pending_layer_opacity_value_;
+  std::optional<int> pending_layer_fill_opacity_value_;
   CanvasTool current_tool_{CanvasTool::Brush};
   CanvasTool tool_before_eraser_toggle_{CanvasTool::Brush};
   // The current canvas holds the live size/opacity/softness for one settings
@@ -1042,6 +1052,7 @@ private:
   bool updating_layer_controls_{false};
   bool updating_layer_list_{false};
   bool pending_layer_opacity_edit_active_{false};
+  bool pending_layer_fill_opacity_edit_active_{false};
   bool right_dock_resizing_{false};
   QPoint right_dock_resize_start_global_;
   int right_dock_resize_start_width_{0};

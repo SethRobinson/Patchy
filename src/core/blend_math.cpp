@@ -433,6 +433,72 @@ std::array<std::uint8_t, 3> composite_blended_rgb(std::array<std::uint8_t, 3> so
   return output;
 }
 
+bool blend_mode_has_special_fill(BlendMode mode) noexcept {
+  return mode == BlendMode::ColorBurn || mode == BlendMode::LinearBurn ||
+         mode == BlendMode::ColorDodge || mode == BlendMode::LinearDodge ||
+         mode == BlendMode::Difference;
+}
+
+FillCompositeResult composite_special_fill_rgb(std::array<std::uint8_t, 3> source,
+                                                std::array<std::uint8_t, 3> destination,
+                                                BlendMode mode, float source_coverage,
+                                                float fill_opacity, float layer_opacity,
+                                                float destination_alpha) {
+  source_coverage = clamp_unit(source_coverage);
+  fill_opacity = clamp_unit(fill_opacity);
+  layer_opacity = clamp_unit(layer_opacity);
+  destination_alpha = clamp_unit(destination_alpha);
+
+  std::array<std::uint8_t, 3> adjusted_source{};
+  std::array<float, 3> adjusted_source_float{};
+  const bool white_neutral = mode == BlendMode::ColorBurn || mode == BlendMode::LinearBurn;
+  for (std::size_t channel = 0; channel < adjusted_source.size(); ++channel) {
+    const auto neutral = white_neutral ? 255.0F : 0.0F;
+    adjusted_source_float[channel] =
+        neutral + (static_cast<float>(source[channel]) - neutral) * fill_opacity;
+    adjusted_source[channel] = clamp_byte(adjusted_source_float[channel]);
+  }
+  auto blend = blend_rgb(adjusted_source, destination, mode);
+  // Photoshop's eight special-Fill modes use its 8-bit fixed-point blend
+  // kernels after moving the source toward the mode's neutral color. Burn and
+  // Dodge use a 256 scale here (unlike their ordinary 100%-Fill kernels).
+  if (mode == BlendMode::ColorBurn) {
+    for (std::size_t channel = 0; channel < blend.size(); ++channel) {
+      const auto divisor = adjusted_source_float[channel];
+      const auto quotient = divisor <= 0.0F
+                                ? 256
+                                : static_cast<int>(std::floor(
+                                      (255.0F - static_cast<float>(destination[channel])) * 256.0F / divisor));
+      blend[channel] = static_cast<std::uint8_t>(std::clamp(255 - quotient, 0, 255));
+    }
+  } else if (mode == BlendMode::ColorDodge) {
+    for (std::size_t channel = 0; channel < blend.size(); ++channel) {
+      const auto divisor = 256.0F - adjusted_source_float[channel];
+      const auto value = divisor <= 0.0F
+                             ? 255L
+                             : std::lround(static_cast<float>(destination[channel]) * 256.0F / divisor);
+      blend[channel] = static_cast<std::uint8_t>(std::clamp(value, 0L, 255L));
+    }
+  }
+  const auto effective_alpha = source_coverage * fill_opacity * layer_opacity;
+  const auto overlap_alpha = source_coverage * layer_opacity;
+  const auto output_alpha = effective_alpha + destination_alpha * (1.0F - effective_alpha);
+  FillCompositeResult result;
+  result.alpha = output_alpha;
+  if (output_alpha <= 0.0F) {
+    return result;
+  }
+  for (std::size_t channel = 0; channel < result.color.size(); ++channel) {
+    const auto source_only = static_cast<float>(source[channel]) * effective_alpha *
+                             (1.0F - destination_alpha);
+    const auto overlap = static_cast<float>(blend[channel]) * overlap_alpha * destination_alpha;
+    const auto destination_only = static_cast<float>(destination[channel]) * destination_alpha *
+                                  (1.0F - overlap_alpha);
+    result.color[channel] = clamp_byte((source_only + overlap + destination_only) / output_alpha);
+  }
+  return result;
+}
+
 float gradient_stop_opacity(const LayerStyleGradient& gradient, float position) {
   if (gradient.form == GradientDefinitionForm::Noise) {
     return gradient.noise.add_transparency

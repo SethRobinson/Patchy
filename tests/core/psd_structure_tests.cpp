@@ -1077,6 +1077,25 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   CHECK(read_again.layers().front().metadata().at(patchy::kLayerMetadataText) == text);
 }
 
+void psd_fill_opacity_block_round_trips_and_omits_default() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Fill", solid_rgba(1, 1, 20, 40, 60, 255));
+  layer.set_fill_opacity(37.0F / 100.0F);
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const std::array<std::uint8_t, 12> header{'8', 'B', 'I', 'M', 'i', 'O', 'p', 'a', 0, 0, 0, 4};
+  const auto found = std::search(bytes.begin(), bytes.end(), header.begin(), header.end());
+  CHECK(found != bytes.end());
+  CHECK(*(found + 12) == 94U);
+
+  auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 1U);
+  CHECK(std::abs(read.layers().front().fill_opacity() - 94.0F / 255.0F) < 0.0001F);
+  read.layers().front().set_fill_opacity(1.0F);
+  const auto default_bytes = patchy::psd::DocumentIo::write_layered_rgb8(read);
+  CHECK(std::search(default_bytes.begin(), default_bytes.end(), header.begin(), header.end()) ==
+        default_bytes.end());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_structure_tests() {
@@ -1104,5 +1123,7 @@ std::vector<patchy::test::TestCase> psd_structure_tests() {
       {"psd_ipad_main_v04_preserves_folders_if_available", psd_ipad_main_v04_preserves_folders_if_available},
       {"psd_writer_preserves_layer_additional_blocks_and_long_names",
        psd_writer_preserves_layer_additional_blocks_and_long_names},
+      {"psd_fill_opacity_block_round_trips_and_omits_default",
+       psd_fill_opacity_block_round_trips_and_omits_default},
   };
 }

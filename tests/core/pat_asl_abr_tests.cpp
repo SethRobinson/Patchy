@@ -732,6 +732,7 @@ void asl_reader_reads_photoshop_blend_options_fixture() {
 
   CHECK(style.blend_settings.has_value());
   CHECK(style.blend_settings->opacity == 63);
+  CHECK(style.blend_settings->fill_opacity == 77);
   CHECK(style.blend_settings->blend_mode == patchy::BlendMode::Multiply);
   const auto& blend_if = style.blend_settings->blend_if;
   // The values match the pinned photoshop-blend-if-4b-roundtrip.psd normal layer.
@@ -744,12 +745,9 @@ void asl_reader_reads_photoshop_blend_options_fixture() {
   CHECK(blend_if.channels[3].this_layer == (patchy::BlendIfThresholds{7, 37, 207, 237}));
   CHECK(blend_if.channels[3].underlying_layer == (patchy::BlendIfThresholds{17, 47, 197, 227}));
 
-  // The unmodeled 77% fill opacity is reported, not silently dropped.
-  auto fill_warning = false;
-  for (const auto& warning : parsed->warnings) {
-    fill_warning = fill_warning || warning.find("Fill opacity 77%") != std::string::npos;
-  }
-  CHECK(fill_warning);
+  CHECK(std::none_of(parsed->warnings.begin(), parsed->warnings.end(), [](const std::string& warning) {
+    return warning.find("Fill opacity") != std::string::npos;
+  }));
 }
 
 void asl_reader_skips_damaged_records_and_rejects_bad_files() {

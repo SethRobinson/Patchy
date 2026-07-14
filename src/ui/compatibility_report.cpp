@@ -34,7 +34,7 @@ bool known_round_trip_layer_block(const UnknownPsdBlock& block) {
   return block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "levl" ||
          block.key == "hue2" || block.key == "lfx2" || block.key == "lrFX" || block.key == "lsct" ||
          block.key == "lsdk" || block.key == "SoLd" || block.key == "SoLE" || block.key == "PlLd" ||
-         block.key == "plLd";
+         block.key == "plLd" || (block.key == "iOpa" && block.payload.size() == 4U);
 }
 
 QString smart_object_layer_warning(const Layer& layer) {

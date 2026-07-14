@@ -26,12 +26,13 @@ class CmykToRgbTransform;
 namespace patchy::psd {
 
 // A style's captured layer blending options (Photoshop's "Include Layer
-// Blending Options"). Patchy models opacity, blend mode, and Blend If;
-// fillOpacity/knockout/channel restrictions are dropped with warnings.
+// Blending Options"). Patchy models opacity, fill opacity, blend mode, and
+// Blend If; knockout/channel restrictions are dropped with warnings.
 struct AslBlendSettings {
   int opacity{100};  // percent
   BlendMode blend_mode{BlendMode::Normal};
   LayerBlendIf blend_if{};
+  int fill_opacity{100};  // percent
 
   friend bool operator==(const AslBlendSettings&, const AslBlendSettings&) = default;
 };

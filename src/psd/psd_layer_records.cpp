@@ -338,6 +338,9 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       }
       auto payload = reader.read_bytes(static_cast<std::size_t>(block_length));
       record.additional_blocks.push_back(UnknownPsdBlock{key, payload, wide_length});
+      if (key == "iOpa" && payload.size() == 4U) {
+        record.fill_opacity = payload[0];
+      }
       if (key == "luni") {
         if (auto unicode_name = read_unicode_string_payload(record.additional_blocks.back().payload);
             unicode_name.has_value()) {
@@ -596,6 +599,9 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   }
 
   if (encoded.layer != nullptr) {
+    const auto fill_opacity_byte = static_cast<std::uint8_t>(
+        std::clamp(std::lround(encoded.layer->fill_opacity() * 255.0F), 0L, 255L));
+    bool wrote_fill_opacity = false;
     const auto protection_flags = layer_lock_flags(*encoded.layer) &
                                   (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition);
     if (protection_flags != 0U) {
@@ -617,12 +623,26 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
       if (should_skip_layer_block(encoded, block, generated_text_payload.has_value(), generated_style_payload)) {
         continue;
       }
+      if (block.key == "iOpa" && block.payload.size() == 4U) {
+        if (!wrote_fill_opacity && fill_opacity_byte != 255U) {
+          auto payload = block.payload;
+          payload[0] = fill_opacity_byte;
+          write_additional_layer_block(extra, {'i', 'O', 'p', 'a'}, payload, large_document,
+                                       block.long_length);
+          wrote_fill_opacity = true;
+        }
+        continue;
+      }
       if (strip_smart_object_blocks && is_smart_object_reference_block(block.key)) {
         continue;
       }
       if (auto key = block_key_from_string(block.key); key.has_value()) {
         write_additional_layer_block(extra, *key, block.payload, large_document, block.long_length);
       }
+    }
+    if (!wrote_fill_opacity && fill_opacity_byte != 255U) {
+      const std::array<std::uint8_t, 4> payload{fill_opacity_byte, 0U, 0U, 0U};
+      write_additional_layer_block(extra, {'i', 'O', 'p', 'a'}, payload, large_document);
     }
 
     // A dirty smart-object placement (moved/transformed since import) re-emits its

@@ -315,6 +315,18 @@ bool flat_save_discards_layers(const Document& document) {
   return !layer.layer_style().empty() || has_blend_if;
 }
 
+bool layers_have_nondefault_fill_opacity(const std::vector<Layer>& layers) {
+  for (const auto& layer : layers) {
+    if (layer.kind() != LayerKind::Group && std::abs(layer.fill_opacity() - 1.0F) > 0.0001F) {
+      return true;
+    }
+    if (layer.kind() == LayerKind::Group && layers_have_nondefault_fill_opacity(layer.children())) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // The single source of truth for the file dialog filters: every open/save/export filter
 // string, the supported-extension checks, and the default-extension logic are generated from
 // this table. Adding a file format to Patchy means adding one row here (plus wiring the
@@ -1395,6 +1407,17 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
         tr("This file format cannot store saved channels. Continue saving and discard them?"),
         QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Cancel,
         QStringLiteral("discardSavedChannelsMessageBox"));
+    if (answer != QMessageBox::Save) {
+      return false;
+    }
+  }
+  if ((extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) &&
+      layers_have_nondefault_fill_opacity(std::as_const(document()).layers())) {
+    const auto answer = show_warning_message(
+        this, tr("Fill Opacity Will Be Discarded"),
+        tr("Aseprite files cannot store Photoshop Fill Opacity. Continue saving without Fill Opacity?"),
+        QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Cancel,
+        QStringLiteral("discardFillOpacityMessageBox"));
     if (answer != QMessageBox::Save) {
       return false;
     }

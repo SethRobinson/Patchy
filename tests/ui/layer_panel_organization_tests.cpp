@@ -1655,6 +1655,22 @@ void ui_folder_visibility_preserves_layer_panel_scroll() {
   CHECK(std::abs(scroll->value() - scroll_before) <= 1);
 }
 
+void ui_layer_fill_opacity_control_updates_active_layer() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* fill = window.findChild<QSpinBox*>(QStringLiteral("layerFillOpacitySpin"));
+  CHECK(fill != nullptr);
+  CHECK(fill->isEnabled());
+  fill->setValue(37);
+  QMetaObject::invokeMethod(fill, "editingFinished", Qt::DirectConnection);
+  QApplication::processEvents();
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  CHECK(std::abs(layer->fill_opacity() - 0.37F) < 0.001F);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
@@ -1700,5 +1716,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_move_auto_select_reveals_layers_in_collapsed_folders",
        ui_move_auto_select_reveals_layers_in_collapsed_folders},
       {"ui_folder_visibility_preserves_layer_panel_scroll", ui_folder_visibility_preserves_layer_panel_scroll},
+      {"ui_layer_fill_opacity_control_updates_active_layer",
+       ui_layer_fill_opacity_control_updates_active_layer},
   };
 }

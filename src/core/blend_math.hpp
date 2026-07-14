@@ -7,6 +7,11 @@
 
 namespace patchy {
 
+struct FillCompositeResult {
+  std::array<std::uint8_t, 3> color{};
+  float alpha{0.0F};
+};
+
 [[nodiscard]] std::uint8_t clamp_byte(float value);
 [[nodiscard]] float clamp_unit(float value);
 [[nodiscard]] float blend_if_threshold_factor(const BlendIfThresholds& thresholds,
@@ -26,6 +31,10 @@ namespace patchy {
                                                                 std::array<std::uint8_t, 3> destination,
                                                                 BlendMode mode, float source_alpha,
                                                                 float destination_alpha);
+[[nodiscard]] bool blend_mode_has_special_fill(BlendMode mode) noexcept;
+[[nodiscard]] FillCompositeResult composite_special_fill_rgb(
+    std::array<std::uint8_t, 3> source, std::array<std::uint8_t, 3> destination, BlendMode mode,
+    float source_coverage, float fill_opacity, float layer_opacity, float destination_alpha);
 [[nodiscard]] float gradient_stop_opacity(const LayerStyleGradient& gradient, float position);
 [[nodiscard]] RgbColor gradient_color(const LayerStyleGradient& gradient, float position);
 [[nodiscard]] RgbColor

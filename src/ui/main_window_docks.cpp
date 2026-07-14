@@ -643,9 +643,36 @@ void MainWindow::create_docks() {
   register_document_widget(opacity_slider_);
   register_document_widget(opacity_spin_);
 
+  auto* fill_opacity_label = new QLabel(tr("Fill"), layers_panel);
+  bind_widget_text(fill_opacity_label, "Fill");
+  layer_control_grid->addWidget(fill_opacity_label, 2, 0);
+  fill_opacity_slider_ = new QSlider(Qt::Horizontal, layers_panel);
+  fill_opacity_slider_->setObjectName(QStringLiteral("layerFillOpacitySlider"));
+  fill_opacity_slider_->setRange(0, 100);
+  fill_opacity_slider_->setValue(100);
+  layer_control_grid->addWidget(fill_opacity_slider_, 2, 1);
+  fill_opacity_spin_ = new QSpinBox(layers_panel);
+  fill_opacity_spin_->setObjectName(QStringLiteral("layerFillOpacitySpin"));
+  fill_opacity_spin_->setRange(0, 100);
+  fill_opacity_spin_->setSuffix(QStringLiteral("%"));
+  fill_opacity_spin_->setButtonSymbols(QAbstractSpinBox::NoButtons);
+  fill_opacity_spin_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  fill_opacity_spin_->setFixedWidth(54);
+  layer_control_grid->addWidget(fill_opacity_spin_, 2, 2);
+  connect(fill_opacity_slider_, &QSlider::valueChanged, fill_opacity_spin_, &QSpinBox::setValue);
+  connect(fill_opacity_spin_, &QSpinBox::valueChanged, fill_opacity_slider_, &QSlider::setValue);
+  connect(fill_opacity_spin_, &QSpinBox::valueChanged, this,
+          [this](int value) { set_active_layer_fill_opacity(value); });
+  connect(fill_opacity_slider_, &QSlider::sliderReleased, this,
+          [this] { finish_pending_layer_fill_opacity_edit(); });
+  connect(fill_opacity_spin_, &QSpinBox::editingFinished, this,
+          [this] { finish_pending_layer_fill_opacity_edit(); });
+  register_document_widget(fill_opacity_slider_);
+  register_document_widget(fill_opacity_spin_);
+
   auto* lock_label = new QLabel(tr("Lock"), layers_panel);
   bind_widget_text(lock_label, "Lock");
-  layer_control_grid->addWidget(lock_label, 2, 0);
+  layer_control_grid->addWidget(lock_label, 3, 0);
   auto* lock_controls = new QHBoxLayout();
   lock_controls->setContentsMargins(0, 0, 0, 0);
   lock_controls->setSpacing(4);
@@ -691,7 +718,7 @@ void MainWindow::create_docks() {
   lock_controls->addWidget(lock_position_button_);
   lock_controls->addWidget(lock_all_button_);
   lock_controls->addStretch(1);
-  layer_control_grid->addLayout(lock_controls, 2, 1, 1, 2);
+  layer_control_grid->addLayout(lock_controls, 3, 1, 1, 2);
   layers_layout->addLayout(layer_control_grid);
   layers_layout->addWidget(layer_list_, 1);
 

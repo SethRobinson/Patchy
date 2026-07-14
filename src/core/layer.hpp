@@ -445,6 +445,7 @@ public:
   [[nodiscard]] bool visible() const noexcept;
   [[nodiscard]] bool clipped() const noexcept;
   [[nodiscard]] float opacity() const noexcept;
+  [[nodiscard]] float fill_opacity() const noexcept;
   [[nodiscard]] BlendMode blend_mode() const noexcept;
   [[nodiscard]] LayerLockFlags lock_flags() const noexcept;
   [[nodiscard]] Rect bounds() const noexcept;
@@ -486,6 +487,7 @@ public:
   void set_visible(bool visible) noexcept;
   void set_clipped(bool clipped) noexcept;
   void set_opacity(float opacity);
+  void set_fill_opacity(float opacity);
   void set_blend_mode(BlendMode mode) noexcept;
   void set_lock_flags(LayerLockFlags flags) noexcept;
   void set_bounds(Rect bounds) noexcept;
@@ -514,6 +516,7 @@ private:
   bool visible_{true};
   bool clipped_{false};
   float opacity_{1.0F};
+  float fill_opacity_{1.0F};
   BlendMode blend_mode_{BlendMode::Normal};
   LayerLockFlags lock_flags_{kLayerLockNone};
   Rect bounds_{};

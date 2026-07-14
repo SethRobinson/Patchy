@@ -231,6 +231,10 @@ float Layer::opacity() const noexcept {
   return opacity_;
 }
 
+float Layer::fill_opacity() const noexcept {
+  return fill_opacity_;
+}
+
 BlendMode Layer::blend_mode() const noexcept {
   return blend_mode_;
 }
@@ -459,6 +463,15 @@ void Layer::set_opacity(float opacity) {
     throw std::out_of_range("Layer opacity must be in the inclusive range [0, 1]");
   }
   opacity_ = opacity;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+}
+
+void Layer::set_fill_opacity(float opacity) {
+  if (opacity < 0.0F || opacity > 1.0F) {
+    throw std::out_of_range("Layer fill opacity must be in the inclusive range [0, 1]");
+  }
+  fill_opacity_ = opacity;
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
 }

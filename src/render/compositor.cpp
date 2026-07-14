@@ -51,6 +51,27 @@ public:
     destination_alpha = alpha + destination_alpha * (1.0F - alpha);
   }
 
+  void composite_special_fill_color(std::int32_t x, std::int32_t y, RgbColor color,
+                                    float source_coverage, float fill_opacity, float layer_opacity,
+                                    BlendMode mode) {
+    x -= origin_x_;
+    y -= origin_y_;
+    if (source_coverage <= 0.0F || fill_opacity <= 0.0F || layer_opacity <= 0.0F || x < 0 || y < 0 ||
+        x >= destination_.width() || y >= destination_.height()) {
+      return;
+    }
+    auto* dst = destination_.pixel(x, y);
+    auto& destination_alpha = alpha_[static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) +
+                                     static_cast<std::size_t>(x)];
+    const auto result = composite_special_fill_rgb(
+        {color.red, color.green, color.blue}, {dst[0], dst[1], dst[2]}, mode, source_coverage,
+        fill_opacity, layer_opacity, destination_alpha);
+    dst[0] = result.color[0];
+    dst[1] = result.color[1];
+    dst[2] = result.color[2];
+    destination_alpha = result.alpha;
+  }
+
   [[nodiscard]] render_detail::CompositeSample sample_color(std::int32_t x, std::int32_t y) const noexcept {
     x -= origin_x_;
     y -= origin_y_;

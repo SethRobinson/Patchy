@@ -206,6 +206,7 @@ QPixmap render_style_preview(const LayerStyle& style,
   sample_layer.layer_style() = style;
   if (blend_settings.has_value()) {
     sample_layer.set_opacity(static_cast<float>(blend_settings->opacity) / 100.0F);
+    sample_layer.set_fill_opacity(static_cast<float>(blend_settings->fill_opacity) / 100.0F);
     sample_layer.set_blend_mode(blend_settings->blend_mode);
     (void)sample_layer.set_blend_if(blend_settings->blend_if);
   }

@@ -117,11 +117,9 @@ constexpr std::array<const char*, 4> kBlendIfChannelIds{"Gry ", "Rd  ", "Grn ", 
   if (const auto* fill = descriptor_value(options, "fillOpacity");
       fill != nullptr && (fill->type == DescriptorValue::Type::UnitFloat ||
                           fill->type == DescriptorValue::Type::Double)) {
-    if (std::lround(fill->double_value) != 100L) {
-      warnings.push_back(style_label + ": Fill opacity " +
-                         std::to_string(std::lround(fill->double_value)) +
-                         "% is not supported and was ignored");
-    }
+    settings.fill_opacity =
+        static_cast<int>(std::clamp(std::lround(fill->double_value), 0L, 100L));
+    any_modeled = true;
   }
   std::string dropped;
   for (const auto& entry : options.key_order) {
@@ -241,6 +239,9 @@ void append_key(DescriptorObject& object, std::string key, DescriptorValue value
   mode.enum_value = std::string(blend_mode_lfx2_string(settings.blend_mode));
   mode.enum_value_long_form = mode.enum_value.size() == 4U;
   append_key(options, "Md  ", std::move(mode));
+  if (settings.fill_opacity != 100) {
+    append_key(options, "fillOpacity", percent_value(static_cast<double>(settings.fill_opacity)));
+  }
   if (!blend_if_is_identity(settings.blend_if)) {
     DescriptorValue ranges;
     ranges.type = DescriptorValue::Type::List;

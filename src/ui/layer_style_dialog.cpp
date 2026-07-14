@@ -1941,6 +1941,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* opacity = add_slider_spin_row(blending_form, blending_group, QObject::tr("Opacity"),
                                       QStringLiteral("layerStyleOpacitySpin"), 0, 100,
                                       static_cast<int>(std::round(layer.opacity() * 100.0F)), QStringLiteral("%"));
+  auto* fill_opacity = add_slider_spin_row(
+      blending_form, blending_group, QObject::tr("Fill Opacity"),
+      QStringLiteral("layerStyleFillOpacitySpin"), 0, 100,
+      static_cast<int>(std::round(layer.fill_opacity() * 100.0F)), QStringLiteral("%"));
+  fill_opacity->setEnabled(layer.kind() != LayerKind::Group);
   auto* show_effects = new QCheckBox(QObject::tr("Show Effects"), blending_group);
   show_effects->setObjectName(QStringLiteral("layerStyleShowEffectsCheck"));
   show_effects->setChecked(style.effects_visible);
@@ -3262,7 +3267,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       satin.unsupported_contour_options = false;
     }
     return LayerStyleSettings{opacity->value(), static_cast<BlendMode>(blend->currentData().toInt()),
-                              std::move(result), blend_if, replace_unsupported_blend_if};
+                              std::move(result), blend_if, replace_unsupported_blend_if,
+                              fill_opacity->value()};
   };
   auto build_current_settings = [&]() {
     return build_current_settings_for_item(categories->currentItem());
@@ -3912,6 +3918,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(blend, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(true); });
   QObject::connect(opacity, qOverload<int>(&QSpinBox::valueChanged), &dialog,
                    [&emit_preview](int) { emit_preview(false); });
+  QObject::connect(fill_opacity, qOverload<int>(&QSpinBox::valueChanged), &dialog,
+                   [&emit_preview](int) { emit_preview(false); });
   QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(show_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(mask_hides_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
@@ -4092,6 +4100,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     if (entry->blend_settings.has_value()) {
       loading_controls = true;
       opacity->setValue(entry->blend_settings->opacity);
+      fill_opacity->setValue(entry->blend_settings->fill_opacity);
       set_combo_data(blend, static_cast<int>(entry->blend_settings->blend_mode));
       loading_controls = false;
       // Preserved-unsupported Blend If payloads stay untouched unless the user
@@ -4149,7 +4158,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     folder_combo->addItems(style_library->folders());
     form->addRow(QObject::tr("Folder:"), folder_combo);
     auto* include_blend = new QCheckBox(
-        QObject::tr("Include blending options (opacity, blend mode, Blend If)"), &prompt);
+        QObject::tr("Include blending options (opacity, Fill, blend mode, Blend If)"), &prompt);
     include_blend->setObjectName(QStringLiteral("layerStyleNewStyleIncludeBlendCheck"));
     form->addRow(QString(), include_blend);
     auto* prompt_buttons =
@@ -4163,8 +4172,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     const auto settings = build_current_settings();
     std::optional<psd::AslBlendSettings> blend_settings;
     if (include_blend->isChecked()) {
-      blend_settings =
-          psd::AslBlendSettings{settings.opacity, settings.blend_mode, settings.blend_if};
+      blend_settings = psd::AslBlendSettings{settings.opacity, settings.blend_mode,
+                                             settings.blend_if, settings.fill_opacity};
     }
     // Carry the referenced tiles so the preset stays self-contained.
     std::vector<PatternResource> preset_patterns;

@@ -128,6 +128,7 @@ struct LayerRecord {
   std::vector<std::uint8_t> blending_ranges;
   BlendMode blend_mode{BlendMode::Normal};
   std::uint8_t opacity{255};
+  std::optional<std::uint8_t> fill_opacity;
   bool visible{true};
   bool clipping{false};
   std::string name;
