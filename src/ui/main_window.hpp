@@ -440,6 +440,9 @@ private:
   void dust_and_scratches_smart_filter_dialog(
       LayerId layer_id,
       std::optional<std::size_t> execution_index = std::nullopt);
+  void surface_blur_smart_filter_dialog(
+      LayerId layer_id,
+      std::optional<std::size_t> execution_index = std::nullopt);
   void editable_smart_filter_dialog(
       LayerId layer_id, SmartFilterKind kind,
       std::optional<std::size_t> execution_index = std::nullopt);

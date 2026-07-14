@@ -761,6 +761,10 @@
         <translation>ダスト＆スクラッチ</translation>
     </message>
     <message>
+        <source>Surface Blur</source>
+        <translation>ぼかし（表面）</translation>
+    </message>
+    <message>
         <location line="+9"/>
         <source>Edge Detect</source>
         <translation>エッジ検出</translation>
@@ -11424,6 +11428,10 @@ Clipped to the layer below</source>
         <translation>ダスト＆スクラッチをキャンセルしました</translation>
     </message>
     <message>
+        <source>Cancelled Surface Blur</source>
+        <translation>ぼかし（表面）をキャンセルしました</translation>
+    </message>
+    <message>
         <source>Smart Filter failed</source>
         <translation>スマートフィルターの処理に失敗しました</translation>
     </message>
@@ -11516,6 +11524,26 @@ Clipped to the layer below</source>
         <translation>ダスト＆スクラッチスマートフィルターを更新しました</translation>
     </message>
     <message>
+        <source>Add Surface Blur Smart Filter</source>
+        <translation>ぼかし（表面）スマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Surface Blur Smart Filter</source>
+        <translation>ぼかし（表面）スマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Surface Blur as a Smart Filter</source>
+        <translation>ぼかし（表面）をスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Surface Blur Smart Filter</source>
+        <translation>別のぼかし（表面）スマートフィルターを追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Surface Blur Smart Filter</source>
+        <translation>ぼかし（表面）スマートフィルターを更新しました</translation>
+    </message>
+    <message>
         <source>Show Smart Filters</source>
         <translation>スマートフィルターを表示</translation>
     </message>
@@ -11580,8 +11608,8 @@ Clipped to the layer below</source>
         <translation>スマートフィルターを削除しました</translation>
     </message>
     <message>
-        <source>Only Gaussian Blur, High Pass, Median, and Dust &amp; Scratches are currently editable as Smart Filters</source>
-        <translation>現在、スマートフィルターとして編集できるのはガウスぼかし、ハイパス、中央値、ダスト＆スクラッチだけです</translation>
+        <source>Only Gaussian Blur, High Pass, Median, Dust &amp; Scratches, and Surface Blur are currently editable as Smart Filters</source>
+        <translation>現在スマートフィルターとして編集できるのは、ぼかし（ガウス）、ハイパス、中央値、ダスト＆スクラッチ、ぼかし（表面）のみです</translation>
     </message>
     <message>
         <source>Add Smart Filter Stack</source>

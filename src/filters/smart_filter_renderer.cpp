@@ -27,6 +27,10 @@ constexpr std::int32_t kMinimumDustAndScratchesRadius = 1;
 constexpr std::int32_t kMaximumDustAndScratchesRadius = 100;
 constexpr std::int32_t kMinimumDustAndScratchesThreshold = 0;
 constexpr std::int32_t kMaximumDustAndScratchesThreshold = 255;
+constexpr double kMinimumSurfaceBlurRadius = 1.0;
+constexpr double kMaximumSurfaceBlurRadius = 100.0;
+constexpr std::int32_t kMinimumSurfaceBlurThreshold = 2;
+constexpr std::int32_t kMaximumSurfaceBlurThreshold = 255;
 constexpr double kGaussianMarginScale = 3.0;
 constexpr double kDirectGaussianMaximumRadius = 8.0;
 constexpr int kProgressScale = 1000000;
@@ -801,15 +805,25 @@ struct TransparentColorExtension {
 struct SquareColumnHistogram {
   std::array<std::uint16_t, 256> bins{};
   std::array<std::uint16_t, 16> coarse{};
+  std::array<std::uint32_t, 16> coarse_sum{};
+  std::array<std::uint32_t, 16> coarse_square_sum{};
 
   void add(std::uint8_t value) noexcept {
+    const auto group = static_cast<std::size_t>(value >> 4U);
     ++bins[value];
-    ++coarse[value >> 4U];
+    ++coarse[group];
+    coarse_sum[group] += value;
+    coarse_square_sum[group] +=
+        static_cast<std::uint32_t>(value) * value;
   }
 
   void remove(std::uint8_t value) noexcept {
+    const auto group = static_cast<std::size_t>(value >> 4U);
     --bins[value];
-    --coarse[value >> 4U];
+    --coarse[group];
+    coarse_sum[group] -= value;
+    coarse_square_sum[group] -=
+        static_cast<std::uint32_t>(value) * value;
   }
 };
 
@@ -824,6 +838,8 @@ class SlidingSquareHistogram {
       const auto &column = column_at(initial_x + offset);
       for (std::size_t group = 0; group < coarse_.size(); ++group) {
         coarse_[group] += column.coarse[group];
+        coarse_sum_[group] += column.coarse_sum[group];
+        coarse_square_sum_[group] += column.coarse_square_sum[group];
       }
     }
   }
@@ -834,6 +850,10 @@ class SlidingSquareHistogram {
     for (std::size_t group = 0; group < coarse_.size(); ++group) {
       coarse_[group] -= leaving.coarse[group];
       coarse_[group] += entering.coarse[group];
+      coarse_sum_[group] -= leaving.coarse_sum[group];
+      coarse_sum_[group] += entering.coarse_sum[group];
+      coarse_square_sum_[group] -= leaving.coarse_square_sum[group];
+      coarse_square_sum_[group] += entering.coarse_square_sum[group];
     }
     ++current_x_;
   }
@@ -853,9 +873,47 @@ class SlidingSquareHistogram {
     return static_cast<std::uint8_t>(group * 16U + within);
   }
 
-  // Surface Blur reuses this exact window machinery in the next checkpoint:
-  // it asks for every fine group intersecting its center-dependent range,
-  // whereas Median usually keeps only one group synchronized.
+  [[nodiscard]] std::uint8_t surface_blur(std::uint8_t center,
+                                          std::int32_t threshold) {
+    const auto weight_base = static_cast<std::int32_t>(5 * threshold);
+    const auto maximum_delta = (weight_base - 1) / 2;
+    const auto center_value = static_cast<std::int32_t>(center);
+    const auto first_value = std::max(0, center_value - maximum_delta);
+    const auto last_value = std::min(255, center_value + maximum_delta);
+    const auto left = moments(first_value, center_value);
+    const auto right = moments(center_value + 1, last_value);
+    const auto left_coefficient =
+        static_cast<std::int64_t>(weight_base - 2 * center_value);
+    const auto right_coefficient =
+        static_cast<std::int64_t>(weight_base + 2 * center_value);
+    const auto weight_sum =
+        left_coefficient * static_cast<std::int64_t>(left.count) +
+        2LL * static_cast<std::int64_t>(left.sum) +
+        right_coefficient * static_cast<std::int64_t>(right.count) -
+        2LL * static_cast<std::int64_t>(right.sum);
+    const auto weighted_sum =
+        left_coefficient * static_cast<std::int64_t>(left.sum) +
+        2LL * static_cast<std::int64_t>(left.square_sum) +
+        right_coefficient * static_cast<std::int64_t>(right.sum) -
+        2LL * static_cast<std::int64_t>(right.square_sum);
+    if (weight_sum <= 0 || weighted_sum < 0) {
+      throw std::runtime_error("Surface Blur produced an empty range kernel");
+    }
+    const auto unsigned_weight_sum = static_cast<std::uint64_t>(weight_sum);
+    const auto unsigned_weighted_sum =
+        static_cast<std::uint64_t>(weighted_sum);
+    auto quotient = unsigned_weighted_sum / unsigned_weight_sum;
+    const auto remainder = unsigned_weighted_sum % unsigned_weight_sum;
+    const auto complement = unsigned_weight_sum - remainder;
+    if (remainder > complement ||
+        (remainder == complement && (quotient & 1U) != 0U)) {
+      ++quotient;
+    }
+    return static_cast<std::uint8_t>(std::min<std::uint64_t>(255U, quotient));
+  }
+
+  // Surface Blur asks for every fine group intersecting its center-dependent
+  // range, whereas Median usually keeps only one group synchronized.
   [[nodiscard]] const std::array<std::uint32_t, 16> &
   fine_group(std::size_t group) {
     auto &cache = fine_cache_[group];
@@ -892,6 +950,46 @@ class SlidingSquareHistogram {
     std::array<std::uint32_t, 16> bins{};
   };
 
+  struct Moments {
+    std::uint64_t count{0U};
+    std::uint64_t sum{0U};
+    std::uint64_t square_sum{0U};
+  };
+
+  [[nodiscard]] Moments moments(std::int32_t first,
+                                std::int32_t last) {
+    Moments result;
+    if (first > last) {
+      return result;
+    }
+    const auto first_group = static_cast<std::size_t>(first >> 4);
+    const auto last_group = static_cast<std::size_t>(last >> 4);
+    for (std::size_t group = first_group; group <= last_group; ++group) {
+      const auto group_first = static_cast<std::int32_t>(group * 16U);
+      const auto group_last = group_first + 15;
+      const auto range_first = std::max(first, group_first);
+      const auto range_last = std::min(last, group_last);
+      if (range_first == group_first && range_last == group_last) {
+        result.count += coarse_[group];
+        result.sum += coarse_sum_[group];
+        result.square_sum += coarse_square_sum_[group];
+        continue;
+      }
+      const auto &fine = fine_group(group);
+      for (auto value = range_first; value <= range_last; ++value) {
+        const auto count =
+            fine[static_cast<std::size_t>(value - group_first)];
+        result.count += count;
+        result.sum += static_cast<std::uint64_t>(count) *
+                      static_cast<std::uint64_t>(value);
+        result.square_sum += static_cast<std::uint64_t>(count) *
+                             static_cast<std::uint64_t>(value) *
+                             static_cast<std::uint64_t>(value);
+      }
+    }
+    return result;
+  }
+
   [[nodiscard]] const SquareColumnHistogram &
   column_at(std::int32_t x) const noexcept {
     const auto clamped = std::clamp(x, 0, image_width_ - 1);
@@ -904,6 +1002,8 @@ class SlidingSquareHistogram {
   std::int32_t radius_{0};
   std::int32_t current_x_{0};
   std::array<std::uint32_t, 16> coarse_{};
+  std::array<std::uint64_t, 16> coarse_sum_{};
+  std::array<std::uint64_t, 16> coarse_square_sum_{};
   std::array<FineCache, 16> fine_cache_{};
 };
 
@@ -976,6 +1076,74 @@ void filter_square_median_channel(const FilterRenderResult &input,
                   FilterProgressStage::Filtering);
 }
 
+template <typename Sample>
+void filter_square_surface_channel(const FilterRenderResult &input,
+                                   PixelBuffer &output, std::size_t channel,
+                                   std::int32_t radius,
+                                   std::int32_t threshold, Sample &&sample,
+                                   const FilterProgress *progress) {
+  const auto width = input.bounds.width;
+  const auto height = input.bounds.height;
+  const auto tile_count =
+      (width + kSquareHistogramTileWidth - 1) /
+      kSquareHistogramTileWidth;
+  const auto total_rows = static_cast<std::uint64_t>(tile_count) *
+                          static_cast<std::uint64_t>(height);
+  std::uint64_t completed_rows = 0U;
+
+  for (std::int32_t tile = 0; tile < tile_count; ++tile) {
+    const auto tile_left = tile * kSquareHistogramTileWidth;
+    const auto tile_right =
+        std::min(width, tile_left + kSquareHistogramTileWidth);
+    const auto source_left = std::max(0, tile_left - radius);
+    const auto source_right = std::min(width, tile_right + radius);
+    std::vector<SquareColumnHistogram> columns(
+        static_cast<std::size_t>(source_right - source_left));
+
+    for (std::int32_t source_x = source_left; source_x < source_right;
+         ++source_x) {
+      if (((source_x - source_left) & 63) == 0) {
+        report_fraction(progress, completed_rows, total_rows,
+                        FilterProgressStage::Filtering);
+      }
+      auto &column =
+          columns[static_cast<std::size_t>(source_x - source_left)];
+      for (std::int32_t offset = -radius; offset <= radius; ++offset) {
+        column.add(sample(source_x, std::clamp(offset, 0, height - 1)));
+      }
+    }
+
+    for (std::int32_t y = 0; y < height; ++y) {
+      report_fraction(progress, completed_rows, total_rows,
+                      FilterProgressStage::Filtering);
+      if (y > 0) {
+        const auto leaving_y = std::clamp(y - radius - 1, 0, height - 1);
+        const auto entering_y = std::clamp(y + radius, 0, height - 1);
+        for (std::int32_t source_x = source_left; source_x < source_right;
+             ++source_x) {
+          auto &column =
+              columns[static_cast<std::size_t>(source_x - source_left)];
+          column.remove(sample(source_x, leaving_y));
+          column.add(sample(source_x, entering_y));
+        }
+      }
+
+      SlidingSquareHistogram window(columns, source_left, width, radius,
+                                    tile_left);
+      for (std::int32_t x = tile_left; x < tile_right; ++x) {
+        if (x > tile_left) {
+          window.advance();
+        }
+        output.pixel(x, y)[channel] =
+            window.surface_blur(sample(x, y), threshold);
+      }
+      ++completed_rows;
+    }
+  }
+  report_fraction(progress, total_rows, total_rows,
+                  FilterProgressStage::Filtering);
+}
+
 [[nodiscard]] FilterRenderResult
 render_median(const FilterRenderResult &input, double radius,
               const FilterProgress *progress) {
@@ -1015,6 +1183,46 @@ render_median(const FilterRenderResult &input, double radius,
     };
     filter_square_median_channel(input, output, channel, effective_radius,
                                  color_sample, &color_progress);
+  }
+  return FilterRenderResult{std::move(output), input.bounds};
+}
+
+[[nodiscard]] FilterRenderResult render_surface_blur(
+    const FilterRenderResult &input, double radius, std::int32_t threshold,
+    const FilterProgress *progress) {
+  if (input.pixels.empty()) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return input;
+  }
+  const auto effective_radius = std::max(
+      1, static_cast<std::int32_t>(std::floor(radius + 0.5)));
+  constexpr int kPhaseCount = 5;
+  auto extension_progress = phase_progress(progress, 0, kPhaseCount);
+  const auto extension =
+      extend_transparent_colors(input, &extension_progress);
+  auto output = input.pixels;
+
+  auto alpha_progress = phase_progress(progress, 1, kPhaseCount);
+  const auto alpha_sample = [&input](std::int32_t x, std::int32_t y) {
+    return input.pixels.pixel(x, y)[3];
+  };
+  filter_square_surface_channel(input, output, 3U, effective_radius,
+                                threshold, alpha_sample, &alpha_progress);
+
+  if (extension.all_transparent) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return FilterRenderResult{std::move(output), input.bounds};
+  }
+
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    auto color_progress = phase_progress(
+        progress, static_cast<int>(channel) + 2, kPhaseCount);
+    const auto color_sample = [&input, &extension,
+                               channel](std::int32_t x, std::int32_t y) {
+      return extended_straight_color_sample(input, extension, x, y, channel);
+    };
+    filter_square_surface_channel(input, output, channel, effective_radius,
+                                  threshold, color_sample, &color_progress);
   }
   return FilterRenderResult{std::move(output), input.bounds};
 }
@@ -1365,11 +1573,21 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
           dust->radius_pixels <= kMaximumDustAndScratchesRadius &&
           dust->threshold >= kMinimumDustAndScratchesThreshold &&
           dust->threshold <= kMaximumDustAndScratchesThreshold;
+    } else if (entry.kind == SmartFilterKind::SurfaceBlur) {
+      const auto *surface =
+          std::get_if<SurfaceBlurSmartFilter>(&entry.parameters);
+      parameters_valid =
+          surface != nullptr && std::isfinite(surface->radius_pixels) &&
+          surface->radius_pixels >= kMinimumSurfaceBlurRadius &&
+          surface->radius_pixels <= kMaximumSurfaceBlurRadius &&
+          surface->threshold >= kMinimumSurfaceBlurThreshold &&
+          surface->threshold <= kMaximumSurfaceBlurThreshold;
     } else {
       throw std::invalid_argument("Unsupported Smart Filter entry");
     }
     if (!parameters_valid ||
         (entry.kind != SmartFilterKind::DustAndScratches &&
+         entry.kind != SmartFilterKind::SurfaceBlur &&
          (!std::isfinite(radius) || radius < minimum_radius ||
           radius > maximum_radius)) ||
         !std::isfinite(entry.opacity) ||
@@ -1436,6 +1654,21 @@ FilterRenderResult render_photoshop_dust_and_scratches(
                                    radius_pixels, threshold, progress);
 }
 
+FilterRenderResult render_photoshop_surface_blur(
+    const PixelBuffer &pixels, Rect bounds, double radius_pixels,
+    std::int32_t threshold, const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() || pixels.width() != bounds.width ||
+      pixels.height() != bounds.height || !std::isfinite(radius_pixels) ||
+      radius_pixels < kMinimumSurfaceBlurRadius ||
+      radius_pixels > kMaximumSurfaceBlurRadius ||
+      threshold < kMinimumSurfaceBlurThreshold ||
+      threshold > kMaximumSurfaceBlurThreshold) {
+    throw std::invalid_argument("Invalid Photoshop Surface Blur input");
+  }
+  return render_surface_blur(FilterRenderResult{pixels, bounds}, radius_pixels,
+                             threshold, progress);
+}
+
 FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                              Rect placed_bounds,
                                              Rect filter_canvas_bounds,
@@ -1490,11 +1723,19 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
       const auto &median = std::get<MedianSmartFilter>(entry.parameters);
       filtered =
           render_median(current, median.radius_pixels, &filter_progress);
-    } else {
+    } else if (entry.kind == SmartFilterKind::DustAndScratches) {
       const auto &dust =
           std::get<DustAndScratchesSmartFilter>(entry.parameters);
       filtered = render_dust_and_scratches(
           current, dust.radius_pixels, dust.threshold, &filter_progress);
+    } else {
+      const auto &surface =
+          std::get<SurfaceBlurSmartFilter>(entry.parameters);
+      auto surface_input = embed_in_filter_canvas(
+          current.pixels, current.bounds, filter_canvas_bounds);
+      filtered = trim_transparent_result(render_surface_blur(
+          surface_input, surface.radius_pixels, surface.threshold,
+          &filter_progress));
     }
     auto blend_progress = phase_progress(progress, phase++, phase_count);
     current = blend_entry_result(current, std::move(filtered), entry.opacity,

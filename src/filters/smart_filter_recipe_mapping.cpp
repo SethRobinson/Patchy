@@ -20,11 +20,14 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
         (normalized->filter_id != "patchy.filters.gaussian_blur" &&
          normalized->filter_id != "patchy.filters.high_pass" &&
          normalized->filter_id != "patchy.filters.median" &&
-         normalized->filter_id != "patchy.filters.dust_and_scratches")) {
+         normalized->filter_id != "patchy.filters.dust_and_scratches" &&
+         normalized->filter_id != "patchy.filters.surface_blur")) {
       return std::nullopt;
     }
     const auto dust =
         normalized->filter_id == "patchy.filters.dust_and_scratches";
+    const auto surface =
+        normalized->filter_id == "patchy.filters.surface_blur";
     const auto median = normalized->filter_id == "patchy.filters.median";
     const auto high_pass =
         normalized->filter_id == "patchy.filters.high_pass";
@@ -51,6 +54,27 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
       entry.parameters = DustAndScratchesSmartFilter{
           static_cast<std::int32_t>(*radius),
           static_cast<std::int32_t>(*threshold)};
+    } else if (surface) {
+      const auto radius_value = normalized->parameters.find("radius");
+      const auto threshold_value = normalized->parameters.find("threshold");
+      if (radius_value == normalized->parameters.end() ||
+          threshold_value == normalized->parameters.end()) {
+        return std::nullopt;
+      }
+      const auto* radius = std::get_if<double>(&radius_value->second);
+      const auto* threshold =
+          std::get_if<std::int64_t>(&threshold_value->second);
+      if (radius == nullptr || !std::isfinite(*radius) || *radius < 1.0 ||
+          *radius > 100.0 || threshold == nullptr || *threshold < 2 ||
+          *threshold > 255) {
+        return std::nullopt;
+      }
+      entry.kind = SmartFilterKind::SurfaceBlur;
+      entry.native_name = "Surface Blur...";
+      entry.native_class_id = "surfaceBlur";
+      entry.native_filter_id = 854U;
+      entry.parameters = SurfaceBlurSmartFilter{
+          *radius, static_cast<std::int32_t>(*threshold)};
     } else {
       const auto radius_value = normalized->parameters.find("radius");
       if (radius_value == normalized->parameters.end()) {

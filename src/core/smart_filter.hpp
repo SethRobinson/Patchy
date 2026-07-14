@@ -18,6 +18,7 @@ enum class SmartFilterKind {
   HighPass,
   Median,
   DustAndScratches,
+  SurfaceBlur,
 };
 
 struct GaussianBlurSmartFilter {
@@ -37,10 +38,15 @@ struct DustAndScratchesSmartFilter {
   std::int32_t threshold{0};
 };
 
+struct SurfaceBlurSmartFilter {
+  double radius_pixels{5.0};
+  std::int32_t threshold{15};
+};
+
 using SmartFilterParameters =
     std::variant<std::monostate, GaussianBlurSmartFilter,
                  HighPassSmartFilter, MedianSmartFilter,
-                 DustAndScratchesSmartFilter>;
+                 DustAndScratchesSmartFilter, SurfaceBlurSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};

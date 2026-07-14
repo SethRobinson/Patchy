@@ -20,6 +20,9 @@ namespace patchy {
 [[nodiscard]] FilterRenderResult render_photoshop_dust_and_scratches(
     const PixelBuffer &pixels, Rect bounds, std::int32_t radius_pixels,
     std::int32_t threshold, const FilterProgress *progress = nullptr);
+[[nodiscard]] FilterRenderResult render_photoshop_surface_blur(
+    const PixelBuffer &pixels, Rect bounds, double radius_pixels,
+    std::int32_t threshold, const FilterProgress *progress = nullptr);
 
 // Renders a complete native Smart Filter stack from the immutable placed or
 // warped Smart Object preview. Unsupported semantics throw

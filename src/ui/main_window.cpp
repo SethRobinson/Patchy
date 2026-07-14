@@ -2653,6 +2653,23 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                .arg(dust->radius_pixels)
                                .arg(dust->threshold);
         }
+      } else if (entry.kind == SmartFilterKind::SurfaceBlur) {
+        entry_name = QObject::tr("Surface Blur");
+        entry_tooltip = entry_name;
+        if (const auto* surface =
+                std::get_if<SurfaceBlurSmartFilter>(&entry.parameters);
+            surface != nullptr) {
+          auto radius = QString::number(surface->radius_pixels, 'f', 2);
+          while (radius.endsWith(QLatin1Char('0'))) {
+            radius.chop(1);
+          }
+          if (radius.endsWith(QLatin1Char('.'))) {
+            radius.chop(1);
+          }
+          entry_tooltip += QObject::tr(" (Radius %1 px, Threshold %2)")
+                               .arg(radius)
+                               .arg(surface->threshold);
+        }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
         entry_tooltip = entry_name;

@@ -12,7 +12,7 @@ These paths are intentionally separate. Their defaults are not equivalent for ev
 
 ## Stable identifiers and schemas
 
-The 33 built-in filter IDs are persisted compatibility identifiers. Never rename or reuse one:
+The 34 built-in filter IDs are persisted compatibility identifiers. Never rename or reuse one:
 
 ```text
 patchy.filters.invert
@@ -48,6 +48,7 @@ patchy.filters.vignette
 patchy.filters.high_pass
 patchy.filters.median
 patchy.filters.dust_and_scratches
+patchy.filters.surface_blur
 ```
 
 Each `FilterInvocation` stores the filter ID, the filter's schema version, named parameters, and captured foreground/background colors. Schema version 1 is the initial catalog schema. A known ID with an unsupported schema is unsupported, not a request to run the newest schema.
@@ -82,6 +83,7 @@ Parameter keys are stable within a filter schema. The version-1 keys and default
 | `high_pass` | `radius=10.0` |
 | `median` | `radius=1.0` |
 | `dust_and_scratches` | `radius=1`, `threshold=0` |
+| `surface_blur` | `radius=5.0`, `threshold=15` |
 
 Missing known parameters use these defaults. Unknown parameter keys are ignored so a newer writer can add harmless fields. Unknown filter IDs and unsupported schema versions make the invocation and its containing recipe unsupported. They must never fall back to a different filter.
 
@@ -91,12 +93,12 @@ Values are normalized through the catalog before execution. Integer, double, boo
 
 Seven filters belong to Image > Adjustments: Invert, Brightness/Contrast, Grayscale, Desaturate, Auto Contrast, Threshold, and Posterize. Grayscale currently has no direct action.
 
-The gallery exposes the other 26 effects in the fixed catalog and category order below. Display labels are translated, but order is never locale-sorted.
+The gallery exposes the other 27 effects in the fixed catalog and category order below. Display labels are translated, but order is never locale-sorted.
 
 | Category token | Gallery effects in order |
 | --- | --- |
 | `photo_looks` | Soft Glow (`patchy.filters.soft_glow`), Punchy Color (`patchy.filters.punchy_color`), Noir (`patchy.filters.noir`), Cinematic Matte (`patchy.filters.cinematic_matte`), Vintage Fade (`patchy.filters.vintage_fade`), Vintage Sepia (`patchy.filters.sepia`), Lens Vignette (`patchy.filters.vignette`) |
-| `blur` | Box Blur (`patchy.filters.box_blur`), Gaussian Blur (`patchy.filters.gaussian_blur`), Motion Blur (`patchy.filters.motion_blur`), Radial Blur (`patchy.filters.radial_blur`) |
+| `blur` | Box Blur (`patchy.filters.box_blur`), Gaussian Blur (`patchy.filters.gaussian_blur`), Motion Blur (`patchy.filters.motion_blur`), Radial Blur (`patchy.filters.radial_blur`), Surface Blur (`patchy.filters.surface_blur`) |
 | `sharpen` | Sharpen (`patchy.filters.sharpen`), Unsharp Mask (`patchy.filters.unsharp_mask`), High Pass (`patchy.filters.high_pass`) |
 | `distort` | Twirl (`patchy.filters.twirl`), Wave (`patchy.filters.wave`), Pinch/Bloat (`patchy.filters.pinch_bloat`) |
 | `noise` | Analog Grain (`patchy.filters.film_grain`), Median (`patchy.filters.median`), Dust & Scratches (`patchy.filters.dust_and_scratches`) |
@@ -110,7 +112,7 @@ The catalog generates dialog controls, but the existing Qt object names such as 
 
 The catalog is also the type contract for generated editors. Integer and double parameters receive linked sliders and spin boxes, booleans receive check boxes, and stable string options receive combo boxes whose item data holds the option token. Double slider ticks are derived from the declared minimum, maximum, and step, while the spin box keeps the declared precision. Units, defaults, ranges, object-name roots, and option tokens all come from `FilterParameterDefinition`. Direct filter dialogs and the gallery consume the same `FilterDialogSpec`, so their standard controls must stay in sync. The gallery adds visual companions without creating a second parameter model.
 
-`FilterParameterDefinition::practical_minimum` and `practical_maximum` may narrow a linked slider without narrowing the parameter's semantic range. The spin box, normalization, recipes, and persistence continue to use `minimum` and `maximum`. High Pass uses this to keep its slider useful through 12 px while accepting Photoshop-compatible typed radii through 1000 px. Median similarly uses a practical 1 through 25 px slider while retaining native typed values through 500 px. Dust & Scratches uses a practical 1 through 25 px radius slider while retaining its native integer range through 100 px; Threshold spans 0 through 255.
+`FilterParameterDefinition::practical_minimum` and `practical_maximum` may narrow a linked slider without narrowing the parameter's semantic range. The spin box, normalization, recipes, and persistence continue to use `minimum` and `maximum`. High Pass uses this to keep its slider useful through 12 px while accepting Photoshop-compatible typed radii through 1000 px. Median similarly uses a practical 1 through 25 px slider while retaining native typed values through 500 px. Dust & Scratches uses a practical 1 through 25 px radius slider while retaining its native integer range through 100 px; Threshold spans 0 through 255. Surface Blur uses a practical 1 through 25 px radius slider while retaining its native fractional range through 100 px; Threshold spans 2 through 255.
 
 `FilterParameterPresentation` is not persisted and does not replace the parameter key or value. Current roles are `Angle`, `CenterXPercent`, `CenterYPercent`, `EffectRadiusPercent`, `WaveAmplitude`, `WaveWavelength`, and `WavePhase`. UI code must select specialized controls by these roles, not by a parameter key, display label, unit, or filter ID. The render wrapper also uses the two center roles to preserve their image-space positions when transparent padding is added.
 
@@ -160,7 +162,7 @@ Cancel restores the active layer's original pixels and document-space bounds exa
 
 Thumbnail and proxy rendering scales only parameters marked as pixel distances. Version-1 spatial keys are:
 
-- Box/Gaussian/Unsharp/High Pass/Median/Dust & Scratches radius
+- Box/Gaussian/Unsharp/High Pass/Median/Dust & Scratches/Surface Blur radius
 - Motion Blur distance
 - Emboss height
 - Glowing Edges edge width and smoothness
@@ -180,6 +182,7 @@ Output growth and translation support are catalog metadata:
 - High Pass keeps the input bounds and alpha. Its linked slider spans the practical 0.1 through 12 px range, with a default of 10 px, while typed values, recipes, and native Smart Filter imports retain Photoshop's 0.1 through 1000 px range. Translation support is three times the radius.
 - Median keeps the input bounds. Its linked slider spans the practical 1 through 25 px range, with a default of 1 px, while typed values, recipes, and native Smart Filter imports retain Photoshop's 1 through 500 px range. Photoshop floors fractional radii for rendering without rewriting the stored value. Median advertises no finite translation support because transparent RGB extension chooses the nearest visible source across the full input; selected filtering must process the complete layer before restoring unselected pixels.
 - Dust & Scratches keeps the input bounds and alpha. Radius is an integer from 1 through 100 with a practical slider through 25, and Threshold is an integer from 0 through 255. It computes a square per-channel RGB median using Median's nearest-visible straight-RGB extension, then replaces the complete RGB triplet only when its maximum channel difference from the source is strictly greater than Threshold. It advertises no finite translation support because the transparent-RGB extension can choose a visible source anywhere in the input.
+- Surface Blur accepts a fractional radius from 1 through 100 px in 0.01 px steps, with a default of 5 px and a practical slider through 25 px. Its effective integer radius is `max(1, floor(radius + 0.5))`. Threshold is an integer from 2 through 255 with a default of 15. For each independently filtered channel, a square edge-clamped window assigns every sample `v` around center `c` the weight `max(0, 5 * threshold - 2 * abs(v - c))`; the weighted quotient is rounded to the nearest integer with ties to even. RGB uses Median's nearest-visible straight-RGB extension under transparent pixels, while alpha runs the same weighted formula directly. The result is alpha-trimmed after padding and can grow by at most the effective radius. It advertises no finite translation support because the straight-RGB extension can choose a visible source anywhere in the input.
 - Sharpen and Edge Detect have translation support of one pixel.
 - Other version-1 filters neither grow nor advertise fixed translation support.
 

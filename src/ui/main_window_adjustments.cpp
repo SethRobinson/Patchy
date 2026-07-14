@@ -523,7 +523,11 @@ std::int32_t smart_filter_integer_from_invocation(
 FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
   FilterInvocation invocation;
   invocation.schema_version = 1U;
-  if (kind == SmartFilterKind::DustAndScratches) {
+  if (kind == SmartFilterKind::SurfaceBlur) {
+    invocation.filter_id = "patchy.smart_filters.surface_blur";
+    invocation.parameters["radius"] = 5.0;
+    invocation.parameters["threshold"] = std::int64_t{15};
+  } else if (kind == SmartFilterKind::DustAndScratches) {
     invocation.filter_id = "patchy.smart_filters.dust_and_scratches";
     invocation.parameters["radius"] = std::int64_t{1};
     invocation.parameters["threshold"] = std::int64_t{0};
@@ -540,24 +544,27 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
   return invocation;
 }
 
-FilterDialogSpec editable_smart_filter_dialog_spec(SmartFilterKind kind) {
+FilterDialogSpec editable_smart_filter_dialog_spec(
+    SmartFilterKind kind, const FilterInvocation& initial_invocation) {
   const auto high_pass = kind == SmartFilterKind::HighPass;
   const auto median = kind == SmartFilterKind::Median;
   const auto dust = kind == SmartFilterKind::DustAndScratches;
+  const auto surface = kind == SmartFilterKind::SurfaceBlur;
   FilterDialogSpec spec;
   spec.identifier = QString::fromStdString(
       editable_smart_filter_invocation(kind).filter_id);
-  spec.display_name = dust
-                          ? QObject::tr("Dust & Scratches")
-                          : (median ? QObject::tr("Median")
-                                    : (high_pass ? QObject::tr("High Pass")
-                                                 : QObject::tr("Gaussian Blur")));
+  spec.display_name = surface
+                          ? QObject::tr("Surface Blur")
+                          : (dust ? QObject::tr("Dust & Scratches")
+                                  : (median ? QObject::tr("Median")
+                                            : (high_pass ? QObject::tr("High Pass")
+                                                         : QObject::tr("Gaussian Blur"))));
   FilterControlSpec radius;
   radius.label = QObject::tr("Radius");
   radius.object_name = QStringLiteral("filterRadius");
-  radius.minimum = dust || median ? 1 : 0;
-  radius.maximum = dust ? 25 : (median ? 25 : (high_pass ? 12 : 6));
-  radius.value = dust || median ? 1 : (high_pass ? 10 : 2);
+  radius.minimum = dust || median || surface ? 1 : 0;
+  radius.maximum = surface || dust || median ? 25 : 12;
+  radius.value = surface ? 5 : (dust || median ? 1 : (high_pass ? 10 : 2));
   radius.suffix = QObject::tr(" px");
   radius.parameter_key = "radius";
   radius.kind = dust ? FilterParameterKind::Integer
@@ -565,25 +572,37 @@ FilterDialogSpec editable_smart_filter_dialog_spec(SmartFilterKind kind) {
   radius.default_value = dust
                              ? FilterParameterValue{std::int64_t{1}}
                              : FilterParameterValue{
-                                   median ? 1.0 : (high_pass ? 10.0 : 2.0)};
-  radius.typed_minimum = dust ? 1.0 : (median ? 1.0 : 0.1);
-  radius.typed_maximum = dust ? 100.0 : (median ? 500.0 : 1000.0);
+                                   surface ? 5.0
+                                           : (median ? 1.0 : (high_pass ? 10.0 : 2.0))};
+  radius.typed_minimum = dust || median || surface ? 1.0 : 0.1;
+  radius.typed_maximum =
+      surface ? 100.0
+              : (dust ? 100.0
+                      : (median
+                             ? 500.0
+                             : (high_pass
+                                    ? 1000.0
+                                    : std::max(
+                                          12.0,
+                                          smart_filter_radius_from_invocation(
+                                              initial_invocation, 2.0)))));
   // Native descriptors retain fractional radius values. Gaussian Blur changes
   // at hundredths; Median currently floors for rendering but must not round a
   // value merely because the dialog was opened and accepted.
   radius.step = dust ? 1.0 : 0.01;
   spec.controls.push_back(std::move(radius));
-  if (dust) {
+  if (dust || surface) {
     FilterControlSpec threshold;
     threshold.label = QObject::tr("Threshold");
     threshold.object_name = QStringLiteral("filterThreshold");
-    threshold.minimum = 0;
+    threshold.minimum = surface ? 2 : 0;
     threshold.maximum = 255;
-    threshold.value = 0;
+    threshold.value = surface ? 15 : 0;
     threshold.parameter_key = "threshold";
     threshold.kind = FilterParameterKind::Integer;
-    threshold.default_value = std::int64_t{0};
-    threshold.typed_minimum = 0.0;
+    threshold.default_value = surface ? FilterParameterValue{std::int64_t{15}}
+                                      : FilterParameterValue{std::int64_t{0}};
+    threshold.typed_minimum = surface ? 2.0 : 0.0;
     threshold.typed_maximum = 255.0;
     threshold.step = 1.0;
     spec.controls.push_back(std::move(threshold));
@@ -625,6 +644,14 @@ SmartFilterStack smart_filter_stack_with_invocation(
         invocation, "radius", dust->radius_pixels, 1, 100);
     dust->threshold = smart_filter_integer_from_invocation(
         invocation, "threshold", dust->threshold, 0, 255);
+  } else if (entry.kind == SmartFilterKind::SurfaceBlur) {
+    auto* surface = std::get_if<SurfaceBlurSmartFilter>(&entry.parameters);
+    if (surface == nullptr) {
+      throw std::invalid_argument("Smart Filter settings are unavailable");
+    }
+    surface->radius_pixels = std::clamp(radius, 1.0, 100.0);
+    surface->threshold = smart_filter_integer_from_invocation(
+        invocation, "threshold", surface->threshold, 2, 255);
   } else {
     throw std::invalid_argument("Smart Filter radius is unavailable");
   }
@@ -638,28 +665,38 @@ SmartFilterEntry make_editable_smart_filter_entry(
   const auto high_pass = kind == SmartFilterKind::HighPass;
   const auto median = kind == SmartFilterKind::Median;
   const auto dust = kind == SmartFilterKind::DustAndScratches;
+  const auto surface = kind == SmartFilterKind::SurfaceBlur;
   const auto radius = smart_filter_radius_from_invocation(invocation, 1.0);
   SmartFilterEntry entry;
   entry.kind = kind;
-  entry.native_name = dust
-                          ? "Dust && Scratches..."
-                          : (median ? "Median..."
-                                    : (high_pass ? "High Pass..."
-                                                 : "Gaussian Blur..."));
-  entry.native_class_id =
-      dust ? "DstS" : (median ? "Mdn " : (high_pass ? "HghP" : "GsnB"));
-  entry.native_filter_id = dust
-                               ? 0x44737453U
-                               : (median ? 0x4d646e20U
-                                         : (high_pass ? 0x48676850U
-                                                      : 0x47736e42U));
+  entry.native_name = surface
+                          ? "Surface Blur..."
+                          : (dust ? "Dust && Scratches..."
+                                  : (median ? "Median..."
+                                            : (high_pass ? "High Pass..."
+                                                         : "Gaussian Blur...")));
+  entry.native_class_id = surface
+                              ? "surfaceBlur"
+                              : (dust ? "DstS"
+                                      : (median ? "Mdn " : (high_pass ? "HghP" : "GsnB")));
+  entry.native_filter_id = surface
+                               ? 854U
+                               : (dust ? 0x44737453U
+                                       : (median ? 0x4d646e20U
+                                                 : (high_pass ? 0x48676850U
+                                                              : 0x47736e42U)));
   entry.enabled = true;
   entry.has_options = true;
   entry.opacity = 1.0;
   entry.blend_mode = BlendMode::Normal;
   entry.foreground = foreground;
   entry.background = background;
-  if (dust) {
+  if (surface) {
+    entry.parameters = SurfaceBlurSmartFilter{
+        std::clamp(radius, 1.0, 100.0),
+        smart_filter_integer_from_invocation(invocation, "threshold", 15, 2,
+                                             255)};
+  } else if (dust) {
     entry.parameters = DustAndScratchesSmartFilter{
         smart_filter_integer_from_invocation(invocation, "radius", 1, 1, 100),
         smart_filter_integer_from_invocation(invocation, "threshold", 0, 0,
@@ -921,17 +958,25 @@ void MainWindow::dust_and_scratches_smart_filter_dialog(
                                execution_index);
 }
 
+void MainWindow::surface_blur_smart_filter_dialog(
+    LayerId layer_id, std::optional<std::size_t> execution_index) {
+  editable_smart_filter_dialog(layer_id, SmartFilterKind::SurfaceBlur,
+                               execution_index);
+}
+
 void MainWindow::editable_smart_filter_dialog(
     LayerId layer_id, SmartFilterKind kind,
     std::optional<std::size_t> execution_index) {
   if (kind != SmartFilterKind::GaussianBlur &&
       kind != SmartFilterKind::HighPass && kind != SmartFilterKind::Median &&
-      kind != SmartFilterKind::DustAndScratches) {
+      kind != SmartFilterKind::DustAndScratches &&
+      kind != SmartFilterKind::SurfaceBlur) {
     return;
   }
   const auto high_pass = kind == SmartFilterKind::HighPass;
   const auto median = kind == SmartFilterKind::Median;
   const auto dust = kind == SmartFilterKind::DustAndScratches;
+  const auto surface = kind == SmartFilterKind::SurfaceBlur;
   if (!has_active_document() || canvas_ == nullptr) {
     return;
   }
@@ -1054,7 +1099,7 @@ void MainWindow::editable_smart_filter_dialog(
         return;
       }
       initial_invocation.parameters["radius"] = radius->radius_pixels;
-    } else {
+    } else if (kind == SmartFilterKind::DustAndScratches) {
       const auto* settings = std::get_if<DustAndScratchesSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
@@ -1064,6 +1109,17 @@ void MainWindow::editable_smart_filter_dialog(
       }
       initial_invocation.parameters["radius"] =
           static_cast<std::int64_t>(settings->radius_pixels);
+      initial_invocation.parameters["threshold"] =
+          static_cast<std::int64_t>(settings->threshold);
+    } else {
+      const auto* settings = std::get_if<SurfaceBlurSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (settings == nullptr) {
+        statusBar()->showMessage(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_invocation.parameters["radius"] = settings->radius_pixels;
       initial_invocation.parameters["threshold"] =
           static_cast<std::int64_t>(settings->threshold);
     }
@@ -1177,9 +1233,10 @@ void MainWindow::editable_smart_filter_dialog(
       };
 
   auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto dialog_spec =
+      editable_smart_filter_dialog_spec(kind, initial_invocation);
   const auto settings = request_filter_settings(
-      this, editable_smart_filter_dialog_spec(kind), preview_changed,
-      std::move(initial_invocation));
+      this, dialog_spec, preview_changed, std::move(initial_invocation));
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(layer_id);
   if (layer == nullptr) {
@@ -1192,17 +1249,21 @@ void MainWindow::editable_smart_filter_dialog(
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(
-        dust ? tr("Cancelled Dust & Scratches")
-             : (median ? tr("Cancelled Median")
-                       : (high_pass ? tr("Cancelled High Pass")
-                                    : tr("Cancelled Gaussian Blur"))));
+        surface ? tr("Cancelled Surface Blur")
+                : (dust ? tr("Cancelled Dust & Scratches")
+                        : (median ? tr("Cancelled Median")
+                                  : (high_pass ? tr("Cancelled High Pass")
+                                               : tr("Cancelled Gaussian Blur")))));
     return;
   }
 
   auto candidate = smart_filter_stack_with_invocation(
       std::move(stack), filter_index, *settings);
   const auto undo_text =
-      dust
+      surface
+          ? (adding ? tr("Add Surface Blur Smart Filter")
+                    : tr("Edit Surface Blur Smart Filter"))
+          : dust
           ? (adding ? tr("Add Dust & Scratches Smart Filter")
                     : tr("Edit Dust & Scratches Smart Filter"))
           : median
@@ -1214,7 +1275,13 @@ void MainWindow::editable_smart_filter_dialog(
           : (adding ? tr("Add Gaussian Blur Smart Filter")
                     : tr("Edit Gaussian Blur Smart Filter"));
   const auto status_text =
-      dust
+      surface
+          ? (adding
+                 ? (creating_stack
+                        ? tr("Added Surface Blur as a Smart Filter")
+                        : tr("Added another Surface Blur Smart Filter"))
+                 : tr("Updated Surface Blur Smart Filter"))
+          : dust
           ? (adding
                  ? (creating_stack
                         ? tr("Added Dust & Scratches as a Smart Filter")
@@ -1257,7 +1324,8 @@ void MainWindow::edit_smart_filter(LayerId layer_id,
   const auto kind = stack->entries[execution_index].kind;
   if (kind == SmartFilterKind::GaussianBlur ||
       kind == SmartFilterKind::HighPass || kind == SmartFilterKind::Median ||
-      kind == SmartFilterKind::DustAndScratches) {
+      kind == SmartFilterKind::DustAndScratches ||
+      kind == SmartFilterKind::SurfaceBlur) {
     editable_smart_filter_dialog(layer_id, kind, execution_index);
   }
 }
@@ -1747,9 +1815,13 @@ void MainWindow::apply_filter(const QString& identifier) {
       dust_and_scratches_smart_filter_dialog(*active);
       return;
     }
+    if (identifier == QStringLiteral("patchy.filters.surface_blur")) {
+      surface_blur_smart_filter_dialog(*active);
+      return;
+    }
     statusBar()->showMessage(
-        tr("Only Gaussian Blur, High Pass, Median, and Dust & Scratches are "
-           "currently editable as Smart Filters"));
+        tr("Only Gaussian Blur, High Pass, Median, Dust & Scratches, and "
+           "Surface Blur are currently editable as Smart Filters"));
     return;
   }
   try {

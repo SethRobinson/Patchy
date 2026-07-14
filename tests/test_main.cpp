@@ -6650,6 +6650,15 @@ require_dust_and_scratches_filter(const patchy::SmartFilterEntry& entry) {
   return *dust;
 }
 
+const patchy::SurfaceBlurSmartFilter& require_surface_blur_filter(
+    const patchy::SmartFilterEntry& entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::SurfaceBlur);
+  const auto* surface =
+      std::get_if<patchy::SurfaceBlurSmartFilter>(&entry.parameters);
+  CHECK(surface != nullptr);
+  return *surface;
+}
+
 patchy::SmartFilterStack test_gaussian_smart_filter_stack(double radius) {
   patchy::SmartFilterStack stack;
   stack.support = patchy::SmartFilterStackSupport::Supported;
@@ -6704,6 +6713,21 @@ patchy::SmartFilterStack test_dust_and_scratches_smart_filter_stack(
   entry.native_filter_id = 0x44737453U;
   entry.parameters =
       patchy::DustAndScratchesSmartFilter{radius, threshold};
+  stack.entries.push_back(std::move(entry));
+  return stack;
+}
+
+patchy::SmartFilterStack test_surface_blur_smart_filter_stack(
+    double radius, std::int32_t threshold) {
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::SurfaceBlur;
+  entry.native_name = "Surface Blur...";
+  entry.native_class_id = "surfaceBlur";
+  entry.native_filter_id = 854U;
+  entry.parameters = patchy::SurfaceBlurSmartFilter{radius, threshold};
   stack.entries.push_back(std::move(entry));
   return stack;
 }
@@ -7541,6 +7565,223 @@ void smart_filter_dust_and_scratches_matches_photoshop_threshold_and_native_path
   try {
     (void)patchy::render_photoshop_dust_and_scratches(source, bounds, 100,
                                                        17, &cancel);
+  } catch (const patchy::FilterCancelled&) {
+    cancelled = true;
+  }
+  CHECK(saw_progress);
+  CHECK(cancelled);
+}
+
+patchy::PixelBuffer reference_photoshop_surface_blur(
+    const patchy::PixelBuffer& source, double radius, int threshold) {
+  CHECK(source.format() == patchy::PixelFormat::rgba8());
+  CHECK(std::isfinite(radius) && radius >= 1.0 && radius <= 100.0);
+  CHECK(threshold >= 2 && threshold <= 255);
+
+  auto extended_source = source;
+  bool has_visible_source = false;
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      has_visible_source =
+          has_visible_source || source.pixel(x, y)[3] != 0U;
+    }
+  }
+  if (!has_visible_source) {
+    return source;
+  }
+
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      if (source.pixel(x, y)[3] != 0U) {
+        continue;
+      }
+      std::int64_t best_distance = std::numeric_limits<std::int64_t>::max();
+      std::int32_t best_x = -1;
+      std::int32_t best_y = -1;
+      for (std::int32_t candidate_y = 0; candidate_y < source.height();
+           ++candidate_y) {
+        for (std::int32_t candidate_x = 0; candidate_x < source.width();
+             ++candidate_x) {
+          if (source.pixel(candidate_x, candidate_y)[3] == 0U) {
+            continue;
+          }
+          const auto dx = static_cast<std::int64_t>(candidate_x) - x;
+          const auto dy = static_cast<std::int64_t>(candidate_y) - y;
+          const auto distance = dx * dx + dy * dy;
+          if (distance < best_distance ||
+              (distance == best_distance &&
+               (candidate_y > best_y ||
+                (candidate_y == best_y && candidate_x > best_x)))) {
+            best_distance = distance;
+            best_x = candidate_x;
+            best_y = candidate_y;
+          }
+        }
+      }
+      CHECK(best_x >= 0 && best_y >= 0);
+      std::copy_n(source.pixel(best_x, best_y), 3U,
+                  extended_source.pixel(x, y));
+    }
+  }
+
+  const auto effective_radius =
+      std::max(1, static_cast<int>(std::floor(radius + 0.5)));
+  patchy::PixelBuffer result(source.width(), source.height(), source.format());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      auto* output = result.pixel(x, y);
+      for (std::size_t channel = 0; channel < 4U; ++channel) {
+        const auto& channel_source =
+            channel == 3U ? source : extended_source;
+        const auto center = channel_source.pixel(x, y)[channel];
+        std::uint64_t weighted_sum = 0U;
+        std::uint64_t weight_sum = 0U;
+        for (int offset_y = -effective_radius;
+             offset_y <= effective_radius; ++offset_y) {
+          const auto sample_y =
+              std::clamp(y + offset_y, 0, source.height() - 1);
+          for (int offset_x = -effective_radius;
+               offset_x <= effective_radius; ++offset_x) {
+            const auto sample_x =
+                std::clamp(x + offset_x, 0, source.width() - 1);
+            const auto value = channel_source.pixel(sample_x, sample_y)[channel];
+            const auto weight = std::max(
+                0, 5 * threshold -
+                       2 * std::abs(static_cast<int>(value) -
+                                    static_cast<int>(center)));
+            weighted_sum += static_cast<std::uint64_t>(weight) * value;
+            weight_sum += static_cast<std::uint64_t>(weight);
+          }
+        }
+        CHECK(weight_sum != 0U);
+        auto quotient = weighted_sum / weight_sum;
+        const auto remainder = weighted_sum % weight_sum;
+        const auto complement = weight_sum - remainder;
+        if (remainder > complement ||
+            (remainder == complement && (quotient & 1U) != 0U)) {
+          ++quotient;
+        }
+        output[channel] = static_cast<std::uint8_t>(quotient);
+      }
+    }
+  }
+  return result;
+}
+
+void smart_filter_surface_blur_matches_photoshop_weighting_bounds_and_native_paths() {
+  patchy::PixelBuffer source(6, 5, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      auto* pixel = source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 71 + y * 19 + 7) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 13 + y * 83 + 29) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 47 + y * 31 + 113) % 256);
+      pixel[3] = static_cast<std::uint8_t>((x * 97 + y * 43 + 17) % 256);
+    }
+  }
+  source.pixel(1, 1)[3] = 0U;
+  source.pixel(4, 3)[3] = 0U;
+  source.pixel(2, 2)[3] = 128U;
+  const patchy::Rect bounds{37, 61, source.width(), source.height()};
+
+  const auto rendered =
+      patchy::render_photoshop_surface_blur(source, bounds, 2.49, 64);
+  CHECK(rendered.bounds.x == bounds.x && rendered.bounds.y == bounds.y &&
+        rendered.bounds.width == bounds.width &&
+        rendered.bounds.height == bounds.height);
+  const auto expected = reference_photoshop_surface_blur(source, 2.49, 64);
+  CHECK(rendered.pixels.data().size() == expected.data().size());
+  CHECK(std::equal(rendered.pixels.data().begin(),
+                   rendered.pixels.data().end(), expected.data().begin()));
+
+  const auto radius_one =
+      patchy::render_photoshop_surface_blur(source, bounds, 1.49, 64);
+  const auto expected_one = reference_photoshop_surface_blur(source, 1.0, 64);
+  CHECK(std::equal(radius_one.pixels.data().begin(),
+                   radius_one.pixels.data().end(), expected_one.data().begin()));
+  const auto radius_two =
+      patchy::render_photoshop_surface_blur(source, bounds, 1.5, 64);
+  const auto expected_two = reference_photoshop_surface_blur(source, 2.0, 64);
+  CHECK(std::equal(radius_two.pixels.data().begin(),
+                   radius_two.pixels.data().end(), expected_two.data().begin()));
+  CHECK(!std::equal(radius_one.pixels.data().begin(),
+                    radius_one.pixels.data().end(),
+                    radius_two.pixels.data().begin()));
+
+  // Photoshop rounds the weighted quotient to nearest with exact ties to
+  // even. These two channels create 190.5 and 5.5 at the center.
+  auto tie_probe = solid_rgba(3, 3, 191, 6, 50, 255);
+  constexpr std::array<std::pair<int, int>, 4> kLowSamples{{
+      {0, 0}, {1, 0}, {2, 0}, {1, 1},
+  }};
+  for (const auto [x, y] : kLowSamples) {
+    auto* pixel = tie_probe.pixel(x, y);
+    pixel[0] = 190U;
+    pixel[1] = 5U;
+  }
+  const auto tie_result = patchy::render_photoshop_surface_blur(
+      tie_probe, patchy::Rect::from_size(3, 3), 1.0, 2);
+  const auto* tied_center = tie_result.pixels.pixel(1, 1);
+  CHECK(tied_center[0] == 190U);
+  CHECK(tied_center[1] == 6U);
+  CHECK(tied_center[2] == 50U && tied_center[3] == 255U);
+
+  patchy::PixelBuffer all_transparent(3, 2,
+                                      patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < all_transparent.height(); ++y) {
+    for (std::int32_t x = 0; x < all_transparent.width(); ++x) {
+      auto* pixel = all_transparent.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(17 + x * 31 + y * 7);
+      pixel[1] = static_cast<std::uint8_t>(43 + x * 5 + y * 29);
+      pixel[2] = static_cast<std::uint8_t>(89 + x * 11 + y * 13);
+      pixel[3] = 0U;
+    }
+  }
+  const auto all_transparent_result = patchy::render_photoshop_surface_blur(
+      all_transparent, patchy::Rect{6, 8, 3, 2}, 2.0, 255);
+  CHECK(std::equal(all_transparent_result.pixels.data().begin(),
+                   all_transparent_result.pixels.data().end(),
+                   all_transparent.data().begin()));
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto invocation = registry.default_invocation("patchy.filters.surface_blur");
+  invocation.parameters["radius"] = 2.0;
+  invocation.parameters["threshold"] = std::int64_t{255};
+  CHECK(registry.output_margin(invocation, 9, 9) == 2);
+  CHECK(!registry.translation_invariant_support(invocation).has_value());
+
+  const auto opaque = solid_rgba(9, 9, 230, 30, 10, 255);
+  const patchy::Rect opaque_bounds{18, 18, 9, 9};
+  const auto destructive = registry.render(invocation, opaque, opaque_bounds);
+  CHECK(destructive.bounds.x == 16 && destructive.bounds.y == 16 &&
+        destructive.bounds.width == 13 && destructive.bounds.height == 13);
+  CHECK(destructive.pixels.pixel(0, 0)[3] > 0U);
+  const auto native = patchy::render_smart_filter_stack(
+      opaque, opaque_bounds, patchy::Rect{0, 0, 64, 64},
+      test_surface_blur_smart_filter_stack(2.0, 255));
+  check_filter_result_equal(destructive, native);
+
+  const auto single = solid_rgba(1, 1, 21, 87, 193, 44);
+  const auto huge = patchy::render_photoshop_surface_blur(
+      single, patchy::Rect{8, 9, 1, 1}, 100.0, 255);
+  CHECK(huge.bounds.x == 8 && huge.bounds.y == 9 &&
+        huge.bounds.width == 1 && huge.bounds.height == 1);
+  CHECK(std::equal(huge.pixels.data().begin(), huge.pixels.data().end(),
+                   single.data().begin()));
+
+  bool saw_progress = false;
+  patchy::FilterProgress cancel{[&](int completed, int total,
+                                     patchy::FilterProgressStage stage) {
+    saw_progress = true;
+    CHECK(completed >= 0 && completed <= total);
+    CHECK(stage == patchy::FilterProgressStage::Filtering);
+    return false;
+  }};
+  bool cancelled = false;
+  try {
+    (void)patchy::render_photoshop_surface_blur(source, bounds, 100.0, 64,
+                                                 &cancel);
   } catch (const patchy::FilterCancelled&) {
     cancelled = true;
   }
@@ -9019,7 +9260,17 @@ void smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preser
   future.string_value = "keep-dust-native-data";
   native_filter->key_order.push_back({"futureDustField", true});
   native_filter->values.emplace("futureDustField", std::move(future));
+  // Photoshop descriptors can encode a four-character class through the
+  // length-prefixed stringID form. It remains the same semantic class and
+  // must stay editable without normalizing its imported on-disk form.
+  native_filter->class_id_long_form = true;
   const auto payload_with_unknown = sold_from_descriptor(descriptor);
+  const auto alternate_class_info =
+      patchy::psd::parse_placed_layer_block("SoLd", payload_with_unknown);
+  CHECK(alternate_class_info.has_value() &&
+        alternate_class_info->smart_filters.has_value());
+  CHECK(alternate_class_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
 
   auto edited = stack;
   auto& edited_dust = std::get<patchy::DustAndScratchesSmartFilter>(
@@ -9057,7 +9308,9 @@ void smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preser
   auto* regenerated_filter = const_cast<patchy::psd::DescriptorObject*>(
       patchy::psd::descriptor_object(
           *regenerated_list->list_value.front().object_value, "Fltr"));
-  CHECK(regenerated_filter != nullptr);
+  CHECK(regenerated_filter != nullptr &&
+        regenerated_filter->class_id == "DstS" &&
+        regenerated_filter->class_id_long_form);
   CHECK(regenerated_filter->key_order.size() == 3U);
   CHECK(regenerated_filter->key_order[0].key == "Rds ");
   CHECK(regenerated_filter->key_order[1].key == "Thsh");
@@ -9106,6 +9359,172 @@ void smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preser
         patchy::SmartFilterKind::DustAndScratches);
   CHECK(mixed_info->smart_filters->entries[2].kind ==
         patchy::SmartFilterKind::Median);
+}
+
+void smart_filter_canonical_surface_blur_descriptor_round_trips_and_preserves_unknowns() {
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "40404040-5050-6060-8777-808080808080";
+  placement.transform = {5.0, 7.0, 37.0, 7.0, 37.0, 31.0, 5.0, 31.0};
+  placement.width = 32.0;
+  placement.height = 24.0;
+  placement.resolution = 72.0;
+  const std::string placed_uuid = "dededede-fafa-bcbc-8444-565656565656";
+
+  auto stack = test_surface_blur_smart_filter_stack(9.25, 31);
+  stack.entries.front().opacity = 0.61;
+  stack.entries.front().blend_mode = patchy::BlendMode::Overlay;
+
+  const auto descriptor_from_sold = [](std::span<const std::uint8_t> sold) {
+    patchy::psd::BigEndianReader reader(sold);
+    CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) ==
+          "soLD");
+    CHECK(reader.read_u32() == 4U);
+    CHECK(reader.read_u32() == 16U);
+    return patchy::psd::read_descriptor(reader);
+  };
+  const auto sold_from_descriptor =
+      [](const patchy::psd::DescriptorObject& descriptor) {
+        patchy::psd::BigEndianWriter writer;
+        for (const char ch : {'s', 'o', 'L', 'D'}) {
+          writer.write_u8(static_cast<std::uint8_t>(ch));
+        }
+        writer.write_u32(4U);
+        writer.write_u32(16U);
+        patchy::psd::write_descriptor(writer, descriptor);
+        while ((writer.bytes().size() % 4U) != 0U) {
+          writer.write_u8(0U);
+        }
+        return writer.bytes();
+      };
+
+  const auto authored = patchy::psd::author_placed_layer_sold_payload(
+      placement, placed_uuid, &stack);
+  const auto authored_info =
+      patchy::psd::parse_placed_layer_block("SoLd", authored);
+  CHECK(authored_info.has_value() && authored_info->smart_filters.has_value());
+  CHECK(authored_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(authored_info->smart_filters->entries.size() == 1U);
+  const auto& parsed = authored_info->smart_filters->entries.front();
+  CHECK(parsed.native_name == "Surface Blur...");
+  CHECK(parsed.native_class_id == "surfaceBlur");
+  CHECK(parsed.native_filter_id == 854U);
+  CHECK(std::abs(require_surface_blur_filter(parsed).radius_pixels - 9.25) <
+        1e-9);
+  CHECK(require_surface_blur_filter(parsed).threshold == 31);
+  CHECK(std::abs(parsed.opacity - 0.61) < 1e-9);
+  CHECK(parsed.blend_mode == patchy::BlendMode::Overlay);
+
+  auto descriptor = descriptor_from_sold(authored);
+  auto* root = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(descriptor, "filterFX"));
+  CHECK(root != nullptr);
+  auto* list = const_cast<patchy::psd::DescriptorValue*>(
+      patchy::psd::descriptor_value(*root, "filterFXList"));
+  CHECK(list != nullptr &&
+        list->type == patchy::psd::DescriptorValue::Type::List &&
+        list->list_value.size() == 1U &&
+        list->list_value.front().object_value != nullptr);
+  auto& native_entry = *list->list_value.front().object_value;
+  auto* native_filter = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(native_entry, "Fltr"));
+  CHECK(native_filter != nullptr &&
+        native_filter->class_id == "surfaceBlur" &&
+        native_filter->class_id_long_form);
+  CHECK(native_filter->name == "Surface Blur");
+  CHECK(native_filter->key_order.size() == 2U);
+  CHECK(native_filter->key_order[0].key == "Rds " &&
+        !native_filter->key_order[0].long_form);
+  CHECK(native_filter->key_order[1].key == "Thsh" &&
+        !native_filter->key_order[1].long_form);
+  const auto* native_radius =
+      patchy::psd::descriptor_value(*native_filter, "Rds ");
+  const auto* native_threshold =
+      patchy::psd::descriptor_value(*native_filter, "Thsh");
+  CHECK(native_radius != nullptr &&
+        native_radius->type ==
+            patchy::psd::DescriptorValue::Type::UnitFloat &&
+        native_radius->unit == "#Pxl" &&
+        std::abs(native_radius->double_value - 9.25) < 1e-9);
+  CHECK(native_threshold != nullptr &&
+        native_threshold->type ==
+            patchy::psd::DescriptorValue::Type::Integer &&
+        native_threshold->integer_value == 31);
+
+  patchy::psd::DescriptorValue future;
+  future.type = patchy::psd::DescriptorValue::Type::String;
+  future.string_value = "keep-surface-native-data";
+  native_filter->key_order.push_back({"futureSurfaceField", true});
+  native_filter->values.emplace("futureSurfaceField", std::move(future));
+  const auto payload_with_unknown = sold_from_descriptor(descriptor);
+
+  auto edited = stack;
+  auto& edited_surface = std::get<patchy::SurfaceBlurSmartFilter>(
+      edited.entries.front().parameters);
+  edited_surface.radius_pixels = 100.0;
+  edited_surface.threshold = 255;
+  edited.entries.front().opacity = 0.37;
+  edited.entries.front().blend_mode = patchy::BlendMode::Multiply;
+  const patchy::psd::SmartFilterDescriptorEdit edit{
+      patchy::psd::SmartFilterDescriptorAction::Replace, &edited};
+  const auto regenerated = patchy::psd::regenerate_placed_layer_payload(
+      "SoLd", payload_with_unknown, placement, nullptr, placed_uuid, edit);
+  CHECK(regenerated.has_value());
+  const auto regenerated_info =
+      patchy::psd::parse_placed_layer_block("SoLd", *regenerated);
+  CHECK(regenerated_info.has_value() &&
+        regenerated_info->smart_filters.has_value());
+  CHECK(regenerated_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  const auto& reread = regenerated_info->smart_filters->entries.front();
+  CHECK(std::abs(require_surface_blur_filter(reread).radius_pixels - 100.0) <
+        1e-9);
+  CHECK(require_surface_blur_filter(reread).threshold == 255);
+  CHECK(std::abs(reread.opacity - 0.37) < 1e-9);
+  CHECK(reread.blend_mode == patchy::BlendMode::Multiply);
+
+  auto regenerated_descriptor = descriptor_from_sold(*regenerated);
+  auto* regenerated_root = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(regenerated_descriptor, "filterFX"));
+  CHECK(regenerated_root != nullptr);
+  auto* regenerated_list = const_cast<patchy::psd::DescriptorValue*>(
+      patchy::psd::descriptor_value(*regenerated_root, "filterFXList"));
+  CHECK(regenerated_list != nullptr &&
+        regenerated_list->list_value.size() == 1U &&
+        regenerated_list->list_value.front().object_value != nullptr);
+  auto* regenerated_filter = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(
+          *regenerated_list->list_value.front().object_value, "Fltr"));
+  CHECK(regenerated_filter != nullptr &&
+        regenerated_filter->class_id == "surfaceBlur" &&
+        regenerated_filter->class_id_long_form);
+  CHECK(regenerated_filter->key_order.size() == 3U);
+  CHECK(regenerated_filter->key_order[0].key == "Rds ");
+  CHECK(regenerated_filter->key_order[1].key == "Thsh");
+  CHECK(regenerated_filter->key_order[2].key == "futureSurfaceField");
+  const auto* preserved = patchy::psd::descriptor_value(
+      *regenerated_filter, "futureSurfaceField");
+  CHECK(preserved != nullptr &&
+        preserved->type == patchy::psd::DescriptorValue::Type::String &&
+        preserved->string_value == "keep-surface-native-data");
+  CHECK(patchy::psd::descriptor_value(*regenerated_filter, "Rds ")->type ==
+        patchy::psd::DescriptorValue::Type::UnitFloat);
+  CHECK(patchy::psd::descriptor_value(*regenerated_filter, "Thsh")->type ==
+        patchy::psd::DescriptorValue::Type::Integer);
+
+  regenerated_filter->class_id = "ZZZZ";
+  regenerated_filter->class_id_long_form = false;
+  const auto corrupted_payload = sold_from_descriptor(regenerated_descriptor);
+  const auto corrupted_info =
+      patchy::psd::parse_placed_layer_block("SoLd", corrupted_payload);
+  CHECK(corrupted_info.has_value() && corrupted_info->smart_filters.has_value());
+  CHECK(corrupted_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Unsupported);
+  CHECK(corrupted_info->smart_filters->entries.size() == 1U);
+  CHECK(corrupted_info->smart_filters->entries.front().native_class_id ==
+        "ZZZZ");
+  CHECK(corrupted_info->smart_filters->entries.front().kind ==
+        patchy::SmartFilterKind::Unsupported);
 }
 
 const patchy::UnknownPsdBlock& require_placed_layer_block(const patchy::Layer& layer) {
@@ -9372,6 +9791,81 @@ void psd_photoshop_dust_and_scratches_smart_filter_fixture_round_trips_and_edits
         original_sold_payload);
   // Radius, threshold, opacity, and blend mode are descriptor-only edits.
   // Photoshop's unfiltered FEid cache stays byte-exact.
+  CHECK(test_global_psd_blocks(edited_reread) == original_globals);
+}
+
+void psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits() {
+  const auto fixture_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-surface-blur.psd");
+  const auto original = patchy::psd::DocumentIo::read_file(fixture_path);
+  const patchy::Layer* filtered_layer = nullptr;
+  for (const auto& layer : original.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      CHECK(filtered_layer == nullptr);
+      filtered_layer = &layer;
+    }
+  }
+  CHECK(filtered_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*filtered_layer));
+  CHECK(patchy::smart_object_lock_reason(*filtered_layer).empty());
+  const auto* stack = filtered_layer->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto& entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::SurfaceBlur);
+  CHECK(entry.native_name == "Surface Blur...");
+  CHECK(entry.native_class_id == "surfaceBlur");
+  CHECK(entry.native_filter_id == 854U);
+  CHECK(std::abs(require_surface_blur_filter(entry).radius_pixels - 9.25) <
+        1e-9);
+  CHECK(require_surface_blur_filter(entry).threshold == 31);
+
+  const auto original_globals = test_global_psd_blocks(original);
+  const auto& original_sold = require_placed_layer_block(*filtered_layer);
+  const auto original_sold_payload = original_sold.payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(original));
+  CHECK(test_global_psd_blocks(clean) == original_globals);
+  const auto& clean_layer = require_layer_named(clean, filtered_layer->name());
+  check_pixel_layer_storage_equal(*filtered_layer, clean_layer);
+  CHECK(require_placed_layer_block(clean_layer).payload ==
+        original_sold_payload);
+  const auto& clean_surface = require_surface_blur_filter(
+      require_smart_filter_stack(clean, clean_layer.name()).entries.front());
+  CHECK(std::abs(clean_surface.radius_pixels - 9.25) < 1e-9);
+  CHECK(clean_surface.threshold == 31);
+
+  auto edited = original;
+  auto* edited_layer = edited.find_layer(filtered_layer->id());
+  CHECK(edited_layer != nullptr &&
+        edited_layer->smart_filter_stack() != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  auto& edited_surface = std::get<patchy::SurfaceBlurSmartFilter>(
+      edited_stack.entries.front().parameters);
+  edited_surface.radius_pixels = 7.5;
+  edited_surface.threshold = 47;
+  edited_stack.entries.front().opacity = 0.42;
+  edited_stack.entries.front().blend_mode = patchy::BlendMode::SoftLight;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto& edited_reread_layer =
+      require_layer_named(edited_reread, filtered_layer->name());
+  const auto& edited_reread_entry =
+      require_smart_filter_stack(edited_reread, filtered_layer->name())
+          .entries.front();
+  const auto& edited_reread_surface =
+      require_surface_blur_filter(edited_reread_entry);
+  CHECK(std::abs(edited_reread_surface.radius_pixels - 7.5) < 1e-9);
+  CHECK(edited_reread_surface.threshold == 47);
+  CHECK(std::abs(edited_reread_entry.opacity - 0.42) < 1e-9);
+  CHECK(edited_reread_entry.blend_mode == patchy::BlendMode::SoftLight);
+  CHECK(require_placed_layer_block(edited_reread_layer).payload !=
+        original_sold_payload);
+  // These settings live only in SoLd. The unfiltered FEid cache must remain
+  // byte-exact across the descriptor edit.
   CHECK(test_global_psd_blocks(edited_reread) == original_globals);
 }
 
@@ -20217,6 +20711,8 @@ void filter_catalog_defines_stable_named_contracts() {
       {"patchy.filters.median", Category::Noise, false, {{"radius", 1}}},
       {"patchy.filters.dust_and_scratches", Category::Noise, false,
        {{"radius", 1}, {"threshold", 0}}},
+      {"patchy.filters.surface_blur", Category::Blur, false,
+       {{"radius", 5}, {"threshold", 15}}},
   };
 
   const auto has_center_parameters = [](std::string_view identifier) {
@@ -20284,8 +20780,11 @@ void filter_catalog_defines_stable_named_contracts() {
       const auto is_median_radius =
           actual.identifier == "patchy.filters.median" &&
           parameter.key == "radius";
+      const auto is_surface_blur_radius =
+          actual.identifier == "patchy.filters.surface_blur" &&
+          parameter.key == "radius";
       const auto is_fractional_radius =
-          is_high_pass_radius || is_median_radius;
+          is_high_pass_radius || is_median_radius || is_surface_blur_radius;
       CHECK(parameter.kind ==
             (is_fractional_radius ? patchy::FilterParameterKind::Double
                                   : patchy::FilterParameterKind::Integer));
@@ -20293,8 +20792,9 @@ void filter_catalog_defines_stable_named_contracts() {
       CHECK(parameter.control_object_name.size() > 0);
       CHECK(parameter.minimum.has_value());
       CHECK(parameter.maximum.has_value());
-      const auto expected_step =
-          is_median_radius ? 0.01 : (is_high_pass_radius ? 0.1 : 1.0);
+      const auto expected_step = is_median_radius || is_surface_blur_radius
+                                     ? 0.01
+                                     : (is_high_pass_radius ? 0.1 : 1.0);
       CHECK(parameter.step == expected_step);
       if (is_fractional_radius) {
         CHECK(std::get<double>(parameter.default_value) ==
@@ -20323,6 +20823,11 @@ void filter_catalog_defines_stable_named_contracts() {
       } else if (actual.identifier ==
                      "patchy.filters.dust_and_scratches" &&
                  parameter.key == "radius") {
+        CHECK(parameter.minimum == 1.0);
+        CHECK(parameter.maximum == 100.0);
+        CHECK(parameter.practical_minimum == 1.0);
+        CHECK(parameter.practical_maximum == 25.0);
+      } else if (is_surface_blur_radius) {
         CHECK(parameter.minimum == 1.0);
         CHECK(parameter.maximum == 100.0);
         CHECK(parameter.practical_minimum == 1.0);
@@ -20370,6 +20875,7 @@ void filter_catalog_defines_stable_named_contracts() {
       "patchy.filters.high_pass/radius",
       "patchy.filters.median/radius",
       "patchy.filters.dust_and_scratches/radius",
+      "patchy.filters.surface_blur/radius",
   };
   CHECK(spatial_parameters == expected_spatial);
 }
@@ -20473,6 +20979,36 @@ void filter_invocations_normalize_scale_and_reject_bad_data() {
   dust = registry.default_invocation("patchy.filters.dust_and_scratches");
   dust.parameters["threshold"] = 4.0;
   CHECK(!registry.supports(dust));
+
+  auto surface = registry.default_invocation("patchy.filters.surface_blur");
+  CHECK(std::abs(std::get<double>(surface.parameters.at("radius")) - 5.0) <
+        0.000001);
+  CHECK(std::get<std::int64_t>(surface.parameters.at("threshold")) == 15);
+  surface.parameters["radius"] = 250.0;
+  surface.parameters["threshold"] = std::int64_t{1};
+  const auto normalized_surface = registry.normalize(surface);
+  CHECK(normalized_surface.has_value());
+  CHECK(std::abs(std::get<double>(
+                     normalized_surface->parameters.at("radius")) -
+                 100.0) < 0.000001);
+  CHECK(std::get<std::int64_t>(
+            normalized_surface->parameters.at("threshold")) == 2);
+  CHECK(!registry.translation_invariant_support(*normalized_surface)
+             .has_value());
+  surface.parameters["radius"] = 10.0;
+  surface.parameters["threshold"] = std::int64_t{31};
+  const auto scaled_surface = registry.scale(surface, 0.25);
+  CHECK(scaled_surface.has_value());
+  CHECK(std::abs(std::get<double>(
+                     scaled_surface->parameters.at("radius")) -
+                 2.5) < 0.000001);
+  CHECK(std::get<std::int64_t>(
+            scaled_surface->parameters.at("threshold")) == 31);
+  surface.parameters["radius"] = std::int64_t{2};
+  CHECK(!registry.supports(surface));
+  surface = registry.default_invocation("patchy.filters.surface_blur");
+  surface.parameters["threshold"] = 31.0;
+  CHECK(!registry.supports(surface));
 
   auto wave = registry.default_invocation("patchy.filters.wave");
   const auto scaled_wave = registry.scale(wave, 0.25);
@@ -20840,6 +21376,9 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
       registry.default_invocation("patchy.filters.dust_and_scratches");
   dust.parameters["radius"] = std::int64_t{7};
   dust.parameters["threshold"] = std::int64_t{23};
+  auto surface = registry.default_invocation("patchy.filters.surface_blur");
+  surface.parameters["radius"] = 9.25;
+  surface.parameters["threshold"] = std::int64_t{31};
   const patchy::FilterRecipe recipe{{
       patchy::FilterRecipeEntry{first, true, 0.37,
                                 patchy::BlendMode::Multiply},
@@ -20849,12 +21388,14 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
                                 patchy::BlendMode::SoftLight},
       patchy::FilterRecipeEntry{dust, true, 0.25,
                                 patchy::BlendMode::Screen},
+      patchy::FilterRecipeEntry{surface, true, 0.8,
+                                patchy::BlendMode::Color},
       patchy::FilterRecipeEntry{second, false, 1.0,
                                 patchy::BlendMode::Normal},
   }};
   const auto mapped =
       patchy::smart_filter_entries_from_recipe(recipe, registry);
-  CHECK(mapped.has_value() && mapped->size() == 5U);
+  CHECK(mapped.has_value() && mapped->size() == 6U);
   CHECK((*mapped)[0].kind == patchy::SmartFilterKind::GaussianBlur);
   CHECK((*mapped)[0].enabled);
   CHECK(std::abs((*mapped)[0].opacity - 0.37) < 0.000001);
@@ -20894,9 +21435,23 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   CHECK(std::get<patchy::DustAndScratchesSmartFilter>(
             (*mapped)[3].parameters)
             .threshold == 23);
-  CHECK(!(*mapped)[4].enabled);
-  CHECK(std::abs(std::get<patchy::GaussianBlurSmartFilter>(
+  CHECK((*mapped)[4].kind == patchy::SmartFilterKind::SurfaceBlur);
+  CHECK((*mapped)[4].native_name == "Surface Blur...");
+  CHECK((*mapped)[4].native_class_id == "surfaceBlur");
+  CHECK((*mapped)[4].native_filter_id == 854U);
+  CHECK((*mapped)[4].enabled);
+  CHECK(std::abs((*mapped)[4].opacity - 0.8) < 0.000001);
+  CHECK((*mapped)[4].blend_mode == patchy::BlendMode::Color);
+  CHECK(std::abs(std::get<patchy::SurfaceBlurSmartFilter>(
                      (*mapped)[4].parameters)
+                     .radius_pixels -
+                 9.25) < 0.000001);
+  CHECK(std::get<patchy::SurfaceBlurSmartFilter>(
+            (*mapped)[4].parameters)
+            .threshold == 31);
+  CHECK(!(*mapped)[5].enabled);
+  CHECK(std::abs(std::get<patchy::GaussianBlurSmartFilter>(
+                     (*mapped)[5].parameters)
                      .radius_pixels -
                  9.0) < 0.000001);
 
@@ -20912,6 +21467,10 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   auto malformed_dust = recipe;
   malformed_dust.entries[3].invocation.parameters["threshold"] = 23.0;
   CHECK(!patchy::smart_filter_entries_from_recipe(malformed_dust, registry)
+             .has_value());
+  auto malformed_surface = recipe;
+  malformed_surface.entries[4].invocation.parameters["threshold"] = 31.0;
+  CHECK(!patchy::smart_filter_entries_from_recipe(malformed_surface, registry)
              .has_value());
   CHECK(!patchy::smart_filter_entries_from_recipe({}, registry).has_value());
 }
@@ -23931,7 +24490,7 @@ void magnetic_lasso_node_budget_falls_back_to_straight_line() {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
   patchy::test::suppress_crash_dialogs();
   const std::vector<TestCase> tests = {
       {"pixel_buffer_tracks_shape_and_rows", pixel_buffer_tracks_shape_and_rows},
@@ -24166,6 +24725,8 @@ int main() {
        smart_filter_median_matches_square_clamped_channels_and_native_paths},
       {"smart_filter_dust_and_scratches_matches_photoshop_threshold_and_native_paths",
        smart_filter_dust_and_scratches_matches_photoshop_threshold_and_native_paths},
+      {"smart_filter_surface_blur_matches_photoshop_weighting_bounds_and_native_paths",
+       smart_filter_surface_blur_matches_photoshop_weighting_bounds_and_native_paths},
       {"smart_filter_shared_mask_and_disable_states_are_applied_once",
        smart_filter_shared_mask_and_disable_states_are_applied_once},
       {"smart_filter_entry_blending_matches_photoshop_baked_pixels",
@@ -24186,12 +24747,16 @@ int main() {
        smart_filter_canonical_median_descriptor_round_trips_and_preserves_unknowns},
       {"smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preserves_unknowns",
        smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preserves_unknowns},
+      {"smart_filter_canonical_surface_blur_descriptor_round_trips_and_preserves_unknowns",
+       smart_filter_canonical_surface_blur_descriptor_round_trips_and_preserves_unknowns},
       {"psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_median_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_median_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_dust_and_scratches_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_dust_and_scratches_smart_filter_fixture_round_trips_and_edits},
+      {"psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits",
+       psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits},
       {"psd_smart_filter_descriptor_semantics_parse_if_available",
        psd_smart_filter_descriptor_semantics_parse_if_available},
       {"psd_smart_filter_masks_decode_and_coexist_with_layer_mask",
@@ -24633,7 +25198,15 @@ int main() {
   };
 
   int failures = 0;
+  const std::string_view name_filter =
+      argc > 1 && argv[1] != nullptr ? std::string_view(argv[1])
+                                     : std::string_view{};
   for (const auto& test : tests) {
+    if (!name_filter.empty() &&
+        std::string_view(test.name).find(name_filter) ==
+            std::string_view::npos) {
+      continue;
+    }
     try {
       test.run();
       std::cout << "[PASS] " << test.name << '\n';
