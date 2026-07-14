@@ -2,7 +2,7 @@
 
 Open source free image editing.
 
-Think classic Photoshop CS-style layer editing, modernized: PSD layers, masks, text, blend modes, layer styles, legacy plugins, and current formats like WebP, without subscriptions or telemetry.
+Think classic Adobe Photoshop CS-style layer editing, modernized: PSD layers, masks, text, blend modes, layer styles, legacy plugins, and current formats like WebP, without subscriptions or telemetry.
 
 ## Screenshots
 
@@ -259,7 +259,7 @@ Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-
 Important Photoshop features that are not supported yet, or are only partially supported:
 
 - Vector/path workflows, including pen paths, editable shape layers, vector masks, and editable stroke/fill appearance
-- Editable Smart Filters currently support Gaussian Blur and High Pass stacks, paintable shared masks, and per-filter opacity and blend modes. Unsupported imported filter types remain preview-locked and byte-preserved
+- Editable Smart Filters currently support Gaussian Blur, High Pass, Median, Dust & Scratches, and Surface Blur stacks, paintable shared masks, and per-filter opacity and blend modes. Unsupported imported filter types (including the Blur Gallery) remain preview-locked and byte-preserved
 - Full Photoshop adjustment-layer compatibility beyond Patchy's current adjustment support
 - CMYK/Lab editing and export, editable spot separations and RGB component channels, multi-channel overlays, 16/32-bit editing, HDR/EXR, and full color-management parity (Patchy converts CMYK/Lab to RGB on open, but does not edit or save in those color modes)
 - Layer comps, timeline/video/animation workflows, Camera Raw, Liquify, content-aware tools, and generative tools
@@ -275,7 +275,7 @@ Patchy is released under the MIT License. Third-party runtime notices are tracke
 
 ## Trademark Notice
 
-Patchy is not affiliated with, endorsed by, or sponsored by Adobe. Adobe Photoshop is a trademark of Adobe in the United States and/or other countries.
+Adobe and Photoshop are either registered trademarks or trademarks of Adobe in the United States and/or other countries. Patchy is an independent project and is not authorized, endorsed, or sponsored by Adobe. References to Photoshop and its file formats (PSD, Smart Objects, Smart Filters) are only there to describe compatibility.
 
 ## AI Disclosure
 
