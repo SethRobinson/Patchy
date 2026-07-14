@@ -385,6 +385,49 @@ void ui_text_tool_creates_visible_text_layer() {
   save_widget_artifact("ui_text_tool_layer", window);
 }
 
+void ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
+  auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
+  CHECK(text_bold != nullptr);
+  CHECK(text_italic != nullptr);
+
+  text_bold->setChecked(false);
+  text_italic->setChecked(false);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto text_widget_point = canvas->widget_position_for_document_point(QPoint(100, 105));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  QPointer<QTextEdit> editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setFocus(Qt::OtherFocusReason);
+  editor->selectAll();
+  QTest::keyClick(editor.data(), Qt::Key_B, Qt::ControlModifier);
+  QTest::keyClick(editor.data(), Qt::Key_I, Qt::ControlModifier);
+  QApplication::processEvents();
+
+  const bool editor_stayed_open = editor != nullptr &&
+                                  canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor;
+  const auto format = editor_stayed_open ? editor->textCursor().charFormat() : QTextCharFormat{};
+  const bool bold_checked = text_bold->isChecked();
+  const bool italic_checked = text_italic->isChecked();
+  if (editor != nullptr) {
+    send_key(*editor, Qt::Key_Escape);
+  }
+  QApplication::processEvents();
+
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(editor_stayed_open);
+  CHECK(bold_checked);
+  CHECK(italic_checked);
+  CHECK(format.font().bold());
+  CHECK(format.font().italic());
+}
+
 void ui_text_tool_outside_click_commits_without_new_text_editor() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1323,6 +1366,8 @@ void ui_text_tool_drag_creates_resizable_wrapped_text_box() {
 std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
   return {
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
+      {"ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting",
+       ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting},
       {"ui_text_tool_outside_click_commits_without_new_text_editor",
        ui_text_tool_outside_click_commits_without_new_text_editor},
       {"ui_delete_key_action_removes_text_layer_object", ui_delete_key_action_removes_text_layer_object},

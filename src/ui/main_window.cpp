@@ -6641,6 +6641,17 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     return true;
   }
 
+  if (event->type() == QEvent::ShortcutOverride) {
+    if (auto* editor = qobject_cast<QTextEdit*>(watched);
+        editor != nullptr && editor->objectName() == QStringLiteral("inlineTextEditor")) {
+      auto* key_event = static_cast<QKeyEvent*>(event);
+      if (key_event->matches(QKeySequence::Bold) || key_event->matches(QKeySequence::Italic)) {
+        key_event->accept();
+        return true;
+      }
+    }
+  }
+
   if (event->type() == QEvent::FocusIn && !shutting_down_) {
     // Focusing a document canvas makes its document active. Tab switches do this
     // through currentChanged; this covers the paths that move focus without a
@@ -6673,6 +6684,16 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         const QPoint document_point(editor->property("patchy.documentTextX").toInt(),
                                     editor->property("patchy.documentTextY").toInt());
         commit_text_editor(editor, document_point, layer_id);
+        key_event->accept();
+        return true;
+      }
+      if (key_event->matches(QKeySequence::Bold) && text_bold_button_ != nullptr) {
+        text_bold_button_->setChecked(!text_editor_reference_format(*editor).font().bold());
+        key_event->accept();
+        return true;
+      }
+      if (key_event->matches(QKeySequence::Italic) && text_italic_button_ != nullptr) {
+        text_italic_button_->setChecked(!text_editor_reference_format(*editor).font().italic());
         key_event->accept();
         return true;
       }
