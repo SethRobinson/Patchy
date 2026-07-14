@@ -6,6 +6,7 @@
 #include <array>
 #include <functional>
 #include <set>
+#include <utility>
 
 namespace patchy {
 
@@ -140,15 +141,11 @@ const Layer* find_layer_in_tree(const std::vector<Layer>& layers, LayerId id) {
 }
 
 Layer* find_layer_in_tree(std::vector<Layer>& layers, LayerId id) {
-  for (auto& layer : layers) {
-    if (layer.id() == id) {
-      return &layer;
-    }
-    if (auto* found = find_layer_in_tree(layer.children(), id); found != nullptr) {
-      return found;
-    }
-  }
-  return nullptr;
+  // A lookup must not count as a mutation: descending through the non-const
+  // children() accessor bumps every visited group's revisions and silently
+  // invalidates the revision-keyed caches (see Document::find_layer_recursive).
+  // Walk const, cast the hit.
+  return const_cast<Layer*>(find_layer_in_tree(std::as_const(layers), id));
 }
 
 bool layer_contains_descendant(const Layer& layer, LayerId id) {
@@ -212,13 +209,10 @@ std::optional<Layer> take_layer_from_tree(std::vector<Layer>& layers, LayerId id
 }
 
 std::optional<LayerSiblingLocation> find_layer_location(std::vector<Layer>& layers, LayerId id) {
-  for (std::size_t index = 0; index < layers.size(); ++index) {
-    if (layers[index].id() == id) {
-      return LayerSiblingLocation{&layers, index};
-    }
-    if (auto found = find_layer_location(layers[index].children(), id); found.has_value()) {
-      return found;
-    }
+  // Walk const, cast the hit (see find_layer_in_tree): the non-const descent
+  // bumped every traversed group's revisions on every layer drag-drop.
+  if (const auto found = find_layer_location(std::as_const(layers), id); found.has_value()) {
+    return LayerSiblingLocation{const_cast<std::vector<Layer>*>(found->siblings), found->index};
   }
   return std::nullopt;
 }

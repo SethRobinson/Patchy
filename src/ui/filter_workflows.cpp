@@ -1257,6 +1257,12 @@ std::optional<SmartFilterBlendingSettings> request_smart_filter_blending_setting
   return build_settings();
 }
 
+// These helpers are file-private. Without the anonymous namespace they had
+// external linkage at patchy::ui scope with no header declaration — a silent
+// ODR trap the moment any other patchy::ui TU defines a same-named helper
+// (filter_engine.cpp already has anon-namespace twins of several).
+namespace {
+
 std::uint8_t filter_clamp_byte(int value) {
   return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
 }
@@ -1380,6 +1386,8 @@ void blit_buffer_rect(PixelBuffer& dst, const PixelBuffer& src, std::int32_t dst
     std::copy(source_row, source_row + row_bytes, dest_row);
   }
 }
+
+}  // namespace
 
 namespace {
 

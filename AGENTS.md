@@ -66,12 +66,28 @@ Windows is the lead platform and must never regress: the release handoff above s
 
 `MainWindow` is still one class (`src/ui/main_window.hpp`), but its implementation spans several translation units. Put new member functions in the file that owns their area, and keep the split pure: moving a function between these files must never change its body.
 
-- `main_window_chrome.cpp` — frameless-window machinery and `use_custom_window_chrome()` (the platform gate; deliberately concentrates the `Q_OS_WIN` window-frame code).
+- `main_window_chrome.cpp` — frameless-window machinery, `configure_window_chrome()`, and `use_custom_window_chrome()` (the platform gate; deliberately concentrates the `Q_OS_WIN` window-frame code).
 - `main_window_palette.cpp` — palette-mode document mutations, palette file I/O, panel/chip refresh, compliance scan.
 - `main_window_adjustments.cpp` — Filter menu apply flow, adjustment dialogs, adjustment-layer create/preview/edit, async pixel-preview machinery.
+- `main_window_actions.cpp` — `create_actions()`: all menus, the tool palette, and the per-tool options bar.
+- `main_window_layer_panel.cpp` — layer-list rows (`make_layer_row_widget`, thumbnails, summaries) and the panel refresh/drag/visibility plumbing.
+- `main_window_files.cpp` — file-format tables (`file_format_entries()` static lives here, exactly once), open/save/export/print/import members, recent files/folders.
+- `main_window_smart_objects.cpp` — smart-object export/commit/refresh/relink/embed/replace/convert/place flows.
+- `main_window_sessions.cpp` — document sessions, tabs, close paths, float-window management.
+- `main_window_preferences.cpp` — Preferences dialog, guide dialogs, pen/view settings load/save.
+- `main_window_document_dialogs.cpp` — New/Image Size/Canvas Size dialogs and the resize/reset members.
+- `main_window_docks.cpp` — `create_docks`/`create_palette_dock` and the right-dock resize handles.
+- `main_window_history.cpp` — undo/redo, `push_undo_snapshot`, selection history, history-panel refresh.
 - `main_window_shared.{hpp,cpp}` — helpers used by more than one of these TUs. Per-file helpers live in each TU's anonymous namespace; when a second TU needs one, MOVE it here and declare it in the header (never copy it — a duplicated helper with a static local forks its state, and an extern declaration alongside a same-name anonymous-namespace definition makes every call ambiguous). The split TUs repeat main_window.cpp's full include block; that is deliberate.
 
+main_window.cpp itself keeps the constructor/eventFilter/input plumbing, the text tool (both member blocks plus its anonymous-namespace render pipeline), layer operations, clipboard, options-bar state, and the register_* machinery.
+
 Do NOT attempt the text tool as a pure-move split: the text render pipeline is shared between too many members; it is really a "design a text_render module with its own header" job, not a file split (tried and backed out).
+
+`CanvasWidget` (July 2026) and the PSD codec follow the same pattern with the same rules:
+
+- `canvas_widget_*.cpp` — one TU per area (`events`, `render`, `view`, `guides`, `selection`, `selection_engines`, `brush`, `draw_tools`, `transform` [free transform AND warp share one TU: they share pending-session state], `move`, `pen`, `cursors`), with `canvas_widget_shared.{hpp,cpp}` as the promotion target. canvas_widget.cpp keeps the ctor, document lifecycle, setters, smart-filter-mask target, callback plumbing, and picking helpers. The patent-constraint comments (Quick Select release-only solve, magnetic lasso finish-time region) live in `canvas_widget_selection_engines.cpp` and move verbatim with their functions.
+- `psd_*.cpp` — one TU per block family (`psd_channel_data`, `psd_image_resources`, `psd_adjustments`, `psd_layer_styles` [owns the psd_layer_effects.hpp exports asl_io links against], `psd_text_read`, `psd_text_write`, `psd_layer_records`), sharing `psd_io_internal.hpp` (constants, record structs, cross-TU declarations; never include it outside src/psd) and `psd_io_common.cpp` (shared plumbing definitions). psd_document_io.cpp keeps the read drivers and the DocumentIo public API. The writer is byte-pinned: any body change here trips the canaries.
 
 ## Cross-cutting gotchas
 
@@ -176,3 +192,4 @@ Read the linked doc before working on a feature; each entry below carries only t
 - **Plugins** ([docs/plugins.md](docs/plugins.md)): the supported surface is the C ABI in `src/plugins/plugin_api.h`; plugins never store host pointers after a call returns. Legacy `.8bf` filters go through the adapter.
 - **README screenshots**: generated, not hand-captured — `shot_readme_*` scenes; regenerate with `scripts\make-readme-screenshots.ps1` (needs this machine's uncommitted `local-test-fixtures/`) and commit the PNGs. Keep `width="33%"` + `valign="top"` on every README screenshot `<td>`.
 - **Performance / stress test** ([docs/performance.md](docs/performance.md)): the PATCHY 64 harness, `kStepBaselines` (step ids are persisted — never rename), smart invalidation, style-mask caching, parallel strip rendering.
+- **Refactor backlog** ([docs/refactor-backlog.md](docs/refactor-backlog.md)): deferred cleanups from the July 2026 survey — test-suite split design, duplication inventory (what is safe vs canary-gated vs deliberate), megafunction dialog decomposition plans, lower-severity bug notes. Read it before starting cleanup or refactor work so findings are not re-derived.

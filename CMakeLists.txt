@@ -238,12 +238,21 @@ add_library(patchy_psd
   src/psd/asl_io.cpp
   src/psd/grd_io.cpp
   src/psd/pat_reader.cpp
+  src/psd/psd_adjustments.cpp
   src/psd/psd_binary.cpp
+  src/psd/psd_channel_data.cpp
   src/psd/psd_descriptor.cpp
   src/psd/psd_document_io.cpp
   src/psd/psd_filter_effects.cpp
+  src/psd/psd_image_resources.cpp
+  src/psd/psd_io_common.cpp
+  src/psd/psd_io_internal.hpp
+  src/psd/psd_layer_records.cpp
+  src/psd/psd_layer_styles.cpp
   src/psd/psd_patterns.cpp
   src/psd/psd_smart_objects.cpp
+  src/psd/psd_text_read.cpp
+  src/psd/psd_text_write.cpp
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render patchy_color)
 if(WIN32)
@@ -518,6 +527,20 @@ if(PATCHY_BUILD_APP)
       src/ui/brush_tip_picker.cpp
       src/ui/canvas_widget.hpp
       src/ui/canvas_widget.cpp
+      src/ui/canvas_widget_shared.hpp
+      src/ui/canvas_widget_shared.cpp
+      src/ui/canvas_widget_brush.cpp
+      src/ui/canvas_widget_cursors.cpp
+      src/ui/canvas_widget_draw_tools.cpp
+      src/ui/canvas_widget_events.cpp
+      src/ui/canvas_widget_guides.cpp
+      src/ui/canvas_widget_move.cpp
+      src/ui/canvas_widget_pen.cpp
+      src/ui/canvas_widget_render.cpp
+      src/ui/canvas_widget_selection.cpp
+      src/ui/canvas_widget_selection_engines.cpp
+      src/ui/canvas_widget_transform.cpp
+      src/ui/canvas_widget_view.cpp
       src/ui/channel_panel.hpp
       src/ui/channel_panel.cpp
       src/ui/color_panel.hpp
@@ -561,12 +584,21 @@ if(PATCHY_BUILD_APP)
       src/ui/localization.cpp
       src/ui/main_window.hpp
       src/ui/main_window.cpp
+      src/ui/main_window_actions.cpp
       src/ui/main_window_adjustments.cpp
       src/ui/main_window_channels.cpp
       src/ui/main_window_chrome.cpp
+      src/ui/main_window_docks.cpp
+      src/ui/main_window_document_dialogs.cpp
+      src/ui/main_window_files.cpp
+      src/ui/main_window_history.cpp
+      src/ui/main_window_layer_panel.cpp
       src/ui/main_window_palette.cpp
+      src/ui/main_window_preferences.cpp
+      src/ui/main_window_sessions.cpp
       src/ui/main_window_shared.hpp
       src/ui/main_window_shared.cpp
+      src/ui/main_window_smart_objects.cpp
       src/ui/main_window_stress_test.cpp
       src/ui/measurement_units.hpp
       src/ui/measurement_units.cpp

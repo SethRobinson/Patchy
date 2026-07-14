@@ -6,6 +6,7 @@
 // Pure function moves from main_window.cpp; behavior must stay identical.
 
 #include "ui/main_window.hpp"
+#include "ui/main_window_shared.hpp"
 
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
@@ -818,6 +819,70 @@ bool MainWindow::restore_window_geometry() {
     setWindowState(windowState() | Qt::WindowMaximized);
   }
   return true;
+}
+
+void MainWindow::configure_window_chrome() {
+  if (!use_custom_window_chrome()) {
+    // Native frame: the platform draws the title bar and window buttons. Leave the menu
+    // bar fully default too — on macOS QMenuBar's default (nativeMenuBar=true) moves the
+    // menus into the global menu bar.
+    return;
+  }
+  auto* bar = menuBar();
+  bar->setNativeMenuBar(false);
+  bar->setFixedHeight(34);
+  bar->installEventFilter(this);
+
+  auto* badge = new QLabel(bar);
+  badge->setObjectName(QStringLiteral("patchyBadge"));
+  badge->setAlignment(Qt::AlignCenter);
+  badge->setAttribute(Qt::WA_TransparentForMouseEvents);
+  badge->setFixedSize(18, 18);
+  badge->setPixmap(patchy_app_icon().pixmap(18, 18));
+  badge->move(9, 8);
+  badge->show();
+
+  auto* controls = new QWidget(bar);
+  controls->setObjectName(QStringLiteral("windowChromeControls"));
+  controls->setFixedSize(46 * 3, 34);
+  window_chrome_controls_ = controls;
+  auto* layout = new QHBoxLayout(controls);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+
+  const auto add_chrome_button = [controls, layout](const QString& object_name, const QIcon& icon,
+                                                    const QString& tooltip) {
+    auto* button = new QToolButton(controls);
+    button->setObjectName(object_name);
+    button->setProperty("windowChromeButton", true);
+    button->setAutoRaise(false);
+    button->setFocusPolicy(Qt::NoFocus);
+    button->setIcon(icon);
+    button->setIconSize(QSize(16, 16));
+    button->setToolTip(tooltip);
+    button->setFixedSize(46, 34);
+    layout->addWidget(button);
+    return button;
+  };
+
+  auto* minimize_button =
+      add_chrome_button(QStringLiteral("windowMinimizeButton"), window_chrome_icon(QStringLiteral("minimize")),
+                        tr("Minimize"));
+  bind_tooltip(minimize_button, "Minimize");
+  maximize_button_ =
+      add_chrome_button(QStringLiteral("windowMaximizeButton"), window_chrome_icon(QStringLiteral("maximize")),
+                        tr("Maximize / Restore"));
+  bind_tooltip(maximize_button_, "Maximize / Restore");
+  auto* close_button =
+      add_chrome_button(QStringLiteral("windowCloseButton"), window_chrome_icon(QStringLiteral("close")), tr("Close"));
+  bind_tooltip(close_button, "Close");
+  position_window_chrome_controls();
+  controls->show();
+
+  connect(minimize_button, &QToolButton::clicked, this, [this] { showMinimized(); });
+  connect(maximize_button_, &QToolButton::clicked, this,
+          [this] { isMaximized() ? restore_window_from_maximize() : showMaximized(); });
+  connect(close_button, &QToolButton::clicked, this, &QWidget::close);
 }
 
 }  // namespace patchy::ui
