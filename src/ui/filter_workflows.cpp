@@ -717,6 +717,7 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Sharpen"),
     QT_TRANSLATE_NOOP("QObject", "Unsharp Mask"),
     QT_TRANSLATE_NOOP("QObject", "High Pass"),
+    QT_TRANSLATE_NOOP("QObject", "Median"),
     QT_TRANSLATE_NOOP("QObject", "Gaussian Blur"),
     QT_TRANSLATE_NOOP("QObject", "Motion Blur"),
     QT_TRANSLATE_NOOP("QObject", "Radial Blur"),

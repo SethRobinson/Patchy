@@ -434,6 +434,9 @@ private:
   void high_pass_smart_filter_dialog(
       LayerId layer_id,
       std::optional<std::size_t> execution_index = std::nullopt);
+  void median_smart_filter_dialog(
+      LayerId layer_id,
+      std::optional<std::size_t> execution_index = std::nullopt);
   void radius_smart_filter_dialog(
       LayerId layer_id, SmartFilterKind kind,
       std::optional<std::size_t> execution_index = std::nullopt);

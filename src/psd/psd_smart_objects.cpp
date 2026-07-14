@@ -158,6 +158,8 @@ DescriptorValue smart_filter_color(RgbColor color) {
 
 struct SmartFilterRadiusDescriptorSpec {
   double radius{0.0};
+  double minimum_radius{0.1};
+  double maximum_radius{1000.0};
   const char* default_entry_name{nullptr};
   const char* filter_name{nullptr};
   const char* filter_class_id{nullptr};
@@ -189,11 +191,24 @@ smart_filter_radius_descriptor_spec(const SmartFilterEntry& entry) {
     spec.filter_name = "High Pass";
     spec.filter_class_id = "HghP";
     spec.filter_id = 0x48676850U;
+  } else if (entry.kind == SmartFilterKind::Median) {
+    const auto* median =
+        std::get_if<MedianSmartFilter>(&entry.parameters);
+    if (median == nullptr) {
+      return std::nullopt;
+    }
+    spec.radius = median->radius_pixels;
+    spec.minimum_radius = 1.0;
+    spec.maximum_radius = 500.0;
+    spec.default_entry_name = "Median...";
+    spec.filter_name = "Median";
+    spec.filter_class_id = "Mdn ";
+    spec.filter_id = 0x4d646e20U;
   } else {
     return std::nullopt;
   }
-  if (!std::isfinite(spec.radius) || spec.radius < 0.1 ||
-      spec.radius > 1000.0) {
+  if (!std::isfinite(spec.radius) || spec.radius < spec.minimum_radius ||
+      spec.radius > spec.maximum_radius) {
     return std::nullopt;
   }
   return spec;
@@ -654,17 +669,25 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
           ((filter->class_id == "GsnB" &&
             entry.native_filter_id == 0x47736e42U) ||
            (filter->class_id == "HghP" &&
-            entry.native_filter_id == 0x48676850U))) {
+            entry.native_filter_id == 0x48676850U) ||
+           (filter->class_id == "Mdn " &&
+            entry.native_filter_id == 0x4d646e20U))) {
         const auto* radius = descriptor_value_either(*filter, "Rds ", "Rds");
+        const auto minimum_radius = filter->class_id == "Mdn " ? 1.0 : 0.1;
+        const auto maximum_radius = filter->class_id == "Mdn " ? 500.0 : 1000.0;
         if (radius != nullptr && radius->type == DescriptorValue::Type::UnitFloat &&
             radius->unit == "#Pxl" && std::isfinite(radius->double_value) &&
-            radius->double_value >= 0.1 && radius->double_value <= 1000.0) {
+            radius->double_value >= minimum_radius &&
+            radius->double_value <= maximum_radius) {
           if (filter->class_id == "GsnB") {
             entry.kind = SmartFilterKind::GaussianBlur;
             entry.parameters = GaussianBlurSmartFilter{radius->double_value};
-          } else {
+          } else if (filter->class_id == "HghP") {
             entry.kind = SmartFilterKind::HighPass;
             entry.parameters = HighPassSmartFilter{radius->double_value};
+          } else {
+            entry.kind = SmartFilterKind::Median;
+            entry.parameters = MedianSmartFilter{radius->double_value};
           }
         } else {
           entry_supported = false;

@@ -479,6 +479,40 @@ void apply_high_pass_filter_pixels(PixelBuffer &pixels, double radius,
   }
 }
 
+void apply_median_filter_pixels(PixelBuffer &pixels, double radius,
+                                const FilterProgress *progress) {
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    report_filter_progress(progress, 1, 1,
+                           FilterProgressStage::Filtering);
+    return;
+  }
+  PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto *source = pixels.pixel(x, y);
+      auto *destination = rgba.pixel(x, y);
+      destination[0] = source[0];
+      destination[1] = source[1];
+      destination[2] = source[2];
+      destination[3] = pixels.format().channels >= 4 ? source[3] : 255U;
+    }
+  }
+  const auto result = render_photoshop_median(
+      rgba, Rect::from_size(rgba.width(), rgba.height()), radius, progress);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto *destination = pixels.pixel(x, y);
+      const auto *source = result.pixels.pixel(x, y);
+      destination[0] = source[0];
+      destination[1] = source[1];
+      destination[2] = source[2];
+      if (pixels.format().channels >= 4) {
+        destination[3] = source[3];
+      }
+    }
+  }
+}
+
 std::uint32_t filter_coordinate_hash(std::int32_t x, std::int32_t y,
                                      std::uint16_t channel) noexcept {
   auto value = static_cast<std::uint32_t>(x + 1) * 73856093U;
@@ -1278,6 +1312,13 @@ void execute_builtin_filter(const FilterRegistry &registry,
     return;
   }
 
+  if (identifier == "patchy.filters.median") {
+    const auto radius = std::clamp(
+        filter_number(invocation, "radius", 1.0), 1.0, 500.0);
+    apply_median_filter_pixels(pixels, radius, progress);
+    return;
+  }
+
   if (identifier == "patchy.filters.sharpen") {
     const auto amount =
         std::clamp(filter_value(invocation, "amount", 100), 0, 300);
@@ -1768,6 +1809,14 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
     radius.practical_maximum = 12.0;
     metadata = catalog_metadata(
         Category::Sharpen, false, {std::move(radius)});
+  } else if (identifier == "patchy.filters.median") {
+    auto radius = double_parameter("radius", "Radius", "filterRadius", 1.0,
+                                   500.0, 1.0, 0.01, Unit::Pixels,
+                                   Scale::Pixels);
+    radius.practical_minimum = 1.0;
+    radius.practical_maximum = 25.0;
+    metadata = catalog_metadata(Category::Noise, false,
+                                {std::move(radius)});
   } else if (identifier == "patchy.filters.gaussian_blur") {
     metadata = catalog_metadata(
         Category::Blur, false,

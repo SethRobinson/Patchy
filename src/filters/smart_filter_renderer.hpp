@@ -14,6 +14,9 @@ namespace patchy {
 [[nodiscard]] FilterRenderResult render_photoshop_high_pass(
     const PixelBuffer &pixels, Rect bounds, double radius_pixels,
     const FilterProgress *progress = nullptr);
+[[nodiscard]] FilterRenderResult render_photoshop_median(
+    const PixelBuffer &pixels, Rect bounds, double radius_pixels,
+    const FilterProgress *progress = nullptr);
 
 // Renders a complete native Smart Filter stack from the immutable placed or
 // warped Smart Object preview. Unsupported semantics throw

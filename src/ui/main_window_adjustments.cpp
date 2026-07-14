@@ -507,27 +507,31 @@ double smart_filter_radius_from_invocation(const FilterInvocation& invocation,
 
 FilterDialogSpec radius_smart_filter_dialog_spec(SmartFilterKind kind) {
   const auto high_pass = kind == SmartFilterKind::HighPass;
+  const auto median = kind == SmartFilterKind::Median;
   FilterDialogSpec spec;
-  spec.identifier = high_pass
-                        ? QStringLiteral("patchy.smart_filters.high_pass")
-                        : QStringLiteral("patchy.smart_filters.gaussian_blur");
-  spec.display_name = high_pass ? QObject::tr("High Pass")
-                                : QObject::tr("Gaussian Blur");
+  spec.identifier = median
+                        ? QStringLiteral("patchy.smart_filters.median")
+                        : (high_pass
+                               ? QStringLiteral("patchy.smart_filters.high_pass")
+                               : QStringLiteral("patchy.smart_filters.gaussian_blur"));
+  spec.display_name = median ? QObject::tr("Median")
+                             : (high_pass ? QObject::tr("High Pass")
+                                          : QObject::tr("Gaussian Blur"));
   FilterControlSpec radius;
   radius.label = QObject::tr("Radius");
   radius.object_name = QStringLiteral("filterRadius");
-  radius.minimum = 0;
-  radius.maximum = high_pass ? 12 : 6;
-  radius.value = high_pass ? 10 : 2;
+  radius.minimum = median ? 1 : 0;
+  radius.maximum = median ? 25 : (high_pass ? 12 : 6);
+  radius.value = median ? 1 : (high_pass ? 10 : 2);
   radius.suffix = QObject::tr(" px");
   radius.parameter_key = "radius";
   radius.kind = FilterParameterKind::Double;
-  radius.default_value = high_pass ? 10.0 : 2.0;
-  radius.typed_minimum = 0.1;
-  radius.typed_maximum = 1000.0;
-  // Photoshop keeps hundredth-pixel native radii distinct (0.49, 0.50, and
-  // 0.51 produce different rasters), so accepting the dialog must not round an
-  // imported value merely because the spin box was opened.
+  radius.default_value = median ? 1.0 : (high_pass ? 10.0 : 2.0);
+  radius.typed_minimum = median ? 1.0 : 0.1;
+  radius.typed_maximum = median ? 500.0 : 1000.0;
+  // Native descriptors retain fractional radius values. Gaussian Blur changes
+  // at hundredths; Median currently floors for rendering but must not round a
+  // value merely because the dialog was opened and accepted.
   radius.step = 0.01;
   spec.controls.push_back(std::move(radius));
   return spec;
@@ -550,6 +554,12 @@ SmartFilterStack smart_filter_stack_with_radius(SmartFilterStack stack,
       throw std::invalid_argument("Smart Filter radius is unavailable");
     }
     high_pass->radius_pixels = std::clamp(radius, 0.1, 1000.0);
+  } else if (entry.kind == SmartFilterKind::Median) {
+    auto* median = std::get_if<MedianSmartFilter>(&entry.parameters);
+    if (median == nullptr) {
+      throw std::invalid_argument("Smart Filter radius is unavailable");
+    }
+    median->radius_pixels = std::clamp(radius, 1.0, 500.0);
   } else {
     throw std::invalid_argument("Smart Filter radius is unavailable");
   }
@@ -560,18 +570,23 @@ SmartFilterEntry make_radius_smart_filter_entry(
     SmartFilterKind kind, double radius, RgbColor foreground,
     RgbColor background) {
   const auto high_pass = kind == SmartFilterKind::HighPass;
+  const auto median = kind == SmartFilterKind::Median;
   SmartFilterEntry entry;
   entry.kind = kind;
-  entry.native_name = high_pass ? "High Pass..." : "Gaussian Blur...";
-  entry.native_class_id = high_pass ? "HghP" : "GsnB";
-  entry.native_filter_id = high_pass ? 0x48676850U : 0x47736e42U;
+  entry.native_name = median ? "Median..."
+                             : (high_pass ? "High Pass..." : "Gaussian Blur...");
+  entry.native_class_id = median ? "Mdn " : (high_pass ? "HghP" : "GsnB");
+  entry.native_filter_id = median ? 0x4d646e20U
+                                  : (high_pass ? 0x48676850U : 0x47736e42U);
   entry.enabled = true;
   entry.has_options = true;
   entry.opacity = 1.0;
   entry.blend_mode = BlendMode::Normal;
   entry.foreground = foreground;
   entry.background = background;
-  if (high_pass) {
+  if (median) {
+    entry.parameters = MedianSmartFilter{std::clamp(radius, 1.0, 500.0)};
+  } else if (high_pass) {
     entry.parameters =
         HighPassSmartFilter{std::clamp(radius, 0.1, 1000.0)};
   } else {
@@ -814,14 +829,21 @@ void MainWindow::high_pass_smart_filter_dialog(
                              execution_index);
 }
 
+void MainWindow::median_smart_filter_dialog(
+    LayerId layer_id, std::optional<std::size_t> execution_index) {
+  radius_smart_filter_dialog(layer_id, SmartFilterKind::Median,
+                             execution_index);
+}
+
 void MainWindow::radius_smart_filter_dialog(
     LayerId layer_id, SmartFilterKind kind,
     std::optional<std::size_t> execution_index) {
   if (kind != SmartFilterKind::GaussianBlur &&
-      kind != SmartFilterKind::HighPass) {
+      kind != SmartFilterKind::HighPass && kind != SmartFilterKind::Median) {
     return;
   }
   const auto high_pass = kind == SmartFilterKind::HighPass;
+  const auto median = kind == SmartFilterKind::Median;
   if (!has_active_document() || canvas_ == nullptr) {
     return;
   }
@@ -854,7 +876,7 @@ void MainWindow::radius_smart_filter_dialog(
 
   SmartFilterStack stack;
   std::size_t filter_index = 0;
-  double initial_radius = high_pass ? 10.0 : 2.0;
+  double initial_radius = median ? 1.0 : (high_pass ? 10.0 : 2.0);
   const bool adding = !execution_index.has_value();
   bool creating_stack = false;
   std::vector<std::optional<std::size_t>> entry_sources;
@@ -926,8 +948,17 @@ void MainWindow::radius_smart_filter_dialog(
         return;
       }
       initial_radius = gaussian->radius_pixels;
-    } else {
+    } else if (kind == SmartFilterKind::HighPass) {
       const auto* radius = std::get_if<HighPassSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (radius == nullptr) {
+        statusBar()->showMessage(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_radius = radius->radius_pixels;
+    } else {
+      const auto* radius = std::get_if<MedianSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (radius == nullptr) {
         statusBar()->showMessage(
@@ -1048,8 +1079,10 @@ void MainWindow::radius_smart_filter_dialog(
       };
 
   auto invocation = FilterInvocation{};
-  invocation.filter_id = high_pass ? "patchy.smart_filters.high_pass"
-                                   : "patchy.smart_filters.gaussian_blur";
+  invocation.filter_id = median
+                             ? "patchy.smart_filters.median"
+                             : (high_pass ? "patchy.smart_filters.high_pass"
+                                          : "patchy.smart_filters.gaussian_blur");
   invocation.schema_version = 1U;
   invocation.parameters["radius"] = initial_radius;
   auto preview_edit_lock = lock_preview_dialog_edits();
@@ -1067,8 +1100,9 @@ void MainWindow::radius_smart_filter_dialog(
                                 .united(to_qrect(original_bounds)));
   preview_edit_lock.release();
   if (!settings.has_value()) {
-    statusBar()->showMessage(high_pass ? tr("Cancelled High Pass")
-                                      : tr("Cancelled Gaussian Blur"));
+    statusBar()->showMessage(median ? tr("Cancelled Median")
+                                    : (high_pass ? tr("Cancelled High Pass")
+                                                 : tr("Cancelled Gaussian Blur")));
     return;
   }
 
@@ -1077,13 +1111,22 @@ void MainWindow::radius_smart_filter_dialog(
   auto candidate =
       smart_filter_stack_with_radius(std::move(stack), filter_index, radius);
   const auto undo_text =
-      high_pass
+      median
+          ? (adding ? tr("Add Median Smart Filter")
+                    : tr("Edit Median Smart Filter"))
+          : high_pass
           ? (adding ? tr("Add High Pass Smart Filter")
                     : tr("Edit High Pass Smart Filter"))
           : (adding ? tr("Add Gaussian Blur Smart Filter")
                     : tr("Edit Gaussian Blur Smart Filter"));
   const auto status_text =
-      high_pass
+      median
+          ? (adding
+                 ? (creating_stack
+                        ? tr("Added Median as a Smart Filter")
+                        : tr("Added another Median Smart Filter"))
+                 : tr("Updated Median Smart Filter"))
+          : high_pass
           ? (adding
                  ? (creating_stack
                         ? tr("Added High Pass as a Smart Filter")
@@ -1113,7 +1156,7 @@ void MainWindow::edit_smart_filter(LayerId layer_id,
   }
   const auto kind = stack->entries[execution_index].kind;
   if (kind == SmartFilterKind::GaussianBlur ||
-      kind == SmartFilterKind::HighPass) {
+      kind == SmartFilterKind::HighPass || kind == SmartFilterKind::Median) {
     radius_smart_filter_dialog(layer_id, kind, execution_index);
   }
 }
@@ -1594,8 +1637,12 @@ void MainWindow::apply_filter(const QString& identifier) {
       high_pass_smart_filter_dialog(*active);
       return;
     }
+    if (identifier == QStringLiteral("patchy.filters.median")) {
+      median_smart_filter_dialog(*active);
+      return;
+    }
     statusBar()->showMessage(
-        tr("Only Gaussian Blur and High Pass are currently editable as Smart Filters"));
+        tr("Only Gaussian Blur, High Pass, and Median are currently editable as Smart Filters"));
     return;
   }
   try {

@@ -6632,6 +6632,15 @@ const patchy::HighPassSmartFilter& require_high_pass_filter(
   return *high_pass;
 }
 
+const patchy::MedianSmartFilter& require_median_filter(
+    const patchy::SmartFilterEntry& entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::Median);
+  const auto* median =
+      std::get_if<patchy::MedianSmartFilter>(&entry.parameters);
+  CHECK(median != nullptr);
+  return *median;
+}
+
 patchy::SmartFilterStack test_gaussian_smart_filter_stack(double radius) {
   patchy::SmartFilterStack stack;
   stack.support = patchy::SmartFilterStackSupport::Supported;
@@ -6656,6 +6665,20 @@ patchy::SmartFilterStack test_high_pass_smart_filter_stack(double radius) {
   entry.native_class_id = "HghP";
   entry.native_filter_id = 0x48676850U;
   entry.parameters = patchy::HighPassSmartFilter{radius};
+  stack.entries.push_back(std::move(entry));
+  return stack;
+}
+
+patchy::SmartFilterStack test_median_smart_filter_stack(double radius) {
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::Median;
+  entry.native_name = "Median...";
+  entry.native_class_id = "Mdn ";
+  entry.native_filter_id = 0x4d646e20U;
+  entry.parameters = patchy::MedianSmartFilter{radius};
   stack.entries.push_back(std::move(entry));
   return stack;
 }
@@ -7050,6 +7073,227 @@ void smart_filter_high_pass_matches_photoshop_formula_and_preserves_hidden_rgb()
                  named_default);
   CHECK(std::equal(compatibility.data().begin(), compatibility.data().end(),
                    named_default.data().begin()));
+}
+
+patchy::PixelBuffer reference_photoshop_square_median(
+    const patchy::PixelBuffer& source, int radius) {
+  CHECK(source.format() == patchy::PixelFormat::rgba8());
+  CHECK(radius >= 1);
+  auto rgb_source = source;
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      if (source.pixel(x, y)[3] != 0U) {
+        continue;
+      }
+      std::int64_t best_distance = std::numeric_limits<std::int64_t>::max();
+      std::int32_t best_x = -1;
+      std::int32_t best_y = -1;
+      for (std::int32_t candidate_y = 0; candidate_y < source.height();
+           ++candidate_y) {
+        for (std::int32_t candidate_x = 0; candidate_x < source.width();
+             ++candidate_x) {
+          if (source.pixel(candidate_x, candidate_y)[3] == 0U) {
+            continue;
+          }
+          const auto dx = static_cast<std::int64_t>(candidate_x) - x;
+          const auto dy = static_cast<std::int64_t>(candidate_y) - y;
+          const auto distance = dx * dx + dy * dy;
+          if (distance < best_distance ||
+              (distance == best_distance &&
+               (candidate_y > best_y ||
+                (candidate_y == best_y && candidate_x > best_x)))) {
+            best_distance = distance;
+            best_x = candidate_x;
+            best_y = candidate_y;
+          }
+        }
+      }
+      if (best_x >= 0) {
+        auto* target = rgb_source.pixel(x, y);
+        const auto* nearest = source.pixel(best_x, best_y);
+        std::copy_n(nearest, 3U, target);
+      }
+    }
+  }
+  patchy::PixelBuffer result(source.width(), source.height(), source.format());
+  const auto side = radius * 2 + 1;
+  std::vector<std::uint8_t> samples;
+  samples.reserve(static_cast<std::size_t>(side) *
+                  static_cast<std::size_t>(side));
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      auto* output = result.pixel(x, y);
+      for (std::size_t channel = 0; channel < 4U; ++channel) {
+        samples.clear();
+        for (int offset_y = -radius; offset_y <= radius; ++offset_y) {
+          const auto sample_y =
+              std::clamp(y + offset_y, 0, source.height() - 1);
+          for (int offset_x = -radius; offset_x <= radius; ++offset_x) {
+            const auto sample_x =
+                std::clamp(x + offset_x, 0, source.width() - 1);
+            const auto& channel_source = channel == 3U ? source : rgb_source;
+            samples.push_back(
+                channel_source.pixel(sample_x, sample_y)[channel]);
+          }
+        }
+        const auto middle = samples.begin() +
+                            static_cast<std::ptrdiff_t>(samples.size() / 2U);
+        std::nth_element(samples.begin(), middle, samples.end());
+        output[channel] = *middle;
+      }
+    }
+  }
+  return result;
+}
+
+void smart_filter_median_matches_square_clamped_channels_and_native_paths() {
+  patchy::PixelBuffer source(6, 5, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      auto* pixel = source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 71 + y * 19 + 7) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 13 + y * 83 + 29) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 47 + y * 31 + 113) % 256);
+      pixel[3] = static_cast<std::uint8_t>((x * 97 + y * 43 + 17) % 256);
+    }
+  }
+  const patchy::Rect bounds{37, 61, source.width(), source.height()};
+  const auto radius_one = patchy::render_photoshop_median(
+      source, bounds, 1.99);
+  CHECK(radius_one.bounds.x == bounds.x && radius_one.bounds.y == bounds.y &&
+        radius_one.bounds.width == bounds.width &&
+        radius_one.bounds.height == bounds.height);
+  const auto expected_one = reference_photoshop_square_median(source, 1);
+  CHECK(radius_one.pixels.data().size() == expected_one.data().size());
+  CHECK(std::equal(radius_one.pixels.data().begin(),
+                   radius_one.pixels.data().end(),
+                   expected_one.data().begin()));
+
+  const auto radius_two = patchy::render_photoshop_median(
+      source, bounds, 2.99);
+  const auto expected_two = reference_photoshop_square_median(source, 2);
+  CHECK(radius_two.pixels.data().size() == expected_two.data().size());
+  CHECK(std::equal(radius_two.pixels.data().begin(),
+                   radius_two.pixels.data().end(),
+                   expected_two.data().begin()));
+
+  // Photoshop filters every channel independently, including alpha, and does
+  // not clear straight RGB merely because the corresponding alpha median is
+  // zero. This is the red-block alpha probe used by the PS 27.8 calibration.
+  auto red_block = solid_rgba(9, 9, 3, 197, 211, 0);
+  for (std::int32_t y = 3; y <= 5; ++y) {
+    for (std::int32_t x = 3; x <= 5; ++x) {
+      auto* pixel = red_block.pixel(x, y);
+      pixel[0] = 230U;
+      pixel[1] = 30U;
+      pixel[2] = 10U;
+      pixel[3] = 255U;
+    }
+  }
+  const auto red_result = patchy::render_photoshop_median(
+      red_block, patchy::Rect{12, 18, 9, 9}, 2.0);
+  const auto expected_red = reference_photoshop_square_median(red_block, 2);
+  CHECK(red_result.pixels.data().size() == expected_red.data().size());
+  CHECK(std::equal(red_result.pixels.data().begin(),
+                   red_result.pixels.data().end(),
+                   expected_red.data().begin()));
+  bool saw_hidden_red = false;
+  for (std::int32_t y = 0; y < red_result.pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < red_result.pixels.width(); ++x) {
+      const auto* pixel = red_result.pixels.pixel(x, y);
+      CHECK(pixel[0] == 230U && pixel[1] == 30U && pixel[2] == 10U);
+      saw_hidden_red = saw_hidden_red || pixel[3] == 0U;
+    }
+  }
+  CHECK(saw_hidden_red);
+
+  // Two equidistant visible colors make the nearest-RGB tie policy observable:
+  // Photoshop prefers the candidate farther down, then farther right. With
+  // those ties resolved toward green, green is the 3x3 median at the center.
+  auto tie_probe = solid_rgba(3, 3, 9, 19, 29, 0);
+  auto* upper_left = tie_probe.pixel(0, 0);
+  upper_left[0] = 240U;
+  upper_left[1] = 20U;
+  upper_left[2] = 30U;
+  upper_left[3] = 255U;
+  auto* lower_right = tie_probe.pixel(2, 2);
+  lower_right[0] = 20U;
+  lower_right[1] = 230U;
+  lower_right[2] = 70U;
+  lower_right[3] = 255U;
+  const auto tie_result = patchy::render_photoshop_median(
+      tie_probe, patchy::Rect::from_size(3, 3), 1.0);
+  const auto expected_tie = reference_photoshop_square_median(tie_probe, 1);
+  CHECK(std::equal(tie_result.pixels.data().begin(),
+                   tie_result.pixels.data().end(),
+                   expected_tie.data().begin()));
+  const auto* tied_center = tie_result.pixels.pixel(1, 1);
+  CHECK(tied_center[0] == 20U && tied_center[1] == 230U &&
+        tied_center[2] == 70U && tied_center[3] == 0U);
+
+  auto partial = solid_rgba(1, 1, 117, 43, 209, 128);
+  const auto partial_result = patchy::render_photoshop_median(
+      partial, patchy::Rect{3, 4, 1, 1}, 1.0);
+  const auto* partial_pixel = partial_result.pixels.pixel(0, 0);
+  CHECK(partial_pixel[0] == 117U && partial_pixel[1] == 43U &&
+        partial_pixel[2] == 209U && partial_pixel[3] == 128U);
+
+  patchy::PixelBuffer all_transparent(3, 2,
+                                      patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < all_transparent.height(); ++y) {
+    for (std::int32_t x = 0; x < all_transparent.width(); ++x) {
+      auto* pixel = all_transparent.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(17 + x * 31 + y * 7);
+      pixel[1] = static_cast<std::uint8_t>(43 + x * 5 + y * 29);
+      pixel[2] = static_cast<std::uint8_t>(89 + x * 11 + y * 13);
+      pixel[3] = 0U;
+    }
+  }
+  const auto all_transparent_result = patchy::render_photoshop_median(
+      all_transparent, patchy::Rect{6, 8, 3, 2}, 2.0);
+  CHECK(all_transparent_result.pixels.data().size() ==
+        all_transparent.data().size());
+  CHECK(std::equal(all_transparent_result.pixels.data().begin(),
+                   all_transparent_result.pixels.data().end(),
+                   all_transparent.data().begin()));
+
+  const auto native = patchy::render_smart_filter_stack(
+      source, bounds, patchy::Rect{0, 0, 96, 80},
+      test_median_smart_filter_stack(2.75));
+  check_filter_result_equal(radius_two, native);
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto invocation = registry.default_invocation("patchy.filters.median");
+  invocation.parameters["radius"] = 2.75;
+  const auto destructive = registry.render(invocation, source, bounds, false);
+  check_filter_result_equal(radius_two, destructive);
+
+  const auto single = solid_rgba(1, 1, 21, 87, 193, 44);
+  const auto huge = patchy::render_photoshop_median(
+      single, patchy::Rect{8, 9, 1, 1}, 500.0);
+  CHECK(huge.bounds.x == 8 && huge.bounds.y == 9 &&
+        huge.bounds.width == 1 && huge.bounds.height == 1);
+  CHECK(huge.pixels.data().size() == single.data().size());
+  CHECK(std::equal(huge.pixels.data().begin(), huge.pixels.data().end(),
+                   single.data().begin()));
+
+  bool saw_progress = false;
+  patchy::FilterProgress cancel{[&](int completed, int total,
+                                     patchy::FilterProgressStage stage) {
+    saw_progress = true;
+    CHECK(completed >= 0 && completed <= total);
+    CHECK(stage == patchy::FilterProgressStage::Filtering);
+    return false;
+  }};
+  bool cancelled = false;
+  try {
+    (void)patchy::render_photoshop_median(source, bounds, 500.0, &cancel);
+  } catch (const patchy::FilterCancelled&) {
+    cancelled = true;
+  }
+  CHECK(saw_progress);
+  CHECK(cancelled);
 }
 
 void smart_filter_shared_mask_and_disable_states_are_applied_once() {
@@ -8312,6 +8556,126 @@ void smart_filter_canonical_high_pass_descriptor_round_trips_and_preserves_unkno
         preserved->string_value == "keep-high-pass-native-data");
 }
 
+void smart_filter_canonical_median_descriptor_round_trips_and_preserves_unknowns() {
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "20202020-3030-4040-8555-606060606060";
+  placement.transform = {5.0, 7.0, 37.0, 7.0, 37.0, 31.0, 5.0, 31.0};
+  placement.width = 32.0;
+  placement.height = 24.0;
+  placement.resolution = 72.0;
+  const std::string placed_uuid = "bcbcbcbc-dede-fafa-8222-343434343434";
+
+  auto stack = test_median_smart_filter_stack(7.5);
+  stack.entries.front().opacity = 0.61;
+  stack.entries.front().blend_mode = patchy::BlendMode::Overlay;
+
+  const auto descriptor_from_sold = [](std::span<const std::uint8_t> sold) {
+    patchy::psd::BigEndianReader reader(sold);
+    CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) ==
+          "soLD");
+    CHECK(reader.read_u32() == 4U);
+    CHECK(reader.read_u32() == 16U);
+    return patchy::psd::read_descriptor(reader);
+  };
+  const auto sold_from_descriptor =
+      [](const patchy::psd::DescriptorObject& descriptor) {
+        patchy::psd::BigEndianWriter writer;
+        for (const char ch : {'s', 'o', 'L', 'D'}) {
+          writer.write_u8(static_cast<std::uint8_t>(ch));
+        }
+        writer.write_u32(4U);
+        writer.write_u32(16U);
+        patchy::psd::write_descriptor(writer, descriptor);
+        while ((writer.bytes().size() % 4U) != 0U) {
+          writer.write_u8(0U);
+        }
+        return writer.bytes();
+      };
+
+  const auto authored = patchy::psd::author_placed_layer_sold_payload(
+      placement, placed_uuid, &stack);
+  const auto authored_info =
+      patchy::psd::parse_placed_layer_block("SoLd", authored);
+  CHECK(authored_info.has_value() && authored_info->smart_filters.has_value());
+  CHECK(authored_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(authored_info->smart_filters->entries.size() == 1U);
+  const auto& parsed = authored_info->smart_filters->entries.front();
+  CHECK(parsed.native_name == "Median...");
+  CHECK(parsed.native_class_id == "Mdn ");
+  CHECK(parsed.native_filter_id == 0x4d646e20U);
+  CHECK(std::abs(require_median_filter(parsed).radius_pixels - 7.5) < 1e-9);
+  CHECK(std::abs(parsed.opacity - 0.61) < 1e-9);
+  CHECK(parsed.blend_mode == patchy::BlendMode::Overlay);
+
+  auto descriptor = descriptor_from_sold(authored);
+  auto* root = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(descriptor, "filterFX"));
+  CHECK(root != nullptr);
+  auto* list = const_cast<patchy::psd::DescriptorValue*>(
+      patchy::psd::descriptor_value(*root, "filterFXList"));
+  CHECK(list != nullptr &&
+        list->type == patchy::psd::DescriptorValue::Type::List &&
+        list->list_value.size() == 1U &&
+        list->list_value.front().object_value != nullptr);
+  auto& native_entry = *list->list_value.front().object_value;
+  auto* native_filter = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(native_entry, "Fltr"));
+  CHECK(native_filter != nullptr && native_filter->class_id == "Mdn " &&
+        !native_filter->class_id_long_form);
+  const auto* native_radius =
+      patchy::psd::descriptor_value(*native_filter, "Rds ");
+  CHECK(native_radius != nullptr &&
+        native_radius->type == patchy::psd::DescriptorValue::Type::UnitFloat &&
+        native_radius->unit == "#Pxl" &&
+        std::abs(native_radius->double_value - 7.5) < 1e-9);
+
+  patchy::psd::DescriptorValue future;
+  future.type = patchy::psd::DescriptorValue::Type::String;
+  future.string_value = "keep-median-native-data";
+  native_entry.key_order.push_back({"futureMedianField", true});
+  native_entry.values.emplace("futureMedianField", std::move(future));
+  const auto payload_with_unknown = sold_from_descriptor(descriptor);
+
+  auto edited = stack;
+  std::get<patchy::MedianSmartFilter>(edited.entries.front().parameters)
+      .radius_pixels = 500.0;
+  edited.entries.front().opacity = 0.37;
+  edited.entries.front().blend_mode = patchy::BlendMode::Multiply;
+  const patchy::psd::SmartFilterDescriptorEdit edit{
+      patchy::psd::SmartFilterDescriptorAction::Replace, &edited};
+  const auto regenerated = patchy::psd::regenerate_placed_layer_payload(
+      "SoLd", payload_with_unknown, placement, nullptr, placed_uuid, edit);
+  CHECK(regenerated.has_value());
+  const auto regenerated_info =
+      patchy::psd::parse_placed_layer_block("SoLd", *regenerated);
+  CHECK(regenerated_info.has_value() &&
+        regenerated_info->smart_filters.has_value());
+  CHECK(regenerated_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  const auto& reread = regenerated_info->smart_filters->entries.front();
+  CHECK(std::abs(require_median_filter(reread).radius_pixels - 500.0) <
+        1e-9);
+  CHECK(std::abs(reread.opacity - 0.37) < 1e-9);
+  CHECK(reread.blend_mode == patchy::BlendMode::Multiply);
+
+  const auto regenerated_descriptor = descriptor_from_sold(*regenerated);
+  const auto* regenerated_root =
+      patchy::psd::descriptor_object(regenerated_descriptor, "filterFX");
+  CHECK(regenerated_root != nullptr);
+  const auto* regenerated_list =
+      patchy::psd::descriptor_value(*regenerated_root, "filterFXList");
+  CHECK(regenerated_list != nullptr &&
+        regenerated_list->list_value.size() == 1U &&
+        regenerated_list->list_value.front().object_value != nullptr);
+  const auto* preserved = patchy::psd::descriptor_value(
+      *regenerated_list->list_value.front().object_value,
+      "futureMedianField");
+  CHECK(preserved != nullptr &&
+        preserved->type == patchy::psd::DescriptorValue::Type::String &&
+        preserved->string_value == "keep-median-native-data");
+}
+
 const patchy::UnknownPsdBlock& require_placed_layer_block(const patchy::Layer& layer) {
   const auto& blocks = layer.unknown_psd_blocks();
   const auto found = std::find_if(blocks.begin(), blocks.end(), [](const patchy::UnknownPsdBlock& block) {
@@ -8438,6 +8802,74 @@ void psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits() {
   CHECK(test_global_psd_blocks(edited_reread) == original_globals);
 }
 
+void psd_photoshop_median_smart_filter_fixture_round_trips_and_edits() {
+  const auto fixture_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-median.psd");
+  const auto original = patchy::psd::DocumentIo::read_file(fixture_path);
+  const patchy::Layer* filtered_layer = nullptr;
+  for (const auto& layer : original.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      CHECK(filtered_layer == nullptr);
+      filtered_layer = &layer;
+    }
+  }
+  CHECK(filtered_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*filtered_layer));
+  CHECK(patchy::smart_object_lock_reason(*filtered_layer).empty());
+  const auto* stack = filtered_layer->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto& entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::Median);
+  CHECK(entry.native_name == "Median...");
+  CHECK(entry.native_class_id == "Mdn ");
+  CHECK(entry.native_filter_id == 0x4d646e20U);
+  CHECK(std::abs(require_median_filter(entry).radius_pixels - 7.0) < 1e-9);
+
+  const auto original_globals = test_global_psd_blocks(original);
+  const auto& original_sold = require_placed_layer_block(*filtered_layer);
+  const auto original_sold_payload = original_sold.payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(original));
+  CHECK(test_global_psd_blocks(clean) == original_globals);
+  const auto& clean_layer = require_layer_named(clean, filtered_layer->name());
+  check_pixel_layer_storage_equal(*filtered_layer, clean_layer);
+  CHECK(require_placed_layer_block(clean_layer).payload ==
+        original_sold_payload);
+  CHECK(std::abs(require_median_filter(
+                     require_smart_filter_stack(clean, clean_layer.name())
+                         .entries.front())
+                     .radius_pixels -
+                 7.0) < 1e-9);
+
+  auto edited = original;
+  auto* edited_layer = edited.find_layer(filtered_layer->id());
+  CHECK(edited_layer != nullptr &&
+        edited_layer->smart_filter_stack() != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  std::get<patchy::MedianSmartFilter>(
+      edited_stack.entries.front().parameters).radius_pixels = 7.5;
+  edited_stack.entries.front().opacity = 0.42;
+  edited_stack.entries.front().blend_mode = patchy::BlendMode::SoftLight;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto& edited_reread_layer =
+      require_layer_named(edited_reread, filtered_layer->name());
+  const auto& edited_reread_entry =
+      require_smart_filter_stack(edited_reread, filtered_layer->name())
+          .entries.front();
+  CHECK(std::abs(require_median_filter(edited_reread_entry).radius_pixels -
+                 7.5) < 1e-9);
+  CHECK(std::abs(edited_reread_entry.opacity - 0.42) < 1e-9);
+  CHECK(edited_reread_entry.blend_mode == patchy::BlendMode::SoftLight);
+  CHECK(require_placed_layer_block(edited_reread_layer).payload !=
+        original_sold_payload);
+  CHECK(test_global_psd_blocks(edited_reread) == original_globals);
+}
+
 void psd_descriptor_writer_round_trips_smart_filter_sold_if_available() {
   const auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("photoshop-smart-filter-model.psd"));
@@ -8536,17 +8968,34 @@ void psd_smart_filter_descriptor_semantics_parse_if_available() {
       require_smart_filter_stack(document, "Applied Median then Gaussian");
   CHECK(median_then_gaussian.entries.size() == 2U);
   CHECK(median_then_gaussian.entries[0].native_class_id == "Mdn ");
-  CHECK(median_then_gaussian.entries[0].kind == patchy::SmartFilterKind::Unsupported);
+  CHECK(median_then_gaussian.entries[0].kind ==
+        patchy::SmartFilterKind::Median);
+  CHECK(std::abs(require_median_filter(median_then_gaussian.entries[0])
+                     .radius_pixels -
+                 2.0) < 1e-9);
   CHECK(median_then_gaussian.entries[1].native_class_id == "GsnB");
   CHECK(median_then_gaussian.entries[1].kind == patchy::SmartFilterKind::GaussianBlur);
-  CHECK(median_then_gaussian.support == patchy::SmartFilterStackSupport::Unsupported);
+  CHECK(median_then_gaussian.support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(patchy::smart_object_lock_reason(
+            require_layer_named(document, "Applied Median then Gaussian"))
+            .empty());
 
   const auto& gaussian_then_median =
       require_smart_filter_stack(document, "Applied Gaussian then Median");
   CHECK(gaussian_then_median.entries.size() == 2U);
   CHECK(gaussian_then_median.entries[0].native_class_id == "GsnB");
   CHECK(gaussian_then_median.entries[1].native_class_id == "Mdn ");
-  CHECK(gaussian_then_median.support == patchy::SmartFilterStackSupport::Unsupported);
+  CHECK(gaussian_then_median.entries[1].kind ==
+        patchy::SmartFilterKind::Median);
+  CHECK(std::abs(require_median_filter(gaussian_then_median.entries[1])
+                     .radius_pixels -
+                 2.0) < 1e-9);
+  CHECK(gaussian_then_median.support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(patchy::smart_object_lock_reason(
+            require_layer_named(document, "Applied Gaussian then Median"))
+            .empty());
 
   for (const auto& layer : document.layers()) {
     if (const auto* layer_stack = layer.smart_filter_stack(); layer_stack != nullptr) {
@@ -8961,6 +9410,31 @@ void smart_filter_unsupported_clone_preserves_filterfx_and_rekeys_cache() {
   auto document = patchy::psd::DocumentIo::read_file(fixture_path);
   const std::string source_name = "Applied Gaussian then Median";
   const std::string clone_name = "Applied Gaussian then Median copy";
+  auto* descriptor_layer = document.find_layer(
+      require_layer_named(document, source_name).id());
+  CHECK(descriptor_layer != nullptr);
+  constexpr std::array<std::uint8_t, 4> median_id{'M', 'd', 'n', ' '};
+  constexpr std::array<std::uint8_t, 4> unknown_id{'Z', 'Z', 'Z', 'Z'};
+  std::size_t replacements = 0U;
+  for (auto& block : descriptor_layer->unknown_psd_blocks()) {
+    if (block.key != "SoLd" && block.key != "SoLE") {
+      continue;
+    }
+    auto begin = block.payload.begin();
+    while (begin != block.payload.end()) {
+      const auto found = std::search(begin, block.payload.end(),
+                                     median_id.begin(), median_id.end());
+      if (found == block.payload.end()) {
+        break;
+      }
+      std::copy(unknown_id.begin(), unknown_id.end(), found);
+      ++replacements;
+      begin = found + static_cast<std::ptrdiff_t>(unknown_id.size());
+    }
+  }
+  CHECK(replacements >= 1U);
+  document = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(document));
   const auto& source = require_layer_named(document, source_name);
   const auto source_snapshot = source;
   const auto source_placed_uuid = patchy::smart_object_placed_uuid(source);
@@ -9020,7 +9494,11 @@ void smart_filter_unsupported_clone_preserves_filterfx_and_rekeys_cache() {
   CHECK(reread_stack.support == patchy::SmartFilterStackSupport::Unsupported);
   CHECK(reread_stack.entries.size() == 2U);
   CHECK(reread_stack.entries[0].native_class_id == "GsnB");
-  CHECK(reread_stack.entries[1].native_class_id == "Mdn ");
+  CHECK(reread_stack.entries[0].kind ==
+        patchy::SmartFilterKind::GaussianBlur);
+  CHECK(reread_stack.entries[1].native_class_id == "ZZZZ");
+  CHECK(reread_stack.entries[1].kind ==
+        patchy::SmartFilterKind::Unsupported);
   CHECK(patchy::smart_object_lock_reason(reread_clone) == "filters");
 
   const auto* source_record =
@@ -19231,6 +19709,7 @@ void filter_catalog_defines_stable_named_contracts() {
       {"patchy.filters.film_grain", Category::Noise, false, {{"amount", 50}}},
       {"patchy.filters.vignette", Category::PhotoLooks, false, {{"strength", 55}}},
       {"patchy.filters.high_pass", Category::Sharpen, false, {{"radius", 10}}},
+      {"patchy.filters.median", Category::Noise, false, {{"radius", 1}}},
   };
 
   const auto has_center_parameters = [](std::string_view identifier) {
@@ -19295,15 +19774,22 @@ void filter_catalog_defines_stable_named_contracts() {
       const auto is_high_pass_radius =
           actual.identifier == "patchy.filters.high_pass" &&
           parameter.key == "radius";
+      const auto is_median_radius =
+          actual.identifier == "patchy.filters.median" &&
+          parameter.key == "radius";
+      const auto is_fractional_radius =
+          is_high_pass_radius || is_median_radius;
       CHECK(parameter.kind ==
-            (is_high_pass_radius ? patchy::FilterParameterKind::Double
-                                 : patchy::FilterParameterKind::Integer));
+            (is_fractional_radius ? patchy::FilterParameterKind::Double
+                                  : patchy::FilterParameterKind::Integer));
       CHECK(parameter.display_name.size() > 0);
       CHECK(parameter.control_object_name.size() > 0);
       CHECK(parameter.minimum.has_value());
       CHECK(parameter.maximum.has_value());
-      CHECK(parameter.step == (is_high_pass_radius ? 0.1 : 1.0));
-      if (is_high_pass_radius) {
+      const auto expected_step =
+          is_median_radius ? 0.01 : (is_high_pass_radius ? 0.1 : 1.0);
+      CHECK(parameter.step == expected_step);
+      if (is_fractional_radius) {
         CHECK(std::get<double>(parameter.default_value) ==
               static_cast<double>(default_value));
         CHECK(std::get<double>(invocation.parameters.at(key)) ==
@@ -19322,6 +19808,11 @@ void filter_catalog_defines_stable_named_contracts() {
         CHECK(parameter.maximum == 1000.0);
         CHECK(parameter.practical_minimum == 0.1);
         CHECK(parameter.practical_maximum == 12.0);
+      } else if (is_median_radius) {
+        CHECK(parameter.minimum == 1.0);
+        CHECK(parameter.maximum == 500.0);
+        CHECK(parameter.practical_minimum == 1.0);
+        CHECK(parameter.practical_maximum == 25.0);
       } else {
         CHECK(!parameter.practical_minimum.has_value());
         CHECK(!parameter.practical_maximum.has_value());
@@ -19363,6 +19854,7 @@ void filter_catalog_defines_stable_named_contracts() {
       "patchy.filters.wave/wavelength",           "patchy.filters.clouds/scale",
       "patchy.filters.pixelate/block_size",        "patchy.filters.color_halftone/cell_size",
       "patchy.filters.high_pass/radius",
+      "patchy.filters.median/radius",
   };
   CHECK(spatial_parameters == expected_spatial);
 }
@@ -19413,6 +19905,32 @@ void filter_invocations_normalize_scale_and_reject_bad_data() {
                  1000.0) < 0.000001);
   high_pass.parameters["radius"] = std::int64_t{4};
   CHECK(!registry.supports(high_pass));
+
+  auto median = registry.default_invocation("patchy.filters.median");
+  CHECK(std::abs(std::get<double>(median.parameters.at("radius")) - 1.0) <
+        0.000001);
+  median.parameters["radius"] = 499.75;
+  const auto normalized_median = registry.normalize(median);
+  CHECK(normalized_median.has_value());
+  CHECK(std::abs(std::get<double>(
+                     normalized_median->parameters.at("radius")) -
+                 499.75) < 0.000001);
+  CHECK(!registry.translation_invariant_support(*normalized_median)
+             .has_value());
+  median.parameters["radius"] = 900.0;
+  const auto maximum_median = registry.normalize(median);
+  CHECK(maximum_median.has_value());
+  CHECK(std::abs(std::get<double>(
+                     maximum_median->parameters.at("radius")) -
+                 500.0) < 0.000001);
+  median.parameters["radius"] = 0.5;
+  const auto minimum_median = registry.normalize(median);
+  CHECK(minimum_median.has_value());
+  CHECK(std::abs(std::get<double>(
+                     minimum_median->parameters.at("radius")) -
+                 1.0) < 0.000001);
+  median.parameters["radius"] = std::int64_t{2};
+  CHECK(!registry.supports(median));
 
   auto wave = registry.default_invocation("patchy.filters.wave");
   const auto scaled_wave = registry.scale(wave, 0.25);
@@ -19774,17 +20292,21 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   auto high_pass =
       registry.default_invocation("patchy.filters.high_pass");
   high_pass.parameters["radius"] = 4.25;
+  auto median = registry.default_invocation("patchy.filters.median");
+  median.parameters["radius"] = 7.5;
   const patchy::FilterRecipe recipe{{
       patchy::FilterRecipeEntry{first, true, 0.37,
                                 patchy::BlendMode::Multiply},
       patchy::FilterRecipeEntry{high_pass, true, 0.75,
                                 patchy::BlendMode::Overlay},
+      patchy::FilterRecipeEntry{median, true, 0.5,
+                                patchy::BlendMode::SoftLight},
       patchy::FilterRecipeEntry{second, false, 1.0,
                                 patchy::BlendMode::Normal},
   }};
   const auto mapped =
       patchy::smart_filter_entries_from_recipe(recipe, registry);
-  CHECK(mapped.has_value() && mapped->size() == 3U);
+  CHECK(mapped.has_value() && mapped->size() == 4U);
   CHECK((*mapped)[0].kind == patchy::SmartFilterKind::GaussianBlur);
   CHECK((*mapped)[0].enabled);
   CHECK(std::abs((*mapped)[0].opacity - 0.37) < 0.000001);
@@ -19803,9 +20325,17 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
                      (*mapped)[1].parameters)
                      .radius_pixels -
                  4.25) < 0.000001);
-  CHECK(!(*mapped)[2].enabled);
-  CHECK(std::abs(std::get<patchy::GaussianBlurSmartFilter>(
+  CHECK((*mapped)[2].kind == patchy::SmartFilterKind::Median);
+  CHECK((*mapped)[2].enabled);
+  CHECK(std::abs((*mapped)[2].opacity - 0.5) < 0.000001);
+  CHECK((*mapped)[2].blend_mode == patchy::BlendMode::SoftLight);
+  CHECK(std::abs(std::get<patchy::MedianSmartFilter>(
                      (*mapped)[2].parameters)
+                     .radius_pixels -
+                 7.5) < 0.000001);
+  CHECK(!(*mapped)[3].enabled);
+  CHECK(std::abs(std::get<patchy::GaussianBlurSmartFilter>(
+                     (*mapped)[3].parameters)
                      .radius_pixels -
                  9.0) < 0.000001);
 
@@ -23067,6 +23597,8 @@ int main() {
        smart_filter_gaussian_repeats_canvas_edges_and_blurs_premultiplied},
       {"smart_filter_high_pass_matches_photoshop_formula_and_preserves_hidden_rgb",
        smart_filter_high_pass_matches_photoshop_formula_and_preserves_hidden_rgb},
+      {"smart_filter_median_matches_square_clamped_channels_and_native_paths",
+       smart_filter_median_matches_square_clamped_channels_and_native_paths},
       {"smart_filter_shared_mask_and_disable_states_are_applied_once",
        smart_filter_shared_mask_and_disable_states_are_applied_once},
       {"smart_filter_entry_blending_matches_photoshop_baked_pixels",
@@ -23083,8 +23615,12 @@ int main() {
        smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes},
       {"smart_filter_canonical_high_pass_descriptor_round_trips_and_preserves_unknowns",
        smart_filter_canonical_high_pass_descriptor_round_trips_and_preserves_unknowns},
+      {"smart_filter_canonical_median_descriptor_round_trips_and_preserves_unknowns",
+       smart_filter_canonical_median_descriptor_round_trips_and_preserves_unknowns},
       {"psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits},
+      {"psd_photoshop_median_smart_filter_fixture_round_trips_and_edits",
+       psd_photoshop_median_smart_filter_fixture_round_trips_and_edits},
       {"psd_smart_filter_descriptor_semantics_parse_if_available",
        psd_smart_filter_descriptor_semantics_parse_if_available},
       {"psd_smart_filter_masks_decode_and_coexist_with_layer_mask",

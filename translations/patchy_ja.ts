@@ -753,6 +753,10 @@
         <translation>ハイパス</translation>
     </message>
     <message>
+        <source>Median</source>
+        <translation>中央値</translation>
+    </message>
+    <message>
         <location line="+9"/>
         <source>Edge Detect</source>
         <translation>エッジ検出</translation>
@@ -11408,6 +11412,10 @@ Clipped to the layer below</source>
         <translation>ハイパスをキャンセルしました</translation>
     </message>
     <message>
+        <source>Cancelled Median</source>
+        <translation>中央値をキャンセルしました</translation>
+    </message>
+    <message>
         <source>Smart Filter failed</source>
         <translation>スマートフィルターの処理に失敗しました</translation>
     </message>
@@ -11458,6 +11466,26 @@ Clipped to the layer below</source>
     <message>
         <source>Updated High Pass Smart Filter</source>
         <translation>ハイパススマートフィルターを更新しました</translation>
+    </message>
+    <message>
+        <source>Add Median Smart Filter</source>
+        <translation>中央値スマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Median Smart Filter</source>
+        <translation>中央値スマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Median as a Smart Filter</source>
+        <translation>中央値をスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Median Smart Filter</source>
+        <translation>中央値スマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Median Smart Filter</source>
+        <translation>中央値スマートフィルターを更新しました</translation>
     </message>
     <message>
         <source>Show Smart Filters</source>
@@ -11524,8 +11552,8 @@ Clipped to the layer below</source>
         <translation>スマートフィルターを削除しました</translation>
     </message>
     <message>
-        <source>Only Gaussian Blur and High Pass are currently editable as Smart Filters</source>
-        <translation>現在、スマートフィルターとして編集できるのはガウスぼかしとハイパスだけです</translation>
+        <source>Only Gaussian Blur, High Pass, and Median are currently editable as Smart Filters</source>
+        <translation>現在、スマートフィルターとして編集できるのはガウスぼかし、ハイパス、中央値だけです</translation>
     </message>
     <message>
         <source>Add Smart Filter Stack</source>

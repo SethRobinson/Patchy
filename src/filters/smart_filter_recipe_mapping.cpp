@@ -18,7 +18,8 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
     const auto normalized = registry.normalize(recipe_entry.invocation);
     if (!normalized.has_value() || normalized->schema_version != 1U ||
         (normalized->filter_id != "patchy.filters.gaussian_blur" &&
-         normalized->filter_id != "patchy.filters.high_pass")) {
+         normalized->filter_id != "patchy.filters.high_pass" &&
+         normalized->filter_id != "patchy.filters.median")) {
       return std::nullopt;
     }
     const auto radius_value = normalized->parameters.find("radius");
@@ -36,25 +37,34 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
     } else {
       return std::nullopt;
     }
-    if (!std::isfinite(radius) || radius < 0.1 || radius > 1000.0) {
+    const auto median = normalized->filter_id == "patchy.filters.median";
+    if (!std::isfinite(radius) || radius < (median ? 1.0 : 0.1) ||
+        radius > (median ? 500.0 : 1000.0)) {
       return std::nullopt;
     }
 
     const auto high_pass =
         normalized->filter_id == "patchy.filters.high_pass";
     SmartFilterEntry entry;
-    entry.kind = high_pass ? SmartFilterKind::HighPass
-                           : SmartFilterKind::GaussianBlur;
-    entry.native_name = high_pass ? "High Pass..." : "Gaussian Blur...";
-    entry.native_class_id = high_pass ? "HghP" : "GsnB";
-    entry.native_filter_id = high_pass ? 0x48676850U : 0x47736e42U;
+    entry.kind = median ? SmartFilterKind::Median
+                        : (high_pass ? SmartFilterKind::HighPass
+                                     : SmartFilterKind::GaussianBlur);
+    entry.native_name = median ? "Median..."
+                               : (high_pass ? "High Pass..."
+                                            : "Gaussian Blur...");
+    entry.native_class_id = median ? "Mdn " : (high_pass ? "HghP" : "GsnB");
+    entry.native_filter_id = median ? 0x4d646e20U
+                                    : (high_pass ? 0x48676850U
+                                                 : 0x47736e42U);
     entry.enabled = recipe_entry.enabled;
     entry.has_options = true;
     entry.opacity = recipe_entry.opacity;
     entry.blend_mode = recipe_entry.blend_mode;
     entry.foreground = normalized->foreground;
     entry.background = normalized->background;
-    if (high_pass) {
+    if (median) {
+      entry.parameters = MedianSmartFilter{radius};
+    } else if (high_pass) {
       entry.parameters = HighPassSmartFilter{radius};
     } else {
       entry.parameters = GaussianBlurSmartFilter{radius};

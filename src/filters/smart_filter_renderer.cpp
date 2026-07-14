@@ -21,9 +21,12 @@ namespace {
 
 constexpr double kMinimumGaussianRadius = 0.1;
 constexpr double kMaximumGaussianRadius = 1000.0;
+constexpr double kMinimumMedianRadius = 1.0;
+constexpr double kMaximumMedianRadius = 500.0;
 constexpr double kGaussianMarginScale = 3.0;
 constexpr double kDirectGaussianMaximumRadius = 8.0;
 constexpr int kProgressScale = 1000000;
+constexpr std::int32_t kSquareHistogramTileWidth = 512;
 
 [[nodiscard]] bool supported_blend_mode(BlendMode mode) noexcept {
   const auto value = static_cast<int>(mode);
@@ -592,6 +595,423 @@ render_high_pass(const FilterRenderResult &input, double radius,
   return FilterRenderResult{std::move(output), input.bounds};
 }
 
+struct TransparentColorExtension {
+  bool all_transparent{false};
+  // Empty for an opaque input. A mixed-alpha input stores the nearest visible
+  // source pixel's linear index for every pixel. Keeping only one uint32 per
+  // pixel avoids materializing another RGBA working buffer.
+  std::vector<std::uint32_t> nearest_visible;
+};
+
+[[nodiscard]] std::int64_t ceil_divide(std::int64_t numerator,
+                                       std::int64_t denominator) noexcept {
+  const auto quotient = numerator / denominator;
+  const auto remainder = numerator % denominator;
+  return quotient + (remainder > 0 ? 1 : 0);
+}
+
+[[nodiscard]] TransparentColorExtension extend_transparent_colors(
+    const FilterRenderResult &input, const FilterProgress *progress) {
+  TransparentColorExtension extension;
+  const auto width = input.bounds.width;
+  const auto height = input.bounds.height;
+  const auto pixel_count = static_cast<std::uint64_t>(width) *
+                           static_cast<std::uint64_t>(height);
+  if (pixel_count == 0U) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    extension.all_transparent = true;
+    return extension;
+  }
+
+  bool saw_visible = false;
+  bool saw_transparent = false;
+  const auto total_work = static_cast<std::uint64_t>(height) * 2U +
+                          static_cast<std::uint64_t>(width);
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_fraction(progress, static_cast<std::uint64_t>(y), total_work,
+                    FilterProgressStage::Filtering);
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto alpha = input.pixels.pixel(x, y)[3];
+      saw_visible = saw_visible || alpha != 0U;
+      saw_transparent = saw_transparent || alpha == 0U;
+    }
+  }
+  if (!saw_visible) {
+    extension.all_transparent = true;
+    report_fraction(progress, total_work, total_work,
+                    FilterProgressStage::Filtering);
+    return extension;
+  }
+  if (!saw_transparent) {
+    report_fraction(progress, total_work, total_work,
+                    FilterProgressStage::Filtering);
+    return extension;
+  }
+  if (pixel_count > std::numeric_limits<std::uint32_t>::max() ||
+      pixel_count > std::numeric_limits<std::size_t>::max() /
+                        sizeof(std::uint32_t)) {
+    throw std::overflow_error("Median color-extension buffer overflow");
+  }
+
+  constexpr auto kNoSource = std::numeric_limits<std::uint32_t>::max();
+  extension.nearest_visible.assign(static_cast<std::size_t>(pixel_count),
+                                   kNoSource);
+
+  // First choose the nearest visible source on each row. An equal-distance
+  // choice favors the source on the right, matching the Photoshop probes.
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_fraction(progress,
+                    static_cast<std::uint64_t>(height) +
+                        static_cast<std::uint64_t>(y),
+                    total_work, FilterProgressStage::Filtering);
+    std::int32_t left = -1;
+    const auto row_offset = static_cast<std::size_t>(y) *
+                            static_cast<std::size_t>(width);
+    for (std::int32_t x = 0; x < width; ++x) {
+      if (input.pixels.pixel(x, y)[3] != 0U) {
+        left = x;
+      }
+      if (left >= 0) {
+        extension.nearest_visible[row_offset + static_cast<std::size_t>(x)] =
+            static_cast<std::uint32_t>(left);
+      }
+    }
+    std::int32_t right = -1;
+    for (std::int32_t x = width; x-- > 0;) {
+      if (input.pixels.pixel(x, y)[3] != 0U) {
+        right = x;
+      }
+      if (right < 0) {
+        continue;
+      }
+      auto &source = extension.nearest_visible[
+          row_offset + static_cast<std::size_t>(x)];
+      if (source == kNoSource ||
+          right - x <= x - static_cast<std::int32_t>(source)) {
+        source = static_cast<std::uint32_t>(right);
+      }
+    }
+  }
+
+  // Complete the exact squared-Euclidean transform down each column. The
+  // lower envelope uses integer intersection boundaries, avoiding floating
+  // rounding differences between toolchains. A tie favors the later row, so
+  // the combined two-pass rule is down, then right.
+  std::vector<std::uint32_t> row_source_x(static_cast<std::size_t>(height));
+  std::vector<std::int32_t> envelope_rows(static_cast<std::size_t>(height));
+  std::vector<std::int64_t> envelope_starts(static_cast<std::size_t>(height));
+  for (std::int32_t x = 0; x < width; ++x) {
+    report_fraction(progress,
+                    static_cast<std::uint64_t>(height) * 2U +
+                        static_cast<std::uint64_t>(x),
+                    total_work, FilterProgressStage::Filtering);
+    for (std::int32_t y = 0; y < height; ++y) {
+      row_source_x[static_cast<std::size_t>(y)] =
+          extension.nearest_visible[static_cast<std::size_t>(y) *
+                                        static_cast<std::size_t>(width) +
+                                    static_cast<std::size_t>(x)];
+    }
+
+    std::int32_t envelope_size = 0;
+    for (std::int32_t candidate = 0; candidate < height; ++candidate) {
+      const auto candidate_x =
+          row_source_x[static_cast<std::size_t>(candidate)];
+      if (candidate_x == kNoSource) {
+        continue;
+      }
+      std::int64_t start = std::numeric_limits<std::int64_t>::min();
+      while (envelope_size > 0) {
+        const auto previous = envelope_rows[
+            static_cast<std::size_t>(envelope_size - 1)];
+        const auto previous_x =
+            row_source_x[static_cast<std::size_t>(previous)];
+        const auto candidate_dx = static_cast<std::int64_t>(x) -
+                                  static_cast<std::int64_t>(candidate_x);
+        const auto previous_dx = static_cast<std::int64_t>(x) -
+                                 static_cast<std::int64_t>(previous_x);
+        const auto numerator =
+            candidate_dx * candidate_dx +
+            static_cast<std::int64_t>(candidate) * candidate -
+            previous_dx * previous_dx -
+            static_cast<std::int64_t>(previous) * previous;
+        const auto denominator =
+            2LL * (static_cast<std::int64_t>(candidate) - previous);
+        start = ceil_divide(numerator, denominator);
+        if (start > envelope_starts[
+                        static_cast<std::size_t>(envelope_size - 1)]) {
+          break;
+        }
+        --envelope_size;
+      }
+      if (envelope_size == 0) {
+        start = std::numeric_limits<std::int64_t>::min();
+      }
+      envelope_rows[static_cast<std::size_t>(envelope_size)] = candidate;
+      envelope_starts[static_cast<std::size_t>(envelope_size)] = start;
+      ++envelope_size;
+    }
+    if (envelope_size == 0) {
+      throw std::runtime_error("Median color extension has no visible source");
+    }
+
+    std::int32_t selected = 0;
+    for (std::int32_t y = 0; y < height; ++y) {
+      while (selected + 1 < envelope_size &&
+             envelope_starts[static_cast<std::size_t>(selected + 1)] <= y) {
+        ++selected;
+      }
+      const auto source_y =
+          envelope_rows[static_cast<std::size_t>(selected)];
+      const auto source_x =
+          row_source_x[static_cast<std::size_t>(source_y)];
+      const auto source_index =
+          static_cast<std::uint64_t>(source_y) *
+              static_cast<std::uint64_t>(width) +
+          source_x;
+      extension.nearest_visible[static_cast<std::size_t>(y) *
+                                    static_cast<std::size_t>(width) +
+                                static_cast<std::size_t>(x)] =
+          static_cast<std::uint32_t>(source_index);
+    }
+  }
+  report_fraction(progress, total_work, total_work,
+                  FilterProgressStage::Filtering);
+  return extension;
+}
+
+struct SquareColumnHistogram {
+  std::array<std::uint16_t, 256> bins{};
+  std::array<std::uint16_t, 16> coarse{};
+
+  void add(std::uint8_t value) noexcept {
+    ++bins[value];
+    ++coarse[value >> 4U];
+  }
+
+  void remove(std::uint8_t value) noexcept {
+    --bins[value];
+    --coarse[value >> 4U];
+  }
+};
+
+class SlidingSquareHistogram {
+ public:
+  SlidingSquareHistogram(const std::vector<SquareColumnHistogram> &columns,
+                         std::int32_t source_left, std::int32_t image_width,
+                         std::int32_t radius, std::int32_t initial_x)
+      : columns_(columns), source_left_(source_left), image_width_(image_width),
+        radius_(radius), current_x_(initial_x) {
+    for (std::int32_t offset = -radius_; offset <= radius_; ++offset) {
+      const auto &column = column_at(initial_x + offset);
+      for (std::size_t group = 0; group < coarse_.size(); ++group) {
+        coarse_[group] += column.coarse[group];
+      }
+    }
+  }
+
+  void advance() noexcept {
+    const auto &leaving = column_at(current_x_ - radius_);
+    const auto &entering = column_at(current_x_ + radius_ + 1);
+    for (std::size_t group = 0; group < coarse_.size(); ++group) {
+      coarse_[group] -= leaving.coarse[group];
+      coarse_[group] += entering.coarse[group];
+    }
+    ++current_x_;
+  }
+
+  [[nodiscard]] std::uint8_t median(std::uint32_t rank) {
+    std::size_t group = 0;
+    while (group + 1U < coarse_.size() && rank > coarse_[group]) {
+      rank -= coarse_[group];
+      ++group;
+    }
+    const auto &fine = fine_group(group);
+    std::size_t within = 0;
+    while (within + 1U < fine.size() && rank > fine[within]) {
+      rank -= fine[within];
+      ++within;
+    }
+    return static_cast<std::uint8_t>(group * 16U + within);
+  }
+
+  // Surface Blur reuses this exact window machinery in the next checkpoint:
+  // it asks for every fine group intersecting its center-dependent range,
+  // whereas Median usually keeps only one group synchronized.
+  [[nodiscard]] const std::array<std::uint32_t, 16> &
+  fine_group(std::size_t group) {
+    auto &cache = fine_cache_[group];
+    if (!cache.valid) {
+      cache.bins.fill(0U);
+      for (std::int32_t offset = -radius_; offset <= radius_; ++offset) {
+        const auto &column = column_at(current_x_ + offset);
+        const auto first = group * 16U;
+        for (std::size_t bin = 0; bin < cache.bins.size(); ++bin) {
+          cache.bins[bin] += column.bins[first + bin];
+        }
+      }
+      cache.x = current_x_;
+      cache.valid = true;
+      return cache.bins;
+    }
+    while (cache.x < current_x_) {
+      const auto &leaving = column_at(cache.x - radius_);
+      const auto &entering = column_at(cache.x + radius_ + 1);
+      const auto first = group * 16U;
+      for (std::size_t bin = 0; bin < cache.bins.size(); ++bin) {
+        cache.bins[bin] -= leaving.bins[first + bin];
+        cache.bins[bin] += entering.bins[first + bin];
+      }
+      ++cache.x;
+    }
+    return cache.bins;
+  }
+
+ private:
+  struct FineCache {
+    bool valid{false};
+    std::int32_t x{0};
+    std::array<std::uint32_t, 16> bins{};
+  };
+
+  [[nodiscard]] const SquareColumnHistogram &
+  column_at(std::int32_t x) const noexcept {
+    const auto clamped = std::clamp(x, 0, image_width_ - 1);
+    return columns_[static_cast<std::size_t>(clamped - source_left_)];
+  }
+
+  const std::vector<SquareColumnHistogram> &columns_;
+  std::int32_t source_left_{0};
+  std::int32_t image_width_{0};
+  std::int32_t radius_{0};
+  std::int32_t current_x_{0};
+  std::array<std::uint32_t, 16> coarse_{};
+  std::array<FineCache, 16> fine_cache_{};
+};
+
+template <typename Sample>
+void filter_square_median_channel(const FilterRenderResult &input,
+                                  PixelBuffer &output, std::size_t channel,
+                                  std::int32_t radius, Sample &&sample,
+                                  const FilterProgress *progress) {
+  const auto width = input.bounds.width;
+  const auto height = input.bounds.height;
+  const auto diameter = radius * 2 + 1;
+  const auto window_area = static_cast<std::uint32_t>(diameter * diameter);
+  const auto median_rank = window_area / 2U + 1U;
+  const auto tile_count =
+      (width + kSquareHistogramTileWidth - 1) /
+      kSquareHistogramTileWidth;
+  const auto total_rows = static_cast<std::uint64_t>(tile_count) *
+                          static_cast<std::uint64_t>(height);
+  std::uint64_t completed_rows = 0U;
+
+  for (std::int32_t tile = 0; tile < tile_count; ++tile) {
+    const auto tile_left = tile * kSquareHistogramTileWidth;
+    const auto tile_right =
+        std::min(width, tile_left + kSquareHistogramTileWidth);
+    const auto source_left = std::max(0, tile_left - radius);
+    const auto source_right = std::min(width, tile_right + radius);
+    std::vector<SquareColumnHistogram> columns(
+        static_cast<std::size_t>(source_right - source_left));
+
+    for (std::int32_t source_x = source_left; source_x < source_right;
+         ++source_x) {
+      if (((source_x - source_left) & 63) == 0) {
+        report_fraction(progress, completed_rows, total_rows,
+                        FilterProgressStage::Filtering);
+      }
+      auto &column =
+          columns[static_cast<std::size_t>(source_x - source_left)];
+      for (std::int32_t offset = -radius; offset <= radius; ++offset) {
+        column.add(sample(source_x, std::clamp(offset, 0, height - 1)));
+      }
+    }
+
+    for (std::int32_t y = 0; y < height; ++y) {
+      report_fraction(progress, completed_rows, total_rows,
+                      FilterProgressStage::Filtering);
+      if (y > 0) {
+        const auto leaving_y = std::clamp(y - radius - 1, 0, height - 1);
+        const auto entering_y = std::clamp(y + radius, 0, height - 1);
+        for (std::int32_t source_x = source_left; source_x < source_right;
+             ++source_x) {
+          auto &column =
+              columns[static_cast<std::size_t>(source_x - source_left)];
+          column.remove(sample(source_x, leaving_y));
+          column.add(sample(source_x, entering_y));
+        }
+      }
+
+      SlidingSquareHistogram window(columns, source_left, width, radius,
+                                    tile_left);
+      for (std::int32_t x = tile_left; x < tile_right; ++x) {
+        if (x > tile_left) {
+          window.advance();
+        }
+        output.pixel(x, y)[channel] = window.median(median_rank);
+      }
+      ++completed_rows;
+    }
+  }
+  report_fraction(progress, total_rows, total_rows,
+                  FilterProgressStage::Filtering);
+}
+
+[[nodiscard]] FilterRenderResult
+render_median(const FilterRenderResult &input, double radius,
+              const FilterProgress *progress) {
+  if (input.pixels.empty()) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return input;
+  }
+  const auto effective_radius =
+      std::max(1, static_cast<std::int32_t>(std::floor(radius)));
+  constexpr int kPhaseCount = 5;
+  auto extension_progress = phase_progress(progress, 0, kPhaseCount);
+  const auto extension =
+      extend_transparent_colors(input, &extension_progress);
+  auto output = input.pixels;
+
+  auto alpha_progress = phase_progress(progress, 1, kPhaseCount);
+  const auto alpha_sample = [&input](std::int32_t x, std::int32_t y) {
+    return input.pixels.pixel(x, y)[3];
+  };
+  filter_square_median_channel(input, output, 3U, effective_radius,
+                               alpha_sample, &alpha_progress);
+
+  // With no visible color source Photoshop's hidden-RGB result is not an
+  // observable contract. Retain the source bytes instead of manufacturing
+  // black under a fully transparent layer.
+  if (extension.all_transparent) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return FilterRenderResult{std::move(output), input.bounds};
+  }
+
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    auto color_progress = phase_progress(
+        progress, static_cast<int>(channel) + 2, kPhaseCount);
+    const auto color_sample = [&input, &extension,
+                               channel](std::int32_t x, std::int32_t y) {
+      const auto *pixel = input.pixels.pixel(x, y);
+      if (pixel[3] != 0U) {
+        return pixel[channel];
+      }
+      if (extension.nearest_visible.empty()) {
+        return pixel[channel];
+      }
+      const auto index = extension.nearest_visible[
+          static_cast<std::size_t>(y) *
+              static_cast<std::size_t>(input.bounds.width) +
+          static_cast<std::size_t>(x)];
+      return input.pixels.data()[static_cast<std::size_t>(index) * 4U +
+                                 channel];
+    };
+    filter_square_median_channel(input, output, channel, effective_radius,
+                                 color_sample, &color_progress);
+  }
+  return FilterRenderResult{std::move(output), input.bounds};
+}
+
 [[nodiscard]] FilterRenderResult
 blend_entry_result(const FilterRenderResult &before,
                    FilterRenderResult filtered, double opacity,
@@ -840,6 +1260,8 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
   }
   for (const auto &entry : stack.entries) {
     double radius = 0.0;
+    double minimum_radius = kMinimumGaussianRadius;
+    double maximum_radius = kMaximumGaussianRadius;
     if (entry.kind == SmartFilterKind::GaussianBlur) {
       const auto *gaussian =
           std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
@@ -854,11 +1276,20 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
         throw std::invalid_argument("Unsupported Smart Filter entry");
       }
       radius = high_pass->radius_pixels;
+    } else if (entry.kind == SmartFilterKind::Median) {
+      const auto *median =
+          std::get_if<MedianSmartFilter>(&entry.parameters);
+      if (median == nullptr) {
+        throw std::invalid_argument("Unsupported Smart Filter entry");
+      }
+      radius = median->radius_pixels;
+      minimum_radius = kMinimumMedianRadius;
+      maximum_radius = kMaximumMedianRadius;
     } else {
       throw std::invalid_argument("Unsupported Smart Filter entry");
     }
-    if (!std::isfinite(radius) || radius < kMinimumGaussianRadius ||
-        radius > kMaximumGaussianRadius || !std::isfinite(entry.opacity) ||
+    if (!std::isfinite(radius) || radius < minimum_radius ||
+        radius > maximum_radius || !std::isfinite(entry.opacity) ||
         entry.opacity < 0.0 || entry.opacity > 1.0 ||
         !supported_blend_mode(entry.blend_mode)) {
       throw std::invalid_argument("Unsupported Smart Filter entry");
@@ -892,6 +1323,19 @@ FilterRenderResult render_photoshop_high_pass(
   }
   return render_high_pass(FilterRenderResult{pixels, bounds}, radius_pixels,
                           progress);
+}
+
+FilterRenderResult render_photoshop_median(
+    const PixelBuffer &pixels, Rect bounds, double radius_pixels,
+    const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() || pixels.width() != bounds.width ||
+      pixels.height() != bounds.height || !std::isfinite(radius_pixels) ||
+      radius_pixels < kMinimumMedianRadius ||
+      radius_pixels > kMaximumMedianRadius) {
+    throw std::invalid_argument("Invalid Photoshop Median input");
+  }
+  return render_median(FilterRenderResult{pixels, bounds}, radius_pixels,
+                       progress);
 }
 
 FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
@@ -939,11 +1383,15 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
           current.pixels, current.bounds, filter_canvas_bounds);
       filtered = trim_transparent_result(render_gaussian(
           gaussian_input, gaussian.radius_pixels, &filter_progress));
-    } else {
+    } else if (entry.kind == SmartFilterKind::HighPass) {
       const auto &high_pass =
           std::get<HighPassSmartFilter>(entry.parameters);
       filtered =
           render_high_pass(current, high_pass.radius_pixels, &filter_progress);
+    } else {
+      const auto &median = std::get<MedianSmartFilter>(entry.parameters);
+      filtered =
+          render_median(current, median.radius_pixels, &filter_progress);
     }
     auto blend_progress = phase_progress(progress, phase++, phase_count);
     current = blend_entry_result(current, std::move(filtered), entry.opacity,

@@ -3142,6 +3142,9 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
       {"patchy.filters.high_pass", Category::Sharpen, false,
        {{"radius", "filterRadius", 0.1, 1000, 10, Unit::Pixels, Scale::Pixels,
          Kind::Double, 0.1}}},
+      {"patchy.filters.median", Category::Noise, false,
+       {{"radius", "filterRadius", 1, 500, 1, Unit::Pixels, Scale::Pixels,
+         Kind::Double, 0.01}}},
   };
   return expected;
 }
@@ -3225,6 +3228,10 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
           actual.key == "radius") {
         CHECK(actual.practical_minimum == 0.1);
         CHECK(actual.practical_maximum == 12.0);
+      } else if (actual_filter.identifier == "patchy.filters.median" &&
+                 actual.key == "radius") {
+        CHECK(actual.practical_minimum == 1.0);
+        CHECK(actual.practical_maximum == 25.0);
       } else {
         CHECK(!actual.practical_minimum.has_value());
         CHECK(!actual.practical_maximum.has_value());
@@ -3283,7 +3290,9 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
       {"filterDistortMenu",
        {QStringLiteral("filterAction_patchy_filters_twirl"), QStringLiteral("filterAction_patchy_filters_wave"),
         QStringLiteral("filterAction_patchy_filters_pinch_bloat")}},
-      {"filterNoiseMenu", {QStringLiteral("filterAction_patchy_filters_film_grain")}},
+      {"filterNoiseMenu",
+       {QStringLiteral("filterAction_patchy_filters_film_grain"),
+        QStringLiteral("filterAction_patchy_filters_median")}},
       {"filterPixelateMenu",
        {QStringLiteral("filterAction_patchy_filters_pixelate"),
         QStringLiteral("filterAction_patchy_filters_color_halftone")}},
@@ -5167,6 +5176,43 @@ void ui_filter_preview_restores_unselected_region_runs() {
   }
 }
 
+void ui_median_selection_uses_full_layer_transparent_color_extension() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  patchy::PixelBuffer source(6, 1, patchy::PixelFormat::rgba8());
+  source.clear(0U);
+  for (std::int32_t x = 0; x < source.width(); ++x) {
+    source.pixel(x, 0)[3] = 255U;
+  }
+  for (const auto x : {2, 5}) {
+    auto* pixel = source.pixel(x, 0);
+    pixel[0] = 255U;
+    pixel[1] = 255U;
+    pixel[2] = 255U;
+  }
+  source.pixel(4, 0)[3] = 0U;
+
+  auto invocation =
+      registry.default_invocation("patchy.filters.median");
+  invocation.parameters["radius"] = 1.0;
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  const QRegion selection(QRect(3, 0, 1, 1));
+
+  auto expected = registry.render(invocation, source, bounds, false).pixels;
+  for (std::int32_t x = 0; x < source.width(); ++x) {
+    if (!selection.contains(QPoint(x, 0))) {
+      std::copy_n(source.pixel(x, 0), 4U, expected.pixel(x, 0));
+    }
+  }
+  const auto result = patchy::ui::build_filter_preview_pixels(
+      source, selection, bounds, registry,
+      patchy::ui::FilterPreviewSettings{true, invocation});
+  CHECK(patchy::ui::pixel_buffers_equal(result, expected));
+  const auto* selected = result.pixel(3, 0);
+  CHECK(selected[0] == 255U && selected[1] == 255U &&
+        selected[2] == 255U && selected[3] == 255U);
+}
+
 void ui_blur_grows_layer_into_transparency() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -5345,6 +5391,7 @@ const QStringList& expected_filter_gallery_ids() {
       QStringLiteral("patchy.filters.wave"),
       QStringLiteral("patchy.filters.pinch_bloat"),
       QStringLiteral("patchy.filters.film_grain"),
+      QStringLiteral("patchy.filters.median"),
       QStringLiteral("patchy.filters.pixelate"),
       QStringLiteral("patchy.filters.color_halftone"),
       QStringLiteral("patchy.filters.edge_detect"),
@@ -6437,6 +6484,7 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
         QStringLiteral("High Pass"),       QStringLiteral("Twirl"),
         QStringLiteral("Wave"),
         QStringLiteral("Pinch/Bloat"),     QStringLiteral("Analog Grain"),
+        QStringLiteral("Median"),
         QStringLiteral("Pixel Mosaic"),    QStringLiteral("Color Halftone"),
         QStringLiteral("Edge Detect"),     QStringLiteral("Emboss"),
         QStringLiteral("Glowing Edges"),   QStringLiteral("Clouds"),
@@ -6864,10 +6912,10 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
         {QStringLiteral("blur"), expected_filter_gallery_ids().mid(7, 4)},
         {QStringLiteral("sharpen"), expected_filter_gallery_ids().mid(11, 3)},
         {QStringLiteral("distort"), expected_filter_gallery_ids().mid(14, 3)},
-        {QStringLiteral("noise"), expected_filter_gallery_ids().mid(17, 1)},
-        {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(18, 2)},
-        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(20, 3)},
-        {QStringLiteral("render"), expected_filter_gallery_ids().mid(23, 1)},
+        {QStringLiteral("noise"), expected_filter_gallery_ids().mid(17, 2)},
+        {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(19, 2)},
+        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(21, 3)},
+        {QStringLiteral("render"), expected_filter_gallery_ids().mid(24, 1)},
     }};
     for (const auto& [token, ids] : categories) {
       category->setCurrentIndex(require_combo_data_index(*category, token));
@@ -36756,12 +36804,45 @@ void ui_unsupported_smart_filter_guards_preserve_photoshop_preview() {
       QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(
       QStringLiteral("imports/showPsdWarningsAndInfo"));
+  auto unsupported_document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path(
+          "photoshop-smart-filter-model.psd"));
+  auto unsupported_layer = std::find_if(
+      unsupported_document.layers().begin(),
+      unsupported_document.layers().end(), [](const patchy::Layer& layer) {
+        return layer.name() == "Applied Median then Gaussian";
+      });
+  CHECK(unsupported_layer != unsupported_document.layers().end());
+  constexpr std::array<std::uint8_t, 4> median_id{'M', 'd', 'n', ' '};
+  constexpr std::array<std::uint8_t, 4> unknown_id{'Z', 'Z', 'Z', 'Z'};
+  std::size_t replacements = 0U;
+  for (auto& block : unsupported_layer->unknown_psd_blocks()) {
+    if (block.key != "SoLd" && block.key != "SoLE") {
+      continue;
+    }
+    auto begin = block.payload.begin();
+    while (begin != block.payload.end()) {
+      const auto found = std::search(begin, block.payload.end(),
+                                     median_id.begin(), median_id.end());
+      if (found == block.payload.end()) {
+        break;
+      }
+      std::copy(unknown_id.begin(), unknown_id.end(), found);
+      ++replacements;
+      begin = found + static_cast<std::ptrdiff_t>(unknown_id.size());
+    }
+  }
+  CHECK(replacements >= 1U);
+  ensure_artifact_dir();
+  const auto unsupported_path = std::filesystem::absolute(
+      std::filesystem::path("test-artifacts") /
+      "ui_unsupported_smart_filter_descriptor.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(unsupported_document,
+                                                    unsupported_path);
+
   patchy::ui::MainWindow window;
   show_window(window);
-  const auto path = QString::fromStdWString(
-      patchy::test::committed_psd_fixture_path(
-          "photoshop-smart-filter-model.psd")
-          .wstring());
+  const auto path = QString::fromStdWString(unsupported_path.wstring());
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
   const auto layer_id = select_named_layer(
@@ -36944,6 +37025,75 @@ void ui_high_pass_normal_pixel_layer_stays_destructive() {
   CHECK(patchy::ui::pixel_buffers_equal(restored->pixels(), original_pixels));
 }
 
+void ui_median_normal_pixel_layer_stays_destructive() {
+  patchy::Document built(56, 44, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(18, 14, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 43 + y * 11) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 17 + y * 71) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 89 + y * 7) % 256);
+      pixel[3] = static_cast<std::uint8_t>((x * 29 + y * 31 + 64) % 256);
+    }
+  }
+  patchy::Layer artwork(built.allocate_layer_id(), "Ordinary Pixels",
+                        std::move(pixels));
+  const auto layer_id = artwork.id();
+  const patchy::Rect original_bounds{17, 15, 18, 14};
+  artwork.set_bounds(original_bounds);
+  const auto original_pixels = artwork.pixels();
+  built.add_layer(std::move(artwork));
+  built.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built),
+                              QStringLiteral("Destructive Median"));
+  show_window(window);
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  bool accepted = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterRadiusSpin"));
+    auto* slider = dialog->findChild<QSlider*>(
+        QStringLiteral("filterRadiusSlider"));
+    CHECK(radius != nullptr && slider != nullptr);
+    CHECK(std::abs(radius->minimum() - 1.0) < 0.000001);
+    CHECK(std::abs(radius->maximum() - 500.0) < 0.000001);
+    CHECK(std::abs(radius->singleStep() - 0.01) < 0.000001);
+    CHECK(slider->maximum() == 2400);
+    CHECK(std::abs(radius->value() - 1.0) < 0.000001);
+    radius->setValue(2.75);
+    accepted = true;
+    dialog->accept();
+  });
+  require_action(window, "filterAction_patchy_filters_median")->trigger();
+  QApplication::processEvents();
+  CHECK(accepted);
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* filtered = std::as_const(document).find_layer(layer_id);
+  CHECK(filtered != nullptr);
+  CHECK(!patchy::layer_is_smart_object(*filtered));
+  CHECK(filtered->smart_filter_stack() == nullptr);
+  CHECK(smart_filter_effect_record_count(document) == 0U);
+  CHECK(filter_rect_equal(filtered->bounds(), original_bounds));
+  CHECK(!patchy::ui::pixel_buffers_equal(filtered->pixels(), original_pixels));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(document).find_layer(layer_id);
+  CHECK(restored != nullptr && !patchy::layer_is_smart_object(*restored));
+  CHECK(filter_rect_equal(restored->bounds(), original_bounds));
+  CHECK(patchy::ui::pixel_buffers_equal(restored->pixels(), original_pixels));
+}
+
 void ui_smart_filter_high_pass_add_edit_and_reopen() {
   SettingsValueRestorer notes_setting(
       QStringLiteral("imports/showPsdWarningsAndInfo"));
@@ -37069,6 +37219,135 @@ void ui_smart_filter_high_pass_add_edit_and_reopen() {
   CHECK(reopened.metadata().smart_filter_effects.find_unique(
             patchy::smart_object_placed_uuid(*reopened_it)) != nullptr);
   save_widget_artifact("ui_smart_filter_high_pass_row", *active_row());
+}
+
+void ui_smart_filter_median_add_edit_and_reopen() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* original = std::as_const(document).find_layer(layer_id);
+  CHECK(original != nullptr && original->smart_filter_stack() == nullptr);
+  const auto original_pixels = original->pixels();
+  const auto original_bounds = original->bounds();
+  const auto original_record_count = smart_filter_effect_record_count(document);
+
+  bool applied = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterRadiusSpin"));
+    auto* slider = dialog->findChild<QSlider*>(
+        QStringLiteral("filterRadiusSlider"));
+    CHECK(radius != nullptr && slider != nullptr);
+    CHECK(std::abs(radius->value() - 1.0) < 0.000001);
+    CHECK(std::abs(radius->minimum() - 1.0) < 0.000001);
+    CHECK(std::abs(radius->maximum() - 500.0) < 0.000001);
+    CHECK(std::abs(radius->singleStep() - 0.01) < 0.000001);
+    CHECK(slider->maximum() == 2400);
+    radius->setValue(2.75);
+    applied = true;
+    dialog->accept();
+  });
+  require_action(window, "filterAction_patchy_filters_median")->trigger();
+  QApplication::processEvents();
+  CHECK(applied);
+
+  const auto require_stack = [&]() -> const patchy::SmartFilterStack& {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr && layer->smart_filter_stack() != nullptr);
+    return *layer->smart_filter_stack();
+  };
+  const auto radius_at = [&]() {
+    const auto& stack = require_stack();
+    CHECK(stack.support == patchy::SmartFilterStackSupport::Supported);
+    CHECK(stack.entries.size() == 1U);
+    CHECK(stack.entries.front().kind == patchy::SmartFilterKind::Median);
+    const auto* median = std::get_if<patchy::MedianSmartFilter>(
+        &stack.entries.front().parameters);
+    CHECK(median != nullptr);
+    return median->radius_pixels;
+  };
+  CHECK(std::abs(radius_at() - 2.75) < 0.000001);
+  const auto* filtered = std::as_const(document).find_layer(layer_id);
+  CHECK(filtered != nullptr);
+  CHECK(filter_rect_equal(filtered->bounds(), original_bounds));
+  CHECK(!patchy::ui::pixel_buffers_equal(filtered->pixels(), original_pixels));
+  CHECK(smart_filter_effect_record_count(document) ==
+        original_record_count + 1U);
+  const auto placed_uuid = patchy::smart_object_placed_uuid(*filtered);
+  const auto* record = std::as_const(document)
+                           .metadata()
+                           .smart_filter_effects.find_unique(placed_uuid);
+  CHECK(record != nullptr && record->semantic_supported());
+
+  const auto active_row = [&]() -> QWidget* {
+    auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(list != nullptr);
+    auto* row = list->itemWidget(
+        require_layer_item(*list, QStringLiteral("small")));
+    CHECK(row != nullptr);
+    return row;
+  };
+  auto* label = active_row()->findChild<QLabel*>(
+      QStringLiteral("layerSmartFilterEntryLabel"));
+  CHECK(label != nullptr && label->text() == QStringLiteral("Median"));
+  CHECK(label->toolTip().contains(QStringLiteral("2.75 px")));
+
+  bool edited = false;
+  QTimer::singleShot(20, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterRadiusSpin"));
+    CHECK(radius != nullptr);
+    CHECK(std::abs(radius->value() - 2.75) < 0.000001);
+    radius->setValue(7.5);
+    edited = true;
+    dialog->accept();
+  });
+  auto* edit = active_row()->findChild<QToolButton*>(
+      QStringLiteral("layerSmartFilterEditButton"));
+  CHECK(edit != nullptr && edit->isEnabled());
+  edit->click();
+  CHECK(process_events_until([&] { return edited; }));
+  CHECK(std::abs(radius_at() - 7.5) < 0.000001);
+  filtered = std::as_const(document).find_layer(layer_id);
+  CHECK(filtered != nullptr &&
+        filter_rect_equal(filtered->bounds(), original_bounds));
+
+  ensure_artifact_dir();
+  const auto artifact_path = std::filesystem::absolute(
+      std::filesystem::path("test-artifacts") /
+      "ui_smart_filter_median.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact_path);
+  const auto reopened = patchy::psd::DocumentIo::read_file(artifact_path);
+  const auto reopened_it = std::find_if(
+      reopened.layers().begin(), reopened.layers().end(),
+      [](const patchy::Layer& layer) { return layer.name() == "small"; });
+  CHECK(reopened_it != reopened.layers().end());
+  CHECK(reopened_it->smart_filter_stack() != nullptr);
+  CHECK(reopened_it->smart_filter_stack()->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(reopened_it->smart_filter_stack()->entries.size() == 1U);
+  const auto& reopened_entry =
+      reopened_it->smart_filter_stack()->entries.front();
+  CHECK(reopened_entry.kind == patchy::SmartFilterKind::Median);
+  const auto* reopened_median = std::get_if<patchy::MedianSmartFilter>(
+      &reopened_entry.parameters);
+  CHECK(reopened_median != nullptr);
+  CHECK(std::abs(reopened_median->radius_pixels - 7.5) < 0.000001);
+  CHECK(filter_rect_equal(reopened_it->bounds(), original_bounds));
+  CHECK(reopened.metadata().smart_filter_effects.find_unique(
+            patchy::smart_object_placed_uuid(*reopened_it)) != nullptr);
+  save_widget_artifact("ui_smart_filter_median_row", *active_row());
 }
 
 void ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel() {
@@ -47120,6 +47399,8 @@ int main(int argc, char* argv[]) {
        ui_brightness_contrast_filter_applies_settings},
       {"ui_filter_preview_restores_unselected_region_runs",
        ui_filter_preview_restores_unselected_region_runs},
+      {"ui_median_selection_uses_full_layer_transparent_color_extension",
+       ui_median_selection_uses_full_layer_transparent_color_extension},
       {"ui_blur_grows_layer_into_transparency", ui_blur_grows_layer_into_transparency},
       {"ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds",
        ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds},
@@ -47786,8 +48067,12 @@ int main(int argc, char* argv[]) {
        ui_gaussian_blur_normal_pixel_layer_stays_destructive},
       {"ui_high_pass_normal_pixel_layer_stays_destructive",
        ui_high_pass_normal_pixel_layer_stays_destructive},
+      {"ui_median_normal_pixel_layer_stays_destructive",
+       ui_median_normal_pixel_layer_stays_destructive},
       {"ui_smart_filter_high_pass_add_edit_and_reopen",
        ui_smart_filter_high_pass_add_edit_and_reopen},
+      {"ui_smart_filter_median_add_edit_and_reopen",
+       ui_smart_filter_median_add_edit_and_reopen},
       {"ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel",
        ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel},
       {"ui_layer_smart_object_badge_button_opens_contents", ui_layer_smart_object_badge_button_opens_contents},

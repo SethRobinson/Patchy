@@ -528,6 +528,38 @@ void high_pass(PixelBuffer& pixels) {
   }
 }
 
+void median(PixelBuffer& pixels) {
+  require_uint8(pixels);
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    return;
+  }
+  PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* source = pixels.pixel(x, y);
+      auto* destination = rgba.pixel(x, y);
+      destination[0] = source[0];
+      destination[1] = source[1];
+      destination[2] = source[2];
+      destination[3] = pixels.format().channels >= 4 ? source[3] : 255U;
+    }
+  }
+  const auto result = render_photoshop_median(
+      rgba, Rect::from_size(rgba.width(), rgba.height()), 1.0);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* destination = pixels.pixel(x, y);
+      const auto* source = result.pixels.pixel(x, y);
+      destination[0] = source[0];
+      destination[1] = source[1];
+      destination[2] = source[2];
+      if (pixels.format().channels >= 4) {
+        destination[3] = source[3];
+      }
+    }
+  }
+}
+
 void edge_detect(PixelBuffer& pixels) {
   require_uint8(pixels);
   if (pixels.format().channels < 3 || pixels.width() == 0 || pixels.height() == 0) {
@@ -976,6 +1008,7 @@ void register_builtin_filters(FilterRegistry& registry) {
   add("patchy.filters.film_grain", "Analog Grain", film_grain);
   add("patchy.filters.vignette", "Lens Vignette", vignette);
   add("patchy.filters.high_pass", "High Pass", high_pass);
+  add("patchy.filters.median", "Median", median);
 }
 
 }  // namespace patchy

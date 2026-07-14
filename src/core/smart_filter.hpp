@@ -16,6 +16,7 @@ enum class SmartFilterKind {
   Unsupported,
   GaussianBlur,
   HighPass,
+  Median,
 };
 
 struct GaussianBlurSmartFilter {
@@ -26,9 +27,13 @@ struct HighPassSmartFilter {
   double radius_pixels{0.0};
 };
 
+struct MedianSmartFilter {
+  double radius_pixels{1.0};
+};
+
 using SmartFilterParameters =
     std::variant<std::monostate, GaussianBlurSmartFilter,
-                 HighPassSmartFilter>;
+                 HighPassSmartFilter, MedianSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};
