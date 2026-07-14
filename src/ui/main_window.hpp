@@ -731,6 +731,7 @@ private:
   void register_hotkey(QAction* action, QString id, QList<QKeySequence> default_shortcuts, QString category = {});
   void register_hotkey(QAction* action, QString id, QKeySequence default_shortcut = {}, QString category = {});
   void update_document_action_state();
+  void refresh_convert_for_smart_filters_action_state();
   [[nodiscard]] PreviewDialogEditLock lock_preview_dialog_edits();
   void begin_preview_dialog_edit_lock();
   void end_preview_dialog_edit_lock();

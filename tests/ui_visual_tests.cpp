@@ -35509,21 +35509,25 @@ void ui_convert_for_smart_filters_action_converts_eligible_pixel_layer() {
   const patchy::Rect original_bounds{9, 8, 20, 16};
   artwork.set_bounds(original_bounds);
   built.add_layer(std::move(artwork));
+  built.add_pixel_layer(
+      "Other Artwork",
+      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
   built.set_active_layer(layer_id);
   const auto before = patchy::ui::qimage_from_document(built, true);
   window.add_document_session(std::move(built),
                               QStringLiteral("Convert for Smart Filters"));
   QApplication::processEvents();
-  patchy::ui::MainWindowTestAccess::update_document_action_state(window);
 
   auto* layer_list =
       window.findChild<QListWidget*>(QStringLiteral("layerList"));
-  CHECK(layer_list != nullptr && layer_list->count() == 1);
-  layer_list->setCurrentItem(layer_list->item(0),
-                             QItemSelectionModel::ClearAndSelect);
-  layer_list->item(0)->setSelected(true);
-  QApplication::processEvents();
-  patchy::ui::MainWindowTestAccess::update_document_action_state(window);
+  CHECK(layer_list != nullptr && layer_list->count() == 2);
+  const auto select_layer = [&](const QString& name) {
+    auto* item = require_layer_item(*layer_list, name);
+    layer_list->setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
+    item->setSelected(true);
+    QApplication::processEvents();
+  };
+  select_layer(QStringLiteral("Artwork"));
   CHECK(convert->isEnabled());
   const auto undo_before =
       patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
@@ -35541,7 +35545,11 @@ void ui_convert_for_smart_filters_action_converts_eligible_pixel_layer() {
   CHECK(patchy::ui::qimage_from_document(document, true) == before);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
         undo_before + 1U);
-  patchy::ui::MainWindowTestAccess::update_document_action_state(window);
+  CHECK(!convert->isEnabled());
+
+  select_layer(QStringLiteral("Other Artwork"));
+  CHECK(convert->isEnabled());
+  select_layer(QStringLiteral("Artwork"));
   CHECK(!convert->isEnabled());
 
   require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
@@ -35550,7 +35558,18 @@ void ui_convert_for_smart_filters_action_converts_eligible_pixel_layer() {
   CHECK(restored != nullptr && !patchy::layer_is_smart_object(*restored));
   CHECK(filter_rect_equal(restored->bounds(), original_bounds));
   CHECK(patchy::ui::qimage_from_document(document, true) == before);
-  patchy::ui::MainWindowTestAccess::update_document_action_state(window);
+  CHECK(convert->isEnabled());
+
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  QApplication::processEvents();
+  const auto* redone = std::as_const(document).find_layer(layer_id);
+  CHECK(redone != nullptr && patchy::layer_is_smart_object(*redone));
+  CHECK(!convert->isEnabled());
+
+  require_action(window, "layerRasterizeAction")->trigger();
+  QApplication::processEvents();
+  const auto* rasterized = std::as_const(document).find_layer(layer_id);
+  CHECK(rasterized != nullptr && !patchy::layer_is_smart_object(*rasterized));
   CHECK(convert->isEnabled());
 }
 

@@ -24597,6 +24597,7 @@ void MainWindow::refresh_layer_thumbnails() {
 }
 
 void MainWindow::refresh_layer_controls() {
+  refresh_convert_for_smart_filters_action_state();
   if (!updating_layer_controls_) {
     finish_pending_layer_opacity_edit();
   }
@@ -27207,23 +27208,37 @@ void MainWindow::update_document_action_state() {
     channel_panel_->set_channel_creation_available(!locked && has_capacity &&
                                                    !quick_mask_view);
   }
-  if (filter_convert_smart_filters_action_ != nullptr) {
-    const Layer* active_layer = nullptr;
-    if (has_document) {
-      const auto active_id = std::as_const(document()).active_layer_id();
-      if (active_id.has_value()) {
-        active_layer = std::as_const(document()).find_layer(*active_id);
-      }
-    }
-    const bool eligible =
-        active_layer != nullptr && active_layer->kind() == LayerKind::Pixel &&
-        !layer_is_smart_object(*active_layer) &&
-        active_layer->pixels().format().bit_depth == BitDepth::UInt8 &&
-        active_layer->pixels().format().channels >= 3U;
-    filter_convert_smart_filters_action_->setEnabled(
-        has_document && !locked && !channel_view && eligible);
-  }
+  refresh_convert_for_smart_filters_action_state();
   refresh_options_bar();
+}
+
+void MainWindow::refresh_convert_for_smart_filters_action_state() {
+  if (filter_convert_smart_filters_action_ == nullptr) {
+    return;
+  }
+
+  const bool has_document = has_active_document();
+  const bool channel_view =
+      canvas_ != nullptr &&
+      (canvas_->quick_mask_active() || canvas_->editing_smart_filter_mask() ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentGreen ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentBlue);
+  const Layer* active_layer = nullptr;
+  if (has_document) {
+    const auto active_id = std::as_const(document()).active_layer_id();
+    if (active_id.has_value()) {
+      active_layer = std::as_const(document()).find_layer(*active_id);
+    }
+  }
+  const bool eligible =
+      active_layer != nullptr && active_layer->kind() == LayerKind::Pixel &&
+      !layer_is_smart_object(*active_layer) &&
+      active_layer->pixels().format().bit_depth == BitDepth::UInt8 &&
+      active_layer->pixels().format().channels >= 3U;
+  filter_convert_smart_filters_action_->setEnabled(
+      has_document && !preview_dialog_edit_locked() && !channel_view && eligible);
 }
 
 void MainWindow::sync_brush_controls_from_canvas() {
