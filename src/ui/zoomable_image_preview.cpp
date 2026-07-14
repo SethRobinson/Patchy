@@ -759,7 +759,12 @@ void ZoomableImagePreview::draw_tilt_shift_overlay(QPainter& painter) const {
   const auto focus_distance = overlay.focus_half_width * shorter;
   const auto transition_distance =
       (overlay.focus_half_width + overlay.transition_width) * shorter;
-  const auto line_half_length = std::hypot(target.width(), target.height());
+  // Patent design constraint (Apple US 8971623, in force to 2032; details in
+  // docs/smart-objects.md "Patents and trademarks"): the band boundaries are
+  // marked with short grip bars near the center axis only. Never draw
+  // boundary lines that span the image and divide it around the center;
+  // ui_filter_gallery_tilt_shift_overlay_uses_grip_bars pins this.
+  constexpr auto kBoundaryGripHalfLength = 26.0;
 
   painter.save();
   painter.setClipRect(visible_target);
@@ -769,8 +774,8 @@ void ZoomableImagePreview::draw_tilt_shift_overlay(QPainter& painter) const {
   const auto draw_boundary = [&](double distance, Qt::PenStyle style) {
     for (const auto side : {-1.0, 1.0}) {
       const auto midpoint = center + normal * (side * distance);
-      const auto start = midpoint - tangent * line_half_length;
-      const auto end = midpoint + tangent * line_half_length;
+      const auto start = midpoint - tangent * kBoundaryGripHalfLength;
+      const auto end = midpoint + tangent * kBoundaryGripHalfLength;
       painter.setPen(QPen(QColor(18, 20, 23, 225), 4.0, style,
                           Qt::RoundCap));
       painter.drawLine(start, end);

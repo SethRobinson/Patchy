@@ -7669,6 +7669,40 @@ patchy::PixelBuffer reference_photoshop_surface_blur(
   return result;
 }
 
+// Pins the histogram-free Surface Blur implementations against the brute
+// force reference on both sides of kSurfaceBlurDirectMaximumRadius: the
+// direct-accumulation path and the per-intensity-level box-sum path used for
+// large radii must produce identical bytes (patent design-around, see
+// docs/smart-objects.md "Patents and trademarks").
+void surface_blur_direct_and_level_paths_match_reference() {
+  patchy::PixelBuffer source(23, 17, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      auto* pixel = source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 53 + y * 29 + 11) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 17 + y * 71 + 5) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 41 + y * 23 + 201) % 256);
+      pixel[3] = static_cast<std::uint8_t>(190 + (x * 7 + y * 3) % 66);
+    }
+  }
+  source.pixel(3, 2)[3] = 0U;
+  source.pixel(15, 11)[3] = 0U;
+  const auto bounds = patchy::Rect::from_size(source.width(), source.height());
+
+  for (const auto radius : {8.0, 9.0, 14.0}) {
+    for (const auto threshold : {2, 15, 255}) {
+      const auto rendered = patchy::render_photoshop_surface_blur(
+          source, bounds, radius, threshold);
+      const auto expected =
+          reference_photoshop_surface_blur(source, radius, threshold);
+      CHECK(rendered.pixels.data().size() == expected.data().size());
+      CHECK(std::equal(rendered.pixels.data().begin(),
+                       rendered.pixels.data().end(),
+                       expected.data().begin()));
+    }
+  }
+}
+
 void smart_filter_surface_blur_matches_photoshop_weighting_bounds_and_native_paths() {
   patchy::PixelBuffer source(6, 5, patchy::PixelFormat::rgba8());
   for (std::int32_t y = 0; y < source.height(); ++y) {
@@ -25108,6 +25142,8 @@ int main(int argc, char** argv) {
        smart_filter_dust_and_scratches_matches_photoshop_threshold_and_native_paths},
       {"smart_filter_surface_blur_matches_photoshop_weighting_bounds_and_native_paths",
        smart_filter_surface_blur_matches_photoshop_weighting_bounds_and_native_paths},
+      {"surface_blur_direct_and_level_paths_match_reference",
+       surface_blur_direct_and_level_paths_match_reference},
       {"tilt_shift_blur_is_deterministic_respects_focus_geometry_and_bounds",
        tilt_shift_blur_is_deterministic_respects_focus_geometry_and_bounds},
       {"smart_filter_shared_mask_and_disable_states_are_applied_once",

@@ -8002,6 +8002,132 @@ void ui_filter_gallery_tilt_shift_overlay_syncs_and_freezes_during_drag() {
   CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
 }
 
+// Patent design constraint (Apple US 8971623; docs/smart-objects.md "Patents
+// and trademarks"): the tilt-shift boundary marks must stay short grip bars
+// near the center axis. This test fails if anyone reintroduces boundary
+// lines that span the image and divide it around the center.
+void ui_filter_gallery_tilt_shift_overlay_uses_grip_bars() {
+  GallerySettingsRestorer gallery_settings;
+  ensure_artifact_dir();
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  patchy::ui::MainWindow theme_host;
+  QImage flat(220, 160, QImage::Format_ARGB32);
+  flat.fill(QColor(128, 128, 128));
+  const auto source = patchy::ui::pixels_from_image_rgba(flat);
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* editor = dialog->findChild<QWidget*>(
+        QStringLiteral("filterGalleryParameterEditor"));
+    auto* preview = dynamic_cast<patchy::ui::ZoomableImagePreview*>(
+        dialog->findChild<QWidget*>(QStringLiteral("filterGalleryPreview")));
+    auto* status = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryStatusLabel"));
+    CHECK(looks != nullptr && editor != nullptr && preview != nullptr &&
+          status != nullptr);
+
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.tilt_shift_blur")));
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterTiltShiftOverlayVisible").toBool() &&
+                 status->text() ==
+                     QCoreApplication::translate("QObject", "Ready");
+        },
+        7000));
+    CHECK(preview->property("filterTiltShiftAngleDegrees").toDouble() == 0.0);
+
+    // A zero blur renders the flat source without bounds growth, so the
+    // preview stays an opaque uniform gray and every non-background pixel is
+    // overlay ink. The default blur would grow the layer and feather its
+    // edges over the checkerboard, which would break the flat-row probes.
+    auto* blur = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterBlurSpin"));
+    CHECK(blur != nullptr);
+    blur->setValue(0.0);
+    CHECK(process_events_until(
+        [&] {
+          return status->text() ==
+                     QCoreApplication::translate("QObject", "Ready") &&
+                 !preview->image().isNull() &&
+                 preview->image().pixelColor(1, 1).alpha() == 255;
+        },
+        7000));
+    dialog->repaint();
+    process_events_for(80);
+
+    const auto center =
+        preview->property("filterTiltShiftCenterPoint").toPointF();
+    const auto focus_handle =
+        preview->property("filterTiltShiftFocusHandlePoint").toPointF();
+    const auto transition_handle =
+        preview->property("filterTiltShiftTransitionHandlePoint").toPointF();
+    const auto grabbed = preview->grab().toImage();
+    CHECK(!grabbed.isNull());
+    save_widget_artifact("ui_tilt_shift_overlay_grip_bars", *preview);
+    const auto ratio = grabbed.devicePixelRatio();
+    const auto sample = [&](double x, double y) {
+      const auto px = qRound(x * ratio);
+      const auto py = qRound(y * ratio);
+      CHECK(px >= 0 && px < grabbed.width() && py >= 0 &&
+            py < grabbed.height());
+      return grabbed.pixel(px, py);
+    };
+
+    // Blurring a flat gray source leaves a flat preview, so any pixel that
+    // differs from the row 18 px closer to the center axis clean band is
+    // overlay ink. Away from the short grips there must be none on either
+    // boundary row.
+    const auto boundary_rows =
+        std::array<double, 2>{focus_handle.y(), transition_handle.y()};
+    for (const auto row : boundary_rows) {
+      const auto clean_row = row - 18.0;
+      for (auto x = 2; x + 2 < preview->width(); ++x) {
+        if (std::abs(static_cast<double>(x) - center.x()) <= 40.0) {
+          continue;
+        }
+        for (auto dy = -3; dy <= 3; ++dy) {
+          CHECK(sample(x, row + dy) == sample(x, clean_row + dy));
+        }
+      }
+    }
+
+    // The grips themselves must remain visible: solid focus bar ink near the
+    // axis, and at least one dash of the transition bar within its span.
+    bool focus_ink = false;
+    for (auto dy = -3; dy <= 3 && !focus_ink; ++dy) {
+      focus_ink = sample(center.x() - 20.0, focus_handle.y() + dy) !=
+                  sample(center.x() - 20.0, focus_handle.y() - 18.0 + dy);
+    }
+    CHECK(focus_ink);
+    bool transition_ink = false;
+    for (auto dx = -24; dx <= 24 && !transition_ink; ++dx) {
+      for (auto dy = -3; dy <= 3 && !transition_ink; ++dy) {
+        transition_ink =
+            sample(center.x() + dx, transition_handle.y() + dy) !=
+            sample(center.x() + dx, transition_handle.y() - 18.0 + dy);
+      }
+    }
+    CHECK(transition_ink);
+
+    drove_dialog = true;
+    dialog->reject();
+  });
+
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      &theme_host, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255},
+      [](const patchy::ui::VisualFilterGalleryPreview&) {});
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+}
+
 void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
   GallerySettingsRestorer gallery_settings;
   patchy::FilterRegistry registry;
@@ -48655,6 +48781,8 @@ int main(int argc, char* argv[]) {
        ui_filter_gallery_specialized_controls_sync_and_drag_in_expected_directions},
       {"ui_filter_gallery_tilt_shift_overlay_syncs_and_freezes_during_drag",
        ui_filter_gallery_tilt_shift_overlay_syncs_and_freezes_during_drag},
+      {"ui_filter_gallery_tilt_shift_overlay_uses_grip_bars",
+       ui_filter_gallery_tilt_shift_overlay_uses_grip_bars},
       {"ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop",
        ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop},
       {"ui_all_builtin_filters_render_stroke_contact_sheet",
