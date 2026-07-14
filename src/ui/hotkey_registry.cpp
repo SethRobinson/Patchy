@@ -33,8 +33,20 @@ QString clean_action_text(const QAction* action) {
   if (action == nullptr) {
     return {};
   }
-  auto label = action->text();
-  label.remove(QLatin1Char('&'));
+  const auto source = action->text();
+  QString label;
+  label.reserve(source.size());
+  for (qsizetype index = 0; index < source.size(); ++index) {
+    if (source[index] != QLatin1Char('&')) {
+      label += source[index];
+      continue;
+    }
+    if (index + 1 < source.size() &&
+        source[index + 1] == QLatin1Char('&')) {
+      label += QLatin1Char('&');
+      ++index;
+    }
+  }
   return label.trimmed();
 }
 

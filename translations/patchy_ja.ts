@@ -757,6 +757,10 @@
         <translation>中央値</translation>
     </message>
     <message>
+        <source>Dust &amp; Scratches</source>
+        <translation>ダスト＆スクラッチ</translation>
+    </message>
+    <message>
         <location line="+9"/>
         <source>Edge Detect</source>
         <translation>エッジ検出</translation>
@@ -11416,6 +11420,10 @@ Clipped to the layer below</source>
         <translation>中央値をキャンセルしました</translation>
     </message>
     <message>
+        <source>Cancelled Dust &amp; Scratches</source>
+        <translation>ダスト＆スクラッチをキャンセルしました</translation>
+    </message>
+    <message>
         <source>Smart Filter failed</source>
         <translation>スマートフィルターの処理に失敗しました</translation>
     </message>
@@ -11488,6 +11496,26 @@ Clipped to the layer below</source>
         <translation>中央値スマートフィルターを更新しました</translation>
     </message>
     <message>
+        <source>Add Dust &amp; Scratches Smart Filter</source>
+        <translation>ダスト＆スクラッチスマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Dust &amp; Scratches Smart Filter</source>
+        <translation>ダスト＆スクラッチスマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Dust &amp; Scratches as a Smart Filter</source>
+        <translation>ダスト＆スクラッチをスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Dust &amp; Scratches Smart Filter</source>
+        <translation>ダスト＆スクラッチスマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Dust &amp; Scratches Smart Filter</source>
+        <translation>ダスト＆スクラッチスマートフィルターを更新しました</translation>
+    </message>
+    <message>
         <source>Show Smart Filters</source>
         <translation>スマートフィルターを表示</translation>
     </message>
@@ -11552,8 +11580,8 @@ Clipped to the layer below</source>
         <translation>スマートフィルターを削除しました</translation>
     </message>
     <message>
-        <source>Only Gaussian Blur, High Pass, and Median are currently editable as Smart Filters</source>
-        <translation>現在、スマートフィルターとして編集できるのはガウスぼかし、ハイパス、中央値だけです</translation>
+        <source>Only Gaussian Blur, High Pass, Median, and Dust &amp; Scratches are currently editable as Smart Filters</source>
+        <translation>現在、スマートフィルターとして編集できるのはガウスぼかし、ハイパス、中央値、ダスト＆スクラッチだけです</translation>
     </message>
     <message>
         <source>Add Smart Filter Stack</source>
@@ -12284,6 +12312,7 @@ Clipped to the layer below</source>
     <message><source>Smart Filter visible. Click to hide.</source><translation>スマートフィルターは表示中です。クリックで非表示にします。</translation></message>
     <message><source>Smart Filter hidden. Click to show.</source><translation>スマートフィルターは非表示です。クリックで表示します。</translation></message>
     <message><source> (%1 px)</source><translation> (%1 px)</translation></message>
+    <message><source> (Radius %1 px, Threshold %2)</source><translation> (半径 %1 px、しきい値 %2)</translation></message>
     <message><source>Unsupported Smart Filter</source><translation>未対応のスマートフィルター</translation></message>
     <message><source>Edit Smart Filter</source><translation>スマートフィルターを編集</translation></message>
     <message><source>Smart Filter actions</source><translation>スマートフィルターの操作</translation></message>

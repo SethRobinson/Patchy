@@ -160,6 +160,8 @@ struct SmartFilterRadiusDescriptorSpec {
   double radius{0.0};
   double minimum_radius{0.1};
   double maximum_radius{1000.0};
+  bool integer_radius{false};
+  std::optional<std::int32_t> threshold;
   const char* default_entry_name{nullptr};
   const char* filter_name{nullptr};
   const char* filter_class_id{nullptr};
@@ -204,6 +206,23 @@ smart_filter_radius_descriptor_spec(const SmartFilterEntry& entry) {
     spec.filter_name = "Median";
     spec.filter_class_id = "Mdn ";
     spec.filter_id = 0x4d646e20U;
+  } else if (entry.kind == SmartFilterKind::DustAndScratches) {
+    const auto* dust =
+        std::get_if<DustAndScratchesSmartFilter>(&entry.parameters);
+    if (dust == nullptr || dust->radius_pixels < 1 ||
+        dust->radius_pixels > 100 || dust->threshold < 0 ||
+        dust->threshold > 255) {
+      return std::nullopt;
+    }
+    spec.radius = dust->radius_pixels;
+    spec.minimum_radius = 1.0;
+    spec.maximum_radius = 100.0;
+    spec.integer_radius = true;
+    spec.threshold = dust->threshold;
+    spec.default_entry_name = "Dust && Scratches...";
+    spec.filter_name = "Dust & Scratches";
+    spec.filter_class_id = "DstS";
+    spec.filter_id = 0x44737453U;
   } else {
     return std::nullopt;
   }
@@ -246,8 +265,16 @@ std::optional<DescriptorValue> make_smart_filter_entry_descriptor(
                          smart_filter_color(entry.background));
   auto filter = smart_filter_object(spec->filter_class_id, false,
                                     spec->filter_name);
-  add_smart_filter_value(*filter.object_value, "Rds ", false,
-                         smart_filter_unit("#Pxl", spec->radius));
+  if (spec->integer_radius) {
+    add_smart_filter_value(
+        *filter.object_value, "Rds ", false,
+        smart_filter_integer(static_cast<std::int32_t>(spec->radius)));
+    add_smart_filter_value(*filter.object_value, "Thsh", false,
+                           smart_filter_integer(*spec->threshold));
+  } else {
+    add_smart_filter_value(*filter.object_value, "Rds ", false,
+                           smart_filter_unit("#Pxl", spec->radius));
+  }
   add_smart_filter_value(*item.object_value, "Fltr", false,
                          std::move(filter));
   add_smart_filter_value(
@@ -452,15 +479,30 @@ bool patch_smart_filter_descriptor(
     auto* radius = mutable_value_either(*filter, "Rds ", "Rds");
     if (opacity == nullptr || opacity->type != DescriptorValue::Type::UnitFloat ||
         opacity->unit != "#Prc" || mode == nullptr ||
-        mode->type != DescriptorValue::Type::Enum || mode->enum_type != "BlnM" ||
-        radius == nullptr || radius->type != DescriptorValue::Type::UnitFloat ||
-        radius->unit != "#Pxl") {
+        mode->type != DescriptorValue::Type::Enum ||
+        mode->enum_type != "BlnM" || radius == nullptr) {
       return false;
     }
     opacity->double_value = std::clamp(entry.opacity, 0.0, 1.0) * 100.0;
     mode->enum_value = std::string(blend_mode_lfx2_string(entry.blend_mode));
     mode->enum_value_long_form = true;
-    radius->double_value = spec->radius;
+    if (spec->integer_radius) {
+      auto* threshold = mutable_value_either(*filter, "Thsh", "threshold");
+      if (radius->type != DescriptorValue::Type::Integer ||
+          threshold == nullptr ||
+          threshold->type != DescriptorValue::Type::Integer ||
+          !spec->threshold.has_value()) {
+        return false;
+      }
+      radius->integer_value = static_cast<std::int32_t>(spec->radius);
+      threshold->integer_value = *spec->threshold;
+    } else {
+      if (radius->type != DescriptorValue::Type::UnitFloat ||
+          radius->unit != "#Pxl") {
+        return false;
+      }
+      radius->double_value = spec->radius;
+    }
   }
   return true;
 }
@@ -665,13 +707,32 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
       if (filter != nullptr) {
         entry.native_class_id = filter->class_id;
       }
-      if (filter != nullptr &&
-          ((filter->class_id == "GsnB" &&
-            entry.native_filter_id == 0x47736e42U) ||
-           (filter->class_id == "HghP" &&
-            entry.native_filter_id == 0x48676850U) ||
-           (filter->class_id == "Mdn " &&
-            entry.native_filter_id == 0x4d646e20U))) {
+      if (filter != nullptr && filter->class_id == "DstS" &&
+          entry.native_filter_id == 0x44737453U) {
+        const auto* radius =
+            descriptor_value_either(*filter, "Rds ", "Rds");
+        const auto* threshold =
+            descriptor_value_either(*filter, "Thsh", "threshold");
+        if (radius != nullptr &&
+            radius->type == DescriptorValue::Type::Integer &&
+            radius->integer_value >= 1 && radius->integer_value <= 100 &&
+            threshold != nullptr &&
+            threshold->type == DescriptorValue::Type::Integer &&
+            threshold->integer_value >= 0 &&
+            threshold->integer_value <= 255) {
+          entry.kind = SmartFilterKind::DustAndScratches;
+          entry.parameters = DustAndScratchesSmartFilter{
+              radius->integer_value, threshold->integer_value};
+        } else {
+          entry_supported = false;
+        }
+      } else if (filter != nullptr &&
+                 ((filter->class_id == "GsnB" &&
+                   entry.native_filter_id == 0x47736e42U) ||
+                  (filter->class_id == "HghP" &&
+                   entry.native_filter_id == 0x48676850U) ||
+                  (filter->class_id == "Mdn " &&
+                   entry.native_filter_id == 0x4d646e20U))) {
         const auto* radius = descriptor_value_either(*filter, "Rds ", "Rds");
         const auto minimum_radius = filter->class_id == "Mdn " ? 1.0 : 0.1;
         const auto maximum_radius = filter->class_id == "Mdn " ? 500.0 : 1000.0;

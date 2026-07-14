@@ -437,7 +437,10 @@ private:
   void median_smart_filter_dialog(
       LayerId layer_id,
       std::optional<std::size_t> execution_index = std::nullopt);
-  void radius_smart_filter_dialog(
+  void dust_and_scratches_smart_filter_dialog(
+      LayerId layer_id,
+      std::optional<std::size_t> execution_index = std::nullopt);
+  void editable_smart_filter_dialog(
       LayerId layer_id, SmartFilterKind kind,
       std::optional<std::size_t> execution_index = std::nullopt);
   void edit_smart_filter(LayerId layer_id, std::size_t execution_index);

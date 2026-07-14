@@ -241,6 +241,10 @@ namespace patchy::ui {
 
 namespace {
 
+QString escape_qaction_ampersands(QString text) {
+  return text.replace(QLatin1Char('&'), QStringLiteral("&&"));
+}
+
 constexpr const char* kLayerContentThumbnailRevisionProperty = "patchyContentRevision";
 constexpr const char* kLayerMaskThumbnailRevisionProperty = "patchyMaskRevision";
 
@@ -2638,6 +2642,16 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
             radius.chop(1);
           }
           entry_tooltip += QObject::tr(" (%1 px)").arg(radius);
+        }
+      } else if (entry.kind == SmartFilterKind::DustAndScratches) {
+        entry_name = QObject::tr("Dust & Scratches");
+        entry_tooltip = entry_name;
+        if (const auto* dust =
+                std::get_if<DustAndScratchesSmartFilter>(&entry.parameters);
+            dust != nullptr) {
+          entry_tooltip += QObject::tr(" (Radius %1 px, Threshold %2)")
+                               .arg(dust->radius_pixels)
+                               .arg(dust->threshold);
         }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
@@ -12099,7 +12113,8 @@ void MainWindow::create_actions() {
       continue;
     }
     const auto display_name = filter_display_name(filter);
-    auto* action = menu_for_filter(filter.catalog.category)->addAction(display_name);
+    auto* action = menu_for_filter(filter.catalog.category)
+                       ->addAction(escape_qaction_ampersands(display_name));
     action->setObjectName(filter_action_object_name(identifier));
     action->setProperty("patchy.channelViewBlocked", true);
     action->setIcon(simple_icon(display_name.left(3).toUpper()));
@@ -12115,7 +12130,7 @@ void MainWindow::create_actions() {
         return;
       }
       const auto display_name = filter_display_name(*filter);
-      filter_action->setText(display_name);
+      filter_action->setText(escape_qaction_ampersands(display_name));
       filter_action->setIcon(simple_icon(display_name.left(3).toUpper()));
       filter_action->setStatusTip(tr("Apply %1 to the active layer").arg(display_name));
       refresh_action_tooltip(filter_action);

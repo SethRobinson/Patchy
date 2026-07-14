@@ -23,6 +23,10 @@ constexpr double kMinimumGaussianRadius = 0.1;
 constexpr double kMaximumGaussianRadius = 1000.0;
 constexpr double kMinimumMedianRadius = 1.0;
 constexpr double kMaximumMedianRadius = 500.0;
+constexpr std::int32_t kMinimumDustAndScratchesRadius = 1;
+constexpr std::int32_t kMaximumDustAndScratchesRadius = 100;
+constexpr std::int32_t kMinimumDustAndScratchesThreshold = 0;
+constexpr std::int32_t kMaximumDustAndScratchesThreshold = 255;
 constexpr double kGaussianMarginScale = 3.0;
 constexpr double kDirectGaussianMaximumRadius = 8.0;
 constexpr int kProgressScale = 1000000;
@@ -603,6 +607,21 @@ struct TransparentColorExtension {
   std::vector<std::uint32_t> nearest_visible;
 };
 
+[[nodiscard]] std::uint8_t extended_straight_color_sample(
+    const FilterRenderResult &input,
+    const TransparentColorExtension &extension, std::int32_t x,
+    std::int32_t y, std::size_t channel) noexcept {
+  const auto *pixel = input.pixels.pixel(x, y);
+  if (pixel[3] != 0U || extension.nearest_visible.empty()) {
+    return pixel[channel];
+  }
+  const auto index = extension.nearest_visible[
+      static_cast<std::size_t>(y) *
+          static_cast<std::size_t>(input.bounds.width) +
+      static_cast<std::size_t>(x)];
+  return input.pixels.data()[static_cast<std::size_t>(index) * 4U + channel];
+}
+
 [[nodiscard]] std::int64_t ceil_divide(std::int64_t numerator,
                                        std::int64_t denominator) noexcept {
   const auto quotient = numerator / denominator;
@@ -650,7 +669,7 @@ struct TransparentColorExtension {
   if (pixel_count > std::numeric_limits<std::uint32_t>::max() ||
       pixel_count > std::numeric_limits<std::size_t>::max() /
                         sizeof(std::uint32_t)) {
-    throw std::overflow_error("Median color-extension buffer overflow");
+    throw std::overflow_error("Filter color-extension buffer overflow");
   }
 
   constexpr auto kNoSource = std::numeric_limits<std::uint32_t>::max();
@@ -751,7 +770,7 @@ struct TransparentColorExtension {
       ++envelope_size;
     }
     if (envelope_size == 0) {
-      throw std::runtime_error("Median color extension has no visible source");
+      throw std::runtime_error("Filter color extension has no visible source");
     }
 
     std::int32_t selected = 0;
@@ -992,23 +1011,71 @@ render_median(const FilterRenderResult &input, double radius,
         progress, static_cast<int>(channel) + 2, kPhaseCount);
     const auto color_sample = [&input, &extension,
                                channel](std::int32_t x, std::int32_t y) {
-      const auto *pixel = input.pixels.pixel(x, y);
-      if (pixel[3] != 0U) {
-        return pixel[channel];
-      }
-      if (extension.nearest_visible.empty()) {
-        return pixel[channel];
-      }
-      const auto index = extension.nearest_visible[
-          static_cast<std::size_t>(y) *
-              static_cast<std::size_t>(input.bounds.width) +
-          static_cast<std::size_t>(x)];
-      return input.pixels.data()[static_cast<std::size_t>(index) * 4U +
-                                 channel];
+      return extended_straight_color_sample(input, extension, x, y, channel);
     };
     filter_square_median_channel(input, output, channel, effective_radius,
                                  color_sample, &color_progress);
   }
+  return FilterRenderResult{std::move(output), input.bounds};
+}
+
+[[nodiscard]] FilterRenderResult render_dust_and_scratches(
+    const FilterRenderResult &input, std::int32_t radius,
+    std::int32_t threshold, const FilterProgress *progress) {
+  if (input.pixels.empty()) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return input;
+  }
+
+  constexpr int kPhaseCount = 5;
+  auto extension_progress = phase_progress(progress, 0, kPhaseCount);
+  const auto extension =
+      extend_transparent_colors(input, &extension_progress);
+  if (extension.all_transparent) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return input;
+  }
+
+  auto output = input.pixels;
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    auto color_progress = phase_progress(
+        progress, static_cast<int>(channel) + 1, kPhaseCount);
+    const auto color_sample = [&input, &extension,
+                               channel](std::int32_t x, std::int32_t y) {
+      return extended_straight_color_sample(input, extension, x, y, channel);
+    };
+    filter_square_median_channel(input, output, channel, radius,
+                                 color_sample, &color_progress);
+  }
+
+  auto comparison_progress = phase_progress(progress, 4, kPhaseCount);
+  for (std::int32_t y = 0; y < input.bounds.height; ++y) {
+    report_progress(&comparison_progress, y, input.bounds.height,
+                    FilterProgressStage::Filtering);
+    for (std::int32_t x = 0; x < input.bounds.width; ++x) {
+      auto *destination = output.pixel(x, y);
+      const std::array<std::uint8_t, 3> median{
+          destination[0], destination[1], destination[2]};
+      std::array<std::uint8_t, 3> source{};
+      std::int32_t difference = 0;
+      for (std::size_t channel = 0; channel < source.size(); ++channel) {
+        source[channel] =
+            extended_straight_color_sample(input, extension, x, y, channel);
+        difference = std::max(
+            difference,
+            std::abs(static_cast<std::int32_t>(source[channel]) -
+                     static_cast<std::int32_t>(median[channel])));
+      }
+      const auto replace = difference > threshold;
+      for (std::size_t channel = 0; channel < source.size(); ++channel) {
+        destination[channel] = replace ? median[channel] : source[channel];
+      }
+      // Dust & Scratches filters straight RGB only. Alpha remains byte-exact.
+      destination[3] = input.pixels.pixel(x, y)[3];
+    }
+  }
+  report_progress(&comparison_progress, input.bounds.height,
+                  input.bounds.height, FilterProgressStage::Filtering);
   return FilterRenderResult{std::move(output), input.bounds};
 }
 
@@ -1259,6 +1326,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
     throw std::invalid_argument("Unsupported Smart Filter mask");
   }
   for (const auto &entry : stack.entries) {
+    bool parameters_valid = false;
     double radius = 0.0;
     double minimum_radius = kMinimumGaussianRadius;
     double maximum_radius = kMaximumGaussianRadius;
@@ -1269,6 +1337,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
         throw std::invalid_argument("Unsupported Smart Filter entry");
       }
       radius = gaussian->radius_pixels;
+      parameters_valid = true;
     } else if (entry.kind == SmartFilterKind::HighPass) {
       const auto *high_pass =
           std::get_if<HighPassSmartFilter>(&entry.parameters);
@@ -1276,6 +1345,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
         throw std::invalid_argument("Unsupported Smart Filter entry");
       }
       radius = high_pass->radius_pixels;
+      parameters_valid = true;
     } else if (entry.kind == SmartFilterKind::Median) {
       const auto *median =
           std::get_if<MedianSmartFilter>(&entry.parameters);
@@ -1285,11 +1355,24 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
       radius = median->radius_pixels;
       minimum_radius = kMinimumMedianRadius;
       maximum_radius = kMaximumMedianRadius;
+      parameters_valid = true;
+    } else if (entry.kind == SmartFilterKind::DustAndScratches) {
+      const auto *dust =
+          std::get_if<DustAndScratchesSmartFilter>(&entry.parameters);
+      parameters_valid =
+          dust != nullptr &&
+          dust->radius_pixels >= kMinimumDustAndScratchesRadius &&
+          dust->radius_pixels <= kMaximumDustAndScratchesRadius &&
+          dust->threshold >= kMinimumDustAndScratchesThreshold &&
+          dust->threshold <= kMaximumDustAndScratchesThreshold;
     } else {
       throw std::invalid_argument("Unsupported Smart Filter entry");
     }
-    if (!std::isfinite(radius) || radius < minimum_radius ||
-        radius > maximum_radius || !std::isfinite(entry.opacity) ||
+    if (!parameters_valid ||
+        (entry.kind != SmartFilterKind::DustAndScratches &&
+         (!std::isfinite(radius) || radius < minimum_radius ||
+          radius > maximum_radius)) ||
+        !std::isfinite(entry.opacity) ||
         entry.opacity < 0.0 || entry.opacity > 1.0 ||
         !supported_blend_mode(entry.blend_mode)) {
       throw std::invalid_argument("Unsupported Smart Filter entry");
@@ -1336,6 +1419,21 @@ FilterRenderResult render_photoshop_median(
   }
   return render_median(FilterRenderResult{pixels, bounds}, radius_pixels,
                        progress);
+}
+
+FilterRenderResult render_photoshop_dust_and_scratches(
+    const PixelBuffer &pixels, Rect bounds, std::int32_t radius_pixels,
+    std::int32_t threshold, const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() || pixels.width() != bounds.width ||
+      pixels.height() != bounds.height ||
+      radius_pixels < kMinimumDustAndScratchesRadius ||
+      radius_pixels > kMaximumDustAndScratchesRadius ||
+      threshold < kMinimumDustAndScratchesThreshold ||
+      threshold > kMaximumDustAndScratchesThreshold) {
+    throw std::invalid_argument("Invalid Photoshop Dust & Scratches input");
+  }
+  return render_dust_and_scratches(FilterRenderResult{pixels, bounds},
+                                   radius_pixels, threshold, progress);
 }
 
 FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
@@ -1388,10 +1486,15 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
           std::get<HighPassSmartFilter>(entry.parameters);
       filtered =
           render_high_pass(current, high_pass.radius_pixels, &filter_progress);
-    } else {
+    } else if (entry.kind == SmartFilterKind::Median) {
       const auto &median = std::get<MedianSmartFilter>(entry.parameters);
       filtered =
           render_median(current, median.radius_pixels, &filter_progress);
+    } else {
+      const auto &dust =
+          std::get<DustAndScratchesSmartFilter>(entry.parameters);
+      filtered = render_dust_and_scratches(
+          current, dust.radius_pixels, dust.threshold, &filter_progress);
     }
     auto blend_progress = phase_progress(progress, phase++, phase_count);
     current = blend_entry_result(current, std::move(filtered), entry.opacity,

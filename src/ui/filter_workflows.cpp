@@ -718,6 +718,7 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Unsharp Mask"),
     QT_TRANSLATE_NOOP("QObject", "High Pass"),
     QT_TRANSLATE_NOOP("QObject", "Median"),
+    QT_TRANSLATE_NOOP("QObject", "Dust & Scratches"),
     QT_TRANSLATE_NOOP("QObject", "Gaussian Blur"),
     QT_TRANSLATE_NOOP("QObject", "Motion Blur"),
     QT_TRANSLATE_NOOP("QObject", "Radial Blur"),
@@ -1074,9 +1075,16 @@ std::optional<FilterInvocation> request_filter_settings(
       auto* spin = new QSpinBox(container);
       spin->setObjectName(control.object_name + QStringLiteral("Spin"));
       slider->setRange(control.minimum, control.maximum);
-      spin->setRange(control.minimum, control.maximum);
-      const auto number = std::clamp(static_cast<int>(std::lround(numeric_filter_value(initial_value, control.value))),
-                                     control.minimum, control.maximum);
+      const auto typed_minimum = static_cast<int>(std::lround(
+          control.typed_minimum.value_or(control.minimum)));
+      const auto typed_maximum = static_cast<int>(std::lround(
+          control.typed_maximum.value_or(control.maximum)));
+      spin->setRange(std::min(typed_minimum, typed_maximum),
+                     std::max(typed_minimum, typed_maximum));
+      const auto number = std::clamp(
+          static_cast<int>(std::lround(
+              numeric_filter_value(initial_value, control.value))),
+          spin->minimum(), spin->maximum());
       slider->setValue(number);
       spin->setValue(number);
       if (!control.suffix.isEmpty()) {
@@ -1084,7 +1092,12 @@ std::optional<FilterInvocation> request_filter_settings(
       }
       configure_dialog_spinbox(spin, 78);
       QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
-      QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
+      QObject::connect(
+          spin, qOverload<int>(&QSpinBox::valueChanged), slider,
+          [slider](int value) {
+            const QSignalBlocker blocker(slider);
+            slider->setValue(value);
+          });
       QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
                        [changed](int) { changed(); });
       row->addWidget(spin);

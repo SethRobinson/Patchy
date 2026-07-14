@@ -6641,6 +6641,15 @@ const patchy::MedianSmartFilter& require_median_filter(
   return *median;
 }
 
+const patchy::DustAndScratchesSmartFilter&
+require_dust_and_scratches_filter(const patchy::SmartFilterEntry& entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::DustAndScratches);
+  const auto* dust =
+      std::get_if<patchy::DustAndScratchesSmartFilter>(&entry.parameters);
+  CHECK(dust != nullptr);
+  return *dust;
+}
+
 patchy::SmartFilterStack test_gaussian_smart_filter_stack(double radius) {
   patchy::SmartFilterStack stack;
   stack.support = patchy::SmartFilterStackSupport::Supported;
@@ -6679,6 +6688,22 @@ patchy::SmartFilterStack test_median_smart_filter_stack(double radius) {
   entry.native_class_id = "Mdn ";
   entry.native_filter_id = 0x4d646e20U;
   entry.parameters = patchy::MedianSmartFilter{radius};
+  stack.entries.push_back(std::move(entry));
+  return stack;
+}
+
+patchy::SmartFilterStack test_dust_and_scratches_smart_filter_stack(
+    std::int32_t radius, std::int32_t threshold) {
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::DustAndScratches;
+  entry.native_name = "Dust && Scratches...";
+  entry.native_class_id = "DstS";
+  entry.native_filter_id = 0x44737453U;
+  entry.parameters =
+      patchy::DustAndScratchesSmartFilter{radius, threshold};
   stack.entries.push_back(std::move(entry));
   return stack;
 }
@@ -7289,6 +7314,233 @@ void smart_filter_median_matches_square_clamped_channels_and_native_paths() {
   bool cancelled = false;
   try {
     (void)patchy::render_photoshop_median(source, bounds, 500.0, &cancel);
+  } catch (const patchy::FilterCancelled&) {
+    cancelled = true;
+  }
+  CHECK(saw_progress);
+  CHECK(cancelled);
+}
+
+patchy::PixelBuffer reference_photoshop_dust_and_scratches(
+    const patchy::PixelBuffer& source, int radius, int threshold) {
+  CHECK(source.format() == patchy::PixelFormat::rgba8());
+  CHECK(radius >= 1);
+  CHECK(threshold >= 0 && threshold <= 255);
+
+  auto extended_source = source;
+  bool has_visible_source = false;
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      has_visible_source = has_visible_source || source.pixel(x, y)[3] != 0U;
+    }
+  }
+  if (!has_visible_source) {
+    return source;
+  }
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      if (source.pixel(x, y)[3] != 0U) {
+        continue;
+      }
+      std::int64_t best_distance = std::numeric_limits<std::int64_t>::max();
+      std::int32_t best_x = -1;
+      std::int32_t best_y = -1;
+      for (std::int32_t candidate_y = 0; candidate_y < source.height();
+           ++candidate_y) {
+        for (std::int32_t candidate_x = 0; candidate_x < source.width();
+             ++candidate_x) {
+          if (source.pixel(candidate_x, candidate_y)[3] == 0U) {
+            continue;
+          }
+          const auto dx = static_cast<std::int64_t>(candidate_x) - x;
+          const auto dy = static_cast<std::int64_t>(candidate_y) - y;
+          const auto distance = dx * dx + dy * dy;
+          if (distance < best_distance ||
+              (distance == best_distance &&
+               (candidate_y > best_y ||
+                (candidate_y == best_y && candidate_x > best_x)))) {
+            best_distance = distance;
+            best_x = candidate_x;
+            best_y = candidate_y;
+          }
+        }
+      }
+      CHECK(best_x >= 0 && best_y >= 0);
+      std::copy_n(source.pixel(best_x, best_y), 3U,
+                  extended_source.pixel(x, y));
+    }
+  }
+
+  const auto median = reference_photoshop_square_median(source, radius);
+  auto result = source;
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      const auto* straight_source = extended_source.pixel(x, y);
+      const auto* candidate = median.pixel(x, y);
+      auto* output = result.pixel(x, y);
+      int difference = 0;
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        difference = std::max(
+            difference,
+            std::abs(static_cast<int>(straight_source[channel]) -
+                     static_cast<int>(candidate[channel])));
+      }
+      const auto replace = difference > threshold;
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        output[channel] = replace ? candidate[channel]
+                                  : straight_source[channel];
+      }
+      output[3] = source.pixel(x, y)[3];
+    }
+  }
+  return result;
+}
+
+void smart_filter_dust_and_scratches_matches_photoshop_threshold_and_native_paths() {
+  patchy::PixelBuffer source(6, 5, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      auto* pixel = source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 71 + y * 19 + 7) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 13 + y * 83 + 29) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 47 + y * 31 + 113) % 256);
+      pixel[3] = static_cast<std::uint8_t>((x * 97 + y * 43 + 17) % 256);
+    }
+  }
+  source.pixel(1, 1)[3] = 0U;
+  source.pixel(4, 3)[3] = 0U;
+  source.pixel(2, 2)[3] = 128U;
+  const patchy::Rect bounds{37, 61, source.width(), source.height()};
+  const auto rendered = patchy::render_photoshop_dust_and_scratches(
+      source, bounds, 2, 17);
+  CHECK(rendered.bounds.x == bounds.x && rendered.bounds.y == bounds.y &&
+        rendered.bounds.width == bounds.width &&
+        rendered.bounds.height == bounds.height);
+  const auto expected =
+      reference_photoshop_dust_and_scratches(source, 2, 17);
+  CHECK(rendered.pixels.data().size() == expected.data().size());
+  CHECK(std::equal(rendered.pixels.data().begin(),
+                   rendered.pixels.data().end(), expected.data().begin()));
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      CHECK(rendered.pixels.pixel(x, y)[3] == source.pixel(x, y)[3]);
+    }
+  }
+
+  // Photoshop computes one max-channel distance D and replaces the complete
+  // RGB triplet only when D is strictly greater than Threshold.
+  auto threshold_probe = solid_rgba(3, 3, 10, 100, 200, 255);
+  auto* threshold_center = threshold_probe.pixel(1, 1);
+  threshold_center[0] = 20U;
+  threshold_center[1] = 80U;
+  threshold_center[2] = 201U;
+  threshold_center[3] = 128U;
+  const auto equal_threshold = patchy::render_photoshop_dust_and_scratches(
+      threshold_probe, patchy::Rect::from_size(3, 3), 1, 20);
+  const auto* equal_center = equal_threshold.pixels.pixel(1, 1);
+  CHECK(equal_center[0] == 20U && equal_center[1] == 80U &&
+        equal_center[2] == 201U && equal_center[3] == 128U);
+  const auto below_threshold = patchy::render_photoshop_dust_and_scratches(
+      threshold_probe, patchy::Rect::from_size(3, 3), 1, 19);
+  const auto* replaced_center = below_threshold.pixels.pixel(1, 1);
+  CHECK(replaced_center[0] == 10U && replaced_center[1] == 100U &&
+        replaced_center[2] == 200U && replaced_center[3] == 128U);
+
+  // Transparent straight RGB borrows the nearest visible color. Equal
+  // distances prefer the lower row and then the right column, while a
+  // partially transparent pixel retains its own RGB.
+  auto tie_probe = solid_rgba(3, 3, 9, 19, 29, 0);
+  auto* upper_left = tie_probe.pixel(0, 0);
+  upper_left[0] = 240U;
+  upper_left[1] = 20U;
+  upper_left[2] = 30U;
+  upper_left[3] = 255U;
+  auto* lower_right = tie_probe.pixel(2, 2);
+  lower_right[0] = 20U;
+  lower_right[1] = 230U;
+  lower_right[2] = 70U;
+  lower_right[3] = 255U;
+  const auto tie_result = patchy::render_photoshop_dust_and_scratches(
+      tie_probe, patchy::Rect::from_size(3, 3), 1, 255);
+  const auto* tied_center = tie_result.pixels.pixel(1, 1);
+  CHECK(tied_center[0] == 20U && tied_center[1] == 230U &&
+        tied_center[2] == 70U && tied_center[3] == 0U);
+  const auto partial = solid_rgba(1, 1, 117, 43, 209, 128);
+  const auto partial_result = patchy::render_photoshop_dust_and_scratches(
+      partial, patchy::Rect{3, 4, 1, 1}, 1, 255);
+  CHECK(std::equal(partial_result.pixels.data().begin(),
+                   partial_result.pixels.data().end(),
+                   partial.data().begin()));
+
+  patchy::PixelBuffer all_transparent(3, 2,
+                                      patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < all_transparent.height(); ++y) {
+    for (std::int32_t x = 0; x < all_transparent.width(); ++x) {
+      auto* pixel = all_transparent.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(17 + x * 31 + y * 7);
+      pixel[1] = static_cast<std::uint8_t>(43 + x * 5 + y * 29);
+      pixel[2] = static_cast<std::uint8_t>(89 + x * 11 + y * 13);
+      pixel[3] = 0U;
+    }
+  }
+  const auto all_transparent_result =
+      patchy::render_photoshop_dust_and_scratches(
+          all_transparent, patchy::Rect{6, 8, 3, 2}, 2, 0);
+  CHECK(std::equal(all_transparent_result.pixels.data().begin(),
+                   all_transparent_result.pixels.data().end(),
+                   all_transparent.data().begin()));
+
+  auto native_source = source;
+  for (std::int32_t y = 0; y < native_source.height(); ++y) {
+    for (std::int32_t x = 0; x < native_source.width(); ++x) {
+      native_source.pixel(x, y)[3] = 255U;
+    }
+  }
+  const auto native_direct = patchy::render_photoshop_dust_and_scratches(
+      native_source, bounds, 2, 17);
+  const auto native = patchy::render_smart_filter_stack(
+      native_source, bounds, patchy::Rect{0, 0, 96, 80},
+      test_dust_and_scratches_smart_filter_stack(2, 17));
+  check_filter_result_equal(native_direct, native);
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto invocation =
+      registry.default_invocation("patchy.filters.dust_and_scratches");
+  invocation.parameters["radius"] = std::int64_t{2};
+  invocation.parameters["threshold"] = std::int64_t{17};
+  const auto destructive = registry.render(invocation, source, bounds, false);
+  check_filter_result_equal(rendered, destructive);
+
+  auto compatibility = source;
+  auto named_default = source;
+  registry.apply("patchy.filters.dust_and_scratches", compatibility);
+  registry.apply(
+      registry.default_invocation("patchy.filters.dust_and_scratches"),
+      named_default);
+  CHECK(std::equal(compatibility.data().begin(), compatibility.data().end(),
+                   named_default.data().begin()));
+
+  const auto single = solid_rgba(1, 1, 21, 87, 193, 44);
+  const auto huge = patchy::render_photoshop_dust_and_scratches(
+      single, patchy::Rect{8, 9, 1, 1}, 100, 0);
+  CHECK(huge.bounds.x == 8 && huge.bounds.y == 9 &&
+        huge.bounds.width == 1 && huge.bounds.height == 1);
+  CHECK(std::equal(huge.pixels.data().begin(), huge.pixels.data().end(),
+                   single.data().begin()));
+
+  bool saw_progress = false;
+  patchy::FilterProgress cancel{[&](int completed, int total,
+                                     patchy::FilterProgressStage stage) {
+    saw_progress = true;
+    CHECK(completed >= 0 && completed <= total);
+    CHECK(stage == patchy::FilterProgressStage::Filtering);
+    return false;
+  }};
+  bool cancelled = false;
+  try {
+    (void)patchy::render_photoshop_dust_and_scratches(source, bounds, 100,
+                                                       17, &cancel);
   } catch (const patchy::FilterCancelled&) {
     cancelled = true;
   }
@@ -8676,6 +8928,186 @@ void smart_filter_canonical_median_descriptor_round_trips_and_preserves_unknowns
         preserved->string_value == "keep-median-native-data");
 }
 
+void smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preserves_unknowns() {
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "30303030-4040-5050-8666-707070707070";
+  placement.transform = {5.0, 7.0, 37.0, 7.0, 37.0, 31.0, 5.0, 31.0};
+  placement.width = 32.0;
+  placement.height = 24.0;
+  placement.resolution = 72.0;
+  const std::string placed_uuid = "cdcdcdcd-efef-abab-8333-454545454545";
+
+  auto stack = test_dust_and_scratches_smart_filter_stack(7, 23);
+  stack.entries.front().opacity = 0.61;
+  stack.entries.front().blend_mode = patchy::BlendMode::Overlay;
+
+  const auto descriptor_from_sold = [](std::span<const std::uint8_t> sold) {
+    patchy::psd::BigEndianReader reader(sold);
+    CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) ==
+          "soLD");
+    CHECK(reader.read_u32() == 4U);
+    CHECK(reader.read_u32() == 16U);
+    return patchy::psd::read_descriptor(reader);
+  };
+  const auto sold_from_descriptor =
+      [](const patchy::psd::DescriptorObject& descriptor) {
+        patchy::psd::BigEndianWriter writer;
+        for (const char ch : {'s', 'o', 'L', 'D'}) {
+          writer.write_u8(static_cast<std::uint8_t>(ch));
+        }
+        writer.write_u32(4U);
+        writer.write_u32(16U);
+        patchy::psd::write_descriptor(writer, descriptor);
+        while ((writer.bytes().size() % 4U) != 0U) {
+          writer.write_u8(0U);
+        }
+        return writer.bytes();
+      };
+
+  const auto authored = patchy::psd::author_placed_layer_sold_payload(
+      placement, placed_uuid, &stack);
+  const auto authored_info =
+      patchy::psd::parse_placed_layer_block("SoLd", authored);
+  CHECK(authored_info.has_value() && authored_info->smart_filters.has_value());
+  CHECK(authored_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(authored_info->smart_filters->entries.size() == 1U);
+  const auto& parsed = authored_info->smart_filters->entries.front();
+  CHECK(parsed.native_name == "Dust && Scratches...");
+  CHECK(parsed.native_class_id == "DstS");
+  CHECK(parsed.native_filter_id == 0x44737453U);
+  CHECK(require_dust_and_scratches_filter(parsed).radius_pixels == 7);
+  CHECK(require_dust_and_scratches_filter(parsed).threshold == 23);
+  CHECK(std::abs(parsed.opacity - 0.61) < 1e-9);
+  CHECK(parsed.blend_mode == patchy::BlendMode::Overlay);
+
+  auto descriptor = descriptor_from_sold(authored);
+  auto* root = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(descriptor, "filterFX"));
+  CHECK(root != nullptr);
+  auto* list = const_cast<patchy::psd::DescriptorValue*>(
+      patchy::psd::descriptor_value(*root, "filterFXList"));
+  CHECK(list != nullptr &&
+        list->type == patchy::psd::DescriptorValue::Type::List &&
+        list->list_value.size() == 1U &&
+        list->list_value.front().object_value != nullptr);
+  auto& native_entry = *list->list_value.front().object_value;
+  auto* native_filter = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(native_entry, "Fltr"));
+  CHECK(native_filter != nullptr && native_filter->class_id == "DstS" &&
+        !native_filter->class_id_long_form);
+  CHECK(native_filter->name == "Dust & Scratches");
+  CHECK(native_filter->key_order.size() == 2U);
+  CHECK(native_filter->key_order[0].key == "Rds " &&
+        !native_filter->key_order[0].long_form);
+  CHECK(native_filter->key_order[1].key == "Thsh" &&
+        !native_filter->key_order[1].long_form);
+  const auto* native_radius =
+      patchy::psd::descriptor_value(*native_filter, "Rds ");
+  const auto* native_threshold =
+      patchy::psd::descriptor_value(*native_filter, "Thsh");
+  CHECK(native_radius != nullptr &&
+        native_radius->type == patchy::psd::DescriptorValue::Type::Integer &&
+        native_radius->integer_value == 7);
+  CHECK(native_threshold != nullptr &&
+        native_threshold->type ==
+            patchy::psd::DescriptorValue::Type::Integer &&
+        native_threshold->integer_value == 23);
+
+  patchy::psd::DescriptorValue future;
+  future.type = patchy::psd::DescriptorValue::Type::String;
+  future.string_value = "keep-dust-native-data";
+  native_filter->key_order.push_back({"futureDustField", true});
+  native_filter->values.emplace("futureDustField", std::move(future));
+  const auto payload_with_unknown = sold_from_descriptor(descriptor);
+
+  auto edited = stack;
+  auto& edited_dust = std::get<patchy::DustAndScratchesSmartFilter>(
+      edited.entries.front().parameters);
+  edited_dust.radius_pixels = 100;
+  edited_dust.threshold = 255;
+  edited.entries.front().opacity = 0.37;
+  edited.entries.front().blend_mode = patchy::BlendMode::Multiply;
+  const patchy::psd::SmartFilterDescriptorEdit edit{
+      patchy::psd::SmartFilterDescriptorAction::Replace, &edited};
+  const auto regenerated = patchy::psd::regenerate_placed_layer_payload(
+      "SoLd", payload_with_unknown, placement, nullptr, placed_uuid, edit);
+  CHECK(regenerated.has_value());
+  const auto regenerated_info =
+      patchy::psd::parse_placed_layer_block("SoLd", *regenerated);
+  CHECK(regenerated_info.has_value() &&
+        regenerated_info->smart_filters.has_value());
+  CHECK(regenerated_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  const auto& reread = regenerated_info->smart_filters->entries.front();
+  CHECK(require_dust_and_scratches_filter(reread).radius_pixels == 100);
+  CHECK(require_dust_and_scratches_filter(reread).threshold == 255);
+  CHECK(std::abs(reread.opacity - 0.37) < 1e-9);
+  CHECK(reread.blend_mode == patchy::BlendMode::Multiply);
+
+  auto regenerated_descriptor = descriptor_from_sold(*regenerated);
+  auto* regenerated_root = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(regenerated_descriptor, "filterFX"));
+  CHECK(regenerated_root != nullptr);
+  auto* regenerated_list = const_cast<patchy::psd::DescriptorValue*>(
+      patchy::psd::descriptor_value(*regenerated_root, "filterFXList"));
+  CHECK(regenerated_list != nullptr &&
+        regenerated_list->list_value.size() == 1U &&
+        regenerated_list->list_value.front().object_value != nullptr);
+  auto* regenerated_filter = const_cast<patchy::psd::DescriptorObject*>(
+      patchy::psd::descriptor_object(
+          *regenerated_list->list_value.front().object_value, "Fltr"));
+  CHECK(regenerated_filter != nullptr);
+  CHECK(regenerated_filter->key_order.size() == 3U);
+  CHECK(regenerated_filter->key_order[0].key == "Rds ");
+  CHECK(regenerated_filter->key_order[1].key == "Thsh");
+  CHECK(regenerated_filter->key_order[2].key == "futureDustField");
+  const auto* preserved = patchy::psd::descriptor_value(
+      *regenerated_filter, "futureDustField");
+  CHECK(preserved != nullptr &&
+        preserved->type == patchy::psd::DescriptorValue::Type::String &&
+        preserved->string_value == "keep-dust-native-data");
+  CHECK(patchy::psd::descriptor_value(*regenerated_filter, "Rds ")->type ==
+        patchy::psd::DescriptorValue::Type::Integer);
+  CHECK(patchy::psd::descriptor_value(*regenerated_filter, "Thsh")->type ==
+        patchy::psd::DescriptorValue::Type::Integer);
+
+  // A native-class mismatch must fail the complete stack closed while still
+  // retaining the uninterpreted entry for byte-preserving resaves.
+  regenerated_filter->class_id = "ZZZZ";
+  const auto corrupted_payload =
+      sold_from_descriptor(regenerated_descriptor);
+  const auto corrupted_info =
+      patchy::psd::parse_placed_layer_block("SoLd", corrupted_payload);
+  CHECK(corrupted_info.has_value() && corrupted_info->smart_filters.has_value());
+  CHECK(corrupted_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Unsupported);
+  CHECK(corrupted_info->smart_filters->entries.size() == 1U);
+  CHECK(corrupted_info->smart_filters->entries.front().native_class_id ==
+        "ZZZZ");
+  CHECK(corrupted_info->smart_filters->entries.front().kind ==
+        patchy::SmartFilterKind::Unsupported);
+
+  auto mixed = test_gaussian_smart_filter_stack(1.5);
+  mixed.entries.push_back(
+      test_dust_and_scratches_smart_filter_stack(3, 19).entries.front());
+  mixed.entries.push_back(test_median_smart_filter_stack(2.0).entries.front());
+  const auto mixed_payload = patchy::psd::author_placed_layer_sold_payload(
+      placement, "dededede-f0f0-acac-8444-565656565656", &mixed);
+  const auto mixed_info =
+      patchy::psd::parse_placed_layer_block("SoLd", mixed_payload);
+  CHECK(mixed_info.has_value() && mixed_info->smart_filters.has_value());
+  CHECK(mixed_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(mixed_info->smart_filters->entries.size() == 3U);
+  CHECK(mixed_info->smart_filters->entries[0].kind ==
+        patchy::SmartFilterKind::GaussianBlur);
+  CHECK(mixed_info->smart_filters->entries[1].kind ==
+        patchy::SmartFilterKind::DustAndScratches);
+  CHECK(mixed_info->smart_filters->entries[2].kind ==
+        patchy::SmartFilterKind::Median);
+}
+
 const patchy::UnknownPsdBlock& require_placed_layer_block(const patchy::Layer& layer) {
   const auto& blocks = layer.unknown_psd_blocks();
   const auto found = std::find_if(blocks.begin(), blocks.end(), [](const patchy::UnknownPsdBlock& block) {
@@ -8867,6 +9299,79 @@ void psd_photoshop_median_smart_filter_fixture_round_trips_and_edits() {
   CHECK(edited_reread_entry.blend_mode == patchy::BlendMode::SoftLight);
   CHECK(require_placed_layer_block(edited_reread_layer).payload !=
         original_sold_payload);
+  CHECK(test_global_psd_blocks(edited_reread) == original_globals);
+}
+
+void psd_photoshop_dust_and_scratches_smart_filter_fixture_round_trips_and_edits() {
+  const auto fixture_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-dust-and-scratches.psd");
+  const auto original = patchy::psd::DocumentIo::read_file(fixture_path);
+  const patchy::Layer* filtered_layer = nullptr;
+  for (const auto& layer : original.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      CHECK(filtered_layer == nullptr);
+      filtered_layer = &layer;
+    }
+  }
+  CHECK(filtered_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*filtered_layer));
+  CHECK(patchy::smart_object_lock_reason(*filtered_layer).empty());
+  const auto* stack = filtered_layer->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto& entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::DustAndScratches);
+  CHECK(entry.native_name == "Dust && Scratches...");
+  CHECK(entry.native_class_id == "DstS");
+  CHECK(entry.native_filter_id == 0x44737453U);
+  CHECK(require_dust_and_scratches_filter(entry).radius_pixels == 7);
+  CHECK(require_dust_and_scratches_filter(entry).threshold == 23);
+
+  const auto original_globals = test_global_psd_blocks(original);
+  const auto& original_sold = require_placed_layer_block(*filtered_layer);
+  const auto original_sold_payload = original_sold.payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(original));
+  CHECK(test_global_psd_blocks(clean) == original_globals);
+  const auto& clean_layer = require_layer_named(clean, filtered_layer->name());
+  check_pixel_layer_storage_equal(*filtered_layer, clean_layer);
+  CHECK(require_placed_layer_block(clean_layer).payload ==
+        original_sold_payload);
+  const auto& clean_dust = require_dust_and_scratches_filter(
+      require_smart_filter_stack(clean, clean_layer.name()).entries.front());
+  CHECK(clean_dust.radius_pixels == 7 && clean_dust.threshold == 23);
+
+  auto edited = original;
+  auto* edited_layer = edited.find_layer(filtered_layer->id());
+  CHECK(edited_layer != nullptr &&
+        edited_layer->smart_filter_stack() != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  auto& edited_dust = std::get<patchy::DustAndScratchesSmartFilter>(
+      edited_stack.entries.front().parameters);
+  edited_dust.radius_pixels = 9;
+  edited_dust.threshold = 31;
+  edited_stack.entries.front().opacity = 0.42;
+  edited_stack.entries.front().blend_mode = patchy::BlendMode::SoftLight;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto& edited_reread_layer =
+      require_layer_named(edited_reread, filtered_layer->name());
+  const auto& edited_reread_entry =
+      require_smart_filter_stack(edited_reread, filtered_layer->name())
+          .entries.front();
+  const auto& edited_reread_dust =
+      require_dust_and_scratches_filter(edited_reread_entry);
+  CHECK(edited_reread_dust.radius_pixels == 9);
+  CHECK(edited_reread_dust.threshold == 31);
+  CHECK(std::abs(edited_reread_entry.opacity - 0.42) < 1e-9);
+  CHECK(edited_reread_entry.blend_mode == patchy::BlendMode::SoftLight);
+  CHECK(require_placed_layer_block(edited_reread_layer).payload !=
+        original_sold_payload);
+  // Radius, threshold, opacity, and blend mode are descriptor-only edits.
+  // Photoshop's unfiltered FEid cache stays byte-exact.
   CHECK(test_global_psd_blocks(edited_reread) == original_globals);
 }
 
@@ -19710,6 +20215,8 @@ void filter_catalog_defines_stable_named_contracts() {
       {"patchy.filters.vignette", Category::PhotoLooks, false, {{"strength", 55}}},
       {"patchy.filters.high_pass", Category::Sharpen, false, {{"radius", 10}}},
       {"patchy.filters.median", Category::Noise, false, {{"radius", 1}}},
+      {"patchy.filters.dust_and_scratches", Category::Noise, false,
+       {{"radius", 1}, {"threshold", 0}}},
   };
 
   const auto has_center_parameters = [](std::string_view identifier) {
@@ -19813,6 +20320,13 @@ void filter_catalog_defines_stable_named_contracts() {
         CHECK(parameter.maximum == 500.0);
         CHECK(parameter.practical_minimum == 1.0);
         CHECK(parameter.practical_maximum == 25.0);
+      } else if (actual.identifier ==
+                     "patchy.filters.dust_and_scratches" &&
+                 parameter.key == "radius") {
+        CHECK(parameter.minimum == 1.0);
+        CHECK(parameter.maximum == 100.0);
+        CHECK(parameter.practical_minimum == 1.0);
+        CHECK(parameter.practical_maximum == 25.0);
       } else {
         CHECK(!parameter.practical_minimum.has_value());
         CHECK(!parameter.practical_maximum.has_value());
@@ -19855,6 +20369,7 @@ void filter_catalog_defines_stable_named_contracts() {
       "patchy.filters.pixelate/block_size",        "patchy.filters.color_halftone/cell_size",
       "patchy.filters.high_pass/radius",
       "patchy.filters.median/radius",
+      "patchy.filters.dust_and_scratches/radius",
   };
   CHECK(spatial_parameters == expected_spatial);
 }
@@ -19931,6 +20446,33 @@ void filter_invocations_normalize_scale_and_reject_bad_data() {
                  1.0) < 0.000001);
   median.parameters["radius"] = std::int64_t{2};
   CHECK(!registry.supports(median));
+
+  auto dust =
+      registry.default_invocation("patchy.filters.dust_and_scratches");
+  CHECK(std::get<std::int64_t>(dust.parameters.at("radius")) == 1);
+  CHECK(std::get<std::int64_t>(dust.parameters.at("threshold")) == 0);
+  dust.parameters["radius"] = std::int64_t{250};
+  dust.parameters["threshold"] = std::int64_t{-20};
+  const auto normalized_dust = registry.normalize(dust);
+  CHECK(normalized_dust.has_value());
+  CHECK(std::get<std::int64_t>(
+            normalized_dust->parameters.at("radius")) == 100);
+  CHECK(std::get<std::int64_t>(
+            normalized_dust->parameters.at("threshold")) == 0);
+  CHECK(!registry.translation_invariant_support(*normalized_dust)
+             .has_value());
+  dust.parameters["radius"] = std::int64_t{20};
+  dust.parameters["threshold"] = std::int64_t{23};
+  const auto scaled_dust = registry.scale(dust, 0.25);
+  CHECK(scaled_dust.has_value());
+  CHECK(std::get<std::int64_t>(scaled_dust->parameters.at("radius")) == 5);
+  CHECK(std::get<std::int64_t>(scaled_dust->parameters.at("threshold")) ==
+        23);
+  dust.parameters["radius"] = 2.0;
+  CHECK(!registry.supports(dust));
+  dust = registry.default_invocation("patchy.filters.dust_and_scratches");
+  dust.parameters["threshold"] = 4.0;
+  CHECK(!registry.supports(dust));
 
   auto wave = registry.default_invocation("patchy.filters.wave");
   const auto scaled_wave = registry.scale(wave, 0.25);
@@ -20294,6 +20836,10 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   high_pass.parameters["radius"] = 4.25;
   auto median = registry.default_invocation("patchy.filters.median");
   median.parameters["radius"] = 7.5;
+  auto dust =
+      registry.default_invocation("patchy.filters.dust_and_scratches");
+  dust.parameters["radius"] = std::int64_t{7};
+  dust.parameters["threshold"] = std::int64_t{23};
   const patchy::FilterRecipe recipe{{
       patchy::FilterRecipeEntry{first, true, 0.37,
                                 patchy::BlendMode::Multiply},
@@ -20301,12 +20847,14 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
                                 patchy::BlendMode::Overlay},
       patchy::FilterRecipeEntry{median, true, 0.5,
                                 patchy::BlendMode::SoftLight},
+      patchy::FilterRecipeEntry{dust, true, 0.25,
+                                patchy::BlendMode::Screen},
       patchy::FilterRecipeEntry{second, false, 1.0,
                                 patchy::BlendMode::Normal},
   }};
   const auto mapped =
       patchy::smart_filter_entries_from_recipe(recipe, registry);
-  CHECK(mapped.has_value() && mapped->size() == 4U);
+  CHECK(mapped.has_value() && mapped->size() == 5U);
   CHECK((*mapped)[0].kind == patchy::SmartFilterKind::GaussianBlur);
   CHECK((*mapped)[0].enabled);
   CHECK(std::abs((*mapped)[0].opacity - 0.37) < 0.000001);
@@ -20333,9 +20881,22 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
                      (*mapped)[2].parameters)
                      .radius_pixels -
                  7.5) < 0.000001);
-  CHECK(!(*mapped)[3].enabled);
+  CHECK((*mapped)[3].kind == patchy::SmartFilterKind::DustAndScratches);
+  CHECK((*mapped)[3].native_name == "Dust && Scratches...");
+  CHECK((*mapped)[3].native_class_id == "DstS");
+  CHECK((*mapped)[3].native_filter_id == 0x44737453U);
+  CHECK((*mapped)[3].enabled);
+  CHECK(std::abs((*mapped)[3].opacity - 0.25) < 0.000001);
+  CHECK((*mapped)[3].blend_mode == patchy::BlendMode::Screen);
+  CHECK(std::get<patchy::DustAndScratchesSmartFilter>(
+            (*mapped)[3].parameters)
+            .radius_pixels == 7);
+  CHECK(std::get<patchy::DustAndScratchesSmartFilter>(
+            (*mapped)[3].parameters)
+            .threshold == 23);
+  CHECK(!(*mapped)[4].enabled);
   CHECK(std::abs(std::get<patchy::GaussianBlurSmartFilter>(
-                     (*mapped)[3].parameters)
+                     (*mapped)[4].parameters)
                      .radius_pixels -
                  9.0) < 0.000001);
 
@@ -20347,6 +20908,10 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   auto wrong_schema = recipe;
   wrong_schema.entries.front().invocation.schema_version = 2U;
   CHECK(!patchy::smart_filter_entries_from_recipe(wrong_schema, registry)
+             .has_value());
+  auto malformed_dust = recipe;
+  malformed_dust.entries[3].invocation.parameters["threshold"] = 23.0;
+  CHECK(!patchy::smart_filter_entries_from_recipe(malformed_dust, registry)
              .has_value());
   CHECK(!patchy::smart_filter_entries_from_recipe({}, registry).has_value());
 }
@@ -23599,6 +24164,8 @@ int main() {
        smart_filter_high_pass_matches_photoshop_formula_and_preserves_hidden_rgb},
       {"smart_filter_median_matches_square_clamped_channels_and_native_paths",
        smart_filter_median_matches_square_clamped_channels_and_native_paths},
+      {"smart_filter_dust_and_scratches_matches_photoshop_threshold_and_native_paths",
+       smart_filter_dust_and_scratches_matches_photoshop_threshold_and_native_paths},
       {"smart_filter_shared_mask_and_disable_states_are_applied_once",
        smart_filter_shared_mask_and_disable_states_are_applied_once},
       {"smart_filter_entry_blending_matches_photoshop_baked_pixels",
@@ -23617,10 +24184,14 @@ int main() {
        smart_filter_canonical_high_pass_descriptor_round_trips_and_preserves_unknowns},
       {"smart_filter_canonical_median_descriptor_round_trips_and_preserves_unknowns",
        smart_filter_canonical_median_descriptor_round_trips_and_preserves_unknowns},
+      {"smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preserves_unknowns",
+       smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preserves_unknowns},
       {"psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_median_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_median_smart_filter_fixture_round_trips_and_edits},
+      {"psd_photoshop_dust_and_scratches_smart_filter_fixture_round_trips_and_edits",
+       psd_photoshop_dust_and_scratches_smart_filter_fixture_round_trips_and_edits},
       {"psd_smart_filter_descriptor_semantics_parse_if_available",
        psd_smart_filter_descriptor_semantics_parse_if_available},
       {"psd_smart_filter_masks_decode_and_coexist_with_layer_mask",
