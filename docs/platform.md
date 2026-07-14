@@ -20,7 +20,7 @@ macOS (arm64, preset `mac-release`, Qt at `.deps/Qt/6.8.3/macos`) and Linux (pre
 - `update_checker.cpp` platform id (windows/macos/linux manifest keys).
 - `main.cpp` Windows app-font candidates + macOS `Contents/Resources` probes (with `localization.cpp`'s translations probe).
 - `main_window_palette.cpp` uses `toStdU16String()` for `std::filesystem::path` (UTF-16 -> native on every platform — do not reintroduce `toStdWString`).
-- Tests: `test_harness.hpp`, the paired crash reporters in `ui_visual_tests.cpp`, `test_fonts.hpp`.
+- Tests: `test_harness.hpp`, the paired crash reporters in `tests/ui/main.cpp`, `test_fonts.hpp`.
 
 ## Styled QCheckBox and QMacStyle margins
 

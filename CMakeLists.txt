@@ -765,7 +765,40 @@ if(PATCHY_BUILD_APP)
 endif()
 
 if(PATCHY_BUILD_TESTS)
-  add_executable(patchy_core_tests tests/test_main.cpp)
+  # One binary, one TU per test group (tests/core/test_groups.hpp lists the groups;
+  # main() concatenates the group vectors in a fixed order — never static self-registration).
+  add_executable(patchy_core_tests
+    tests/core/main.cpp
+    tests/core/core_test_support.cpp
+    tests/core/psd_test_support.cpp
+    tests/core/adjustments_curves_tests.cpp
+    tests/core/brush_engine_tests.cpp
+    tests/core/compositor_blend_if_tests.cpp
+    tests/core/compositor_layer_styles_tests.cpp
+    tests/core/document_model_tests.cpp
+    tests/core/document_ops_filters_tests.cpp
+    tests/core/flat_formats_bmp_tests.cpp
+    tests/core/flat_formats_misc_tests.cpp
+    tests/core/gradients_interior_effects_tests.cpp
+    tests/core/infra_selection_tests.cpp
+    tests/core/layer_metadata_tests.cpp
+    tests/core/palette_tests.cpp
+    tests/core/pat_asl_abr_tests.cpp
+    tests/core/pattern_styles_fixtures_tests.cpp
+    tests/core/pixel_tools_tests.cpp
+    tests/core/psd_core_io_tests.cpp
+    tests/core/psd_structure_tests.cpp
+    tests/core/psd_text_tests.cpp
+    tests/core/psd_writer_stability_tests.cpp
+    tests/core/raw_heif_tests.cpp
+    tests/core/smart_filter_descriptors_tests.cpp
+    tests/core/smart_filter_pixels_tests.cpp
+    tests/core/smart_objects_warp_tests.cpp
+    tests/core/stroke_mask_effects_tests.cpp
+  )
+  # The split TUs live in tests/core/ but repeat the historical test_main.cpp
+  # include block ("test_harness.hpp" etc.), so tests/ must be on the include path.
+  target_include_directories(patchy_core_tests PRIVATE tests)
   target_link_libraries(patchy_core_tests PRIVATE
     patchy_core
     patchy_render
@@ -780,9 +813,46 @@ if(PATCHY_BUILD_TESTS)
   add_test(NAME patchy_core_tests COMMAND patchy_core_tests)
 
   if(PATCHY_BUILD_APP AND Qt6_FOUND)
+    # One binary; per-group TUs live in tests/ui/ (tests/ui/ui_test_groups.hpp lists
+    # the groups; main() concatenates the group vectors in a fixed order — never
+    # static self-registration).
     add_executable(patchy_ui_visual_tests
-      tests/ui_visual_tests.cpp
+      tests/ui/main.cpp
+      tests/ui/ui_test_support.cpp
+      tests/ui/app_shell_tests.cpp
+      tests/ui/filter_catalog_dialog_tests.cpp
+      tests/ui/layer_style_gradient_tests.cpp
+      tests/ui/destructive_filters_gallery_tests.cpp
+      tests/ui/pickers_notices_hotkeys_tests.cpp
+      tests/ui/canvas_view_tools_tests.cpp
+      tests/ui/layer_context_lifecycle_tests.cpp
+      tests/ui/brush_pattern_palette_tests.cpp
+      tests/ui/layer_panel_organization_tests.cpp
+      tests/ui/move_tool_processing_overlay_tests.cpp
+      tests/ui/selection_marquee_lasso_tests.cpp
+      tests/ui/clipboard_free_transform_tests.cpp
+      tests/ui/channels_panel_tests.cpp
+      tests/ui/camera_raw_heif_tests.cpp
+      tests/ui/layer_mask_tests.cpp
+      tests/ui/pen_tablet_input_tests.cpp
+      tests/ui/brush_engine_stroke_tests.cpp
+      tests/ui/text_editor_font_picker_tests.cpp
+      tests/ui/psd_text_import_tests.cpp
+      tests/ui/text_transform_commit_tests.cpp
+      tests/ui/flat_image_format_tests.cpp
+      tests/ui/smart_filter_tests.cpp
+      tests/ui/smart_object_tests.cpp
+      tests/ui/warp_tests.cpp
+      tests/ui/import_print_resolution_tests.cpp
+      tests/ui/image_adjustments_curves_tests.cpp
+      tests/ui/selection_engines_tests.cpp
+      tests/ui/misc_visuals_outline_stress_tests.cpp
+      tests/ui/float_window_tests.cpp
+      tests/ui/readme_screenshot_tests.cpp
     )
+    # The split TUs live in tests/ui/ but repeat the historical monolith include
+    # block ("test_harness.hpp" etc.), so tests/ must be on the include path.
+    target_include_directories(patchy_ui_visual_tests PRIVATE tests)
     # Qt6::Test provides QTest::keyClick for tests that must go through real event
     # dispatch (QShortcutMap contention) instead of QApplication::sendEvent.
     target_link_libraries(patchy_ui_visual_tests PRIVATE patchy_ui Qt6::Test)

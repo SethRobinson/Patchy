@@ -6,32 +6,60 @@ filter_workflows ODR fix, and the close_document_session teardown-order fix land
 that round; everything below is verified but deliberately deferred. Line numbers are from
 July 2026 and drift; symbol names are the stable reference.
 
-## Test-suite splits (largest remaining super files)
+## Test-suite splits (both DONE, July 2026)
 
-tests/ui_visual_tests.cpp (~50k lines) and tests/test_main.cpp (~26k) are single TUs by
-design today. A split design that preserves behavior:
+Both monoliths are split; each suite stays ONE binary whose main() concatenates
+per-group registration functions in a FIXED order that reproduces the original
+registration vector entry for entry (never static self-registration; cross-TU init
+order is linker-dependent and would reorder the suite). Both splits verified the
+before/after [PASS]/[FAIL]/[SKIP] name lists byte-identical; all byte-stability
+canaries stayed green with no re-pin.
 
-- Keep ONE binary each; split into per-area .cpp files (tests/ui/, tests/core/), each
-  exposing a `std::vector<TestCase> <area>_tests()` registration function, concatenated
-  in main() in a FIXED order. Do NOT use static self-registration (cross-TU init order
-  is linker-dependent and would reorder the suite).
-- Run order is load-bearing in the UI suite: `visual_contact_sheet_contains_new_feature_artifacts`
-  CHECKs ~200 artifacts written by earlier tests and must stay last; readme shots late.
-  `cleanup_after_visual_test` restores only language, so QSettings state leaks between
-  tests by construction — order changes need a full-suite shakeout run.
-- Shared helpers move (never copy) to a support TU: the accept_*_dialog drivers,
-  clear_brush_tip_test_state/clear_pattern_test_state, tablet_test_device (three static
-  QPointingDevice locals — exactly-once rule), click_layer_row_thumbnail (documented UAF
-  fix, keep semantics). MainWindowTestAccess is befriended BY NAME in main_window.hpp —
-  the qualified name must not change.
-- Core suite: 458 tests, no order dependence found, but keep order anyway. The manual
-  registration vector is a silent-drop hazard: verify the before/after [PASS] name lists
-  are identical.
-- Harness niceties to bundle: port the UI suite's dbghelp AV handler to the core main;
-  a PATCHY_TEST(fn) macro would kill the name/function double-entry; the four hand-rolled
-  runner loops (test_main, ui_visual_tests, perf_tests, curves_clipping_preview_tests)
-  could share one; curves_clipping_preview_tests re-defines CHECK instead of using
-  test_harness.hpp. patchy_core_tests lacks /bigobj (C1128 risk as test_main grows).
+The core half: tests/test_main.cpp (~26k lines, 458 tests) became tests/core/ — 24
+thematic group TUs, each ending in a
+`std::vector<patchy::test::TestCase> <group>_tests()` registration function
+(declarations in tests/core/test_groups.hpp), concatenated by tests/core/main.cpp.
+Shared helpers were MOVED (never copied) into
+`namespace patchy::test` in tests/core/core_test_support.{hpp,cpp} (general: solid_rgb/
+solid_rgba, make_tool_document, tool_options, find_layer_named, artifact writers,
+rgb_diff, fnv1a, the test_*_smart_filter_stack builders) and
+tests/core/psd_test_support.{hpp,cpp} (PSD byte-level: BE readers/writers, pascal
+strings, PsdLayerChannelRecord parsing, layer-block/image-resource payload helpers,
+blend-if payloads); group-exclusive helpers stayed in each TU's anonymous namespace.
+The support headers are Qt-free and must stay that way. Adding a core test = add the
+function to the right tests/core/<group>_tests.cpp and append a {"name", fn} entry to
+that TU's registration vector; new groups also touch test_groups.hpp, main.cpp, and
+CMakeLists.txt.
+
+The UI half: tests/ui_visual_tests.cpp (~50k lines, 663 tests) became tests/ui/ in
+three passes and the monolith file is deleted. Layout: 30 thematic group TUs
+(app_shell through readme_screenshot; tests/ui/ui_test_groups.hpp declares them in the
+load-bearing concatenation order), tests/ui/main.cpp (crash handlers, bootstrap,
+runner loop), tests/ui/ui_test_support.{hpp,cpp} (`namespace patchy::test::ui`; shared
+helpers MOVED, never copied: the accept_*_dialog drivers, click_layer_row_thumbnail
+(documented UAF fix, keep semantics), tablet_test_device's three static
+QPointingDevice locals defined exactly once, clear_brush_tip_test_state/
+clear_pattern_test_state, the smart-object fixture helpers open_smart_object_fixture/
+convert_fixture_source_to_external), and tests/ui/ui_test_access.hpp
+(MainWindowTestAccess, befriended BY NAME in main_window.hpp; the qualified name must
+not change). Each group TU repeats the historical monolith include block (tests/ is on
+the target's include path) and the target keeps /bigobj (several TUs exceed 3k lines).
+Adding a UI test = add the function to the right tests/ui/<group>_tests.cpp and append
+a {"name", fn} entry to that TU's registration vector; new groups also touch
+ui_test_groups.hpp, tests/ui/main.cpp, and CMakeLists.txt. Run order stays
+load-bearing: `visual_contact_sheet_contains_new_feature_artifacts` CHECKs ~200
+artifacts written by earlier tests and opens readme_screenshot_tests' slice (registry
+position 654 of 663; keep that position); `cleanup_after_visual_test` restores only
+language, so QSettings state leaks between tests by construction, and order changes
+need a full-suite shakeout run. shot_readme_* test names are a contract with
+scripts/make-readme-screenshots.ps1 (runtime "shot_readme" substring filter).
+
+Harness niceties still open: port the UI suite's dbghelp AV handler to the core main
+(tests/core/main.cpp — still not done); a PATCHY_TEST(fn) macro would kill the
+name/function double-entry; the four hand-rolled runner loops (tests/core/main.cpp,
+tests/ui/main.cpp, perf_tests, curves_clipping_preview_tests) could share one;
+curves_clipping_preview_tests re-defines CHECK instead of using test_harness.hpp.
+(The core suite's /bigobj C1128 risk is gone now that no core test TU exceeds ~3k lines.)
 
 ## Duplication inventory (verified copy-paste; sizes approximate)
 

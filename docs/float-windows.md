@@ -96,4 +96,4 @@ Float geometry persistence across restarts (floats always start tabbed on relaun
 a second view of the same document (selection and overlays live per-canvas).
 
 Coverage: the `ui_float_*`, `ui_window_float_all_*`, and `ui_tab_drag_out_*` tests in
-tests/ui_visual_tests.cpp.
+tests/ui/float_window_tests.cpp.
