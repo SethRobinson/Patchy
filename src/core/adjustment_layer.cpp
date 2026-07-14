@@ -120,8 +120,6 @@ std::optional<CurvesAdjustment> metadata_curves_adjustment(const Layer& layer) {
   return CurvesAdjustment{*rgb, *red, *green, *blue};
 }
 
-LevelsRecord clamp_levels_record(LevelsRecord record);
-
 LevelsRecord metadata_levels_record_or(const Layer& layer, const char* black_input_key, const char* white_input_key,
                                        const char* gamma_percent_key, const char* black_output_key,
                                        const char* white_output_key) {
@@ -168,20 +166,6 @@ LevelsChannel levels_channel_from_key(std::string_view key) {
     return LevelsChannel::Blue;
   }
   return LevelsChannel::Rgb;
-}
-
-LevelsRecord clamp_levels_record(LevelsRecord record) {
-  record.black_input = std::clamp(record.black_input, 0, 254);
-  record.white_input = std::clamp(record.white_input, record.black_input + 1, 255);
-  record.gamma_percent = std::clamp(record.gamma_percent, 10, 999);
-  record.black_output = std::clamp(record.black_output, 0, 255);
-  record.white_output = std::clamp(record.white_output, record.black_output, 255);
-  return record;
-}
-
-LevelsRecord levels_master_record(LevelsAdjustment settings) {
-  return clamp_levels_record(LevelsRecord{settings.black_input, settings.white_input, settings.gamma_percent,
-                                          settings.black_output, settings.white_output});
 }
 
 bool levels_record_has_effect(LevelsRecord record) {
@@ -425,6 +409,61 @@ RgbColor apply_color_balance(RgbColor color, ColorBalanceAdjustment settings) {
 }
 
 }  // namespace
+
+LevelsRecord clamp_levels_record(LevelsRecord record) {
+  record.black_input = std::clamp(record.black_input, 0, 254);
+  record.white_input = std::clamp(record.white_input, record.black_input + 1, 255);
+  record.gamma_percent = std::clamp(record.gamma_percent, 10, 999);
+  record.black_output = std::clamp(record.black_output, 0, 255);
+  record.white_output = std::clamp(record.white_output, record.black_output, 255);
+  return record;
+}
+
+LevelsRecord levels_master_record(LevelsAdjustment settings) {
+  return clamp_levels_record(LevelsRecord{settings.black_input, settings.white_input, settings.gamma_percent,
+                                          settings.black_output, settings.white_output});
+}
+
+void set_levels_master_record(LevelsAdjustment& settings, LevelsRecord record) {
+  record = clamp_levels_record(record);
+  settings.black_input = record.black_input;
+  settings.white_input = record.white_input;
+  settings.gamma_percent = record.gamma_percent;
+  settings.black_output = record.black_output;
+  settings.white_output = record.white_output;
+}
+
+LevelsRecord levels_record_for_channel(const LevelsAdjustment& settings, LevelsChannel channel) {
+  switch (channel) {
+    case LevelsChannel::Red:
+      return clamp_levels_record(settings.red);
+    case LevelsChannel::Green:
+      return clamp_levels_record(settings.green);
+    case LevelsChannel::Blue:
+      return clamp_levels_record(settings.blue);
+    case LevelsChannel::Rgb:
+      return levels_master_record(settings);
+  }
+  return {};
+}
+
+void set_levels_record_for_channel(LevelsAdjustment& settings, LevelsChannel channel, LevelsRecord record) {
+  record = clamp_levels_record(record);
+  switch (channel) {
+    case LevelsChannel::Red:
+      settings.red = record;
+      return;
+    case LevelsChannel::Green:
+      settings.green = record;
+      return;
+    case LevelsChannel::Blue:
+      settings.blue = record;
+      return;
+    case LevelsChannel::Rgb:
+      set_levels_master_record(settings, record);
+      return;
+  }
+}
 
 CurveControlPoints normalized_curve_control_points(CurveControlPoints points) {
   for (auto& point : points) {

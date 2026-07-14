@@ -166,6 +166,20 @@ struct AdjustmentSettings {
   ColorBalanceAdjustment color_balance{};
 };
 
+// Levels record math shared by the UI dialogs and the PSD lvls codec: the
+// single source of truth for the clamp ranges (black_input 0..254,
+// white_input black_input+1..255, gamma_percent 10..999, black_output 0..255,
+// white_output black_output..255). NOTE: the per-channel transfer FORMULA is
+// deliberately not shared: core's levels_channel rounds through a float
+// (clamp_byte) while the UI preview's map_levels_value lrounds the double,
+// and the two differ by 1/255 on real inputs (e.g. value 4, record
+// {0,45,121%,0,255} -> 35 vs 34).
+[[nodiscard]] LevelsRecord clamp_levels_record(LevelsRecord record);
+[[nodiscard]] LevelsRecord levels_master_record(LevelsAdjustment settings);
+void set_levels_master_record(LevelsAdjustment& settings, LevelsRecord record);
+[[nodiscard]] LevelsRecord levels_record_for_channel(const LevelsAdjustment& settings, LevelsChannel channel);
+void set_levels_record_for_channel(LevelsAdjustment& settings, LevelsChannel channel, LevelsRecord record);
+
 // Curves always carry two to nineteen points per channel, sorted by input.
 // Duplicate inputs are resolved in favor of the last supplied point. Inputs
 // outside the first/last control point clamp to that endpoint's output.

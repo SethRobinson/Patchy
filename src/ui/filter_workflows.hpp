@@ -32,17 +32,10 @@ struct HueSaturationSettings {
 [[nodiscard]] HueSaturationAdjustment to_hue_saturation_adjustment(const HueSaturationSettings& settings);
 [[nodiscard]] HueSaturationSettings to_hue_saturation_settings(const HueSaturationAdjustment& adjustment);
 
-struct LevelsSettings {
-  int black_input{0};
-  int white_input{255};
-  int gamma_percent{100};
-  int black_output{0};
-  int white_output{255};
-  LevelsChannel channel{LevelsChannel::Rgb};
-  LevelsRecord red{};
-  LevelsRecord green{};
-  LevelsRecord blue{};
-};
+// The dialog settings are the core model types; the record math
+// (clamp_levels_record, levels_master_record, ...) lives in
+// core/adjustment_layer.hpp. main_window.hpp re-declares this alias.
+using LevelsSettings = LevelsAdjustment;
 
 using CurvesSettings = CurvesAdjustment;
 

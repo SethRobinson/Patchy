@@ -548,6 +548,7 @@ if(PATCHY_BUILD_APP)
       src/ui/default_brush_tips.cpp
       src/ui/color_panel.cpp
       src/ui/compatibility_report.cpp
+      src/ui/coalesced_preview_emitter.hpp
       src/ui/dialog_utils.cpp
       src/ui/document_float_window.hpp
       src/ui/document_float_window.cpp

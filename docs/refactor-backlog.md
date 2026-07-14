@@ -50,9 +50,10 @@ Preset libraries and managers (~1,900 lines total, the biggest win):
   callbacks + objectName prefix (objectNames are load-bearing for UI tests). Pattern
   and brush managers also hand-roll reload_tree ~95% identical to StyleBrowserWidget::reload
   — generalize StyleBrowserWidget into a PresetTreeWidget.
-- Small: popup screen-edge clamping x3 (brush_tip_picker, PatternPickerCombo,
-  show_gradient_preset_popup — the last is unclamped, a bug a shared helper fixes);
-  the brush "paper chip" thumbnail drawn twice with mutual "keep in sync" comments.
+- Small: the brush "paper chip" thumbnail drawn twice with mutual "keep in sync"
+  comments. (Done July 2026: the popup screen-edge clamping trio now shares
+  dialog_utils position_popup_below, which also fixed the previously unclamped
+  show_gradient_preset_popup.)
 
 Filters (~800 lines, canary-gated):
 - filter_engine.cpp re-implements ~20 builtin_filters.cpp kernels near-identically with
@@ -65,10 +66,15 @@ Filters (~800 lines, canary-gated):
   filter_registry, smart_filter_renderer; recipe_blend_mode_supported and
   union_bounds/checked_union_bounds duplicated between filter_registry and
   smart_filter_renderer.
-- Levels math triplicated: clamp_levels_record/levels_master_record byte-identical in
-  core/adjustment_layer.cpp, ui/filter_workflows.cpp, psd/psd_adjustments.cpp (was
-  psd_document_io.cpp); the transfer formula twice. Export from core, delete copies.
-  Also duplicated a fourth time as the clamp_record lambda in main_window_adjustments.cpp.
+- Levels RECORD math (clamp_levels_record/levels_master_record/set_levels_master_record
+  and the per-channel accessors) is deduped: exported from core/adjustment_layer.hpp,
+  copies deleted from ui/filter_workflows.cpp, psd/psd_adjustments.cpp, and the
+  clamp_record lambda in main_window_adjustments.cpp (ui::LevelsSettings is now an
+  alias of LevelsAdjustment, like CurvesSettings). DO NOT merge the two levels
+  TRANSFER formulas: core levels_channel rounds through a float (clamp_byte) while
+  ui map_levels_value lrounds the double, and MSVC-verified outputs differ by 1/255
+  on real inputs (value 4, record {0,45,121%,0,255}: core 35, ui 34; hundreds more
+  across the domain). Unifying either direction changes pinned pixels.
 - DO NOT merge the box-blur family (layer_compositor, brush_tip, canvas feathering,
   filter tent blur): deliberately different numerics, each pinned by different canaries.
 
@@ -105,17 +111,22 @@ MainWindow/adjustments internals:
 - The text-settings-from-editor block appears 3x in main_window.cpp (small real
   differences; text-tool constraint: same-TU helper only).
 - FilterControlSpec parameter editors built twice (filter_workflows vs gallery);
-  CoalescedPreviewEmitter/CoalescedLayerStylePreviewEmitter byte-identical templates;
-  three parallel latest-wins preview state machines; the gallery's two spatial-overlay
+  three parallel latest-wins preview state machines (the byte-identical
+  CoalescedPreviewEmitter twins were merged into ui/coalesced_preview_emitter.hpp,
+  July 2026); the gallery's two spatial-overlay
   callbacks re-declare four sync lambdas each (~75 lines/copy — the tilt-shift OVERLAY
   DRAWING is a patent design-around, only the sync helpers may be factored).
 - layer_style_dialog.cpp: the RGB color row block x7, picker click handlers x9,
-  blend-mode combo row x11, add_slider_spin_row duplicated with filter_workflows'
-  add_slider_row (promote one to dialog_utils).
+  blend-mode combo row x11. (add_slider_spin_row and filter_workflows' add_slider_row
+  now both forward to dialog_utils add_dialog_slider_spin_row, July 2026;
+  add_color_slider_row could adopt it too but differs in structure.)
 - canvas: grow_selection/select_similar share a verbatim ~45-line preamble; the
-  arrow-key delta switch twice in keyPressEvent; image_from_pixels (main_window) ==
-  layer_source_image (canvas transform TU) byte-identical (also a per-pixel
-  setPixelColor perf smell); the 9-line move-session reset block x3 (set_document_internal,
+  arrow-key delta switch twice in keyPressEvent; the former image_from_pixels /
+  layer_source_image twins are now edit_conversions qimage_from_pixel_buffer
+  (July 2026) but keep the per-pixel setPixelColor perf smell (deliberately not
+  optimized during the dedup — fix it as its own pinned-output change; the
+  gallery's scanLine-based image_from_pixels is a separate, faster variant);
+  the 9-line move-session reset block x3 (set_document_internal,
   set_tool, set_edit_locked) — drift risk; three parallel snap resolvers in the guides TU;
   the component-channel enum check written out at ~25 sites (wants a predicate).
 - compose_document_pixel/compose_layer_pixel re-implement compositing without
@@ -185,9 +196,10 @@ MainWindow/adjustments internals:
   image_document_io.hpp's 8-overload qimage_from_document_rect* family wants a request
   struct, and RenderedDocumentPatch its own small header; bool-flag params
   (save_document_to_path's flatten_confirmed, pixel_tools' trailing `bool erase` x8).
-- Dead code found and not yet removed: adjustment_layer_detail
-  (main_window_layer_panel.cpp), patchy_layer_style_payload (psd_layer_styles.cpp —
-  plFX is read but never written).
+- Dead code removed (July 2026): adjustment_layer_detail (main_window_layer_panel.cpp)
+  and patchy_layer_style_payload plus its orphaned write-side helpers
+  (psd_layer_styles.cpp — plFX is read for back-compat but styles are written as
+  lfx2 only).
 - Build: the patchy target re-copies the whole test-fixtures tree on every rebuild
   (POST_BUILD, no up-to-date check); vcpkg.json's manifest (qtbase+qtsvg) cannot satisfy
   the build's PrintSupport/Network/LinguistTools/Test + qtimageformats requirements, so

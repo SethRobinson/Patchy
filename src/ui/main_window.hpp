@@ -67,7 +67,9 @@ class QTimer;
 namespace patchy::ui {
 
 struct HueSaturationSettings;
-struct LevelsSettings;
+// Same alias as filter_workflows.hpp (an alias cannot be forward-declared);
+// identical redeclaration is legal and compiler-checked.
+using LevelsSettings = LevelsAdjustment;
 struct ScannerAcquireResult;
 struct UpdateInfo;
 class BrushDynamicsButton;

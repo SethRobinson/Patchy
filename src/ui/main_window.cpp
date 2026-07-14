@@ -2116,22 +2116,6 @@ Rect intersect_copy_rect(Rect a, Rect b) {
   return Rect{left, top, std::max(0, right - left), std::max(0, bottom - top)};
 }
 
-QImage image_from_pixels(const PixelBuffer& pixels) {
-  QImage image(pixels.width(), pixels.height(), QImage::Format_RGBA8888);
-  image.fill(Qt::transparent);
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
-    return image;
-  }
-
-  for (int y = 0; y < pixels.height(); ++y) {
-    for (int x = 0; x < pixels.width(); ++x) {
-      const auto* px = pixels.pixel(x, y);
-      image.setPixelColor(x, y, QColor(px[0], px[1], px[2], pixels.format().channels >= 4 ? px[3] : 255));
-    }
-  }
-  return image;
-}
-
 std::uint8_t layer_mask_value_at(const Layer& layer, std::int32_t x, std::int32_t y) {
   const auto& mask = layer.mask();
   if (!mask.has_value() || mask->disabled) {
@@ -5147,7 +5131,7 @@ LayerAffineTransform affine_from_qtransform(const QTransform& transform) {
 }
 
 TransformedTextPixels apply_text_transform_to_pixels(const PixelBuffer& pixels, const QTransform& transform) {
-  const auto source = image_from_pixels(pixels).convertToFormat(QImage::Format_RGBA8888);
+  const auto source = qimage_from_pixel_buffer(pixels).convertToFormat(QImage::Format_RGBA8888);
   const auto mapped = transform.mapRect(QRectF(0.0, 0.0, source.width(), source.height()));
   const auto left = static_cast<int>(std::floor(mapped.left()));
   const auto top = static_cast<int>(std::floor(mapped.top()));
@@ -5677,7 +5661,7 @@ std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(
   if (const auto visible = visible_alpha_local_bounds(rendered.pixels);
       visible.has_value() && (visible->x > 0 || visible->y > 0 || visible->width < rendered.pixels.width() ||
                               visible->height < rendered.pixels.height())) {
-    const auto cropped = image_from_pixels(rendered.pixels)
+    const auto cropped = qimage_from_pixel_buffer(rendered.pixels)
                              .convertToFormat(QImage::Format_RGBA8888)
                              .copy(visible->x, visible->y, visible->width, visible->height);
     return TransformedTextPixels{pixels_from_image_rgba(cropped),
@@ -5766,14 +5750,14 @@ std::optional<TransformedTextPixels> render_warped_text_pixels_for_layer(const L
         inputs.settings, inputs.color, inputs.max_width, inputs.paragraph_runs, inputs.rich_text_runs,
         std::nullopt, 1.0, QTransform::fromScale(supersample, supersample));
     if (!scaled.pixels.empty()) {
-      source = image_from_pixels(scaled.pixels).convertToFormat(QImage::Format_RGBA8888);
+      source = qimage_from_pixel_buffer(scaled.pixels).convertToFormat(QImage::Format_RGBA8888);
       source_window =
           QRectF(scaled.local_rect.left() / supersample, scaled.local_rect.top() / supersample,
                  scaled.local_rect.width() / supersample, scaled.local_rect.height() / supersample);
     }
   }
   if (source.isNull()) {
-    source = image_from_pixels(base.pixels).convertToFormat(QImage::Format_RGBA8888);
+    source = qimage_from_pixel_buffer(base.pixels).convertToFormat(QImage::Format_RGBA8888);
     source_window = window;
   }
   // Restrict the resample window to the INKED part of the raster (plus the warp
@@ -7795,7 +7779,7 @@ void MainWindow::copy_selection() {
   }
 
   clipboard_ = ClipboardPayload{std::move(copied), QPoint(copy_rect.x, copy_rect.y)};
-  set_system_clipboard_image(image_from_pixels(clipboard_->pixels));
+  set_system_clipboard_image(qimage_from_pixel_buffer(clipboard_->pixels));
   update_history(tr("Copy"));
   statusBar()->showMessage(
       tr("Copied %1 layer(s), %2 x %3 px")

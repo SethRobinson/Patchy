@@ -2,6 +2,7 @@
 
 #include "formats/acv_curves_io.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "ui/coalesced_preview_emitter.hpp"
 #include "ui/curves_editor.hpp"
 #include "ui/curves_presets.hpp"
 #include "ui/dialog_utils.hpp"
@@ -63,45 +64,6 @@ struct SliderRowSpec {
   QString suffix;
 };
 
-constexpr int kLivePreviewCoalesceDelayMs = 33;
-
-template <typename Settings>
-class CoalescedPreviewEmitter {
-public:
-  CoalescedPreviewEmitter(QObject& owner, std::function<void(const Settings&)> callback)
-      : callback_(std::move(callback)) {
-    timer_ = new QTimer(&owner);
-    timer_->setSingleShot(true);
-    timer_->setInterval(kLivePreviewCoalesceDelayMs);
-    QObject::connect(timer_, &QTimer::timeout, &owner, [this] { deliver(); });
-  }
-
-  void schedule(Settings settings) {
-    pending_ = std::move(settings);
-    timer_->start();
-  }
-
-  void flush(Settings settings) {
-    timer_->stop();
-    pending_ = std::move(settings);
-    deliver();
-  }
-
-private:
-  void deliver() {
-    if (!pending_.has_value() || !callback_) {
-      return;
-    }
-    auto settings = std::move(*pending_);
-    pending_.reset();
-    callback_(settings);
-  }
-
-  QTimer* timer_{nullptr};
-  std::optional<Settings> pending_;
-  std::function<void(const Settings&)> callback_;
-};
-
 template <typename Settings>
 struct AdjustmentPreviewRequest {
   bool enabled{true};
@@ -135,60 +97,9 @@ LevelsChannel levels_channel_from_combo_index(int index) {
   }
 }
 
-LevelsRecord clamp_levels_record(LevelsRecord record) {
-  record.black_input = std::clamp(record.black_input, 0, 254);
-  record.white_input = std::clamp(record.white_input, record.black_input + 1, 255);
-  record.gamma_percent = std::clamp(record.gamma_percent, 10, 999);
-  record.black_output = std::clamp(record.black_output, 0, 255);
-  record.white_output = std::clamp(record.white_output, record.black_output, 255);
-  return record;
-}
-
-LevelsRecord levels_master_record(LevelsSettings settings) {
-  return clamp_levels_record(LevelsRecord{settings.black_input, settings.white_input, settings.gamma_percent,
-                                          settings.black_output, settings.white_output});
-}
-
-void set_levels_master_record(LevelsSettings& settings, LevelsRecord record) {
-  record = clamp_levels_record(record);
-  settings.black_input = record.black_input;
-  settings.white_input = record.white_input;
-  settings.gamma_percent = record.gamma_percent;
-  settings.black_output = record.black_output;
-  settings.white_output = record.white_output;
-}
-
-LevelsRecord levels_record_for_channel(LevelsSettings settings, LevelsChannel channel) {
-  switch (channel) {
-    case LevelsChannel::Red:
-      return clamp_levels_record(settings.red);
-    case LevelsChannel::Green:
-      return clamp_levels_record(settings.green);
-    case LevelsChannel::Blue:
-      return clamp_levels_record(settings.blue);
-    case LevelsChannel::Rgb:
-      return levels_master_record(settings);
-  }
-  return {};
-}
-
-void set_levels_record_for_channel(LevelsSettings& settings, LevelsChannel channel, LevelsRecord record) {
-  record = clamp_levels_record(record);
-  switch (channel) {
-    case LevelsChannel::Red:
-      settings.red = record;
-      return;
-    case LevelsChannel::Green:
-      settings.green = record;
-      return;
-    case LevelsChannel::Blue:
-      settings.blue = record;
-      return;
-    case LevelsChannel::Rgb:
-      set_levels_master_record(settings, record);
-      return;
-  }
-}
+// The record math (clamp_levels_record, levels_master_record,
+// set_levels_master_record, levels_record_for_channel,
+// set_levels_record_for_channel) comes from core/adjustment_layer.hpp.
 
 LevelsSettings clamp_levels_settings(LevelsSettings settings) {
   set_levels_master_record(settings, levels_master_record(settings));
@@ -198,6 +109,11 @@ LevelsSettings clamp_levels_settings(LevelsSettings settings) {
   return settings;
 }
 
+// NOT the same function as core's levels_channel: this lrounds the DOUBLE
+// while core rounds through a float (clamp_byte), and the results differ by
+// 1/255 on real inputs (e.g. value 4, record {0,45,121%,0,255}: 34 here,
+// 35 in core). Do not "dedupe" one into the other without accepting a
+// behavior change on both the dialog path and the render path.
 std::uint8_t map_levels_value(std::uint8_t value, LevelsRecord record) {
   record = clamp_levels_record(record);
   const auto input_range = static_cast<double>(record.white_input - record.black_input);
@@ -593,27 +509,10 @@ private:
 };
 
 QSpinBox* add_slider_row(QDialog& dialog, QFormLayout* form, const SliderRowSpec& spec) {
-  auto* container = new QWidget(&dialog);
-  auto* row = new QHBoxLayout(container);
-  row->setContentsMargins(0, 0, 0, 0);
-  auto* slider = new QSlider(Qt::Horizontal, container);
-  auto* spin = new QSpinBox(container);
-  slider->setRange(spec.minimum, spec.maximum);
-  spin->setRange(spec.minimum, spec.maximum);
-  slider->setValue(spec.value);
-  spin->setValue(spec.value);
-  slider->setObjectName(spec.object_prefix + QStringLiteral("Slider"));
-  spin->setObjectName(spec.object_prefix + QStringLiteral("Spin"));
-  if (!spec.suffix.isEmpty()) {
-    spin->setSuffix(spec.suffix);
-  }
-  configure_dialog_spinbox(spin, 72);
-  row->addWidget(slider, 1);
-  row->addWidget(spin);
-  QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
-  QObject::connect(spin, &QSpinBox::valueChanged, slider, &QSlider::setValue);
-  form->addRow(spec.label, container);
-  return spin;
+  return add_dialog_slider_spin_row(form, &dialog, spec.label,
+                                    spec.object_prefix + QStringLiteral("Slider"),
+                                    spec.object_prefix + QStringLiteral("Spin"), spec.minimum,
+                                    spec.maximum, spec.value, spec.suffix);
 }
 
 template <typename Settings>

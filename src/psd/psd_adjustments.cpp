@@ -140,28 +140,8 @@ LevelsChannel levels_channel_from_value(int value) {
   }
 }
 
-LevelsRecord clamp_levels_record(LevelsRecord record) {
-  record.black_input = std::clamp(record.black_input, 0, 254);
-  record.white_input = std::clamp(record.white_input, record.black_input + 1, 255);
-  record.gamma_percent = std::clamp(record.gamma_percent, 10, 999);
-  record.black_output = std::clamp(record.black_output, 0, 255);
-  record.white_output = std::clamp(record.white_output, record.black_output, 255);
-  return record;
-}
-
-LevelsRecord levels_master_record(LevelsAdjustment settings) {
-  return clamp_levels_record(LevelsRecord{settings.black_input, settings.white_input, settings.gamma_percent,
-                                          settings.black_output, settings.white_output});
-}
-
-void set_levels_master_record(LevelsAdjustment& settings, LevelsRecord record) {
-  record = clamp_levels_record(record);
-  settings.black_input = record.black_input;
-  settings.white_input = record.white_input;
-  settings.gamma_percent = record.gamma_percent;
-  settings.black_output = record.black_output;
-  settings.white_output = record.white_output;
-}
+// clamp_levels_record / levels_master_record / set_levels_master_record come
+// from core/adjustment_layer.hpp (single source of truth for the clamp ranges).
 
 LevelsRecord levels_record_for_photoshop_index(LevelsAdjustment settings, int index) {
   switch (index) {

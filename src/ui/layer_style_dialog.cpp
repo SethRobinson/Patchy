@@ -6,6 +6,7 @@
 #include "ui/blend_if_range_editor.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/coalesced_preview_emitter.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/gradient_library.hpp"
@@ -426,7 +427,9 @@ void show_gradient_preset_popup(
                      manage_gradients();
                    });
   popup->resize(std::max(anchor->width(), 380), 440);
-  popup->move(anchor->mapToGlobal(QPoint(0, anchor->height())));
+  // Clamped/flipped like the pattern and brush-tip popups; the old plain move
+  // could run this popup off the bottom or right screen edge.
+  position_popup_below(*anchor, *popup);
   popup->show();
   tree->setFocus(Qt::PopupFocusReason);
 }
@@ -562,18 +565,7 @@ public:
     const auto popup_height = std::clamp(visible_rows * 30 + 4, 280, 420);
     popup->resize(popup_width, popup_height);
 
-    auto position = mapToGlobal(QPoint(0, height()));
-    if (const auto *target_screen = screen(); target_screen != nullptr) {
-      const auto available = target_screen->availableGeometry();
-      position.setX(std::clamp(
-          position.x(), available.left(),
-          std::max(available.left(), available.right() - popup_width + 1)));
-      if (position.y() + popup_height > available.bottom() + 1) {
-        position.setY(std::max(available.top(),
-                               mapToGlobal(QPoint(0, 0)).y() - popup_height));
-      }
-    }
-    popup->move(position);
+    position_popup_below(*this, *popup);
     popup->show();
     tree->setFocus(Qt::PopupFocusReason);
     if (tree->currentItem() != nullptr) {
@@ -641,44 +633,6 @@ enum class LayerStyleEffectKind {
 constexpr int kLayerStylePageRole = Qt::UserRole + 1;
 constexpr int kLayerStyleEffectKindRole = Qt::UserRole + 2;
 constexpr int kLayerStyleEffectIndexRole = Qt::UserRole + 3;
-constexpr int kLayerStylePreviewCoalesceDelayMs = 33;
-
-template <typename Settings>
-class CoalescedLayerStylePreviewEmitter {
-public:
-  CoalescedLayerStylePreviewEmitter(QObject& owner, std::function<void(const Settings&)> callback)
-      : callback_(std::move(callback)) {
-    timer_ = new QTimer(&owner);
-    timer_->setSingleShot(true);
-    timer_->setInterval(kLayerStylePreviewCoalesceDelayMs);
-    QObject::connect(timer_, &QTimer::timeout, &owner, [this] { deliver(); });
-  }
-
-  void schedule(Settings settings) {
-    pending_ = std::move(settings);
-    timer_->start();
-  }
-
-  void flush(Settings settings) {
-    timer_->stop();
-    pending_ = std::move(settings);
-    deliver();
-  }
-
-private:
-  void deliver() {
-    if (!pending_.has_value() || !callback_) {
-      return;
-    }
-    auto settings = std::move(*pending_);
-    pending_.reset();
-    callback_(settings);
-  }
-
-  QTimer* timer_{nullptr};
-  std::optional<Settings> pending_;
-  std::function<void(const Settings&)> callback_;
-};
 
 // Shared host state for the callback-driven gradient-stop editor used by both
 // Gradient Overlay and gradient Strokes. The editor widget intentionally never
@@ -1059,28 +1013,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto add_slider_spin_row = [&slider_object_name](QFormLayout* form, QWidget* parent, const QString& label,
                                                    const QString& spin_object_name, int minimum, int maximum,
                                                    int value, const QString& suffix = {}, int spin_width = 72) {
-    auto* row = new QWidget(parent);
-    auto* row_layout = new QHBoxLayout(row);
-    row_layout->setContentsMargins(0, 0, 0, 0);
-    row_layout->setSpacing(8);
-    auto* slider = new QSlider(Qt::Horizontal, row);
-    slider->setObjectName(slider_object_name(spin_object_name));
-    slider->setRange(minimum, maximum);
-    slider->setValue(value);
-    auto* spin = new QSpinBox(row);
-    spin->setObjectName(spin_object_name);
-    spin->setRange(minimum, maximum);
-    spin->setValue(value);
-    if (!suffix.isEmpty()) {
-      spin->setSuffix(suffix);
-    }
-    configure_dialog_spinbox(spin, spin_width);
-    row_layout->addWidget(slider, 1);
-    row_layout->addWidget(spin);
-    QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
-    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
-    form->addRow(label, row);
-    return spin;
+    return add_dialog_slider_spin_row(form, parent, label, slider_object_name(spin_object_name),
+                                      spin_object_name, minimum, maximum, value, suffix, spin_width,
+                                      /*row_spacing=*/8);
   };
   auto add_color_slider_row = [&slider_object_name](QVBoxLayout* layout, QWidget* parent, const QString& label,
                                                     const QString& spin_object_name, std::uint8_t value) {
@@ -3852,7 +3787,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     rebuilding_categories = false;
   };
 
-  CoalescedLayerStylePreviewEmitter<LayerStyleSettings> preview_emitter(
+  CoalescedPreviewEmitter<LayerStyleSettings> preview_emitter(
       dialog, [&](const LayerStyleSettings& settings) {
         if (document_patterns != nullptr) {
           for (const auto& resource : transient_manager_patterns) {

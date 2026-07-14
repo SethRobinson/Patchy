@@ -443,14 +443,6 @@ QColor adjustment_thumbnail_accent(const Layer& layer) {
   return QColor(145, 175, 215);
 }
 
-QString adjustment_layer_detail(const Layer& layer) {
-  const auto settings = adjustment_settings_from_layer(layer);
-  if (!settings.has_value()) {
-    return QObject::tr("adjustment");
-  }
-  return QObject::tr("%1 adjustment").arg(localized_adjustment_display_name(settings->kind));
-}
-
 QString layer_kind_name(LayerKind kind) {
   switch (kind) {
     case LayerKind::Pixel:

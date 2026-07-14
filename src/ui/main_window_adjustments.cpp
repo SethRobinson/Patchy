@@ -322,19 +322,10 @@ struct AdjustmentPixelPreviewRequest {
 };
 
 LevelsAdjustment sanitized_levels_adjustment(LevelsSettings settings) {
-  const auto clamp_record = [](LevelsRecord record) {
-    record.black_input = std::clamp(record.black_input, 0, 254);
-    record.white_input = std::clamp(record.white_input, record.black_input + 1, 255);
-    record.gamma_percent = std::clamp(record.gamma_percent, 10, 999);
-    record.black_output = std::clamp(record.black_output, 0, 255);
-    record.white_output = std::clamp(record.white_output, record.black_output, 255);
-    return record;
-  };
-  const auto master = clamp_record(LevelsRecord{settings.black_input, settings.white_input, settings.gamma_percent,
-                                                settings.black_output, settings.white_output});
+  const auto master = levels_master_record(settings);
   return LevelsAdjustment{master.black_input, master.white_input, master.gamma_percent, master.black_output,
-                          master.white_output, settings.channel, clamp_record(settings.red), clamp_record(settings.green),
-                          clamp_record(settings.blue)};
+                          master.white_output, settings.channel, clamp_levels_record(settings.red),
+                          clamp_levels_record(settings.green), clamp_levels_record(settings.blue)};
 }
 
 bool levels_settings_have_effect(LevelsSettings settings) {

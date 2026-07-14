@@ -1,7 +1,8 @@
 // Layer-style codecs for the PSD reader/writer: the lfx2/lrFX effect-descriptor
 // parsers (layer_style_from_lefx_descriptor is shared with the .asl codec), the
 // per-effect descriptor writers behind photoshop_lfx2_layer_style_payload, and
-// the private Patchy plFX block. Split out of psd_document_io.cpp as a pure move.
+// the private Patchy plFX block (read for back-compat; styles are written as
+// lfx2 only). Split out of psd_document_io.cpp as a pure move.
 
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_io_internal.hpp"
@@ -866,10 +867,6 @@ void merge_missing_layer_style_effects(LayerStyle& target, LayerStyle source) {
 
 namespace {
 
-void write_bool(BigEndianWriter& writer, bool value) {
-  writer.write_u8(value ? 1U : 0U);
-}
-
 bool read_bool(BigEndianReader& reader) {
   return reader.read_u8() != 0U;
 }
@@ -886,30 +883,8 @@ float read_f32(BigEndianReader& reader) {
   return std::bit_cast<float>(reader.read_u32());
 }
 
-void write_rgb_color(BigEndianWriter& writer, RgbColor color) {
-  writer.write_u8(color.red);
-  writer.write_u8(color.green);
-  writer.write_u8(color.blue);
-}
-
 RgbColor read_rgb_color(BigEndianReader& reader) {
   return RgbColor{reader.read_u8(), reader.read_u8(), reader.read_u8()};
-}
-
-std::uint8_t gradient_type_value(LayerStyleGradientType type) {
-  switch (type) {
-    case LayerStyleGradientType::Radial:
-      return 1U;
-    case LayerStyleGradientType::Angle:
-      return 2U;
-    case LayerStyleGradientType::Reflected:
-      return 3U;
-    case LayerStyleGradientType::Diamond:
-      return 4U;
-    case LayerStyleGradientType::Linear:
-      return 0U;
-  }
-  return 0U;
 }
 
 LayerStyleGradientType gradient_type_from_value(std::uint8_t value) {
@@ -927,18 +902,6 @@ LayerStyleGradientType gradient_type_from_value(std::uint8_t value) {
   }
 }
 
-std::uint8_t stroke_position_value(LayerStrokePosition position) {
-  switch (position) {
-    case LayerStrokePosition::Inside:
-      return 1U;
-    case LayerStrokePosition::Center:
-      return 2U;
-    case LayerStrokePosition::Outside:
-      return 0U;
-  }
-  return 0U;
-}
-
 LayerStrokePosition stroke_position_from_value(std::uint8_t value) {
   switch (value) {
     case 1U:
@@ -950,33 +913,12 @@ LayerStrokePosition stroke_position_from_value(std::uint8_t value) {
   }
 }
 
-void write_count(BigEndianWriter& writer, std::size_t count, const char* field) {
-  writer.write_u16(checked_u16(count, field));
-}
-
 std::uint16_t read_count(BigEndianReader& reader, const char* field) {
   const auto count = reader.read_u16();
   if (count > kMaxPatchyLayerStyleEntries) {
     throw std::runtime_error(std::string("Patchy layer style has too many entries: ") + field);
   }
   return count;
-}
-
-void write_layer_style_gradient(BigEndianWriter& writer, const LayerStyleGradient& gradient) {
-  writer.write_u8(gradient_type_value(gradient.type));
-  write_f32(writer, gradient.angle_degrees);
-  write_f32(writer, gradient.scale);
-  write_bool(writer, gradient.reverse);
-  write_count(writer, gradient.color_stops.size(), "layer style gradient color stops");
-  for (const auto& stop : gradient.color_stops) {
-    write_f32(writer, stop.location);
-    write_rgb_color(writer, stop.color);
-  }
-  write_count(writer, gradient.alpha_stops.size(), "layer style gradient alpha stops");
-  for (const auto& stop : gradient.alpha_stops) {
-    write_f32(writer, stop.location);
-    write_f32(writer, stop.opacity);
-  }
 }
 
 LayerStyleGradient read_layer_style_gradient(BigEndianReader& reader) {
@@ -998,81 +940,6 @@ LayerStyleGradient read_layer_style_gradient(BigEndianReader& reader) {
     gradient.alpha_stops.push_back(GradientAlphaStop{read_f32(reader), read_f32(reader)});
   }
   return gradient;
-}
-
-std::vector<std::uint8_t> patchy_layer_style_payload(const LayerStyle& style) {
-  BigEndianWriter writer;
-  write_signature(writer, kPatchyLayerStylePayloadSignature);
-  writer.write_u16(kPatchyLayerStyleVersion);
-  write_bool(writer, style.effects_visible);
-
-  write_count(writer, style.drop_shadows.size(), "drop shadows");
-  for (const auto& shadow : style.drop_shadows) {
-    write_bool(writer, shadow.enabled);
-    write_signature(writer, blend_mode_key(shadow.blend_mode));
-    write_rgb_color(writer, shadow.color);
-    write_f32(writer, shadow.opacity);
-    write_f32(writer, shadow.angle_degrees);
-    write_f32(writer, shadow.distance);
-    write_f32(writer, shadow.spread);
-    write_f32(writer, shadow.size);
-  }
-
-  write_count(writer, style.outer_glows.size(), "outer glows");
-  for (const auto& glow : style.outer_glows) {
-    write_bool(writer, glow.enabled);
-    write_signature(writer, blend_mode_key(glow.blend_mode));
-    write_rgb_color(writer, glow.color);
-    write_f32(writer, glow.opacity);
-    write_f32(writer, glow.spread);
-    write_f32(writer, glow.size);
-  }
-
-  write_count(writer, style.gradient_fills.size(), "gradient fills");
-  for (const auto& fill : style.gradient_fills) {
-    write_bool(writer, fill.enabled);
-    write_signature(writer, blend_mode_key(fill.blend_mode));
-    write_f32(writer, fill.opacity);
-    write_layer_style_gradient(writer, fill.gradient);
-  }
-
-  write_count(writer, style.strokes.size(), "strokes");
-  for (const auto& stroke : style.strokes) {
-    write_bool(writer, stroke.enabled);
-    write_signature(writer, blend_mode_key(stroke.blend_mode));
-    write_rgb_color(writer, stroke.color);
-    write_f32(writer, stroke.opacity);
-    write_f32(writer, stroke.size);
-    writer.write_u8(stroke_position_value(stroke.position));
-    write_bool(writer, stroke.uses_gradient);
-    write_layer_style_gradient(writer, stroke.gradient);
-  }
-
-  write_count(writer, style.bevels.size(), "bevels");
-  for (const auto& bevel : style.bevels) {
-    write_bool(writer, bevel.enabled);
-    write_signature(writer, blend_mode_key(bevel.highlight_blend_mode));
-    write_rgb_color(writer, bevel.highlight_color);
-    write_f32(writer, bevel.highlight_opacity);
-    write_signature(writer, blend_mode_key(bevel.shadow_blend_mode));
-    write_rgb_color(writer, bevel.shadow_color);
-    write_f32(writer, bevel.shadow_opacity);
-    write_f32(writer, bevel.angle_degrees);
-    write_f32(writer, bevel.altitude_degrees);
-    write_f32(writer, bevel.depth);
-    write_f32(writer, bevel.size);
-    write_bool(writer, bevel.direction_up);
-  }
-
-  write_count(writer, style.color_overlays.size(), "color overlays");
-  for (const auto& overlay : style.color_overlays) {
-    write_bool(writer, overlay.enabled);
-    write_signature(writer, blend_mode_key(overlay.blend_mode));
-    write_rgb_color(writer, overlay.color);
-    write_f32(writer, overlay.opacity);
-  }
-
-  return writer.bytes();
 }
 
 }  // namespace

@@ -280,16 +280,7 @@ void BrushTipPicker::show_popup() {
       popup->resize(popup->size() + (default_list_size - minimum_list_size));
     }
   }
-  auto position = mapToGlobal(QPoint(0, height()));
-  const auto* screen = this->screen();
-  if (screen != nullptr) {
-    const auto available = screen->availableGeometry();
-    if (position.y() + popup->height() > available.bottom()) {
-      position.setY(mapToGlobal(QPoint(0, 0)).y() - popup->height());
-    }
-    position.setX(std::min(position.x(), available.right() - popup->width()));
-  }
-  popup->move(position);
+  position_popup_below(*this, *popup);
   popup->show();
 }
 

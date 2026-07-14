@@ -92,23 +92,6 @@ std::optional<QRect> move_layer_transform_local_rect(const Layer& layer) {
   return opaque_pixel_local_rect(layer);
 }
 
-QImage layer_source_image(const Layer& layer) {
-  const auto& pixels = layer.pixels();
-  QImage image(pixels.width(), pixels.height(), QImage::Format_RGBA8888);
-  image.fill(Qt::transparent);
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
-    return image;
-  }
-
-  for (int y = 0; y < pixels.height(); ++y) {
-    for (int x = 0; x < pixels.width(); ++x) {
-      const auto* px = pixels.pixel(x, y);
-      image.setPixelColor(x, y, QColor(px[0], px[1], px[2], pixels.format().channels >= 4 ? px[3] : 255));
-    }
-  }
-  return image;
-}
-
 bool layer_needs_composited_transform_preview(const Layer& layer) {
   return std::abs(layer.opacity() - 1.0F) > 0.001F || layer.blend_mode() != BlendMode::Normal ||
          (layer.mask().has_value() && !layer.mask()->disabled) ||
@@ -669,7 +652,8 @@ bool CanvasWidget::prepare_free_transform_source() {
     return false;
   }
 
-  transform_source_image_ = layer_source_image(*layer).copy(transform_source_local_rect_);
+  transform_source_image_ =
+      qimage_from_pixel_buffer(std::as_const(*layer).pixels()).copy(transform_source_local_rect_);
   const auto was_visible = layer->visible();
   layer->set_visible(false);
   transform_base_cache_ = render_document_image();
@@ -1435,7 +1419,7 @@ bool CanvasWidget::begin_warp_transform() {
     content_to_document = *mapping;
     warp_source_image_ = *decoded;
   } else {
-    warp_source_image_ = layer_source_image(*layer);
+    warp_source_image_ = qimage_from_pixel_buffer(std::as_const(*layer).pixels());
     if (warp_source_image_.isNull() || warp_source_image_.width() <= 0 || warp_source_image_.height() <= 0) {
       if (status_callback_) {
         status_callback_(tr("Layer has no pixels to warp"));
