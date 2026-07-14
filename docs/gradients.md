@@ -21,6 +21,10 @@ The application library lives under the settings directory's `gradients/` folder
 
 The quick picker and Gradient Manager read the same `GradientLibrary`. Manager writes are immediate. Restore repairs changed or deleted built-ins without deleting user gradients. Import deduplicates identical name/payload pairs but permits equal names with different definitions. Folder and subtree export includes matching `phry` markers.
 
+## Stop editor widget
+
+`GradientStopsEditorWidget` is callback-driven: it never mutates its own stop vectors; hosts copy-and-sort, and must never sort the working vectors in place - an in-flight tag or midpoint drag holds an index into them. Photoshop `Mdpn` belongs to the destination/right stop; the first stop's midpoint is unused.
+
 ## PSD layer effects
 
 Gradient Overlay `GrFl` and gradient Stroke `FrFX` share the definition codec but have different required descriptor shapes. Untouched imported `lfx2`/`lmfx` remains byte-preserved. Once edited, writers must retain Photoshop's key order and types documented in `docs/ps-compat.md`, including `Grad`, `Angl`, `Type`, `Rvrs`, `Dthr`, interpolation, `Algn`, `Scl`, and `Ofst`.

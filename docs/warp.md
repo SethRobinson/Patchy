@@ -1,6 +1,6 @@
 # Warp: warped smart objects, warp styles, the Warp Transform tool, and Warp Text
 
-Deep reference for all warp machinery. Smart-object fundamentals (model, I/O, locks) live in docs/smart-objects.md; text-layer fundamentals live with the text tool notes in AGENTS.md. Both warp consumers share `generate_style_warp_mesh` / `apply_warp_distortion` (core/warp_mesh) — a change there affects smart-object warps AND Warp Text.
+Deep reference for all warp machinery. Smart-object fundamentals (model, I/O, locks) live in docs/smart-objects.md; text-layer fundamentals live in docs/text-tool.md. Both warp consumers share `generate_style_warp_mesh` / `apply_warp_distortion` (core/warp_mesh) — a change there affects smart-object warps AND Warp Text.
 
 ## Warped smart objects
 

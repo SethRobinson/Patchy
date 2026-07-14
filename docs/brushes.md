@@ -1,6 +1,6 @@
 # Bitmap brush tips (Photoshop-style), brush dynamics, and .abr import
 
-Deep reference for the brush-tip stamping engine, the tip library/UI, brush dynamics, and ABR import. The cross-cutting rules (splitmix64 determinism, append-only `BrushDynamicControl`, the dual equality functions, folded-modifier cursor handling) also appear in AGENTS.md.
+Deep reference for the brush-tip stamping engine, the tip library/UI, brush dynamics, and ABR import. The cross-cutting rules (splitmix64 determinism, append-only `BrushDynamicControl`, folded-modifier cursor handling) also appear in AGENTS.md; the dual-equality-functions gotcha lives below.
 
 The Brush and Eraser tools can stamp bitmap **brush tips** in addition to the procedural round/soft brush.
 
