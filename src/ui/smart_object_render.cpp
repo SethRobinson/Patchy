@@ -4,6 +4,7 @@
 #include "psd/psd_filter_effects.hpp"
 
 #include "formats/format_registry.hpp"
+#include "formats/image_density_probe.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/image_document_io.hpp"
 
@@ -233,7 +234,9 @@ std::optional<Document> decode_smart_object_source_document(const SmartObjectSou
           QFileInfo(QString::fromStdString(source.filename)).completeBaseName().toStdString();
       // Deliberately no promote_flat_alpha_to_layer_mask here: the child stays one
       // plain RGBA layer so the commit flatten is trivially faithful.
-      return document_from_qimage(image, layer_name.empty() ? "Contents" : layer_name);
+      auto child = document_from_qimage(image, layer_name.empty() ? "Contents" : layer_name);
+      apply_imported_image_density(child, bytes, image);
+      return child;
     }
     case SmartObjectContentsFormat::ReadOnly:
     case SmartObjectContentsFormat::Undecodable:
@@ -293,11 +296,22 @@ double smart_object_source_dpi(const SmartObjectSource& source) {
       return 72.0;
     }
   }
-  const auto image = qt_decode(bytes);
-  if (!image.isNull() && image.dotsPerMeterX() > 0) {
-    const auto dpi = static_cast<double>(image.dotsPerMeterX()) * 0.0254;
+  // Same policy as opening the file: an explicit recorded density counts, an
+  // untagged source places at Photoshop's 72 PPI convention (never Qt's
+  // screen-derived dotsPerMeter default).
+  const auto probe = formats::probe_image_density(bytes);
+  if (probe.density.has_value()) {
+    const auto dpi = probe.density->horizontal_ppi;
     if (dpi > 1.0 && dpi < 100000.0) {
       return dpi;
+    }
+    return 72.0;
+  }
+  if (probe.container == formats::ImageDensityContainer::Unrecognized) {
+    if (const auto explicit_density = explicit_qimage_density_ppi(qt_decode(bytes));
+        explicit_density.has_value() && explicit_density->first > 1.0 &&
+        explicit_density->first < 100000.0) {
+      return explicit_density->first;
     }
   }
   return 72.0;

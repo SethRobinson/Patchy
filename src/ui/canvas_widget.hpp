@@ -6,6 +6,7 @@
 #include "core/warp_mesh.hpp"
 #include "ui/curves_clipping_preview.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/measurement_units.hpp"
 #include "ui/selection_outline.hpp"
 
 #include <QBasicTimer>
@@ -501,6 +502,14 @@ public:
   void toggle_selection_edges_visible();
   void set_rulers_visible(bool visible) noexcept;
   [[nodiscard]] bool rulers_visible() const noexcept;
+  // Display unit for the ruler tick marks (the app-wide "view/rulerUnits" preference,
+  // pushed in by MainWindow). Physical units derive tick geometry from the document's
+  // per-axis print PPI.
+  void set_ruler_unit(MeasurementUnit unit) noexcept;
+  [[nodiscard]] MeasurementUnit ruler_unit() const noexcept;
+  // Fired when the user picks a unit from the ruler's right-click menu; the host owns
+  // the preference and pushes it back into every canvas.
+  void set_ruler_unit_change_requested_callback(std::function<void(MeasurementUnit)> callback);
   void set_grid_visible(bool visible) noexcept;
   [[nodiscard]] bool grid_visible() const noexcept;
   void set_guides_visible(bool visible) noexcept;
@@ -714,6 +723,10 @@ private:
   void draw_grid_overlay(QPainter& painter, const QRectF& target_rect, QRect exposed_rect) const;
   void draw_guides_overlay(QPainter& painter) const;
   void draw_rulers(QPainter& painter) const;
+  // Document pixels per ruler unit along one axis (1 for Pixels; per-axis PPI through
+  // the unit for physical units; extent/100 for Percent).
+  [[nodiscard]] double ruler_pixels_per_unit(bool horizontal_axis) const noexcept;
+  void show_ruler_unit_menu(QPoint global_position);
   void draw_processing_overlay(QPainter& painter) const;
   void show_processing_overlay(QString message = {});
   void hide_processing_overlay();
@@ -1215,6 +1228,8 @@ private:
   QString smart_filter_mask_edit_label_;
   QRegion smart_filter_mask_edit_dirty_;
   bool rulers_visible_{false};
+  MeasurementUnit ruler_unit_{MeasurementUnit::Pixels};
+  std::function<void(MeasurementUnit)> ruler_unit_change_requested_callback_;
   bool grid_visible_{false};
   bool guides_visible_{true};
   bool guides_locked_{false};

@@ -18,6 +18,7 @@
 #include "formats/heif_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/ilbm_document_io.hpp"
+#include "formats/image_density_probe.hpp"
 #include "formats/palette_io.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/raw_document_io.hpp"
@@ -4067,6 +4068,46 @@ void psd_image_resources_round_trip_and_icc_profile_is_exposed() {
   CHECK(test_image_resource_payload(layered_resources, 1005).value() == psd_resolution_payload(300.0, 150.0));
   CHECK(test_image_resource_payload(layered_resources, 1039).value() == replacement_icc);
   CHECK(test_image_resource_count(layered_resources, 1005) == 1);
+}
+
+void psd_resolution_resource_units_are_display_only() {
+  // Photoshop 2026 ground truth (COM byte-patch probe, July 2026): resource 1005
+  // resolutions are stored as pixels/inch no matter what the unit fields say; a
+  // unit-2 (px/cm) file whose fixed 16.16 value is 144 opens at 144 PPI in Photoshop.
+  // The unit fields are display preferences and must survive a round trip.
+  const std::vector<std::uint8_t> px_cm_display_payload{
+      0x00, 0x90, 0x00, 0x00, 0x00, 0x02, 0x00, 0x04,
+      0x00, 0x90, 0x00, 0x00, 0x00, 0x02, 0x00, 0x04};
+  patchy::psd::BigEndianWriter resources;
+  write_test_image_resource(resources, 1005, "", px_cm_display_payload);
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 1, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(resources.bytes().size()));
+  writer.write_bytes(resources.bytes());
+  writer.write_u32(0);
+  writer.write_u16(0);
+  writer.write_u8(1);
+  writer.write_u8(2);
+  writer.write_u8(3);
+
+  auto document = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(std::abs(document.print_settings().horizontal_ppi - 144.0) < 0.01);
+  CHECK(std::abs(document.print_settings().vertical_ppi - 144.0) < 0.01);
+  CHECK(document.print_settings().horizontal_resolution_display_unit == 2);
+  CHECK(document.print_settings().vertical_resolution_display_unit == 2);
+  CHECK(document.print_settings().width_display_unit == 4);
+  CHECK(document.print_settings().height_display_unit == 4);
+
+  // A resolution edit keeps the file's display units; only the values move.
+  document.print_settings().horizontal_ppi = 240.0;
+  document.print_settings().vertical_ppi = 240.0;
+  const auto exported = psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(document));
+  const std::vector<std::uint8_t> expected_payload{
+      0x00, 0xF0, 0x00, 0x00, 0x00, 0x02, 0x00, 0x04,
+      0x00, 0xF0, 0x00, 0x00, 0x00, 0x02, 0x00, 0x04};
+  CHECK(test_image_resource_payload(exported, 1005).value() == expected_payload);
 }
 
 void psd_grid_guides_resource_round_trip_and_replaces_duplicates() {
@@ -22209,6 +22250,146 @@ void bmp_reader_rejects_invalid_headers() {
   CHECK(document.height() == 1);
 }
 
+void append_u32_be_bytes(std::vector<std::uint8_t>& bytes, std::uint32_t value) {
+  bytes.push_back(static_cast<std::uint8_t>((value >> 24U) & 0xFFU));
+  bytes.push_back(static_cast<std::uint8_t>((value >> 16U) & 0xFFU));
+  bytes.push_back(static_cast<std::uint8_t>((value >> 8U) & 0xFFU));
+  bytes.push_back(static_cast<std::uint8_t>(value & 0xFFU));
+}
+
+std::vector<std::uint8_t> density_probe_png_fixture(std::optional<std::array<std::uint32_t, 2>> pixels_per_meter,
+                                                    std::uint8_t phys_unit = 1) {
+  std::vector<std::uint8_t> bytes{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
+  const auto add_chunk = [&bytes](const char* type, const std::vector<std::uint8_t>& payload) {
+    append_u32_be_bytes(bytes, static_cast<std::uint32_t>(payload.size()));
+    bytes.insert(bytes.end(), type, type + 4);
+    bytes.insert(bytes.end(), payload.begin(), payload.end());
+    append_u32_be_bytes(bytes, 0);  // CRC, unchecked by the probe
+  };
+  add_chunk("IHDR", {0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0});
+  if (pixels_per_meter.has_value()) {
+    std::vector<std::uint8_t> phys;
+    append_u32_be_bytes(phys, (*pixels_per_meter)[0]);
+    append_u32_be_bytes(phys, (*pixels_per_meter)[1]);
+    phys.push_back(phys_unit);
+    add_chunk("pHYs", phys);
+  }
+  add_chunk("IDAT", {0});
+  add_chunk("IEND", {});
+  return bytes;
+}
+
+std::vector<std::uint8_t> density_probe_jpeg_fixture(const std::vector<std::vector<std::uint8_t>>& app_segments) {
+  // Each segment is {marker_low_byte, payload...}; the helper adds FF + the length.
+  std::vector<std::uint8_t> bytes{0xFF, 0xD8};
+  for (const auto& segment : app_segments) {
+    bytes.push_back(0xFF);
+    bytes.push_back(segment.front());
+    const auto length = static_cast<std::uint16_t>(segment.size() - 1U + 2U);
+    bytes.push_back(static_cast<std::uint8_t>((length >> 8U) & 0xFFU));
+    bytes.push_back(static_cast<std::uint8_t>(length & 0xFFU));
+    bytes.insert(bytes.end(), segment.begin() + 1, segment.end());
+  }
+  bytes.insert(bytes.end(), {0xFF, 0xDA, 0x00, 0x02, 0x12, 0x34});
+  return bytes;
+}
+
+std::vector<std::uint8_t> jfif_app0_segment(std::uint8_t units, std::uint16_t x_density, std::uint16_t y_density) {
+  return {0xE0, 'J', 'F', 'I', 'F', 0, 1, 2, units,
+          static_cast<std::uint8_t>((x_density >> 8U) & 0xFFU), static_cast<std::uint8_t>(x_density & 0xFFU),
+          static_cast<std::uint8_t>((y_density >> 8U) & 0xFFU), static_cast<std::uint8_t>(y_density & 0xFFU),
+          0, 0};
+}
+
+void image_density_probe_reads_png_phys() {
+  using patchy::formats::ImageDensityContainer;
+  using patchy::formats::probe_image_density;
+
+  // 11811 / 5906 pixels per meter are the pHYs values for 300 / 150 PPI.
+  const auto tagged = probe_image_density(density_probe_png_fixture(std::array<std::uint32_t, 2>{11811, 5906}));
+  CHECK(tagged.container == ImageDensityContainer::Png);
+  CHECK(tagged.density.has_value());
+  CHECK(std::abs(tagged.density->horizontal_ppi - 11811.0 * 0.0254) < 0.0001);
+  CHECK(std::abs(tagged.density->vertical_ppi - 5906.0 * 0.0254) < 0.0001);
+
+  const auto untagged = probe_image_density(density_probe_png_fixture(std::nullopt));
+  CHECK(untagged.container == ImageDensityContainer::Png);
+  CHECK(!untagged.density.has_value());
+
+  // Unit 0 records only an aspect ratio, never an absolute density.
+  const auto aspect_only =
+      probe_image_density(density_probe_png_fixture(std::array<std::uint32_t, 2>{11811, 11811}, 0));
+  CHECK(aspect_only.container == ImageDensityContainer::Png);
+  CHECK(!aspect_only.density.has_value());
+
+  const std::vector<std::uint8_t> not_an_image{'B', 'M', 1, 2, 3, 4};
+  CHECK(probe_image_density(not_an_image).container == ImageDensityContainer::Unrecognized);
+}
+
+void image_density_probe_reads_jpeg_jfif_and_exif() {
+  using patchy::formats::ImageDensityContainer;
+  using patchy::formats::probe_image_density;
+
+  const auto jfif_inch = probe_image_density(density_probe_jpeg_fixture({jfif_app0_segment(1, 300, 150)}));
+  CHECK(jfif_inch.container == ImageDensityContainer::Jpeg);
+  CHECK(jfif_inch.density.has_value());
+  CHECK(std::abs(jfif_inch.density->horizontal_ppi - 300.0) < 0.0001);
+  CHECK(std::abs(jfif_inch.density->vertical_ppi - 150.0) < 0.0001);
+
+  const auto jfif_cm = probe_image_density(density_probe_jpeg_fixture({jfif_app0_segment(2, 118, 118)}));
+  CHECK(jfif_cm.density.has_value());
+  CHECK(std::abs(jfif_cm.density->horizontal_ppi - 118.0 * 2.54) < 0.0001);
+
+  const auto jfif_aspect_only = probe_image_density(density_probe_jpeg_fixture({jfif_app0_segment(0, 1, 1)}));
+  CHECK(jfif_aspect_only.container == ImageDensityContainer::Jpeg);
+  CHECK(!jfif_aspect_only.density.has_value());
+
+  // EXIF little-endian: XResolution/YResolution 240/1, ResolutionUnit 2 (inch).
+  const std::vector<std::uint8_t> exif_ii{
+      0xE1, 'E', 'x', 'i', 'f', 0, 0,
+      'I', 'I', 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00,
+      0x03, 0x00,
+      0x1A, 0x01, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x32, 0x00, 0x00, 0x00,
+      0x1B, 0x01, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x3A, 0x00, 0x00, 0x00,
+      0x28, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00,
+      0xF0, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+      0xF0, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
+  // EXIF beside a JFIF density: the EXIF value wins (the camera-file convention).
+  const auto exif_wins =
+      probe_image_density(density_probe_jpeg_fixture({jfif_app0_segment(1, 96, 96), exif_ii}));
+  CHECK(exif_wins.density.has_value());
+  CHECK(std::abs(exif_wins.density->horizontal_ppi - 240.0) < 0.0001);
+  CHECK(std::abs(exif_wins.density->vertical_ppi - 240.0) < 0.0001);
+
+  // EXIF big-endian with ResolutionUnit 3 (centimeters): 118 px/cm -> 299.72 PPI.
+  const std::vector<std::uint8_t> exif_mm{
+      0xE1, 'E', 'x', 'i', 'f', 0, 0,
+      'M', 'M', 0x00, 0x2A, 0x00, 0x00, 0x00, 0x08,
+      0x00, 0x03,
+      0x01, 0x1A, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x32,
+      0x01, 0x1B, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x3A,
+      0x01, 0x28, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x03, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x76, 0x00, 0x00, 0x00, 0x01,
+      0x00, 0x00, 0x00, 0x76, 0x00, 0x00, 0x00, 0x01};
+  const auto exif_cm = probe_image_density(density_probe_jpeg_fixture({exif_mm}));
+  CHECK(exif_cm.density.has_value());
+  CHECK(std::abs(exif_cm.density->horizontal_ppi - 118.0 * 2.54) < 0.0001);
+
+  // EXIF ResolutionUnit 1 means explicitly unitless; the JFIF density still applies.
+  auto exif_unitless = exif_ii;
+  exif_unitless[7U + 8U + 2U + 2U * 12U + 8U] = 0x01;  // ResolutionUnit value 2 -> 1
+  const auto jfif_fallback =
+      probe_image_density(density_probe_jpeg_fixture({jfif_app0_segment(1, 144, 144), exif_unitless}));
+  CHECK(jfif_fallback.density.has_value());
+  CHECK(std::abs(jfif_fallback.density->horizontal_ppi - 144.0) < 0.0001);
+
+  const auto untagged = probe_image_density(density_probe_jpeg_fixture({}));
+  CHECK(untagged.container == ImageDensityContainer::Jpeg);
+  CHECK(!untagged.density.has_value());
+}
+
 void bmp_indexed_reads_2_4_8_bit_palettes_and_rows() {
   const std::vector<patchy::RgbColor> palette{
       patchy::RgbColor{0, 0, 0}, patchy::RgbColor{220, 20, 30}, patchy::RgbColor{30, 210, 80},
@@ -25030,6 +25211,7 @@ int main(int argc, char** argv) {
        psd_imported_cmyk_icc_profile_is_not_exported_as_rgb_profile},
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",
        psd_image_resources_round_trip_and_icc_profile_is_exposed},
+      {"psd_resolution_resource_units_are_display_only", psd_resolution_resource_units_are_display_only},
       {"psd_grid_guides_resource_round_trip_and_replaces_duplicates",
        psd_grid_guides_resource_round_trip_and_replaces_duplicates},
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
@@ -25547,6 +25729,8 @@ int main(int argc, char** argv) {
       {"filter_recipe_expansion_keeps_fully_transparent_bounds_stable",
        filter_recipe_expansion_keeps_fully_transparent_bounds_stable},
       {"bmp_reader_rejects_invalid_headers", bmp_reader_rejects_invalid_headers},
+      {"image_density_probe_reads_png_phys", image_density_probe_reads_png_phys},
+      {"image_density_probe_reads_jpeg_jfif_and_exif", image_density_probe_reads_jpeg_jfif_and_exif},
       {"bmp_indexed_reads_2_4_8_bit_palettes_and_rows", bmp_indexed_reads_2_4_8_bit_palettes_and_rows},
       {"bmp_exact_indexed_writes_and_round_trips", bmp_exact_indexed_writes_and_round_trips},
       {"bmp_exact_indexed_fails_when_palette_overflows", bmp_exact_indexed_fails_when_palette_overflows},

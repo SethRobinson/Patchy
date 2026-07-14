@@ -51,9 +51,12 @@ double sanitized_scale_percent(double value) noexcept {
   return std::clamp(std::isfinite(value) ? value : 100.0, 1.0, 1000.0);
 }
 
-double settings_print_ppi(const Document& document, const PrintSettings& settings) noexcept {
-  return sanitized_ppi(settings.print_resolution_ppi > 0.0 ? settings.print_resolution_ppi
-                                                           : document.print_settings().horizontal_ppi);
+double document_horizontal_ppi(const Document& document) noexcept {
+  return sanitized_ppi(document.print_settings().horizontal_ppi);
+}
+
+double document_vertical_ppi(const Document& document) noexcept {
+  return sanitized_ppi(document.print_settings().vertical_ppi);
 }
 
 QRect document_rect(const Document& document) {
@@ -285,7 +288,6 @@ QPageLayout default_print_page_layout() {
 
 PrintSettings default_print_settings(const Document& document, std::optional<QRect> selection_bounds) {
   PrintSettings settings;
-  settings.print_resolution_ppi = sanitized_ppi(document.print_settings().horizontal_ppi);
   if (selection_bounds.has_value()) {
     settings.selection_bounds = selection_bounds->normalized().intersected(document_rect(document));
   }
@@ -296,9 +298,11 @@ PrintPlacement calculate_print_placement(const Document& document, const PrintSe
                                          const QPageLayout& page_layout) {
   const auto layout = valid_page_layout(page_layout);
   const auto source = source_rect_for_settings(document, settings);
-  const auto print_ppi = settings_print_ppi(document, settings);
-  const QSizeF actual_points(static_cast<double>(source.width()) / print_ppi * kPointsPerInch,
-                             static_cast<double>(source.height()) / print_ppi * kPointsPerInch);
+  // Per-axis PPI: anisotropic documents (scanner files, some BMPs) print at their true
+  // physical size instead of stretching the vertical axis to the horizontal density.
+  const QSizeF actual_points(
+      static_cast<double>(source.width()) / document_horizontal_ppi(document) * kPointsPerInch,
+      static_cast<double>(source.height()) / document_vertical_ppi(document) * kPointsPerInch);
 
   QSizeF target_size = actual_points;
   double effective_scale = 100.0;
@@ -379,8 +383,19 @@ void run_page_setup_dialog(QWidget* parent, QPageLayout* page_layout) {
 bool run_print_dialog(QWidget* parent, const Document& document, std::optional<QRect> selection_bounds,
                       QPageLayout* page_layout) {
   auto settings = default_print_settings(document, selection_bounds);
-  settings.scale_mode = PrintScaleMode::FitToPage;
   auto current_layout = valid_page_layout(page_layout != nullptr ? *page_layout : QPageLayout{});
+  // Photoshop prints at actual size (100%) by default. Patchy keeps that whenever the
+  // document fits the printable area, and only pre-checks "Scale to fit media" when
+  // actual size would overflow the page (scaling beats silent clipping).
+  const bool fits_at_actual_size = [&] {
+    auto actual = settings;
+    actual.scale_mode = PrintScaleMode::ActualSize;
+    const auto placement = calculate_print_placement(document, actual, current_layout);
+    const auto printable = current_layout.paintRect(QPageLayout::Point);
+    return placement.target_rect_points.width() <= printable.width() + 0.5 &&
+           placement.target_rect_points.height() <= printable.height() + 0.5;
+  }();
+  settings.scale_mode = fits_at_actual_size ? PrintScaleMode::CustomScale : PrintScaleMode::FitToPage;
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyPrintDialog"));
@@ -450,7 +465,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
 
   auto* scale_to_fit = new QCheckBox(QObject::tr("Scale to fit media"), settings_group);
   scale_to_fit->setObjectName(QStringLiteral("printScaleToFitCheck"));
-  scale_to_fit->setChecked(true);
+  scale_to_fit->setChecked(settings.scale_mode == PrintScaleMode::FitToPage);
   form->addRow(QString(), scale_to_fit);
 
   auto* scale_row = new QWidget(settings_group);
@@ -485,19 +500,19 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
   auto* resolution_layout = new QHBoxLayout(resolution_row);
   resolution_layout->setContentsMargins(0, 0, 0, 0);
   resolution_layout->setSpacing(10);
-  auto* resolution = new QSpinBox(resolution_row);
-  resolution->setObjectName(QStringLiteral("printResolutionSpin"));
-  resolution->setRange(1, 9999);
-  resolution->setSuffix(QStringLiteral(" PPI"));
-  resolution->setValue(std::clamp(static_cast<int>(std::lround(settings.print_resolution_ppi)), 1, 9999));
-  configure_dialog_spinbox(resolution, 92);
+  // Read-only, Photoshop-style: the effective on-paper density is the document
+  // resolution divided by the print scale. Changing the stored resolution is Image
+  // Size's job.
+  auto* resolution_value = new QLabel(resolution_row);
+  resolution_value->setObjectName(QStringLiteral("printResolutionValueLabel"));
   auto* units_label = new QLabel(QObject::tr("Units:"), resolution_row);
   auto* units = new QComboBox(resolution_row);
   units->setObjectName(QStringLiteral("printUnitsCombo"));
   units->addItem(QObject::tr("in"), QStringLiteral("in"));
   units->addItem(QObject::tr("cm"), QStringLiteral("cm"));
   units->addItem(QObject::tr("mm"), QStringLiteral("mm"));
-  resolution_layout->addWidget(resolution);
+  resolution_layout->addWidget(resolution_value);
+  resolution_layout->addStretch(1);
   resolution_layout->addWidget(units_label);
   resolution_layout->addWidget(units);
   form->addRow(QObject::tr("Print Resolution"), resolution_row);
@@ -521,7 +536,6 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
     settings.area_mode = static_cast<PrintAreaMode>(area->currentData().toInt());
     settings.scale_mode = scale_to_fit->isChecked() ? PrintScaleMode::FitToPage : PrintScaleMode::CustomScale;
     settings.scale_percent = scale->value();
-    settings.print_resolution_ppi = static_cast<double>(resolution->value());
     settings.center = center->isChecked();
     settings.offset_x_inches = x->value();
     settings.offset_y_inches = y->value();
@@ -532,6 +546,14 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
     const auto placement = calculate_print_placement(document, settings, current_layout);
     scale->setValue(placement.scale_percent);
     scale_size->setText(formatted_size(placement.print_size_inches, units));
+    const auto scale_factor = std::max(0.01, placement.scale_percent / 100.0);
+    const auto derived_horizontal =
+        static_cast<int>(std::lround(document_horizontal_ppi(document) / scale_factor));
+    const auto derived_vertical =
+        static_cast<int>(std::lround(document_vertical_ppi(document) / scale_factor));
+    resolution_value->setText(derived_horizontal == derived_vertical
+                                  ? QObject::tr("%1 PPI").arg(derived_horizontal)
+                                  : QObject::tr("%1 x %2 PPI").arg(derived_horizontal).arg(derived_vertical));
     auto actual_settings = settings;
     actual_settings.scale_mode = PrintScaleMode::ActualSize;
     actual_settings.scale_percent = 100.0;
@@ -549,7 +571,6 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
     sync_settings();
   });
   QObject::connect(scale, &QDoubleSpinBox::valueChanged, &dialog, sync_settings);
-  QObject::connect(resolution, &QSpinBox::valueChanged, &dialog, sync_settings);
   QObject::connect(units, &QComboBox::currentIndexChanged, &dialog, sync_settings);
   QObject::connect(center, &QCheckBox::toggled, &dialog, sync_settings);
   QObject::connect(x, &QDoubleSpinBox::valueChanged, &dialog, sync_settings);

@@ -3401,6 +3401,54 @@ Flow: %6
         <translation>ピクセル/インチ</translation>
     </message>
     <message>
+        <source>Pixels/Centimeter</source>
+        <translation>ピクセル/センチメートル</translation>
+    </message>
+    <message>
+        <source>Inches</source>
+        <translation>インチ</translation>
+    </message>
+    <message>
+        <source>Centimeters</source>
+        <translation>センチメートル</translation>
+    </message>
+    <message>
+        <source>Millimeters</source>
+        <translation>ミリメートル</translation>
+    </message>
+    <message>
+        <source>Points</source>
+        <translation>ポイント</translation>
+    </message>
+    <message>
+        <source>Percent</source>
+        <translation>パーセント</translation>
+    </message>
+    <message>
+        <source>px</source>
+        <translation>px</translation>
+    </message>
+    <message>
+        <source>pt</source>
+        <translation>pt</translation>
+    </message>
+    <message>
+        <source>US Letter 300 ppi</source>
+        <translation>USレター 300 ppi</translation>
+    </message>
+    <message>
+        <source>Resolution</source>
+        <translation>解像度</translation>
+    </message>
+    <message>
+        <source>%1 PPI</source>
+        <translation>%1 PPI</translation>
+    </message>
+    <message>
+        <source>%1 x %2 PPI</source>
+        <translation>%1 x %2 PPI</translation>
+    </message>
+    <message>
         <location line="+1"/>
         <source>Resolution:</source>
         <translation>解像度:</translation>
@@ -8548,8 +8596,8 @@ RGB: -
     </message>
     <message>
         <location line="+16"/>
-        <source>Image %1 x %2 at %3 ppi</source>
-        <translation>画像 %1 x %2、%3 ppi</translation>
+        <source>Image %1 x %2 px (%3 x %4 in) at %5 ppi</source>
+        <translation>画像 %1 x %2 px (%3 x %4 in)、%5 ppi</translation>
     </message>
     <message>
         <location line="+16"/>
@@ -10352,8 +10400,8 @@ Layer mask</source>
     </message>
     <message>
         <location line="+404"/>
-        <source>Document: %1 x %2 px | %3 ppi | %4 | %5 layers | Zoom %6% | %7</source>
-        <translation>ドキュメント: %1 x %2 px | %3 ppi | %4 | %5 レイヤー | ズーム %6% | %7</translation>
+        <source>Document: %1 x %2 px | %3 x %4 %5 | %6 ppi | %7 | %8 layers | Zoom %9% | %10</source>
+        <translation>ドキュメント: %1 x %2 px | %3 x %4 %5 | %6 ppi | %7 | %8 レイヤー | ズーム %9% | %10</translation>
     </message>
     <message>
         <location line="-8753"/>

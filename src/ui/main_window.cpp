@@ -48,6 +48,7 @@
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
+#include "ui/measurement_units.hpp"
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
@@ -3333,6 +3334,7 @@ OpenDocumentResult load_document_from_path(QString path) {
       }
     }
     opened = document_from_qimage(image, info.completeBaseName().toStdString());
+    apply_imported_image_density(opened, read_all_file_bytes(path), image);
   };
   if (is_photoshop_document_extension(extension)) {
     std::vector<std::string> psd_notices;
@@ -3393,6 +3395,16 @@ OpenDocumentResult load_document_from_path(QString path) {
       for (const auto& notice : result.notices) {
         import_notices.push_back(QString::fromStdString(notice));
       }
+      // Containers with no density concept open at Photoshop's untagged 72 PPI
+      // (their readers construct Documents with the 300 PPI new-document default).
+      // BMP/HEIF/camera-raw record real densities and keep what their reader set.
+      static const std::set<std::string> kDensitylessFormats = {
+          "patchy.formats.ico", "patchy.formats.tga", "patchy.formats.aseprite",
+          "patchy.formats.pcx", "patchy.formats.ilbm"};
+      if (kDensitylessFormats.contains(handler->identifier)) {
+        opened.print_settings().horizontal_ppi = kUntaggedImportPpi;
+        opened.print_settings().vertical_ppi = kUntaggedImportPpi;
+      }
     } catch (const std::exception& registry_error) {
       // Nonstandard files that a Qt plugin still understands (e.g. OS/2 BMPs) keep opening
       // through the Qt fallback; when Qt cannot read them either, report the registry
@@ -3416,6 +3428,7 @@ OpenDocumentResult load_document_from_path(QString path) {
       // reader's convention); other fallback formats keep the historical file-name label.
       opened = document_from_qimage(image, heif_family ? std::string("Background")
                                                        : info.completeBaseName().toStdString());
+      apply_imported_image_density(opened, read_all_file_bytes(path), image);
     }
   } else {
     load_via_qt();
@@ -3526,6 +3539,7 @@ QByteArray clipboard_image_signature(const QImage& image) {
 struct NewDocumentSettings {
   std::int32_t width{1024};
   std::int32_t height{768};
+  double resolution_ppi{300.0};
   QColor background{Qt::white};
   bool from_clipboard{false};
   QImage clipboard_image;
@@ -3541,7 +3555,7 @@ struct CanvasSizeSettings {
 struct ImageSizeSettings {
   std::int32_t width{0};
   std::int32_t height{0};
-  int resolution{96};
+  double resolution{300.0};
   bool resample{true};
 };
 
@@ -4266,6 +4280,7 @@ std::optional<int> request_integer_input(QWidget* parent, const QString& object_
 
 std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {
   constexpr int kClipboardPresetRole = Qt::UserRole + 1;
+  constexpr int kPresetResolutionRole = Qt::UserRole + 2;
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyNewDocumentDialog"));
@@ -4277,7 +4292,14 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   const auto clipboard_image = QApplication::clipboard()->image();
   auto* preset = new QComboBox(&dialog);
   preset->setObjectName(QStringLiteral("newDocumentPresetCombo"));
-  preset->addItem(QObject::tr("Clipboard"), clipboard_image.isNull() ? QSize() : clipboard_image.size());
+  const auto add_preset = [preset](const QString& label, QSize size, double ppi) {
+    preset->addItem(label, size);
+    preset->setItemData(preset->count() - 1, ppi, kPresetResolutionRole);
+  };
+  // Pixel presets follow Photoshop's conventions: the Clipboard and screen/video
+  // presets are 72 PPI; the physical print presets are their paper size at 300 PPI.
+  // The default 1024x768 preset keeps Patchy's historical 300 PPI.
+  add_preset(QObject::tr("Clipboard"), clipboard_image.isNull() ? QSize() : clipboard_image.size(), 72.0);
   preset->setItemData(0, true, kClipboardPresetRole);
   if (clipboard_image.isNull()) {
     if (auto* model = qobject_cast<QStandardItemModel*>(preset->model()); model != nullptr) {
@@ -4286,26 +4308,62 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
       }
     }
   }
-  preset->addItem(QObject::tr("1024 x 768"), QSize(1024, 768));
-  preset->addItem(QObject::tr("A4 300 ppi"), QSize(2480, 3508));
-  preset->addItem(QObject::tr("A3 300 ppi"), QSize(3508, 4961));
-  preset->addItem(QObject::tr("1080p"), QSize(1920, 1080));
-  preset->addItem(QObject::tr("4K"), QSize(3840, 2160));
+  add_preset(QObject::tr("1024 x 768"), QSize(1024, 768), 300.0);
+  add_preset(QObject::tr("A4 300 ppi"), QSize(2480, 3508), 300.0);
+  add_preset(QObject::tr("A3 300 ppi"), QSize(3508, 4961), 300.0);
+  add_preset(QObject::tr("US Letter 300 ppi"), QSize(2550, 3300), 300.0);
+  add_preset(QObject::tr("1080p"), QSize(1920, 1080), 72.0);
+  add_preset(QObject::tr("4K"), QSize(3840, 2160), 72.0);
   preset->setCurrentIndex(1);
   form->addRow(QObject::tr("Preset"), preset);
 
-  auto* width = new QSpinBox(&dialog);
+  // Pixels are the stored truth; the width/height spins convert through the chosen
+  // unit at the chosen resolution, like Image Size.
+  struct NewDocumentState {
+    int pixel_width{1024};
+    int pixel_height{768};
+    double ppi{300.0};
+  };
+  NewDocumentState state;
+
+  auto* width = new QDoubleSpinBox(&dialog);
   width->setObjectName(QStringLiteral("newDocumentWidthSpin"));
-  width->setRange(1, 30000);
-  width->setValue(1024);
   configure_dialog_spinbox(width);
-  auto* height = new QSpinBox(&dialog);
+  auto* unit = new QComboBox(&dialog);
+  unit->setObjectName(QStringLiteral("newDocumentUnitCombo"));
+  for (const auto dimension_unit : {MeasurementUnit::Pixels, MeasurementUnit::Inches,
+                                    MeasurementUnit::Centimeters, MeasurementUnit::Millimeters}) {
+    unit->addItem(measurement_unit_name(dimension_unit), static_cast<int>(dimension_unit));
+  }
+  auto* width_row = new QWidget(&dialog);
+  auto* width_row_layout = new QHBoxLayout(width_row);
+  width_row_layout->setContentsMargins(0, 0, 0, 0);
+  width_row_layout->setSpacing(8);
+  width_row_layout->addWidget(width, 1);
+  width_row_layout->addWidget(unit);
+  auto* height = new QDoubleSpinBox(&dialog);
   height->setObjectName(QStringLiteral("newDocumentHeightSpin"));
-  height->setRange(1, 30000);
-  height->setValue(768);
   configure_dialog_spinbox(height);
-  form->addRow(QObject::tr("Width"), width);
+  form->addRow(QObject::tr("Width"), width_row);
   form->addRow(QObject::tr("Height"), height);
+
+  auto* resolution = new QDoubleSpinBox(&dialog);
+  resolution->setObjectName(QStringLiteral("newDocumentResolutionSpin"));
+  resolution->setDecimals(2);
+  resolution->setRange(0.01, 9999.0);
+  resolution->setValue(state.ppi);
+  configure_dialog_spinbox(resolution);
+  auto* resolution_unit = new QComboBox(&dialog);
+  resolution_unit->setObjectName(QStringLiteral("newDocumentResolutionUnitCombo"));
+  resolution_unit->addItem(QObject::tr("Pixels/Inch"), 1.0);
+  resolution_unit->addItem(QObject::tr("Pixels/Centimeter"), 2.54);
+  auto* resolution_row = new QWidget(&dialog);
+  auto* resolution_row_layout = new QHBoxLayout(resolution_row);
+  resolution_row_layout->setContentsMargins(0, 0, 0, 0);
+  resolution_row_layout->setSpacing(8);
+  resolution_row_layout->addWidget(resolution, 1);
+  resolution_row_layout->addWidget(resolution_unit);
+  form->addRow(QObject::tr("Resolution"), resolution_row);
 
   auto* background = new QComboBox(&dialog);
   background->setObjectName(QStringLiteral("newDocumentBackgroundCombo"));
@@ -4314,15 +4372,73 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   background->addItem(QObject::tr("Transparent"), QColor(0, 0, 0, 0));
   form->addRow(QObject::tr("Background"), background);
 
-  const auto update_for_preset = [preset, width, height, background](int index) {
+  const auto current_unit = [unit] { return static_cast<MeasurementUnit>(unit->currentData().toInt()); };
+  const auto refresh_dimension_spins = [&state, current_unit, width, height] {
+    const auto dimension_unit = current_unit();
+    for (auto* spin : {width, height}) {
+      const QSignalBlocker blocker(spin);
+      spin->setDecimals(measurement_unit_decimals(dimension_unit));
+      spin->setRange(dimension_unit == MeasurementUnit::Pixels ? 1.0 : 0.001, 999999.0);
+    }
+    {
+      const QSignalBlocker blocker(width);
+      width->setValue(pixels_to_measurement_unit(state.pixel_width, dimension_unit, state.ppi, state.pixel_width));
+    }
+    {
+      const QSignalBlocker blocker(height);
+      height->setValue(pixels_to_measurement_unit(state.pixel_height, dimension_unit, state.ppi, state.pixel_height));
+    }
+  };
+  const auto refresh_resolution_spin = [&state, resolution, resolution_unit] {
+    const QSignalBlocker blocker(resolution);
+    resolution->setValue(state.ppi / resolution_unit->currentData().toDouble());
+  };
+
+  const auto handle_dimension_edit = [&state, current_unit](QDoubleSpinBox* spin, bool editing_width) {
+    const auto pixels = std::clamp(
+        static_cast<int>(std::lround(measurement_unit_to_pixels(spin->value(), current_unit(), state.ppi, 0.0))), 1,
+        30000);
+    (editing_width ? state.pixel_width : state.pixel_height) = pixels;
+  };
+  QObject::connect(width, &QDoubleSpinBox::valueChanged, &dialog, [&] { handle_dimension_edit(width, true); });
+  QObject::connect(height, &QDoubleSpinBox::valueChanged, &dialog, [&] { handle_dimension_edit(height, false); });
+  QObject::connect(unit, &QComboBox::currentIndexChanged, &dialog, [&](int) { refresh_dimension_spins(); });
+  QObject::connect(resolution, &QDoubleSpinBox::valueChanged, &dialog, [&](double value) {
+    const auto new_ppi = std::clamp(value * resolution_unit->currentData().toDouble(), 0.01, 9999.0);
+    if (measurement_unit_is_physical(current_unit())) {
+      // Physical entry holds its size across a resolution change (Photoshop's
+      // new-document behavior): the pixel dimensions re-derive.
+      state.pixel_width = std::clamp(
+          static_cast<int>(std::lround(state.pixel_width / state.ppi * new_ppi)), 1, 30000);
+      state.pixel_height = std::clamp(
+          static_cast<int>(std::lround(state.pixel_height / state.ppi * new_ppi)), 1, 30000);
+      state.ppi = new_ppi;
+      refresh_dimension_spins();
+    } else {
+      state.ppi = new_ppi;
+    }
+  });
+  QObject::connect(resolution_unit, &QComboBox::currentIndexChanged, &dialog,
+                   [&](int) { refresh_resolution_spin(); });
+
+  const auto update_for_preset = [&](int index) {
     const auto size = preset->itemData(index).toSize();
     if (size.isValid()) {
-      width->setValue(size.width());
-      height->setValue(size.height());
+      state.pixel_width = std::clamp(size.width(), 1, 30000);
+      state.pixel_height = std::clamp(size.height(), 1, 30000);
     }
+    const auto preset_resolution = preset->itemData(index, kPresetResolutionRole).toDouble();
+    if (preset_resolution > 0.0) {
+      state.ppi = preset_resolution;
+    }
+    refresh_dimension_spins();
+    refresh_resolution_spin();
     const bool clipboard_selected = preset->itemData(index, kClipboardPresetRole).toBool();
     width->setEnabled(!clipboard_selected);
     height->setEnabled(!clipboard_selected);
+    unit->setEnabled(!clipboard_selected);
+    resolution->setEnabled(!clipboard_selected);
+    resolution_unit->setEnabled(!clipboard_selected);
     background->setEnabled(!clipboard_selected);
   };
   QObject::connect(preset, &QComboBox::currentIndexChanged, &dialog, update_for_preset);
@@ -4337,8 +4453,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     return std::nullopt;
   }
   const bool clipboard_selected = preset->currentData(kClipboardPresetRole).toBool();
-  return NewDocumentSettings{width->value(), height->value(), background->currentData().value<QColor>(),
-                             clipboard_selected, clipboard_selected ? QApplication::clipboard()->image() : QImage()};
+  return NewDocumentSettings{state.pixel_width, state.pixel_height, state.ppi,
+                             background->currentData().value<QColor>(), clipboard_selected,
+                             clipboard_selected ? QApplication::clipboard()->image() : QImage()};
 }
 
 QString default_new_layer_name(const Document& document) {
@@ -4604,23 +4721,40 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
   grid->addWidget(new QLabel(QObject::tr("Fit To:"), &dialog), 2, 0, Qt::AlignRight | Qt::AlignVCenter);
   grid->addWidget(fit, 2, 1, 1, 3);
 
-  auto* width = new QSpinBox(&dialog);
+  // Canonical state, Photoshop's model: integer pixel dimensions plus resolution.
+  // The spins display conversions in their selected unit and every edit routes back
+  // through this state; pixels stay the stored truth.
+  const auto sanitized_initial_resolution =
+      std::isfinite(document.print_settings().horizontal_ppi) && document.print_settings().horizontal_ppi > 0.0
+          ? std::clamp(document.print_settings().horizontal_ppi, 1.0, 9999.0)
+          : 300.0;
+  struct ImageSizeState {
+    int pixel_width;
+    int pixel_height;
+    double ppi;
+  };
+  ImageSizeState state{document.width(), document.height(), sanitized_initial_resolution};
+
+  auto* width = new QDoubleSpinBox(&dialog);
   width->setObjectName(QStringLiteral("imageSizeWidthSpin"));
-  width->setRange(1, 30000);
-  width->setValue(document.width());
   configure_dialog_spinbox(width, 72);
-  auto* height = new QSpinBox(&dialog);
+  auto* height = new QDoubleSpinBox(&dialog);
   height->setObjectName(QStringLiteral("imageSizeHeightSpin"));
-  height->setRange(1, 30000);
-  height->setValue(document.height());
   configure_dialog_spinbox(height, 72);
 
+  const auto populate_dimension_units = [](QComboBox* combo) {
+    for (const auto unit : {MeasurementUnit::Percent, MeasurementUnit::Pixels, MeasurementUnit::Inches,
+                            MeasurementUnit::Centimeters, MeasurementUnit::Millimeters, MeasurementUnit::Points}) {
+      combo->addItem(measurement_unit_name(unit), static_cast<int>(unit));
+    }
+    combo->setCurrentIndex(combo->findData(static_cast<int>(MeasurementUnit::Pixels)));
+  };
   auto* width_unit = new QComboBox(&dialog);
   width_unit->setObjectName(QStringLiteral("imageSizeWidthUnitCombo"));
-  width_unit->addItem(QObject::tr("Pixels"));
+  populate_dimension_units(width_unit);
   auto* height_unit = new QComboBox(&dialog);
   height_unit->setObjectName(QStringLiteral("imageSizeHeightUnitCombo"));
-  height_unit->addItem(QObject::tr("Pixels"));
+  populate_dimension_units(height_unit);
 
   auto* link = new QToolButton(&dialog);
   link->setObjectName(QStringLiteral("imageSizeLinkButton"));
@@ -4638,18 +4772,18 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
   grid->addWidget(height, 4, 2);
   grid->addWidget(height_unit, 4, 3);
 
-  auto* resolution = new QSpinBox(&dialog);
+  auto* resolution = new QDoubleSpinBox(&dialog);
   resolution->setObjectName(QStringLiteral("imageSizeResolutionSpin"));
-  resolution->setRange(1, 9999);
-  const auto initial_resolution =
-      std::isfinite(document.print_settings().horizontal_ppi) && document.print_settings().horizontal_ppi > 0.0
-          ? document.print_settings().horizontal_ppi
-          : 300.0;
-  resolution->setValue(std::clamp(static_cast<int>(std::lround(initial_resolution)), 1, 9999));
+  resolution->setDecimals(2);
+  resolution->setRange(0.01, 9999.0);
+  resolution->setValue(state.ppi);
   configure_dialog_spinbox(resolution, 72);
+  // Item data is the display divisor: shown value = PPI / divisor (px/cm shows
+  // PPI / 2.54). The stored resolution is always PPI, matching PSD resource 1005.
   auto* resolution_unit = new QComboBox(&dialog);
   resolution_unit->setObjectName(QStringLiteral("imageSizeResolutionUnitCombo"));
-  resolution_unit->addItem(QObject::tr("Pixels/Inch"));
+  resolution_unit->addItem(QObject::tr("Pixels/Inch"), 1.0);
+  resolution_unit->addItem(QObject::tr("Pixels/Centimeter"), 2.54);
   grid->addWidget(new QLabel(QObject::tr("Resolution:"), &dialog), 5, 0, Qt::AlignRight | Qt::AlignVCenter);
   grid->addWidget(resolution, 5, 2);
   grid->addWidget(resolution_unit, 5, 3);
@@ -4675,50 +4809,162 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
   controls_layout->addWidget(upscale_label);
   controls_layout->addStretch(1);
 
-  const auto update_summary = [image_size_value, dimensions_value, width, height, &document] {
-    image_size_value->setText(format_image_size_bytes(width->value(), height->value(), document.format()));
-    dimensions_value->setText(QObject::tr("%1 px x %2 px").arg(width->value()).arg(height->value()));
+  const auto update_summary = [image_size_value, dimensions_value, &state, &document] {
+    image_size_value->setText(format_image_size_bytes(state.pixel_width, state.pixel_height, document.format()));
+    dimensions_value->setText(QObject::tr("%1 px x %2 px").arg(state.pixel_width).arg(state.pixel_height));
   };
-  update_summary();
 
-  const double aspect_ratio =
-      document.height() > 0 ? static_cast<double>(document.width()) / static_cast<double>(document.height()) : 1.0;
+  const auto current_unit = [](QComboBox* combo) {
+    return static_cast<MeasurementUnit>(combo->currentData().toInt());
+  };
+  const double original_width_px = std::max<std::int32_t>(1, document.width());
+  const double original_height_px = std::max<std::int32_t>(1, document.height());
+  const double aspect_ratio = original_width_px / original_height_px;
+
+  const auto refresh_dimension_spin = [&state, current_unit](QDoubleSpinBox* spin, QComboBox* unit_combo,
+                                                             double pixels, double reference_pixels) {
+    const QSignalBlocker blocker(spin);
+    const auto unit = current_unit(unit_combo);
+    spin->setDecimals(measurement_unit_decimals(unit));
+    spin->setRange(unit == MeasurementUnit::Pixels ? 1.0 : 0.001, 999999.0);
+    spin->setValue(pixels_to_measurement_unit(pixels, unit, state.ppi, reference_pixels));
+  };
+  const auto refresh_resolution_spin = [&state, resolution, resolution_unit] {
+    const QSignalBlocker blocker(resolution);
+    resolution->setValue(state.ppi / resolution_unit->currentData().toDouble());
+  };
+  const auto refresh_all = [&](QDoubleSpinBox* except) {
+    if (except != width) {
+      refresh_dimension_spin(width, width_unit, state.pixel_width, original_width_px);
+    }
+    if (except != height) {
+      refresh_dimension_spin(height, height_unit, state.pixel_height, original_height_px);
+    }
+    if (except != resolution) {
+      refresh_resolution_spin();
+    }
+    update_summary();
+  };
+  refresh_all(nullptr);
+
   bool updating_dimensions = false;
-  QObject::connect(width, &QSpinBox::valueChanged, &dialog, [height, link, aspect_ratio, update_summary,
-                                                             &updating_dimensions](int value) {
-    if (!updating_dimensions && link->isChecked()) {
-      updating_dimensions = true;
-      height->setValue(std::clamp(static_cast<int>(std::lround(static_cast<double>(value) / aspect_ratio)), 1, 30000));
-      updating_dimensions = false;
+  const auto handle_dimension_edit = [&](bool editing_width) {
+    if (updating_dimensions) {
+      return;
     }
-    update_summary();
-  });
-  QObject::connect(height, &QSpinBox::valueChanged, &dialog, [width, link, aspect_ratio, update_summary,
-                                                              &updating_dimensions](int value) {
-    if (!updating_dimensions && link->isChecked()) {
-      updating_dimensions = true;
-      width->setValue(std::clamp(static_cast<int>(std::lround(static_cast<double>(value) * aspect_ratio)), 1, 30000));
+    updating_dimensions = true;
+    auto* spin = editing_width ? width : height;
+    auto* unit_combo = editing_width ? width_unit : height_unit;
+    const auto unit = current_unit(unit_combo);
+    if (!resample->isChecked()) {
+      // Resample off: the pixel dimensions are locked, so a physical-size edit
+      // re-derives the resolution instead (Photoshop's W/H/Resolution tri-link).
+      const auto pixels = editing_width ? state.pixel_width : state.pixel_height;
+      const auto inches = std::max(spin->value(), 0.000001) / measurement_units_per_inch(unit);
+      state.ppi = std::clamp(pixels / inches, 0.01, 9999.0);
+      refresh_all(spin);
       updating_dimensions = false;
+      return;
     }
-    update_summary();
+    const auto reference = editing_width ? original_width_px : original_height_px;
+    const auto pixels = std::clamp(
+        static_cast<int>(std::lround(measurement_unit_to_pixels(spin->value(), unit, state.ppi, reference))), 1,
+        30000);
+    if (editing_width) {
+      state.pixel_width = pixels;
+      if (link->isChecked()) {
+        state.pixel_height = std::clamp(static_cast<int>(std::lround(pixels / aspect_ratio)), 1, 30000);
+      }
+    } else {
+      state.pixel_height = pixels;
+      if (link->isChecked()) {
+        state.pixel_width = std::clamp(static_cast<int>(std::lround(pixels * aspect_ratio)), 1, 30000);
+      }
+    }
+    refresh_all(spin);
+    updating_dimensions = false;
+  };
+  QObject::connect(width, &QDoubleSpinBox::valueChanged, &dialog, [&] { handle_dimension_edit(true); });
+  QObject::connect(height, &QDoubleSpinBox::valueChanged, &dialog, [&] { handle_dimension_edit(false); });
+
+  // Photoshop keeps the two dimension units in step; changing one changes both.
+  const auto sync_unit_combos = [&](QComboBox* changed, QComboBox* other) {
+    {
+      const QSignalBlocker blocker(other);
+      other->setCurrentIndex(changed->currentIndex());
+    }
+    refresh_all(nullptr);
+  };
+  QObject::connect(width_unit, &QComboBox::currentIndexChanged, &dialog,
+                   [&](int) { sync_unit_combos(width_unit, height_unit); });
+  QObject::connect(height_unit, &QComboBox::currentIndexChanged, &dialog,
+                   [&](int) { sync_unit_combos(height_unit, width_unit); });
+
+  QObject::connect(resolution, &QDoubleSpinBox::valueChanged, &dialog, [&](double value) {
+    if (updating_dimensions) {
+      return;
+    }
+    updating_dimensions = true;
+    const auto new_ppi = std::clamp(value * resolution_unit->currentData().toDouble(), 0.01, 9999.0);
+    if (resample->isChecked() && measurement_unit_is_physical(current_unit(width_unit))) {
+      // Physical W/H hold their print size, so the pixel dimensions re-derive
+      // (Photoshop: raising resolution at a fixed print size adds pixels).
+      const double width_inches = state.pixel_width / state.ppi;
+      const double height_inches = state.pixel_height / state.ppi;
+      state.ppi = new_ppi;
+      state.pixel_width = std::clamp(static_cast<int>(std::lround(width_inches * new_ppi)), 1, 30000);
+      state.pixel_height = std::clamp(static_cast<int>(std::lround(height_inches * new_ppi)), 1, 30000);
+    } else {
+      // Pixel/percent display (or Resample off): the pixels hold and only the
+      // resolution metadata moves.
+      state.ppi = new_ppi;
+    }
+    refresh_all(resolution);
+    updating_dimensions = false;
   });
-  QObject::connect(fit, &QComboBox::currentIndexChanged, &dialog, [fit, width, height, update_summary](int index) {
+  QObject::connect(resolution_unit, &QComboBox::currentIndexChanged, &dialog, [&](int) { refresh_resolution_spin(); });
+
+  QObject::connect(fit, &QComboBox::currentIndexChanged, &dialog, [&](int index) {
     const auto size = fit->itemData(index).toSize();
     if (!size.isValid()) {
       return;
     }
-    const QSignalBlocker block_width(width);
-    const QSignalBlocker block_height(height);
-    width->setValue(size.width());
-    height->setValue(size.height());
-    update_summary();
+    state.pixel_width = std::clamp(size.width(), 1, 30000);
+    state.pixel_height = std::clamp(size.height(), 1, 30000);
+    refresh_all(nullptr);
   });
-  QObject::connect(resample, &QCheckBox::toggled, &dialog, [fit, width, height, link, resample_method](bool checked) {
+  QObject::connect(resample, &QCheckBox::toggled, &dialog, [&](bool checked) {
     fit->setEnabled(checked);
-    width->setEnabled(checked);
-    height->setEnabled(checked);
     link->setEnabled(checked);
     resample_method->setEnabled(checked);
+    if (!checked) {
+      // Pixels lock to the document's real dimensions: any pending resample reverts
+      // (Photoshop behavior), matching the metadata-only apply that follows.
+      state.pixel_width = document.width();
+      state.pixel_height = document.height();
+    }
+    // Pixel and Percent entry require resampling; Photoshop flips the unit to Inches
+    // when Resample goes off and disables the non-physical choices.
+    const auto set_units_enabled = [checked](QComboBox* combo) {
+      auto* model = qobject_cast<QStandardItemModel*>(combo->model());
+      if (model == nullptr) {
+        return;
+      }
+      for (int index = 0; index < combo->count(); ++index) {
+        const auto unit = static_cast<MeasurementUnit>(combo->itemData(index).toInt());
+        if (auto* item = model->item(index); item != nullptr && !measurement_unit_is_physical(unit)) {
+          item->setEnabled(checked);
+        }
+      }
+    };
+    set_units_enabled(width_unit);
+    set_units_enabled(height_unit);
+    if (!checked && !measurement_unit_is_physical(current_unit(width_unit))) {
+      // The sync handler mirrors the change into the height combo and refreshes.
+      width_unit->setCurrentIndex(width_unit->findData(static_cast<int>(MeasurementUnit::Inches)));
+    } else {
+      refresh_all(nullptr);
+    }
   });
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
@@ -4731,7 +4977,7 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  return ImageSizeSettings{width->value(), height->value(), resolution->value(), resample->isChecked()};
+  return ImageSizeSettings{state.pixel_width, state.pixel_height, state.ppi, resample->isChecked()};
 }
 
 std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, const Document& document) {
@@ -14827,6 +15073,8 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     refresh_options_bar();
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
+  canvas->set_ruler_unit_change_requested_callback(
+      [this](MeasurementUnit unit) { set_ruler_unit_preference(unit); });
   canvas->set_info_callback([this, canvas](CanvasInfoState info) {
     if (canvas != canvas_) {
       return;
@@ -16017,8 +16265,13 @@ bool MainWindow::has_active_document() const noexcept {
   return active_session() != nullptr;
 }
 
-void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label) {
+void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label,
+                                double resolution_ppi) {
   Document new_document(width, height, PixelFormat::rgb8());
+  if (std::isfinite(resolution_ppi) && resolution_ppi > 0.0) {
+    new_document.print_settings().horizontal_ppi = std::clamp(resolution_ppi, 1.0, 9999.0);
+    new_document.print_settings().vertical_ppi = std::clamp(resolution_ppi, 1.0, 9999.0);
+  }
   const auto background_format = background.alpha() == 0 ? PixelFormat::rgba8() : PixelFormat::rgb8();
   auto& background_layer = new_document.add_pixel_layer("Background",
                                                         make_solid_pixels(new_document.width(), new_document.height(),
@@ -16048,6 +16301,9 @@ void MainWindow::create_clipboard_document(const QImage& image, QString history_
 
   auto pixels = pixels_from_image_rgba(image);
   Document new_document(pixels.width(), pixels.height(), PixelFormat::rgba8());
+  // Photoshop's Clipboard preset convention: pasted pixels carry no reliable density.
+  new_document.print_settings().horizontal_ppi = kUntaggedImportPpi;
+  new_document.print_settings().vertical_ppi = kUntaggedImportPpi;
   new_document.add_pixel_layer(tr("Clipboard Image").toStdString(), std::move(pixels));
   add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1));
   auto& active_session = session();
@@ -16076,7 +16332,8 @@ void MainWindow::create_new_document() {
     create_clipboard_document(settings->clipboard_image, tr("New document"));
     return;
   }
-  reset_document(settings->width, settings->height, settings->background, tr("New document"));
+  reset_document(settings->width, settings->height, settings->background, tr("New document"),
+                 settings->resolution_ppi);
 }
 
 void MainWindow::resize_image_dialog() {
@@ -16127,9 +16384,11 @@ void MainWindow::resize_image_dialog() {
   doc.print_settings().horizontal_ppi = resolution;
   doc.print_settings().vertical_ppi = resolution;
   refresh_document_info();
-  statusBar()->showMessage(tr("Image %1 x %2 at %3 ppi")
+  statusBar()->showMessage(tr("Image %1 x %2 px (%3 x %4 in) at %5 ppi")
                                .arg(settings->width)
                                .arg(settings->height)
+                               .arg(settings->width / resolution, 0, 'f', 2)
+                               .arg(settings->height / resolution, 0, 'f', 2)
                                .arg(settings->resolution));
 }
 
@@ -16570,8 +16829,11 @@ void MainWindow::export_sprite_sheet() {
       return;
     }
     // The sheet routes through the normal export machinery (scale option, indexed GIF/PCX
-    // quantization, ...) as a flat document.
-    write_flat_image_file(document_from_qimage(sheet, "Sprite Sheet"), path, extension, *image_options);
+    // quantization, ...) as a flat document. It inherits the source document's print
+    // resolution (the composed QImage would otherwise contribute Qt's screen default).
+    auto sheet_document = document_from_qimage(sheet, "Sprite Sheet");
+    sheet_document.print_settings() = document().print_settings();
+    write_flat_image_file(sheet_document, path, extension, *image_options);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported sprite sheet %1").arg(path));
   } catch (const std::exception& error) {
@@ -17196,11 +17458,14 @@ void MainWindow::show_preferences() {
 
   auto* ruler_units_combo = new QComboBox(view_group);
   ruler_units_combo->setObjectName(QStringLiteral("preferencesRulerUnitsCombo"));
-  ruler_units_combo->addItem(tr("Pixels"), QStringLiteral("px"));
-  ruler_units_combo->addItem(tr("Inches"), QStringLiteral("in"));
-  ruler_units_combo->addItem(tr("Centimeters"), QStringLiteral("cm"));
-  const auto ruler_units = settings.value(QStringLiteral("view/rulerUnits"), QStringLiteral("px")).toString();
-  const auto ruler_units_index = ruler_units_combo->findData(ruler_units);
+  for (const auto ruler_unit_option :
+       {MeasurementUnit::Pixels, MeasurementUnit::Inches, MeasurementUnit::Centimeters,
+        MeasurementUnit::Millimeters, MeasurementUnit::Points, MeasurementUnit::Percent}) {
+    ruler_units_combo->addItem(measurement_unit_name(ruler_unit_option),
+                               measurement_unit_settings_token(ruler_unit_option));
+  }
+  const auto ruler_units_index =
+      ruler_units_combo->findData(measurement_unit_settings_token(ruler_unit_));
   ruler_units_combo->setCurrentIndex(ruler_units_index >= 0 ? ruler_units_index : 0);
 
   auto* default_rulers_check = new QCheckBox(tr("Show rulers"), view_group);
@@ -17438,6 +17703,8 @@ void MainWindow::show_preferences() {
                                tr("Restart Patchy for the new interface scale to take effect."),
                                QStringLiteral("preferencesInterfaceScaleMessageBox"));
     }
+    set_ruler_unit_preference(measurement_unit_from_settings_token(
+        ruler_units_combo->currentData().toString(), MeasurementUnit::Pixels));
     settings.setValue(QStringLiteral("view/rulerUnits"), ruler_units_combo->currentData().toString());
     pen_input_settings_.enabled = pen_enabled_check->isChecked();
     pen_input_settings_.pressure_size = pen_pressure_size_check->isChecked();
@@ -24891,10 +25158,20 @@ void MainWindow::refresh_document_info() {
   const auto& doc = document();
   const auto& active_session = session();
   const auto zoom_percent = canvas_ == nullptr ? 100 : static_cast<int>(std::round(canvas_->zoom() * 100.0));
+  // Physical size in the ruler unit (inches while the rulers are pixel/percent),
+  // per-axis PPI so anisotropic documents report their true print size.
+  const auto info_unit = measurement_unit_is_physical(ruler_unit_) ? ruler_unit_ : MeasurementUnit::Inches;
+  const auto physical_width =
+      pixels_to_measurement_unit(doc.width(), info_unit, doc.print_settings().horizontal_ppi, doc.width());
+  const auto physical_height =
+      pixels_to_measurement_unit(doc.height(), info_unit, doc.print_settings().vertical_ppi, doc.height());
   set_property_label_text(document_info_label_,
-                          tr("Document: %1 x %2 px | %3 ppi | %4 | %5 layers | Zoom %6% | %7")
+                          tr("Document: %1 x %2 px | %3 x %4 %5 | %6 ppi | %7 | %8 layers | Zoom %9% | %10")
                               .arg(doc.width())
                               .arg(doc.height())
+                              .arg(physical_width, 0, 'f', 2)
+                              .arg(physical_height, 0, 'f', 2)
+                              .arg(measurement_unit_suffix(info_unit))
                               .arg(static_cast<int>(std::round(doc.print_settings().horizontal_ppi)))
                               .arg(pixel_format_name(doc.format()))
                               .arg(layer_tree_count(doc.layers()))
@@ -25294,11 +25571,24 @@ void MainWindow::sync_text_options_from_active_editor() {
   sync_text_character_dialog_from_editor();
 }
 
+void MainWindow::set_ruler_unit_preference(MeasurementUnit unit) {
+  if (ruler_unit_ == unit) {
+    return;
+  }
+  ruler_unit_ = unit;
+  for (const auto& active_session : sessions_) {
+    apply_canvas_aid_settings(active_session->canvas);
+  }
+  save_view_settings();
+  refresh_document_info();
+}
+
 void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
   if (canvas == nullptr) {
     return;
   }
   canvas->set_rulers_visible(view_rulers_visible_);
+  canvas->set_ruler_unit(ruler_unit_);
   canvas->set_grid_visible(view_grid_visible_);
   canvas->set_guides_visible(view_guides_visible_);
   canvas->set_guides_locked(view_guides_locked_);
@@ -25430,6 +25720,9 @@ void MainWindow::save_pen_input_settings() const {
 void MainWindow::load_view_settings() {
   auto settings = app_settings();
   view_rulers_visible_ = settings.value(QStringLiteral("view/rulersVisible"), view_rulers_visible_).toBool();
+  ruler_unit_ = measurement_unit_from_settings_token(
+      settings.value(QStringLiteral("view/rulerUnits"), QStringLiteral("px")).toString(),
+      MeasurementUnit::Pixels);
   view_grid_visible_ = settings.value(QStringLiteral("view/gridVisible"), view_grid_visible_).toBool();
   view_guides_visible_ = settings.value(QStringLiteral("view/guidesVisible"), view_guides_visible_).toBool();
   view_guides_locked_ = settings.value(QStringLiteral("view/guidesLocked"), view_guides_locked_).toBool();
@@ -25497,6 +25790,7 @@ void MainWindow::load_view_settings() {
 void MainWindow::save_view_settings() const {
   auto settings = app_settings();
   settings.setValue(QStringLiteral("view/rulersVisible"), view_rulers_visible_);
+  settings.setValue(QStringLiteral("view/rulerUnits"), measurement_unit_settings_token(ruler_unit_));
   settings.setValue(QStringLiteral("view/gridVisible"), view_grid_visible_);
   settings.setValue(QStringLiteral("view/guidesVisible"), view_guides_visible_);
   settings.setValue(QStringLiteral("view/guidesLocked"), view_guides_locked_);

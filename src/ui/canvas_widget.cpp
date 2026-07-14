@@ -25,6 +25,7 @@
 #include <QInputDevice>
 #include <QKeyEvent>
 #include <QLinearGradient>
+#include <QMenu>
 #include <QMetaObject>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
@@ -371,22 +372,6 @@ QImage qimage_from_flat_composite_pixels(const PixelBuffer& pixels) {
 
 double pixel_aligned_coordinate(double coordinate, double zoom) noexcept {
   return uses_pixel_aligned_view(zoom) ? std::round(coordinate) : coordinate;
-}
-
-double ruler_major_tick_interval(double zoom) noexcept {
-  constexpr std::array<double, 16> intervals{1.0,   2.0,   5.0,   10.0,   20.0,   50.0,
-                                             100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0,
-                                             10000.0, 20000.0, 50000.0, 100000.0};
-  for (const auto interval : intervals) {
-    if (interval * zoom >= 52.0) {
-      return interval;
-    }
-  }
-  return intervals.back();
-}
-
-double ruler_minor_tick_interval(double zoom) noexcept {
-  return std::max(1.0, ruler_major_tick_interval(zoom) / 5.0);
 }
 
 void append_rect_snap_candidates(QRect rect, std::vector<double>& x_candidates, std::vector<double>& y_candidates) {
@@ -3914,6 +3899,61 @@ bool CanvasWidget::rulers_visible() const noexcept {
   return rulers_visible_;
 }
 
+void CanvasWidget::set_ruler_unit(MeasurementUnit unit) noexcept {
+  if (ruler_unit_ == unit) {
+    return;
+  }
+  ruler_unit_ = unit;
+  if (rulers_visible_) {
+    update();
+  }
+}
+
+MeasurementUnit CanvasWidget::ruler_unit() const noexcept {
+  return ruler_unit_;
+}
+
+void CanvasWidget::set_ruler_unit_change_requested_callback(std::function<void(MeasurementUnit)> callback) {
+  ruler_unit_change_requested_callback_ = std::move(callback);
+}
+
+double CanvasWidget::ruler_pixels_per_unit(bool horizontal_axis) const noexcept {
+  if (document_ == nullptr) {
+    return 1.0;
+  }
+  switch (ruler_unit_) {
+    case MeasurementUnit::Pixels:
+      return 1.0;
+    case MeasurementUnit::Percent:
+      return std::max(horizontal_axis ? document_->width() : document_->height(), 1) / 100.0;
+    default: {
+      const auto& print_settings = document_->print_settings();
+      const auto ppi = sanitized_document_ppi(horizontal_axis ? print_settings.horizontal_ppi
+                                                              : print_settings.vertical_ppi);
+      return ppi / measurement_units_per_inch(ruler_unit_);
+    }
+  }
+}
+
+void CanvasWidget::show_ruler_unit_menu(QPoint global_position) {
+  QMenu menu(this);
+  menu.setObjectName(QStringLiteral("canvasRulerUnitMenu"));
+  for (const auto unit : {MeasurementUnit::Pixels, MeasurementUnit::Inches, MeasurementUnit::Centimeters,
+                          MeasurementUnit::Millimeters, MeasurementUnit::Points, MeasurementUnit::Percent}) {
+    auto* action = menu.addAction(measurement_unit_name(unit));
+    action->setCheckable(true);
+    action->setChecked(unit == ruler_unit_);
+    connect(action, &QAction::triggered, this, [this, unit] {
+      if (ruler_unit_change_requested_callback_) {
+        ruler_unit_change_requested_callback_(unit);
+      } else {
+        set_ruler_unit(unit);
+      }
+    });
+  }
+  menu.exec(global_position);
+}
+
 void CanvasWidget::set_grid_visible(bool visible) noexcept {
   if (grid_visible_ == visible) {
     return;
@@ -5101,6 +5141,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   setFocus(Qt::MouseFocusReason);
   last_mouse_position_ = event->pos();
   emit_info_for_widget_position(event->pos());
+
+  // Right-click on a ruler opens the unit menu (Photoshop's gesture); it must win
+  // over the right-button drag-to-pan below.
+  if (event->button() == Qt::RightButton && rulers_visible_ && widget_position_in_ruler(event->pos())) {
+    show_ruler_unit_menu(event->globalPosition().toPoint());
+    event->accept();
+    return;
+  }
 
   if (brush_adjust_dragging_) {
     if ((event->buttons() & Qt::RightButton) != 0) {
@@ -7971,8 +8019,6 @@ void CanvasWidget::draw_rulers(QPainter& painter) const {
   painter.drawLine(0, kTopRulerHeight - 1, width(), kTopRulerHeight - 1);
   painter.drawLine(kLeftRulerWidth - 1, 0, kLeftRulerWidth - 1, height());
 
-  const auto major = ruler_major_tick_interval(zoom_);
-  const auto minor = ruler_minor_tick_interval(zoom_);
   QFont label_font = font();
   label_font.setPointSize(std::max(7, label_font.pointSize() - 2));
   painter.setFont(label_font);
@@ -7981,42 +8027,58 @@ void CanvasWidget::draw_rulers(QPainter& painter) const {
   tick_pen.setCosmetic(true);
   painter.setPen(tick_pen);
 
-  const auto draw_horizontal = [&] {
-    const auto start = std::floor(document_position_f(QPointF(0.0, 0.0)).x() / minor) * minor;
-    const auto end = document_position_f(QPointF(width(), 0.0)).x();
-    for (double value = start; value <= end + minor; value += minor) {
-      if (value < 0.0 || value > static_cast<double>(document_->width())) {
+  // Ticks live in ruler-unit space per axis; iterating integer minor indices keeps
+  // the major test exact for fractional steps.
+  const auto pixels_per_unit_for_axis = [this](bool horizontal) {
+    return ruler_pixels_per_unit(horizontal);
+  };
+  const auto tick_label = [this](double value) {
+    if (ruler_unit_ == MeasurementUnit::Pixels) {
+      return QString::number(std::llround(value));
+    }
+    return QString::number(value, 'g', 6);
+  };
+
+  const auto draw_axis = [&](bool horizontal) {
+    const auto pixels_per_unit = pixels_per_unit_for_axis(horizontal);
+    const auto steps = ruler_tick_steps(ruler_unit_, pixels_per_unit * zoom_);
+    const auto minor = steps.major / steps.subdivisions;
+    const auto origin = document_position_f(QPointF(0.0, 0.0));
+    const auto start_units = (horizontal ? origin.x() : origin.y()) / pixels_per_unit;
+    const auto end_units =
+        (horizontal ? document_position_f(QPointF(width(), 0.0)).x()
+                    : document_position_f(QPointF(0.0, height())).y()) /
+        pixels_per_unit;
+    const auto extent = static_cast<double>(horizontal ? document_->width() : document_->height());
+    const auto first_index = static_cast<long long>(std::floor(start_units / minor)) - 1;
+    const auto last_index = static_cast<long long>(std::ceil(end_units / minor)) + 1;
+    for (auto index = first_index; index <= last_index; ++index) {
+      const auto value = static_cast<double>(index) * minor;
+      const auto document_coordinate = value * pixels_per_unit;
+      if (document_coordinate < 0.0 || document_coordinate > extent) {
         continue;
       }
-      const auto x = widget_position_f(QPointF(value, 0.0)).x();
-      const bool is_major = std::abs(std::remainder(value, major)) < 0.0001;
+      const bool is_major =
+          ((index % steps.subdivisions) + steps.subdivisions) % steps.subdivisions == 0;
       const int length = is_major ? 11 : 6;
-      painter.drawLine(QPointF(x, kTopRulerHeight - 1), QPointF(x, kTopRulerHeight - 1 - length));
-      if (is_major) {
-        const auto label = QString::number(static_cast<int>(std::llround(value)));
-        painter.drawText(QPointF(x + 3.0, static_cast<double>(metrics.ascent() + 2)), label);
+      if (horizontal) {
+        const auto x = widget_position_f(QPointF(document_coordinate, 0.0)).x();
+        painter.drawLine(QPointF(x, kTopRulerHeight - 1), QPointF(x, kTopRulerHeight - 1 - length));
+        if (is_major) {
+          painter.drawText(QPointF(x + 3.0, static_cast<double>(metrics.ascent() + 2)), tick_label(value));
+        }
+      } else {
+        const auto y = widget_position_f(QPointF(0.0, document_coordinate)).y();
+        painter.drawLine(QPointF(kLeftRulerWidth - 1, y), QPointF(kLeftRulerWidth - 1 - length, y));
+        if (is_major) {
+          painter.drawText(QRectF(2.0, y + 2.0, kLeftRulerWidth - 8.0, metrics.height()), Qt::AlignRight,
+                           tick_label(value));
+        }
       }
     }
   };
-  const auto draw_vertical = [&] {
-    const auto start = std::floor(document_position_f(QPointF(0.0, 0.0)).y() / minor) * minor;
-    const auto end = document_position_f(QPointF(0.0, height())).y();
-    for (double value = start; value <= end + minor; value += minor) {
-      if (value < 0.0 || value > static_cast<double>(document_->height())) {
-        continue;
-      }
-      const auto y = widget_position_f(QPointF(0.0, value)).y();
-      const bool is_major = std::abs(std::remainder(value, major)) < 0.0001;
-      const int length = is_major ? 11 : 6;
-      painter.drawLine(QPointF(kLeftRulerWidth - 1, y), QPointF(kLeftRulerWidth - 1 - length, y));
-      if (is_major) {
-        const auto label = QString::number(static_cast<int>(std::llround(value)));
-        painter.drawText(QRectF(2.0, y + 2.0, kLeftRulerWidth - 8.0, metrics.height()), Qt::AlignRight, label);
-      }
-    }
-  };
-  draw_horizontal();
-  draw_vertical();
+  draw_axis(true);
+  draw_axis(false);
   painter.restore();
 }
 
@@ -9694,7 +9756,12 @@ void CanvasWidget::update_guide_drag(QPoint widget_position, Qt::KeyboardModifie
   auto snapped_position = axis_position;
 
   if ((modifiers & Qt::ShiftModifier) != 0) {
-    const auto tick = ruler_minor_tick_interval(zoom_);
+    // Shift snaps to the ruler's minor ticks in the active ruler unit (a vertical
+    // guide moves along the horizontal axis).
+    const bool horizontal_axis = orientation == GuideOrientation::Vertical;
+    const auto pixels_per_unit = ruler_pixels_per_unit(horizontal_axis);
+    const auto steps = ruler_tick_steps(ruler_unit_, pixels_per_unit * zoom_);
+    const auto tick = std::max(1e-6, steps.major / steps.subdivisions * pixels_per_unit);
     snapped_position = std::round(snapped_position / tick) * tick;
   } else if (snap_enabled_) {
     const auto tolerance = kSnapToleranceScreenPixels / std::max(zoom_, 0.0001);

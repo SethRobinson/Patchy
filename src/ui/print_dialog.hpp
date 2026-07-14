@@ -26,12 +26,15 @@ enum class PrintScaleMode {
   CustomScale
 };
 
+// Print size derives from the document's own resolution (Photoshop semantics): the
+// on-paper size at 100% is pixels / document PPI, per axis. The dialog surfaces the
+// effective print resolution as a read-only value (document PPI / scale); editing
+// resolution belongs to Image Size, not the print flow.
 struct PrintSettings {
   PrintAreaMode area_mode{PrintAreaMode::Document};
   QRect selection_bounds;
   PrintScaleMode scale_mode{PrintScaleMode::ActualSize};
   double scale_percent{100.0};
-  double print_resolution_ppi{0.0};
   bool center{true};
   double offset_x_inches{0.0};
   double offset_y_inches{0.0};

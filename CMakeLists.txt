@@ -276,6 +276,7 @@ add_library(patchy_formats
   src/formats/gif_document_io.cpp
   src/formats/heif_document_io.cpp
   src/formats/ico_document_io.cpp
+  src/formats/image_density_probe.cpp
   src/formats/ilbm_document_io.cpp
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
@@ -567,6 +568,8 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window_shared.hpp
       src/ui/main_window_shared.cpp
       src/ui/main_window_stress_test.cpp
+      src/ui/measurement_units.hpp
+      src/ui/measurement_units.cpp
       src/ui/stress_test.hpp
       src/ui/palette_convert_dialog.hpp
       src/ui/palette_convert_dialog.cpp

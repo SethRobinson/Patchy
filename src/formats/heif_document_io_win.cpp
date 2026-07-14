@@ -319,9 +319,16 @@ FormatReadResult read_heif(std::span<const std::uint8_t> bytes) {
 
   FormatReadResult result;
   result.document = Document(oriented.width, oriented.height, has_alpha ? PixelFormat::rgba8() : PixelFormat::rgb8());
-  if (dpi_x > 1.0 && dpi_y > 1.0) {
+  if (dpi_x > 1.0 && dpi_y > 1.0 && !(dpi_x == 96.0 && dpi_y == 96.0)) {
     result.document.print_settings().horizontal_ppi = dpi_x;
     result.document.print_settings().vertical_ppi = dpi_y;
+  } else {
+    // WIC reports exactly 96x96 when the file records no density (its documented
+    // default), so that reading means "untagged" and follows Photoshop's 72 PPI
+    // convention. A HEIC genuinely tagged 96x96 is indistinguishable and gets the
+    // same treatment; iPhone files carry EXIF 72 and are unaffected.
+    result.document.print_settings().horizontal_ppi = 72.0;
+    result.document.print_settings().vertical_ppi = 72.0;
   }
   result.document.add_pixel_layer("Background", std::move(pixels));
   if (frame_count > 1) {

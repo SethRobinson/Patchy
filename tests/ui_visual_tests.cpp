@@ -75,6 +75,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
+#include <QBuffer>
 #include <QByteArray>
 #include <QCheckBox>
 #include <QClipboard>
@@ -184,6 +185,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -241,6 +243,10 @@ public:
 
   static void import_from_scanner(MainWindow& window) {
     window.import_from_scanner();
+  }
+
+  static void set_ruler_unit_preference(MainWindow& window, MeasurementUnit unit) {
+    window.set_ruler_unit_preference(unit);
   }
 
   static void open_smart_object_contents(MainWindow& window) {
@@ -2716,7 +2722,7 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   const auto no_layer = QCoreApplication::translate("patchy::ui::MainWindow", "Layer: No active layer");
   CHECK(no_layer == QStringLiteral("レイヤー: アクティブレイヤーなし"));
   const auto document_info = QCoreApplication::translate(
-      "patchy::ui::MainWindow", "Document: %1 x %2 px | %3 ppi | %4 | %5 layers | Zoom %6% | %7");
+      "patchy::ui::MainWindow", "Document: %1 x %2 px | %3 x %4 %5 | %6 ppi | %7 | %8 layers | Zoom %9% | %10");
   CHECK(document_info.startsWith(QStringLiteral("ドキュメント:")));
   const auto bmp_depth = QCoreApplication::translate("QObject", "Color depth");
   CHECK(bmp_depth == QStringLiteral("色深度"));
@@ -11826,8 +11832,8 @@ void accept_new_document_dialog(int width_value, int height_value) {
         continue;
       }
       auto* dialog = qobject_cast<QDialog*>(widget);
-      auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
-      auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+      auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+      auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
       CHECK(width != nullptr);
       CHECK(height != nullptr);
       CHECK(width->buttonSymbols() == QAbstractSpinBox::NoButtons);
@@ -11849,15 +11855,20 @@ void inspect_new_document_dialog_without_clipboard() {
       }
       auto* dialog = qobject_cast<QDialog*>(widget);
       auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentPresetCombo"));
-      auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
-      auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+      auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+      auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+      auto* resolution = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentResolutionSpin"));
+      auto* unit = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentUnitCombo"));
       CHECK(dialog != nullptr);
       CHECK(preset != nullptr);
       CHECK(width != nullptr);
       CHECK(height != nullptr);
+      CHECK(resolution != nullptr);
+      CHECK(unit != nullptr);
       const QStringList labels = {
-          QStringLiteral("Clipboard"), QStringLiteral("1024 x 768"), QStringLiteral("A4 300 ppi"),
-          QStringLiteral("A3 300 ppi"), QStringLiteral("1080p"), QStringLiteral("4K")};
+          QStringLiteral("Clipboard"),   QStringLiteral("1024 x 768"), QStringLiteral("A4 300 ppi"),
+          QStringLiteral("A3 300 ppi"),  QStringLiteral("US Letter 300 ppi"),
+          QStringLiteral("1080p"),       QStringLiteral("4K")};
       CHECK(preset->count() == static_cast<int>(labels.size()));
       for (int index = 0; index < static_cast<int>(labels.size()); ++index) {
         CHECK(preset->itemText(index) == labels[index]);
@@ -11866,6 +11877,16 @@ void inspect_new_document_dialog_without_clipboard() {
       CHECK(preset->currentText() == QStringLiteral("1024 x 768"));
       CHECK(width->value() == 1024);
       CHECK(height->value() == 768);
+      CHECK(std::abs(resolution->value() - 300.0) < 0.01);
+      CHECK(unit->currentText() == QStringLiteral("Pixels"));
+      // A physical unit converts the display through the resolution: 1024 px at
+      // 300 ppi is 3.413 in.
+      unit->setCurrentIndex(unit->findText(QStringLiteral("Inches")));
+      QApplication::processEvents();
+      CHECK(std::abs(width->value() - 1024.0 / 300.0) < 0.01);
+      unit->setCurrentIndex(unit->findText(QStringLiteral("Pixels")));
+      QApplication::processEvents();
+      CHECK(width->value() == 1024);
       dialog->reject();
       return;
     }
@@ -11881,39 +11902,51 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
       }
       auto* dialog = qobject_cast<QDialog*>(widget);
       auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentPresetCombo"));
-      auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
-      auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+      auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+      auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+      auto* resolution = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentResolutionSpin"));
       auto* background = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentBackgroundCombo"));
       CHECK(dialog != nullptr);
       CHECK(preset != nullptr);
       CHECK(width != nullptr);
       CHECK(height != nullptr);
+      CHECK(resolution != nullptr);
       CHECK(background != nullptr);
 
       const auto clipboard_index = preset->findText(QStringLiteral("Clipboard"));
       CHECK(clipboard_index == 0);
       CHECK((preset->model()->flags(preset->model()->index(clipboard_index, 0)) & Qt::ItemIsEnabled) != 0);
 
-      const std::vector<std::pair<QString, QSize>> expected_sizes = {
-          {QStringLiteral("Clipboard"), clipboard_size},
-          {QStringLiteral("A4 300 ppi"), QSize(2480, 3508)},
-          {QStringLiteral("A3 300 ppi"), QSize(3508, 4961)},
-          {QStringLiteral("1080p"), QSize(1920, 1080)},
-          {QStringLiteral("4K"), QSize(3840, 2160)},
+      // Presets carry a resolution: physical print presets are 300 PPI, the
+      // Clipboard and screen/video presets follow Photoshop's 72 PPI convention.
+      struct ExpectedPreset {
+        QString label;
+        QSize size;
+        double ppi;
       };
-      for (const auto& [label, size] : expected_sizes) {
-        const auto index = preset->findText(label);
+      const std::vector<ExpectedPreset> expected_presets = {
+          {QStringLiteral("Clipboard"), clipboard_size, 72.0},
+          {QStringLiteral("A4 300 ppi"), QSize(2480, 3508), 300.0},
+          {QStringLiteral("A3 300 ppi"), QSize(3508, 4961), 300.0},
+          {QStringLiteral("US Letter 300 ppi"), QSize(2550, 3300), 300.0},
+          {QStringLiteral("1080p"), QSize(1920, 1080), 72.0},
+          {QStringLiteral("4K"), QSize(3840, 2160), 72.0},
+      };
+      for (const auto& expected : expected_presets) {
+        const auto index = preset->findText(expected.label);
         CHECK(index >= 0);
         preset->setCurrentIndex(index);
         QApplication::processEvents();
-        CHECK(width->value() == size.width());
-        CHECK(height->value() == size.height());
+        CHECK(width->value() == expected.size.width());
+        CHECK(height->value() == expected.size.height());
+        CHECK(std::abs(resolution->value() - expected.ppi) < 0.01);
       }
 
       preset->setCurrentIndex(clipboard_index);
       QApplication::processEvents();
       CHECK(!width->isEnabled());
       CHECK(!height->isEnabled());
+      CHECK(!resolution->isEnabled());
       CHECK(!background->isEnabled());
       dialog->accept();
       return;
@@ -11994,8 +12027,8 @@ void accept_image_size_dialog(int width_value, int height_value) {
         continue;
       }
       auto* dialog = qobject_cast<QDialog*>(widget);
-      auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("imageSizeWidthSpin"));
-      auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("imageSizeHeightSpin"));
+      auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("imageSizeWidthSpin"));
+      auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("imageSizeHeightSpin"));
       auto* dimensions = dialog->findChild<QLabel*>(QStringLiteral("imageSizeDimensionsLabel"));
       auto* preview = dialog->findChild<QLabel*>(QStringLiteral("imageSizePreview"));
       auto* resample = dialog->findChild<QCheckBox*>(QStringLiteral("imageSizeResampleCheck"));
@@ -12030,11 +12063,15 @@ void accept_image_size_resolution_dialog(int resolution_value) {
         continue;
       }
       auto* dialog = qobject_cast<QDialog*>(widget);
-      auto* resolution = dialog->findChild<QSpinBox*>(QStringLiteral("imageSizeResolutionSpin"));
+      auto* resolution = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("imageSizeResolutionSpin"));
       auto* resample = dialog->findChild<QCheckBox*>(QStringLiteral("imageSizeResampleCheck"));
+      auto* width_unit = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeWidthUnitCombo"));
       CHECK(resolution != nullptr);
       CHECK(resample != nullptr);
+      CHECK(width_unit != nullptr);
       resample->setChecked(false);
+      // Unchecking Resample flips pixel/percent units to Inches (Photoshop behavior).
+      CHECK(width_unit->currentText() == QStringLiteral("Inches"));
       resolution->setValue(resolution_value);
       dialog->accept();
       return;
@@ -41822,8 +41859,9 @@ void ui_print_layout_and_pdf_output_work() {
   settings.scale_mode = patchy::ui::PrintScaleMode::ActualSize;
   auto placement = patchy::ui::calculate_print_placement(document, settings, page_layout);
   CHECK(placement.source_rect == QRect(0, 0, 300, 150));
+  // Per-axis PPI: 300 px at 300 ppi is 1 in wide, 150 px at 150 ppi is 1 in tall.
   CHECK(std::abs(placement.print_size_inches.width() - 1.0) < 0.01);
-  CHECK(std::abs(placement.print_size_inches.height() - 0.5) < 0.01);
+  CHECK(std::abs(placement.print_size_inches.height() - 1.0) < 0.01);
 
   settings.scale_mode = patchy::ui::PrintScaleMode::CustomScale;
   settings.scale_percent = 50.0;
@@ -41835,7 +41873,7 @@ void ui_print_layout_and_pdf_output_work() {
   placement = patchy::ui::calculate_print_placement(document, settings, page_layout);
   CHECK(placement.source_rect == QRect(0, 0, 150, 75));
   CHECK(std::abs(placement.print_size_inches.width() - 0.5) < 0.01);
-  CHECK(std::abs(placement.print_size_inches.height() - 0.25) < 0.01);
+  CHECK(std::abs(placement.print_size_inches.height() - 0.5) < 0.01);
 
   settings.crop_marks = true;
   QImage page(page_layout.fullRect(QPageLayout::Point).toAlignedRect().size(), QImage::Format_RGB32);
@@ -41868,7 +41906,7 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
       auto* print_button = dialog->findChild<QPushButton*>(QStringLiteral("printDialogPrintButton"));
       auto* scale_to_fit = dialog->findChild<QCheckBox*>(QStringLiteral("printScaleToFitCheck"));
       auto* scale = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("printScalePercentSpin"));
-      auto* resolution = dialog->findChild<QSpinBox*>(QStringLiteral("printResolutionSpin"));
+      auto* resolution = dialog->findChild<QLabel*>(QStringLiteral("printResolutionValueLabel"));
       auto* units = dialog->findChild<QComboBox*>(QStringLiteral("printUnitsCombo"));
       auto* scale_size = dialog->findChild<QLabel*>(QStringLiteral("printScaleSizeLabel"));
       auto* image_size = dialog->findChild<QLabel*>(QStringLiteral("printImageSizeLabel"));
@@ -41887,12 +41925,23 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
       CHECK(printer->count() >= 1);
       CHECK(!printer->currentText().isEmpty());
       CHECK(print_button->isEnabled() == printer->isEnabled());
-      CHECK(scale_to_fit->isChecked());
-      CHECK(!scale->isEnabled());
-      CHECK(resolution->value() == 300);
+      // The default 1024x768 @300ppi document fits Letter at actual size, so the
+      // dialog opens at 100% (Photoshop's default) with fit-to-media unchecked and
+      // the derived print resolution equal to the document resolution.
+      CHECK(!scale_to_fit->isChecked());
+      CHECK(scale->isEnabled());
+      CHECK(std::abs(scale->value() - 100.0) < 0.01);
+      CHECK(resolution->text().contains(QStringLiteral("300")));
       CHECK(units->currentData().toString() == QStringLiteral("in"));
       CHECK(scale_size->text().contains(QStringLiteral("in")));
       CHECK(image_size->text().contains(QStringLiteral("in")));
+      scale_to_fit->setChecked(true);
+      QApplication::processEvents();
+      CHECK(!scale->isEnabled());
+      // Fit-to-media on Letter enlarges the 3.41 x 2.56 in document, and the derived
+      // print resolution drops below the stored 300 accordingly.
+      CHECK(scale->value() > 100.0);
+      CHECK(!resolution->text().startsWith(QStringLiteral("300")));
       scale_to_fit->setChecked(false);
       QApplication::processEvents();
       CHECK(scale->isEnabled());
@@ -41908,6 +41957,194 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
 
   require_action(window, "filePrintAction")->trigger();
   QApplication::processEvents();
+}
+
+void ui_image_size_dialog_unit_and_resolution_links_work() {
+  patchy::ui::MainWindow window;  // default document: 1024x768 at 300 ppi
+  show_window(window);
+
+  QTimer::singleShot(0, [] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyImageSizeDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("imageSizeWidthSpin"));
+      auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("imageSizeHeightSpin"));
+      auto* resolution = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("imageSizeResolutionSpin"));
+      auto* width_unit = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeWidthUnitCombo"));
+      auto* height_unit = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeHeightUnitCombo"));
+      auto* resolution_unit = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeResolutionUnitCombo"));
+      auto* dimensions = dialog->findChild<QLabel*>(QStringLiteral("imageSizeDimensionsLabel"));
+      auto* resample = dialog->findChild<QCheckBox*>(QStringLiteral("imageSizeResampleCheck"));
+      auto* link = dialog->findChild<QToolButton*>(QStringLiteral("imageSizeLinkButton"));
+      CHECK(width != nullptr);
+      CHECK(height != nullptr);
+      CHECK(resolution != nullptr);
+      CHECK(width_unit != nullptr);
+      CHECK(height_unit != nullptr);
+      CHECK(resolution_unit != nullptr);
+      CHECK(dimensions != nullptr);
+      CHECK(resample != nullptr);
+      CHECK(link != nullptr);
+
+      CHECK(width_unit->currentText() == QStringLiteral("Pixels"));
+      CHECK(width->value() == 1024.0);
+      CHECK(std::abs(resolution->value() - 300.0) < 0.01);
+
+      // Physical units display through the resolution; the two unit combos stay in step.
+      width_unit->setCurrentIndex(width_unit->findText(QStringLiteral("Inches")));
+      QApplication::processEvents();
+      CHECK(height_unit->currentText() == QStringLiteral("Inches"));
+      CHECK(std::abs(width->value() - 1024.0 / 300.0) < 0.005);
+      CHECK(std::abs(height->value() - 768.0 / 300.0) < 0.005);
+
+      // Resample ON + physical units: a resolution change keeps the print size and
+      // re-derives the pixel dimensions (300 -> 150 halves them).
+      resolution->setValue(150.0);
+      QApplication::processEvents();
+      CHECK(dimensions->text().contains(QStringLiteral("512 px x 384 px")));
+      CHECK(std::abs(width->value() - 1024.0 / 300.0) < 0.005);
+
+      // The resolution unit combo only changes the display of the same stored PPI.
+      resolution_unit->setCurrentIndex(resolution_unit->findText(QStringLiteral("Pixels/Centimeter")));
+      QApplication::processEvents();
+      CHECK(std::abs(resolution->value() - 150.0 / 2.54) < 0.01);
+      resolution_unit->setCurrentIndex(resolution_unit->findText(QStringLiteral("Pixels/Inch")));
+      QApplication::processEvents();
+      CHECK(std::abs(resolution->value() - 150.0) < 0.01);
+
+      // Resample OFF: pending resamples revert to the document's pixels, the link
+      // and pixel units disable, and W/H/Resolution become the Photoshop tri-link.
+      resample->setChecked(false);
+      QApplication::processEvents();
+      CHECK(!link->isEnabled());
+      CHECK(width_unit->currentText() == QStringLiteral("Inches"));
+      CHECK(dimensions->text().contains(QStringLiteral("1024 px x 768 px")));
+      CHECK(std::abs(width->value() - 1024.0 / 150.0) < 0.005);
+      width->setValue(5.12);
+      QApplication::processEvents();
+      CHECK(std::abs(resolution->value() - 200.0) < 0.05);
+      CHECK(dimensions->text().contains(QStringLiteral("1024 px x 768 px")));
+      widget->grab().save(QStringLiteral("test-artifacts/ui_image_size_dialog_units.png"));
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "imageSizeAction")->trigger();
+  QApplication::processEvents();
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 1024);
+  CHECK(document.height() == 768);
+  CHECK(std::abs(document.print_settings().horizontal_ppi - 200.0) < 0.05);
+  CHECK(std::abs(document.print_settings().vertical_ppi - 200.0) < 0.05);
+}
+
+void ui_imported_image_density_follows_photoshop_conventions() {
+  QImage source(8, 6, QImage::Format_RGB32);
+  source.fill(QColor(10, 20, 30));
+
+  QByteArray png_bytes;
+  {
+    QBuffer buffer(&png_bytes);
+    buffer.open(QIODevice::WriteOnly);
+    QImage tagged = source;
+    tagged.setDotsPerMeterX(11811);  // 300 ppi
+    tagged.setDotsPerMeterY(5906);   // 150 ppi
+    CHECK(tagged.save(&buffer, "png"));
+  }
+  const auto png_span = std::span<const std::uint8_t>(
+      reinterpret_cast<const std::uint8_t*>(png_bytes.constData()), static_cast<std::size_t>(png_bytes.size()));
+
+  auto tagged_document = patchy::ui::document_from_qimage(source, "Tagged");
+  patchy::ui::apply_imported_image_density(tagged_document, png_span, source);
+  CHECK(std::abs(tagged_document.print_settings().horizontal_ppi - 11811.0 * 0.0254) < 0.001);
+  CHECK(std::abs(tagged_document.print_settings().vertical_ppi - 5906.0 * 0.0254) < 0.001);
+
+  // Strip the pHYs chunk (4 length + 4 type + 9 payload + 4 crc bytes): the file is
+  // untagged and must open at Photoshop's 72 ppi, never Qt's screen-derived default.
+  auto untagged_bytes = png_bytes;
+  const auto phys_index = untagged_bytes.indexOf(QByteArrayLiteral("pHYs"));
+  CHECK(phys_index > 4);
+  untagged_bytes.remove(phys_index - 4, 21);
+  const auto untagged_span = std::span<const std::uint8_t>(
+      reinterpret_cast<const std::uint8_t*>(untagged_bytes.constData()),
+      static_cast<std::size_t>(untagged_bytes.size()));
+  auto untagged_document = patchy::ui::document_from_qimage(source, "Untagged");
+  patchy::ui::apply_imported_image_density(untagged_document, untagged_span, source);
+  CHECK(untagged_document.print_settings().horizontal_ppi == 72.0);
+  CHECK(untagged_document.print_settings().vertical_ppi == 72.0);
+
+  // JPEG JFIF densities are honored exactly.
+  QByteArray jpeg_bytes;
+  {
+    QBuffer buffer(&jpeg_bytes);
+    buffer.open(QIODevice::WriteOnly);
+    QImage tagged = source;
+    tagged.setDotsPerMeterX(9449);  // 240 ppi
+    tagged.setDotsPerMeterY(9449);
+    CHECK(tagged.save(&buffer, "jpg"));
+  }
+  const auto jpeg_span = std::span<const std::uint8_t>(
+      reinterpret_cast<const std::uint8_t*>(jpeg_bytes.constData()), static_cast<std::size_t>(jpeg_bytes.size()));
+  auto jpeg_document = patchy::ui::document_from_qimage(source, "Jpeg");
+  patchy::ui::apply_imported_image_density(jpeg_document, jpeg_span, source);
+  CHECK(std::abs(jpeg_document.print_settings().horizontal_ppi - 240.0) < 0.5);
+}
+
+void ui_ruler_unit_preference_changes_ruler_ticks() {
+  ensure_artifact_dir();
+
+  // Rendering: a standalone canvas at 100 ppi so 1 in = 100 doc px exactly.
+  patchy::Document document(300, 200, patchy::PixelFormat::rgb8());
+  document.print_settings().horizontal_ppi = 100.0;
+  document.print_settings().vertical_ppi = 100.0;
+  document.add_pixel_layer("Background", solid_pixels(300, 200, patchy::PixelFormat::rgb8(), Qt::white));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(420, 300);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_rulers_visible(true);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto ruler_tick_pixels = [&canvas] {
+    const auto strip = canvas.grab(QRect(0, 0, canvas.width(), 24)).toImage();
+    int ticks = 0;
+    for (int y = 0; y < strip.height(); ++y) {
+      for (int x = 0; x < strip.width(); ++x) {
+        if (color_close(strip.pixelColor(x, y), QColor(185, 190, 198), 40)) {
+          ++ticks;
+        }
+      }
+    }
+    return std::pair<QImage, int>(strip, ticks);
+  };
+  CHECK(canvas.ruler_unit() == patchy::ui::MeasurementUnit::Pixels);
+  const auto [pixel_ruler, pixel_ticks] = ruler_tick_pixels();
+  CHECK(pixel_ticks > 0);
+
+  canvas.set_ruler_unit(patchy::ui::MeasurementUnit::Inches);
+  QApplication::processEvents();
+  const auto [inch_ruler, inch_ticks] = ruler_tick_pixels();
+  CHECK(inch_ticks > 0);
+  CHECK(pixel_ruler != inch_ruler);
+  pixel_ruler.save(QStringLiteral("test-artifacts/ui_ruler_units_pixels.png"));
+  inch_ruler.save(QStringLiteral("test-artifacts/ui_ruler_units_inches.png"));
+
+  // Preference propagation: the window-level setter reaches the session canvas and
+  // persists the settings token.
+  SettingsValueRestorer restore_units(QStringLiteral("view/rulerUnits"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* session_canvas = require_canvas(window);
+  patchy::ui::MainWindowTestAccess::set_ruler_unit_preference(window, patchy::ui::MeasurementUnit::Inches);
+  QApplication::processEvents();
+  CHECK(session_canvas->ruler_unit() == patchy::ui::MeasurementUnit::Inches);
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("view/rulerUnits")).toString() == QStringLiteral("in"));
 }
 
 void ui_dragged_image_file_opens_document_tab() {
@@ -49498,6 +49735,11 @@ int main(int argc, char* argv[]) {
       {"ui_print_layout_and_pdf_output_work", ui_print_layout_and_pdf_output_work},
       {"ui_print_dialog_exposes_printer_and_visible_checkboxes",
        ui_print_dialog_exposes_printer_and_visible_checkboxes},
+      {"ui_image_size_dialog_unit_and_resolution_links_work",
+       ui_image_size_dialog_unit_and_resolution_links_work},
+      {"ui_imported_image_density_follows_photoshop_conventions",
+       ui_imported_image_density_follows_photoshop_conventions},
+      {"ui_ruler_unit_preference_changes_ruler_ticks", ui_ruler_unit_preference_changes_ruler_ticks},
       {"ui_dragged_image_file_opens_document_tab", ui_dragged_image_file_opens_document_tab},
       {"ui_reported_psd_open_shows_progress_dialog_if_available",
        ui_reported_psd_open_shows_progress_dialog_if_available},

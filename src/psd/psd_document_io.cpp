@@ -5071,11 +5071,6 @@ std::uint32_t double_to_fixed_16_16(double value) noexcept {
   return static_cast<std::uint32_t>(std::lround(value * 65536.0));
 }
 
-double resolution_unit_to_ppi(double value, std::uint16_t unit) noexcept {
-  // Photoshop resolution resource unit 1 is pixels/inch, 2 is pixels/cm.
-  return unit == 2 ? value * 2.54 : value;
-}
-
 std::optional<DocumentPrintSettings> print_settings_from_resolution_resource(std::span<const std::uint8_t> payload) {
   if (payload.size() < 16U) {
     return std::nullopt;
@@ -5083,25 +5078,34 @@ std::optional<DocumentPrintSettings> print_settings_from_resolution_resource(std
   BigEndianReader reader(payload);
   const auto horizontal = fixed_16_16_to_double(reader.read_u32());
   const auto horizontal_unit = reader.read_u16();
-  (void)reader.read_u16();  // width display unit
+  const auto width_unit = reader.read_u16();
   const auto vertical = fixed_16_16_to_double(reader.read_u32());
   const auto vertical_unit = reader.read_u16();
-  (void)reader.read_u16();  // height display unit
+  const auto height_unit = reader.read_u16();
 
   DocumentPrintSettings settings;
-  settings.horizontal_ppi = sanitized_print_ppi(resolution_unit_to_ppi(horizontal, horizontal_unit));
-  settings.vertical_ppi = sanitized_print_ppi(resolution_unit_to_ppi(vertical, vertical_unit));
+  // hRes/vRes are ALWAYS pixels/inch; the unit fields are display-only. Verified
+  // against Photoshop 2026 by byte-patching a 144 PPI file's units to 2 (px/cm):
+  // PS still reports resolution 144. (The previous x2.54 conversion misread real
+  // px/cm-display files as 2.54x their resolution.)
+  settings.horizontal_ppi = sanitized_print_ppi(horizontal);
+  settings.vertical_ppi = sanitized_print_ppi(vertical);
+  settings.horizontal_resolution_display_unit = horizontal_unit;
+  settings.vertical_resolution_display_unit = vertical_unit;
+  settings.width_display_unit = width_unit;
+  settings.height_display_unit = height_unit;
   return settings;
 }
 
 std::vector<std::uint8_t> resolution_resource_for_document(const Document& document) {
+  const auto& print_settings = document.print_settings();
   BigEndianWriter writer;
-  writer.write_u32(double_to_fixed_16_16(document.print_settings().horizontal_ppi));
-  writer.write_u16(1);  // pixels/inch
-  writer.write_u16(1);  // inches
-  writer.write_u32(double_to_fixed_16_16(document.print_settings().vertical_ppi));
-  writer.write_u16(1);  // pixels/inch
-  writer.write_u16(1);  // inches
+  writer.write_u32(double_to_fixed_16_16(print_settings.horizontal_ppi));
+  writer.write_u16(print_settings.horizontal_resolution_display_unit);
+  writer.write_u16(print_settings.width_display_unit);
+  writer.write_u32(double_to_fixed_16_16(print_settings.vertical_ppi));
+  writer.write_u16(print_settings.vertical_resolution_display_unit);
+  writer.write_u16(print_settings.height_display_unit);
   return writer.bytes();
 }
 

@@ -10,6 +10,7 @@
 #include "formats/heif_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/ilbm_document_io.hpp"
+#include "formats/image_density_probe.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "core/rect_utils.hpp"
@@ -1155,6 +1156,44 @@ PixelBuffer pixels_from_image_rgba(const QImage& image) {
     }
   }
   return pixels;
+}
+
+std::optional<std::pair<double, double>> explicit_qimage_density_ppi(const QImage& image) {
+  // Qt's handlers only touch dotsPerMeter when the file records a density; otherwise
+  // the image keeps the constructor default, which is screen-derived. Compare against
+  // a fresh QImage to tell the two apart.
+  static const auto default_dots_per_meter = [] {
+    const QImage reference(1, 1, QImage::Format_ARGB32);
+    return std::pair<int, int>(reference.dotsPerMeterX(), reference.dotsPerMeterY());
+  }();
+  if (image.isNull() || (image.dotsPerMeterX() == default_dots_per_meter.first &&
+                         image.dotsPerMeterY() == default_dots_per_meter.second)) {
+    return std::nullopt;
+  }
+  return std::pair<double, double>(ppi_from_dots_per_meter(image.dotsPerMeterX()),
+                                   ppi_from_dots_per_meter(image.dotsPerMeterY()));
+}
+
+void apply_imported_image_density(Document& document, std::span<const std::uint8_t> file_bytes,
+                                  const QImage& image) {
+  auto& settings = document.print_settings();
+  const auto probe = formats::probe_image_density(file_bytes);
+  if (probe.density.has_value()) {
+    settings.horizontal_ppi = sanitized_ppi(probe.density->horizontal_ppi);
+    settings.vertical_ppi = sanitized_ppi(probe.density->vertical_ppi);
+    return;
+  }
+  if (probe.container == formats::ImageDensityContainer::Unrecognized) {
+    // Containers the probe does not parse (TIFF, WebP, ...): trust only a density the
+    // Qt handler explicitly recorded.
+    if (const auto explicit_density = explicit_qimage_density_ppi(image); explicit_density.has_value()) {
+      settings.horizontal_ppi = sanitized_ppi(explicit_density->first);
+      settings.vertical_ppi = sanitized_ppi(explicit_density->second);
+      return;
+    }
+  }
+  settings.horizontal_ppi = kUntaggedImportPpi;
+  settings.vertical_ppi = kUntaggedImportPpi;
 }
 
 Document document_from_qimage(const QImage& image, std::string layer_name) {

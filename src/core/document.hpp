@@ -48,8 +48,18 @@ struct DocumentMetadata {
 };
 
 struct DocumentPrintSettings {
+  // Always pixels/inch. PSD resource 1005 stores its resolutions as PPI regardless of
+  // the display-unit fields (Photoshop 2026 ground truth: a byte-patched unit-2 file
+  // still reports its fixed 16.16 value as PPI).
   double horizontal_ppi{300.0};
   double vertical_ppi{300.0};
+  // Resource 1005 display-only unit fields, preserved across a PSD round trip.
+  // Resolution units: 1 = px/inch, 2 = px/cm. Width/height units: 1 = inches,
+  // 2 = cm, 3 = points, 4 = picas, 5 = columns.
+  std::uint16_t horizontal_resolution_display_unit{1};
+  std::uint16_t vertical_resolution_display_unit{1};
+  std::uint16_t width_display_unit{1};
+  std::uint16_t height_display_unit{1};
 };
 
 struct DocumentIndexedPalette {

@@ -123,7 +123,9 @@ struct BmpHeader {
 }
 
 [[nodiscard]] double ppi_from_dots_per_meter(std::int32_t dots_per_meter) noexcept {
-  return dots_per_meter > 0 ? static_cast<double>(dots_per_meter) * 0.0254 : 300.0;
+  // Zero pels-per-meter means the file records no density; Photoshop opens such
+  // BMPs at 72 PPI and Patchy's untagged-import policy follows it.
+  return dots_per_meter > 0 ? static_cast<double>(dots_per_meter) * 0.0254 : 72.0;
 }
 
 [[nodiscard]] BmpHeader read_header(std::span<const std::uint8_t> bytes) {

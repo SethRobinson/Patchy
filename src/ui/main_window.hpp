@@ -368,7 +368,8 @@ private:
   [[nodiscard]] DocumentSession& session();
   [[nodiscard]] const DocumentSession& session() const;
   [[nodiscard]] bool has_active_document() const noexcept;
-  void reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label);
+  void reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label,
+                      double resolution_ppi = 300.0);
   void create_clipboard_document(const QImage& image, QString history_label);
   void create_new_document();
   void resize_image_dialog();
@@ -398,6 +399,7 @@ private:
   void new_guide_layout_dialog();
   void clear_guides();
   void clear_selected_guides();
+  void set_ruler_unit_preference(MeasurementUnit unit);
   void apply_canvas_aid_settings(CanvasWidget* canvas) const;
   void apply_pen_input_settings(CanvasWidget* canvas) const;
   void load_pen_input_settings();
@@ -1011,6 +1013,7 @@ private:
   int current_shape_width_{1024};
   int current_shape_height_{768};
   bool view_rulers_visible_{false};
+  MeasurementUnit ruler_unit_{MeasurementUnit::Pixels};
   bool view_grid_visible_{false};
   bool view_guides_visible_{true};
   bool view_guides_locked_{false};
