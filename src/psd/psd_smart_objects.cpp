@@ -165,6 +165,9 @@ struct SmartFilterDescriptorSpec {
   std::optional<std::int32_t> angle_degrees;
   std::optional<std::int32_t> distance_pixels;
   std::optional<std::int32_t> threshold;
+  std::optional<std::int32_t> highlight_strength;
+  std::optional<std::int32_t> detail;
+  std::optional<std::int32_t> smoothness;
   const char* default_entry_name{nullptr};
   const char* filter_name{nullptr};
   const char* filter_class_id{nullptr};
@@ -274,6 +277,22 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_name = "Motion Blur";
     spec.filter_class_id = "MtnB";
     spec.filter_id = 0x4d746e42U;
+  } else if (entry.kind == SmartFilterKind::PlasticWrap) {
+    const auto *plastic =
+        std::get_if<PlasticWrapSmartFilter>(&entry.parameters);
+    if (plastic == nullptr || plastic->highlight_strength < 0 ||
+        plastic->highlight_strength > 20 || plastic->detail < 1 ||
+        plastic->detail > 15 || plastic->smoothness < 1 ||
+        plastic->smoothness > 15) {
+      return std::nullopt;
+    }
+    spec.highlight_strength = plastic->highlight_strength;
+    spec.detail = plastic->detail;
+    spec.smoothness = plastic->smoothness;
+    spec.default_entry_name = "Plastic Wrap...";
+    spec.filter_name = "Plastic Wrap";
+    spec.filter_class_id = "PlsW";
+    spec.filter_id = 0x506c7357U;
   } else {
     return std::nullopt;
   }
@@ -318,6 +337,19 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
   auto filter =
       smart_filter_object(spec->filter_class_id,
                           spec->filter_class_id_long_form, spec->filter_name);
+  if (spec->highlight_strength.has_value()) {
+    add_smart_filter_value(
+        *filter.object_value, "Hghl", false,
+        smart_filter_integer(*spec->highlight_strength));
+  }
+  if (spec->detail.has_value()) {
+    add_smart_filter_value(*filter.object_value, "Dtl ", false,
+                           smart_filter_integer(*spec->detail));
+  }
+  if (spec->smoothness.has_value()) {
+    add_smart_filter_value(*filter.object_value, "Smth", false,
+                           smart_filter_integer(*spec->smoothness));
+  }
   if (spec->amount_percent.has_value()) {
     add_smart_filter_value(*filter.object_value, "Amnt", false,
                            smart_filter_unit("#Prc", *spec->amount_percent));
@@ -603,6 +635,32 @@ bool patch_smart_filter_descriptor(
       }
       distance->double_value = *spec->distance_pixels;
     }
+    if (spec->highlight_strength.has_value()) {
+      auto *highlight =
+          mutable_value_either(*filter, "Hghl", "highlights");
+      if (highlight == nullptr ||
+          highlight->type != DescriptorValue::Type::Integer) {
+        return false;
+      }
+      highlight->integer_value = *spec->highlight_strength;
+    }
+    if (spec->detail.has_value()) {
+      auto *detail = mutable_value_either(*filter, "Dtl ", "detail");
+      if (detail == nullptr ||
+          detail->type != DescriptorValue::Type::Integer) {
+        return false;
+      }
+      detail->integer_value = *spec->detail;
+    }
+    if (spec->smoothness.has_value()) {
+      auto *smoothness =
+          mutable_value_either(*filter, "Smth", "smoothness");
+      if (smoothness == nullptr ||
+          smoothness->type != DescriptorValue::Type::Integer) {
+        return false;
+      }
+      smoothness->integer_value = *spec->smoothness;
+    }
   }
   return true;
 }
@@ -847,6 +905,31 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
           entry.parameters = MotionBlurSmartFilter{
               angle->integer_value,
               static_cast<std::int32_t>(distance->double_value)};
+        } else {
+          entry_supported = false;
+        }
+      } else if (filter != nullptr && filter->class_id == "PlsW" &&
+                 entry.native_filter_id == 0x506c7357U) {
+        const auto *highlights =
+            descriptor_value_either(*filter, "Hghl", "highlights");
+        const auto *detail =
+            descriptor_value_either(*filter, "Dtl ", "detail");
+        const auto *smoothness =
+            descriptor_value_either(*filter, "Smth", "smoothness");
+        if (highlights != nullptr &&
+            highlights->type == DescriptorValue::Type::Integer &&
+            highlights->integer_value >= 0 &&
+            highlights->integer_value <= 20 && detail != nullptr &&
+            detail->type == DescriptorValue::Type::Integer &&
+            detail->integer_value >= 1 && detail->integer_value <= 15 &&
+            smoothness != nullptr &&
+            smoothness->type == DescriptorValue::Type::Integer &&
+            smoothness->integer_value >= 1 &&
+            smoothness->integer_value <= 15) {
+          entry.kind = SmartFilterKind::PlasticWrap;
+          entry.parameters = PlasticWrapSmartFilter{
+              highlights->integer_value, detail->integer_value,
+              smoothness->integer_value};
         } else {
           entry_supported = false;
         }

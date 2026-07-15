@@ -39,6 +39,12 @@ constexpr std::int32_t kMinimumMotionBlurAngle = -360;
 constexpr std::int32_t kMaximumMotionBlurAngle = 360;
 constexpr std::int32_t kMinimumMotionBlurDistance = 1;
 constexpr std::int32_t kMaximumMotionBlurDistance = 999;
+constexpr std::int32_t kMinimumPlasticWrapHighlightStrength = 0;
+constexpr std::int32_t kMaximumPlasticWrapHighlightStrength = 20;
+constexpr std::int32_t kMinimumPlasticWrapDetail = 1;
+constexpr std::int32_t kMaximumPlasticWrapDetail = 15;
+constexpr std::int32_t kMinimumPlasticWrapSmoothness = 1;
+constexpr std::int32_t kMaximumPlasticWrapSmoothness = 15;
 constexpr double kGaussianMarginScale = 3.0;
 constexpr double kDirectGaussianMaximumRadius = 8.0;
 constexpr int kProgressScale = 1000000;
@@ -1348,6 +1354,152 @@ render_median(const FilterRenderResult &input, double radius,
   return FilterRenderResult{std::move(output), input.bounds};
 }
 
+[[nodiscard]] FilterRenderResult render_plastic_wrap_effect(
+    const FilterRenderResult &input, std::int32_t highlight_strength,
+    std::int32_t detail, std::int32_t smoothness,
+    const FilterProgress *progress) {
+  if (input.pixels.empty()) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return input;
+  }
+
+  constexpr int kPhaseCount = 5;
+  auto extension_progress = phase_progress(progress, 0, kPhaseCount);
+  const auto extension =
+      extend_transparent_colors(input, &extension_progress);
+  if (extension.all_transparent) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return input;
+  }
+
+  const auto width = input.bounds.width;
+  const auto height = input.bounds.height;
+  const auto pixel_count = static_cast<std::uint64_t>(width) *
+                           static_cast<std::uint64_t>(height);
+  if (pixel_count > std::numeric_limits<std::size_t>::max() /
+                        sizeof(std::uint16_t)) {
+    throw std::overflow_error("Plastic Wrap working buffer overflow");
+  }
+  const auto count = static_cast<std::size_t>(pixel_count);
+  std::vector<std::uint16_t> luminance(count);
+  std::vector<std::uint16_t> horizontal(count);
+  std::vector<std::uint16_t> height_field(count);
+  const auto index_of = [width](std::int32_t x, std::int32_t y) {
+    return static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+           static_cast<std::size_t>(x);
+  };
+
+  auto luminance_progress = phase_progress(progress, 1, kPhaseCount);
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_progress(&luminance_progress, y, height,
+                    FilterProgressStage::Filtering);
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto red = static_cast<std::uint32_t>(
+          extended_straight_color_sample(input, extension, x, y, 0U));
+      const auto green = static_cast<std::uint32_t>(
+          extended_straight_color_sample(input, extension, x, y, 1U));
+      const auto blue = static_cast<std::uint32_t>(
+          extended_straight_color_sample(input, extension, x, y, 2U));
+      luminance[index_of(x, y)] = static_cast<std::uint16_t>(
+          (77U * red + 150U * green + 29U * blue + 128U) >> 8U);
+    }
+  }
+  report_progress(&luminance_progress, height, height,
+                  FilterProgressStage::Filtering);
+
+  const auto radius = 1 + (smoothness - 1) / 3;
+  const auto diameter = radius * 2 + 1;
+  auto horizontal_progress = phase_progress(progress, 2, kPhaseCount);
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_progress(&horizontal_progress, y, height,
+                    FilterProgressStage::Filtering);
+    std::uint32_t sum = 0U;
+    for (std::int32_t offset = -radius; offset <= radius; ++offset) {
+      sum += luminance[index_of(std::clamp(offset, 0, width - 1), y)];
+    }
+    for (std::int32_t x = 0; x < width; ++x) {
+      horizontal[index_of(x, y)] = static_cast<std::uint16_t>(
+          (sum + static_cast<std::uint32_t>(diameter / 2)) /
+          static_cast<std::uint32_t>(diameter));
+      const auto leaving = std::clamp(x - radius, 0, width - 1);
+      const auto entering = std::clamp(x + radius + 1, 0, width - 1);
+      sum += luminance[index_of(entering, y)];
+      sum -= luminance[index_of(leaving, y)];
+    }
+  }
+  report_progress(&horizontal_progress, height, height,
+                  FilterProgressStage::Filtering);
+
+  auto vertical_progress = phase_progress(progress, 3, kPhaseCount);
+  for (std::int32_t x = 0; x < width; ++x) {
+    report_progress(&vertical_progress, x, width,
+                    FilterProgressStage::Filtering);
+    std::uint32_t sum = 0U;
+    for (std::int32_t offset = -radius; offset <= radius; ++offset) {
+      sum += horizontal[index_of(x, std::clamp(offset, 0, height - 1))];
+    }
+    for (std::int32_t y = 0; y < height; ++y) {
+      const auto smoothed = static_cast<std::uint32_t>(
+          (sum + static_cast<std::uint32_t>(diameter / 2)) /
+          static_cast<std::uint32_t>(diameter));
+      const auto source =
+          static_cast<std::uint32_t>(luminance[index_of(x, y)]);
+      height_field[index_of(x, y)] = static_cast<std::uint16_t>(
+          (smoothed * static_cast<std::uint32_t>(15 - detail) +
+           source * static_cast<std::uint32_t>(detail) + 7U) /
+          15U);
+      const auto leaving = std::clamp(y - radius, 0, height - 1);
+      const auto entering = std::clamp(y + radius + 1, 0, height - 1);
+      sum += horizontal[index_of(x, entering)];
+      sum -= horizontal[index_of(x, leaving)];
+    }
+  }
+  report_progress(&vertical_progress, width, width,
+                  FilterProgressStage::Filtering);
+
+  auto output = input.pixels;
+  auto shading_progress = phase_progress(progress, 4, kPhaseCount);
+  // Patent/design boundary: this is one fixed local height-field treatment.
+  // It does not infer materials or lighting from image content, search or
+  // synthesize patches, classify objects, or select an algorithm adaptively.
+  // The three user settings only scale this same box-blur/gradient formula.
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_progress(&shading_progress, y, height,
+                    FilterProgressStage::Filtering);
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto left = height_field[index_of(std::max(0, x - 1), y)];
+      const auto right =
+          height_field[index_of(std::min(width - 1, x + 1), y)];
+      const auto up = height_field[index_of(x, std::max(0, y - 1))];
+      const auto down =
+          height_field[index_of(x, std::min(height - 1, y + 1))];
+      const auto gradient_x = static_cast<std::int32_t>(right) - left;
+      const auto gradient_y = static_cast<std::int32_t>(down) - up;
+      const auto facing = -3 * gradient_x - 4 * gradient_y;
+      const auto edge = std::abs(gradient_x) + std::abs(gradient_y);
+      const auto relief = std::clamp(facing / 32, -40, 40);
+      const auto specular_signal = std::clamp(
+          (std::max(0, facing) + edge * 2) / 4, 0, 255);
+      const auto curved_specular =
+          (specular_signal * specular_signal + 127) / 255;
+      const auto shine =
+          (curved_specular * highlight_strength + 10) / 20;
+      const auto *source = input.pixels.pixel(x, y);
+      auto *destination = output.pixel(x, y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        const auto shaded =
+            std::clamp(static_cast<int>(source[channel]) + relief, 0, 255);
+        destination[channel] = static_cast<std::uint8_t>(std::clamp(
+            shaded + ((255 - shaded) * shine + 127) / 255, 0, 255));
+      }
+      destination[3] = source[3];
+    }
+  }
+  report_progress(&shading_progress, height, height,
+                  FilterProgressStage::Filtering);
+  return FilterRenderResult{std::move(output), input.bounds};
+}
+
 [[nodiscard]] FilterRenderResult render_dust_and_scratches(
     const FilterRenderResult &input, std::int32_t radius,
     std::int32_t threshold, const FilterProgress *progress) {
@@ -1724,6 +1876,19 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
           motion->angle_degrees <= kMaximumMotionBlurAngle &&
           motion->distance_pixels >= kMinimumMotionBlurDistance &&
           motion->distance_pixels <= kMaximumMotionBlurDistance;
+    } else if (entry.kind == SmartFilterKind::PlasticWrap) {
+      const auto *plastic =
+          std::get_if<PlasticWrapSmartFilter>(&entry.parameters);
+      parameters_valid =
+          plastic != nullptr &&
+          plastic->highlight_strength >=
+              kMinimumPlasticWrapHighlightStrength &&
+          plastic->highlight_strength <=
+              kMaximumPlasticWrapHighlightStrength &&
+          plastic->detail >= kMinimumPlasticWrapDetail &&
+          plastic->detail <= kMaximumPlasticWrapDetail &&
+          plastic->smoothness >= kMinimumPlasticWrapSmoothness &&
+          plastic->smoothness <= kMaximumPlasticWrapSmoothness;
     } else {
       throw std::invalid_argument("Unsupported Smart Filter entry");
     }
@@ -1732,6 +1897,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
          entry.kind != SmartFilterKind::SurfaceBlur &&
          entry.kind != SmartFilterKind::UnsharpMask &&
          entry.kind != SmartFilterKind::MotionBlur &&
+         entry.kind != SmartFilterKind::PlasticWrap &&
          (!std::isfinite(radius) || radius < minimum_radius ||
           radius > maximum_radius)) ||
         !std::isfinite(entry.opacity) ||
@@ -1848,6 +2014,25 @@ FilterRenderResult render_photoshop_motion_blur(
                             distance_pixels, progress);
 }
 
+FilterRenderResult render_plastic_wrap(
+    const PixelBuffer &pixels, Rect bounds, std::int32_t highlight_strength,
+    std::int32_t detail, std::int32_t smoothness,
+    const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() ||
+      pixels.width() != bounds.width || pixels.height() != bounds.height ||
+      highlight_strength < kMinimumPlasticWrapHighlightStrength ||
+      highlight_strength > kMaximumPlasticWrapHighlightStrength ||
+      detail < kMinimumPlasticWrapDetail ||
+      detail > kMaximumPlasticWrapDetail ||
+      smoothness < kMinimumPlasticWrapSmoothness ||
+      smoothness > kMaximumPlasticWrapSmoothness) {
+    throw std::invalid_argument("Invalid Plastic Wrap input");
+  }
+  return render_plastic_wrap_effect(FilterRenderResult{pixels, bounds},
+                                    highlight_strength, detail, smoothness,
+                                    progress);
+}
+
 FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                              Rect placed_bounds,
                                              Rect filter_canvas_bounds,
@@ -1919,13 +2104,19 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
       filtered = render_unsharp_mask(current, unsharp.amount_percent,
                                      unsharp.radius_pixels, unsharp.threshold,
                                      &filter_progress);
-    } else {
+    } else if (entry.kind == SmartFilterKind::MotionBlur) {
       const auto &motion = std::get<MotionBlurSmartFilter>(entry.parameters);
       auto motion_input = embed_in_filter_canvas(current.pixels, current.bounds,
                                                  filter_canvas_bounds);
       filtered = trim_transparent_result(
           render_motion_blur(motion_input, motion.angle_degrees,
                              motion.distance_pixels, &filter_progress));
+    } else {
+      const auto &plastic =
+          std::get<PlasticWrapSmartFilter>(entry.parameters);
+      filtered = render_plastic_wrap_effect(
+          current, plastic.highlight_strength, plastic.detail,
+          plastic.smoothness, &filter_progress);
     }
     auto blend_progress = phase_progress(progress, phase++, phase_count);
     current = blend_entry_result(current, std::move(filtered), entry.opacity,

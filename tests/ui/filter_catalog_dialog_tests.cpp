@@ -366,6 +366,11 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
         {"transition_width", "filterTransitionWidth", 0, 100, 20,
          Unit::Percent, Scale::None, Kind::Double, 0.1,
          Presentation::TiltTransitionWidthPercent}}},
+      {"patchy.filters.plastic_wrap", Category::Artistic, false,
+       {{"highlight_strength", "filterHighlightStrength", 0, 20, 9,
+         Unit::None},
+        {"detail", "filterDetail", 1, 15, 7, Unit::None},
+        {"smoothness", "filterSmoothness", 1, 15, 5, Unit::None}}},
   };
   return expected;
 }
@@ -516,7 +521,7 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
     const char* object_name;
     QStringList action_object_names;
   };
-  const std::array<ExpectedMenu, 8> expected_menus = {{
+  const std::array<ExpectedMenu, 9> expected_menus = {{
       {"filterPhotoLooksMenu",
        {QStringLiteral("filterAction_patchy_filters_soft_glow"),
         QStringLiteral("filterAction_patchy_filters_punchy_color"),
@@ -546,6 +551,8 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
       {"filterPixelateMenu",
        {QStringLiteral("filterAction_patchy_filters_pixelate"),
         QStringLiteral("filterAction_patchy_filters_color_halftone")}},
+      {"filterArtisticMenu",
+       {QStringLiteral("filterAction_patchy_filters_plastic_wrap")}},
       {"filterStylizeMenu",
        {QStringLiteral("filterAction_patchy_filters_edge_detect"),
         QStringLiteral("filterAction_patchy_filters_emboss"),
@@ -574,6 +581,10 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
       window, "filterAction_patchy_filters_surface_blur");
   CHECK(surface_action->text() == QStringLiteral("Surface Blur"));
   CHECK(surface_action->toolTip() == QStringLiteral("Surface Blur"));
+  auto* plastic_action = require_action(
+      window, "filterAction_patchy_filters_plastic_wrap");
+  CHECK(plastic_action->text() == QStringLiteral("Plastic Wrap"));
+  CHECK(plastic_action->toolTip() == QStringLiteral("Plastic Wrap"));
   auto* tilt_action = require_action(
       window, "filterAction_patchy_filters_tilt_shift_blur");
   CHECK(tilt_action->text() == QStringLiteral("Tilt-Shift Blur"));

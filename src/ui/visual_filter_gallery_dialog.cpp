@@ -67,11 +67,12 @@ constexpr int kThumbnailExactRole = Qt::UserRole + 5;
 constexpr int kMaximumProxyDimension = 640;
 constexpr int kMaximumThumbnailDimension = 180;
 
-constexpr std::array<FilterCategory, 8> kGalleryCategoryOrder = {
+constexpr std::array<FilterCategory, 9> kGalleryCategoryOrder = {
     FilterCategory::PhotoLooks, FilterCategory::Blur,
     FilterCategory::Sharpen,    FilterCategory::Distort,
     FilterCategory::Noise,      FilterCategory::Pixelate,
     FilterCategory::Stylize,    FilterCategory::Render,
+    FilterCategory::Artistic,
 };
 
 constexpr auto kGalleryFavoritesKey = "filters/gallery/favorites";
@@ -99,6 +100,8 @@ constexpr auto kGallerySizeKey = "filters/gallery/size";
       return QStringLiteral("stylize");
     case FilterCategory::Render:
       return QStringLiteral("render");
+    case FilterCategory::Artistic:
+      return QStringLiteral("artistic");
     case FilterCategory::Uncategorized:
       return QStringLiteral("uncategorized");
     case FilterCategory::Adjustment:

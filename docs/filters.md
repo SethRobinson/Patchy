@@ -12,7 +12,7 @@ These paths are intentionally separate. Their defaults are not equivalent for ev
 
 ## Stable identifiers and schemas
 
-The 35 built-in filter IDs are persisted compatibility identifiers. Never rename or reuse one:
+The 36 built-in filter IDs are persisted compatibility identifiers. Never rename or reuse one:
 
 ```text
 patchy.filters.invert
@@ -50,6 +50,7 @@ patchy.filters.median
 patchy.filters.dust_and_scratches
 patchy.filters.surface_blur
 patchy.filters.tilt_shift_blur
+patchy.filters.plastic_wrap
 ```
 
 Each `FilterInvocation` stores the filter ID, the filter's schema version, named parameters, and captured foreground/background colors. Schema version 1 is the initial catalog schema. A known ID with an unsupported schema is unsupported, not a request to run the newest schema.
@@ -86,6 +87,7 @@ Parameter keys are stable within a filter schema. The version-1 keys and default
 | `dust_and_scratches` | `radius=1`, `threshold=0` |
 | `surface_blur` | `radius=5.0`, `threshold=15` |
 | `tilt_shift_blur` | `blur=15.0`, `center_x=50.0`, `center_y=50.0`, `angle=0`, `focus_half_width=10.0`, `transition_width=20.0` |
+| `plastic_wrap` | `highlight_strength=9`, `detail=7`, `smoothness=5` |
 
 Missing known parameters use these defaults. Unknown parameter keys are ignored so a newer writer can add harmless fields. Unknown filter IDs and unsupported schema versions make the invocation and its containing recipe unsupported. They must never fall back to a different filter.
 
@@ -95,7 +97,7 @@ Values are normalized through the catalog before execution. Integer, double, boo
 
 Seven filters belong to Image > Adjustments: Invert, Brightness/Contrast, Grayscale, Desaturate, Auto Contrast, Threshold, and Posterize. Grayscale currently has no direct action.
 
-The gallery exposes the other 28 effects in the fixed catalog and category order below. Display labels are translated, but order is never locale-sorted.
+The gallery exposes the other 29 effects in the fixed catalog and category order below. Display labels are translated, but order is never locale-sorted.
 
 | Category token | Gallery effects in order |
 | --- | --- |
@@ -107,8 +109,9 @@ The gallery exposes the other 28 effects in the fixed catalog and category order
 | `pixelate` | Pixel Mosaic (`patchy.filters.pixelate`), Color Halftone (`patchy.filters.color_halftone`) |
 | `stylize` | Edge Detect (`patchy.filters.edge_detect`), Emboss (`patchy.filters.emboss`), Glowing Edges (`patchy.filters.glowing_edges`) |
 | `render` | Clouds (`patchy.filters.clouds`) |
+| `artistic` | Plastic Wrap (`patchy.filters.plastic_wrap`) |
 
-The category selector starts with the synthetic `all` and `favorites` views, then uses the eight tokens in the table. These ten tokens and their order are settings compatibility surfaces. Never persist a translated label or a `FilterCategory` ordinal.
+The category selector starts with the synthetic `all` and `favorites` views, then uses the nine tokens in the table. These eleven tokens and their order are settings compatibility surfaces. Never persist a translated label or a `FilterCategory` ordinal.
 
 The catalog generates dialog controls, but the existing Qt object names such as `filterAmountSpin` and `filterRadiusSlider` remain test and automation contracts.
 
@@ -137,7 +140,7 @@ The gallery settings keys are fixed:
 | Key | Value |
 | --- | --- |
 | `filters/gallery/favorites` | Ordered `QStringList` of valid built-in filter IDs |
-| `filters/gallery/category` | One of the ten stable view/category tokens |
+| `filters/gallery/category` | One of the eleven stable view/category tokens |
 | `filters/gallery/lastFilterId` | Last selected built-in filter ID, or empty for Original |
 | `filters/gallery/liveCanvasPreview` | Boolean live-preview preference |
 | `filters/gallery/size` | Last dialog size |
@@ -187,6 +190,7 @@ Output growth and translation support are catalog metadata:
 - Median keeps the input bounds. Its linked slider spans the practical 1 through 25 px range, with a default of 1 px, while typed values, recipes, and native Smart Filter imports retain Photoshop's 1 through 500 px range. Photoshop floors fractional radii for rendering without rewriting the stored value. Median advertises no finite translation support because transparent RGB extension chooses the nearest visible source across the full input; selected filtering must process the complete layer before restoring unselected pixels.
 - Dust & Scratches keeps the input bounds and alpha. Radius is an integer from 1 through 100 with a practical slider through 25, and Threshold is an integer from 0 through 255. It computes a square per-channel RGB median using Median's nearest-visible straight-RGB extension, then replaces the complete RGB triplet only when its maximum channel difference from the source is strictly greater than Threshold. It advertises no finite translation support because the transparent-RGB extension can choose a visible source anywhere in the input.
 - Surface Blur accepts a fractional radius from 1 through 100 px in 0.01 px steps, with a default of 5 px and a practical slider through 25 px. Its effective integer radius is `max(1, floor(radius + 0.5))`. Threshold is an integer from 2 through 255 with a default of 15. For each independently filtered channel, a square edge-clamped window assigns every sample `v` around center `c` the weight `max(0, 5 * threshold - 2 * abs(v - c))`; the weighted quotient is rounded to the nearest integer with ties to even. RGB uses Median's nearest-visible straight-RGB extension under transparent pixels, while alpha runs the same weighted formula directly. The result is alpha-trimmed after padding and can grow by at most the effective radius. It advertises no finite translation support because the straight-RGB extension can choose a visible source anywhere in the input.
+- Plastic Wrap keeps the input bounds and alpha byte-exact. Highlight Strength is an integer from 0 through 20, while Detail and Smoothness are integers from 1 through 15. One fixed integer height-field formula smooths luminance with an edge-clamped box, takes local gradients, and adds directional relief and highlights to the original RGB. The settings are dimensionless and do not scale for thumbnails. It advertises no finite translation support because its nearest-visible straight-RGB extension can choose a visible source anywhere in the input.
 - Tilt-Shift Blur accepts a fractional maximum blur from 0 through 500 px, with a default of 15 px and a practical slider through 50 px. Center, focus half-width, and transition width are percentages; angle 0 means horizontal focus lines. Pixels inside the focus band stay sharp, a deterministic cubic transition increases the local radius, and pixels beyond the dashed boundaries use the requested maximum blur. Radius 0 is an exact identity. The result is alpha-trimmed after transparent padding and can grow by at most `ceil(blur)`. It advertises no finite translation support because its band geometry depends on the complete input rectangle.
 - Sharpen and Edge Detect have translation support of one pixel.
 - Other version-1 filters neither grow nor advertise fixed translation support.

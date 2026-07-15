@@ -1457,13 +1457,15 @@ void MainWindow::create_actions() {
       add_filter_submenu("filterNoiseMenu", FilterCategory::Noise);
   auto* filter_pixelate_menu =
       add_filter_submenu("filterPixelateMenu", FilterCategory::Pixelate);
+  auto* filter_artistic_menu =
+      add_filter_submenu("filterArtisticMenu", FilterCategory::Artistic);
   auto* filter_stylize_menu =
       add_filter_submenu("filterStylizeMenu", FilterCategory::Stylize);
   auto* filter_render_menu =
       add_filter_submenu("filterRenderMenu", FilterCategory::Render);
   const auto menu_for_filter = [filter_menu, filter_photo_looks_menu, filter_blur_menu, filter_sharpen_menu,
                                 filter_distort_menu, filter_noise_menu, filter_pixelate_menu, filter_stylize_menu,
-                                filter_render_menu](FilterCategory category) {
+                                filter_render_menu, filter_artistic_menu](FilterCategory category) {
     switch (category) {
       case FilterCategory::PhotoLooks:
         return filter_photo_looks_menu;
@@ -1481,6 +1483,8 @@ void MainWindow::create_actions() {
         return filter_stylize_menu;
       case FilterCategory::Render:
         return filter_render_menu;
+      case FilterCategory::Artistic:
+        return filter_artistic_menu;
       case FilterCategory::Uncategorized:
       case FilterCategory::Adjustment:
         return filter_menu;

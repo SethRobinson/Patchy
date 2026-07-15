@@ -503,6 +503,23 @@ void apply_surface_blur_filter_pixels(PixelBuffer &pixels, double radius,
   });
 }
 
+void apply_plastic_wrap_filter_pixels(PixelBuffer &pixels,
+                                      std::int32_t highlight_strength,
+                                      std::int32_t detail,
+                                      std::int32_t smoothness,
+                                      const FilterProgress *progress) {
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    report_filter_progress(progress, 1, 1,
+                           FilterProgressStage::Filtering);
+    return;
+  }
+  stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
+    return render_plastic_wrap(
+        rgba, Rect::from_size(rgba.width(), rgba.height()),
+        highlight_strength, detail, smoothness, progress);
+  });
+}
+
 constexpr std::uint64_t kTiltWeightScale = 65536U;
 constexpr std::uint64_t kTiltMixScale = 65535U;
 constexpr std::uint64_t kTiltIntermediateScale = 256U;
@@ -1603,6 +1620,17 @@ void execute_builtin_filter(const FilterRegistry &registry,
     return;
   }
 
+  if (identifier == "patchy.filters.plastic_wrap") {
+    apply_plastic_wrap_filter_pixels(
+        pixels,
+        std::clamp(filter_value(invocation, "highlight_strength", 9), 0,
+                   20),
+        std::clamp(filter_value(invocation, "detail", 7), 1, 15),
+        std::clamp(filter_value(invocation, "smoothness", 5), 1, 15),
+        progress);
+    return;
+  }
+
   if (identifier == "patchy.filters.tilt_shift_blur") {
     const auto blur = std::clamp(
         filter_number(invocation, "blur", 15.0), 0.0, 500.0);
@@ -2315,6 +2343,14 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
         {std::move(radius),
          integer_parameter("threshold", "Threshold", "filterThreshold", 2,
                            255, 15)});
+  } else if (identifier == "patchy.filters.plastic_wrap") {
+    metadata = catalog_metadata(
+        Category::Artistic, false,
+        {integer_parameter("highlight_strength", "Highlight Strength",
+                           "filterHighlightStrength", 0, 20, 9),
+         integer_parameter("detail", "Detail", "filterDetail", 1, 15, 7),
+         integer_parameter("smoothness", "Smoothness", "filterSmoothness",
+                           1, 15, 5)});
   } else if (identifier == "patchy.filters.tilt_shift_blur") {
     auto blur = double_parameter("blur", "Blur", "filterBlur", 0.0, 500.0,
                                  15.0, 0.1, Unit::Pixels, Scale::Pixels);

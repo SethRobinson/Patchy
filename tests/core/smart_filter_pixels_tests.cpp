@@ -91,6 +91,7 @@ namespace {
 
 using patchy::test::require_layer_named;
 using patchy::test::require_smart_filter_stack;
+using patchy::test::fnv1a_hash_bytes;
 using patchy::test::solid_rgba;
 using patchy::test::test_dust_and_scratches_smart_filter_stack;
 using patchy::test::test_gaussian_smart_filter_stack;
@@ -1656,6 +1657,93 @@ void smart_filter_motion_blur_matches_photoshop_axis_kernel_and_growth() {
   }
 }
 
+void plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths() {
+  patchy::PixelBuffer source(9, 7, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      auto *pixel = source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 47 + y * 19 + 11) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 13 + y * 61 + 37) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 83 + y * 7 + 5) % 256);
+      pixel[3] = static_cast<std::uint8_t>((x * 29 + y * 43 + 71) % 256);
+    }
+  }
+  const patchy::Rect bounds{31, 47, source.width(), source.height()};
+  const auto first = patchy::render_plastic_wrap(source, bounds, 13, 9, 7);
+  const auto second = patchy::render_plastic_wrap(source, bounds, 13, 9, 7);
+  check_filter_result_equal(first, second);
+  CHECK(first.bounds.x == bounds.x && first.bounds.y == bounds.y &&
+        first.bounds.width == bounds.width &&
+        first.bounds.height == bounds.height);
+  bool changed_visible_color = false;
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      const auto *before = source.pixel(x, y);
+      const auto *after = first.pixels.pixel(x, y);
+      CHECK(after[3] == before[3]);
+      changed_visible_color =
+          changed_visible_color ||
+          (before[3] != 0U && !std::equal(before, before + 3, after));
+    }
+  }
+  CHECK(changed_visible_color);
+
+  const auto checksum = fnv1a_hash_bytes(first.pixels.data());
+  CHECK(checksum == 0x7D1F25DAB130348CULL);
+
+  const auto no_highlights =
+      patchy::render_plastic_wrap(source, bounds, 0, 9, 7);
+  const auto maximum_highlights =
+      patchy::render_plastic_wrap(source, bounds, 20, 9, 7);
+  CHECK(!std::equal(no_highlights.pixels.data().begin(),
+                    no_highlights.pixels.data().end(),
+                    maximum_highlights.pixels.data().begin()));
+  const auto low_detail_smooth =
+      patchy::render_plastic_wrap(source, bounds, 13, 1, 15);
+  const auto high_detail_rough =
+      patchy::render_plastic_wrap(source, bounds, 13, 15, 1);
+  CHECK(!std::equal(low_detail_smooth.pixels.data().begin(),
+                    low_detail_smooth.pixels.data().end(),
+                    high_detail_rough.pixels.data().begin()));
+
+  const auto flat = solid_rgba(6, 4, 43, 117, 209, 173);
+  const auto flat_result = patchy::render_plastic_wrap(
+      flat, patchy::Rect{8, 12, 6, 4}, 20, 15, 1);
+  CHECK(std::equal(flat_result.pixels.data().begin(),
+                   flat_result.pixels.data().end(), flat.data().begin()));
+
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::PlasticWrap;
+  entry.native_name = "Plastic Wrap...";
+  entry.native_class_id = "PlsW";
+  entry.native_filter_id = 0x506c7357U;
+  entry.parameters = patchy::PlasticWrapSmartFilter{13, 9, 7};
+  stack.entries.push_back(std::move(entry));
+  const auto native =
+      patchy::render_smart_filter_stack(source, bounds, bounds, stack);
+  check_filter_result_equal(first, native);
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto invocation = registry.default_invocation("patchy.filters.plastic_wrap");
+  invocation.parameters["highlight_strength"] = std::int64_t{13};
+  invocation.parameters["detail"] = std::int64_t{9};
+  invocation.parameters["smoothness"] = std::int64_t{7};
+  const auto destructive = registry.render(invocation, source, bounds, false);
+  check_filter_result_equal(first, destructive);
+
+  bool rejected_invalid = false;
+  try {
+    (void)patchy::render_plastic_wrap(source, bounds, 21, 9, 7);
+  } catch (const std::invalid_argument &) {
+    rejected_invalid = true;
+  }
+  CHECK(rejected_invalid);
+}
+
 void smart_filter_layer_model_revisions_are_explicit() {
   patchy::Layer layer(1, "Filtered", patchy::PixelBuffer(2, 2, patchy::PixelFormat::rgba8()));
   patchy::SmartFilterStack stack;
@@ -1722,5 +1810,7 @@ std::vector<patchy::test::TestCase> smart_filter_pixels_tests() {
        smart_filter_unsharp_mask_matches_photoshop_scaled_threshold},
       {"smart_filter_motion_blur_matches_photoshop_axis_kernel_and_growth",
        smart_filter_motion_blur_matches_photoshop_axis_kernel_and_growth},
+      {"plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths",
+       plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths},
   };
 }

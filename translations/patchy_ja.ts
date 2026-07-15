@@ -11612,6 +11612,10 @@ Clipped to the layer below</source>
         <translation>モーションぼかしをキャンセルしました</translation>
     </message>
     <message>
+        <source>Cancelled Plastic Wrap</source>
+        <translation>ラップをキャンセルしました</translation>
+    </message>
+    <message>
         <source>Smart Filter failed</source>
         <translation>スマートフィルターの処理に失敗しました</translation>
     </message>
@@ -11722,6 +11726,26 @@ Clipped to the layer below</source>
     <message>
         <source>Updated Surface Blur Smart Filter</source>
         <translation>ぼかし（表面）スマートフィルターを更新しました</translation>
+    </message>
+    <message>
+        <source>Add Plastic Wrap Smart Filter</source>
+        <translation>ラップスマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Plastic Wrap Smart Filter</source>
+        <translation>ラップスマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Plastic Wrap as a Smart Filter</source>
+        <translation>ラップをスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Plastic Wrap Smart Filter</source>
+        <translation>ラップスマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Plastic Wrap Smart Filter</source>
+        <translation>ラップスマートフィルターを更新しました</translation>
     </message>
     <message>
         <source>Add Unsharp Mask Smart Filter</source>
@@ -12616,6 +12640,10 @@ Clipped to the layer below</source>
     <message><source>Move Smart Filter down</source><translation>スマートフィルターを下へ移動</translation></message>
     <message><source>Delete Smart Filter</source><translation>スマートフィルターを削除</translation></message>
     <message><source> px</source><translation> px</translation></message>
+    <message><source>Plastic Wrap</source><translation>ラップ</translation></message>
+    <message><source>Artistic</source><translation>アーティスティック</translation></message>
+    <message><source>Highlight Strength</source><translation>ハイライトの強さ</translation></message>
+    <message><source> (Highlight %1, Detail %2, Smoothness %3)</source><translation> (ハイライト %1、ディテール %2、滑らかさ %3)</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

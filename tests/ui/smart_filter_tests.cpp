@@ -3730,6 +3730,149 @@ void ui_smart_filter_surface_blur_add_edit_and_reopen() {
   save_widget_artifact("ui_smart_filter_surface_blur_row", *active_row());
 }
 
+void ui_smart_filter_plastic_wrap_add_edit_and_reopen() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto &document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto *original = std::as_const(document).find_layer(layer_id);
+  CHECK(original != nullptr && original->smart_filter_stack() == nullptr);
+  const auto original_bounds = original->bounds();
+  const auto original_record_count = smart_filter_effect_record_count(document);
+
+  bool added = false;
+  QTimer::singleShot(0, [&] {
+    auto *dialog = qobject_cast<QDialog *>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto *highlight = dialog->findChild<QSpinBox *>(
+        QStringLiteral("filterHighlightStrengthSpin"));
+    auto *detail =
+        dialog->findChild<QSpinBox *>(QStringLiteral("filterDetailSpin"));
+    auto *smoothness = dialog->findChild<QSpinBox *>(
+        QStringLiteral("filterSmoothnessSpin"));
+    CHECK(highlight != nullptr && detail != nullptr && smoothness != nullptr);
+    CHECK(highlight->minimum() == 0 && highlight->maximum() == 20 &&
+          highlight->value() == 9);
+    CHECK(detail->minimum() == 1 && detail->maximum() == 15 &&
+          detail->value() == 7);
+    CHECK(smoothness->minimum() == 1 && smoothness->maximum() == 15 &&
+          smoothness->value() == 5);
+    highlight->setValue(13);
+    detail->setValue(9);
+    smoothness->setValue(7);
+    added = true;
+    dialog->accept();
+  });
+  require_action(window, "filterAction_patchy_filters_plastic_wrap")
+      ->trigger();
+  QApplication::processEvents();
+  CHECK(added);
+
+  const auto parameters_at = [&]() {
+    const auto *layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr && layer->smart_filter_stack() != nullptr);
+    const auto &stack = *layer->smart_filter_stack();
+    CHECK(stack.support == patchy::SmartFilterStackSupport::Supported);
+    CHECK(stack.entries.size() == 1U);
+    const auto &entry = stack.entries.front();
+    CHECK(entry.kind == patchy::SmartFilterKind::PlasticWrap);
+    CHECK(entry.native_name == "Plastic Wrap...");
+    CHECK(entry.native_class_id == "PlsW");
+    CHECK(entry.native_filter_id == 0x506C7357U);
+    const auto *plastic =
+        std::get_if<patchy::PlasticWrapSmartFilter>(&entry.parameters);
+    CHECK(plastic != nullptr);
+    return std::array<std::int32_t, 3>{plastic->highlight_strength,
+                                       plastic->detail,
+                                       plastic->smoothness};
+  };
+  CHECK((parameters_at() == std::array<std::int32_t, 3>{13, 9, 7}));
+  const auto *filtered = std::as_const(document).find_layer(layer_id);
+  CHECK(filtered != nullptr && filter_rect_equal(filtered->bounds(),
+                                                  original_bounds));
+  CHECK(smart_filter_effect_record_count(document) ==
+        original_record_count + 1U);
+
+  const auto active_row = [&]() -> QWidget * {
+    auto *list = window.findChild<QListWidget *>(QStringLiteral("layerList"));
+    CHECK(list != nullptr);
+    auto *row = list->itemWidget(
+        require_layer_item(*list, QStringLiteral("small")));
+    CHECK(row != nullptr);
+    return row;
+  };
+  auto *label = active_row()->findChild<QLabel *>(
+      QStringLiteral("layerSmartFilterEntryLabel"));
+  CHECK(label != nullptr && label->text() == QStringLiteral("Plastic Wrap"));
+  CHECK(label->toolTip().contains(QStringLiteral("Highlight 13")));
+  CHECK(label->toolTip().contains(QStringLiteral("Detail 9")));
+  CHECK(label->toolTip().contains(QStringLiteral("Smoothness 7")));
+
+  bool edited = false;
+  QTimer::singleShot(20, [&] {
+    auto *dialog = qobject_cast<QDialog *>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto *highlight = dialog->findChild<QSpinBox *>(
+        QStringLiteral("filterHighlightStrengthSpin"));
+    auto *detail =
+        dialog->findChild<QSpinBox *>(QStringLiteral("filterDetailSpin"));
+    auto *smoothness = dialog->findChild<QSpinBox *>(
+        QStringLiteral("filterSmoothnessSpin"));
+    CHECK(highlight != nullptr && detail != nullptr && smoothness != nullptr);
+    CHECK(highlight->value() == 13 && detail->value() == 9 &&
+          smoothness->value() == 7);
+    highlight->setValue(20);
+    detail->setValue(15);
+    smoothness->setValue(1);
+    edited = true;
+    dialog->accept();
+  });
+  auto *edit = active_row()->findChild<QToolButton *>(
+      QStringLiteral("layerSmartFilterEditButton"));
+  CHECK(edit != nullptr && edit->isEnabled());
+  edit->click();
+  CHECK(process_events_until([&] { return edited; }));
+  CHECK((parameters_at() == std::array<std::int32_t, 3>{20, 15, 1}));
+
+  ensure_artifact_dir();
+  const auto artifact_path = std::filesystem::absolute(
+      std::filesystem::path("test-artifacts") /
+      "ui_smart_filter_plastic_wrap.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact_path);
+  const auto reopened = patchy::psd::DocumentIo::read_file(artifact_path);
+  const auto reopened_it = std::find_if(
+      reopened.layers().begin(), reopened.layers().end(),
+      [](const patchy::Layer &layer) { return layer.name() == "small"; });
+  CHECK(reopened_it != reopened.layers().end());
+  CHECK(reopened_it->smart_filter_stack() != nullptr);
+  CHECK(reopened_it->smart_filter_stack()->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(reopened_it->smart_filter_stack()->entries.size() == 1U);
+  const auto &reopened_entry =
+      reopened_it->smart_filter_stack()->entries.front();
+  CHECK(reopened_entry.kind == patchy::SmartFilterKind::PlasticWrap);
+  CHECK(reopened_entry.native_name == "Plastic Wrap...");
+  CHECK(reopened_entry.native_class_id == "PlsW");
+  CHECK(reopened_entry.native_filter_id == 0x506C7357U);
+  const auto *reopened_plastic =
+      std::get_if<patchy::PlasticWrapSmartFilter>(
+          &reopened_entry.parameters);
+  CHECK(reopened_plastic != nullptr);
+  CHECK(reopened_plastic->highlight_strength == 20);
+  CHECK(reopened_plastic->detail == 15);
+  CHECK(reopened_plastic->smoothness == 1);
+  CHECK(filter_rect_equal(reopened_it->bounds(), original_bounds));
+  CHECK(reopened.metadata().smart_filter_effects.find_unique(
+            patchy::smart_object_placed_uuid(*reopened_it)) != nullptr);
+  save_widget_artifact("ui_smart_filter_plastic_wrap_row", *active_row());
+}
+
 void ui_smart_filter_unsharp_motion_add_edit_and_reopen() {
   SettingsValueRestorer notes_setting(
       QStringLiteral("imports/showPsdWarningsAndInfo"));
@@ -4224,6 +4367,8 @@ std::vector<patchy::test::TestCase> smart_filter_tests() {
        ui_smart_filter_dust_and_scratches_add_edit_and_reopen},
       {"ui_smart_filter_surface_blur_add_edit_and_reopen",
        ui_smart_filter_surface_blur_add_edit_and_reopen},
+      {"ui_smart_filter_plastic_wrap_add_edit_and_reopen",
+       ui_smart_filter_plastic_wrap_add_edit_and_reopen},
       {"ui_smart_filter_unsharp_motion_add_edit_and_reopen",
        ui_smart_filter_unsharp_motion_add_edit_and_reopen},
   };

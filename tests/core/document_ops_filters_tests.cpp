@@ -317,6 +317,7 @@ void filters_register_and_apply() {
   CHECK(registry.find("patchy.filters.color_halftone") != nullptr);
   CHECK(registry.find("patchy.filters.film_grain") != nullptr);
   CHECK(registry.find("patchy.filters.vignette") != nullptr);
+  CHECK(registry.find("patchy.filters.plastic_wrap") != nullptr);
 
   auto pixels = solid_rgb(1, 1, 1, 2, 3);
   registry.apply("patchy.filters.invert", pixels);
@@ -360,6 +361,7 @@ void filters_builtin_effects_apply_and_write_artifacts() {
       {"patchy.filters.color_halftone", "filter_color_halftone"},
       {"patchy.filters.film_grain", "filter_film_grain"},
       {"patchy.filters.vignette", "filter_vignette"},
+      {"patchy.filters.plastic_wrap", "filter_plastic_wrap"},
   };
 
   for (const auto& [identifier, artifact_name] : filters) {
@@ -663,6 +665,8 @@ void filter_catalog_defines_stable_named_contracts() {
       {"patchy.filters.surface_blur", Category::Blur, false,
        {{"radius", 5}, {"threshold", 15}}},
       {"patchy.filters.tilt_shift_blur", Category::Blur, false, {}},
+      {"patchy.filters.plastic_wrap", Category::Artistic, false,
+       {{"highlight_strength", 9}, {"detail", 7}, {"smoothness", 5}}},
   };
 
   const auto has_center_parameters = [](std::string_view identifier) {

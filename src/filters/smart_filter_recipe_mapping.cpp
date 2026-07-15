@@ -23,7 +23,8 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
          normalized->filter_id != "patchy.filters.dust_and_scratches" &&
          normalized->filter_id != "patchy.filters.surface_blur" &&
          normalized->filter_id != "patchy.filters.unsharp_mask" &&
-         normalized->filter_id != "patchy.filters.motion_blur")) {
+         normalized->filter_id != "patchy.filters.motion_blur" &&
+         normalized->filter_id != "patchy.filters.plastic_wrap")) {
       return std::nullopt;
     }
     const auto dust =
@@ -34,8 +35,39 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
     const auto high_pass = normalized->filter_id == "patchy.filters.high_pass";
     const auto unsharp = normalized->filter_id == "patchy.filters.unsharp_mask";
     const auto motion = normalized->filter_id == "patchy.filters.motion_blur";
+    const auto plastic =
+        normalized->filter_id == "patchy.filters.plastic_wrap";
     SmartFilterEntry entry;
-    if (unsharp) {
+    if (plastic) {
+      const auto highlight_value =
+          normalized->parameters.find("highlight_strength");
+      const auto detail_value = normalized->parameters.find("detail");
+      const auto smoothness_value =
+          normalized->parameters.find("smoothness");
+      if (highlight_value == normalized->parameters.end() ||
+          detail_value == normalized->parameters.end() ||
+          smoothness_value == normalized->parameters.end()) {
+        return std::nullopt;
+      }
+      const auto *highlight =
+          std::get_if<std::int64_t>(&highlight_value->second);
+      const auto *detail = std::get_if<std::int64_t>(&detail_value->second);
+      const auto *smoothness =
+          std::get_if<std::int64_t>(&smoothness_value->second);
+      if (highlight == nullptr || *highlight < 0 || *highlight > 20 ||
+          detail == nullptr || *detail < 1 || *detail > 15 ||
+          smoothness == nullptr || *smoothness < 1 || *smoothness > 15) {
+        return std::nullopt;
+      }
+      entry.kind = SmartFilterKind::PlasticWrap;
+      entry.native_name = "Plastic Wrap...";
+      entry.native_class_id = "PlsW";
+      entry.native_filter_id = 0x506c7357U;
+      entry.parameters = PlasticWrapSmartFilter{
+          static_cast<std::int32_t>(*highlight),
+          static_cast<std::int32_t>(*detail),
+          static_cast<std::int32_t>(*smoothness)};
+    } else if (unsharp) {
       const auto amount_value = normalized->parameters.find("amount");
       const auto radius_value = normalized->parameters.find("radius");
       const auto threshold_value = normalized->parameters.find("threshold");

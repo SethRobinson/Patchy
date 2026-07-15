@@ -1551,6 +1551,18 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                .arg(motion->angle_degrees)
                                .arg(motion->distance_pixels);
         }
+      } else if (entry.kind == SmartFilterKind::PlasticWrap) {
+        entry_name = QObject::tr("Plastic Wrap");
+        entry_tooltip = entry_name;
+        if (const auto *plastic =
+                std::get_if<PlasticWrapSmartFilter>(&entry.parameters);
+            plastic != nullptr) {
+          entry_tooltip +=
+              QObject::tr(" (Highlight %1, Detail %2, Smoothness %3)")
+                  .arg(plastic->highlight_strength)
+                  .arg(plastic->detail)
+                  .arg(plastic->smoothness);
+        }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
         entry_tooltip = entry_name;

@@ -121,6 +121,7 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Dust & Scratches"),
     QT_TRANSLATE_NOOP("QObject", "Surface Blur"),
     QT_TRANSLATE_NOOP("QObject", "Tilt-Shift Blur"),
+    QT_TRANSLATE_NOOP("QObject", "Plastic Wrap"),
     QT_TRANSLATE_NOOP("QObject", "Gaussian Blur"),
     QT_TRANSLATE_NOOP("QObject", "Motion Blur"),
     QT_TRANSLATE_NOOP("QObject", "Radial Blur"),
@@ -145,6 +146,7 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Pixelate"),
     QT_TRANSLATE_NOOP("QObject", "Stylize"),
     QT_TRANSLATE_NOOP("QObject", "Render"),
+    QT_TRANSLATE_NOOP("QObject", "Artistic"),
     QT_TRANSLATE_NOOP("QObject", "Amount"),
     QT_TRANSLATE_NOOP("QObject", "Brightness"),
     QT_TRANSLATE_NOOP("QObject", "Contrast"),
@@ -157,6 +159,7 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Distance"),
     QT_TRANSLATE_NOOP("QObject", "Samples"),
     QT_TRANSLATE_NOOP("QObject", "Strength"),
+    QT_TRANSLATE_NOOP("QObject", "Highlight Strength"),
     QT_TRANSLATE_NOOP("QObject", "Height"),
     QT_TRANSLATE_NOOP("QObject", "Edge Width"),
     QT_TRANSLATE_NOOP("QObject", "Smoothness"),
@@ -230,6 +233,8 @@ QString filter_category_display_name(FilterCategory category) {
       return translate_filter_catalog_text("Stylize");
     case FilterCategory::Render:
       return translate_filter_catalog_text("Render");
+    case FilterCategory::Artistic:
+      return translate_filter_catalog_text("Artistic");
   }
   return translate_filter_catalog_text("Other");
 }

@@ -48,7 +48,8 @@ enum class FilterCategory {
   Noise,
   Pixelate,
   Stylize,
-  Render
+  Render,
+  Artistic
 };
 
 enum class FilterParameterKind { Integer, Double, Boolean, Option };

@@ -749,6 +749,7 @@ const QStringList& expected_filter_gallery_ids() {
       QStringLiteral("patchy.filters.emboss"),
       QStringLiteral("patchy.filters.glowing_edges"),
       QStringLiteral("patchy.filters.clouds"),
+      QStringLiteral("patchy.filters.plastic_wrap"),
   };
   return ids;
 }
@@ -1828,6 +1829,7 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
         QStringLiteral("Pixel Mosaic"),    QStringLiteral("Color Halftone"),
         QStringLiteral("Edge Detect"),     QStringLiteral("Emboss"),
         QStringLiteral("Glowing Edges"),   QStringLiteral("Clouds"),
+        QStringLiteral("Plastic Wrap"),
     };
     CHECK(looks->count() == expected_ids.size());
     CHECK(looks->currentRow() == 0);
@@ -2238,6 +2240,7 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
         QStringLiteral("sharpen"),     QStringLiteral("distort"),
         QStringLiteral("noise"),       QStringLiteral("pixelate"),
         QStringLiteral("stylize"),     QStringLiteral("render"),
+        QStringLiteral("artistic"),
     };
     CHECK(category->count() == expected_tokens.size());
     for (int index = 0; index < category->count(); ++index) {
@@ -2247,7 +2250,7 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
     CHECK(visible_gallery_filter_ids(*looks) == expected_filter_gallery_ids());
     CHECK(looks->count() == expected_filter_gallery_ids().size() + 1);
 
-    const std::array<std::pair<QString, QStringList>, 8> categories{{
+    const std::array<std::pair<QString, QStringList>, 9> categories{{
         {QStringLiteral("photo_looks"), expected_filter_gallery_ids().mid(0, 7)},
         {QStringLiteral("blur"), expected_filter_gallery_ids().mid(7, 6)},
         {QStringLiteral("sharpen"), expected_filter_gallery_ids().mid(13, 3)},
@@ -2256,6 +2259,7 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
         {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(22, 2)},
         {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(24, 3)},
         {QStringLiteral("render"), expected_filter_gallery_ids().mid(27, 1)},
+        {QStringLiteral("artistic"), expected_filter_gallery_ids().mid(28, 1)},
     }};
     for (const auto& [token, ids] : categories) {
       category->setCurrentIndex(require_combo_data_index(*category, token));

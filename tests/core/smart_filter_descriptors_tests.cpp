@@ -141,6 +141,15 @@ const patchy::SurfaceBlurSmartFilter& require_surface_blur_filter(
   return *surface;
 }
 
+const patchy::PlasticWrapSmartFilter &
+require_plastic_wrap_filter(const patchy::SmartFilterEntry &entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::PlasticWrap);
+  const auto *plastic =
+      std::get_if<patchy::PlasticWrapSmartFilter>(&entry.parameters);
+  CHECK(plastic != nullptr);
+  return *plastic;
+}
+
 const patchy::UnsharpMaskSmartFilter &
 require_unsharp_mask_filter(const patchy::SmartFilterEntry &entry) {
   CHECK(entry.kind == patchy::SmartFilterKind::UnsharpMask);
@@ -1721,6 +1730,106 @@ void smart_filter_canonical_surface_blur_descriptor_round_trips_and_preserves_un
         patchy::SmartFilterKind::Unsupported);
 }
 
+void smart_filter_canonical_plastic_wrap_descriptor_authors_and_patches() {
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "41414141-5151-6161-8777-818181818181";
+  placement.transform = {3.0, 5.0, 35.0, 5.0, 35.0, 29.0, 3.0, 29.0};
+  placement.width = 32.0;
+  placement.height = 24.0;
+  placement.resolution = 72.0;
+  const std::string placed_uuid = "dfdfdfdf-fbfb-bdbd-8444-575757575757";
+
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::PlasticWrap;
+  entry.native_name = "Plastic Wrap...";
+  entry.native_class_id = "PlsW";
+  entry.native_filter_id = 0x506C7357U;
+  entry.parameters = patchy::PlasticWrapSmartFilter{13, 9, 7};
+  stack.entries.push_back(std::move(entry));
+
+  const auto descriptor_from_sold = [](std::span<const std::uint8_t> sold) {
+    patchy::psd::BigEndianReader reader(sold);
+    CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) ==
+          "soLD");
+    CHECK(reader.read_u32() == 4U);
+    CHECK(reader.read_u32() == 16U);
+    return patchy::psd::read_descriptor(reader);
+  };
+
+  const auto authored = patchy::psd::author_placed_layer_sold_payload(
+      placement, placed_uuid, &stack);
+  const auto authored_info =
+      patchy::psd::parse_placed_layer_block("SoLd", authored);
+  CHECK(authored_info.has_value() && authored_info->smart_filters.has_value());
+  CHECK(authored_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(authored_info->smart_filters->entries.size() == 1U);
+  const auto &parsed = authored_info->smart_filters->entries.front();
+  CHECK(parsed.native_name == "Plastic Wrap...");
+  CHECK(parsed.native_class_id == "PlsW");
+  CHECK(parsed.native_filter_id == 0x506C7357U);
+  CHECK(require_plastic_wrap_filter(parsed).highlight_strength == 13);
+  CHECK(require_plastic_wrap_filter(parsed).detail == 9);
+  CHECK(require_plastic_wrap_filter(parsed).smoothness == 7);
+
+  auto descriptor = descriptor_from_sold(authored);
+  const auto *root = patchy::psd::descriptor_object(descriptor, "filterFX");
+  CHECK(root != nullptr);
+  const auto *list = patchy::psd::descriptor_value(*root, "filterFXList");
+  CHECK(list != nullptr &&
+        list->type == patchy::psd::DescriptorValue::Type::List &&
+        list->list_value.size() == 1U &&
+        list->list_value.front().object_value != nullptr);
+  const auto *native_filter = patchy::psd::descriptor_object(
+      *list->list_value.front().object_value, "Fltr");
+  CHECK(native_filter != nullptr && native_filter->class_id == "PlsW" &&
+        !native_filter->class_id_long_form);
+  CHECK(native_filter->name == "Plastic Wrap");
+  CHECK(native_filter->key_order.size() == 3U);
+  CHECK(native_filter->key_order[0].key == "Hghl" &&
+        !native_filter->key_order[0].long_form);
+  CHECK(native_filter->key_order[1].key == "Dtl " &&
+        !native_filter->key_order[1].long_form);
+  CHECK(native_filter->key_order[2].key == "Smth" &&
+        !native_filter->key_order[2].long_form);
+  const auto *highlight =
+      patchy::psd::descriptor_value(*native_filter, "Hghl");
+  const auto *detail = patchy::psd::descriptor_value(*native_filter, "Dtl ");
+  const auto *smoothness =
+      patchy::psd::descriptor_value(*native_filter, "Smth");
+  CHECK(highlight != nullptr && detail != nullptr && smoothness != nullptr);
+  CHECK(highlight->type == patchy::psd::DescriptorValue::Type::Integer &&
+        highlight->integer_value == 13);
+  CHECK(detail->type == patchy::psd::DescriptorValue::Type::Integer &&
+        detail->integer_value == 9);
+  CHECK(smoothness->type == patchy::psd::DescriptorValue::Type::Integer &&
+        smoothness->integer_value == 7);
+
+  auto edited = stack;
+  auto &edited_plastic = std::get<patchy::PlasticWrapSmartFilter>(
+      edited.entries.front().parameters);
+  edited_plastic.highlight_strength = 20;
+  edited_plastic.detail = 15;
+  edited_plastic.smoothness = 1;
+  const patchy::psd::SmartFilterDescriptorEdit edit{
+      patchy::psd::SmartFilterDescriptorAction::Replace, &edited};
+  const auto regenerated = patchy::psd::regenerate_placed_layer_payload(
+      "SoLd", authored, placement, nullptr, placed_uuid, edit);
+  CHECK(regenerated.has_value());
+  const auto regenerated_info =
+      patchy::psd::parse_placed_layer_block("SoLd", *regenerated);
+  CHECK(regenerated_info.has_value() &&
+        regenerated_info->smart_filters.has_value());
+  const auto &reread =
+      regenerated_info->smart_filters->entries.front();
+  CHECK(require_plastic_wrap_filter(reread).highlight_strength == 20);
+  CHECK(require_plastic_wrap_filter(reread).detail == 15);
+  CHECK(require_plastic_wrap_filter(reread).smoothness == 1);
+}
+
 const patchy::UnknownPsdBlock& require_placed_layer_block(const patchy::Layer& layer) {
   const auto& blocks = layer.unknown_psd_blocks();
   const auto found = std::find_if(blocks.begin(), blocks.end(), [](const patchy::UnknownPsdBlock& block) {
@@ -2060,6 +2169,85 @@ void psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits() {
         original_sold_payload);
   // These settings live only in SoLd. The unfiltered FEid cache must remain
   // byte-exact across the descriptor edit.
+  CHECK(test_global_psd_blocks(edited_reread) == original_globals);
+}
+
+void psd_photoshop_plastic_wrap_smart_filter_fixture_round_trips_and_edits() {
+  const auto fixture_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-plastic-wrap.psd");
+  const auto original = patchy::psd::DocumentIo::read_file(fixture_path);
+  const patchy::Layer *filtered_layer = nullptr;
+  for (const auto &layer : original.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      CHECK(filtered_layer == nullptr);
+      filtered_layer = &layer;
+    }
+  }
+  CHECK(filtered_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*filtered_layer));
+  CHECK(patchy::smart_object_lock_reason(*filtered_layer).empty());
+  const auto *stack = filtered_layer->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto &entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::PlasticWrap);
+  CHECK(entry.native_name == "Plastic Wrap...");
+  CHECK(entry.native_class_id == "PlsW");
+  CHECK(entry.native_filter_id == 0x506C7357U);
+  CHECK(require_plastic_wrap_filter(entry).highlight_strength == 13);
+  CHECK(require_plastic_wrap_filter(entry).detail == 9);
+  CHECK(require_plastic_wrap_filter(entry).smoothness == 7);
+
+  const auto original_globals = test_global_psd_blocks(original);
+  const auto original_sold_payload =
+      require_placed_layer_block(*filtered_layer).payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(original));
+  CHECK(test_global_psd_blocks(clean) == original_globals);
+  const auto &clean_layer =
+      require_layer_named(clean, filtered_layer->name());
+  check_pixel_layer_storage_equal(*filtered_layer, clean_layer);
+  CHECK(require_placed_layer_block(clean_layer).payload ==
+        original_sold_payload);
+  const auto &clean_plastic = require_plastic_wrap_filter(
+      require_smart_filter_stack(clean, clean_layer.name()).entries.front());
+  CHECK(clean_plastic.highlight_strength == 13);
+  CHECK(clean_plastic.detail == 9);
+  CHECK(clean_plastic.smoothness == 7);
+
+  auto edited = original;
+  auto *edited_layer = edited.find_layer(filtered_layer->id());
+  CHECK(edited_layer != nullptr &&
+        edited_layer->smart_filter_stack() != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  auto &edited_plastic = std::get<patchy::PlasticWrapSmartFilter>(
+      edited_stack.entries.front().parameters);
+  edited_plastic.highlight_strength = 20;
+  edited_plastic.detail = 15;
+  edited_plastic.smoothness = 1;
+  edited_stack.entries.front().opacity = 0.42;
+  edited_stack.entries.front().blend_mode = patchy::BlendMode::SoftLight;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto &edited_reread_layer =
+      require_layer_named(edited_reread, filtered_layer->name());
+  const auto &edited_reread_entry =
+      require_smart_filter_stack(edited_reread, filtered_layer->name())
+          .entries.front();
+  const auto &edited_reread_plastic =
+      require_plastic_wrap_filter(edited_reread_entry);
+  CHECK(edited_reread_plastic.highlight_strength == 20);
+  CHECK(edited_reread_plastic.detail == 15);
+  CHECK(edited_reread_plastic.smoothness == 1);
+  CHECK(std::abs(edited_reread_entry.opacity - 0.42) < 1e-9);
+  CHECK(edited_reread_entry.blend_mode == patchy::BlendMode::SoftLight);
+  CHECK(require_placed_layer_block(edited_reread_layer).payload !=
+        original_sold_payload);
+  // Plastic Wrap settings live only in SoLd. Preserve Photoshop's unfiltered
+  // FEid cache exactly when only the descriptor changes.
   CHECK(test_global_psd_blocks(edited_reread) == original_globals);
 }
 
@@ -2978,6 +3166,8 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests() {
        smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preserves_unknowns},
       {"smart_filter_canonical_surface_blur_descriptor_round_trips_and_preserves_unknowns",
        smart_filter_canonical_surface_blur_descriptor_round_trips_and_preserves_unknowns},
+      {"smart_filter_canonical_plastic_wrap_descriptor_authors_and_patches",
+       smart_filter_canonical_plastic_wrap_descriptor_authors_and_patches},
       {"psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_median_smart_filter_fixture_round_trips_and_edits",
@@ -2986,6 +3176,8 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests() {
        psd_photoshop_dust_and_scratches_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits},
+      {"psd_photoshop_plastic_wrap_smart_filter_fixture_round_trips_and_edits",
+       psd_photoshop_plastic_wrap_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_"
        "edits",
        psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_edits},

@@ -541,6 +541,17 @@ void surface_blur(PixelBuffer& pixels) {
   });
 }
 
+void plastic_wrap(PixelBuffer& pixels) {
+  require_uint8(pixels);
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    return;
+  }
+  stage_rgba_and_render(pixels, [](const PixelBuffer& rgba) {
+    return render_plastic_wrap(
+        rgba, Rect::from_size(rgba.width(), rgba.height()), 9, 7, 5);
+  });
+}
+
 void tilt_shift_blur(PixelBuffer& pixels) {
   require_uint8(pixels);
   apply_tilt_shift_blur_filter(pixels, 15.0, 50.0, 50.0, 0, 10.0, 20.0);
@@ -999,6 +1010,7 @@ void register_builtin_filters(FilterRegistry& registry) {
       dust_and_scratches);
   add("patchy.filters.surface_blur", "Surface Blur", surface_blur);
   add("patchy.filters.tilt_shift_blur", "Tilt-Shift Blur", tilt_shift_blur);
+  add("patchy.filters.plastic_wrap", "Plastic Wrap", plastic_wrap);
 }
 
 }  // namespace patchy
