@@ -2294,6 +2294,161 @@ void ui_smudge_tool_drags_painted_pixels() {
   save_widget_artifact("ui_smudge_tool", window);
 }
 
+void ui_wet_edges_uses_one_continuous_stroke_boundary() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(40);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_flow(100);
+  canvas->set_brush_softness(0);
+  patchy::BrushDynamics wet_edges;
+  wet_edges.wet_edges = true;
+  canvas->set_brush_dynamics(wet_edges);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(160, 200)),
+       canvas->widget_position_for_document_point(QPoint(500, 200)));
+  QApplication::processEvents();
+
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  const auto alpha_at = [layer](QPoint point) {
+    if (!layer->bounds().contains(point.x(), point.y())) {
+      return std::uint8_t{0};
+    }
+    return layer->pixels().pixel(point.x() - layer->bounds().x,
+                                 point.y() - layer->bounds().y)[3];
+  };
+
+  std::uint8_t minimum_center = 255;
+  std::uint8_t maximum_center = 0;
+  for (int x = 210; x <= 450; x += 5) {
+    const auto alpha = alpha_at(QPoint(x, 200));
+    minimum_center = std::min(minimum_center, alpha);
+    maximum_center = std::max(maximum_center, alpha);
+  }
+  // The calibrated hard-Round wash keeps the Photoshop 2026 center alpha (about 58.6%).
+  CHECK(minimum_center >= 145);
+  CHECK(maximum_center <= 153);
+  CHECK(maximum_center - minimum_center <= 4);  // no periodic per-dab rings
+  const auto rim_alpha = alpha_at(QPoint(330, 181));
+  CHECK(rim_alpha >= maximum_center + 5);  // one subtle, darker outer stroke rim
+  CHECK(rim_alpha <= maximum_center + 25);
+
+  // Photoshop treats a released-and-restarted mark as a new translucent wash, so ordinary
+  // source-over composition darkens the intersection without introducing internal dab rings.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(330, 140)),
+       canvas->widget_position_for_document_point(QPoint(330, 260)));
+  QApplication::processEvents();
+  const auto overlap_alpha = alpha_at(QPoint(330, 200));
+  CHECK(overlap_alpha >= maximum_center + 50);
+  CHECK(overlap_alpha <= 225);
+  save_widget_artifact("ui_wet_edges_continuous_stroke", window);
+}
+
+void ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels() {
+  SettingsValueRestorer restore_wet(QStringLiteral("tools/mixerWet"));
+  SettingsValueRestorer restore_load(QStringLiteral("tools/mixerLoad"));
+  SettingsValueRestorer restore_mix(QStringLiteral("tools/mixerMix"));
+  SettingsValueRestorer restore_flow(QStringLiteral("tools/mixerFlow"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  // Put a known color on the active layer. Mixer samples this one pixel once at mouse-down.
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(0, 30, 240));
+  canvas->set_brush_size(36);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_flow(100);
+  canvas->set_brush_softness(0);
+  const auto sample_point = canvas->widget_position_for_document_point(QPoint(150, 200));
+  send_mouse(*canvas, QEvent::MouseButtonPress, sample_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, sample_point, Qt::LeftButton, Qt::NoButton);
+
+  canvas->set_brush_opacity(20);  // hidden Brush opacity must not weaken Mixer strokes
+  require_action_by_text(window, QStringLiteral("Mixer Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::MixerBrush);
+  auto* wet = window.findChild<QSpinBox*>(QStringLiteral("mixerWetSpin"));
+  auto* load = window.findChild<QSpinBox*>(QStringLiteral("mixerLoadSpin"));
+  auto* mix = window.findChild<QSpinBox*>(QStringLiteral("mixerMixSpin"));
+  auto* flow = window.findChild<QSpinBox*>(QStringLiteral("mixerFlowSpin"));
+  CHECK(wet != nullptr && wet->isVisible());
+  CHECK(load != nullptr && load->isVisible());
+  CHECK(mix != nullptr && mix->isVisible());
+  CHECK(flow != nullptr && flow->isVisible());
+  CHECK(!window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"))->isVisible());
+  CHECK(!window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"))->isVisible());
+  CHECK(!window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"))->isVisible());
+  QTest::mouseClick(wet, Qt::LeftButton, Qt::NoModifier,
+                    QPoint(wet->width() - 7, wet->height() / 2));
+  QApplication::processEvents();
+  QWidget* wet_popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("brushFlowPopup") && widget->isVisible()) {
+      wet_popup = widget;
+    }
+  }
+  CHECK(wet_popup != nullptr);
+  CHECK(wet_popup->findChild<QSlider*>(QStringLiteral("brushFlowPopupSlider")) != nullptr);
+  wet_popup->close();
+  wet->setValue(100);
+  load->setValue(100);
+  mix->setValue(75);
+  flow->setValue(100);
+  CHECK(canvas->mixer_wet() == 100);
+  CHECK(canvas->mixer_load() == 100);
+  CHECK(canvas->mixer_mix() == 75);
+  CHECK(canvas->mixer_flow() == 100);
+
+  canvas->set_primary_color(QColor(240, 20, 0));
+  canvas->set_brush_size(30);
+  drag(*canvas, sample_point,
+       canvas->widget_position_for_document_point(QPoint(500, 200)));
+  QApplication::processEvents();
+
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  const auto pixel_at = [layer](QPoint point) {
+    CHECK(layer->bounds().contains(point.x(), point.y()));
+    const auto* pixel = layer->pixels().pixel(point.x() - layer->bounds().x,
+                                               point.y() - layer->bounds().y);
+    return std::array<std::uint8_t, 4>{pixel[0], pixel[1], pixel[2], pixel[3]};
+  };
+  const auto near_color = pixel_at(QPoint(200, 200));
+  const auto far_color = pixel_at(QPoint(450, 200));
+  CHECK(near_color[2] > near_color[0]);
+  CHECK(far_color[0] > far_color[2]);
+  CHECK(far_color[3] < near_color[3]);
+  CHECK(near_color[3] > 150);
+
+  ensure_artifact_dir();
+  const auto path = std::filesystem::path("test-artifacts") / "ui_mixer_brush.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, path);
+  const auto reread = patchy::psd::DocumentIo::read_file(path);
+  const auto* reopened = reread.find_layer(*reread.active_layer_id());
+  CHECK(reopened != nullptr);
+  CHECK(reopened->bounds().x == layer->bounds().x);
+  CHECK(reopened->bounds().y == layer->bounds().y);
+  CHECK(reopened->bounds().width == layer->bounds().width);
+  CHECK(reopened->bounds().height == layer->bounds().height);
+  CHECK(reopened->pixels().data().size() == layer->pixels().data().size());
+  CHECK(std::equal(reopened->pixels().data().begin(), reopened->pixels().data().end(),
+                   layer->pixels().data().begin()));
+
+  auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+  CHECK(history != nullptr && history->item(0) != nullptr);
+  CHECK(history->item(0)->text().contains(QStringLiteral("Mixer Brush")));
+  save_widget_artifact("ui_mixer_brush", window);
+}
+
 void ui_copy_ignores_hidden_active_layer() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2753,6 +2908,10 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests() {
       {"ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd",
        ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd},
       {"ui_smudge_tool_drags_painted_pixels", ui_smudge_tool_drags_painted_pixels},
+      {"ui_wet_edges_uses_one_continuous_stroke_boundary",
+       ui_wet_edges_uses_one_continuous_stroke_boundary},
+      {"ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels",
+       ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels},
       {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},
       {"ui_eraser_on_background_reveals_transparency_and_size_cursor",

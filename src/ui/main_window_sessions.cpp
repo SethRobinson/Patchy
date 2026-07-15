@@ -310,6 +310,10 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_local_protect_tones(current_local_protect_tones_);
   session->canvas->set_sponge_mode(current_sponge_mode_);
   session->canvas->set_sponge_vibrance(current_sponge_vibrance_);
+  session->canvas->set_mixer_wet(current_mixer_wet_);
+  session->canvas->set_mixer_load(current_mixer_load_);
+  session->canvas->set_mixer_mix(current_mixer_mix_);
+  session->canvas->set_mixer_flow(current_mixer_flow_);
   apply_pattern_stamp_settings_to_canvas(session->canvas);
   apply_selection_modes_to_canvas(session->canvas);
   session->canvas->set_tool(current_tool_);
@@ -429,6 +433,10 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
   canvas_->set_local_protect_tones(current_local_protect_tones_);
   canvas_->set_sponge_mode(current_sponge_mode_);
   canvas_->set_sponge_vibrance(current_sponge_vibrance_);
+  canvas_->set_mixer_wet(current_mixer_wet_);
+  canvas_->set_mixer_load(current_mixer_load_);
+  canvas_->set_mixer_mix(current_mixer_mix_);
+  canvas_->set_mixer_flow(current_mixer_flow_);
   apply_pattern_stamp_settings_to_canvas(canvas_);
   if (canvas_changed) {
     apply_active_brush_settings_to_canvas();

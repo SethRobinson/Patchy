@@ -348,7 +348,8 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   wet_edges_check_ = new QCheckBox(tr("Wet Edges"), this);
   wet_edges_check_->setObjectName(QStringLiteral("dynamicsWetEdgesCheck"));
   wet_edges_check_->setToolTip(
-      tr("Darken the coverage edge without simulating fluid paint or canvas pickup"));
+      tr("Builds paint along stroke edges for a watercolor wash. It does not smear canvas "
+         "colors; use Smudge for that."));
   effects_layout->addWidget(wet_edges_check_);
   layout->addWidget(effects_group);
 

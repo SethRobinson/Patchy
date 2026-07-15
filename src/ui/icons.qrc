@@ -75,6 +75,7 @@
     <file alias="tool-pattern-stamp.svg">icons/tool-pattern-stamp.svg</file>
     <file alias="tool-healing.svg">icons/tool-healing.svg</file>
     <file alias="tool-smudge.svg">icons/tool-smudge.svg</file>
+    <file alias="tool-mixer-brush.svg">icons/tool-mixer-brush.svg</file>
     <file alias="tool-dodge.svg">icons/tool-dodge.svg</file>
     <file alias="tool-burn.svg">icons/tool-burn.svg</file>
     <file alias="tool-sponge.svg">icons/tool-sponge.svg</file>

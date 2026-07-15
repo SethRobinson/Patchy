@@ -74,7 +74,8 @@ enum class CanvasTool {
   Sponge,
   BlurBrush,
   SharpenBrush,
-  PatternStamp
+  PatternStamp,
+  MixerBrush
 };
 
 // Action that can be bound to a pen barrel/side button. These are the actions
@@ -335,7 +336,16 @@ public:
   // at the selected Flow rate.
   void set_brush_build_up(bool build_up) noexcept;
   [[nodiscard]] bool brush_build_up() const noexcept;
-  // Bitmap brush tip for the Brush and Eraser tools; null tip = procedural round/soft brush.
+  void set_mixer_wet(int wet) noexcept;
+  [[nodiscard]] int mixer_wet() const noexcept;
+  void set_mixer_load(int load) noexcept;
+  [[nodiscard]] int mixer_load() const noexcept;
+  void set_mixer_mix(int mix) noexcept;
+  [[nodiscard]] int mixer_mix() const noexcept;
+  void set_mixer_flow(int flow) noexcept;
+  [[nodiscard]] int mixer_flow() const noexcept;
+  // Bitmap brush tip for Brush, Mixer Brush, Pattern Stamp, and Eraser;
+  // null tip = procedural round/soft brush.
   // The id is an opaque library key kept here so the options bar and settings stay in sync.
   void set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id);
   [[nodiscard]] const QString& brush_tip_id() const noexcept;
@@ -877,7 +887,16 @@ private:
                                                                   EditColor primary,
                                                                   EditColor secondary,
                                                                   bool lock_transparent_pixels,
-                                                                  float coverage, bool erase);
+                                                                  float coverage, bool erase,
+                                                                  float flow);
+  [[nodiscard]] bool render_brush_stroke_pixel_from_snapshot_target(
+      std::int32_t x, std::int32_t y, std::uint8_t* pixel, std::uint16_t channels,
+      EditColor primary, EditColor secondary, bool lock_transparent_pixels, float target_alpha,
+      bool erase) const;
+  void observe_wet_edge_coverage(std::int32_t x, std::int32_t y, float coverage,
+                                 EditColor primary);
+  [[nodiscard]] QRect finalize_pending_wet_edges(QRect dirty);
+  void begin_mixer_brush_stroke(QPoint document_point);
   [[nodiscard]] EffectiveBrushInput effective_brush_input() const noexcept;
   [[nodiscard]] EditOptions current_brush_edit_options(const EffectiveBrushInput& brush) const;
   [[nodiscard]] QRect draw_brush_segment(QPointF from, QPointF to, bool erase,
@@ -1144,6 +1163,11 @@ private:
   int brush_softness_{75};
   std::optional<BrushCursorCache> brush_cursor_cache_;
   bool brush_build_up_{false};
+  int mixer_wet_{50};
+  int mixer_load_{50};
+  int mixer_mix_{50};
+  int mixer_flow_{100};
+  patchy::MixerBrushState mixer_brush_state_{};
   std::shared_ptr<const patchy::BrushTip> brush_tip_;
   QString brush_tip_id_;
   patchy::BrushTipMipChain brush_tip_mips_;
@@ -1326,6 +1350,9 @@ private:
   std::unordered_set<std::uint64_t> brush_stroke_pixels_;
   std::unordered_map<std::uint64_t, float> brush_stroke_alpha_caps_;  // mask brush + clone max-cap
   std::unordered_map<std::uint64_t, float> brush_stroke_accumulated_alpha_;
+  std::unordered_map<std::uint64_t, float> brush_stroke_union_coverage_;
+  std::unordered_map<std::uint64_t, EditColor> brush_stroke_wet_edge_primary_;
+  QRect brush_stroke_wet_edge_pending_rect_{};
   std::optional<QPointF> brush_stroke_last_stamp_position_;
   double brush_stroke_distance_since_last_stamp_{0.0};
   patchy::SmudgeState smudge_state_;

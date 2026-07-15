@@ -547,6 +547,7 @@ void ui_brush_tip_picker_keeps_options_bar_height() {
   int common_height = 0;
   for (const char* tool : {"Move", "Marquee", "Lasso", "Magic Wand", "Clone", "Pattern Stamp",
                            "Healing Brush", "Smudge",
+                           "Mixer Brush",
                            "Dodge", "Burn", "Sponge", "Fill", "Gradient", "Line", "Rect",
                            "Zoom", "Brush", "Eraser"}) {
     require_action_by_text(window, QString::fromLatin1(tool))->trigger();
@@ -853,7 +854,11 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   popup->findChild<QSpinBox*>(QStringLiteral("dynamicsColorBrightnessJitterSpin"))->setValue(10);
   popup->findChild<QSpinBox*>(QStringLiteral("dynamicsColorPuritySpin"))->setValue(-20);
   popup->findChild<QCheckBox*>(QStringLiteral("dynamicsColorPerTipCheck"))->setChecked(false);
-  popup->findChild<QCheckBox*>(QStringLiteral("dynamicsWetEdgesCheck"))->setChecked(true);
+  auto* wet_edges = popup->findChild<QCheckBox*>(QStringLiteral("dynamicsWetEdgesCheck"));
+  CHECK(wet_edges != nullptr);
+  CHECK(wet_edges->toolTip().contains(QStringLiteral("does not smear"), Qt::CaseInsensitive));
+  CHECK(wet_edges->toolTip().contains(QStringLiteral("Smudge")));
+  wet_edges->setChecked(true);
   QApplication::processEvents();
   save_widget_artifact("ui_brush_dynamics_popup", *popup);
   auto* scroll_area = popup->findChild<QScrollArea*>();
@@ -2425,6 +2430,18 @@ void ui_palette_mode_brush_stroke_writes_only_palette_colors() {
   if (layer->pixels().format().channels >= 4) {
     CHECK(center[3] == 255);
   }
+
+  // Mixer Brush uses the same canvas-side writer, including its hard palette snap.
+  require_action_by_text(window, QStringLiteral("Mixer Brush"))->trigger();
+  canvas->set_mixer_wet(100);
+  canvas->set_mixer_load(100);
+  canvas->set_mixer_mix(75);
+  canvas->set_mixer_flow(100);
+  canvas->set_brush_size(18);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(120, 100)),
+       canvas->widget_position_for_document_point(QPoint(230, 100)));
+  QApplication::processEvents();
+  CHECK(patchy::pixels_are_palette_clean(document.find_layer(*layer_id)->pixels(), lut));
 
   // A soft eraser pass over the stroke keeps the layer palette-clean too.
   require_action_by_text(window, QStringLiteral("Eraser"))->trigger();

@@ -729,7 +729,7 @@ void tool_brush_tip_inactive_dynamics_change_nothing() {
   }
 }
 
-void tool_brush_texture_dual_and_wet_edges_render_deterministically() {
+void tool_brush_texture_and_dual_brush_render_deterministically() {
   const auto tip = make_solid_scaled_tip(21);
   const auto plain = render_effect_dab(tip, {});
 
@@ -761,16 +761,78 @@ void tool_brush_texture_dual_and_wet_edges_render_deterministically() {
   };
   CHECK(painted_alpha_count(dual_pixels) < painted_alpha_count(plain));
 
-  patchy::BrushDynamics wet;
-  wet.wet_edges = true;
-  const auto wet_pixels = render_effect_dab(tip, wet);
-  CHECK(wet_pixels != plain);
-  const auto center_alpha = wet_pixels[(24U * 64U + 24U) * 4U + 3U];
-  std::uint8_t maximum_alpha = 0;
-  for (std::size_t offset = 3; offset < wet_pixels.size(); offset += 4U) {
-    maximum_alpha = std::max(maximum_alpha, wet_pixels[offset]);
-  }
-  CHECK(center_alpha < maximum_alpha);  // coverage is redistributed toward the stamp edge
+}
+
+void mixer_brush_color_uses_one_stroke_start_sample_and_distance_decay() {
+  patchy::MixerBrushState state;
+  const patchy::EditColor sampled_blue{0, 30, 240, 255};
+  const patchy::EditColor loaded_red{240, 20, 0, 255};
+  patchy::begin_mixer_brush_stroke(state, sampled_blue);
+
+  const auto first = patchy::mixer_brush_dab_color(state, 10.0, 10.0, 20, loaded_red,
+                                                    100, 100, 100);
+  CHECK(first.r == sampled_blue.r);
+  CHECK(first.g == sampled_blue.g);
+  CHECK(first.b == sampled_blue.b);
+  CHECK(first.a == 255);
+
+  const auto later = patchy::mixer_brush_dab_color(state, 130.0, 10.0, 20, loaded_red,
+                                                    100, 100, 100);
+  CHECK(later.r > first.r);
+  CHECK(later.b < first.b);
+  CHECK(later.a < first.a);
+  CHECK(state.initial_sample.r == sampled_blue.r);
+  CHECK(state.initial_sample.g == sampled_blue.g);
+  CHECK(state.initial_sample.b == sampled_blue.b);
+
+  patchy::MixerBrushState dry_state;
+  patchy::begin_mixer_brush_stroke(dry_state, sampled_blue);
+  const auto dry = patchy::mixer_brush_dab_color(dry_state, 10.0, 10.0, 20, loaded_red,
+                                                 0, 100, 100);
+  CHECK(dry.r == loaded_red.r);
+  CHECK(dry.g == loaded_red.g);
+  CHECK(dry.b == loaded_red.b);
+  CHECK(dry.a == loaded_red.a);
+
+  patchy::MixerBrushState low_load_state;
+  patchy::begin_mixer_brush_stroke(low_load_state, sampled_blue);
+  (void)patchy::mixer_brush_dab_color(low_load_state, 0.0, 0.0, 20, loaded_red,
+                                      0, 1, 0);
+  const auto low_load = patchy::mixer_brush_dab_color(low_load_state, 40.0, 0.0, 20,
+                                                       loaded_red, 0, 1, 0);
+  patchy::MixerBrushState full_load_state;
+  patchy::begin_mixer_brush_stroke(full_load_state, sampled_blue);
+  (void)patchy::mixer_brush_dab_color(full_load_state, 0.0, 0.0, 20, loaded_red,
+                                      0, 100, 0);
+  const auto full_load = patchy::mixer_brush_dab_color(full_load_state, 40.0, 0.0, 20,
+                                                        loaded_red, 0, 100, 0);
+  CHECK(low_load.a < full_load.a);
+  CHECK(full_load.a == loaded_red.a);
+
+  // The same per-dab source rides the bitmap-tip path used by imported ABR tips.
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+  const auto tip = make_solid_scaled_tip(9);
+  auto options = tool_options(loaded_red.r, loaded_red.g, loaded_red.b);
+  options.primary = loaded_red;
+  options.brush_size = 9;
+  options.brush_tip = &tip;
+  options.brush_tip_spacing = 0.5;
+  patchy::MixerBrushState tip_state;
+  patchy::begin_mixer_brush_stroke(tip_state, sampled_blue);
+  options.dab_primary_provider = [&tip_state](double x, double y,
+                                              const patchy::EditColor& loaded_color) {
+    return patchy::mixer_brush_dab_color(tip_state, x, y, 9, loaded_color, 100, 100, 75);
+  };
+  patchy::BrushTipStrokeState stroke_state;
+  CHECK(!patchy::paint_brush_segment(document, layer_id, 10.0, 24.0, 42.0, 24.0,
+                                      options, false, stroke_state).empty());
+  CHECK(tip_state.distance > 20.0);
+  const auto* start_pixel = document.find_layer(layer_id)->pixels().pixel(10, 24);
+  const auto* end_pixel = document.find_layer(layer_id)->pixels().pixel(42, 24);
+  CHECK(start_pixel[2] > start_pixel[0]);
+  CHECK(end_pixel[0] > start_pixel[0]);
+  CHECK(end_pixel[2] < start_pixel[2]);
 }
 
 void tool_brush_color_dynamics_varies_selected_colors_only() {
@@ -1599,8 +1661,10 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
       {"tool_brush_tip_size_control_pressure_scales_dabs", tool_brush_tip_size_control_pressure_scales_dabs},
       {"tool_brush_tip_opacity_control_respects_minimum", tool_brush_tip_opacity_control_respects_minimum},
       {"tool_brush_tip_inactive_dynamics_change_nothing", tool_brush_tip_inactive_dynamics_change_nothing},
-      {"tool_brush_texture_dual_and_wet_edges_render_deterministically",
-       tool_brush_texture_dual_and_wet_edges_render_deterministically},
+      {"tool_brush_texture_and_dual_brush_render_deterministically",
+       tool_brush_texture_and_dual_brush_render_deterministically},
+      {"mixer_brush_color_uses_one_stroke_start_sample_and_distance_decay",
+       mixer_brush_color_uses_one_stroke_start_sample_and_distance_decay},
       {"tool_brush_color_dynamics_varies_selected_colors_only",
        tool_brush_color_dynamics_varies_selected_colors_only},
       {"tool_brush_effect_pixels_round_trip_exactly_through_psd",

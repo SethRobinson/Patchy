@@ -2672,6 +2672,10 @@
         <translation>ブラシ</translation>
     </message>
     <message>
+        <source>Mixer Brush</source>
+        <translation>ミキサーブラシ</translation>
+    </message>
+    <message>
         <location line="+2"/>
         <source>Clone Stamp</source>
         <translation>クローンスタンプ</translation>
@@ -5504,8 +5508,8 @@ Mixed selection</source>
         <translation>ウェットエッジ</translation>
     </message>
     <message>
-        <source>Darken the coverage edge without simulating fluid paint or canvas pickup</source>
-        <translation>流体ペイントやキャンバスからの色の取り込みをシミュレートせず、描画範囲の縁を濃くします</translation>
+        <source>Builds paint along stroke edges for a watercolor wash. It does not smear canvas colors; use Smudge for that.</source>
+        <translation>水彩のにじみのようにストロークの縁に絵の具をためます。キャンバスの色はこすり混ぜません。その場合は指先ツールを使用してください。</translation>
     </message>
     <message>
         <location line="+9"/>
@@ -5774,6 +5778,10 @@ Mixed selection</source>
         <translation>グレースケールチャンネルの編集中は指先ツールを使用できません</translation>
     </message>
     <message>
+        <source>Mixer Brush is unavailable while editing a grayscale channel</source>
+        <translation>グレースケールチャンネルの編集中はミキサーブラシを使用できません</translation>
+    </message>
+    <message>
         <location line="+4887"/>
         <source>Select a saved channel to edit</source>
         <translation>編集する保存済みチャンネルを選択してください</translation>
@@ -5909,6 +5917,10 @@ Mixed selection</source>
         <location line="+2"/>
         <source>Brush stroke</source>
         <translation>ブラシストローク</translation>
+    </message>
+    <message>
+        <source>Mixer Brush stroke</source>
+        <translation>ミキサーブラシストローク</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -8365,6 +8377,30 @@ Mixed selection</source>
     <message>
         <source>Open Flow slider</source>
         <translation>フローのスライダーを開く</translation>
+    </message>
+    <message>
+        <source>Wet:</source>
+        <translation>ウェット:</translation>
+    </message>
+    <message>
+        <source>Load:</source>
+        <translation>絵の具量:</translation>
+    </message>
+    <message>
+        <source>Mix:</source>
+        <translation>ミックス:</translation>
+    </message>
+    <message>
+        <source>Open Wet slider</source>
+        <translation>ウェットのスライダーを開く</translation>
+    </message>
+    <message>
+        <source>Open Load slider</source>
+        <translation>絵の具量のスライダーを開く</translation>
+    </message>
+    <message>
+        <source>Open Mix slider</source>
+        <translation>ミックスのスライダーを開く</translation>
     </message>
     <message>
         <source>Airbrush</source>
@@ -12140,6 +12176,8 @@ Clipped to the layer below</source>
         <translation>Aseprite ファイルには Photoshop の塗りの不透明度を保存できません。塗りの不透明度を破棄して保存を続けますか？</translation>
     </message>
     <message><source>Detail Tools</source><translation>ディテールツール</translation></message>
+    <message><source>Mixer Brush</source><translation>ミキサーブラシ</translation></message>
+    <message><source>Wet: %1% | Load: %2% | Mix: %3% | Flow: %4%</source><translation>ウェット: %1% | 絵の具量: %2% | ミックス: %3% | フロー: %4%</translation></message>
     <message><source>Toning Tools</source><translation>色調補正ツール</translation></message>
     <message><source>Dodge</source><translation>覆い焼き</translation></message>
     <message><source>Burn</source><translation>焼き込み</translation></message>

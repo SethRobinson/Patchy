@@ -12699,7 +12699,7 @@ void MainWindow::load_tool_settings() {
     return;
   }
   auto settings = app_settings();
-  // Brush tip, opacity, flow, Airbrush, and softness are deliberately not
+  // Standard Brush tip, opacity, flow, Airbrush, and softness are deliberately not
   // restored: every launch starts from the Round startup preset (round tip,
   // 100% opacity, 100% flow, Airbrush off, 0% soft) so a leftover bitmap tip or
   // a barely-visible paint rate cannot leave the brush in a confusing state.
@@ -12716,6 +12716,18 @@ void MainWindow::load_tool_settings() {
       settings.value(QStringLiteral("tools/eraserSize"), stored_paint_brush_settings_.size).toInt();
   set_active_brush_tip(builtin_round_brush_tip_id(), false);
   apply_active_brush_settings_to_canvas();
+  current_mixer_wet_ =
+      std::clamp(settings.value(QStringLiteral("tools/mixerWet"), current_mixer_wet_).toInt(), 0, 100);
+  current_mixer_load_ =
+      std::clamp(settings.value(QStringLiteral("tools/mixerLoad"), current_mixer_load_).toInt(), 1, 100);
+  current_mixer_mix_ =
+      std::clamp(settings.value(QStringLiteral("tools/mixerMix"), current_mixer_mix_).toInt(), 0, 100);
+  current_mixer_flow_ =
+      std::clamp(settings.value(QStringLiteral("tools/mixerFlow"), current_mixer_flow_).toInt(), 1, 100);
+  canvas_->set_mixer_wet(current_mixer_wet_);
+  canvas_->set_mixer_load(current_mixer_load_);
+  canvas_->set_mixer_mix(current_mixer_mix_);
+  canvas_->set_mixer_flow(current_mixer_flow_);
   canvas_->set_wand_tolerance(settings.value(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance()).toInt());
   canvas_->set_wand_contiguous(settings.value(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous()).toBool());
   canvas_->set_wand_sample_all_layers(
@@ -12851,12 +12863,16 @@ void MainWindow::save_tool_settings() const {
     tool_settings_save_timer_->stop();
   }
   auto settings = app_settings();
-  // Brush tip/opacity/flow/Airbrush/softness (and the paint brush size) reset to
+  // Standard Brush tip/opacity/flow/Airbrush/softness (and the paint brush size) reset to
   // the Round startup preset on every launch (see load_tool_settings()), so the
   // eraser size is the only brush value worth persisting.
   const auto eraser_size =
       eraser_brush_settings_active_ ? canvas_->brush_size() : stored_eraser_brush_settings_.size;
   settings.setValue(QStringLiteral("tools/eraserSize"), eraser_size);
+  settings.setValue(QStringLiteral("tools/mixerWet"), current_mixer_wet_);
+  settings.setValue(QStringLiteral("tools/mixerLoad"), current_mixer_load_);
+  settings.setValue(QStringLiteral("tools/mixerMix"), current_mixer_mix_);
+  settings.setValue(QStringLiteral("tools/mixerFlow"), current_mixer_flow_);
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
   settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
@@ -14586,6 +14602,16 @@ void MainWindow::sync_brush_controls_from_canvas() {
     QSignalBlocker blocker(brush_airbrush);
     brush_airbrush->setChecked(canvas_->brush_build_up());
   }
+  const auto sync_mixer_spin = [this](const char* object_name, int value) {
+    if (auto* spin = findChild<QSpinBox*>(QString::fromLatin1(object_name)); spin != nullptr) {
+      QSignalBlocker blocker(spin);
+      spin->setValue(value);
+    }
+  };
+  sync_mixer_spin("mixerWetSpin", current_mixer_wet_);
+  sync_mixer_spin("mixerLoadSpin", current_mixer_load_);
+  sync_mixer_spin("mixerMixSpin", current_mixer_mix_);
+  sync_mixer_spin("mixerFlowSpin", current_mixer_flow_);
   if (auto* brush_softness = findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin")); brush_softness != nullptr) {
     QSignalBlocker blocker(brush_softness);
     brush_softness->setValue(canvas_->brush_softness());

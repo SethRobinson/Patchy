@@ -879,6 +879,53 @@ void visit_pixel_line(std::int32_t x0, std::int32_t y0, std::int32_t x1, std::in
 
 }  // namespace
 
+void begin_mixer_brush_stroke(MixerBrushState& state, EditColor initial_sample) noexcept {
+  state = {};
+  state.initialized = true;
+  state.initial_sample = initial_sample;
+}
+
+EditColor mixer_brush_dab_color(MixerBrushState& state, double x, double y, int brush_size,
+                                EditColor loaded_color, int wet, int load, int mix) noexcept {
+  if (!state.initialized) {
+    begin_mixer_brush_stroke(state, loaded_color);
+  }
+  if (state.has_last_dab) {
+    state.distance += std::hypot(x - state.last_dab_x, y - state.last_dab_y);
+  }
+  state.last_dab_x = x;
+  state.last_dab_y = y;
+  state.has_last_dab = true;
+
+  const auto wet_fraction = static_cast<double>(std::clamp(wet, 0, 100)) / 100.0;
+  const auto load_fraction = static_cast<double>(std::clamp(load, 1, 100)) / 100.0;
+  const auto mix_fraction = static_cast<double>(std::clamp(mix, 0, 100)) / 100.0;
+  const auto diameter = static_cast<double>(std::max(1, brush_size));
+
+  // One mouse-down sample fades along the stroke. It is deliberately never refreshed from the
+  // canvas: this is a direct weighted RGBA interpolation, not dynamic paint pickup, a bristle
+  // reservoir, a fill-channel simulation, or a 3D RGB curve (see docs/brushes.md).
+  const auto pickup_length = diameter * (0.5 + wet_fraction * 6.0);
+  const auto pickup_decay = wet_fraction <= 0.0 ? 0.0 : std::exp(-state.distance / pickup_length);
+  const auto load_length = diameter * (0.25 + load_fraction * 6.0);
+  const auto load_decay = load_fraction >= 0.995
+                              ? 1.0
+                              : std::exp(-state.distance / load_length);
+  const auto sample_alpha = static_cast<double>(state.initial_sample.a) / 255.0;
+  const auto sample_weight = wet_fraction * mix_fraction * sample_alpha;
+  const auto canvas_influence = std::clamp(sample_weight * pickup_decay, 0.0, 1.0);
+  const auto alpha_factor = std::clamp(canvas_influence + (1.0 - sample_weight) * load_decay,
+                                       0.0, 1.0);
+  const auto mix_channel = [canvas_influence](std::uint8_t loaded, std::uint8_t sampled) {
+    return clamp_byte(static_cast<float>(static_cast<double>(loaded) * (1.0 - canvas_influence) +
+                                         static_cast<double>(sampled) * canvas_influence));
+  };
+  return {mix_channel(loaded_color.r, state.initial_sample.r),
+          mix_channel(loaded_color.g, state.initial_sample.g),
+          mix_channel(loaded_color.b, state.initial_sample.b),
+          clamp_byte(static_cast<float>(static_cast<double>(loaded_color.a) * alpha_factor))};
+}
+
 [[nodiscard]] PixelFormat canvas_resized_format_for_layer(const Layer& layer, const PixelBuffer& source,
                                                           EditColor extension_color = EditColor{255, 255, 255,
                                                                                                  255}) noexcept {
@@ -1106,6 +1153,9 @@ Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, con
   if (!erase && variation != nullptr && options.brush_dynamics.color_dynamics_enabled) {
     dab_options.primary = color_dynamics_color(options, *variation);
   }
+  if (!erase && options.dab_primary_provider) {
+    dab_options.primary = options.dab_primary_provider(x, y, dab_options.primary);
+  }
   Rect dirty;
 
   for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
@@ -1121,19 +1171,6 @@ Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, con
       auto coverage = tip_dab_coverage(tip, transform, offset_x, offset_y);
       if (coverage <= 0.0F) {
         continue;
-      }
-      if (options.brush_dynamics.wet_edges) {
-        // Coverage-only edge redistribution: no fluid state, drying, pickup, pigment, or
-        // canvas interaction. A local gradient catches hard tips; the mid-coverage band keeps
-        // soft and sampled tips legible.
-        const auto gradient = std::max(
-            {std::abs(coverage - tip_dab_coverage(tip, transform, offset_x - 1.0, offset_y)),
-             std::abs(coverage - tip_dab_coverage(tip, transform, offset_x + 1.0, offset_y)),
-             std::abs(coverage - tip_dab_coverage(tip, transform, offset_x, offset_y - 1.0)),
-             std::abs(coverage - tip_dab_coverage(tip, transform, offset_x, offset_y + 1.0))});
-        const auto band = std::max(0.0F, 1.0F - std::abs(coverage - 0.55F) / 0.55F);
-        const auto edge = std::clamp(std::max(gradient, band), 0.0F, 1.0F);
-        coverage *= 0.25F + 0.75F * edge;
       }
       if (options.brush_dynamics.dual_brush_enabled) {
         coverage *= dual_brush_coverage(options.brush_dynamics, transform, offset_x, offset_y,
@@ -1157,10 +1194,13 @@ Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, con
       if (local_x < 0 || local_x >= pixels.width()) {
         continue;
       }
+      const auto effective_coverage = coverage * selected_coverage * opacity_multiplier;
+      if (options.stroke_coverage_observer) {
+        options.stroke_coverage_observer(px_doc, py, effective_coverage, dab_options.primary);
+      }
       if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
         continue;
       }
-      const auto effective_coverage = coverage * selected_coverage * opacity_multiplier;
 
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
       const auto changed =
@@ -1200,6 +1240,10 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
+  auto dab_options = options;
+  if (!erase && options.dab_primary_provider) {
+    dab_options.primary = options.dab_primary_provider(x, y, dab_options.primary);
+  }
   Rect dirty;
 
   for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
@@ -1218,13 +1262,16 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
       if (local_x < 0 || local_x >= pixels.width()) {
         continue;
       }
-      if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
-        continue;
-      }
       const auto effective_coverage =
           brush_shape_coverage(static_cast<double>(px_doc) - x, static_cast<double>(py) - y, radius, options) *
           selected_coverage;
       if (effective_coverage <= 0.0F) {
+        continue;
+      }
+      if (options.stroke_coverage_observer) {
+        options.stroke_coverage_observer(px_doc, py, effective_coverage, dab_options.primary);
+      }
+      if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
         continue;
       }
 
@@ -1232,8 +1279,8 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
       const auto changed =
           options.stroke_pixel_writer
               ? options.stroke_pixel_writer(px_doc, py, px, channels, effective_coverage,
-                                            options.primary)
-              : write_pixel(pixels, px, options, erase, effective_coverage);
+                                             dab_options.primary)
+              : write_pixel(pixels, px, dab_options, erase, effective_coverage);
       if (changed) {
         dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
       }

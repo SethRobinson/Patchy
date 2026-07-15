@@ -43,6 +43,13 @@ struct EditOptions {
   std::function<bool(std::int32_t, std::int32_t)> selection_mask;
   std::function<float(std::int32_t, std::int32_t)> selection_coverage;
   std::function<bool(std::int32_t, std::int32_t)> stroke_pixel_gate;
+  // Optional per-dab color source. Called exactly once for each spatial dab, before any of that
+  // dab's pixels are written. The returned alpha participates in the ordinary opacity/Flow cap.
+  std::function<EditColor(double, double, const EditColor&)> dab_primary_provider;
+  // Observes the final per-pixel coverage before the stroke writer's alpha gate. The canvas uses
+  // this to build one union mask for Wet Edges, so interior stamp boundaries never become edges.
+  std::function<void(std::int32_t, std::int32_t, float, const EditColor&)>
+      stroke_coverage_observer;
   // The last argument is the dab's effective primary color. It normally equals `primary`, but
   // Color Dynamics supplies a per-dab value while retaining the stroke compositor.
   std::function<bool(std::int32_t, std::int32_t, std::uint8_t*, std::uint16_t, float,
@@ -98,6 +105,23 @@ struct SmudgeState {
   bool initialized{false};
   std::vector<std::uint8_t> sample_rgba;
 };
+
+// Mixer Brush design-around state: one RGBA canvas sample is captured at mouse-down and never
+// refreshed during the stroke. There is no per-bristle reservoir/pickup texture, fill channel,
+// drying model, or evolving paint store. See docs/brushes.md.
+struct MixerBrushState {
+  bool initialized{false};
+  EditColor initial_sample{};
+  bool has_last_dab{false};
+  double last_dab_x{0.0};
+  double last_dab_y{0.0};
+  double distance{0.0};
+};
+
+void begin_mixer_brush_stroke(MixerBrushState& state, EditColor initial_sample) noexcept;
+[[nodiscard]] EditColor mixer_brush_dab_color(MixerBrushState& state, double x, double y,
+                                              int brush_size, EditColor loaded_color, int wet,
+                                              int load, int mix) noexcept;
 
 enum class CanvasAnchor {
   TopLeft,

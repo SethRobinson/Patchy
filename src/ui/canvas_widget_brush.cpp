@@ -324,6 +324,38 @@ void CanvasWidget::set_brush_build_up(bool build_up) noexcept {
   }
 }
 
+void CanvasWidget::set_mixer_wet(int wet) noexcept {
+  mixer_wet_ = std::clamp(wet, 0, 100);
+}
+
+int CanvasWidget::mixer_wet() const noexcept {
+  return mixer_wet_;
+}
+
+void CanvasWidget::set_mixer_load(int load) noexcept {
+  mixer_load_ = std::clamp(load, 1, 100);
+}
+
+int CanvasWidget::mixer_load() const noexcept {
+  return mixer_load_;
+}
+
+void CanvasWidget::set_mixer_mix(int mix) noexcept {
+  mixer_mix_ = std::clamp(mix, 0, 100);
+}
+
+int CanvasWidget::mixer_mix() const noexcept {
+  return mixer_mix_;
+}
+
+void CanvasWidget::set_mixer_flow(int flow) noexcept {
+  mixer_flow_ = std::clamp(flow, 1, 100);
+}
+
+int CanvasWidget::mixer_flow() const noexcept {
+  return mixer_flow_;
+}
+
 void CanvasWidget::set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id) {
   if (tip != nullptr && tip->empty()) {
     tip = nullptr;
@@ -607,7 +639,8 @@ QSize CanvasWidget::brush_outline_display_size() const {
 }
 
 bool CanvasWidget::brush_outline_uses_overlay() const {
-  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::PatternStamp &&
+  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::MixerBrush &&
+      tool_ != CanvasTool::PatternStamp &&
       tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
     return false;
   }
@@ -627,7 +660,8 @@ QRect CanvasWidget::brush_hover_outline_rect() const {
 }
 
 void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
-  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::PatternStamp &&
+  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::MixerBrush &&
+      tool_ != CanvasTool::PatternStamp &&
       tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
     brush_hover_position_valid_ = false;
     return;
@@ -790,7 +824,8 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
   const auto radius = std::max(1.5, static_cast<double>(brush_size_) * zoom_ / 2.0);
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
-  if ((tool_ == CanvasTool::Brush || tool_ == CanvasTool::PatternStamp ||
+  if ((tool_ == CanvasTool::Brush || tool_ == CanvasTool::MixerBrush ||
+       tool_ == CanvasTool::PatternStamp ||
        tool_ == CanvasTool::Eraser) &&
       brush_tip_ != nullptr) {
     // A bitmap tip previews as its actual red-tinted footprint instead of a disc.
@@ -865,9 +900,13 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_pixels_.clear();
   brush_stroke_alpha_caps_.clear();
   brush_stroke_accumulated_alpha_.clear();
+  brush_stroke_union_coverage_.clear();
+  brush_stroke_wet_edge_primary_.clear();
+  brush_stroke_wet_edge_pending_rect_ = {};
   brush_stroke_layer_snapshot_.reset();
   brush_stroke_last_stamp_position_.reset();
   brush_stroke_distance_since_last_stamp_ = 0.0;
+  mixer_brush_state_ = {};
   brush_tip_stroke_state_ = {};
   stroke_dynamics_seed_ = brush_dynamics_test_seed_.has_value()
                               ? *brush_dynamics_test_seed_
@@ -1034,6 +1073,10 @@ bool CanvasWidget::brush_uses_dab_stroke(const EffectiveBrushInput& brush, bool 
   if (brush_tip_ != nullptr) {
     return false;
   }
+  if (!erase && tool_ == CanvasTool::MixerBrush) {
+    // The mixer evolves once per spatial dab. The procedural capsule path has no dab cadence.
+    return true;
+  }
   if (!erase && tool_ == CanvasTool::Brush && brush_dynamics_.active()) {
     return false;
   }
@@ -1051,8 +1094,9 @@ QRect CanvasWidget::draw_brush_dab(QPointF point, bool erase, EditOptions& optio
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
-  return to_qrect(patchy::paint_brush_dab(*document_, *document_->active_layer_id(), point.x(), point.y(),
-                                          options, erase));
+  const auto dirty = to_qrect(patchy::paint_brush_dab(
+      *document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
+  return finalize_pending_wet_edges(dirty);
 }
 
 QRect CanvasWidget::draw_brush_segment_with_dabs(QPointF from, QPointF to, bool erase,
@@ -1260,11 +1304,13 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot(std::int32_t x, std::i
                                                           EditColor primary,
                                                           EditColor secondary,
                                                           bool lock_transparent_pixels,
-                                                          float coverage, bool erase,
-                                                          const PaletteSnapContext* palette_snap) {
+                                                           float coverage, bool erase,
+                                                           const PaletteSnapContext* palette_snap) {
+  const auto flow = static_cast<float>(tool_ == CanvasTool::MixerBrush ? mixer_flow_ : brush_flow_) /
+                    100.0F;
   if (palette_snap == nullptr || palette_snap->lut == nullptr || palette_snap->lut->empty()) {
     return write_brush_stroke_pixel_from_snapshot_blend(x, y, pixel, channels, primary, secondary,
-                                                        lock_transparent_pixels, coverage, erase);
+                                                        lock_transparent_pixels, coverage, erase, flow);
   }
   // Palette mode: hard coverage, full-strength blend, then snap. The accumulated
   // alpha gate inside the blend keeps repeat dabs on one pixel idempotent.
@@ -1276,7 +1322,7 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot(std::int32_t x, std::i
     before[channel] = pixel[channel];
   }
   (void)write_brush_stroke_pixel_from_snapshot_blend(x, y, pixel, channels, primary, secondary,
-                                                     lock_transparent_pixels, 1.0F, erase);
+                                                     lock_transparent_pixels, 1.0F, erase, flow);
   const auto blend_wrote = [&]() {
     for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
       if (pixel[channel] != before[channel]) {
@@ -1302,13 +1348,12 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, 
                                                                 std::uint8_t* pixel,
                                                                 std::uint16_t channels,
                                                                 EditColor primary,
-                                                                EditColor secondary,
-                                                                bool lock_transparent_pixels,
-                                                                float coverage, bool erase) {
+                                                                 EditColor secondary,
+                                                                 bool lock_transparent_pixels,
+                                                                 float coverage, bool erase, float flow) {
   coverage = std::clamp(coverage, 0.0F, 1.0F);
-  const auto source_alpha =
-      std::clamp(static_cast<float>(std::clamp<int>(primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
-  if (coverage <= 0.0F) {
+  const auto source_alpha = static_cast<float>(primary.a) / 255.0F;
+  if (coverage <= 0.0F || source_alpha <= 0.0F) {
     return false;
   }
 
@@ -1318,7 +1363,7 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, 
     return false;
   }
 
-  const auto flow = static_cast<float>(brush_flow_) / 100.0F;
+  flow = std::clamp(flow, 0.01F, 1.0F);
   const auto dab_alpha = std::clamp(source_alpha * flow * coverage, 0.0F, source_alpha);
   auto& accumulated_alpha = brush_stroke_accumulated_alpha_[stroke_pixel_key(x, y)];
   const auto target_alpha =
@@ -1327,6 +1372,21 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, 
     return false;
   }
   accumulated_alpha = target_alpha;
+
+  return render_brush_stroke_pixel_from_snapshot_target(
+      x, y, pixel, channels, primary, secondary, lock_transparent_pixels, target_alpha, erase);
+}
+
+bool CanvasWidget::render_brush_stroke_pixel_from_snapshot_target(
+    std::int32_t x, std::int32_t y, std::uint8_t* pixel, std::uint16_t channels,
+    EditColor primary, EditColor secondary, bool lock_transparent_pixels, float target_alpha,
+    bool erase) const {
+  target_alpha = std::clamp(target_alpha, 0.0F, 1.0F);
+  const auto original = brush_stroke_original_pixel(x, y);
+  const auto locked_alpha = lock_transparent_pixels && channels >= 4;
+  if ((erase && locked_alpha) || (locked_alpha && original[3] == 0)) {
+    return false;
+  }
 
   std::array<std::uint8_t, 4> before{};
   for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
@@ -1418,6 +1478,107 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, 
   return changed();
 }
 
+void CanvasWidget::observe_wet_edge_coverage(std::int32_t x, std::int32_t y, float coverage,
+                                             EditColor primary) {
+  const auto key = stroke_pixel_key(x, y);
+  auto& union_coverage = brush_stroke_union_coverage_[key];
+  union_coverage = std::max(union_coverage, std::clamp(coverage, 0.0F, 1.0F));
+  brush_stroke_wet_edge_primary_[key] = primary;
+  const auto pixel_rect = QRect(QPoint(x, y), QSize(1, 1));
+  brush_stroke_wet_edge_pending_rect_ = brush_stroke_wet_edge_pending_rect_.isEmpty()
+                                             ? pixel_rect
+                                             : brush_stroke_wet_edge_pending_rect_.united(pixel_rect);
+}
+
+QRect CanvasWidget::finalize_pending_wet_edges(QRect dirty) {
+  if (brush_stroke_wet_edge_pending_rect_.isEmpty() || document_ == nullptr ||
+      !document_->active_layer_id().has_value()) {
+    return dirty;
+  }
+  auto region = brush_stroke_wet_edge_pending_rect_.adjusted(-2, -2, 2, 2);
+  brush_stroke_wet_edge_pending_rect_ = {};
+  auto* layer = document_->find_layer(*document_->active_layer_id());
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
+    return dirty;
+  }
+  region = region.intersected(to_qrect(layer->bounds()));
+  if (region.isEmpty()) {
+    return dirty;
+  }
+
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  const auto channels = pixels.format().channels;
+  const auto coverage_at = [this](std::int32_t x, std::int32_t y) {
+    const auto found = brush_stroke_union_coverage_.find(stroke_pixel_key(x, y));
+    return found != brush_stroke_union_coverage_.end() ? found->second : 0.0F;
+  };
+  const auto secondary = edit_color(secondary_color_);
+  const auto locked = active_layer_locks_transparent_pixels();
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    auto row = pixels.row(y - bounds.y);
+    for (int x = region.left(); x <= region.right(); ++x) {
+      const auto key = stroke_pixel_key(x, y);
+      const auto union_found = brush_stroke_union_coverage_.find(key);
+      const auto alpha_found = brush_stroke_accumulated_alpha_.find(key);
+      if (union_found == brush_stroke_union_coverage_.end() ||
+          alpha_found == brush_stroke_accumulated_alpha_.end()) {
+        continue;
+      }
+
+      const auto center = union_found->second;
+      auto gradient = 0.0F;
+      for (int oy = -1; oy <= 1; ++oy) {
+        for (int ox = -1; ox <= 1; ++ox) {
+          if (ox == 0 && oy == 0) {
+            continue;
+          }
+          gradient = std::max(gradient, std::abs(center - coverage_at(x + ox, y + oy)));
+        }
+      }
+      // Photoshop 2026 calibration, observed from a scripted 100 px hard Round stroke on white:
+      // the solid interior keeps about 58.6% of normal paint, while the two antialiased boundary
+      // pixels retain about 65.1% and 30.7% absolute alpha (the outer pixel is 20.5% without Wet
+      // Edges). This coverage-only curve lightens the wash and gently boosts its low-coverage rim.
+      // It never reads canvas color or introduces fluid, pickup, paper, pigment, or drying state.
+      const auto boundary = std::clamp(gradient * 4.0F, 0.0F, 1.0F);
+      const auto wet_factor =
+          std::clamp(0.585F + boundary * (0.035F + 1.12F * (1.0F - center)), 0.0F, 1.5F);
+      const auto primary_found = brush_stroke_wet_edge_primary_.find(key);
+      const auto primary = primary_found != brush_stroke_wet_edge_primary_.end()
+                               ? primary_found->second
+                               : edit_color(primary_color_);
+      auto* pixel = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
+      if (render_brush_stroke_pixel_from_snapshot_target(
+              x, y, pixel, channels, primary, secondary, locked,
+              std::clamp(alpha_found->second * wet_factor, 0.0F, 1.0F), false)) {
+        dirty = united_dirty_rect(dirty, QRect(QPoint(x, y), QSize(1, 1)));
+      }
+    }
+  }
+  return dirty;
+}
+
+void CanvasWidget::begin_mixer_brush_stroke(QPoint document_point) {
+  auto sampled = edit_color(primary_color_);
+  if (document_ != nullptr && document_->active_layer_id().has_value()) {
+    const auto& const_document = std::as_const(*document_);
+    const auto* layer = const_document.find_layer(*document_->active_layer_id());
+    if (layer != nullptr && layer->kind() == LayerKind::Pixel &&
+        layer->bounds().contains(document_point.x(), document_point.y())) {
+      const auto& pixels = layer->pixels();
+      if (!pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 &&
+          pixels.format().channels >= 3) {
+        const auto* pixel = pixels.pixel(document_point.x() - layer->bounds().x,
+                                         document_point.y() - layer->bounds().y);
+        sampled = {pixel[0], pixel[1], pixel[2],
+                   pixels.format().channels >= 4 ? pixel[3] : std::uint8_t{255}};
+      }
+    }
+  }
+  patchy::begin_mixer_brush_stroke(mixer_brush_state_, sampled);
+}
+
 void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool erase) {
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return;
@@ -1435,6 +1596,25 @@ void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool er
   const auto lock_transparent_pixels = options.lock_transparent_pixels;
   const auto source_alpha =
       std::clamp(static_cast<float>(std::clamp<int>(primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
+
+  if (!erase && tool_ == CanvasTool::MixerBrush) {
+    const auto brush_size = options.brush_size;
+    options.dab_primary_provider =
+        [this, brush_size](double x, double y, const EditColor& loaded_color) {
+          return patchy::mixer_brush_dab_color(mixer_brush_state_, x, y, brush_size, loaded_color,
+                                               mixer_wet_, mixer_load_, mixer_mix_);
+        };
+  }
+
+  // Wet Edges is derived from one accumulated stroke footprint. Palette editing intentionally
+  // keeps its hard snapped write semantics instead of introducing off-palette edge tones.
+  if (!erase && tool_ == CanvasTool::Brush && options.brush_dynamics.wet_edges &&
+      options.palette_snap == nullptr) {
+    options.stroke_coverage_observer =
+        [this](std::int32_t x, std::int32_t y, float coverage, const EditColor& dab_primary) {
+          observe_wet_edge_coverage(x, y, coverage, dab_primary);
+        };
+  }
 
   if (!erase && tool_ == CanvasTool::PatternStamp && pattern_stamp_pattern_.has_value() &&
       pattern_stamp_origin_.has_value()) {
@@ -1559,7 +1739,8 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
 }
 
 EditOptions CanvasWidget::current_brush_edit_options(const EffectiveBrushInput& brush) const {
-  return edit_options(primary_color_, secondary_color_, brush.size, brush.opacity, brush.softness, fill_shapes_,
+  const auto opacity = tool_ == CanvasTool::MixerBrush ? 100 : brush.opacity;
+  return edit_options(primary_color_, secondary_color_, brush.size, opacity, brush.softness, fill_shapes_,
                       active_layer_locks_transparent_pixels(), *this, brush.roundness, brush.angle_degrees);
 }
 
@@ -1582,6 +1763,11 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase, boo
   if (tool_ == CanvasTool::PatternStamp) {
     options.brush_dynamics = {};
   }
+  if (tool_ == CanvasTool::MixerBrush) {
+    // Mixer accepts imported/static tip bitmaps, but ordinary Brush dynamics are a separate
+    // engine and must not perturb its deliberately simple one-sample color model.
+    options.brush_dynamics = {};
+  }
   if (erase) {
     options.brush_dynamics = {};  // v1: dynamics are Brush-only; erase strokes stay predictable
     if (brush_tip_ == nullptr) {
@@ -1590,9 +1776,10 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase, boo
   }
   if (options.brush_tip != nullptr) {
     install_brush_stroke_compositor(options, erase);
-    return to_qrect(
+    const auto dirty = to_qrect(
         patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
                                     options, erase, brush_tip_stroke_state_));
+    return finalize_pending_wet_edges(dirty);
   }
 
   install_brush_stroke_compositor(options, erase);
@@ -1605,7 +1792,7 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase, boo
                                             static_cast<int>(std::lround(to.x())),
                                             static_cast<int>(std::lround(to.y())), options, erase)));
   }
-  return dirty;
+  return finalize_pending_wet_edges(dirty);
 }
 
 QRect CanvasWidget::draw_brush_segment(QPoint from, QPoint to, bool erase, bool stamp_endpoint) {
@@ -1636,6 +1823,9 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
   if (tool_ == CanvasTool::PatternStamp) {
     options.brush_dynamics = {};
   }
+  if (tool_ == CanvasTool::MixerBrush) {
+    options.brush_dynamics = {};
+  }
   if (erase) {
     options.brush_dynamics = {};
     if (brush_tip_ == nullptr) {
@@ -1647,13 +1837,15 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
     // Stateful zero-length segment: stamps exactly the press dab and starts the stroke's dab
     // spacing + dynamics RNG stream, so the first move segment does not re-stamp the press
     // point (invisible for static stamps, visibly double-jittered with dynamics).
-    return to_qrect(patchy::paint_brush_segment(*document_, *document_->active_layer_id(), point.x(),
-                                                point.y(), point.x(), point.y(), options, erase,
-                                                brush_tip_stroke_state_));
+    const auto dirty = to_qrect(patchy::paint_brush_segment(
+        *document_, *document_->active_layer_id(), point.x(), point.y(), point.x(), point.y(),
+        options, erase, brush_tip_stroke_state_));
+    return finalize_pending_wet_edges(dirty);
   }
   install_brush_stroke_compositor(options, erase);
-  return to_qrect(
+  const auto dirty = to_qrect(
       patchy::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
+  return finalize_pending_wet_edges(dirty);
 }
 
 QRect CanvasWidget::draw_airbrush_dab(QPointF point) {
@@ -1670,9 +1862,10 @@ QRect CanvasWidget::draw_airbrush_dab(QPointF point) {
   auto options = current_brush_edit_options(brush);
   apply_brush_tip_to_options(options, brush.size, brush.softness);
   install_brush_stroke_compositor(options, false);
-  return to_qrect(patchy::paint_stationary_airbrush_dab(
+  const auto dirty = to_qrect(patchy::paint_stationary_airbrush_dab(
       *document_, *document_->active_layer_id(), point.x(), point.y(), options,
       brush_tip_stroke_state_));
+  return finalize_pending_wet_edges(dirty);
 }
 
 QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase) {

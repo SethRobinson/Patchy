@@ -1027,6 +1027,10 @@ private:
   BrushToolSettings stored_paint_brush_settings_{};
   BrushToolSettings stored_eraser_brush_settings_{};
   bool eraser_brush_settings_active_{false};
+  int current_mixer_wet_{50};
+  int current_mixer_load_{50};
+  int current_mixer_mix_{50};
+  int current_mixer_flow_{100};
   // Combine mode per selection tool (indexed by CanvasWidget::selection_tool_index),
   // persisted across documents; each selection tool keeps its own mode.
   std::array<CanvasWidget::SelectionMode, CanvasWidget::kSelectionToolCount> selection_modes_{

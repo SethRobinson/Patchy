@@ -280,6 +280,8 @@ const char* tool_action_source(CanvasTool tool) {
       return "Quick Select";
     case CanvasTool::Brush:
       return "Brush";
+    case CanvasTool::MixerBrush:
+      return "Mixer Brush";
     case CanvasTool::Clone:
       return "Clone";
     case CanvasTool::PatternStamp:
@@ -340,6 +342,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.quick_select");
     case CanvasTool::Brush:
       return QStringLiteral("tools.brush");
+    case CanvasTool::MixerBrush:
+      return QStringLiteral("tools.mixer_brush");
     case CanvasTool::Clone:
       return QStringLiteral("tools.clone");
     case CanvasTool::PatternStamp:
@@ -535,9 +539,14 @@ public:
     retranslate();
   }
 
+  void set_popup_action_source(const char* source) {
+    popup_action_source_ = source;
+    retranslate();
+  }
+
   void retranslate() {
-    popup_action_->setText(
-        QCoreApplication::translate(kMainWindowTranslationContext, "Open Flow slider"));
+    popup_action_->setText(QCoreApplication::translate(
+        kMainWindowTranslationContext, popup_action_source_.constData()));
   }
 
 protected:
@@ -654,6 +663,7 @@ private:
   QPointer<QFrame> popup_{};
   QElapsedTimer popup_clock_{};
   qint64 popup_dismissed_ms_{-1};
+  QByteArray popup_action_source_{"Open Flow slider"};
 };
 
 class CheckGlyphBox final : public QCheckBox {
@@ -733,6 +743,9 @@ QIcon tool_icon(CanvasTool tool) {
       break;
     case CanvasTool::Brush:
       name = "tool-brush";
+      break;
+    case CanvasTool::MixerBrush:
+      name = "tool-mixer-brush";
       break;
     case CanvasTool::Clone:
       name = "tool-clone";
@@ -2027,6 +2040,8 @@ void MainWindow::create_actions() {
   bind_widget_text(detail_menu, "Detail Tools");
   auto* smudge_action =
       create_local_brush_action(detail_menu, tr("Smudge"), CanvasTool::Smudge, QKeySequence(Qt::Key_R));
+  auto* mixer_brush_action = create_local_brush_action(
+      detail_menu, tr("Mixer Brush"), CanvasTool::MixerBrush, QKeySequence());
   auto* blur_action = create_local_brush_action(detail_menu, tr("Blur"), CanvasTool::BlurBrush,
                                                  QKeySequence(Qt::SHIFT | Qt::Key_R));
   auto* sharpen_action =
@@ -2034,7 +2049,7 @@ void MainWindow::create_actions() {
   auto* detail_button = new QToolButton(tool_palette);
   detail_button->setObjectName(QStringLiteral("detailToolButton"));
   configure_local_brush_flyout(tool_palette, detail_menu, detail_button, smudge_action,
-                               {smudge_action, blur_action, sharpen_action});
+                               {smudge_action, mixer_brush_action, blur_action, sharpen_action});
 
   auto* tone_menu = new QMenu(tr("Toning Tools"), tool_palette);
   tone_menu->setObjectName(QStringLiteral("toneToolMenu"));
@@ -2743,7 +2758,7 @@ void MainWindow::create_actions() {
        CanvasTool::Eraser});
 
   add_option_label(tr("Size:"),
-                   {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                   {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                     CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -2753,7 +2768,7 @@ void MainWindow::create_actions() {
   brush_size->setValue(canvas_->brush_size());
   configure_toolbar_spinbox(brush_size, 58);
   add_option_widget(brush_size,
-                    {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -2790,7 +2805,7 @@ void MainWindow::create_actions() {
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   add_option_label(tr("Soft:"),
-                   {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                   {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                     CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -2801,7 +2816,7 @@ void MainWindow::create_actions() {
   brush_softness->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_softness, 52);
   add_option_widget(brush_softness,
-                    {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -2874,6 +2889,62 @@ void MainWindow::create_actions() {
     }
   });
 
+  const auto add_mixer_percentage = [this, toolbar, add_option_label, add_option_widget](
+                                        const char* label_source, const char* object_name,
+                                        const char* popup_action_source, int minimum, int value,
+                                        auto setter) {
+    auto* label = add_option_label(tr(label_source), {CanvasTool::MixerBrush});
+    bind_widget_text(label, label_source);
+    auto* spin = new FlowPopupSpinBox(toolbar);
+    spin->setObjectName(QString::fromLatin1(object_name));
+    spin->set_popup_action_source(popup_action_source);
+    spin->setRange(minimum, 100);
+    spin->setValue(value);
+    spin->setSuffix(QStringLiteral("%"));
+    configure_toolbar_spinbox(spin, 60);
+    add_option_widget(spin, {CanvasTool::MixerBrush});
+    QPointer<FlowPopupSpinBox> popup_spin(spin);
+    register_retranslation([popup_spin] {
+      if (popup_spin != nullptr) {
+        popup_spin->retranslate();
+      }
+    });
+    connect(spin, &QSpinBox::valueChanged, this, [this, setter](int new_value) {
+      setter(*this, new_value);
+      schedule_save_tool_settings();
+      refresh_document_info();
+    });
+    return spin;
+  };
+  add_mixer_percentage("Wet:", "mixerWetSpin", "Open Wet slider", 0, current_mixer_wet_,
+                       [](MainWindow& window, int value) {
+                         window.current_mixer_wet_ = value;
+                         if (window.canvas_ != nullptr) {
+                           window.canvas_->set_mixer_wet(value);
+                         }
+                       });
+  add_mixer_percentage("Load:", "mixerLoadSpin", "Open Load slider", 1, current_mixer_load_,
+                       [](MainWindow& window, int value) {
+                         window.current_mixer_load_ = value;
+                         if (window.canvas_ != nullptr) {
+                           window.canvas_->set_mixer_load(value);
+                         }
+                       });
+  add_mixer_percentage("Mix:", "mixerMixSpin", "Open Mix slider", 0, current_mixer_mix_,
+                       [](MainWindow& window, int value) {
+                         window.current_mixer_mix_ = value;
+                         if (window.canvas_ != nullptr) {
+                           window.canvas_->set_mixer_mix(value);
+                         }
+                       });
+  add_mixer_percentage("Flow:", "mixerFlowSpin", "Open Flow slider", 1, current_mixer_flow_,
+                       [](MainWindow& window, int value) {
+                         window.current_mixer_flow_ = value;
+                         if (window.canvas_ != nullptr) {
+                           window.canvas_->set_mixer_flow(value);
+                         }
+                       });
+
   connect(brush_softness, &QSpinBox::valueChanged, brush_softness_slider, &QSlider::setValue);
   connect(brush_softness_slider, &QSlider::valueChanged, brush_softness, &QSpinBox::setValue);
   connect(brush_softness, &QSpinBox::valueChanged, this, [this](int value) {
@@ -2914,11 +2985,15 @@ void MainWindow::create_actions() {
     statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_display_name(*preset)));
   });
 
-  add_option_label(tr("Tip:"), {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Eraser});
+  add_option_label(tr("Tip:"),
+                   {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
+                    CanvasTool::Eraser});
   brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
   // The options bar is built after load_tool_settings() reset the active tip to Round.
   brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
-  add_option_widget(brush_tip_picker_, {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Eraser});
+  add_option_widget(brush_tip_picker_,
+                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
+                     CanvasTool::Eraser});
   connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
           [this](const QString& id) { set_active_brush_tip(id, true); });
   connect(brush_tip_picker_, &BrushTipPicker::import_requested, this,

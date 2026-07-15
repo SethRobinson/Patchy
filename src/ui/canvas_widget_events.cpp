@@ -100,6 +100,7 @@ bool move_layer_has_expensive_style(const Layer& layer) {
 bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
+    case CanvasTool::MixerBrush:
     case CanvasTool::PatternStamp:
     case CanvasTool::Clone:
     case CanvasTool::Healing:
@@ -121,6 +122,7 @@ bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
 bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
+    case CanvasTool::MixerBrush:
     case CanvasTool::PatternStamp:
     case CanvasTool::Clone:
     case CanvasTool::Healing:
@@ -477,6 +479,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::PatternStamp:
       case CanvasTool::Healing:
       case CanvasTool::Smudge:
+      case CanvasTool::MixerBrush:
       case CanvasTool::Dodge:
       case CanvasTool::Burn:
       case CanvasTool::Sponge:
@@ -531,7 +534,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton && channel_view_active &&
       (effective_tool == CanvasTool::Move || effective_tool == CanvasTool::Clone ||
        effective_tool == CanvasTool::Healing || effective_tool == CanvasTool::PatternStamp ||
-       effective_tool == CanvasTool::Smudge || is_local_adjustment_tool(effective_tool) ||
+       effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush ||
+       is_local_adjustment_tool(effective_tool) ||
        effective_tool == CanvasTool::Text)) {
     if (status_callback_) {
       status_callback_(tr("This tool is unavailable while viewing a document channel"));
@@ -962,18 +966,24 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
-  if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::PatternStamp ||
+  if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::MixerBrush ||
+      effective_tool == CanvasTool::PatternStamp ||
       effective_tool == CanvasTool::Smudge ||
       effective_tool == CanvasTool::Eraser) {
-    if (effective_tool == CanvasTool::Smudge && editing_grayscale_target()) {
+    if ((effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush) &&
+        editing_grayscale_target()) {
       if (status_callback_) {
-        status_callback_(tr("Smudge is unavailable while editing a grayscale channel"));
+        status_callback_(effective_tool == CanvasTool::MixerBrush
+                             ? tr("Mixer Brush is unavailable while editing a grayscale channel")
+                             : tr("Smudge is unavailable while editing a grayscale channel"));
       }
       return;
     }
     auto label = tr("Erase");
     if (effective_tool == CanvasTool::Brush) {
       label = tr("Brush stroke");
+    } else if (effective_tool == CanvasTool::MixerBrush) {
+      label = tr("Mixer Brush stroke");
     } else if (effective_tool == CanvasTool::PatternStamp) {
       if (!begin_pattern_stamp_stroke(document_point)) {
         if (status_callback_) {
@@ -988,6 +998,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     if (begin_edit(label)) {
       clear_brush_stroke_tracking();
       smudge_state_ = {};
+      mixer_brush_state_ = {};
+      if (effective_tool == CanvasTool::MixerBrush) {
+        begin_mixer_brush_stroke(document_point);
+      }
       const auto stroke_brush_size = effective_brush_input().size;
       begin_axis_constrained_stroke(stroke_brush_size == 1 ? QPointF(document_point) : document_point_f);
       painting_ = true;
@@ -1536,7 +1550,8 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       dirty = local_adjustment_brush_segment(last_document_position_, constrained_point);
       last_document_position_ = constrained_point;
       last_document_position_f_ = QPointF(constrained_point);
-    } else if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::PatternStamp ||
+    } else if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::MixerBrush ||
+               effective_tool == CanvasTool::PatternStamp ||
                effective_tool == CanvasTool::Eraser) {
       if (effective_brush_input().size == 1) {
         const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
@@ -1558,6 +1573,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     last_stroke_end_document_ = last_document_position_f_;
     clone_source_cache_ = QImage();
     smudge_state_ = {};
+    mixer_brush_state_ = {};
     reset_brush_smoothing();
     reset_axis_constrained_stroke();
     clear_brush_stroke_tracking();
@@ -2480,6 +2496,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   }
   clone_source_cache_ = QImage();
   smudge_state_ = {};
+  mixer_brush_state_ = {};
   reset_brush_smoothing();
   reset_axis_constrained_stroke();
   zooming_ = false;
@@ -2650,6 +2667,7 @@ CanvasTool CanvasWidget::effective_tool_for_input() const noexcept {
       active_pen_input_sample_->pointer_type == PenInputSample::PointerType::Eraser) {
     switch (tool_) {
       case CanvasTool::Brush:
+      case CanvasTool::MixerBrush:
       case CanvasTool::PatternStamp:
       case CanvasTool::Clone:
       case CanvasTool::Healing:

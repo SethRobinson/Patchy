@@ -704,6 +704,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolPatternStampAction", "Pattern Stamp"},
       {"toolHealingBrushAction", "Healing Brush"},
       {"toolSmudgeAction", "Smudge"},
+      {"toolMixerBrushAction", "Mixer Brush"},
       {"toolDodgeAction", "Dodge"},
       {"toolBurnAction", "Burn"},
       {"toolSpongeAction", "Sponge"},

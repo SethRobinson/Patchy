@@ -280,6 +280,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Quick Select");
     case CanvasTool::Brush:
       return QObject::tr("Brush");
+    case CanvasTool::MixerBrush:
+      return QObject::tr("Mixer Brush");
     case CanvasTool::Clone:
       return QObject::tr("Clone Stamp");
     case CanvasTool::PatternStamp:

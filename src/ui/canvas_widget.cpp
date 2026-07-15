@@ -336,6 +336,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   clear_move_hover_outline();
   update_move_transform_controls_dirty(old_transform_controls_rect);
   smudge_state_ = {};
+  mixer_brush_state_ = {};
   cancel_quick_select_stroke();
   reset_axis_constrained_stroke();
   last_stroke_end_document_.reset();
@@ -368,6 +369,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     clear_move_base_cache();
     set_move_transform_controls_layer(std::nullopt);
     clear_move_hover_outline();
+    mixer_brush_state_ = {};
   }
   tool_ = tool;
   // Each selection tool keeps its own combine mode; surface this tool's stored
