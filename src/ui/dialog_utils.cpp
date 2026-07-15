@@ -9,14 +9,17 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QCursor>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QEventLoop>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QFrame>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -29,6 +32,8 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
+#include <QPointer>
+#include <QPolygonF>
 #include <QPushButton>
 #include <QScreen>
 #include <QSettings>
@@ -47,6 +52,10 @@
 #include <QWindow>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
+#include <type_traits>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -78,6 +87,308 @@ QIcon compact_symbol_icon(const QString& symbol) {
     painter.drawLine(QPointF(16.0, 8.0), QPointF(16.0, 24.0));
   }
   return QIcon(pixmap);
+}
+
+class NumericPopupChevron final : public QWidget {
+public:
+  NumericPopupChevron(QAction* action, QWidget* parent)
+      : QWidget(parent), action_(action) {
+    setCursor(Qt::PointingHandCursor);
+    setToolTip(action_->text());
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const auto group = isEnabled() ? QPalette::Active : QPalette::Disabled;
+    auto pen = QPen(palette().color(group, QPalette::Text));
+    pen.setWidthF(1.4);
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setJoinStyle(Qt::RoundJoin);
+    painter.setPen(pen);
+    const auto center_x = static_cast<qreal>(width()) / 2.0 - 0.5;
+    const auto center_y = static_cast<qreal>(height()) / 2.0;
+    painter.drawPolyline(QPolygonF{QPointF(center_x - 3.0, center_y - 1.5),
+                                  QPointF(center_x, center_y + 1.5),
+                                  QPointF(center_x + 3.0, center_y - 1.5)});
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      action_->trigger();
+      event->accept();
+      return;
+    }
+    QWidget::mousePressEvent(event);
+  }
+
+private:
+  QAction* action_;
+};
+
+template <typename SpinBox>
+class NumericPopupController final : public QObject {
+public:
+  explicit NumericPopupController(SpinBox* spin)
+      : QObject(spin), spin_(spin) {
+    popup_clock_.start();
+    base_name_ = spin_->objectName();
+    if (base_name_.endsWith(QStringLiteral("Spin"))) {
+      base_name_.chop(4);
+    } else {
+      base_name_ += QStringLiteral("Value");
+    }
+
+    action_ = new QAction(QObject::tr("Open value slider"), spin_);
+    action_->setObjectName(base_name_ + QStringLiteral("PopupAction"));
+    spin_->addAction(action_);
+    QObject::connect(action_, &QAction::triggered, this,
+                     [this] { show_popup(); });
+
+    editor_ = spin_->template findChild<QLineEdit*>();
+    Q_ASSERT(editor_ != nullptr);
+    const auto margins = editor_->textMargins();
+    editor_->setTextMargins(margins.left(), margins.top(),
+                            margins.right() + kChevronAreaWidth,
+                            margins.bottom());
+    chevron_ = new NumericPopupChevron(action_, editor_);
+    chevron_->setObjectName(base_name_ + QStringLiteral("PopupButton"));
+    spin_->installEventFilter(this);
+    editor_->installEventFilter(this);
+    update_chevron_geometry();
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == spin_) {
+      if (event->type() == QEvent::MouseButtonPress) {
+        const auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() == Qt::LeftButton &&
+            mouse_event->position().x() >= spin_->width() - kChevronAreaWidth) {
+          action_->trigger();
+          return true;
+        }
+      } else if (event->type() == QEvent::LanguageChange) {
+        action_->setText(QObject::tr("Open value slider"));
+        chevron_->setToolTip(action_->text());
+      }
+    }
+    if (watched == editor_) {
+      if (event->type() == QEvent::Resize || event->type() == QEvent::Show) {
+        update_chevron_geometry();
+      } else if (event->type() == QEvent::MouseButtonPress) {
+        const auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() == Qt::LeftButton &&
+            mouse_event->position().x() >=
+                editor_->width() - kChevronAreaWidth) {
+          action_->trigger();
+          return true;
+        }
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  static constexpr int kChevronAreaWidth = 14;
+
+  void update_chevron_geometry() {
+    if (chevron_ == nullptr) {
+      return;
+    }
+    const auto editor_rect = editor_->rect();
+    chevron_->setGeometry(editor_rect.right() - kChevronAreaWidth + 1,
+                          editor_rect.top(), kChevronAreaWidth,
+                          editor_rect.height());
+    chevron_->raise();
+  }
+
+  std::vector<double> quick_values() const {
+    const double minimum = spin_->minimum();
+    const double maximum = spin_->maximum();
+    std::vector<double> candidates;
+    if (spin_->suffix().trimmed() == QStringLiteral("%") && minimum >= 0.0 &&
+        maximum <= 100.0) {
+      candidates = minimum <= 0.0
+                       ? std::vector<double>{0, 10, 25, 50, 75, 100}
+                       : std::vector<double>{1, 5, 10, 25, 50, 75, 100};
+    } else if (base_name_ == QStringLiteral("brushSize")) {
+      candidates = {1, 5, 10, 25, 50, 100, 250};
+    } else if (base_name_ == QStringLiteral("textSize")) {
+      candidates = {8, 10, 12, 18, 24, 36, 72};
+    } else if (maximum - minimum <= 10.0) {
+      for (int value = static_cast<int>(std::ceil(minimum));
+           value <= static_cast<int>(std::floor(maximum)); ++value) {
+        candidates.push_back(value);
+      }
+    } else if (maximum <= 100.0) {
+      candidates = {minimum, 25, 50, 75, maximum};
+    } else if (maximum <= 1024.0) {
+      candidates = {minimum, 25, 50, 100, 250, maximum};
+    } else {
+      candidates = {minimum, 100, 1000, 5000, maximum};
+    }
+
+    std::vector<double> result;
+    for (const auto candidate : candidates) {
+      if (candidate < minimum || candidate > maximum) {
+        continue;
+      }
+      if (result.empty() || std::abs(result.back() - candidate) > 0.0001) {
+        result.push_back(candidate);
+      }
+    }
+    return result;
+  }
+
+  QString quick_label(double value) const {
+    const int decimals = [&] {
+      if constexpr (std::is_same_v<SpinBox, QDoubleSpinBox>) {
+        return spin_->decimals();
+      } else {
+        return 0;
+      }
+    }();
+    auto number = QString::number(value, 'f', decimals);
+    if (decimals > 0) {
+      while (number.endsWith(QLatin1Char('0'))) {
+        number.chop(1);
+      }
+      if (number.endsWith(QLatin1Char('.'))) {
+        number.chop(1);
+      }
+    }
+    return number + spin_->suffix();
+  }
+
+  QString quick_object_token(double value) const {
+    auto token = QString::number(value, 'f', 3);
+    while (token.endsWith(QLatin1Char('0'))) {
+      token.chop(1);
+    }
+    if (token.endsWith(QLatin1Char('.'))) {
+      token.chop(1);
+    }
+    token.replace(QLatin1Char('-'), QStringLiteral("Minus"));
+    token.replace(QLatin1Char('.'), QStringLiteral("Point"));
+    return token;
+  }
+
+  void show_popup() {
+    if (popup_ != nullptr) {
+      popup_->close();
+      return;
+    }
+    if (popup_dismissed_ms_ >= 0 &&
+        popup_clock_.elapsed() - popup_dismissed_ms_ < 300) {
+      popup_dismissed_ms_ = -1;
+      return;
+    }
+
+    auto* popup = new QFrame(spin_, Qt::Popup);
+    popup->setAttribute(Qt::WA_DeleteOnClose);
+    popup->setObjectName(base_name_ + QStringLiteral("Popup"));
+    popup->setFrameShape(QFrame::StyledPanel);
+    popup_ = popup;
+    QObject::connect(popup, &QObject::destroyed, this, [this] {
+      if (editor_->rect().contains(
+              editor_->mapFromGlobal(QCursor::pos()))) {
+        popup_dismissed_ms_ = popup_clock_.elapsed();
+      }
+    });
+
+    auto* layout = new QVBoxLayout(popup);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(6);
+    auto* slider = new QSlider(Qt::Horizontal, popup);
+    slider->setObjectName(base_name_ + QStringLiteral("PopupSlider"));
+    slider->setMinimumWidth(220);
+    layout->addWidget(slider);
+
+    if constexpr (std::is_same_v<SpinBox, QSpinBox>) {
+      slider->setRange(spin_->minimum(), spin_->maximum());
+      slider->setPageStep(std::max(1, (spin_->maximum() - spin_->minimum()) / 20));
+      slider->setValue(spin_->value());
+      QObject::connect(slider, &QSlider::valueChanged, spin_,
+                       &QSpinBox::setValue);
+      QObject::connect(spin_, &QSpinBox::valueChanged, popup,
+                       [slider](int new_value) {
+                         const QSignalBlocker blocker(slider);
+                         slider->setValue(new_value);
+                       });
+    } else {
+      const int decimal_places = std::clamp(spin_->decimals(), 0, 3);
+      const double scale = std::pow(10.0, decimal_places);
+      const auto scaled = [scale](double value) {
+        return static_cast<int>(std::clamp(
+            static_cast<long long>(std::lround(value * scale)),
+            static_cast<long long>(std::numeric_limits<int>::min()),
+            static_cast<long long>(std::numeric_limits<int>::max())));
+      };
+      slider->setRange(scaled(spin_->minimum()), scaled(spin_->maximum()));
+      slider->setPageStep(
+          std::max(1, (slider->maximum() - slider->minimum()) / 20));
+      slider->setValue(scaled(spin_->value()));
+      QObject::connect(slider, &QSlider::valueChanged, spin_,
+                       [spin = spin_, scale](int new_value) {
+                         spin->setValue(static_cast<double>(new_value) / scale);
+                       });
+      QObject::connect(spin_, &QDoubleSpinBox::valueChanged, popup,
+                       [slider, scaled](double new_value) {
+                         const QSignalBlocker blocker(slider);
+                         slider->setValue(scaled(new_value));
+                       });
+    }
+
+    const auto choices = quick_values();
+    if (!choices.empty()) {
+      auto* quick_row = new QHBoxLayout();
+      quick_row->setContentsMargins(0, 0, 0, 0);
+      quick_row->setSpacing(3);
+      for (const auto quick_value : choices) {
+        const auto label = quick_label(quick_value);
+        auto* button = new QPushButton(label, popup);
+        button->setObjectName(base_name_ + QStringLiteral("Quick") +
+                              quick_object_token(quick_value));
+        button->setFixedWidth(
+            std::clamp(button->fontMetrics().horizontalAdvance(label) + 16,
+                       38, 78));
+        button->setFixedHeight(24);
+        quick_row->addWidget(button);
+        QObject::connect(button, &QPushButton::clicked, spin_,
+                         [spin = spin_, quick_value] {
+                           spin->setValue(quick_value);
+                         });
+      }
+      layout->addLayout(quick_row);
+    }
+
+    popup->adjustSize();
+    position_popup_below(*spin_, *popup);
+    popup->show();
+    slider->setFocus(Qt::PopupFocusReason);
+  }
+
+  SpinBox* spin_;
+  QString base_name_;
+  QAction* action_{nullptr};
+  QLineEdit* editor_{nullptr};
+  NumericPopupChevron* chevron_{nullptr};
+  QPointer<QFrame> popup_{};
+  QElapsedTimer popup_clock_{};
+  qint64 popup_dismissed_ms_{-1};
+};
+
+template <typename SpinBox>
+void install_numeric_popup(SpinBox* spin) {
+  constexpr auto kInstalledProperty = "patchy.numericPopupInstalled";
+  if (spin->property(kInstalledProperty).toBool()) {
+    return;
+  }
+  spin->setProperty(kInstalledProperty, true);
+  new NumericPopupController<SpinBox>(spin);
 }
 
 QString dialog_chrome_style() {
@@ -481,12 +792,14 @@ void configure_toolbar_spinbox(QSpinBox* spin, int width) {
   spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
   spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   spin->setFixedWidth(width);
+  install_numeric_popup(spin);
 }
 
 void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width) {
   spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
   spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   spin->setFixedWidth(width);
+  install_numeric_popup(spin);
 }
 
 void configure_dialog_spinbox(QSpinBox* spin, int width) {

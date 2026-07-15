@@ -92,7 +92,6 @@
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QCoreApplication>
-#include <QCursor>
 #include <QColorSpace>
 #include <QDesktopServices>
 #include <QDir>
@@ -105,7 +104,6 @@
 #include <QDragLeaveEvent>
 #include <QDropEvent>
 #include <QDoubleSpinBox>
-#include <QElapsedTimer>
 #include <QEvent>
 #include <QEventLoop>
 #include <QFileDialog>
@@ -517,153 +515,6 @@ protected:
     // Width changed: the wrapped height may differ, so ask the toolbar to relayout.
     updateGeometry();
   }
-};
-
-// Keeps the options bar compact while preserving direct numeric entry. The
-// trailing chevron opens a transient slider and common percentages without
-// consuming the permanent width of another toolbar slider.
-class FlowPopupSpinBox final : public QSpinBox {
-public:
-  explicit FlowPopupSpinBox(QWidget* parent = nullptr) : QSpinBox(parent) {
-    popup_clock_.start();
-    // QLineEdit's trailing actions reserve a full native icon button. That
-    // leaves too little room for "100%" in this compact field, and some Windows
-    // styles supply a colored SP_ArrowDown icon. Paint a small chevron from the
-    // active palette instead and reserve only the space it actually needs.
-    lineEdit()->setTextMargins(0, 0, kChevronAreaWidth, 0);
-    lineEdit()->installEventFilter(this);
-    popup_action_ = new QAction(this);
-    addAction(popup_action_);
-    popup_action_->setObjectName(QStringLiteral("brushFlowPopupAction"));
-    connect(popup_action_, &QAction::triggered, this, [this] { show_popup(); });
-    retranslate();
-  }
-
-  void set_popup_action_source(const char* source) {
-    popup_action_source_ = source;
-    retranslate();
-  }
-
-  void retranslate() {
-    popup_action_->setText(QCoreApplication::translate(
-        kMainWindowTranslationContext, popup_action_source_.constData()));
-  }
-
-protected:
-  bool eventFilter(QObject* watched, QEvent* event) override {
-    if (watched == lineEdit() && event->type() == QEvent::MouseButtonPress) {
-      const auto* mouse_event = static_cast<QMouseEvent*>(event);
-      if (mouse_event->button() == Qt::LeftButton &&
-          mouse_event->position().x() >= lineEdit()->width() - kChevronAreaWidth) {
-        popup_action_->trigger();
-        return true;
-      }
-    }
-    return QSpinBox::eventFilter(watched, event);
-  }
-
-  void paintEvent(QPaintEvent* event) override {
-    QSpinBox::paintEvent(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    const auto group = isEnabled() ? QPalette::Active : QPalette::Disabled;
-    auto pen = QPen(palette().color(group, QPalette::Text));
-    pen.setWidthF(1.4);
-    pen.setCapStyle(Qt::RoundCap);
-    pen.setJoinStyle(Qt::RoundJoin);
-    painter.setPen(pen);
-    const auto center_x =
-        static_cast<qreal>(width() - kChevronAreaWidth / 2 - 1);
-    const auto center_y = static_cast<qreal>(height()) / 2.0;
-    painter.drawPolyline(QPolygonF{QPointF(center_x - 3.0, center_y - 1.5),
-                                  QPointF(center_x, center_y + 1.5),
-                                  QPointF(center_x + 3.0, center_y - 1.5)});
-  }
-
-  void mousePressEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton &&
-        event->position().x() >= width() - kChevronAreaWidth) {
-      popup_action_->trigger();
-      event->accept();
-      return;
-    }
-    QSpinBox::mousePressEvent(event);
-  }
-
-private:
-  static constexpr int kChevronAreaWidth = 14;
-
-  void show_popup() {
-    if (popup_ != nullptr) {
-      popup_->close();
-      return;
-    }
-    if (popup_dismissed_ms_ >= 0 && popup_clock_.elapsed() - popup_dismissed_ms_ < 300) {
-      popup_dismissed_ms_ = -1;
-      return;
-    }
-
-    auto* popup = new QFrame(this, Qt::Popup);
-    popup->setAttribute(Qt::WA_DeleteOnClose);
-    popup->setObjectName(QStringLiteral("brushFlowPopup"));
-    popup->setFrameShape(QFrame::StyledPanel);
-    popup_ = popup;
-    connect(popup, &QObject::destroyed, this, [this] {
-      if (lineEdit()->rect().contains(lineEdit()->mapFromGlobal(QCursor::pos()))) {
-        popup_dismissed_ms_ = popup_clock_.elapsed();
-      }
-    });
-
-    auto* layout = new QVBoxLayout(popup);
-    layout->setContentsMargins(8, 8, 8, 8);
-    layout->setSpacing(6);
-    auto* slider = new QSlider(Qt::Horizontal, popup);
-    slider->setObjectName(QStringLiteral("brushFlowPopupSlider"));
-    slider->setRange(minimum(), maximum());
-    slider->setPageStep(5);
-    slider->setValue(value());
-    slider->setMinimumWidth(220);
-    layout->addWidget(slider);
-
-    auto* quick_row = new QHBoxLayout();
-    quick_row->setContentsMargins(0, 0, 0, 0);
-    quick_row->setSpacing(3);
-    for (const auto quick_value : {1, 5, 10, 25, 50, 75, 100}) {
-      auto* button = new QPushButton(QStringLiteral("%1%").arg(quick_value), popup);
-      button->setObjectName(QStringLiteral("brushFlowQuick%1").arg(quick_value));
-      button->setFixedWidth(quick_value == 100 ? 46 : 38);
-      button->setFixedHeight(24);
-      quick_row->addWidget(button);
-      connect(button, &QPushButton::clicked, popup, [this, quick_value] {
-        setValue(quick_value);
-      });
-    }
-    layout->addLayout(quick_row);
-
-    connect(slider, &QSlider::valueChanged, this, &QSpinBox::setValue);
-    connect(this, &QSpinBox::valueChanged, popup, [slider](int new_value) {
-      QSignalBlocker blocker(slider);
-      slider->setValue(new_value);
-    });
-
-    popup->adjustSize();
-    const auto available = screen()->availableGeometry();
-    auto position = mapToGlobal(QPoint(0, height() + 2));
-    position.setX(std::clamp(position.x(), available.left(),
-                             std::max(available.left(), available.right() - popup->width() + 1)));
-    if (position.y() + popup->height() > available.bottom() + 1) {
-      position.setY(mapToGlobal(QPoint(0, -popup->height() - 2)).y());
-    }
-    popup->move(position);
-    popup->show();
-    slider->setFocus(Qt::PopupFocusReason);
-  }
-
-  QAction* popup_action_{nullptr};
-  QPointer<QFrame> popup_{};
-  QElapsedTimer popup_clock_{};
-  qint64 popup_dismissed_ms_{-1};
-  QByteArray popup_action_source_{"Open Flow slider"};
 };
 
 class CheckGlyphBox final : public QCheckBox {
@@ -2870,19 +2721,13 @@ void MainWindow::create_actions() {
 
   auto* brush_flow_label = add_option_label(tr("Flow:"), {CanvasTool::Brush, CanvasTool::PatternStamp});
   bind_widget_text(brush_flow_label, "Flow:");
-  auto* brush_flow = new FlowPopupSpinBox(toolbar);
+  auto* brush_flow = new QSpinBox(toolbar);
   brush_flow->setObjectName(QStringLiteral("brushFlowSpin"));
   brush_flow->setRange(1, 100);
   brush_flow->setValue(canvas_->brush_flow());
   brush_flow->setSuffix(QStringLiteral("%"));
   brush_flow->setToolTip(tr("Brush flow - Shift+number keys (number keys with Airbrush)"));
   bind_tooltip(brush_flow, "Brush flow - Shift+number keys (number keys with Airbrush)");
-  QPointer<FlowPopupSpinBox> flow_spin(brush_flow);
-  register_retranslation([flow_spin] {
-    if (flow_spin != nullptr) {
-      flow_spin->retranslate();
-    }
-  });
   configure_toolbar_spinbox(brush_flow, 60);
   add_option_widget(brush_flow, {CanvasTool::Brush, CanvasTool::PatternStamp});
   auto* brush_airbrush = new CheckGlyphBox(tr("Airbrush"), toolbar);
@@ -2909,24 +2754,16 @@ void MainWindow::create_actions() {
 
   const auto add_mixer_percentage = [this, toolbar, add_option_label, add_option_widget](
                                         const char* label_source, const char* object_name,
-                                        const char* popup_action_source, int minimum, int value,
-                                        auto setter) {
+                                        int minimum, int value, auto setter) {
     auto* label = add_option_label(tr(label_source), {CanvasTool::MixerBrush});
     bind_widget_text(label, label_source);
-    auto* spin = new FlowPopupSpinBox(toolbar);
+    auto* spin = new QSpinBox(toolbar);
     spin->setObjectName(QString::fromLatin1(object_name));
-    spin->set_popup_action_source(popup_action_source);
     spin->setRange(minimum, 100);
     spin->setValue(value);
     spin->setSuffix(QStringLiteral("%"));
     configure_toolbar_spinbox(spin, 60);
     add_option_widget(spin, {CanvasTool::MixerBrush});
-    QPointer<FlowPopupSpinBox> popup_spin(spin);
-    register_retranslation([popup_spin] {
-      if (popup_spin != nullptr) {
-        popup_spin->retranslate();
-      }
-    });
     connect(spin, &QSpinBox::valueChanged, this, [this, setter](int new_value) {
       setter(*this, new_value);
       schedule_save_tool_settings();
@@ -2934,28 +2771,28 @@ void MainWindow::create_actions() {
     });
     return spin;
   };
-  add_mixer_percentage("Wet:", "mixerWetSpin", "Open Wet slider", 0, current_mixer_wet_,
+  add_mixer_percentage("Wet:", "mixerWetSpin", 0, current_mixer_wet_,
                        [](MainWindow& window, int value) {
                          window.current_mixer_wet_ = value;
                          if (window.canvas_ != nullptr) {
                            window.canvas_->set_mixer_wet(value);
                          }
                        });
-  add_mixer_percentage("Load:", "mixerLoadSpin", "Open Load slider", 1, current_mixer_load_,
+  add_mixer_percentage("Load:", "mixerLoadSpin", 1, current_mixer_load_,
                        [](MainWindow& window, int value) {
                          window.current_mixer_load_ = value;
                          if (window.canvas_ != nullptr) {
                            window.canvas_->set_mixer_load(value);
                          }
                        });
-  add_mixer_percentage("Mix:", "mixerMixSpin", "Open Mix slider", 0, current_mixer_mix_,
+  add_mixer_percentage("Mix:", "mixerMixSpin", 0, current_mixer_mix_,
                        [](MainWindow& window, int value) {
                          window.current_mixer_mix_ = value;
                          if (window.canvas_ != nullptr) {
                            window.canvas_->set_mixer_mix(value);
                          }
                        });
-  add_mixer_percentage("Flow:", "mixerFlowSpin", "Open Flow slider", 1, current_mixer_flow_,
+  add_mixer_percentage("Flow:", "mixerFlowSpin", 1, current_mixer_flow_,
                        [](MainWindow& window, int value) {
                          window.current_mixer_flow_ = value;
                          if (window.canvas_ != nullptr) {

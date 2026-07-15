@@ -3356,6 +3356,11 @@ Flow: %6
         <translation>幅と高さを入れ替え</translation>
     </message>
     <message>
+        <location filename="../src/ui/dialog_utils.cpp" line="+1"/>
+        <source>Open value slider</source>
+        <translation>値のスライダーを開く</translation>
+    </message>
+    <message>
         <location line="+12"/>
         <location line="+559"/>
         <location line="+42"/>
@@ -8437,10 +8442,6 @@ Mixed selection</source>
         <translation>ブラシのフロー — Shift+数字キーで設定 (エアブラシ時は数字キー)</translation>
     </message>
     <message>
-        <source>Open Flow slider</source>
-        <translation>フローのスライダーを開く</translation>
-    </message>
-    <message>
         <source>Wet:</source>
         <translation>ウェット:</translation>
     </message>
@@ -8451,18 +8452,6 @@ Mixed selection</source>
     <message>
         <source>Mix:</source>
         <translation>ミックス:</translation>
-    </message>
-    <message>
-        <source>Open Wet slider</source>
-        <translation>ウェットのスライダーを開く</translation>
-    </message>
-    <message>
-        <source>Open Load slider</source>
-        <translation>絵の具量のスライダーを開く</translation>
-    </message>
-    <message>
-        <source>Open Mix slider</source>
-        <translation>ミックスのスライダーを開く</translation>
     </message>
     <message>
         <source>Airbrush</source>

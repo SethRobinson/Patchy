@@ -1501,6 +1501,9 @@ void ui_pattern_stamp_alignment_palette_and_psd_round_trip() {
         window.findChild<QComboBox*>(QStringLiteral("patternStampPatternCombo"));
     auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("patternStampAlignedCheck"));
     auto* manage = window.findChild<QPushButton*>(QStringLiteral("patternStampManageButton"));
+    auto* size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+    auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+    auto* softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
     CHECK(pattern_combo != nullptr);
     const auto pattern_index = pattern_combo->findData(QString::fromStdString(pattern.id));
     CHECK(pattern_index >= 0);
@@ -1508,6 +1511,43 @@ void ui_pattern_stamp_alignment_palette_and_psd_round_trip() {
     CHECK(pattern_combo->isVisible());
     CHECK(aligned != nullptr && aligned->isVisible());
     CHECK(manage != nullptr && manage->isVisible());
+    CHECK(size != nullptr && size->isVisible());
+    CHECK(opacity != nullptr && opacity->isVisible());
+    CHECK(softness != nullptr && softness->isVisible());
+
+    const auto exercise_popup = [&window](const QString& base_name,
+                                          QSpinBox* spin, int value) {
+      auto* action = window.findChild<QAction*>(base_name + QStringLiteral("PopupAction"));
+      CHECK(action != nullptr);
+      CHECK(action->icon().isNull());
+      action->trigger();
+      QApplication::processEvents();
+      auto* popup = window.findChild<QFrame*>(base_name + QStringLiteral("Popup"));
+      auto* slider = window.findChild<QSlider*>(base_name + QStringLiteral("PopupSlider"));
+      CHECK(popup != nullptr && popup->isVisible());
+      CHECK(slider != nullptr);
+      slider->setValue(value);
+      CHECK(spin->value() == value);
+      popup->close();
+      QApplication::processEvents();
+    };
+    exercise_popup(QStringLiteral("brushSize"), size, 77);
+    exercise_popup(QStringLiteral("brushOpacity"), opacity, 66);
+    exercise_popup(QStringLiteral("brushSoftness"), softness, 44);
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->brush_size() == 77);
+    CHECK(canvas->brush_opacity() == 66);
+    CHECK(canvas->brush_softness() == 44);
+
+    for (const auto* base_name : {
+             "selectionFeather", "selectionCornerRadius",
+             "healingDiffusion", "localAdjustmentStrength",
+             "magneticLassoWidth", "magneticLassoContrast",
+             "magneticLassoFrequency", "wandTolerance",
+             "shapeCornerRadius", "textSize"}) {
+      CHECK(window.findChild<QAction*>(
+                QLatin1String(base_name) + QStringLiteral("PopupAction")) != nullptr);
+    }
     save_widget_artifact("ui_pattern_stamp_options", window);
     CHECK(window.pattern_library().remove_pattern(storage_id));
   }
@@ -2390,12 +2430,12 @@ void ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels() {
   QApplication::processEvents();
   QWidget* wet_popup = nullptr;
   for (auto* widget : QApplication::topLevelWidgets()) {
-    if (widget->objectName() == QStringLiteral("brushFlowPopup") && widget->isVisible()) {
+    if (widget->objectName() == QStringLiteral("mixerWetPopup") && widget->isVisible()) {
       wet_popup = widget;
     }
   }
   CHECK(wet_popup != nullptr);
-  CHECK(wet_popup->findChild<QSlider*>(QStringLiteral("brushFlowPopupSlider")) != nullptr);
+  CHECK(wet_popup->findChild<QSlider*>(QStringLiteral("mixerWetPopupSlider")) != nullptr);
   wet_popup->close();
   wet->setValue(100);
   load->setValue(100);
