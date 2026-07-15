@@ -153,16 +153,27 @@ QPixmap pattern_thumbnail(const PixelBuffer& tile, int extent) {
 
   const auto source = image_from_pattern_tile(tile);
   if (!source.isNull()) {
-    // Always show at least a 2x2 repeat so seams and direction are visible even
-    // for a large source tile. Keep rectangular tiles rectangular.
-    const auto repeat_extent = std::max(4, extent / 2);
-    const auto repeated_tile = source.scaled(repeat_extent, repeat_extent, Qt::KeepAspectRatio,
-                                             Qt::SmoothTransformation);
-    if (!repeated_tile.isNull()) {
-      painter.setClipRect(QRect(1, 1, extent - 2, extent - 2));
-      painter.drawTiledPixmap(QRect(1, 1, extent - 2, extent - 2),
-                              QPixmap::fromImage(repeated_tile));
-      painter.setClipping(false);
+    const auto inner = extent - 2;
+    if (source.width() > inner || source.height() > inner) {
+      // A tile larger than the thumbnail cannot show a meaningful repeat (a
+      // non-square photo would tile into ~6 tiny copies), so fit one whole
+      // copy instead, centered and aspect-preserved.
+      const auto fitted =
+          source.scaled(inner, inner, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+      if (!fitted.isNull()) {
+        painter.drawImage((extent - fitted.width()) / 2, (extent - fitted.height()) / 2, fitted);
+      }
+    } else {
+      // Small tiles show at least a 2x2 repeat so seams and direction are
+      // visible. Keep rectangular tiles rectangular.
+      const auto repeat_extent = std::max(4, extent / 2);
+      const auto repeated_tile = source.scaled(repeat_extent, repeat_extent, Qt::KeepAspectRatio,
+                                               Qt::SmoothTransformation);
+      if (!repeated_tile.isNull()) {
+        painter.setClipRect(QRect(1, 1, inner, inner));
+        painter.drawTiledPixmap(QRect(1, 1, inner, inner), QPixmap::fromImage(repeated_tile));
+        painter.setClipping(false);
+      }
     }
   }
   painter.setPen(QColor(0, 0, 0, 90));

@@ -1755,6 +1755,63 @@ void ui_photo_pattern_presets_load_stable_tiles() {
   CHECK(!generated->tile.empty());
 }
 
+void ui_pattern_thumbnail_fits_large_images_without_tiling() {
+  // A tile larger than the thumbnail renders as ONE fitted copy; a photo-sized
+  // non-square tile used to tile into ~6 unrecognizable copies. Small tiles
+  // must keep the repeated preview.
+  const auto fill_marker_quarter = [](patchy::PixelBuffer& tile) {
+    for (std::int32_t y = 0; y < tile.height() / 2; ++y) {
+      for (std::int32_t x = 0; x < tile.width() / 2; ++x) {
+        auto* px = tile.pixel(x, y);
+        px[0] = 230;
+        px[1] = 30;
+        px[2] = 30;
+      }
+    }
+  };
+  const auto is_marker = [](const QColor& color) {
+    return color.red() > 150 && color.blue() < 120 && color.green() < 120;
+  };
+  // Count disjoint runs of columns/rows containing marker pixels: one copy of
+  // the tile yields exactly one run per axis, a repeat yields several.
+  const auto marker_runs = [&is_marker](const QImage& image, bool columns) {
+    const auto outer = columns ? image.width() : image.height();
+    const auto inner = columns ? image.height() : image.width();
+    int runs = 0;
+    bool in_run = false;
+    for (int a = 0; a < outer; ++a) {
+      bool hit = false;
+      for (int b = 0; b < inner && !hit; ++b) {
+        hit = is_marker(image.pixelColor(columns ? a : b, columns ? b : a));
+      }
+      runs += (hit && !in_run) ? 1 : 0;
+      in_run = hit;
+    }
+    return runs;
+  };
+
+  auto photo = solid_pixels(600, 900, patchy::PixelFormat::rgba8(), QColor(40, 90, 200));
+  fill_marker_quarter(photo);
+  const auto photo_thumb = patchy::ui::pattern_thumbnail(photo, 48).toImage();
+  CHECK(marker_runs(photo_thumb, true) == 1);
+  CHECK(marker_runs(photo_thumb, false) == 1);
+
+  auto small_tile = solid_pixels(16, 16, patchy::PixelFormat::rgba8(), QColor(40, 90, 200));
+  fill_marker_quarter(small_tile);
+  const auto small_thumb = patchy::ui::pattern_thumbnail(small_tile, 48).toImage();
+  CHECK(marker_runs(small_thumb, true) >= 2);
+  CHECK(marker_runs(small_thumb, false) >= 2);
+
+  QImage sheet(2 * 48, 48, QImage::Format_RGB32);
+  sheet.fill(QColor(0x2B, 0x2B, 0x2B));
+  QPainter painter(&sheet);
+  painter.drawImage(0, 0, photo_thumb);
+  painter.drawImage(48, 0, small_thumb);
+  painter.end();
+  ensure_artifact_dir();
+  CHECK(sheet.save(QStringLiteral("test-artifacts/pattern_thumbnail_fit_vs_tile.png")));
+}
+
 void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
   clear_pattern_test_state();
   patchy::ui::PatternLibrary library(pattern_test_storage_dir());
@@ -2943,6 +3000,8 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests() {
       {"ui_style_library_defaults_restore_export_import_round_trip",
        ui_style_library_defaults_restore_export_import_round_trip},
       {"ui_photo_pattern_presets_load_stable_tiles", ui_photo_pattern_presets_load_stable_tiles},
+      {"ui_pattern_thumbnail_fits_large_images_without_tiling",
+       ui_pattern_thumbnail_fits_large_images_without_tiling},
       {"ui_version_two_defaults_seed_only_new_entries",
        ui_version_two_defaults_seed_only_new_entries},
       {"ui_layer_style_styles_page_applies_preset_and_previews",
