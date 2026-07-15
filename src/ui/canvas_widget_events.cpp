@@ -101,6 +101,7 @@ bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
     case CanvasTool::Clone:
+    case CanvasTool::Healing:
     case CanvasTool::Smudge:
     case CanvasTool::Eraser:
       return true;
@@ -115,6 +116,7 @@ bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
     case CanvasTool::Clone:
+    case CanvasTool::Healing:
     case CanvasTool::Smudge:
     case CanvasTool::Eraser:
       return true;
@@ -128,6 +130,7 @@ bool tool_supports_opacity_digit_keys(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
     case CanvasTool::Clone:
+    case CanvasTool::Healing:
     case CanvasTool::Smudge:
     case CanvasTool::Eraser:
     case CanvasTool::Gradient:
@@ -443,6 +446,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::MagicWand:
       case CanvasTool::QuickSelect:
       case CanvasTool::Clone:
+      case CanvasTool::Healing:
       case CanvasTool::Smudge:
       case CanvasTool::Text:
         return true;
@@ -492,6 +496,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                                    layer_edit_target_ == LayerEditTarget::ComponentBlue;
   if (event->button() == Qt::LeftButton && channel_view_active &&
       (effective_tool == CanvasTool::Move || effective_tool == CanvasTool::Clone ||
+       effective_tool == CanvasTool::Healing ||
        effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::Text)) {
     if (status_callback_) {
       status_callback_(tr("This tool is unavailable while viewing a document channel"));
@@ -540,10 +545,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     connect_from = last_stroke_end_document_;
   }
 
-  if (effective_tool == CanvasTool::Clone) {
+  if (effective_tool == CanvasTool::Clone || effective_tool == CanvasTool::Healing) {
+    const auto healing = effective_tool == CanvasTool::Healing;
     if (editing_grayscale_target()) {
       if (status_callback_) {
-        status_callback_(tr("Clone is unavailable while editing a grayscale channel"));
+        status_callback_(healing ? tr("Healing is unavailable while editing a grayscale channel")
+                                 : tr("Clone is unavailable while editing a grayscale channel"));
       }
       return;
     }
@@ -553,11 +560,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     }
     if (!clone_source_set_) {
       if (status_callback_) {
-        status_callback_(tr("Alt-click to set a clone source"));
+        status_callback_(healing ? tr("Alt-click to set a healing source")
+                                 : tr("Alt-click to set a clone source"));
       }
       return;
     }
-    if (begin_edit(tr("Clone stamp"))) {
+    if (begin_edit(healing ? tr("Healing brush") : tr("Clone stamp"))) {
       clone_source_cache_ = render_document_image_with_processing();
       if (!clone_aligned_ || !clone_aligned_offset_set_) {
         clone_source_offset_ = clone_source_point_ - document_point;
@@ -1076,7 +1084,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   } else if (painting_) {
     clear_move_hover_outline();
     QRect dirty;
-    if (effective_tool == CanvasTool::Clone) {
+    if (effective_tool == CanvasTool::Clone || effective_tool == CanvasTool::Healing) {
       const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
       dirty = clone_brush_segment(last_document_position_, constrained_point);
       last_document_position_ = constrained_point;
@@ -1420,7 +1428,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     const auto document_point = document_position(event->pos());
     const auto document_point_f = document_position_f(event->position());
     const auto effective_tool = effective_tool_for_input();
-    if (effective_tool == CanvasTool::Clone) {
+    if (effective_tool == CanvasTool::Clone || effective_tool == CanvasTool::Healing) {
       const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
       dirty = clone_brush_segment(last_document_position_, constrained_point);
       last_document_position_ = constrained_point;
@@ -1896,6 +1904,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
        tool_ == CanvasTool::EllipticalMarquee || tool_ == CanvasTool::Lasso ||
        tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand ||
        tool_ == CanvasTool::QuickSelect || tool_ == CanvasTool::Clone ||
+       tool_ == CanvasTool::Healing ||
        tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Text)) {
     if (status_callback_) {
       status_callback_(tr("This tool is unavailable in Quick Mask mode"));
@@ -1908,6 +1917,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
        tool_ == CanvasTool::EllipticalMarquee || tool_ == CanvasTool::Lasso ||
        tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand ||
        tool_ == CanvasTool::QuickSelect || tool_ == CanvasTool::Clone ||
+       tool_ == CanvasTool::Healing ||
        tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Text)) {
     if (status_callback_) {
       status_callback_(tr("This tool is unavailable while editing a Smart Filter mask"));
@@ -2498,6 +2508,7 @@ CanvasTool CanvasWidget::effective_tool_for_input() const noexcept {
     switch (tool_) {
       case CanvasTool::Brush:
       case CanvasTool::Clone:
+      case CanvasTool::Healing:
       case CanvasTool::Smudge:
         return CanvasTool::Eraser;
       default:

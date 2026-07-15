@@ -280,6 +280,8 @@ const char* tool_action_source(CanvasTool tool) {
       return "Brush";
     case CanvasTool::Clone:
       return "Clone";
+    case CanvasTool::Healing:
+      return "Healing Brush";
     case CanvasTool::Smudge:
       return "Smudge";
     case CanvasTool::Eraser:
@@ -326,6 +328,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.brush");
     case CanvasTool::Clone:
       return QStringLiteral("tools.clone");
+    case CanvasTool::Healing:
+      return QStringLiteral("tools.healing");
     case CanvasTool::Smudge:
       return QStringLiteral("tools.smudge");
     case CanvasTool::Eraser:
@@ -565,6 +569,9 @@ QIcon tool_icon(CanvasTool tool) {
       break;
     case CanvasTool::Clone:
       name = "tool-clone";
+      break;
+    case CanvasTool::Healing:
+      name = "tool-healing";
       break;
     case CanvasTool::Smudge:
       name = "tool-smudge";
@@ -1789,6 +1796,8 @@ void MainWindow::create_actions() {
   }
   add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);
   add_tool_action(tool_palette, tool_group, tr("Clone"), CanvasTool::Clone, QKeySequence(Qt::Key_S));
+  add_tool_action(tool_palette, tool_group, tr("Healing Brush"), CanvasTool::Healing,
+                  QKeySequence(Qt::SHIFT | Qt::Key_S));
   add_tool_action(tool_palette, tool_group, tr("Smudge"), CanvasTool::Smudge, QKeySequence(Qt::Key_R));
   add_tool_action(tool_palette, tool_group, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E));
   add_tool_action(tool_palette, tool_group, tr("Gradient"), CanvasTool::Gradient, QKeySequence(Qt::Key_G));
@@ -2463,7 +2472,8 @@ void MainWindow::create_actions() {
   add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand});
 
-  add_option_label(tr("Preset:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser});
+  add_option_label(tr("Preset:"),
+                   {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser});
   brush_preset_combo_ = new QComboBox(toolbar);
   brush_preset_combo_->setObjectName(QStringLiteral("brushPresetCombo"));
   brush_preset_combo_->setMinimumWidth(132);
@@ -2476,18 +2486,21 @@ void MainWindow::create_actions() {
       brush_preset_combo_->setCurrentIndex(preset_index);
     }
   }
-  add_option_widget(brush_preset_combo_, {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser});
+  add_option_widget(
+      brush_preset_combo_,
+      {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser});
 
-  add_option_label(tr("Size:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser,
-                                  CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Size:"),
+                   {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size = new QSpinBox(toolbar);
   brush_size->setObjectName(QStringLiteral("brushSizeSpin"));
   brush_size->setRange(1, kMaxBrushSize);
   brush_size->setValue(canvas_->brush_size());
   configure_toolbar_spinbox(brush_size, 58);
   add_option_widget(brush_size,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
-                     CanvasTool::Rectangle, CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
   brush_size_slider->setRange(1, kMaxBrushSize);
@@ -2495,10 +2508,11 @@ void MainWindow::create_actions() {
   brush_size_slider->setFixedWidth(150);
   brush_size_slider->setToolTip(tr("Brush size — press [ or ], or Alt+Right-drag on the canvas"));
   add_option_widget(brush_size_slider,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
-                     CanvasTool::Rectangle, CanvasTool::Ellipse});
-  add_option_label(tr("Opacity:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser,
-                                     CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Opacity:"),
+                   {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_opacity = new QSpinBox(toolbar);
   brush_opacity->setObjectName(QStringLiteral("brushOpacitySpin"));
   brush_opacity->setRange(1, 100);
@@ -2506,8 +2520,8 @@ void MainWindow::create_actions() {
   brush_opacity->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_opacity, 52);
   add_option_widget(brush_opacity,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
-                     CanvasTool::Rectangle, CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_opacity_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_opacity_slider->setObjectName(QStringLiteral("brushOpacitySlider"));
   brush_opacity_slider->setRange(1, 100);
@@ -2515,10 +2529,11 @@ void MainWindow::create_actions() {
   brush_opacity_slider->setFixedWidth(120);
   brush_opacity_slider->setToolTip(tr("Brush opacity — press number keys (5 = 50%, 0 = 100%)"));
   add_option_widget(brush_opacity_slider,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
-                     CanvasTool::Rectangle, CanvasTool::Ellipse});
-  add_option_label(tr("Soft:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser,
-                                  CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Soft:"),
+                   {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_softness = new QSpinBox(toolbar);
   brush_softness->setObjectName(QStringLiteral("brushSoftnessSpin"));
   brush_softness->setRange(0, 100);
@@ -2526,8 +2541,8 @@ void MainWindow::create_actions() {
   brush_softness->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_softness, 52);
   add_option_widget(brush_softness,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
-                     CanvasTool::Rectangle, CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_softness_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_softness_slider->setObjectName(QStringLiteral("brushSoftnessSlider"));
   brush_softness_slider->setRange(0, 100);
@@ -2535,8 +2550,8 @@ void MainWindow::create_actions() {
   brush_softness_slider->setFixedWidth(110);
   brush_softness_slider->setToolTip(tr("Brush edge softness — Alt+Right-drag up or down on the canvas"));
   add_option_widget(brush_softness_slider,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
-                     CanvasTool::Rectangle, CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   connect(brush_size, &QSpinBox::valueChanged, brush_size_slider, &QSlider::setValue);
   connect(brush_size_slider, &QSlider::valueChanged, brush_size, &QSpinBox::setValue);
   connect(brush_size, &QSpinBox::valueChanged, this, [this](int value) {
@@ -2727,11 +2742,27 @@ void MainWindow::create_actions() {
   clone_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
   clone_aligned_check_->setObjectName(QStringLiteral("cloneAlignedCheck"));
   clone_aligned_check_->setChecked(canvas_->clone_aligned());
-  clone_aligned_check_->setToolTip(tr("Keep clone source offset aligned across strokes"));
-  add_option_widget(clone_aligned_check_, {CanvasTool::Clone});
+  clone_aligned_check_->setToolTip(tr("Keep sample source offset aligned across strokes"));
+  add_option_widget(clone_aligned_check_, {CanvasTool::Clone, CanvasTool::Healing});
   connect(clone_aligned_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {
       canvas_->set_clone_aligned(checked);
+      save_tool_settings();
+    }
+  });
+
+  add_option_label(tr("Diffusion:"), {CanvasTool::Healing});
+  auto* healing_diffusion = new QSpinBox(toolbar);
+  healing_diffusion->setObjectName(QStringLiteral("healingDiffusionSpin"));
+  healing_diffusion->setRange(1, 7);
+  healing_diffusion->setValue(current_healing_diffusion_);
+  healing_diffusion->setToolTip(tr("Lower values preserve fine texture; higher values adapt more quickly"));
+  configure_toolbar_spinbox(healing_diffusion, 42);
+  add_option_widget(healing_diffusion, {CanvasTool::Healing});
+  connect(healing_diffusion, &QSpinBox::valueChanged, this, [this](int value) {
+    current_healing_diffusion_ = value;
+    if (canvas_ != nullptr) {
+      canvas_->set_healing_diffusion(value);
       save_tool_settings();
     }
   });

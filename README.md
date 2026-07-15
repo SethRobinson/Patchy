@@ -117,7 +117,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 ## Features
 
 - Open and save layered PSD and PSB files with groups, masks, clipping masks, saved alpha and spot channels, text objects, Fill Opacity, the full Photoshop blend mode set, layer styles and more
-- Common raster editing tools (brush, eraser, selection, transform, gradients, shapes, etc.)
+- Common raster editing tools, including Brush, Healing Brush, Clone Stamp, Smudge, Eraser, selections, transforms, gradients, and shapes
 - Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks with paintable shared masks and per-filter blending
 - Visual Filters & Looks gallery with 28 effects, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks
 - Photoshop-compatible layer style, pattern, and gradient preset libraries, including .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures
@@ -139,6 +139,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ### 0.20 - July 15, 2026
 
+- New classic Healing Brush transfers detail from an Alt-clicked source while adapting it to the destination tone. Aligned sampling, adjustable Diffusion, selections, palette mode, and ordinary PSD/PSB pixel round-trips are supported
 - New Visual Filters & Looks gallery with 28 effects across photo looks, blur, sharpen, distort, noise, pixelate, stylize, and render categories. Search and favorites make effects easy to find, while full-resolution live preview, reorderable effect stacks, per-effect opacity and blending, and reusable Saved Looks support more involved recipes
 - Smart Filters now use Photoshop-compatible native PSD data. Smart Objects can carry editable stacks of Gaussian Blur, High Pass, Median, Dust & Scratches, and Surface Blur, with per-filter visibility and blending plus one shared paintable mask. Supported stacks survive PSD round-trips and rebuild from the original Smart Object contents after edits and transforms
 - Camera raw support opens CR2, CR3, NEF, ARW, RAF, DNG, and more through a 16-bit develop dialog with white balance, exposure, highlight recovery, contrast, highlights, shadows, saturation, vibrance, demosaic, and noise-reduction controls

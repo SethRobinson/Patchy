@@ -2659,6 +2659,7 @@ void MainWindow::refresh_document_info() {
     QStringList lines;
     lines << tr("Tool: %1").arg(tool_name(current_tool_));
     if (current_tool_ == CanvasTool::Brush || current_tool_ == CanvasTool::Clone ||
+        current_tool_ == CanvasTool::Healing ||
         current_tool_ == CanvasTool::Smudge || current_tool_ == CanvasTool::Eraser ||
         current_tool_ == CanvasTool::Line || current_tool_ == CanvasTool::Rectangle ||
         current_tool_ == CanvasTool::Ellipse) {

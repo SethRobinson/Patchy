@@ -276,8 +276,8 @@ void CanvasWidget::update_tool_cursor() {
       return;
     }
   }
-  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Smudge ||
-      tool_ == CanvasTool::Eraser) {
+  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing ||
+      tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Eraser) {
     const auto use_cached_brush_cursor = [&](bool one_pixel, int diameter, int extent) {
       if (brush_cursor_cache_.has_value() && brush_cursor_cache_->tool == tool_ &&
           brush_cursor_cache_->brush_size == brush_size_ &&

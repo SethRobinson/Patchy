@@ -72,6 +72,7 @@
     <file alias="tool-quick-select.svg">icons/tool-quick-select.svg</file>
     <file alias="tool-brush.svg">icons/tool-brush.svg</file>
     <file alias="tool-clone.svg">icons/tool-clone.svg</file>
+    <file alias="tool-healing.svg">icons/tool-healing.svg</file>
     <file alias="tool-smudge.svg">icons/tool-smudge.svg</file>
     <file alias="tool-eraser.svg">icons/tool-eraser.svg</file>
     <file alias="tool-gradient.svg">icons/tool-gradient.svg</file>

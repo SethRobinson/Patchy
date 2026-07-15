@@ -1058,6 +1058,8 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Magic Wand"))->shortcut() == QKeySequence(Qt::Key_W));
   CHECK(require_action_by_text(window, QStringLiteral("Brush"))->shortcut() == QKeySequence(Qt::Key_B));
   CHECK(require_action_by_text(window, QStringLiteral("Clone"))->shortcut() == QKeySequence(Qt::Key_S));
+  CHECK(require_action_by_text(window, QStringLiteral("Healing Brush"))->shortcut() ==
+        QKeySequence(Qt::SHIFT | Qt::Key_S));
   CHECK(require_action_by_text(window, QStringLiteral("Smudge"))->shortcut() == QKeySequence(Qt::Key_R));
   CHECK(require_action_by_text(window, QStringLiteral("Eraser"))->shortcut() == QKeySequence(Qt::Key_E));
   CHECK(require_action_by_text(window, QStringLiteral("Gradient"))->shortcut() == QKeySequence(Qt::Key_G));
@@ -1087,6 +1089,7 @@ void ui_photoshop_shortcuts_are_registered() {
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Brush")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Smudge")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Clone")));
+  tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Healing Brush")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Type")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Cut")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Default Colors")));

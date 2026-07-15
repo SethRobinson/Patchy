@@ -279,6 +279,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_magnetic_lasso_edge_contrast(canvas_->magnetic_lasso_edge_contrast());
     session->canvas->set_magnetic_lasso_frequency(canvas_->magnetic_lasso_frequency());
     session->canvas->set_clone_aligned(canvas_->clone_aligned());
+    session->canvas->set_healing_diffusion(current_healing_diffusion_);
     session->canvas->set_gradient_method(canvas_->gradient_method());
     session->canvas->set_gradient_reverse(canvas_->gradient_reverse());
     session->canvas->set_gradient_opacity(canvas_->gradient_opacity());
@@ -296,6 +297,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   if (clone_aligned_check_ != nullptr) {
     session->canvas->set_clone_aligned(clone_aligned_check_->isChecked());
   }
+  session->canvas->set_healing_diffusion(current_healing_diffusion_);
   apply_selection_modes_to_canvas(session->canvas);
   session->canvas->set_tool(current_tool_);
   session->canvas->set_marquee_style(current_marquee_style_);
@@ -408,6 +410,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
   canvas_->set_shape_corner_radius(current_shape_corner_radius_);
   canvas_->set_shape_style(current_shape_style_);
   canvas_->set_shape_fixed_size(current_shape_width_, current_shape_height_);
+  canvas_->set_healing_diffusion(current_healing_diffusion_);
   if (canvas_changed) {
     apply_active_brush_settings_to_canvas();
     sync_brush_controls_from_canvas();

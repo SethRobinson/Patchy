@@ -782,7 +782,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_shape_preview(painter, exposed_rect);
   draw_drag_size_readout(painter);
   draw_text_rect_preview(painter);
-  if (tool_ == CanvasTool::Clone && clone_source_set_) {
+  if ((tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing) && clone_source_set_) {
     const auto center = widget_position_f(QPointF(clone_source_point_) + QPointF(0.5, 0.5));
     constexpr double kRadius = 7.0;
     painter.save();

@@ -1024,6 +1024,7 @@ private:
   CanvasWidget::MarqueeStyle current_shape_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_shape_width_{1024};
   int current_shape_height_{768};
+  int current_healing_diffusion_{5};
   bool view_rulers_visible_{false};
   MeasurementUnit ruler_unit_{MeasurementUnit::Pixels};
   bool view_grid_visible_{false};

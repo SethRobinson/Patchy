@@ -646,6 +646,14 @@ bool CanvasWidget::clone_aligned() const noexcept {
   return clone_aligned_;
 }
 
+void CanvasWidget::set_healing_diffusion(int diffusion) noexcept {
+  healing_diffusion_ = std::clamp(diffusion, 1, 7);
+}
+
+int CanvasWidget::healing_diffusion() const noexcept {
+  return healing_diffusion_;
+}
+
 void CanvasWidget::set_show_transform_controls(bool enabled) noexcept {
   const auto old_transform_controls_rect = move_transform_controls_rect();
   show_transform_controls_ = enabled;

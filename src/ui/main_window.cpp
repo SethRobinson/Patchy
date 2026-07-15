@@ -12729,6 +12729,9 @@ void MainWindow::load_tool_settings() {
       break;
   }
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
+  current_healing_diffusion_ =
+      std::clamp(settings.value(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_).toInt(), 1, 7);
+  canvas_->set_healing_diffusion(current_healing_diffusion_);
   canvas_->set_shape_corner_radius(
       settings.value(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius()).toInt());
   // The spin resync below is signal-blocked, so mirror the loaded value by hand.
@@ -12808,6 +12811,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/showTransformControls"), canvas_->show_transform_controls());
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
+  settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
   settings.setValue(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius());
   settings.setValue(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity());
   settings.setValue(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness());
@@ -14024,6 +14028,11 @@ void MainWindow::refresh_options_bar() {
   if (clone_aligned_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(clone_aligned_check_);
     clone_aligned_check_->setChecked(canvas_->clone_aligned());
+  }
+  if (auto* healing_diffusion = findChild<QSpinBox*>(QStringLiteral("healingDiffusionSpin"));
+      healing_diffusion != nullptr) {
+    QSignalBlocker blocker(healing_diffusion);
+    healing_diffusion->setValue(current_healing_diffusion_);
   }
   if (wand_contiguous_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(wand_contiguous_check_);

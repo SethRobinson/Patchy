@@ -426,6 +426,7 @@ bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
     case CanvasTool::Clone:
+    case CanvasTool::Healing:
     case CanvasTool::Smudge:
     case CanvasTool::Eraser:
     case CanvasTool::Line:

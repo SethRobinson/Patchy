@@ -691,6 +691,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolQuickSelectAction", "Quick Select"},
       {"toolBrushAction", "Brush"},
       {"toolCloneAction", "Clone"},
+      {"toolHealingBrushAction", "Healing Brush"},
       {"toolSmudgeAction", "Smudge"},
       {"toolEraserAction", "Eraser"},
       {"toolGradientAction", "Gradient"},
@@ -874,6 +875,7 @@ void ui_options_bar_tracks_active_tool() {
   auto* gradient_preview = window.findChild<QPushButton*>(QStringLiteral("gradientPreviewButton"));
   auto* gradient_edit_stops = window.findChild<QPushButton*>(QStringLiteral("gradientEditStopsButton"));
   auto* clone_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
+  auto* healing_diffusion = window.findChild<QSpinBox*>(QStringLiteral("healingDiffusionSpin"));
   auto* wand_tolerance = window.findChild<QSpinBox*>(QStringLiteral("wandToleranceSpin"));
   auto* wand_contiguous = window.findChild<QCheckBox*>(QStringLiteral("wandContiguousCheck"));
   auto* wand_sample_all_layers = window.findChild<QCheckBox*>(QStringLiteral("wandSampleAllLayersCheck"));
@@ -902,6 +904,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(gradient_preview != nullptr);
   CHECK(gradient_edit_stops != nullptr);
   CHECK(clone_aligned != nullptr);
+  CHECK(healing_diffusion != nullptr);
   CHECK(wand_tolerance != nullptr);
   CHECK(wand_contiguous != nullptr);
   CHECK(wand_sample_all_layers != nullptr);
@@ -918,6 +921,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_softness->isVisible());
   CHECK(brush_softness_slider->isVisible());
   CHECK(!clone_aligned->isVisible());
+  CHECK(!healing_diffusion->isVisible());
   CHECK(!gradient_method->isVisible());
   CHECK(!gradient_opacity->isVisible());
   CHECK(!gradient_reverse->isVisible());
@@ -1016,12 +1020,25 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(!wand_contiguous->isVisible());
   CHECK(!wand_sample_all_layers->isVisible());
 
+  require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Healing);
+  CHECK(brush_size->isVisible());
+  CHECK(brush_opacity->isVisible());
+  CHECK(brush_softness->isVisible());
+  CHECK(clone_aligned->isVisible());
+  CHECK(healing_diffusion->isVisible());
+  healing_diffusion->setValue(3);
+  QApplication::processEvents();
+  CHECK(canvas->healing_diffusion() == 3);
+
   require_action_by_text(window, QStringLiteral("Smudge"))->trigger();
   QApplication::processEvents();
   CHECK(brush_size->isVisible());
   CHECK(brush_opacity->isVisible());
   CHECK(brush_softness->isVisible());
   CHECK(!clone_aligned->isVisible());
+  CHECK(!healing_diffusion->isVisible());
 
   require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
   QApplication::processEvents();

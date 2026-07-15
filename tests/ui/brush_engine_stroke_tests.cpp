@@ -1908,6 +1908,64 @@ void ui_clone_tool_feathered_rgba_edges_keep_source_color() {
   CHECK(feathered[2] <= 5);
 }
 
+void ui_healing_brush_transfers_detail_and_preserves_destination_tone() {
+  patchy::Document document(48, 24, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(48, 24, patchy::PixelFormat::rgba8(), QColor(40, 80, 120, 255));
+  for (std::int32_t y = 11; y <= 13; ++y) {
+    for (std::int32_t x = 9; x <= 11; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 100;
+      px[1] = 100;
+      px[2] = 100;
+      px[3] = 255;
+    }
+  }
+  auto* source_center = pixels.pixel(10, 12);
+  source_center[0] = 180;
+  source_center[1] = 160;
+  source_center[2] = 140;
+  auto& layer = document.add_pixel_layer("Healing", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(192, 96);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Healing);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.set_healing_diffusion(5);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto source = canvas.widget_position_for_document_point(QPoint(10, 12));
+  send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  const auto target = canvas.widget_position_for_document_point(QPoint(34, 12));
+  send_mouse(canvas, QEvent::MouseButtonPress, target, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, target, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto* healed = layer.pixels().pixel(34, 12);
+  CHECK(healed[0] == 120);
+  CHECK(healed[1] == 140);
+  CHECK(healed[2] == 160);
+  CHECK(healed[3] == 255);
+  const auto* untouched = layer.pixels().pixel(35, 12);
+  CHECK(untouched[0] == 40 && untouched[1] == 80 && untouched[2] == 120 && untouched[3] == 255);
+
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto path = std::filesystem::path(temp.path().toStdString()) / "healed.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, path);
+  const auto reread = patchy::psd::DocumentIo::read_file(path);
+  CHECK(reread.layers().size() == 1);
+  const auto* round_tripped = reread.layers().front().pixels().pixel(34, 12);
+  CHECK(round_tripped[0] == 120);
+  CHECK(round_tripped[1] == 140);
+  CHECK(round_tripped[2] == 160);
+  CHECK(round_tripped[3] == 255);
+}
+
 void ui_smudge_tool_drags_painted_pixels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2368,6 +2426,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests() {
       {"ui_clone_tool_samples_source_and_paints_offset", ui_clone_tool_samples_source_and_paints_offset},
       {"ui_clone_tool_feathered_rgba_edges_keep_source_color",
        ui_clone_tool_feathered_rgba_edges_keep_source_color},
+      {"ui_healing_brush_transfers_detail_and_preserves_destination_tone",
+       ui_healing_brush_transfers_detail_and_preserves_destination_tone},
       {"ui_smudge_tool_drags_painted_pixels", ui_smudge_tool_drags_painted_pixels},
       {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},

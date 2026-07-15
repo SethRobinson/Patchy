@@ -2677,6 +2677,11 @@
         <translation>クローンスタンプ</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_shared.cpp" line="286"/>
+        <source>Healing Brush</source>
+        <translation>修復ブラシ</translation>
+    </message>
+    <message>
         <location line="+2"/>
         <source>Smudge</source>
         <translation>指先</translation>
@@ -5620,6 +5625,11 @@ Mixed selection</source>
         <translation>グレースケールチャンネルの編集中はコピースタンプを使用できません</translation>
     </message>
     <message>
+        <location filename="../src/ui/canvas_widget_events.cpp" line="553"/>
+        <source>Healing is unavailable while editing a grayscale channel</source>
+        <translation>グレースケールチャンネルの編集中は修復ブラシを使用できません</translation>
+    </message>
+    <message>
         <location line="+327"/>
         <source>Smudge is unavailable while editing a grayscale channel</source>
         <translation>グレースケールチャンネルの編集中は指先ツールを使用できません</translation>
@@ -5710,14 +5720,24 @@ Mixed selection</source>
         <translation>Alt クリックでクローン元を設定します</translation>
     </message>
     <message>
+        <location filename="../src/ui/canvas_widget_events.cpp" line="562"/>
+        <source>Alt-click to set a healing source</source>
+        <translation>Alt クリックで修復元を設定します</translation>
+    </message>
+    <message>
         <location line="+5007"/>
-        <source>Select the Clone tool to set a clone source</source>
-        <translation>クローン元を設定するにはクローンツールを選択してください</translation>
+        <source>Select the Clone or Healing Brush tool to set a sample source</source>
+        <translation>サンプル元を設定するにはクローンまたは修復ブラシツールを選択してください</translation>
     </message>
     <message>
         <location line="-5003"/>
         <source>Clone stamp</source>
         <translation>クローンスタンプ</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/canvas_widget_events.cpp" line="567"/>
+        <source>Healing brush</source>
+        <translation>修復ブラシ</translation>
     </message>
     <message>
         <location line="+127"/>
@@ -5819,6 +5839,11 @@ Mixed selection</source>
         <location line="+880"/>
         <source>Clone source set at %1, %2</source>
         <translation>クローン元を %1, %2 に設定しました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/canvas_widget_brush.cpp" line="1694"/>
+        <source>Healing source set at %1, %2</source>
+        <translation>修復元を %1, %2 に設定しました</translation>
     </message>
     <message>
         <location line="+634"/>
@@ -7734,6 +7759,11 @@ Mixed selection</source>
         <translation>クローン</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_actions.cpp" line="1799"/>
+        <source>Healing Brush</source>
+        <translation>修復ブラシ</translation>
+    </message>
+    <message>
         <location line="+1"/>
         <source>Smudge</source>
         <translation>指先</translation>
@@ -8260,8 +8290,18 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+3"/>
-        <source>Keep clone source offset aligned across strokes</source>
-        <translation>ストローク間でクローン元のオフセットを維持します</translation>
+        <source>Keep sample source offset aligned across strokes</source>
+        <translation>ストローク間でサンプル元のオフセットを維持します</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_actions.cpp" line="2754"/>
+        <source>Diffusion:</source>
+        <translation>拡散:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_actions.cpp" line="2760"/>
+        <source>Lower values preserve fine texture; higher values adapt more quickly</source>
+        <translation>値を小さくすると細かいテクスチャを保持し、大きくすると周囲により速くなじみます</translation>
     </message>
     <message>
         <location line="+112"/>

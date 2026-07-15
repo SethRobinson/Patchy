@@ -66,7 +66,8 @@ enum class CanvasTool {
   Eyedropper,
   Text,
   Pan,
-  Zoom
+  Zoom,
+  Healing
 };
 
 // Action that can be bound to a pen barrel/side button. These are the actions
@@ -338,6 +339,8 @@ public:
   [[nodiscard]] std::vector<GradientStop> effective_gradient_stops() const;
   void set_clone_aligned(bool aligned) noexcept;
   [[nodiscard]] bool clone_aligned() const noexcept;
+  void set_healing_diffusion(int diffusion) noexcept;
+  [[nodiscard]] int healing_diffusion() const noexcept;
   void set_pen_input_settings(PenInputSettings settings) noexcept;
   [[nodiscard]] const PenInputSettings& pen_input_settings() const noexcept;
   [[nodiscard]] std::optional<PenInputSample> last_pen_input_sample() const;
@@ -1284,6 +1287,7 @@ private:
   bool clone_source_set_{false};
   bool clone_aligned_{true};
   bool clone_aligned_offset_set_{false};
+  int healing_diffusion_{5};
   PenInputSettings pen_input_settings_{};
   std::optional<PenInputSample> active_pen_input_sample_{};
   std::optional<PenInputSample> last_pen_input_sample_{};

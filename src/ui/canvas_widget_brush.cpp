@@ -193,6 +193,53 @@ float brush_shape_coverage(double distance_x, double distance_y, int radius, int
   return brush_coverage(normalized_distance_squared * major_radius * major_radius, radius, softness);
 }
 
+std::array<double, 3> healing_ring_tone(const QImage& snapshot, QPoint center, int radius) {
+  constexpr std::array<std::array<int, 2>, 8> kDirections{{
+      {{-1, -1}}, {{0, -1}}, {{1, -1}}, {{-1, 0}},
+      {{1, 0}},   {{-1, 1}}, {{0, 1}},  {{1, 1}},
+  }};
+  std::array<double, 3> sum{};
+  double alpha_weight = 0.0;
+  for (const auto& direction : kDirections) {
+    const auto x = std::clamp(center.x() + direction[0] * radius, 0, snapshot.width() - 1);
+    const auto y = std::clamp(center.y() + direction[1] * radius, 0, snapshot.height() - 1);
+    const auto* pixel = snapshot.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
+    const auto alpha = static_cast<double>(pixel[3]) / 255.0;
+    alpha_weight += alpha;
+    for (std::size_t channel = 0; channel < sum.size(); ++channel) {
+      sum[channel] += static_cast<double>(pixel[channel]) * alpha;
+    }
+  }
+  if (alpha_weight > std::numeric_limits<double>::epsilon()) {
+    for (auto& channel : sum) {
+      channel /= alpha_weight;
+    }
+    return sum;
+  }
+
+  const auto x = std::clamp(center.x(), 0, snapshot.width() - 1);
+  const auto y = std::clamp(center.y(), 0, snapshot.height() - 1);
+  const auto* pixel = snapshot.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
+  return {static_cast<double>(pixel[0]), static_cast<double>(pixel[1]), static_cast<double>(pixel[2])};
+}
+
+std::array<std::uint8_t, 4> healing_sample(const QImage& snapshot, QPoint source, QPoint destination,
+                                           int tone_radius) {
+  const auto source_tone = healing_ring_tone(snapshot, source, tone_radius);
+  const auto destination_tone = healing_ring_tone(snapshot, destination, tone_radius);
+  const auto* source_pixel = snapshot.constScanLine(source.y()) + static_cast<std::size_t>(source.x()) * 4U;
+  std::array<std::uint8_t, 4> result{};
+  for (std::size_t channel = 0; channel < 3; ++channel) {
+    // Classic frequency-separation healing: carry sampled detail into the
+    // destination's local tone. This is deliberately a fixed local operation,
+    // not patch search, synthesis, or a gradient-domain optimization.
+    result[channel] = clamp_byte(destination_tone[channel] + static_cast<double>(source_pixel[channel]) -
+                                 source_tone[channel]);
+  }
+  result[3] = source_pixel[3];
+  return result;
+}
+
 void blend_straight_rgba(std::uint8_t* dst, const std::uint8_t* src, float amount) {
   amount = std::clamp(amount, 0.0F, 1.0F);
   if (amount <= 0.0F) {
@@ -1644,7 +1691,10 @@ void CanvasWidget::set_clone_source(QPoint point) {
   clone_aligned_offset_set_ = false;
   update();
   if (status_callback_) {
-    status_callback_(tr("Clone source set at %1, %2").arg(point.x()).arg(point.y()));
+    status_callback_((tool_ == CanvasTool::Healing ? tr("Healing source set at %1, %2")
+                                                   : tr("Clone source set at %1, %2"))
+                         .arg(point.x())
+                         .arg(point.y()));
   }
 }
 
@@ -1661,6 +1711,9 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
   const auto* palette_snap = palette_snap_for_edits();
 
   const auto brush = effective_brush_input();
+  const auto healing = tool_ == CanvasTool::Healing;
+  const auto healing_tone_radius =
+      std::max(1, (brush.size * (9 - std::clamp(healing_diffusion_, 1, 7)) + 15) / 16);
   const auto radius = std::max(1, brush.size) / 2;
   if (radius == 0) {
     const auto path_rect = QRect(std::min(from.x(), to.x()),
@@ -1713,8 +1766,13 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
         return;
       }
 
+      std::array<std::uint8_t, 4> healed{};
       const auto* src = clone_source_cache_.constScanLine(source_point.y()) +
                         static_cast<std::size_t>(source_point.x()) * 4U;
+      if (healing) {
+        healed = healing_sample(clone_source_cache_, source_point, document_point, healing_tone_radius);
+        src = healed.data();
+      }
       const auto covered_opacity = opacity * coverage;
       if (channels >= 4 && !lock_transparent_pixels) {
         blend_straight_rgba(dst, src, covered_opacity);
@@ -1820,8 +1878,13 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
         continue;
       }
 
+      std::array<std::uint8_t, 4> healed{};
       const auto* src = clone_source_cache_.constScanLine(source_point.y()) +
                         static_cast<std::size_t>(source_point.x()) * 4U;
+      if (healing) {
+        healed = healing_sample(clone_source_cache_, source_point, document_point, healing_tone_radius);
+        src = healed.data();
+      }
       const auto covered_opacity = opacity * coverage;
       if (channels >= 4 && !lock_transparent_pixels) {
         blend_straight_rgba(dst, src, covered_opacity);

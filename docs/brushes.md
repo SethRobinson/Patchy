@@ -46,7 +46,13 @@ Per-dab Shape Dynamics (size/angle/roundness jitter with minimum floors, flip X/
 
 ## Deliberate v1 limitations
 
-Layer-**mask** painting and Clone/Smudge stay procedural; texture, dual brush, color dynamics, wet edges, and flow are neither imported nor modeled.
+Layer-**mask** painting and Clone/Healing/Smudge stay procedural; texture, dual brush, color dynamics, wet edges, and flow are neither imported nor modeled.
+
+## Classic Healing Brush
+
+The Healing Brush is an explicit-source pixel tool. Alt-click chooses a document-composite source, Aligned shares the Clone tool's across-stroke offset behavior, and Diffusion 1 through 7 controls the radius used to separate source detail from local tone. Each output sample adds the source center's difference from its alpha-weighted eight-sample source ring to the matching destination ring tone. The stroke uses the same size, opacity, softness, selection, transparent-pixel lock, palette snap, undo, and source-snapshot behavior as Clone.
+
+The implementation deliberately performs no automatic source selection, patch search, patch synthesis, reshuffling, or gradient-domain solve. Adobe's classic healing patent US 6587592 expired in 2021, while the still-active PatchMatch and gradient-domain gates recorded in `docs/smart-objects.md` remain out of scope. Healing writes only ordinary layer pixels, so PSD/PSB round-trips need no private metadata and remain compatible with other editors.
 
 ## Fixtures
 
