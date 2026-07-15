@@ -654,6 +654,46 @@ int CanvasWidget::healing_diffusion() const noexcept {
   return healing_diffusion_;
 }
 
+void CanvasWidget::set_local_adjustment_strength(int strength) noexcept {
+  local_adjustment_strength_ = std::clamp(strength, 1, 100);
+}
+
+int CanvasWidget::local_adjustment_strength() const noexcept {
+  return local_adjustment_strength_;
+}
+
+void CanvasWidget::set_local_tone_range(LocalToneRange range) noexcept {
+  local_tone_range_ = range;
+}
+
+CanvasWidget::LocalToneRange CanvasWidget::local_tone_range() const noexcept {
+  return local_tone_range_;
+}
+
+void CanvasWidget::set_local_protect_tones(bool enabled) noexcept {
+  local_protect_tones_ = enabled;
+}
+
+bool CanvasWidget::local_protect_tones() const noexcept {
+  return local_protect_tones_;
+}
+
+void CanvasWidget::set_sponge_mode(SpongeMode mode) noexcept {
+  sponge_mode_ = mode;
+}
+
+CanvasWidget::SpongeMode CanvasWidget::sponge_mode() const noexcept {
+  return sponge_mode_;
+}
+
+void CanvasWidget::set_sponge_vibrance(bool enabled) noexcept {
+  sponge_vibrance_ = enabled;
+}
+
+bool CanvasWidget::sponge_vibrance() const noexcept {
+  return sponge_vibrance_;
+}
+
 void CanvasWidget::set_show_transform_controls(bool enabled) noexcept {
   const auto old_transform_controls_rect = move_transform_controls_rect();
   show_transform_controls_ = enabled;

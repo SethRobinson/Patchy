@@ -12732,6 +12732,31 @@ void MainWindow::load_tool_settings() {
   current_healing_diffusion_ =
       std::clamp(settings.value(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_).toInt(), 1, 7);
   canvas_->set_healing_diffusion(current_healing_diffusion_);
+  current_local_adjustment_strength_ =
+      std::clamp(settings.value(QStringLiteral("tools/localAdjustmentStrength"),
+                                current_local_adjustment_strength_).toInt(),
+                 1, 100);
+  const auto local_tone_range =
+      settings.value(QStringLiteral("tools/localToneRange"), QStringLiteral("midtones")).toString();
+  current_local_tone_range_ = local_tone_range == QStringLiteral("shadows")
+                                  ? CanvasWidget::LocalToneRange::Shadows
+                              : local_tone_range == QStringLiteral("highlights")
+                                  ? CanvasWidget::LocalToneRange::Highlights
+                                  : CanvasWidget::LocalToneRange::Midtones;
+  current_local_protect_tones_ =
+      settings.value(QStringLiteral("tools/localProtectTones"), current_local_protect_tones_).toBool();
+  const auto sponge_mode =
+      settings.value(QStringLiteral("tools/spongeMode"), QStringLiteral("desaturate")).toString();
+  current_sponge_mode_ = sponge_mode == QStringLiteral("saturate")
+                             ? CanvasWidget::SpongeMode::Saturate
+                             : CanvasWidget::SpongeMode::Desaturate;
+  current_sponge_vibrance_ =
+      settings.value(QStringLiteral("tools/spongeVibrance"), current_sponge_vibrance_).toBool();
+  canvas_->set_local_adjustment_strength(current_local_adjustment_strength_);
+  canvas_->set_local_tone_range(current_local_tone_range_);
+  canvas_->set_local_protect_tones(current_local_protect_tones_);
+  canvas_->set_sponge_mode(current_sponge_mode_);
+  canvas_->set_sponge_vibrance(current_sponge_vibrance_);
   canvas_->set_shape_corner_radius(
       settings.value(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius()).toInt());
   // The spin resync below is signal-blocked, so mirror the loaded value by hand.
@@ -12812,6 +12837,25 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
+  settings.setValue(QStringLiteral("tools/localAdjustmentStrength"), current_local_adjustment_strength_);
+  QString local_tone_range = QStringLiteral("midtones");
+  switch (current_local_tone_range_) {
+    case CanvasWidget::LocalToneRange::Shadows:
+      local_tone_range = QStringLiteral("shadows");
+      break;
+    case CanvasWidget::LocalToneRange::Midtones:
+      break;
+    case CanvasWidget::LocalToneRange::Highlights:
+      local_tone_range = QStringLiteral("highlights");
+      break;
+  }
+  settings.setValue(QStringLiteral("tools/localToneRange"), local_tone_range);
+  settings.setValue(QStringLiteral("tools/localProtectTones"), current_local_protect_tones_);
+  settings.setValue(QStringLiteral("tools/spongeMode"),
+                    current_sponge_mode_ == CanvasWidget::SpongeMode::Saturate
+                        ? QStringLiteral("saturate")
+                        : QStringLiteral("desaturate"));
+  settings.setValue(QStringLiteral("tools/spongeVibrance"), current_sponge_vibrance_);
   settings.setValue(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius());
   settings.setValue(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity());
   settings.setValue(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness());
@@ -14033,6 +14077,28 @@ void MainWindow::refresh_options_bar() {
       healing_diffusion != nullptr) {
     QSignalBlocker blocker(healing_diffusion);
     healing_diffusion->setValue(current_healing_diffusion_);
+  }
+  if (local_adjustment_strength_spin_ != nullptr) {
+    QSignalBlocker blocker(local_adjustment_strength_spin_);
+    local_adjustment_strength_spin_->setValue(current_local_adjustment_strength_);
+  }
+  if (local_tone_range_combo_ != nullptr) {
+    const auto index = local_tone_range_combo_->findData(static_cast<int>(current_local_tone_range_));
+    QSignalBlocker blocker(local_tone_range_combo_);
+    local_tone_range_combo_->setCurrentIndex(std::max(0, index));
+  }
+  if (local_protect_tones_check_ != nullptr) {
+    QSignalBlocker blocker(local_protect_tones_check_);
+    local_protect_tones_check_->setChecked(current_local_protect_tones_);
+  }
+  if (sponge_mode_combo_ != nullptr) {
+    const auto index = sponge_mode_combo_->findData(static_cast<int>(current_sponge_mode_));
+    QSignalBlocker blocker(sponge_mode_combo_);
+    sponge_mode_combo_->setCurrentIndex(std::max(0, index));
+  }
+  if (sponge_vibrance_check_ != nullptr) {
+    QSignalBlocker blocker(sponge_vibrance_check_);
+    sponge_vibrance_check_->setChecked(current_sponge_vibrance_);
   }
   if (wand_contiguous_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(wand_contiguous_check_);

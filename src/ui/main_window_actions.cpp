@@ -213,6 +213,7 @@
 #include <functional>
 #include <future>
 #include <iostream>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -284,6 +285,16 @@ const char* tool_action_source(CanvasTool tool) {
       return "Healing Brush";
     case CanvasTool::Smudge:
       return "Smudge";
+    case CanvasTool::Dodge:
+      return "Dodge";
+    case CanvasTool::Burn:
+      return "Burn";
+    case CanvasTool::Sponge:
+      return "Sponge";
+    case CanvasTool::BlurBrush:
+      return "Blur";
+    case CanvasTool::SharpenBrush:
+      return "Sharpen";
     case CanvasTool::Eraser:
       return "Eraser";
     case CanvasTool::Gradient:
@@ -332,6 +343,16 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.healing");
     case CanvasTool::Smudge:
       return QStringLiteral("tools.smudge");
+    case CanvasTool::Dodge:
+      return QStringLiteral("tools.dodge");
+    case CanvasTool::Burn:
+      return QStringLiteral("tools.burn");
+    case CanvasTool::Sponge:
+      return QStringLiteral("tools.sponge");
+    case CanvasTool::BlurBrush:
+      return QStringLiteral("tools.blur");
+    case CanvasTool::SharpenBrush:
+      return QStringLiteral("tools.sharpen");
     case CanvasTool::Eraser:
       return QStringLiteral("tools.eraser");
     case CanvasTool::Gradient:
@@ -575,6 +596,21 @@ QIcon tool_icon(CanvasTool tool) {
       break;
     case CanvasTool::Smudge:
       name = "tool-smudge";
+      break;
+    case CanvasTool::Dodge:
+      name = "tool-dodge";
+      break;
+    case CanvasTool::Burn:
+      name = "tool-burn";
+      break;
+    case CanvasTool::Sponge:
+      name = "tool-sponge";
+      break;
+    case CanvasTool::BlurBrush:
+      name = "tool-blur";
+      break;
+    case CanvasTool::SharpenBrush:
+      name = "tool-sharpen";
       break;
     case CanvasTool::Eraser:
       name = "tool-eraser";
@@ -1798,7 +1834,66 @@ void MainWindow::create_actions() {
   add_tool_action(tool_palette, tool_group, tr("Clone"), CanvasTool::Clone, QKeySequence(Qt::Key_S));
   add_tool_action(tool_palette, tool_group, tr("Healing Brush"), CanvasTool::Healing,
                   QKeySequence(Qt::SHIFT | Qt::Key_S));
-  add_tool_action(tool_palette, tool_group, tr("Smudge"), CanvasTool::Smudge, QKeySequence(Qt::Key_R));
+  const auto create_local_brush_action =
+      [this, tool_group](QMenu* menu, const QString& label, CanvasTool tool, QKeySequence shortcut) {
+        auto* action = new QAction(label, this);
+        bind_action_text(action, tool_action_source(tool));
+        action->setIcon(tool_icon(tool));
+        action->setCheckable(true);
+        action->setData(static_cast<int>(tool));
+        action->setObjectName(tool_action_object_name(tool));
+        register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
+        tool_group->addAction(action);
+        menu->addAction(action);
+        addAction(action);
+        register_document_action(action);
+        return action;
+      };
+  const auto configure_local_brush_flyout = [](QToolBar* palette, QMenu* menu, QToolButton* button,
+                                                QAction* default_action,
+                                                std::initializer_list<QAction*> actions) {
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    button->setPopupMode(QToolButton::DelayedPopup);
+    button->setMenu(menu);
+    button->setDefaultAction(default_action);
+    button->setToolTip(default_action->toolTip());
+    palette->addWidget(button);
+    for (auto* action : actions) {
+      QObject::connect(action, &QAction::triggered, button, [button, menu, action] {
+        button->setDefaultAction(action);
+        button->setMenu(menu);
+        button->setToolTip(action->toolTip());
+      });
+    }
+  };
+
+  auto* detail_menu = new QMenu(tr("Detail Tools"), tool_palette);
+  detail_menu->setObjectName(QStringLiteral("detailToolMenu"));
+  bind_widget_text(detail_menu, "Detail Tools");
+  auto* smudge_action =
+      create_local_brush_action(detail_menu, tr("Smudge"), CanvasTool::Smudge, QKeySequence(Qt::Key_R));
+  auto* blur_action = create_local_brush_action(detail_menu, tr("Blur"), CanvasTool::BlurBrush,
+                                                 QKeySequence(Qt::SHIFT | Qt::Key_R));
+  auto* sharpen_action =
+      create_local_brush_action(detail_menu, tr("Sharpen"), CanvasTool::SharpenBrush, QKeySequence());
+  auto* detail_button = new QToolButton(tool_palette);
+  detail_button->setObjectName(QStringLiteral("detailToolButton"));
+  configure_local_brush_flyout(tool_palette, detail_menu, detail_button, smudge_action,
+                               {smudge_action, blur_action, sharpen_action});
+
+  auto* tone_menu = new QMenu(tr("Toning Tools"), tool_palette);
+  tone_menu->setObjectName(QStringLiteral("toneToolMenu"));
+  bind_widget_text(tone_menu, "Toning Tools");
+  auto* dodge_action =
+      create_local_brush_action(tone_menu, tr("Dodge"), CanvasTool::Dodge, QKeySequence(Qt::Key_O));
+  auto* burn_action = create_local_brush_action(tone_menu, tr("Burn"), CanvasTool::Burn,
+                                                 QKeySequence(Qt::SHIFT | Qt::Key_O));
+  auto* sponge_action =
+      create_local_brush_action(tone_menu, tr("Sponge"), CanvasTool::Sponge, QKeySequence());
+  auto* tone_button = new QToolButton(tool_palette);
+  tone_button->setObjectName(QStringLiteral("toneToolButton"));
+  configure_local_brush_flyout(tool_palette, tone_menu, tone_button, dodge_action,
+                               {dodge_action, burn_action, sponge_action});
   add_tool_action(tool_palette, tool_group, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E));
   add_tool_action(tool_palette, tool_group, tr("Gradient"), CanvasTool::Gradient, QKeySequence(Qt::Key_G));
   add_tool_action(tool_palette, tool_group, tr("Fill"), CanvasTool::Fill, QKeySequence(Qt::SHIFT | Qt::Key_G));
@@ -2492,6 +2587,8 @@ void MainWindow::create_actions() {
 
   add_option_label(tr("Size:"),
                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+                    CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size = new QSpinBox(toolbar);
   brush_size->setObjectName(QStringLiteral("brushSizeSpin"));
@@ -2500,6 +2597,8 @@ void MainWindow::create_actions() {
   configure_toolbar_spinbox(brush_size, 58);
   add_option_widget(brush_size,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                     CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
@@ -2509,6 +2608,8 @@ void MainWindow::create_actions() {
   brush_size_slider->setToolTip(tr("Brush size — press [ or ], or Alt+Right-drag on the canvas"));
   add_option_widget(brush_size_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                     CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   add_option_label(tr("Opacity:"),
                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
@@ -2533,6 +2634,8 @@ void MainWindow::create_actions() {
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   add_option_label(tr("Soft:"),
                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+                    CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_softness = new QSpinBox(toolbar);
   brush_softness->setObjectName(QStringLiteral("brushSoftnessSpin"));
@@ -2542,6 +2645,8 @@ void MainWindow::create_actions() {
   configure_toolbar_spinbox(brush_softness, 52);
   add_option_widget(brush_softness,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                     CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_softness_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_softness_slider->setObjectName(QStringLiteral("brushSoftnessSlider"));
@@ -2551,6 +2656,8 @@ void MainWindow::create_actions() {
   brush_softness_slider->setToolTip(tr("Brush edge softness — Alt+Right-drag up or down on the canvas"));
   add_option_widget(brush_softness_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                     CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   connect(brush_size, &QSpinBox::valueChanged, brush_size_slider, &QSlider::setValue);
   connect(brush_size_slider, &QSlider::valueChanged, brush_size, &QSpinBox::setValue);
@@ -2765,6 +2872,128 @@ void MainWindow::create_actions() {
       canvas_->set_healing_diffusion(value);
       save_tool_settings();
     }
+  });
+
+  add_option_label(tr("Strength:"), {CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+                                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush});
+  local_adjustment_strength_spin_ = new QSpinBox(toolbar);
+  local_adjustment_strength_spin_->setObjectName(QStringLiteral("localAdjustmentStrengthSpin"));
+  local_adjustment_strength_spin_->setRange(1, 100);
+  local_adjustment_strength_spin_->setValue(current_local_adjustment_strength_);
+  local_adjustment_strength_spin_->setSuffix(QStringLiteral("%"));
+  local_adjustment_strength_spin_->setToolTip(tr("Maximum adjustment applied during one stroke"));
+  bind_tooltip(local_adjustment_strength_spin_, "Maximum adjustment applied during one stroke");
+  configure_toolbar_spinbox(local_adjustment_strength_spin_, 52);
+  add_option_widget(local_adjustment_strength_spin_,
+                    {CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush});
+  connect(local_adjustment_strength_spin_, &QSpinBox::valueChanged, this, [this](int value) {
+    current_local_adjustment_strength_ = value;
+    if (canvas_ != nullptr) {
+      canvas_->set_local_adjustment_strength(value);
+    }
+    schedule_save_tool_settings();
+    refresh_document_info();
+  });
+
+  add_option_label(tr("Range:"), {CanvasTool::Dodge, CanvasTool::Burn});
+  local_tone_range_combo_ = new QComboBox(toolbar);
+  local_tone_range_combo_->setObjectName(QStringLiteral("localToneRangeCombo"));
+  local_tone_range_combo_->addItem(tr("Shadows"), static_cast<int>(CanvasWidget::LocalToneRange::Shadows));
+  local_tone_range_combo_->addItem(tr("Midtones"), static_cast<int>(CanvasWidget::LocalToneRange::Midtones));
+  local_tone_range_combo_->addItem(tr("Highlights"), static_cast<int>(CanvasWidget::LocalToneRange::Highlights));
+  local_tone_range_combo_->setCurrentIndex(
+      std::max(0, local_tone_range_combo_->findData(static_cast<int>(current_local_tone_range_))));
+  local_tone_range_combo_->setFixedWidth(92);
+  add_option_widget(local_tone_range_combo_, {CanvasTool::Dodge, CanvasTool::Burn});
+  connect(local_tone_range_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || local_tone_range_combo_ == nullptr) {
+      return;
+    }
+    current_local_tone_range_ =
+        static_cast<CanvasWidget::LocalToneRange>(local_tone_range_combo_->itemData(index).toInt());
+    if (canvas_ != nullptr) {
+      canvas_->set_local_tone_range(current_local_tone_range_);
+    }
+    save_tool_settings();
+    refresh_document_info();
+  });
+  QPointer<QComboBox> local_tone_range_combo(local_tone_range_combo_);
+  register_retranslation([local_tone_range_combo] {
+    if (local_tone_range_combo == nullptr || local_tone_range_combo->count() < 3) {
+      return;
+    }
+    const QSignalBlocker blocker(local_tone_range_combo);
+    local_tone_range_combo->setItemText(
+        0, QCoreApplication::translate(kMainWindowTranslationContext, "Shadows"));
+    local_tone_range_combo->setItemText(
+        1, QCoreApplication::translate(kMainWindowTranslationContext, "Midtones"));
+    local_tone_range_combo->setItemText(
+        2, QCoreApplication::translate(kMainWindowTranslationContext, "Highlights"));
+  });
+
+  local_protect_tones_check_ = new CheckGlyphBox(tr("Protect Tones"), toolbar);
+  local_protect_tones_check_->setObjectName(QStringLiteral("localProtectTonesCheck"));
+  local_protect_tones_check_->setChecked(current_local_protect_tones_);
+  local_protect_tones_check_->setToolTip(tr("Preserve local color differences while lightening or darkening"));
+  bind_tooltip(local_protect_tones_check_, "Preserve local color differences while lightening or darkening");
+  bind_widget_text(local_protect_tones_check_, "Protect Tones");
+  add_option_widget(local_protect_tones_check_, {CanvasTool::Dodge, CanvasTool::Burn});
+  connect(local_protect_tones_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    current_local_protect_tones_ = checked;
+    if (canvas_ != nullptr) {
+      canvas_->set_local_protect_tones(checked);
+    }
+    save_tool_settings();
+  });
+
+  add_option_label(tr("Mode:"), {CanvasTool::Sponge});
+  sponge_mode_combo_ = new QComboBox(toolbar);
+  sponge_mode_combo_->setObjectName(QStringLiteral("spongeModeCombo"));
+  sponge_mode_combo_->addItem(tr("Saturate"), static_cast<int>(CanvasWidget::SpongeMode::Saturate));
+  sponge_mode_combo_->addItem(tr("Desaturate"), static_cast<int>(CanvasWidget::SpongeMode::Desaturate));
+  sponge_mode_combo_->setCurrentIndex(
+      std::max(0, sponge_mode_combo_->findData(static_cast<int>(current_sponge_mode_))));
+  sponge_mode_combo_->setFixedWidth(94);
+  add_option_widget(sponge_mode_combo_, {CanvasTool::Sponge});
+  connect(sponge_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || sponge_mode_combo_ == nullptr) {
+      return;
+    }
+    current_sponge_mode_ =
+        static_cast<CanvasWidget::SpongeMode>(sponge_mode_combo_->itemData(index).toInt());
+    if (canvas_ != nullptr) {
+      canvas_->set_sponge_mode(current_sponge_mode_);
+    }
+    save_tool_settings();
+    refresh_document_info();
+  });
+  QPointer<QComboBox> sponge_mode_combo(sponge_mode_combo_);
+  register_retranslation([sponge_mode_combo] {
+    if (sponge_mode_combo == nullptr || sponge_mode_combo->count() < 2) {
+      return;
+    }
+    const QSignalBlocker blocker(sponge_mode_combo);
+    sponge_mode_combo->setItemText(
+        0, QCoreApplication::translate(kMainWindowTranslationContext, "Saturate"));
+    sponge_mode_combo->setItemText(
+        1, QCoreApplication::translate(kMainWindowTranslationContext, "Desaturate"));
+  });
+
+  sponge_vibrance_check_ = new CheckGlyphBox(tr("Vibrance"), toolbar);
+  sponge_vibrance_check_->setObjectName(QStringLiteral("spongeVibranceCheck"));
+  sponge_vibrance_check_->setChecked(current_sponge_vibrance_);
+  sponge_vibrance_check_->setToolTip(tr("Reduce the adjustment on colors that are already strongly saturated"));
+  bind_tooltip(sponge_vibrance_check_,
+               "Reduce the adjustment on colors that are already strongly saturated");
+  bind_widget_text(sponge_vibrance_check_, "Vibrance");
+  add_option_widget(sponge_vibrance_check_, {CanvasTool::Sponge});
+  connect(sponge_vibrance_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    current_sponge_vibrance_ = checked;
+    if (canvas_ != nullptr) {
+      canvas_->set_sponge_vibrance(checked);
+    }
+    save_tool_settings();
   });
 
   add_option_label(tr("Size:"), {CanvasTool::QuickSelect});

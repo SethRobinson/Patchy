@@ -693,6 +693,11 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolCloneAction", "Clone"},
       {"toolHealingBrushAction", "Healing Brush"},
       {"toolSmudgeAction", "Smudge"},
+      {"toolDodgeAction", "Dodge"},
+      {"toolBurnAction", "Burn"},
+      {"toolSpongeAction", "Sponge"},
+      {"toolBlurAction", "Blur"},
+      {"toolSharpenAction", "Sharpen"},
       {"toolEraserAction", "Eraser"},
       {"toolGradientAction", "Gradient"},
       {"toolFillAction", "Fill"},
@@ -876,6 +881,11 @@ void ui_options_bar_tracks_active_tool() {
   auto* gradient_edit_stops = window.findChild<QPushButton*>(QStringLiteral("gradientEditStopsButton"));
   auto* clone_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
   auto* healing_diffusion = window.findChild<QSpinBox*>(QStringLiteral("healingDiffusionSpin"));
+  auto* local_strength = window.findChild<QSpinBox*>(QStringLiteral("localAdjustmentStrengthSpin"));
+  auto* local_range = window.findChild<QComboBox*>(QStringLiteral("localToneRangeCombo"));
+  auto* protect_tones = window.findChild<QCheckBox*>(QStringLiteral("localProtectTonesCheck"));
+  auto* sponge_mode = window.findChild<QComboBox*>(QStringLiteral("spongeModeCombo"));
+  auto* sponge_vibrance = window.findChild<QCheckBox*>(QStringLiteral("spongeVibranceCheck"));
   auto* wand_tolerance = window.findChild<QSpinBox*>(QStringLiteral("wandToleranceSpin"));
   auto* wand_contiguous = window.findChild<QCheckBox*>(QStringLiteral("wandContiguousCheck"));
   auto* wand_sample_all_layers = window.findChild<QCheckBox*>(QStringLiteral("wandSampleAllLayersCheck"));
@@ -905,6 +915,11 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(gradient_edit_stops != nullptr);
   CHECK(clone_aligned != nullptr);
   CHECK(healing_diffusion != nullptr);
+  CHECK(local_strength != nullptr);
+  CHECK(local_range != nullptr);
+  CHECK(protect_tones != nullptr);
+  CHECK(sponge_mode != nullptr);
+  CHECK(sponge_vibrance != nullptr);
   CHECK(wand_tolerance != nullptr);
   CHECK(wand_contiguous != nullptr);
   CHECK(wand_sample_all_layers != nullptr);
@@ -922,6 +937,11 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_softness_slider->isVisible());
   CHECK(!clone_aligned->isVisible());
   CHECK(!healing_diffusion->isVisible());
+  CHECK(!local_strength->isVisible());
+  CHECK(!local_range->isVisible());
+  CHECK(!protect_tones->isVisible());
+  CHECK(!sponge_mode->isVisible());
+  CHECK(!sponge_vibrance->isVisible());
   CHECK(!gradient_method->isVisible());
   CHECK(!gradient_opacity->isVisible());
   CHECK(!gradient_reverse->isVisible());
@@ -1039,6 +1059,50 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_softness->isVisible());
   CHECK(!clone_aligned->isVisible());
   CHECK(!healing_diffusion->isVisible());
+
+  require_action(window, "toolDodgeAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Dodge);
+  CHECK(brush_size->isVisible());
+  CHECK(!brush_opacity->isVisible());
+  CHECK(brush_softness->isVisible());
+  CHECK(local_strength->isVisible());
+  CHECK(local_range->isVisible());
+  CHECK(protect_tones->isVisible());
+  CHECK(!sponge_mode->isVisible());
+  CHECK(!sponge_vibrance->isVisible());
+  local_strength->setValue(62);
+  local_range->setCurrentIndex(local_range->findData(
+      static_cast<int>(patchy::ui::CanvasWidget::LocalToneRange::Highlights)));
+  protect_tones->setChecked(false);
+  QApplication::processEvents();
+  CHECK(canvas->local_adjustment_strength() == 62);
+  CHECK(canvas->local_tone_range() == patchy::ui::CanvasWidget::LocalToneRange::Highlights);
+  CHECK(!canvas->local_protect_tones());
+
+  require_action(window, "toolSpongeAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Sponge);
+  CHECK(local_strength->isVisible());
+  CHECK(!local_range->isVisible());
+  CHECK(!protect_tones->isVisible());
+  CHECK(sponge_mode->isVisible());
+  CHECK(sponge_vibrance->isVisible());
+  sponge_mode->setCurrentIndex(
+      sponge_mode->findData(static_cast<int>(patchy::ui::CanvasWidget::SpongeMode::Saturate)));
+  sponge_vibrance->setChecked(false);
+  QApplication::processEvents();
+  CHECK(canvas->sponge_mode() == patchy::ui::CanvasWidget::SpongeMode::Saturate);
+  CHECK(!canvas->sponge_vibrance());
+
+  require_action(window, "toolBlurAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::BlurBrush);
+  CHECK(local_strength->isVisible());
+  CHECK(!local_range->isVisible());
+  CHECK(!protect_tones->isVisible());
+  CHECK(!sponge_mode->isVisible());
+  CHECK(!sponge_vibrance->isVisible());
 
   require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
   QApplication::processEvents();

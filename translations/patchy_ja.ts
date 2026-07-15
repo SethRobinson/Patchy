@@ -5120,6 +5120,8 @@ Mixed selection</source>
         <source>Fill Opacity</source>
         <translation>塗りの不透明度</translation>
     </message>
+    <message><source>Dodge</source><translation>覆い焼き</translation></message>
+    <message><source>Burn</source><translation>焼き込み</translation></message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -5980,6 +5982,15 @@ Mixed selection</source>
         <source>The Smart Filter mask is no longer available</source>
         <translation>スマートフィルターマスクは利用できなくなりました</translation>
     </message>
+    <message>
+        <source>Local adjustment brushes are unavailable while editing a grayscale channel</source>
+        <translation>グレースケールチャンネルの編集中は部分補正ブラシを使用できません</translation>
+    </message>
+    <message><source>Dodge</source><translation>覆い焼き</translation></message>
+    <message><source>Burn</source><translation>焼き込み</translation></message>
+    <message><source>Sponge</source><translation>スポンジ</translation></message>
+    <message><source>Blur brush</source><translation>ぼかしブラシ</translation></message>
+    <message><source>Sharpen brush</source><translation>シャープブラシ</translation></message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -11879,6 +11890,27 @@ Clipped to the layer below</source>
         <source>Aseprite files cannot store Photoshop Fill Opacity. Continue saving without Fill Opacity?</source>
         <translation>Aseprite ファイルには Photoshop の塗りの不透明度を保存できません。塗りの不透明度を破棄して保存を続けますか？</translation>
     </message>
+    <message><source>Detail Tools</source><translation>ディテールツール</translation></message>
+    <message><source>Toning Tools</source><translation>色調補正ツール</translation></message>
+    <message><source>Dodge</source><translation>覆い焼き</translation></message>
+    <message><source>Burn</source><translation>焼き込み</translation></message>
+    <message><source>Sponge</source><translation>スポンジ</translation></message>
+    <message><source>Blur</source><translation>ぼかし</translation></message>
+    <message><source>Sharpen</source><translation>シャープ</translation></message>
+    <message><source>Strength:</source><translation>強さ:</translation></message>
+    <message><source>Strength: %1%</source><translation>強さ: %1%</translation></message>
+    <message><source>Maximum adjustment applied during one stroke</source><translation>1回のストロークで適用する補正の最大強度</translation></message>
+    <message><source>Range:</source><translation>範囲:</translation></message>
+    <message><source>Shadows</source><translation>シャドウ</translation></message>
+    <message><source>Midtones</source><translation>中間調</translation></message>
+    <message><source>Highlights</source><translation>ハイライト</translation></message>
+    <message><source>Protect Tones</source><translation>色調を保護</translation></message>
+    <message><source>Preserve local color differences while lightening or darkening</source><translation>明るさを変更するときに局所的な色の差を保護します</translation></message>
+    <message><source>Mode:</source><translation>モード:</translation></message>
+    <message><source>Saturate</source><translation>彩度を上げる</translation></message>
+    <message><source>Desaturate</source><translation>彩度を下げる</translation></message>
+    <message><source>Vibrance</source><translation>自然な彩度</translation></message>
+    <message><source>Reduce the adjustment on colors that are already strongly saturated</source><translation>すでに彩度が高い色への補正を弱めます</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>

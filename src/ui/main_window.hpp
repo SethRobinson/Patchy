@@ -829,6 +829,11 @@ private:
   QComboBox* warp_style_combo_{nullptr};
   QDoubleSpinBox* warp_bend_spin_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
+  QSpinBox* local_adjustment_strength_spin_{nullptr};
+  QComboBox* local_tone_range_combo_{nullptr};
+  QCheckBox* local_protect_tones_check_{nullptr};
+  QComboBox* sponge_mode_combo_{nullptr};
+  QCheckBox* sponge_vibrance_check_{nullptr};
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* wand_sample_all_layers_check_{nullptr};
   QCheckBox* quick_select_sample_all_layers_check_{nullptr};
@@ -1025,6 +1030,11 @@ private:
   int current_shape_width_{1024};
   int current_shape_height_{768};
   int current_healing_diffusion_{5};
+  int current_local_adjustment_strength_{50};
+  CanvasWidget::LocalToneRange current_local_tone_range_{CanvasWidget::LocalToneRange::Midtones};
+  bool current_local_protect_tones_{true};
+  CanvasWidget::SpongeMode current_sponge_mode_{CanvasWidget::SpongeMode::Desaturate};
+  bool current_sponge_vibrance_{true};
   bool view_rulers_visible_{false};
   MeasurementUnit ruler_unit_{MeasurementUnit::Pixels};
   bool view_grid_visible_{false};

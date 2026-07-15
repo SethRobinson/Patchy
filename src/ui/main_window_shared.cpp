@@ -285,6 +285,16 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Healing Brush");
     case CanvasTool::Smudge:
       return QObject::tr("Smudge");
+    case CanvasTool::Dodge:
+      return QObject::tr("Dodge");
+    case CanvasTool::Burn:
+      return QObject::tr("Burn");
+    case CanvasTool::Sponge:
+      return QObject::tr("Sponge");
+    case CanvasTool::BlurBrush:
+      return QObject::tr("Blur");
+    case CanvasTool::SharpenBrush:
+      return QObject::tr("Sharpen");
     case CanvasTool::Eraser:
       return QObject::tr("Eraser");
     case CanvasTool::Gradient:

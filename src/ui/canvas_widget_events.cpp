@@ -103,6 +103,11 @@ bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
     case CanvasTool::Clone:
     case CanvasTool::Healing:
     case CanvasTool::Smudge:
+    case CanvasTool::Dodge:
+    case CanvasTool::Burn:
+    case CanvasTool::Sponge:
+    case CanvasTool::BlurBrush:
+    case CanvasTool::SharpenBrush:
     case CanvasTool::Eraser:
       return true;
     default:
@@ -118,7 +123,25 @@ bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
     case CanvasTool::Clone:
     case CanvasTool::Healing:
     case CanvasTool::Smudge:
+    case CanvasTool::Dodge:
+    case CanvasTool::Burn:
+    case CanvasTool::Sponge:
+    case CanvasTool::BlurBrush:
+    case CanvasTool::SharpenBrush:
     case CanvasTool::Eraser:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool is_local_adjustment_tool(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Dodge:
+    case CanvasTool::Burn:
+    case CanvasTool::Sponge:
+    case CanvasTool::BlurBrush:
+    case CanvasTool::SharpenBrush:
       return true;
     default:
       return false;
@@ -448,6 +471,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::Clone:
       case CanvasTool::Healing:
       case CanvasTool::Smudge:
+      case CanvasTool::Dodge:
+      case CanvasTool::Burn:
+      case CanvasTool::Sponge:
+      case CanvasTool::BlurBrush:
+      case CanvasTool::SharpenBrush:
       case CanvasTool::Text:
         return true;
       default:
@@ -497,7 +525,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton && channel_view_active &&
       (effective_tool == CanvasTool::Move || effective_tool == CanvasTool::Clone ||
        effective_tool == CanvasTool::Healing ||
-       effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::Text)) {
+       effective_tool == CanvasTool::Smudge || is_local_adjustment_tool(effective_tool) ||
+       effective_tool == CanvasTool::Text)) {
     if (status_callback_) {
       status_callback_(tr("This tool is unavailable while viewing a document channel"));
     }
@@ -578,6 +607,52 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       last_document_position_f_ = QPointF(document_point);
       const auto dirty = connect_from.has_value() ? clone_brush_segment(connect_from->toPoint(), document_point)
                                                   : clone_brush_at(document_point);
+      if (!dirty.isEmpty()) {
+        active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
+      }
+    }
+    return;
+  }
+
+  if (is_local_adjustment_tool(effective_tool)) {
+    if (editing_grayscale_target()) {
+      if (status_callback_) {
+        status_callback_(tr("Local adjustment brushes are unavailable while editing a grayscale channel"));
+      }
+      return;
+    }
+    QString label;
+    switch (effective_tool) {
+      case CanvasTool::Dodge:
+        label = tr("Dodge");
+        break;
+      case CanvasTool::Burn:
+        label = tr("Burn");
+        break;
+      case CanvasTool::Sponge:
+        label = tr("Sponge");
+        break;
+      case CanvasTool::BlurBrush:
+        label = tr("Blur brush");
+        break;
+      case CanvasTool::SharpenBrush:
+        label = tr("Sharpen brush");
+        break;
+      default:
+        break;
+    }
+    if (begin_edit(label)) {
+      clear_brush_stroke_tracking();
+      if (auto* layer = active_pixel_layer(); layer != nullptr && document_->active_layer_id().has_value()) {
+        ensure_brush_stroke_layer_snapshot(*document_->active_layer_id(), std::as_const(*layer));
+      }
+      begin_axis_constrained_stroke(QPointF(document_point));
+      painting_ = true;
+      last_document_position_ = document_point;
+      last_document_position_f_ = QPointF(document_point);
+      const auto dirty = connect_from.has_value()
+                             ? local_adjustment_brush_segment(connect_from->toPoint(), document_point)
+                             : local_adjustment_brush_segment(document_point, document_point);
       if (!dirty.isEmpty()) {
         active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
       }
@@ -1093,6 +1168,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       dirty = smudge_brush_segment(last_document_position_, document_point);
       last_document_position_ = document_point;
       last_document_position_f_ = document_point_f;
+    } else if (is_local_adjustment_tool(effective_tool)) {
+      const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+      dirty = local_adjustment_brush_segment(last_document_position_, constrained_point);
+      last_document_position_ = constrained_point;
+      last_document_position_f_ = QPointF(constrained_point);
     } else if (effective_brush_input().size == 1) {
       const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
       dirty = draw_brush_segment(last_document_position_, constrained_point, effective_tool == CanvasTool::Eraser);
@@ -1431,6 +1511,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (effective_tool == CanvasTool::Clone || effective_tool == CanvasTool::Healing) {
       const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
       dirty = clone_brush_segment(last_document_position_, constrained_point);
+      last_document_position_ = constrained_point;
+      last_document_position_f_ = QPointF(constrained_point);
+    } else if (is_local_adjustment_tool(effective_tool)) {
+      const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+      dirty = local_adjustment_brush_segment(last_document_position_, constrained_point);
       last_document_position_ = constrained_point;
       last_document_position_f_ = QPointF(constrained_point);
     } else if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::Eraser) {
@@ -1905,7 +1990,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
        tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand ||
        tool_ == CanvasTool::QuickSelect || tool_ == CanvasTool::Clone ||
        tool_ == CanvasTool::Healing ||
-       tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Text)) {
+       tool_ == CanvasTool::Smudge || is_local_adjustment_tool(tool_) || tool_ == CanvasTool::Text)) {
     if (status_callback_) {
       status_callback_(tr("This tool is unavailable in Quick Mask mode"));
     }
@@ -1918,7 +2003,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
        tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand ||
        tool_ == CanvasTool::QuickSelect || tool_ == CanvasTool::Clone ||
        tool_ == CanvasTool::Healing ||
-       tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Text)) {
+       tool_ == CanvasTool::Smudge || is_local_adjustment_tool(tool_) || tool_ == CanvasTool::Text)) {
     if (status_callback_) {
       status_callback_(tr("This tool is unavailable while editing a Smart Filter mask"));
     }
@@ -2510,6 +2595,11 @@ CanvasTool CanvasWidget::effective_tool_for_input() const noexcept {
       case CanvasTool::Clone:
       case CanvasTool::Healing:
       case CanvasTool::Smudge:
+      case CanvasTool::Dodge:
+      case CanvasTool::Burn:
+      case CanvasTool::Sponge:
+      case CanvasTool::BlurBrush:
+      case CanvasTool::SharpenBrush:
         return CanvasTool::Eraser;
       default:
         break;

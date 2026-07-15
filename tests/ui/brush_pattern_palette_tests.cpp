@@ -545,7 +545,8 @@ void ui_brush_tip_picker_keeps_options_bar_height() {
   // made it the tallest control in the row.
   int common_height = 0;
   for (const char* tool : {"Move", "Marquee", "Lasso", "Magic Wand", "Clone", "Healing Brush", "Smudge",
-                           "Fill", "Gradient", "Line", "Rect", "Zoom", "Brush", "Eraser"}) {
+                           "Dodge", "Burn", "Sponge", "Fill", "Gradient", "Line", "Rect",
+                           "Zoom", "Brush", "Eraser"}) {
     require_action_by_text(window, QString::fromLatin1(tool))->trigger();
     QApplication::processEvents();
     process_events_for(30);
@@ -2249,6 +2250,18 @@ void ui_palette_mode_brush_stroke_writes_only_palette_colors() {
   canvas->set_brush_size(20);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 80)),
        canvas->widget_position_for_document_point(QPoint(160, 120)));
+  QApplication::processEvents();
+  CHECK(patchy::pixels_are_palette_clean(document.find_layer(*layer_id)->pixels(), lut));
+
+  // Local adjustment brushes are a separate write path. Their partially
+  // adjusted RGB result must snap back to a palette color too.
+  require_action(window, "toolDodgeAction")->trigger();
+  canvas->set_brush_size(18);
+  canvas->set_brush_softness(60);
+  canvas->set_local_adjustment_strength(43);
+  canvas->set_local_tone_range(patchy::ui::CanvasWidget::LocalToneRange::Midtones);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(90, 92)),
+       canvas->widget_position_for_document_point(QPoint(150, 108)));
   QApplication::processEvents();
   CHECK(patchy::pixels_are_palette_clean(document.find_layer(*layer_id)->pixels(), lut));
 

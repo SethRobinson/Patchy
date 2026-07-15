@@ -67,7 +67,12 @@ enum class CanvasTool {
   Text,
   Pan,
   Zoom,
-  Healing
+  Healing,
+  Dodge,
+  Burn,
+  Sponge,
+  BlurBrush,
+  SharpenBrush
 };
 
 // Action that can be bound to a pen barrel/side button. These are the actions
@@ -119,6 +124,17 @@ class CanvasWidget final : public QWidget {
   Q_OBJECT
 
 public:
+  enum class LocalToneRange {
+    Shadows,
+    Midtones,
+    Highlights
+  };
+
+  enum class SpongeMode {
+    Saturate,
+    Desaturate
+  };
+
   enum class SelectionMode {
     Replace,
     Add,
@@ -341,6 +357,16 @@ public:
   [[nodiscard]] bool clone_aligned() const noexcept;
   void set_healing_diffusion(int diffusion) noexcept;
   [[nodiscard]] int healing_diffusion() const noexcept;
+  void set_local_adjustment_strength(int strength) noexcept;
+  [[nodiscard]] int local_adjustment_strength() const noexcept;
+  void set_local_tone_range(LocalToneRange range) noexcept;
+  [[nodiscard]] LocalToneRange local_tone_range() const noexcept;
+  void set_local_protect_tones(bool enabled) noexcept;
+  [[nodiscard]] bool local_protect_tones() const noexcept;
+  void set_sponge_mode(SpongeMode mode) noexcept;
+  [[nodiscard]] SpongeMode sponge_mode() const noexcept;
+  void set_sponge_vibrance(bool enabled) noexcept;
+  [[nodiscard]] bool sponge_vibrance() const noexcept;
   void set_pen_input_settings(PenInputSettings settings) noexcept;
   [[nodiscard]] const PenInputSettings& pen_input_settings() const noexcept;
   [[nodiscard]] std::optional<PenInputSample> last_pen_input_sample() const;
@@ -849,6 +875,7 @@ private:
   [[nodiscard]] QRect draw_mask_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_mask_brush_at(QPoint point, bool erase);
   [[nodiscard]] QRect smudge_brush_segment(QPoint from, QPoint to);
+  [[nodiscard]] QRect local_adjustment_brush_segment(QPoint from, QPoint to);
   void set_clone_source(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect clone_brush_at(QPoint point);
@@ -1288,6 +1315,11 @@ private:
   bool clone_aligned_{true};
   bool clone_aligned_offset_set_{false};
   int healing_diffusion_{5};
+  int local_adjustment_strength_{50};
+  LocalToneRange local_tone_range_{LocalToneRange::Midtones};
+  bool local_protect_tones_{true};
+  SpongeMode sponge_mode_{SpongeMode::Desaturate};
+  bool sponge_vibrance_{true};
   PenInputSettings pen_input_settings_{};
   std::optional<PenInputSample> active_pen_input_sample_{};
   std::optional<PenInputSample> last_pen_input_sample_{};

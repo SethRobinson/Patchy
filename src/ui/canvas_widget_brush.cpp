@@ -1682,6 +1682,207 @@ QRect CanvasWidget::smudge_brush_segment(QPoint from, QPoint to) {
                                                   to.x(), to.y(), options, smudge_state_));
 }
 
+QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
+  auto* layer = active_pixel_layer();
+  if (document_ == nullptr || layer == nullptr || !document_->active_layer_id().has_value()) {
+    return {};
+  }
+
+  const auto layer_id = *document_->active_layer_id();
+  ensure_brush_stroke_layer_snapshot(layer_id, std::as_const(*layer));
+  if (!brush_stroke_layer_snapshot_.has_value() || brush_stroke_layer_snapshot_->layer_id != layer_id) {
+    return {};
+  }
+  const auto& snapshot = *brush_stroke_layer_snapshot_;
+  const auto& source_pixels = snapshot.pixels;
+  const auto channels = source_pixels.format().channels;
+  if (source_pixels.empty() || source_pixels.format().bit_depth != BitDepth::UInt8 || channels < 3) {
+    return {};
+  }
+
+  const auto brush = effective_brush_input();
+  const auto radius = std::max(1, brush.size) / 2;
+  const auto layer_rect = to_qrect(snapshot.bounds);
+  const auto document_rect = QRect(0, 0, document_->width(), document_->height());
+  auto stroke_rect = QRect(std::min(from.x(), to.x()) - radius,
+                           std::min(from.y(), to.y()) - radius,
+                           std::abs(to.x() - from.x()) + radius * 2 + 1,
+                           std::abs(to.y() - from.y()) + radius * 2 + 1)
+                         .intersected(document_rect)
+                         .intersected(layer_rect);
+  if (stroke_rect.isEmpty()) {
+    return {};
+  }
+
+  const auto source_pixel = [&](int document_x, int document_y) {
+    const auto x = std::clamp(document_x, layer_rect.left(), layer_rect.right()) - snapshot.bounds.x;
+    const auto y = std::clamp(document_y, layer_rect.top(), layer_rect.bottom()) - snapshot.bounds.y;
+    const auto* pixel = source_pixels.pixel(x, y);
+    return std::array<std::uint8_t, 4>{pixel[0], pixel[1], pixel[2],
+                                       channels >= 4 ? pixel[3] : std::uint8_t{255}};
+  };
+
+  // Patent boundary (July 2026): these are deliberately fixed local operations.
+  // Do not add edge ranking, patch matching, deconvolution, automatic boundary
+  // isolation, or stroke-start color classification here. US 7724980, US 8687913,
+  // US 9142009, and the abandoned US 2007/0188510 all cover variants of those
+  // adaptive techniques. The brush footprint alone chooses which pixels change.
+  const auto adjusted_source_pixel = [&](QPoint point) {
+    const auto center = source_pixel(point.x(), point.y());
+    std::array<std::uint8_t, 3> result{center[0], center[1], center[2]};
+
+    if (tool_ == CanvasTool::BlurBrush || tool_ == CanvasTool::SharpenBrush) {
+      constexpr std::array<int, 3> kGaussian{1, 2, 1};
+      std::array<double, 3> premultiplied{};
+      double alpha_weight = 0.0;
+      for (int offset_y = -1; offset_y <= 1; ++offset_y) {
+        for (int offset_x = -1; offset_x <= 1; ++offset_x) {
+          const auto sample = source_pixel(point.x() + offset_x, point.y() + offset_y);
+          const auto weight = static_cast<double>(kGaussian[static_cast<std::size_t>(offset_x + 1)] *
+                                                  kGaussian[static_cast<std::size_t>(offset_y + 1)]);
+          const auto alpha = static_cast<double>(sample[3]) / 255.0;
+          alpha_weight += weight * alpha;
+          for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
+            premultiplied[channel] += weight * alpha * static_cast<double>(sample[channel]);
+          }
+        }
+      }
+      if (alpha_weight <= std::numeric_limits<double>::epsilon()) {
+        return result;
+      }
+      for (std::size_t channel = 0; channel < result.size(); ++channel) {
+        const auto blurred = premultiplied[channel] / alpha_weight;
+        result[channel] = tool_ == CanvasTool::BlurBrush
+                              ? clamp_byte(static_cast<float>(blurred))
+                              : clamp_byte(static_cast<float>(static_cast<double>(center[channel]) * 2.0 - blurred));
+      }
+      return result;
+    }
+
+    const auto red = static_cast<double>(center[0]);
+    const auto green = static_cast<double>(center[1]);
+    const auto blue = static_cast<double>(center[2]);
+    const auto lightness = (54.0 * red + 183.0 * green + 19.0 * blue) / (256.0 * 255.0);
+    if (tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn) {
+      double range_weight = 1.0;
+      switch (local_tone_range_) {
+        case LocalToneRange::Shadows:
+          range_weight = 1.0 - lightness;
+          break;
+        case LocalToneRange::Midtones:
+          range_weight = 1.0 - std::abs(lightness * 2.0 - 1.0);
+          break;
+        case LocalToneRange::Highlights:
+          range_weight = lightness;
+          break;
+      }
+      const auto source_lightness = lightness * 255.0;
+      const auto target_lightness = tool_ == CanvasTool::Dodge
+                                        ? source_lightness + (255.0 - source_lightness) * range_weight
+                                        : source_lightness * (1.0 - range_weight);
+      for (std::size_t channel = 0; channel < result.size(); ++channel) {
+        const auto value = static_cast<double>(center[channel]);
+        const auto adjusted = local_protect_tones_
+                                  ? value + (target_lightness - source_lightness)
+                                  : (tool_ == CanvasTool::Dodge
+                                         ? value + (255.0 - value) * range_weight
+                                         : value * (1.0 - range_weight));
+        result[channel] = clamp_byte(static_cast<float>(adjusted));
+      }
+      return result;
+    }
+
+    if (tool_ == CanvasTool::Sponge) {
+      const auto maximum = static_cast<double>(std::max({center[0], center[1], center[2]}));
+      const auto minimum = static_cast<double>(std::min({center[0], center[1], center[2]}));
+      const auto saturation = (maximum - minimum) / 255.0;
+      const auto vibrance_scale = sponge_vibrance_ ? 1.0 - saturation : 1.0;
+      const auto luma = lightness * 255.0;
+      const auto chroma_scale = sponge_mode_ == SpongeMode::Saturate ? 1.0 + vibrance_scale
+                                                                     : 1.0 - vibrance_scale;
+      for (std::size_t channel = 0; channel < result.size(); ++channel) {
+        result[channel] = clamp_byte(static_cast<float>(
+            luma + (static_cast<double>(center[channel]) - luma) * chroma_scale));
+      }
+    }
+    return result;
+  };
+
+  auto& pixels = layer->pixels();
+  const auto mutable_channels = pixels.format().channels;
+  const auto strength = static_cast<float>(local_adjustment_strength_) / 100.0F;
+  const auto* palette_snap = palette_snap_for_edits();
+  QRect dirty;
+  const auto adjust_pixel = [&](QPoint point, float coverage) {
+    if (!stroke_rect.contains(point) || !selection_allows(point)) {
+      return;
+    }
+    if (has_selection()) {
+      coverage *= static_cast<float>(selection_alpha_at(point)) / 255.0F;
+    }
+    if (coverage <= 0.0F) {
+      return;
+    }
+    if (palette_snap != nullptr) {
+      if (coverage < palette_snap->coverage_threshold) {
+        return;
+      }
+      coverage = 1.0F;
+    }
+    coverage = capped_stroke_coverage(point.x(), point.y(), coverage, strength);
+    if (coverage <= 0.0F) {
+      return;
+    }
+
+    auto* destination = pixels.pixel(point.x() - snapshot.bounds.x, point.y() - snapshot.bounds.y);
+    if (mutable_channels >= 4 && destination[3] == 0) {
+      return;
+    }
+    const auto adjusted = adjusted_source_pixel(point);
+    const auto amount = strength * coverage;
+    const auto before = std::array<std::uint8_t, 4>{destination[0], destination[1], destination[2],
+                                                    mutable_channels >= 4 ? destination[3] : std::uint8_t{255}};
+    for (std::size_t channel = 0; channel < adjusted.size(); ++channel) {
+      destination[channel] = clamp_byte(static_cast<float>(adjusted[channel]) * amount +
+                                        static_cast<float>(destination[channel]) * (1.0F - amount));
+    }
+    if (palette_snap != nullptr) {
+      patchy::snap_pixel_to_palette(destination, mutable_channels, *palette_snap);
+    }
+    if (destination[0] != before[0] || destination[1] != before[1] || destination[2] != before[2]) {
+      dirty = dirty.united(QRect(point, QSize(1, 1)));
+    }
+  };
+
+  if (radius == 0) {
+    visit_pixel_line(from, to, [&](QPoint point) { adjust_pixel(point, 1.0F); });
+    return dirty;
+  }
+
+  const auto dx = static_cast<double>(to.x() - from.x());
+  const auto dy = static_cast<double>(to.y() - from.y());
+  const auto segment_length_squared = dx * dx + dy * dy;
+  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
+    for (int x = stroke_rect.left(); x <= stroke_rect.right(); ++x) {
+      const auto along = segment_length_squared <= std::numeric_limits<double>::epsilon()
+                             ? 0.0
+                             : std::clamp((static_cast<double>(x - from.x()) * dx +
+                                           static_cast<double>(y - from.y()) * dy) /
+                                              segment_length_squared,
+                                          0.0, 1.0);
+      const auto closest_x = static_cast<double>(from.x()) + dx * along;
+      const auto closest_y = static_cast<double>(from.y()) + dy * along;
+      const auto coverage = brush_shape_coverage(static_cast<double>(x) - closest_x,
+                                                 static_cast<double>(y) - closest_y,
+                                                 radius, brush.softness, brush.roundness,
+                                                 brush.angle_degrees);
+      adjust_pixel(QPoint(x, y), coverage);
+    }
+    tick_processing_operation();
+  }
+  return dirty;
+}
+
 void CanvasWidget::set_clone_source(QPoint point) {
   if (!document_contains(point)) {
     return;

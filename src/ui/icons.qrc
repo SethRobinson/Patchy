@@ -74,6 +74,11 @@
     <file alias="tool-clone.svg">icons/tool-clone.svg</file>
     <file alias="tool-healing.svg">icons/tool-healing.svg</file>
     <file alias="tool-smudge.svg">icons/tool-smudge.svg</file>
+    <file alias="tool-dodge.svg">icons/tool-dodge.svg</file>
+    <file alias="tool-burn.svg">icons/tool-burn.svg</file>
+    <file alias="tool-sponge.svg">icons/tool-sponge.svg</file>
+    <file alias="tool-blur.svg">icons/tool-blur.svg</file>
+    <file alias="tool-sharpen.svg">icons/tool-sharpen.svg</file>
     <file alias="tool-eraser.svg">icons/tool-eraser.svg</file>
     <file alias="tool-gradient.svg">icons/tool-gradient.svg</file>
     <file alias="tool-fill.svg">icons/tool-fill.svg</file>

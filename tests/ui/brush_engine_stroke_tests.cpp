@@ -1966,6 +1966,81 @@ void ui_healing_brush_transfers_detail_and_preserves_destination_tone() {
   CHECK(round_tripped[3] == 255);
 }
 
+void ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd() {
+  patchy::Document document(25, 5, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(25, 5, patchy::PixelFormat::rgba8(), QColor(100, 100, 100, 255));
+  auto set_pixel = [&pixels](int x, QColor color) {
+    auto* pixel = pixels.pixel(x, 2);
+    pixel[0] = static_cast<std::uint8_t>(color.red());
+    pixel[1] = static_cast<std::uint8_t>(color.green());
+    pixel[2] = static_cast<std::uint8_t>(color.blue());
+    pixel[3] = static_cast<std::uint8_t>(color.alpha());
+  };
+  set_pixel(2, QColor(220, 220, 220, 255));
+  set_pixel(7, QColor(140, 140, 140, 255));
+  set_pixel(12, QColor(64, 64, 64, 255));
+  set_pixel(17, QColor(192, 192, 192, 255));
+  set_pixel(22, QColor(200, 100, 50, 128));
+  auto& layer = document.add_pixel_layer("Local adjustments", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(250, 80);
+  canvas.set_document(&document);
+  canvas.set_brush_size(1);
+  canvas.set_brush_softness(0);
+  canvas.set_local_adjustment_strength(100);
+  canvas.set_local_protect_tones(false);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto apply = [&canvas](patchy::ui::CanvasTool tool, QPoint point) {
+    canvas.set_tool(tool);
+    const auto widget_point = canvas.widget_position_for_document_point(point);
+    send_mouse(canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  apply(patchy::ui::CanvasTool::BlurBrush, QPoint(2, 2));
+  apply(patchy::ui::CanvasTool::SharpenBrush, QPoint(7, 2));
+  canvas.set_local_tone_range(patchy::ui::CanvasWidget::LocalToneRange::Shadows);
+  apply(patchy::ui::CanvasTool::Dodge, QPoint(12, 2));
+  canvas.set_local_tone_range(patchy::ui::CanvasWidget::LocalToneRange::Highlights);
+  apply(patchy::ui::CanvasTool::Burn, QPoint(17, 2));
+  canvas.set_sponge_mode(patchy::ui::CanvasWidget::SpongeMode::Desaturate);
+  canvas.set_sponge_vibrance(false);
+  apply(patchy::ui::CanvasTool::Sponge, QPoint(22, 2));
+
+  const auto* blurred = layer.pixels().pixel(2, 2);
+  CHECK(blurred[0] == 130 && blurred[1] == 130 && blurred[2] == 130 && blurred[3] == 255);
+  const auto* sharpened = layer.pixels().pixel(7, 2);
+  CHECK(sharpened[0] == 170 && sharpened[1] == 170 && sharpened[2] == 170 && sharpened[3] == 255);
+  const auto* dodged = layer.pixels().pixel(12, 2);
+  CHECK(dodged[0] == 207 && dodged[1] == 207 && dodged[2] == 207 && dodged[3] == 255);
+  const auto* burned = layer.pixels().pixel(17, 2);
+  CHECK(burned[0] == 47 && burned[1] == 47 && burned[2] == 47 && burned[3] == 255);
+  const auto* desaturated = layer.pixels().pixel(22, 2);
+  CHECK(desaturated[0] == 117 && desaturated[1] == 117 && desaturated[2] == 117 && desaturated[3] == 128);
+  const auto* untouched = layer.pixels().pixel(23, 2);
+  CHECK(untouched[0] == 100 && untouched[1] == 100 && untouched[2] == 100 && untouched[3] == 255);
+
+  ensure_artifact_dir();
+  const auto path = std::filesystem::path("test-artifacts") / "ui_local_adjustment_brushes.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, path);
+  const auto reread = patchy::psd::DocumentIo::read_file(path);
+  CHECK(reread.layers().size() == 1);
+  const auto& round_tripped = reread.layers().front().pixels();
+  CHECK(round_tripped.width() == layer.pixels().width());
+  CHECK(round_tripped.height() == layer.pixels().height());
+  for (std::int32_t y = 0; y < round_tripped.height(); ++y) {
+    for (std::int32_t x = 0; x < round_tripped.width(); ++x) {
+      const auto* actual = round_tripped.pixel(x, y);
+      const auto* expected = layer.pixels().pixel(x, y);
+      CHECK(std::equal(expected, expected + 4, actual));
+    }
+  }
+}
+
 void ui_smudge_tool_drags_painted_pixels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2428,6 +2503,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests() {
        ui_clone_tool_feathered_rgba_edges_keep_source_color},
       {"ui_healing_brush_transfers_detail_and_preserves_destination_tone",
        ui_healing_brush_transfers_detail_and_preserves_destination_tone},
+      {"ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd",
+       ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd},
       {"ui_smudge_tool_drags_painted_pixels", ui_smudge_tool_drags_painted_pixels},
       {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},
