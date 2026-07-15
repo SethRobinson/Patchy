@@ -11,30 +11,30 @@ Click a thumbnail for the full-size image.
 <table>
   <tr>
     <td align="center" valign="top" width="33%">
-      <a href="docs/images/screenshots/levels.png"><img src="docs/images/screenshots/levels.png" width="270" alt="Levels adjustment over a photo with rulers and grid, and the color wheel picker showing the DOS / VGA 256 swatch palette"></a>
-      <br><sub>Photo retouching: Levels histogram with live preview, and the color wheel picker's swatch palettes</sub>
+      <a href="docs/images/screenshots/levels.png"><img src="docs/images/screenshots/levels.png" width="270" alt="Levels adjustment dialog over an image with a live histogram and input and output controls"></a>
+      <br><sub>Non-destructive adjustment layers with live preview and editable settings</sub>
     </td>
     <td align="center" valign="top" width="33%">
-      <a href="docs/images/screenshots/layer_styles.png"><img src="docs/images/screenshots/layer_styles.png" width="270" alt="Layer Style dialog with gradient overlay editor and the color picker opened from a gradient stop"></a>
-      <br><sub>Photoshop-style layer styles: two-track gradient editor, stops open the color picker</sub>
+      <a href="docs/images/screenshots/layer_styles.png"><img src="docs/images/screenshots/layer_styles.png" width="270" alt="Layer Style dialog applying bevel, stroke, glow, and shadow effects to text"></a>
+      <br><sub>Layer styles with multiple effects, blending controls, and Photoshop-compatible presets</sub>
     </td>
     <td align="center" valign="top" width="33%">
-      <a href="docs/images/screenshots/brush_tips.png"><img src="docs/images/screenshots/brush_tips.png" width="270" alt="Brush tip picker with built-in brush tips"></a>
-      <br><sub>36 built-in brush tips, plus Photoshop .abr import</sub>
+      <a href="docs/images/screenshots/brush_tips.png"><img src="docs/images/screenshots/brush_tips.png" width="270" alt="Brush Tip Manager showing a collection of textured and shaped brush presets"></a>
+      <br><sub>Brush tip presets, import, management, spacing, angle, roundness, and texture controls</sub>
     </td>
   </tr>
   <tr>
     <td align="center" valign="top" width="33%">
-      <a href="docs/images/screenshots/brush_dynamics.png"><img src="docs/images/screenshots/brush_dynamics.png" width="270" alt="Brush dynamics panel and scattered strokes"></a>
-      <br><sub>Brush dynamics: jitter, scattering and pen controls</sub>
+      <a href="docs/images/screenshots/brush_dynamics.png"><img src="docs/images/screenshots/brush_dynamics.png" width="270" alt="Brush Dynamics dialog with pressure and random controls beside a varied brush stroke"></a>
+      <br><sub>Pressure-aware brush dynamics for size, opacity, flow, angle, scatter, and color</sub>
     </td>
     <td align="center" valign="top" width="33%">
-      <a href="docs/images/screenshots/palette_mode.png"><img src="docs/images/screenshots/palette_mode.png" width="270" alt="Convert to Indexed dialog with retro palette presets over a photo constrained to the Commodore 64 palette, and the color picker pinned to the document palette"></a>
-      <br><sub>Palettized (indexed color) editing with built-in retro palettes, from NES to Commodore 64</sub>
+      <a href="docs/images/screenshots/palette_mode.png"><img src="docs/images/screenshots/palette_mode.png" width="270" alt="Palette editing mode with a limited color palette and indexed-looking pixel art"></a>
+      <br><sub>Palette mode constrains painting and editing to a document color set</sub>
     </td>
     <td align="center" valign="top" width="33%">
-      <a href="docs/images/screenshots/hue_saturation.png"><img src="docs/images/screenshots/hue_saturation.png" width="270" alt="Hue/Saturation adjustment with live preview"></a>
-      <br><sub>Adjustments with live canvas preview</sub>
+      <a href="docs/images/screenshots/hue_saturation.png"><img src="docs/images/screenshots/hue_saturation.png" width="270" alt="Hue and Saturation adjustment dialog editing a colorful photograph"></a>
+      <br><sub>Live color adjustments, including targeted Hue/Saturation ranges</sub>
     </td>
   </tr>
   <tr>
@@ -49,6 +49,34 @@ Click a thumbnail for the full-size image.
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/smart_objects.png"><img src="docs/images/screenshots/smart_objects.png" width="270" alt="Game title art with a smart object mid warp transform showing the Bezier cage, and its embedded contents open in a second tab"></a>
       <br><sub>Smart Objects: Warp Transform bends them non-destructively, Edit Contents opens the embedded file in its own tab</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/pattern_manager.png"><img src="docs/images/screenshots/pattern_manager.png" width="270" alt="Pattern Manager showing the Textures folder with the bundled CC0 Weathered Marble photo texture selected in the large preview"></a>
+      <br><sub>Photo textures in the Pattern Manager, with full-resolution preview, import, organization, and editing</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/smart_filters.png"><img src="docs/images/screenshots/smart_filters.png" width="270" alt="Photo with a Smart Filter stack containing Surface Blur, Dust and Scratches, and Gaussian Blur plus a shared mask"></a>
+      <br><sub>Editable native Smart Filters with one paintable shared mask and per-filter controls</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/camera_raw.png"><img src="docs/images/screenshots/camera_raw.png" width="270" alt="Camera Raw develop dialog showing a snowy mountain photo with white balance, tone, color, and detail controls"></a>
+      <br><sub>16-bit Camera Raw development with white balance, tone, color, demosaic, and denoise controls</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/tilt_shift.png"><img src="docs/images/screenshots/tilt_shift.png" width="270" alt="Tilt-Shift Blur in the Visual Filters gallery over a real San Francisco city photograph with draggable focus controls"></a>
+      <br><sub>Tilt-Shift Blur with live on-image focus, angle, and transition controls</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/material_styles.png"><img src="docs/images/screenshots/material_styles.png" width="270" alt="Layer Style dialog applying Riveted Steel to large text from the built-in Materials preset folder"></a>
+      <br><sub>Material layer styles backed by bundled CC0 wood, stone, metal, fabric, and ground textures</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/quick_mask.png"><img src="docs/images/screenshots/quick_mask.png" width="270" alt="Quick Mask mode showing a clean feathered portrait-frame selection as a red overlay with the temporary Quick Mask channel visible"></a>
+      <br><sub>Quick Mask turns a selection into a brush-editable red overlay, then back into marching ants</sub>
     </td>
   </tr>
 </table>
@@ -88,22 +116,42 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## Features
 
-- Open and save layered PSD files with groups, masks, saved alpha and spot channels, text objects, the full Photoshop blend mode set, layer styles and more
+- Open and save layered PSD and PSB files with groups, masks, clipping masks, saved alpha and spot channels, text objects, Fill Opacity, the full Photoshop blend mode set, layer styles and more
 - Common raster editing tools (brush, eraser, selection, transform, gradients, shapes, etc.)
-- Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Gaussian Blur and High Pass Smart Filter stacks with paintable shared masks and per-filter blending
+- Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks with paintable shared masks and per-filter blending
+- Visual Filters & Looks gallery with 28 effects, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks
+- Photoshop-compatible layer style, pattern, and gradient preset libraries, including .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures
 - Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
 - Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement
-- Rich text: color, font, size, and style changes within a single text layer
+- Rich text with per-run color, font, size, and style, plus a searchable font picker and Character controls for leading, tracking, and horizontal or vertical glyph scaling
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
 - Pixel-art and game-dev extras: seamless tile preview window, sprite sheet export/import, and nearest-neighbor scaled export (2x-8x)
 - Reads and writes a wide range of formats: PSD/PSB, PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), and Aseprite files
-- Pen/stylus pressure and size dynamics, printing, GUI scaling, scanner import (Windows and macOS), camera import (Windows), legacy .8bf plugins, and command line options
+- Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) through a 16-bit develop dialog, and HEIC/HEIF photos through platform codecs
+- Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
+- Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), legacy .8bf plugins, and command line options
 - Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak) builds
 - Built with C++ and Qt for a native desktop experience. No GPU used, should run on a potato
 - Privacy: YES! Absolutely no telemetry, no tracking, no data collection (if update checks are enabled, it contacts GitHub only to check for a newer version). Settings live in a plain local file, and the installer doesn't screw with your file extension preferences
 - Localized in English and Japanese (change language in File->Preferences)
 
 ## What's New
+
+### 0.20 - July 15, 2026
+
+- New Visual Filters & Looks gallery with 28 effects across photo looks, blur, sharpen, distort, noise, pixelate, stylize, and render categories. Search and favorites make effects easy to find, while full-resolution live preview, reorderable effect stacks, per-effect opacity and blending, and reusable Saved Looks support more involved recipes
+- Smart Filters now use Photoshop-compatible native PSD data. Smart Objects can carry editable stacks of Gaussian Blur, High Pass, Median, Dust & Scratches, and Surface Blur, with per-filter visibility and blending plus one shared paintable mask. Supported stacks survive PSD round-trips and rebuild from the original Smart Object contents after edits and transforms
+- Camera raw support opens CR2, CR3, NEF, ARW, RAF, DNG, and more through a 16-bit develop dialog with white balance, exposure, highlight recovery, contrast, highlights, shadows, saturation, vibrance, demosaic, and noise-reduction controls
+- HEIC and HEIF photos now open read-only through platform codecs, including orientation and color-profile handling. Windows offers Store links when a required codec is missing, while Linux explains how to install its optional Flatpak codec extension
+- Layer styles gained Pattern Overlay, Satin, gradient midpoints, expanded Bevel & Emboss controls, and Photoshop-compatible pattern data. A new Styles page and Style Manager add 39 built-in presets plus .asl import/export
+- Pattern and gradient libraries now support Photoshop .pat and .grd files. The Pattern Manager can also import ordinary images, while 20 bundled CC0 photo textures and 13 matching material styles provide ready-to-use wood, stone, metal, fabric, and ground surfaces
+- The Visual Filters collection adds High Pass, Median, Dust & Scratches, Surface Blur, and Tilt-Shift Blur. Tilt-Shift includes a draggable on-image focus control, and the same supported filters can be added directly to native Smart Filter stacks
+- Text editing gained a searchable font picker with live type specimens and a Character panel for leading, tracking, and horizontal or vertical glyph scaling. Imported PSD text now follows Photoshop's leading, tracking, scaling, transform, and first-baseline behavior more closely
+- Curves has a new point editor and .acv preset support, CMYK PSD files now use their embedded ICC profiles for pixels, text, and effect colors, and gradients gained Classic, Perceptual, and Linear interpolation with Photoshop-compatible alignment
+- New Quick Mask mode lets brushes and other paint tools edit a selection through a red overlay before converting it back to marching ants
+- Resolution and measurement handling now matches Photoshop more closely: image resolution is independent metadata, rulers can use pixels, inches, centimeters, millimeters, points, or percent, and Image Size, New Document, Smart Object placement, and printing share the same PPI model
+- Photoshop Fill Opacity now reads, renders, edits, and writes through PSD files, including the special Fill behavior used by Color Burn, Linear Burn, Color Dodge, Linear Dodge, and Difference
+- Fixed Stroke styles on masked layers, filter-stack reordering, Smart Filter conversion state, macOS scanner flow, text Bold/Italic shortcuts, gradient alignment, Blend If controls, and several session-close and revision-cache bugs
 
 ### 0.16 - July 11, 2026
 
@@ -117,82 +165,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Text edits now show apply and cancel buttons in the options bar, new text layers appear in the Layers panel as soon as editing starts, and layer badges open their matching Smart Object or Layer Style controls
 - Fixed transparent Smart Object pixels turning black after PSD/PSB saves, phantom masks appearing on some files, and slow zooming or panning on very large documents
 
-### 0.15 - July 8, 2026
-
-- New file formats, all reading and writing: Windows icons and cursors (ICO/CUR, every embedded size opens as a layer), Targa (TGA), GIF, Aseprite (.aseprite/.ase, layers with blend modes and opacity round-trip), PCX, and Amiga IFF/ILBM
-- Sprite sheet workflow for game development: File > Export Layers as Sprite Sheet renders each visible top-level layer into a padded grid, and File > Import > Sprite Sheet to Layers slices a sheet back into layers
-- View > Seamless Tile Preview: a live tiled preview window for authoring seamless textures, with drag panning and a resizable, remembered window
-- Import images directly from a scanner or camera (File > Import, Windows)
-- Export at 2x-8x nearest-neighbor scale for crisp pixel-art upscaling
-- Six new blend modes - Linear Dodge (Add), Subtract, Divide, Exclusion, Hue, and Color - completing the Photoshop set; Hue/Saturation/Color/Luminosity now use the exact math Photoshop and Aseprite share
-- Open Recent Folder now remembers up to 200 folders in paginated submenus
-
-### 0.14 - July 8, 2026
-
-- The color picker's swatch column is now palette-driven: a dropdown switches between Basic colors, the current document palette, a loaded palette file, and built-in presets, and you can load and save palette files (.pal/.gpl/.hex/.act/.aco/.ase) right from the picker
-- Drag and drop colors between the palette grid, the current-color preview, and custom slots, with focus-aware Edit > Cut/Copy/Paste; edit the current and loaded-file palettes in place (built-in presets stay read-only) and set a custom slot with one button
-- New built-in DOS / VGA 256 and Dink Smallwood palettes, and the Palette panel can copy hex codes and push a clicked swatch straight into an open color picker
-- Convert to Indexed's preview now zooms and pans at full resolution and shows a progress bar while applying, and Image > Mode > RGB Color can keep the palettized look by snapping off-palette layers
-- Large documents are dramatically faster to edit: dirty-rectangle undo/redo, parallel compositing, and smarter caches make the standard large-document stress test roughly seven times faster, and big canvases keep the previous frame during recomposites and undo instead of flashing a checkerboard
-- Drop Shadow Spread and Inner Shadow/Glow Choke now expand the shape geometrically before blurring, matching Photoshop (high Spread/Choke no longer produces square chunks or fringes)
-- macOS dialogs now match the Windows layout (compact dynamics popup, growing form fields, classic scrollbars, dark tab bars) and no longer drop behind the main window or overlap label text with checkboxes
-- Crop to Selection now recenters the cropped image in the viewport
-
-### 0.13 - July 6, 2026
-
-- Patchy is now cross-platform: a native macOS build (Apple Silicon, signed and notarized DMG) and a Linux build (Flatpak bundle), with the same features and byte-identical file formats on all three platforms
-- New palettized (indexed color) editing mode for pixel art and retro game development: Image > Mode > Indexed constrains painting to a palette with a WYSIWYG canvas, and a Palette panel offers built-in retro presets (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), drag-to-swap entries, and swatch copy/paste
-- Convert existing art to a palette with optional dithering, snap stray pixels back with Image > Snap to Palette, round-trip the palette through PSD files, and export exact indexed PNG-8 and 2/4/8-bit BMP
-- Unlike Photoshop's indexed mode, palettized editing doesn't flatten or lock anything: layers, layer styles, effects, text, and filters keep working, previewed through the palette live
-- macOS feels native: global menu bar with standard About/Settings placement (Cmd+,), Photoshop-style Cmd shortcuts, delete key clears layers, trackpad pinch-to-zoom with two-finger panning, Finder double-click opens into the running app, titlebar document proxy and dirty-dot conventions
-- Linux integrates properly: portal file dialogs, desktop entry with file associations, Wayland and X11 support, and update notices that offer a one-line copy-paste install command
-- Delete now pops magnetic-lasso anchors mid-trace (matching Backspace) instead of clearing the layer, on every platform
-- Fixed a crash when closing the window while an inline text edit was still open
-
-### 0.12 - July 5, 2026
-
-- New Magnetic Lasso sub-tool traces object edges live, supports manual correction anchors, Backspace/Enter/double-click editing, and anti-aliased selection commits
-- Stroke layer styles now match Photoshop's inside/center/outside edge bands more closely, including correct center width and a new Stroke blend mode control
-- Brush dynamics gained per-setting control sources like Fade, Pen Pressure, Pen Tilt, Pen Rotation, and Stylus Wheel, with broader `.abr` import support
-- Soft bitmap brush tips now blend overlapping stamps without light seams, improving pattern brushes and self-crossing strokes ([@mcapogna](https://github.com/mcapogna))
-- Rectangle and ellipse tools gained Fixed Ratio, Fixed Size, Alt draw-from-center, and live size readouts while dragging
-- Brush-size hotkeys now scale proportionally with the current brush size, so large brushes resize quickly while small brushes keep fine control
-- Eyedropper and color-picker workflows are smoother, with a shared eyedropper cursor, better picker window behavior, and live color updates
-- Fixed Windows snap/maximize edge cases ([@mcapogna](https://github.com/mcapogna)) and shape-option syncing across new or switched documents
-
-### 0.11 - July 4, 2026
-
-- Bitmap brush tips: import Photoshop `.abr` brush sets, organize them in a brush manager with folders, define a tip from a selection, and pick from 36 built-in tips (natural media plus stamp and pattern brushes); brush size now goes up to 512px with edge softness
-- Brush dynamics (Photoshop-compatible): per-dab size, angle, roundness, scatter, and count jitter, imported from `.abr` presets and editable per tip or on the Round brush
-- New Quick Select tool (Shift+W): brush over an object and Patchy selects it, with Add/Subtract modes, Sample All Layers, and Enhance Edge
-- Gradient Overlay layer effect rebuilt around a two-track editor with draggable color and opacity stops, blend mode, reverse, and style controls
-- Fresh hand-authored tool palette icons that stay crisp at any display scale, with Photoshop-style flyout corner indicators that open on a short hold
-- Editable zoom percentage box in the status bar; Zoom In/Out and Actual Pixels now stay centered instead of panning the canvas off screen
-- Eyedropper shows the picked R, G, B and hex values and live-updates an open Foreground Color panel
-- Delete on a text layer removes the whole text object instead of erasing its pixels (matches Photoshop)
-- Smoother, non-blinking marching-ants selection outline
-- Fixed feathered Add/Subtract selections deleting the whole selection, and added a corner-radius option to the rectangular marquee
-
-### 0.10 - June 29, 2026
-
-- Zoom tool improvements: clearer zoom-in/zoom-out cursor badges, point zooming from the grey canvas area, and edge-clamped marquee zoom ([@mcapogna](https://github.com/mcapogna))
-- Gradient tool improvements: gradient fills preview live while dragging, and the gradient stop editor is easier to edit and adjust ([@mcapogna](https://github.com/mcapogna))
-- Toolbar sliders now drag smoothly and jump directly to the clicked spot instead of stepping there ([@mcapogna](https://github.com/mcapogna))
-- Eyedropper can sample colors by dragging from Patchy onto the screen ([@mcapogna](https://github.com/mcapogna))
-- Marquee and lasso selections have better undo/redo, mode handling, and previews ([@mcapogna](https://github.com/mcapogna)); selection history now has Japanese translations
-- Fixed frameless window border artifacts and maximize regressions
-
-### 0.9 - June 22, 2026
-
-- Merge Down now flattens folders and any multi-selection, discarding hidden layers (matches Photoshop)
-- Single-instance: double-clicking a file in Explorer opens it in the existing window instead of launching a new copy
-- 32-bit BMPs (and other flat images) import their per-pixel alpha as an editable layer mask
-- Selection tools: drag the outline to move it, arrow-key nudge, click-to-deselect, grey-area selection, lasso improvements, and combine-mode cursor badges ([@mcapogna](https://github.com/mcapogna))
-- Shape tools: antialiased soft/thick outlines and fills, rounded-corner rectangles, Shift for 1:1, and dedicated Fill opacity/softness
-- Open dialog remembers the last folder; new Open Recent Folder menu with copy-path and open-in-explorer actions
-- Fixed Ctrl+T transform nudge so arrow keys move the bounding box with the pixels
-- Splash screen dismisses faster
-- Improved color picker with new sliders and wheels
+[Older releases](RELEASE-HISTORY.md)
 
 ## Building it yourself
 
@@ -281,6 +254,8 @@ Adobe and Photoshop are either registered trademarks or trademarks of Adobe in t
 
 This project was developed with significant assistance from AI tools.  I mean, you can still blame me (Seth) for bugs, but I just wanted to mention it.
 
+Note:  All included textures/materials are real images taken by humans, not AI generated
+
 ## Missing features?
 
 AI has reached the point where you can use your favorite AI to add the missing feature you want.
@@ -291,7 +266,7 @@ I mean, that's kind of the power of open source.
 
 Whatever AI you use, tell it (or more likely, it's reading this right now) to read AGENTS.md first at all times before doing anything else - that's where the build commands, conventions, and project knowledge live. 
 
-Notice that there are 800+ regression and benchmarking tests, AGENTS.md will teach your AI how to use these to insure it doesn't stuff stuff up.\
+Notice that there are 1000+ regression and benchmarking tests, AGENTS.md will teach your AI how to use these to insure it doesn't screw stuff up.\
 \
 If you have a bug fix or feature you think should be in this repo, please look at the actual code and fully TEST IT YOURSELF before submitting the PR.  If you're using AI, use a good one (Fable+ class), we don't want barely working slop.\
 \

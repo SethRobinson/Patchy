@@ -118,6 +118,13 @@ attribution; the authors are credited here voluntarily (authors marked
 Files under `test-fixtures/` are used only by the automated test suites and are
 not part of any release package.
 
+- `test-fixtures/readme/san_francisco_cityscape_cc0.jpg`: "Cityscape of San
+  Francisco," photographed by Vladimir Mokry and published under the Creative
+  Commons CC0 1.0 Universal Public Domain Dedication. The exact Wikimedia
+  Commons original was downloaded on 2026-07-15 from
+  https://commons.wikimedia.org/wiki/File:Cityscape_of_San_Francisco.jpg
+  (SHA-256 `8B09FA97853316DC4C548C7A1631D4C0955148338DF7CA2E75BAA5BC576DDE0D`).
+  It is used only to regenerate the README Tilt-Shift Blur screenshot.
 - `test-fixtures/ico/cpython-py.ico`: the CPython `py.ico` application icon
   from https://github.com/python/cpython (`PC/icons/py.ico`), included under the
   Python Software Foundation License 2.0 as a real-world multi-size icon sample.

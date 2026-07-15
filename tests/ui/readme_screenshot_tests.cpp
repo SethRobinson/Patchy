@@ -1525,6 +1525,623 @@ void shot_readme_smart_objects() {
   QApplication::processEvents();
 }
 
+QListWidgetItem* require_readme_gallery_filter_item(QListWidget& list,
+                                                    const QString& filter_id) {
+  for (int row = 0; row < list.count(); ++row) {
+    auto* item = list.item(row);
+    if (item != nullptr &&
+        item->data(Qt::UserRole + 1).toString() == filter_id) {
+      return item;
+    }
+  }
+  CHECK(false);
+  return nullptr;
+}
+
+// A deterministic, code-authored city scene for the spatial filter shots. It
+// gives Tilt-Shift Blur strong near/middle/far detail without adding a licensed
+// photo fixture to the repository.
+[[maybe_unused]] QImage readme_isometric_city() {
+  QImage city(1100, 720, QImage::Format_RGB32);
+  QPainter painter(&city);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  QLinearGradient sky(0, 0, 0, city.height());
+  sky.setColorAt(0.0, QColor(0x71, 0xb8, 0xd8));
+  sky.setColorAt(0.42, QColor(0xd7, 0xe9, 0xe8));
+  sky.setColorAt(1.0, QColor(0xe8, 0xc9, 0x9e));
+  painter.fillRect(city.rect(), sky);
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(QColor(0x5b, 0x8f, 0x98));
+  painter.drawPolygon(QPolygonF({{0, 250}, {180, 180}, {330, 245}, {500, 155},
+                                 {690, 250}, {880, 165}, {1100, 260},
+                                 {1100, 390}, {0, 390}}));
+  painter.setBrush(QColor(0x8e, 0xb5, 0xa4));
+  painter.drawPolygon(QPolygonF({{0, 310}, {205, 230}, {390, 325}, {590, 220},
+                                 {805, 320}, {970, 250}, {1100, 315},
+                                 {1100, 450}, {0, 450}}));
+  painter.setBrush(QColor(0x6f, 0x92, 0x87));
+  painter.drawRect(0, 370, 1100, 350);
+
+  // Road grid, kept broad so it remains legible after the gallery proxy scales.
+  painter.setBrush(QColor(0x4b, 0x58, 0x5c));
+  for (int y : {430, 555, 675}) {
+    painter.drawPolygon(QPolygonF({QPointF(-40, y - 18), QPointF(1100, y - 58),
+                                   QPointF(1140, y - 18), QPointF(0, y + 22)}));
+  }
+  for (int x : {155, 390, 650, 900}) {
+    painter.drawPolygon(QPolygonF({QPointF(x - 23, 360), QPointF(x + 32, 360),
+                                   QPointF(x + 105, 720), QPointF(x + 30, 720)}));
+  }
+  painter.setPen(QPen(QColor(0xf1, 0xd4, 0x72), 3, Qt::DashLine));
+  painter.drawLine(0, 664, 1100, 624);
+  painter.setPen(Qt::NoPen);
+
+  const std::array<QColor, 6> fronts = {
+      QColor(0xd5, 0x75, 0x5f), QColor(0xd8, 0xb1, 0x66),
+      QColor(0x78, 0xa7, 0xae), QColor(0x9c, 0x83, 0xaa),
+      QColor(0x72, 0x9c, 0x78), QColor(0xcf, 0x8e, 0x68)};
+  int building = 0;
+  for (int row = 0; row < 3; ++row) {
+    for (int column = 0; column < 7; ++column) {
+      const int x = 40 + column * 150 + row * 26;
+      const int base_y = 495 + row * 95 - column * 5;
+      const int width = 76 + ((column + row) % 3) * 12;
+      const int height = 62 + ((column * 37 + row * 53) % 120);
+      const int depth = 22;
+      const auto front = fronts[static_cast<std::size_t>(building++) % fronts.size()];
+      const auto side = front.darker(132);
+      const auto roof = front.lighter(132);
+      painter.setBrush(front);
+      painter.drawRect(x, base_y - height, width, height);
+      painter.setBrush(side);
+      painter.drawPolygon(QPolygonF({QPointF(x + width, base_y - height),
+                                     QPointF(x + width + depth, base_y - height - depth / 2),
+                                     QPointF(x + width + depth, base_y - depth / 2),
+                                     QPointF(x + width, base_y)}));
+      painter.setBrush(roof);
+      painter.drawPolygon(QPolygonF({QPointF(x, base_y - height),
+                                     QPointF(x + depth, base_y - height - depth / 2),
+                                     QPointF(x + width + depth, base_y - height - depth / 2),
+                                     QPointF(x + width, base_y - height)}));
+      painter.setBrush(QColor(0xf4, 0xdf, 0x9a, 210));
+      const int window_rows = std::max(1, (height - 22) / 24);
+      for (int window_row = 0; window_row < window_rows; ++window_row) {
+        for (int window_column = 0; window_column < 3; ++window_column) {
+          painter.drawRect(x + 10 + window_column * 21,
+                           base_y - height + 14 + window_row * 23, 10, 9);
+        }
+      }
+    }
+  }
+  // Foreground cars and trees create small details for the blur transition.
+  for (int index = 0; index < 10; ++index) {
+    const int x = 32 + index * 108;
+    const int y = 650 - (index % 3) * 13;
+    painter.setBrush(index % 2 == 0 ? QColor(0xe8, 0x58, 0x4f)
+                                    : QColor(0xf3, 0xc7, 0x49));
+    painter.drawRoundedRect(x, y, 34, 14, 4, 4);
+    painter.setBrush(QColor(0x26, 0x2b, 0x2d));
+    painter.drawEllipse(QRect(x + 4, y + 10, 8, 8));
+    painter.drawEllipse(QRect(x + 23, y + 10, 8, 8));
+  }
+  painter.end();
+  return city;
+}
+
+// Pattern Manager: the complete preset browser with a bundled CC0 photo
+// texture selected and its full-resolution tile visible in the preview.
+void shot_readme_pattern_manager() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::PatternLibrary library(
+      directory.filePath(QStringLiteral("patterns")));
+  CHECK(library.restore_default_patterns() > 0);
+  const auto* texture = library.find_entry_by_pattern_id(
+      QStringLiteral("f0705a00-0008-4c8b-9e3d-2a5b6c77e008"));
+  CHECK(texture != nullptr);
+  const auto texture_pattern_id = texture->id;
+  patchy::ui::MainWindow theme_host;
+  show_readme_shot_window(theme_host);
+  bool captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patternManagerDialog"));
+    CHECK(dialog != nullptr);
+    auto* tree = dialog->findChild<QTreeWidget*>(
+        QStringLiteral("patternManagerTree"));
+    auto* preview = dialog->findChild<QWidget*>(
+        QStringLiteral("patternManagerPreview"));
+    auto* name = dialog->findChild<QLineEdit*>(
+        QStringLiteral("patternManagerNameEdit"));
+    CHECK(tree != nullptr && preview != nullptr && name != nullptr);
+    CHECK(name->text() == QStringLiteral("Weathered Marble"));
+    auto* item = tree->currentItem();
+    CHECK(item != nullptr && item->parent() != nullptr);
+    CHECK(item->data(0, Qt::UserRole).toString() == texture->storage_id);
+    item->parent()->setExpanded(true);
+    dialog->resize(980, 640);
+    tree->scrollToItem(item->parent(), QAbstractItemView::PositionAtTop);
+    process_events_for(300);
+    CHECK(preview->property("previewZoomPercent").toInt() == 100);
+    save_readme_shot("shot_readme_pattern_manager", dialog->grab().toImage());
+    captured = true;
+    dialog->reject();
+  });
+  const auto result = patchy::ui::request_pattern_manager(
+      &theme_host, library, texture_pattern_id);
+  CHECK(captured);
+  CHECK(result.isEmpty());
+}
+
+// Tilt-Shift Blur over a dense city scene, with its safe short-grip overlay
+// visible in the live gallery preview.
+void shot_readme_tilt_shift() {
+  const auto path = patchy::test::committed_format_fixture_path(
+      "readme", "san_francisco_cityscape_cc0.jpg");
+  QImage city(QString::fromStdString(path.string()));
+  CHECK(!city.isNull());
+  city = city.scaled(1100, 720, Qt::KeepAspectRatioByExpanding,
+                     Qt::SmoothTransformation);
+  city = city.copy((city.width() - 1100) / 2, (city.height() - 720) / 2,
+                   1100, 720);
+  const auto source = patchy::ui::pixels_from_image_rgba(city);
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  patchy::ui::MainWindow theme_host;
+  show_readme_shot_window(theme_host);
+  bool captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* editor = dialog->findChild<QWidget*>(
+        QStringLiteral("filterGalleryParameterEditor"));
+    auto* preview = dynamic_cast<patchy::ui::ZoomableImagePreview*>(
+        dialog->findChild<QWidget*>(QStringLiteral("filterGalleryPreview")));
+    auto* status = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryStatusLabel"));
+    CHECK(looks != nullptr && editor != nullptr && preview != nullptr &&
+          status != nullptr);
+    looks->setCurrentItem(require_readme_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.tilt_shift_blur")));
+    QApplication::processEvents();
+    auto* blur = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterBlurSpin"));
+    auto* center_x = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterXSpin"));
+    auto* center_y = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterCenterYSpin"));
+    auto* angle = editor->findChild<QSpinBox*>(
+        QStringLiteral("filterAngleSpin"));
+    auto* focus = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterFocusHalfWidthSpin"));
+    auto* transition = editor->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterTransitionWidthSpin"));
+    CHECK(blur != nullptr && center_x != nullptr && center_y != nullptr &&
+          angle != nullptr && focus != nullptr && transition != nullptr);
+    blur->setValue(10.0);
+    center_x->setValue(50.0);
+    center_y->setValue(62.0);
+    angle->setValue(-2);
+    focus->setValue(10.0);
+    transition->setValue(18.0);
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterTiltShiftOverlayVisible").toBool() &&
+                 status->text() == QCoreApplication::translate("QObject", "Ready");
+        },
+        10000));
+    dialog->repaint();
+    process_events_for(100);
+    save_readme_shot("shot_readme_tilt_shift", dialog->grab().toImage());
+    captured = true;
+    dialog->reject();
+  });
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      &theme_host, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255});
+  CHECK(captured);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+}
+
+QTreeWidgetItem* readme_style_item_for_storage_id(QTreeWidget& tree,
+                                                  const QString& storage_id) {
+  const std::function<QTreeWidgetItem*(QTreeWidgetItem*)> visit =
+      [&](QTreeWidgetItem* item) -> QTreeWidgetItem* {
+    if (item->data(0, Qt::UserRole).toString() == storage_id) {
+      return item;
+    }
+    for (int child = 0; child < item->childCount(); ++child) {
+      if (auto* found = visit(item->child(child)); found != nullptr) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+  for (int row = 0; row < tree.topLevelItemCount(); ++row) {
+    if (auto* found = visit(tree.topLevelItem(row)); found != nullptr) {
+      return found;
+    }
+  }
+  return nullptr;
+}
+
+// Material styles: live application of the Riveted Steel preset to large
+// transparent type, with the expanded Materials browser beside the canvas.
+void shot_readme_material_styles() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  QImage background(1180, 780, QImage::Format_RGB32);
+  {
+    QPainter painter(&background);
+    QLinearGradient gradient(0, 0, 1180, 780);
+    gradient.setColorAt(0.0, QColor(0x18, 0x24, 0x2b));
+    gradient.setColorAt(0.52, QColor(0x2c, 0x46, 0x52));
+    gradient.setColorAt(1.0, QColor(0x88, 0x5a, 0x3e));
+    painter.fillRect(background.rect(), gradient);
+    painter.setPen(QPen(QColor(255, 255, 255, 20), 2));
+    for (int x = -600; x < 1500; x += 70) {
+      painter.drawLine(x, 0, x + 780, 780);
+    }
+  }
+  QImage lettering(1180, 780, QImage::Format_RGBA8888);
+  lettering.fill(Qt::transparent);
+  {
+    QPainter painter(&lettering);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    QFont font(QStringLiteral("Arial Black"));
+    font.setPixelSize(155);
+    font.setBold(true);
+    painter.setFont(font);
+    painter.setPen(QColor(235, 235, 228));
+    painter.drawText(QRect(80, 165, 1020, 230), Qt::AlignCenter,
+                     QStringLiteral("PATCHY"));
+    font.setPixelSize(76);
+    painter.setFont(font);
+    painter.drawText(QRect(80, 405, 1020, 130), Qt::AlignCenter,
+                     QStringLiteral("MATERIALS"));
+  }
+
+  auto document = patchy::ui::document_from_qimage(background, "Backdrop");
+  patchy::Layer type_layer(document.allocate_layer_id(), "Material Type",
+                           patchy::ui::pixels_from_image_rgba(lettering));
+  const auto type_id = type_layer.id();
+  document.add_layer(std::move(type_layer));
+  document.set_active_layer(type_id);
+
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Material Styles"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  window.style_library().restore_default_styles();
+  const auto* preset = window.style_library().find_entry_by_style_id(
+      QStringLiteral("57a1e500-0024-4c6d-8f2a-9b3d4e55c024"));
+  CHECK(preset != nullptr);
+  const auto storage_id = preset->storage_id;
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+
+  bool captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(
+        QStringLiteral("layerStyleCategoryList"));
+    auto* browser = dialog->findChild<patchy::ui::StyleBrowserWidget*>(
+        QStringLiteral("layerStyleStylesBrowser"));
+    CHECK(categories != nullptr && browser != nullptr);
+    const auto style_rows = categories->findItems(
+        QStringLiteral("Style Presets"), Qt::MatchExactly);
+    CHECK(!style_rows.empty());
+    categories->setCurrentItem(style_rows.front());
+    QApplication::processEvents();
+    auto* item = readme_style_item_for_storage_id(*browser, storage_id);
+    CHECK(item != nullptr && item->parent() != nullptr);
+    item->parent()->setExpanded(true);
+    browser->scrollToItem(item, QAbstractItemView::PositionAtCenter);
+    QApplication::processEvents();
+    const auto center = browser->visualItemRect(item).center();
+    send_mouse(*browser->viewport(), QEvent::MouseButtonPress, center,
+               Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*browser->viewport(), QEvent::MouseButtonRelease, center,
+               Qt::LeftButton, Qt::NoButton);
+    process_events_for(700);
+    const QPoint dialog_offset(690, 130);
+    dialog->move(window.geometry().topLeft() + dialog_offset);
+    QApplication::processEvents();
+    reset_readme_status_bar(window);
+    auto base = window.grab().toImage();
+    draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
+    save_readme_shot("shot_readme_material_styles", base);
+    captured = true;
+    dialog->reject();
+  });
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(captured);
+}
+
+// Smart Filters: convert a photo layer, build a native three-filter recipe,
+// and expose the shared mask plus editable stack in the Layers panel.
+void shot_readme_smart_filters() {
+  const auto path =
+      patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] akiko_cycling_okinawa fixture missing: "
+              << path.string() << '\n';
+    return;
+  }
+  QImage photo(QString::fromStdString(path.string()));
+  CHECK(!photo.isNull());
+  photo = photo.copy(0, 170, photo.width(), std::min(1180, photo.height() - 170))
+              .scaled(900, 760, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(patchy::ui::document_from_qimage(photo, "Cyclist"),
+                              QStringLiteral("Editable Smart Filters"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  require_action(window, "filterConvertForSmartFiltersAction")->trigger();
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  const auto& document =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  patchy::PixelBuffer selection(document.width(), document.height(),
+                                patchy::PixelFormat::gray8());
+  selection.clear(0);
+  const auto cx = document.width() / 2;
+  const auto cy = document.height() / 2;
+  const auto radius_x = document.width() * 42 / 100;
+  const auto radius_y = document.height() * 42 / 100;
+  for (int y = 0; y < document.height(); ++y) {
+    auto row = selection.row(y);
+    for (int x = 0; x < document.width(); ++x) {
+      const auto nx = static_cast<double>(x - cx) / radius_x;
+      const auto ny = static_cast<double>(y - cy) / radius_y;
+      const auto distance = std::sqrt(nx * nx + ny * ny);
+      row[static_cast<std::size_t>(x)] = static_cast<std::uint8_t>(
+          std::clamp((1.08 - distance) * 900.0, 0.0, 255.0));
+    }
+  }
+  canvas->replace_selection_from_grayscale(
+      selection, QStringLiteral("Smart Filter portrait mask"));
+  window.repaint();
+  process_events_for(500);
+  const auto header = window.grab().toImage().copy(0, 0, window.width(), 82);
+
+  bool applied = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* duplicate = dialog->findChild<QPushButton*>(
+        QStringLiteral("filterGalleryDuplicateEffectButton"));
+    auto* buttons = dialog->findChild<QDialogButtonBox*>(
+        QStringLiteral("filterGalleryButtonBox"));
+    auto* status = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryStatusLabel"));
+    CHECK(looks != nullptr && duplicate != nullptr && buttons != nullptr &&
+          status != nullptr);
+    looks->setCurrentItem(require_readme_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.gaussian_blur")));
+    QApplication::processEvents();
+    if (auto* radius = dialog->findChild<QDoubleSpinBox*>(
+            QStringLiteral("filterRadiusSpin"));
+      radius != nullptr) {
+      radius->setValue(1.1);
+    }
+    duplicate->click();
+    QApplication::processEvents();
+    looks->setCurrentItem(require_readme_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.dust_and_scratches")));
+    QApplication::processEvents();
+    if (auto* radius = dialog->findChild<QSpinBox*>(
+            QStringLiteral("filterRadiusSpin"));
+      radius != nullptr) {
+      radius->setValue(1);
+    }
+    if (auto* threshold = dialog->findChild<QSpinBox*>(
+            QStringLiteral("filterThresholdSpin"));
+        threshold != nullptr) {
+      threshold->setValue(12);
+    }
+    duplicate->click();
+    QApplication::processEvents();
+    looks->setCurrentItem(require_readme_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.surface_blur")));
+    QApplication::processEvents();
+    if (auto* radius = dialog->findChild<QDoubleSpinBox*>(
+            QStringLiteral("filterRadiusSpin"));
+      radius != nullptr) {
+      radius->setValue(2.2);
+    }
+    if (auto* threshold = dialog->findChild<QSpinBox*>(
+            QStringLiteral("filterThresholdSpin"));
+      threshold != nullptr) {
+      threshold->setValue(20);
+    }
+    CHECK(process_events_until(
+        [&] {
+          return status->text() == QCoreApplication::translate("QObject", "Ready");
+        },
+        15000));
+    applied = true;
+    buttons->button(QDialogButtonBox::Ok)->click();
+  });
+  require_action(window, "filterGalleryAction")->trigger();
+  CHECK(applied);
+  CHECK(process_events_until(
+      [&] {
+        return window.isEnabled() && !canvas->processing_operation_active() &&
+               !canvas->processing_overlay_visible();
+      },
+      15000));
+  canvas->clear_selection();
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, 380);
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  process_events_for(900);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* item = require_layer_item(*layer_list, QStringLiteral("Cyclist"));
+  auto* row = layer_list->itemWidget(item);
+  CHECK(row != nullptr);
+  const auto labels = row->findChildren<QLabel*>(
+      QStringLiteral("layerSmartFilterEntryLabel"));
+  CHECK(labels.size() == 3);
+  reset_readme_status_bar(window);
+  window.repaint();
+  process_events_for(600);
+  auto image = window.grab().toImage();
+  {
+    QPainter painter(&image);
+    painter.drawImage(0, 0, header);
+  }
+  save_readme_shot("shot_readme_smart_filters", image);
+}
+
+// Camera Raw: a real CC0 raw.pixls.us sample in the full develop dialog.
+void shot_readme_camera_raw() {
+  const auto path = patchy::test::local_format_fixture_path(
+      "raw", "fujifilm_xt1.raf");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] CC0 Fujifilm raw fixture missing: " << path.string()
+              << '\n';
+    return;
+  }
+  SettingsValueRestorer dialog_restorer(
+      QStringLiteral("imports/showRawDevelopDialog"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), true);
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  auto finished = std::make_shared<bool>(false);
+  auto attempts = std::make_shared<int>(2400);
+  auto step = std::make_shared<std::function<void()>>();
+  *step = [=] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("rawDevelopDialog"));
+    if (dialog != nullptr) {
+      auto* preview = static_cast<patchy::ui::ZoomableImagePreview*>(
+          dialog->findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
+      auto* status = dialog->findChild<QLabel*>(
+          QStringLiteral("rawDevelopStatus"));
+      auto* exposure = dialog->findChild<QSlider*>(
+          QStringLiteral("rawExposureSlider"));
+      auto* shadows = dialog->findChild<QSlider*>(
+          QStringLiteral("rawShadowsSlider"));
+      auto* vibrance = dialog->findChild<QSlider*>(
+          QStringLiteral("rawVibranceSlider"));
+      if (preview != nullptr && status != nullptr && exposure != nullptr &&
+          shadows != nullptr && vibrance != nullptr &&
+          !preview->image().isNull() && status->text().isEmpty()) {
+        exposure->setValue(30);
+        shadows->setValue(24);
+        vibrance->setValue(18);
+        process_events_for(900);
+        if (status->text().isEmpty() && !preview->image().isNull()) {
+          save_readme_shot("shot_readme_camera_raw", dialog->grab().toImage());
+          *finished = true;
+          dialog->reject();
+          return;
+        }
+      }
+    }
+    if ((*attempts)-- > 0) {
+      QTimer::singleShot(25, *step);
+    }
+  };
+  QTimer::singleShot(25, *step);
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, QString::fromStdString(path.string()));
+  CHECK(*finished);
+}
+
+// Quick Mask: load a clean, feathered portrait frame from a hidden layer's
+// transparency, then convert it to the live red editing overlay. The Channels
+// dock shows the temporary Quick Mask channel.
+void shot_readme_quick_mask() {
+  const auto path =
+      patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] akiko_cycling_okinawa fixture missing: "
+              << path.string() << '\n';
+    return;
+  }
+  QImage photo(QString::fromStdString(path.string()));
+  CHECK(!photo.isNull());
+  photo = photo.scaled(800, 1200, Qt::KeepAspectRatio,
+                       Qt::SmoothTransformation);
+  QImage selection_source(photo.size(), QImage::Format_RGBA8888);
+  selection_source.fill(Qt::transparent);
+  {
+    QPainter painter(&selection_source);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    const QRectF outer(photo.width() * 0.245, photo.height() * 0.075,
+                       photo.width() * 0.49, photo.height() * 0.82);
+    constexpr std::array<int, 7> alpha_steps = {18, 38, 72, 116, 168, 218, 255};
+    for (std::size_t step = 0; step < alpha_steps.size(); ++step) {
+      const auto inset = static_cast<qreal>(step) * 3.2;
+      const auto frame = outer.adjusted(inset, inset, -inset, -inset);
+      painter.setBrush(QColor(255, 255, 255, alpha_steps[step]));
+      painter.setPen(Qt::NoPen);
+      painter.drawRoundedRect(frame, frame.width() * 0.47,
+                              frame.width() * 0.47);
+    }
+  }
+  auto source_document = patchy::ui::document_from_qimage(photo, "Cyclist");
+  const auto photo_layer_id = *source_document.active_layer_id();
+  patchy::Layer selection_layer(
+      source_document.allocate_layer_id(), "Portrait Selection Source",
+      patchy::ui::pixels_from_image_rgba(selection_source));
+  selection_layer.set_visible(false);
+  source_document.add_layer(std::move(selection_layer));
+  source_document.set_active_layer(photo_layer_id);
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(std::move(source_document),
+                              QStringLiteral("Quick Mask Portrait"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  auto* canvas = require_canvas(window);
+  const auto& document =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+
+  patchy::PixelBuffer selection(document.width(), document.height(),
+                                patchy::PixelFormat::gray8());
+  for (int y = 0; y < selection.height(); ++y) {
+    auto row = selection.row(y);
+    for (int x = 0; x < selection.width(); ++x) {
+      row[static_cast<std::size_t>(x)] =
+          static_cast<std::uint8_t>(qAlpha(selection_source.pixel(x, y)));
+    }
+  }
+  canvas->replace_selection_from_grayscale(
+      selection, QStringLiteral("Load portrait layer transparency"));
+  require_hotkey_action(window, QStringLiteral("select.quick_mask"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->quick_mask_active());
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(56);
+  canvas->set_brush_softness(55);
+  canvas->set_primary_color(Qt::white);
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  auto* channels_dock =
+      window.findChild<QDockWidget*>(QStringLiteral("channelsDock"));
+  auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
+  CHECK(channels_dock != nullptr && channels != nullptr);
+  channels_dock->show();
+  channels_dock->raise();
+  process_events_for(400);
+  CHECK(channels->findItems(QStringLiteral("Quick Mask"), Qt::MatchExactly).size() == 1);
+  reset_readme_status_bar(window);
+  save_readme_shot("shot_readme_quick_mask", window.grab().toImage());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> readme_screenshot_tests() {
@@ -1539,5 +2156,11 @@ std::vector<patchy::test::TestCase> readme_screenshot_tests() {
       {"shot_readme_warp_text", shot_readme_warp_text},
       {"shot_readme_tile_preview", shot_readme_tile_preview},
       {"shot_readme_smart_objects", shot_readme_smart_objects},
+      {"shot_readme_pattern_manager", shot_readme_pattern_manager},
+      {"shot_readme_smart_filters", shot_readme_smart_filters},
+      {"shot_readme_tilt_shift", shot_readme_tilt_shift},
+      {"shot_readme_material_styles", shot_readme_material_styles},
+      {"shot_readme_camera_raw", shot_readme_camera_raw},
+      {"shot_readme_quick_mask", shot_readme_quick_mask},
   };
 }

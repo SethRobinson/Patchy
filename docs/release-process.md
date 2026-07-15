@@ -10,11 +10,25 @@ When bumping the release version, update the version fields:
 - `vcpkg.json` (`version-semver`)
 - `latest_version.json` — the per-platform `version` entries: windows always; macos/linux only when those artifacts actually ship. This is the update-check manifest served to the app from raw.githubusercontent.com on main, and only takes effect once pushed.
 - The `<release>` tag in `packaging/linux/com.rtsoft.patchy.metainfo.xml`
-- A new top entry under `README.md`'s "What's New" section for that version, dated with the release date, summarizing the user-visible changes.
+- A new top entry under `README.md`'s "What's New" section for that version,
+  dated with the release date and summarizing the user-visible changes.
+- Keep only the two newest release entries in `README.md`. After adding the new
+  entry, move the entry that has become third-newest to the top of
+  `RELEASE-HISTORY.md`, preserving its date, wording, order, and author credits.
+  Keep the `[Older releases](RELEASE-HISTORY.md)` link immediately after the two
+  README entries. `RELEASE-HISTORY.md` stays newest-first and must not duplicate
+  either release still shown in the README.
 
 ## What's New author credits
 
-Always credit the correct author on each "What's New" bullet. Seth is the default and is left uncredited; any feature or fix contributed by someone else must name them with a GitHub handle link like `([@handle](https://github.com/handle))`. Check `git log`'s author for the commits behind each bullet (e.g. `git log --format='%an %s'`) rather than assuming, and when one bullet mixes work from more than one person, credit the specific clause that person wrote (see the existing 0.10/0.12 entries for the mid-bullet style).
+Always credit the correct author on each "What's New" bullet, including entries
+moved to `RELEASE-HISTORY.md`. Seth is the default and is left uncredited; any
+feature or fix contributed by someone else must name them with a GitHub handle
+link like `([@handle](https://github.com/handle))`. Check `git log`'s author for
+the commits behind each bullet (e.g. `git log --format='%an %s'`) rather than
+assuming, and when one bullet mixes work from more than one person, credit the
+specific clause that person wrote (see the existing 0.10/0.12 entries in
+`RELEASE-HISTORY.md` for the mid-bullet style).
 
 ## Build and upload order
 
