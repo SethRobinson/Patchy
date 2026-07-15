@@ -4,6 +4,7 @@
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
+#include "core/liquify.hpp"
 #include "core/gradient_presets.hpp"
 #include "filters/filter_engine.hpp"
 #include "filters/filter_registry.hpp"
@@ -1989,6 +1990,100 @@ void filter_recipe_expansion_keeps_fully_transparent_bounds_stable() {
                    opaque.data().begin()));
 }
 
+void liquify_mesh_is_deterministic_and_reconstructable() {
+  patchy::LiquifyMesh mesh(65, 65);
+  CHECK(mesh.is_identity());
+  mesh.apply_stroke(patchy::LiquifyTool::ForwardWarp, 18.0, 32.0,
+                    44.0, 32.0, 42.0, 100.0, 70.0);
+  CHECK(!mesh.is_identity());
+  const auto warped = mesh.displacement_at(40.0, 32.0);
+  CHECK(warped[0] < -1.0);
+  CHECK(std::abs(warped[1]) < 0.5);
+
+  mesh.apply_stroke(patchy::LiquifyTool::Reconstruct, 40.0, 32.0,
+                    40.0, 32.0, 42.0, 100.0, 100.0);
+  const auto reconstructed = mesh.displacement_at(40.0, 32.0);
+  CHECK(std::abs(reconstructed[0]) < std::abs(warped[0]));
+
+  mesh.reset();
+  CHECK(mesh.is_identity());
+  CHECK(mesh.freeze_strength_at(32.0, 32.0) == 0.0);
+
+  patchy::LiquifyMesh clockwise(65, 65);
+  patchy::LiquifyMesh counterclockwise(65, 65);
+  clockwise.apply_stroke(patchy::LiquifyTool::TwirlClockwise, 32.0, 32.0,
+                         32.0, 32.0, 50.0, 100.0, 100.0);
+  counterclockwise.apply_stroke(
+      patchy::LiquifyTool::TwirlCounterClockwise, 32.0, 32.0, 32.0, 32.0,
+      50.0, 100.0, 100.0);
+  const auto clockwise_offset = clockwise.displacement_at(48.0, 32.0);
+  const auto counterclockwise_offset =
+      counterclockwise.displacement_at(48.0, 32.0);
+  CHECK(clockwise_offset[1] * counterclockwise_offset[1] < 0.0);
+}
+
+void liquify_freeze_mask_protects_the_deformation_field() {
+  patchy::LiquifyMesh unprotected(65, 65);
+  unprotected.apply_stroke(patchy::LiquifyTool::ForwardWarp, 20.0, 32.0,
+                           42.0, 32.0, 50.0, 100.0, 100.0);
+  const auto unprotected_offset =
+      std::abs(unprotected.displacement_at(34.0, 32.0)[0]);
+
+  patchy::LiquifyMesh protected_mesh(65, 65);
+  protected_mesh.apply_stroke(patchy::LiquifyTool::FreezeMask, 34.0, 32.0,
+                              34.0, 32.0, 50.0, 100.0, 100.0);
+  CHECK(protected_mesh.freeze_strength_at(34.0, 32.0) > 0.5);
+  protected_mesh.apply_stroke(patchy::LiquifyTool::ForwardWarp, 20.0, 32.0,
+                              42.0, 32.0, 50.0, 100.0, 100.0);
+  const auto protected_offset =
+      std::abs(protected_mesh.displacement_at(34.0, 32.0)[0]);
+  CHECK(protected_offset < unprotected_offset * 0.5);
+
+  protected_mesh.apply_stroke(patchy::LiquifyTool::ThawMask, 34.0, 32.0,
+                              34.0, 32.0, 50.0, 100.0, 100.0);
+  CHECK(protected_mesh.freeze_strength_at(34.0, 32.0) < 0.2);
+}
+
+void liquify_render_preserves_identity_and_scales_the_field() {
+  patchy::PixelBuffer source(65, 49, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      auto* pixel = source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(x * 255 / (source.width() - 1));
+      pixel[1] = static_cast<std::uint8_t>(y * 255 / (source.height() - 1));
+      pixel[2] = static_cast<std::uint8_t>((x * 11 + y * 17) % 256);
+      pixel[3] = static_cast<std::uint8_t>(80 + (x * 7 + y * 13) % 176);
+    }
+  }
+
+  patchy::LiquifyMesh proxy_mesh(33, 25);
+  const auto identity = proxy_mesh.render(source);
+  CHECK(identity.has_value());
+  CHECK(identity->format() == source.format());
+  CHECK(std::equal(identity->data().begin(), identity->data().end(),
+                   source.data().begin()));
+
+  proxy_mesh.apply_stroke(patchy::LiquifyTool::ForwardWarp, 8.0, 12.0,
+                          24.0, 12.0, 22.0, 100.0, 80.0);
+  int last_progress = -1;
+  const auto warped = proxy_mesh.render(
+      source, [&](int completed, int total) {
+        CHECK(total == source.height());
+        CHECK(completed >= last_progress);
+        last_progress = completed;
+        return true;
+      });
+  CHECK(warped.has_value());
+  CHECK(last_progress == source.height());
+  CHECK(!std::equal(warped->data().begin(), warped->data().end(),
+                    source.data().begin()));
+  CHECK(warped->pixel(36, 24)[0] < source.pixel(36, 24)[0]);
+
+  const auto cancelled = proxy_mesh.render(
+      source, [](int completed, int) { return completed < 10; });
+  CHECK(!cancelled.has_value());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> document_ops_filters_tests() {
@@ -2029,5 +2124,11 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
        filter_recipe_render_trace_records_every_entry_input_bounds},
       {"filter_recipe_expansion_keeps_fully_transparent_bounds_stable",
        filter_recipe_expansion_keeps_fully_transparent_bounds_stable},
+      {"liquify_mesh_is_deterministic_and_reconstructable",
+       liquify_mesh_is_deterministic_and_reconstructable},
+      {"liquify_freeze_mask_protects_the_deformation_field",
+       liquify_freeze_mask_protects_the_deformation_field},
+      {"liquify_render_preserves_identity_and_scales_the_field",
+       liquify_render_preserves_identity_and_scales_the_field},
   };
 }

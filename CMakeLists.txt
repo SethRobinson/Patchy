@@ -58,6 +58,7 @@ add_library(patchy_core
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
   src/core/layer_tree.cpp
+  src/core/liquify.cpp
   src/core/magnetic_lasso.cpp
   src/core/palette.cpp
   src/core/palette_presets.cpp
@@ -585,6 +586,8 @@ if(PATCHY_BUILD_APP)
       src/ui/image_save_options_dialog.cpp
       src/ui/layer_style_dialog.cpp
       src/ui/layer_list_widget.cpp
+      src/ui/liquify_dialog.hpp
+      src/ui/liquify_dialog.cpp
       src/ui/localization.cpp
       src/ui/main_window.hpp
       src/ui/main_window.cpp

@@ -12235,6 +12235,16 @@ Clipped to the layer below</source>
     <message><source>Manage...</source><translation>管理...</translation></message>
     <message><source>Import or manage patterns</source><translation>パターンを読み込むか管理します</translation></message>
     <message><source>Keep pattern alignment continuous across strokes</source><translation>ストローク間でパターンの配置を連続させます</translation></message>
+    <message><source>&amp;Liquify...</source><translation>ゆがみ(&amp;L)...</translation></message>
+    <message><source>Push, pull, twist, pucker, or bloat pixels with a brush</source><translation>ブラシでピクセルを押す、引く、ねじる、収縮、膨張します</translation></message>
+    <message><source>Liquify is unavailable in Quick Mask mode</source><translation>クイックマスクモードではゆがみを使用できません</translation></message>
+    <message><source>Liquify is unavailable while viewing a document channel</source><translation>ドキュメントチャンネルの表示中はゆがみを使用できません</translation></message>
+    <message><source>Rasterize the Smart Object before using Liquify</source><translation>ゆがみを使用する前にスマートオブジェクトをラスタライズしてください</translation></message>
+    <message><source>Cancelled Liquify</source><translation>ゆがみをキャンセルしました</translation></message>
+    <message><source>Liquify made no changes</source><translation>ゆがみによる変更はありません</translation></message>
+    <message><source>Applying Liquify...</source><translation>ゆがみを適用しています...</translation></message>
+    <message><source>Liquify</source><translation>ゆがみ</translation></message>
+    <message><source>Applied Liquify</source><translation>ゆがみを適用しました</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -12750,6 +12760,20 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>QObject</name>
+    <message><source>Liquify</source><translation>ゆがみ</translation></message>
+    <message><source>Warp</source><translation>ワープ</translation></message>
+    <message><source>Reconstruct</source><translation>再構築</translation></message>
+    <message><source>Twirl clockwise; hold Alt or Option to reverse</source><translation>時計回りに渦巻きを適用します。Alt または Option キーを押すと逆方向になります</translation></message>
+    <message><source>Pucker</source><translation>収縮</translation></message>
+    <message><source>Bloat</source><translation>膨張</translation></message>
+    <message><source>Freeze</source><translation>固定</translation></message>
+    <message><source>Thaw</source><translation>固定解除</translation></message>
+    <message><source>Brush Controls</source><translation>ブラシコントロール</translation></message>
+    <message><source>Pressure:</source><translation>筆圧:</translation></message>
+    <message><source>Density:</source><translation>密度:</translation></message>
+    <message><source>Show Freeze Mask</source><translation>固定マスクを表示</translation></message>
+    <message><source>Restore All</source><translation>すべてを復元</translation></message>
+    <message><source>Liquify edits pixels directly. Rasterize a Smart Object before using it.</source><translation>ゆがみはピクセルを直接編集します。使用する前にスマートオブジェクトをラスタライズしてください。</translation></message>
     <message><source>Gradient Manager</source><translation>グラデーションマネージャー</translation></message>
     <message><source>New from Current</source><translation>現在の設定から新規作成</translation></message>
     <message><source>Import .grd...</source><translation>.grd を読み込み...</translation></message>

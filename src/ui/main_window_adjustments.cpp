@@ -43,6 +43,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/liquify_dialog.hpp"
 #include "ui/localization.hpp"
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
@@ -2270,6 +2271,122 @@ void MainWindow::apply_filter(const QString& identifier) {
     show_critical_message(this, tr("Filter failed"), QString::fromUtf8(error.what()),
                           QStringLiteral("filterFailedMessageBox"));
   }
+}
+
+void MainWindow::liquify_dialog() {
+  if (!has_active_document()) {
+    return;
+  }
+  if (canvas_ != nullptr && canvas_->quick_mask_active()) {
+    statusBar()->showMessage(
+        tr("Liquify is unavailable in Quick Mask mode"));
+    return;
+  }
+  if (canvas_ != nullptr &&
+      (canvas_->layer_edit_target() ==
+           CanvasWidget::LayerEditTarget::DocumentChannel ||
+       canvas_->layer_edit_target() ==
+           CanvasWidget::LayerEditTarget::ComponentRed ||
+       canvas_->layer_edit_target() ==
+           CanvasWidget::LayerEditTarget::ComponentGreen ||
+       canvas_->layer_edit_target() ==
+           CanvasWidget::LayerEditTarget::ComponentBlue)) {
+    statusBar()->showMessage(
+        tr("Liquify is unavailable while viewing a document channel"));
+    return;
+  }
+
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  const auto& read_only_doc = std::as_const(doc);
+  const auto* source_layer = read_only_doc.find_layer(*active);
+  if (!editable_rgb8_layer(source_layer)) {
+    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  if (layer_is_smart_object(*source_layer)) {
+    statusBar()->showMessage(
+        tr("Rasterize the Smart Object before using Liquify"));
+    return;
+  }
+  if (layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
+    return;
+  }
+
+  const auto original_pixels = source_layer->pixels();
+  const auto bounds = source_layer->bounds();
+  const auto selection = canvas_->selected_document_region();
+  const auto mesh = request_liquify(this, original_pixels, bounds, selection);
+  if (!mesh.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Liquify"));
+    return;
+  }
+  if (mesh->is_identity()) {
+    statusBar()->showMessage(tr("Liquify made no changes"));
+    return;
+  }
+
+  canvas_->begin_processing_operation();
+  const auto finish_processing = qScopeGuard([this] {
+    if (canvas_ != nullptr) {
+      canvas_->end_processing_operation();
+    }
+  });
+  QProgressDialog progress(tr("Applying Liquify..."), tr("Cancel"), 0, 100,
+                           this);
+  progress.setObjectName(QStringLiteral("liquifyProgressDialog"));
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+  remember_dialog_position(progress);
+  int last_value = -1;
+  auto rendered = mesh->render(
+      original_pixels, [&](int completed, int total) {
+        const int value = total <= 0
+                              ? 100
+                              : std::clamp(completed * 100 / total, 0, 100);
+        if (value != last_value) {
+          progress.setValue(value);
+          last_value = value;
+          QApplication::processEvents();
+        }
+        canvas_->tick_processing_operation();
+        return !progress.wasCanceled();
+      });
+  if (!rendered.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Liquify"));
+    return;
+  }
+
+  if (!selection.isEmpty()) {
+    const auto bytes_per_pixel_value =
+        static_cast<int>(bytes_per_pixel(rendered->format()));
+    for (int y = 0; y < rendered->height(); ++y) {
+      for (int x = 0; x < rendered->width(); ++x) {
+        if (!selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
+          std::copy_n(original_pixels.pixel(x, y), bytes_per_pixel_value,
+                      rendered->pixel(x, y));
+        }
+      }
+    }
+  }
+  if (pixel_buffers_equal(*rendered, original_pixels)) {
+    statusBar()->showMessage(tr("Liquify made no changes"));
+    return;
+  }
+
+  push_undo_snapshot(tr("Liquify"));
+  auto* layer = doc.find_layer(*active);
+  if (layer == nullptr) {
+    return;
+  }
+  set_layer_pixels_preserving_origin(*layer, std::move(*rendered), bounds);
+  canvas_->document_changed(to_qrect(bounds));
+  schedule_palette_compliance_check();
+  statusBar()->showMessage(tr("Applied Liquify"));
 }
 
 void MainWindow::visual_filter_gallery_dialog() {

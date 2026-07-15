@@ -433,6 +433,7 @@ private:
   bool cancel_active_text_editor();
   void finish_active_text_editor();
   void apply_filter(const QString& identifier);
+  void liquify_dialog();
   void convert_for_smart_filters();
   void gaussian_smart_filter_dialog(
       LayerId layer_id,

@@ -49,6 +49,7 @@
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_style_dialog.hpp"
+#include "ui/liquify_dialog.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
@@ -527,8 +528,10 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
   auto* convert_action =
       require_action(window, "filterConvertForSmartFiltersAction");
   auto* gallery_action = require_action(window, "filterGalleryAction");
+  auto* liquify_action = require_action(window, "filterLiquifyAction");
   CHECK(convert_action->property("patchy.channelViewBlocked").toBool());
   CHECK(gallery_action->property("patchy.channelViewBlocked").toBool());
+  CHECK(liquify_action->property("patchy.channelViewBlocked").toBool());
   CHECK(!filter_menu->actions().isEmpty());
   CHECK(filter_menu->actions().front() == convert_action);
   CHECK(filter_menu->actions().size() >= 4);
@@ -546,6 +549,12 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
   CHECK(gallery_command->action == gallery_action);
   CHECK(gallery_command->default_shortcuts.isEmpty());
   CHECK(gallery_action->shortcuts().isEmpty());
+  const auto* liquify_command = window.hotkey_registry().find_command(
+      QStringLiteral("filter.liquify"));
+  CHECK(liquify_command != nullptr);
+  CHECK(liquify_command->action == liquify_action);
+  CHECK(liquify_command->default_shortcuts ==
+        QList<QKeySequence>{QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_X)});
   struct ExpectedMenu {
     const char* object_name;
     QStringList action_object_names;
@@ -602,6 +611,11 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
     auto* menu = window.findChild<QMenu*>(QString::fromLatin1(expected_menu.object_name));
     CHECK(menu != nullptr);
     CHECK(filter_action_object_names(*menu) == expected_menu.action_object_names);
+    if (QString::fromLatin1(expected_menu.object_name) ==
+        QStringLiteral("filterDistortMenu")) {
+      CHECK(!menu->actions().isEmpty());
+      CHECK(menu->actions().front() == liquify_action);
+    }
   }
   CHECK(actual_submenus == expected_submenus);
   auto* dust_action = require_action(
@@ -655,6 +669,168 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
   }
   CHECK(window.findChild<QAction*>(QStringLiteral("filterAction_patchy_filters_threshold")) == nullptr);
   CHECK(window.findChild<QAction*>(QStringLiteral("filterAction_patchy_filters_posterize")) == nullptr);
+}
+
+void ui_liquify_dialog_exposes_manual_tools_and_brush_controls() {
+  patchy::PixelBuffer source(80, 60, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      auto* pixel = source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(x * 3);
+      pixel[1] = static_cast<std::uint8_t>(y * 4);
+      pixel[2] = 90;
+      pixel[3] = 255;
+    }
+  }
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("liquifyDialog"));
+    CHECK(dialog != nullptr);
+    for (const auto* name : {"liquifyWarpTool", "liquifyReconstructTool",
+                             "liquifySmoothTool", "liquifyTwirlTool",
+                             "liquifyPuckerTool", "liquifyBloatTool",
+                             "liquifyFreezeTool", "liquifyThawTool"}) {
+      auto* tool = dialog->findChild<QToolButton*>(QLatin1String(name));
+      CHECK(tool != nullptr);
+      CHECK(tool->width() >= tool->fontMetrics().horizontalAdvance(tool->text()) + 16);
+    }
+    auto* size =
+        dialog->findChild<QSpinBox*>(QStringLiteral("liquifySizeSpin"));
+    auto* pressure = dialog->findChild<QSpinBox*>(
+        QStringLiteral("liquifyPressureSpin"));
+    auto* density = dialog->findChild<QSpinBox*>(
+        QStringLiteral("liquifyDensitySpin"));
+    auto* preview =
+        dialog->findChild<QWidget*>(QStringLiteral("liquifyPreview"));
+    auto* show_mask = dialog->findChild<QCheckBox*>(
+        QStringLiteral("liquifyShowMaskCheck"));
+    auto* restore = dialog->findChild<QPushButton*>(
+        QStringLiteral("liquifyRestoreAllButton"));
+    CHECK(size != nullptr && pressure != nullptr && density != nullptr);
+    CHECK(preview != nullptr && show_mask != nullptr && restore != nullptr);
+    CHECK(size->minimum() == 5 && size->maximum() == 2000);
+    CHECK(pressure->minimum() == 1 && pressure->maximum() == 100);
+    CHECK(density->minimum() == 1 && density->maximum() == 100);
+    CHECK(show_mask->isChecked());
+    auto* bloat = dialog->findChild<QToolButton*>(
+        QStringLiteral("liquifyBloatTool"));
+    CHECK(bloat != nullptr);
+    QTest::mouseClick(bloat, Qt::LeftButton);
+    QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier,
+                      preview->rect().center());
+    inspected = true;
+    dialog->accept();
+  });
+  const auto result = patchy::ui::request_liquify(
+      nullptr, source, patchy::Rect{0, 0, source.width(), source.height()},
+      QRegion());
+  CHECK(inspected);
+  CHECK(result.has_value());
+  CHECK(!result->is_identity());
+}
+
+void ui_liquify_action_applies_selection_as_one_undo_step() {
+  patchy::Document built(100, 80, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(80, 60, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < pixels.height(); ++y) {
+    for (int x = 0; x < pixels.width(); ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 17 + y * 3) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 5 + y * 19) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 11 + y * 7) % 256);
+      pixel[3] = 255;
+    }
+  }
+  const auto original_pixels = pixels;
+  patchy::Layer layer(built.allocate_layer_id(), "Liquify Subject",
+                      std::move(pixels));
+  const auto layer_id = layer.id();
+  const patchy::Rect bounds{10, 8, 80, 60};
+  layer.set_bounds(bounds);
+  built.add_layer(std::move(layer));
+  built.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built), QStringLiteral("Liquify Apply"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  patchy::PixelBuffer selection(100, 80, patchy::PixelFormat::gray8());
+  selection.clear(0U);
+  const QRect selected_rect(30, 23, 40, 30);
+  for (int y = selected_rect.top(); y <= selected_rect.bottom(); ++y) {
+    for (int x = selected_rect.left(); x <= selected_rect.right(); ++x) {
+      selection.pixel(x, y)[0] = 255U;
+    }
+  }
+  canvas->replace_selection_from_grayscale(
+      selection, QStringLiteral("Liquify selection"));
+  QApplication::processEvents();
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  bool accepted = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("liquifyDialog"));
+    CHECK(dialog != nullptr);
+    auto* bloat = dialog->findChild<QToolButton*>(
+        QStringLiteral("liquifyBloatTool"));
+    auto* preview =
+        dialog->findChild<QWidget*>(QStringLiteral("liquifyPreview"));
+    CHECK(bloat != nullptr && preview != nullptr);
+    QTest::mouseClick(bloat, Qt::LeftButton);
+    QTest::mouseClick(preview, Qt::LeftButton, Qt::NoModifier,
+                      preview->rect().center());
+    accepted = true;
+    dialog->accept();
+  });
+  require_action(window, "filterLiquifyAction")->trigger();
+  QApplication::processEvents();
+  CHECK(accepted);
+
+  const auto* applied = std::as_const(
+      patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+  CHECK(applied != nullptr);
+  CHECK(applied->bounds().x == bounds.x && applied->bounds().y == bounds.y &&
+        applied->bounds().width == bounds.width &&
+        applied->bounds().height == bounds.height);
+  bool changed_inside = false;
+  for (int y = 0; y < original_pixels.height(); ++y) {
+    for (int x = 0; x < original_pixels.width(); ++x) {
+      const bool equal = std::equal(original_pixels.pixel(x, y),
+                                    original_pixels.pixel(x, y) + 4,
+                                    applied->pixels().pixel(x, y));
+      if (selected_rect.contains(bounds.x + x, bounds.y + y)) {
+        changed_inside = changed_inside || !equal;
+      } else {
+        CHECK(equal);
+      }
+    }
+  }
+  CHECK(changed_inside);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(
+      patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(std::equal(restored->pixels().data().begin(),
+                   restored->pixels().data().end(),
+                   original_pixels.data().begin()));
+
+  require_action(window, "filterConvertForSmartFiltersAction")->trigger();
+  QApplication::processEvents();
+  const auto* smart_layer = std::as_const(
+      patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+  CHECK(smart_layer != nullptr && patchy::layer_is_smart_object(*smart_layer));
+  const auto smart_undo_depth =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  require_action(window, "filterLiquifyAction")->trigger();
+  QApplication::processEvents();
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Rasterize the Smart Object before using Liquify"));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        smart_undo_depth);
 }
 
 void ui_filter_progress_callback_can_cancel_heavy_filter() {
@@ -998,5 +1174,9 @@ std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
        ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback},
       {"ui_filter_settings_dialog_reset_restores_named_defaults_and_colors",
        ui_filter_settings_dialog_reset_restores_named_defaults_and_colors},
+      {"ui_liquify_dialog_exposes_manual_tools_and_brush_controls",
+       ui_liquify_dialog_exposes_manual_tools_and_brush_controls},
+      {"ui_liquify_action_applies_selection_as_one_undo_step",
+       ui_liquify_action_applies_selection_as_one_undo_step},
   };
 }

@@ -117,6 +117,8 @@ The gallery exposes the other 31 effects in the fixed catalog and category order
 
 The category selector starts with the synthetic `all` and `favorites` views, then uses the nine tokens in the table. These eleven tokens and their order are settings compatibility surfaces. Never persist a translated label or a `FilterCategory` ordinal.
 
+Liquify appears first in the Distort submenu but is deliberately outside this catalog and gallery. It records an ordered sequence of manual brush gestures rather than one stable filter invocation. Its separate implementation and PSD contract live in `docs/liquify.md`.
+
 The catalog generates dialog controls, but the existing Qt object names such as `filterAmountSpin` and `filterRadiusSlider` remain test and automation contracts.
 
 The catalog is also the type contract for generated editors. Integer and double parameters receive linked sliders and spin boxes, booleans receive check boxes, and stable string options receive combo boxes whose item data holds the option token. Double slider ticks are derived from the declared minimum, maximum, and step, while the spin box keeps the declared precision. Units, defaults, ranges, object-name roots, and option tokens all come from `FilterParameterDefinition`. Direct filter dialogs and the gallery consume the same `FilterDialogSpec`, so their standard controls must stay in sync. The gallery adds visual companions without creating a second parameter model.
@@ -125,7 +127,7 @@ The catalog is also the type contract for generated editors. Integer and double 
 
 `FilterParameterPresentation` is not persisted and does not replace the parameter key or value. Current roles are `Angle`, `CenterXPercent`, `CenterYPercent`, `EffectRadiusPercent`, `WaveAmplitude`, `WaveWavelength`, `WavePhase`, `TiltFocusHalfWidthPercent`, `TiltTransitionWidthPercent`, `IrisWidthPercent`, and `IrisHeightPercent`. UI and rendering code must select specialized behavior by these roles, not by a parameter key, display label, unit, or filter ID. The render wrapper uses the center, Tilt-Shift width, and Iris dimension roles to preserve their image-space geometry when transparent padding is added.
 
-Only six filter IDs are registered hotkey command IDs today: Invert, Desaturate, Auto Contrast, Brightness/Contrast, Threshold, and Posterize. Direct Filter-menu actions are not HotkeyRegistry commands. A catalog refactor must not silently add or remove commands.
+Only six catalog filter IDs are registered hotkey command IDs today: Invert, Desaturate, Auto Contrast, Brightness/Contrast, Threshold, and Posterize. Catalog-generated direct Filter-menu actions are not HotkeyRegistry commands. The separate Liquify workspace uses the persisted command ID `filter.liquify` with Ctrl+Shift+X. A catalog refactor must not silently add or remove commands.
 
 Human-readable catalog names are canonical English translation sources. UI code translates them in the existing `QObject` context, while submenu and action status text keep their existing `MainWindow` context.
 

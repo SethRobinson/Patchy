@@ -119,6 +119,12 @@ Calibrated July 2026 against `test-fixtures/psd/photoshop-clipping-mask.psd` (se
 
 COM gotcha discovered while generating fixtures: PSDs authored headlessly (documents.add + edits + saveAs in one COM script) embed a STALE maximize-compatibility composite (the initial solid-fill state, typically white) - reopening and re-saving does not fix it. Ground-truth fixtures therefore get their composite section replaced with Photoshop's own flatten (duplicate + flatten + BMP export, PackBits-repacked); the layer data stays byte-original. Also set `app.preferences.rulerUnits = Units.PIXELS` before any documents.add/selection math, and never name a JSX top-level variable `name` (the global is read-only "Adobe Photoshop" and assignments silently fail).
 
+## Liquify compatibility boundary
+
+Patchy's manual Liquify workspace writes only the resulting ordinary layer pixels. PSD/PSB output uses the normal channel encoding and contains no Patchy-private Liquify block, so Photoshop sees the rasterized appearance. Patchy does not author or edit Photoshop's native Liquify Smart Filter descriptor yet. Smart Objects must be rasterized before Liquify; imported unsupported Liquify stacks remain byte-preserved and preview-locked. The implementation and legal constraints are in `docs/liquify.md`.
+
+Before adding native support, capture clean-room Photoshop PSD pairs that differ in one manual setting, determine the filterFX and FEid/FXid shapes, and add fail-closed descriptor tests. Never approximate an uncalibrated descriptor or preserve only a supported prefix.
+
 ## Scratch tools linking Patchy's release libs
 
 Quick scratch tools that link Patchy's release libs (e.g. to flatten a PSD through Patchy's reader outside the test suite) compile with:
