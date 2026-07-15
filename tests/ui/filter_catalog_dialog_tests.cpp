@@ -259,17 +259,25 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
        {{"radius", "filterRadius", 1, 12, 1, Unit::Pixels, Scale::Pixels}}},
       {"patchy.filters.sharpen", Category::Sharpen, false,
        {{"amount", "filterAmount", 0, 300, 100, Unit::Percent}}},
-      {"patchy.filters.unsharp_mask", Category::Sharpen, false,
-       {{"amount", "filterAmount", 0, 300, 150, Unit::Percent},
-        {"radius", "filterRadius", 1, 12, 2, Unit::Pixels, Scale::Pixels},
+      {"patchy.filters.unsharp_mask",
+       Category::Sharpen,
+       false,
+       {{"amount", "filterAmount", 1, 500, 150, Unit::Percent},
+        {"radius", "filterRadius", 0.1, 1000, 2, Unit::Pixels, Scale::Pixels,
+         Kind::Double, 0.1},
         {"threshold", "filterThreshold", 0, 255, 8, Unit::None}}},
       {"patchy.filters.gaussian_blur", Category::Blur, false,
        {{"radius", "filterRadius", 1, 12, 2, Unit::Pixels, Scale::Pixels}}},
-      {"patchy.filters.motion_blur", Category::Blur, false,
-       {{"angle", "filterAngle", -180, 180, 0, Unit::Degrees, Scale::None,
+      {"patchy.filters.motion_blur",
+       Category::Blur,
+       false,
+       {{"angle", "filterAngle", -360, 360, 0, Unit::Degrees, Scale::None,
          Kind::Integer, 1.0, Presentation::Angle},
-        {"distance", "filterDistance", 1, 64, 12, Unit::Pixels, Scale::Pixels}}},
-      {"patchy.filters.radial_blur", Category::Blur, false,
+        {"distance", "filterDistance", 1, 999, 12, Unit::Pixels,
+         Scale::Pixels}}},
+      {"patchy.filters.radial_blur",
+       Category::Blur,
+       false,
        {{"amount", "filterAmount", 0, 100, 35, Unit::Percent},
         {"samples", "filterSamples", 4, 32, 16, Unit::None},
         {"center_x", "filterCenterX", 0, 100, 50, Unit::Percent, Scale::None,
@@ -455,8 +463,19 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
                  actual.key == "radius") {
         CHECK(actual.practical_minimum == 1.0);
         CHECK(actual.practical_maximum == 25.0);
-      } else if (actual_filter.identifier ==
-                     "patchy.filters.tilt_shift_blur" &&
+      } else if (actual_filter.identifier == "patchy.filters.unsharp_mask" &&
+                 actual.key == "radius") {
+        CHECK(actual.practical_minimum == 0.1);
+        CHECK(actual.practical_maximum == 12.0);
+      } else if (actual_filter.identifier == "patchy.filters.motion_blur" &&
+                 actual.key == "angle") {
+        CHECK(actual.practical_minimum == -180.0);
+        CHECK(actual.practical_maximum == 180.0);
+      } else if (actual_filter.identifier == "patchy.filters.motion_blur" &&
+                 actual.key == "distance") {
+        CHECK(actual.practical_minimum == 1.0);
+        CHECK(actual.practical_maximum == 64.0);
+      } else if (actual_filter.identifier == "patchy.filters.tilt_shift_blur" &&
                  actual.key == "blur") {
         CHECK(actual.practical_minimum == 0.0);
         CHECK(actual.practical_maximum == 50.0);

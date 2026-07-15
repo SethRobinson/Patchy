@@ -11547,6 +11547,14 @@ Clipped to the layer below</source>
         <translation>ぼかし（表面）をキャンセルしました</translation>
     </message>
     <message>
+        <source>Cancelled Unsharp Mask</source>
+        <translation>アンシャープマスクをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Cancelled Motion Blur</source>
+        <translation>モーションぼかしをキャンセルしました</translation>
+    </message>
+    <message>
         <source>Smart Filter failed</source>
         <translation>スマートフィルターの処理に失敗しました</translation>
     </message>
@@ -11659,6 +11667,46 @@ Clipped to the layer below</source>
         <translation>ぼかし（表面）スマートフィルターを更新しました</translation>
     </message>
     <message>
+        <source>Add Unsharp Mask Smart Filter</source>
+        <translation>アンシャープマスクスマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Unsharp Mask Smart Filter</source>
+        <translation>アンシャープマスクスマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Unsharp Mask as a Smart Filter</source>
+        <translation>アンシャープマスクをスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Unsharp Mask Smart Filter</source>
+        <translation>アンシャープマスクスマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Unsharp Mask Smart Filter</source>
+        <translation>アンシャープマスクスマートフィルターを更新しました</translation>
+    </message>
+    <message>
+        <source>Add Motion Blur Smart Filter</source>
+        <translation>モーションぼかしスマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Motion Blur Smart Filter</source>
+        <translation>モーションぼかしスマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Motion Blur as a Smart Filter</source>
+        <translation>モーションぼかしをスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Motion Blur Smart Filter</source>
+        <translation>モーションぼかしスマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Motion Blur Smart Filter</source>
+        <translation>モーションぼかしスマートフィルターを更新しました</translation>
+    </message>
+    <message>
         <source>Show Smart Filters</source>
         <translation>スマートフィルターを表示</translation>
     </message>
@@ -11723,8 +11771,8 @@ Clipped to the layer below</source>
         <translation>スマートフィルターを削除しました</translation>
     </message>
     <message>
-        <source>Only Gaussian Blur, High Pass, Median, Dust &amp; Scratches, and Surface Blur are currently editable as Smart Filters</source>
-        <translation>現在スマートフィルターとして編集できるのは、ぼかし（ガウス）、ハイパス、中央値、ダスト＆スクラッチ、ぼかし（表面）のみです</translation>
+        <source>This filter is not currently editable as a Smart Filter</source>
+        <translation>このフィルターは現在、スマートフィルターとして編集できません</translation>
     </message>
     <message>
         <source>Add Smart Filter Stack</source>
@@ -12489,6 +12537,8 @@ Clipped to the layer below</source>
     <message><source>Smart Filter hidden. Click to show.</source><translation>スマートフィルターは非表示です。クリックで表示します。</translation></message>
     <message><source> (%1 px)</source><translation> (%1 px)</translation></message>
     <message><source> (Radius %1 px, Threshold %2)</source><translation> (半径 %1 px、しきい値 %2)</translation></message>
+    <message><source> (Amount %1%, Radius %2 px, Threshold %3)</source><translation> (量 %1%、半径 %2 px、しきい値 %3)</translation></message>
+    <message><source> (Angle %1 degrees, Distance %2 px)</source><translation> (角度 %1 度、距離 %2 px)</translation></message>
     <message><source>Unsupported Smart Filter</source><translation>未対応のスマートフィルター</translation></message>
     <message><source>Edit Smart Filter</source><translation>スマートフィルターを編集</translation></message>
     <message><source>Smart Filter actions</source><translation>スマートフィルターの操作</translation></message>
@@ -12498,6 +12548,7 @@ Clipped to the layer below</source>
     <message><source>Mode:</source><translation>描画モード:</translation></message>
     <message><source>Opacity:</source><translation>不透明度:</translation></message>
     <message><source>%</source><translation>%</translation></message>
+    <message><source> degrees</source><translation> 度</translation></message>
     <message><source>Duplicate Smart Filter</source><translation>スマートフィルターを複製</translation></message>
     <message><source>Move Smart Filter up</source><translation>スマートフィルターを上へ移動</translation></message>
     <message><source>Move Smart Filter down</source><translation>スマートフィルターを下へ移動</translation></message>

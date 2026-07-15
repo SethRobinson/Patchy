@@ -31,6 +31,14 @@ constexpr double kMinimumSurfaceBlurRadius = 1.0;
 constexpr double kMaximumSurfaceBlurRadius = 100.0;
 constexpr std::int32_t kMinimumSurfaceBlurThreshold = 2;
 constexpr std::int32_t kMaximumSurfaceBlurThreshold = 255;
+constexpr double kMinimumUnsharpMaskAmount = 1.0;
+constexpr double kMaximumUnsharpMaskAmount = 500.0;
+constexpr std::int32_t kMinimumUnsharpMaskThreshold = 0;
+constexpr std::int32_t kMaximumUnsharpMaskThreshold = 255;
+constexpr std::int32_t kMinimumMotionBlurAngle = -360;
+constexpr std::int32_t kMaximumMotionBlurAngle = 360;
+constexpr std::int32_t kMinimumMotionBlurDistance = 1;
+constexpr std::int32_t kMaximumMotionBlurDistance = 999;
 constexpr double kGaussianMarginScale = 3.0;
 constexpr double kDirectGaussianMaximumRadius = 8.0;
 constexpr int kProgressScale = 1000000;
@@ -362,6 +370,30 @@ struct GaussianLinePlan {
   return plan;
 }
 
+[[nodiscard]] GaussianLinePlan make_unsharp_line_plan(double radius,
+                                                      int margin) {
+  if (radius != 2.5) {
+    return make_gaussian_line_plan(radius, margin);
+  }
+  // Photoshop's Unsharp Mask uses a separately quantized radius-2.5 low-pass
+  // kernel rather than the Gaussian Blur filter's radius-2.5 kernel. The
+  // weights below are recovered from opaque one-pixel-line captures and sum
+  // to 256, including the otherwise easy-to-miss two-count outer taps.
+  static constexpr std::array<double, 13> kRadius2_5Weights{
+      2, 4, 12, 20, 30, 38, 44, 38, 30, 20, 12, 4, 2};
+  GaussianLinePlan plan;
+  plan.direct = true;
+  plan.kernel.assign(static_cast<std::size_t>(margin) * 2U + 1U, 0.0);
+  constexpr auto kSum = 256.0;
+  constexpr auto kSupport =
+      static_cast<std::ptrdiff_t>(kRadius2_5Weights.size() / 2U);
+  for (std::ptrdiff_t offset = -kSupport; offset <= kSupport; ++offset) {
+    plan.kernel[static_cast<std::size_t>(offset + margin)] =
+        kRadius2_5Weights[static_cast<std::size_t>(offset + kSupport)] / kSum;
+  }
+  return plan;
+}
+
 void filter_gaussian_line(std::vector<double> &values,
                           std::vector<double> &scratch,
                           const GaussianLinePlan &plan) {
@@ -512,10 +544,12 @@ render_gaussian(const FilterRenderResult &input, double radius,
 
 [[nodiscard]] FilterRenderResult
 render_straight_gaussian(const FilterRenderResult &input, double radius,
-                         const FilterProgress *progress) {
+                         const FilterProgress *progress,
+                         bool unsharp_kernel = false) {
   const auto margin =
       static_cast<int>(std::ceil(kGaussianMarginScale * radius));
-  const auto plan = make_high_pass_line_plan(radius, margin);
+  const auto plan = unsharp_kernel ? make_unsharp_line_plan(radius, margin)
+                                   : make_high_pass_line_plan(radius, margin);
   auto output = input.pixels;
   const auto width = input.bounds.width;
   const auto height = input.bounds.height;
@@ -600,6 +634,136 @@ render_high_pass(const FilterRenderResult &input, double radius,
   }
   report_progress(&detail_progress, input.bounds.height, input.bounds.height,
                   FilterProgressStage::Sharpening);
+  return FilterRenderResult{std::move(output), input.bounds};
+}
+
+[[nodiscard]] FilterRenderResult
+render_unsharp_mask(const FilterRenderResult &input, double amount_percent,
+                    double radius, std::int32_t threshold,
+                    const FilterProgress *progress) {
+  auto blur_progress = phase_progress(progress, 0, 2);
+  const auto blurred =
+      render_straight_gaussian(input, radius, &blur_progress, true);
+  PixelBuffer output(input.bounds.width, input.bounds.height,
+                     PixelFormat::rgba8());
+  auto sharpen_progress = phase_progress(progress, 1, 2);
+  for (std::int32_t y = 0; y < input.bounds.height; ++y) {
+    report_progress(&sharpen_progress, y, input.bounds.height,
+                    FilterProgressStage::Sharpening);
+    for (std::int32_t x = 0; x < input.bounds.width; ++x) {
+      const auto *source = input.pixels.pixel(x, y);
+      const auto *low_frequency = blurred.pixels.pixel(x, y);
+      auto *destination = output.pixel(x, y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        const auto detail = static_cast<int>(source[channel]) -
+                            static_cast<int>(low_frequency[channel]);
+        // Photoshop scales the detail first, then removes Threshold from the
+        // signed adjustment. This differs from the common pre-test shortcut
+        // and is pinned by the Photoshop 27.8 one-pixel-line captures.
+        const auto scaled_detail = static_cast<int>(
+            static_cast<double>(detail) * amount_percent / 100.0);
+        const auto magnitude = std::abs(scaled_detail);
+        const auto adjustment =
+            magnitude <= threshold
+                ? 0
+                : (scaled_detail < 0 ? -(magnitude - threshold)
+                                     : magnitude - threshold);
+        destination[channel] = static_cast<std::uint8_t>(
+            std::clamp(static_cast<int>(source[channel]) + adjustment, 0, 255));
+      }
+      destination[3] = source[3];
+    }
+  }
+  report_progress(&sharpen_progress, input.bounds.height, input.bounds.height,
+                  FilterProgressStage::Sharpening);
+  return FilterRenderResult{std::move(output), input.bounds};
+}
+
+[[nodiscard]] FilterRenderResult
+render_motion_blur(const FilterRenderResult &input, std::int32_t angle_degrees,
+                   std::int32_t distance_pixels,
+                   const FilterProgress *progress) {
+  constexpr std::int64_t kCoordinateScale = 65536;
+  constexpr std::uint64_t kSampleWeight =
+      static_cast<std::uint64_t>(kCoordinateScale) * kCoordinateScale;
+  constexpr double kPi = 3.14159265358979323846;
+  const auto radians = static_cast<double>(angle_degrees) * kPi / 180.0;
+  // Quantizing the direction before sampling keeps the bilinear envelope and
+  // tie behavior fixed across toolchains.
+  const auto step_x = static_cast<std::int64_t>(
+      std::llround(std::cos(radians) * kCoordinateScale));
+  const auto step_y = static_cast<std::int64_t>(
+      std::llround(-std::sin(radians) * kCoordinateScale));
+  const auto first_sample = -distance_pixels / 2;
+  const auto last_sample = first_sample + distance_pixels;
+  const auto sample_count = static_cast<std::uint64_t>(distance_pixels) + 1U;
+  const auto width = input.bounds.width;
+  const auto height = input.bounds.height;
+  const auto maximum_x =
+      static_cast<std::int64_t>(std::max(0, width - 1)) * kCoordinateScale;
+  const auto maximum_y =
+      static_cast<std::int64_t>(std::max(0, height - 1)) * kCoordinateScale;
+  PixelBuffer output(width, height, PixelFormat::rgba8());
+  output.clear(0);
+
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_progress(progress, y, height, FilterProgressStage::Blurring);
+    for (std::int32_t x = 0; x < width; ++x) {
+      std::array<std::uint64_t, 3> premultiplied{};
+      std::uint64_t alpha_sum = 0U;
+      for (auto sample = first_sample; sample <= last_sample; ++sample) {
+        const auto sample_x = std::clamp<std::int64_t>(
+            static_cast<std::int64_t>(x) * kCoordinateScale +
+                static_cast<std::int64_t>(sample) * step_x,
+            0, maximum_x);
+        const auto sample_y = std::clamp<std::int64_t>(
+            static_cast<std::int64_t>(y) * kCoordinateScale +
+                static_cast<std::int64_t>(sample) * step_y,
+            0, maximum_y);
+        const auto x0 = static_cast<std::int32_t>(sample_x / kCoordinateScale);
+        const auto y0 = static_cast<std::int32_t>(sample_y / kCoordinateScale);
+        const auto x1 = std::min(width - 1, x0 + 1);
+        const auto y1 = std::min(height - 1, y0 + 1);
+        const auto fraction_x = sample_x % kCoordinateScale;
+        const auto fraction_y = sample_y % kCoordinateScale;
+        const std::array<std::uint64_t, 4> weights{
+            static_cast<std::uint64_t>(kCoordinateScale - fraction_x) *
+                static_cast<std::uint64_t>(kCoordinateScale - fraction_y),
+            static_cast<std::uint64_t>(fraction_x) *
+                static_cast<std::uint64_t>(kCoordinateScale - fraction_y),
+            static_cast<std::uint64_t>(kCoordinateScale - fraction_x) *
+                static_cast<std::uint64_t>(fraction_y),
+            static_cast<std::uint64_t>(fraction_x) *
+                static_cast<std::uint64_t>(fraction_y)};
+        const std::array<const std::uint8_t *, 4> pixels{
+            input.pixels.pixel(x0, y0), input.pixels.pixel(x1, y0),
+            input.pixels.pixel(x0, y1), input.pixels.pixel(x1, y1)};
+        for (std::size_t corner = 0; corner < pixels.size(); ++corner) {
+          const auto alpha = static_cast<std::uint64_t>(pixels[corner][3]);
+          const auto alpha_weight = alpha * weights[corner];
+          alpha_sum += alpha_weight;
+          for (std::size_t channel = 0; channel < 3U; ++channel) {
+            premultiplied[channel] +=
+                static_cast<std::uint64_t>(pixels[corner][channel]) *
+                alpha_weight;
+          }
+        }
+      }
+      auto *destination = output.pixel(x, y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        destination[channel] =
+            alpha_sum == 0U
+                ? 0U
+                : static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                      255U,
+                      (premultiplied[channel] + alpha_sum / 2U) / alpha_sum));
+      }
+      const auto alpha_denominator = sample_count * kSampleWeight;
+      destination[3] = static_cast<std::uint8_t>(std::min<std::uint64_t>(
+          255U, (alpha_sum + alpha_denominator / 2U) / alpha_denominator));
+    }
+  }
+  report_progress(progress, height, height, FilterProgressStage::Blurring);
   return FilterRenderResult{std::move(output), input.bounds};
 }
 
@@ -1533,18 +1697,41 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
     } else if (entry.kind == SmartFilterKind::SurfaceBlur) {
       const auto *surface =
           std::get_if<SurfaceBlurSmartFilter>(&entry.parameters);
+      parameters_valid = surface != nullptr &&
+                         std::isfinite(surface->radius_pixels) &&
+                         surface->radius_pixels >= kMinimumSurfaceBlurRadius &&
+                         surface->radius_pixels <= kMaximumSurfaceBlurRadius &&
+                         surface->threshold >= kMinimumSurfaceBlurThreshold &&
+                         surface->threshold <= kMaximumSurfaceBlurThreshold;
+    } else if (entry.kind == SmartFilterKind::UnsharpMask) {
+      const auto *unsharp =
+          std::get_if<UnsharpMaskSmartFilter>(&entry.parameters);
+      parameters_valid = unsharp != nullptr &&
+                         std::isfinite(unsharp->amount_percent) &&
+                         unsharp->amount_percent >= kMinimumUnsharpMaskAmount &&
+                         unsharp->amount_percent <= kMaximumUnsharpMaskAmount &&
+                         std::isfinite(unsharp->radius_pixels) &&
+                         unsharp->radius_pixels >= kMinimumGaussianRadius &&
+                         unsharp->radius_pixels <= kMaximumGaussianRadius &&
+                         unsharp->threshold >= kMinimumUnsharpMaskThreshold &&
+                         unsharp->threshold <= kMaximumUnsharpMaskThreshold;
+    } else if (entry.kind == SmartFilterKind::MotionBlur) {
+      const auto *motion =
+          std::get_if<MotionBlurSmartFilter>(&entry.parameters);
       parameters_valid =
-          surface != nullptr && std::isfinite(surface->radius_pixels) &&
-          surface->radius_pixels >= kMinimumSurfaceBlurRadius &&
-          surface->radius_pixels <= kMaximumSurfaceBlurRadius &&
-          surface->threshold >= kMinimumSurfaceBlurThreshold &&
-          surface->threshold <= kMaximumSurfaceBlurThreshold;
+          motion != nullptr &&
+          motion->angle_degrees >= kMinimumMotionBlurAngle &&
+          motion->angle_degrees <= kMaximumMotionBlurAngle &&
+          motion->distance_pixels >= kMinimumMotionBlurDistance &&
+          motion->distance_pixels <= kMaximumMotionBlurDistance;
     } else {
       throw std::invalid_argument("Unsupported Smart Filter entry");
     }
     if (!parameters_valid ||
         (entry.kind != SmartFilterKind::DustAndScratches &&
          entry.kind != SmartFilterKind::SurfaceBlur &&
+         entry.kind != SmartFilterKind::UnsharpMask &&
+         entry.kind != SmartFilterKind::MotionBlur &&
          (!std::isfinite(radius) || radius < minimum_radius ||
           radius > maximum_radius)) ||
         !std::isfinite(entry.opacity) ||
@@ -1626,6 +1813,41 @@ FilterRenderResult render_photoshop_surface_blur(
                              threshold, progress);
 }
 
+FilterRenderResult
+render_photoshop_unsharp_mask(const PixelBuffer &pixels, Rect bounds,
+                              double amount_percent, double radius_pixels,
+                              std::int32_t threshold,
+                              const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() ||
+      pixels.width() != bounds.width || pixels.height() != bounds.height ||
+      !std::isfinite(amount_percent) ||
+      amount_percent < kMinimumUnsharpMaskAmount ||
+      amount_percent > kMaximumUnsharpMaskAmount ||
+      !std::isfinite(radius_pixels) || radius_pixels < kMinimumGaussianRadius ||
+      radius_pixels > kMaximumGaussianRadius ||
+      threshold < kMinimumUnsharpMaskThreshold ||
+      threshold > kMaximumUnsharpMaskThreshold) {
+    throw std::invalid_argument("Invalid Photoshop Unsharp Mask input");
+  }
+  return render_unsharp_mask(FilterRenderResult{pixels, bounds}, amount_percent,
+                             radius_pixels, threshold, progress);
+}
+
+FilterRenderResult render_photoshop_motion_blur(
+    const PixelBuffer &pixels, Rect bounds, std::int32_t angle_degrees,
+    std::int32_t distance_pixels, const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() ||
+      pixels.width() != bounds.width || pixels.height() != bounds.height ||
+      angle_degrees < kMinimumMotionBlurAngle ||
+      angle_degrees > kMaximumMotionBlurAngle ||
+      distance_pixels < kMinimumMotionBlurDistance ||
+      distance_pixels > kMaximumMotionBlurDistance) {
+    throw std::invalid_argument("Invalid Photoshop Motion Blur input");
+  }
+  return render_motion_blur(FilterRenderResult{pixels, bounds}, angle_degrees,
+                            distance_pixels, progress);
+}
+
 FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                              Rect placed_bounds,
                                              Rect filter_canvas_bounds,
@@ -1683,16 +1905,27 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
     } else if (entry.kind == SmartFilterKind::DustAndScratches) {
       const auto &dust =
           std::get<DustAndScratchesSmartFilter>(entry.parameters);
-      filtered = render_dust_and_scratches(
-          current, dust.radius_pixels, dust.threshold, &filter_progress);
-    } else {
-      const auto &surface =
-          std::get<SurfaceBlurSmartFilter>(entry.parameters);
+      filtered = render_dust_and_scratches(current, dust.radius_pixels,
+                                           dust.threshold, &filter_progress);
+    } else if (entry.kind == SmartFilterKind::SurfaceBlur) {
+      const auto &surface = std::get<SurfaceBlurSmartFilter>(entry.parameters);
       auto surface_input = embed_in_filter_canvas(
           current.pixels, current.bounds, filter_canvas_bounds);
-      filtered = trim_transparent_result(render_surface_blur(
-          surface_input, surface.radius_pixels, surface.threshold,
-          &filter_progress));
+      filtered = trim_transparent_result(
+          render_surface_blur(surface_input, surface.radius_pixels,
+                              surface.threshold, &filter_progress));
+    } else if (entry.kind == SmartFilterKind::UnsharpMask) {
+      const auto &unsharp = std::get<UnsharpMaskSmartFilter>(entry.parameters);
+      filtered = render_unsharp_mask(current, unsharp.amount_percent,
+                                     unsharp.radius_pixels, unsharp.threshold,
+                                     &filter_progress);
+    } else {
+      const auto &motion = std::get<MotionBlurSmartFilter>(entry.parameters);
+      auto motion_input = embed_in_filter_canvas(current.pixels, current.bounds,
+                                                 filter_canvas_bounds);
+      filtered = trim_transparent_result(
+          render_motion_blur(motion_input, motion.angle_degrees,
+                             motion.distance_pixels, &filter_progress));
     }
     auto blend_progress = phase_progress(progress, phase++, phase_count);
     current = blend_entry_result(current, std::move(filtered), entry.opacity,

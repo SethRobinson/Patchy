@@ -141,6 +141,24 @@ const patchy::SurfaceBlurSmartFilter& require_surface_blur_filter(
   return *surface;
 }
 
+const patchy::UnsharpMaskSmartFilter &
+require_unsharp_mask_filter(const patchy::SmartFilterEntry &entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::UnsharpMask);
+  const auto *unsharp =
+      std::get_if<patchy::UnsharpMaskSmartFilter>(&entry.parameters);
+  CHECK(unsharp != nullptr);
+  return *unsharp;
+}
+
+const patchy::MotionBlurSmartFilter &
+require_motion_blur_filter(const patchy::SmartFilterEntry &entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::MotionBlur);
+  const auto *motion =
+      std::get_if<patchy::MotionBlurSmartFilter>(&entry.parameters);
+  CHECK(motion != nullptr);
+  return *motion;
+}
+
 void smart_filter_authored_effects_record_round_trips_and_mutates() {
   const std::string placed_uuid = "01234567-89ab-cdef-8123-456789abcdef";
   const patchy::Rect document_bounds{0, 0, 4, 3};
@@ -2045,6 +2063,89 @@ void psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits() {
   CHECK(test_global_psd_blocks(edited_reread) == original_globals);
 }
 
+void psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_edits() {
+  const auto fixture_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-unsharp-motion.psd");
+  const auto original = patchy::psd::DocumentIo::read_file(fixture_path);
+  const auto &unsharp_layer =
+      require_layer_named(original, "Unsharp Mask 175 2.5 7");
+  const auto &motion_layer = require_layer_named(original, "Motion Blur 37 12");
+  CHECK(patchy::smart_object_lock_reason(unsharp_layer).empty());
+  CHECK(patchy::smart_object_lock_reason(motion_layer).empty());
+
+  const auto &unsharp_stack =
+      require_smart_filter_stack(original, unsharp_layer.name());
+  CHECK(unsharp_stack.support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(unsharp_stack.entries.size() == 1U);
+  const auto &unsharp_entry = unsharp_stack.entries.front();
+  CHECK(unsharp_entry.native_name == "Unsharp Mask...");
+  CHECK(unsharp_entry.native_class_id == "UnsM");
+  CHECK(unsharp_entry.native_filter_id == 0x556e734dU);
+  const auto &unsharp = require_unsharp_mask_filter(unsharp_entry);
+  CHECK(std::abs(unsharp.amount_percent - 175.0) < 1e-9);
+  CHECK(std::abs(unsharp.radius_pixels - 2.5) < 1e-9);
+  CHECK(unsharp.threshold == 7);
+
+  const auto &motion_stack =
+      require_smart_filter_stack(original, motion_layer.name());
+  CHECK(motion_stack.support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(motion_stack.entries.size() == 1U);
+  const auto &motion_entry = motion_stack.entries.front();
+  CHECK(motion_entry.native_name == "Motion Blur...");
+  CHECK(motion_entry.native_class_id == "MtnB");
+  CHECK(motion_entry.native_filter_id == 0x4d746e42U);
+  const auto &motion = require_motion_blur_filter(motion_entry);
+  CHECK(motion.angle_degrees == 37 && motion.distance_pixels == 12);
+
+  const auto original_globals = test_global_psd_blocks(original);
+  const auto unsharp_payload =
+      require_placed_layer_block(unsharp_layer).payload;
+  const auto motion_payload = require_placed_layer_block(motion_layer).payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(original));
+  CHECK(test_global_psd_blocks(clean) == original_globals);
+  CHECK(require_placed_layer_block(
+            require_layer_named(clean, unsharp_layer.name()))
+            .payload == unsharp_payload);
+  CHECK(require_placed_layer_block(
+            require_layer_named(clean, motion_layer.name()))
+            .payload == motion_payload);
+
+  auto edited = original;
+  auto *edited_unsharp = edited.find_layer(unsharp_layer.id());
+  auto *edited_motion = edited.find_layer(motion_layer.id());
+  CHECK(edited_unsharp != nullptr && edited_motion != nullptr);
+  auto unsharp_candidate = *edited_unsharp->smart_filter_stack();
+  auto &edited_unsharp_settings = std::get<patchy::UnsharpMaskSmartFilter>(
+      unsharp_candidate.entries.front().parameters);
+  edited_unsharp_settings.amount_percent = 225.0;
+  edited_unsharp_settings.radius_pixels = 4.75;
+  edited_unsharp_settings.threshold = 11;
+  edited_unsharp->set_smart_filter_stack(std::move(unsharp_candidate));
+  patchy::mark_layer_smart_object_block_dirty(*edited_unsharp);
+
+  auto motion_candidate = *edited_motion->smart_filter_stack();
+  auto &edited_motion_settings = std::get<patchy::MotionBlurSmartFilter>(
+      motion_candidate.entries.front().parameters);
+  edited_motion_settings.angle_degrees = -61;
+  edited_motion_settings.distance_pixels = 27;
+  edited_motion->set_smart_filter_stack(std::move(motion_candidate));
+  patchy::mark_layer_smart_object_block_dirty(*edited_motion);
+
+  const auto reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto &reread_unsharp = require_unsharp_mask_filter(
+      require_smart_filter_stack(reread, unsharp_layer.name()).entries.front());
+  CHECK(std::abs(reread_unsharp.amount_percent - 225.0) < 1e-9);
+  CHECK(std::abs(reread_unsharp.radius_pixels - 4.75) < 1e-9);
+  CHECK(reread_unsharp.threshold == 11);
+  const auto &reread_motion = require_motion_blur_filter(
+      require_smart_filter_stack(reread, motion_layer.name()).entries.front());
+  CHECK(reread_motion.angle_degrees == -61);
+  CHECK(reread_motion.distance_pixels == 27);
+  CHECK(test_global_psd_blocks(reread) == original_globals);
+}
+
 void psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_locked() {
   const auto fixture_path = patchy::test::committed_psd_fixture_path(
       "photoshop-smart-filter-tilt-shift.psd");
@@ -2369,6 +2470,9 @@ void smart_filter_effects_codec_rejects_malformed_data_and_accepts_alignment() {
     const auto write_record = [&]() {
       writer.write_u64(static_cast<std::uint64_t>(body.size()));
       writer.write_bytes(body);
+      while ((writer.bytes().size() % 4U) != 0U) {
+        writer.write_u8(0U);
+      }
     };
     write_record();
     if (duplicate) {
@@ -2524,6 +2628,34 @@ void smart_filter_effects_codec_rejects_malformed_data_and_accepts_alignment() {
   patchy::SmartFilterEffectsStore duplicate_store;
   duplicate_store.add_block(std::move(duplicate_block));
   CHECK(duplicate_store.find_unique(source_record.placed_uuid) == nullptr);
+
+  // Patchy builds before 0.20 wrote adjacent records without Photoshop's
+  // per-record alignment. Keep those files readable and byte-preserved while
+  // every newly rebuilt block uses the native aligned shape.
+  const auto unaligned_document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path(
+          "photoshop-smart-filter-unsharp-motion.psd"));
+  const auto &unaligned_source = unaligned_document.metadata()
+                                     .smart_filter_effects.blocks.front()
+                                     .records.front();
+  const auto unaligned_body =
+      patchy::psd::raw_filter_effects_record_body(unaligned_source);
+  CHECK((4U + 8U + unaligned_body.size()) % 4U != 0U);
+  patchy::psd::BigEndianWriter legacy_writer;
+  legacy_writer.write_u32(3U);
+  for (int record = 0; record < 2; ++record) {
+    legacy_writer.write_u64(static_cast<std::uint64_t>(unaligned_body.size()));
+    legacy_writer.write_bytes(unaligned_body);
+  }
+  while ((legacy_writer.bytes().size() % 4U) != 0U) {
+    legacy_writer.write_u8(0U);
+  }
+  const auto legacy_payload = legacy_writer.bytes();
+  const auto legacy_block =
+      patchy::psd::parse_filter_effects_block("FEid", legacy_payload);
+  CHECK(!legacy_block.opaque && legacy_block.records.size() == 2U);
+  CHECK(patchy::psd::serialize_filter_effects_block(legacy_block) ==
+        legacy_payload);
 
   // An opaque FEid/FXid could contain a duplicate association that cannot be
   // proven absent. Its presence therefore makes every parsed association and
@@ -2854,7 +2986,11 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests() {
        psd_photoshop_dust_and_scratches_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits},
-      {"psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_locked",
+      {"psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_"
+       "edits",
+       psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_edits},
+      {"psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_"
+       "locked",
        psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_locked},
       {"psd_smart_filter_descriptor_semantics_parse_if_available",
        psd_smart_filter_descriptor_semantics_parse_if_available},

@@ -156,11 +156,14 @@ DescriptorValue smart_filter_color(RgbColor color) {
   return value;
 }
 
-struct SmartFilterRadiusDescriptorSpec {
-  double radius{0.0};
+struct SmartFilterDescriptorSpec {
+  std::optional<double> radius;
   double minimum_radius{0.1};
   double maximum_radius{1000.0};
   bool integer_radius{false};
+  std::optional<double> amount_percent;
+  std::optional<std::int32_t> angle_degrees;
+  std::optional<std::int32_t> distance_pixels;
   std::optional<std::int32_t> threshold;
   const char* default_entry_name{nullptr};
   const char* filter_name{nullptr};
@@ -169,9 +172,9 @@ struct SmartFilterRadiusDescriptorSpec {
   std::uint32_t filter_id{0};
 };
 
-std::optional<SmartFilterRadiusDescriptorSpec>
-smart_filter_radius_descriptor_spec(const SmartFilterEntry& entry) {
-  SmartFilterRadiusDescriptorSpec spec;
+std::optional<SmartFilterDescriptorSpec>
+smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
+  SmartFilterDescriptorSpec spec;
   if (entry.kind == SmartFilterKind::GaussianBlur) {
     const auto* gaussian =
         std::get_if<GaussianBlurSmartFilter>(&entry.parameters);
@@ -241,19 +244,50 @@ smart_filter_radius_descriptor_spec(const SmartFilterEntry& entry) {
     spec.filter_class_id = "surfaceBlur";
     spec.filter_class_id_long_form = true;
     spec.filter_id = 854U;
+  } else if (entry.kind == SmartFilterKind::UnsharpMask) {
+    const auto *unsharp =
+        std::get_if<UnsharpMaskSmartFilter>(&entry.parameters);
+    if (unsharp == nullptr || !std::isfinite(unsharp->amount_percent) ||
+        unsharp->amount_percent < 1.0 || unsharp->amount_percent > 500.0 ||
+        !std::isfinite(unsharp->radius_pixels) ||
+        unsharp->radius_pixels < 0.1 || unsharp->radius_pixels > 1000.0 ||
+        unsharp->threshold < 0 || unsharp->threshold > 255) {
+      return std::nullopt;
+    }
+    spec.amount_percent = unsharp->amount_percent;
+    spec.radius = unsharp->radius_pixels;
+    spec.threshold = unsharp->threshold;
+    spec.default_entry_name = "Unsharp Mask...";
+    spec.filter_name = "Unsharp Mask";
+    spec.filter_class_id = "UnsM";
+    spec.filter_id = 0x556e734dU;
+  } else if (entry.kind == SmartFilterKind::MotionBlur) {
+    const auto *motion = std::get_if<MotionBlurSmartFilter>(&entry.parameters);
+    if (motion == nullptr || motion->angle_degrees < -360 ||
+        motion->angle_degrees > 360 || motion->distance_pixels < 1 ||
+        motion->distance_pixels > 999) {
+      return std::nullopt;
+    }
+    spec.angle_degrees = motion->angle_degrees;
+    spec.distance_pixels = motion->distance_pixels;
+    spec.default_entry_name = "Motion Blur...";
+    spec.filter_name = "Motion Blur";
+    spec.filter_class_id = "MtnB";
+    spec.filter_id = 0x4d746e42U;
   } else {
     return std::nullopt;
   }
-  if (!std::isfinite(spec.radius) || spec.radius < spec.minimum_radius ||
-      spec.radius > spec.maximum_radius) {
+  if (spec.radius.has_value() &&
+      (!std::isfinite(*spec.radius) || *spec.radius < spec.minimum_radius ||
+       *spec.radius > spec.maximum_radius)) {
     return std::nullopt;
   }
   return spec;
 }
 
-std::optional<DescriptorValue> make_smart_filter_entry_descriptor(
-    const SmartFilterEntry& entry) {
-  const auto spec = smart_filter_radius_descriptor_spec(entry);
+std::optional<DescriptorValue>
+make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
+  const auto spec = smart_filter_descriptor_spec(entry);
   if (!spec.has_value()) {
     return std::nullopt;
   }
@@ -281,23 +315,34 @@ std::optional<DescriptorValue> make_smart_filter_entry_descriptor(
                          smart_filter_color(entry.foreground));
   add_smart_filter_value(*item.object_value, "BckC", false,
                          smart_filter_color(entry.background));
-  auto filter = smart_filter_object(spec->filter_class_id,
-                                    spec->filter_class_id_long_form,
-                                    spec->filter_name);
-  if (spec->integer_radius) {
+  auto filter =
+      smart_filter_object(spec->filter_class_id,
+                          spec->filter_class_id_long_form, spec->filter_name);
+  if (spec->amount_percent.has_value()) {
+    add_smart_filter_value(*filter.object_value, "Amnt", false,
+                           smart_filter_unit("#Prc", *spec->amount_percent));
+  }
+  if (spec->radius.has_value() && spec->integer_radius) {
     add_smart_filter_value(
         *filter.object_value, "Rds ", false,
-        smart_filter_integer(static_cast<std::int32_t>(spec->radius)));
-  } else {
+        smart_filter_integer(static_cast<std::int32_t>(*spec->radius)));
+  } else if (spec->radius.has_value()) {
     add_smart_filter_value(*filter.object_value, "Rds ", false,
-                           smart_filter_unit("#Pxl", spec->radius));
+                           smart_filter_unit("#Pxl", *spec->radius));
   }
   if (spec->threshold.has_value()) {
     add_smart_filter_value(*filter.object_value, "Thsh", false,
                            smart_filter_integer(*spec->threshold));
   }
-  add_smart_filter_value(*item.object_value, "Fltr", false,
-                         std::move(filter));
+  if (spec->angle_degrees.has_value()) {
+    add_smart_filter_value(*filter.object_value, "Angl", false,
+                           smart_filter_integer(*spec->angle_degrees));
+  }
+  if (spec->distance_pixels.has_value()) {
+    add_smart_filter_value(*filter.object_value, "Dstn", false,
+                           smart_filter_unit("#Pxl", *spec->distance_pixels));
+  }
+  add_smart_filter_value(*item.object_value, "Fltr", false, std::move(filter));
   add_smart_filter_value(
       *item.object_value, "filterID", true,
       smart_filter_integer(static_cast<std::int32_t>(spec->filter_id)));
@@ -463,9 +508,9 @@ bool patch_smart_filter_descriptor(
     return nullptr;
   };
   for (std::size_t index = 0; index < stack.entries.size(); ++index) {
-    const auto& entry = stack.entries[index];
-    const auto spec = smart_filter_radius_descriptor_spec(entry);
-    auto& item_value = list->list_value[index];
+    const auto &entry = stack.entries[index];
+    const auto spec = smart_filter_descriptor_spec(entry);
+    auto &item_value = list->list_value[index];
     if (!spec.has_value() || item_value.type != DescriptorValue::Type::Object ||
         item_value.object_value == nullptr ||
         item_value.object_value->class_id != "filterFX") {
@@ -494,30 +539,45 @@ bool patch_smart_filter_descriptor(
       name->string_value = entry.native_name;
     }
     filter_id->integer_value = static_cast<std::int32_t>(spec->filter_id);
-    auto* opacity =
-        const_cast<DescriptorValue*>(descriptor_value(*blend, "Opct"));
-    auto* mode = mutable_value_either(*blend, "Md  ", "Md");
-    auto* radius = mutable_value_either(*filter, "Rds ", "Rds");
-    if (opacity == nullptr || opacity->type != DescriptorValue::Type::UnitFloat ||
+    auto *opacity =
+        const_cast<DescriptorValue *>(descriptor_value(*blend, "Opct"));
+    auto *mode = mutable_value_either(*blend, "Md  ", "Md");
+    if (opacity == nullptr ||
+        opacity->type != DescriptorValue::Type::UnitFloat ||
         opacity->unit != "#Prc" || mode == nullptr ||
         mode->type != DescriptorValue::Type::Enum ||
-        mode->enum_type != "BlnM" || radius == nullptr) {
+        mode->enum_type != "BlnM") {
       return false;
     }
     opacity->double_value = std::clamp(entry.opacity, 0.0, 1.0) * 100.0;
     mode->enum_value = std::string(blend_mode_lfx2_string(entry.blend_mode));
     mode->enum_value_long_form = true;
-    if (spec->integer_radius) {
-      if (radius->type != DescriptorValue::Type::Integer) {
+    if (spec->amount_percent.has_value()) {
+      auto *amount = mutable_value_either(*filter, "Amnt", "amount");
+      if (amount == nullptr ||
+          amount->type != DescriptorValue::Type::UnitFloat ||
+          amount->unit != "#Prc") {
         return false;
       }
-      radius->integer_value = static_cast<std::int32_t>(spec->radius);
-    } else {
-      if (radius->type != DescriptorValue::Type::UnitFloat ||
-          radius->unit != "#Pxl") {
+      amount->double_value = *spec->amount_percent;
+    }
+    if (spec->radius.has_value()) {
+      auto *radius = mutable_value_either(*filter, "Rds ", "Rds");
+      if (radius == nullptr) {
         return false;
       }
-      radius->double_value = spec->radius;
+      if (spec->integer_radius) {
+        if (radius->type != DescriptorValue::Type::Integer) {
+          return false;
+        }
+        radius->integer_value = static_cast<std::int32_t>(*spec->radius);
+      } else {
+        if (radius->type != DescriptorValue::Type::UnitFloat ||
+            radius->unit != "#Pxl") {
+          return false;
+        }
+        radius->double_value = *spec->radius;
+      }
     }
     if (spec->threshold.has_value()) {
       auto* threshold = mutable_value_either(*filter, "Thsh", "threshold");
@@ -526,6 +586,22 @@ bool patch_smart_filter_descriptor(
         return false;
       }
       threshold->integer_value = *spec->threshold;
+    }
+    if (spec->angle_degrees.has_value()) {
+      auto *angle = mutable_value_either(*filter, "Angl", "angle");
+      if (angle == nullptr || angle->type != DescriptorValue::Type::Integer) {
+        return false;
+      }
+      angle->integer_value = *spec->angle_degrees;
+    }
+    if (spec->distance_pixels.has_value()) {
+      auto *distance = mutable_value_either(*filter, "Dstn", "distance");
+      if (distance == nullptr ||
+          distance->type != DescriptorValue::Type::UnitFloat ||
+          distance->unit != "#Pxl") {
+        return false;
+      }
+      distance->double_value = *spec->distance_pixels;
     }
   }
   return true;
@@ -731,11 +807,53 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
       if (filter != nullptr) {
         entry.native_class_id = filter->class_id;
       }
-      if (filter != nullptr && filter->class_id == "surfaceBlur" &&
-          filter->class_id_long_form && entry.native_filter_id == 854U) {
-        const auto* radius =
-            descriptor_value_either(*filter, "Rds ", "Rds");
-        const auto* threshold =
+      if (filter != nullptr && filter->class_id == "UnsM" &&
+          entry.native_filter_id == 0x556e734dU) {
+        const auto *amount = descriptor_value_either(*filter, "Amnt", "amount");
+        const auto *radius = descriptor_value_either(*filter, "Rds ", "Rds");
+        const auto *threshold =
+            descriptor_value_either(*filter, "Thsh", "threshold");
+        if (amount != nullptr &&
+            amount->type == DescriptorValue::Type::UnitFloat &&
+            amount->unit == "#Prc" && std::isfinite(amount->double_value) &&
+            amount->double_value >= 1.0 && amount->double_value <= 500.0 &&
+            radius != nullptr &&
+            radius->type == DescriptorValue::Type::UnitFloat &&
+            radius->unit == "#Pxl" && std::isfinite(radius->double_value) &&
+            radius->double_value >= 0.1 && radius->double_value <= 1000.0 &&
+            threshold != nullptr &&
+            threshold->type == DescriptorValue::Type::Integer &&
+            threshold->integer_value >= 0 && threshold->integer_value <= 255) {
+          entry.kind = SmartFilterKind::UnsharpMask;
+          entry.parameters =
+              UnsharpMaskSmartFilter{amount->double_value, radius->double_value,
+                                     threshold->integer_value};
+        } else {
+          entry_supported = false;
+        }
+      } else if (filter != nullptr && filter->class_id == "MtnB" &&
+                 entry.native_filter_id == 0x4d746e42U) {
+        const auto *angle = descriptor_value_either(*filter, "Angl", "angle");
+        const auto *distance =
+            descriptor_value_either(*filter, "Dstn", "distance");
+        if (angle != nullptr && angle->type == DescriptorValue::Type::Integer &&
+            angle->integer_value >= -360 && angle->integer_value <= 360 &&
+            distance != nullptr &&
+            distance->type == DescriptorValue::Type::UnitFloat &&
+            distance->unit == "#Pxl" && std::isfinite(distance->double_value) &&
+            distance->double_value >= 1.0 && distance->double_value <= 999.0 &&
+            std::floor(distance->double_value) == distance->double_value) {
+          entry.kind = SmartFilterKind::MotionBlur;
+          entry.parameters = MotionBlurSmartFilter{
+              angle->integer_value,
+              static_cast<std::int32_t>(distance->double_value)};
+        } else {
+          entry_supported = false;
+        }
+      } else if (filter != nullptr && filter->class_id == "surfaceBlur" &&
+                 filter->class_id_long_form && entry.native_filter_id == 854U) {
+        const auto *radius = descriptor_value_either(*filter, "Rds ", "Rds");
+        const auto *threshold =
             descriptor_value_either(*filter, "Thsh", "threshold");
         if (radius != nullptr &&
             radius->type == DescriptorValue::Type::UnitFloat &&

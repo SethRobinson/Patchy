@@ -1522,6 +1522,35 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                .arg(radius)
                                .arg(surface->threshold);
         }
+      } else if (entry.kind == SmartFilterKind::UnsharpMask) {
+        entry_name = QObject::tr("Unsharp Mask");
+        entry_tooltip = entry_name;
+        if (const auto *unsharp =
+                std::get_if<UnsharpMaskSmartFilter>(&entry.parameters);
+            unsharp != nullptr) {
+          auto radius = QString::number(unsharp->radius_pixels, 'f', 2);
+          while (radius.endsWith(QLatin1Char('0'))) {
+            radius.chop(1);
+          }
+          if (radius.endsWith(QLatin1Char('.'))) {
+            radius.chop(1);
+          }
+          entry_tooltip +=
+              QObject::tr(" (Amount %1%, Radius %2 px, Threshold %3)")
+                  .arg(QString::number(unsharp->amount_percent, 'g', 6))
+                  .arg(radius)
+                  .arg(unsharp->threshold);
+        }
+      } else if (entry.kind == SmartFilterKind::MotionBlur) {
+        entry_name = QObject::tr("Motion Blur");
+        entry_tooltip = entry_name;
+        if (const auto *motion =
+                std::get_if<MotionBlurSmartFilter>(&entry.parameters);
+            motion != nullptr) {
+          entry_tooltip += QObject::tr(" (Angle %1 degrees, Distance %2 px)")
+                               .arg(motion->angle_degrees)
+                               .arg(motion->distance_pixels);
+        }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
         entry_tooltip = entry_name;

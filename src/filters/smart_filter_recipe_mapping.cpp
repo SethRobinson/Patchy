@@ -21,7 +21,9 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
          normalized->filter_id != "patchy.filters.high_pass" &&
          normalized->filter_id != "patchy.filters.median" &&
          normalized->filter_id != "patchy.filters.dust_and_scratches" &&
-         normalized->filter_id != "patchy.filters.surface_blur")) {
+         normalized->filter_id != "patchy.filters.surface_blur" &&
+         normalized->filter_id != "patchy.filters.unsharp_mask" &&
+         normalized->filter_id != "patchy.filters.motion_blur")) {
       return std::nullopt;
     }
     const auto dust =
@@ -29,10 +31,57 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
     const auto surface =
         normalized->filter_id == "patchy.filters.surface_blur";
     const auto median = normalized->filter_id == "patchy.filters.median";
-    const auto high_pass =
-        normalized->filter_id == "patchy.filters.high_pass";
+    const auto high_pass = normalized->filter_id == "patchy.filters.high_pass";
+    const auto unsharp = normalized->filter_id == "patchy.filters.unsharp_mask";
+    const auto motion = normalized->filter_id == "patchy.filters.motion_blur";
     SmartFilterEntry entry;
-    if (dust) {
+    if (unsharp) {
+      const auto amount_value = normalized->parameters.find("amount");
+      const auto radius_value = normalized->parameters.find("radius");
+      const auto threshold_value = normalized->parameters.find("threshold");
+      if (amount_value == normalized->parameters.end() ||
+          radius_value == normalized->parameters.end() ||
+          threshold_value == normalized->parameters.end()) {
+        return std::nullopt;
+      }
+      const auto *amount = std::get_if<std::int64_t>(&amount_value->second);
+      const auto *radius = std::get_if<double>(&radius_value->second);
+      const auto *threshold =
+          std::get_if<std::int64_t>(&threshold_value->second);
+      if (amount == nullptr || *amount < 1 || *amount > 500 ||
+          radius == nullptr || !std::isfinite(*radius) || *radius < 0.1 ||
+          *radius > 1000.0 || threshold == nullptr || *threshold < 0 ||
+          *threshold > 255) {
+        return std::nullopt;
+      }
+      entry.kind = SmartFilterKind::UnsharpMask;
+      entry.native_name = "Unsharp Mask...";
+      entry.native_class_id = "UnsM";
+      entry.native_filter_id = 0x556e734dU;
+      entry.parameters =
+          UnsharpMaskSmartFilter{static_cast<double>(*amount), *radius,
+                                 static_cast<std::int32_t>(*threshold)};
+    } else if (motion) {
+      const auto angle_value = normalized->parameters.find("angle");
+      const auto distance_value = normalized->parameters.find("distance");
+      if (angle_value == normalized->parameters.end() ||
+          distance_value == normalized->parameters.end()) {
+        return std::nullopt;
+      }
+      const auto *angle = std::get_if<std::int64_t>(&angle_value->second);
+      const auto *distance = std::get_if<std::int64_t>(&distance_value->second);
+      if (angle == nullptr || *angle < -360 || *angle > 360 ||
+          distance == nullptr || *distance < 1 || *distance > 999) {
+        return std::nullopt;
+      }
+      entry.kind = SmartFilterKind::MotionBlur;
+      entry.native_name = "Motion Blur...";
+      entry.native_class_id = "MtnB";
+      entry.native_filter_id = 0x4d746e42U;
+      entry.parameters =
+          MotionBlurSmartFilter{static_cast<std::int32_t>(*angle),
+                                static_cast<std::int32_t>(*distance)};
+    } else if (dust) {
       const auto radius_value = normalized->parameters.find("radius");
       const auto threshold_value = normalized->parameters.find("threshold");
       if (radius_value == normalized->parameters.end() ||

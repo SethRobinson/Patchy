@@ -247,6 +247,37 @@ patchy::SmartFilterStack test_surface_blur_smart_filter_stack(
   return stack;
 }
 
+patchy::SmartFilterStack
+test_unsharp_mask_smart_filter_stack(double amount, double radius,
+                                     std::int32_t threshold) {
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::UnsharpMask;
+  entry.native_name = "Unsharp Mask...";
+  entry.native_class_id = "UnsM";
+  entry.native_filter_id = 0x556e734dU;
+  entry.parameters = patchy::UnsharpMaskSmartFilter{amount, radius, threshold};
+  stack.entries.push_back(std::move(entry));
+  return stack;
+}
+
+patchy::SmartFilterStack
+test_motion_blur_smart_filter_stack(std::int32_t angle, std::int32_t distance) {
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::MotionBlur;
+  entry.native_name = "Motion Blur...";
+  entry.native_class_id = "MtnB";
+  entry.native_filter_id = 0x4d746e42U;
+  entry.parameters = patchy::MotionBlurSmartFilter{angle, distance};
+  stack.entries.push_back(std::move(entry));
+  return stack;
+}
+
 std::uint64_t fnv1a_hash_bytes(std::span<const std::uint8_t> bytes) {
   std::uint64_t hash = 14695981039346656037ULL;
   for (const auto byte : bytes) {

@@ -3730,6 +3730,218 @@ void ui_smart_filter_surface_blur_add_edit_and_reopen() {
   save_widget_artifact("ui_smart_filter_surface_blur_row", *active_row());
 }
 
+void ui_smart_filter_unsharp_motion_add_edit_and_reopen() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto &document = patchy::ui::MainWindowTestAccess::document(window);
+
+  bool unsharp_added = false;
+  QTimer::singleShot(0, [&] {
+    auto *dialog = qobject_cast<QDialog *>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto *amount =
+        dialog->findChild<QSpinBox *>(QStringLiteral("filterAmountSpin"));
+    auto *radius =
+        dialog->findChild<QDoubleSpinBox *>(QStringLiteral("filterRadiusSpin"));
+    auto *threshold =
+        dialog->findChild<QSpinBox *>(QStringLiteral("filterThresholdSpin"));
+    CHECK(amount != nullptr && radius != nullptr && threshold != nullptr);
+    CHECK(amount->minimum() == 1 && amount->maximum() == 500);
+    CHECK(std::abs(radius->minimum() - 0.1) < 0.000001);
+    CHECK(std::abs(radius->maximum() - 1000.0) < 0.000001);
+    CHECK(threshold->minimum() == 0 && threshold->maximum() == 255);
+    amount->setValue(175);
+    radius->setValue(2.5);
+    threshold->setValue(7);
+    unsharp_added = true;
+    dialog->accept();
+  });
+  require_action(window, "filterAction_patchy_filters_unsharp_mask")->trigger();
+  QApplication::processEvents();
+  CHECK(unsharp_added);
+
+  bool motion_added = false;
+  QTimer::singleShot(0, [&] {
+    auto *dialog = qobject_cast<QDialog *>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto *angle =
+        dialog->findChild<QSpinBox *>(QStringLiteral("filterAngleSpin"));
+    auto *distance =
+        dialog->findChild<QSpinBox *>(QStringLiteral("filterDistanceSpin"));
+    CHECK(angle != nullptr && distance != nullptr);
+    CHECK(angle->minimum() == -360 && angle->maximum() == 360);
+    CHECK(distance->minimum() == 1 && distance->maximum() == 999);
+    angle->setValue(37);
+    distance->setValue(12);
+    motion_added = true;
+    dialog->accept();
+  });
+  require_action(window, "filterAction_patchy_filters_motion_blur")->trigger();
+  QApplication::processEvents();
+  CHECK(motion_added);
+
+  const auto stack = [&]() -> const patchy::SmartFilterStack & {
+    const auto *layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr && layer->smart_filter_stack() != nullptr);
+    return *layer->smart_filter_stack();
+  };
+  const auto unsharp = [&]() -> const patchy::UnsharpMaskSmartFilter & {
+    CHECK(stack().entries.size() == 2U);
+    const auto &entry = stack().entries[0];
+    CHECK(entry.kind == patchy::SmartFilterKind::UnsharpMask);
+    CHECK(entry.native_name == "Unsharp Mask...");
+    CHECK(entry.native_class_id == "UnsM");
+    CHECK(entry.native_filter_id == 0x556e734dU);
+    const auto *settings =
+        std::get_if<patchy::UnsharpMaskSmartFilter>(&entry.parameters);
+    CHECK(settings != nullptr);
+    return *settings;
+  };
+  const auto motion = [&]() -> const patchy::MotionBlurSmartFilter & {
+    CHECK(stack().entries.size() == 2U);
+    const auto &entry = stack().entries[1];
+    CHECK(entry.kind == patchy::SmartFilterKind::MotionBlur);
+    CHECK(entry.native_name == "Motion Blur...");
+    CHECK(entry.native_class_id == "MtnB");
+    CHECK(entry.native_filter_id == 0x4d746e42U);
+    const auto *settings =
+        std::get_if<patchy::MotionBlurSmartFilter>(&entry.parameters);
+    CHECK(settings != nullptr);
+    return *settings;
+  };
+  CHECK(std::abs(unsharp().amount_percent - 175.0) < 0.000001);
+  CHECK(std::abs(unsharp().radius_pixels - 2.5) < 0.000001);
+  CHECK(unsharp().threshold == 7);
+  CHECK(motion().angle_degrees == 37 && motion().distance_pixels == 12);
+
+  const auto active_row = [&]() -> QWidget * {
+    auto *list = window.findChild<QListWidget *>(QStringLiteral("layerList"));
+    CHECK(list != nullptr);
+    auto *row =
+        list->itemWidget(require_layer_item(*list, QStringLiteral("small")));
+    CHECK(row != nullptr);
+    return row;
+  };
+  const auto label_for = [&](std::size_t execution_index) {
+    const auto labels = active_row()->findChildren<QLabel *>(
+        QStringLiteral("layerSmartFilterEntryLabel"));
+    const auto found = std::find_if(
+        labels.begin(), labels.end(), [execution_index](QLabel *label) {
+          return label->property("smartFilterExecutionIndex").toULongLong() ==
+                 static_cast<qulonglong>(execution_index);
+        });
+    CHECK(found != labels.end());
+    return *found;
+  };
+  const auto edit_for = [&](std::size_t execution_index) {
+    const auto buttons = active_row()->findChildren<QToolButton *>(
+        QStringLiteral("layerSmartFilterEditButton"));
+    const auto found = std::find_if(
+        buttons.begin(), buttons.end(), [execution_index](QToolButton *button) {
+          return button->property("smartFilterExecutionIndex").toULongLong() ==
+                 static_cast<qulonglong>(execution_index);
+        });
+    CHECK(found != buttons.end());
+    return *found;
+  };
+  CHECK(label_for(0)->text() == QStringLiteral("Unsharp Mask"));
+  CHECK(label_for(0)->toolTip().contains(QStringLiteral("Amount 175%")));
+  CHECK(label_for(0)->toolTip().contains(QStringLiteral("Radius 2.5 px")));
+  CHECK(label_for(1)->text() == QStringLiteral("Motion Blur"));
+  CHECK(label_for(1)->toolTip().contains(QStringLiteral("Angle 37 degrees")));
+  CHECK(label_for(1)->toolTip().contains(QStringLiteral("Distance 12 px")));
+
+  bool unsharp_edited = false;
+  QTimer::singleShot(20, [&] {
+    auto *dialog = qobject_cast<QDialog *>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto *amount =
+        dialog->findChild<QSpinBox *>(QStringLiteral("filterAmountSpin"));
+    auto *radius =
+        dialog->findChild<QDoubleSpinBox *>(QStringLiteral("filterRadiusSpin"));
+    auto *threshold =
+        dialog->findChild<QSpinBox *>(QStringLiteral("filterThresholdSpin"));
+    CHECK(amount != nullptr && radius != nullptr && threshold != nullptr);
+    CHECK(amount->value() == 175);
+    CHECK(std::abs(radius->value() - 2.5) < 0.000001);
+    CHECK(threshold->value() == 7);
+    amount->setValue(225);
+    radius->setValue(4.75);
+    threshold->setValue(11);
+    unsharp_edited = true;
+    dialog->accept();
+  });
+  edit_for(0)->click();
+  CHECK(process_events_until([&] { return unsharp_edited; }));
+  CHECK(std::abs(unsharp().amount_percent - 225.0) < 0.000001);
+  CHECK(std::abs(unsharp().radius_pixels - 4.75) < 0.000001);
+  CHECK(unsharp().threshold == 11);
+
+  bool motion_edited = false;
+  QTimer::singleShot(20, [&] {
+    auto *dialog = qobject_cast<QDialog *>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto *angle =
+        dialog->findChild<QSpinBox *>(QStringLiteral("filterAngleSpin"));
+    auto *distance =
+        dialog->findChild<QSpinBox *>(QStringLiteral("filterDistanceSpin"));
+    CHECK(angle != nullptr && distance != nullptr);
+    CHECK(angle->value() == 37 && distance->value() == 12);
+    angle->setValue(-61);
+    distance->setValue(27);
+    motion_edited = true;
+    dialog->accept();
+  });
+  edit_for(1)->click();
+  CHECK(process_events_until([&] { return motion_edited; }));
+  CHECK(motion().angle_degrees == -61 && motion().distance_pixels == 27);
+
+  const auto *filtered = std::as_const(document).find_layer(layer_id);
+  CHECK(filtered != nullptr);
+  const auto placed_uuid = patchy::smart_object_placed_uuid(*filtered);
+  const auto *record =
+      std::as_const(document).metadata().smart_filter_effects.find_unique(
+          placed_uuid);
+  CHECK(record != nullptr && record->semantic_supported());
+
+  ensure_artifact_dir();
+  const auto artifact_path =
+      std::filesystem::absolute(std::filesystem::path("test-artifacts") /
+                                "ui_smart_filter_unsharp_motion.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact_path);
+  const auto reopened = patchy::psd::DocumentIo::read_file(artifact_path);
+  const auto reopened_it = std::find_if(
+      reopened.layers().begin(), reopened.layers().end(),
+      [](const patchy::Layer &layer) { return layer.name() == "small"; });
+  CHECK(reopened_it != reopened.layers().end());
+  CHECK(reopened_it->smart_filter_stack() != nullptr);
+  const auto &reopened_stack = *reopened_it->smart_filter_stack();
+  CHECK(reopened_stack.support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(reopened_stack.entries.size() == 2U);
+  const auto *reopened_unsharp = std::get_if<patchy::UnsharpMaskSmartFilter>(
+      &reopened_stack.entries[0].parameters);
+  const auto *reopened_motion = std::get_if<patchy::MotionBlurSmartFilter>(
+      &reopened_stack.entries[1].parameters);
+  CHECK(reopened_unsharp != nullptr && reopened_motion != nullptr);
+  CHECK(std::abs(reopened_unsharp->amount_percent - 225.0) < 0.000001);
+  CHECK(std::abs(reopened_unsharp->radius_pixels - 4.75) < 0.000001);
+  CHECK(reopened_unsharp->threshold == 11);
+  CHECK(reopened_motion->angle_degrees == -61);
+  CHECK(reopened_motion->distance_pixels == 27);
+  CHECK(reopened.metadata().smart_filter_effects.find_unique(
+            patchy::smart_object_placed_uuid(*reopened_it)) != nullptr);
+  save_widget_artifact("ui_smart_filter_unsharp_motion_row", *active_row());
+}
+
 void ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete() {
   SettingsValueRestorer notes_setting(
       QStringLiteral("imports/showPsdWarningsAndInfo"));
@@ -4012,5 +4224,7 @@ std::vector<patchy::test::TestCase> smart_filter_tests() {
        ui_smart_filter_dust_and_scratches_add_edit_and_reopen},
       {"ui_smart_filter_surface_blur_add_edit_and_reopen",
        ui_smart_filter_surface_blur_add_edit_and_reopen},
+      {"ui_smart_filter_unsharp_motion_add_edit_and_reopen",
+       ui_smart_filter_unsharp_motion_add_edit_and_reopen},
   };
 }

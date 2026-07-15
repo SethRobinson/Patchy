@@ -140,6 +140,13 @@ patchy::SmartFilterStack test_dust_and_scratches_smart_filter_stack(
 patchy::SmartFilterStack test_surface_blur_smart_filter_stack(
     double radius, std::int32_t threshold);
 
+patchy::SmartFilterStack
+test_unsharp_mask_smart_filter_stack(double amount, double radius,
+                                     std::int32_t threshold);
+
+patchy::SmartFilterStack
+test_motion_blur_smart_filter_stack(std::int32_t angle, std::int32_t distance);
+
 std::uint64_t fnv1a_hash_bytes(std::span<const std::uint8_t> bytes);
 
 patchy::BrushTip make_bar_brush_tip();

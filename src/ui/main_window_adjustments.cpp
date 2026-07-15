@@ -528,6 +528,15 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
   } else if (kind == SmartFilterKind::HighPass) {
     invocation.filter_id = "patchy.smart_filters.high_pass";
     invocation.parameters["radius"] = 10.0;
+  } else if (kind == SmartFilterKind::UnsharpMask) {
+    invocation.filter_id = "patchy.smart_filters.unsharp_mask";
+    invocation.parameters["amount"] = std::int64_t{150};
+    invocation.parameters["radius"] = 2.0;
+    invocation.parameters["threshold"] = std::int64_t{8};
+  } else if (kind == SmartFilterKind::MotionBlur) {
+    invocation.filter_id = "patchy.smart_filters.motion_blur";
+    invocation.parameters["angle"] = std::int64_t{0};
+    invocation.parameters["distance"] = std::int64_t{12};
   } else {
     invocation.filter_id = "patchy.smart_filters.gaussian_blur";
     invocation.parameters["radius"] = 2.0;
@@ -541,15 +550,69 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
   const auto median = kind == SmartFilterKind::Median;
   const auto dust = kind == SmartFilterKind::DustAndScratches;
   const auto surface = kind == SmartFilterKind::SurfaceBlur;
+  const auto unsharp = kind == SmartFilterKind::UnsharpMask;
+  const auto motion = kind == SmartFilterKind::MotionBlur;
   FilterDialogSpec spec;
-  spec.identifier = QString::fromStdString(
-      editable_smart_filter_invocation(kind).filter_id);
-  spec.display_name = surface
-                          ? QObject::tr("Surface Blur")
-                          : (dust ? QObject::tr("Dust & Scratches")
-                                  : (median ? QObject::tr("Median")
-                                            : (high_pass ? QObject::tr("High Pass")
-                                                         : QObject::tr("Gaussian Blur"))));
+  spec.identifier =
+      QString::fromStdString(editable_smart_filter_invocation(kind).filter_id);
+  spec.display_name =
+      unsharp  ? QObject::tr("Unsharp Mask")
+      : motion ? QObject::tr("Motion Blur")
+      : surface
+          ? QObject::tr("Surface Blur")
+          : (dust ? QObject::tr("Dust & Scratches")
+                  : (median ? QObject::tr("Median")
+                            : (high_pass ? QObject::tr("High Pass")
+                                         : QObject::tr("Gaussian Blur"))));
+  if (unsharp) {
+    FilterControlSpec amount;
+    amount.label = QObject::tr("Amount");
+    amount.object_name = QStringLiteral("filterAmount");
+    amount.minimum = 1;
+    amount.maximum = 500;
+    amount.value = 150;
+    amount.suffix = QObject::tr("%");
+    amount.parameter_key = "amount";
+    amount.kind = FilterParameterKind::Integer;
+    amount.default_value = std::int64_t{150};
+    amount.typed_minimum = 1.0;
+    amount.typed_maximum = 500.0;
+    amount.step = 1.0;
+    spec.controls.push_back(std::move(amount));
+  }
+  if (motion) {
+    FilterControlSpec angle;
+    angle.label = QObject::tr("Angle");
+    angle.object_name = QStringLiteral("filterAngle");
+    angle.minimum = -180;
+    angle.maximum = 180;
+    angle.value = 0;
+    angle.suffix = QObject::tr(" degrees");
+    angle.parameter_key = "angle";
+    angle.kind = FilterParameterKind::Integer;
+    angle.default_value = std::int64_t{0};
+    angle.typed_minimum = -360.0;
+    angle.typed_maximum = 360.0;
+    angle.step = 1.0;
+    spec.controls.push_back(std::move(angle));
+
+    FilterControlSpec distance;
+    distance.label = QObject::tr("Distance");
+    distance.object_name = QStringLiteral("filterDistance");
+    distance.minimum = 1;
+    distance.maximum = 64;
+    distance.value = 12;
+    distance.suffix = QObject::tr(" px");
+    distance.parameter_key = "distance";
+    distance.kind = FilterParameterKind::Integer;
+    distance.default_value = std::int64_t{12};
+    distance.typed_minimum = 1.0;
+    distance.typed_maximum = 999.0;
+    distance.step = 1.0;
+    spec.controls.push_back(std::move(distance));
+    return spec;
+  }
+
   FilterControlSpec radius;
   radius.label = QObject::tr("Radius");
   radius.object_name = QStringLiteral("filterRadius");
@@ -567,32 +630,34 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
                                            : (median ? 1.0 : (high_pass ? 10.0 : 2.0))};
   radius.typed_minimum = dust || median || surface ? 1.0 : 0.1;
   radius.typed_maximum =
-      surface ? 100.0
-              : (dust ? 100.0
-                      : (median
-                             ? 500.0
-                             : (high_pass
-                                    ? 1000.0
-                                    : std::max(
-                                          12.0,
-                                          smart_filter_radius_from_invocation(
-                                              initial_invocation, 2.0)))));
+      surface
+          ? 100.0
+          : (dust ? 100.0
+                  : (median
+                         ? 500.0
+                         : (high_pass || unsharp
+                                ? 1000.0
+                                : std::max(12.0,
+                                           smart_filter_radius_from_invocation(
+                                               initial_invocation, 2.0)))));
   // Native descriptors retain fractional radius values. Gaussian Blur changes
   // at hundredths; Median currently floors for rendering but must not round a
   // value merely because the dialog was opened and accepted.
   radius.step = dust ? 1.0 : 0.01;
   spec.controls.push_back(std::move(radius));
-  if (dust || surface) {
+  if (dust || surface || unsharp) {
     FilterControlSpec threshold;
     threshold.label = QObject::tr("Threshold");
     threshold.object_name = QStringLiteral("filterThreshold");
     threshold.minimum = surface ? 2 : 0;
     threshold.maximum = 255;
-    threshold.value = surface ? 15 : 0;
+    threshold.value = surface ? 15 : (unsharp ? 8 : 0);
     threshold.parameter_key = "threshold";
     threshold.kind = FilterParameterKind::Integer;
-    threshold.default_value = surface ? FilterParameterValue{std::int64_t{15}}
-                                      : FilterParameterValue{std::int64_t{0}};
+    threshold.default_value =
+        surface ? FilterParameterValue{std::int64_t{15}}
+                : (unsharp ? FilterParameterValue{std::int64_t{8}}
+                           : FilterParameterValue{std::int64_t{0}});
     threshold.typed_minimum = surface ? 2.0 : 0.0;
     threshold.typed_maximum = 255.0;
     threshold.step = 1.0;
@@ -643,6 +708,26 @@ SmartFilterStack smart_filter_stack_with_invocation(
     surface->radius_pixels = std::clamp(radius, 1.0, 100.0);
     surface->threshold = smart_filter_integer_from_invocation(
         invocation, "threshold", surface->threshold, 2, 255);
+  } else if (entry.kind == SmartFilterKind::UnsharpMask) {
+    auto *unsharp = std::get_if<UnsharpMaskSmartFilter>(&entry.parameters);
+    if (unsharp == nullptr) {
+      throw std::invalid_argument("Smart Filter settings are unavailable");
+    }
+    unsharp->amount_percent = smart_filter_integer_from_invocation(
+        invocation, "amount",
+        static_cast<std::int32_t>(unsharp->amount_percent), 1, 500);
+    unsharp->radius_pixels = std::clamp(radius, 0.1, 1000.0);
+    unsharp->threshold = smart_filter_integer_from_invocation(
+        invocation, "threshold", unsharp->threshold, 0, 255);
+  } else if (entry.kind == SmartFilterKind::MotionBlur) {
+    auto *motion = std::get_if<MotionBlurSmartFilter>(&entry.parameters);
+    if (motion == nullptr) {
+      throw std::invalid_argument("Smart Filter settings are unavailable");
+    }
+    motion->angle_degrees = smart_filter_integer_from_invocation(
+        invocation, "angle", motion->angle_degrees, -360, 360);
+    motion->distance_pixels = smart_filter_integer_from_invocation(
+        invocation, "distance", motion->distance_pixels, 1, 999);
   } else {
     throw std::invalid_argument("Smart Filter radius is unavailable");
   }
@@ -657,36 +742,56 @@ SmartFilterEntry make_editable_smart_filter_entry(
   const auto median = kind == SmartFilterKind::Median;
   const auto dust = kind == SmartFilterKind::DustAndScratches;
   const auto surface = kind == SmartFilterKind::SurfaceBlur;
+  const auto unsharp = kind == SmartFilterKind::UnsharpMask;
+  const auto motion = kind == SmartFilterKind::MotionBlur;
   const auto radius = smart_filter_radius_from_invocation(invocation, 1.0);
   SmartFilterEntry entry;
   entry.kind = kind;
-  entry.native_name = surface
-                          ? "Surface Blur..."
-                          : (dust ? "Dust && Scratches..."
-                                  : (median ? "Median..."
-                                            : (high_pass ? "High Pass..."
-                                                         : "Gaussian Blur...")));
-  entry.native_class_id = surface
-                              ? "surfaceBlur"
-                              : (dust ? "DstS"
-                                      : (median ? "Mdn " : (high_pass ? "HghP" : "GsnB")));
-  entry.native_filter_id = surface
-                               ? 854U
-                               : (dust ? 0x44737453U
-                                       : (median ? 0x4d646e20U
-                                                 : (high_pass ? 0x48676850U
-                                                              : 0x47736e42U)));
+  entry.native_name =
+      unsharp  ? "Unsharp Mask..."
+      : motion ? "Motion Blur..."
+      : surface
+          ? "Surface Blur..."
+          : (dust ? "Dust && Scratches..."
+                  : (median
+                         ? "Median..."
+                         : (high_pass ? "High Pass..." : "Gaussian Blur...")));
+  entry.native_class_id =
+      unsharp  ? "UnsM"
+      : motion ? "MtnB"
+      : surface
+          ? "surfaceBlur"
+          : (dust ? "DstS" : (median ? "Mdn " : (high_pass ? "HghP" : "GsnB")));
+  entry.native_filter_id =
+      unsharp   ? 0x556e734dU
+      : motion  ? 0x4d746e42U
+      : surface ? 854U
+                : (dust ? 0x44737453U
+                        : (median ? 0x4d646e20U
+                                  : (high_pass ? 0x48676850U : 0x47736e42U)));
   entry.enabled = true;
   entry.has_options = true;
   entry.opacity = 1.0;
   entry.blend_mode = BlendMode::Normal;
   entry.foreground = foreground;
   entry.background = background;
-  if (surface) {
-    entry.parameters = SurfaceBlurSmartFilter{
-        std::clamp(radius, 1.0, 100.0),
-        smart_filter_integer_from_invocation(invocation, "threshold", 15, 2,
+  if (unsharp) {
+    entry.parameters = UnsharpMaskSmartFilter{
+        static_cast<double>(smart_filter_integer_from_invocation(
+            invocation, "amount", 150, 1, 500)),
+        std::clamp(radius, 0.1, 1000.0),
+        smart_filter_integer_from_invocation(invocation, "threshold", 8, 0,
                                              255)};
+  } else if (motion) {
+    entry.parameters = MotionBlurSmartFilter{
+        smart_filter_integer_from_invocation(invocation, "angle", 0, -360, 360),
+        smart_filter_integer_from_invocation(invocation, "distance", 12, 1,
+                                             999)};
+  } else if (surface) {
+    entry.parameters =
+        SurfaceBlurSmartFilter{std::clamp(radius, 1.0, 100.0),
+                               smart_filter_integer_from_invocation(
+                                   invocation, "threshold", 15, 2, 255)};
   } else if (dust) {
     entry.parameters = DustAndScratchesSmartFilter{
         smart_filter_integer_from_invocation(invocation, "radius", 1, 1, 100),
@@ -955,19 +1060,35 @@ void MainWindow::surface_blur_smart_filter_dialog(
                                execution_index);
 }
 
+void MainWindow::unsharp_mask_smart_filter_dialog(
+    LayerId layer_id, std::optional<std::size_t> execution_index) {
+  editable_smart_filter_dialog(layer_id, SmartFilterKind::UnsharpMask,
+                               execution_index);
+}
+
+void MainWindow::motion_blur_smart_filter_dialog(
+    LayerId layer_id, std::optional<std::size_t> execution_index) {
+  editable_smart_filter_dialog(layer_id, SmartFilterKind::MotionBlur,
+                               execution_index);
+}
+
 void MainWindow::editable_smart_filter_dialog(
     LayerId layer_id, SmartFilterKind kind,
     std::optional<std::size_t> execution_index) {
   if (kind != SmartFilterKind::GaussianBlur &&
       kind != SmartFilterKind::HighPass && kind != SmartFilterKind::Median &&
       kind != SmartFilterKind::DustAndScratches &&
-      kind != SmartFilterKind::SurfaceBlur) {
+      kind != SmartFilterKind::SurfaceBlur &&
+      kind != SmartFilterKind::UnsharpMask &&
+      kind != SmartFilterKind::MotionBlur) {
     return;
   }
   const auto high_pass = kind == SmartFilterKind::HighPass;
   const auto median = kind == SmartFilterKind::Median;
   const auto dust = kind == SmartFilterKind::DustAndScratches;
   const auto surface = kind == SmartFilterKind::SurfaceBlur;
+  const auto unsharp = kind == SmartFilterKind::UnsharpMask;
+  const auto motion = kind == SmartFilterKind::MotionBlur;
   if (!has_active_document() || canvas_ == nullptr) {
     return;
   }
@@ -1102,8 +1223,8 @@ void MainWindow::editable_smart_filter_dialog(
           static_cast<std::int64_t>(settings->radius_pixels);
       initial_invocation.parameters["threshold"] =
           static_cast<std::int64_t>(settings->threshold);
-    } else {
-      const auto* settings = std::get_if<SurfaceBlurSmartFilter>(
+    } else if (kind == SmartFilterKind::SurfaceBlur) {
+      const auto *settings = std::get_if<SurfaceBlurSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
         statusBar()->showMessage(
@@ -1113,6 +1234,31 @@ void MainWindow::editable_smart_filter_dialog(
       initial_invocation.parameters["radius"] = settings->radius_pixels;
       initial_invocation.parameters["threshold"] =
           static_cast<std::int64_t>(settings->threshold);
+    } else if (kind == SmartFilterKind::UnsharpMask) {
+      const auto *settings = std::get_if<UnsharpMaskSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (settings == nullptr) {
+        statusBar()->showMessage(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_invocation.parameters["amount"] =
+          static_cast<std::int64_t>(std::lround(settings->amount_percent));
+      initial_invocation.parameters["radius"] = settings->radius_pixels;
+      initial_invocation.parameters["threshold"] =
+          static_cast<std::int64_t>(settings->threshold);
+    } else {
+      const auto *settings = std::get_if<MotionBlurSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (settings == nullptr) {
+        statusBar()->showMessage(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_invocation.parameters["angle"] =
+          static_cast<std::int64_t>(settings->angle_degrees);
+      initial_invocation.parameters["distance"] =
+          static_cast<std::int64_t>(settings->distance_pixels);
     }
   }
 
@@ -1240,45 +1386,58 @@ void MainWindow::editable_smart_filter_dialog(
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(
-        surface ? tr("Cancelled Surface Blur")
-                : (dust ? tr("Cancelled Dust & Scratches")
-                        : (median ? tr("Cancelled Median")
-                                  : (high_pass ? tr("Cancelled High Pass")
-                                               : tr("Cancelled Gaussian Blur")))));
+        unsharp  ? tr("Cancelled Unsharp Mask")
+        : motion ? tr("Cancelled Motion Blur")
+        : surface
+            ? tr("Cancelled Surface Blur")
+            : (dust ? tr("Cancelled Dust & Scratches")
+                    : (median ? tr("Cancelled Median")
+                              : (high_pass ? tr("Cancelled High Pass")
+                                           : tr("Cancelled Gaussian Blur")))));
     return;
   }
 
   auto candidate = smart_filter_stack_with_invocation(
       std::move(stack), filter_index, *settings);
   const auto undo_text =
-      surface
-          ? (adding ? tr("Add Surface Blur Smart Filter")
-                    : tr("Edit Surface Blur Smart Filter"))
-          : dust
-          ? (adding ? tr("Add Dust & Scratches Smart Filter")
-                    : tr("Edit Dust & Scratches Smart Filter"))
-          : median
-          ? (adding ? tr("Add Median Smart Filter")
-                    : tr("Edit Median Smart Filter"))
-          : high_pass
-          ? (adding ? tr("Add High Pass Smart Filter")
-                    : tr("Edit High Pass Smart Filter"))
-          : (adding ? tr("Add Gaussian Blur Smart Filter")
-                    : tr("Edit Gaussian Blur Smart Filter"));
+      unsharp     ? (adding ? tr("Add Unsharp Mask Smart Filter")
+                            : tr("Edit Unsharp Mask Smart Filter"))
+      : motion    ? (adding ? tr("Add Motion Blur Smart Filter")
+                            : tr("Edit Motion Blur Smart Filter"))
+      : surface   ? (adding ? tr("Add Surface Blur Smart Filter")
+                            : tr("Edit Surface Blur Smart Filter"))
+      : dust      ? (adding ? tr("Add Dust & Scratches Smart Filter")
+                            : tr("Edit Dust & Scratches Smart Filter"))
+      : median    ? (adding ? tr("Add Median Smart Filter")
+                            : tr("Edit Median Smart Filter"))
+      : high_pass ? (adding ? tr("Add High Pass Smart Filter")
+                            : tr("Edit High Pass Smart Filter"))
+                  : (adding ? tr("Add Gaussian Blur Smart Filter")
+                            : tr("Edit Gaussian Blur Smart Filter"));
   const auto status_text =
-      surface
-          ? (adding
-                 ? (creating_stack
-                        ? tr("Added Surface Blur as a Smart Filter")
-                        : tr("Added another Surface Blur Smart Filter"))
-                 : tr("Updated Surface Blur Smart Filter"))
-          : dust
-          ? (adding
-                 ? (creating_stack
-                        ? tr("Added Dust & Scratches as a Smart Filter")
-                        : tr("Added another Dust & Scratches Smart Filter"))
-                 : tr("Updated Dust & Scratches Smart Filter"))
-          : median
+      unsharp  ? (adding ? (creating_stack
+                                ? tr("Added Unsharp Mask as a Smart Filter")
+                                : tr("Added another Unsharp Mask Smart Filter"))
+                         : tr("Updated Unsharp Mask Smart Filter"))
+      : motion ? (adding ? (creating_stack
+                                ? tr("Added Motion Blur as a Smart Filter")
+                                : tr("Added another Motion Blur Smart Filter"))
+                         : tr("Updated Motion Blur Smart Filter"))
+      : surface
+          ? (adding ? (creating_stack
+                           ? tr("Added Surface Blur as a Smart Filter")
+                           : tr("Added another Surface Blur Smart Filter"))
+                    : tr("Updated Surface Blur Smart Filter"))
+      : dust
+          ? (adding ? (creating_stack
+                           ? tr("Added Dust & Scratches as a Smart Filter")
+                           : tr("Added another Dust & Scratches Smart Filter"))
+                    : tr("Updated Dust & Scratches Smart Filter"))
+      : median
+          ? (adding ? (creating_stack ? tr("Added Median as a Smart Filter")
+                                      : tr("Added another Median Smart Filter"))
+                    : tr("Updated Median Smart Filter"))
+      : high_pass
           ? (adding
                  ? (creating_stack
                         ? tr("Added Median as a Smart Filter")
@@ -1316,7 +1475,9 @@ void MainWindow::edit_smart_filter(LayerId layer_id,
   if (kind == SmartFilterKind::GaussianBlur ||
       kind == SmartFilterKind::HighPass || kind == SmartFilterKind::Median ||
       kind == SmartFilterKind::DustAndScratches ||
-      kind == SmartFilterKind::SurfaceBlur) {
+      kind == SmartFilterKind::SurfaceBlur ||
+      kind == SmartFilterKind::UnsharpMask ||
+      kind == SmartFilterKind::MotionBlur) {
     editable_smart_filter_dialog(layer_id, kind, execution_index);
   }
 }
@@ -1810,9 +1971,16 @@ void MainWindow::apply_filter(const QString& identifier) {
       surface_blur_smart_filter_dialog(*active);
       return;
     }
+    if (identifier == QStringLiteral("patchy.filters.unsharp_mask")) {
+      unsharp_mask_smart_filter_dialog(*active);
+      return;
+    }
+    if (identifier == QStringLiteral("patchy.filters.motion_blur")) {
+      motion_blur_smart_filter_dialog(*active);
+      return;
+    }
     statusBar()->showMessage(
-        tr("Only Gaussian Blur, High Pass, Median, Dust & Scratches, and "
-           "Surface Blur are currently editable as Smart Filters"));
+        tr("This filter is not currently editable as a Smart Filter"));
     return;
   }
   try {

@@ -578,6 +578,50 @@ SmartFilterEffectsBlock parse_filter_effects_block(
           parse_filter_effects_record(block, payload, body_offset,
                                       static_cast<std::size_t>(record_length)));
       reader.skip(static_cast<std::size_t>(record_length));
+      // Photoshop aligns every length-prefixed FEid/FXid record to four bytes,
+      // not only the final block payload. The padding is outside the declared
+      // record body. Patchy builds before 0.20 omitted inter-record padding,
+      // so retain that readable legacy shape when only its next u64 boundary
+      // is plausible. Ambiguous or nonzero padding fails closed.
+      const auto padding = (4U - (reader.position() % 4U)) % 4U;
+      if (padding != 0U && reader.remaining() != 0U) {
+        const auto bytes = std::span<const std::uint8_t>(*payload);
+        const auto position = reader.position();
+        const auto read_length_at = [&](std::size_t offset) {
+          std::uint64_t value = 0U;
+          for (std::size_t byte = 0; byte < 8U; ++byte) {
+            value = (value << 8U) | bytes[offset + byte];
+          }
+          return value;
+        };
+        const auto plausible_record_at = [&](std::size_t offset) {
+          if (offset + 8U > bytes.size()) {
+            return false;
+          }
+          const auto length = read_length_at(offset);
+          return length != 0U && length <= bytes.size() - offset - 8U;
+        };
+        const auto padding_is_zero =
+            padding <= reader.remaining() &&
+            std::all_of(bytes.begin() + static_cast<std::ptrdiff_t>(position),
+                        bytes.begin() +
+                            static_cast<std::ptrdiff_t>(position + padding),
+                        [](std::uint8_t value) { return value == 0U; });
+        const auto legacy_boundary = plausible_record_at(position);
+        const auto aligned_boundary =
+            padding_is_zero && plausible_record_at(position + padding);
+        const auto final_padding =
+            padding_is_zero && reader.remaining() == padding;
+        if ((aligned_boundary && legacy_boundary) ||
+            (!aligned_boundary && !legacy_boundary && !final_padding)) {
+          block.opaque = true;
+          block.records.clear();
+          return block;
+        }
+        if (aligned_boundary || final_padding) {
+          reader.skip(padding);
+        }
+      }
     }
     mark_block_association_uniqueness(block);
   } catch (const std::runtime_error &) {
@@ -613,12 +657,9 @@ serialize_filter_effects_block(const SmartFilterEffectsBlock &block) {
     const auto body = serialize_filter_effects_record_body(record);
     writer.write_u64(static_cast<std::uint64_t>(body.size()));
     writer.write_bytes(body);
-  }
-  // Match Photoshop's FEid/FXid shape: the alignment bytes are part of the
-  // tagged block payload (and therefore its declared length), rather than the
-  // generic padding that follows a tagged block.
-  while ((writer.bytes().size() % 4U) != 0U) {
-    writer.write_u8(0);
+    while ((writer.bytes().size() % 4U) != 0U) {
+      writer.write_u8(0);
+    }
   }
   return writer.bytes();
 }

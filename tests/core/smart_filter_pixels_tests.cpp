@@ -96,7 +96,9 @@ using patchy::test::test_dust_and_scratches_smart_filter_stack;
 using patchy::test::test_gaussian_smart_filter_stack;
 using patchy::test::test_high_pass_smart_filter_stack;
 using patchy::test::test_median_smart_filter_stack;
+using patchy::test::test_motion_blur_smart_filter_stack;
 using patchy::test::test_surface_blur_smart_filter_stack;
+using patchy::test::test_unsharp_mask_smart_filter_stack;
 
 const std::uint8_t* filter_result_pixel(const patchy::FilterRenderResult& result,
                                         std::int32_t document_x,
@@ -1579,6 +1581,81 @@ void smart_filter_entry_blending_matches_photoshop_baked_pixels() {
   }
 }
 
+void smart_filter_unsharp_mask_matches_photoshop_scaled_threshold() {
+  auto impulse = solid_rgba(65, 1, 128, 128, 128, 255);
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    impulse.pixel(32, 0)[channel] = 255U;
+  }
+  const auto rendered = patchy::render_photoshop_unsharp_mask(
+      impulse, patchy::Rect::from_size(65, 1), 100.0, 2.5, 0);
+  constexpr std::array<std::uint8_t, 13> kPhotoshopImpulse{
+      127, 126, 122, 118, 113, 109, 255, 109, 113, 118, 122, 126, 127};
+  for (std::int32_t x = 0; x < 65; ++x) {
+    const auto local = x - 26;
+    const auto expected =
+        local >= 0 &&
+                local < static_cast<std::int32_t>(kPhotoshopImpulse.size())
+            ? kPhotoshopImpulse[static_cast<std::size_t>(local)]
+            : 128U;
+    const auto *pixel = rendered.pixels.pixel(x, 0);
+    CHECK(pixel[0] == expected && pixel[1] == expected &&
+          pixel[2] == expected && pixel[3] == 255U);
+  }
+
+  auto threshold_source = solid_rgba(65, 1, 128, 128, 128, 255);
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    threshold_source.pixel(31, 0)[channel] = 134U;
+    threshold_source.pixel(32, 0)[channel] = 142U;
+    threshold_source.pixel(33, 0)[channel] = 134U;
+  }
+  const auto thresholded = patchy::render_smart_filter_stack(
+      threshold_source, patchy::Rect::from_size(65, 1),
+      test_unsharp_mask_smart_filter_stack(175.0, 2.5, 7));
+  CHECK(thresholded.bounds.x == 0 && thresholded.bounds.y == 0 &&
+        thresholded.bounds.width == 65 && thresholded.bounds.height == 1);
+  for (std::int32_t x = 0; x < 65; ++x) {
+    const auto expected = x == 31 || x == 33 ? 134U : (x == 32 ? 152U : 128U);
+    const auto *pixel = thresholded.pixels.pixel(x, 0);
+    CHECK(pixel[0] == expected && pixel[1] == expected &&
+          pixel[2] == expected && pixel[3] == 255U);
+  }
+}
+
+void smart_filter_motion_blur_matches_photoshop_axis_kernel_and_growth() {
+  auto impulse = solid_rgba(65, 1, 0, 0, 0, 255);
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    impulse.pixel(32, 0)[channel] = 255U;
+  }
+  const auto rendered = patchy::render_photoshop_motion_blur(
+      impulse, patchy::Rect::from_size(65, 1), 0, 12);
+  for (std::int32_t x = 0; x < 65; ++x) {
+    const auto expected = x >= 26 && x <= 38 ? 20U : 0U;
+    const auto *pixel = rendered.pixels.pixel(x, 0);
+    CHECK(pixel[0] == expected && pixel[1] == expected &&
+          pixel[2] == expected && pixel[3] == 255U);
+  }
+
+  const auto short_blur = patchy::render_photoshop_motion_blur(
+      impulse, patchy::Rect::from_size(65, 1), 0, 1);
+  for (std::int32_t x = 0; x < 65; ++x) {
+    const auto expected = x == 31 || x == 32 ? 128U : 0U;
+    CHECK(short_blur.pixels.pixel(x, 0)[0] == expected);
+  }
+
+  auto transparent_point = solid_rgba(1, 1, 255, 255, 255, 255);
+  const auto grown = patchy::render_smart_filter_stack(
+      transparent_point, patchy::Rect{32, 0, 1, 1},
+      patchy::Rect::from_size(65, 1),
+      test_motion_blur_smart_filter_stack(0, 12));
+  CHECK(grown.bounds.x == 26 && grown.bounds.y == 0 &&
+        grown.bounds.width == 13 && grown.bounds.height == 1);
+  for (std::int32_t x = 0; x < grown.bounds.width; ++x) {
+    const auto *pixel = grown.pixels.pixel(x, 0);
+    CHECK(pixel[0] == 255U && pixel[1] == 255U && pixel[2] == 255U &&
+          pixel[3] == 20U);
+  }
+}
+
 void smart_filter_layer_model_revisions_are_explicit() {
   patchy::Layer layer(1, "Filtered", patchy::PixelBuffer(2, 2, patchy::PixelFormat::rgba8()));
   patchy::SmartFilterStack stack;
@@ -1641,5 +1718,9 @@ std::vector<patchy::test::TestCase> smart_filter_pixels_tests() {
        smart_filter_shared_mask_and_disable_states_are_applied_once},
       {"smart_filter_entry_blending_matches_photoshop_baked_pixels",
        smart_filter_entry_blending_matches_photoshop_baked_pixels},
+      {"smart_filter_unsharp_mask_matches_photoshop_scaled_threshold",
+       smart_filter_unsharp_mask_matches_photoshop_scaled_threshold},
+      {"smart_filter_motion_blur_matches_photoshop_axis_kernel_and_growth",
+       smart_filter_motion_blur_matches_photoshop_axis_kernel_and_growth},
   };
 }

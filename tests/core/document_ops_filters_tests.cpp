@@ -793,18 +793,23 @@ void filter_catalog_defines_stable_named_contracts() {
       const auto is_surface_blur_radius =
           actual.identifier == "patchy.filters.surface_blur" &&
           parameter.key == "radius";
+      const auto is_unsharp_mask_radius =
+          actual.identifier == "patchy.filters.unsharp_mask" &&
+          parameter.key == "radius";
       const auto is_fractional_radius =
-          is_high_pass_radius || is_median_radius || is_surface_blur_radius;
-      CHECK(parameter.kind ==
-            (is_fractional_radius ? patchy::FilterParameterKind::Double
-                                  : patchy::FilterParameterKind::Integer));
+          is_high_pass_radius || is_median_radius || is_surface_blur_radius ||
+          is_unsharp_mask_radius;
+      CHECK(parameter.kind == (is_fractional_radius
+                                   ? patchy::FilterParameterKind::Double
+                                   : patchy::FilterParameterKind::Integer));
       CHECK(parameter.display_name.size() > 0);
       CHECK(parameter.control_object_name.size() > 0);
       CHECK(parameter.minimum.has_value());
       CHECK(parameter.maximum.has_value());
-      const auto expected_step = is_median_radius || is_surface_blur_radius
-                                     ? 0.01
-                                     : (is_high_pass_radius ? 0.1 : 1.0);
+      const auto expected_step =
+          is_median_radius || is_surface_blur_radius
+              ? 0.01
+              : (is_high_pass_radius || is_unsharp_mask_radius ? 0.1 : 1.0);
       CHECK(parameter.step == expected_step);
       if (is_fractional_radius) {
         CHECK(std::get<double>(parameter.default_value) ==
@@ -842,6 +847,23 @@ void filter_catalog_defines_stable_named_contracts() {
         CHECK(parameter.maximum == 100.0);
         CHECK(parameter.practical_minimum == 1.0);
         CHECK(parameter.practical_maximum == 25.0);
+      } else if (is_unsharp_mask_radius) {
+        CHECK(parameter.minimum == 0.1);
+        CHECK(parameter.maximum == 1000.0);
+        CHECK(parameter.practical_minimum == 0.1);
+        CHECK(parameter.practical_maximum == 12.0);
+      } else if (actual.identifier == "patchy.filters.motion_blur" &&
+                 parameter.key == "angle") {
+        CHECK(parameter.minimum == -360.0);
+        CHECK(parameter.maximum == 360.0);
+        CHECK(parameter.practical_minimum == -180.0);
+        CHECK(parameter.practical_maximum == 180.0);
+      } else if (actual.identifier == "patchy.filters.motion_blur" &&
+                 parameter.key == "distance") {
+        CHECK(parameter.minimum == 1.0);
+        CHECK(parameter.maximum == 999.0);
+        CHECK(parameter.practical_minimum == 1.0);
+        CHECK(parameter.practical_maximum == 64.0);
       } else {
         CHECK(!parameter.practical_minimum.has_value());
         CHECK(!parameter.practical_maximum.has_value());
@@ -1441,6 +1463,13 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   auto surface = registry.default_invocation("patchy.filters.surface_blur");
   surface.parameters["radius"] = 9.25;
   surface.parameters["threshold"] = std::int64_t{31};
+  auto unsharp = registry.default_invocation("patchy.filters.unsharp_mask");
+  unsharp.parameters["amount"] = std::int64_t{225};
+  unsharp.parameters["radius"] = 4.75;
+  unsharp.parameters["threshold"] = std::int64_t{11};
+  auto motion = registry.default_invocation("patchy.filters.motion_blur");
+  motion.parameters["angle"] = std::int64_t{-61};
+  motion.parameters["distance"] = std::int64_t{27};
   const patchy::FilterRecipe recipe{{
       patchy::FilterRecipeEntry{first, true, 0.37,
                                 patchy::BlendMode::Multiply},
@@ -1448,16 +1477,16 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
                                 patchy::BlendMode::Overlay},
       patchy::FilterRecipeEntry{median, true, 0.5,
                                 patchy::BlendMode::SoftLight},
-      patchy::FilterRecipeEntry{dust, true, 0.25,
-                                patchy::BlendMode::Screen},
-      patchy::FilterRecipeEntry{surface, true, 0.8,
-                                patchy::BlendMode::Color},
-      patchy::FilterRecipeEntry{second, false, 1.0,
-                                patchy::BlendMode::Normal},
+      patchy::FilterRecipeEntry{dust, true, 0.25, patchy::BlendMode::Screen},
+      patchy::FilterRecipeEntry{surface, true, 0.8, patchy::BlendMode::Color},
+      patchy::FilterRecipeEntry{unsharp, true, 0.6,
+                                patchy::BlendMode::Luminosity},
+      patchy::FilterRecipeEntry{motion, true, 0.4, patchy::BlendMode::Lighten},
+      patchy::FilterRecipeEntry{second, false, 1.0, patchy::BlendMode::Normal},
   }};
   const auto mapped =
       patchy::smart_filter_entries_from_recipe(recipe, registry);
-  CHECK(mapped.has_value() && mapped->size() == 6U);
+  CHECK(mapped.has_value() && mapped->size() == 8U);
   CHECK((*mapped)[0].kind == patchy::SmartFilterKind::GaussianBlur);
   CHECK((*mapped)[0].enabled);
   CHECK(std::abs((*mapped)[0].opacity - 0.37) < 0.000001);
@@ -1511,11 +1540,32 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   CHECK(std::get<patchy::SurfaceBlurSmartFilter>(
             (*mapped)[4].parameters)
             .threshold == 31);
-  CHECK(!(*mapped)[5].enabled);
-  CHECK(std::abs(std::get<patchy::GaussianBlurSmartFilter>(
-                     (*mapped)[5].parameters)
-                     .radius_pixels -
-                 9.0) < 0.000001);
+  CHECK((*mapped)[5].kind == patchy::SmartFilterKind::UnsharpMask);
+  CHECK((*mapped)[5].native_name == "Unsharp Mask...");
+  CHECK((*mapped)[5].native_class_id == "UnsM");
+  CHECK((*mapped)[5].native_filter_id == 0x556e734dU);
+  CHECK(std::abs((*mapped)[5].opacity - 0.6) < 0.000001);
+  CHECK((*mapped)[5].blend_mode == patchy::BlendMode::Luminosity);
+  const auto &mapped_unsharp =
+      std::get<patchy::UnsharpMaskSmartFilter>((*mapped)[5].parameters);
+  CHECK(std::abs(mapped_unsharp.amount_percent - 225.0) < 0.000001);
+  CHECK(std::abs(mapped_unsharp.radius_pixels - 4.75) < 0.000001);
+  CHECK(mapped_unsharp.threshold == 11);
+  CHECK((*mapped)[6].kind == patchy::SmartFilterKind::MotionBlur);
+  CHECK((*mapped)[6].native_name == "Motion Blur...");
+  CHECK((*mapped)[6].native_class_id == "MtnB");
+  CHECK((*mapped)[6].native_filter_id == 0x4d746e42U);
+  CHECK(std::abs((*mapped)[6].opacity - 0.4) < 0.000001);
+  CHECK((*mapped)[6].blend_mode == patchy::BlendMode::Lighten);
+  const auto &mapped_motion =
+      std::get<patchy::MotionBlurSmartFilter>((*mapped)[6].parameters);
+  CHECK(mapped_motion.angle_degrees == -61);
+  CHECK(mapped_motion.distance_pixels == 27);
+  CHECK(!(*mapped)[7].enabled);
+  CHECK(std::abs(
+            std::get<patchy::GaussianBlurSmartFilter>((*mapped)[7].parameters)
+                .radius_pixels -
+            9.0) < 0.000001);
 
   auto mixed = recipe;
   mixed.entries.push_back(patchy::FilterRecipeEntry{
@@ -1533,6 +1583,14 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   auto malformed_surface = recipe;
   malformed_surface.entries[4].invocation.parameters["threshold"] = 31.0;
   CHECK(!patchy::smart_filter_entries_from_recipe(malformed_surface, registry)
+             .has_value());
+  auto malformed_unsharp = recipe;
+  malformed_unsharp.entries[5].invocation.parameters["amount"] = 225.0;
+  CHECK(!patchy::smart_filter_entries_from_recipe(malformed_unsharp, registry)
+             .has_value());
+  auto malformed_motion = recipe;
+  malformed_motion.entries[6].invocation.parameters["distance"] = 27.0;
+  CHECK(!patchy::smart_filter_entries_from_recipe(malformed_motion, registry)
              .has_value());
   CHECK(!patchy::smart_filter_entries_from_recipe({}, registry).has_value());
 }
