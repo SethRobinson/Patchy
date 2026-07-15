@@ -351,6 +351,29 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
        {{"radius", "filterRadius", 1, 100, 5, Unit::Pixels, Scale::Pixels,
          Kind::Double, 0.01},
         {"threshold", "filterThreshold", 2, 255, 15, Unit::None}}},
+      {"patchy.filters.lens_blur", Category::Blur, false,
+       {{"radius", "filterRadius", 0, 100, 15, Unit::Pixels, Scale::Pixels,
+         Kind::Double, 0.1},
+        {"blades", "filterBlades", 3, 8, 6, Unit::None},
+        {"blade_curvature", "filterBladeCurvature", 0, 100, 50,
+         Unit::Percent},
+        {"rotation", "filterRotation", -180, 180, 0, Unit::Degrees,
+         Scale::None, Kind::Integer, 1.0, Presentation::Angle}}},
+      {"patchy.filters.iris_blur", Category::Blur, false,
+       {{"blur", "filterBlur", 0, 100, 15, Unit::Pixels, Scale::Pixels,
+         Kind::Double, 0.1},
+        {"center_x", "filterCenterX", 0, 100, 50, Unit::Percent,
+         Scale::None, Kind::Double, 0.1, Presentation::CenterXPercent},
+        {"center_y", "filterCenterY", 0, 100, 50, Unit::Percent,
+         Scale::None, Kind::Double, 0.1, Presentation::CenterYPercent},
+        {"angle", "filterAngle", -180, 180, 0, Unit::Degrees, Scale::None,
+         Kind::Integer, 1.0, Presentation::Angle},
+        {"iris_width", "filterIrisWidth", 1, 200, 50, Unit::Percent,
+         Scale::None, Kind::Double, 0.1, Presentation::IrisWidthPercent},
+        {"iris_height", "filterIrisHeight", 1, 200, 40, Unit::Percent,
+         Scale::None, Kind::Double, 0.1, Presentation::IrisHeightPercent},
+        {"focus", "filterFocus", 0, 100, 50, Unit::Percent, Scale::None,
+         Kind::Double, 0.1}}},
       {"patchy.filters.tilt_shift_blur", Category::Blur, false,
        {{"blur", "filterBlur", 0, 500, 15, Unit::Pixels, Scale::Pixels,
          Kind::Double, 0.1},
@@ -468,6 +491,12 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
                  actual.key == "radius") {
         CHECK(actual.practical_minimum == 1.0);
         CHECK(actual.practical_maximum == 25.0);
+      } else if ((actual_filter.identifier == "patchy.filters.lens_blur" &&
+                  actual.key == "radius") ||
+                 (actual_filter.identifier == "patchy.filters.iris_blur" &&
+                  actual.key == "blur")) {
+        CHECK(actual.practical_minimum == 0.0);
+        CHECK(actual.practical_maximum == 50.0);
       } else if (actual_filter.identifier == "patchy.filters.unsharp_mask" &&
                  actual.key == "radius") {
         CHECK(actual.practical_minimum == 0.1);
@@ -536,6 +565,8 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
         QStringLiteral("filterAction_patchy_filters_motion_blur"),
         QStringLiteral("filterAction_patchy_filters_radial_blur"),
         QStringLiteral("filterAction_patchy_filters_surface_blur"),
+        QStringLiteral("filterAction_patchy_filters_lens_blur"),
+        QStringLiteral("filterAction_patchy_filters_iris_blur"),
         QStringLiteral("filterAction_patchy_filters_tilt_shift_blur")}},
       {"filterSharpenMenu",
        {QStringLiteral("filterAction_patchy_filters_sharpen"),
@@ -581,6 +612,14 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
       window, "filterAction_patchy_filters_surface_blur");
   CHECK(surface_action->text() == QStringLiteral("Surface Blur"));
   CHECK(surface_action->toolTip() == QStringLiteral("Surface Blur"));
+  auto* lens_action = require_action(
+      window, "filterAction_patchy_filters_lens_blur");
+  CHECK(lens_action->text() == QStringLiteral("Lens Blur"));
+  CHECK(lens_action->toolTip() == QStringLiteral("Lens Blur"));
+  auto* iris_action = require_action(
+      window, "filterAction_patchy_filters_iris_blur");
+  CHECK(iris_action->text() == QStringLiteral("Iris Blur"));
+  CHECK(iris_action->toolTip() == QStringLiteral("Iris Blur"));
   auto* plastic_action = require_action(
       window, "filterAction_patchy_filters_plastic_wrap");
   CHECK(plastic_action->text() == QStringLiteral("Plastic Wrap"));

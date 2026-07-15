@@ -317,6 +317,8 @@ void filters_register_and_apply() {
   CHECK(registry.find("patchy.filters.color_halftone") != nullptr);
   CHECK(registry.find("patchy.filters.film_grain") != nullptr);
   CHECK(registry.find("patchy.filters.vignette") != nullptr);
+  CHECK(registry.find("patchy.filters.lens_blur") != nullptr);
+  CHECK(registry.find("patchy.filters.iris_blur") != nullptr);
   CHECK(registry.find("patchy.filters.plastic_wrap") != nullptr);
 
   auto pixels = solid_rgb(1, 1, 1, 2, 3);
@@ -361,6 +363,8 @@ void filters_builtin_effects_apply_and_write_artifacts() {
       {"patchy.filters.color_halftone", "filter_color_halftone"},
       {"patchy.filters.film_grain", "filter_film_grain"},
       {"patchy.filters.vignette", "filter_vignette"},
+      {"patchy.filters.lens_blur", "filter_lens_blur"},
+      {"patchy.filters.iris_blur", "filter_iris_blur"},
       {"patchy.filters.plastic_wrap", "filter_plastic_wrap"},
   };
 
@@ -664,6 +668,8 @@ void filter_catalog_defines_stable_named_contracts() {
        {{"radius", 1}, {"threshold", 0}}},
       {"patchy.filters.surface_blur", Category::Blur, false,
        {{"radius", 5}, {"threshold", 15}}},
+      {"patchy.filters.lens_blur", Category::Blur, false, {}},
+      {"patchy.filters.iris_blur", Category::Blur, false, {}},
       {"patchy.filters.tilt_shift_blur", Category::Blur, false, {}},
       {"patchy.filters.plastic_wrap", Category::Artistic, false,
        {{"highlight_strength", 9}, {"detail", 7}, {"smoothness", 5}}},
@@ -719,6 +725,82 @@ void filter_catalog_defines_stable_named_contracts() {
     CHECK(actual.catalog.adjustment_only == wanted.adjustment_only);
     CHECK(actual.catalog.schema_version == 1);
     CHECK(static_cast<bool>(actual.catalog.execute));
+    if (actual.identifier == "patchy.filters.lens_blur") {
+      using Kind = patchy::FilterParameterKind;
+      using Presentation = patchy::FilterParameterPresentation;
+      using Scale = patchy::FilterSpatialScale;
+      using Unit = patchy::FilterParameterUnit;
+      CHECK(actual.catalog.parameters.size() == 4U);
+      const auto invocation = registry.default_invocation(actual.identifier);
+      const auto& radius = actual.catalog.parameters[0];
+      CHECK(radius.key == "radius");
+      CHECK(radius.control_object_name == "filterRadius");
+      CHECK(radius.kind == Kind::Double);
+      CHECK(radius.minimum == 0.0 && radius.maximum == 100.0);
+      CHECK(radius.step == 0.1);
+      CHECK(radius.unit == Unit::Pixels);
+      CHECK(radius.spatial_scale == Scale::Pixels);
+      CHECK(std::get<double>(radius.default_value) == 15.0);
+      CHECK(radius.practical_minimum == 0.0);
+      CHECK(radius.practical_maximum == 50.0);
+      const auto& blades = actual.catalog.parameters[1];
+      CHECK(blades.key == "blades");
+      CHECK(blades.kind == Kind::Integer);
+      CHECK(blades.minimum == 3.0 && blades.maximum == 8.0);
+      CHECK(std::get<std::int64_t>(blades.default_value) == 6);
+      const auto& curvature = actual.catalog.parameters[2];
+      CHECK(curvature.key == "blade_curvature");
+      CHECK(curvature.unit == Unit::Percent);
+      CHECK(std::get<std::int64_t>(curvature.default_value) == 50);
+      const auto& rotation = actual.catalog.parameters[3];
+      CHECK(rotation.key == "rotation");
+      CHECK(rotation.unit == Unit::Degrees);
+      CHECK(rotation.presentation == Presentation::Angle);
+      CHECK(std::get<std::int64_t>(rotation.default_value) == 0);
+      CHECK(std::get<double>(invocation.parameters.at("radius")) == 15.0);
+      spatial_parameters.insert("patchy.filters.lens_blur/radius");
+      continue;
+    }
+    if (actual.identifier == "patchy.filters.iris_blur") {
+      using Kind = patchy::FilterParameterKind;
+      using Presentation = patchy::FilterParameterPresentation;
+      using Scale = patchy::FilterSpatialScale;
+      using Unit = patchy::FilterParameterUnit;
+      CHECK(actual.catalog.parameters.size() == 7U);
+      const auto invocation = registry.default_invocation(actual.identifier);
+      const auto& blur = actual.catalog.parameters[0];
+      CHECK(blur.key == "blur");
+      CHECK(blur.kind == Kind::Double);
+      CHECK(blur.minimum == 0.0 && blur.maximum == 100.0);
+      CHECK(blur.step == 0.1);
+      CHECK(blur.unit == Unit::Pixels);
+      CHECK(blur.spatial_scale == Scale::Pixels);
+      CHECK(std::get<double>(blur.default_value) == 15.0);
+      CHECK(blur.practical_minimum == 0.0);
+      CHECK(blur.practical_maximum == 50.0);
+      CHECK(actual.catalog.parameters[1].presentation ==
+            Presentation::CenterXPercent);
+      CHECK(actual.catalog.parameters[2].presentation ==
+            Presentation::CenterYPercent);
+      CHECK(actual.catalog.parameters[3].presentation == Presentation::Angle);
+      const auto& width = actual.catalog.parameters[4];
+      const auto& height = actual.catalog.parameters[5];
+      const auto& focus = actual.catalog.parameters[6];
+      CHECK(width.key == "iris_width");
+      CHECK(width.minimum == 1.0 && width.maximum == 200.0);
+      CHECK(width.presentation == Presentation::IrisWidthPercent);
+      CHECK(std::get<double>(width.default_value) == 50.0);
+      CHECK(height.key == "iris_height");
+      CHECK(height.minimum == 1.0 && height.maximum == 200.0);
+      CHECK(height.presentation == Presentation::IrisHeightPercent);
+      CHECK(std::get<double>(height.default_value) == 40.0);
+      CHECK(focus.key == "focus");
+      CHECK(focus.minimum == 0.0 && focus.maximum == 100.0);
+      CHECK(std::get<double>(focus.default_value) == 50.0);
+      CHECK(std::get<double>(invocation.parameters.at("blur")) == 15.0);
+      spatial_parameters.insert("patchy.filters.iris_blur/blur");
+      continue;
+    }
     if (actual.identifier == "patchy.filters.tilt_shift_blur") {
       using Kind = patchy::FilterParameterKind;
       using Presentation = patchy::FilterParameterPresentation;
@@ -912,6 +994,8 @@ void filter_catalog_defines_stable_named_contracts() {
       "patchy.filters.median/radius",
       "patchy.filters.dust_and_scratches/radius",
       "patchy.filters.surface_blur/radius",
+      "patchy.filters.lens_blur/radius",
+      "patchy.filters.iris_blur/blur",
       "patchy.filters.tilt_shift_blur/blur",
   };
   CHECK(spatial_parameters == expected_spatial);
@@ -1575,6 +1659,15 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   mixed.entries.push_back(patchy::FilterRecipeEntry{
       registry.default_invocation("patchy.filters.sharpen"), false});
   CHECK(!patchy::smart_filter_entries_from_recipe(mixed, registry)
+             .has_value());
+  auto lens_mixed = recipe;
+  lens_mixed.entries.push_back(patchy::FilterRecipeEntry{
+      registry.default_invocation("patchy.filters.lens_blur"), true});
+  CHECK(!patchy::smart_filter_entries_from_recipe(lens_mixed, registry)
+             .has_value());
+  const patchy::FilterRecipe iris_only{{patchy::FilterRecipeEntry{
+      registry.default_invocation("patchy.filters.iris_blur"), true}}};
+  CHECK(!patchy::smart_filter_entries_from_recipe(iris_only, registry)
              .has_value());
   auto wrong_schema = recipe;
   wrong_schema.entries.front().invocation.schema_version = 2U;

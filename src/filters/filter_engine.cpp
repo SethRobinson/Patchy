@@ -832,6 +832,366 @@ void tilt_blend_levels(PixelBuffer &output, const PixelBuffer &low,
                          FilterProgressStage::Blurring);
 }
 
+constexpr std::int64_t kAperturePositionScale = 8;
+constexpr std::int64_t kApertureNormalScale = 1LL << 20;
+constexpr int kApertureCoverageGrid = 4;
+constexpr double kMaximumFullResolutionApertureRadius = 6.0;
+
+struct ApertureKernelSample {
+  std::int32_t x{};
+  std::int32_t y{};
+  std::uint32_t weight{};
+};
+
+struct ApertureKernel {
+  std::vector<ApertureKernelSample> samples;
+  std::uint64_t weight_sum{};
+};
+
+[[nodiscard]] ApertureKernel build_aperture_kernel(
+    double radius, int blade_count, int curvature_percent,
+    int rotation_degrees) {
+  radius = std::clamp(radius, 0.0, kMaximumFullResolutionApertureRadius);
+  blade_count = std::clamp(blade_count, 3, 8);
+  curvature_percent = std::clamp(curvature_percent, 0, 100);
+  rotation_degrees = std::clamp(rotation_degrees, -180, 180);
+
+  const auto radius_fixed = std::max<std::int64_t>(
+      1, std::llround(radius * kAperturePositionScale));
+  const auto radius_squared = static_cast<std::uint64_t>(radius_fixed) *
+                              static_cast<std::uint64_t>(radius_fixed);
+  const auto apothem = static_cast<std::int64_t>(std::llround(
+      static_cast<double>(radius_fixed) *
+      std::cos(kFilterPi / static_cast<double>(blade_count)) *
+      static_cast<double>(kApertureNormalScale)));
+  std::vector<std::array<std::int64_t, 2>> side_normals;
+  side_normals.reserve(static_cast<std::size_t>(blade_count));
+  const auto rotation =
+      static_cast<double>(rotation_degrees) * kFilterPi / 180.0;
+  for (int side = 0; side < blade_count; ++side) {
+    const auto angle = rotation +
+                       (2.0 * static_cast<double>(side) + 1.0) * kFilterPi /
+                           static_cast<double>(blade_count);
+    side_normals.push_back(
+        {std::llround(std::cos(angle) * kApertureNormalScale),
+         std::llround(std::sin(angle) * kApertureNormalScale)});
+  }
+
+  ApertureKernel kernel;
+  const auto extent = std::max(
+      1, static_cast<int>(std::ceil(radius + 0.5)));
+  kernel.samples.reserve(static_cast<std::size_t>((extent * 2 + 1) *
+                                                   (extent * 2 + 1)));
+  for (int y = -extent; y <= extent; ++y) {
+    for (int x = -extent; x <= extent; ++x) {
+      int polygon_coverage = 0;
+      int circle_coverage = 0;
+      for (int sub_y = 0; sub_y < kApertureCoverageGrid; ++sub_y) {
+        const auto sample_y =
+            static_cast<std::int64_t>(y) * kAperturePositionScale +
+            (sub_y * 2 + 1 - kApertureCoverageGrid);
+        for (int sub_x = 0; sub_x < kApertureCoverageGrid; ++sub_x) {
+          const auto sample_x =
+              static_cast<std::int64_t>(x) * kAperturePositionScale +
+              (sub_x * 2 + 1 - kApertureCoverageGrid);
+          const auto squared =
+              static_cast<std::uint64_t>(sample_x * sample_x) +
+              static_cast<std::uint64_t>(sample_y * sample_y);
+          if (squared <= radius_squared) {
+            ++circle_coverage;
+          }
+          const auto inside_polygon =
+              std::all_of(side_normals.begin(), side_normals.end(),
+                          [&](const auto &normal) {
+                            return sample_x * normal[0] +
+                                       sample_y * normal[1] <=
+                                   apothem;
+                          });
+          if (inside_polygon) {
+            ++polygon_coverage;
+          }
+        }
+      }
+      const auto weight = static_cast<std::uint32_t>(
+          polygon_coverage * (100 - curvature_percent) +
+          circle_coverage * curvature_percent);
+      if (weight == 0U) {
+        continue;
+      }
+      kernel.samples.push_back(ApertureKernelSample{x, y, weight});
+      kernel.weight_sum += weight;
+    }
+  }
+  if (kernel.samples.empty() || kernel.weight_sum == 0U) {
+    kernel.samples = {{0, 0, 1U}};
+    kernel.weight_sum = 1U;
+  }
+  return kernel;
+}
+
+[[nodiscard]] PixelBuffer aperture_pad_source(const PixelBuffer &source,
+                                              int margin) {
+  const auto width = static_cast<std::int64_t>(source.width()) +
+                     static_cast<std::int64_t>(margin) * 2LL;
+  const auto height = static_cast<std::int64_t>(source.height()) +
+                      static_cast<std::int64_t>(margin) * 2LL;
+  if (width <= 0 || height <= 0 ||
+      width > std::numeric_limits<std::int32_t>::max() ||
+      height > std::numeric_limits<std::int32_t>::max()) {
+    throw std::overflow_error("Lens Blur working buffer overflow");
+  }
+  PixelBuffer output(static_cast<std::int32_t>(width),
+                     static_cast<std::int32_t>(height), source.format());
+  output.clear(0);
+  const auto has_alpha = source.format().channels >= 4;
+  for (std::int32_t y = 0; y < output.height(); ++y) {
+    const auto source_y = y - margin;
+    for (std::int32_t x = 0; x < output.width(); ++x) {
+      const auto source_x = x - margin;
+      if (has_alpha &&
+          (source_x < 0 || source_y < 0 || source_x >= source.width() ||
+           source_y >= source.height())) {
+        continue;
+      }
+      const auto clamped_x =
+          std::clamp<std::int32_t>(source_x, 0, source.width() - 1);
+      const auto clamped_y =
+          std::clamp<std::int32_t>(source_y, 0, source.height() - 1);
+      std::copy(source.pixel(clamped_x, clamped_y),
+                source.pixel(clamped_x, clamped_y) + source.format().channels,
+                output.pixel(x, y));
+    }
+  }
+  return output;
+}
+
+[[nodiscard]] PixelBuffer aperture_crop_source(const PixelBuffer &source,
+                                               int margin,
+                                               std::int32_t width,
+                                               std::int32_t height) {
+  PixelBuffer output(width, height, source.format());
+  const auto row_bytes = static_cast<std::size_t>(width) *
+                         bytes_per_pixel(source.format());
+  for (std::int32_t y = 0; y < height; ++y) {
+    const auto *source_row = source.pixel(margin, margin + y);
+    std::copy(source_row, source_row + row_bytes, output.pixel(0, y));
+  }
+  return output;
+}
+
+[[nodiscard]] PixelBuffer aperture_downsample(
+    const PixelBuffer &source, int factor, const FilterProgress *progress) {
+  const auto width =
+      std::max<std::int32_t>(1, (source.width() + factor - 1) / factor);
+  const auto height =
+      std::max<std::int32_t>(1, (source.height() + factor - 1) / factor);
+  PixelBuffer output(width, height, source.format());
+  output.clear(0);
+  const auto has_alpha = source.format().channels >= 4;
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_filter_progress(progress, y, height,
+                           FilterProgressStage::Blurring);
+    const auto first_y = y * factor;
+    const auto last_y = std::min(source.height(), first_y + factor);
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto first_x = x * factor;
+      const auto last_x = std::min(source.width(), first_x + factor);
+      const auto sample_count = static_cast<std::uint64_t>(
+          std::max(1, (last_x - first_x) * (last_y - first_y)));
+      std::array<std::uint64_t, 3> color{};
+      std::uint64_t alpha_sum = 0U;
+      for (auto sample_y = first_y; sample_y < last_y; ++sample_y) {
+        for (auto sample_x = first_x; sample_x < last_x; ++sample_x) {
+          const auto *pixel = source.pixel(sample_x, sample_y);
+          const auto alpha =
+              static_cast<std::uint64_t>(has_alpha ? pixel[3] : 255U);
+          alpha_sum += alpha;
+          for (std::size_t channel = 0; channel < 3U; ++channel) {
+            color[channel] +=
+                static_cast<std::uint64_t>(pixel[channel]) * alpha;
+          }
+        }
+      }
+      auto *destination = output.pixel(x, y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        destination[channel] =
+            alpha_sum == 0U
+                ? 0U
+                : static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                      255U, (color[channel] + alpha_sum / 2U) / alpha_sum));
+      }
+      if (has_alpha) {
+        destination[3] = static_cast<std::uint8_t>(
+            std::min<std::uint64_t>(
+                255U, (alpha_sum + sample_count / 2U) / sample_count));
+      }
+    }
+  }
+  report_filter_progress(progress, height, height,
+                         FilterProgressStage::Blurring);
+  return output;
+}
+
+[[nodiscard]] PixelBuffer aperture_convolve(
+    const PixelBuffer &source, const ApertureKernel &kernel,
+    const FilterProgress *progress) {
+  PixelBuffer output(source.width(), source.height(), source.format());
+  output.clear(0);
+  const auto has_alpha = source.format().channels >= 4;
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    report_filter_progress(progress, y, source.height(),
+                           FilterProgressStage::Blurring);
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      std::array<std::uint64_t, 3> color{};
+      std::uint64_t alpha_sum = 0U;
+      for (const auto &sample : kernel.samples) {
+        auto sample_x = x + sample.x;
+        auto sample_y = y + sample.y;
+        if (has_alpha &&
+            (sample_x < 0 || sample_y < 0 ||
+             sample_x >= source.width() || sample_y >= source.height())) {
+          continue;
+        }
+        sample_x = std::clamp<std::int32_t>(sample_x, 0, source.width() - 1);
+        sample_y = std::clamp<std::int32_t>(sample_y, 0, source.height() - 1);
+        const auto *pixel = source.pixel(sample_x, sample_y);
+        const auto alpha =
+            static_cast<std::uint64_t>(has_alpha ? pixel[3] : 255U);
+        const auto alpha_weight =
+            alpha * static_cast<std::uint64_t>(sample.weight);
+        alpha_sum += alpha_weight;
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          color[channel] +=
+              static_cast<std::uint64_t>(pixel[channel]) * alpha_weight;
+        }
+      }
+      auto *destination = output.pixel(x, y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        destination[channel] =
+            alpha_sum == 0U
+                ? 0U
+                : static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                      255U, (color[channel] + alpha_sum / 2U) / alpha_sum));
+      }
+      if (has_alpha) {
+        const auto denominator = kernel.weight_sum * 255U;
+        destination[3] = static_cast<std::uint8_t>(
+            std::min<std::uint64_t>(
+                255U, (alpha_sum * 255U + denominator / 2U) /
+                          denominator));
+        if (destination[3] == 0U) {
+          destination[0] = 0U;
+          destination[1] = 0U;
+          destination[2] = 0U;
+        }
+      }
+    }
+  }
+  report_filter_progress(progress, source.height(), source.height(),
+                         FilterProgressStage::Blurring);
+  return output;
+}
+
+[[nodiscard]] PixelBuffer aperture_upsample(
+    const PixelBuffer &source, std::int32_t width, std::int32_t height,
+    int factor, const FilterProgress *progress) {
+  constexpr std::int64_t kCoordinateScale = 65536;
+  constexpr std::uint64_t kBilinearWeight =
+      static_cast<std::uint64_t>(kCoordinateScale) * kCoordinateScale;
+  PixelBuffer output(width, height, source.format());
+  output.clear(0);
+  const auto has_alpha = source.format().channels >= 4;
+  const auto coordinate_for = [factor](std::int32_t value,
+                                       std::int32_t source_extent) {
+    const auto numerator =
+        (static_cast<std::int64_t>(value) * 2LL + 1LL) * 65536LL;
+    const auto coordinate = numerator / (factor * 2LL) - 32768LL;
+    return std::clamp<std::int64_t>(
+        coordinate, 0,
+        static_cast<std::int64_t>(std::max(0, source_extent - 1)) * 65536LL);
+  };
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_filter_progress(progress, y, height,
+                           FilterProgressStage::Blurring);
+    const auto sample_y = coordinate_for(y, source.height());
+    const auto y0 = static_cast<std::int32_t>(sample_y / kCoordinateScale);
+    const auto y1 = std::min(source.height() - 1, y0 + 1);
+    const auto fraction_y = sample_y % kCoordinateScale;
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto sample_x = coordinate_for(x, source.width());
+      const auto x0 = static_cast<std::int32_t>(sample_x / kCoordinateScale);
+      const auto x1 = std::min(source.width() - 1, x0 + 1);
+      const auto fraction_x = sample_x % kCoordinateScale;
+      const std::array<std::uint64_t, 4> weights{
+          static_cast<std::uint64_t>(kCoordinateScale - fraction_x) *
+              static_cast<std::uint64_t>(kCoordinateScale - fraction_y),
+          static_cast<std::uint64_t>(fraction_x) *
+              static_cast<std::uint64_t>(kCoordinateScale - fraction_y),
+          static_cast<std::uint64_t>(kCoordinateScale - fraction_x) *
+              static_cast<std::uint64_t>(fraction_y),
+          static_cast<std::uint64_t>(fraction_x) *
+              static_cast<std::uint64_t>(fraction_y)};
+      const std::array<const std::uint8_t *, 4> pixels{
+          source.pixel(x0, y0), source.pixel(x1, y0), source.pixel(x0, y1),
+          source.pixel(x1, y1)};
+      std::array<std::uint64_t, 3> color{};
+      std::uint64_t alpha_sum = 0U;
+      for (std::size_t corner = 0; corner < pixels.size(); ++corner) {
+        const auto alpha = static_cast<std::uint64_t>(
+            has_alpha ? pixels[corner][3] : 255U);
+        const auto alpha_weight = alpha * weights[corner];
+        alpha_sum += alpha_weight;
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          color[channel] += static_cast<std::uint64_t>(
+                                pixels[corner][channel]) *
+                            alpha_weight;
+        }
+      }
+      auto *destination = output.pixel(x, y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        destination[channel] =
+            alpha_sum == 0U
+                ? 0U
+                : static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                      255U, (color[channel] + alpha_sum / 2U) / alpha_sum));
+      }
+      if (has_alpha) {
+        const auto denominator = kBilinearWeight * 255U;
+        destination[3] = static_cast<std::uint8_t>(
+            std::min<std::uint64_t>(
+                255U, (alpha_sum * 255U + denominator / 2U) /
+                          denominator));
+        if (destination[3] == 0U) {
+          destination[0] = 0U;
+          destination[1] = 0U;
+          destination[2] = 0U;
+        }
+      }
+    }
+  }
+  report_filter_progress(progress, height, height,
+                         FilterProgressStage::Blurring);
+  return output;
+}
+
+[[nodiscard]] std::uint64_t integer_square_root(std::uint64_t value) {
+  std::uint64_t result = 0U;
+  std::uint64_t bit = 1ULL << 62U;
+  while (bit > value) {
+    bit >>= 2U;
+  }
+  while (bit != 0U) {
+    if (value >= result + bit) {
+      value -= result + bit;
+      result = (result >> 1U) + bit;
+    } else {
+      result >>= 1U;
+    }
+    bit >>= 2U;
+  }
+  return result;
+}
+
 std::uint32_t filter_coordinate_hash(std::int32_t x, std::int32_t y,
                                      std::uint16_t channel) noexcept {
   auto value = static_cast<std::uint32_t>(x + 1) * 73856093U;
@@ -1631,6 +1991,35 @@ void execute_builtin_filter(const FilterRegistry &registry,
     return;
   }
 
+  if (identifier == "patchy.filters.lens_blur") {
+    apply_lens_blur_filter(
+        pixels,
+        std::clamp(filter_number(invocation, "radius", 15.0), 0.0, 100.0),
+        std::clamp(filter_value(invocation, "blades", 6), 3, 8),
+        std::clamp(filter_value(invocation, "blade_curvature", 50), 0, 100),
+        std::clamp(filter_value(invocation, "rotation", 0), -180, 180),
+        progress);
+    return;
+  }
+
+  if (identifier == "patchy.filters.iris_blur") {
+    apply_iris_blur_filter(
+        pixels,
+        std::clamp(filter_number(invocation, "blur", 15.0), 0.0, 100.0),
+        std::clamp(filter_number(invocation, "center_x", 50.0), 0.0,
+                   100.0),
+        std::clamp(filter_number(invocation, "center_y", 50.0), 0.0,
+                   100.0),
+        std::clamp(filter_value(invocation, "angle", 0), -180, 180),
+        std::clamp(filter_number(invocation, "iris_width", 50.0), 1.0,
+                   200.0),
+        std::clamp(filter_number(invocation, "iris_height", 40.0), 1.0,
+                   200.0),
+        std::clamp(filter_number(invocation, "focus", 50.0), 0.0, 100.0),
+        progress);
+    return;
+  }
+
   if (identifier == "patchy.filters.tilt_shift_blur") {
     const auto blur = std::clamp(
         filter_number(invocation, "blur", 15.0), 0.0, 500.0);
@@ -2057,6 +2446,217 @@ int off_center_radial_blur_margin(const FilterInvocation &invocation,
 
 } // namespace
 
+void apply_lens_blur_filter(PixelBuffer &pixels, double radius_pixels,
+                            int blade_count, int blade_curvature_percent,
+                            int rotation_degrees,
+                            const FilterProgress *progress) {
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    throw std::invalid_argument("Lens Blur supports UInt8 buffers only");
+  }
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    report_filter_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return;
+  }
+  if (!std::isfinite(radius_pixels)) {
+    throw std::invalid_argument("Invalid Lens Blur settings");
+  }
+  radius_pixels = std::clamp(radius_pixels, 0.0, 100.0);
+  blade_count = std::clamp(blade_count, 3, 8);
+  blade_curvature_percent = std::clamp(blade_curvature_percent, 0, 100);
+  rotation_degrees = std::clamp(rotation_degrees, -180, 180);
+  if (radius_pixels <= 0.0) {
+    report_filter_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return;
+  }
+
+  // Patent boundary: this is one fixed aperture convolution selected entirely
+  // by explicit numeric settings. It does not infer a depth map, detect or
+  // boost highlights, classify content, or vary its kernel per pixel.
+  const auto factor = std::max(
+      1, static_cast<int>(std::ceil(
+             radius_pixels / kMaximumFullResolutionApertureRadius)));
+  const auto base_margin = static_cast<int>(std::ceil(radius_pixels)) +
+                           factor + 1;
+  const auto working_margin =
+      ((base_margin + factor - 1) / factor) * factor;
+  const auto original_width = pixels.width();
+  const auto original_height = pixels.height();
+  auto working = aperture_pad_source(pixels, working_margin);
+  if (factor == 1) {
+    const auto kernel = build_aperture_kernel(
+        radius_pixels, blade_count, blade_curvature_percent,
+        rotation_degrees);
+    working = aperture_convolve(working, kernel, progress);
+    pixels = aperture_crop_source(working, working_margin, original_width,
+                                  original_height);
+    return;
+  }
+
+  auto downsample_progress = filter_progress_phase(progress, 0, 3);
+  auto proxy =
+      aperture_downsample(working, factor, &downsample_progress);
+  const auto kernel = build_aperture_kernel(
+      radius_pixels / static_cast<double>(factor), blade_count,
+      blade_curvature_percent, rotation_degrees);
+  auto blur_progress = filter_progress_phase(progress, 1, 3);
+  proxy = aperture_convolve(proxy, kernel, &blur_progress);
+  auto upsample_progress = filter_progress_phase(progress, 2, 3);
+  working = aperture_upsample(proxy, working.width(), working.height(), factor,
+                              &upsample_progress);
+  pixels = aperture_crop_source(working, working_margin, original_width,
+                                original_height);
+}
+
+void apply_iris_blur_filter(PixelBuffer &pixels, double blur_pixels,
+                            double center_x_percent,
+                            double center_y_percent, int angle_degrees,
+                            double iris_width_percent,
+                            double iris_height_percent,
+                            double focus_percent,
+                            const FilterProgress *progress) {
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    throw std::invalid_argument("Iris Blur supports UInt8 buffers only");
+  }
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    report_filter_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return;
+  }
+  if (!std::isfinite(blur_pixels) || !std::isfinite(center_x_percent) ||
+      !std::isfinite(center_y_percent) ||
+      !std::isfinite(iris_width_percent) ||
+      !std::isfinite(iris_height_percent) ||
+      !std::isfinite(focus_percent)) {
+    throw std::invalid_argument("Invalid Iris Blur settings");
+  }
+  blur_pixels = std::clamp(blur_pixels, 0.0, 100.0);
+  center_x_percent = std::clamp(center_x_percent, 0.0, 100.0);
+  center_y_percent = std::clamp(center_y_percent, 0.0, 100.0);
+  angle_degrees = std::clamp(angle_degrees, -180, 180);
+  iris_width_percent = std::clamp(iris_width_percent, 1.0, 200.0);
+  iris_height_percent = std::clamp(iris_height_percent, 1.0, 200.0);
+  focus_percent = std::clamp(focus_percent, 0.0, 100.0);
+  if (blur_pixels <= 0.0) {
+    report_filter_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return;
+  }
+
+  // Patent boundary: one ellipse creates one scalar mix mask, and one fixed
+  // blur is computed before that mask is applied. There are no multiple pins,
+  // combined blur patterns, per-pixel variable-radius kernels, or bokeh boost.
+  const auto source = pixels;
+  auto blur_progress = filter_progress_phase(progress, 0, 2);
+  apply_lens_blur_filter(pixels, blur_pixels, 8, 100, 0,
+                         &blur_progress);
+
+  constexpr std::int64_t kGeometryScale = 65536;
+  constexpr std::int64_t kDirectionScale = 1LL << 20;
+  constexpr std::uint64_t kMixScale = 65535U;
+  const auto radians =
+      static_cast<double>(angle_degrees) * kFilterPi / 180.0;
+  const auto cosine = static_cast<std::int64_t>(
+      std::llround(std::cos(radians) * kDirectionScale));
+  const auto sine = static_cast<std::int64_t>(
+      std::llround(std::sin(radians) * kDirectionScale));
+  const auto center_x = static_cast<std::int64_t>(std::llround(
+      filter_center_coordinate(pixels.width(), center_x_percent) *
+      kGeometryScale));
+  const auto center_y = static_cast<std::int64_t>(std::llround(
+      filter_center_coordinate(pixels.height(), center_y_percent) *
+      kGeometryScale));
+  const auto radius_x = std::max<std::int64_t>(
+      kGeometryScale,
+      static_cast<std::int64_t>(std::llround(
+          static_cast<double>(std::max(1, pixels.width())) *
+          iris_width_percent * kGeometryScale / 200.0)));
+  const auto radius_y = std::max<std::int64_t>(
+      kGeometryScale,
+      static_cast<std::int64_t>(std::llround(
+          static_cast<double>(std::max(1, pixels.height())) *
+          iris_height_percent * kGeometryScale / 200.0)));
+  const auto focus = static_cast<std::uint64_t>(
+      std::llround(focus_percent * static_cast<double>(kMixScale) / 100.0));
+  const auto transition = kMixScale - focus;
+  const auto smoothstep_denominator = kMixScale * kMixScale;
+  const auto has_alpha = pixels.format().channels >= 4;
+  auto blend_progress = filter_progress_phase(progress, 1, 2);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_filter_progress(&blend_progress, y, pixels.height(),
+                           FilterProgressStage::Blurring);
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto offset_x =
+          static_cast<std::int64_t>(x) * kGeometryScale - center_x;
+      const auto offset_y =
+          static_cast<std::int64_t>(y) * kGeometryScale - center_y;
+      const auto rotated_x =
+          (offset_x * cosine + offset_y * sine) / kDirectionScale;
+      const auto rotated_y =
+          (-offset_x * sine + offset_y * cosine) / kDirectionScale;
+      const auto normalized_x = static_cast<std::uint64_t>(
+          (static_cast<std::uint64_t>(std::abs(rotated_x)) * kMixScale +
+           static_cast<std::uint64_t>(radius_x) / 2U) /
+          static_cast<std::uint64_t>(radius_x));
+      const auto normalized_y = static_cast<std::uint64_t>(
+          (static_cast<std::uint64_t>(std::abs(rotated_y)) * kMixScale +
+           static_cast<std::uint64_t>(radius_y) / 2U) /
+          static_cast<std::uint64_t>(radius_y));
+      const auto distance = integer_square_root(
+          normalized_x * normalized_x + normalized_y * normalized_y);
+      std::uint64_t amount = 0U;
+      if (distance > focus) {
+        if (distance >= kMixScale || transition == 0U) {
+          amount = kMixScale;
+        } else {
+          const auto position =
+              ((distance - focus) * kMixScale + transition / 2U) /
+              transition;
+          amount =
+              (position * position * (3U * kMixScale - 2U * position) +
+               smoothstep_denominator / 2U) /
+              smoothstep_denominator;
+        }
+      }
+      if (amount == kMixScale) {
+        continue;
+      }
+      auto *destination = pixels.pixel(x, y);
+      const auto *original = source.pixel(x, y);
+      if (amount == 0U) {
+        std::copy(original, original + pixels.format().channels,
+                  destination);
+        continue;
+      }
+      const auto inverse = kMixScale - amount;
+      const auto source_alpha = static_cast<std::uint64_t>(
+          has_alpha ? original[3] : 255U);
+      const auto blurred_alpha = static_cast<std::uint64_t>(
+          has_alpha ? destination[3] : 255U);
+      const auto alpha_numerator =
+          source_alpha * inverse + blurred_alpha * amount;
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        const auto premultiplied =
+            static_cast<std::uint64_t>(original[channel]) * source_alpha *
+                inverse +
+            static_cast<std::uint64_t>(destination[channel]) *
+                blurred_alpha * amount;
+        destination[channel] =
+            alpha_numerator == 0U
+                ? 0U
+                : static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                      255U,
+                      (premultiplied + alpha_numerator / 2U) /
+                          alpha_numerator));
+      }
+      if (has_alpha) {
+        destination[3] = static_cast<std::uint8_t>(
+            std::min<std::uint64_t>(
+                255U, (alpha_numerator + kMixScale / 2U) / kMixScale));
+      }
+    }
+  }
+  report_filter_progress(&blend_progress, pixels.height(), pixels.height(),
+                         FilterProgressStage::Blurring);
+}
+
 void apply_tilt_shift_blur_filter(PixelBuffer &pixels, double blur_pixels,
                                   double center_x_percent,
                                   double center_y_percent, int angle_degrees,
@@ -2351,6 +2951,44 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
          integer_parameter("detail", "Detail", "filterDetail", 1, 15, 7),
          integer_parameter("smoothness", "Smoothness", "filterSmoothness",
                            1, 15, 5)});
+  } else if (identifier == "patchy.filters.lens_blur") {
+    auto radius = double_parameter("radius", "Radius", "filterRadius", 0.0,
+                                   100.0, 15.0, 0.1, Unit::Pixels,
+                                   Scale::Pixels);
+    radius.practical_minimum = 0.0;
+    radius.practical_maximum = 50.0;
+    metadata = catalog_metadata(
+        Category::Blur, false,
+        {std::move(radius),
+         integer_parameter("blades", "Blades", "filterBlades", 3, 8, 6),
+         integer_parameter("blade_curvature", "Blade Curvature",
+                           "filterBladeCurvature", 0, 100, 50,
+                           Unit::Percent),
+         integer_parameter("rotation", "Rotation", "filterRotation", -180,
+                           180, 0, Unit::Degrees, Scale::None,
+                           Presentation::Angle)});
+  } else if (identifier == "patchy.filters.iris_blur") {
+    auto blur = double_parameter("blur", "Blur", "filterBlur", 0.0, 100.0,
+                                 15.0, 0.1, Unit::Pixels, Scale::Pixels);
+    blur.practical_minimum = 0.0;
+    blur.practical_maximum = 50.0;
+    metadata = catalog_metadata(
+        Category::Blur, false,
+        {std::move(blur),
+         center("center_x", "Center X", "filterCenterX",
+                Presentation::CenterXPercent),
+         center("center_y", "Center Y", "filterCenterY",
+                Presentation::CenterYPercent),
+         integer_parameter("angle", "Angle", "filterAngle", -180, 180, 0,
+                           Unit::Degrees, Scale::None, Presentation::Angle),
+         double_parameter("iris_width", "Iris Width", "filterIrisWidth",
+                          1.0, 200.0, 50.0, 0.1, Unit::Percent, Scale::None,
+                          Presentation::IrisWidthPercent),
+         double_parameter("iris_height", "Iris Height", "filterIrisHeight",
+                          1.0, 200.0, 40.0, 0.1, Unit::Percent, Scale::None,
+                          Presentation::IrisHeightPercent),
+         double_parameter("focus", "Focus", "filterFocus", 0.0, 100.0,
+                          50.0, 0.1, Unit::Percent)});
   } else if (identifier == "patchy.filters.tilt_shift_blur") {
     auto blur = double_parameter("blur", "Blur", "filterBlur", 0.0, 500.0,
                                  15.0, 0.1, Unit::Pixels, Scale::Pixels);
@@ -2535,6 +3173,24 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
       const auto radius = std::clamp(
           catalog_number(invocation, "radius", 5.0), 1.0, 100.0);
       return std::max(1, static_cast<int>(std::floor(radius + 0.5)));
+    };
+  } else if (identifier == "patchy.filters.lens_blur" ||
+             identifier == "patchy.filters.iris_blur") {
+    const auto is_lens = identifier == "patchy.filters.lens_blur";
+    metadata.output_margin = [is_lens](const FilterInvocation &invocation,
+                                       std::int32_t, std::int32_t) {
+      const auto radius = std::clamp(
+          catalog_number(invocation, is_lens ? "radius" : "blur", 15.0),
+          0.0, 100.0);
+      if (radius <= 0.0) {
+        return 0;
+      }
+      const auto factor = std::max(
+          1, static_cast<int>(std::ceil(
+                 radius / kMaximumFullResolutionApertureRadius)));
+      const auto base_margin =
+          static_cast<int>(std::ceil(radius)) + factor + 1;
+      return ((base_margin + factor - 1) / factor) * factor;
     };
   } else if (identifier == "patchy.filters.tilt_shift_blur") {
     metadata.output_margin = [](const FilterInvocation &invocation,

@@ -70,7 +70,9 @@ enum class FilterParameterPresentation {
   WaveWavelength,
   WavePhase,
   TiltFocusHalfWidthPercent,
-  TiltTransitionWidthPercent
+  TiltTransitionWidthPercent,
+  IrisWidthPercent,
+  IrisHeightPercent
 };
 
 struct FilterParameterOption {

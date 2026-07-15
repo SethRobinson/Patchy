@@ -135,6 +135,27 @@ void remap_spatial_parameters_for_padding(
           *value *= original_shorter / padded_shorter;
         }
       }
+    } else if (parameter.presentation ==
+                   FilterParameterPresentation::IrisWidthPercent ||
+               parameter.presentation ==
+                   FilterParameterPresentation::IrisHeightPercent) {
+      const auto found = invocation.parameters.find(parameter.key);
+      if (found == invocation.parameters.end()) {
+        continue;
+      }
+      const auto horizontal =
+          parameter.presentation ==
+          FilterParameterPresentation::IrisWidthPercent;
+      const auto original_extent = static_cast<double>(std::max<std::int32_t>(
+          1, horizontal ? original_width : original_height));
+      const auto padded_extent = static_cast<double>(std::max<std::int64_t>(
+          1, static_cast<std::int64_t>(horizontal ? original_width
+                                                  : original_height) +
+                 margin * 2LL));
+      if (auto *value = std::get_if<double>(&found->second);
+          value != nullptr) {
+        *value *= original_extent / padded_extent;
+      }
     }
   }
 }

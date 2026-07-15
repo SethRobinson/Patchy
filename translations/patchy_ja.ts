@@ -765,8 +765,40 @@
         <translation>ぼかし（表面）</translation>
     </message>
     <message>
+        <source>Lens Blur</source>
+        <translation>レンズぼかし</translation>
+    </message>
+    <message>
+        <source>Iris Blur</source>
+        <translation>虹彩絞りぼかし</translation>
+    </message>
+    <message>
         <source>Tilt-Shift Blur</source>
         <translation>チルトシフトぼかし</translation>
+    </message>
+    <message>
+        <source>Blades</source>
+        <translation>絞り羽根</translation>
+    </message>
+    <message>
+        <source>Blade Curvature</source>
+        <translation>羽根の湾曲</translation>
+    </message>
+    <message>
+        <source>Rotation</source>
+        <translation>回転</translation>
+    </message>
+    <message>
+        <source>Iris Width</source>
+        <translation>絞りの幅</translation>
+    </message>
+    <message>
+        <source>Iris Height</source>
+        <translation>絞りの高さ</translation>
+    </message>
+    <message>
+        <source>Focus</source>
+        <translation>フォーカス</translation>
     </message>
     <message>
         <location line="+9"/>

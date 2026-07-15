@@ -552,6 +552,17 @@ void plastic_wrap(PixelBuffer& pixels) {
   });
 }
 
+void lens_blur(PixelBuffer& pixels) {
+  require_uint8(pixels);
+  apply_lens_blur_filter(pixels, 15.0, 6, 50, 0);
+}
+
+void iris_blur(PixelBuffer& pixels) {
+  require_uint8(pixels);
+  apply_iris_blur_filter(pixels, 15.0, 50.0, 50.0, 0, 50.0, 40.0,
+                         50.0);
+}
+
 void tilt_shift_blur(PixelBuffer& pixels) {
   require_uint8(pixels);
   apply_tilt_shift_blur_filter(pixels, 15.0, 50.0, 50.0, 0, 10.0, 20.0);
@@ -1009,6 +1020,8 @@ void register_builtin_filters(FilterRegistry& registry) {
   add("patchy.filters.dust_and_scratches", "Dust & Scratches",
       dust_and_scratches);
   add("patchy.filters.surface_blur", "Surface Blur", surface_blur);
+  add("patchy.filters.lens_blur", "Lens Blur", lens_blur);
+  add("patchy.filters.iris_blur", "Iris Blur", iris_blur);
   add("patchy.filters.tilt_shift_blur", "Tilt-Shift Blur", tilt_shift_blur);
   add("patchy.filters.plastic_wrap", "Plastic Wrap", plastic_wrap);
 }

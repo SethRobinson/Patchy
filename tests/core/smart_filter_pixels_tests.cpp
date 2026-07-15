@@ -1406,6 +1406,141 @@ void tilt_shift_blur_is_deterministic_respects_focus_geometry_and_bounds() {
   }
 }
 
+void lens_and_iris_blur_are_deterministic_geometric_and_premultiplied() {
+  patchy::PixelBuffer source(41, 41, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      auto* pixel = source.pixel(x, y);
+      pixel[0] = 255U;
+      pixel[1] = 0U;
+      pixel[2] = 0U;
+      pixel[3] = 0U;
+    }
+  }
+  auto* impulse = source.pixel(20, 20);
+  impulse[0] = 30U;
+  impulse[1] = 150U;
+  impulse[2] = 230U;
+  impulse[3] = 255U;
+
+  auto identity = source;
+  patchy::apply_lens_blur_filter(identity, 0.0, 6, 50, 0);
+  CHECK(std::equal(identity.data().begin(), identity.data().end(),
+                   source.data().begin()));
+
+  auto lens = source;
+  auto repeated = source;
+  patchy::apply_lens_blur_filter(lens, 5.0, 6, 0, 0);
+  patchy::apply_lens_blur_filter(repeated, 5.0, 6, 0, 0);
+  CHECK(std::equal(lens.data().begin(), lens.data().end(),
+                   repeated.data().begin()));
+  CHECK(lens.pixel(20, 20)[3] > 0U && lens.pixel(20, 20)[3] < 255U);
+  CHECK(lens.pixel(24, 20)[3] > 0U);
+  bool saw_translucent = false;
+  for (std::int32_t y = 0; y < lens.height(); ++y) {
+    for (std::int32_t x = 0; x < lens.width(); ++x) {
+      const auto* pixel = lens.pixel(x, y);
+      if (pixel[3] == 0U) {
+        CHECK(pixel[0] == 0U && pixel[1] == 0U && pixel[2] == 0U);
+        continue;
+      }
+      saw_translucent = saw_translucent || pixel[3] < 255U;
+      CHECK(pixel[0] == 30U && pixel[1] == 150U && pixel[2] == 230U);
+    }
+  }
+  CHECK(saw_translucent);
+
+  auto rotated = source;
+  auto curved = source;
+  patchy::apply_lens_blur_filter(rotated, 5.0, 6, 0, 30);
+  patchy::apply_lens_blur_filter(curved, 5.0, 6, 100, 0);
+  CHECK(!std::equal(lens.data().begin(), lens.data().end(),
+                    rotated.data().begin()));
+  CHECK(!std::equal(lens.data().begin(), lens.data().end(),
+                    curved.data().begin()));
+
+  auto broad = source;
+  for (std::int32_t y = 17; y <= 23; ++y) {
+    for (std::int32_t x = 17; x <= 23; ++x) {
+      auto* pixel = broad.pixel(x, y);
+      pixel[0] = 30U;
+      pixel[1] = 150U;
+      pixel[2] = 230U;
+      pixel[3] = 255U;
+    }
+  }
+  patchy::apply_lens_blur_filter(broad, 15.0, 6, 50, 0);
+  CHECK(broad.pixel(30, 20)[3] > 0U);
+  CHECK(broad.pixel(20, 20)[3] < 255U);
+
+  patchy::PixelBuffer iris_source(41, 41, patchy::PixelFormat::rgba8());
+  iris_source.clear(0);
+  auto* outer_impulse = iris_source.pixel(5, 20);
+  outer_impulse[0] = 210U;
+  outer_impulse[1] = 90U;
+  outer_impulse[2] = 25U;
+  outer_impulse[3] = 255U;
+  auto iris = iris_source;
+  auto iris_repeated = iris_source;
+  patchy::apply_iris_blur_filter(iris, 5.0, 50.0, 50.0, 0, 50.0, 40.0,
+                                 50.0);
+  patchy::apply_iris_blur_filter(iris_repeated, 5.0, 50.0, 50.0, 0, 50.0,
+                                 40.0, 50.0);
+  CHECK(std::equal(iris.data().begin(), iris.data().end(),
+                   iris_repeated.data().begin()));
+  CHECK(iris.pixel(5, 20)[3] > 0U && iris.pixel(5, 20)[3] < 255U);
+  CHECK(iris.pixel(8, 20)[3] > 0U);
+  CHECK(std::equal(iris.pixel(20, 20), iris.pixel(20, 20) + 4,
+                   iris_source.pixel(20, 20)));
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto lens_invocation =
+      registry.default_invocation("patchy.filters.lens_blur");
+  lens_invocation.parameters["radius"] = 15.0;
+  CHECK(registry.output_margin(lens_invocation, 41, 41) == 21);
+  CHECK(!registry.translation_invariant_support(lens_invocation).has_value());
+  auto iris_invocation =
+      registry.default_invocation("patchy.filters.iris_blur");
+  iris_invocation.parameters["blur"] = 5.0;
+  iris_invocation.parameters["center_x"] = 25.0;
+  iris_invocation.parameters["center_y"] = 70.0;
+  iris_invocation.parameters["iris_width"] = 60.0;
+  iris_invocation.parameters["iris_height"] = 35.0;
+  patchy::PixelBuffer geometry_source(17, 13,
+                                      patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < geometry_source.height(); ++y) {
+    for (std::int32_t x = 0; x < geometry_source.width(); ++x) {
+      auto* pixel = geometry_source.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>((x * 31 + y * 7) % 256);
+      pixel[1] = static_cast<std::uint8_t>((x * 11 + y * 43) % 256);
+      pixel[2] = static_cast<std::uint8_t>((x * 59 + y * 13) % 256);
+      pixel[3] = 255U;
+    }
+  }
+  auto direct_geometry = geometry_source;
+  registry.apply(iris_invocation, direct_geometry);
+  const patchy::Rect bounds{13, 27, geometry_source.width(),
+                            geometry_source.height()};
+  const auto expanded =
+      registry.render(iris_invocation, geometry_source, bounds);
+  CHECK(expanded.bounds.x <= bounds.x);
+  CHECK(expanded.bounds.y <= bounds.y);
+  CHECK(expanded.bounds.x + expanded.bounds.width >=
+        bounds.x + bounds.width);
+  CHECK(expanded.bounds.y + expanded.bounds.height >=
+        bounds.y + bounds.height);
+  for (std::int32_t y = 0; y < geometry_source.height(); ++y) {
+    for (std::int32_t x = 0; x < geometry_source.width(); ++x) {
+      const auto result_x = bounds.x + x - expanded.bounds.x;
+      const auto result_y = bounds.y + y - expanded.bounds.y;
+      CHECK(std::equal(direct_geometry.pixel(x, y),
+                       direct_geometry.pixel(x, y) + 4,
+                       expanded.pixels.pixel(result_x, result_y)));
+    }
+  }
+}
+
 void smart_filter_shared_mask_and_disable_states_are_applied_once() {
   auto source = solid_rgba(5, 5, 0, 0, 0, 255);
   for (std::int32_t y = 0; y < source.height(); ++y) {
@@ -1864,6 +1999,8 @@ std::vector<patchy::test::TestCase> smart_filter_pixels_tests() {
        surface_blur_direct_and_level_paths_match_reference},
       {"tilt_shift_blur_is_deterministic_respects_focus_geometry_and_bounds",
        tilt_shift_blur_is_deterministic_respects_focus_geometry_and_bounds},
+      {"lens_and_iris_blur_are_deterministic_geometric_and_premultiplied",
+       lens_and_iris_blur_are_deterministic_geometric_and_premultiplied},
       {"smart_filter_shared_mask_and_disable_states_are_applied_once",
        smart_filter_shared_mask_and_disable_states_are_applied_once},
       {"smart_filter_entry_blending_matches_photoshop_baked_pixels",

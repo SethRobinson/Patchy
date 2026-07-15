@@ -733,6 +733,8 @@ const QStringList& expected_filter_gallery_ids() {
       QStringLiteral("patchy.filters.motion_blur"),
       QStringLiteral("patchy.filters.radial_blur"),
       QStringLiteral("patchy.filters.surface_blur"),
+      QStringLiteral("patchy.filters.lens_blur"),
+      QStringLiteral("patchy.filters.iris_blur"),
       QStringLiteral("patchy.filters.tilt_shift_blur"),
       QStringLiteral("patchy.filters.sharpen"),
       QStringLiteral("patchy.filters.unsharp_mask"),
@@ -1819,7 +1821,8 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
         QStringLiteral("Vintage Sepia"),   QStringLiteral("Lens Vignette"),
         QStringLiteral("Box Blur"),        QStringLiteral("Gaussian Blur"),
         QStringLiteral("Motion Blur"),     QStringLiteral("Radial Blur"),
-        QStringLiteral("Surface Blur"),    QStringLiteral("Tilt-Shift Blur"),
+        QStringLiteral("Surface Blur"),    QStringLiteral("Lens Blur"),
+        QStringLiteral("Iris Blur"),       QStringLiteral("Tilt-Shift Blur"),
         QStringLiteral("Sharpen"),         QStringLiteral("Unsharp Mask"),
         QStringLiteral("High Pass"),       QStringLiteral("Twirl"),
         QStringLiteral("Wave"),
@@ -2256,14 +2259,14 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
 
     const std::array<std::pair<QString, QStringList>, 9> categories{{
         {QStringLiteral("photo_looks"), expected_filter_gallery_ids().mid(0, 7)},
-        {QStringLiteral("blur"), expected_filter_gallery_ids().mid(7, 6)},
-        {QStringLiteral("sharpen"), expected_filter_gallery_ids().mid(13, 3)},
-        {QStringLiteral("distort"), expected_filter_gallery_ids().mid(16, 3)},
-        {QStringLiteral("noise"), expected_filter_gallery_ids().mid(19, 3)},
-        {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(22, 2)},
-        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(24, 3)},
-        {QStringLiteral("render"), expected_filter_gallery_ids().mid(27, 1)},
-        {QStringLiteral("artistic"), expected_filter_gallery_ids().mid(28, 1)},
+        {QStringLiteral("blur"), expected_filter_gallery_ids().mid(7, 8)},
+        {QStringLiteral("sharpen"), expected_filter_gallery_ids().mid(15, 3)},
+        {QStringLiteral("distort"), expected_filter_gallery_ids().mid(18, 3)},
+        {QStringLiteral("noise"), expected_filter_gallery_ids().mid(21, 3)},
+        {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(24, 2)},
+        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(26, 3)},
+        {QStringLiteral("render"), expected_filter_gallery_ids().mid(29, 1)},
+        {QStringLiteral("artistic"), expected_filter_gallery_ids().mid(30, 1)},
     }};
     for (const auto& [token, ids] : categories) {
       category->setCurrentIndex(require_combo_data_index(*category, token));
