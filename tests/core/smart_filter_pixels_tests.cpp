@@ -1689,7 +1689,44 @@ void plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths() {
   CHECK(changed_visible_color);
 
   const auto checksum = fnv1a_hash_bytes(first.pixels.data());
-  CHECK(checksum == 0x7D1F25DAB130348CULL);
+  CHECK(checksum == 0x8862EBA3D8020A81ULL);
+
+  // A low-contrast, photo-like source must receive a visible treatment at the
+  // defaults. Checking aggregate RGB distance prevents a mathematically
+  // non-identity but visually ineffective renderer from returning.
+  patchy::PixelBuffer representative(64, 48, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < representative.height(); ++y) {
+    for (std::int32_t x = 0; x < representative.width(); ++x) {
+      const auto panel = x >= 17 && x <= 46 && y >= 11 && y <= 36 ? 38 : 0;
+      const auto diagonal = std::abs(2 * x - y - 34) <= 4 ? 24 : 0;
+      auto *pixel = representative.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(55 + x * 72 / 63 + panel + diagonal);
+      pixel[1] = static_cast<std::uint8_t>(70 + y * 64 / 47 + panel + diagonal);
+      pixel[2] = static_cast<std::uint8_t>(
+          95 + (x + y) * 42 / 110 + panel + diagonal);
+      pixel[3] = 255U;
+    }
+  }
+  const auto representative_result = patchy::render_plastic_wrap(
+      representative, patchy::Rect::from_size(64, 48), 9, 7, 5);
+  std::uint64_t total_rgb_distance = 0U;
+  std::size_t visibly_changed_pixels = 0U;
+  for (std::int32_t y = 0; y < representative.height(); ++y) {
+    for (std::int32_t x = 0; x < representative.width(); ++x) {
+      const auto *before = representative.pixel(x, y);
+      const auto *after = representative_result.pixels.pixel(x, y);
+      int maximum_channel_distance = 0;
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        const auto distance = std::abs(static_cast<int>(after[channel]) -
+                                       static_cast<int>(before[channel]));
+        total_rgb_distance += static_cast<std::uint64_t>(distance);
+        maximum_channel_distance = std::max(maximum_channel_distance, distance);
+      }
+      visibly_changed_pixels += maximum_channel_distance >= 12 ? 1U : 0U;
+    }
+  }
+  CHECK(total_rgb_distance >= 64U * 48U * 3U * 8U);
+  CHECK(visibly_changed_pixels >= 64U * 48U / 6U);
 
   const auto no_highlights =
       patchy::render_plastic_wrap(source, bounds, 0, 9, 7);
@@ -1711,6 +1748,31 @@ void plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths() {
       flat, patchy::Rect{8, 12, 6, 4}, 20, 15, 1);
   CHECK(std::equal(flat_result.pixels.data().begin(),
                    flat_result.pixels.data().end(), flat.data().begin()));
+
+  patchy::PixelBuffer isolated_color(9, 9, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 2; y <= 6; ++y) {
+    for (std::int32_t x = 2; x <= 6; ++x) {
+      auto *pixel = isolated_color.pixel(x, y);
+      pixel[0] = 220U;
+      pixel[1] = 28U;
+      pixel[2] = 24U;
+      pixel[3] = 255U;
+    }
+  }
+  const auto isolated_result = patchy::render_plastic_wrap(
+      isolated_color, patchy::Rect::from_size(9, 9), 9, 7, 5);
+  bool isolated_visible_contour_changed = false;
+  for (std::int32_t y = 0; y < isolated_color.height(); ++y) {
+    for (std::int32_t x = 0; x < isolated_color.width(); ++x) {
+      const auto *before = isolated_color.pixel(x, y);
+      const auto *after = isolated_result.pixels.pixel(x, y);
+      CHECK(after[3] == before[3]);
+      isolated_visible_contour_changed =
+          isolated_visible_contour_changed ||
+          (before[3] != 0U && !std::equal(before, before + 3, after));
+    }
+  }
+  CHECK(isolated_visible_contour_changed);
 
   patchy::SmartFilterStack stack;
   stack.support = patchy::SmartFilterStackSupport::Supported;

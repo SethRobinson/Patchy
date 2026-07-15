@@ -1231,9 +1231,22 @@ void ui_brush_flow_popup_slider_updates_canvas() {
   auto* popup_action = window.findChild<QAction*>(QStringLiteral("brushFlowPopupAction"));
   CHECK(flow != nullptr);
   CHECK(popup_action != nullptr);
+  CHECK(popup_action->icon().isNull());
+
+  flow->setValue(100);
+  QApplication::processEvents();
+  auto* flow_editor = flow->findChild<QLineEdit*>();
+  CHECK(flow_editor != nullptr);
+  const auto text_margins = flow_editor->textMargins();
+  const auto text_width = flow_editor->fontMetrics().horizontalAdvance(QStringLiteral("100%"));
+  CHECK(flow_editor->contentsRect().width() - text_margins.left() -
+            text_margins.right() >=
+        text_width);
+  save_widget_artifact("ui_brush_flow_control", *flow);
 
   flow->setValue(37);
-  popup_action->trigger();
+  QTest::mouseClick(flow_editor, Qt::LeftButton, Qt::NoModifier,
+                    QPoint(flow_editor->width() - 2, flow_editor->height() / 2));
   QApplication::processEvents();
   auto* popup = window.findChild<QFrame*>(QStringLiteral("brushFlowPopup"));
   auto* slider = window.findChild<QSlider*>(QStringLiteral("brushFlowPopupSlider"));

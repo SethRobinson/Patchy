@@ -1400,8 +1400,12 @@ render_median(const FilterRenderResult &input, double radius,
           extended_straight_color_sample(input, extension, x, y, 1U));
       const auto blue = static_cast<std::uint32_t>(
           extended_straight_color_sample(input, extension, x, y, 2U));
+      const auto alpha = static_cast<std::uint32_t>(
+          input.pixels.pixel(x, y)[3]);
+      const auto straight_luminance =
+          (77U * red + 150U * green + 29U * blue + 128U) >> 8U;
       luminance[index_of(x, y)] = static_cast<std::uint16_t>(
-          (77U * red + 150U * green + 29U * blue + 128U) >> 8U);
+          (straight_luminance * alpha + 127U) / 255U);
     }
   }
   report_progress(&luminance_progress, height, height,
@@ -1477,11 +1481,19 @@ render_median(const FilterRenderResult &input, double radius,
       const auto gradient_y = static_cast<std::int32_t>(down) - up;
       const auto facing = -3 * gradient_x - 4 * gradient_y;
       const auto edge = std::abs(gradient_x) + std::abs(gradient_y);
-      const auto relief = std::clamp(facing / 32, -40, 40);
+      // Keep medium-contrast contours visible. The original divisors reduced
+      // ordinary photographic gradients to one or two byte values, making the
+      // filter look like an identity unless the source contained hard edges.
+      // This remains the same fixed local formula: the stronger relief and
+      // ridge response are constants, not measurements selected from content.
+      const auto relief = std::clamp(facing / 3, -112, 112);
+      const auto ridge_signal = std::clamp(edge * 8, 0, 255);
       const auto specular_signal = std::clamp(
-          (std::max(0, facing) + edge * 2) / 4, 0, 255);
+          std::max(0, facing) + ridge_signal, 0, 255);
       const auto curved_specular =
-          (specular_signal * specular_signal + 127) / 255;
+          (specular_signal * 2 +
+           (specular_signal * specular_signal + 127) / 255 + 1) /
+          3;
       const auto shine =
           (curved_specular * highlight_strength + 10) / 20;
       const auto *source = input.pixels.pixel(x, y);

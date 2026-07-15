@@ -1852,9 +1852,13 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
         20000));
     const auto original_thumbnail = looks->item(0)->icon().pixmap(QSize(144, 96)).toImage();
     const auto noir_thumbnail = looks->item(3)->icon().pixmap(QSize(144, 96)).toImage();
+    const auto plastic_thumbnail =
+        looks->item(looks->count() - 1)->icon().pixmap(QSize(144, 96)).toImage();
     CHECK(!original_thumbnail.isNull());
     CHECK(!noir_thumbnail.isNull());
+    CHECK(!plastic_thumbnail.isNull());
     CHECK(original_thumbnail != noir_thumbnail);
+    CHECK(original_thumbnail != plastic_thumbnail);
     CHECK(patchy::ui::pixel_buffers_equal(source, source_copy));
 
     const auto original_preview = preview->grab().toImage();

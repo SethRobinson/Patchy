@@ -522,8 +522,14 @@ class FlowPopupSpinBox final : public QSpinBox {
 public:
   explicit FlowPopupSpinBox(QWidget* parent = nullptr) : QSpinBox(parent) {
     popup_clock_.start();
-    popup_action_ = lineEdit()->addAction(style()->standardIcon(QStyle::SP_ArrowDown),
-                                          QLineEdit::TrailingPosition);
+    // QLineEdit's trailing actions reserve a full native icon button. That
+    // leaves too little room for "100%" in this compact field, and some Windows
+    // styles supply a colored SP_ArrowDown icon. Paint a small chevron from the
+    // active palette instead and reserve only the space it actually needs.
+    lineEdit()->setTextMargins(0, 0, kChevronAreaWidth, 0);
+    lineEdit()->installEventFilter(this);
+    popup_action_ = new QAction(this);
+    addAction(popup_action_);
     popup_action_->setObjectName(QStringLiteral("brushFlowPopupAction"));
     connect(popup_action_, &QAction::triggered, this, [this] { show_popup(); });
     retranslate();
@@ -534,7 +540,50 @@ public:
         QCoreApplication::translate(kMainWindowTranslationContext, "Open Flow slider"));
   }
 
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == lineEdit() && event->type() == QEvent::MouseButtonPress) {
+      const auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (mouse_event->button() == Qt::LeftButton &&
+          mouse_event->position().x() >= lineEdit()->width() - kChevronAreaWidth) {
+        popup_action_->trigger();
+        return true;
+      }
+    }
+    return QSpinBox::eventFilter(watched, event);
+  }
+
+  void paintEvent(QPaintEvent* event) override {
+    QSpinBox::paintEvent(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const auto group = isEnabled() ? QPalette::Active : QPalette::Disabled;
+    auto pen = QPen(palette().color(group, QPalette::Text));
+    pen.setWidthF(1.4);
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setJoinStyle(Qt::RoundJoin);
+    painter.setPen(pen);
+    const auto center_x =
+        static_cast<qreal>(width() - kChevronAreaWidth / 2 - 1);
+    const auto center_y = static_cast<qreal>(height()) / 2.0;
+    painter.drawPolyline(QPolygonF{QPointF(center_x - 3.0, center_y - 1.5),
+                                  QPointF(center_x, center_y + 1.5),
+                                  QPointF(center_x + 3.0, center_y - 1.5)});
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton &&
+        event->position().x() >= width() - kChevronAreaWidth) {
+      popup_action_->trigger();
+      event->accept();
+      return;
+    }
+    QSpinBox::mousePressEvent(event);
+  }
+
 private:
+  static constexpr int kChevronAreaWidth = 14;
+
   void show_popup() {
     if (popup_ != nullptr) {
       popup_->close();
@@ -2801,7 +2850,7 @@ void MainWindow::create_actions() {
       flow_spin->retranslate();
     }
   });
-  configure_toolbar_spinbox(brush_flow, 52);
+  configure_toolbar_spinbox(brush_flow, 60);
   add_option_widget(brush_flow, {CanvasTool::Brush, CanvasTool::PatternStamp});
   auto* brush_airbrush = new CheckGlyphBox(tr("Airbrush"), toolbar);
   brush_airbrush->setObjectName(QStringLiteral("brushAirbrushCheck"));
