@@ -545,7 +545,8 @@ void ui_brush_tip_picker_keeps_options_bar_height() {
   // regression case: their Tip picker is a QToolButton, whose default style
   // made it the tallest control in the row.
   int common_height = 0;
-  for (const char* tool : {"Move", "Marquee", "Lasso", "Magic Wand", "Clone", "Healing Brush", "Smudge",
+  for (const char* tool : {"Move", "Marquee", "Lasso", "Magic Wand", "Clone", "Pattern Stamp",
+                           "Healing Brush", "Smudge",
                            "Dodge", "Burn", "Sponge", "Fill", "Gradient", "Line", "Rect",
                            "Zoom", "Brush", "Eraser"}) {
     require_action_by_text(window, QString::fromLatin1(tool))->trigger();

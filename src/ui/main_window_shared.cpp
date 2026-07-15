@@ -282,6 +282,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Brush");
     case CanvasTool::Clone:
       return QObject::tr("Clone Stamp");
+    case CanvasTool::PatternStamp:
+      return QObject::tr("Pattern Stamp");
     case CanvasTool::Healing:
       return QObject::tr("Healing Brush");
     case CanvasTool::Smudge:

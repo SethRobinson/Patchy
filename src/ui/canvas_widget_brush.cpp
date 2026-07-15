@@ -78,6 +78,11 @@ namespace {
 
 constexpr double kMaxBrushStampSpacing = 64.0;
 
+int positive_modulo(int value, int divisor) noexcept {
+  const auto result = value % divisor;
+  return result < 0 ? result + divisor : result;
+}
+
 double point_distance(QPointF a, QPointF b) {
   return std::hypot(a.x() - b.x(), a.y() - b.y());
 }
@@ -602,7 +607,8 @@ QSize CanvasWidget::brush_outline_display_size() const {
 }
 
 bool CanvasWidget::brush_outline_uses_overlay() const {
-  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
+  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::PatternStamp &&
+      tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
     return false;
   }
   if (active_outline_brush_size() <= 1) {
@@ -621,7 +627,8 @@ QRect CanvasWidget::brush_hover_outline_rect() const {
 }
 
 void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
-  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
+  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::PatternStamp &&
+      tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
     brush_hover_position_valid_ = false;
     return;
   }
@@ -783,7 +790,9 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
   const auto radius = std::max(1.5, static_cast<double>(brush_size_) * zoom_ / 2.0);
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
-  if ((tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser) && brush_tip_ != nullptr) {
+  if ((tool_ == CanvasTool::Brush || tool_ == CanvasTool::PatternStamp ||
+       tool_ == CanvasTool::Eraser) &&
+      brush_tip_ != nullptr) {
     // A bitmap tip previews as its actual red-tinted footprint instead of a disc.
     const auto stamp = brush_tip_stamp_image(brush_size_, brush_softness_);
     if (!stamp.isNull()) {
@@ -1031,7 +1040,8 @@ bool CanvasWidget::brush_uses_dab_stroke(const EffectiveBrushInput& brush, bool 
   // Flow must be tied to a spatial dab cadence, not to the number of mouse
   // move events delivered by the platform. Airbrush also uses this path so its
   // moving stroke and stationary timer share the same flat stamp footprint.
-  if (!erase && tool_ == CanvasTool::Brush && (brush_flow_ < 100 || brush_build_up_)) {
+  if (!erase && (tool_ == CanvasTool::Brush || tool_ == CanvasTool::PatternStamp) &&
+      (brush_flow_ < 100 || (tool_ == CanvasTool::Brush && brush_build_up_))) {
     return true;
   }
   return brush.size > 1 && brush.softness > 0;
@@ -1426,6 +1436,47 @@ void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool er
   const auto source_alpha =
       std::clamp(static_cast<float>(std::clamp<int>(primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
 
+  if (!erase && tool_ == CanvasTool::PatternStamp && pattern_stamp_pattern_.has_value() &&
+      pattern_stamp_origin_.has_value()) {
+    // Patent constraint: this is a direct, static tile lookup. Never derive an
+    // illumination map from the destination or synthesize/weight texture
+    // channels from stroke input here. See docs/brushes.md.
+    const auto tile = pattern_stamp_pattern_->tile;
+    const auto origin = *pattern_stamp_origin_;
+    const auto width = tile.width();
+    const auto height = tile.height();
+    if (width > 0 && height > 0 && tile.format() == PixelFormat::rgba8()) {
+      options.stroke_pixel_gate = [this, tile, origin, width, height, source_alpha](std::int32_t x,
+                                                                                   std::int32_t y) {
+        const auto* source = tile.pixel(positive_modulo(x - origin.x(), width),
+                                        positive_modulo(y - origin.y(), height));
+        const auto pattern_alpha = static_cast<float>(source[3]) / 255.0F;
+        const auto cap = source_alpha * pattern_alpha;
+        const auto found = brush_stroke_accumulated_alpha_.find(stroke_pixel_key(x, y));
+        return cap > 0.0F &&
+               (found == brush_stroke_accumulated_alpha_.end() || found->second < cap - 0.0005F);
+      };
+      const auto* palette_snap = options.palette_snap;
+      options.stroke_pixel_writer =
+          [this, tile, origin, width, height, source_alpha, secondary, lock_transparent_pixels,
+           palette_snap](std::int32_t x, std::int32_t y, std::uint8_t* pixel,
+                         std::uint16_t channels, float coverage) {
+            const auto* source = tile.pixel(positive_modulo(x - origin.x(), width),
+                                            positive_modulo(y - origin.y(), height));
+            const auto alpha = std::clamp(
+                static_cast<int>(std::lround(static_cast<float>(source[3]) * source_alpha)), 0, 255);
+            if (alpha == 0) {
+              return false;
+            }
+            const EditColor sampled{source[0], source[1], source[2], static_cast<std::uint8_t>(alpha)};
+            return write_brush_stroke_pixel_from_snapshot(
+                x, y, pixel, channels, sampled, secondary, lock_transparent_pixels, coverage, false,
+                palette_snap);
+          };
+      return;
+    }
+  }
+
   options.stroke_pixel_gate = [this, source_alpha](std::int32_t x, std::int32_t y) {
     const auto found = brush_stroke_accumulated_alpha_.find(stroke_pixel_key(x, y));
     return found == brush_stroke_accumulated_alpha_.end() || found->second < source_alpha - 0.0005F;
@@ -1524,7 +1575,12 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase, boo
     return draw_brush_segment_with_dabs(from, to, erase, brush, stamp_endpoint);
   }
   auto options = current_brush_edit_options(brush);
-  apply_brush_tip_to_options(options, brush.size, brush.softness);
+  if (tool_ != CanvasTool::PatternStamp || brush_tip_ != nullptr) {
+    apply_brush_tip_to_options(options, brush.size, brush.softness);
+  }
+  if (tool_ == CanvasTool::PatternStamp) {
+    options.brush_dynamics = {};
+  }
   if (erase) {
     options.brush_dynamics = {};  // v1: dynamics are Brush-only; erase strokes stay predictable
     if (brush_tip_ == nullptr) {
@@ -1573,7 +1629,12 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
     brush_stroke_distance_since_last_stamp_ = 0.0;
     return dirty;
   }
-  apply_brush_tip_to_options(options, brush.size, brush.softness);
+  if (tool_ != CanvasTool::PatternStamp || brush_tip_ != nullptr) {
+    apply_brush_tip_to_options(options, brush.size, brush.softness);
+  }
+  if (tool_ == CanvasTool::PatternStamp) {
+    options.brush_dynamics = {};
+  }
   if (erase) {
     options.brush_dynamics = {};
     if (brush_tip_ == nullptr) {
@@ -1967,6 +2028,17 @@ void CanvasWidget::set_clone_source(QPoint point) {
                          .arg(point.x())
                          .arg(point.y()));
   }
+}
+
+bool CanvasWidget::begin_pattern_stamp_stroke(QPoint point) {
+  if (!pattern_stamp_pattern_.has_value() || pattern_stamp_pattern_->tile.empty()) {
+    return false;
+  }
+  if (!pattern_stamp_aligned_ || !pattern_stamp_origin_.has_value()) {
+    const auto& tile = pattern_stamp_pattern_->tile;
+    pattern_stamp_origin_ = point - QPoint(tile.width() / 2, tile.height() / 2);
+  }
+  return true;
 }
 
 QRect CanvasWidget::clone_brush_at(QPoint point) {

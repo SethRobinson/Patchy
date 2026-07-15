@@ -690,6 +690,8 @@ private:
   [[nodiscard]] BrushToolSettings& active_stored_brush_settings();
   void stash_active_brush_settings();
   void apply_active_brush_settings_to_canvas();
+  void apply_pattern_stamp_settings_to_canvas(CanvasWidget* canvas);
+  void refresh_pattern_stamp_pattern_combo();
   void set_eraser_brush_settings_active(bool active);
   void sync_text_options_from_active_editor();
   void apply_text_family_to_active_editor();
@@ -837,6 +839,8 @@ private:
   QComboBox* warp_style_combo_{nullptr};
   QDoubleSpinBox* warp_bend_spin_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
+  QComboBox* pattern_stamp_pattern_combo_{nullptr};
+  QCheckBox* pattern_stamp_aligned_check_{nullptr};
   QSpinBox* local_adjustment_strength_spin_{nullptr};
   QComboBox* local_tone_range_combo_{nullptr};
   QCheckBox* local_protect_tones_check_{nullptr};
@@ -1038,6 +1042,8 @@ private:
   int current_shape_width_{1024};
   int current_shape_height_{768};
   int current_healing_diffusion_{5};
+  QString current_pattern_stamp_pattern_id_;
+  bool current_pattern_stamp_aligned_{true};
   int current_local_adjustment_strength_{50};
   CanvasWidget::LocalToneRange current_local_tone_range_{CanvasWidget::LocalToneRange::Midtones};
   bool current_local_protect_tones_{true};

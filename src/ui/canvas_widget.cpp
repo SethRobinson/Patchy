@@ -646,6 +646,35 @@ bool CanvasWidget::clone_aligned() const noexcept {
   return clone_aligned_;
 }
 
+void CanvasWidget::set_pattern_stamp_pattern(std::optional<PatternResource> pattern) {
+  if (pattern.has_value() &&
+      (pattern->tile.empty() || pattern->tile.format() != PixelFormat::rgba8())) {
+    pattern.reset();
+  }
+  const auto old_id = pattern_stamp_pattern_.has_value() ? pattern_stamp_pattern_->id : std::string{};
+  const auto new_id = pattern.has_value() ? pattern->id : std::string{};
+  pattern_stamp_pattern_ = std::move(pattern);
+  if (old_id != new_id) {
+    pattern_stamp_origin_.reset();
+  }
+}
+
+const std::optional<PatternResource>& CanvasWidget::pattern_stamp_pattern() const noexcept {
+  return pattern_stamp_pattern_;
+}
+
+void CanvasWidget::set_pattern_stamp_aligned(bool aligned) noexcept {
+  if (pattern_stamp_aligned_ == aligned) {
+    return;
+  }
+  pattern_stamp_aligned_ = aligned;
+  pattern_stamp_origin_.reset();
+}
+
+bool CanvasWidget::pattern_stamp_aligned() const noexcept {
+  return pattern_stamp_aligned_;
+}
+
 void CanvasWidget::set_healing_diffusion(int diffusion) noexcept {
   healing_diffusion_ = std::clamp(diffusion, 1, 7);
 }

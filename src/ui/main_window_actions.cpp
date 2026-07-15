@@ -57,6 +57,7 @@
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
+#include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/style_library.hpp"
 #include "ui/print_dialog.hpp"
@@ -281,6 +282,8 @@ const char* tool_action_source(CanvasTool tool) {
       return "Brush";
     case CanvasTool::Clone:
       return "Clone";
+    case CanvasTool::PatternStamp:
+      return "Pattern Stamp";
     case CanvasTool::Healing:
       return "Healing Brush";
     case CanvasTool::Smudge:
@@ -339,6 +342,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.brush");
     case CanvasTool::Clone:
       return QStringLiteral("tools.clone");
+    case CanvasTool::PatternStamp:
+      return QStringLiteral("tools.pattern_stamp");
     case CanvasTool::Healing:
       return QStringLiteral("tools.healing");
     case CanvasTool::Smudge:
@@ -682,6 +687,9 @@ QIcon tool_icon(CanvasTool tool) {
       break;
     case CanvasTool::Clone:
       name = "tool-clone";
+      break;
+    case CanvasTool::PatternStamp:
+      name = "tool-pattern-stamp";
       break;
     case CanvasTool::Healing:
       name = "tool-healing";
@@ -1924,8 +1932,10 @@ void MainWindow::create_actions() {
   }
   add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);
   add_tool_action(tool_palette, tool_group, tr("Clone"), CanvasTool::Clone, QKeySequence(Qt::Key_S));
-  add_tool_action(tool_palette, tool_group, tr("Healing Brush"), CanvasTool::Healing,
+  add_tool_action(tool_palette, tool_group, tr("Pattern Stamp"), CanvasTool::PatternStamp,
                   QKeySequence(Qt::SHIFT | Qt::Key_S));
+  add_tool_action(tool_palette, tool_group, tr("Healing Brush"), CanvasTool::Healing,
+                  QKeySequence(Qt::Key_J));
   const auto create_local_brush_action =
       [this, tool_group](QMenu* menu, const QString& label, CanvasTool tool, QKeySequence shortcut) {
         auto* action = new QAction(label, this);
@@ -2660,7 +2670,8 @@ void MainWindow::create_actions() {
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand});
 
   add_option_label(tr("Preset:"),
-                   {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser});
+                   {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    CanvasTool::Eraser});
   brush_preset_combo_ = new QComboBox(toolbar);
   brush_preset_combo_->setObjectName(QStringLiteral("brushPresetCombo"));
   brush_preset_combo_->setMinimumWidth(132);
@@ -2675,10 +2686,11 @@ void MainWindow::create_actions() {
   }
   add_option_widget(
       brush_preset_combo_,
-      {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge, CanvasTool::Eraser});
+      {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+       CanvasTool::Eraser});
 
   add_option_label(tr("Size:"),
-                   {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                   {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                     CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -2688,7 +2700,7 @@ void MainWindow::create_actions() {
   brush_size->setValue(canvas_->brush_size());
   configure_toolbar_spinbox(brush_size, 58);
   add_option_widget(brush_size,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -2704,7 +2716,7 @@ void MainWindow::create_actions() {
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   add_option_label(tr("Opacity:"),
-                   {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                   {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_opacity = new QSpinBox(toolbar);
   brush_opacity->setObjectName(QStringLiteral("brushOpacitySpin"));
@@ -2713,7 +2725,7 @@ void MainWindow::create_actions() {
   brush_opacity->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_opacity, 52);
   add_option_widget(brush_opacity,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_opacity_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_opacity_slider->setObjectName(QStringLiteral("brushOpacitySlider"));
@@ -2725,7 +2737,7 @@ void MainWindow::create_actions() {
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   add_option_label(tr("Soft:"),
-                   {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                   {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                     CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -2736,7 +2748,7 @@ void MainWindow::create_actions() {
   brush_softness->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_softness, 52);
   add_option_widget(brush_softness,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -2770,7 +2782,7 @@ void MainWindow::create_actions() {
     }
   });
 
-  auto* brush_flow_label = add_option_label(tr("Flow:"), {CanvasTool::Brush});
+  auto* brush_flow_label = add_option_label(tr("Flow:"), {CanvasTool::Brush, CanvasTool::PatternStamp});
   bind_widget_text(brush_flow_label, "Flow:");
   auto* brush_flow = new FlowPopupSpinBox(toolbar);
   brush_flow->setObjectName(QStringLiteral("brushFlowSpin"));
@@ -2786,7 +2798,7 @@ void MainWindow::create_actions() {
     }
   });
   configure_toolbar_spinbox(brush_flow, 52);
-  add_option_widget(brush_flow, {CanvasTool::Brush});
+  add_option_widget(brush_flow, {CanvasTool::Brush, CanvasTool::PatternStamp});
   auto* brush_airbrush = new CheckGlyphBox(tr("Airbrush"), toolbar);
   brush_airbrush->setObjectName(QStringLiteral("brushAirbrushCheck"));
   bind_widget_text(brush_airbrush, "Airbrush");
@@ -2849,11 +2861,11 @@ void MainWindow::create_actions() {
     statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_display_name(*preset)));
   });
 
-  add_option_label(tr("Tip:"), {CanvasTool::Brush, CanvasTool::Eraser});
+  add_option_label(tr("Tip:"), {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Eraser});
   brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
   // The options bar is built after load_tool_settings() reset the active tip to Round.
   brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
-  add_option_widget(brush_tip_picker_, {CanvasTool::Brush, CanvasTool::Eraser});
+  add_option_widget(brush_tip_picker_, {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Eraser});
   connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
           [this](const QString& id) { set_active_brush_tip(id, true); });
   connect(brush_tip_picker_, &BrushTipPicker::import_requested, this,
@@ -2914,6 +2926,56 @@ void MainWindow::create_actions() {
     if (dynamics_button != nullptr) {
       dynamics_button->retranslate();
     }
+  });
+
+  auto* pattern_label = add_option_label(tr("Pattern:"), {CanvasTool::PatternStamp});
+  bind_widget_text(pattern_label, "Pattern:");
+  pattern_stamp_pattern_combo_ = new QComboBox(toolbar);
+  pattern_stamp_pattern_combo_->setObjectName(QStringLiteral("patternStampPatternCombo"));
+  pattern_stamp_pattern_combo_->setIconSize(QSize(18, 18));
+  pattern_stamp_pattern_combo_->setMinimumWidth(150);
+  refresh_pattern_stamp_pattern_combo();
+  add_option_widget(pattern_stamp_pattern_combo_, {CanvasTool::PatternStamp});
+  connect(pattern_stamp_pattern_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (pattern_stamp_pattern_combo_ == nullptr || index < 0) {
+      return;
+    }
+    current_pattern_stamp_pattern_id_ = pattern_stamp_pattern_combo_->itemData(index).toString();
+    apply_pattern_stamp_settings_to_canvas(canvas_);
+    schedule_save_tool_settings();
+  });
+
+  auto* manage_patterns = new QPushButton(toolbar);
+  manage_patterns->setObjectName(QStringLiteral("patternStampManageButton"));
+  manage_patterns->setText(tr("Manage..."));
+  bind_widget_text(manage_patterns, "Manage...");
+  manage_patterns->setToolTip(tr("Import or manage patterns"));
+  bind_tooltip(manage_patterns, "Import or manage patterns");
+  add_option_widget(manage_patterns, {CanvasTool::PatternStamp});
+  connect(manage_patterns, &QPushButton::clicked, this, [this] {
+    const auto selected_storage_id =
+        request_pattern_manager(this, pattern_library(), current_pattern_stamp_pattern_id_);
+    if (selected_storage_id.isEmpty()) {
+      return;
+    }
+    if (const auto* entry = pattern_library().find_entry(selected_storage_id); entry != nullptr) {
+      current_pattern_stamp_pattern_id_ = entry->id;
+      refresh_pattern_stamp_pattern_combo();
+      apply_pattern_stamp_settings_to_canvas(canvas_);
+      save_tool_settings();
+    }
+  });
+
+  pattern_stamp_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
+  pattern_stamp_aligned_check_->setObjectName(QStringLiteral("patternStampAlignedCheck"));
+  pattern_stamp_aligned_check_->setChecked(current_pattern_stamp_aligned_);
+  pattern_stamp_aligned_check_->setToolTip(tr("Keep pattern alignment continuous across strokes"));
+  bind_tooltip(pattern_stamp_aligned_check_, "Keep pattern alignment continuous across strokes");
+  add_option_widget(pattern_stamp_aligned_check_, {CanvasTool::PatternStamp});
+  connect(pattern_stamp_aligned_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    current_pattern_stamp_aligned_ = checked;
+    apply_pattern_stamp_settings_to_canvas(canvas_);
+    save_tool_settings();
   });
 
   add_option_label(tr("Method:"), {CanvasTool::Gradient});

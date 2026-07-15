@@ -11553,6 +11553,11 @@ BrushTipLibrary& MainWindow::brush_tip_library() {
 PatternLibrary& MainWindow::pattern_library() {
   if (pattern_library_ == nullptr) {
     pattern_library_ = new PatternLibrary({}, this);
+    connect(pattern_library_, &PatternLibrary::changed, this, [this] {
+      refresh_pattern_stamp_pattern_combo();
+      apply_pattern_stamp_settings_to_canvas(canvas_);
+      schedule_save_tool_settings();
+    });
     // Seed code-generated defaults once. A user deletion stays deleted across
     // launches; the Pattern Manager's explicit restore command brings it back.
     auto settings = app_settings();
@@ -12748,6 +12753,15 @@ void MainWindow::load_tool_settings() {
       break;
   }
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
+  current_pattern_stamp_pattern_id_ =
+      settings.value(QStringLiteral("tools/patternStampPatternId")).toString();
+  const auto& patterns = pattern_library().entries();
+  if (pattern_library().find_entry_by_pattern_id(current_pattern_stamp_pattern_id_) == nullptr) {
+    current_pattern_stamp_pattern_id_ = patterns.empty() ? QString() : patterns.front().id;
+  }
+  current_pattern_stamp_aligned_ =
+      settings.value(QStringLiteral("tools/patternStampAligned"), true).toBool();
+  apply_pattern_stamp_settings_to_canvas(canvas_);
   current_healing_diffusion_ =
       std::clamp(settings.value(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_).toInt(), 1, 7);
   canvas_->set_healing_diffusion(current_healing_diffusion_);
@@ -12855,6 +12869,8 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/showTransformControls"), canvas_->show_transform_controls());
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
+  settings.setValue(QStringLiteral("tools/patternStampPatternId"), current_pattern_stamp_pattern_id_);
+  settings.setValue(QStringLiteral("tools/patternStampAligned"), current_pattern_stamp_aligned_);
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
   settings.setValue(QStringLiteral("tools/localAdjustmentStrength"), current_local_adjustment_strength_);
   QString local_tone_range = QStringLiteral("midtones");
@@ -12918,6 +12934,38 @@ void MainWindow::apply_active_brush_settings_to_canvas() {
   // Brush tips are application-wide like the rest of the brush settings; an incoming canvas
   // (new tab or tab switch) may hold a stale or empty tip.
   apply_brush_tip_to_canvas(canvas_);
+}
+
+void MainWindow::apply_pattern_stamp_settings_to_canvas(CanvasWidget* canvas) {
+  if (canvas == nullptr) {
+    return;
+  }
+  canvas->set_pattern_stamp_aligned(current_pattern_stamp_aligned_);
+  canvas->set_pattern_stamp_pattern(pattern_library().resource(current_pattern_stamp_pattern_id_));
+}
+
+void MainWindow::refresh_pattern_stamp_pattern_combo() {
+  if (pattern_stamp_pattern_combo_ == nullptr) {
+    return;
+  }
+  const QSignalBlocker blocker(pattern_stamp_pattern_combo_);
+  pattern_stamp_pattern_combo_->clear();
+  for (const auto& entry : pattern_library().entries()) {
+    pattern_stamp_pattern_combo_->addItem(QIcon(entry.thumbnail),
+                                          pattern_library_entry_display_name(entry), entry.id);
+    const auto index = pattern_stamp_pattern_combo_->count() - 1;
+    auto detail = QStringLiteral("%1 x %2").arg(entry.size.width()).arg(entry.size.height());
+    if (!entry.folder.isEmpty()) {
+      detail = entry.folder + QStringLiteral(" - ") + detail;
+    }
+    pattern_stamp_pattern_combo_->setItemData(index, detail, Qt::ToolTipRole);
+  }
+  auto index = pattern_stamp_pattern_combo_->findData(current_pattern_stamp_pattern_id_);
+  if (index < 0 && pattern_stamp_pattern_combo_->count() > 0) {
+    index = 0;
+    current_pattern_stamp_pattern_id_ = pattern_stamp_pattern_combo_->itemData(0).toString();
+  }
+  pattern_stamp_pattern_combo_->setCurrentIndex(index);
 }
 
 void MainWindow::set_eraser_brush_settings_active(bool active) {
@@ -14094,6 +14142,15 @@ void MainWindow::refresh_options_bar() {
   if (clone_aligned_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(clone_aligned_check_);
     clone_aligned_check_->setChecked(canvas_->clone_aligned());
+  }
+  if (pattern_stamp_pattern_combo_ != nullptr) {
+    const QSignalBlocker blocker(pattern_stamp_pattern_combo_);
+    pattern_stamp_pattern_combo_->setCurrentIndex(
+        pattern_stamp_pattern_combo_->findData(current_pattern_stamp_pattern_id_));
+  }
+  if (pattern_stamp_aligned_check_ != nullptr) {
+    const QSignalBlocker blocker(pattern_stamp_aligned_check_);
+    pattern_stamp_aligned_check_->setChecked(current_pattern_stamp_aligned_);
   }
   if (auto* healing_diffusion = findChild<QSpinBox*>(QStringLiteral("healingDiffusionSpin"));
       healing_diffusion != nullptr) {

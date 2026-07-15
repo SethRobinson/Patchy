@@ -100,6 +100,7 @@ bool move_layer_has_expensive_style(const Layer& layer) {
 bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
+    case CanvasTool::PatternStamp:
     case CanvasTool::Clone:
     case CanvasTool::Healing:
     case CanvasTool::Smudge:
@@ -120,6 +121,7 @@ bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
 bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
+    case CanvasTool::PatternStamp:
     case CanvasTool::Clone:
     case CanvasTool::Healing:
     case CanvasTool::Smudge:
@@ -152,6 +154,7 @@ bool is_local_adjustment_tool(CanvasTool tool) noexcept {
 bool tool_supports_opacity_digit_keys(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
+    case CanvasTool::PatternStamp:
     case CanvasTool::Clone:
     case CanvasTool::Healing:
     case CanvasTool::Smudge:
@@ -471,6 +474,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::MagicWand:
       case CanvasTool::QuickSelect:
       case CanvasTool::Clone:
+      case CanvasTool::PatternStamp:
       case CanvasTool::Healing:
       case CanvasTool::Smudge:
       case CanvasTool::Dodge:
@@ -526,7 +530,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                                    layer_edit_target_ == LayerEditTarget::ComponentBlue;
   if (event->button() == Qt::LeftButton && channel_view_active &&
       (effective_tool == CanvasTool::Move || effective_tool == CanvasTool::Clone ||
-       effective_tool == CanvasTool::Healing ||
+       effective_tool == CanvasTool::Healing || effective_tool == CanvasTool::PatternStamp ||
        effective_tool == CanvasTool::Smudge || is_local_adjustment_tool(effective_tool) ||
        effective_tool == CanvasTool::Text)) {
     if (status_callback_) {
@@ -958,7 +962,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
-  if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::Smudge ||
+  if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::PatternStamp ||
+      effective_tool == CanvasTool::Smudge ||
       effective_tool == CanvasTool::Eraser) {
     if (effective_tool == CanvasTool::Smudge && editing_grayscale_target()) {
       if (status_callback_) {
@@ -969,6 +974,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     auto label = tr("Erase");
     if (effective_tool == CanvasTool::Brush) {
       label = tr("Brush stroke");
+    } else if (effective_tool == CanvasTool::PatternStamp) {
+      if (!begin_pattern_stamp_stroke(document_point)) {
+        if (status_callback_) {
+          status_callback_(tr("Choose a pattern before painting"));
+        }
+        return;
+      }
+      label = tr("Pattern stamp");
     } else if (effective_tool == CanvasTool::Smudge) {
       label = tr("Smudge");
     }
@@ -1523,7 +1536,8 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       dirty = local_adjustment_brush_segment(last_document_position_, constrained_point);
       last_document_position_ = constrained_point;
       last_document_position_f_ = QPointF(constrained_point);
-    } else if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::Eraser) {
+    } else if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::PatternStamp ||
+               effective_tool == CanvasTool::Eraser) {
       if (effective_brush_input().size == 1) {
         const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
         dirty = draw_brush_segment(last_document_position_, constrained_point, effective_tool == CanvasTool::Eraser);
@@ -2373,7 +2387,8 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
 bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat) {
   // Photoshop-style numeric entry: Brush uses Shift+digits for Flow, except
   // while Airbrush is on, when bare digits set Flow and Shift+digits set
-  // Opacity. Other painting tools keep the historical bare-digit Opacity path.
+  // Opacity. Pattern Stamp uses bare digits for Opacity and Shift+digits for
+  // Flow. Other painting tools keep the historical bare-digit Opacity path.
   if (auto_repeat || key < Qt::Key_0 || key > Qt::Key_9 ||
       !tool_supports_opacity_digit_keys(tool_)) {
     return false;
@@ -2381,11 +2396,12 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   const auto semantic_modifiers = modifiers & ~Qt::KeypadModifier;
   const auto shift = semantic_modifiers == Qt::ShiftModifier;
   if ((semantic_modifiers != Qt::NoModifier && !shift) ||
-      (shift && tool_ != CanvasTool::Brush)) {
+      (shift && tool_ != CanvasTool::Brush && tool_ != CanvasTool::PatternStamp)) {
     return false;
   }
-  const auto targets_flow = tool_ == CanvasTool::Brush &&
-                            (brush_build_up_ ? !shift : shift);
+  const auto targets_flow =
+      (tool_ == CanvasTool::Brush && (brush_build_up_ ? !shift : shift)) ||
+      (tool_ == CanvasTool::PatternStamp && shift);
   if (opacity_pending_digit_ >= 0 && targets_flow != opacity_digit_targets_flow_) {
     opacity_pending_digit_ = -1;
     opacity_digit_timer_.invalidate();
@@ -2634,6 +2650,7 @@ CanvasTool CanvasWidget::effective_tool_for_input() const noexcept {
       active_pen_input_sample_->pointer_type == PenInputSample::PointerType::Eraser) {
     switch (tool_) {
       case CanvasTool::Brush:
+      case CanvasTool::PatternStamp:
       case CanvasTool::Clone:
       case CanvasTool::Healing:
       case CanvasTool::Smudge:

@@ -404,6 +404,7 @@ bool tool_uses_alt_left_for_color_pick(CanvasTool tool) noexcept {
   // (Photoshop parity), and the temporary-eyedropper cursor would fight it.
   switch (tool) {
     case CanvasTool::Brush:
+    case CanvasTool::PatternStamp:
     case CanvasTool::Smudge:
     case CanvasTool::Eraser:
     case CanvasTool::Gradient:
@@ -425,6 +426,7 @@ QPoint clamped_document_point(const Document& document, QPoint point) {
 bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
+    case CanvasTool::PatternStamp:
     case CanvasTool::Clone:
     case CanvasTool::Healing:
     case CanvasTool::Smudge:

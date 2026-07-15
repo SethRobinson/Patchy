@@ -271,12 +271,15 @@ void CanvasWidget::update_tool_cursor() {
     }
     return;
   }
-  if ((tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser) && brush_tip_ != nullptr) {
+  if ((tool_ == CanvasTool::Brush || tool_ == CanvasTool::PatternStamp ||
+       tool_ == CanvasTool::Eraser) &&
+      brush_tip_ != nullptr) {
     if (apply_brush_tip_cursor()) {
       return;
     }
   }
-  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing ||
+  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::PatternStamp ||
+      tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing ||
       tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn ||
       tool_ == CanvasTool::Sponge || tool_ == CanvasTool::BlurBrush ||
       tool_ == CanvasTool::SharpenBrush || tool_ == CanvasTool::Eraser) {

@@ -2,6 +2,7 @@
 
 #include "core/document.hpp"
 #include "core/magnetic_lasso.hpp"
+#include "core/pattern_resource.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/warp_mesh.hpp"
 #include "ui/curves_clipping_preview.hpp"
@@ -72,7 +73,8 @@ enum class CanvasTool {
   Burn,
   Sponge,
   BlurBrush,
-  SharpenBrush
+  SharpenBrush,
+  PatternStamp
 };
 
 // Action that can be bound to a pen barrel/side button. These are the actions
@@ -360,6 +362,10 @@ public:
   [[nodiscard]] std::vector<GradientStop> effective_gradient_stops() const;
   void set_clone_aligned(bool aligned) noexcept;
   [[nodiscard]] bool clone_aligned() const noexcept;
+  void set_pattern_stamp_pattern(std::optional<PatternResource> pattern);
+  [[nodiscard]] const std::optional<PatternResource>& pattern_stamp_pattern() const noexcept;
+  void set_pattern_stamp_aligned(bool aligned) noexcept;
+  [[nodiscard]] bool pattern_stamp_aligned() const noexcept;
   void set_healing_diffusion(int diffusion) noexcept;
   [[nodiscard]] int healing_diffusion() const noexcept;
   void set_local_adjustment_strength(int strength) noexcept;
@@ -886,6 +892,7 @@ private:
   [[nodiscard]] QRect smudge_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect local_adjustment_brush_segment(QPoint from, QPoint to);
   void set_clone_source(QPoint point);
+  [[nodiscard]] bool begin_pattern_stamp_stroke(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect clone_brush_at(QPoint point);
   void draw_pixel(Layer& layer, QPoint document_point, QColor color, bool erase);
@@ -1326,6 +1333,9 @@ private:
   bool clone_source_set_{false};
   bool clone_aligned_{true};
   bool clone_aligned_offset_set_{false};
+  std::optional<PatternResource> pattern_stamp_pattern_;
+  bool pattern_stamp_aligned_{true};
+  std::optional<QPoint> pattern_stamp_origin_;
   int healing_diffusion_{5};
   int local_adjustment_strength_{50};
   LocalToneRange local_tone_range_{LocalToneRange::Midtones};

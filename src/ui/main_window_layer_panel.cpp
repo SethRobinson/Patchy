@@ -2687,7 +2687,8 @@ void MainWindow::refresh_document_info() {
   if (active_tool_info_label_ != nullptr && canvas_ != nullptr) {
     QStringList lines;
     lines << tr("Tool: %1").arg(tool_name(current_tool_));
-    if (current_tool_ == CanvasTool::Brush || current_tool_ == CanvasTool::Clone ||
+    if (current_tool_ == CanvasTool::Brush || current_tool_ == CanvasTool::PatternStamp ||
+        current_tool_ == CanvasTool::Clone ||
         current_tool_ == CanvasTool::Healing ||
         current_tool_ == CanvasTool::Smudge || current_tool_ == CanvasTool::Eraser ||
         current_tool_ == CanvasTool::Line || current_tool_ == CanvasTool::Rectangle ||
@@ -2695,9 +2696,11 @@ void MainWindow::refresh_document_info() {
       lines << tr("Size: %1 px").arg(canvas_->brush_size())
             << tr("Opacity: %1%").arg(canvas_->brush_opacity())
             << tr("Softness: %1%").arg(canvas_->brush_softness());
-      if (current_tool_ == CanvasTool::Brush) {
-        lines << tr("Flow: %1%").arg(canvas_->brush_flow())
-              << (canvas_->brush_build_up() ? tr("Airbrush: on") : tr("Airbrush: off"));
+      if (current_tool_ == CanvasTool::Brush || current_tool_ == CanvasTool::PatternStamp) {
+        lines << tr("Flow: %1%").arg(canvas_->brush_flow());
+        if (current_tool_ == CanvasTool::Brush) {
+          lines << (canvas_->brush_build_up() ? tr("Airbrush: on") : tr("Airbrush: off"));
+        }
       }
     } else if (current_tool_ == CanvasTool::Dodge || current_tool_ == CanvasTool::Burn ||
                current_tool_ == CanvasTool::Sponge || current_tool_ == CanvasTool::BlurBrush ||

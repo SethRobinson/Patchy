@@ -1468,6 +1468,114 @@ void ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd() {
   save_widget_artifact("ui_brush_flow_opacity_cap", canvas);
 }
 
+void ui_pattern_stamp_alignment_palette_and_psd_round_trip() {
+  patchy::PatternResource pattern;
+  pattern.id = "patchy-test-pattern-stamp";
+  pattern.name = "Pattern Stamp Test";
+  pattern.tile = patchy::PixelBuffer(4, 4, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < pattern.tile.height(); ++y) {
+    for (int x = 0; x < pattern.tile.width(); ++x) {
+      auto* pixel = pattern.tile.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(30 + x * 45);
+      pixel[1] = static_cast<std::uint8_t>(20 + y * 55);
+      pixel[2] = static_cast<std::uint8_t>(10 + x * 8 + y * 6);
+      pixel[3] = static_cast<std::uint8_t>(x == 2 && y == 2 ? 128 : 255);
+    }
+  }
+
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    if (const auto* stale = window.pattern_library().find_entry_by_pattern_id(
+            QString::fromStdString(pattern.id));
+        stale != nullptr) {
+      CHECK(window.pattern_library().remove_pattern(stale->storage_id));
+    }
+    const auto storage_id = window.pattern_library().add_pattern(
+        QString::fromStdString(pattern.name), pattern.tile, QStringLiteral("Tests"),
+        QString::fromStdString(pattern.id));
+    CHECK(!storage_id.isEmpty());
+    require_action_by_text(window, QStringLiteral("Pattern Stamp"))->trigger();
+    QApplication::processEvents();
+    auto* pattern_combo =
+        window.findChild<QComboBox*>(QStringLiteral("patternStampPatternCombo"));
+    auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("patternStampAlignedCheck"));
+    auto* manage = window.findChild<QPushButton*>(QStringLiteral("patternStampManageButton"));
+    CHECK(pattern_combo != nullptr);
+    const auto pattern_index = pattern_combo->findData(QString::fromStdString(pattern.id));
+    CHECK(pattern_index >= 0);
+    pattern_combo->setCurrentIndex(pattern_index);
+    CHECK(pattern_combo->isVisible());
+    CHECK(aligned != nullptr && aligned->isVisible());
+    CHECK(manage != nullptr && manage->isVisible());
+    save_widget_artifact("ui_pattern_stamp_options", window);
+    CHECK(window.pattern_library().remove_pattern(storage_id));
+  }
+
+  patchy::Document document(64, 40, patchy::PixelFormat::rgba8());
+  const auto layer_id = document.add_pixel_layer(
+      "Pattern", solid_pixels(64, 40, patchy::PixelFormat::rgba8(), Qt::transparent)).id();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(160, 120);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::PatternStamp);
+  canvas.set_pattern_stamp_pattern(pattern);
+  canvas.set_pattern_stamp_aligned(true);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_flow(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto click = [&canvas](QPoint document_point) {
+    const auto widget_point = canvas.widget_position_for_document_point(document_point);
+    send_mouse(canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  click(QPoint(20, 20));
+  click(QPoint(25, 20));
+  canvas.set_pattern_stamp_aligned(false);
+  click(QPoint(35, 20));
+
+  const auto* layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr);
+  const auto* centered = layer->pixels().pixel(20, 20);
+  const auto* continued = layer->pixels().pixel(25, 20);
+  const auto* restarted = layer->pixels().pixel(35, 20);
+  CHECK(std::equal(centered, centered + 4, pattern.tile.pixel(2, 2)));
+  CHECK(std::equal(continued, continued + 4, pattern.tile.pixel(3, 2)));
+  CHECK(std::equal(restarted, restarted + 4, pattern.tile.pixel(2, 2)));
+
+  ensure_artifact_dir();
+  const auto path = std::filesystem::path("test-artifacts") / "ui_pattern_stamp.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, path);
+  const auto reopened = patchy::psd::DocumentIo::read_file(path);
+  CHECK(reopened.layers().size() == 1U);
+  const auto* reopened_pixel = reopened.layers().front().pixels().pixel(25, 20);
+  CHECK(std::equal(continued, continued + 4, reopened_pixel));
+
+  patchy::Document palette_document(24, 24, patchy::PixelFormat::rgba8());
+  const auto palette_layer_id = palette_document.add_pixel_layer(
+      "Palette Pattern", solid_pixels(24, 24, patchy::PixelFormat::rgba8(), Qt::transparent)).id();
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors = {patchy::RgbColor{0, 0, 0}, patchy::RgbColor{255, 255, 255}};
+  editing.palette_revision = 7001;
+  palette_document.palette_editing() = editing;
+  canvas.set_document(&palette_document);
+  canvas.set_pattern_stamp_pattern(pattern);
+  canvas.set_pattern_stamp_aligned(false);
+  click(QPoint(12, 12));
+  const auto* palette_layer = std::as_const(palette_document).find_layer(palette_layer_id);
+  CHECK(palette_layer != nullptr);
+  const auto* snapped = palette_layer->pixels().pixel(12, 12);
+  CHECK((snapped[0] == 0U && snapped[1] == 0U && snapped[2] == 0U) ||
+        (snapped[0] == 255U && snapped[1] == 255U && snapped[2] == 255U));
+  CHECK(snapped[3] == 255U);
+  save_widget_artifact("ui_pattern_stamp_alignment", canvas);
+}
+
 void ui_airbrush_fast_strokes_ignore_mouse_event_density() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2629,6 +2737,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests() {
        ui_airbrush_preset_builds_while_stationary},
       {"ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd",
        ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd},
+      {"ui_pattern_stamp_alignment_palette_and_psd_round_trip",
+       ui_pattern_stamp_alignment_palette_and_psd_round_trip},
       {"ui_airbrush_fast_strokes_ignore_mouse_event_density",
        ui_airbrush_fast_strokes_ignore_mouse_event_density},
       {"ui_airbrush_jittered_stroke_uses_smoothed_path", ui_airbrush_jittered_stroke_uses_smoothed_path},

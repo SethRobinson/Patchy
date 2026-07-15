@@ -701,6 +701,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolQuickSelectAction", "Quick Select"},
       {"toolBrushAction", "Brush"},
       {"toolCloneAction", "Clone"},
+      {"toolPatternStampAction", "Pattern Stamp"},
       {"toolHealingBrushAction", "Healing Brush"},
       {"toolSmudgeAction", "Smudge"},
       {"toolDodgeAction", "Dodge"},

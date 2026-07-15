@@ -5122,6 +5122,7 @@ Mixed selection</source>
     </message>
     <message><source>Dodge</source><translation>覆い焼き</translation></message>
     <message><source>Burn</source><translation>焼き込み</translation></message>
+    <message><source>Pattern Stamp</source><translation>パターンスタンプ</translation></message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -5756,6 +5757,14 @@ Mixed selection</source>
         <location filename="../src/ui/canvas_widget_events.cpp" line="567"/>
         <source>Healing brush</source>
         <translation>修復ブラシ</translation>
+    </message>
+    <message>
+        <source>Choose a pattern before painting</source>
+        <translation>ペイントする前にパターンを選択してください</translation>
+    </message>
+    <message>
+        <source>Pattern stamp</source>
+        <translation>パターンスタンプ</translation>
     </message>
     <message>
         <location line="+127"/>
@@ -12007,6 +12016,11 @@ Clipped to the layer below</source>
     <message><source>Desaturate</source><translation>彩度を下げる</translation></message>
     <message><source>Vibrance</source><translation>自然な彩度</translation></message>
     <message><source>Reduce the adjustment on colors that are already strongly saturated</source><translation>すでに彩度が高い色への補正を弱めます</translation></message>
+    <message><source>Pattern Stamp</source><translation>パターンスタンプ</translation></message>
+    <message><source>Pattern:</source><translation>パターン:</translation></message>
+    <message><source>Manage...</source><translation>管理...</translation></message>
+    <message><source>Import or manage patterns</source><translation>パターンを読み込むか管理します</translation></message>
+    <message><source>Keep pattern alignment continuous across strokes</source><translation>ストローク間でパターンの配置を連続させます</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
