@@ -111,6 +111,12 @@ enum class CanvasAnchor {
                                const EditOptions& options, bool erase);
 [[nodiscard]] Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y,
                                    const EditOptions& options, bool erase);
+// One stationary Airbrush timer tick. Active shape/Transfer dynamics advance through the
+// stroke state, while scatter/count are deliberately suppressed so a held pointer remains one
+// flat 2D stamp rather than a particle burst. Falls back to paint_brush_dab without dynamics.
+[[nodiscard]] Rect paint_stationary_airbrush_dab(Document& document, LayerId layer_id, double x,
+                                                 double y, const EditOptions& options,
+                                                 BrushTipStrokeState& state);
 [[nodiscard]] Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double y0, double x1,
                                        double y1, const EditOptions& options, bool erase);
 [[nodiscard]] Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,

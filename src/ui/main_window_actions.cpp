@@ -2829,6 +2829,15 @@ void MainWindow::create_actions() {
     if (preset == nullptr) {
       return;
     }
+    if (preset_id == QStringLiteral("airbrush")) {
+      // The quick Airbrush preset is a predictable soft Round brush. Existing sampled tips
+      // already cover Smoke/Spray/Spatter/Stipple, so do not invent a duplicate airbrush tip or
+      // carry a surprising Round dynamics session into this basic preset.
+      round_brush_dynamics_ = {};
+      round_brush_base_angle_degrees_ = 0.0;
+      round_brush_base_roundness_ = 100.0;
+      set_active_brush_tip(builtin_round_brush_tip_id(), false, false);
+    }
     apply_brush_preset(*canvas_, *preset);
     brush_size->setValue(preset->size);
     brush_opacity->setValue(preset->opacity);

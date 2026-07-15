@@ -1068,6 +1068,35 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
   return dirty;
 }
 
+Rect paint_stationary_airbrush_dab(Document& document, LayerId layer_id, double x, double y,
+                                   const EditOptions& options, BrushTipStrokeState& state) {
+  if (options.brush_tip == nullptr || options.brush_tip->empty() ||
+      !options.brush_dynamics.active()) {
+    return paint_brush_dab(document, layer_id, x, y, options, false);
+  }
+
+  if (!state.initialized) {
+    state.initialized = true;
+    state.rng.seed(options.brush_dynamics.seed);
+  }
+
+  // Patent/design boundary: a stationary Airbrush tick is one current flat stamp. Shape and
+  // Transfer dynamics still advance (including Fade), but Scattering and Count are movement-
+  // stroke features here. Omitting their offsets, extra dabs, and RNG draws prevents a held
+  // pointer from becoming a simulated spray-particle burst. The regular segment path retains
+  // the full Photoshop-compatible dynamics behavior while the pointer moves.
+  auto stationary_dynamics = options.brush_dynamics;
+  stationary_dynamics.scatter = 0.0;
+  const auto variation =
+      sample_dab_variation(stationary_dynamics, state.rng, state.dynamics, options.brush_size);
+  const auto transform = tip_dab_transform(options, variation);
+  const auto dirty = paint_tip_dab(
+      document, layer_id, x, y, options, false, transform,
+      static_cast<float>(variation.opacity_multiplier * variation.flow_multiplier));
+  ++state.dynamics.step_index;
+  return dirty;
+}
+
 // Places tip dabs along [x0,y0]→[x1,y1] every brush_size * brush_tip_spacing pixels, resuming
 // from state.residual_distance so chained segments keep a uniform dab cadence. With active
 // brush dynamics each spacing step stamps `count` independently varied dabs (scatter offsets,

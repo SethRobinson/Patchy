@@ -1145,6 +1145,79 @@ void tool_brush_tip_flow_jitter_varies_dab_alpha() {
   CHECK(!(first == second && second == third));
 }
 
+void tool_stationary_airbrush_dynamics_advance_without_scatter_bursts() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto plain_document = make_tool_document();
+  const auto plain_layer = active_tool_layer(plain_document);
+  auto plain_options = tool_options(0, 0, 0);
+  plain_options.brush_size = 9;
+  plain_options.brush_tip = &scaled;
+  CHECK(!patchy::paint_brush_dab(plain_document, plain_layer, 24.0, 24.0, plain_options, false).empty());
+
+  // Stationary Airbrush ticks ignore movement-only Scattering and Count: even an extreme
+  // configuration remains exactly one centered flat stamp.
+  auto stationary_document = make_tool_document();
+  const auto stationary_layer = active_tool_layer(stationary_document);
+  auto stationary_options = plain_options;
+  stationary_options.brush_dynamics.scatter = 10.0;
+  stationary_options.brush_dynamics.scatter_both_axes = true;
+  stationary_options.brush_dynamics.count = 16;
+  stationary_options.brush_dynamics.count_jitter = 1.0;
+  stationary_options.brush_dynamics.seed = 98765;
+  patchy::BrushTipStrokeState stationary_state;
+  CHECK(!patchy::paint_stationary_airbrush_dab(stationary_document, stationary_layer, 24.0, 24.0,
+                                               stationary_options, stationary_state)
+             .empty());
+  const auto& plain_pixels = std::as_const(plain_document).find_layer(plain_layer)->pixels();
+  const auto& stationary_pixels =
+      std::as_const(stationary_document).find_layer(stationary_layer)->pixels();
+  CHECK(std::equal(plain_pixels.data().begin(), plain_pixels.data().end(),
+                   stationary_pixels.data().begin(), stationary_pixels.data().end()));
+  CHECK(stationary_state.initialized);
+  CHECK(stationary_state.dynamics.step_index == 1U);
+
+  // Shape/Transfer random draws and Fade steps do advance. The expected RNG stream omits only
+  // the suppressed Count/Scatter draws, so a later moving segment continues deterministically.
+  auto dynamic_document = make_tool_document();
+  const auto dynamic_layer = active_tool_layer(dynamic_document);
+  auto dynamic_options = stationary_options;
+  dynamic_options.brush_dynamics.size_jitter = 0.25;
+  dynamic_options.brush_dynamics.opacity_jitter = 0.2;
+  dynamic_options.brush_dynamics.flow_jitter = 0.2;
+  dynamic_options.brush_dynamics.opacity_control = patchy::BrushDynamicControl::Fade;
+  dynamic_options.brush_dynamics.opacity_fade_steps = 2;
+  dynamic_options.brush_dynamics.minimum_opacity = 0.2;
+  dynamic_options.brush_dynamics.flow_control = patchy::BrushDynamicControl::Fade;
+  dynamic_options.brush_dynamics.flow_fade_steps = 2;
+  dynamic_options.brush_dynamics.minimum_flow = 0.4;
+  patchy::BrushTipStrokeState dynamic_state;
+  patchy::BrushDynamicsRng expected_rng;
+  expected_rng.seed(dynamic_options.brush_dynamics.seed);
+  auto expected_dynamics = dynamic_options.brush_dynamics;
+  expected_dynamics.scatter = 0.0;
+  patchy::BrushDynamicsStrokeContext expected_context;
+  for (const auto x : {12.0, 24.0, 36.0}) {
+    (void)patchy::sample_dab_variation(expected_dynamics, expected_rng, expected_context,
+                                       dynamic_options.brush_size);
+    CHECK(!patchy::paint_stationary_airbrush_dab(dynamic_document, dynamic_layer, x, 12.0,
+                                                 dynamic_options, dynamic_state)
+               .empty());
+    ++expected_context.step_index;
+    CHECK(dynamic_state.rng.state == expected_rng.state);
+    CHECK(dynamic_state.dynamics.step_index == expected_context.step_index);
+  }
+  const auto& dynamic_pixels = std::as_const(dynamic_document).find_layer(dynamic_layer)->pixels();
+  const auto first_alpha = dynamic_pixels.pixel(12, 12)[3];
+  const auto second_alpha = dynamic_pixels.pixel(24, 12)[3];
+  const auto third_alpha = dynamic_pixels.pixel(36, 12)[3];
+  CHECK(first_alpha > second_alpha);
+  CHECK(second_alpha > third_alpha);
+  CHECK(third_alpha > 0U);
+}
+
 void tool_brush_tip_dynamics_carry_across_segments() {
   // With every dynamic active, one long segment and the same path chopped into short segments
   // must paint identical pixels: the RNG stream, fade step index, and stroke direction all live
@@ -1352,6 +1425,8 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
       {"tool_brush_tip_count_stamps_multiple_dabs_per_step", tool_brush_tip_count_stamps_multiple_dabs_per_step},
       {"tool_brush_tip_opacity_jitter_varies_dab_alpha", tool_brush_tip_opacity_jitter_varies_dab_alpha},
       {"tool_brush_tip_flow_jitter_varies_dab_alpha", tool_brush_tip_flow_jitter_varies_dab_alpha},
+      {"tool_stationary_airbrush_dynamics_advance_without_scatter_bursts",
+       tool_stationary_airbrush_dynamics_advance_without_scatter_bursts},
       {"tool_brush_tip_dynamics_carry_across_segments", tool_brush_tip_dynamics_carry_across_segments},
       {"tool_brush_tip_erases_and_respects_gates", tool_brush_tip_erases_and_respects_gates},
       {"brush_tip_softening_feathers_edges", brush_tip_softening_feathers_edges},

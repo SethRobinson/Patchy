@@ -1357,10 +1357,28 @@ void ui_airbrush_preset_builds_while_stationary() {
 
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   canvas->set_primary_color(Qt::black);
+  patchy::BrushDynamics stale_round_dynamics;
+  stale_round_dynamics.scatter = 2.0;
+  stale_round_dynamics.count = 3;
+  patchy::ui::MainWindowTestAccess::set_round_brush_session(window, stale_round_dynamics,
+                                                            42.0, 55.0);
+  QImage sampled_tip(8, 8, QImage::Format_Grayscale8);
+  sampled_tip.fill(255);
+  const auto sampled_tip_id =
+      window.brush_tip_library().add_tip(QStringLiteral("Airbrush preset reset probe"),
+                                         sampled_tip, 0.25);
+  CHECK(!sampled_tip_id.isEmpty());
+  window.set_active_brush_tip(sampled_tip_id, false);
+  CHECK(canvas->has_brush_tip());
+
   const auto airbrush_index = brush_preset->findData(QStringLiteral("airbrush"));
   CHECK(airbrush_index >= 0);
   brush_preset->setCurrentIndex(airbrush_index);
   QApplication::processEvents();
+  CHECK(!canvas->has_brush_tip());
+  CHECK(!canvas->brush_dynamics().active());
+  CHECK(std::abs(canvas->brush_base_angle_degrees()) < 1e-9);
+  CHECK(canvas->brush_base_roundness() == 100);
   CHECK(canvas->brush_build_up());
   CHECK(canvas->brush_opacity() == 100);
   CHECK(canvas->brush_flow() == 12);
@@ -1384,6 +1402,26 @@ void ui_airbrush_preset_builds_while_stationary() {
   QTest::qWait(120);
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 120)), released, 1));
+
+  // A stationary timer tick advances the same Transfer/Fade state as a spatial dab. With a
+  // one-step Flow fade, the press paints normally and every held tick has zero Flow. The old
+  // stateless timer path would ignore the fade and keep darkening this point.
+  patchy::BrushDynamics fade;
+  fade.flow_control = patchy::BrushDynamicControl::Fade;
+  fade.flow_fade_steps = 1;
+  canvas->set_brush_dynamics(fade);
+  const auto faded_center = canvas->widget_position_for_document_point(QPoint(240, 120));
+  send_mouse(*canvas, QEvent::MouseButtonPress, faded_center, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  const auto faded_initial = canvas_pixel(*canvas, QPoint(240, 120));
+  CHECK(faded_initial.red() >= 215);
+  CHECK(faded_initial.red() <= 232);
+  QTest::qWait(160);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(240, 120)), faded_initial, 1));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, faded_center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(window.brush_tip_library().remove_tip(sampled_tip_id));
   save_widget_artifact("ui_airbrush_stationary_build_up", window);
 }
 

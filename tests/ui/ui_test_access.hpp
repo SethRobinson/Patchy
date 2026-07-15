@@ -92,6 +92,13 @@ public:
     window.update_document_action_state();
   }
 
+  static void set_round_brush_session(MainWindow& window, BrushDynamics dynamics,
+                                      double base_angle_degrees, double base_roundness) {
+    window.round_brush_dynamics_ = std::move(dynamics);
+    window.round_brush_base_angle_degrees_ = base_angle_degrees;
+    window.round_brush_base_roundness_ = base_roundness;
+  }
+
   static bool save_document(MainWindow& window) {
     return window.save_document();
   }

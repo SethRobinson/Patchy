@@ -2490,9 +2490,11 @@ void CanvasWidget::timerEvent(QTimerEvent* event) {
       airbrush_timer_.stop();
     } else {
       // Patent boundary (July 2026): classic Airbrush is only a fixed-rate
-      // repetition of the current flat 2D brush stamp. It does not model
-      // particles, a 3D spray cone or stylus pose, velocity-dependent flow,
-      // bristles, fluid surfaces, wet paint, or bidirectional paint transfer.
+      // repetition of one current flat 2D brush stamp. Shape and Transfer
+      // dynamics advance, but stationary ticks suppress Scattering and Count;
+      // they do not model particles, a 3D spray cone or stylus pose,
+      // velocity-dependent flow, bristles, fluid surfaces, wet paint, or
+      // bidirectional paint transfer.
       const auto dirty = draw_airbrush_dab(last_document_position_f_);
       if (!dirty.isEmpty()) {
         active_edit_target_changed_impl(QRegion(dirty),

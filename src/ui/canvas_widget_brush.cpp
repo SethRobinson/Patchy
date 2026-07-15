@@ -1608,8 +1608,9 @@ QRect CanvasWidget::draw_airbrush_dab(QPointF point) {
   auto options = current_brush_edit_options(brush);
   apply_brush_tip_to_options(options, brush.size, brush.softness);
   install_brush_stroke_compositor(options, false);
-  return to_qrect(patchy::paint_brush_dab(*document_, *document_->active_layer_id(),
-                                          point.x(), point.y(), options, false));
+  return to_qrect(patchy::paint_stationary_airbrush_dab(
+      *document_, *document_->active_layer_id(), point.x(), point.y(), options,
+      brush_tip_stroke_state_));
 }
 
 QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase) {
