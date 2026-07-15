@@ -2131,7 +2131,8 @@ void ui_text_reedit_preserves_rich_text_spacing() {
   auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
   CHECK(text_size != nullptr);
   CHECK(text_bold != nullptr);
-  text_size->setValue(text_points_for_pixels(72));
+  // Directly-constructed Document: core default 300 ppi, not the startup doc's 72.
+  text_size->setValue(text_points_for_pixels(72, 300.0));
   text_bold->setChecked(true);
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();

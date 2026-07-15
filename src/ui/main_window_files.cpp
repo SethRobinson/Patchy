@@ -67,6 +67,7 @@
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/start_panel.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/zoom_status_bar.hpp"
@@ -1631,6 +1632,11 @@ void MainWindow::add_recent_file(QString path) {
 }
 
 void MainWindow::rebuild_recent_files_menu() {
+  // The start panel mirrors the recent list while it is showing (e.g. a recent
+  // entry was cleared from the menu with no document open).
+  if (start_panel_ != nullptr && start_panel_->isVisible()) {
+    start_panel_->set_recent_files(recent_files_);
+  }
   if (recent_files_menu_ == nullptr) {
     return;
   }

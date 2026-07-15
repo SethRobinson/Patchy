@@ -3296,44 +3296,93 @@ Flow: %6
         <translation>クリップボード</translation>
     </message>
     <message>
-        <location line="+9"/>
-        <source>1024 x 768</source>
-        <translation>1024 x 768</translation>
+        <source>720p</source>
+        <translation>720p</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>A5 300 ppi</source>
-        <translation>A5 300 ppi</translation>
+        <source>Square</source>
+        <comment>new document preset</comment>
+        <translation>正方形</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>A4 300 ppi</source>
-        <translation>A4 300 ppi</translation>
+        <source>Social Post</source>
+        <translation>SNS投稿</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>A3 300 ppi</source>
-        <translation>A3 300 ppi</translation>
+        <source>Social Story</source>
+        <translation>SNSストーリー</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>US Legal 300 ppi</source>
-        <translation>米国リーガル 300 ppi</translation>
+        <source>Photo 3:2</source>
+        <translation>写真 3:2</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>5 x 7 in 300 ppi</source>
-        <translation>5 x 7 インチ 300 ppi</translation>
+        <source>A5</source>
+        <translation>A5</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>8 x 10 in 300 ppi</source>
-        <translation>8 x 10 インチ 300 ppi</translation>
+        <source>A4</source>
+        <translation>A4</translation>
     </message>
     <message>
-        <location line="+1"/>
-        <source>Square 2048</source>
-        <translation>正方形 2048</translation>
+        <source>A3</source>
+        <translation>A3</translation>
+    </message>
+    <message>
+        <source>US Letter</source>
+        <translation>USレター</translation>
+    </message>
+    <message>
+        <source>US Legal</source>
+        <translation>米国リーガル</translation>
+    </message>
+    <message>
+        <source>5 x 7 in</source>
+        <translation>5 x 7 インチ</translation>
+    </message>
+    <message>
+        <source>8 x 10 in</source>
+        <translation>8 x 10 インチ</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>作成</translation>
+    </message>
+    <message>
+        <source>No image</source>
+        <translation>画像なし</translation>
+    </message>
+    <message>
+        <source>%1 x %2 px</source>
+        <translation>%1 x %2 px</translation>
+    </message>
+    <message>
+        <source>%1 x %2 in at %3 ppi</source>
+        <translation>%1 x %2 インチ、%3 ppi</translation>
+    </message>
+    <message>
+        <source>%1: %2 x %3 px at %4 ppi</source>
+        <translation>%1: %2 x %3 px、%4 ppi</translation>
+    </message>
+    <message>
+        <source>Create the document from the clipboard image</source>
+        <translation>クリップボードの画像からドキュメントを作成</translation>
+    </message>
+    <message>
+        <source>Clipboard does not contain an image</source>
+        <translation>クリップボードに画像がありません</translation>
+    </message>
+    <message>
+        <source>Choose background color</source>
+        <translation>背景色を選択</translation>
+    </message>
+    <message>
+        <source>Background color</source>
+        <translation>背景色</translation>
+    </message>
+    <message>
+        <source>Background Color</source>
+        <translation>背景色</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3507,10 +3556,6 @@ Flow: %6
     <message>
         <source>pt</source>
         <translation>pt</translation>
-    </message>
-    <message>
-        <source>US Letter 300 ppi</source>
-        <translation>USレター 300 ppi</translation>
     </message>
     <message>
         <source>Resolution</source>
@@ -12649,6 +12694,25 @@ Clipped to the layer below</source>
         <location filename="../src/ui/pattern_library.cpp"/>
         <source>%1 Copy</source>
         <translation>%1 のコピー</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::StartPanel</name>
+    <message>
+        <source>New Document...</source>
+        <translation>新規ドキュメント...</translation>
+    </message>
+    <message>
+        <source>Open...</source>
+        <translation>開く...</translation>
+    </message>
+    <message>
+        <source>Recent Files</source>
+        <translation>最近使用したファイル</translation>
+    </message>
+    <message>
+        <source>You can also drop image files anywhere in the window</source>
+        <translation>画像ファイルをウィンドウにドロップして開くこともできます</translation>
     </message>
 </context>
 <context>

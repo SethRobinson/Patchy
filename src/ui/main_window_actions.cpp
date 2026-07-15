@@ -662,6 +662,14 @@ QIcon tool_icon(CanvasTool tool) {
 }  // namespace
 
 void MainWindow::create_actions() {
+  // Startup builds the options bar before any document exists (canvas_ is null):
+  // a throwaway default-constructed canvas donates the initial control values,
+  // which are identical to a fresh session canvas's. Once the first document
+  // arrives, load_tool_settings() + sync_tool_option_controls_from_canvas()
+  // re-read the controls from the real canvas with the stored settings applied.
+  CanvasWidget startup_defaults_canvas;
+  auto* canvas_defaults = canvas_ != nullptr ? canvas_ : &startup_defaults_canvas;
+
   auto* file_menu = menuBar()->addMenu(tr("&File"));
   auto* edit_menu = menuBar()->addMenu(tr("&Edit"));
   auto* image_menu = menuBar()->addMenu(tr("&Image"));
@@ -2129,7 +2137,7 @@ void MainWindow::create_actions() {
   move_auto_select_check_ = new CheckGlyphBox(tr("Auto-Select"), toolbar);
   move_auto_select_check_->setObjectName(QStringLiteral("moveAutoSelectCheck"));
   move_auto_select_check_->setToolTip(tr("Automatically select the clicked layer while using Move"));
-  move_auto_select_check_->setChecked(canvas_->auto_select_layer());
+  move_auto_select_check_->setChecked(canvas_defaults->auto_select_layer());
   add_option_widget(move_auto_select_check_, {CanvasTool::Move});
   connect(move_auto_select_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {
@@ -2139,7 +2147,7 @@ void MainWindow::create_actions() {
   move_show_transform_controls_check_ = new CheckGlyphBox(tr("Show Transform Controls"), toolbar);
   move_show_transform_controls_check_->setObjectName(QStringLiteral("moveShowTransformControlsCheck"));
   move_show_transform_controls_check_->setToolTip(tr("Show transform controls when selecting a layer with Move"));
-  move_show_transform_controls_check_->setChecked(canvas_->show_transform_controls());
+  move_show_transform_controls_check_->setChecked(canvas_defaults->show_transform_controls());
   add_option_widget(move_show_transform_controls_check_, {CanvasTool::Move});
   connect(move_show_transform_controls_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {
@@ -2563,7 +2571,7 @@ void MainWindow::create_actions() {
   auto* fixed_width = new QSpinBox(toolbar);
   fixed_width->setObjectName(QStringLiteral("selectionFixedWidthSpin"));
   fixed_width->setRange(1, 30000);
-  fixed_width->setValue(document().width());
+  fixed_width->setValue(has_active_document() ? document().width() : 1024);
   fixed_width->setSuffix(QStringLiteral(" px"));
   configure_toolbar_spinbox(fixed_width, 78);
   add_option_widget(fixed_width, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
@@ -2571,7 +2579,7 @@ void MainWindow::create_actions() {
   auto* fixed_height = new QSpinBox(toolbar);
   fixed_height->setObjectName(QStringLiteral("selectionFixedHeightSpin"));
   fixed_height->setRange(1, 30000);
-  fixed_height->setValue(document().height());
+  fixed_height->setValue(has_active_document() ? document().height() : 768);
   fixed_height->setSuffix(QStringLiteral(" px"));
   configure_toolbar_spinbox(fixed_height, 78);
   add_option_widget(fixed_height, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
@@ -2634,7 +2642,7 @@ void MainWindow::create_actions() {
   auto* brush_size = new QSpinBox(toolbar);
   brush_size->setObjectName(QStringLiteral("brushSizeSpin"));
   brush_size->setRange(1, kMaxBrushSize);
-  brush_size->setValue(canvas_->brush_size());
+  brush_size->setValue(canvas_defaults->brush_size());
   configure_toolbar_spinbox(brush_size, 58);
   add_option_widget(brush_size,
                     {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
@@ -2644,7 +2652,7 @@ void MainWindow::create_actions() {
   auto* brush_size_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
   brush_size_slider->setRange(1, kMaxBrushSize);
-  brush_size_slider->setValue(canvas_->brush_size());
+  brush_size_slider->setValue(canvas_defaults->brush_size());
   brush_size_slider->setFixedWidth(150);
   brush_size_slider->setToolTip(tr("Brush size — press [ or ], or Alt+Right-drag on the canvas"));
   add_option_widget(brush_size_slider,
@@ -2658,7 +2666,7 @@ void MainWindow::create_actions() {
   auto* brush_opacity = new QSpinBox(toolbar);
   brush_opacity->setObjectName(QStringLiteral("brushOpacitySpin"));
   brush_opacity->setRange(1, 100);
-  brush_opacity->setValue(canvas_->brush_opacity());
+  brush_opacity->setValue(canvas_defaults->brush_opacity());
   brush_opacity->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_opacity, 52);
   add_option_widget(brush_opacity,
@@ -2667,7 +2675,7 @@ void MainWindow::create_actions() {
   auto* brush_opacity_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_opacity_slider->setObjectName(QStringLiteral("brushOpacitySlider"));
   brush_opacity_slider->setRange(1, 100);
-  brush_opacity_slider->setValue(canvas_->brush_opacity());
+  brush_opacity_slider->setValue(canvas_defaults->brush_opacity());
   brush_opacity_slider->setFixedWidth(120);
   brush_opacity_slider->setToolTip(tr("Brush opacity — press number keys (5 = 50%, 0 = 100%)"));
   add_option_widget(brush_opacity_slider,
@@ -2681,7 +2689,7 @@ void MainWindow::create_actions() {
   auto* brush_softness = new QSpinBox(toolbar);
   brush_softness->setObjectName(QStringLiteral("brushSoftnessSpin"));
   brush_softness->setRange(0, 100);
-  brush_softness->setValue(canvas_->brush_softness());
+  brush_softness->setValue(canvas_defaults->brush_softness());
   brush_softness->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_softness, 52);
   add_option_widget(brush_softness,
@@ -2692,7 +2700,7 @@ void MainWindow::create_actions() {
   auto* brush_softness_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_softness_slider->setObjectName(QStringLiteral("brushSoftnessSlider"));
   brush_softness_slider->setRange(0, 100);
-  brush_softness_slider->setValue(canvas_->brush_softness());
+  brush_softness_slider->setValue(canvas_defaults->brush_softness());
   brush_softness_slider->setFixedWidth(110);
   brush_softness_slider->setToolTip(tr("Brush edge softness — Alt+Right-drag up or down on the canvas"));
   add_option_widget(brush_softness_slider,
@@ -2724,7 +2732,7 @@ void MainWindow::create_actions() {
   auto* brush_flow = new QSpinBox(toolbar);
   brush_flow->setObjectName(QStringLiteral("brushFlowSpin"));
   brush_flow->setRange(1, 100);
-  brush_flow->setValue(canvas_->brush_flow());
+  brush_flow->setValue(canvas_defaults->brush_flow());
   brush_flow->setSuffix(QStringLiteral("%"));
   brush_flow->setToolTip(tr("Brush flow - Shift+number keys (number keys with Airbrush)"));
   bind_tooltip(brush_flow, "Brush flow - Shift+number keys (number keys with Airbrush)");
@@ -2733,7 +2741,7 @@ void MainWindow::create_actions() {
   auto* brush_airbrush = new CheckGlyphBox(tr("Airbrush"), toolbar);
   brush_airbrush->setObjectName(QStringLiteral("brushAirbrushCheck"));
   bind_widget_text(brush_airbrush, "Airbrush");
-  brush_airbrush->setChecked(canvas_->brush_build_up());
+  brush_airbrush->setChecked(canvas_defaults->brush_build_up());
   brush_airbrush->setToolTip(tr("Build paint while the pointer is held still"));
   bind_tooltip(brush_airbrush, "Build paint while the pointer is held still");
   add_option_widget(brush_airbrush, {CanvasTool::Brush});
@@ -2982,21 +2990,21 @@ void MainWindow::create_actions() {
   gradient_opacity_spin_ = new QSpinBox(toolbar);
   gradient_opacity_spin_->setObjectName(QStringLiteral("gradientOpacitySpin"));
   gradient_opacity_spin_->setRange(0, 100);
-  gradient_opacity_spin_->setValue(canvas_->gradient_opacity());
+  gradient_opacity_spin_->setValue(canvas_defaults->gradient_opacity());
   gradient_opacity_spin_->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(gradient_opacity_spin_, 52);
   add_option_widget(gradient_opacity_spin_, {CanvasTool::Gradient});
   gradient_opacity_slider_ = new QSlider(Qt::Horizontal, toolbar);
   gradient_opacity_slider_->setObjectName(QStringLiteral("gradientOpacitySlider"));
   gradient_opacity_slider_->setRange(0, 100);
-  gradient_opacity_slider_->setValue(canvas_->gradient_opacity());
+  gradient_opacity_slider_->setValue(canvas_defaults->gradient_opacity());
   gradient_opacity_slider_->setFixedWidth(110);
   gradient_opacity_slider_->setToolTip(tr("Gradient opacity"));
   bind_tooltip(gradient_opacity_slider_, "Gradient opacity");
   add_option_widget(gradient_opacity_slider_, {CanvasTool::Gradient});
   gradient_reverse_check_ = new CheckGlyphBox(tr("Reverse"), toolbar);
   gradient_reverse_check_->setObjectName(QStringLiteral("gradientReverseCheck"));
-  gradient_reverse_check_->setChecked(canvas_->gradient_reverse());
+  gradient_reverse_check_->setChecked(canvas_defaults->gradient_reverse());
   add_option_widget(gradient_reverse_check_, {CanvasTool::Gradient});
   gradient_preview_button_ = new QPushButton(toolbar);
   gradient_preview_button_->setObjectName(QStringLiteral("gradientPreviewButton"));
@@ -3038,7 +3046,7 @@ void MainWindow::create_actions() {
 
   clone_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
   clone_aligned_check_->setObjectName(QStringLiteral("cloneAlignedCheck"));
-  clone_aligned_check_->setChecked(canvas_->clone_aligned());
+  clone_aligned_check_->setChecked(canvas_defaults->clone_aligned());
   clone_aligned_check_->setToolTip(tr("Keep sample source offset aligned across strokes"));
   add_option_widget(clone_aligned_check_, {CanvasTool::Clone, CanvasTool::Healing});
   connect(clone_aligned_check_, &QCheckBox::toggled, this, [this](bool checked) {
@@ -3190,13 +3198,13 @@ void MainWindow::create_actions() {
   auto* quick_select_size = new QSpinBox(toolbar);
   quick_select_size->setObjectName(QStringLiteral("quickSelectSizeSpin"));
   quick_select_size->setRange(1, 512);
-  quick_select_size->setValue(canvas_->quick_select_size());
+  quick_select_size->setValue(canvas_defaults->quick_select_size());
   configure_toolbar_spinbox(quick_select_size, 46);
   add_option_widget(quick_select_size, {CanvasTool::QuickSelect});
   auto* quick_select_size_slider = new QSlider(Qt::Horizontal, toolbar);
   quick_select_size_slider->setObjectName(QStringLiteral("quickSelectSizeSlider"));
   quick_select_size_slider->setRange(1, 512);
-  quick_select_size_slider->setValue(canvas_->quick_select_size());
+  quick_select_size_slider->setValue(canvas_defaults->quick_select_size());
   quick_select_size_slider->setFixedWidth(150);
   quick_select_size_slider->setToolTip(tr("Quick Select brush size — press [ or ]"));
   bind_tooltip(quick_select_size_slider, "Quick Select brush size — press [ or ]");
@@ -3214,7 +3222,7 @@ void MainWindow::create_actions() {
 
   quick_select_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
   quick_select_sample_all_layers_check_->setObjectName(QStringLiteral("quickSelectSampleAllLayersCheck"));
-  quick_select_sample_all_layers_check_->setChecked(canvas_->quick_select_sample_all_layers());
+  quick_select_sample_all_layers_check_->setChecked(canvas_defaults->quick_select_sample_all_layers());
   quick_select_sample_all_layers_check_->setToolTip(tr("Sample the merged document instead of the active layer"));
   add_option_widget(quick_select_sample_all_layers_check_, {CanvasTool::QuickSelect});
   connect(quick_select_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
@@ -3227,7 +3235,7 @@ void MainWindow::create_actions() {
 
   quick_select_enhance_edge_check_ = new CheckGlyphBox(tr("Enhance Edge"), toolbar);
   quick_select_enhance_edge_check_->setObjectName(QStringLiteral("quickSelectEnhanceEdgeCheck"));
-  quick_select_enhance_edge_check_->setChecked(canvas_->quick_select_enhance_edge());
+  quick_select_enhance_edge_check_->setChecked(canvas_defaults->quick_select_enhance_edge());
   quick_select_enhance_edge_check_->setToolTip(tr("Smooth the selection boundary after each stroke"));
   add_option_widget(quick_select_enhance_edge_check_, {CanvasTool::QuickSelect});
   connect(quick_select_enhance_edge_check_, &QCheckBox::toggled, this, [this](bool checked) {
@@ -3243,7 +3251,7 @@ void MainWindow::create_actions() {
   magnetic_width->setObjectName(QStringLiteral("magneticLassoWidthSpin"));
   magnetic_width->setRange(1, 256);
   magnetic_width->setSuffix(QStringLiteral(" px"));
-  magnetic_width->setValue(canvas_->magnetic_lasso_width());
+  magnetic_width->setValue(canvas_defaults->magnetic_lasso_width());
   magnetic_width->setToolTip(tr("Edge search width in document pixels — press [ or ]"));
   bind_tooltip(magnetic_width, "Edge search width in document pixels — press [ or ]");
   configure_toolbar_spinbox(magnetic_width, 64);
@@ -3260,7 +3268,7 @@ void MainWindow::create_actions() {
   magnetic_contrast->setObjectName(QStringLiteral("magneticLassoContrastSpin"));
   magnetic_contrast->setRange(1, 100);
   magnetic_contrast->setSuffix(QStringLiteral("%"));
-  magnetic_contrast->setValue(canvas_->magnetic_lasso_edge_contrast());
+  magnetic_contrast->setValue(canvas_defaults->magnetic_lasso_edge_contrast());
   magnetic_contrast->setToolTip(tr("Minimum edge contrast the trace snaps to"));
   bind_tooltip(magnetic_contrast, "Minimum edge contrast the trace snaps to");
   configure_toolbar_spinbox(magnetic_contrast, 56);
@@ -3276,7 +3284,7 @@ void MainWindow::create_actions() {
   auto* magnetic_frequency = new QSpinBox(toolbar);
   magnetic_frequency->setObjectName(QStringLiteral("magneticLassoFrequencySpin"));
   magnetic_frequency->setRange(0, 100);
-  magnetic_frequency->setValue(canvas_->magnetic_lasso_frequency());
+  magnetic_frequency->setValue(canvas_defaults->magnetic_lasso_frequency());
   magnetic_frequency->setToolTip(tr("How often anchor points are placed while tracing"));
   bind_tooltip(magnetic_frequency, "How often anchor points are placed while tracing");
   configure_toolbar_spinbox(magnetic_frequency, 46);
@@ -3333,7 +3341,7 @@ void MainWindow::create_actions() {
   auto* wand_tolerance = new QSpinBox(toolbar);
   wand_tolerance->setObjectName(QStringLiteral("wandToleranceSpin"));
   wand_tolerance->setRange(0, 255);
-  wand_tolerance->setValue(canvas_->wand_tolerance());
+  wand_tolerance->setValue(canvas_defaults->wand_tolerance());
   configure_toolbar_spinbox(wand_tolerance, 46);
   add_option_widget(wand_tolerance, {CanvasTool::MagicWand});
   connect(wand_tolerance, &QSpinBox::valueChanged, this, [this](int value) {
@@ -3346,7 +3354,7 @@ void MainWindow::create_actions() {
 
   wand_contiguous_check_ = new CheckGlyphBox(tr("Contiguous"), toolbar);
   wand_contiguous_check_->setObjectName(QStringLiteral("wandContiguousCheck"));
-  wand_contiguous_check_->setChecked(canvas_->wand_contiguous());
+  wand_contiguous_check_->setChecked(canvas_defaults->wand_contiguous());
   wand_contiguous_check_->setToolTip(tr("Limit Magic Wand selection to connected pixels"));
   add_option_widget(wand_contiguous_check_, {CanvasTool::MagicWand});
   connect(wand_contiguous_check_, &QCheckBox::toggled, this, [this](bool checked) {
@@ -3359,7 +3367,7 @@ void MainWindow::create_actions() {
 
   wand_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
   wand_sample_all_layers_check_->setObjectName(QStringLiteral("wandSampleAllLayersCheck"));
-  wand_sample_all_layers_check_->setChecked(canvas_->wand_sample_all_layers());
+  wand_sample_all_layers_check_->setChecked(canvas_defaults->wand_sample_all_layers());
   wand_sample_all_layers_check_->setToolTip(tr("Sample the merged document instead of the active layer"));
   add_option_widget(wand_sample_all_layers_check_, {CanvasTool::MagicWand});
   connect(wand_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
@@ -3384,7 +3392,7 @@ void MainWindow::create_actions() {
   auto* shape_corner_radius = new QSpinBox(toolbar);
   shape_corner_radius->setObjectName(QStringLiteral("shapeCornerRadiusSpin"));
   shape_corner_radius->setRange(0, 512);
-  shape_corner_radius->setValue(canvas_->shape_corner_radius());
+  shape_corner_radius->setValue(canvas_defaults->shape_corner_radius());
   shape_corner_radius->setSuffix(QStringLiteral(" px"));
   shape_corner_radius->setToolTip(tr("Rounded-corner radius for the rectangle tool (0 = sharp corners)"));
   configure_toolbar_spinbox(shape_corner_radius, 64);
@@ -3420,7 +3428,7 @@ void MainWindow::create_actions() {
   auto* shape_fixed_width = new QSpinBox(toolbar);
   shape_fixed_width->setObjectName(QStringLiteral("shapeFixedWidthSpin"));
   shape_fixed_width->setRange(1, 30000);
-  shape_fixed_width->setValue(document().width());
+  shape_fixed_width->setValue(has_active_document() ? document().width() : 1024);
   shape_fixed_width->setSuffix(QStringLiteral(" px"));
   configure_toolbar_spinbox(shape_fixed_width, 78);
   add_option_widget(shape_fixed_width, {CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -3428,7 +3436,7 @@ void MainWindow::create_actions() {
   auto* shape_fixed_height = new QSpinBox(toolbar);
   shape_fixed_height->setObjectName(QStringLiteral("shapeFixedHeightSpin"));
   shape_fixed_height->setRange(1, 30000);
-  shape_fixed_height->setValue(document().height());
+  shape_fixed_height->setValue(has_active_document() ? document().height() : 768);
   shape_fixed_height->setSuffix(QStringLiteral(" px"));
   configure_toolbar_spinbox(shape_fixed_height, 78);
   add_option_widget(shape_fixed_height, {CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -3466,14 +3474,14 @@ void MainWindow::create_actions() {
   auto* fill_opacity = new QSpinBox(toolbar);
   fill_opacity->setObjectName(QStringLiteral("fillOpacitySpin"));
   fill_opacity->setRange(1, 100);
-  fill_opacity->setValue(canvas_->fill_opacity());
+  fill_opacity->setValue(canvas_defaults->fill_opacity());
   fill_opacity->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(fill_opacity, 52);
   add_option_widget(fill_opacity, {CanvasTool::Fill});
   auto* fill_opacity_slider = new QSlider(Qt::Horizontal, toolbar);
   fill_opacity_slider->setObjectName(QStringLiteral("fillOpacitySlider"));
   fill_opacity_slider->setRange(1, 100);
-  fill_opacity_slider->setValue(canvas_->fill_opacity());
+  fill_opacity_slider->setValue(canvas_defaults->fill_opacity());
   fill_opacity_slider->setFixedWidth(120);
   fill_opacity_slider->setToolTip(tr("Fill opacity for the Fill tool and Fill shortcut"));
   add_option_widget(fill_opacity_slider, {CanvasTool::Fill});
@@ -3481,14 +3489,14 @@ void MainWindow::create_actions() {
   auto* fill_softness = new QSpinBox(toolbar);
   fill_softness->setObjectName(QStringLiteral("fillSoftnessSpin"));
   fill_softness->setRange(0, 100);
-  fill_softness->setValue(canvas_->fill_softness());
+  fill_softness->setValue(canvas_defaults->fill_softness());
   fill_softness->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(fill_softness, 52);
   add_option_widget(fill_softness, {CanvasTool::Fill});
   auto* fill_softness_slider = new QSlider(Qt::Horizontal, toolbar);
   fill_softness_slider->setObjectName(QStringLiteral("fillSoftnessSlider"));
   fill_softness_slider->setRange(0, 100);
-  fill_softness_slider->setValue(canvas_->fill_softness());
+  fill_softness_slider->setValue(canvas_defaults->fill_softness());
   fill_softness_slider->setFixedWidth(110);
   fill_softness_slider->setToolTip(tr("Soft edge feather for the Fill tool and Fill shortcut"));
   add_option_widget(fill_softness_slider, {CanvasTool::Fill});
@@ -3521,7 +3529,9 @@ void MainWindow::create_actions() {
   text_size_spin_->setDecimals(3);
   text_size_spin_->setRange(0.01, 10000.0);
   text_size_spin_->setSingleStep(0.25);
-  text_size_spin_->setValue(text_pixels_to_points(48, document()));
+  // 48 px at the default document's 72 ppi = 48 pt (startup builds the bar with
+  // no document open).
+  text_size_spin_->setValue(has_active_document() ? text_pixels_to_points(48, document()) : 48.0);
   text_size_spin_->setSuffix(tr(" pt"));
   configure_toolbar_spinbox(text_size_spin_, 74);
   add_option_widget(text_size_spin_, {CanvasTool::Text});
@@ -3807,6 +3817,53 @@ void MainWindow::create_actions() {
   refresh_color_buttons();
 
   update_undo_redo_actions();
+}
+
+void MainWindow::sync_tool_option_controls_from_canvas() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  // Re-reads the options-bar controls that create_actions initialized from the
+  // defaults-donor canvas. Runs after the deferred startup load_tool_settings()
+  // so the bar shows the stored settings the first document's canvas now holds.
+  const auto set_spin_value = [this](const QString& name, int value) {
+    if (auto* spin = findChild<QSpinBox*>(name); spin != nullptr) {
+      const QSignalBlocker blocker(spin);
+      spin->setValue(value);
+    }
+  };
+  const auto set_slider_value = [this](const QString& name, int value) {
+    if (auto* slider = findChild<QSlider*>(name); slider != nullptr) {
+      const QSignalBlocker blocker(slider);
+      slider->setValue(value);
+    }
+  };
+  const auto set_checked = [](QCheckBox* check, bool value) {
+    if (check != nullptr) {
+      const QSignalBlocker blocker(check);
+      check->setChecked(value);
+    }
+  };
+  set_checked(move_auto_select_check_, canvas_->auto_select_layer());
+  set_checked(move_show_transform_controls_check_, canvas_->show_transform_controls());
+  set_checked(clone_aligned_check_, canvas_->clone_aligned());
+  set_checked(wand_contiguous_check_, canvas_->wand_contiguous());
+  set_checked(wand_sample_all_layers_check_, canvas_->wand_sample_all_layers());
+  set_checked(quick_select_sample_all_layers_check_, canvas_->quick_select_sample_all_layers());
+  set_checked(quick_select_enhance_edge_check_, canvas_->quick_select_enhance_edge());
+  set_spin_value(QStringLiteral("wandToleranceSpin"), canvas_->wand_tolerance());
+  set_spin_value(QStringLiteral("quickSelectSizeSpin"), canvas_->quick_select_size());
+  set_slider_value(QStringLiteral("quickSelectSizeSlider"), canvas_->quick_select_size());
+  set_spin_value(QStringLiteral("magneticLassoWidthSpin"), canvas_->magnetic_lasso_width());
+  set_spin_value(QStringLiteral("magneticLassoContrastSpin"), canvas_->magnetic_lasso_edge_contrast());
+  set_spin_value(QStringLiteral("magneticLassoFrequencySpin"), canvas_->magnetic_lasso_frequency());
+  set_spin_value(QStringLiteral("shapeCornerRadiusSpin"), canvas_->shape_corner_radius());
+  set_spin_value(QStringLiteral("fillOpacitySpin"), canvas_->fill_opacity());
+  set_slider_value(QStringLiteral("fillOpacitySlider"), canvas_->fill_opacity());
+  set_spin_value(QStringLiteral("fillSoftnessSpin"), canvas_->fill_softness());
+  set_slider_value(QStringLiteral("fillSoftnessSlider"), canvas_->fill_softness());
+  refresh_gradient_controls_from_canvas();
+  sync_brush_controls_from_canvas();
 }
 
 QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,

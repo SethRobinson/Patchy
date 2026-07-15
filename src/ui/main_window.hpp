@@ -77,6 +77,7 @@ class BrushTipLibrary;
 class BrushTipPicker;
 class DocumentFloatWindow;
 class PalettePanel;
+class StartPanel;
 class PatternLibrary;
 class GradientLibrary;
 class StyleLibrary;
@@ -372,8 +373,10 @@ private:
   [[nodiscard]] DocumentSession& session();
   [[nodiscard]] const DocumentSession& session() const;
   [[nodiscard]] bool has_active_document() const noexcept;
+  // 72 PPI default matches the New Document screen presets and kUntaggedImportPpi;
+  // print presets pass their own 300.
   void reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label,
-                      double resolution_ppi = 300.0);
+                      double resolution_ppi = 72.0);
   void create_clipboard_document(const QImage& image, QString history_label);
   void create_new_document();
   void resize_image_dialog();
@@ -781,6 +784,16 @@ private:
   void show_about();
 
   QTabWidget* document_tabs_{nullptr};
+  // Overlay child of document_tabs_, visible only while sessions_ is empty
+  // (startup no longer auto-creates a document).
+  StartPanel* start_panel_{nullptr};
+  // The one-time tool-settings load waits for the first canvas: load_tool_settings
+  // needs a canvas to apply to and startup opens with none.
+  bool startup_tool_settings_pending_{true};
+  void update_start_panel_visibility();
+  // Re-reads the options-bar controls create_actions initialized from the startup
+  // defaults donor; runs after the deferred load_tool_settings.
+  void sync_tool_option_controls_from_canvas();
   std::vector<std::unique_ptr<DocumentSession>> sessions_;
   std::int64_t next_session_id_{1};
   // The ACTIVE document's canvas, the single source of truth for "current document"

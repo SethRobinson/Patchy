@@ -762,6 +762,14 @@ void ui_print_layout_and_pdf_output_work() {
 void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
   patchy::ui::MainWindow window;
   show_window(window);
+  // The dialog's opening state depends on the print size: pin the startup document
+  // (72 ppi since the New Document redesign) to 300 ppi so 1024x768 px is
+  // 3.41 x 2.56 in, which fits Letter at actual size.
+  {
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    document.print_settings().horizontal_ppi = 300.0;
+    document.print_settings().vertical_ppi = 300.0;
+  }
 
   QTimer::singleShot(0, [&window] {
     for (auto* widget : QApplication::topLevelWidgets()) {
@@ -792,7 +800,7 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
       CHECK(printer->count() >= 1);
       CHECK(!printer->currentText().isEmpty());
       CHECK(print_button->isEnabled() == printer->isEnabled());
-      // The default 1024x768 @300ppi document fits Letter at actual size, so the
+      // The 1024x768 document pinned to 300 ppi fits Letter at actual size, so the
       // dialog opens at 100% (Photoshop's default) with fit-to-media unchecked and
       // the derived print resolution equal to the document resolution.
       CHECK(!scale_to_fit->isChecked());
@@ -827,7 +835,7 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
 }
 
 void ui_image_size_dialog_unit_and_resolution_links_work() {
-  patchy::ui::MainWindow window;  // default document: 1024x768 at 300 ppi
+  patchy::ui::MainWindow window;  // default document: 1024x768 at 72 ppi
   show_window(window);
 
   QTimer::singleShot(0, [] {
@@ -857,29 +865,29 @@ void ui_image_size_dialog_unit_and_resolution_links_work() {
 
       CHECK(width_unit->currentText() == QStringLiteral("Pixels"));
       CHECK(width->value() == 1024.0);
-      CHECK(std::abs(resolution->value() - 300.0) < 0.01);
+      CHECK(std::abs(resolution->value() - 72.0) < 0.01);
 
       // Physical units display through the resolution; the two unit combos stay in step.
       width_unit->setCurrentIndex(width_unit->findText(QStringLiteral("Inches")));
       QApplication::processEvents();
       CHECK(height_unit->currentText() == QStringLiteral("Inches"));
-      CHECK(std::abs(width->value() - 1024.0 / 300.0) < 0.005);
-      CHECK(std::abs(height->value() - 768.0 / 300.0) < 0.005);
+      CHECK(std::abs(width->value() - 1024.0 / 72.0) < 0.005);
+      CHECK(std::abs(height->value() - 768.0 / 72.0) < 0.005);
 
       // Resample ON + physical units: a resolution change keeps the print size and
-      // re-derives the pixel dimensions (300 -> 150 halves them).
-      resolution->setValue(150.0);
+      // re-derives the pixel dimensions (72 -> 36 halves them).
+      resolution->setValue(36.0);
       QApplication::processEvents();
       CHECK(dimensions->text().contains(QStringLiteral("512 px x 384 px")));
-      CHECK(std::abs(width->value() - 1024.0 / 300.0) < 0.005);
+      CHECK(std::abs(width->value() - 1024.0 / 72.0) < 0.005);
 
       // The resolution unit combo only changes the display of the same stored PPI.
       resolution_unit->setCurrentIndex(resolution_unit->findText(QStringLiteral("Pixels/Centimeter")));
       QApplication::processEvents();
-      CHECK(std::abs(resolution->value() - 150.0 / 2.54) < 0.01);
+      CHECK(std::abs(resolution->value() - 36.0 / 2.54) < 0.01);
       resolution_unit->setCurrentIndex(resolution_unit->findText(QStringLiteral("Pixels/Inch")));
       QApplication::processEvents();
-      CHECK(std::abs(resolution->value() - 150.0) < 0.01);
+      CHECK(std::abs(resolution->value() - 36.0) < 0.01);
 
       // Resample OFF: pending resamples revert to the document's pixels, the link
       // and pixel units disable, and W/H/Resolution become the Photoshop tri-link.
@@ -888,7 +896,7 @@ void ui_image_size_dialog_unit_and_resolution_links_work() {
       CHECK(!link->isEnabled());
       CHECK(width_unit->currentText() == QStringLiteral("Inches"));
       CHECK(dimensions->text().contains(QStringLiteral("1024 px x 768 px")));
-      CHECK(std::abs(width->value() - 1024.0 / 150.0) < 0.005);
+      CHECK(std::abs(width->value() - 1024.0 / 36.0) < 0.005);
       width->setValue(5.12);
       QApplication::processEvents();
       CHECK(std::abs(resolution->value() - 200.0) < 0.05);

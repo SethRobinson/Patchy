@@ -1,5 +1,7 @@
 #include "ui_test_support.hpp"
 
+#include "ui_test_access.hpp"
+
 namespace patchy::test::ui {
 
 patchy::PixelBuffer solid_pixels(std::int32_t width, std::int32_t height, patchy::PixelFormat format, QColor color) {
@@ -392,6 +394,22 @@ patchy::ui::CanvasWidget* require_canvas(patchy::ui::MainWindow& window) {
 }
 
 void show_window(patchy::ui::MainWindow& window) {
+  window.resize(1180, 780);
+  window.show();
+  QApplication::processEvents();
+  // Startup no longer auto-creates a document; the suite's tests predate that and
+  // assume the historical 1024x768 canvas, so create it here for fresh windows.
+  // Windows that already hold documents (opened before show) are left alone; use
+  // show_window_empty to exercise the real empty-startup state.
+  if (auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+      tabs != nullptr && tabs->count() == 0 &&
+      patchy::ui::MainWindowTestAccess::session_count(window) == 0) {
+    patchy::ui::MainWindowTestAccess::create_default_document(window);
+    QApplication::processEvents();
+  }
+}
+
+void show_window_empty(patchy::ui::MainWindow& window) {
   window.resize(1180, 780);
   window.show();
   QApplication::processEvents();
@@ -947,61 +965,100 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
         continue;
       }
       auto* dialog = qobject_cast<QDialog*>(widget);
-      auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentPresetCombo"));
+      auto* presets = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+      auto* screen_chip = dialog->findChild<QToolButton*>(QStringLiteral("newDocumentScreenChip"));
+      auto* print_chip = dialog->findChild<QToolButton*>(QStringLiteral("newDocumentPrintChip"));
       auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
       auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
       auto* resolution = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentResolutionSpin"));
       auto* background = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentBackgroundCombo"));
       CHECK(dialog != nullptr);
-      CHECK(preset != nullptr);
+      CHECK(presets != nullptr);
+      CHECK(screen_chip != nullptr);
+      CHECK(print_chip != nullptr);
       CHECK(width != nullptr);
       CHECK(height != nullptr);
       CHECK(resolution != nullptr);
       CHECK(background != nullptr);
 
-      const auto clipboard_index = preset->findText(QStringLiteral("Clipboard"));
-      CHECK(clipboard_index == 0);
-      CHECK((preset->model()->flags(preset->model()->index(clipboard_index, 0)) & Qt::ItemIsEnabled) != 0);
-      CHECK(preset->currentIndex() == clipboard_index);
+      const auto find_card = [presets](const QString& id) -> QListWidgetItem* {
+        for (int row = 0; row < presets->count(); ++row) {
+          if (presets->item(row)->data(patchy::ui::kNewDocumentPresetIdRole).toString() == id) {
+            return presets->item(row);
+          }
+        }
+        return nullptr;
+      };
+
+      // An image on the clipboard preselects the (enabled) Clipboard card and
+      // locks the fields to the clipboard dimensions.
+      CHECK(screen_chip->isChecked());
+      auto* clipboard_card = find_card(QStringLiteral("clipboard"));
+      CHECK(clipboard_card != nullptr);
+      CHECK((clipboard_card->flags() & Qt::ItemIsEnabled) != 0);
+      CHECK(presets->currentItem() == clipboard_card);
       CHECK(width->value() == clipboard_size.width());
       CHECK(height->value() == clipboard_size.height());
+      CHECK(!width->isEnabled());
+      CHECK(!height->isEnabled());
+      CHECK(!resolution->isEnabled());
+      CHECK(!background->isEnabled());
 
-      // Presets carry a resolution: physical print presets are 300 PPI, the
-      // Clipboard and screen/video presets follow Photoshop's 72 PPI convention.
+      // Preset cards carry a resolution: screen/web/video cards follow
+      // Photoshop's 72 PPI convention, physical print cards are 300 PPI.
       struct ExpectedPreset {
-        QString label;
+        QString id;
         QSize size;
         double ppi;
       };
-      const std::vector<ExpectedPreset> expected_presets = {
-          {QStringLiteral("Clipboard"), clipboard_size, 72.0},
-          {QStringLiteral("A5 300 ppi"), QSize(1748, 2480), 300.0},
-          {QStringLiteral("A4 300 ppi"), QSize(2480, 3508), 300.0},
-          {QStringLiteral("A3 300 ppi"), QSize(3508, 4961), 300.0},
-          {QStringLiteral("US Letter 300 ppi"), QSize(2550, 3300), 300.0},
-          {QStringLiteral("US Legal 300 ppi"), QSize(2550, 4200), 300.0},
-          {QStringLiteral("5 x 7 in 300 ppi"), QSize(1500, 2100), 300.0},
-          {QStringLiteral("8 x 10 in 300 ppi"), QSize(2400, 3000), 300.0},
-          {QStringLiteral("Square 2048"), QSize(2048, 2048), 72.0},
-          {QStringLiteral("1080p"), QSize(1920, 1080), 72.0},
-          {QStringLiteral("4K"), QSize(3840, 2160), 72.0},
+      const std::vector<ExpectedPreset> screen_presets = {
+          {QStringLiteral("screen-1024x768"), QSize(1024, 768), 72.0},
+          {QStringLiteral("screen-720p"), QSize(1280, 720), 72.0},
+          {QStringLiteral("screen-1080p"), QSize(1920, 1080), 72.0},
+          {QStringLiteral("screen-4k"), QSize(3840, 2160), 72.0},
+          {QStringLiteral("screen-square-2048"), QSize(2048, 2048), 72.0},
+          {QStringLiteral("social-square-1080"), QSize(1080, 1080), 72.0},
+          {QStringLiteral("phone-story-1080x1920"), QSize(1080, 1920), 72.0},
+          {QStringLiteral("photo-3x2-3000"), QSize(3000, 2000), 72.0},
       };
-      for (const auto& expected : expected_presets) {
-        const auto index = preset->findText(expected.label);
-        CHECK(index >= 0);
-        preset->setCurrentIndex(index);
-        QApplication::processEvents();
-        CHECK(width->value() == expected.size.width());
-        CHECK(height->value() == expected.size.height());
-        CHECK(std::abs(resolution->value() - expected.ppi) < 0.01);
-      }
+      const std::vector<ExpectedPreset> print_presets = {
+          {QStringLiteral("print-a5"), QSize(1748, 2480), 300.0},
+          {QStringLiteral("print-a4"), QSize(2480, 3508), 300.0},
+          {QStringLiteral("print-a3"), QSize(3508, 4961), 300.0},
+          {QStringLiteral("print-us-letter"), QSize(2550, 3300), 300.0},
+          {QStringLiteral("print-us-legal"), QSize(2550, 4200), 300.0},
+          {QStringLiteral("print-5x7"), QSize(1500, 2100), 300.0},
+          {QStringLiteral("print-8x10"), QSize(2400, 3000), 300.0},
+      };
+      const auto check_presets = [&](const std::vector<ExpectedPreset>& expected) {
+        for (const auto& preset : expected) {
+          auto* card = find_card(preset.id);
+          CHECK(card != nullptr);
+          presets->setCurrentItem(card);
+          QApplication::processEvents();
+          CHECK(width->isEnabled());
+          CHECK(width->value() == preset.size.width());
+          CHECK(height->value() == preset.size.height());
+          CHECK(std::abs(resolution->value() - preset.ppi) < 0.01);
+        }
+      };
+      check_presets(screen_presets);
+      print_chip->click();
+      QApplication::processEvents();
+      check_presets(print_presets);
 
-      preset->setCurrentIndex(clipboard_index);
+      // Back to the Clipboard card; accepting creates the clipboard document.
+      screen_chip->click();
+      QApplication::processEvents();
+      clipboard_card = find_card(QStringLiteral("clipboard"));
+      CHECK(clipboard_card != nullptr);
+      presets->setCurrentItem(clipboard_card);
       QApplication::processEvents();
       CHECK(!width->isEnabled());
       CHECK(!height->isEnabled());
       CHECK(!resolution->isEnabled());
       CHECK(!background->isEnabled());
+      widget->grab().save(QStringLiteral("test-artifacts/ui_new_document_dialog_clipboard.png"));
       dialog->accept();
       return;
     }

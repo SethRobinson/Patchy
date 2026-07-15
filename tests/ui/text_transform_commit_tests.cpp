@@ -1079,8 +1079,8 @@ void ui_text_character_panel_sets_leading_tracking_and_scales() {
   editor->selectAll();
   QApplication::processEvents();
 
-  // The panel runs a nested non-modal loop; drive it from a queued lambda. 24 pt at the
-  // default 300 ppi = 100 document px of fixed leading.
+  // The panel runs a nested non-modal loop; drive it from a queued lambda. 100 pt at the
+  // startup document's 72 ppi = 100 document px of fixed leading.
   auto* character_button = window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"));
   CHECK(character_button != nullptr);
   if (character_button == nullptr) {
@@ -1102,7 +1102,7 @@ void ui_text_character_panel_sets_leading_tracking_and_scales() {
       return;
     }
     auto_leading->setChecked(false);
-    leading->setValue(24.0);
+    leading->setValue(100.0);
     tracking->setValue(100);
     h_scale->setValue(120);
     QApplication::processEvents();
@@ -1174,7 +1174,7 @@ void ui_text_character_panel_sets_leading_tracking_and_scales() {
     auto* h_scale = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterHScaleSpin"));
     if (auto_leading != nullptr && leading != nullptr && tracking != nullptr && h_scale != nullptr) {
       CHECK(!auto_leading->isChecked());
-      CHECK(std::abs(leading->value() - 24.0) < 0.05);
+      CHECK(std::abs(leading->value() - 100.0) < 0.05);
       CHECK(tracking->value() == 100);
       CHECK(h_scale->value() == 120);
     }

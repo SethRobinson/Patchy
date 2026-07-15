@@ -23,6 +23,12 @@ public:
     return window.document();
   }
 
+  // The historical startup document (startup now opens an empty workspace):
+  // show_window creates one so pre-existing tests keep their canvas.
+  static void create_default_document(MainWindow& window) {
+    window.reset_document(1024, 768, Qt::white, QStringLiteral("New document"));
+  }
+
   static CanvasWidget* canvas(MainWindow& window) {
     return window.canvas_;
   }

@@ -67,6 +67,7 @@
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/start_panel.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/zoom_status_bar.hpp"
@@ -357,6 +358,27 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   refresh_document_info();  update_undo_redo_actions();
   update_document_action_state();
   refresh_document_tab_titles();
+  if (startup_tool_settings_pending_) {
+    // Startup opens with no document, so the one-time settings load waits for the
+    // first canvas; the options bar then re-reads the stored values it applied.
+    startup_tool_settings_pending_ = false;
+    load_tool_settings();
+    sync_tool_option_controls_from_canvas();
+  }
+  update_start_panel_visibility();
+}
+
+void MainWindow::update_start_panel_visibility() {
+  if (start_panel_ == nullptr || document_tabs_ == nullptr) {
+    return;
+  }
+  const bool show = sessions_.empty();
+  if (show) {
+    start_panel_->set_recent_files(recent_files_);
+    start_panel_->setGeometry(document_tabs_->rect());
+    start_panel_->raise();
+  }
+  start_panel_->setVisible(show);
 }
 
 void MainWindow::activate_document_tab(int index) {
@@ -412,6 +434,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
     update_undo_redo_actions();
     update_document_action_state();
     refresh_document_window_title();
+    update_start_panel_visibility();
     return;
   }
   canvas_ = canvas;

@@ -58,6 +58,7 @@
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
+#include "ui/start_panel.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
@@ -6200,6 +6201,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setCentralWidget(document_tabs_);
   connect(document_tabs_, &QTabWidget::currentChanged, this, [this](int index) { activate_document_tab(index); });
   connect(document_tabs_, &QTabWidget::tabCloseRequested, this, [this](int index) { close_document_tab(index); });
+  start_panel_ = new StartPanel(document_tabs_);
+  start_panel_->hide();
+  connect(start_panel_, &StartPanel::new_document_requested, this, [this] { create_new_document(); });
+  connect(start_panel_, &StartPanel::open_requested, this, [this] { open_document(); });
+  connect(start_panel_, &StartPanel::recent_file_requested, this,
+          [this](const QString& path) { open_recent_document(path); });
   connect(QApplication::clipboard(), &QClipboard::dataChanged, this,
           [this] { clear_internal_clipboard_on_external_change(); });
   layer_opacity_apply_timer_ = new QTimer(this);
@@ -6225,27 +6232,18 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   tool_settings_save_timer_->setInterval(kToolSettingsSaveDelayMs);
   connect(tool_settings_save_timer_, &QTimer::timeout, this, [this] { save_tool_settings(); });
   load_pen_input_settings();
-  reset_document(1024, 768, Qt::white, tr("New document"));
-  load_tool_settings();
-  if (canvas_ != nullptr) {
-    if (const auto* preset = find_brush_preset(default_startup_brush_preset_id()); preset != nullptr) {
-      apply_brush_preset(*canvas_, *preset);
-    }
-  }
+  // Startup opens with an empty workspace (the start panel); no document is
+  // auto-created. The one-time load_tool_settings() runs when the first
+  // document session brings a canvas (startup_tool_settings_pending_).
 
   create_actions();
   load_view_settings();
-  if (canvas_ != nullptr && document().guides().empty() && document().grid_settings().horizontal_cycle_32 == 576 &&
-      document().grid_settings().vertical_cycle_32 == 576) {
-    document().grid_settings().horizontal_cycle_32 = view_grid_spacing_32_;
-    document().grid_settings().vertical_cycle_32 = view_grid_spacing_32_;
-  }
-  apply_canvas_aid_settings(canvas_);
   configure_window_chrome();
   load_recent_files();
   rebuild_recent_files_menu();
   load_recent_folders();
   rebuild_recent_folders_menu();
+  update_start_panel_visibility();
   load_bundled_legacy_plugins();
   create_docks();
   hotkey_registry_.apply_to_actions();
@@ -6653,6 +6651,12 @@ void MainWindow::reset_spacebar_canvas_pan() {
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   if (handle_spacebar_canvas_pan_event(watched, event)) {
     return true;
+  }
+
+  // The start panel is a manual overlay of the tab area (no layout owns it).
+  if (watched == document_tabs_ && event->type() == QEvent::Resize && start_panel_ != nullptr &&
+      start_panel_->isVisible()) {
+    start_panel_->setGeometry(document_tabs_->rect());
   }
 
   if (event->type() == QEvent::ShortcutOverride) {

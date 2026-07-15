@@ -609,6 +609,8 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window_stress_test.cpp
       src/ui/measurement_units.hpp
       src/ui/measurement_units.cpp
+      src/ui/new_document_dialog.hpp
+      src/ui/new_document_dialog.cpp
       src/ui/stress_test.hpp
       src/ui/palette_convert_dialog.hpp
       src/ui/palette_convert_dialog.cpp
@@ -627,6 +629,8 @@ if(PATCHY_BUILD_APP)
       src/ui/scanner_import.hpp
       src/ui/selection_outline.hpp
       src/ui/selection_outline.cpp
+      src/ui/start_panel.hpp
+      src/ui/start_panel.cpp
       src/ui/smart_object_render.hpp
       src/ui/smart_object_render.cpp
       src/ui/sprite_sheet_dialog.hpp

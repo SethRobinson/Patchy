@@ -1722,6 +1722,90 @@ void ui_right_edge_scrollbars_remain_draggable() {
   CHECK(scroll->value() > scroll_before);
 }
 
+void ui_startup_opens_empty_workspace_with_start_panel() {
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("newDocument"));
+  }
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("startPanel"));
+  auto* new_button = window.findChild<QPushButton*>(QStringLiteral("startPanelNewButton"));
+  auto* open_button = window.findChild<QPushButton*>(QStringLiteral("startPanelOpenButton"));
+  auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  CHECK(tabs != nullptr);
+  CHECK(panel != nullptr);
+  CHECK(new_button != nullptr);
+  CHECK(open_button != nullptr);
+  CHECK(info != nullptr);
+
+  // Startup: no auto-created document, the start panel fills the tab area.
+  CHECK(tabs->count() == 0);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+  CHECK(panel->isVisible());
+  CHECK(panel->size() == tabs->size());
+  CHECK(info->text() == QStringLiteral("No document"));
+  CHECK(require_action(window, "fileNewAction")->isEnabled());
+  CHECK(require_action(window, "fileOpenAction")->isEnabled());
+  CHECK(!require_action(window, "fileSaveAction")->isEnabled());
+  save_widget_artifact("ui_start_panel", window);
+
+  // The New Document button runs the regular dialog flow and the panel hides.
+  accept_new_document_dialog(400, 300);
+  new_button->click();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 1);
+  CHECK(!panel->isVisible());
+  CHECK(info->text().contains(QStringLiteral("400 x 300 px")));
+
+  // Closing the last document brings the panel back.
+  CHECK(QMetaObject::invokeMethod(tabs, "tabCloseRequested", Qt::DirectConnection, Q_ARG(int, 0)));
+  QApplication::processEvents();
+  CHECK(tabs->count() == 0);
+  CHECK(panel->isVisible());
+}
+
+void ui_start_panel_recent_files_open_on_click() {
+  ensure_artifact_dir();
+  const auto recent_path = QFileInfo(QStringLiteral("test-artifacts/start_panel_recent.png")).absoluteFilePath();
+  {
+    QImage recent_image(48, 32, QImage::Format_RGB32);
+    recent_image.fill(QColor(90, 150, 210));
+    CHECK(recent_image.save(recent_path));
+    auto settings = patchy::ui::app_settings();
+    // A dead entry ahead of the live one: the panel list filters to existing files.
+    settings.setValue(QStringLiteral("recentFiles"),
+                      QStringList{QStringLiteral("Z:/definitely/missing/file.png"), recent_path});
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("startPanel"));
+  auto* recent_list = window.findChild<QListWidget*>(QStringLiteral("startPanelRecentList"));
+  auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  CHECK(tabs != nullptr);
+  CHECK(panel != nullptr);
+  CHECK(recent_list != nullptr);
+  CHECK(info != nullptr);
+  CHECK(panel->isVisible());
+  CHECK(recent_list->isVisible());
+  CHECK(recent_list->count() == 1);
+  CHECK(recent_list->item(0)->text() == QStringLiteral("start_panel_recent.png"));
+
+  const auto row_center = recent_list->visualItemRect(recent_list->item(0)).center();
+  send_mouse(*recent_list->viewport(), QEvent::MouseButtonPress, row_center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*recent_list->viewport(), QEvent::MouseButtonRelease, row_center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(tabs->count() == 1);
+  CHECK(!panel->isVisible());
+  CHECK(info->text().contains(QStringLiteral("48 x 32 px")));
+}
+
 void ui_svg_icon_resources_are_registered() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1744,6 +1828,8 @@ void ui_svg_icon_resources_are_registered() {
 
 std::vector<patchy::test::TestCase> app_shell_tests() {
   return {
+      {"ui_startup_opens_empty_workspace_with_start_panel", ui_startup_opens_empty_workspace_with_start_panel},
+      {"ui_start_panel_recent_files_open_on_click", ui_start_panel_recent_files_open_on_click},
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
       {"ui_window_force_refresh_action_rebuilds_cache", ui_window_force_refresh_action_rebuilds_cache},
       {"ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency",

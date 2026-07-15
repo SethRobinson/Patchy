@@ -58,6 +58,7 @@
 #include "ui/layer_style_dialog.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
+#include "ui/new_document_dialog.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/selection_outline.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
@@ -282,7 +283,9 @@ void fill_pixel_rect(patchy::PixelBuffer& pixels, QRect rect, QColor color);
 
 void ensure_artifact_dir();
 
-double text_points_for_pixels(int pixels, double ppi = 300.0) noexcept;
+// Default ppi matches the MainWindow startup document (72). Tests that construct a
+// patchy::Document directly get the core default (300) and must pass it explicitly.
+double text_points_for_pixels(int pixels, double ppi = 72.0) noexcept;
 
 class SettingsValueRestorer {
 public:
@@ -498,6 +501,10 @@ LayerStyleContextMenuState layer_style_context_menu_state(QListWidget& layer_lis
 patchy::ui::CanvasWidget* require_canvas(patchy::ui::MainWindow& window);
 
 void show_window(patchy::ui::MainWindow& window);
+
+// show_window without the compatibility document: the true empty-startup state
+// (start panel visible, no sessions).
+void show_window_empty(patchy::ui::MainWindow& window);
 
 void process_events_for(int milliseconds);
 

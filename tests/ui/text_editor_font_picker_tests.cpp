@@ -1201,7 +1201,8 @@ void ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard() {
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   CHECK(editor != nullptr);
   CHECK(text_size != nullptr);
-  text_size->setValue(text_points_for_pixels(52));
+  // Directly-constructed Document: core default 300 ppi, not the startup doc's 72.
+  text_size->setValue(text_points_for_pixels(52, 300.0));
   QApplication::processEvents();
 
   editor->selectAll();

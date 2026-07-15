@@ -1093,51 +1093,96 @@ void inspect_new_document_dialog_without_clipboard() {
         continue;
       }
       auto* dialog = qobject_cast<QDialog*>(widget);
-      auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentPresetCombo"));
+      auto* presets = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+      auto* screen_chip = dialog->findChild<QToolButton*>(QStringLiteral("newDocumentScreenChip"));
+      auto* print_chip = dialog->findChild<QToolButton*>(QStringLiteral("newDocumentPrintChip"));
       auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
       auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
       auto* resolution = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentResolutionSpin"));
       auto* unit = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentUnitCombo"));
+      auto* summary = dialog->findChild<QLabel*>(QStringLiteral("newDocumentSummaryLabel"));
       auto* swap_dimensions =
           dialog->findChild<QToolButton*>(QStringLiteral("newDocumentSwapDimensionsButton"));
       CHECK(dialog != nullptr);
-      CHECK(preset != nullptr);
+      CHECK(presets != nullptr);
+      CHECK(screen_chip != nullptr);
+      CHECK(print_chip != nullptr);
       CHECK(width != nullptr);
       CHECK(height != nullptr);
       CHECK(resolution != nullptr);
       CHECK(unit != nullptr);
+      CHECK(summary != nullptr);
       CHECK(swap_dimensions != nullptr);
-      const QStringList labels = {
-          QStringLiteral("Clipboard"),          QStringLiteral("Custom"),
-          QStringLiteral("1024 x 768"),         QStringLiteral("A5 300 ppi"),
-          QStringLiteral("A4 300 ppi"),         QStringLiteral("A3 300 ppi"),
-          QStringLiteral("US Letter 300 ppi"),  QStringLiteral("US Legal 300 ppi"),
-          QStringLiteral("5 x 7 in 300 ppi"),   QStringLiteral("8 x 10 in 300 ppi"),
-          QStringLiteral("Square 2048"),        QStringLiteral("1080p"),
-          QStringLiteral("4K")};
-      CHECK(preset->count() == static_cast<int>(labels.size()));
-      for (int index = 0; index < static_cast<int>(labels.size()); ++index) {
-        CHECK(preset->itemText(index) == labels[index]);
-      }
-      CHECK((preset->model()->flags(preset->model()->index(0, 0)) & Qt::ItemIsEnabled) == 0);
-      CHECK(preset->currentText() == QStringLiteral("1024 x 768"));
+      CHECK(width->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      CHECK(width->width() == height->width());
+      CHECK(width->width() == resolution->width());
+
+      const auto card_ids = [presets] {
+        QStringList ids;
+        for (int row = 0; row < presets->count(); ++row) {
+          ids << presets->item(row)->data(patchy::ui::kNewDocumentPresetIdRole).toString();
+        }
+        return ids;
+      };
+
+      // Fresh settings: the Screen category shows with the default card selected
+      // at Photoshop's 72 PPI screen convention.
+      CHECK(screen_chip->isChecked());
+      const QStringList screen_ids = {
+          QStringLiteral("clipboard"),          QStringLiteral("screen-1024x768"),
+          QStringLiteral("screen-720p"),        QStringLiteral("screen-1080p"),
+          QStringLiteral("screen-4k"),          QStringLiteral("screen-square-2048"),
+          QStringLiteral("social-square-1080"), QStringLiteral("phone-story-1080x1920"),
+          QStringLiteral("photo-3x2-3000")};
+      CHECK(card_ids() == screen_ids);
+      // The Clipboard card is disabled without an image on the clipboard.
+      CHECK((presets->item(0)->flags() & Qt::ItemIsEnabled) == 0);
+      CHECK(presets->currentItem() != nullptr);
+      CHECK(presets->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString() ==
+            QStringLiteral("screen-1024x768"));
       CHECK(width->value() == 1024);
       CHECK(height->value() == 768);
-      CHECK(std::abs(resolution->value() - 300.0) < 0.01);
+      CHECK(std::abs(resolution->value() - 72.0) < 0.01);
       CHECK(unit->currentText() == QStringLiteral("Pixels"));
+
+      // The Print category lists the paper cards; switching categories keeps the
+      // pending size until a card is clicked.
+      print_chip->click();
+      QApplication::processEvents();
+      const QStringList print_ids = {
+          QStringLiteral("print-a5"),        QStringLiteral("print-a4"),
+          QStringLiteral("print-a3"),        QStringLiteral("print-us-letter"),
+          QStringLiteral("print-us-legal"),  QStringLiteral("print-5x7"),
+          QStringLiteral("print-8x10")};
+      CHECK(card_ids() == print_ids);
+      CHECK(width->value() == 1024);
+      screen_chip->click();
+      QApplication::processEvents();
+      CHECK(card_ids() == screen_ids);
+      CHECK(presets->currentItem() != nullptr);
+      CHECK(presets->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString() ==
+            QStringLiteral("screen-1024x768"));
+
       // A physical unit converts the display through the resolution: 1024 px at
-      // 300 ppi is 3.413 in.
+      // 72 ppi is 14.22 in.
       unit->setCurrentIndex(unit->findText(QStringLiteral("Inches")));
       QApplication::processEvents();
-      CHECK(std::abs(width->value() - 1024.0 / 300.0) < 0.01);
+      CHECK(std::abs(width->value() - 1024.0 / 72.0) < 0.01);
       unit->setCurrentIndex(unit->findText(QStringLiteral("Pixels")));
       QApplication::processEvents();
       CHECK(width->value() == 1024);
+
+      // Swapping the dimensions makes the size custom: the card selection clears
+      // and the summary reports it.
       swap_dimensions->click();
       QApplication::processEvents();
-      CHECK(preset->currentText() == QStringLiteral("Custom"));
+      CHECK(presets->currentItem() == nullptr);
       CHECK(width->value() == 768);
       CHECK(height->value() == 1024);
+      CHECK(summary->text().contains(QStringLiteral("Custom")));
+      CHECK(summary->text().contains(QStringLiteral("768 x 1024 px")));
+
+      widget->grab().save(QStringLiteral("test-artifacts/ui_new_document_dialog_cards.png"));
       dialog->reject();
       return;
     }
@@ -1443,7 +1488,7 @@ void ui_new_document_and_canvas_size_dialogs_work() {
   require_action(window, "imageSizeAction")->trigger();
   QApplication::processEvents();
   CHECK(info->text().contains(QStringLiteral("800 x 450 px")));
-  CHECK(info->text().contains(QStringLiteral("300 ppi")));
+  CHECK(info->text().contains(QStringLiteral("72 ppi")));
   save_widget_artifact("ui_image_size_result", window);
 
   accept_image_size_resolution_dialog(144);
@@ -1461,6 +1506,12 @@ void ui_new_document_and_canvas_size_dialogs_work() {
 
 void ui_new_document_presets_and_clipboard_work() {
   QApplication::clipboard()->clear();
+  // Earlier tests in the suite accept the dialog (settings leak by construction);
+  // the default-state checks need a clean remembered-settings slate.
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("newDocument"));
+  }
 
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1496,6 +1547,112 @@ void ui_new_document_presets_and_clipboard_work() {
   CHECK(pasted_rect->topLeft() == QPoint(0, 0));
   CHECK(pasted_rect->size() == clipboard_image.size());
   QApplication::clipboard()->clear();
+}
+
+void ui_new_document_dialog_remembers_last_settings() {
+  QApplication::clipboard()->clear();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("newDocument"));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  CHECK(tabs != nullptr);
+  CHECK(info != nullptr);
+
+  const auto find_card = [](QListWidget* presets, const QString& id) -> QListWidgetItem* {
+    for (int row = 0; row < presets->count(); ++row) {
+      if (presets->item(row)->data(patchy::ui::kNewDocumentPresetIdRole).toString() == id) {
+        return presets->item(row);
+      }
+    }
+    return nullptr;
+  };
+
+  // Accept the 1080p card with a black background.
+  QTimer::singleShot(0, [find_card] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* presets = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+      auto* background = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentBackgroundCombo"));
+      CHECK(presets != nullptr);
+      CHECK(background != nullptr);
+      auto* card = find_card(presets, QStringLiteral("screen-1080p"));
+      CHECK(card != nullptr);
+      presets->setCurrentItem(card);
+      QApplication::processEvents();
+      const auto black_index = background->findText(QStringLiteral("Black"));
+      CHECK(black_index > 0);
+      background->setCurrentIndex(black_index);
+      QApplication::processEvents();
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "fileNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+  CHECK(info->text().contains(QStringLiteral("1920 x 1080 px")));
+  CHECK(info->text().contains(QStringLiteral("72 ppi")));
+
+  // Reopening restores the remembered card and background.
+  QTimer::singleShot(0, [find_card] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* presets = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+      auto* background = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentBackgroundCombo"));
+      auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+      auto* resolution = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentResolutionSpin"));
+      CHECK(presets != nullptr);
+      CHECK(background != nullptr);
+      CHECK(width != nullptr);
+      CHECK(resolution != nullptr);
+      CHECK(presets->currentItem() != nullptr);
+      CHECK(presets->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString() ==
+            QStringLiteral("screen-1080p"));
+      CHECK(width->value() == 1920);
+      CHECK(std::abs(resolution->value() - 72.0) < 0.01);
+      CHECK(background->currentText() == QStringLiteral("Black"));
+      dialog->reject();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "fileNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+}
+
+void ui_new_document_opens_fit_to_view() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // Each session owns its canvas: refetch after every create.
+  accept_new_document_dialog(4000, 3000);
+  require_action(window, "fileNewAction")->trigger();
+  QApplication::processEvents();
+  auto* large_canvas = require_canvas(window);
+  // A canvas larger than the view opens zoomed out so it is fully visible.
+  CHECK(large_canvas->zoom() < 1.0);
+  CHECK(4000.0 * large_canvas->zoom() <= static_cast<double>(large_canvas->width()));
+  CHECK(3000.0 * large_canvas->zoom() <= static_cast<double>(large_canvas->height()));
+
+  // A canvas that already fits opens at 100%, never zoomed past it.
+  accept_new_document_dialog(320, 200);
+  require_action(window, "fileNewAction")->trigger();
+  QApplication::processEvents();
+  auto* small_canvas = require_canvas(window);
+  CHECK(std::abs(small_canvas->zoom() - 1.0) < 0.0001);
 }
 
 void ui_new_document_background_starts_locked() {
@@ -1606,6 +1763,8 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
        ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
       {"ui_new_document_presets_and_clipboard_work", ui_new_document_presets_and_clipboard_work},
+      {"ui_new_document_dialog_remembers_last_settings", ui_new_document_dialog_remembers_last_settings},
+      {"ui_new_document_opens_fit_to_view", ui_new_document_opens_fit_to_view},
       {"ui_new_document_background_starts_locked", ui_new_document_background_starts_locked},
       {"ui_merge_down_into_position_locked_background_works",
        ui_merge_down_into_position_locked_background_works},
