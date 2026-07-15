@@ -1123,6 +1123,8 @@ void ui_photoshop_shortcuts_are_registered() {
   auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
   auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
   auto* brush_opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
+  auto* brush_flow = window.findChild<QSpinBox*>(QStringLiteral("brushFlowSpin"));
+  auto* brush_airbrush = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
   auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
   auto* brush_softness_slider = window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
   auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
@@ -1130,6 +1132,8 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_size_slider != nullptr);
   CHECK(brush_opacity != nullptr);
   CHECK(brush_opacity_slider != nullptr);
+  CHECK(brush_flow != nullptr);
+  CHECK(brush_airbrush != nullptr);
   CHECK(brush_softness != nullptr);
   CHECK(brush_softness_slider != nullptr);
   CHECK(brush_preset != nullptr);
@@ -1137,26 +1141,34 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_size_slider->maximum() == patchy::ui::kMaxBrushSize);
   CHECK(brush_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
+  CHECK(brush_flow->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_softness->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
   CHECK(brush_size->value() == 25);
   CHECK(brush_opacity->value() == 100);
+  CHECK(brush_flow->value() == 100);
+  CHECK(!brush_airbrush->isChecked());
   CHECK(brush_softness->value() == 0);
   CHECK(brush_softness_slider->value() == 0);
   CHECK(canvas->brush_size() == 25);
   CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_flow() == 100);
   CHECK(canvas->brush_softness() == 0);
   const auto airbrush_index = brush_preset->findData(QStringLiteral("airbrush"));
   CHECK(airbrush_index >= 0);
   brush_preset->setCurrentIndex(airbrush_index);
   CHECK(brush_size->value() == 56);
-  CHECK(brush_opacity->value() == 12);
+  CHECK(brush_opacity->value() == 100);
+  CHECK(brush_flow->value() == 12);
   CHECK(brush_softness->value() == 100);
-  CHECK(!canvas->brush_build_up());
+  CHECK(canvas->brush_build_up());
+  CHECK(brush_airbrush->isChecked());
   const auto soft_round_index = brush_preset->findData(QStringLiteral("soft_round"));
   CHECK(soft_round_index >= 0);
   brush_preset->setCurrentIndex(soft_round_index);
   CHECK(!canvas->brush_build_up());
+  CHECK(brush_flow->value() == 100);
+  CHECK(!brush_airbrush->isChecked());
   // Bracket keys resize proportionally (Photoshop-like): the step scales with
   // the current size, so at 20 px the plain step is +2 (10%) and Shift is +6
   // (30%), and grow-then-shrink returns to the same size.

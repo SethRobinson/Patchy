@@ -166,6 +166,8 @@ bool tool_supports_opacity_digit_keys(CanvasTool tool) noexcept {
   }
 }
 
+constexpr int kAirbrushTimerIntervalMs = 50;
+
 }  // namespace
 
 bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
@@ -995,6 +997,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         }
         if (!dirty.isEmpty()) {
           active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
+        }
+        if (effective_tool == CanvasTool::Brush && brush_build_up_) {
+          airbrush_timer_.start(kAirbrushTimerIntervalMs, this);
         }
       } else {
         reset_brush_smoothing();
@@ -2366,13 +2371,26 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
 }
 
 bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat) {
-  // Photoshop-style opacity entry: bare digits set the painting tool's opacity
-  // (5 = 50%, 0 = 100%), and two digits typed quickly combine (2 then 5 = 25%).
+  // Photoshop-style numeric entry: Brush uses Shift+digits for Flow, except
+  // while Airbrush is on, when bare digits set Flow and Shift+digits set
+  // Opacity. Other painting tools keep the historical bare-digit Opacity path.
   if (auto_repeat || key < Qt::Key_0 || key > Qt::Key_9 ||
-      (modifiers & ~Qt::KeypadModifier) != Qt::NoModifier ||
       !tool_supports_opacity_digit_keys(tool_)) {
     return false;
   }
+  const auto semantic_modifiers = modifiers & ~Qt::KeypadModifier;
+  const auto shift = semantic_modifiers == Qt::ShiftModifier;
+  if ((semantic_modifiers != Qt::NoModifier && !shift) ||
+      (shift && tool_ != CanvasTool::Brush)) {
+    return false;
+  }
+  const auto targets_flow = tool_ == CanvasTool::Brush &&
+                            (brush_build_up_ ? !shift : shift);
+  if (opacity_pending_digit_ >= 0 && targets_flow != opacity_digit_targets_flow_) {
+    opacity_pending_digit_ = -1;
+    opacity_digit_timer_.invalidate();
+  }
+  opacity_digit_targets_flow_ = targets_flow;
   constexpr qint64 kDigitPairWindowMs = 800;
   const auto digit = key - Qt::Key_0;
   int value = 0;
@@ -2387,7 +2405,12 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
     opacity_digit_timer_.start();
   }
   value = std::clamp(value, 1, 100);
-  if (tool_ == CanvasTool::Gradient) {
+  if (targets_flow) {
+    set_brush_flow(value);
+    if (status_callback_) {
+      status_callback_(tr("Brush flow: %1%").arg(brush_flow_));
+    }
+  } else if (tool_ == CanvasTool::Gradient) {
     set_gradient_opacity(value);
     if (status_callback_) {
       status_callback_(tr("Gradient opacity: %1%").arg(gradient_opacity_));
@@ -2462,6 +2485,23 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
 }
 
 void CanvasWidget::timerEvent(QTimerEvent* event) {
+  if (event->timerId() == airbrush_timer_.timerId()) {
+    if (!painting_ || !brush_build_up_ || effective_tool_for_input() != CanvasTool::Brush) {
+      airbrush_timer_.stop();
+    } else {
+      // Patent boundary (July 2026): classic Airbrush is only a fixed-rate
+      // repetition of the current flat 2D brush stamp. It does not model
+      // particles, a 3D spray cone or stylus pose, velocity-dependent flow,
+      // bristles, fluid surfaces, wet paint, or bidirectional paint transfer.
+      const auto dirty = draw_airbrush_dab(last_document_position_f_);
+      if (!dirty.isEmpty()) {
+        active_edit_target_changed_impl(QRegion(dirty),
+                                        DocumentChangeReason::BrushStrokePreview);
+      }
+    }
+    event->accept();
+    return;
+  }
   if (event->timerId() == processing_animation_timer_.timerId()) {
     processing_animation_frame_ = (processing_animation_frame_ + 1) % 12;
     ++render_cache_diagnostics_.processing_overlay_frames;

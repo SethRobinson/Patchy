@@ -201,7 +201,9 @@ private:
   struct BrushToolSettings {
     int size{12};
     int opacity{100};
+    int flow{100};
     int softness{20};
+    bool airbrush{false};
   };
 
   class PreviewDialogEditLock {

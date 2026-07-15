@@ -242,6 +242,8 @@ void ui_startup_defaults_to_round_brush() {
   auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
   auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+  auto* brush_flow = window.findChild<QSpinBox*>(QStringLiteral("brushFlowSpin"));
+  auto* brush_airbrush = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
   auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
   auto* gradient_method = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
   auto* gradient_opacity = window.findChild<QSpinBox*>(QStringLiteral("gradientOpacitySpin"));
@@ -249,6 +251,8 @@ void ui_startup_defaults_to_round_brush() {
   CHECK(brush_preset != nullptr);
   CHECK(brush_size != nullptr);
   CHECK(brush_opacity != nullptr);
+  CHECK(brush_flow != nullptr);
+  CHECK(brush_airbrush != nullptr);
   CHECK(brush_softness != nullptr);
   CHECK(gradient_method != nullptr);
   CHECK(gradient_opacity != nullptr);
@@ -256,16 +260,22 @@ void ui_startup_defaults_to_round_brush() {
   CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
   CHECK(brush_size->value() == 25);
   CHECK(brush_opacity->value() == 100);
+  CHECK(brush_flow->value() == 100);
+  CHECK(!brush_airbrush->isChecked());
   CHECK(brush_softness->value() == 0);
   CHECK(canvas->brush_size() == 25);
   CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_flow() == 100);
   CHECK(canvas->brush_softness() == 0);
   CHECK(!canvas->brush_build_up());
-  // The eraser restores only its size; opacity/softness reset with the brush.
+  // The eraser restores only its size; opacity/flow/Airbrush/softness reset
+  // with the brush.
   require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
   CHECK(canvas->brush_size() == 77);
   CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_flow() == 100);
   CHECK(canvas->brush_softness() == 0);
+  CHECK(!canvas->brush_build_up());
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   CHECK(canvas->brush_size() == 25);
   CHECK(canvas->gradient_method() == patchy::GradientMethod::Radial);

@@ -2677,6 +2677,40 @@ void MainWindow::create_actions() {
       refresh_document_info();
     }
   });
+
+  auto* brush_flow_label = add_option_label(tr("Flow:"), {CanvasTool::Brush});
+  bind_widget_text(brush_flow_label, "Flow:");
+  auto* brush_flow = new QSpinBox(toolbar);
+  brush_flow->setObjectName(QStringLiteral("brushFlowSpin"));
+  brush_flow->setRange(1, 100);
+  brush_flow->setValue(canvas_->brush_flow());
+  brush_flow->setSuffix(QStringLiteral("%"));
+  brush_flow->setToolTip(tr("Brush flow - Shift+number keys (number keys with Airbrush)"));
+  bind_tooltip(brush_flow, "Brush flow - Shift+number keys (number keys with Airbrush)");
+  configure_toolbar_spinbox(brush_flow, 52);
+  add_option_widget(brush_flow, {CanvasTool::Brush});
+  auto* brush_airbrush = new CheckGlyphBox(tr("Airbrush"), toolbar);
+  brush_airbrush->setObjectName(QStringLiteral("brushAirbrushCheck"));
+  bind_widget_text(brush_airbrush, "Airbrush");
+  brush_airbrush->setChecked(canvas_->brush_build_up());
+  brush_airbrush->setToolTip(tr("Build paint while the pointer is held still"));
+  bind_tooltip(brush_airbrush, "Build paint while the pointer is held still");
+  add_option_widget(brush_airbrush, {CanvasTool::Brush});
+  connect(brush_flow, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_brush_flow(value);
+      schedule_save_tool_settings();
+      refresh_document_info();
+    }
+  });
+  connect(brush_airbrush, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_brush_build_up(checked);
+      schedule_save_tool_settings();
+      refresh_document_info();
+    }
+  });
+
   connect(brush_softness, &QSpinBox::valueChanged, brush_softness_slider, &QSlider::setValue);
   connect(brush_softness_slider, &QSlider::valueChanged, brush_softness, &QSpinBox::setValue);
   connect(brush_softness, &QSpinBox::valueChanged, this, [this](int value) {
@@ -2687,7 +2721,8 @@ void MainWindow::create_actions() {
     }
   });
   connect(brush_preset_combo_, &QComboBox::currentIndexChanged, this,
-          [this, brush_size, brush_opacity, brush_softness](int index) {
+          [this, brush_size, brush_opacity, brush_flow, brush_softness,
+           brush_airbrush](int index) {
     if (brush_preset_combo_ == nullptr || canvas_ == nullptr || index < 0) {
       return;
     }
@@ -2699,7 +2734,9 @@ void MainWindow::create_actions() {
     apply_brush_preset(*canvas_, *preset);
     brush_size->setValue(preset->size);
     brush_opacity->setValue(preset->opacity);
+    brush_flow->setValue(preset->flow);
     brush_softness->setValue(preset->softness);
+    brush_airbrush->setChecked(preset->build_up);
     save_tool_settings();
     refresh_document_info();
     statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_display_name(*preset)));

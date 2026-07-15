@@ -5485,6 +5485,10 @@ Mixed selection</source>
         <translation>ブラシの不透明度: %1%</translation>
     </message>
     <message>
+        <source>Brush flow: %1%</source>
+        <translation>ブラシのフロー: %1%</translation>
+    </message>
+    <message>
         <location line="-5"/>
         <source>Gradient opacity: %1%</source>
         <translation>グラデーションの不透明度: %1%</translation>
@@ -8210,6 +8214,22 @@ Mixed selection</source>
         <translation>ブラシの不透明度 — 数字キーで設定 (5 = 50%、0 = 100%)</translation>
     </message>
     <message>
+        <source>Flow:</source>
+        <translation>フロー:</translation>
+    </message>
+    <message>
+        <source>Brush flow - Shift+number keys (number keys with Airbrush)</source>
+        <translation>ブラシのフロー — Shift+数字キーで設定 (エアブラシ時は数字キー)</translation>
+    </message>
+    <message>
+        <source>Airbrush</source>
+        <translation>エアブラシ</translation>
+    </message>
+    <message>
+        <source>Build paint while the pointer is held still</source>
+        <translation>ポインターを静止したまま押し続けると塗料が蓄積します</translation>
+    </message>
+    <message>
         <location line="+20"/>
         <source>Brush edge softness — Alt+Right-drag up or down on the canvas</source>
         <translation>ブラシエッジの柔らかさ — キャンバス上で Alt+右ドラッグ（上下）</translation>
@@ -10569,6 +10589,18 @@ Layer mask</source>
         <location line="+1"/>
         <source>Softness: %1%</source>
         <translation>柔らかさ: %1%</translation>
+    </message>
+    <message>
+        <source>Flow: %1%</source>
+        <translation>フロー: %1%</translation>
+    </message>
+    <message>
+        <source>Airbrush: on</source>
+        <translation>エアブラシ: オン</translation>
+    </message>
+    <message>
+        <source>Airbrush: off</source>
+        <translation>エアブラシ: オフ</translation>
     </message>
     <message>
         <location line="+2"/>

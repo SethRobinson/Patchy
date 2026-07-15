@@ -173,6 +173,7 @@ void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset) {
   canvas.set_brush_build_up(preset.build_up);
   canvas.set_brush_size(preset.size);
   canvas.set_brush_opacity(preset.opacity);
+  canvas.set_brush_flow(preset.flow);
   canvas.set_brush_softness(preset.softness);
 }
 

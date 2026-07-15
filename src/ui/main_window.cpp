@@ -12677,13 +12677,15 @@ void MainWindow::load_tool_settings() {
     return;
   }
   auto settings = app_settings();
-  // Brush tip, opacity, and softness are deliberately not restored: every launch
-  // starts from the Round startup preset (round tip, 100% opacity, 0% soft) so a
-  // leftover bitmap tip or a barely-visible opacity from the previous session
-  // cannot leave the brush in a state that confuses the user. The eraser resets
-  // the same way; only its size is kept across restarts.
+  // Brush tip, opacity, flow, Airbrush, and softness are deliberately not
+  // restored: every launch starts from the Round startup preset (round tip,
+  // 100% opacity, 100% flow, Airbrush off, 0% soft) so a leftover bitmap tip or
+  // a barely-visible paint rate cannot leave the brush in a confusing state.
+  // The eraser resets the same way; only its size is kept across restarts.
   if (const auto* preset = find_brush_preset(default_startup_brush_preset_id()); preset != nullptr) {
-    stored_paint_brush_settings_ = BrushToolSettings{preset->size, preset->opacity, preset->softness};
+    stored_paint_brush_settings_ =
+        BrushToolSettings{preset->size, preset->opacity, preset->flow, preset->softness,
+                          preset->build_up};
   } else {
     stored_paint_brush_settings_ = BrushToolSettings{};
   }
@@ -12818,9 +12820,9 @@ void MainWindow::save_tool_settings() const {
     tool_settings_save_timer_->stop();
   }
   auto settings = app_settings();
-  // Brush tip/opacity/softness (and the paint brush size) reset to the Round
-  // startup preset on every launch (see load_tool_settings()), so the eraser
-  // size is the only brush value worth persisting.
+  // Brush tip/opacity/flow/Airbrush/softness (and the paint brush size) reset to
+  // the Round startup preset on every launch (see load_tool_settings()), so the
+  // eraser size is the only brush value worth persisting.
   const auto eraser_size =
       eraser_brush_settings_active_ ? canvas_->brush_size() : stored_eraser_brush_settings_.size;
   settings.setValue(QStringLiteral("tools/eraserSize"), eraser_size);
@@ -12882,7 +12884,8 @@ void MainWindow::stash_active_brush_settings() {
     return;
   }
   active_stored_brush_settings() =
-      BrushToolSettings{canvas_->brush_size(), canvas_->brush_opacity(), canvas_->brush_softness()};
+      BrushToolSettings{canvas_->brush_size(), canvas_->brush_opacity(), canvas_->brush_flow(),
+                        canvas_->brush_softness(), canvas_->brush_build_up()};
 }
 
 void MainWindow::apply_active_brush_settings_to_canvas() {
@@ -12892,7 +12895,9 @@ void MainWindow::apply_active_brush_settings_to_canvas() {
   const auto values = active_stored_brush_settings();
   canvas_->set_brush_size(values.size);
   canvas_->set_brush_opacity(values.opacity);
+  canvas_->set_brush_flow(values.flow);
   canvas_->set_brush_softness(values.softness);
+  canvas_->set_brush_build_up(values.airbrush);
   // Brush tips are application-wide like the rest of the brush settings; an incoming canvas
   // (new tab or tab switch) may hold a stale or empty tip.
   apply_brush_tip_to_canvas(canvas_);
@@ -14497,6 +14502,15 @@ void MainWindow::sync_brush_controls_from_canvas() {
       brush_opacity_slider != nullptr) {
     QSignalBlocker blocker(brush_opacity_slider);
     brush_opacity_slider->setValue(canvas_->brush_opacity());
+  }
+  if (auto* brush_flow = findChild<QSpinBox*>(QStringLiteral("brushFlowSpin")); brush_flow != nullptr) {
+    QSignalBlocker blocker(brush_flow);
+    brush_flow->setValue(canvas_->brush_flow());
+  }
+  if (auto* brush_airbrush = findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
+      brush_airbrush != nullptr) {
+    QSignalBlocker blocker(brush_airbrush);
+    brush_airbrush->setChecked(canvas_->brush_build_up());
   }
   if (auto* brush_softness = findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin")); brush_softness != nullptr) {
     QSignalBlocker blocker(brush_softness);

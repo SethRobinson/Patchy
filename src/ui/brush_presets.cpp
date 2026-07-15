@@ -8,12 +8,12 @@ namespace patchy::ui {
 
 std::span<const BrushPreset> builtin_brush_presets() {
   static const std::array<BrushPreset, 6> presets{
-      BrushPreset{QStringLiteral("round"), QStringLiteral("Round"), 25, 100, 0, false},
-      BrushPreset{QStringLiteral("soft_round"), QStringLiteral("Soft Round"), 12, 100, 75, false},
-      BrushPreset{QStringLiteral("hard_round"), QStringLiteral("Hard Round"), 18, 100, 0, false},
-      BrushPreset{QStringLiteral("pencil"), QStringLiteral("Pencil"), 4, 100, 0, false},
-      BrushPreset{QStringLiteral("ink"), QStringLiteral("Ink"), 12, 92, 20, false},
-      BrushPreset{QStringLiteral("airbrush"), QStringLiteral("Airbrush"), 56, 12, 100, false},
+      BrushPreset{QStringLiteral("round"), QStringLiteral("Round"), 25, 100, 100, 0, false},
+      BrushPreset{QStringLiteral("soft_round"), QStringLiteral("Soft Round"), 12, 100, 100, 75, false},
+      BrushPreset{QStringLiteral("hard_round"), QStringLiteral("Hard Round"), 18, 100, 100, 0, false},
+      BrushPreset{QStringLiteral("pencil"), QStringLiteral("Pencil"), 4, 100, 100, 0, false},
+      BrushPreset{QStringLiteral("ink"), QStringLiteral("Ink"), 12, 92, 100, 20, false},
+      BrushPreset{QStringLiteral("airbrush"), QStringLiteral("Airbrush"), 56, 100, 12, 100, true},
   };
   return presets;
 }

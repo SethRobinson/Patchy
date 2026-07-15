@@ -271,7 +271,9 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   if (!used_default_tool_settings) {
     session->canvas->set_brush_size(canvas_->brush_size());
     session->canvas->set_brush_opacity(canvas_->brush_opacity());
+    session->canvas->set_brush_flow(canvas_->brush_flow());
     session->canvas->set_brush_softness(canvas_->brush_softness());
+    session->canvas->set_brush_build_up(canvas_->brush_build_up());
     session->canvas->set_wand_tolerance(canvas_->wand_tolerance());
     session->canvas->set_wand_contiguous(canvas_->wand_contiguous());
     session->canvas->set_wand_sample_all_layers(canvas_->wand_sample_all_layers());

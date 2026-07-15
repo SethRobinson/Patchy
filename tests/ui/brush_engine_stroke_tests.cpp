@@ -707,6 +707,21 @@ void ui_layer_mask_brush_opacity_caps_per_stroke() {
   CHECK(second_stroke.green() < first_stroke.green() - 20);
   CHECK(second_stroke.green() >= 165);
   CHECK(second_stroke.green() <= 190);
+
+  canvas->set_brush_opacity(40);
+  canvas->set_brush_flow(20);
+  canvas->set_brush_build_up(true);
+  const auto airbrush_point = canvas->widget_position_for_document_point(QPoint(16, 16));
+  send_mouse(*canvas, QEvent::MouseButtonPress, airbrush_point, Qt::LeftButton, Qt::LeftButton);
+  QTest::qWait(430);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, airbrush_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto airbrush_mask = canvas_pixel(*canvas, QPoint(16, 16));
+  CHECK(airbrush_mask.red() >= 239);
+  CHECK(airbrush_mask.red() <= 243);
+  CHECK(airbrush_mask.green() >= 160);
+  CHECK(airbrush_mask.green() <= 170);
+  CHECK(std::abs(airbrush_mask.green() - airbrush_mask.blue()) <= 4);
   save_widget_artifact("ui_layer_mask_brush_opacity_per_stroke", window);
 }
 
@@ -1099,7 +1114,7 @@ void ui_brush_shift_click_connects_strokes() {
   CHECK(alpha_at(170, 30) == 0U);
 }
 
-void ui_brush_opacity_digit_keys_set_opacity() {
+void ui_brush_opacity_and_flow_digit_keys_set_values() {
   patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
 
@@ -1108,6 +1123,8 @@ void ui_brush_opacity_digit_keys_set_opacity() {
   canvas.set_document(&document);
   canvas.set_tool(patchy::ui::CanvasTool::Brush);
   canvas.set_brush_opacity(100);
+  canvas.set_brush_flow(100);
+  canvas.set_brush_build_up(false);
   canvas.set_gradient_opacity(80);
   canvas.show();
   QApplication::processEvents();
@@ -1127,16 +1144,29 @@ void ui_brush_opacity_digit_keys_set_opacity() {
   send_key(canvas, Qt::Key_7);
   CHECK(canvas.brush_opacity() == 7);
 
+  // Shift targets Flow while Airbrush is off. With Airbrush on, Photoshop's
+  // shortcut assignment flips: bare digits target Flow and Shift targets
+  // Opacity.
+  send_key(canvas, Qt::Key_4, Qt::ShiftModifier);
+  CHECK(canvas.brush_flow() == 40);
+  send_key(canvas, Qt::Key_5, Qt::ShiftModifier);
+  CHECK(canvas.brush_flow() == 45);
+  canvas.set_brush_build_up(true);
+  send_key(canvas, Qt::Key_6, Qt::ShiftModifier);
+  CHECK(canvas.brush_opacity() == 60);
+  send_key(canvas, Qt::Key_3);
+  CHECK(canvas.brush_flow() == 30);
+
   // The gradient tool routes digits to the gradient opacity instead.
   canvas.set_tool(patchy::ui::CanvasTool::Gradient);
   send_key(canvas, Qt::Key_4);
   CHECK(canvas.gradient_opacity() == 40);
-  CHECK(canvas.brush_opacity() == 7);
+  CHECK(canvas.brush_opacity() == 60);
 
   // Non-painting tools ignore the digit keys.
   canvas.set_tool(patchy::ui::CanvasTool::Move);
   send_key(canvas, Qt::Key_9);
-  CHECK(canvas.brush_opacity() == 7);
+  CHECK(canvas.brush_opacity() == 60);
   CHECK(canvas.gradient_opacity() == 40);
 }
 
@@ -1318,7 +1348,7 @@ void ui_deep_zoom_brush_repaint_stays_responsive() {
   CHECK(paint_layer.pixels().pixel(1, 1)[3] == 255);
 }
 
-void ui_airbrush_preset_does_not_stack_within_one_stroke() {
+void ui_airbrush_preset_builds_while_stationary() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -1331,31 +1361,73 @@ void ui_airbrush_preset_does_not_stack_within_one_stroke() {
   CHECK(airbrush_index >= 0);
   brush_preset->setCurrentIndex(airbrush_index);
   QApplication::processEvents();
-  CHECK(!canvas->brush_build_up());
-  CHECK(canvas->brush_opacity() == 12);
+  CHECK(canvas->brush_build_up());
+  CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_flow() == 12);
 
   const auto center = canvas->widget_position_for_document_point(QPoint(150, 120));
   send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
-  for (int i = 0; i < 6; ++i) {
-    send_mouse(*canvas, QEvent::MouseMove, center + QPoint(i % 2, 0), Qt::NoButton, Qt::LeftButton);
-  }
+  QApplication::processEvents();
+  const auto initial = canvas_pixel(*canvas, QPoint(150, 120));
+  CHECK(initial.red() >= 215);
+  CHECK(initial.red() <= 232);
+
+  QTest::qWait(260);
+  QApplication::processEvents();
+  const auto held = canvas_pixel(*canvas, QPoint(150, 120));
+  CHECK(held.red() < initial.red() - 40);
+  CHECK(held.red() > 70);
+
   send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
-
-  const auto painted_once = canvas_pixel(*canvas, QPoint(150, 120));
-  CHECK(painted_once.red() >= 215);
-  CHECK(painted_once.red() <= 232);
-  CHECK(std::abs(painted_once.red() - painted_once.green()) <= 4);
-  CHECK(std::abs(painted_once.green() - painted_once.blue()) <= 4);
-
-  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  const auto released = canvas_pixel(*canvas, QPoint(150, 120));
+  QTest::qWait(120);
   QApplication::processEvents();
-  const auto second_stroke = canvas_pixel(*canvas, QPoint(150, 120));
-  CHECK(second_stroke.red() < painted_once.red() - 15);
-  CHECK(second_stroke.red() >= 190);
-  CHECK(second_stroke.red() <= 210);
-  save_widget_artifact("ui_airbrush_no_same_stroke_stack", window);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 120)), released, 1));
+  save_widget_artifact("ui_airbrush_stationary_build_up", window);
+}
+
+void ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd() {
+  patchy::Document document(96, 96, patchy::PixelFormat::rgba8());
+  const auto layer_id = document.add_pixel_layer(
+      "Paint", solid_pixels(96, 96, patchy::PixelFormat::rgba8(), Qt::white)).id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(192, 192);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(1.0);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(32);
+  canvas.set_brush_opacity(40);
+  canvas.set_brush_flow(20);
+  canvas.set_brush_softness(0);
+  canvas.set_brush_build_up(true);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto point = canvas.widget_position_for_document_point(QPoint(48, 48));
+  send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+  QTest::qWait(430);
+  send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto* layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr);
+  const auto* capped = layer->pixels().pixel(48, 48);
+  CHECK(capped[0] >= 151U && capped[0] <= 155U);
+  CHECK(capped[1] == capped[0]);
+  CHECK(capped[2] == capped[0]);
+  CHECK(capped[3] == 255U);
+
+  ensure_artifact_dir();
+  const auto path = std::filesystem::path("test-artifacts") / "ui_brush_flow_airbrush.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, path);
+  const auto reread = patchy::psd::DocumentIo::read_file(path);
+  CHECK(reread.layers().size() == 1U);
+  const auto* reopened = reread.layers().front().pixels().pixel(48, 48);
+  CHECK(std::equal(capped, capped + 4, reopened));
+  save_widget_artifact("ui_brush_flow_opacity_cap", canvas);
 }
 
 void ui_airbrush_fast_strokes_ignore_mouse_event_density() {
@@ -2192,30 +2264,44 @@ void ui_brush_and_eraser_remember_separate_settings() {
     auto* canvas = require_canvas(window);
     auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
     auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+    auto* flow_spin = window.findChild<QSpinBox*>(QStringLiteral("brushFlowSpin"));
+    auto* airbrush_check = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
     auto* softness_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
     CHECK(size_spin != nullptr);
     CHECK(opacity_spin != nullptr);
+    CHECK(flow_spin != nullptr);
+    CHECK(airbrush_check != nullptr);
     CHECK(softness_spin != nullptr);
 
     require_action_by_text(window, QStringLiteral("Brush"))->trigger();
     size_spin->setValue(31);
     opacity_spin->setValue(81);
+    flow_spin->setValue(35);
+    airbrush_check->setChecked(true);
     softness_spin->setValue(11);
 
     require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
     size_spin->setValue(62);
     opacity_spin->setValue(52);
+    flow_spin->setValue(65);
+    airbrush_check->setChecked(false);
     softness_spin->setValue(92);
     CHECK(canvas->brush_size() == 62);
     CHECK(canvas->brush_opacity() == 52);
+    CHECK(canvas->brush_flow() == 65);
+    CHECK(!canvas->brush_build_up());
     CHECK(canvas->brush_softness() == 92);
 
     require_action_by_text(window, QStringLiteral("Brush"))->trigger();
     CHECK(size_spin->value() == 31);
     CHECK(opacity_spin->value() == 81);
+    CHECK(flow_spin->value() == 35);
+    CHECK(airbrush_check->isChecked());
     CHECK(softness_spin->value() == 11);
     CHECK(canvas->brush_size() == 31);
     CHECK(canvas->brush_opacity() == 81);
+    CHECK(canvas->brush_flow() == 35);
+    CHECK(canvas->brush_build_up());
     CHECK(canvas->brush_softness() == 11);
 
     require_action_by_text(window, QStringLiteral("Clone"))->trigger();
@@ -2225,6 +2311,8 @@ void ui_brush_and_eraser_remember_separate_settings() {
     require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
     CHECK(size_spin->value() == 62);
     CHECK(opacity_spin->value() == 52);
+    CHECK(flow_spin->value() == 65);
+    CHECK(!airbrush_check->isChecked());
     CHECK(softness_spin->value() == 92);
     CHECK(canvas->brush_size() == 62);
 
@@ -2234,6 +2322,8 @@ void ui_brush_and_eraser_remember_separate_settings() {
     auto* second_canvas = require_canvas(window);
     CHECK(second_canvas != canvas);
     CHECK(second_canvas->brush_size() == 62);
+    CHECK(second_canvas->brush_flow() == 65);
+    CHECK(!second_canvas->brush_build_up());
     size_spin->setValue(48);
     auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
     CHECK(tabs != nullptr);
@@ -2244,6 +2334,8 @@ void ui_brush_and_eraser_remember_separate_settings() {
 
     require_action_by_text(window, QStringLiteral("Brush"))->trigger();
     CHECK(canvas->brush_size() == 31);
+    CHECK(canvas->brush_flow() == 35);
+    CHECK(canvas->brush_build_up());
   }
 
   patchy::ui::MainWindow window;
@@ -2255,11 +2347,15 @@ void ui_brush_and_eraser_remember_separate_settings() {
   // to the Round startup preset; only the eraser size survives.
   CHECK(canvas->brush_size() == 25);
   CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_flow() == 100);
   CHECK(canvas->brush_softness() == 0);
+  CHECK(!canvas->brush_build_up());
   require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
   CHECK(canvas->brush_size() == 48);
   CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_flow() == 100);
   CHECK(canvas->brush_softness() == 0);
+  CHECK(!canvas->brush_build_up());
   CHECK(size_spin->value() == 48);
 }
 
@@ -2480,7 +2576,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests() {
       {"ui_brush_alt_right_drag_syncs_options_bar_spins",
        ui_brush_alt_right_drag_syncs_options_bar_spins},
       {"ui_brush_shift_click_connects_strokes", ui_brush_shift_click_connects_strokes},
-      {"ui_brush_opacity_digit_keys_set_opacity", ui_brush_opacity_digit_keys_set_opacity},
+      {"ui_brush_opacity_and_flow_digit_keys_set_values",
+       ui_brush_opacity_and_flow_digit_keys_set_values},
       {"ui_undo_shortcut_includes_ctrl_alt_z", ui_undo_shortcut_includes_ctrl_alt_z},
       {"ui_one_pixel_brush_drag_paints_fractional_smoothed_line",
        ui_one_pixel_brush_drag_paints_fractional_smoothed_line},
@@ -2490,8 +2587,10 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests() {
        ui_max_zoom_brush_skips_noop_stroke_repaints},
       {"ui_deep_zoom_brush_repaint_stays_responsive",
        ui_deep_zoom_brush_repaint_stays_responsive},
-      {"ui_airbrush_preset_does_not_stack_within_one_stroke",
-       ui_airbrush_preset_does_not_stack_within_one_stroke},
+      {"ui_airbrush_preset_builds_while_stationary",
+       ui_airbrush_preset_builds_while_stationary},
+      {"ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd",
+       ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd},
       {"ui_airbrush_fast_strokes_ignore_mouse_event_density",
        ui_airbrush_fast_strokes_ignore_mouse_event_density},
       {"ui_airbrush_jittered_stroke_uses_smoothed_path", ui_airbrush_jittered_stroke_uses_smoothed_path},

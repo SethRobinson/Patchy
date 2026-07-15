@@ -10,6 +10,7 @@ struct BrushPreset {
   QString name;
   int size{12};
   int opacity{100};
+  int flow{100};
   int softness{75};
   bool build_up{false};
 };

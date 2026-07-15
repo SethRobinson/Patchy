@@ -324,8 +324,13 @@ public:
   [[nodiscard]] int brush_size() const noexcept;
   void set_brush_opacity(int opacity);
   [[nodiscard]] int brush_opacity() const noexcept;
+  void set_brush_flow(int flow);
+  [[nodiscard]] int brush_flow() const noexcept;
   void set_brush_softness(int softness);
   [[nodiscard]] int brush_softness() const noexcept;
+  // Historical name retained for callers and tests. This is the Brush tool's
+  // Airbrush toggle: while enabled, stationary timer dabs build toward Opacity
+  // at the selected Flow rate.
   void set_brush_build_up(bool build_up) noexcept;
   [[nodiscard]] bool brush_build_up() const noexcept;
   // Bitmap brush tip for the Brush and Eraser tools; null tip = procedural round/soft brush.
@@ -612,7 +617,7 @@ public:
                                    std::optional<CurvesChannel> channel = std::nullopt);
   [[nodiscard]] std::optional<CurvesClippingMode> curves_clipping_preview_mode() const noexcept;
   // Invoked when the canvas itself changes brush/gradient parameters (size
-  // drag gesture, opacity digit keys) so the options bar can resync.
+  // drag gesture, opacity/flow digit keys) so the options bar can resync.
   void set_brush_settings_changed_callback(std::function<void()> callback);
   void set_pen_button_action_callback(std::function<void(PenButtonAction)> callback);
   void set_text_requested_callback(std::function<void(QPoint, QRect)> callback);
@@ -845,6 +850,9 @@ private:
                                                    bool stamp_endpoint);
   [[nodiscard]] float capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage,
                                              float source_alpha);
+  [[nodiscard]] float accumulating_stroke_coverage(std::int32_t x, std::int32_t y,
+                                                   float coverage, float opacity,
+                                                   float flow);
   void install_brush_stroke_compositor(EditOptions& options, bool erase);
   void ensure_brush_stroke_layer_snapshot(LayerId layer_id, const Layer& layer);
   [[nodiscard]] std::array<std::uint8_t, 4> brush_stroke_original_pixel(std::int32_t x,
@@ -871,6 +879,7 @@ private:
   [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase,
                                          bool stamp_endpoint = false);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
+  [[nodiscard]] QRect draw_airbrush_dab(QPointF point);
   [[nodiscard]] QRect draw_mask_brush_segment(QPointF from, QPointF to, bool erase);
   [[nodiscard]] QRect draw_mask_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_mask_brush_at(QPoint point, bool erase);
@@ -1124,6 +1133,7 @@ private:
   mutable std::uint64_t palette_lut_revision_{std::numeric_limits<std::uint64_t>::max()};
   int brush_size_{12};
   int brush_opacity_{100};
+  int brush_flow_{100};
   int brush_softness_{75};
   std::optional<BrushCursorCache> brush_cursor_cache_;
   bool brush_build_up_{false};
@@ -1182,6 +1192,7 @@ private:
   QPoint spacebar_reposition_start_selection_start_{};
   QPoint spacebar_reposition_start_selection_current_{};
   bool painting_{false};
+  QBasicTimer airbrush_timer_;
   bool brush_adjust_dragging_{false};
   QPoint brush_adjust_origin_widget_{};
   QPoint brush_adjust_current_widget_{};
@@ -1191,6 +1202,7 @@ private:
   std::optional<QPointF> last_stroke_end_document_{};
   QElapsedTimer opacity_digit_timer_{};
   int opacity_pending_digit_{-1};
+  bool opacity_digit_targets_flow_{false};
   bool drawing_shape_{false};
   bool dragging_text_rect_{false};
   bool move_drag_pending_{false};

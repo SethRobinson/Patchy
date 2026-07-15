@@ -295,6 +295,14 @@ int CanvasWidget::brush_opacity() const noexcept {
   return brush_opacity_;
 }
 
+void CanvasWidget::set_brush_flow(int flow) {
+  brush_flow_ = std::clamp(flow, 1, 100);
+}
+
+int CanvasWidget::brush_flow() const noexcept {
+  return brush_flow_;
+}
+
 void CanvasWidget::set_brush_softness(int softness) {
   brush_softness_ = std::clamp(softness, 0, 100);
   update_tool_cursor();
@@ -306,6 +314,9 @@ int CanvasWidget::brush_softness() const noexcept {
 
 void CanvasWidget::set_brush_build_up(bool build_up) noexcept {
   brush_build_up_ = build_up;
+  if (!brush_build_up_) {
+    airbrush_timer_.stop();
+  }
 }
 
 void CanvasWidget::set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id) {
@@ -841,6 +852,7 @@ void CanvasWidget::draw_brush_adjust_readout(QPainter& painter, QPointF center, 
 }
 
 void CanvasWidget::clear_brush_stroke_tracking() noexcept {
+  airbrush_timer_.stop();
   brush_stroke_pixels_.clear();
   brush_stroke_alpha_caps_.clear();
   brush_stroke_accumulated_alpha_.clear();
@@ -1016,6 +1028,12 @@ bool CanvasWidget::brush_uses_dab_stroke(const EffectiveBrushInput& brush, bool 
   if (!erase && tool_ == CanvasTool::Brush && brush_dynamics_.active()) {
     return false;
   }
+  // Flow must be tied to a spatial dab cadence, not to the number of mouse
+  // move events delivered by the platform. Airbrush also uses this path so its
+  // moving stroke and stationary timer share the same flat stamp footprint.
+  if (!erase && tool_ == CanvasTool::Brush && (brush_flow_ < 100 || brush_build_up_)) {
+    return true;
+  }
   return brush.size > 1 && brush.softness > 0;
 }
 
@@ -1111,6 +1129,30 @@ float CanvasWidget::capped_stroke_coverage(std::int32_t x, std::int32_t y, float
   const auto incremental_alpha = (target_alpha - previous_alpha) / std::max(0.0005F, 1.0F - previous_alpha);
   previous_alpha = target_alpha;
   return std::clamp(incremental_alpha / source_alpha, 0.0F, 1.0F);
+}
+
+float CanvasWidget::accumulating_stroke_coverage(std::int32_t x, std::int32_t y,
+                                                 float coverage, float opacity,
+                                                 float flow) {
+  opacity = std::clamp(opacity, 1.0F / 255.0F, 1.0F);
+  flow = std::clamp(flow, 1.0F / 100.0F, 1.0F);
+  const auto dab_alpha = std::clamp(opacity * flow * std::clamp(coverage, 0.0F, 1.0F),
+                                    0.0F, opacity);
+  if (dab_alpha <= 0.0F) {
+    return 0.0F;
+  }
+
+  auto& accumulated_alpha = brush_stroke_accumulated_alpha_[stroke_pixel_key(x, y)];
+  const auto target_alpha =
+      std::min(opacity, 1.0F - (1.0F - accumulated_alpha) * (1.0F - dab_alpha));
+  if (target_alpha <= accumulated_alpha + 0.0005F) {
+    return 0.0F;
+  }
+
+  const auto incremental_alpha =
+      (target_alpha - accumulated_alpha) / std::max(0.0005F, 1.0F - accumulated_alpha);
+  accumulated_alpha = target_alpha;
+  return std::clamp(incremental_alpha / opacity, 0.0F, 1.0F);
 }
 
 void CanvasWidget::ensure_brush_stroke_layer_snapshot(LayerId layer_id, const Layer& layer) {
@@ -1266,7 +1308,8 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, 
     return false;
   }
 
-  const auto dab_alpha = std::clamp(source_alpha * coverage, 0.0F, source_alpha);
+  const auto flow = static_cast<float>(brush_flow_) / 100.0F;
+  const auto dab_alpha = std::clamp(source_alpha * flow * coverage, 0.0F, source_alpha);
   auto& accumulated_alpha = brush_stroke_accumulated_alpha_[stroke_pixel_key(x, y)];
   const auto target_alpha =
       std::min(source_alpha, 1.0F - (1.0F - accumulated_alpha) * (1.0F - dab_alpha));
@@ -1366,7 +1409,7 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, 
 }
 
 void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool erase) {
-  if (brush_build_up_ || document_ == nullptr || !document_->active_layer_id().has_value()) {
+  if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return;
   }
 
@@ -1551,6 +1594,24 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
       patchy::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
 }
 
+QRect CanvasWidget::draw_airbrush_dab(QPointF point) {
+  if (editing_grayscale_target()) {
+    return draw_mask_brush_at(QPoint(static_cast<int>(std::lround(point.x())),
+                                     static_cast<int>(std::lround(point.y()))),
+                              false);
+  }
+  if (document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return {};
+  }
+
+  const auto brush = effective_brush_input();
+  auto options = current_brush_edit_options(brush);
+  apply_brush_tip_to_options(options, brush.size, brush.softness);
+  install_brush_stroke_compositor(options, false);
+  return to_qrect(patchy::paint_brush_dab(*document_, *document_->active_layer_id(),
+                                          point.x(), point.y(), options, false));
+}
+
 QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase) {
   if (document_ == nullptr) {
     return {};
@@ -1587,7 +1648,12 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
       if (coverage <= 0.0F) {
         return;
       }
-      coverage = capped_stroke_coverage(document_point.x(), document_point.y(), coverage, opacity);
+      coverage = brush_flow_ < 100 || brush_build_up_
+                     ? accumulating_stroke_coverage(document_point.x(), document_point.y(),
+                                                    coverage, opacity,
+                                                    static_cast<float>(brush_flow_) / 100.0F)
+                     : capped_stroke_coverage(document_point.x(), document_point.y(), coverage,
+                                              opacity);
       if (coverage <= 0.0F) {
         return;
       }
@@ -1648,7 +1714,10 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
       if (coverage <= 0.0F) {
         continue;
       }
-      coverage = capped_stroke_coverage(x, y, coverage, opacity);
+      coverage = brush_flow_ < 100 || brush_build_up_
+                     ? accumulating_stroke_coverage(x, y, coverage, opacity,
+                                                    static_cast<float>(brush_flow_) / 100.0F)
+                     : capped_stroke_coverage(x, y, coverage, opacity);
       if (coverage <= 0.0F) {
         continue;
       }
