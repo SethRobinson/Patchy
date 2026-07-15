@@ -962,6 +962,9 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
       const auto clipboard_index = preset->findText(QStringLiteral("Clipboard"));
       CHECK(clipboard_index == 0);
       CHECK((preset->model()->flags(preset->model()->index(clipboard_index, 0)) & Qt::ItemIsEnabled) != 0);
+      CHECK(preset->currentIndex() == clipboard_index);
+      CHECK(width->value() == clipboard_size.width());
+      CHECK(height->value() == clipboard_size.height());
 
       // Presets carry a resolution: physical print presets are 300 PPI, the
       // Clipboard and screen/video presets follow Photoshop's 72 PPI convention.
@@ -972,9 +975,14 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
       };
       const std::vector<ExpectedPreset> expected_presets = {
           {QStringLiteral("Clipboard"), clipboard_size, 72.0},
+          {QStringLiteral("A5 300 ppi"), QSize(1748, 2480), 300.0},
           {QStringLiteral("A4 300 ppi"), QSize(2480, 3508), 300.0},
           {QStringLiteral("A3 300 ppi"), QSize(3508, 4961), 300.0},
           {QStringLiteral("US Letter 300 ppi"), QSize(2550, 3300), 300.0},
+          {QStringLiteral("US Legal 300 ppi"), QSize(2550, 4200), 300.0},
+          {QStringLiteral("5 x 7 in 300 ppi"), QSize(1500, 2100), 300.0},
+          {QStringLiteral("8 x 10 in 300 ppi"), QSize(2400, 3000), 300.0},
+          {QStringLiteral("Square 2048"), QSize(2048, 2048), 72.0},
           {QStringLiteral("1080p"), QSize(1920, 1080), 72.0},
           {QStringLiteral("4K"), QSize(3840, 2160), 72.0},
       };

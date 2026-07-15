@@ -276,6 +276,7 @@ struct ImageSizeSettings {
 std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {
   constexpr int kClipboardPresetRole = Qt::UserRole + 1;
   constexpr int kPresetResolutionRole = Qt::UserRole + 2;
+  constexpr int kCustomPresetRole = Qt::UserRole + 3;
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyNewDocumentDialog"));
@@ -303,13 +304,22 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
       }
     }
   }
+  preset->addItem(QObject::tr("Custom"), QSize());
+  const int custom_preset_index = preset->count() - 1;
+  preset->setItemData(custom_preset_index, true, kCustomPresetRole);
   add_preset(QObject::tr("1024 x 768"), QSize(1024, 768), 300.0);
+  const int default_preset_index = preset->count() - 1;
+  add_preset(QObject::tr("A5 300 ppi"), QSize(1748, 2480), 300.0);
   add_preset(QObject::tr("A4 300 ppi"), QSize(2480, 3508), 300.0);
   add_preset(QObject::tr("A3 300 ppi"), QSize(3508, 4961), 300.0);
   add_preset(QObject::tr("US Letter 300 ppi"), QSize(2550, 3300), 300.0);
+  add_preset(QObject::tr("US Legal 300 ppi"), QSize(2550, 4200), 300.0);
+  add_preset(QObject::tr("5 x 7 in 300 ppi"), QSize(1500, 2100), 300.0);
+  add_preset(QObject::tr("8 x 10 in 300 ppi"), QSize(2400, 3000), 300.0);
+  add_preset(QObject::tr("Square 2048"), QSize(2048, 2048), 72.0);
   add_preset(QObject::tr("1080p"), QSize(1920, 1080), 72.0);
   add_preset(QObject::tr("4K"), QSize(3840, 2160), 72.0);
-  preset->setCurrentIndex(1);
+  preset->setCurrentIndex(clipboard_image.isNull() ? default_preset_index : 0);
   form->addRow(QObject::tr("Preset"), preset);
 
   // Pixels are the stored truth; the width/height spins convert through the chosen
@@ -339,8 +349,20 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   auto* height = new QDoubleSpinBox(&dialog);
   height->setObjectName(QStringLiteral("newDocumentHeightSpin"));
   configure_dialog_spinbox(height);
+  auto* swap_dimensions = new QToolButton(&dialog);
+  swap_dimensions->setObjectName(QStringLiteral("newDocumentSwapDimensionsButton"));
+  swap_dimensions->setIcon(QIcon(QStringLiteral(":/patchy/icons/rotate.svg")));
+  swap_dimensions->setIconSize(QSize(18, 18));
+  swap_dimensions->setToolTip(QObject::tr("Swap width and height"));
+  swap_dimensions->setFixedWidth(28);
+  auto* height_row = new QWidget(&dialog);
+  auto* height_row_layout = new QHBoxLayout(height_row);
+  height_row_layout->setContentsMargins(0, 0, 0, 0);
+  height_row_layout->setSpacing(8);
+  height_row_layout->addWidget(height, 1);
+  height_row_layout->addWidget(swap_dimensions);
   form->addRow(QObject::tr("Width"), width_row);
-  form->addRow(QObject::tr("Height"), height);
+  form->addRow(QObject::tr("Height"), height_row);
 
   auto* resolution = new QDoubleSpinBox(&dialog);
   resolution->setObjectName(QStringLiteral("newDocumentResolutionSpin"));
@@ -388,12 +410,18 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     const QSignalBlocker blocker(resolution);
     resolution->setValue(state.ppi / resolution_unit->currentData().toDouble());
   };
+  const auto mark_custom = [preset, custom_preset_index] {
+    if (!preset->currentData(kCustomPresetRole).toBool()) {
+      preset->setCurrentIndex(custom_preset_index);
+    }
+  };
 
-  const auto handle_dimension_edit = [&state, current_unit](QDoubleSpinBox* spin, bool editing_width) {
+  const auto handle_dimension_edit = [&state, current_unit, mark_custom](QDoubleSpinBox* spin, bool editing_width) {
     const auto pixels = std::clamp(
         static_cast<int>(std::lround(measurement_unit_to_pixels(spin->value(), current_unit(), state.ppi, 0.0))), 1,
         30000);
     (editing_width ? state.pixel_width : state.pixel_height) = pixels;
+    mark_custom();
   };
   QObject::connect(width, &QDoubleSpinBox::valueChanged, &dialog, [&] { handle_dimension_edit(width, true); });
   QObject::connect(height, &QDoubleSpinBox::valueChanged, &dialog, [&] { handle_dimension_edit(height, false); });
@@ -412,6 +440,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     } else {
       state.ppi = new_ppi;
     }
+    mark_custom();
   });
   QObject::connect(resolution_unit, &QComboBox::currentIndexChanged, &dialog,
                    [&](int) { refresh_resolution_spin(); });
@@ -435,8 +464,14 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     resolution->setEnabled(!clipboard_selected);
     resolution_unit->setEnabled(!clipboard_selected);
     background->setEnabled(!clipboard_selected);
+    swap_dimensions->setEnabled(!clipboard_selected);
   };
   QObject::connect(preset, &QComboBox::currentIndexChanged, &dialog, update_for_preset);
+  QObject::connect(swap_dimensions, &QToolButton::clicked, &dialog, [&] {
+    std::swap(state.pixel_width, state.pixel_height);
+    mark_custom();
+    refresh_dimension_spins();
+  });
   update_for_preset(preset->currentIndex());
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);

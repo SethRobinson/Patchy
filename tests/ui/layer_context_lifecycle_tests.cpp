@@ -1098,16 +1098,23 @@ void inspect_new_document_dialog_without_clipboard() {
       auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
       auto* resolution = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentResolutionSpin"));
       auto* unit = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentUnitCombo"));
+      auto* swap_dimensions =
+          dialog->findChild<QToolButton*>(QStringLiteral("newDocumentSwapDimensionsButton"));
       CHECK(dialog != nullptr);
       CHECK(preset != nullptr);
       CHECK(width != nullptr);
       CHECK(height != nullptr);
       CHECK(resolution != nullptr);
       CHECK(unit != nullptr);
+      CHECK(swap_dimensions != nullptr);
       const QStringList labels = {
-          QStringLiteral("Clipboard"),   QStringLiteral("1024 x 768"), QStringLiteral("A4 300 ppi"),
-          QStringLiteral("A3 300 ppi"),  QStringLiteral("US Letter 300 ppi"),
-          QStringLiteral("1080p"),       QStringLiteral("4K")};
+          QStringLiteral("Clipboard"),          QStringLiteral("Custom"),
+          QStringLiteral("1024 x 768"),         QStringLiteral("A5 300 ppi"),
+          QStringLiteral("A4 300 ppi"),         QStringLiteral("A3 300 ppi"),
+          QStringLiteral("US Letter 300 ppi"),  QStringLiteral("US Legal 300 ppi"),
+          QStringLiteral("5 x 7 in 300 ppi"),   QStringLiteral("8 x 10 in 300 ppi"),
+          QStringLiteral("Square 2048"),        QStringLiteral("1080p"),
+          QStringLiteral("4K")};
       CHECK(preset->count() == static_cast<int>(labels.size()));
       for (int index = 0; index < static_cast<int>(labels.size()); ++index) {
         CHECK(preset->itemText(index) == labels[index]);
@@ -1126,6 +1133,11 @@ void inspect_new_document_dialog_without_clipboard() {
       unit->setCurrentIndex(unit->findText(QStringLiteral("Pixels")));
       QApplication::processEvents();
       CHECK(width->value() == 1024);
+      swap_dimensions->click();
+      QApplication::processEvents();
+      CHECK(preset->currentText() == QStringLiteral("Custom"));
+      CHECK(width->value() == 768);
+      CHECK(height->value() == 1024);
       dialog->reject();
       return;
     }

@@ -3302,6 +3302,11 @@ Flow: %6
     </message>
     <message>
         <location line="+1"/>
+        <source>A5 300 ppi</source>
+        <translation>A5 300 ppi</translation>
+    </message>
+    <message>
+        <location line="+1"/>
         <source>A4 300 ppi</source>
         <translation>A4 300 ppi</translation>
     </message>
@@ -3309,6 +3314,26 @@ Flow: %6
         <location line="+1"/>
         <source>A3 300 ppi</source>
         <translation>A3 300 ppi</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>US Legal 300 ppi</source>
+        <translation>米国リーガル 300 ppi</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>5 x 7 in 300 ppi</source>
+        <translation>5 x 7 インチ 300 ppi</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>8 x 10 in 300 ppi</source>
+        <translation>8 x 10 インチ 300 ppi</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Square 2048</source>
+        <translation>正方形 2048</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3324,6 +3349,11 @@ Flow: %6
         <location line="+2"/>
         <source>Preset</source>
         <translation>プリセット</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Swap width and height</source>
+        <translation>幅と高さを入れ替え</translation>
     </message>
     <message>
         <location line="+12"/>
