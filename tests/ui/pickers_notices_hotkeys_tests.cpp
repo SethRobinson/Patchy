@@ -1219,6 +1219,40 @@ void ui_photoshop_shortcuts_are_registered() {
   settings.sync();
 }
 
+void ui_brush_flow_popup_slider_updates_canvas() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  auto* canvas = require_canvas(window);
+  auto* flow = window.findChild<QSpinBox*>(QStringLiteral("brushFlowSpin"));
+  auto* popup_action = window.findChild<QAction*>(QStringLiteral("brushFlowPopupAction"));
+  CHECK(flow != nullptr);
+  CHECK(popup_action != nullptr);
+
+  flow->setValue(37);
+  popup_action->trigger();
+  QApplication::processEvents();
+  auto* popup = window.findChild<QFrame*>(QStringLiteral("brushFlowPopup"));
+  auto* slider = window.findChild<QSlider*>(QStringLiteral("brushFlowPopupSlider"));
+  CHECK(popup != nullptr);
+  CHECK(popup->isVisible());
+  CHECK(slider != nullptr);
+  CHECK(slider->value() == 37);
+
+  slider->setValue(22);
+  CHECK(flow->value() == 22);
+  CHECK(canvas->brush_flow() == 22);
+  auto* quick = window.findChild<QPushButton*>(QStringLiteral("brushFlowQuick75"));
+  CHECK(quick != nullptr);
+  quick->click();
+  CHECK(flow->value() == 75);
+  CHECK(slider->value() == 75);
+  CHECK(canvas->brush_flow() == 75);
+  save_widget_artifact("ui_brush_flow_popup", *popup);
+  popup->close();
+  QApplication::processEvents();
+}
+
 // Snapshots and restores the whole "hotkeys" settings group so hotkey tests
 // cannot leak overrides into each other or into a developer's settings.
 class HotkeySettingsGroupRestorer {
@@ -1582,6 +1616,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_eyedropper_starts_in_gray_area_and_drags_to_document_color",
        ui_eyedropper_starts_in_gray_area_and_drags_to_document_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
+      {"ui_brush_flow_popup_slider_updates_canvas",
+       ui_brush_flow_popup_slider_updates_canvas},
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},
       {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
       {"ui_hotkey_override_applies_at_startup", ui_hotkey_override_applies_at_startup},

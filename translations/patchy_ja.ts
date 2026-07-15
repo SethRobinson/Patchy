@@ -8222,6 +8222,10 @@ Mixed selection</source>
         <translation>ブラシのフロー — Shift+数字キーで設定 (エアブラシ時は数字キー)</translation>
     </message>
     <message>
+        <source>Open Flow slider</source>
+        <translation>フローのスライダーを開く</translation>
+    </message>
+    <message>
         <source>Airbrush</source>
         <translation>エアブラシ</translation>
     </message>

@@ -510,6 +510,98 @@ protected:
   }
 };
 
+// Keeps the options bar compact while preserving direct numeric entry. The
+// trailing chevron opens a transient slider and common percentages without
+// consuming the permanent width of another toolbar slider.
+class FlowPopupSpinBox final : public QSpinBox {
+public:
+  explicit FlowPopupSpinBox(QWidget* parent = nullptr) : QSpinBox(parent) {
+    popup_clock_.start();
+    popup_action_ = lineEdit()->addAction(style()->standardIcon(QStyle::SP_ArrowDown),
+                                          QLineEdit::TrailingPosition);
+    popup_action_->setObjectName(QStringLiteral("brushFlowPopupAction"));
+    connect(popup_action_, &QAction::triggered, this, [this] { show_popup(); });
+    retranslate();
+  }
+
+  void retranslate() {
+    popup_action_->setText(
+        QCoreApplication::translate(kMainWindowTranslationContext, "Open Flow slider"));
+  }
+
+private:
+  void show_popup() {
+    if (popup_ != nullptr) {
+      popup_->close();
+      return;
+    }
+    if (popup_dismissed_ms_ >= 0 && popup_clock_.elapsed() - popup_dismissed_ms_ < 300) {
+      popup_dismissed_ms_ = -1;
+      return;
+    }
+
+    auto* popup = new QFrame(this, Qt::Popup);
+    popup->setAttribute(Qt::WA_DeleteOnClose);
+    popup->setObjectName(QStringLiteral("brushFlowPopup"));
+    popup->setFrameShape(QFrame::StyledPanel);
+    popup_ = popup;
+    connect(popup, &QObject::destroyed, this, [this] {
+      if (lineEdit()->rect().contains(lineEdit()->mapFromGlobal(QCursor::pos()))) {
+        popup_dismissed_ms_ = popup_clock_.elapsed();
+      }
+    });
+
+    auto* layout = new QVBoxLayout(popup);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(6);
+    auto* slider = new QSlider(Qt::Horizontal, popup);
+    slider->setObjectName(QStringLiteral("brushFlowPopupSlider"));
+    slider->setRange(minimum(), maximum());
+    slider->setPageStep(5);
+    slider->setValue(value());
+    slider->setMinimumWidth(220);
+    layout->addWidget(slider);
+
+    auto* quick_row = new QHBoxLayout();
+    quick_row->setContentsMargins(0, 0, 0, 0);
+    quick_row->setSpacing(3);
+    for (const auto quick_value : {1, 5, 10, 25, 50, 75, 100}) {
+      auto* button = new QPushButton(QStringLiteral("%1%").arg(quick_value), popup);
+      button->setObjectName(QStringLiteral("brushFlowQuick%1").arg(quick_value));
+      button->setFixedWidth(quick_value == 100 ? 46 : 38);
+      button->setFixedHeight(24);
+      quick_row->addWidget(button);
+      connect(button, &QPushButton::clicked, popup, [this, quick_value] {
+        setValue(quick_value);
+      });
+    }
+    layout->addLayout(quick_row);
+
+    connect(slider, &QSlider::valueChanged, this, &QSpinBox::setValue);
+    connect(this, &QSpinBox::valueChanged, popup, [slider](int new_value) {
+      QSignalBlocker blocker(slider);
+      slider->setValue(new_value);
+    });
+
+    popup->adjustSize();
+    const auto available = screen()->availableGeometry();
+    auto position = mapToGlobal(QPoint(0, height() + 2));
+    position.setX(std::clamp(position.x(), available.left(),
+                             std::max(available.left(), available.right() - popup->width() + 1)));
+    if (position.y() + popup->height() > available.bottom() + 1) {
+      position.setY(mapToGlobal(QPoint(0, -popup->height() - 2)).y());
+    }
+    popup->move(position);
+    popup->show();
+    slider->setFocus(Qt::PopupFocusReason);
+  }
+
+  QAction* popup_action_{nullptr};
+  QPointer<QFrame> popup_{};
+  QElapsedTimer popup_clock_{};
+  qint64 popup_dismissed_ms_{-1};
+};
+
 class CheckGlyphBox final : public QCheckBox {
 public:
   explicit CheckGlyphBox(const QString& text, QWidget* parent = nullptr) : QCheckBox(text, parent) {
@@ -2680,13 +2772,19 @@ void MainWindow::create_actions() {
 
   auto* brush_flow_label = add_option_label(tr("Flow:"), {CanvasTool::Brush});
   bind_widget_text(brush_flow_label, "Flow:");
-  auto* brush_flow = new QSpinBox(toolbar);
+  auto* brush_flow = new FlowPopupSpinBox(toolbar);
   brush_flow->setObjectName(QStringLiteral("brushFlowSpin"));
   brush_flow->setRange(1, 100);
   brush_flow->setValue(canvas_->brush_flow());
   brush_flow->setSuffix(QStringLiteral("%"));
   brush_flow->setToolTip(tr("Brush flow - Shift+number keys (number keys with Airbrush)"));
   bind_tooltip(brush_flow, "Brush flow - Shift+number keys (number keys with Airbrush)");
+  QPointer<FlowPopupSpinBox> flow_spin(brush_flow);
+  register_retranslation([flow_spin] {
+    if (flow_spin != nullptr) {
+      flow_spin->retranslate();
+    }
+  });
   configure_toolbar_spinbox(brush_flow, 52);
   add_option_widget(brush_flow, {CanvasTool::Brush});
   auto* brush_airbrush = new CheckGlyphBox(tr("Airbrush"), toolbar);
