@@ -141,6 +141,7 @@
 #include <QRadioButton>
 #include <QSpinBox>
 #include <QStringList>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QScreen>
 #include <QSettings>
@@ -809,8 +810,14 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   popup->findChild<QComboBox*>(QStringLiteral("dynamicsAngleControlCombo"))->setCurrentIndex(6);  // Direction
   popup->findChild<QSpinBox*>(QStringLiteral("dynamicsBaseAngleSpin"))->setValue(30);
   popup->findChild<QSpinBox*>(QStringLiteral("dynamicsOpacityJitterSpin"))->setValue(25);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsFlowJitterSpin"))->setValue(35);
   QApplication::processEvents();
   save_widget_artifact("ui_brush_dynamics_popup", *popup);
+  auto* scroll_area = popup->findChild<QScrollArea*>();
+  CHECK(scroll_area != nullptr);
+  scroll_area->verticalScrollBar()->setValue(scroll_area->verticalScrollBar()->maximum());
+  QApplication::processEvents();
+  save_widget_artifact("ui_brush_dynamics_popup_transfer", *popup);
   popup->close();
   process_events_for(350);  // the popup edit commit is debounced ~200ms
 
@@ -820,6 +827,7 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   CHECK(dynamics.count == 3);
   CHECK(dynamics.angle_control == patchy::BrushDynamicControl::Direction);
   CHECK(std::abs(dynamics.opacity_jitter - 0.25) < 1e-9);
+  CHECK(std::abs(dynamics.flow_jitter - 0.35) < 1e-9);
   CHECK(std::abs(canvas->brush_base_angle_degrees() - 30.0) < 1e-9);
 
   // The edit persisted to the tip's sidecar on disk.
@@ -832,6 +840,7 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   CHECK(std::abs(dynamics_json.value(QStringLiteral("sizeJitter")).toDouble() - 0.40) < 1e-9);
   CHECK(dynamics_json.value(QStringLiteral("angleControl")).toString() == QStringLiteral("direction"));
   CHECK(dynamics_json.value(QStringLiteral("count")).toInt() == 3);
+  CHECK(std::abs(dynamics_json.value(QStringLiteral("flowJitter")).toDouble() - 0.35) < 1e-9);
 
   // A fresh library over the same storage reads the identical dynamics (sidecar round trip);
   // a legacy sidecar without the new keys reads as defaults.
@@ -841,6 +850,7 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   CHECK(std::abs(reloaded->dynamics.scatter - 1.50) < 1e-9);
   CHECK(reloaded->dynamics.count == 3);
   CHECK(reloaded->dynamics.angle_control == patchy::BrushDynamicControl::Direction);
+  CHECK(std::abs(reloaded->dynamics.flow_jitter - 0.35) < 1e-9);
   CHECK(std::abs(reloaded->base_angle_degrees - 30.0) < 1e-9);
   const auto legacy_id = second.add_tip(QStringLiteral("Legacy"), make_bar_tip_image(), 0.25);
   const auto* legacy = second.find_entry(legacy_id);
@@ -892,6 +902,15 @@ void ui_brush_dynamics_popup_control_edits_persist() {
   CHECK(minimum_opacity != nullptr);
   CHECK(minimum_opacity->isEnabled());  // live once the opacity control has a source
   minimum_opacity->setValue(30);
+  select_control("dynamicsFlowControlCombo", patchy::BrushDynamicControl::Fade);
+  auto* minimum_flow = popup->findChild<QSpinBox*>(QStringLiteral("dynamicsMinimumFlowSpin"));
+  auto* flow_fade = popup->findChild<QSpinBox*>(QStringLiteral("dynamicsFlowFadeStepsSpin"));
+  CHECK(minimum_flow != nullptr);
+  CHECK(flow_fade != nullptr);
+  CHECK(minimum_flow->isEnabled());
+  CHECK(flow_fade->isVisible());
+  minimum_flow->setValue(15);
+  flow_fade->setValue(45);
   auto* scatter_fade = popup->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterFadeStepsSpin"));
   CHECK(scatter_fade != nullptr);
   CHECK(!scatter_fade->isVisible());
@@ -908,6 +927,9 @@ void ui_brush_dynamics_popup_control_edits_persist() {
   CHECK(dynamics.size_control == patchy::BrushDynamicControl::Off);
   CHECK(dynamics.opacity_control == patchy::BrushDynamicControl::PenPressure);
   CHECK(std::abs(dynamics.minimum_opacity - 0.30) < 1e-9);
+  CHECK(dynamics.flow_control == patchy::BrushDynamicControl::Fade);
+  CHECK(std::abs(dynamics.minimum_flow - 0.15) < 1e-9);
+  CHECK(dynamics.flow_fade_steps == 45);
   CHECK(dynamics.scatter_control == patchy::BrushDynamicControl::Fade);
   CHECK(dynamics.scatter_fade_steps == 40);
   CHECK(dynamics.roundness_control == patchy::BrushDynamicControl::GlobalDefault);  // untouched
@@ -922,6 +944,9 @@ void ui_brush_dynamics_popup_control_edits_persist() {
   CHECK(std::abs(dynamics_json.value(QStringLiteral("minimumOpacity")).toDouble() - 0.30) < 1e-9);
   CHECK(dynamics_json.value(QStringLiteral("scatterControl")).toString() == QStringLiteral("fade"));
   CHECK(dynamics_json.value(QStringLiteral("scatterFadeSteps")).toInt() == 40);
+  CHECK(dynamics_json.value(QStringLiteral("flowControl")).toString() == QStringLiteral("fade"));
+  CHECK(std::abs(dynamics_json.value(QStringLiteral("minimumFlow")).toDouble() - 0.15) < 1e-9);
+  CHECK(dynamics_json.value(QStringLiteral("flowFadeSteps")).toInt() == 45);
 
   // ...and a fresh library over the same storage round-trips them.
   patchy::ui::BrushTipLibrary second(brush_tip_test_storage_dir());
@@ -932,6 +957,9 @@ void ui_brush_dynamics_popup_control_edits_persist() {
   CHECK(std::abs(reloaded->dynamics.minimum_opacity - 0.30) < 1e-9);
   CHECK(reloaded->dynamics.scatter_control == patchy::BrushDynamicControl::Fade);
   CHECK(reloaded->dynamics.scatter_fade_steps == 40);
+  CHECK(reloaded->dynamics.flow_control == patchy::BrushDynamicControl::Fade);
+  CHECK(std::abs(reloaded->dynamics.minimum_flow - 0.15) < 1e-9);
+  CHECK(reloaded->dynamics.flow_fade_steps == 45);
 
   // An Off-only override is not active() (no per-dab work) but must still light the button
   // badge as a deliberate setup.
@@ -1063,12 +1091,30 @@ void ui_brush_dynamics_abr_import_carries_dynamics() {
   // aspects the global pen settings cover, plain Off elsewhere.
   CHECK(entry->dynamics.size_control == patchy::BrushDynamicControl::GlobalDefault);
   CHECK(entry->dynamics.opacity_control == patchy::BrushDynamicControl::GlobalDefault);
+  CHECK(entry->dynamics.flow_control == patchy::BrushDynamicControl::Off);
   CHECK(entry->dynamics.scatter_control == patchy::BrushDynamicControl::Off);
   CHECK(std::abs(entry->base_angle_degrees - 30.0) < 1e-9);
   CHECK(std::abs(entry->base_roundness - 60.0) < 1e-9);
+  CHECK(entry->tool_flow_percent == 100);
+  CHECK(entry->tool_airbrush == false);
+  patchy::ui::BrushTipLibrary reloaded_library(brush_tip_test_storage_dir());
+  const auto* reloaded_entry = reloaded_library.find_entry(first_id);
+  CHECK(reloaded_entry != nullptr);
+  CHECK(reloaded_entry->tool_flow_percent == 100);
+  CHECK(reloaded_entry->tool_airbrush == false);
 
-  // Selecting the tip pushes its dynamics + base shape to the canvas and lights the button.
+  // Selecting the tip pushes its dynamics, base shape, and included tool settings to the canvas.
+  auto* flow = window.findChild<QSpinBox*>(QStringLiteral("brushFlowSpin"));
+  auto* airbrush = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
+  CHECK(flow != nullptr);
+  CHECK(airbrush != nullptr);
+  flow->setValue(23);
+  airbrush->setChecked(true);
   window.set_active_brush_tip(first_id, false);
+  CHECK(flow->value() == 100);
+  CHECK(!airbrush->isChecked());
+  CHECK(canvas->brush_flow() == 100);
+  CHECK(!canvas->brush_build_up());
   CHECK(std::abs(canvas->brush_dynamics().scatter - 2.50) < 1e-9);
   CHECK(canvas->brush_dynamics().count == 4);
   CHECK(canvas->brush_base_roundness() == 60);
@@ -1076,6 +1122,16 @@ void ui_brush_dynamics_abr_import_carries_dynamics() {
   CHECK(button != nullptr);
   CHECK(button->isEnabled());
   CHECK(button->property("dynamicsActive").toBool());
+
+  // A sidecar/library refresh re-applies the tip without repeatedly forcing its imported tool
+  // settings over later user edits.
+  flow->setValue(41);
+  airbrush->setChecked(true);
+  CHECK(library.set_tip_dynamics(first_id, entry->dynamics, entry->base_angle_degrees,
+                                 entry->base_roundness));
+  QApplication::processEvents();
+  CHECK(flow->value() == 41);
+  CHECK(airbrush->isChecked());
 
   // Back to Round: dynamics reset with the tip.
   window.set_active_brush_tip(patchy::ui::builtin_round_brush_tip_id(), false);

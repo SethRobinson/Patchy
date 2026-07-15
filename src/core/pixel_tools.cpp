@@ -1071,7 +1071,7 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
 // Places tip dabs along [x0,y0]→[x1,y1] every brush_size * brush_tip_spacing pixels, resuming
 // from state.residual_distance so chained segments keep a uniform dab cadence. With active
 // brush dynamics each spacing step stamps `count` independently varied dabs (scatter offsets,
-// per-dab transform, opacity jitter); the RNG is seeded from options.brush_dynamics.seed on the
+// per-dab transform, opacity/flow jitter); the RNG is seeded from options.brush_dynamics.seed on the
 // stroke's first dab and its draw order is the contract documented in brush_dynamics.hpp.
 // Scatter and count never perturb the spacing walk or residual_distance.
 Rect paint_tip_segment(Document& document, LayerId layer_id, double x0, double y0, double x1, double y1,
@@ -1099,7 +1099,8 @@ Rect paint_tip_segment(Document& document, LayerId layer_id, double x0, double y
         const auto transform = tip_dab_transform(options, variation);
         dirty = unite_rect(dirty, paint_tip_dab(document, layer_id, x + variation.offset_x,
                                                 y + variation.offset_y, options, erase, transform,
-                                                static_cast<float>(variation.opacity_multiplier)));
+                                                static_cast<float>(variation.opacity_multiplier *
+                                                                   variation.flow_multiplier)));
       }
     }
     ++state.dynamics.step_index;

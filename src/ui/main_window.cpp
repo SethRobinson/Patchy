@@ -11635,7 +11635,8 @@ void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {
   }
 }
 
-void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce) {
+void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce,
+                                      bool apply_tool_settings) {
   auto effective = tip_id.isEmpty() ? builtin_round_brush_tip_id() : tip_id;
   const auto* entry = brush_tip_library().find_entry(effective);
   if (effective != builtin_round_brush_tip_id() && entry == nullptr) {
@@ -11644,6 +11645,22 @@ void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce) {
   }
   active_brush_tip_id_ = effective;
   apply_brush_tip_to_canvas(canvas_);
+  if (apply_tool_settings && entry != nullptr &&
+      (entry->tool_flow_percent.has_value() || entry->tool_airbrush.has_value())) {
+    if (entry->tool_flow_percent.has_value()) {
+      stored_paint_brush_settings_.flow = std::clamp(*entry->tool_flow_percent, 1, 100);
+    }
+    if (entry->tool_airbrush.has_value()) {
+      stored_paint_brush_settings_.airbrush = *entry->tool_airbrush;
+    }
+    if (!eraser_brush_settings_active_ && canvas_ != nullptr) {
+      canvas_->set_brush_flow(stored_paint_brush_settings_.flow);
+      canvas_->set_brush_build_up(stored_paint_brush_settings_.airbrush);
+      sync_brush_controls_from_canvas();
+      schedule_save_tool_settings();
+      refresh_document_info();
+    }
+  }
   if (brush_tip_picker_ != nullptr) {
     brush_tip_picker_->set_current_tip_id(effective);
   }

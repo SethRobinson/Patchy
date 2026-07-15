@@ -10,6 +10,7 @@
 #include <QString>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace patchy::ui {
@@ -26,14 +27,17 @@ struct BrushTipEntry {
   double base_angle_degrees{0.0};  // static tip rotation (Photoshop Brush Tip Shape angle)
   double base_roundness{100.0};    // static tip roundness percent, 1-100
   patchy::BrushDynamics dynamics{};
+  std::optional<int> tool_flow_percent;
+  std::optional<bool> tool_airbrush;
   QSize size;
   QPixmap thumbnail;
 };
 
 // The user's bitmap brush tip collection. Each tip is one grayscale PNG (the coverage mask,
-// 255 = paints) plus a JSON sidecar {"name", "spacing"} in the storage directory, so a corrupt
-// file only loses that one tip and users can drop files in by hand. Full masks load lazily;
-// entries carry ready-to-draw thumbnails.
+// 255 = paints) plus a JSON sidecar in the storage directory, so a corrupt file only loses that
+// one tip and users can drop files in by hand. Full masks load lazily; entries carry ready-to-draw
+// thumbnails. Supported Photoshop dynamics and included Flow/Airbrush tool settings live in the
+// sidecar with the tip.
 class BrushTipLibrary : public QObject {
   Q_OBJECT
 
@@ -102,7 +106,9 @@ private:
   void reload();
   QString add_tip_internal(const QString& name, const QImage& coverage_mask, double spacing,
                            const QString& folder, const patchy::BrushDynamics& dynamics = {},
-                           double base_angle_degrees = 0.0, double base_roundness = 100.0);
+                           double base_angle_degrees = 0.0, double base_roundness = 100.0,
+                           std::optional<int> tool_flow_percent = std::nullopt,
+                           std::optional<bool> tool_airbrush = std::nullopt);
   bool remove_tip_internal(const QString& id);
   [[nodiscard]] QString png_path(const QString& id) const;
   [[nodiscard]] QString json_path(const QString& id) const;

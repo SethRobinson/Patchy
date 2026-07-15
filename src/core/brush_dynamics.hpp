@@ -20,7 +20,7 @@ enum class BrushDynamicControl : std::uint8_t {
   GlobalDefault,  // defer to the global input/pen/* preferences (size/roundness/opacity only)
 };
 
-// Photoshop-style per-dab brush tip dynamics (Shape Dynamics + Scattering + opacity jitter).
+// Photoshop-style per-dab brush tip dynamics (Shape Dynamics + Scattering + Transfer).
 // Default-constructed = disabled: the stamp engine takes its historical path bit-for-bit and
 // consumes no randomness. Fractions are 0..1 of the Photoshop percent unless noted.
 struct BrushDynamics {
@@ -49,6 +49,10 @@ struct BrushDynamics {
   double minimum_opacity{0.0};  // floor when opacity_control has a source (PS Transfer "Minimum")
   BrushDynamicControl opacity_control{BrushDynamicControl::GlobalDefault};
   int opacity_fade_steps{25};
+  double flow_jitter{0.0};
+  double minimum_flow{0.0};  // floor when flow_control has a source (PS Transfer "Minimum Flow")
+  BrushDynamicControl flow_control{BrushDynamicControl::Off};
+  int flow_fade_steps{25};
 
   // Per-brush control precedence: GlobalDefault (the size/roundness/opacity default) leaves the
   // global pen preferences authoritative (they modulate pre-dab in effective_brush_input); any
@@ -108,6 +112,7 @@ struct BrushDabVariation {
   double offset_x{0.0};  // scatter offset, document pixels
   double offset_y{0.0};
   double opacity_multiplier{1.0};
+  double flow_multiplier{1.0};
 };
 
 // RNG draw-order contract (tests depend on it; keep brush_dynamics.cpp in sync):
@@ -121,6 +126,7 @@ struct BrushDabVariation {
 //   6. flip X                  (bool)   iff flip_x_jitter
 //   7. flip Y                  (bool)   iff flip_y_jitter
 //   8. opacity jitter          (unit)   iff opacity_jitter > 0
+//   9. flow jitter             (unit)   iff flow_jitter > 0
 // The per-dynamic controls never draw: each control value is computed deterministically from the
 // pen inputs / fade step and only scales the result, so the gates above stay keyed on static
 // configuration and adding a control cannot shift any draw.

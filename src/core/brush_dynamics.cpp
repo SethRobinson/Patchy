@@ -73,7 +73,8 @@ bool BrushDynamics::active() const noexcept {
           angle_control != BrushDynamicControl::GlobalDefault) ||
          roundness_jitter > 0.0 || flip_x_jitter || flip_y_jitter || scatter > 0.0 || count > 1 ||
          opacity_jitter > 0.0 || control_has_source(size_control) ||
-         control_has_source(roundness_control) || control_has_source(opacity_control);
+         flow_jitter > 0.0 || control_has_source(roundness_control) ||
+         control_has_source(opacity_control) || control_has_source(flow_control);
   // scatter_control/count_control need no term: they only modulate scatter > 0 / count > 1,
   // which already activate the dynamic path.
 }
@@ -263,6 +264,21 @@ BrushDabVariation sample_dab_variation(const BrushDynamics& dynamics, BrushDynam
       const auto jitter = std::clamp(dynamics.opacity_jitter, 0.0, 1.0);
       variation.opacity_multiplier =
           std::clamp(opacity_base * (1.0 - jitter * rng.next_unit()), 0.03, 1.0);
+    }
+  }
+  {
+    auto flow_base = 1.0;
+    if (control_has_source(dynamics.flow_control)) {
+      const auto floor_flow = std::clamp(dynamics.minimum_flow, 0.0, 1.0);
+      flow_base = floor_flow + control_value(dynamics.flow_control, dynamics.flow_fade_steps,
+                                             dynamics, context) *
+                                   (1.0 - floor_flow);
+      variation.flow_multiplier = std::clamp(flow_base, 0.0, 1.0);
+    }
+    if (dynamics.flow_jitter > 0.0) {
+      const auto jitter = std::clamp(dynamics.flow_jitter, 0.0, 1.0);
+      variation.flow_multiplier =
+          std::clamp(flow_base * (1.0 - jitter * rng.next_unit()), 0.0, 1.0);
     }
   }
   return variation;

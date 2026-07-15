@@ -20,6 +20,8 @@ struct DescBrushInfo {
   double base_angle_degrees{0.0};
   double base_roundness{100.0};
   BrushDynamics dynamics{};
+  std::optional<int> tool_flow_percent;
+  std::optional<bool> tool_airbrush;
 };
 
 // One 'brVr' variation object: {'bVTy' control, 'fStp' fade steps, 'jitter' %, 'Mnm ' minimum %}.
@@ -83,7 +85,7 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
 // flipX/flipY are the flip jitters (the static tip flips live inside the 'Brsh' object), the
 // minimum diameter/roundness are preset-level siblings of the 'brVr' objects, and 'Cnt ' is a
 // double. Every dynamic's control imports (size/roundness/opacity map bVTy 0 through
-// non_angle_control_from_bvty to GlobalDefault); flow ('prVr') / wetness / mix stay unmodeled.
+// non_angle_control_from_bvty to GlobalDefault); wetness and mix stay unmodeled.
 [[nodiscard]] BrushDynamics parse_brush_dynamics(const DescriptorObject& preset) {
   BrushDynamics dynamics;
   if (descriptor_bool(preset, "useTipDynamics")) {
@@ -129,6 +131,11 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
     dynamics.opacity_control =
         non_angle_control_from_bvty(opacity.control, BrushDynamicControl::GlobalDefault);
     dynamics.opacity_fade_steps = opacity.fade_steps;
+    const auto flow = read_variation(preset, "prVr");
+    dynamics.flow_jitter = std::clamp(flow.jitter, 0.0, 1.0);
+    dynamics.minimum_flow = std::clamp(flow.minimum, 0.0, 1.0);
+    dynamics.flow_control = non_angle_control_from_bvty(flow.control, BrushDynamicControl::Off);
+    dynamics.flow_fade_steps = flow.fade_steps;
   }
   return dynamics;
 }
@@ -170,6 +177,26 @@ std::vector<DescBrushInfo> parse_desc_brush_infos(std::span<const std::uint8_t> 
     info.base_angle_degrees = descriptor_number(*brush, "Angl", 0.0);
     info.base_roundness = std::clamp(descriptor_number(*brush, "Rndn", 100.0), 1.0, 100.0);
     info.dynamics = parse_brush_dynamics(preset);
+    // Photoshop 2026 ground-truth capture: Transfer Flow is the 'prVr' variation, the
+    // options-bar percentage is toolOptions.flow, and Airbrush is preset 'Rpt ' (the Action
+    // Manager names it "repeat"). Only a brush preset that explicitly carries tool options
+    // may change Patchy's application-wide Brush settings when selected.
+    if (const auto* tool_options = descriptor_object(preset, "toolOptions");
+        tool_options != nullptr && descriptor_bool(*tool_options, "brushPreset")) {
+      const auto* flow = descriptor_value(*tool_options, "flow");
+      if (flow != nullptr &&
+          (flow->type == DescriptorValue::Type::Integer ||
+           flow->type == DescriptorValue::Type::LargeInteger ||
+           flow->type == DescriptorValue::Type::Double ||
+           flow->type == DescriptorValue::Type::UnitFloat)) {
+        info.tool_flow_percent = std::clamp(
+            static_cast<int>(std::lround(descriptor_number(*tool_options, "flow", 100.0))), 1, 100);
+      }
+      const auto* repeat = descriptor_value(preset, "Rpt ");
+      if (repeat != nullptr && repeat->type == DescriptorValue::Type::Bool) {
+        info.tool_airbrush = repeat->bool_value;
+      }
+    }
 
     std::string unsupported;
     const auto append_unsupported = [&unsupported](const char* feature) {
@@ -421,6 +448,8 @@ AbrReadResult read_abr_v6(BigEndianReader& reader, std::span<const std::uint8_t>
         brush.base_angle_degrees = info.base_angle_degrees;
         brush.base_roundness = info.base_roundness;
         brush.dynamics = info.dynamics;
+        brush.tool_flow_percent = info.tool_flow_percent;
+        brush.tool_airbrush = info.tool_airbrush;
       }
       result.brushes.push_back(std::move(brush));
     } catch (const std::exception& entry_error) {

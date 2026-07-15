@@ -276,6 +276,13 @@ void BrushTipLibrary::reload() {
         entry.base_roundness =
             std::clamp(object.value(QStringLiteral("baseRoundness")).toDouble(100.0), 1.0, 100.0);
         entry.dynamics = brush_dynamics_from_json(object.value(QStringLiteral("dynamics")).toObject());
+        if (object.contains(QStringLiteral("toolFlow"))) {
+          entry.tool_flow_percent =
+              std::clamp(object.value(QStringLiteral("toolFlow")).toInt(100), 1, 100);
+        }
+        if (object.contains(QStringLiteral("toolAirbrush"))) {
+          entry.tool_airbrush = object.value(QStringLiteral("toolAirbrush")).toBool(false);
+        }
       }
     }
     entry.size = mask.size();
@@ -359,6 +366,12 @@ bool BrushTipLibrary::write_sidecar(const BrushTipEntry& entry) const {
   if (!brush_dynamics_is_default(entry.dynamics)) {
     object.insert(QStringLiteral("dynamics"), brush_dynamics_to_json(entry.dynamics));
   }
+  if (entry.tool_flow_percent.has_value()) {
+    object.insert(QStringLiteral("toolFlow"), std::clamp(*entry.tool_flow_percent, 1, 100));
+  }
+  if (entry.tool_airbrush.has_value()) {
+    object.insert(QStringLiteral("toolAirbrush"), *entry.tool_airbrush);
+  }
   QFile file(json_path(entry.id));
   if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
     return false;
@@ -369,7 +382,9 @@ bool BrushTipLibrary::write_sidecar(const BrushTipEntry& entry) const {
 
 QString BrushTipLibrary::add_tip_internal(const QString& name, const QImage& coverage_mask, double spacing,
                                           const QString& folder, const patchy::BrushDynamics& dynamics,
-                                          double base_angle_degrees, double base_roundness) {
+                                          double base_angle_degrees, double base_roundness,
+                                          std::optional<int> tool_flow_percent,
+                                          std::optional<bool> tool_airbrush) {
   auto tip = brush_tip_from_coverage_image(coverage_mask, spacing);
   if (tip.empty()) {
     return {};
@@ -395,6 +410,8 @@ QString BrushTipLibrary::add_tip_internal(const QString& name, const QImage& cov
   entry.base_angle_degrees = std::clamp(base_angle_degrees, -180.0, 360.0);
   entry.base_roundness = std::clamp(base_roundness, 1.0, 100.0);
   entry.dynamics = dynamics;
+  entry.tool_flow_percent = tool_flow_percent;
+  entry.tool_airbrush = tool_airbrush;
   entry.size = QSize(tip.width, tip.height);
   entry.thumbnail = brush_tip_thumbnail(tip, 48);
   if (!write_sidecar(entry)) {
@@ -452,7 +469,8 @@ QString BrushTipLibrary::import_abr(const QString& path, QString& error, QString
     tip.mask = brush.mask;
     tip.default_spacing = clamp_spacing(brush.spacing);
     const auto id = add_tip_internal(name, coverage_image_from_brush_tip(tip), tip.default_spacing, folder,
-                                     brush.dynamics, brush.base_angle_degrees, brush.base_roundness);
+                                     brush.dynamics, brush.base_angle_degrees, brush.base_roundness,
+                                     brush.tool_flow_percent, brush.tool_airbrush);
     if (id.isEmpty()) {
       warnings.append(tr("Could not save brush \"%1\".").arg(name));
       continue;
@@ -515,7 +533,9 @@ namespace {
          a.count_jitter == b.count_jitter && a.count_control == b.count_control &&
          a.count_fade_steps == b.count_fade_steps && a.opacity_jitter == b.opacity_jitter &&
          a.minimum_opacity == b.minimum_opacity && a.opacity_control == b.opacity_control &&
-         a.opacity_fade_steps == b.opacity_fade_steps;
+         a.opacity_fade_steps == b.opacity_fade_steps && a.flow_jitter == b.flow_jitter &&
+         a.minimum_flow == b.minimum_flow && a.flow_control == b.flow_control &&
+         a.flow_fade_steps == b.flow_fade_steps;
 }
 
 }  // namespace
@@ -541,7 +561,9 @@ int BrushTipLibrary::reset_default_tips_to_factory() {
     }
     const auto settings_match = found->spacing == spec.spacing &&
                                 found->base_angle_degrees == 0.0 && found->base_roundness == 100.0 &&
-                                persisted_dynamics_equal(found->dynamics, spec.dynamics);
+                                persisted_dynamics_equal(found->dynamics, spec.dynamics) &&
+                                !found->tool_flow_percent.has_value() &&
+                                !found->tool_airbrush.has_value();
     if (settings_match && !mask_differs) {
       continue;
     }
@@ -550,6 +572,8 @@ int BrushTipLibrary::reset_default_tips_to_factory() {
     updated.base_angle_degrees = 0.0;
     updated.base_roundness = 100.0;
     updated.dynamics = spec.dynamics;
+    updated.tool_flow_percent.reset();
+    updated.tool_airbrush.reset();
     if (mask_differs) {
       // Rewrite the stamp pixels in place (same id/file) and refresh everything derived.
       if (!coverage_image_from_brush_tip(factory_tip).save(png_path(found->id), "PNG")) {
@@ -728,6 +752,10 @@ QJsonObject brush_dynamics_to_json(const patchy::BrushDynamics& dynamics) {
   object.insert(QStringLiteral("minimumOpacity"), dynamics.minimum_opacity);
   object.insert(QStringLiteral("opacityControl"), control_token(dynamics.opacity_control));
   object.insert(QStringLiteral("opacityFadeSteps"), dynamics.opacity_fade_steps);
+  object.insert(QStringLiteral("flowJitter"), dynamics.flow_jitter);
+  object.insert(QStringLiteral("minimumFlow"), dynamics.minimum_flow);
+  object.insert(QStringLiteral("flowControl"), control_token(dynamics.flow_control));
+  object.insert(QStringLiteral("flowFadeSteps"), dynamics.flow_fade_steps);
   return object;
 }
 
@@ -781,6 +809,12 @@ patchy::BrushDynamics brush_dynamics_from_json(const QJsonObject& object) {
       read_control("opacityControl", patchy::BrushDynamicControl::GlobalDefault),
       patchy::BrushDynamicControl::GlobalDefault);
   dynamics.opacity_fade_steps = read_fade_steps("opacityFadeSteps");
+  dynamics.flow_jitter = clamp_fraction(object.value(QStringLiteral("flowJitter")).toDouble(0.0));
+  dynamics.minimum_flow = clamp_fraction(object.value(QStringLiteral("minimumFlow")).toDouble(0.0));
+  dynamics.flow_control = sanitize_non_angle_control(
+      read_control("flowControl", patchy::BrushDynamicControl::Off),
+      patchy::BrushDynamicControl::Off);
+  dynamics.flow_fade_steps = read_fade_steps("flowFadeSteps");
   return dynamics;
 }
 
@@ -828,7 +862,11 @@ bool brush_dynamics_is_default(const patchy::BrushDynamics& dynamics) {
          dynamics.opacity_jitter == defaults.opacity_jitter &&
          dynamics.minimum_opacity == defaults.minimum_opacity &&
          dynamics.opacity_control == defaults.opacity_control &&
-         dynamics.opacity_fade_steps == defaults.opacity_fade_steps;
+         dynamics.opacity_fade_steps == defaults.opacity_fade_steps &&
+         dynamics.flow_jitter == defaults.flow_jitter &&
+         dynamics.minimum_flow == defaults.minimum_flow &&
+         dynamics.flow_control == defaults.flow_control &&
+         dynamics.flow_fade_steps == defaults.flow_fade_steps;
   // seed / pen_* are per-stroke inputs, deliberately ignored.
 }
 

@@ -37,8 +37,8 @@ signals:
 
 private:
   void reset_to_defaults();
-  // Fade-steps spins show only while their combo says Fade; the Minimum Opacity row is live
-  // only while the opacity control has a real source.
+  // Fade-steps spins show only while their combo says Fade; minimum Transfer rows are live
+  // only while their matching control has a real source.
   void refresh_control_dependent_widgets();
 
   QSpinBox* base_angle_spin_{nullptr};
@@ -68,6 +68,10 @@ private:
   QSpinBox* minimum_opacity_spin_{nullptr};
   QComboBox* opacity_control_combo_{nullptr};
   QSpinBox* opacity_fade_steps_spin_{nullptr};
+  QSpinBox* flow_jitter_spin_{nullptr};
+  QSpinBox* minimum_flow_spin_{nullptr};
+  QComboBox* flow_control_combo_{nullptr};
+  QSpinBox* flow_fade_steps_spin_{nullptr};
   bool loading_{false};
 };
 

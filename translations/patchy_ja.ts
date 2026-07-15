@@ -5181,13 +5181,13 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+4"/>
-        <source>Shape dynamics, scattering, and opacity jitter for the active brush tip</source>
-        <translation>アクティブなブラシ先端のシェイプダイナミクス、散布、不透明度のジッター</translation>
+        <source>Shape dynamics, scattering, and Transfer for the active brush tip</source>
+        <translation>アクティブなブラシ先端のシェイプダイナミクス、散布、転写</translation>
     </message>
     <message>
         <location line="-2"/>
-        <source>Shape dynamics, scattering, and opacity jitter for the Round brush (this session only; resets on the next launch)</source>
-        <translation>丸ブラシのシェイプダイナミクス、散布、不透明度のジッター（このセッション限定。次回起動時にリセットされます）</translation>
+        <source>Shape dynamics, scattering, and Transfer for the Round brush (this session only; resets on the next launch)</source>
+        <translation>丸ブラシのシェイプダイナミクス、散布、転写（このセッション限定。次回起動時にリセットされます）</translation>
     </message>
 </context>
 <context>
@@ -5256,6 +5256,10 @@ Mixed selection</source>
         <location line="+13"/>
         <source>Opacity Control:</source>
         <translation>不透明度のコントロール:</translation>
+    </message>
+    <message>
+        <source>Flow Control:</source>
+        <translation>フローのコントロール:</translation>
     </message>
     <message>
         <location line="-131"/>
@@ -5373,6 +5377,14 @@ Mixed selection</source>
         <location line="+2"/>
         <source>Minimum Opacity:</source>
         <translation>最小の不透明度:</translation>
+    </message>
+    <message>
+        <source>Flow Jitter:</source>
+        <translation>フローのジッター:</translation>
+    </message>
+    <message>
+        <source>Minimum Flow:</source>
+        <translation>最小のフロー:</translation>
     </message>
     <message>
         <location line="+9"/>

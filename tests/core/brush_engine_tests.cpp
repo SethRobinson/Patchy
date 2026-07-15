@@ -408,8 +408,10 @@ void brush_dynamics_activation_gates_fields() {
   dynamics.size_control = patchy::BrushDynamicControl::Off;
   dynamics.roundness_control = patchy::BrushDynamicControl::Off;
   dynamics.opacity_control = patchy::BrushDynamicControl::Off;
+  dynamics.flow_control = patchy::BrushDynamicControl::Off;
   dynamics.size_fade_steps = 7;
   dynamics.minimum_opacity = 0.4;
+  dynamics.minimum_flow = 0.4;
   CHECK(!dynamics.active());
 
   CHECK(patchy::BrushDynamics{.size_jitter = 0.1}.active());
@@ -421,10 +423,12 @@ void brush_dynamics_activation_gates_fields() {
   CHECK(patchy::BrushDynamics{.scatter = 0.5}.active());
   CHECK(patchy::BrushDynamics{.count = 2}.active());
   CHECK(patchy::BrushDynamics{.opacity_jitter = 0.1}.active());
+  CHECK(patchy::BrushDynamics{.flow_jitter = 0.1}.active());
   // A control with a real source activates even with zero jitter...
   CHECK(patchy::BrushDynamics{.size_control = patchy::BrushDynamicControl::PenPressure}.active());
   CHECK(patchy::BrushDynamics{.roundness_control = patchy::BrushDynamicControl::Fade}.active());
   CHECK(patchy::BrushDynamics{.opacity_control = patchy::BrushDynamicControl::StylusWheel}.active());
+  CHECK(patchy::BrushDynamics{.flow_control = patchy::BrushDynamicControl::PenPressure}.active());
   // ...but scatter/count controls are inert until scatter/count themselves are non-default.
   CHECK(!patchy::BrushDynamics{.scatter_control = patchy::BrushDynamicControl::PenPressure}.active());
   CHECK(!patchy::BrushDynamics{.count_control = patchy::BrushDynamicControl::Fade}.active());
@@ -471,6 +475,14 @@ void brush_dynamics_control_values() {
   CHECK(approx(patchy::sample_dab_variation(opacity, rng, context, 100).opacity_multiplier, 0.8));
   opacity.pen_rotation_valid = false;  // no rotation hardware: full value
   CHECK(approx(patchy::sample_dab_variation(opacity, rng, context, 100).opacity_multiplier, 1.0));
+
+  patchy::BrushDynamics flow;
+  flow.flow_control = patchy::BrushDynamicControl::PenPressure;
+  flow.minimum_flow = 0.15;
+  flow.pen_pressure = 0.5;
+  CHECK(approx(patchy::sample_dab_variation(flow, rng, context, 100).flow_multiplier, 0.575));
+  flow.pen_pressure = 0.0;
+  CHECK(approx(patchy::sample_dab_variation(flow, rng, context, 100).flow_multiplier, 0.15));
 
   // Fade scales scatter offsets by the per-dynamic step curve: identical RNG draws, half range.
   patchy::BrushDynamics scatter;
@@ -521,6 +533,7 @@ void tool_brush_tip_controls_at_full_value_change_nothing() {
   jitter_only.count = 3;
   jitter_only.count_jitter = 0.5;
   jitter_only.opacity_jitter = 0.4;
+  jitter_only.flow_jitter = 0.3;
   jitter_only.seed = 4242;
 
   auto with_controls = jitter_only;
@@ -530,6 +543,8 @@ void tool_brush_tip_controls_at_full_value_change_nothing() {
   with_controls.count_control = patchy::BrushDynamicControl::StylusWheel;
   with_controls.opacity_control = patchy::BrushDynamicControl::PenTilt;
   with_controls.minimum_opacity = 0.3;  // irrelevant at full input value
+  with_controls.flow_control = patchy::BrushDynamicControl::PenPressure;
+  with_controls.minimum_flow = 0.2;  // irrelevant at full input value
   // All pen inputs stay at their 1.0 defaults = full value.
 
   const auto paint_stroke = [&scaled](patchy::Document& document, patchy::LayerId layer,
@@ -1098,6 +1113,38 @@ void tool_brush_tip_opacity_jitter_varies_dab_alpha() {
   CHECK(!(first == second && second == third));
 }
 
+void tool_brush_tip_flow_jitter_varies_dab_alpha() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto document = make_tool_document();
+  const auto layer = active_tool_layer(document);
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 2.0;  // dabs at x=10, 28, 46
+  options.brush_dynamics.flow_jitter = 1.0;
+  options.brush_dynamics.seed = 999;
+  patchy::BrushTipStrokeState state;
+  CHECK(!patchy::paint_brush_segment(document, layer, 10.0, 20.0, 48.0, 20.0, options, false, state).empty());
+
+  const auto& pixels = document.find_layer(layer)->pixels();
+  const auto dab_alpha = [&pixels](std::int32_t center_x) {
+    std::uint8_t max_alpha = 0;
+    for (std::int32_t x = std::max(0, center_x - 5); x <= std::min(pixels.width() - 1, center_x + 5); ++x) {
+      max_alpha = std::max(max_alpha, pixels.pixel(x, 20)[3]);
+    }
+    return max_alpha;
+  };
+  const auto first = dab_alpha(10);
+  const auto second = dab_alpha(28);
+  const auto third = dab_alpha(46);
+  CHECK(first > 0 || second > 0 || third > 0);
+  CHECK(std::min({first, second, third}) < 250);
+  CHECK(!(first == second && second == third));
+}
+
 void tool_brush_tip_dynamics_carry_across_segments() {
   // With every dynamic active, one long segment and the same path chopped into short segments
   // must paint identical pixels: the RNG stream, fade step index, and stroke direction all live
@@ -1122,6 +1169,7 @@ void tool_brush_tip_dynamics_carry_across_segments() {
   options.brush_dynamics.count = 2;
   options.brush_dynamics.count_jitter = 0.5;
   options.brush_dynamics.opacity_jitter = 0.5;
+  options.brush_dynamics.flow_jitter = 0.5;
   options.brush_dynamics.seed = 424242;
 
   auto whole_document = make_tool_document();
@@ -1303,6 +1351,7 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
        tool_brush_tip_scatter_offsets_perpendicular_to_stroke},
       {"tool_brush_tip_count_stamps_multiple_dabs_per_step", tool_brush_tip_count_stamps_multiple_dabs_per_step},
       {"tool_brush_tip_opacity_jitter_varies_dab_alpha", tool_brush_tip_opacity_jitter_varies_dab_alpha},
+      {"tool_brush_tip_flow_jitter_varies_dab_alpha", tool_brush_tip_flow_jitter_varies_dab_alpha},
       {"tool_brush_tip_dynamics_carry_across_segments", tool_brush_tip_dynamics_carry_across_segments},
       {"tool_brush_tip_erases_and_respects_gates", tool_brush_tip_erases_and_respects_gates},
       {"brush_tip_softening_feathers_edges", brush_tip_softening_feathers_edges},

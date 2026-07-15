@@ -1045,9 +1045,14 @@ void abr_dynamics_fixture_extracts_shape_and_scatter() {
   CHECK(dynamics.size_control == patchy::BrushDynamicControl::GlobalDefault);
   CHECK(dynamics.roundness_control == patchy::BrushDynamicControl::GlobalDefault);
   CHECK(dynamics.opacity_control == patchy::BrushDynamicControl::GlobalDefault);
+  CHECK(dynamics.flow_control == patchy::BrushDynamicControl::Off);
   CHECK(dynamics.scatter_control == patchy::BrushDynamicControl::Off);
   CHECK(dynamics.count_control == patchy::BrushDynamicControl::Off);
   CHECK(approx(dynamics.minimum_opacity, 0.0));
+  CHECK(approx(dynamics.flow_jitter, 0.0));
+  CHECK(approx(dynamics.minimum_flow, 0.0));
+  CHECK(brush.tool_flow_percent == 100);
+  CHECK(brush.tool_airbrush == false);
 
   // The dual-brush variant imports its supported settings but warns about the dual brush.
   const auto dual_bytes =
@@ -1146,7 +1151,7 @@ void abr_v6_desc_controls_import() {
   write_desc_ascii(desc, "VlLs");
   desc.write_u32(1);  // one preset
   write_desc_ascii(desc, "Objc");
-  write_desc_header(desc, "brushPreset", 17);
+  write_desc_header(desc, "brushPreset", 20);
   {
     write_desc_id(desc, "Nm  ");
     write_desc_ascii(desc, "TEXT");
@@ -1172,6 +1177,13 @@ void abr_v6_desc_controls_import() {
     write_desc_variation(desc, "countDynamics", 7, 25, 50.0, 0.0);  // Direction -> Off (angle-only)
     write_desc_bool(desc, "usePaintDynamics", true);
     write_desc_variation(desc, "opVr", 5, 60, 25.0, 30.0);  // Rotation; Mnm -> minimum opacity
+    write_desc_variation(desc, "prVr", 1, 45, 60.0, 15.0);  // Flow: Fade, 45 steps
+    write_desc_bool(desc, "Rpt ", true);  // Photoshop Action Manager "repeat" = Airbrush
+    write_desc_id(desc, "toolOptions");
+    write_desc_ascii(desc, "Objc");
+    write_desc_header(desc, "PbTl", 2);
+    write_desc_bool(desc, "brushPreset", true);
+    write_desc_long(desc, "flow", 17);
   }
 
   // 'samp' block: one subversion-1 entry (47-byte key skip), 4x4 raw 8-bit mask.
@@ -1242,6 +1254,12 @@ void abr_v6_desc_controls_import() {
   CHECK(dynamics.opacity_fade_steps == 60);
   CHECK(approx(dynamics.opacity_jitter, 0.25));
   CHECK(approx(dynamics.minimum_opacity, 0.30));
+  CHECK(dynamics.flow_control == patchy::BrushDynamicControl::Fade);
+  CHECK(dynamics.flow_fade_steps == 45);
+  CHECK(approx(dynamics.flow_jitter, 0.60));
+  CHECK(approx(dynamics.minimum_flow, 0.15));
+  CHECK(brush.tool_flow_percent == 17);
+  CHECK(brush.tool_airbrush == true);
 }
 
 // Builds a legacy v1/v2 sampled-brush entry body (without the type/size prefix).

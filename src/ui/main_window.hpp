@@ -117,7 +117,7 @@ public:
   [[nodiscard]] PatternLibrary& pattern_library();
   [[nodiscard]] GradientLibrary& gradient_library();
   [[nodiscard]] StyleLibrary& style_library();
-  void set_active_brush_tip(const QString& tip_id, bool announce);
+  void set_active_brush_tip(const QString& tip_id, bool announce, bool apply_tool_settings = true);
   void define_brush_tip_from_selection();
   [[nodiscard]] QImage capture_brush_tip_define_source() const;
   // Profiling stress test, CLI entry (`patchy --stress-test=<preset>`): defers the

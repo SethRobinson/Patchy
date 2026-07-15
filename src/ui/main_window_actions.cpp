@@ -2854,7 +2854,8 @@ void MainWindow::create_actions() {
   connect(brush_tip_picker_, &BrushTipPicker::manage_requested, this, [this] { open_brush_tip_manager(); });
   connect(&brush_tip_library(), &BrushTipLibrary::changed, this, [this] {
     // A removed tip must not stay active; re-resolving also refreshes renamed/respaced tips.
-    set_active_brush_tip(active_brush_tip_id_, false);
+    // Re-applying after a library edit must not reset Flow/Airbrush to imported tool settings.
+    set_active_brush_tip(active_brush_tip_id_, false, false);
   });
   QPointer<BrushTipPicker> tip_picker(brush_tip_picker_);
   register_retranslation([tip_picker] {

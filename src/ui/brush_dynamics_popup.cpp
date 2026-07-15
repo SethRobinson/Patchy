@@ -250,7 +250,7 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
                       QStringLiteral("dynamicsCountFadeStepsSpin"), false);
   layout->addWidget(scatter_group);
 
-  // Transfer (opacity).
+  // Transfer (opacity and flow).
   auto* transfer_group = new QGroupBox(tr("Transfer"), this);
   auto* transfer_grid = new QGridLayout(transfer_group);
   compact_group_grid(transfer_grid);
@@ -261,6 +261,13 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   std::tie(opacity_control_combo_, opacity_fade_steps_spin_) = add_control_row(
       transfer_grid, 2, tr("Opacity Control:"), QStringLiteral("dynamicsOpacityControlCombo"),
       QStringLiteral("dynamicsOpacityFadeStepsSpin"), true);
+  flow_jitter_spin_ = add_percent_row(transfer_grid, 3, tr("Flow Jitter:"),
+                                      QStringLiteral("dynamicsFlowJitterSpin"), 100);
+  minimum_flow_spin_ = add_percent_row(transfer_grid, 4, tr("Minimum Flow:"),
+                                       QStringLiteral("dynamicsMinimumFlowSpin"), 100);
+  std::tie(flow_control_combo_, flow_fade_steps_spin_) = add_control_row(
+      transfer_grid, 5, tr("Flow Control:"), QStringLiteral("dynamicsFlowControlCombo"),
+      QStringLiteral("dynamicsFlowFadeStepsSpin"), false);
   layout->addWidget(transfer_group);
 
   auto* footer = new QHBoxLayout();
@@ -282,11 +289,13 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
         size_fade_steps_spin_, angle_jitter_spin_, fade_steps_spin_, roundness_jitter_spin_,
         minimum_roundness_spin_, roundness_fade_steps_spin_, scatter_spin_, scatter_fade_steps_spin_,
         count_spin_, count_jitter_spin_, count_fade_steps_spin_, opacity_jitter_spin_,
-        minimum_opacity_spin_, opacity_fade_steps_spin_}) {
+        minimum_opacity_spin_, opacity_fade_steps_spin_, flow_jitter_spin_, minimum_flow_spin_,
+        flow_fade_steps_spin_}) {
     connect(spin, qOverload<int>(&QSpinBox::valueChanged), this, emit_edited);
   }
   for (auto* combo : {angle_control_combo_, size_control_combo_, roundness_control_combo_,
-                      scatter_control_combo_, count_control_combo_, opacity_control_combo_}) {
+                      scatter_control_combo_, count_control_combo_, opacity_control_combo_,
+                      flow_control_combo_}) {
     connect(combo, &QComboBox::currentIndexChanged, this, emit_edited);
   }
   for (auto* check : {flip_x_check_, flip_y_check_, both_axes_check_}) {
@@ -331,6 +340,10 @@ void BrushDynamicsPanel::set_values(const patchy::BrushDynamics& dynamics, doubl
   minimum_opacity_spin_->setValue(percent_from_fraction(dynamics.minimum_opacity));
   select_combo_control(*opacity_control_combo_, dynamics.opacity_control);
   opacity_fade_steps_spin_->setValue(std::clamp(dynamics.opacity_fade_steps, 1, 9999));
+  flow_jitter_spin_->setValue(percent_from_fraction(dynamics.flow_jitter));
+  minimum_flow_spin_->setValue(percent_from_fraction(dynamics.minimum_flow));
+  select_combo_control(*flow_control_combo_, dynamics.flow_control);
+  flow_fade_steps_spin_->setValue(std::clamp(dynamics.flow_fade_steps, 1, 9999));
   refresh_control_dependent_widgets();
   loading_ = false;
 }
@@ -364,6 +377,10 @@ patchy::BrushDynamics BrushDynamicsPanel::dynamics() const {
   dynamics.minimum_opacity = fraction_from_percent(minimum_opacity_spin_->value());
   dynamics.opacity_control = combo_control(*opacity_control_combo_);
   dynamics.opacity_fade_steps = opacity_fade_steps_spin_->value();
+  dynamics.flow_jitter = fraction_from_percent(flow_jitter_spin_->value());
+  dynamics.minimum_flow = fraction_from_percent(minimum_flow_spin_->value());
+  dynamics.flow_control = combo_control(*flow_control_combo_);
+  dynamics.flow_fade_steps = flow_fade_steps_spin_->value();
   return dynamics;
 }
 
@@ -376,6 +393,7 @@ void BrushDynamicsPanel::refresh_control_dependent_widgets() {
       {scatter_control_combo_, scatter_fade_steps_spin_},
       {count_control_combo_, count_fade_steps_spin_},
       {opacity_control_combo_, opacity_fade_steps_spin_},
+      {flow_control_combo_, flow_fade_steps_spin_},
   };
   for (const auto& [combo, fade_spin] : control_rows) {
     fade_spin->setVisible(combo_control(*combo) == patchy::BrushDynamicControl::Fade);
@@ -385,6 +403,11 @@ void BrushDynamicsPanel::refresh_control_dependent_widgets() {
   minimum_opacity_spin_->setEnabled(minimum_opacity_live);
   if (auto* slider = findChild<QSlider*>(QStringLiteral("dynamicsMinimumOpacitySpinSlider"))) {
     slider->setEnabled(minimum_opacity_live);
+  }
+  const auto minimum_flow_live = control_has_source(combo_control(*flow_control_combo_));
+  minimum_flow_spin_->setEnabled(minimum_flow_live);
+  if (auto* slider = findChild<QSlider*>(QStringLiteral("dynamicsMinimumFlowSpinSlider"))) {
+    slider->setEnabled(minimum_flow_live);
   }
 }
 
@@ -413,9 +436,9 @@ BrushDynamicsButton::BrushDynamicsButton(QWidget* parent) : QToolButton(parent) 
 void BrushDynamicsButton::retranslate() {
   setText(tr("Dynamics"));
   setToolTip(round_session_
-                 ? tr("Shape dynamics, scattering, and opacity jitter for the Round brush "
+                 ? tr("Shape dynamics, scattering, and Transfer for the Round brush "
                       "(this session only; resets on the next launch)")
-                 : tr("Shape dynamics, scattering, and opacity jitter for the active brush tip"));
+                 : tr("Shape dynamics, scattering, and Transfer for the active brush tip"));
 }
 
 void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {
