@@ -1227,6 +1227,36 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                    3});
   specs.push_back({QObject::tr("RTsoft Logo"), 1.3, make_rtsoft_logo_tip(), {}, 3});
 
+  // ---- v4 additions (since_version 4): presets demonstrating the expanded brush engine ----
+  specs.push_back({QObject::tr("Textured Chalk"), 0.08, make_chalk_tip(),
+                   {.angle_jitter = 0.08,
+                    .opacity_jitter = 0.10,
+                    .texture_enabled = true,
+                    .texture_style = patchy::BrushTextureStyle::FineGrain,
+                    .texture_scale = 0.65,
+                    .texture_depth = 0.55},
+                   4});
+  specs.push_back({QObject::tr("Dual Brush Dots"), 0.35, make_square_tip(),
+                   {.dual_brush_enabled = true,
+                    .dual_brush_size = 0.18,
+                    .dual_brush_hardness = 0.90,
+                    .dual_brush_spacing = 2.0},
+                   4});
+  specs.push_back({QObject::tr("Color Scatter"), 0.75, make_spatter_tip(),
+                   {.size_jitter = 0.35,
+                    .angle_jitter = 1.0,
+                    .scatter = 1.25,
+                    .scatter_both_axes = true,
+                    .count = 2,
+                    .count_jitter = 0.35,
+                    .color_dynamics_enabled = true,
+                    .foreground_background_jitter = 0.70,
+                    .hue_jitter = 0.08,
+                    .saturation_jitter = 0.12},
+                   4});
+  specs.push_back({QObject::tr("Wet Edge Wash"), 0.12, make_smoke_tip(),
+                   {.opacity_jitter = 0.10, .wet_edges = true}, 4});
+
   // The tips carry their own spacing too; keep both in sync for callers using either.
   for (auto& spec : specs) {
     spec.tip.default_spacing = spec.spacing;

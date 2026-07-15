@@ -20,6 +20,16 @@ enum class BrushDynamicControl : std::uint8_t {
   GlobalDefault,  // defer to the global input/pen/* preferences (size/roundness/opacity only)
 };
 
+// Static, code-generated grain families used by Brush Texture. The texture never changes in
+// response to pen pressure, direction, velocity, or pose: that fixed boundary keeps this
+// implementation outside the active dynamic-stamp-texture patent family. Append only because
+// the numeric values are persisted in brush sidecars.
+enum class BrushTextureStyle : std::uint8_t {
+  FineGrain = 0,
+  Canvas,
+  Speckle,
+};
+
 // Photoshop-style per-dab brush tip dynamics (Shape Dynamics + Scattering + Transfer).
 // Default-constructed = disabled: the stamp engine takes its historical path bit-for-bit and
 // consumes no randomness. Fractions are 0..1 of the Photoshop percent unless noted.
@@ -53,6 +63,39 @@ struct BrushDynamics {
   double minimum_flow{0.0};  // floor when flow_control has a source (PS Transfer "Minimum Flow")
   BrushDynamicControl flow_control{BrushDynamicControl::Off};
   int flow_fade_steps{25};
+
+  // Photoshop-compatible Brush Texture subset. Grain is a static, world-anchored procedural
+  // mask; no stroke input can alter its channels, weights, or pattern. texture_scale is the
+  // Photoshop percentage divided by 100 (0.01..10). texture_seed preserves the identity of an
+  // imported pattern without bundling Adobe artwork.
+  bool texture_enabled{false};
+  BrushTextureStyle texture_style{BrushTextureStyle::FineGrain};
+  double texture_scale{1.0};
+  double texture_depth{0.5};
+  bool texture_invert{false};
+  std::uint32_t texture_seed{0x5A17C9E3U};
+
+  // One fixed secondary computed mask. It is deliberately not a component graph: a single
+  // repeated round mask combines with the primary coverage using multiplication.
+  bool dual_brush_enabled{false};
+  double dual_brush_size{0.5};      // secondary diameter / primary diameter, 0.05..4
+  double dual_brush_hardness{1.0};  // 0..1
+  double dual_brush_spacing{1.0};   // center spacing / secondary diameter, 0.1..10
+
+  // Photoshop Color Dynamics. This varies the selected foreground/background colors only; it
+  // never samples the canvas and never performs pigment or wet-paint mixing.
+  bool color_dynamics_enabled{false};
+  double foreground_background_jitter{0.0};
+  BrushDynamicControl color_control{BrushDynamicControl::Off};
+  int color_fade_steps{25};
+  double hue_jitter{0.0};
+  double saturation_jitter{0.0};
+  double brightness_jitter{0.0};
+  double purity{0.0};  // -1..1 saturation bias
+  bool color_per_tip{true};
+
+  // Fixed coverage-edge treatment, not a fluid, pigment, drying, or canvas-pickup simulation.
+  bool wet_edges{false};
 
   // Per-brush control precedence: GlobalDefault (the size/roundness/opacity default) leaves the
   // global pen preferences authoritative (they modulate pre-dab in effective_brush_input); any
@@ -96,6 +139,11 @@ struct BrushDynamicsStrokeContext {
   bool initial_direction_valid{false};
   double initial_direction_x{1.0};
   double initial_direction_y{0.0};
+  bool stroke_color_valid{false};
+  double stroke_foreground_background_mix{0.0};
+  double stroke_hue_shift{0.0};
+  double stroke_saturation_shift{0.0};
+  double stroke_brightness_shift{0.0};
 };
 
 // Feed each segment's delta into the smoothed stroke direction. The first non-degenerate call
@@ -113,6 +161,10 @@ struct BrushDabVariation {
   double offset_y{0.0};
   double opacity_multiplier{1.0};
   double flow_multiplier{1.0};
+  double foreground_background_mix{0.0};
+  double hue_shift{0.0};         // signed fraction of a full hue turn
+  double saturation_shift{0.0};  // signed fraction
+  double brightness_shift{0.0};  // signed fraction
 };
 
 // RNG draw-order contract (tests depend on it; keep brush_dynamics.cpp in sync):
@@ -127,13 +179,19 @@ struct BrushDabVariation {
 //   7. flip Y                  (bool)   iff flip_y_jitter
 //   8. opacity jitter          (unit)   iff opacity_jitter > 0
 //   9. flow jitter             (unit)   iff flow_jitter > 0
+//  10. foreground/background  (unit)   iff Color Dynamics + foreground/background jitter > 0
+//  11. hue jitter              (signed) iff Color Dynamics + hue jitter > 0
+//  12. saturation jitter       (signed) iff Color Dynamics + saturation jitter > 0
+//  13. brightness jitter       (signed) iff Color Dynamics + brightness jitter > 0
+// When color_per_tip is false, draws 10-13 happen on the first dab only and the sampled values
+// are reused for the rest of the stroke.
 // The per-dynamic controls never draw: each control value is computed deterministically from the
 // pen inputs / fade step and only scales the result, so the gates above stay keyed on static
 // configuration and adding a control cannot shift any draw.
 [[nodiscard]] int sample_dab_count(const BrushDynamics& dynamics, BrushDynamicsRng& rng,
                                    const BrushDynamicsStrokeContext& context) noexcept;
 [[nodiscard]] BrushDabVariation sample_dab_variation(const BrushDynamics& dynamics, BrushDynamicsRng& rng,
-                                                     const BrushDynamicsStrokeContext& context,
+                                                     BrushDynamicsStrokeContext& context,
                                                      int brush_size) noexcept;
 
 }  // namespace patchy

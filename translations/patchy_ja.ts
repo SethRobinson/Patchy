@@ -3952,8 +3952,8 @@ Mixed selection</source>
     </message>
     <message>
         <location line="-1"/>
-        <source>Tip shape, shape dynamics, scattering, and opacity jitter for the selected brush tip</source>
-        <translation>選択したブラシ先端の先端シェイプ、シェイプダイナミクス、散布、不透明度のジッター</translation>
+        <source>Tip shape, dynamics, texture, dual brush, color, and effects for the selected brush tip</source>
+        <translation>選択したブラシ先端のシェイプ、ダイナミクス、テクスチャ、デュアルブラシ、カラー、効果</translation>
     </message>
     <message>
         <location line="+268"/>
@@ -4215,6 +4215,22 @@ Mixed selection</source>
         <source>RTsoft Logo</source>
         <translation>RTsoft ロゴ</translation>
     </message>
+    <message>
+        <source>Textured Chalk</source>
+        <translation>テクスチャチョーク</translation>
+    </message>
+    <message>
+        <source>Dual Brush Dots</source>
+        <translation>デュアルブラシドット</translation>
+    </message>
+    <message>
+        <source>Color Scatter</source>
+        <translation>カラースキャッター</translation>
+    </message>
+    <message>
+        <source>Wet Edge Wash</source>
+        <translation>ウェットエッジウォッシュ</translation>
+    </message>
     <message numerus="yes">
         <location filename="../src/ui/brush_tip_library.cpp" line="+161"/>
         <source>Imported %n brush tip(s).</source>
@@ -4231,9 +4247,9 @@ Mixed selection</source>
     </message>
     <message numerus="yes">
         <location line="+4"/>
-        <source>%n brush(es) use Photoshop features Patchy does not support (texture, dual brush, color dynamics) and will paint differently.</source>
+        <source>%n brush(es) use input-driven texture depth; Patchy imported a static depth instead.</source>
         <translation>
-            <numerusform>%n 個のブラシは Patchy が対応していない Photoshop 機能 (テクスチャ、デュアルブラシ、カラーダイナミクス) を使用しているため、描画結果が異なります。</numerusform>
+            <numerusform>%n 個のブラシは入力連動のテクスチャ深度を使用しているため、Patchy は代わりに固定の深度で読み込みました。</numerusform>
         </translation>
     </message>
     <message>
@@ -5182,13 +5198,13 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+4"/>
-        <source>Shape dynamics, scattering, and Transfer for the active brush tip</source>
-        <translation>アクティブなブラシ先端のシェイプダイナミクス、散布、転写</translation>
+        <source>Brush dynamics and effects for the active brush tip</source>
+        <translation>アクティブなブラシ先端のダイナミクスと効果</translation>
     </message>
     <message>
         <location line="-2"/>
-        <source>Shape dynamics, scattering, and Transfer for the Round brush (this session only; resets on the next launch)</source>
-        <translation>丸ブラシのシェイプダイナミクス、散布、転写（このセッション限定。次回起動時にリセットされます）</translation>
+        <source>Brush dynamics and effects for the Round brush (this session only; resets on the next launch)</source>
+        <translation>丸ブラシのダイナミクスと効果（このセッション限定。次回起動時にリセットされます）</translation>
     </message>
 </context>
 <context>
@@ -5386,6 +5402,110 @@ Mixed selection</source>
     <message>
         <source>Minimum Flow:</source>
         <translation>最小のフロー:</translation>
+    </message>
+    <message>
+        <source>Texture</source>
+        <translation>テクスチャ</translation>
+    </message>
+    <message>
+        <source>Enable Texture</source>
+        <translation>テクスチャを有効化</translation>
+    </message>
+    <message>
+        <source>Grain:</source>
+        <translation>粒子:</translation>
+    </message>
+    <message>
+        <source>Fine Grain</source>
+        <translation>細かい粒子</translation>
+    </message>
+    <message>
+        <source>Canvas</source>
+        <translation>キャンバス</translation>
+    </message>
+    <message>
+        <source>Speckle</source>
+        <translation>斑点</translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation>スケール:</translation>
+    </message>
+    <message>
+        <source>Depth:</source>
+        <translation>深さ:</translation>
+    </message>
+    <message>
+        <source>Invert Texture</source>
+        <translation>テクスチャを反転</translation>
+    </message>
+    <message>
+        <source>Dual Brush</source>
+        <translation>デュアルブラシ</translation>
+    </message>
+    <message>
+        <source>Enable Dual Brush</source>
+        <translation>デュアルブラシを有効化</translation>
+    </message>
+    <message>
+        <source>Secondary Size:</source>
+        <translation>サブブラシのサイズ:</translation>
+    </message>
+    <message>
+        <source>Secondary Hardness:</source>
+        <translation>サブブラシの硬さ:</translation>
+    </message>
+    <message>
+        <source>Secondary Spacing:</source>
+        <translation>サブブラシの間隔:</translation>
+    </message>
+    <message>
+        <source>Color Dynamics</source>
+        <translation>カラーダイナミクス</translation>
+    </message>
+    <message>
+        <source>Enable Color Dynamics</source>
+        <translation>カラーダイナミクスを有効化</translation>
+    </message>
+    <message>
+        <source>Foreground/Background Jitter:</source>
+        <translation>描画色/背景色のジッター:</translation>
+    </message>
+    <message>
+        <source>Color Control:</source>
+        <translation>カラーのコントロール:</translation>
+    </message>
+    <message>
+        <source>Hue Jitter:</source>
+        <translation>色相のジッター:</translation>
+    </message>
+    <message>
+        <source>Saturation Jitter:</source>
+        <translation>彩度のジッター:</translation>
+    </message>
+    <message>
+        <source>Brightness Jitter:</source>
+        <translation>明るさのジッター:</translation>
+    </message>
+    <message>
+        <source>Purity:</source>
+        <translation>純度:</translation>
+    </message>
+    <message>
+        <source>Apply Per Tip</source>
+        <translation>ブラシ先端ごとに適用</translation>
+    </message>
+    <message>
+        <source>Brush Effects</source>
+        <translation>ブラシ効果</translation>
+    </message>
+    <message>
+        <source>Wet Edges</source>
+        <translation>ウェットエッジ</translation>
+    </message>
+    <message>
+        <source>Darken the coverage edge without simulating fluid paint or canvas pickup</source>
+        <translation>流体ペイントやキャンバスからの色の取り込みをシミュレートせず、描画範囲の縁を濃くします</translation>
     </message>
     <message>
         <location line="+9"/>

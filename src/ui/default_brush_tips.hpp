@@ -26,10 +26,10 @@ struct DefaultBrushTipSpec {
 [[nodiscard]] QString default_brush_tips_folder_name();
 
 // Deterministic, parametric generation of the built-in bitmap brush set: natural media (chalk,
-// charcoal, spray, bristle, and friends) plus the v3 stamp set (dotted/dashed lines, brick
-// road, leaves, sparkles, the RTsoft logo, ...). Same output on every run; the tips are seeded
-// into the user's brush library on first launch and are ordinary user tips afterwards
-// (renameable, deletable — deleting them does not resurrect on the next run).
+// charcoal, spray, bristle, and friends), the v3 stamp set (dotted/dashed lines, brick road,
+// leaves, sparkles, the RTsoft logo, ...), and v4 effect presets. Same output on every run; the
+// tips are seeded into the user's brush library on first launch and are ordinary user tips
+// afterwards (renameable, deletable — deleting them does not resurrect on the next run).
 [[nodiscard]] std::vector<DefaultBrushTipSpec> generate_default_brush_tips();
 
 }  // namespace patchy::ui

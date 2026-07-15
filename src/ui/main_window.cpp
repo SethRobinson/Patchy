@@ -11534,7 +11534,7 @@ BrushTipLibrary& MainWindow::brush_tip_library() {
     // the manager's "Restore Defaults" button brings them back on demand. On upgrade only tips
     // NEWER than the stored version are seeded, so a bump never resurrects deleted defaults.
     auto settings = app_settings();
-    constexpr int kDefaultTipsVersion = 3;  // v3 (July 2026): 20 stamp/pattern tips added
+    constexpr int kDefaultTipsVersion = 4;  // v4 (July 2026): texture, dual, color, wet-edge tips
     const auto stored_version =
         settings.value(QStringLiteral("brushes/defaultTipsVersion"), 0).toInt();
     if (stored_version < kDefaultTipsVersion) {

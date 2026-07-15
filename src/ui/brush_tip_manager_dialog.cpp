@@ -208,7 +208,7 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
   auto* dynamics_button = new QPushButton(QObject::tr("Edit Dynamics…"), &dialog);
   dynamics_button->setObjectName(QStringLiteral("brushTipManagerDynamicsButton"));
   dynamics_button->setToolTip(
-      QObject::tr("Tip shape, shape dynamics, scattering, and opacity jitter for the selected brush tip"));
+      QObject::tr("Tip shape, dynamics, texture, dual brush, color, and effects for the selected brush tip"));
   form->addRow(QObject::tr("Dynamics:"), dynamics_button);
   auto* size_label = new QLabel(&dialog);
   size_label->setObjectName(QStringLiteral("brushTipSizeLabel"));

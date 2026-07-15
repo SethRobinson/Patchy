@@ -74,7 +74,13 @@ bool BrushDynamics::active() const noexcept {
          roundness_jitter > 0.0 || flip_x_jitter || flip_y_jitter || scatter > 0.0 || count > 1 ||
          opacity_jitter > 0.0 || control_has_source(size_control) ||
          flow_jitter > 0.0 || control_has_source(roundness_control) ||
-         control_has_source(opacity_control) || control_has_source(flow_control);
+         control_has_source(opacity_control) || control_has_source(flow_control) ||
+         (texture_enabled && texture_depth > 0.0) || dual_brush_enabled || wet_edges ||
+         (color_dynamics_enabled &&
+          (foreground_background_jitter > 0.0 || control_has_source(color_control) ||
+           hue_jitter > 0.0 || saturation_jitter > 0.0 || brightness_jitter > 0.0 ||
+           purity != 0.0));
+
   // scatter_control/count_control need no term: they only modulate scatter > 0 / count > 1,
   // which already activate the dynamic path.
 }
@@ -149,7 +155,7 @@ int sample_dab_count(const BrushDynamics& dynamics, BrushDynamicsRng& rng,
 }
 
 BrushDabVariation sample_dab_variation(const BrushDynamics& dynamics, BrushDynamicsRng& rng,
-                                       const BrushDynamicsStrokeContext& context,
+                                       BrushDynamicsStrokeContext& context,
                                        int brush_size) noexcept {
   BrushDabVariation variation;
 
@@ -279,6 +285,50 @@ BrushDabVariation sample_dab_variation(const BrushDynamics& dynamics, BrushDynam
       const auto jitter = std::clamp(dynamics.flow_jitter, 0.0, 1.0);
       variation.flow_multiplier =
           std::clamp(flow_base * (1.0 - jitter * rng.next_unit()), 0.0, 1.0);
+    }
+  }
+
+  if (dynamics.color_dynamics_enabled) {
+    const auto sample_color = [&] {
+      auto mix = 0.0;
+      if (control_has_source(dynamics.color_control)) {
+        // Full input selects the foreground; a fading/reduced input moves toward the
+        // background. Jitter then adds a deterministic random excursion toward background.
+        mix = 1.0 - control_value(dynamics.color_control, dynamics.color_fade_steps, dynamics,
+                                  context);
+      }
+      if (dynamics.foreground_background_jitter > 0.0) {
+        const auto jitter = std::clamp(dynamics.foreground_background_jitter, 0.0, 1.0);
+        mix += (1.0 - mix) * jitter * rng.next_unit();
+      }
+      variation.foreground_background_mix = std::clamp(mix, 0.0, 1.0);
+      if (dynamics.hue_jitter > 0.0) {
+        variation.hue_shift =
+            rng.next_signed_unit() * std::clamp(dynamics.hue_jitter, 0.0, 1.0) * 0.5;
+      }
+      if (dynamics.saturation_jitter > 0.0) {
+        variation.saturation_shift =
+            rng.next_signed_unit() * std::clamp(dynamics.saturation_jitter, 0.0, 1.0);
+      }
+      if (dynamics.brightness_jitter > 0.0) {
+        variation.brightness_shift =
+            rng.next_signed_unit() * std::clamp(dynamics.brightness_jitter, 0.0, 1.0);
+      }
+    };
+    if (dynamics.color_per_tip || !context.stroke_color_valid) {
+      sample_color();
+      if (!dynamics.color_per_tip) {
+        context.stroke_color_valid = true;
+        context.stroke_foreground_background_mix = variation.foreground_background_mix;
+        context.stroke_hue_shift = variation.hue_shift;
+        context.stroke_saturation_shift = variation.saturation_shift;
+        context.stroke_brightness_shift = variation.brightness_shift;
+      }
+    } else {
+      variation.foreground_background_mix = context.stroke_foreground_background_mix;
+      variation.hue_shift = context.stroke_hue_shift;
+      variation.saturation_shift = context.stroke_saturation_shift;
+      variation.brightness_shift = context.stroke_brightness_shift;
     }
   }
   return variation;

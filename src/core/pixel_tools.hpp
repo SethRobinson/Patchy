@@ -43,7 +43,11 @@ struct EditOptions {
   std::function<bool(std::int32_t, std::int32_t)> selection_mask;
   std::function<float(std::int32_t, std::int32_t)> selection_coverage;
   std::function<bool(std::int32_t, std::int32_t)> stroke_pixel_gate;
-  std::function<bool(std::int32_t, std::int32_t, std::uint8_t*, std::uint16_t, float)> stroke_pixel_writer;
+  // The last argument is the dab's effective primary color. It normally equals `primary`, but
+  // Color Dynamics supplies a per-dab value while retaining the stroke compositor.
+  std::function<bool(std::int32_t, std::int32_t, std::uint8_t*, std::uint16_t, float,
+                     const EditColor&)>
+      stroke_pixel_writer;
   std::function<void()> progress_callback;
 };
 

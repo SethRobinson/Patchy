@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string_view>
 #include <stdexcept>
 #include <utility>
 
@@ -85,8 +86,39 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
 // flipX/flipY are the flip jitters (the static tip flips live inside the 'Brsh' object), the
 // minimum diameter/roundness are preset-level siblings of the 'brVr' objects, and 'Cnt ' is a
 // double. Every dynamic's control imports (size/roundness/opacity map bVTy 0 through
-// non_angle_control_from_bvty to GlobalDefault); wetness and mix stay unmodeled.
-[[nodiscard]] BrushDynamics parse_brush_dynamics(const DescriptorObject& preset) {
+// non_angle_control_from_bvty to GlobalDefault). The later blocks add the compatible static
+// Texture, single Dual Brush, Color Dynamics, and Wet Edges subsets.
+[[nodiscard]] std::uint32_t stable_string_seed(std::string_view text) noexcept {
+  std::uint32_t hash = 2166136261U;
+  for (const auto character : text) {
+    hash ^= static_cast<std::uint8_t>(character);
+    hash *= 16777619U;
+  }
+  return hash;
+}
+
+[[nodiscard]] std::string descriptor_string(const DescriptorObject& object, std::string_view key) {
+  const auto* value = descriptor_value(object, key);
+  return value != nullptr && value->type == DescriptorValue::Type::String ? value->string_value
+                                                                          : std::string{};
+}
+
+[[nodiscard]] BrushTextureStyle texture_style_from_name(std::string_view name) noexcept {
+  const auto contains = [name](std::string_view needle) {
+    return name.find(needle) != std::string_view::npos;
+  };
+  if (contains("Canvas") || contains("canvas") || contains("Burlap") || contains("Towel") ||
+      contains("Paper") || contains("paper")) {
+    return BrushTextureStyle::Canvas;
+  }
+  if (contains("Dot") || contains("dot") || contains("Pebble") || contains("Stone")) {
+    return BrushTextureStyle::Speckle;
+  }
+  return BrushTextureStyle::FineGrain;
+}
+
+[[nodiscard]] BrushDynamics parse_brush_dynamics(const DescriptorObject& preset,
+                                                  const DescriptorObject& primary_brush) {
   BrushDynamics dynamics;
   if (descriptor_bool(preset, "useTipDynamics")) {
     const auto size = read_variation(preset, "szVr");
@@ -137,6 +169,61 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
     dynamics.flow_control = non_angle_control_from_bvty(flow.control, BrushDynamicControl::Off);
     dynamics.flow_fade_steps = flow.fade_steps;
   }
+  if (descriptor_bool(preset, "useTexture")) {
+    dynamics.texture_enabled = true;
+    dynamics.texture_scale =
+        std::clamp(descriptor_number(preset, "textureScale", 100.0) / 100.0, 0.01, 10.0);
+    dynamics.texture_depth =
+        std::clamp(descriptor_number(preset, "textureDepth", 50.0) / 100.0, 0.0, 1.0);
+    dynamics.texture_invert = descriptor_bool(preset, "InvT") ||
+                              descriptor_bool(preset, "invertTexture");
+    if (const auto* texture = descriptor_object(preset, "Txtr"); texture != nullptr) {
+      auto identity = descriptor_string(*texture, "Idnt");
+      const auto name = descriptor_string(*texture, "Nm  ");
+      if (identity.empty()) {
+        identity = name;
+      }
+      if (!identity.empty()) {
+        dynamics.texture_seed = stable_string_seed(identity);
+      }
+      dynamics.texture_style = texture_style_from_name(name);
+    }
+    // Deliberate patent design-around: textureDepthDynamics/minimumDepth are observed for
+    // compatibility but never connected to pressure, velocity, direction, or stylus pose.
+  }
+  if (const auto* dual = descriptor_object(preset, "dualBrush");
+      dual != nullptr && descriptor_bool(*dual, "useDualBrush")) {
+    dynamics.dual_brush_enabled = true;
+    if (const auto* secondary = descriptor_object(*dual, "Brsh"); secondary != nullptr) {
+      const auto primary_diameter = std::max(1.0, descriptor_number(primary_brush, "Dmtr", 1.0));
+      const auto secondary_diameter = descriptor_number(*secondary, "Dmtr", primary_diameter * 0.5);
+      dynamics.dual_brush_size =
+          std::clamp(secondary_diameter / primary_diameter, 0.05, 4.0);
+      dynamics.dual_brush_hardness =
+          std::clamp(descriptor_number(*secondary, "Hrdn", 100.0) / 100.0, 0.0, 1.0);
+      dynamics.dual_brush_spacing =
+          std::clamp(descriptor_number(*secondary, "Spcn", 100.0) / 100.0, 0.1, 10.0);
+    }
+  }
+  if (descriptor_bool(preset, "useColorDynamics")) {
+    dynamics.color_dynamics_enabled = true;
+    const auto foreground_background = read_variation(preset, "clVr");
+    dynamics.foreground_background_jitter =
+        std::clamp(foreground_background.jitter, 0.0, 1.0);
+    dynamics.color_control = non_angle_control_from_bvty(foreground_background.control,
+                                                         BrushDynamicControl::Off);
+    dynamics.color_fade_steps = foreground_background.fade_steps;
+    dynamics.hue_jitter =
+        std::clamp(descriptor_number(preset, "H   ") / 100.0, 0.0, 1.0);
+    dynamics.saturation_jitter =
+        std::clamp(descriptor_number(preset, "Strt") / 100.0, 0.0, 1.0);
+    dynamics.brightness_jitter =
+        std::clamp(descriptor_number(preset, "Brgh") / 100.0, 0.0, 1.0);
+    dynamics.purity =
+        std::clamp(descriptor_number(preset, "purity") / 100.0, -1.0, 1.0);
+    dynamics.color_per_tip = descriptor_bool(preset, "colorDynamicsPerTip", true);
+  }
+  dynamics.wet_edges = descriptor_bool(preset, "Wtdg") || descriptor_bool(preset, "wetEdges");
   return dynamics;
 }
 
@@ -176,7 +263,7 @@ std::vector<DescBrushInfo> parse_desc_brush_infos(std::span<const std::uint8_t> 
     }
     info.base_angle_degrees = descriptor_number(*brush, "Angl", 0.0);
     info.base_roundness = std::clamp(descriptor_number(*brush, "Rndn", 100.0), 1.0, 100.0);
-    info.dynamics = parse_brush_dynamics(preset);
+    info.dynamics = parse_brush_dynamics(preset, *brush);
     // Photoshop 2026 ground-truth capture: Transfer Flow is the 'prVr' variation, the
     // options-bar percentage is toolOptions.flow, and Airbrush is preset 'Rpt ' (the Action
     // Manager names it "repeat"). Only a brush preset that explicitly carries tool options
@@ -198,26 +285,13 @@ std::vector<DescBrushInfo> parse_desc_brush_infos(std::span<const std::uint8_t> 
       }
     }
 
-    std::string unsupported;
-    const auto append_unsupported = [&unsupported](const char* feature) {
-      if (!unsupported.empty()) {
-        unsupported += ", ";
-      }
-      unsupported += feature;
-    };
     if (descriptor_bool(preset, "useTexture")) {
-      append_unsupported("texture");
-    }
-    if (const auto* dual = descriptor_object(preset, "dualBrush");
-        dual != nullptr && descriptor_bool(*dual, "useDualBrush")) {
-      append_unsupported("dual brush");
-    }
-    if (descriptor_bool(preset, "useColorDynamics")) {
-      append_unsupported("color dynamics");
-    }
-    if (!unsupported.empty()) {
-      warnings.push_back("Brush \"" + (info.name.empty() ? std::string("(unnamed)") : info.name) +
-                         "\": unsupported dynamics ignored (" + unsupported + ")");
+      const auto depth = read_variation(preset, "textureDepthDynamics");
+      if (depth.control != 0 || depth.jitter > 0.0) {
+        warnings.push_back(
+            "Brush \"" + (info.name.empty() ? std::string("(unnamed)") : info.name) +
+            "\": input-driven texture depth was imported as a static depth for patent safety");
+      }
     }
     infos.push_back(std::move(info));
   }

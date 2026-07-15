@@ -1054,17 +1054,20 @@ void abr_dynamics_fixture_extracts_shape_and_scatter() {
   CHECK(brush.tool_flow_percent == 100);
   CHECK(brush.tool_airbrush == false);
 
-  // The dual-brush variant imports its supported settings but warns about the dual brush.
+  // The dual-brush variant imports its supported secondary computed tip without warning.
   const auto dual_bytes =
       read_binary_file(patchy::test::committed_abr_fixture_path("photoshop-dual-brush.abr"));
   const auto dual_result = patchy::psd::read_abr(dual_bytes, error);
   CHECK(dual_result.has_value());
   CHECK(dual_result->brushes.size() == 1);
   CHECK(dual_result->brushes.front().name == "Patchy Dual Probe");
-  CHECK(approx(dual_result->brushes.front().dynamics.size_jitter, 0.55));
-  CHECK(dual_result->warnings.size() == 1);
-  CHECK(dual_result->warnings.front().find("Patchy Dual Probe") != std::string::npos);
-  CHECK(dual_result->warnings.front().find("dual brush") != std::string::npos);
+  const auto& dual_dynamics = dual_result->brushes.front().dynamics;
+  CHECK(approx(dual_dynamics.size_jitter, 0.55));
+  CHECK(dual_dynamics.dual_brush_enabled);
+  CHECK(approx(dual_dynamics.dual_brush_size, 25.0 / 15.0));
+  CHECK(approx(dual_dynamics.dual_brush_hardness, 0.0));
+  CHECK(approx(dual_dynamics.dual_brush_spacing, 0.25));
+  CHECK(dual_result->warnings.empty());
 }
 
 void abr_myer_brushes_have_default_dynamics() {
@@ -1151,7 +1154,7 @@ void abr_v6_desc_controls_import() {
   write_desc_ascii(desc, "VlLs");
   desc.write_u32(1);  // one preset
   write_desc_ascii(desc, "Objc");
-  write_desc_header(desc, "brushPreset", 20);
+  write_desc_header(desc, "brushPreset", 32);
   {
     write_desc_id(desc, "Nm  ");
     write_desc_ascii(desc, "TEXT");
@@ -1179,6 +1182,18 @@ void abr_v6_desc_controls_import() {
     write_desc_variation(desc, "opVr", 5, 60, 25.0, 30.0);  // Rotation; Mnm -> minimum opacity
     write_desc_variation(desc, "prVr", 1, 45, 60.0, 15.0);  // Flow: Fade, 45 steps
     write_desc_bool(desc, "Rpt ", true);  // Photoshop Action Manager "repeat" = Airbrush
+    write_desc_bool(desc, "useTexture", true);
+    write_desc_double(desc, "textureScale", 175.0);
+    write_desc_double(desc, "textureDepth", 65.0);
+    write_desc_bool(desc, "InvT", true);
+    write_desc_bool(desc, "useColorDynamics", true);
+    write_desc_variation(desc, "clVr", 2, 18, 70.0, 0.0);  // foreground/background, pressure
+    write_desc_double(desc, "H   ", 20.0);
+    write_desc_double(desc, "Strt", 30.0);
+    write_desc_double(desc, "Brgh", 40.0);
+    write_desc_double(desc, "purity", -25.0);
+    write_desc_bool(desc, "colorDynamicsPerTip", false);
+    write_desc_bool(desc, "Wtdg", true);
     write_desc_id(desc, "toolOptions");
     write_desc_ascii(desc, "Objc");
     write_desc_header(desc, "PbTl", 2);
@@ -1260,6 +1275,21 @@ void abr_v6_desc_controls_import() {
   CHECK(approx(dynamics.minimum_flow, 0.15));
   CHECK(brush.tool_flow_percent == 17);
   CHECK(brush.tool_airbrush == true);
+  CHECK(dynamics.texture_enabled);
+  CHECK(dynamics.texture_style == patchy::BrushTextureStyle::FineGrain);
+  CHECK(approx(dynamics.texture_scale, 1.75));
+  CHECK(approx(dynamics.texture_depth, 0.65));
+  CHECK(dynamics.texture_invert);
+  CHECK(dynamics.color_dynamics_enabled);
+  CHECK(approx(dynamics.foreground_background_jitter, 0.70));
+  CHECK(dynamics.color_control == patchy::BrushDynamicControl::PenPressure);
+  CHECK(dynamics.color_fade_steps == 18);
+  CHECK(approx(dynamics.hue_jitter, 0.20));
+  CHECK(approx(dynamics.saturation_jitter, 0.30));
+  CHECK(approx(dynamics.brightness_jitter, 0.40));
+  CHECK(approx(dynamics.purity, -0.25));
+  CHECK(!dynamics.color_per_tip);
+  CHECK(dynamics.wet_edges);
 }
 
 // Builds a legacy v1/v2 sampled-brush entry body (without the type/size prefix).

@@ -17,9 +17,10 @@ namespace patchy::ui {
 
 struct BrushTipEntry;
 
-// The dynamics editing form (Tip Shape / Shape Dynamics / Scattering / Transfer + Reset),
-// shared by the options-bar Dynamics popup and the Brush Tips manager's editor. Emits edited()
-// on every user change; hosts read the values back via the getters.
+// The dynamics editing form (Tip Shape / Shape Dynamics / Scattering / Transfer / texture /
+// dual brush / color / effects + Reset), shared by the options-bar Dynamics popup and the
+// Brush Tips manager's editor. Emits edited() on every user change; hosts read the values back
+// via the getters.
 class BrushDynamicsPanel : public QWidget {
   Q_OBJECT
 
@@ -72,6 +73,26 @@ private:
   QSpinBox* minimum_flow_spin_{nullptr};
   QComboBox* flow_control_combo_{nullptr};
   QSpinBox* flow_fade_steps_spin_{nullptr};
+  QCheckBox* texture_enabled_check_{nullptr};
+  QComboBox* texture_style_combo_{nullptr};
+  QSpinBox* texture_scale_spin_{nullptr};
+  QSpinBox* texture_depth_spin_{nullptr};
+  QCheckBox* texture_invert_check_{nullptr};
+  std::uint32_t texture_seed_{0x5A17C9E3U};  // imported/persisted, intentionally not user-edited
+  QCheckBox* dual_brush_enabled_check_{nullptr};
+  QSpinBox* dual_brush_size_spin_{nullptr};
+  QSpinBox* dual_brush_hardness_spin_{nullptr};
+  QSpinBox* dual_brush_spacing_spin_{nullptr};
+  QCheckBox* color_dynamics_enabled_check_{nullptr};
+  QSpinBox* foreground_background_jitter_spin_{nullptr};
+  QComboBox* color_control_combo_{nullptr};
+  QSpinBox* color_fade_steps_spin_{nullptr};
+  QSpinBox* hue_jitter_spin_{nullptr};
+  QSpinBox* saturation_jitter_spin_{nullptr};
+  QSpinBox* brightness_jitter_spin_{nullptr};
+  QSpinBox* purity_spin_{nullptr};
+  QCheckBox* color_per_tip_check_{nullptr};
+  QCheckBox* wet_edges_check_{nullptr};
   bool loading_{false};
 };
 

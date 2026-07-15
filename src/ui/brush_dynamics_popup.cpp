@@ -270,6 +270,88 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
       QStringLiteral("dynamicsFlowFadeStepsSpin"), false);
   layout->addWidget(transfer_group);
 
+  // Texture. The generated grain is intentionally static: scale/depth/invert are saved brush
+  // settings, never pen-input controls.
+  auto* texture_group = new QGroupBox(tr("Texture"), this);
+  auto* texture_grid = new QGridLayout(texture_group);
+  compact_group_grid(texture_grid);
+  texture_enabled_check_ = new QCheckBox(tr("Enable Texture"), this);
+  texture_enabled_check_->setObjectName(QStringLiteral("dynamicsTextureEnabledCheck"));
+  texture_grid->addWidget(texture_enabled_check_, 0, 0, 1, 2);
+  texture_grid->addWidget(new QLabel(tr("Grain:"), this), 1, 0);
+  texture_style_combo_ = new QComboBox(this);
+  texture_style_combo_->setObjectName(QStringLiteral("dynamicsTextureStyleCombo"));
+  texture_style_combo_->addItem(tr("Fine Grain"), static_cast<int>(patchy::BrushTextureStyle::FineGrain));
+  texture_style_combo_->addItem(tr("Canvas"), static_cast<int>(patchy::BrushTextureStyle::Canvas));
+  texture_style_combo_->addItem(tr("Speckle"), static_cast<int>(patchy::BrushTextureStyle::Speckle));
+  texture_grid->addWidget(texture_style_combo_, 1, 1, 1, 2);
+  texture_scale_spin_ = add_percent_row(texture_grid, 2, tr("Scale:"),
+                                        QStringLiteral("dynamicsTextureScaleSpin"), 1000);
+  texture_scale_spin_->setMinimum(1);
+  texture_depth_spin_ = add_percent_row(texture_grid, 3, tr("Depth:"),
+                                        QStringLiteral("dynamicsTextureDepthSpin"), 100);
+  texture_invert_check_ = new QCheckBox(tr("Invert Texture"), this);
+  texture_invert_check_->setObjectName(QStringLiteral("dynamicsTextureInvertCheck"));
+  texture_grid->addWidget(texture_invert_check_, 4, 0, 1, 2);
+  layout->addWidget(texture_group);
+
+  // Dual Brush: one fixed secondary computed mask.
+  auto* dual_group = new QGroupBox(tr("Dual Brush"), this);
+  auto* dual_grid = new QGridLayout(dual_group);
+  compact_group_grid(dual_grid);
+  dual_brush_enabled_check_ = new QCheckBox(tr("Enable Dual Brush"), this);
+  dual_brush_enabled_check_->setObjectName(QStringLiteral("dynamicsDualBrushEnabledCheck"));
+  dual_grid->addWidget(dual_brush_enabled_check_, 0, 0, 1, 2);
+  dual_brush_size_spin_ = add_percent_row(dual_grid, 1, tr("Secondary Size:"),
+                                          QStringLiteral("dynamicsDualBrushSizeSpin"), 400);
+  dual_brush_size_spin_->setMinimum(5);
+  dual_brush_hardness_spin_ = add_percent_row(dual_grid, 2, tr("Secondary Hardness:"),
+                                              QStringLiteral("dynamicsDualBrushHardnessSpin"), 100);
+  dual_brush_spacing_spin_ = add_percent_row(dual_grid, 3, tr("Secondary Spacing:"),
+                                             QStringLiteral("dynamicsDualBrushSpacingSpin"), 1000);
+  dual_brush_spacing_spin_->setMinimum(10);
+  layout->addWidget(dual_group);
+
+  // Color Dynamics and the independent Wet Edges coverage treatment.
+  auto* color_group = new QGroupBox(tr("Color Dynamics"), this);
+  auto* color_grid = new QGridLayout(color_group);
+  compact_group_grid(color_grid);
+  color_dynamics_enabled_check_ = new QCheckBox(tr("Enable Color Dynamics"), this);
+  color_dynamics_enabled_check_->setObjectName(QStringLiteral("dynamicsColorEnabledCheck"));
+  color_grid->addWidget(color_dynamics_enabled_check_, 0, 0, 1, 2);
+  foreground_background_jitter_spin_ = add_percent_row(
+      color_grid, 1, tr("Foreground/Background Jitter:"),
+      QStringLiteral("dynamicsColorForegroundBackgroundJitterSpin"), 100);
+  std::tie(color_control_combo_, color_fade_steps_spin_) = add_control_row(
+      color_grid, 2, tr("Color Control:"), QStringLiteral("dynamicsColorControlCombo"),
+      QStringLiteral("dynamicsColorFadeStepsSpin"), false);
+  hue_jitter_spin_ = add_percent_row(color_grid, 3, tr("Hue Jitter:"),
+                                     QStringLiteral("dynamicsColorHueJitterSpin"), 100);
+  saturation_jitter_spin_ = add_percent_row(color_grid, 4, tr("Saturation Jitter:"),
+                                            QStringLiteral("dynamicsColorSaturationJitterSpin"), 100);
+  brightness_jitter_spin_ = add_percent_row(color_grid, 5, tr("Brightness Jitter:"),
+                                            QStringLiteral("dynamicsColorBrightnessJitterSpin"), 100);
+  color_grid->addWidget(new QLabel(tr("Purity:"), this), 6, 0);
+  purity_spin_ = new QSpinBox(this);
+  purity_spin_->setObjectName(QStringLiteral("dynamicsColorPuritySpin"));
+  purity_spin_->setRange(-100, 100);
+  purity_spin_->setSuffix(QStringLiteral("%"));
+  color_grid->addWidget(purity_spin_, 6, 1, Qt::AlignLeft);
+  color_per_tip_check_ = new QCheckBox(tr("Apply Per Tip"), this);
+  color_per_tip_check_->setObjectName(QStringLiteral("dynamicsColorPerTipCheck"));
+  color_per_tip_check_->setChecked(true);
+  color_grid->addWidget(color_per_tip_check_, 7, 0, 1, 2);
+  layout->addWidget(color_group);
+
+  auto* effects_group = new QGroupBox(tr("Brush Effects"), this);
+  auto* effects_layout = new QVBoxLayout(effects_group);
+  wet_edges_check_ = new QCheckBox(tr("Wet Edges"), this);
+  wet_edges_check_->setObjectName(QStringLiteral("dynamicsWetEdgesCheck"));
+  wet_edges_check_->setToolTip(
+      tr("Darken the coverage edge without simulating fluid paint or canvas pickup"));
+  effects_layout->addWidget(wet_edges_check_);
+  layout->addWidget(effects_group);
+
   auto* footer = new QHBoxLayout();
   footer->addStretch(1);
   auto* reset_button = new QPushButton(tr("Reset"), this);
@@ -290,15 +372,20 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
         minimum_roundness_spin_, roundness_fade_steps_spin_, scatter_spin_, scatter_fade_steps_spin_,
         count_spin_, count_jitter_spin_, count_fade_steps_spin_, opacity_jitter_spin_,
         minimum_opacity_spin_, opacity_fade_steps_spin_, flow_jitter_spin_, minimum_flow_spin_,
-        flow_fade_steps_spin_}) {
+        flow_fade_steps_spin_, texture_scale_spin_, texture_depth_spin_, dual_brush_size_spin_,
+        dual_brush_hardness_spin_, dual_brush_spacing_spin_,
+        foreground_background_jitter_spin_, color_fade_steps_spin_, hue_jitter_spin_,
+        saturation_jitter_spin_, brightness_jitter_spin_, purity_spin_}) {
     connect(spin, qOverload<int>(&QSpinBox::valueChanged), this, emit_edited);
   }
   for (auto* combo : {angle_control_combo_, size_control_combo_, roundness_control_combo_,
                       scatter_control_combo_, count_control_combo_, opacity_control_combo_,
-                      flow_control_combo_}) {
+                      flow_control_combo_, texture_style_combo_, color_control_combo_}) {
     connect(combo, &QComboBox::currentIndexChanged, this, emit_edited);
   }
-  for (auto* check : {flip_x_check_, flip_y_check_, both_axes_check_}) {
+  for (auto* check : {flip_x_check_, flip_y_check_, both_axes_check_, texture_enabled_check_,
+                      texture_invert_check_, dual_brush_enabled_check_,
+                      color_dynamics_enabled_check_, color_per_tip_check_, wet_edges_check_}) {
     connect(check, &QCheckBox::toggled, this, emit_edited);
   }
   refresh_control_dependent_widgets();
@@ -344,6 +431,28 @@ void BrushDynamicsPanel::set_values(const patchy::BrushDynamics& dynamics, doubl
   minimum_flow_spin_->setValue(percent_from_fraction(dynamics.minimum_flow));
   select_combo_control(*flow_control_combo_, dynamics.flow_control);
   flow_fade_steps_spin_->setValue(std::clamp(dynamics.flow_fade_steps, 1, 9999));
+  texture_enabled_check_->setChecked(dynamics.texture_enabled);
+  select_combo_control(*color_control_combo_, dynamics.color_control);
+  texture_style_combo_->setCurrentIndex(std::max(
+      0, texture_style_combo_->findData(static_cast<int>(dynamics.texture_style))));
+  texture_scale_spin_->setValue(percent_from_fraction(dynamics.texture_scale));
+  texture_depth_spin_->setValue(percent_from_fraction(dynamics.texture_depth));
+  texture_invert_check_->setChecked(dynamics.texture_invert);
+  texture_seed_ = dynamics.texture_seed;
+  dual_brush_enabled_check_->setChecked(dynamics.dual_brush_enabled);
+  dual_brush_size_spin_->setValue(percent_from_fraction(dynamics.dual_brush_size));
+  dual_brush_hardness_spin_->setValue(percent_from_fraction(dynamics.dual_brush_hardness));
+  dual_brush_spacing_spin_->setValue(percent_from_fraction(dynamics.dual_brush_spacing));
+  color_dynamics_enabled_check_->setChecked(dynamics.color_dynamics_enabled);
+  foreground_background_jitter_spin_->setValue(
+      percent_from_fraction(dynamics.foreground_background_jitter));
+  color_fade_steps_spin_->setValue(std::clamp(dynamics.color_fade_steps, 1, 9999));
+  hue_jitter_spin_->setValue(percent_from_fraction(dynamics.hue_jitter));
+  saturation_jitter_spin_->setValue(percent_from_fraction(dynamics.saturation_jitter));
+  brightness_jitter_spin_->setValue(percent_from_fraction(dynamics.brightness_jitter));
+  purity_spin_->setValue(static_cast<int>(std::lround(dynamics.purity * 100.0)));
+  color_per_tip_check_->setChecked(dynamics.color_per_tip);
+  wet_edges_check_->setChecked(dynamics.wet_edges);
   refresh_control_dependent_widgets();
   loading_ = false;
 }
@@ -381,6 +490,28 @@ patchy::BrushDynamics BrushDynamicsPanel::dynamics() const {
   dynamics.minimum_flow = fraction_from_percent(minimum_flow_spin_->value());
   dynamics.flow_control = combo_control(*flow_control_combo_);
   dynamics.flow_fade_steps = flow_fade_steps_spin_->value();
+  dynamics.texture_enabled = texture_enabled_check_->isChecked();
+  dynamics.texture_style = static_cast<patchy::BrushTextureStyle>(
+      texture_style_combo_->currentData().toInt());
+  dynamics.texture_scale = fraction_from_percent(texture_scale_spin_->value());
+  dynamics.texture_depth = fraction_from_percent(texture_depth_spin_->value());
+  dynamics.texture_invert = texture_invert_check_->isChecked();
+  dynamics.texture_seed = texture_seed_;
+  dynamics.dual_brush_enabled = dual_brush_enabled_check_->isChecked();
+  dynamics.dual_brush_size = fraction_from_percent(dual_brush_size_spin_->value());
+  dynamics.dual_brush_hardness = fraction_from_percent(dual_brush_hardness_spin_->value());
+  dynamics.dual_brush_spacing = fraction_from_percent(dual_brush_spacing_spin_->value());
+  dynamics.color_dynamics_enabled = color_dynamics_enabled_check_->isChecked();
+  dynamics.foreground_background_jitter =
+      fraction_from_percent(foreground_background_jitter_spin_->value());
+  dynamics.color_control = combo_control(*color_control_combo_);
+  dynamics.color_fade_steps = color_fade_steps_spin_->value();
+  dynamics.hue_jitter = fraction_from_percent(hue_jitter_spin_->value());
+  dynamics.saturation_jitter = fraction_from_percent(saturation_jitter_spin_->value());
+  dynamics.brightness_jitter = fraction_from_percent(brightness_jitter_spin_->value());
+  dynamics.purity = fraction_from_percent(purity_spin_->value());
+  dynamics.color_per_tip = color_per_tip_check_->isChecked();
+  dynamics.wet_edges = wet_edges_check_->isChecked();
   return dynamics;
 }
 
@@ -394,6 +525,7 @@ void BrushDynamicsPanel::refresh_control_dependent_widgets() {
       {count_control_combo_, count_fade_steps_spin_},
       {opacity_control_combo_, opacity_fade_steps_spin_},
       {flow_control_combo_, flow_fade_steps_spin_},
+      {color_control_combo_, color_fade_steps_spin_},
   };
   for (const auto& [combo, fade_spin] : control_rows) {
     fade_spin->setVisible(combo_control(*combo) == patchy::BrushDynamicControl::Fade);
@@ -409,6 +541,19 @@ void BrushDynamicsPanel::refresh_control_dependent_widgets() {
   if (auto* slider = findChild<QSlider*>(QStringLiteral("dynamicsMinimumFlowSpinSlider"))) {
     slider->setEnabled(minimum_flow_live);
   }
+  const auto set_group_enabled = [this](const QString& prefix, bool enabled) {
+    const auto children = findChildren<QWidget*>();
+    for (auto* child : children) {
+      if (child->objectName().startsWith(prefix) &&
+          child != texture_enabled_check_ && child != dual_brush_enabled_check_ &&
+          child != color_dynamics_enabled_check_) {
+        child->setEnabled(enabled);
+      }
+    }
+  };
+  set_group_enabled(QStringLiteral("dynamicsTexture"), texture_enabled_check_->isChecked());
+  set_group_enabled(QStringLiteral("dynamicsDualBrush"), dual_brush_enabled_check_->isChecked());
+  set_group_enabled(QStringLiteral("dynamicsColor"), color_dynamics_enabled_check_->isChecked());
 }
 
 double BrushDynamicsPanel::base_angle_degrees() const {
@@ -436,9 +581,9 @@ BrushDynamicsButton::BrushDynamicsButton(QWidget* parent) : QToolButton(parent) 
 void BrushDynamicsButton::retranslate() {
   setText(tr("Dynamics"));
   setToolTip(round_session_
-                 ? tr("Shape dynamics, scattering, and Transfer for the Round brush "
+                 ? tr("Brush dynamics and effects for the Round brush "
                       "(this session only; resets on the next launch)")
-                 : tr("Shape dynamics, scattering, and Transfer for the active brush tip"));
+                 : tr("Brush dynamics and effects for the active brush tip"));
 }
 
 void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {

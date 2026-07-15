@@ -97,6 +97,34 @@ using patchy::test::solid_rgba;
 using patchy::test::tool_options;
 using patchy::test::write_bmp_artifact;
 
+patchy::ScaledBrushTip make_solid_scaled_tip(std::int32_t size) {
+  patchy::BrushTip tip;
+  tip.width = size;
+  tip.height = size;
+  tip.mask.assign(static_cast<std::size_t>(size) * static_cast<std::size_t>(size), 255U);
+  return patchy::make_scaled_brush_tip(patchy::build_brush_tip_mips(tip), size);
+}
+
+std::vector<std::uint8_t> render_effect_dab(const patchy::ScaledBrushTip& tip,
+                                            const patchy::BrushDynamics& dynamics,
+                                            patchy::EditColor primary = {220, 20, 40, 255},
+                                            patchy::EditColor secondary = {255, 255, 255, 255}) {
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+  auto options = tool_options(primary.r, primary.g, primary.b);
+  options.primary = primary;
+  options.secondary = secondary;
+  options.brush_size = tip.width;
+  options.brush_tip = &tip;
+  options.brush_dynamics = dynamics;
+  patchy::BrushTipStrokeState state;
+  CHECK(!patchy::paint_brush_segment(document, layer_id, 24.0, 24.0, 24.0, 24.0, options,
+                                     false, state)
+             .empty());
+  const auto data = std::as_const(*document.find_layer(layer_id)).pixels().data();
+  return {data.begin(), data.end()};
+}
+
 void tool_brush_draws_color_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -432,6 +460,14 @@ void brush_dynamics_activation_gates_fields() {
   // ...but scatter/count controls are inert until scatter/count themselves are non-default.
   CHECK(!patchy::BrushDynamics{.scatter_control = patchy::BrushDynamicControl::PenPressure}.active());
   CHECK(!patchy::BrushDynamics{.count_control = patchy::BrushDynamicControl::Fade}.active());
+  CHECK(patchy::BrushDynamics{.texture_enabled = true}.active());
+  CHECK((!patchy::BrushDynamics{.texture_enabled = true, .texture_depth = 0.0}.active()));
+  CHECK(patchy::BrushDynamics{.dual_brush_enabled = true}.active());
+  CHECK((patchy::BrushDynamics{.color_dynamics_enabled = true,
+                               .foreground_background_jitter = 0.1}
+             .active()));
+  CHECK(!patchy::BrushDynamics{.color_dynamics_enabled = true}.active());
+  CHECK(patchy::BrushDynamics{.wet_edges = true}.active());
 }
 
 void brush_dynamics_control_values() {
@@ -691,6 +727,154 @@ void tool_brush_tip_inactive_dynamics_change_nothing() {
       CHECK(plain.pixel(x, y)[3] == seeded.pixel(x, y)[3]);
     }
   }
+}
+
+void tool_brush_texture_dual_and_wet_edges_render_deterministically() {
+  const auto tip = make_solid_scaled_tip(21);
+  const auto plain = render_effect_dab(tip, {});
+
+  patchy::BrushDynamics texture;
+  texture.texture_enabled = true;
+  texture.texture_style = patchy::BrushTextureStyle::Speckle;
+  texture.texture_scale = 0.8;
+  texture.texture_depth = 1.0;
+  texture.texture_seed = 0x12345678U;
+  const auto textured = render_effect_dab(tip, texture);
+  CHECK(textured != plain);
+  CHECK(render_effect_dab(tip, texture) == textured);
+  texture.texture_seed ^= 0x00ABCDEFU;
+  CHECK(render_effect_dab(tip, texture) != textured);
+
+  patchy::BrushDynamics dual;
+  dual.dual_brush_enabled = true;
+  dual.dual_brush_size = 0.25;
+  dual.dual_brush_hardness = 1.0;
+  dual.dual_brush_spacing = 2.0;
+  const auto dual_pixels = render_effect_dab(tip, dual);
+  CHECK(dual_pixels != plain);
+  const auto painted_alpha_count = [](const std::vector<std::uint8_t>& bytes) {
+    std::size_t count = 0;
+    for (std::size_t offset = 3; offset < bytes.size(); offset += 4U) {
+      count += bytes[offset] > 0U ? 1U : 0U;
+    }
+    return count;
+  };
+  CHECK(painted_alpha_count(dual_pixels) < painted_alpha_count(plain));
+
+  patchy::BrushDynamics wet;
+  wet.wet_edges = true;
+  const auto wet_pixels = render_effect_dab(tip, wet);
+  CHECK(wet_pixels != plain);
+  const auto center_alpha = wet_pixels[(24U * 64U + 24U) * 4U + 3U];
+  std::uint8_t maximum_alpha = 0;
+  for (std::size_t offset = 3; offset < wet_pixels.size(); offset += 4U) {
+    maximum_alpha = std::max(maximum_alpha, wet_pixels[offset]);
+  }
+  CHECK(center_alpha < maximum_alpha);  // coverage is redistributed toward the stamp edge
+}
+
+void tool_brush_color_dynamics_varies_selected_colors_only() {
+  const auto tip = make_solid_scaled_tip(5);
+  patchy::BrushDynamics dynamics;
+  dynamics.color_dynamics_enabled = true;
+  dynamics.foreground_background_jitter = 1.0;
+  dynamics.hue_jitter = 0.08;
+  dynamics.seed = 0xC0104U;
+
+  const patchy::EditColor foreground{255, 0, 0, 255};
+  const patchy::EditColor background{0, 0, 255, 255};
+  const auto first = render_effect_dab(tip, dynamics, foreground, background);
+  CHECK(render_effect_dab(tip, dynamics, foreground, background) == first);
+  const auto center = (24U * 64U + 24U) * 4U;
+  CHECK(first[center + 3U] == 255U);
+  CHECK(first[center] != foreground.r || first[center + 1U] != foreground.g ||
+        first[center + 2U] != foreground.b);
+
+  // The UI installs a stroke compositor callback. Its contract must receive the varied dab
+  // color rather than the stroke's captured foreground color.
+  auto writer_document = make_tool_document();
+  const auto writer_layer = active_tool_layer(writer_document);
+  auto writer_options = tool_options(foreground.r, foreground.g, foreground.b);
+  writer_options.primary = foreground;
+  writer_options.secondary = background;
+  writer_options.brush_size = tip.width;
+  writer_options.brush_tip = &tip;
+  writer_options.brush_dynamics = dynamics;
+  patchy::EditColor callback_color{};
+  writer_options.stroke_pixel_writer =
+      [&callback_color](std::int32_t, std::int32_t, std::uint8_t* pixel,
+                        std::uint16_t channels, float, const patchy::EditColor& dab_primary) {
+        callback_color = dab_primary;
+        pixel[0] = dab_primary.r;
+        pixel[1] = dab_primary.g;
+        pixel[2] = dab_primary.b;
+        if (channels >= 4U) {
+          pixel[3] = dab_primary.a;
+        }
+        return true;
+      };
+  patchy::BrushTipStrokeState writer_state;
+  CHECK(!patchy::paint_brush_segment(writer_document, writer_layer, 24.0, 24.0, 24.0, 24.0,
+                                     writer_options, false, writer_state)
+             .empty());
+  CHECK(callback_color.r == first[center]);
+  CHECK(callback_color.g == first[center + 1U]);
+  CHECK(callback_color.b == first[center + 2U]);
+
+  // "Apply Per Tip" samples each dab; disabling it samples once and reuses the same selected
+  // foreground/background variation for the stroke.
+  patchy::BrushDynamicsRng rng;
+  patchy::BrushDynamicsStrokeContext context;
+  rng.seed(dynamics.seed);
+  dynamics.color_per_tip = false;
+  const auto stroke_first = patchy::sample_dab_variation(dynamics, rng, context, 5);
+  const auto stroke_second = patchy::sample_dab_variation(dynamics, rng, context, 5);
+  CHECK(stroke_first.foreground_background_mix == stroke_second.foreground_background_mix);
+  CHECK(stroke_first.hue_shift == stroke_second.hue_shift);
+  dynamics.color_per_tip = true;
+  context = {};
+  rng.seed(dynamics.seed);
+  const auto tip_first = patchy::sample_dab_variation(dynamics, rng, context, 5);
+  const auto tip_second = patchy::sample_dab_variation(dynamics, rng, context, 5);
+  CHECK(tip_first.foreground_background_mix != tip_second.foreground_background_mix ||
+        tip_first.hue_shift != tip_second.hue_shift);
+}
+
+void tool_brush_effect_pixels_round_trip_exactly_through_psd() {
+  const auto tip = make_solid_scaled_tip(17);
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+  auto options = tool_options(245, 35, 20);
+  options.secondary = {15, 80, 240, 255};
+  options.brush_size = tip.width;
+  options.brush_tip = &tip;
+  options.brush_tip_spacing = 0.5;
+  options.brush_dynamics.texture_enabled = true;
+  options.brush_dynamics.texture_style = patchy::BrushTextureStyle::Canvas;
+  options.brush_dynamics.texture_depth = 0.6;
+  options.brush_dynamics.dual_brush_enabled = true;
+  options.brush_dynamics.dual_brush_size = 0.3;
+  options.brush_dynamics.dual_brush_spacing = 1.5;
+  options.brush_dynamics.color_dynamics_enabled = true;
+  options.brush_dynamics.foreground_background_jitter = 0.8;
+  options.brush_dynamics.wet_edges = true;
+  options.brush_dynamics.seed = 0xB205D5U;
+  patchy::BrushTipStrokeState state;
+  CHECK(!patchy::paint_brush_segment(document, layer_id, 12.0, 24.0, 52.0, 24.0, options,
+                                     false, state)
+             .empty());
+
+  const auto* painted = document.find_layer(layer_id);
+  CHECK(painted != nullptr);
+  const auto expected_span = std::as_const(*painted).pixels().data();
+  const std::vector<std::uint8_t> expected_pixels(expected_span.begin(), expected_span.end());
+  const auto reread =
+      patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* reopened = patchy::test::find_layer_named(reread.layers(), "Paint");
+  CHECK(reopened != nullptr);
+  const auto reopened_pixels = std::as_const(*reopened).pixels().data();
+  CHECK(std::vector<std::uint8_t>(reopened_pixels.begin(), reopened_pixels.end()) ==
+        expected_pixels);
 }
 
 void tool_brush_tip_size_jitter_shrinks_dabs_deterministically() {
@@ -1415,6 +1599,12 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
       {"tool_brush_tip_size_control_pressure_scales_dabs", tool_brush_tip_size_control_pressure_scales_dabs},
       {"tool_brush_tip_opacity_control_respects_minimum", tool_brush_tip_opacity_control_respects_minimum},
       {"tool_brush_tip_inactive_dynamics_change_nothing", tool_brush_tip_inactive_dynamics_change_nothing},
+      {"tool_brush_texture_dual_and_wet_edges_render_deterministically",
+       tool_brush_texture_dual_and_wet_edges_render_deterministically},
+      {"tool_brush_color_dynamics_varies_selected_colors_only",
+       tool_brush_color_dynamics_varies_selected_colors_only},
+      {"tool_brush_effect_pixels_round_trip_exactly_through_psd",
+       tool_brush_effect_pixels_round_trip_exactly_through_psd},
       {"tool_brush_tip_size_jitter_shrinks_dabs_deterministically",
        tool_brush_tip_size_jitter_shrinks_dabs_deterministically},
       {"tool_brush_tip_angle_direction_follows_stroke", tool_brush_tip_angle_direction_follows_stroke},

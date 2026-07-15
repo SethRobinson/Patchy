@@ -1460,7 +1460,7 @@ void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool er
       options.stroke_pixel_writer =
           [this, tile, origin, width, height, source_alpha, secondary, lock_transparent_pixels,
            palette_snap](std::int32_t x, std::int32_t y, std::uint8_t* pixel,
-                         std::uint16_t channels, float coverage) {
+                         std::uint16_t channels, float coverage, const EditColor&) {
             const auto* source = tile.pixel(positive_modulo(x - origin.x(), width),
                                             positive_modulo(y - origin.y(), height));
             const auto alpha = std::clamp(
@@ -1482,10 +1482,11 @@ void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool er
     return found == brush_stroke_accumulated_alpha_.end() || found->second < source_alpha - 0.0005F;
   };
   const auto* palette_snap = options.palette_snap;
-  options.stroke_pixel_writer = [this, primary, secondary, lock_transparent_pixels, erase, palette_snap](
+  options.stroke_pixel_writer = [this, secondary, lock_transparent_pixels, erase, palette_snap](
                                     std::int32_t x, std::int32_t y, std::uint8_t* pixel,
-                                    std::uint16_t channels, float coverage) {
-    return write_brush_stroke_pixel_from_snapshot(x, y, pixel, channels, primary, secondary,
+                                    std::uint16_t channels, float coverage,
+                                    const EditColor& dab_primary) {
+    return write_brush_stroke_pixel_from_snapshot(x, y, pixel, channels, dab_primary, secondary,
                                                   lock_transparent_pixels, coverage, erase, palette_snap);
   };
 }

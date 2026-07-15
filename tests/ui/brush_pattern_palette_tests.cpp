@@ -643,6 +643,20 @@ void ui_default_brush_tips_carry_curated_dynamics() {
     CHECK(rain->dynamics.angle_control == patchy::BrushDynamicControl::Off);
     CHECK(rain->dynamics.angle_jitter == 0.0);  // streaks must stay parallel
     CHECK(std::abs(rain->dynamics.scatter - 2.50) < 1e-9);
+    const auto* textured_chalk = entry_named(QStringLiteral("Textured Chalk"));
+    CHECK(textured_chalk != nullptr);
+    CHECK(textured_chalk->dynamics.texture_enabled);
+    CHECK(textured_chalk->dynamics.texture_style == patchy::BrushTextureStyle::FineGrain);
+    const auto* dual_dots = entry_named(QStringLiteral("Dual Brush Dots"));
+    CHECK(dual_dots != nullptr);
+    CHECK(dual_dots->dynamics.dual_brush_enabled);
+    const auto* color_scatter = entry_named(QStringLiteral("Color Scatter"));
+    CHECK(color_scatter != nullptr);
+    CHECK(color_scatter->dynamics.color_dynamics_enabled);
+    CHECK(std::abs(color_scatter->dynamics.foreground_background_jitter - 0.70) < 1e-9);
+    const auto* wet_wash = entry_named(QStringLiteral("Wet Edge Wash"));
+    CHECK(wet_wash != nullptr);
+    CHECK(wet_wash->dynamics.wet_edges);
 
     // Prepare the migration scenario: one default tip "reset" to no dynamics (pre-dynamics
     // install state) and one customized by the user.
@@ -676,7 +690,7 @@ void ui_default_brush_tips_carry_curated_dynamics() {
     CHECK(custom != nullptr);
     CHECK(std::abs(custom->dynamics.scatter - 9.5) < 1e-9);
     CHECK(custom->dynamics.count == 7);
-    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 3);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 4);
 
     // "Restore Default Brushes" also un-messes customized defaults: spacing, tip shape, and
     // dynamics all reset to factory (the migration above deliberately left them alone).
@@ -790,6 +804,9 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   auto& library = window.brush_tip_library();
   const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
   CHECK(!tip_id.isEmpty());
+  patchy::BrushDynamics seeded_dynamics;
+  seeded_dynamics.texture_seed = 0x13579BDFU;
+  CHECK(library.set_tip_dynamics(tip_id, seeded_dynamics, 0.0, 100.0));
   window.set_active_brush_tip(tip_id, false);
 
   auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
@@ -812,6 +829,31 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   popup->findChild<QSpinBox*>(QStringLiteral("dynamicsBaseAngleSpin"))->setValue(30);
   popup->findChild<QSpinBox*>(QStringLiteral("dynamicsOpacityJitterSpin"))->setValue(25);
   popup->findChild<QSpinBox*>(QStringLiteral("dynamicsFlowJitterSpin"))->setValue(35);
+  auto* texture_enabled =
+      popup->findChild<QCheckBox*>(QStringLiteral("dynamicsTextureEnabledCheck"));
+  auto* texture_style =
+      popup->findChild<QComboBox*>(QStringLiteral("dynamicsTextureStyleCombo"));
+  CHECK(texture_enabled != nullptr);
+  CHECK(texture_style != nullptr);
+  texture_enabled->setChecked(true);
+  texture_style->setCurrentIndex(
+      texture_style->findData(static_cast<int>(patchy::BrushTextureStyle::Canvas)));
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsTextureScaleSpin"))->setValue(175);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsTextureDepthSpin"))->setValue(65);
+  popup->findChild<QCheckBox*>(QStringLiteral("dynamicsTextureInvertCheck"))->setChecked(true);
+  popup->findChild<QCheckBox*>(QStringLiteral("dynamicsDualBrushEnabledCheck"))->setChecked(true);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsDualBrushSizeSpin"))->setValue(35);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsDualBrushHardnessSpin"))->setValue(70);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsDualBrushSpacingSpin"))->setValue(125);
+  popup->findChild<QCheckBox*>(QStringLiteral("dynamicsColorEnabledCheck"))->setChecked(true);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsColorForegroundBackgroundJitterSpin"))
+      ->setValue(60);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsColorHueJitterSpin"))->setValue(15);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsColorSaturationJitterSpin"))->setValue(25);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsColorBrightnessJitterSpin"))->setValue(10);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsColorPuritySpin"))->setValue(-20);
+  popup->findChild<QCheckBox*>(QStringLiteral("dynamicsColorPerTipCheck"))->setChecked(false);
+  popup->findChild<QCheckBox*>(QStringLiteral("dynamicsWetEdgesCheck"))->setChecked(true);
   QApplication::processEvents();
   save_widget_artifact("ui_brush_dynamics_popup", *popup);
   auto* scroll_area = popup->findChild<QScrollArea*>();
@@ -829,6 +871,24 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   CHECK(dynamics.angle_control == patchy::BrushDynamicControl::Direction);
   CHECK(std::abs(dynamics.opacity_jitter - 0.25) < 1e-9);
   CHECK(std::abs(dynamics.flow_jitter - 0.35) < 1e-9);
+  CHECK(dynamics.texture_enabled);
+  CHECK(dynamics.texture_style == patchy::BrushTextureStyle::Canvas);
+  CHECK(std::abs(dynamics.texture_scale - 1.75) < 1e-9);
+  CHECK(std::abs(dynamics.texture_depth - 0.65) < 1e-9);
+  CHECK(dynamics.texture_invert);
+  CHECK(dynamics.texture_seed == 0x13579BDFU);  // hidden imported identity survives UI edits
+  CHECK(dynamics.dual_brush_enabled);
+  CHECK(std::abs(dynamics.dual_brush_size - 0.35) < 1e-9);
+  CHECK(std::abs(dynamics.dual_brush_hardness - 0.70) < 1e-9);
+  CHECK(std::abs(dynamics.dual_brush_spacing - 1.25) < 1e-9);
+  CHECK(dynamics.color_dynamics_enabled);
+  CHECK(std::abs(dynamics.foreground_background_jitter - 0.60) < 1e-9);
+  CHECK(std::abs(dynamics.hue_jitter - 0.15) < 1e-9);
+  CHECK(std::abs(dynamics.saturation_jitter - 0.25) < 1e-9);
+  CHECK(std::abs(dynamics.brightness_jitter - 0.10) < 1e-9);
+  CHECK(std::abs(dynamics.purity + 0.20) < 1e-9);
+  CHECK(!dynamics.color_per_tip);
+  CHECK(dynamics.wet_edges);
   CHECK(std::abs(canvas->brush_base_angle_degrees() - 30.0) < 1e-9);
 
   // The edit persisted to the tip's sidecar on disk.
@@ -842,6 +902,14 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   CHECK(dynamics_json.value(QStringLiteral("angleControl")).toString() == QStringLiteral("direction"));
   CHECK(dynamics_json.value(QStringLiteral("count")).toInt() == 3);
   CHECK(std::abs(dynamics_json.value(QStringLiteral("flowJitter")).toDouble() - 0.35) < 1e-9);
+  CHECK(dynamics_json.value(QStringLiteral("textureEnabled")).toBool());
+  CHECK(dynamics_json.value(QStringLiteral("textureStyle")).toString() == QStringLiteral("canvas"));
+  CHECK(dynamics_json.value(QStringLiteral("textureSeed")).toDouble() ==
+        static_cast<double>(0x13579BDFU));
+  CHECK(dynamics_json.value(QStringLiteral("dualBrushEnabled")).toBool());
+  CHECK(dynamics_json.value(QStringLiteral("colorDynamicsEnabled")).toBool());
+  CHECK(!dynamics_json.value(QStringLiteral("colorPerTip")).toBool(true));
+  CHECK(dynamics_json.value(QStringLiteral("wetEdges")).toBool());
 
   // A fresh library over the same storage reads the identical dynamics (sidecar round trip);
   // a legacy sidecar without the new keys reads as defaults.
@@ -852,6 +920,13 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   CHECK(reloaded->dynamics.count == 3);
   CHECK(reloaded->dynamics.angle_control == patchy::BrushDynamicControl::Direction);
   CHECK(std::abs(reloaded->dynamics.flow_jitter - 0.35) < 1e-9);
+  CHECK(reloaded->dynamics.texture_enabled);
+  CHECK(reloaded->dynamics.texture_style == patchy::BrushTextureStyle::Canvas);
+  CHECK(reloaded->dynamics.texture_seed == 0x13579BDFU);
+  CHECK(reloaded->dynamics.dual_brush_enabled);
+  CHECK(reloaded->dynamics.color_dynamics_enabled);
+  CHECK(!reloaded->dynamics.color_per_tip);
+  CHECK(reloaded->dynamics.wet_edges);
   CHECK(std::abs(reloaded->base_angle_degrees - 30.0) < 1e-9);
   const auto legacy_id = second.add_tip(QStringLiteral("Legacy"), make_bar_tip_image(), 0.25);
   const auto* legacy = second.find_entry(legacy_id);
@@ -1062,6 +1137,55 @@ void ui_brush_dynamics_stroke_scatters_with_seed() {
   }
   CHECK(off_line_dark > 5);
   save_widget_artifact("ui_brush_dynamics_scatter_stroke", *canvas);
+  canvas->set_brush_dynamics_test_seed(std::nullopt);
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_color_dynamics_reaches_stroke_compositor() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+
+  QImage solid(16, 16, QImage::Format_Grayscale8);
+  solid.fill(255);
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Color Dynamics Probe"), solid, 1.5);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  canvas->set_primary_color(QColor(255, 0, 0));
+  canvas->set_secondary_color(QColor(0, 0, 255));
+  canvas->set_brush_size(16);
+  canvas->set_brush_softness(0);
+  patchy::BrushDynamics dynamics;
+  dynamics.color_dynamics_enabled = true;
+  dynamics.foreground_background_jitter = 1.0;
+  canvas->set_brush_dynamics(dynamics);
+  canvas->set_brush_dynamics_test_seed(0xC0104U);
+
+  const auto from = canvas->widget_position_for_document_point(QPoint(300, 200));
+  const auto to = canvas->widget_position_for_document_point(QPoint(500, 200));
+  drag(*canvas, from, to);
+  QApplication::processEvents();
+
+  const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  int mixed_pixels = 0;
+  for (int y = 185; y <= 215; ++y) {
+    for (int x = 285; x <= 515; ++x) {
+      const auto point = canvas->widget_position_for_document_point(QPoint(x, y));
+      if (!image.rect().contains(point)) {
+        continue;
+      }
+      const auto color = QColor(image.pixel(point));
+      if (color.red() > 20 && color.blue() > 20 && color.green() < 40) {
+        ++mixed_pixels;
+      }
+    }
+  }
+  CHECK(mixed_pixels > 100);  // not the captured all-red stroke-start color
+  save_widget_artifact("ui_brush_color_dynamics_stroke", *canvas);
   canvas->set_brush_dynamics_test_seed(std::nullopt);
   clear_brush_tip_test_state();
 }
@@ -2862,7 +2986,7 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
   show_window(window);
   auto& library = window.brush_tip_library();
   const auto specs = patchy::ui::generate_default_brush_tips();
-  CHECK(specs.size() == 36);
+  CHECK(specs.size() == 40);
   CHECK(library.entries().size() == specs.size());
   const auto folder = patchy::ui::default_brush_tips_folder_name();
   for (const auto& entry : library.entries()) {
@@ -2947,6 +3071,8 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
     options.brush_size = brush_size;
     options.brush_tip = &scaled;
     options.brush_tip_spacing = spec.spacing;
+    options.brush_dynamics = spec.dynamics;
+    options.brush_dynamics.seed = 0xD3FA017U;
     // Matches the app's stroke behavior at full opacity: overlapping dabs accumulate toward
     // solid coverage (CanvasWidget's stroke compositor), so no per-pixel gate is needed here —
     // plain source-over dab compositing produces the same result.
@@ -2972,7 +3098,9 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
         painted += row.data()[static_cast<std::size_t>(x) * 4U + 3U] > 0U ? 1 : 0;
       }
     }
-    CHECK(painted > 200);  // every default tip must lay down real coverage
+    // Dynamic scatter can place most of a sparse tip outside this deliberately small preview;
+    // static tips retain the stronger historical coverage check.
+    CHECK(painted > (spec.dynamics.active() ? 20 : 200));
     painter.drawImage(cell_x, cell_y, stroke);
     painter.setPen(Qt::black);
     painter.drawText(QRect(cell_x + 6, cell_y + 4, 110, 40), Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
@@ -2984,14 +3112,18 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
   ensure_artifact_dir();
   CHECK(sheet.save(QStringLiteral("test-artifacts/ui_default_brush_tips_sheet.png")));
 
-  // since_version filtering: a v2 install only gains the v3 additions on upgrade; the
+  // since_version filtering: a v2 install gains the v3 and v4 additions on upgrade; the
   // parameterless overload (the manager's Restore button) still restores everything missing.
   {
     patchy::ui::BrushTipLibrary versioned(brush_tip_test_storage_dir() + QStringLiteral("/v2-upgrade"));
-    CHECK(versioned.restore_default_tips(2) == 20);  // only the v3 tips seed
+    CHECK(versioned.restore_default_tips(2) == 24);  // v3 stamps plus v4 effect presets seed
     CHECK(versioned.restore_default_tips(2) == 0);   // idempotent
     CHECK(versioned.restore_default_tips() == 16);   // explicit restore brings back the originals
     CHECK(versioned.entries().size() == specs.size());
+  }
+  {
+    patchy::ui::BrushTipLibrary versioned(brush_tip_test_storage_dir() + QStringLiteral("/v3-upgrade"));
+    CHECK(versioned.restore_default_tips(3) == 4);  // only the v4 effect presets seed
   }
 
   // Upgrade end-to-end: simulate a v2 install that deleted an original default ("Chalk") and
@@ -3029,7 +3161,7 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
     CHECK(!has_chalk);      // the deliberate deletion is respected across the upgrade
     CHECK(has_snowflake);   // the tip introduced after v2 is seeded
     CHECK(upgraded.entries().size() == specs.size() - 1);
-    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 3);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 4);
   }
 
   // A stale MASK (a tip seeded before a generator artwork fix) also heals via the factory
@@ -3205,6 +3337,8 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests() {
       {"ui_brush_dynamics_popup_control_edits_persist", ui_brush_dynamics_popup_control_edits_persist},
       {"ui_brush_dynamics_button_toggles_popup_closed", ui_brush_dynamics_button_toggles_popup_closed},
       {"ui_brush_dynamics_stroke_scatters_with_seed", ui_brush_dynamics_stroke_scatters_with_seed},
+      {"ui_brush_color_dynamics_reaches_stroke_compositor",
+       ui_brush_color_dynamics_reaches_stroke_compositor},
       {"ui_brush_dynamics_abr_import_carries_dynamics", ui_brush_dynamics_abr_import_carries_dynamics},
       {"ui_default_brush_tips_seed_once_and_render_sheet", ui_default_brush_tips_seed_once_and_render_sheet},
       {"ui_brush_tip_resets_to_round_on_startup", ui_brush_tip_resets_to_round_on_startup},

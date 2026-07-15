@@ -13,6 +13,7 @@
 #include <QUuid>
 
 #include <algorithm>
+#include <limits>
 #include <span>
 #include <utility>
 
@@ -75,6 +76,21 @@ constexpr std::size_t kTipCacheLimit = 16;
 
 [[nodiscard]] double clamp_fraction(double value) {
   return std::clamp(value, 0.0, 1.0);
+}
+
+[[nodiscard]] QString texture_style_token(patchy::BrushTextureStyle style) {
+  switch (style) {
+    case patchy::BrushTextureStyle::Canvas: return QStringLiteral("canvas");
+    case patchy::BrushTextureStyle::Speckle: return QStringLiteral("speckle");
+    case patchy::BrushTextureStyle::FineGrain: break;
+  }
+  return QStringLiteral("fineGrain");
+}
+
+[[nodiscard]] patchy::BrushTextureStyle texture_style_from_token(const QString& token) {
+  if (token == QStringLiteral("canvas")) return patchy::BrushTextureStyle::Canvas;
+  if (token == QStringLiteral("speckle")) return patchy::BrushTextureStyle::Speckle;
+  return patchy::BrushTextureStyle::FineGrain;
 }
 
 [[nodiscard]] QString default_storage_dir() {
@@ -160,23 +176,22 @@ QImage coverage_image_from_brush_tip(const patchy::BrushTip& tip) {
 QString abr_import_summary(int imported, const QStringList& warnings) {
   auto text = QObject::tr("Imported %n brush tip(s).", nullptr, imported);
   int skipped = 0;
-  int limited = 0;
+  int static_texture_depth = 0;
   for (const auto& warning : warnings) {
     if (warning.startsWith(QLatin1String("Skipped")) || warning.startsWith(QLatin1String("Ignored"))) {
       ++skipped;
-    } else if (warning.contains(QLatin1String("unsupported dynamics"))) {
-      ++limited;
+    } else if (warning.contains(QLatin1String("input-driven texture depth"))) {
+      ++static_texture_depth;
     }
   }
   if (skipped > 0) {
     text += QLatin1Char('\n') +
             QObject::tr("%n brush(es) could not be imported (no bitmap tip, or unreadable).", nullptr, skipped);
   }
-  if (limited > 0) {
+  if (static_texture_depth > 0) {
     text += QLatin1Char('\n') +
-            QObject::tr("%n brush(es) use Photoshop features Patchy does not support (texture, dual brush, "
-                        "color dynamics) and will paint differently.",
-                        nullptr, limited);
+            QObject::tr("%n brush(es) use input-driven texture depth; Patchy imported a static depth instead.",
+                        nullptr, static_texture_depth);
   }
   return text;
 }
@@ -535,7 +550,20 @@ namespace {
          a.minimum_opacity == b.minimum_opacity && a.opacity_control == b.opacity_control &&
          a.opacity_fade_steps == b.opacity_fade_steps && a.flow_jitter == b.flow_jitter &&
          a.minimum_flow == b.minimum_flow && a.flow_control == b.flow_control &&
-         a.flow_fade_steps == b.flow_fade_steps;
+         a.flow_fade_steps == b.flow_fade_steps &&
+         a.texture_enabled == b.texture_enabled && a.texture_style == b.texture_style &&
+         a.texture_scale == b.texture_scale && a.texture_depth == b.texture_depth &&
+         a.texture_invert == b.texture_invert && a.texture_seed == b.texture_seed &&
+         a.dual_brush_enabled == b.dual_brush_enabled &&
+         a.dual_brush_size == b.dual_brush_size &&
+         a.dual_brush_hardness == b.dual_brush_hardness &&
+         a.dual_brush_spacing == b.dual_brush_spacing &&
+         a.color_dynamics_enabled == b.color_dynamics_enabled &&
+         a.foreground_background_jitter == b.foreground_background_jitter &&
+         a.color_control == b.color_control && a.color_fade_steps == b.color_fade_steps &&
+         a.hue_jitter == b.hue_jitter && a.saturation_jitter == b.saturation_jitter &&
+         a.brightness_jitter == b.brightness_jitter && a.purity == b.purity &&
+         a.color_per_tip == b.color_per_tip && a.wet_edges == b.wet_edges;
 }
 
 }  // namespace
@@ -756,6 +784,27 @@ QJsonObject brush_dynamics_to_json(const patchy::BrushDynamics& dynamics) {
   object.insert(QStringLiteral("minimumFlow"), dynamics.minimum_flow);
   object.insert(QStringLiteral("flowControl"), control_token(dynamics.flow_control));
   object.insert(QStringLiteral("flowFadeSteps"), dynamics.flow_fade_steps);
+  object.insert(QStringLiteral("textureEnabled"), dynamics.texture_enabled);
+  object.insert(QStringLiteral("textureStyle"), texture_style_token(dynamics.texture_style));
+  object.insert(QStringLiteral("textureScale"), dynamics.texture_scale);
+  object.insert(QStringLiteral("textureDepth"), dynamics.texture_depth);
+  object.insert(QStringLiteral("textureInvert"), dynamics.texture_invert);
+  object.insert(QStringLiteral("textureSeed"), static_cast<double>(dynamics.texture_seed));
+  object.insert(QStringLiteral("dualBrushEnabled"), dynamics.dual_brush_enabled);
+  object.insert(QStringLiteral("dualBrushSize"), dynamics.dual_brush_size);
+  object.insert(QStringLiteral("dualBrushHardness"), dynamics.dual_brush_hardness);
+  object.insert(QStringLiteral("dualBrushSpacing"), dynamics.dual_brush_spacing);
+  object.insert(QStringLiteral("colorDynamicsEnabled"), dynamics.color_dynamics_enabled);
+  object.insert(QStringLiteral("foregroundBackgroundJitter"),
+                dynamics.foreground_background_jitter);
+  object.insert(QStringLiteral("colorControl"), control_token(dynamics.color_control));
+  object.insert(QStringLiteral("colorFadeSteps"), dynamics.color_fade_steps);
+  object.insert(QStringLiteral("hueJitter"), dynamics.hue_jitter);
+  object.insert(QStringLiteral("saturationJitter"), dynamics.saturation_jitter);
+  object.insert(QStringLiteral("brightnessJitter"), dynamics.brightness_jitter);
+  object.insert(QStringLiteral("purity"), dynamics.purity);
+  object.insert(QStringLiteral("colorPerTip"), dynamics.color_per_tip);
+  object.insert(QStringLiteral("wetEdges"), dynamics.wet_edges);
   return object;
 }
 
@@ -815,6 +864,40 @@ patchy::BrushDynamics brush_dynamics_from_json(const QJsonObject& object) {
       read_control("flowControl", patchy::BrushDynamicControl::Off),
       patchy::BrushDynamicControl::Off);
   dynamics.flow_fade_steps = read_fade_steps("flowFadeSteps");
+  dynamics.texture_enabled = object.value(QStringLiteral("textureEnabled")).toBool(false);
+  dynamics.texture_style =
+      texture_style_from_token(object.value(QStringLiteral("textureStyle")).toString());
+  dynamics.texture_scale =
+      std::clamp(object.value(QStringLiteral("textureScale")).toDouble(1.0), 0.01, 10.0);
+  dynamics.texture_depth =
+      clamp_fraction(object.value(QStringLiteral("textureDepth")).toDouble(0.5));
+  dynamics.texture_invert = object.value(QStringLiteral("textureInvert")).toBool(false);
+  dynamics.texture_seed = static_cast<std::uint32_t>(std::clamp(
+      object.value(QStringLiteral("textureSeed")).toDouble(0x5A17C9E3U), 0.0,
+      static_cast<double>(std::numeric_limits<std::uint32_t>::max())));
+  dynamics.dual_brush_enabled = object.value(QStringLiteral("dualBrushEnabled")).toBool(false);
+  dynamics.dual_brush_size =
+      std::clamp(object.value(QStringLiteral("dualBrushSize")).toDouble(0.5), 0.05, 4.0);
+  dynamics.dual_brush_hardness =
+      clamp_fraction(object.value(QStringLiteral("dualBrushHardness")).toDouble(1.0));
+  dynamics.dual_brush_spacing =
+      std::clamp(object.value(QStringLiteral("dualBrushSpacing")).toDouble(1.0), 0.1, 10.0);
+  dynamics.color_dynamics_enabled =
+      object.value(QStringLiteral("colorDynamicsEnabled")).toBool(false);
+  dynamics.foreground_background_jitter =
+      clamp_fraction(object.value(QStringLiteral("foregroundBackgroundJitter")).toDouble(0.0));
+  dynamics.color_control = sanitize_non_angle_control(
+      read_control("colorControl", patchy::BrushDynamicControl::Off),
+      patchy::BrushDynamicControl::Off);
+  dynamics.color_fade_steps = read_fade_steps("colorFadeSteps");
+  dynamics.hue_jitter = clamp_fraction(object.value(QStringLiteral("hueJitter")).toDouble(0.0));
+  dynamics.saturation_jitter =
+      clamp_fraction(object.value(QStringLiteral("saturationJitter")).toDouble(0.0));
+  dynamics.brightness_jitter =
+      clamp_fraction(object.value(QStringLiteral("brightnessJitter")).toDouble(0.0));
+  dynamics.purity = std::clamp(object.value(QStringLiteral("purity")).toDouble(0.0), -1.0, 1.0);
+  dynamics.color_per_tip = object.value(QStringLiteral("colorPerTip")).toBool(true);
+  dynamics.wet_edges = object.value(QStringLiteral("wetEdges")).toBool(false);
   return dynamics;
 }
 
@@ -866,7 +949,26 @@ bool brush_dynamics_is_default(const patchy::BrushDynamics& dynamics) {
          dynamics.flow_jitter == defaults.flow_jitter &&
          dynamics.minimum_flow == defaults.minimum_flow &&
          dynamics.flow_control == defaults.flow_control &&
-         dynamics.flow_fade_steps == defaults.flow_fade_steps;
+         dynamics.flow_fade_steps == defaults.flow_fade_steps &&
+         dynamics.texture_enabled == defaults.texture_enabled &&
+         dynamics.texture_style == defaults.texture_style &&
+         dynamics.texture_scale == defaults.texture_scale &&
+         dynamics.texture_depth == defaults.texture_depth &&
+         dynamics.texture_invert == defaults.texture_invert &&
+         dynamics.texture_seed == defaults.texture_seed &&
+         dynamics.dual_brush_enabled == defaults.dual_brush_enabled &&
+         dynamics.dual_brush_size == defaults.dual_brush_size &&
+         dynamics.dual_brush_hardness == defaults.dual_brush_hardness &&
+         dynamics.dual_brush_spacing == defaults.dual_brush_spacing &&
+         dynamics.color_dynamics_enabled == defaults.color_dynamics_enabled &&
+         dynamics.foreground_background_jitter == defaults.foreground_background_jitter &&
+         dynamics.color_control == defaults.color_control &&
+         dynamics.color_fade_steps == defaults.color_fade_steps &&
+         dynamics.hue_jitter == defaults.hue_jitter &&
+         dynamics.saturation_jitter == defaults.saturation_jitter &&
+         dynamics.brightness_jitter == defaults.brightness_jitter &&
+         dynamics.purity == defaults.purity && dynamics.color_per_tip == defaults.color_per_tip &&
+         dynamics.wet_edges == defaults.wet_edges;
   // seed / pen_* are per-stroke inputs, deliberately ignored.
 }
 
