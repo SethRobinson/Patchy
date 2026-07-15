@@ -1764,122 +1764,9 @@ void MainWindow::create_actions() {
   auto* tool_group = new QActionGroup(this);
   tool_group->setExclusive(true);
   tool_action_group_ = tool_group;
-  move_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Move"), CanvasTool::Move, QKeySequence(Qt::Key_V));
-  auto* marquee_menu = new QMenu(tr("Marquee Tools"), tool_palette);
-  marquee_menu->setObjectName(QStringLiteral("marqueeToolMenu"));
-  bind_widget_text(marquee_menu, "Marquee Tools");
-  const auto create_marquee_action = [this, tool_group, marquee_menu](const QString& label, CanvasTool tool,
-                                                                      QKeySequence shortcut) {
-    auto* action = new QAction(label, this);
-    bind_action_text(action, tool_action_source(tool));
-    action->setIcon(tool_icon(tool));
-    action->setCheckable(true);
-    action->setData(static_cast<int>(tool));
-    action->setObjectName(tool_action_object_name(tool));
-    register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
-    tool_group->addAction(action);
-    marquee_menu->addAction(action);
-    addAction(action);
-    register_document_action(action);
-    return action;
-  };
-  auto* rect_marquee_action = create_marquee_action(tr("Marquee"), CanvasTool::Marquee, QKeySequence(Qt::Key_M));
-  auto* elliptical_marquee_action = create_marquee_action(tr("Elliptical Marquee"), CanvasTool::EllipticalMarquee,
-                                                          QKeySequence(Qt::SHIFT | Qt::Key_M));
-  auto* marquee_tool_button = new QToolButton(tool_palette);
-  marquee_tool_button->setObjectName(QStringLiteral("marqueeToolButton"));
-  marquee_tool_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  marquee_tool_button->setPopupMode(QToolButton::DelayedPopup);
-  marquee_tool_button->setMenu(marquee_menu);
-  marquee_tool_button->setDefaultAction(rect_marquee_action);
-  marquee_tool_button->setToolTip(rect_marquee_action->toolTip());
-  tool_palette->addWidget(marquee_tool_button);
-  for (auto* action : {rect_marquee_action, elliptical_marquee_action}) {
-    connect(action, &QAction::triggered, marquee_tool_button, [marquee_tool_button, marquee_menu, action] {
-      marquee_tool_button->setDefaultAction(action);
-      marquee_tool_button->setMenu(marquee_menu);
-      marquee_tool_button->setToolTip(action->toolTip());
-    });
-  }
-  auto* lasso_menu = new QMenu(tr("Lasso Tools"), tool_palette);
-  lasso_menu->setObjectName(QStringLiteral("lassoToolMenu"));
-  bind_widget_text(lasso_menu, "Lasso Tools");
-  const auto create_lasso_action = [this, tool_group, lasso_menu](const QString& label, CanvasTool tool,
-                                                                  QKeySequence shortcut) {
-    auto* action = new QAction(label, this);
-    bind_action_text(action, tool_action_source(tool));
-    action->setIcon(tool_icon(tool));
-    action->setCheckable(true);
-    action->setData(static_cast<int>(tool));
-    action->setObjectName(tool_action_object_name(tool));
-    register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
-    tool_group->addAction(action);
-    lasso_menu->addAction(action);
-    addAction(action);
-    register_document_action(action);
-    return action;
-  };
-  auto* lasso_action = create_lasso_action(tr("Lasso"), CanvasTool::Lasso, QKeySequence(Qt::Key_L));
-  auto* magnetic_lasso_action = create_lasso_action(tr("Magnetic Lasso"), CanvasTool::MagneticLasso,
-                                                    QKeySequence(Qt::SHIFT | Qt::Key_L));
-  auto* lasso_tool_button = new QToolButton(tool_palette);
-  lasso_tool_button->setObjectName(QStringLiteral("lassoToolButton"));
-  lasso_tool_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  lasso_tool_button->setPopupMode(QToolButton::DelayedPopup);
-  lasso_tool_button->setMenu(lasso_menu);
-  lasso_tool_button->setDefaultAction(lasso_action);
-  lasso_tool_button->setToolTip(lasso_action->toolTip());
-  tool_palette->addWidget(lasso_tool_button);
-  for (auto* action : {lasso_action, magnetic_lasso_action}) {
-    connect(action, &QAction::triggered, lasso_tool_button, [lasso_tool_button, lasso_menu, action] {
-      lasso_tool_button->setDefaultAction(action);
-      lasso_tool_button->setMenu(lasso_menu);
-      lasso_tool_button->setToolTip(action->toolTip());
-    });
-  }
-  auto* wand_menu = new QMenu(tr("Wand Tools"), tool_palette);
-  wand_menu->setObjectName(QStringLiteral("wandToolMenu"));
-  bind_widget_text(wand_menu, "Wand Tools");
-  const auto create_wand_action = [this, tool_group, wand_menu](const QString& label, CanvasTool tool,
-                                                                QKeySequence shortcut) {
-    auto* action = new QAction(label, this);
-    bind_action_text(action, tool_action_source(tool));
-    action->setIcon(tool_icon(tool));
-    action->setCheckable(true);
-    action->setData(static_cast<int>(tool));
-    action->setObjectName(tool_action_object_name(tool));
-    register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
-    tool_group->addAction(action);
-    wand_menu->addAction(action);
-    addAction(action);
-    register_document_action(action);
-    return action;
-  };
-  auto* magic_wand_action = create_wand_action(tr("Magic Wand"), CanvasTool::MagicWand, QKeySequence(Qt::Key_W));
-  auto* quick_select_action =
-      create_wand_action(tr("Quick Select"), CanvasTool::QuickSelect, QKeySequence(Qt::SHIFT | Qt::Key_W));
-  auto* wand_tool_button = new QToolButton(tool_palette);
-  wand_tool_button->setObjectName(QStringLiteral("wandToolButton"));
-  wand_tool_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  wand_tool_button->setPopupMode(QToolButton::DelayedPopup);
-  wand_tool_button->setMenu(wand_menu);
-  wand_tool_button->setDefaultAction(magic_wand_action);
-  wand_tool_button->setToolTip(magic_wand_action->toolTip());
-  tool_palette->addWidget(wand_tool_button);
-  for (auto* action : {magic_wand_action, quick_select_action}) {
-    connect(action, &QAction::triggered, wand_tool_button, [wand_tool_button, wand_menu, action] {
-      wand_tool_button->setDefaultAction(action);
-      wand_tool_button->setMenu(wand_menu);
-      wand_tool_button->setToolTip(action->toolTip());
-    });
-  }
-  add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);
-  add_tool_action(tool_palette, tool_group, tr("Clone"), CanvasTool::Clone, QKeySequence(Qt::Key_S));
-  add_tool_action(tool_palette, tool_group, tr("Pattern Stamp"), CanvasTool::PatternStamp,
-                  QKeySequence(Qt::SHIFT | Qt::Key_S));
-  add_tool_action(tool_palette, tool_group, tr("Healing Brush"), CanvasTool::Healing,
-                  QKeySequence(Qt::Key_J));
-  const auto create_local_brush_action =
+  // The palette is ordered in clusters split by separators: select, paint,
+  // retouch, draw/type, view. Tools sharing a slot get a flyout button.
+  const auto create_flyout_tool_action =
       [this, tool_group](QMenu* menu, const QString& label, CanvasTool tool, QKeySequence shortcut) {
         auto* action = new QAction(label, this);
         bind_action_text(action, tool_action_source(tool));
@@ -1894,9 +1781,10 @@ void MainWindow::create_actions() {
         register_document_action(action);
         return action;
       };
-  const auto configure_local_brush_flyout = [](QToolBar* palette, QMenu* menu, QToolButton* button,
-                                                QAction* default_action,
-                                                std::initializer_list<QAction*> actions) {
+  const auto configure_tool_flyout = [](QToolBar* palette, QMenu* menu, QToolButton* button,
+                                        QAction* default_action,
+                                        std::initializer_list<QAction*> actions) {
+    button->setProperty("toolFlyout", true);
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     button->setPopupMode(QToolButton::DelayedPopup);
     button->setMenu(menu);
@@ -1912,78 +1800,116 @@ void MainWindow::create_actions() {
     }
   };
 
+  move_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Move"), CanvasTool::Move, QKeySequence(Qt::Key_V));
+  auto* marquee_menu = new QMenu(tr("Marquee Tools"), tool_palette);
+  marquee_menu->setObjectName(QStringLiteral("marqueeToolMenu"));
+  bind_widget_text(marquee_menu, "Marquee Tools");
+  auto* rect_marquee_action =
+      create_flyout_tool_action(marquee_menu, tr("Marquee"), CanvasTool::Marquee, QKeySequence(Qt::Key_M));
+  auto* elliptical_marquee_action = create_flyout_tool_action(
+      marquee_menu, tr("Elliptical Marquee"), CanvasTool::EllipticalMarquee, QKeySequence(Qt::SHIFT | Qt::Key_M));
+  auto* marquee_tool_button = new QToolButton(tool_palette);
+  marquee_tool_button->setObjectName(QStringLiteral("marqueeToolButton"));
+  configure_tool_flyout(tool_palette, marquee_menu, marquee_tool_button, rect_marquee_action,
+                        {rect_marquee_action, elliptical_marquee_action});
+  auto* lasso_menu = new QMenu(tr("Lasso Tools"), tool_palette);
+  lasso_menu->setObjectName(QStringLiteral("lassoToolMenu"));
+  bind_widget_text(lasso_menu, "Lasso Tools");
+  auto* lasso_action = create_flyout_tool_action(lasso_menu, tr("Lasso"), CanvasTool::Lasso, QKeySequence(Qt::Key_L));
+  auto* magnetic_lasso_action = create_flyout_tool_action(lasso_menu, tr("Magnetic Lasso"), CanvasTool::MagneticLasso,
+                                                          QKeySequence(Qt::SHIFT | Qt::Key_L));
+  auto* lasso_tool_button = new QToolButton(tool_palette);
+  lasso_tool_button->setObjectName(QStringLiteral("lassoToolButton"));
+  configure_tool_flyout(tool_palette, lasso_menu, lasso_tool_button, lasso_action,
+                        {lasso_action, magnetic_lasso_action});
+  auto* wand_menu = new QMenu(tr("Wand Tools"), tool_palette);
+  wand_menu->setObjectName(QStringLiteral("wandToolMenu"));
+  bind_widget_text(wand_menu, "Wand Tools");
+  auto* magic_wand_action =
+      create_flyout_tool_action(wand_menu, tr("Magic Wand"), CanvasTool::MagicWand, QKeySequence(Qt::Key_W));
+  auto* quick_select_action =
+      create_flyout_tool_action(wand_menu, tr("Quick Select"), CanvasTool::QuickSelect, QKeySequence(Qt::SHIFT | Qt::Key_W));
+  auto* wand_tool_button = new QToolButton(tool_palette);
+  wand_tool_button->setObjectName(QStringLiteral("wandToolButton"));
+  configure_tool_flyout(tool_palette, wand_menu, wand_tool_button, magic_wand_action,
+                        {magic_wand_action, quick_select_action});
+  tool_palette->addSeparator();
+
+  add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);
+  add_tool_action(tool_palette, tool_group, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E));
+  auto* gradient_menu = new QMenu(tr("Fill Tools"), tool_palette);
+  gradient_menu->setObjectName(QStringLiteral("gradientToolMenu"));
+  bind_widget_text(gradient_menu, "Fill Tools");
+  auto* gradient_action =
+      create_flyout_tool_action(gradient_menu, tr("Gradient"), CanvasTool::Gradient, QKeySequence(Qt::Key_G));
+  auto* fill_action =
+      create_flyout_tool_action(gradient_menu, tr("Fill"), CanvasTool::Fill, QKeySequence(Qt::SHIFT | Qt::Key_G));
+  auto* gradient_tool_button = new QToolButton(tool_palette);
+  gradient_tool_button->setObjectName(QStringLiteral("gradientToolButton"));
+  configure_tool_flyout(tool_palette, gradient_menu, gradient_tool_button, gradient_action,
+                        {gradient_action, fill_action});
+  tool_palette->addSeparator();
+
+  auto* stamp_menu = new QMenu(tr("Stamp Tools"), tool_palette);
+  stamp_menu->setObjectName(QStringLiteral("stampToolMenu"));
+  bind_widget_text(stamp_menu, "Stamp Tools");
+  auto* clone_action = create_flyout_tool_action(stamp_menu, tr("Clone"), CanvasTool::Clone, QKeySequence(Qt::Key_S));
+  auto* pattern_stamp_action = create_flyout_tool_action(stamp_menu, tr("Pattern Stamp"), CanvasTool::PatternStamp,
+                                                         QKeySequence(Qt::SHIFT | Qt::Key_S));
+  auto* stamp_tool_button = new QToolButton(tool_palette);
+  stamp_tool_button->setObjectName(QStringLiteral("stampToolButton"));
+  configure_tool_flyout(tool_palette, stamp_menu, stamp_tool_button, clone_action,
+                        {clone_action, pattern_stamp_action});
+  add_tool_action(tool_palette, tool_group, tr("Healing Brush"), CanvasTool::Healing,
+                  QKeySequence(Qt::Key_J));
+
   auto* detail_menu = new QMenu(tr("Detail Tools"), tool_palette);
   detail_menu->setObjectName(QStringLiteral("detailToolMenu"));
   bind_widget_text(detail_menu, "Detail Tools");
   auto* smudge_action =
-      create_local_brush_action(detail_menu, tr("Smudge"), CanvasTool::Smudge, QKeySequence(Qt::Key_R));
-  auto* mixer_brush_action = create_local_brush_action(
+      create_flyout_tool_action(detail_menu, tr("Smudge"), CanvasTool::Smudge, QKeySequence(Qt::Key_R));
+  auto* mixer_brush_action = create_flyout_tool_action(
       detail_menu, tr("Mixer Brush"), CanvasTool::MixerBrush, QKeySequence());
-  auto* blur_action = create_local_brush_action(detail_menu, tr("Blur"), CanvasTool::BlurBrush,
+  auto* blur_action = create_flyout_tool_action(detail_menu, tr("Blur"), CanvasTool::BlurBrush,
                                                  QKeySequence(Qt::SHIFT | Qt::Key_R));
   auto* sharpen_action =
-      create_local_brush_action(detail_menu, tr("Sharpen"), CanvasTool::SharpenBrush, QKeySequence());
+      create_flyout_tool_action(detail_menu, tr("Sharpen"), CanvasTool::SharpenBrush, QKeySequence());
   auto* detail_button = new QToolButton(tool_palette);
   detail_button->setObjectName(QStringLiteral("detailToolButton"));
-  configure_local_brush_flyout(tool_palette, detail_menu, detail_button, smudge_action,
-                               {smudge_action, mixer_brush_action, blur_action, sharpen_action});
+  configure_tool_flyout(tool_palette, detail_menu, detail_button, smudge_action,
+                        {smudge_action, mixer_brush_action, blur_action, sharpen_action});
 
   auto* tone_menu = new QMenu(tr("Toning Tools"), tool_palette);
   tone_menu->setObjectName(QStringLiteral("toneToolMenu"));
   bind_widget_text(tone_menu, "Toning Tools");
   auto* dodge_action =
-      create_local_brush_action(tone_menu, tr("Dodge"), CanvasTool::Dodge, QKeySequence(Qt::Key_O));
-  auto* burn_action = create_local_brush_action(tone_menu, tr("Burn"), CanvasTool::Burn,
+      create_flyout_tool_action(tone_menu, tr("Dodge"), CanvasTool::Dodge, QKeySequence(Qt::Key_O));
+  auto* burn_action = create_flyout_tool_action(tone_menu, tr("Burn"), CanvasTool::Burn,
                                                  QKeySequence(Qt::SHIFT | Qt::Key_O));
   auto* sponge_action =
-      create_local_brush_action(tone_menu, tr("Sponge"), CanvasTool::Sponge, QKeySequence());
+      create_flyout_tool_action(tone_menu, tr("Sponge"), CanvasTool::Sponge, QKeySequence());
   auto* tone_button = new QToolButton(tool_palette);
   tone_button->setObjectName(QStringLiteral("toneToolButton"));
-  configure_local_brush_flyout(tool_palette, tone_menu, tone_button, dodge_action,
-                               {dodge_action, burn_action, sponge_action});
-  add_tool_action(tool_palette, tool_group, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E));
-  add_tool_action(tool_palette, tool_group, tr("Gradient"), CanvasTool::Gradient, QKeySequence(Qt::Key_G));
-  add_tool_action(tool_palette, tool_group, tr("Fill"), CanvasTool::Fill, QKeySequence(Qt::SHIFT | Qt::Key_G));
+  configure_tool_flyout(tool_palette, tone_menu, tone_button, dodge_action,
+                        {dodge_action, burn_action, sponge_action});
+  tool_palette->addSeparator();
+
   auto* shape_menu = new QMenu(tr("Shape Tools"), tool_palette);
   shape_menu->setObjectName(QStringLiteral("shapeToolMenu"));
   bind_widget_text(shape_menu, "Shape Tools");
-  const auto create_shape_action = [this, tool_group, shape_menu](const QString& label, CanvasTool tool,
-                                                                  QKeySequence shortcut) {
-    auto* action = new QAction(label, this);
-    bind_action_text(action, tool_action_source(tool));
-    action->setIcon(tool_icon(tool));
-    action->setCheckable(true);
-    action->setData(static_cast<int>(tool));
-    action->setObjectName(tool_action_object_name(tool));
-    register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
-    tool_group->addAction(action);
-    shape_menu->addAction(action);
-    addAction(action);
-    register_document_action(action);
-    return action;
-  };
   auto* line_tool_action =
-      create_shape_action(tr("Line"), CanvasTool::Line, QKeySequence());  // Ctrl+Shift+U belongs to Desaturate
-  auto* rect_tool_action = create_shape_action(tr("Rect"), CanvasTool::Rectangle, QKeySequence(Qt::Key_U));
+      create_flyout_tool_action(shape_menu, tr("Line"), CanvasTool::Line, QKeySequence());  // Ctrl+Shift+U belongs to Desaturate
+  auto* rect_tool_action = create_flyout_tool_action(shape_menu, tr("Rect"), CanvasTool::Rectangle, QKeySequence(Qt::Key_U));
   auto* ellipse_tool_action =
-      create_shape_action(tr("Ellipse"), CanvasTool::Ellipse, QKeySequence(Qt::SHIFT | Qt::Key_U));
+      create_flyout_tool_action(shape_menu, tr("Ellipse"), CanvasTool::Ellipse, QKeySequence(Qt::SHIFT | Qt::Key_U));
   auto* shape_tool_button = new QToolButton(tool_palette);
   shape_tool_button->setObjectName(QStringLiteral("shapeToolButton"));
-  shape_tool_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  shape_tool_button->setPopupMode(QToolButton::DelayedPopup);
-  shape_tool_button->setMenu(shape_menu);
-  shape_tool_button->setDefaultAction(rect_tool_action);
-  shape_tool_button->setToolTip(rect_tool_action->toolTip());
-  tool_palette->addWidget(shape_tool_button);
-  for (auto* action : {line_tool_action, rect_tool_action, ellipse_tool_action}) {
-    connect(action, &QAction::triggered, shape_tool_button, [shape_tool_button, shape_menu, action] {
-      shape_tool_button->setDefaultAction(action);
-      shape_tool_button->setMenu(shape_menu);
-      shape_tool_button->setToolTip(action->toolTip());
-    });
-  }
-  add_tool_action(tool_palette, tool_group, tr("Pick"), CanvasTool::Eyedropper, QKeySequence(Qt::Key_I));
+  configure_tool_flyout(tool_palette, shape_menu, shape_tool_button, rect_tool_action,
+                        {line_tool_action, rect_tool_action, ellipse_tool_action});
   type_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T));
+  tool_palette->addSeparator();
+
+  add_tool_action(tool_palette, tool_group, tr("Pick"), CanvasTool::Eyedropper, QKeySequence(Qt::Key_I));
   add_tool_action(tool_palette, tool_group, tr("Hand"), CanvasTool::Pan, QKeySequence(Qt::Key_H));
   auto* zoom_tool_action = add_tool_action(tool_palette, tool_group, tr("Zoom"), CanvasTool::Zoom, QKeySequence(Qt::Key_Z));
   if (auto* zoom_button = qobject_cast<QToolButton*>(tool_palette->widgetForAction(zoom_tool_action));

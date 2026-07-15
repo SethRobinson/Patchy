@@ -12295,6 +12295,8 @@ Clipped to the layer below</source>
     <message><source>Vibrance</source><translation>自然な彩度</translation></message>
     <message><source>Reduce the adjustment on colors that are already strongly saturated</source><translation>すでに彩度が高い色への補正を弱めます</translation></message>
     <message><source>Pattern Stamp</source><translation>パターンスタンプ</translation></message>
+    <message><source>Stamp Tools</source><translation>スタンプツール</translation></message>
+    <message><source>Fill Tools</source><translation>塗りつぶしツール</translation></message>
     <message><source>Pattern:</source><translation>パターン:</translation></message>
     <message><source>Manage...</source><translation>管理...</translation></message>
     <message><source>Import or manage patterns</source><translation>パターンを読み込むか管理します</translation></message>

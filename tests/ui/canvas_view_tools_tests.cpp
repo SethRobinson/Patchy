@@ -645,6 +645,41 @@ void ui_zoomed_out_canvas_uses_downsampled_display_mip() {
   CHECK(midtone_samples > source_tone_samples * 4);
 }
 
+void ui_stamp_and_gradient_flyouts_swap_tools() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  auto* stamp_button = window.findChild<QToolButton*>(QStringLiteral("stampToolButton"));
+  CHECK(stamp_button != nullptr);
+  CHECK(stamp_button->menu() != nullptr);
+  CHECK(stamp_button->menu()->actions().size() == 2);
+  CHECK(stamp_button->defaultAction() == require_action(window, "toolCloneAction"));
+  require_action(window, "toolPatternStampAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::PatternStamp);
+  CHECK(stamp_button->defaultAction() == require_action(window, "toolPatternStampAction"));
+
+  auto* gradient_button = window.findChild<QToolButton*>(QStringLiteral("gradientToolButton"));
+  CHECK(gradient_button != nullptr);
+  CHECK(gradient_button->menu() != nullptr);
+  CHECK(gradient_button->menu()->actions().size() == 2);
+  CHECK(gradient_button->defaultAction() == require_action(window, "toolGradientAction"));
+  require_action(window, "toolFillAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Fill);
+  CHECK(gradient_button->defaultAction() == require_action(window, "toolFillAction"));
+
+  // Every flyout button carries the QSS corner-marker property, including the
+  // smudge/dodge buttons that historically lacked the indicator.
+  for (const auto* name : {"marqueeToolButton", "lassoToolButton", "wandToolButton", "gradientToolButton",
+                           "stampToolButton", "detailToolButton", "toneToolButton", "shapeToolButton"}) {
+    auto* button = window.findChild<QToolButton*>(QString::fromLatin1(name));
+    CHECK(button != nullptr);
+    CHECK(button->property("toolFlyout").toBool());
+  }
+}
+
 void ui_shape_flyout_and_zoom_tool_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1637,6 +1672,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
        ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},
+      {"ui_stamp_and_gradient_flyouts_swap_tools", ui_stamp_and_gradient_flyouts_swap_tools},
       {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},

@@ -1521,10 +1521,7 @@ QString photoshop_style() {
       max-height: 24px;
       padding: 1px;
     }
-    QToolButton#marqueeToolButton::menu-indicator,
-    QToolButton#lassoToolButton::menu-indicator,
-    QToolButton#wandToolButton::menu-indicator,
-    QToolButton#shapeToolButton::menu-indicator {
+    QToolButton[toolFlyout="true"]::menu-indicator {
       image: url(:/patchy/icons/tool-flyout-corner.svg);
       width: 7px;
       height: 7px;
@@ -1532,6 +1529,11 @@ QString photoshop_style() {
       subcontrol-position: bottom right;
       bottom: 1px;
       right: 1px;
+    }
+    QToolBar#toolPalette::separator {
+      background: #616161;
+      height: 1px;
+      margin: 3px 7px;
     }
     QWidget#toolPaletteSpacer {
       background: #535353;
