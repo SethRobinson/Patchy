@@ -441,9 +441,7 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
 
 bool CanvasWidget::begin_free_transform() {
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask) {
-    if (status_callback_) {
-      status_callback_(tr("This tool is unavailable while editing a Smart Filter mask"));
-    }
+    report_status_error(tr("This tool is unavailable while editing a Smart Filter mask"));
     return false;
   }
   if (warping_layer_) {
@@ -461,9 +459,7 @@ bool CanvasWidget::begin_free_transform() {
     layer = active_pixel_layer();
   }
   if (document_ == nullptr || layer == nullptr || !layer_has_movable_pixels(*layer)) {
-    if (status_callback_) {
-      status_callback_(tr("Select an editable pixel layer to transform"));
-    }
+    report_status_error(tr("Select an editable pixel layer to transform"));
     return false;
   }
   if (layer_effectively_locks_position(*layer)) {
@@ -474,16 +470,12 @@ bool CanvasWidget::begin_free_transform() {
     // Scaling or rotating a preview-locked smart object (warp / smart filters /
     // external) would desync the pixels from what Photoshop re-renders; integrity
     // first. Plain moves stay allowed through the move tool.
-    if (status_callback_) {
-      status_callback_(tr("This smart object is preview-only and can't be transformed. Rasterize the layer first."));
-    }
+    report_status_error(tr("This smart object is preview-only and can't be transformed. Rasterize the layer first."));
     return false;
   }
   const auto local_transform_rect = opaque_pixel_local_rect(*layer);
   if (!local_transform_rect.has_value()) {
-    if (status_callback_) {
-      status_callback_(tr("Layer has no opaque pixels to transform"));
-    }
+    report_status_error(tr("Layer has no opaque pixels to transform"));
     return false;
   }
 
@@ -1238,11 +1230,11 @@ void CanvasWidget::commit_free_transform() {
   reset_free_transform_session_state();
   update_tool_cursor();
   document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
-  if (status_callback_) {
-    status_callback_(smart_filter_rerender_failed
-                         ? tr("Could not rebuild the Smart Filter preview and cache")
-                         : changed ? tr("Transformed layer")
-                                   : tr("Free Transform cancelled"));
+  if (smart_filter_rerender_failed) {
+    report_status_error(tr("Could not rebuild the Smart Filter preview and cache"));
+  } else if (status_callback_) {
+    status_callback_(changed ? tr("Transformed layer")
+                             : tr("Free Transform cancelled"));
   }
   notify_transform_controls_changed();
 }
@@ -1300,20 +1292,18 @@ void CanvasWidget::commit_free_transform_with_pending_warp() {
   clear_pending_warp();
   update_tool_cursor();
   document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
-  if (status_callback_) {
-    status_callback_(smart_filter_rerender_failed
-                         ? tr("Could not rebuild the Smart Filter preview and cache")
-                         : changed ? tr("Warped layer")
-                                   : tr("Warp Transform cancelled"));
+  if (smart_filter_rerender_failed) {
+    report_status_error(tr("Could not rebuild the Smart Filter preview and cache"));
+  } else if (status_callback_) {
+    status_callback_(changed ? tr("Warped layer")
+                             : tr("Warp Transform cancelled"));
   }
   notify_transform_controls_changed();
 }
 
 bool CanvasWidget::begin_warp_transform() {
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask) {
-    if (status_callback_) {
-      status_callback_(tr("This tool is unavailable while editing a Smart Filter mask"));
-    }
+    report_status_error(tr("This tool is unavailable while editing a Smart Filter mask"));
     return false;
   }
   if (warping_layer_) {
@@ -1342,9 +1332,7 @@ bool CanvasWidget::begin_warp_transform() {
     layer = active_pixel_layer();
   }
   if (document_ == nullptr || layer == nullptr || !layer_has_movable_pixels(*layer)) {
-    if (status_callback_) {
-      status_callback_(tr("Select an editable pixel layer to warp"));
-    }
+    report_status_error(tr("Select an editable pixel layer to warp"));
     return false;
   }
   if (layer_effectively_locks_position(*layer)) {
@@ -1352,16 +1340,12 @@ bool CanvasWidget::begin_warp_transform() {
     return false;
   }
   if (layer_is_text(*layer)) {
-    if (status_callback_) {
-      status_callback_(tr("Text layers use Warp Text (the Type tool's Warp... button). For a custom mesh, "
-                          "convert to a smart object or rasterize first."));
-    }
+    report_status_error(tr("Text layers use Warp Text (the Type tool's Warp... button). For a custom mesh, "
+                           "convert to a smart object or rasterize first."));
     return false;
   }
   if (layer_is_smart_object(*layer) && !smart_object_lock_reason(*layer).empty()) {
-    if (status_callback_) {
-      status_callback_(tr("This smart object is preview-only and can't be warped. Rasterize the layer first."));
-    }
+    report_status_error(tr("This smart object is preview-only and can't be warped. Rasterize the layer first."));
     return false;
   }
 
@@ -1375,9 +1359,7 @@ bool CanvasWidget::begin_warp_transform() {
         placement.has_value() ? document_->metadata().smart_objects.find(uuid) : nullptr;
     auto decoded = source != nullptr ? decode_smart_object_source_image(*source) : std::nullopt;
     if (!placement.has_value() || !decoded.has_value() || decoded->isNull()) {
-      if (status_callback_) {
-        status_callback_(tr("This smart object's contents can't be decoded for warping"));
-      }
+      report_status_error(tr("This smart object's contents can't be decoded for warping"));
       return false;
     }
     warp_content_width_ = placement->width > 0.0 ? placement->width : decoded->width();
@@ -1422,9 +1404,7 @@ bool CanvasWidget::begin_warp_transform() {
   } else {
     warp_source_image_ = qimage_from_pixel_buffer(std::as_const(*layer).pixels());
     if (warp_source_image_.isNull() || warp_source_image_.width() <= 0 || warp_source_image_.height() <= 0) {
-      if (status_callback_) {
-        status_callback_(tr("Layer has no pixels to warp"));
-      }
+      report_status_error(tr("Layer has no pixels to warp"));
       return false;
     }
     warp_content_width_ = warp_source_image_.width();
@@ -1737,11 +1717,11 @@ void CanvasWidget::commit_warp_transform() {
   reset_warp_state();
   update_tool_cursor();
   document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
-  if (status_callback_) {
-    status_callback_(smart_filter_rerender_failed
-                         ? tr("Could not rebuild the Smart Filter preview and cache")
-                         : changed ? tr("Warped layer")
-                                   : tr("Warp Transform cancelled"));
+  if (smart_filter_rerender_failed) {
+    report_status_error(tr("Could not rebuild the Smart Filter preview and cache"));
+  } else if (status_callback_) {
+    status_callback_(changed ? tr("Warped layer")
+                             : tr("Warp Transform cancelled"));
   }
   notify_transform_controls_changed();
 }

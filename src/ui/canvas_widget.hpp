@@ -639,6 +639,10 @@ public:
   void set_text_requested_callback(std::function<void(QPoint, QRect)> callback);
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
   void set_status_callback(std::function<void(QString)> callback);
+  // Blocking refusals (the tool action did NOT happen) report through this
+  // callback so the host can present them as errors; unset, they fall back to
+  // the plain status callback.
+  void set_error_status_callback(std::function<void(QString)> callback);
   void set_info_callback(std::function<void(CanvasInfoState)> callback);
   // Re-emit the info state (cursor position, color, selection rect) from the current cursor
   // position, for refreshes that are not driven by a canvas mouse event (selection edits via
@@ -1064,6 +1068,7 @@ private:
   void reset_warp_state();
   bool constrain_pan() noexcept;
   void notify_view_changed();
+  void report_status_error(const QString& message) const;
   void emit_info_for_widget_position(QPoint widget_position) const;
   [[nodiscard]] PenInputSample pen_input_sample_from_tablet_event(const QTabletEvent& event) const;
   [[nodiscard]] PenButtonAction pen_action_for_button(Qt::MouseButton button) const noexcept;
@@ -1466,6 +1471,7 @@ private:
   std::function<void(QPoint, QRect)> text_requested_callback_;
   std::function<void(LayerId)> active_layer_changed_callback_;
   std::function<void(QString)> status_callback_;
+  std::function<void(QString)> error_status_callback_;
   std::function<void(CanvasInfoState)> info_callback_;
   std::function<void()> document_changed_callback_;
   std::function<void(DocumentChangeReason)> document_changed_reason_callback_;

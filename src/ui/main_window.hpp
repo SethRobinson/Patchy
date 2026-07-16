@@ -680,6 +680,10 @@ private:
                                                    std::optional<ChannelId> channel_id,
                                                    CanvasWidget::MaskDisplayMode display_mode);
   void refresh_document_info();
+  // Blocking refusals (the requested action did NOT happen) go through here so
+  // the status bar flashes red and keeps a warning icon; plain
+  // statusBar()->showMessage stays the path for informational text.
+  void show_status_error(const QString& text);
   void update_canvas_info(CanvasInfoState info);
   void choose_primary_color();
   void choose_secondary_color();

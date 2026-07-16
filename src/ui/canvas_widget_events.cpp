@@ -493,18 +493,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   };
   if (quick_mask_active_ && event->button() == Qt::LeftButton &&
       quick_mask_tool_is_unavailable(effective_tool)) {
-    if (status_callback_) {
-      status_callback_(tr("This tool is unavailable in Quick Mask mode"));
-    }
+    report_status_error(tr("This tool is unavailable in Quick Mask mode"));
     event->accept();
     return;
   }
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask &&
       event->button() == Qt::LeftButton &&
       quick_mask_tool_is_unavailable(effective_tool)) {
-    if (status_callback_) {
-      status_callback_(tr("This tool is unavailable while editing a Smart Filter mask"));
-    }
+    report_status_error(tr("This tool is unavailable while editing a Smart Filter mask"));
     event->accept();
     return;
   }
@@ -537,9 +533,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
        effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush ||
        is_local_adjustment_tool(effective_tool) ||
        effective_tool == CanvasTool::Text)) {
-    if (status_callback_) {
-      status_callback_(tr("This tool is unavailable while viewing a document channel"));
-    }
+    report_status_error(tr("This tool is unavailable while viewing a document channel"));
     event->accept();
     return;
   }
@@ -587,10 +581,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   if (effective_tool == CanvasTool::Clone || effective_tool == CanvasTool::Healing) {
     const auto healing = effective_tool == CanvasTool::Healing;
     if (editing_grayscale_target()) {
-      if (status_callback_) {
-        status_callback_(healing ? tr("Healing is unavailable while editing a grayscale channel")
-                                 : tr("Clone is unavailable while editing a grayscale channel"));
-      }
+      report_status_error(healing ? tr("Healing is unavailable while editing a grayscale channel")
+                                  : tr("Clone is unavailable while editing a grayscale channel"));
       return;
     }
     if ((event->modifiers() & Qt::AltModifier) != 0) {
@@ -598,10 +590,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       return;
     }
     if (!clone_source_set_) {
-      if (status_callback_) {
-        status_callback_(healing ? tr("Alt-click to set a healing source")
-                                 : tr("Alt-click to set a clone source"));
-      }
+      report_status_error(healing ? tr("Alt-click to set a healing source")
+                                  : tr("Alt-click to set a clone source"));
       return;
     }
     if (begin_edit(healing ? tr("Healing brush") : tr("Clone stamp"))) {
@@ -626,9 +616,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (is_local_adjustment_tool(effective_tool)) {
     if (editing_grayscale_target()) {
-      if (status_callback_) {
-        status_callback_(tr("Local adjustment brushes are unavailable while editing a grayscale channel"));
-      }
+      report_status_error(tr("Local adjustment brushes are unavailable while editing a grayscale channel"));
       return;
     }
     QString label;
@@ -773,12 +761,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       layer_ids = selected_move_layer_ids;
     }
     if (layer_ids.empty()) {
-      if (status_callback_) {
-        if (top_clicked_layer != nullptr && layer_effectively_locks_position(*top_clicked_layer)) {
-          status_callback_(tr("Layer position is locked."));
-        } else {
-          status_callback_(tr("Click an editable layer to move"));
-        }
+      if (top_clicked_layer != nullptr && layer_effectively_locks_position(*top_clicked_layer)) {
+        report_status_error(tr("Layer position is locked."));
+      } else {
+        report_status_error(tr("Click an editable layer to move"));
       }
       return;
     }
@@ -972,11 +958,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       effective_tool == CanvasTool::Eraser) {
     if ((effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush) &&
         editing_grayscale_target()) {
-      if (status_callback_) {
-        status_callback_(effective_tool == CanvasTool::MixerBrush
-                             ? tr("Mixer Brush is unavailable while editing a grayscale channel")
-                             : tr("Smudge is unavailable while editing a grayscale channel"));
-      }
+      report_status_error(effective_tool == CanvasTool::MixerBrush
+                              ? tr("Mixer Brush is unavailable while editing a grayscale channel")
+                              : tr("Smudge is unavailable while editing a grayscale channel"));
       return;
     }
     auto label = tr("Erase");
@@ -986,9 +970,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       label = tr("Mixer Brush stroke");
     } else if (effective_tool == CanvasTool::PatternStamp) {
       if (!begin_pattern_stamp_stroke(document_point)) {
-        if (status_callback_) {
-          status_callback_(tr("Choose a pattern before painting"));
-        }
+        report_status_error(tr("Choose a pattern before painting"));
         return;
       }
       label = tr("Pattern stamp");
@@ -2026,9 +2008,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
        tool_ == CanvasTool::QuickSelect || tool_ == CanvasTool::Clone ||
        tool_ == CanvasTool::Healing ||
        tool_ == CanvasTool::Smudge || is_local_adjustment_tool(tool_) || tool_ == CanvasTool::Text)) {
-    if (status_callback_) {
-      status_callback_(tr("This tool is unavailable in Quick Mask mode"));
-    }
+    report_status_error(tr("This tool is unavailable in Quick Mask mode"));
     event->accept();
     return;
   }
@@ -2039,9 +2019,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
        tool_ == CanvasTool::QuickSelect || tool_ == CanvasTool::Clone ||
        tool_ == CanvasTool::Healing ||
        tool_ == CanvasTool::Smudge || is_local_adjustment_tool(tool_) || tool_ == CanvasTool::Text)) {
-    if (status_callback_) {
-      status_callback_(tr("This tool is unavailable while editing a Smart Filter mask"));
-    }
+    report_status_error(tr("This tool is unavailable while editing a Smart Filter mask"));
     event->accept();
     return;
   }
@@ -2167,9 +2145,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   if (!event->isAutoRepeat() && event->key() == Qt::Key_A &&
       event->modifiers() == Qt::ControlModifier) {
     if (quick_mask_active_) {
-      if (status_callback_) {
-        status_callback_(tr("Select All is unavailable in Quick Mask mode"));
-      }
+      report_status_error(tr("Select All is unavailable in Quick Mask mode"));
     } else {
       select_all();
     }
@@ -2572,9 +2548,7 @@ bool CanvasWidget::begin_edit(QString label) {
   }
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask) {
     if (!editing_smart_filter_mask()) {
-      if (status_callback_) {
-        status_callback_(tr("The Smart Filter mask is no longer available"));
-      }
+      report_status_error(tr("The Smart Filter mask is no longer available"));
       clear_smart_filter_mask_edit_target();
       return false;
     }
@@ -2588,15 +2562,11 @@ bool CanvasWidget::begin_edit(QString label) {
   if (layer_edit_target_ == LayerEditTarget::DocumentChannel) {
     const auto* channel = active_document_channel_const();
     if (channel == nullptr) {
-      if (status_callback_) {
-        status_callback_(tr("Select a saved channel to edit"));
-      }
+      report_status_error(tr("Select a saved channel to edit"));
       return false;
     }
     if (channel->kind() != DocumentChannelKind::Alpha) {
-      if (status_callback_) {
-        status_callback_(tr("Spot channels are read-only"));
-      }
+      report_status_error(tr("Spot channels are read-only"));
       return false;
     }
     if (before_edit_callback_) {
@@ -2607,9 +2577,7 @@ bool CanvasWidget::begin_edit(QString label) {
   if (layer_edit_target_ == LayerEditTarget::ComponentRed ||
       layer_edit_target_ == LayerEditTarget::ComponentGreen ||
       layer_edit_target_ == LayerEditTarget::ComponentBlue) {
-    if (status_callback_) {
-      status_callback_(tr("Color component channels are read-only"));
-    }
+    report_status_error(tr("Color component channels are read-only"));
     return false;
   }
   if (active_layer_locks_image_pixels()) {
@@ -2622,9 +2590,7 @@ bool CanvasWidget::begin_edit(QString label) {
     // active_layer_mask() accessor would bump revisions on this read-only
     // precondition (rejected edits must not invalidate caches).
     if (!editing_layer_mask()) {
-      if (status_callback_) {
-        status_callback_(tr("Select a layer mask to edit"));
-      }
+      report_status_error(tr("Select a layer mask to edit"));
       return false;
     }
     if (before_edit_callback_) {
@@ -2638,21 +2604,15 @@ bool CanvasWidget::begin_edit(QString label) {
   // three revisions on access, so a REJECTED edit (non-8-bit layer) must not
   // invalidate the layer's caches. Accepted edits bump when they write.
   if (layer == nullptr || std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8) {
-    if (status_callback_) {
-      status_callback_(tr("Select an editable 8-bit pixel layer first"));
-    }
+    report_status_error(tr("Select an editable 8-bit pixel layer first"));
     return false;
   }
   if (layer_is_text(*layer)) {
-    if (status_callback_) {
-      status_callback_(tr("Select a normal pixel layer before painting on text"));
-    }
+    report_status_error(tr("Select a normal pixel layer before painting on text"));
     return false;
   }
   if (layer_is_smart_object(*layer)) {
-    if (status_callback_) {
-      status_callback_(tr("Smart object contents can't be painted. Rasterize the layer to edit its pixels."));
-    }
+    report_status_error(tr("Smart object contents can't be painted. Rasterize the layer to edit its pixels."));
     return false;
   }
 

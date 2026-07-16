@@ -407,7 +407,7 @@ void MainWindow::apply_palette_entry_color(int index, RgbColor color, bool remap
   }
   if (remap_pixels && document().palette_editing().has_value() &&
       document_contains_smart_objects(std::as_const(document()))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Smart Objects before changing palette pixels"));
     return;
   }
@@ -489,7 +489,7 @@ void MainWindow::paste_clipboard_color_to_palette() {
     valid = valid && isxdigit(character.toLatin1()) != 0;
   }
   if (!valid) {
-    statusBar()->showMessage(tr("The clipboard does not contain a color (expected #RRGGBB)"));
+    show_status_error(tr("The clipboard does not contain a color (expected #RRGGBB)"));
     return;
   }
   const QColor color(QStringLiteral("#") + text);
@@ -510,7 +510,7 @@ void MainWindow::add_palette_entry_from_foreground() {
     }
   }
   if (colors.size() >= 256) {
-    statusBar()->showMessage(tr("The palette is full (256 colors)"));
+    show_status_error(tr("The palette is full (256 colors)"));
     return;
   }
   colors.push_back(color);
@@ -526,7 +526,7 @@ void MainWindow::remove_palette_entry(int index) {
     return;
   }
   if (colors.size() <= 1) {
-    statusBar()->showMessage(tr("A palette needs at least one color"));
+    show_status_error(tr("A palette needs at least one color"));
     return;
   }
   colors.erase(colors.begin() + index);
@@ -540,7 +540,7 @@ void MainWindow::extract_palette_from_image() {
   const auto flattened = Compositor().flatten_rgb8(document());
   const auto exact = patchy::exact_palette_from_pixels(flattened, 256, 0);
   if (!exact.has_value()) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("The image has more than 256 colors. Use Image > Mode > Indexed (Palette) to optimize it down."));
     return;
   }
@@ -637,7 +637,7 @@ void MainWindow::convert_document_to_indexed() {
     return;
   }
   if (document_contains_smart_objects(std::as_const(document()))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Smart Objects before changing palette pixels"));
     refresh_palette_panel();
     return;
@@ -749,7 +749,7 @@ void MainWindow::convert_document_to_rgb() {
     snap_pixels = box.clickedButton() == keep_button;
   }
   if (snap_pixels && document_contains_smart_objects(std::as_const(doc))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Smart Objects before changing palette pixels"));
     refresh_palette_panel();
     return;
@@ -801,7 +801,7 @@ void MainWindow::snap_layers_to_palette(bool active_layer_only) {
     return layer != nullptr && layer_tree_contains_smart_object(*layer);
   }();
   if (would_rewrite_smart_object) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Smart Objects before changing palette pixels"));
     return;
   }

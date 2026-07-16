@@ -1074,7 +1074,7 @@ void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor 
 
 void MainWindow::create_clipboard_document(const QImage& image, QString history_label) {
   if (image.isNull()) {
-    statusBar()->showMessage(tr("Clipboard does not contain an image"));
+    show_status_error(tr("Clipboard does not contain an image"));
     return;
   }
 
@@ -1146,7 +1146,7 @@ void MainWindow::resize_image_dialog() {
   }
   if (dimensions_changed &&
       document_contains_smart_objects(std::as_const(doc))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Smart Objects before changing document geometry"));
     return;
   }
@@ -1185,7 +1185,7 @@ void MainWindow::resize_canvas_dialog() {
     return;
   }
   if (document_contains_smart_objects(std::as_const(doc))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Smart Objects before changing document geometry"));
     return;
   }

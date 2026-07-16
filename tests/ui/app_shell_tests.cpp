@@ -1806,6 +1806,62 @@ void ui_start_panel_recent_files_open_on_click() {
   CHECK(info->text().contains(QStringLiteral("48 x 32 px")));
 }
 
+void ui_status_bar_error_message_flashes_then_persists_until_replaced() {
+  patchy::ui::ZoomStatusBar bar;
+  bar.resize(600, 24);
+  bar.show();
+  QApplication::processEvents();
+
+  bar.showMessage(QStringLiteral("Ready"));
+  CHECK(!bar.error_message_active());
+
+  bar.show_error_message(QStringLiteral("Layer pixels are locked."));
+  CHECK(bar.currentMessage() == QStringLiteral("Layer pixels are locked."));
+  CHECK(bar.error_message_active());
+  CHECK(bar.error_flash_running());
+
+  // The flash is finite (~1s); the red error presentation persists after it.
+  CHECK(process_events_until([&bar] { return !bar.error_flash_running(); }));
+  CHECK(bar.error_message_active());
+
+  // Re-showing the SAME error restarts the flash even though QStatusBar
+  // suppresses messageChanged for an identical string.
+  bar.show_error_message(QStringLiteral("Layer pixels are locked."));
+  CHECK(bar.error_flash_running());
+  CHECK(bar.currentMessage() == QStringLiteral("Layer pixels are locked."));
+
+  // Any different message ends the error presentation.
+  bar.showMessage(QStringLiteral("Applied Levels"));
+  CHECK(!bar.error_message_active());
+  CHECK(!bar.error_flash_running());
+
+  bar.show_error_message(QStringLiteral("Layer pixels are locked."));
+  CHECK(bar.error_message_active());
+  bar.clearMessage();
+  CHECK(!bar.error_message_active());
+}
+
+void ui_blocking_refusal_shows_error_status_and_info_clears_it() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  require_action(window, "filterConvertForSmartFiltersAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "filterLiquifyAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Rasterize the Smart Object before using Liquify"));
+  auto* bar = qobject_cast<patchy::ui::ZoomStatusBar*>(window.statusBar());
+  CHECK(bar != nullptr);
+  CHECK(bar->error_message_active());
+  save_widget_artifact("status_bar_error_flash", *bar);
+
+  window.statusBar()->showMessage(QStringLiteral("Ready"));
+  QApplication::processEvents();
+  CHECK(!bar->error_message_active());
+}
+
 void ui_svg_icon_resources_are_registered() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1872,5 +1928,9 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},
+      {"ui_status_bar_error_message_flashes_then_persists_until_replaced",
+       ui_status_bar_error_message_flashes_then_persists_until_replaced},
+      {"ui_blocking_refusal_shows_error_status_and_info_clears_it",
+       ui_blocking_refusal_shows_error_status_and_info_clears_it},
   };
 }

@@ -1,7 +1,11 @@
 #pragma once
 
+#include <QElapsedTimer>
 #include <QLineEdit>
 #include <QStatusBar>
+#include <QTimer>
+
+class QPainter;
 
 namespace patchy::ui {
 
@@ -50,6 +54,15 @@ public:
 
   void set_left_widget(QWidget* widget);
 
+  // Shows `text` exactly like showMessage() (same currentMessage semantics),
+  // but marks it as a blocking-error message: the message region flashes red
+  // for about a second, then the text stays red with a warning icon until any
+  // different message replaces it. Re-showing the same error restarts the
+  // flash (QStatusBar::showMessage ignores an identical string).
+  void show_error_message(const QString& text);
+  [[nodiscard]] bool error_message_active() const;
+  [[nodiscard]] bool error_flash_running() const;
+
 protected:
   void paintEvent(QPaintEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;
@@ -57,8 +70,13 @@ protected:
 
 private:
   void position_left_widget();
+  void paint_warning_icon(QPainter& painter, const QRect& icon_rect) const;
 
   QWidget* left_widget_{nullptr};
+  QString error_text_;
+  bool error_active_{false};
+  QTimer error_flash_timer_;
+  QElapsedTimer error_flash_clock_;
 };
 
 }  // namespace patchy::ui

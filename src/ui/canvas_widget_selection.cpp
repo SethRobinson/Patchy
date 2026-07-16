@@ -492,9 +492,7 @@ void CanvasWidget::select_layer_opaque_pixels(LayerId layer_id) {
   }
   const auto* layer = document_->find_layer(layer_id);
   if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
-    if (status_callback_) {
-      status_callback_(tr("Select a pixel layer first"));
-    }
+    report_status_error(tr("Select a pixel layer first"));
     return;
   }
 
@@ -536,9 +534,7 @@ void CanvasWidget::select_layer_mask_pixels(LayerId layer_id) {
   }
   const auto* layer = document_->find_layer(layer_id);
   if (layer == nullptr || !layer->mask().has_value()) {
-    if (status_callback_) {
-      status_callback_(tr("Layer has no mask"));
-    }
+    report_status_error(tr("Layer has no mask"));
     return;
   }
 
@@ -722,9 +718,7 @@ void CanvasWidget::replace_selection_from_grayscale(const PixelBuffer& pixels, Q
 
 void CanvasWidget::grow_selection() {
   if (document_ == nullptr || selection_.isEmpty()) {
-    if (status_callback_) {
-      status_callback_(tr("Make a selection before growing"));
-    }
+    report_status_error(tr("Make a selection before growing"));
     return;
   }
 
@@ -839,9 +833,7 @@ void CanvasWidget::grow_selection() {
 
 void CanvasWidget::select_similar_to_selection() {
   if (document_ == nullptr || selection_.isEmpty()) {
-    if (status_callback_) {
-      status_callback_(tr("Make a selection before selecting similar pixels"));
-    }
+    report_status_error(tr("Make a selection before selecting similar pixels"));
     return;
   }
 

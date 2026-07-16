@@ -7191,6 +7191,10 @@ MainWindow::~MainWindow() {
   set_color_picker_document_palette({}, false);
 }
 
+void MainWindow::show_status_error(const QString& text) {
+  zoom_status_bar_->show_error_message(text);
+}
+
 void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->setObjectName(QStringLiteral("canvas"));
   // A canvas can be born while a preview dialog holds the edit lock (drag & drop,
@@ -7282,6 +7286,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     refresh_options_bar();
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
+  canvas->set_error_status_callback([this](QString message) { show_status_error(message); });
   canvas->set_ruler_unit_change_requested_callback(
       [this](MeasurementUnit unit) { set_ruler_unit_preference(unit); });
   canvas->set_info_callback([this, canvas](CanvasInfoState info) {
@@ -7336,7 +7341,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
         owner_session->document, *layer, canvas->transform_interpolation(),
         true, parent_document_dir);
     if (!refreshed) {
-      statusBar()->showMessage(
+      show_status_error(
           tr("Could not rebuild the Smart Filter preview and cache"));
     }
     return refreshed;
@@ -7537,7 +7542,7 @@ void MainWindow::run_legacy_plugin(QString identifier) {
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentGreen ||
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentBlue)) {
-    statusBar()->showMessage(tr("Filters are unavailable while viewing a document channel"));
+    show_status_error(tr("Filters are unavailable while viewing a document channel"));
     return;
   }
   const auto* descriptor = plugin_host_.find(identifier.toStdString());
@@ -7546,26 +7551,26 @@ void MainWindow::run_legacy_plugin(QString identifier) {
   }
   const auto active = document().active_layer_id();
   if (!active.has_value()) {
-    statusBar()->showMessage(tr("Select a pixel layer before running the plug-in"));
+    show_status_error(tr("Select a pixel layer before running the plug-in"));
     return;
   }
   auto* layer = document().find_layer(*active);
   if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
-    statusBar()->showMessage(tr("Select an editable 8-bit pixel layer before running the plug-in"));
+    show_status_error(tr("Select an editable 8-bit pixel layer before running the plug-in"));
     return;
   }
   const auto& source_pixels = std::as_const(*layer).pixels();
   if (source_pixels.format().bit_depth != BitDepth::UInt8 || source_pixels.format().channels < 3) {
-    statusBar()->showMessage(tr("Select an editable 8-bit pixel layer before running the plug-in"));
+    show_status_error(tr("Select an editable 8-bit pixel layer before running the plug-in"));
     return;
   }
   if (layer_is_text(*layer) || layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Text and Smart Object layers before editing their pixels"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
 
@@ -7650,7 +7655,7 @@ void MainWindow::cut_selection() {
     }
   }
   if (ids.empty()) {
-    statusBar()->showMessage(tr("Select a layer to cut"));
+    show_status_error(tr("Select a layer to cut"));
     return;
   }
 
@@ -7665,7 +7670,7 @@ void MainWindow::cut_selection() {
   }
   if (layers_to_cut.empty()) {
     if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
-      statusBar()->showMessage(tr("Layer pixels are locked."));
+      show_status_error(tr("Layer pixels are locked."));
       return;
     }
     clipboard_.reset();
@@ -7677,7 +7682,7 @@ void MainWindow::cut_selection() {
         const auto* layer = std::as_const(document()).find_layer(id);
         return layer != nullptr && (layer_is_text(*layer) || layer_is_smart_object(*layer));
       })) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Text and Smart Object layers before editing their pixels"));
     return;
   }
@@ -7733,19 +7738,19 @@ void MainWindow::copy_selection() {
     }
   }
   if (ids.empty()) {
-    statusBar()->showMessage(tr("Select a layer to copy"));
+    show_status_error(tr("Select a layer to copy"));
     return;
   }
 
   ids = root_drop_layer_ids(document().layers(), ids);
   if (ids.empty()) {
-    statusBar()->showMessage(tr("Select a layer to copy"));
+    show_status_error(tr("Select a layer to copy"));
     return;
   }
 
   const auto selected_layers = find_layers_top_to_bottom(document().layers(), ids);
   if (selected_layers.empty()) {
-    statusBar()->showMessage(tr("Select a layer to copy"));
+    show_status_error(tr("Select a layer to copy"));
     return;
   }
 
@@ -7856,7 +7861,7 @@ void MainWindow::paste_clipboard() {
     if (const auto color = picker->paste_color_from_clipboard(); color.has_value()) {
       statusBar()->showMessage(tr("Pasted color %1").arg(color->name()));
     } else {
-      statusBar()->showMessage(tr("The clipboard does not contain a color"));
+      show_status_error(tr("The clipboard does not contain a color"));
     }
     return;
   }
@@ -7879,7 +7884,7 @@ void MainWindow::paste_clipboard() {
               &clipboard_->smart_filter_effect_records);
         });
     if (!caches_available) {
-      statusBar()->showMessage(
+      show_status_error(
           tr("Smart Filter cache data could not be duplicated safely"));
       return;
     }
@@ -7900,7 +7905,7 @@ void MainWindow::paste_clipboard() {
           doc, *it, &clipboard_->smart_filter_effect_records);
       if (!pasted.has_value()) {
         undo();
-        statusBar()->showMessage(
+        show_status_error(
             tr("Smart Filter cache data could not be duplicated safely"));
         return;
       }
@@ -7924,7 +7929,7 @@ void MainWindow::paste_clipboard() {
   } else {
     const auto image = QApplication::clipboard()->image();
     if (image.isNull()) {
-      statusBar()->showMessage(tr("Clipboard does not contain an image"));
+      show_status_error(tr("Clipboard does not contain an image"));
       return;
     }
     pixels = pixels_from_image_rgba(image);
@@ -7950,7 +7955,7 @@ void MainWindow::paste_clipboard() {
 
 void MainWindow::transform_active_layer_dialog() {
   if (canvas_ == nullptr) {
-    statusBar()->showMessage(tr("Select a pixel layer to transform"));
+    show_status_error(tr("Select a pixel layer to transform"));
     return;
   }
   if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
@@ -7958,17 +7963,17 @@ void MainWindow::transform_active_layer_dialog() {
   }
   if (const auto active = document().active_layer_id();
       active.has_value() && layer_id_locks_position(*active)) {
-    statusBar()->showMessage(tr("Layer position is locked."));
+    show_status_error(tr("Layer position is locked."));
     return;
   }
   if (!canvas_->begin_free_transform()) {
-    statusBar()->showMessage(tr("Select a pixel layer to transform"));
+    show_status_error(tr("Select a pixel layer to transform"));
   }
 }
 
 void MainWindow::warp_transform_active_layer() {
   if (canvas_ == nullptr) {
-    statusBar()->showMessage(tr("Select a pixel layer to warp"));
+    show_status_error(tr("Select a pixel layer to warp"));
     return;
   }
   if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
@@ -7976,7 +7981,7 @@ void MainWindow::warp_transform_active_layer() {
   }
   if (const auto active = document().active_layer_id();
       active.has_value() && layer_id_locks_position(*active)) {
-    statusBar()->showMessage(tr("Layer position is locked."));
+    show_status_error(tr("Layer position is locked."));
     return;
   }
   canvas_->begin_warp_transform();  // refusal reasons land in the status bar
@@ -8045,7 +8050,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     if (auto* layer = document().find_layer(*active); layer != nullptr && layer_is_text(*layer) &&
         layer->bounds().contains(document_point.x(), document_point.y())) {
       if (layer_id_locks_image_pixels(*active)) {
-        statusBar()->showMessage(tr("Layer pixels are locked."));
+        show_status_error(tr("Layer pixels are locked."));
         return;
       }
       editing_layer = *active;
@@ -8834,7 +8839,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   if (layer_id.has_value() && layer_id_locks_image_pixels(*layer_id)) {
     restore_hidden_text_layer();
     refresh_text_color_button();
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
 
@@ -9423,11 +9428,11 @@ void MainWindow::request_warp_text_dialog() {
   const auto active_id = doc.active_layer_id();
   Layer* layer = active_id.has_value() ? doc.find_layer(*active_id) : nullptr;
   if (layer == nullptr || !layer_is_text(*layer)) {
-    statusBar()->showMessage(tr("Select a text layer to warp."));
+    show_status_error(tr("Select a text layer to warp."));
     return;
   }
   if (layer_id_locks_image_pixels(layer->id())) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
   const auto layer_id = layer->id();
@@ -9480,7 +9485,7 @@ void MainWindow::request_warp_text_dialog() {
     applied = apply_text_warp_to_layer(*target, *result);
   }
   if (!applied) {
-    statusBar()->showMessage(tr("Could not warp the text layer."));
+    show_status_error(tr("Could not warp the text layer."));
   } else {
     statusBar()->showMessage(text_warp_is_identity(*result) ? tr("Removed text warp")
                                                             : tr("Warped text layer"));
@@ -9594,14 +9599,14 @@ void MainWindow::layer_via_cut() {
   }
   if (std::any_of(payload->source_layer_ids.begin(), payload->source_layer_ids.end(),
                   [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
   if (std::any_of(payload->source_layer_ids.begin(), payload->source_layer_ids.end(), [this](LayerId id) {
         const auto* layer = std::as_const(document()).find_layer(id);
         return layer != nullptr && (layer_is_text(*layer) || layer_is_smart_object(*layer));
       })) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Text and Smart Object layers before editing their pixels"));
     return;
   }
@@ -9637,16 +9642,16 @@ void MainWindow::add_layer_mask() {
   auto& doc = document();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
-    statusBar()->showMessage(tr("Select a pixel or adjustment layer before adding a mask"));
+    show_status_error(tr("Select a pixel or adjustment layer before adding a mask"));
     return;
   }
   auto* layer = doc.find_layer(*active);
   if (layer == nullptr || (layer->kind() != LayerKind::Pixel && layer->kind() != LayerKind::Adjustment)) {
-    statusBar()->showMessage(tr("Select a pixel or adjustment layer before adding a mask"));
+    show_status_error(tr("Select a pixel or adjustment layer before adding a mask"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
 
@@ -9654,7 +9659,7 @@ void MainWindow::add_layer_mask() {
   const auto selection_rect = selection.boundingRect().intersected(QRect(0, 0, doc.width(), doc.height()));
   const auto from_selection = !selection.isEmpty() && !selection_rect.isEmpty();
   if (!from_selection && layer->mask().has_value()) {
-    statusBar()->showMessage(tr("Layer already has a mask"));
+    show_status_error(tr("Layer already has a mask"));
     return;
   }
 
@@ -9686,11 +9691,11 @@ void MainWindow::delete_active_layer_mask() {
   }
   auto* layer = doc.find_layer(*active);
   if (layer == nullptr || !layer->mask().has_value()) {
-    statusBar()->showMessage(tr("Active layer has no mask"));
+    show_status_error(tr("Active layer has no mask"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
 
@@ -9716,7 +9721,7 @@ void MainWindow::set_active_layer_mask_linked(bool linked) {
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     refresh_layer_controls();
     return;
   }
@@ -9746,20 +9751,20 @@ bool MainWindow::set_smart_filter_mask_edit_target_ui(
           document().width(), document().height()) ||
       (!smart_object_lock_reason(*layer).empty() &&
        smart_object_lock_reason(*layer) != "external")) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter mask can only be preserved, not edited"));
     return false;
   }
   auto pixels = materialize_smart_filter_mask(
       stack->mask, document().width(), document().height());
   if (!pixels.has_value()) {
-    statusBar()->showMessage(tr("Could not prepare this Smart Filter mask"));
+    show_status_error(tr("Could not prepare this Smart Filter mask"));
     return false;
   }
   document().set_active_layer(layer_id);
   if (!canvas_->set_smart_filter_mask_edit_target(
           layer_id, std::move(*pixels), mode)) {
-    statusBar()->showMessage(tr("Could not edit this Smart Filter mask"));
+    show_status_error(tr("Could not edit this Smart Filter mask"));
     return false;
   }
   restyle_layer_rows(layer_list_);
@@ -9856,7 +9861,7 @@ void MainWindow::set_layer_mask_view_shown(bool shown) {
   if (layer == nullptr ||
       (!std::as_const(*layer).mask().has_value() && !has_smart_mask)) {
     refresh_layer_controls();
-    statusBar()->showMessage(tr("Active layer has no mask"));
+    show_status_error(tr("Active layer has no mask"));
     return;
   }
   if (shown) {
@@ -9892,12 +9897,12 @@ void MainWindow::set_active_layer_mask_disabled(bool disabled) {
     return;
   }
   if (layer == nullptr || !layer->mask().has_value()) {
-    statusBar()->showMessage(tr("Active layer has no mask"));
+    show_status_error(tr("Active layer has no mask"));
     refresh_layer_controls();
     return;
   }
   if (active.has_value() && layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     refresh_layer_controls();
     return;
   }
@@ -9928,11 +9933,11 @@ void MainWindow::invert_active_layer_mask() {
   }
   auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || !layer->mask().has_value()) {
-    statusBar()->showMessage(tr("Active layer has no mask"));
+    show_status_error(tr("Active layer has no mask"));
     return;
   }
   if (active.has_value() && layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
 
@@ -9957,22 +9962,22 @@ void MainWindow::apply_active_layer_mask() {
   const auto active = doc.active_layer_id();
   auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || !layer->mask().has_value()) {
-    statusBar()->showMessage(tr("Active layer has no mask"));
+    show_status_error(tr("Active layer has no mask"));
     return;
   }
   if (active.has_value() && layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
   if (layer_is_text(*layer) || layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Text and Smart Object layers before editing their pixels"));
     return;
   }
   const auto& source_pixels = std::as_const(*layer).pixels();
   if (layer->kind() != LayerKind::Pixel || source_pixels.format().bit_depth != BitDepth::UInt8 ||
       source_pixels.format().channels < 3) {
-    statusBar()->showMessage(tr("Apply mask supports editable 8-bit pixel layers"));
+    show_status_error(tr("Apply mask supports editable 8-bit pixel layers"));
     return;
   }
 
@@ -10037,7 +10042,7 @@ void MainWindow::duplicate_layers(std::vector<LayerId> ids) {
                                     *source, doc.metadata().smart_filter_effects);
   });
   if (!caches_available) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Smart Filter cache data could not be duplicated safely"));
     return;
   }
@@ -10055,7 +10060,7 @@ void MainWindow::duplicate_layers(std::vector<LayerId> ids) {
     auto duplicate = clone_layer_tree_with_document_ids(doc, *source);
     if (!duplicate.has_value()) {
       undo();
-      statusBar()->showMessage(
+      show_status_error(
           tr("Smart Filter cache data could not be duplicated safely"));
       return;
     }
@@ -10488,10 +10493,10 @@ void MainWindow::rasterize_active_layers() {
   }
   if (pending.empty()) {
     if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
-      statusBar()->showMessage(tr("Layer pixels are locked."));
+      show_status_error(tr("Layer pixels are locked."));
       return;
     }
-    statusBar()->showMessage(tr("No rasterizable layers selected"));
+    show_status_error(tr("No rasterizable layers selected"));
     return;
   }
 
@@ -10552,10 +10557,10 @@ void MainWindow::rasterize_active_layer_styles() {
   }
   if (pending.empty()) {
     if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
-      statusBar()->showMessage(tr("Layer pixels are locked."));
+      show_status_error(tr("Layer pixels are locked."));
       return;
     }
-    statusBar()->showMessage(tr("No layer styles to rasterize"));
+    show_status_error(tr("No layer styles to rasterize"));
     return;
   }
 
@@ -11006,7 +11011,7 @@ void MainWindow::merge_down() {
 
   auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
-    statusBar()->showMessage(tr("Select a layer to merge down"));
+    show_status_error(tr("Select a layer to merge down"));
     return;
   }
 
@@ -11035,7 +11040,7 @@ void MainWindow::merge_down() {
   }
 
   if (normalized.empty()) {
-    statusBar()->showMessage(tr("Select a layer to merge down"));
+    show_status_error(tr("Select a layer to merge down"));
     return;
   }
 
@@ -11062,7 +11067,7 @@ void MainWindow::merge_down() {
     } else {
       const auto location = find_layer_location(doc.layers(), id);
       if (!location.has_value() || location->index == 0U) {
-        statusBar()->showMessage(tr("No layer below to merge"));
+        show_status_error(tr("No layer below to merge"));
         return;
       }
       merge_list = {(*location->siblings)[location->index - 1U].id(), id};
@@ -11082,7 +11087,7 @@ void MainWindow::merge_down() {
   for (const auto id : merge_list) {
     const auto* layer = doc.find_layer(id);
     if (layer == nullptr) {
-      statusBar()->showMessage(tr("Select a layer to merge down"));
+      show_status_error(tr("Select a layer to merge down"));
       return;
     }
     if (!layer_is_effectively_visible(doc.layers(), id)) {
@@ -11110,7 +11115,7 @@ void MainWindow::merge_down() {
     return;
   }
   if (layer_id_locks_image_pixels(target_id)) {
-    statusBar()->showMessage(tr("Target layer pixels are locked. Unlock image pixels to merge down."));
+    show_status_error(tr("Target layer pixels are locked. Unlock image pixels to merge down."));
     return;
   }
 
@@ -11134,7 +11139,7 @@ void MainWindow::merge_down() {
   if (!target_location.has_value()) {
     refresh_layer_list();
     refresh_layer_controls();
-    statusBar()->showMessage(tr("Select a layer to merge down"));
+    show_status_error(tr("Select a layer to merge down"));
     return;
   }
 
@@ -11204,14 +11209,14 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
                                  edit_target == CanvasWidget::LayerEditTarget::ComponentGreen ||
                                  edit_target == CanvasWidget::LayerEditTarget::ComponentBlue;
   if (component_channel || (document_channel && !canvas_->document_channel_is_editable())) {
-    statusBar()->showMessage(tr("This channel is read-only"));
+    show_status_error(tr("This channel is read-only"));
     return;
   }
   if (canvas_ != nullptr && (edit_target == CanvasWidget::LayerEditTarget::Mask || document_channel)) {
     if (!document_channel) {
       const auto active = document().active_layer_id();
       if (active.has_value() && layer_id_locks_image_pixels(*active)) {
-        statusBar()->showMessage(tr("Layer pixels are locked."));
+        show_status_error(tr("Layer pixels are locked."));
         return;
       }
     }
@@ -11257,7 +11262,7 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
     }
   }
   if (fillable_ids.empty()) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Text and Smart Object pixels cannot be filled. Rasterize the layer first."));
     return;
   }
@@ -11318,14 +11323,14 @@ void MainWindow::clear_active_layer() {
                                  edit_target == CanvasWidget::LayerEditTarget::ComponentGreen ||
                                  edit_target == CanvasWidget::LayerEditTarget::ComponentBlue;
   if (component_channel || (document_channel && !canvas_->document_channel_is_editable())) {
-    statusBar()->showMessage(tr("This channel is read-only"));
+    show_status_error(tr("This channel is read-only"));
     return;
   }
   if (canvas_ != nullptr && (edit_target == CanvasWidget::LayerEditTarget::Mask || document_channel)) {
     if (!document_channel) {
       const auto active = document().active_layer_id();
       if (active.has_value() && layer_id_locks_image_pixels(*active)) {
-        statusBar()->showMessage(tr("Layer pixels are locked."));
+        show_status_error(tr("Layer pixels are locked."));
         return;
       }
     }
@@ -11452,7 +11457,7 @@ void MainWindow::clear_active_layer() {
     if (object_layer_ids.empty()) {
       statusBar()->showMessage(tr("Nothing to clear"));
     } else if (!text_editing_active) {
-      statusBar()->showMessage(
+      show_status_error(
           tr("Text and smart object layers can't be cleared. Deselect first, then Delete removes the layer."));
     }
     return;
@@ -11491,21 +11496,21 @@ void MainWindow::stroke_selection() {
   }
   const auto selection = canvas_->selected_document_region();
   if (selection.isEmpty()) {
-    statusBar()->showMessage(tr("Make a selection before stroking"));
+    show_status_error(tr("Make a selection before stroking"));
     return;
   }
   auto* layer = doc.find_layer(*active);
   if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
-    statusBar()->showMessage(tr("Select an editable pixel layer first"));
+    show_status_error(tr("Select an editable pixel layer first"));
     return;
   }
   if (layer_is_text(*layer) || layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Text and Smart Object layers before editing their pixels"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
 
@@ -11771,7 +11776,7 @@ void MainWindow::define_brush_tip_from_selection() {
   }
   const auto mask = capture_brush_tip_define_source();
   if (mask.isNull()) {
-    statusBar()->showMessage(tr("The selection is empty or too large to use as a brush tip (max 4096px)"));
+    show_status_error(tr("The selection is empty or too large to use as a brush tip (max 4096px)"));
     return;
   }
   bool accepted = false;
@@ -11783,7 +11788,7 @@ void MainWindow::define_brush_tip_from_selection() {
   }
   const auto id = brush_tip_library().add_tip(name.trimmed(), mask, 0.25);
   if (id.isEmpty()) {
-    statusBar()->showMessage(tr("The selection is empty or too large to use as a brush tip (max 4096px)"));
+    show_status_error(tr("The selection is empty or too large to use as a brush tip (max 4096px)"));
     return;
   }
   set_active_brush_tip(id, false);
@@ -11792,7 +11797,7 @@ void MainWindow::define_brush_tip_from_selection() {
 
 void MainWindow::expand_selection_dialog() {
   if (!canvas_->has_selection()) {
-    statusBar()->showMessage(tr("Make a selection before expanding"));
+    show_status_error(tr("Make a selection before expanding"));
     return;
   }
   const auto pixels = request_integer_input(this, QStringLiteral("patchyExpandSelectionDialog"),
@@ -11804,7 +11809,7 @@ void MainWindow::expand_selection_dialog() {
 
 void MainWindow::contract_selection_dialog() {
   if (!canvas_->has_selection()) {
-    statusBar()->showMessage(tr("Make a selection before contracting"));
+    show_status_error(tr("Make a selection before contracting"));
     return;
   }
   const auto pixels = request_integer_input(this, QStringLiteral("patchyContractSelectionDialog"),
@@ -11816,7 +11821,7 @@ void MainWindow::contract_selection_dialog() {
 
 void MainWindow::border_selection_dialog() {
   if (!canvas_->has_selection()) {
-    statusBar()->showMessage(tr("Make a selection before selecting a border"));
+    show_status_error(tr("Make a selection before selecting a border"));
     return;
   }
   const auto pixels = request_integer_input(this, QStringLiteral("patchyBorderSelectionDialog"),
@@ -11844,7 +11849,7 @@ void MainWindow::flip_active_layer_horizontal() {
         const auto* layer = std::as_const(document()).find_layer(id);
         return layer != nullptr && layer_tree_contains_smart_object(*layer);
       })) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Use Free Transform or rasterize Smart Objects before flipping"));
     return;
   }
@@ -11882,7 +11887,7 @@ void MainWindow::flip_active_layer_vertical() {
         const auto* layer = std::as_const(document()).find_layer(id);
         return layer != nullptr && layer_tree_contains_smart_object(*layer);
       })) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Use Free Transform or rasterize Smart Objects before flipping"));
     return;
   }
@@ -11903,11 +11908,11 @@ void MainWindow::flip_active_layer_vertical() {
 void MainWindow::crop_to_selection() {
   const auto selection = canvas_->selected_document_rect();
   if (!selection.has_value() || selection->isEmpty()) {
-    statusBar()->showMessage(tr("Make a rectangular selection before cropping"));
+    show_status_error(tr("Make a rectangular selection before cropping"));
     return;
   }
   if (document_contains_smart_objects(std::as_const(document()))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Smart Objects before changing document geometry"));
     return;
   }
@@ -11936,7 +11941,7 @@ void MainWindow::crop_to_selection() {
 void MainWindow::rotate_canvas_clockwise() {
   auto& doc = document();
   if (document_contains_smart_objects(std::as_const(doc))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Smart Objects before changing document geometry"));
     return;
   }
@@ -11958,7 +11963,7 @@ void MainWindow::rotate_canvas_clockwise() {
 void MainWindow::rotate_canvas_counterclockwise() {
   auto& doc = document();
   if (document_contains_smart_objects(std::as_const(doc))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize Smart Objects before changing document geometry"));
     return;
   }
@@ -12026,7 +12031,7 @@ std::vector<LayerId> MainWindow::layer_ids_without_image_pixel_lock(std::vector<
 bool MainWindow::show_pixel_lock_message_if_all_locked(const std::vector<LayerId>& requested_ids,
                                                        const std::vector<LayerId>& editable_ids) {
   if (!requested_ids.empty() && editable_ids.empty()) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return true;
   }
   return false;
@@ -12379,7 +12384,7 @@ void MainWindow::toggle_active_layer_clipping() {
     return;
   }
   if (!clipped && effective_clip_base(*location->siblings, location->index) == nullptr) {
-    statusBar()->showMessage(tr("Create Clipping Mask needs a pixel layer below"));
+    show_status_error(tr("Create Clipping Mask needs a pixel layer below"));
     return;
   }
 
@@ -14383,7 +14388,7 @@ bool MainWindow::document_action_enabled_during_preview_lock(const QAction* acti
 }
 
 bool MainWindow::show_preview_dialog_edit_lock_message() {
-  statusBar()->showMessage(tr("Finish the open dialog before editing the document"));
+  show_status_error(tr("Finish the open dialog before editing the document"));
   return true;
 }
 

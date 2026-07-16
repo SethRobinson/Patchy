@@ -239,8 +239,8 @@ bool CanvasWidget::perform_pen_button_action(PenButtonAction action, const PenIn
     case PenButtonAction::SetCloneSource:
       if (tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing) {
         set_clone_source(sample.document_position.toPoint());
-      } else if (status_callback_) {
-        status_callback_(tr("Select the Clone or Healing Brush tool to set a sample source"));
+      } else {
+        report_status_error(tr("Select the Clone or Healing Brush tool to set a sample source"));
       }
       return true;
     case PenButtonAction::SwapColors:

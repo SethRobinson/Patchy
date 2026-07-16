@@ -301,12 +301,12 @@ void MainWindow::export_smart_object_contents() {
   const auto active = document().active_layer_id();
   const auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
   if (layer == nullptr || !layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(tr("Select a smart object layer first"));
+    show_status_error(tr("Select a smart object layer first"));
     return;
   }
   const auto* source = document().metadata().smart_objects.find(smart_object_source_uuid(*layer));
   if (source == nullptr || source->file_bytes == nullptr) {
-    statusBar()->showMessage(tr("This smart object has no embedded contents to export"));
+    show_status_error(tr("This smart object has no embedded contents to export"));
     return;
   }
   const auto suggested = QString::fromStdString(source->filename.empty() ? "contents" : source->filename);
@@ -336,19 +336,19 @@ void MainWindow::open_smart_object_contents() {
   const auto active = document().active_layer_id();
   const auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
   if (layer == nullptr || !layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(tr("Select a smart object layer first"));
+    show_status_error(tr("Select a smart object layer first"));
     return;
   }
   const auto lock_reason = smart_object_lock_reason(*layer);
   if (!lock_reason.empty() && lock_reason != "external") {
     if (lock_reason == "filters") {
-      statusBar()->showMessage(
+      show_status_error(
           tr("This smart object has Smart Filters; Patchy keeps Photoshop's preview (rasterize to edit pixels)"));
     } else if (lock_reason == "warp" || lock_reason == "non_affine") {
-      statusBar()->showMessage(
+      show_status_error(
           tr("This smart object has a warp or perspective transform; Patchy keeps Photoshop's preview"));
     } else {
-      statusBar()->showMessage(tr("This smart object can only be preserved, not edited"));
+      show_status_error(tr("This smart object can only be preserved, not edited"));
     }
     return;
   }
@@ -366,14 +366,14 @@ void MainWindow::open_smart_object_contents() {
     // A linked file opens from disk as a normal document whose Save also refreshes
     // the parent (Photoshop's Edit Contents behavior for linked smart objects).
     if (source == nullptr || source->kind != SmartObjectSourceKind::ExternalFile) {
-      statusBar()->showMessage(tr("This smart object's contents are not embedded in the document"));
+      show_status_error(tr("This smart object's contents are not embedded in the document"));
       return;
     }
     const auto parent_dir =
         parent_session.path.isEmpty() ? QString() : QFileInfo(parent_session.path).absolutePath();
     const auto resolved = resolve_smart_object_external_path(*source, parent_dir);
     if (!resolved.has_value()) {
-      statusBar()->showMessage(tr("Linked file %1 was not found. Use Relink to File... to point it at a new location")
+      show_status_error(tr("Linked file %1 was not found. Use Relink to File... to point it at a new location")
                                    .arg(QString::fromStdString(source->filename)));
       return;
     }
@@ -390,20 +390,20 @@ void MainWindow::open_smart_object_contents() {
     return;
   }
   if (source == nullptr || source->kind != SmartObjectSourceKind::Embedded || source->file_bytes == nullptr) {
-    statusBar()->showMessage(tr("This smart object's contents are not embedded in the document"));
+    show_status_error(tr("This smart object's contents are not embedded in the document"));
     return;
   }
   const auto contents_format = classify_smart_object_contents(*source);
   if (contents_format != SmartObjectContentsFormat::PsdDocument &&
       contents_format != SmartObjectContentsFormat::QtImage) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Patchy can't re-encode %1 contents; use Export Smart Object Contents or rasterize the layer")
             .arg(QString::fromStdString(source->filename)));
     return;
   }
   auto child_document = decode_smart_object_source_document(*source);
   if (!child_document.has_value()) {
-    statusBar()->showMessage(tr("Could not decode the embedded smart object contents"));
+    show_status_error(tr("Could not decode the embedded smart object contents"));
     return;
   }
   const auto file_name =
@@ -430,7 +430,7 @@ bool MainWindow::commit_smart_object_child_session(DocumentSession& child_sessio
   }
   auto* source = parent->document.metadata().smart_objects.find(link.source_uuid);
   if (source == nullptr || source->kind != SmartObjectSourceKind::Embedded) {
-    statusBar()->showMessage(tr("The smart object no longer exists in %1").arg(parent->title));
+    show_status_error(tr("The smart object no longer exists in %1").arg(parent->title));
     return false;
   }
 
@@ -471,7 +471,7 @@ bool MainWindow::commit_smart_object_child_session(DocumentSession& child_sessio
     // Image sources keep their placed density: Photoshop does not re-derive it on edit.
     content_dpi = 0.0;
   } else {
-    statusBar()->showMessage(tr("These contents can't be re-encoded"));
+    show_status_error(tr("These contents can't be re-encoded"));
     return false;
   }
 
@@ -699,7 +699,7 @@ void MainWindow::refresh_external_smart_object_after_save(DocumentSession& child
   if (!refresh_smart_object_layers_for_source(
           updated_document, link.source_uuid, *rendered_image, content_dpi,
           true)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Could not rebuild the Smart Filter preview and cache"));
     return;
   }
@@ -735,25 +735,25 @@ void MainWindow::update_smart_object_content() {
   const auto active = doc.active_layer_id();
   const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || !layer_is_smart_object(*layer) || smart_object_lock_reason(*layer) != "external") {
-    statusBar()->showMessage(tr("Select a linked smart object layer first"));
+    show_status_error(tr("Select a linked smart object layer first"));
     return;
   }
   const auto uuid = smart_object_source_uuid(*layer);
   auto* source = doc.metadata().smart_objects.find(uuid);
   if (source == nullptr || source->kind != SmartObjectSourceKind::ExternalFile) {
-    statusBar()->showMessage(tr("Select a linked smart object layer first"));
+    show_status_error(tr("Select a linked smart object layer first"));
     return;
   }
   const auto parent_dir = session().path.isEmpty() ? QString() : QFileInfo(session().path).absolutePath();
   const auto resolved = resolve_smart_object_external_path(*source, parent_dir);
   if (!resolved.has_value()) {
-    statusBar()->showMessage(tr("Linked file %1 was not found. Use Relink to File... to point it at a new location")
+    show_status_error(tr("Linked file %1 was not found. Use Relink to File... to point it at a new location")
                                  .arg(QString::fromStdString(source->filename)));
     return;
   }
   QFile file(*resolved);
   if (!file.open(QIODevice::ReadOnly)) {
-    statusBar()->showMessage(tr("Could not read %1").arg(*resolved));
+    show_status_error(tr("Could not read %1").arg(*resolved));
     return;
   }
   const auto raw = file.readAll();
@@ -763,7 +763,7 @@ void MainWindow::update_smart_object_content() {
   probe.file_bytes = std::make_shared<const std::vector<std::uint8_t>>(raw.begin(), raw.end());
   const auto rendered_image = decode_smart_object_source_image(probe);
   if (!rendered_image.has_value()) {
-    statusBar()->showMessage(tr("Could not decode %1").arg(*resolved));
+    show_status_error(tr("Could not decode %1").arg(*resolved));
     return;
   }
   const auto content_dpi =
@@ -794,7 +794,7 @@ void MainWindow::update_smart_object_content() {
   updated_source->dirty = true;
   if (!refresh_smart_object_layers_for_source(
           updated_document, uuid, *rendered_image, content_dpi, true)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Could not rebuild the Smart Filter preview and cache"));
     return;
   }
@@ -827,7 +827,7 @@ void MainWindow::relink_smart_object_contents_with_path(const QString& path) {
   const auto active = doc.active_layer_id();
   const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || !layer_is_smart_object(*layer) || smart_object_lock_reason(*layer) != "external") {
-    statusBar()->showMessage(tr("Select a linked smart object layer first"));
+    show_status_error(tr("Select a linked smart object layer first"));
     return;
   }
   const auto uuid = smart_object_source_uuid(*layer);
@@ -974,7 +974,7 @@ void MainWindow::relink_smart_object_contents_with_path(const QString& path) {
     return true;
   };
   if (!repoint_layers(updated_document.layers())) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Could not rebuild the Smart Filter preview and cache"));
     return;
   }
@@ -995,25 +995,25 @@ void MainWindow::embed_linked_smart_object() {
   const auto active = doc.active_layer_id();
   const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || !layer_is_smart_object(*layer) || smart_object_lock_reason(*layer) != "external") {
-    statusBar()->showMessage(tr("Select a linked smart object layer first"));
+    show_status_error(tr("Select a linked smart object layer first"));
     return;
   }
   const auto uuid = smart_object_source_uuid(*layer);
   const auto* source = doc.metadata().smart_objects.find(uuid);
   if (source == nullptr || source->kind != SmartObjectSourceKind::ExternalFile) {
-    statusBar()->showMessage(tr("Select a linked smart object layer first"));
+    show_status_error(tr("Select a linked smart object layer first"));
     return;
   }
   const auto parent_dir = session().path.isEmpty() ? QString() : QFileInfo(session().path).absolutePath();
   const auto resolved = resolve_smart_object_external_path(*source, parent_dir);
   if (!resolved.has_value()) {
-    statusBar()->showMessage(tr("Linked file %1 was not found. Use Relink to File... to point it at a new location")
+    show_status_error(tr("Linked file %1 was not found. Use Relink to File... to point it at a new location")
                                  .arg(QString::fromStdString(source->filename)));
     return;
   }
   QFile file(*resolved);
   if (!file.open(QIODevice::ReadOnly)) {
-    statusBar()->showMessage(tr("Could not read %1").arg(*resolved));
+    show_status_error(tr("Could not read %1").arg(*resolved));
     return;
   }
   const auto raw = file.readAll();
@@ -1064,18 +1064,18 @@ void MainWindow::replace_smart_object_contents() {
   const auto active = doc.active_layer_id();
   auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || !layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(tr("Select a smart object layer first"));
+    show_status_error(tr("Select a smart object layer first"));
     return;
   }
   if (!smart_object_lock_reason(*layer).empty()) {
-    statusBar()->showMessage(tr("This smart object can only be preserved, not edited"));
+    show_status_error(tr("This smart object can only be preserved, not edited"));
     return;
   }
   const auto old_uuid = smart_object_source_uuid(*layer);
   const auto* old_source = doc.metadata().smart_objects.find(old_uuid);
   if (old_source == nullptr || old_source->kind != SmartObjectSourceKind::Embedded ||
       old_source->file_bytes == nullptr) {
-    statusBar()->showMessage(tr("This smart object's contents are not embedded in the document"));
+    show_status_error(tr("This smart object's contents are not embedded in the document"));
     return;
   }
 
@@ -1228,7 +1228,7 @@ void MainWindow::replace_smart_object_contents_with_path(const QString& path) {
     return true;
   };
   if (!repoint_layers(updated_document.layers())) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Could not rebuild the Smart Filter preview and cache"));
     return;
   }
@@ -1254,7 +1254,7 @@ void MainWindow::convert_to_smart_object() {
   auto& doc = document();
   const auto selected_ids = root_drop_layer_ids(doc.layers(), selected_or_active_layer_ids());
   if (selected_ids.empty()) {
-    statusBar()->showMessage(tr("Select layers to convert to a smart object"));
+    show_status_error(tr("Select layers to convert to a smart object"));
     return;
   }
   if (std::any_of(selected_ids.begin(), selected_ids.end(),
@@ -1263,7 +1263,7 @@ void MainWindow::convert_to_smart_object() {
                     return layer != nullptr &&
                            layer_tree_contains_smart_filters(*layer);
                   })) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Smart Objects with Smart Filters cannot be wrapped in another Smart Object yet"));
     return;
   }
@@ -1293,7 +1293,7 @@ void MainWindow::convert_to_smart_object() {
   // uses the pixel bounds; render bounds additionally keep layer-style effects
   // inside the child canvas so the preview matches the old composite).
   if (content.empty()) {
-    statusBar()->showMessage(tr("The selected layers have no pixels to convert"));
+    show_status_error(tr("The selected layers have no pixels to convert"));
     return;
   }
 
@@ -1410,22 +1410,22 @@ void MainWindow::new_smart_object_via_copy() {
   const auto active = doc.active_layer_id();
   const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || !layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(tr("Select a smart object layer first"));
+    show_status_error(tr("Select a smart object layer first"));
     return;
   }
   const auto* source = doc.metadata().smart_objects.find(smart_object_source_uuid(*layer));
   if (source == nullptr || source->kind != SmartObjectSourceKind::Embedded || source->file_bytes == nullptr) {
-    statusBar()->showMessage(tr("This smart object's contents are not embedded in the document"));
+    show_status_error(tr("This smart object's contents are not embedded in the document"));
     return;
   }
   const auto placement = smart_object_placement_from_layer(*layer);
   if (!placement.has_value()) {
-    statusBar()->showMessage(tr("This smart object can only be preserved, not edited"));
+    show_status_error(tr("This smart object can only be preserved, not edited"));
     return;
   }
   if (!smart_filter_records_available_for_clone(
           *layer, doc.metadata().smart_filter_effects)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Smart Filter cache data could not be duplicated safely"));
     return;
   }
@@ -1447,7 +1447,7 @@ void MainWindow::new_smart_object_via_copy() {
   auto copy = clone_layer_tree_with_document_ids(doc, *layer);
   if (!copy.has_value()) {
     undo();
-    statusBar()->showMessage(
+    show_status_error(
         tr("Smart Filter cache data could not be duplicated safely"));
     return;
   }

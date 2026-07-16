@@ -508,7 +508,7 @@ void MainWindow::create_alpha_channel() {
   }
   auto& doc = document();
   if (doc.channels().size() >= doc.maximum_saved_channel_count()) {
-    statusBar()->showMessage(tr("This document has reached the Photoshop channel limit"));
+    show_status_error(tr("This document has reached the Photoshop channel limit"));
     return;
   }
   try {
@@ -531,7 +531,7 @@ void MainWindow::save_selection_as_channel() {
   }
   auto& doc = document();
   if (doc.channels().size() >= doc.maximum_saved_channel_count()) {
-    statusBar()->showMessage(tr("This document has reached the Photoshop channel limit"));
+    show_status_error(tr("This document has reached the Photoshop channel limit"));
     return;
   }
   try {

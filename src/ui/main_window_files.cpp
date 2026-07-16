@@ -950,7 +950,7 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
   const auto paths = supported_local_open_paths(event->mimeData());
   if (paths.isEmpty()) {
     event->ignore();
-    statusBar()->showMessage(tr("Drop a supported image or Photoshop document"));
+    show_status_error(tr("Drop a supported image or Photoshop document"));
     return false;
   }
 
@@ -1076,7 +1076,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
   // lives in one).
   activate_document_session(target_session);
   if (!QFileInfo::exists(path)) {
-    statusBar()->showMessage(tr("File is missing"));
+    show_status_error(tr("File is missing"));
     return;
   }
   if (session_is_modified(target_session)) {
@@ -1298,7 +1298,7 @@ void MainWindow::import_sprite_sheet() {
 
 void MainWindow::export_sprite_sheet() {
   if (!has_active_document()) {
-    statusBar()->showMessage(tr("No document"));
+    show_status_error(tr("No document"));
     return;
   }
   finish_active_text_editor();
@@ -1380,7 +1380,7 @@ void MainWindow::set_tile_preview_visible(bool visible, QAction* toggle_action) 
 
 bool MainWindow::save_document() {
   if (!has_active_document()) {
-    statusBar()->showMessage(tr("No document"));
+    show_status_error(tr("No document"));
     return false;
   }
   finish_active_text_editor();
@@ -1421,7 +1421,7 @@ bool MainWindow::save_document() {
 
 bool MainWindow::save_document_as() {
   if (!has_active_document()) {
-    statusBar()->showMessage(tr("No document"));
+    show_status_error(tr("No document"));
     return false;
   }
   finish_active_text_editor();
@@ -1575,7 +1575,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
 
 void MainWindow::export_flat_image() {
   if (!has_active_document()) {
-    statusBar()->showMessage(tr("No document"));
+    show_status_error(tr("No document"));
     return;
   }
   finish_active_text_editor();
@@ -1626,7 +1626,7 @@ void MainWindow::page_setup() {
 
 void MainWindow::print_document() {
   if (!has_active_document()) {
-    statusBar()->showMessage(tr("No document"));
+    show_status_error(tr("No document"));
     return;
   }
   std::optional<QRect> selection_bounds;
@@ -1689,7 +1689,7 @@ void MainWindow::show_update_available(const UpdateInfo& update) {
   Q_UNUSED(copy_button);
 #endif
   if (dialog.clickedButton() == download_button && !QDesktopServices::openUrl(update.download_url)) {
-    statusBar()->showMessage(tr("Could not open the download link"));
+    show_status_error(tr("Could not open the download link"));
   }
 }
 
@@ -1931,7 +1931,7 @@ void MainWindow::reveal_path_in_file_explorer(const QString& path, bool is_file)
   const QFileInfo info(path);
   if (is_file) {
     if (!info.exists()) {
-      statusBar()->showMessage(tr("File is missing"));
+      show_status_error(tr("File is missing"));
       return;
     }
 #if defined(Q_OS_WIN)
@@ -1947,7 +1947,7 @@ void MainWindow::reveal_path_in_file_explorer(const QString& path, bool is_file)
     return;
   }
   if (!info.isDir()) {
-    statusBar()->showMessage(tr("Folder is missing"));
+    show_status_error(tr("Folder is missing"));
     return;
   }
   QDesktopServices::openUrl(QUrl::fromLocalFile(info.absoluteFilePath()));
@@ -1958,7 +1958,7 @@ void MainWindow::open_recent_document(QString path) {
     recent_files_.removeAll(path);
     save_recent_files();
     rebuild_recent_files_menu();
-    statusBar()->showMessage(tr("Recent file is missing"));
+    show_status_error(tr("Recent file is missing"));
     return;
   }
   open_document_path(path);

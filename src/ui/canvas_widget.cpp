@@ -1005,6 +1005,20 @@ void CanvasWidget::set_status_callback(std::function<void(QString)> callback) {
   status_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_error_status_callback(std::function<void(QString)> callback) {
+  error_status_callback_ = std::move(callback);
+}
+
+// Blocking refusals from canvas tools. Falls back to the plain status callback
+// so hosts that wire only set_status_callback still see the message text.
+void CanvasWidget::report_status_error(const QString& message) const {
+  if (error_status_callback_) {
+    error_status_callback_(message);
+  } else if (status_callback_) {
+    status_callback_(message);
+  }
+}
+
 void CanvasWidget::set_info_callback(std::function<void(CanvasInfoState)> callback) {
   info_callback_ = std::move(callback);
 }
@@ -1206,21 +1220,15 @@ bool CanvasWidget::layer_effectively_locks_position(const Layer& layer) const no
 }
 
 void CanvasWidget::show_layer_pixels_locked_message() const {
-  if (status_callback_) {
-    status_callback_(tr("Layer pixels are locked."));
-  }
+  report_status_error(tr("Layer pixels are locked."));
 }
 
 void CanvasWidget::show_layer_position_locked_message() const {
-  if (status_callback_) {
-    status_callback_(tr("Layer position is locked."));
-  }
+  report_status_error(tr("Layer position is locked."));
 }
 
 void CanvasWidget::show_edit_locked_message() const {
-  if (status_callback_) {
-    status_callback_(tr("Finish the open dialog before editing the document"));
-  }
+  report_status_error(tr("Finish the open dialog before editing the document"));
 }
 
 Layer* CanvasWidget::topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel,

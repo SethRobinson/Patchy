@@ -1249,7 +1249,7 @@ void MainWindow::convert_for_smart_filters() {
                           : nullptr;
   if (layer == nullptr || layer->kind() != LayerKind::Pixel ||
       layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Select a normal pixel layer to convert for Smart Filters"));
     return;
   }
@@ -1324,14 +1324,14 @@ void MainWindow::editable_smart_filter_dialog(
     return;
   }
   if (layer_id_locks_image_pixels(layer_id)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
   const auto document_pixels =
       static_cast<std::uint64_t>(document().width()) *
       static_cast<std::uint64_t>(document().height());
   if (document_pixels > psd::kMaximumEditableSmartFilterMaskPixels) {
-    statusBar()->showMessage(tr(
+    show_status_error(tr(
         "Editable Smart Filters currently support documents up to 64 megapixels"));
     return;
   }
@@ -1341,7 +1341,7 @@ void MainWindow::editable_smart_filter_dialog(
                                      : std::string{};
   if (layer == nullptr || !layer_is_smart_object(*layer) ||
       (!lock.empty() && lock != "external")) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Object can only preserve its imported filters"));
     return;
   }
@@ -1359,7 +1359,7 @@ void MainWindow::editable_smart_filter_dialog(
   if (adding) {
     if (const auto* current = layer->smart_filter_stack(); current != nullptr) {
       if (current->support != SmartFilterStackSupport::Supported) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1404,14 +1404,14 @@ void MainWindow::editable_smart_filter_dialog(
     if (current == nullptr ||
         current->support != SmartFilterStackSupport::Supported ||
         *execution_index >= current->entries.size()) {
-      statusBar()->showMessage(
+      show_status_error(
           tr("This Smart Filter can only be preserved, not edited"));
       return;
     }
     stack = *current;
     filter_index = *execution_index;
     if (stack.entries[filter_index].kind != kind) {
-      statusBar()->showMessage(
+      show_status_error(
           tr("This Smart Filter can only be preserved, not edited"));
       return;
     }
@@ -1419,7 +1419,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto* gaussian = std::get_if<GaussianBlurSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (gaussian == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1428,7 +1428,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto* radius = std::get_if<HighPassSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (radius == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1437,7 +1437,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto* radius = std::get_if<MedianSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (radius == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1446,7 +1446,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto* settings = std::get_if<DustAndScratchesSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1458,7 +1458,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto *settings = std::get_if<SurfaceBlurSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1469,7 +1469,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto *settings = std::get_if<UnsharpMaskSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1482,7 +1482,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto *settings = std::get_if<MotionBlurSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1494,7 +1494,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto *settings = std::get_if<MosaicSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1504,7 +1504,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto *settings = std::get_if<EmbossSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1518,7 +1518,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto *settings = std::get_if<BoxBlurSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1527,7 +1527,7 @@ void MainWindow::editable_smart_filter_dialog(
       const auto *settings = std::get_if<PlasticWrapSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
-        statusBar()->showMessage(
+        show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
         return;
       }
@@ -1545,7 +1545,7 @@ void MainWindow::editable_smart_filter_dialog(
       std::as_const(doc), std::as_const(*layer), interpolation,
       parent_document_dir);
   if (!unfiltered_preview.has_value()) {
-    statusBar()->showMessage(tr("Could not render this Smart Object"));
+    show_status_error(tr("Could not render this Smart Object"));
     return;
   }
   auto unfiltered_pixels =
@@ -1635,7 +1635,7 @@ void MainWindow::editable_smart_filter_dialog(
                       *last_preview_bounds = result->bounds;
                     }
                   } else {
-                    window->statusBar()->showMessage(
+                    window->show_status_error(
                         window->tr("Smart Filter preview failed: %1")
                             .arg(*error));
                   }
@@ -1767,7 +1767,7 @@ void MainWindow::editable_smart_filter_dialog(
   if (!commit_smart_filter_stack_edit(
           layer_id, std::move(candidate), std::move(entry_sources),
           undo_text, status_text)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter descriptor cannot be edited safely"));
   }
 }
@@ -1801,7 +1801,7 @@ void MainWindow::edit_smart_filter_blending(
       execution_index >= current->entries.size() ||
       (!smart_object_lock_reason(*layer).empty() &&
        smart_object_lock_reason(*layer) != "external")) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter can only be preserved, not edited"));
     return;
   }
@@ -1814,7 +1814,7 @@ void MainWindow::edit_smart_filter_blending(
       std::as_const(doc), std::as_const(*layer), interpolation,
       parent_document_dir);
   if (!unfiltered_preview.has_value()) {
-    statusBar()->showMessage(tr("Could not render this Smart Object"));
+    show_status_error(tr("Could not render this Smart Object"));
     return;
   }
 
@@ -1912,7 +1912,7 @@ void MainWindow::edit_smart_filter_blending(
                       *last_preview_bounds = result->bounds;
                     }
                   } else {
-                    window->statusBar()->showMessage(
+                    window->show_status_error(
                         window->tr("Smart Filter preview failed: %1")
                             .arg(*error));
                   }
@@ -1966,7 +1966,7 @@ void MainWindow::edit_smart_filter_blending(
           layer_id, std::move(candidate), {},
           tr("Edit Smart Filter Blending Options"),
           tr("Updated Smart Filter blending options"))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter descriptor cannot be edited safely"));
   }
 }
@@ -1977,7 +1977,7 @@ void MainWindow::set_smart_filter_stack_enabled(LayerId layer_id,
     return;
   }
   if (layer_id_locks_image_pixels(layer_id)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     refresh_layer_list();
     return;
   }
@@ -1997,7 +1997,7 @@ void MainWindow::set_smart_filter_stack_enabled(LayerId layer_id,
           layer_id, std::move(candidate), {},
           enabled ? tr("Show Smart Filters") : tr("Hide Smart Filters"),
           enabled ? tr("Smart Filters shown") : tr("Smart Filters hidden"))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter descriptor cannot be edited safely"));
     refresh_layer_list();
   }
@@ -2010,7 +2010,7 @@ void MainWindow::set_smart_filter_enabled(LayerId layer_id,
     return;
   }
   if (layer_id_locks_image_pixels(layer_id)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     refresh_layer_list();
     return;
   }
@@ -2031,7 +2031,7 @@ void MainWindow::set_smart_filter_enabled(LayerId layer_id,
           layer_id, std::move(candidate), {},
           enabled ? tr("Show Smart Filter") : tr("Hide Smart Filter"),
           enabled ? tr("Smart Filter shown") : tr("Smart Filter hidden"))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter descriptor cannot be edited safely"));
     refresh_layer_list();
   }
@@ -2060,7 +2060,7 @@ void MainWindow::set_smart_filter_mask_enabled(LayerId layer_id,
                   : tr("Disable Smart Filter Mask"),
           enabled ? tr("Smart Filter mask enabled")
                   : tr("Smart Filter mask disabled"))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter descriptor cannot be edited safely"));
     refresh_layer_list();
   }
@@ -2094,7 +2094,7 @@ bool MainWindow::commit_smart_filter_mask_edit(
           *target_session, source_canvas, layer_id, std::move(candidate), {},
           undo_text, tr("Updated Smart Filter mask"),
           SmartFilterCacheEdit::ReplaceMask)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter mask cannot be edited safely"));
     return false;
   }
@@ -2129,7 +2129,7 @@ void MainWindow::duplicate_smart_filter(LayerId layer_id,
   if (!commit_smart_filter_stack_edit(
           layer_id, std::move(candidate), std::move(sources),
           tr("Duplicate Smart Filter"), tr("Duplicated Smart Filter"))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter descriptor cannot be edited safely"));
     refresh_layer_list();
   }
@@ -2167,7 +2167,7 @@ void MainWindow::move_smart_filter(LayerId layer_id,
   if (!commit_smart_filter_stack_edit(
           layer_id, std::move(candidate), std::move(sources),
           tr("Reorder Smart Filters"), tr("Reordered Smart Filters"))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter descriptor cannot be edited safely"));
     refresh_layer_list();
   }
@@ -2179,7 +2179,7 @@ void MainWindow::delete_smart_filter(LayerId layer_id,
     return;
   }
   if (layer_id_locks_image_pixels(layer_id)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     refresh_layer_list();
     return;
   }
@@ -2197,7 +2197,7 @@ void MainWindow::delete_smart_filter(LayerId layer_id,
     if (!commit_smart_filter_stack_edit(
             layer_id, std::nullopt, {}, tr("Delete Smart Filter"),
             tr("Deleted Smart Filter"))) {
-      statusBar()->showMessage(
+      show_status_error(
           tr("This Smart Filter descriptor cannot be edited safely"));
       refresh_layer_list();
     }
@@ -2218,7 +2218,7 @@ void MainWindow::delete_smart_filter(LayerId layer_id,
   if (!commit_smart_filter_stack_edit(
           layer_id, std::move(candidate), std::move(sources),
           tr("Delete Smart Filter"), tr("Deleted Smart Filter"))) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("This Smart Filter descriptor cannot be edited safely"));
     refresh_layer_list();
   }
@@ -2226,7 +2226,7 @@ void MainWindow::delete_smart_filter(LayerId layer_id,
 
 void MainWindow::apply_filter(const QString& identifier) {
   if (canvas_ != nullptr && canvas_->quick_mask_active()) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Filters are unavailable in Quick Mask mode"));
     return;
   }
@@ -2235,7 +2235,7 @@ void MainWindow::apply_filter(const QString& identifier) {
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentGreen ||
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentBlue)) {
-    statusBar()->showMessage(tr("Filters are unavailable while viewing a document channel"));
+    show_status_error(tr("Filters are unavailable while viewing a document channel"));
     return;
   }
   auto& doc = document();
@@ -2247,11 +2247,11 @@ void MainWindow::apply_filter(const QString& identifier) {
   if (layer == nullptr || layer->kind() != LayerKind::Pixel ||
       std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8 ||
       std::as_const(*layer).pixels().format().channels < 3) {
-    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
   bool rasterize_smart_object_for_filter = false;
@@ -2261,7 +2261,7 @@ void MainWindow::apply_filter(const QString& identifier) {
         (layer->smart_filter_stack() != nullptr &&
          layer->smart_filter_stack()->support !=
              SmartFilterStackSupport::Supported)) {
-      statusBar()->showMessage(
+      show_status_error(
           tr("This Smart Object can only preserve its imported filters"));
       return;
     }
@@ -2278,7 +2278,7 @@ void MainWindow::apply_filter(const QString& identifier) {
     const auto* unsupported_filter = filters_.find(identifier.toStdString());
     if (unsupported_filter == nullptr ||
         is_adjustment_only_filter(*unsupported_filter)) {
-      statusBar()->showMessage(
+      show_status_error(
           tr("This filter is not currently editable as a Smart Filter"));
       return;
     }
@@ -2374,7 +2374,7 @@ void MainWindow::apply_filter(const QString& identifier) {
                         *last_preview_bounds = *result_bounds;
                       }
                     } else {
-                      window->statusBar()->showMessage(
+                      window->show_status_error(
                           window->tr("Filter preview failed: %1").arg(*error));
                     }
                   }
@@ -2497,7 +2497,7 @@ void MainWindow::liquify_dialog() {
     return;
   }
   if (canvas_ != nullptr && canvas_->quick_mask_active()) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Liquify is unavailable in Quick Mask mode"));
     return;
   }
@@ -2510,7 +2510,7 @@ void MainWindow::liquify_dialog() {
            CanvasWidget::LayerEditTarget::ComponentGreen ||
        canvas_->layer_edit_target() ==
            CanvasWidget::LayerEditTarget::ComponentBlue)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Liquify is unavailable while viewing a document channel"));
     return;
   }
@@ -2523,16 +2523,16 @@ void MainWindow::liquify_dialog() {
   const auto& read_only_doc = std::as_const(doc);
   const auto* source_layer = read_only_doc.find_layer(*active);
   if (!editable_rgb8_layer(source_layer)) {
-    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
   if (layer_is_smart_object(*source_layer)) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Rasterize the Smart Object before using Liquify"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
 
@@ -2610,7 +2610,7 @@ void MainWindow::liquify_dialog() {
 
 void MainWindow::visual_filter_gallery_dialog() {
   if (canvas_ != nullptr && canvas_->quick_mask_active()) {
-    statusBar()->showMessage(
+    show_status_error(
         tr("Filters are unavailable in Quick Mask mode"));
     return;
   }
@@ -2619,7 +2619,7 @@ void MainWindow::visual_filter_gallery_dialog() {
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentGreen ||
        canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentBlue)) {
-    statusBar()->showMessage(tr("Filters are unavailable while viewing a document channel"));
+    show_status_error(tr("Filters are unavailable while viewing a document channel"));
     return;
   }
 
@@ -2637,7 +2637,7 @@ void MainWindow::visual_filter_gallery_dialog() {
   const auto& source_document = std::as_const(target_session->document);
   const auto* source_layer = source_document.find_layer(*active);
   if (!editable_rgb8_layer(source_layer)) {
-    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
   const bool smart_object_target = layer_is_smart_object(*source_layer);
@@ -2650,18 +2650,18 @@ void MainWindow::visual_filter_gallery_dialog() {
     if ((!lock.empty() && lock != "external") ||
         (stack != nullptr &&
          stack->support != SmartFilterStackSupport::Supported)) {
-      statusBar()->showMessage(
+      show_status_error(
           tr("This Smart Object can only preserve its imported filters"));
       return;
     }
     if (document_pixels > psd::kMaximumEditableSmartFilterMaskPixels) {
-      statusBar()->showMessage(tr(
+      show_status_error(tr(
           "Editable Smart Filters currently support documents up to 64 megapixels"));
       return;
     }
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
 
@@ -2712,7 +2712,7 @@ void MainWindow::visual_filter_gallery_dialog() {
         target_session->canvas->transform_interpolation(),
         parent_document_dir);
     if (!unfiltered.has_value()) {
-      statusBar()->showMessage(tr("Could not render this Smart Object"));
+      show_status_error(tr("Could not render this Smart Object"));
       return;
     }
     native_unfiltered_pixels =
@@ -2809,7 +2809,7 @@ void MainWindow::visual_filter_gallery_dialog() {
                         }
                       }
                     } else {
-                      window->statusBar()->showMessage(
+                      window->show_status_error(
                           window->tr("Filter preview failed: %1").arg(*error));
                     }
                   }
@@ -2994,7 +2994,7 @@ void MainWindow::visual_filter_gallery_dialog() {
                 layer_id, std::move(*candidate), std::move(entry_sources),
                 tr("Add Smart Filter Stack"),
                 tr("Added %1 as editable Smart Filters").arg(display_name))) {
-          statusBar()->showMessage(tr(
+          show_status_error(tr(
               "This Smart Filter descriptor cannot be edited safely"));
         }
         return;
@@ -3151,16 +3151,16 @@ void MainWindow::levels_dialog() {
   }
   auto* layer = doc.find_layer(*active);
   if (!editable_rgb8_layer(layer)) {
-    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
   if (layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(tr(
+    show_status_error(tr(
         "Rasterize the Smart Object before applying destructive filters or adjustments"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
   const auto active_id = *active;
@@ -3341,16 +3341,16 @@ void MainWindow::curves_dialog() {
   }
   auto* layer = doc.find_layer(*active);
   if (!editable_rgb8_layer(layer)) {
-    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
   if (layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(tr(
+    show_status_error(tr(
         "Rasterize the Smart Object before applying destructive filters or adjustments"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
   const auto active_id = *active;
@@ -3524,11 +3524,11 @@ void MainWindow::hue_saturation_dialog() {
   }
   auto* layer = doc.find_layer(*active);
   if (!editable_rgb8_layer(layer)) {
-    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
   if (layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(tr(
+    show_status_error(tr(
         "Rasterize the Smart Object before applying destructive filters or adjustments"));
     return;
   }
@@ -3659,11 +3659,11 @@ void MainWindow::color_balance_dialog() {
   }
   auto* layer = doc.find_layer(*active);
   if (!editable_rgb8_layer(layer)) {
-    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
   if (layer_is_smart_object(*layer)) {
-    statusBar()->showMessage(tr(
+    show_status_error(tr(
         "Rasterize the Smart Object before applying destructive filters or adjustments"));
     return;
   }
@@ -3852,17 +3852,17 @@ void MainWindow::edit_active_adjustment_layer() {
   const auto active = doc.active_layer_id();
   auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || layer->kind() != LayerKind::Adjustment) {
-    statusBar()->showMessage(tr("Select an adjustment layer to edit its settings"));
+    show_status_error(tr("Select an adjustment layer to edit its settings"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
-    statusBar()->showMessage(tr("Layer pixels are locked."));
+    show_status_error(tr("Layer pixels are locked."));
     return;
   }
 
   const auto original_settings = adjustment_settings_from_layer(*layer);
   if (!original_settings.has_value()) {
-    statusBar()->showMessage(tr("This adjustment layer has no editable settings"));
+    show_status_error(tr("This adjustment layer has no editable settings"));
     return;
   }
 
