@@ -83,6 +83,10 @@ void DocumentPath::mark_dirty() noexcept {
   mark_changed();
 }
 
+void DocumentPath::reset_dirty() noexcept {
+  dirty_ = false;
+}
+
 void DocumentPath::mark_changed() noexcept {
   ++content_revision_;
 }

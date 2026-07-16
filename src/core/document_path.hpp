@@ -54,6 +54,9 @@ public:
   void set_resource_source(std::uint16_t resource_id,
                            std::shared_ptr<const std::vector<std::uint8_t>> payload) noexcept;
   void mark_dirty() noexcept;
+  // Import plumbing only: clears the dirty flag after construction-time setup
+  // so freshly imported paths follow the dirty-or-verbatim write rule.
+  void reset_dirty() noexcept;
 
 private:
   void mark_changed() noexcept;

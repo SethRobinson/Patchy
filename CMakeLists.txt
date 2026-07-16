@@ -259,6 +259,7 @@ add_library(patchy_psd
   src/psd/psd_smart_objects.cpp
   src/psd/psd_text_read.cpp
   src/psd/psd_text_write.cpp
+  src/psd/psd_vector.cpp
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render patchy_color)
 if(WIN32)
@@ -816,6 +817,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/psd_core_io_tests.cpp
     tests/core/psd_structure_tests.cpp
     tests/core/psd_text_tests.cpp
+    tests/core/psd_vector_fixtures_tests.cpp
     tests/core/psd_writer_stability_tests.cpp
     tests/core/raw_heif_tests.cpp
     tests/core/smart_filter_descriptors_tests.cpp

@@ -144,6 +144,23 @@ captured order (kind-dependent):
 - App-level (`executeActionGet` keyOriginType) path-drawn subpaths report
   keyActionMode entries instead of live-shape data.
 
+### Known render divergences (July 2026)
+
+- GdFl / gradient-fill shading: Photoshop's fill-layer linear gradient is an
+  S-eased ramp whose effective span at non-axis angles matches neither the
+  overlay-calibrated projection (w cos + h sin) nor the center chord
+  (probe-grad-*.bmp in local-test-fixtures/vector-probe). Patchy renders the
+  overlay-calibrated geometry, within mean ~5/255 of PS on the committed
+  gradient fixture. Exact calibration is a follow-up (smoothness-0 probes will
+  separate span from easing).
+- Stroke dashes: dash boundaries land where each renderer's arc-length
+  integration puts them; sub-pixel flattening differences flip a handful of
+  dash-edge pixels (mean delta ~0.3 on the strokes fixture).
+- Photoshop's baked derived mask plane (mask flags bit 3) holds UNFEATHERED
+  path coverage; the feather parameter applies at render time. Patchy bakes
+  its own feathered cache (triple box blur, radius ~ feather/2) - close but
+  not gaussian-exact.
+
 ### Vector masks on layers (mask data section, channels)
 
 - A vector-mask-ONLY layer has NO mask data section and NO baked mask channel;

@@ -9,8 +9,11 @@
 
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/document_path.hpp"
 #include "core/text_warp.hpp"
+#include "core/vector_shape.hpp"
 #include "psd/psd_binary.hpp"
+#include "psd/psd_descriptor.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_smart_objects.hpp"
 
@@ -120,6 +123,13 @@ struct LayerMaskInfo {
   std::uint8_t default_color{255};
   bool disabled{false};
   bool linked{true};
+  // Mask-data flags bit 3: the stored plane was rendered from other data (the
+  // baked vector-mask coverage Photoshop writes when density/feather are set).
+  bool from_rendering{false};
+  // Mask parameters (flags bit 4): vector-mask density (raw 0..255) and
+  // feather in pixels, when present.
+  std::optional<std::uint8_t> vector_density;
+  std::optional<double> vector_feather;
 };
 
 struct PsdTextBoundsD {
@@ -451,6 +461,13 @@ std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::u
 // Layer-style codecs: lfx2/lrFX parse, global-light resolution, and the private
 // plFX block (definitions in psd_layer_styles.cpp). The public lfx2 write API
 // shared with the .asl codec is declared in psd/psd_layer_effects.hpp.
+// descriptor_enum/percent_to_unit/descriptor_rgb_color/parse_layer_style_gradient
+// are the PS-calibrated descriptor vocabulary shared with the vector codec.
+std::string descriptor_enum(const DescriptorObject& object, std::string_view key, std::string fallback = {});
+float percent_to_unit(double value);
+RgbColor descriptor_rgb_color(const DescriptorObject& object, std::string_view key,
+                              const CmykColorConverter& cmyk, RgbColor fallback = {});
+LayerStyleGradient parse_layer_style_gradient(const DescriptorObject& effect, const CmykColorConverter& cmyk);
 void write_f32(BigEndianWriter& writer, float value);
 LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload,
                                   const CmykColorConverter& cmyk);
@@ -469,6 +486,39 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
                         bool large_document, std::uint32_t synthesized_photoshop_layer_id);
 void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document);
+
+// Vector shape/path codec: vmsk/vsms path records, SoCo/GdFl/PtFl fill
+// content, vstk stroke style, vogk live-shape origination, and the saved-path
+// image resources (definitions in psd_vector.cpp; encodings recorded in
+// docs/vector-tools.md from PS 27.8 captures).
+struct ParsedVectorMaskBlock {
+  VectorPath path;
+  bool disabled{false};
+  bool inverted{false};
+  bool unlinked{false};
+};
+std::optional<ParsedVectorMaskBlock> parse_vector_mask_block(std::span<const std::uint8_t> payload,
+                                                             std::int32_t canvas_width,
+                                                             std::int32_t canvas_height);
+// The image-resource form: the same 26-byte record stream without the
+// version/flags header (saved paths 2000..2997 and the work path 1025).
+std::optional<VectorPath> parse_path_resource_records(std::span<const std::uint8_t> payload,
+                                                      std::int32_t canvas_width,
+                                                      std::int32_t canvas_height);
+std::optional<VectorFill> parse_vector_fill_block(std::string_view key,
+                                                  std::span<const std::uint8_t> payload,
+                                                  const CmykColorConverter& cmyk);
+std::optional<VectorStroke> parse_vector_stroke_block(std::span<const std::uint8_t> payload,
+                                                      const CmykColorConverter& cmyk);
+std::optional<std::vector<LiveShapeParams>> parse_vector_origination_block(
+    std::span<const std::uint8_t> payload);
+[[nodiscard]] bool is_vector_content_block_key(std::string_view key) noexcept;
+// Post-read pass (after global pattern blocks decode): rasterizes shape layers
+// whose channels were empty and bakes vector-mask caches that did not import a
+// derived plane.
+void finalize_vector_layers(Document& document);
+// Parses saved/work/clipping path resources into document.paths().
+void parse_document_path_resources(Document& document, std::span<const std::uint8_t> image_resources);
 
 // Image-resources (8BIM) section codec (definitions in psd_image_resources.cpp).
 std::optional<std::vector<std::uint8_t>> find_image_resource_payload(std::span<const std::uint8_t> resources,

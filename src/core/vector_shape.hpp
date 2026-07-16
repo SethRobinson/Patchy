@@ -189,6 +189,10 @@ struct LiveShapeParams {
 // The whole editable content of a shape/fill layer.
 struct VectorShapeContent {
   VectorPath path;         // empty path == full-canvas fill layer
+  // The shape's vmsk flags: a disabled path fills the whole canvas, an
+  // inverted one fills the complement.
+  bool path_disabled{false};
+  bool path_inverted{false};
   VectorFill fill{};
   VectorStroke stroke{};
   std::vector<LiveShapeParams> origination;

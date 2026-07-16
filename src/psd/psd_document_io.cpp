@@ -300,6 +300,12 @@ void copy_layer_state(Layer& target, const Layer& source) {
   if (const auto* smart_filters = source.smart_filter_stack(); smart_filters != nullptr) {
     target.set_smart_filter_stack(*smart_filters);
   }
+  if (const auto* vector_shape = source.vector_shape(); vector_shape != nullptr) {
+    target.set_vector_shape(*vector_shape);
+  }
+  if (const auto* vector_mask = source.vector_mask(); vector_mask != nullptr) {
+    target.set_vector_mask(*vector_mask);
+  }
 }
 
 std::vector<Layer> build_group_hierarchy(std::vector<DecodedLayer> flat_layers) {
@@ -505,7 +511,43 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     std::optional<AdjustmentSettings> cged_adjustment_settings;
     bool cged_uses_modern_algorithm = false;
     bool has_native_curves = false;
+    std::optional<ParsedVectorMaskBlock> vector_mask_block;
+    std::optional<VectorFill> vector_fill;
+    std::optional<VectorStroke> vector_stroke;
+    std::optional<std::vector<LiveShapeParams>> vector_origination;
+    bool vector_parse_failed = false;
+    bool has_legacy_vscg = false;
     for (const auto& block : record.additional_blocks) {
+      if (block.key == "vmsk" || block.key == "vsms") {
+        // PS 27.8 writes vmsk; vsms is the legacy alternate with the same
+        // payload. First parseable block wins (vmsk sorts first in practice).
+        if (!vector_mask_block.has_value()) {
+          if (auto parsed = parse_vector_mask_block(block.payload, canvas_width, canvas_height);
+              parsed.has_value()) {
+            vector_mask_block = std::move(*parsed);
+          } else {
+            vector_parse_failed = true;
+          }
+        }
+      } else if (block.key == "SoCo" || block.key == "GdFl" || block.key == "PtFl") {
+        if (auto fill = parse_vector_fill_block(block.key, block.payload, cmyk_converter); fill.has_value()) {
+          vector_fill = std::move(*fill);
+        } else {
+          vector_parse_failed = true;
+        }
+      } else if (block.key == "vstk") {
+        if (auto stroke = parse_vector_stroke_block(block.payload, cmyk_converter); stroke.has_value()) {
+          vector_stroke = std::move(*stroke);
+        } else {
+          vector_parse_failed = true;
+        }
+      } else if (block.key == "vogk") {
+        // A corrupt origination block is not fatal: the path is the render
+        // source of truth and the raw bytes stay preserved.
+        vector_origination = parse_vector_origination_block(block.payload);
+      } else if (block.key == "vscg") {
+        has_legacy_vscg = true;
+      }
       if (block.key == "levl") {
         native_adjustment_settings = parse_photoshop_levels_adjustment(block.payload);
       } else if (block.key == "hue2") {
@@ -608,6 +650,57 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     set_layer_lock_flags(layer,
                          record.protection_flags &
                              (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition));
+    if (vector_parse_failed || (has_legacy_vscg && !vector_fill.has_value())) {
+      // A vector block failed to parse (or a legacy vscg carries the paint we
+      // did not decode): everything stays byte-preserved and the layer locks,
+      // mirroring the preview-locked smart-object pattern.
+      layer.metadata()[kLayerMetadataVectorLock] = "unparsed";
+    } else if (vector_fill.has_value()) {
+      // Shape/fill layer: fill content block, optional path, stroke, and
+      // origination assemble into the editable model. Rasterization happens in
+      // finalize_vector_layers once global pattern blocks have decoded.
+      VectorShapeContent content;
+      content.fill = std::move(*vector_fill);
+      if (vector_stroke.has_value()) {
+        content.stroke = std::move(*vector_stroke);
+      }
+      if (vector_mask_block.has_value()) {
+        content.path = std::move(vector_mask_block->path);
+        content.path_disabled = vector_mask_block->disabled;
+        content.path_inverted = vector_mask_block->inverted;
+      }
+      if (vector_origination.has_value()) {
+        content.origination = std::move(*vector_origination);
+      }
+      layer.set_vector_shape(std::move(content));
+      layer.metadata()[kLayerMetadataVectorShape] = "1";
+      layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPhotoshop;
+    } else if (vector_mask_block.has_value()) {
+      // Vector mask on an ordinary layer. When Photoshop baked a derived plane
+      // (density/feather set: mask-data flags bit 3), that plane seeds the
+      // coverage cache instead of becoming a raster user mask.
+      LayerVectorMask vector_mask;
+      vector_mask.path = std::move(vector_mask_block->path);
+      vector_mask.disabled = vector_mask_block->disabled;
+      vector_mask.inverted = vector_mask_block->inverted;
+      vector_mask.unlinked = vector_mask_block->unlinked;
+      if (record.mask.has_value()) {
+        if (record.mask->vector_density.has_value()) {
+          vector_mask.density = *record.mask->vector_density;
+        }
+        if (record.mask->vector_feather.has_value()) {
+          vector_mask.feather = *record.mask->vector_feather;
+        }
+        if (record.mask->from_rendering) {
+          // Photoshop's baked bit-3 plane holds the UNFEATHERED path coverage
+          // (the both-masks fixture proves the feather applies at render
+          // time), so it never becomes a raster user mask and Patchy
+          // re-derives its own feathered cache in finalize_vector_layers.
+          decoded_mask.reset();
+        }
+      }
+      layer.set_vector_mask(std::move(vector_mask));
+    }
     if (decoded_mask.has_value()) {
       layer.set_mask(std::move(*decoded_mask));
       if (record.mask.has_value() && !record.mask->linked) {
@@ -1007,6 +1100,11 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   SmartObjectImportCounts smart_object_counts;
   finalize_smart_object_layers(document.layers(), document.metadata().smart_objects, smart_object_counts);
   append_smart_object_notices(smart_object_counts, options.notices);
+  // Vector shape layers rasterize here (after the pattern blocks decoded so
+  // pattern fills resolve); saved/work/clipping paths parse from the preserved
+  // image resources.
+  finalize_vector_layers(document);
+  parse_document_path_resources(document, image_resources);
 
   document.metadata().values["psd.version"] = header.large_document ? "PSB" : "PSD";
   document.metadata().values["psd.color_mode"] = color_mode_name(header.color_mode);

@@ -57,9 +57,10 @@
 
 namespace patchy::psd {
 
-namespace {
-
-std::string descriptor_enum(const DescriptorObject& object, std::string_view key, std::string fallback = {}) {
+// Shared descriptor vocabulary (promoted from this TU's anonymous namespace;
+// declared in psd_io_internal.hpp so the vector codec reuses the exact
+// PS-calibrated color/gradient parsing).
+std::string descriptor_enum(const DescriptorObject& object, std::string_view key, std::string fallback) {
   const auto* value = descriptor_value(object, key);
   if (value == nullptr || value->type != DescriptorValue::Type::Enum) {
     return fallback;
@@ -75,7 +76,7 @@ float percent_to_unit(double value) {
 }
 
 RgbColor descriptor_rgb_color(const DescriptorObject& object, std::string_view key,
-                              const CmykColorConverter& cmyk, RgbColor fallback = {}) {
+                              const CmykColorConverter& cmyk, RgbColor fallback) {
   const auto* color_object = descriptor_object(object, key);
   if (color_object == nullptr) {
     return fallback;
@@ -93,6 +94,9 @@ RgbColor descriptor_rgb_color(const DescriptorObject& object, std::string_view k
                   static_cast<std::uint8_t>(
                       std::clamp(std::lround(descriptor_number(*color_object, "Bl  ")), 0L, 255L))};
 }
+
+
+namespace {
 
 LayerStyleGradientType gradient_type_from_descriptor(std::string_view value) {
   if (value == "Rdl ") {
@@ -146,7 +150,9 @@ std::array<std::uint16_t, 4> gradient_noise_range(const DescriptorObject& object
   return result;
 }
 
-LayerStyleGradient parse_gradient(const DescriptorObject& effect, const CmykColorConverter& cmyk) {
+}  // namespace
+
+LayerStyleGradient parse_layer_style_gradient(const DescriptorObject& effect, const CmykColorConverter& cmyk) {
   LayerStyleGradient gradient;
   if (const auto* gradient_object = descriptor_object(effect, "Grad"); gradient_object != nullptr) {
     if (const auto* name = descriptor_value(*gradient_object, "Nm  ");
@@ -242,6 +248,9 @@ LayerStyleGradient parse_gradient(const DescriptorObject& effect, const CmykColo
       [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
   return gradient;
 }
+
+
+namespace {
 
 std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect,
                                                  const CmykColorConverter& cmyk) {
@@ -448,7 +457,7 @@ std::optional<LayerGradientFill> parse_gradient_fill(const DescriptorObject& eff
   fill.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
                                                       std::array<char, 4>{'n', 'o', 'r', 'm'});
   fill.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
-  fill.gradient = parse_gradient(effect, cmyk);
+  fill.gradient = parse_layer_style_gradient(effect, cmyk);
   return fill;
 }
 
@@ -525,7 +534,7 @@ std::optional<LayerStroke> parse_stroke(const DescriptorObject& effect,
   stroke.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{0, 0, 0});
   stroke.uses_gradient = descriptor_enum(effect, "PntT", "SClr") == "GrFl";
   if (stroke.uses_gradient) {
-    stroke.gradient = parse_gradient(effect, cmyk);
+    stroke.gradient = parse_layer_style_gradient(effect, cmyk);
   }
   return stroke;
 }

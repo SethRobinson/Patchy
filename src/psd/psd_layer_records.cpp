@@ -310,6 +310,27 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       // layer/mask link toggle: 1 means the chain icon is off (unlinked).
       record.mask = LayerMaskInfo{Rect{mask_left, mask_top, mask_right - mask_left, mask_bottom - mask_top}, default_color,
                                   (mask_flags & 0x02U) != 0, (mask_flags & 0x01U) == 0};
+      // Bit 3: the stored plane was rendered from other data (Photoshop's baked
+      // vector-mask coverage). Bit 4: mask parameters follow - flags byte with
+      // bit 0 user density (u8), bit 1 user feather (f64), bit 2 vector density
+      // (u8, raw 0..255), bit 3 vector feather (f64). Captured layout in
+      // docs/vector-tools.md.
+      record.mask->from_rendering = (mask_flags & 0x08U) != 0;
+      if ((mask_flags & 0x10U) != 0 && reader.position() < mask_end) {
+        const auto parameter_flags = reader.read_u8();
+        if ((parameter_flags & 0x01U) != 0 && reader.position() < mask_end) {
+          reader.read_u8();  // user mask density (preserved via re-import only)
+        }
+        if ((parameter_flags & 0x02U) != 0 && mask_end - reader.position() >= 8U) {
+          read_f64(reader);  // user mask feather
+        }
+        if ((parameter_flags & 0x04U) != 0 && reader.position() < mask_end) {
+          record.mask->vector_density = reader.read_u8();
+        }
+        if ((parameter_flags & 0x08U) != 0 && mask_end - reader.position() >= 8U) {
+          record.mask->vector_feather = read_f64(reader);
+        }
+      }
     }
     if (reader.position() < mask_end) {
       reader.skip(mask_end - reader.position());

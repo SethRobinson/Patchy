@@ -963,6 +963,78 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
   layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
 }
 
+namespace {
+
+// Deterministic feather: three equal box-blur passes (radius ~ sigma)
+// approximate the gaussian softening Photoshop applies for the vector-mask
+// feather parameter. Integer accumulation only. The buffer is expanded first
+// so the ramp has room, then clipped back to `clip`.
+void feather_coverage(CoverageBuffer& coverage, double feather, Rect clip) {
+  if (!(feather > 0.05) || coverage.bounds.empty()) {
+    return;
+  }
+  const auto radius =
+      std::max<std::int32_t>(1, static_cast<std::int32_t>(std::llround(feather * 0.5)));
+  const std::int32_t reach = radius * 3;
+  Rect expanded{coverage.bounds.x - reach, coverage.bounds.y - reach,
+                coverage.bounds.width + 2 * reach, coverage.bounds.height + 2 * reach};
+  expanded = intersect_rects(expanded, clip);
+  if (expanded.empty()) {
+    return;
+  }
+  PixelBuffer source(expanded.width, expanded.height, PixelFormat::gray8());
+  auto* src = source.data().data();
+  const auto src_stride = source.stride_bytes();
+  for (std::int32_t y = 0; y < expanded.height; ++y) {
+    auto* row = src + static_cast<std::size_t>(y) * src_stride;
+    for (std::int32_t x = 0; x < expanded.width; ++x) {
+      row[x] = coverage_at(coverage, expanded.x + x, expanded.y + y);
+    }
+  }
+  // Horizontal-then-vertical box pass, repeated three times, edge-clamped.
+  std::vector<std::uint8_t> scratch(static_cast<std::size_t>(expanded.width) * expanded.height);
+  const auto box_pass = [&](bool horizontal) {
+    const std::int32_t length = horizontal ? expanded.width : expanded.height;
+    const std::int32_t lines = horizontal ? expanded.height : expanded.width;
+    const std::int32_t window = 2 * radius + 1;
+    for (std::int32_t line = 0; line < lines; ++line) {
+      const auto at = [&](std::int32_t i) -> std::uint8_t {
+        const auto clamped = std::clamp(i, 0, length - 1);
+        return horizontal ? src[static_cast<std::size_t>(line) * src_stride + clamped]
+                          : src[static_cast<std::size_t>(clamped) * src_stride + line];
+      };
+      std::int64_t sum = 0;
+      for (std::int32_t i = -radius; i <= radius; ++i) {
+        sum += at(i);
+      }
+      for (std::int32_t i = 0; i < length; ++i) {
+        const auto value = static_cast<std::uint8_t>((sum + window / 2) / window);
+        scratch[static_cast<std::size_t>(line) * length + i] = value;
+        sum += at(i + radius + 1);
+        sum -= at(i - radius);
+      }
+    }
+    for (std::int32_t line = 0; line < lines; ++line) {
+      for (std::int32_t i = 0; i < length; ++i) {
+        const auto value = scratch[static_cast<std::size_t>(line) * length + i];
+        if (horizontal) {
+          src[static_cast<std::size_t>(line) * src_stride + i] = value;
+        } else {
+          src[static_cast<std::size_t>(i) * src_stride + line] = value;
+        }
+      }
+    }
+  };
+  for (int pass = 0; pass < 3; ++pass) {
+    box_pass(true);
+    box_pass(false);
+  }
+  coverage.bounds = expanded;
+  coverage.pixels = std::move(source);
+}
+
+}  // namespace
+
 void update_vector_mask_raster(Layer& layer, Rect canvas) {
   const auto* mask = layer.vector_mask();
   if (mask == nullptr) {
@@ -970,6 +1042,7 @@ void update_vector_mask_raster(Layer& layer, Rect canvas) {
   }
   auto updated = *mask;
   auto coverage = rasterize_vector_mask_coverage(updated, canvas);
+  feather_coverage(coverage, updated.feather, canvas);
   updated.cache_bounds = coverage.bounds;
   updated.cache = std::move(coverage.pixels);
   layer.set_vector_mask(std::move(updated));
@@ -1100,11 +1173,23 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
   const bool fill_on = content.stroke.fill_enabled && content.fill.kind != VectorFillKind::None;
   CoverageBuffer fill_coverage;
   if (fill_on) {
-    fill_coverage = rasterize_vector_path(content.path, options);
+    if (content.path_disabled) {
+      // Disabled shape path: the fill covers the whole canvas (mask off).
+      VectorPath everything;
+      fill_coverage = rasterize_vector_path(everything, options);
+    } else if (content.path_inverted) {
+      LayerVectorMask inverter;
+      inverter.path = content.path;
+      inverter.inverted = true;
+      fill_coverage = rasterize_vector_mask_coverage(inverter, canvas);
+    } else {
+      fill_coverage = rasterize_vector_path(content.path, options);
+    }
   }
   const bool stroke_on =
       content.stroke.enabled && content.stroke.width > 0.0 && content.stroke.opacity > 0.0 &&
-      content.stroke.content.kind != VectorFillKind::None && !content.path.empty();
+      content.stroke.content.kind != VectorFillKind::None && !content.path.empty() &&
+      !content.path_disabled;
   CoverageBuffer stroke_coverage;
   if (stroke_on) {
     stroke_coverage = rasterize_vector_stroke(content.path, content.stroke, options);

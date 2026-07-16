@@ -34,3 +34,4 @@ std::vector<patchy::test::TestCase> flat_formats_misc_tests();
 std::vector<patchy::test::TestCase> infra_selection_tests();
 std::vector<patchy::test::TestCase> vector_shape_tests();
 std::vector<patchy::test::TestCase> vector_raster_tests();
+std::vector<patchy::test::TestCase> psd_vector_fixtures_tests();
