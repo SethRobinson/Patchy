@@ -3,8 +3,12 @@
 Feature deep-dive for Patchy's vector workflows. This document carries the PSD
 vector-data encoding notes (all pinned by observation of Photoshop 27.8 via COM
 scripting, July 2026 - never from Adobe's specification text), the fixture
-inventory, and the patent record. Implementation status: capture phase complete;
-model/rasterizer/PSD/UI phases land incrementally (see git history).
+inventory, the tool/UI behavior contracts, and the patent record.
+Implementation status: complete (July 2026) - shape tools with Shape/Path/
+Pixels modes, pen and path-editing tools, the appearance dialog and fill
+layers, vector masks, the Paths panel, polygon/custom shapes with the shape
+library, and vector-aware geometry ops all shipped; PSD read/write round-trips
+per the dirty-or-verbatim rule with COM-verified Photoshop acceptance.
 
 Probe and fixture-generation scripts live in `local-test-fixtures/vector-probe/`
 (untracked), including `psd_dump.py`, a standalone PSD structure dumper used for

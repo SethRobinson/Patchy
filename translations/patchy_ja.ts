@@ -12614,8 +12614,8 @@ Clipped to the layer below</source>
         <translation>ペイントツールは共有スマートフィルターマスクを編集しています。クリックするとレイヤーピクセルの編集に戻ります。</translation>
     </message>
     <message>
-        <source>Rasterize Smart Objects and Shape layers before changing document geometry</source>
-        <translation>ドキュメントの形状を変更する前に、スマートオブジェクトとシェイプレイヤーをラスタライズしてください</translation>
+        <source>Rasterize Smart Objects before changing document geometry</source>
+        <translation>ドキュメントのジオメトリを変更する前にスマートオブジェクトをラスタライズしてください</translation>
     </message>
     <message>
         <source>Use Free Transform or rasterize Smart Objects before flipping</source>

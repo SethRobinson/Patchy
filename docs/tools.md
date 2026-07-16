@@ -1,6 +1,6 @@
 # Shape tools, Merge Down, and tool icons
 
-Small tool/command behaviors that don't have their own doc. Selection tools live in [selection-tools.md](selection-tools.md); brushes in [brushes.md](brushes.md); the text tool in [text-tool.md](text-tool.md).
+Small tool/command behaviors that don't have their own doc. Selection tools live in [selection-tools.md](selection-tools.md); brushes in [brushes.md](brushes.md); the text tool in [text-tool.md](text-tool.md). The vector side of the shape tools (Shape/Path modes, pen, path editing, vector masks, Paths panel, shape library) lives in [vector-tools.md](vector-tools.md); this page covers the legacy Pixels-mode raster behavior, which must stay byte-identical.
 
 ## Shape tools (Rectangle/Ellipse/Line)
 
