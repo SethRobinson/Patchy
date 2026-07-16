@@ -6,7 +6,11 @@
 #include "ui/curves_editor.hpp"
 #include "ui/curves_presets.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/filter_overlay_sync.hpp"
+#include "ui/filter_parameter_panel.hpp"
+#include "ui/filter_preview_proxy.hpp"
 #include "ui/filter_workflows_internal.hpp"
+#include "ui/zoomable_image_preview.hpp"
 
 #include <QAbstractItemView>
 #include <QButtonGroup>
@@ -36,6 +40,7 @@
 #include <QSizePolicy>
 #include <QSpinBox>
 #include <QTimer>
+#include <QToolButton>
 #include <QValidator>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -313,7 +318,7 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
 
 std::optional<FilterInvocation> request_filter_settings(
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed,
-    FilterInvocation initial) {
+    FilterInvocation initial, const FilterDialogPreviewSource* preview_source) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyFilterDialog"));
   dialog.setProperty("patchy.filterIdentifier", spec.identifier);
@@ -325,216 +330,111 @@ std::optional<FilterInvocation> request_filter_settings(
   preview->setChecked(true);
   layout->addWidget(preview);
 
-  auto* form = new QFormLayout();
-  layout->addLayout(form);
-
   if (initial.filter_id.empty()) {
     initial.filter_id = spec.identifier.toStdString();
     initial.schema_version = spec.schema_version;
   }
 
-  struct ControlBinding {
-    std::string key;
-    std::function<FilterParameterValue()> read;
-    std::function<void()> reset;
-  };
-  std::vector<ControlBinding> bindings;
-  bindings.reserve(spec.controls.size());
-  std::function<void()> schedule_preview_callback;
+  // Optional bounded proxy preview (the gallery's center-preview machinery).
+  // The proxy is built once from the immutable source; the live canvas
+  // preview stays gated by filterPreviewCheck while the in-dialog proxy
+  // always renders.
+  const auto has_preview_source =
+      preview_source != nullptr && preview_source->pixels != nullptr &&
+      !preview_source->pixels->empty() && preview_source->registry != nullptr;
+  FilterPreviewProxy dialog_proxy;
+  Rect current_proxy_bounds{};
+  Rect rendered_input_bounds{};
+  ZoomableImagePreview* proxy_preview = nullptr;
+  if (has_preview_source) {
+    dialog_proxy = make_filter_preview_proxy(
+        *preview_source->pixels, preview_source->bounds,
+        preview_source->selection, kFilterProxyMaximumDimension);
+    proxy_preview = new ZoomableImagePreview(&dialog);
+    proxy_preview->setObjectName(QStringLiteral("filterDialogPreview"));
+    proxy_preview->setProperty("filterDialogRenderedFilterId", QString());
+    proxy_preview->setMinimumSize(380, 260);
+    proxy_preview->set_image(image_from_pixels(dialog_proxy.original));
+    current_proxy_bounds = Rect::from_size(dialog_proxy.original.width(),
+                                           dialog_proxy.original.height());
+    rendered_input_bounds = current_proxy_bounds;
+    layout->addWidget(proxy_preview, 1);
 
-  const auto stable_key_for = [](const FilterControlSpec& control) {
-    if (!control.parameter_key.empty()) {
-      return control.parameter_key;
-    }
-    auto legacy = control.object_name;
-    if (legacy.startsWith(QStringLiteral("filter"))) {
-      legacy.remove(0, 6);
-    }
-    QString key;
-    for (const auto character : legacy) {
-      if (character.isUpper() && !key.isEmpty()) {
-        key += QLatin1Char('_');
-      }
-      key += character.toLower();
-    }
-    return key.toStdString();
-  };
-  const auto initial_value_for = [&](const FilterControlSpec& control) -> FilterParameterValue {
-    const auto key = stable_key_for(control);
-    if (const auto found = initial.parameters.find(key); found != initial.parameters.end()) {
-      return found->second;
-    }
-    // Legacy hand-built specs predate typed defaults. Catalog specs always have
-    // a stable key, so this branch is only for old helpers and tests.
-    return control.parameter_key.empty() ? FilterParameterValue{std::int64_t{control.value}}
-                                         : control.default_value;
-  };
-  const auto changed = [&schedule_preview_callback] {
-    if (schedule_preview_callback) {
-      schedule_preview_callback();
-    }
-  };
-
-  for (const auto& control : spec.controls) {
-    const auto key = stable_key_for(control);
-    const auto initial_value = initial_value_for(control);
-    const auto reset_value = control.parameter_key.empty()
-                                 ? FilterParameterValue{std::int64_t{control.value}}
-                                 : control.default_value;
-    if (control.kind == FilterParameterKind::Boolean) {
-      auto* check = new QCheckBox(&dialog);
-      check->setObjectName(control.object_name + QStringLiteral("Check"));
-      const auto checked = std::get_if<bool>(&initial_value);
-      check->setChecked(checked != nullptr ? *checked : false);
-      form->addRow(control.label, check);
-      QObject::connect(check, &QCheckBox::toggled, &dialog, [changed](bool) { changed(); });
-      bindings.push_back(ControlBinding{
-          key,
-          [check] { return FilterParameterValue{check->isChecked()}; },
-          [check, reset_value] {
-            const auto* value = std::get_if<bool>(&reset_value);
-            check->setChecked(value != nullptr ? *value : false);
-          }});
-      continue;
-    }
-
-    if (control.kind == FilterParameterKind::Option) {
-      auto* combo = new QComboBox(&dialog);
-      combo->setObjectName(control.object_name + QStringLiteral("Combo"));
-      for (const auto& option : control.options) {
-        combo->addItem(translate_filter_catalog_text(option.display_name), QString::fromStdString(option.value));
-      }
-      const auto option_value = std::get_if<std::string>(&initial_value);
-      const auto selected = option_value == nullptr ? QString() : QString::fromStdString(*option_value);
-      const auto selected_index = combo->findData(selected);
-      combo->setCurrentIndex(selected_index >= 0 ? selected_index : (combo->count() > 0 ? 0 : -1));
-      form->addRow(control.label, combo);
-      QObject::connect(combo, qOverload<int>(&QComboBox::currentIndexChanged), &dialog,
-                       [changed](int) { changed(); });
-      bindings.push_back(ControlBinding{
-          key,
-          [combo] { return FilterParameterValue{combo->currentData().toString().toUtf8().toStdString()}; },
-          [combo, reset_value] {
-            const auto* value = std::get_if<std::string>(&reset_value);
-            const auto index = value == nullptr ? -1 : combo->findData(QString::fromStdString(*value));
-            combo->setCurrentIndex(index >= 0 ? index : (combo->count() > 0 ? 0 : -1));
-          }});
-      continue;
-    }
-
-    auto* container = new QWidget(&dialog);
-    auto* row = new QHBoxLayout(container);
-    row->setContentsMargins(0, 0, 0, 0);
-    auto* slider = new QSlider(Qt::Horizontal, container);
-    slider->setObjectName(control.object_name + QStringLiteral("Slider"));
-    row->addWidget(slider, 1);
-
-    if (control.kind == FilterParameterKind::Double) {
-      const auto minimum = control.typed_minimum.value_or(static_cast<double>(control.minimum));
-      const auto maximum = control.typed_maximum.value_or(static_cast<double>(control.maximum));
-      const auto slider_minimum =
-          std::clamp(static_cast<double>(control.minimum), minimum, maximum);
-      const auto slider_maximum =
-          std::clamp(static_cast<double>(control.maximum), slider_minimum,
-                     maximum);
-      const auto step = std::max(0.000001, control.step.value_or(0.01));
-      const auto ticks = std::clamp(
-          static_cast<int>(
-              std::lround((slider_maximum - slider_minimum) / step)),
-          1, 1'000'000);
-      auto* spin = new QDoubleSpinBox(container);
-      spin->setObjectName(control.object_name + QStringLiteral("Spin"));
-      spin->setRange(minimum, maximum);
-      spin->setSingleStep(step);
-      int decimals = 0;
-      for (auto probe = step; decimals < 6 && std::abs(probe - std::round(probe)) > 0.0000001;
-           probe *= 10.0) {
-        ++decimals;
-      }
-      spin->setDecimals(decimals);
-      if (!control.suffix.isEmpty()) {
-        spin->setSuffix(control.suffix);
-      }
-      configure_dialog_spinbox(spin, 78);
-      slider->setRange(0, ticks);
-      const auto number = std::clamp(numeric_filter_value(initial_value, numeric_filter_value(control.default_value)),
-                                     minimum, maximum);
-      spin->setValue(number);
-      slider->setValue(std::clamp(
-          static_cast<int>(
-              std::lround((number - slider_minimum) / step)),
-          0, ticks));
-      QObject::connect(slider, &QSlider::valueChanged, spin,
-                       [spin, slider_minimum, slider_maximum, step](int tick) {
-                         spin->setValue(std::clamp(
-                             slider_minimum + static_cast<double>(tick) * step,
-                             slider_minimum, slider_maximum));
-                       });
-      QObject::connect(spin, qOverload<double>(&QDoubleSpinBox::valueChanged), slider,
-                       [slider, slider_minimum, step, ticks](double value) {
-                         const QSignalBlocker blocker(slider);
-                         slider->setValue(
-                             std::clamp(
-                                 static_cast<int>(std::lround(
-                                     (value - slider_minimum) / step)),
-                                 0, ticks));
-                       });
-      QObject::connect(spin, qOverload<double>(&QDoubleSpinBox::valueChanged), &dialog,
-                       [changed](double) { changed(); });
-      row->addWidget(spin);
-      bindings.push_back(ControlBinding{
-          key,
-          [spin] { return FilterParameterValue{spin->value()}; },
-          [spin, reset_value] {
-            spin->setValue(numeric_filter_value(reset_value, spin->minimum()));
-          }});
-    } else {
-      auto* spin = new QSpinBox(container);
-      spin->setObjectName(control.object_name + QStringLiteral("Spin"));
-      slider->setRange(control.minimum, control.maximum);
-      const auto typed_minimum = static_cast<int>(std::lround(
-          control.typed_minimum.value_or(control.minimum)));
-      const auto typed_maximum = static_cast<int>(std::lround(
-          control.typed_maximum.value_or(control.maximum)));
-      spin->setRange(std::min(typed_minimum, typed_maximum),
-                     std::max(typed_minimum, typed_maximum));
-      const auto number = std::clamp(
-          static_cast<int>(std::lround(
-              numeric_filter_value(initial_value, control.value))),
-          spin->minimum(), spin->maximum());
-      slider->setValue(number);
-      spin->setValue(number);
-      if (!control.suffix.isEmpty()) {
-        spin->setSuffix(control.suffix);
-      }
-      configure_dialog_spinbox(spin, 78);
-      QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
-      QObject::connect(
-          spin, qOverload<int>(&QSpinBox::valueChanged), slider,
-          [slider](int value) {
-            const QSignalBlocker blocker(slider);
-            slider->setValue(value);
-          });
-      QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
-                       [changed](int) { changed(); });
-      row->addWidget(spin);
-      bindings.push_back(ControlBinding{
-          key,
-          [spin] { return FilterParameterValue{static_cast<std::int64_t>(spin->value())}; },
-          [spin, reset_value, legacy_default = control.value] {
-            spin->setValue(static_cast<int>(std::lround(numeric_filter_value(reset_value, legacy_default))));
-          }});
-    }
-    form->addRow(control.label, container);
+    auto* zoom_row = new QHBoxLayout();
+    zoom_row->setSpacing(4);
+    zoom_row->addStretch(1);
+    const auto make_zoom_button = [&dialog](const char* object_name,
+                                            const QString& text,
+                                            const QString& tooltip) {
+      auto* button = new QToolButton(&dialog);
+      button->setObjectName(QLatin1String(object_name));
+      button->setText(text);
+      button->setToolTip(tooltip);
+      button->setAutoRaise(true);
+      button->setFocusPolicy(Qt::NoFocus);
+      return button;
+    };
+    auto* zoom_fit = make_zoom_button(
+        "filterDialogZoomFit", QObject::tr("Fit"),
+        QObject::tr("Fit the image in the preview"));
+    auto* zoom_100 = make_zoom_button(
+        "filterDialogZoom100", QStringLiteral("100%"),
+        QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
+    auto* zoom_out = make_zoom_button("filterDialogZoomOut",
+                                      QStringLiteral("-"),
+                                      QObject::tr("Zoom out"));
+    auto* zoom_in = make_zoom_button("filterDialogZoomIn", QStringLiteral("+"),
+                                     QObject::tr("Zoom in"));
+    auto* zoom_label = new QLabel(&dialog);
+    zoom_label->setObjectName(QStringLiteral("filterDialogZoomLabel"));
+    zoom_label->setMinimumWidth(78);
+    zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    zoom_row->addWidget(zoom_fit);
+    zoom_row->addWidget(zoom_100);
+    zoom_row->addWidget(zoom_out);
+    zoom_row->addWidget(zoom_in);
+    zoom_row->addWidget(zoom_label);
+    layout->addLayout(zoom_row);
+    proxy_preview->set_zoom_changed_callback([proxy_preview, zoom_label] {
+      const auto percent =
+          proxy_preview->property("previewZoomPercent").toInt();
+      zoom_label->setText(proxy_preview->fit_mode()
+                              ? QObject::tr("Fit (%1%)").arg(percent)
+                              : QStringLiteral("%1%").arg(percent));
+    });
+    QObject::connect(zoom_fit, &QToolButton::clicked, &dialog,
+                     [proxy_preview] { proxy_preview->zoom_to_fit(); });
+    QObject::connect(zoom_100, &QToolButton::clicked, &dialog,
+                     [proxy_preview] { proxy_preview->zoom_to(1.0); });
+    QObject::connect(zoom_out, &QToolButton::clicked, &dialog,
+                     [proxy_preview] { proxy_preview->zoom_step(-1); });
+    QObject::connect(zoom_in, &QToolButton::clicked, &dialog,
+                     [proxy_preview] { proxy_preview->zoom_step(1); });
   }
+
+  std::function<void()> schedule_preview_callback;
+  std::function<void()> schedule_proxy_render_callback;
+  auto* panel = new FilterParameterPanel(&dialog);
+  FilterParameterPanelOptions panel_options;
+  panel_options.build_companions = true;
+  panel->rebuild(spec, initial, panel_options);
+  panel->set_values_changed_callback(
+      [&schedule_preview_callback, &schedule_proxy_render_callback](
+          const FilterParameterPanel::ValueChanges&) {
+        if (schedule_preview_callback) {
+          schedule_preview_callback();
+        }
+        if (schedule_proxy_render_callback) {
+          schedule_proxy_render_callback();
+        }
+      });
+  layout->addWidget(panel);
 
   auto build_settings = [&] {
     auto invocation = initial;
     invocation.filter_id = spec.identifier.toStdString();
     invocation.schema_version = spec.schema_version;
-    for (const auto& binding : bindings) {
-      invocation.parameters[binding.key] = binding.read();
-    }
+    panel->read_into(invocation);
     return FilterPreviewSettings{preview->isChecked(), std::move(invocation)};
   };
 
@@ -550,6 +450,140 @@ std::optional<FilterInvocation> request_filter_settings(
 
   QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
 
+  std::shared_ptr<FilterProxyPreviewState> proxy_state;
+  std::function<void()> refresh_dialog_overlay;
+  if (has_preview_source && proxy_preview != nullptr) {
+    auto proxy_registry =
+        std::make_shared<const FilterRegistry>(*preview_source->registry);
+    proxy_state = std::make_shared<FilterProxyPreviewState>();
+    proxy_state->apply = [&](FilterProxyRender rendered, FilterRecipe,
+                             std::vector<std::uint64_t>, std::uint64_t,
+                             std::string filter_id) {
+      proxy_preview->set_image(rendered.image);
+      proxy_preview->setProperty("filterDialogRenderedFilterId",
+                                 QString::fromStdString(filter_id));
+      current_proxy_bounds = rendered.bounds;
+      rendered_input_bounds =
+          rendered.entry_input_bounds.empty()
+              ? Rect::from_size(dialog_proxy.original.width(),
+                                dialog_proxy.original.height())
+              : rendered.entry_input_bounds.front();
+      if (refresh_dialog_overlay) {
+        refresh_dialog_overlay();
+      }
+    };
+    proxy_state->fail = [](QString) {};
+    proxy_state->start = make_filter_proxy_render_start(
+        proxy_state, std::move(proxy_registry), dialog_proxy,
+        Rect{preview_source->bounds.x, preview_source->bounds.y,
+             preview_source->pixels->width(),
+             preview_source->pixels->height()},
+        {});
+    auto* proxy_timer = new QTimer(&dialog);
+    proxy_timer->setSingleShot(true);
+    proxy_timer->setInterval(35);
+    const auto render_current = [&, proxy_timer] {
+      FilterRecipe recipe;
+      FilterRecipeEntry entry;
+      entry.invocation = build_settings().invocation;
+      recipe.entries.push_back(std::move(entry));
+      enqueue_filter_proxy_preview(proxy_state, std::move(recipe), {0}, 0,
+                                   spec.identifier.toStdString());
+    };
+    QObject::connect(proxy_timer, &QTimer::timeout, &dialog, render_current);
+    schedule_proxy_render_callback = [proxy_timer, proxy_state] {
+      cancel_filter_proxy_preview(proxy_state);
+      proxy_timer->start();
+    };
+
+    refresh_dialog_overlay = [&, proxy_preview] {
+      const auto value_for = [&](const FilterControlSpec& control) {
+        return panel->control_numeric_value(control);
+      };
+      const auto state = overlay_state_for(
+          spec, value_for,
+          FilterOverlayGeometry{rendered_input_bounds, current_proxy_bounds});
+      proxy_preview->set_tilt_shift_overlay(state.tilt_shift);
+      proxy_preview->set_center_radius_overlay(state.center_radius);
+    };
+    // The size-changing proxy is adopted only after release (the gallery's
+    // deferred-adoption rule), so the overlay's coordinate system cannot jump
+    // under the pointer mid-gesture.
+    const auto finish_overlay_gesture = [&, proxy_timer](
+                                            bool gesture_finished) {
+      refresh_dialog_overlay();
+      if (gesture_finished) {
+        proxy_timer->start();
+      } else {
+        proxy_timer->stop();
+        cancel_filter_proxy_preview(proxy_state);
+      }
+      schedule_preview();
+    };
+    proxy_preview->set_center_radius_changed_callback(
+        [&, finish_overlay_gesture](NormalizedCenterRadiusOverlay overlay,
+                                    bool gesture_finished) {
+          const FilterOverlayGeometry geometry{rendered_input_bounds,
+                                               current_proxy_bounds};
+          const auto sync_role = [&](FilterParameterPresentation role,
+                                     double requested) {
+            if (const auto* control = panel->control_for(role);
+                control != nullptr) {
+              (void)panel->sync_control(*control, requested);
+            }
+          };
+          sync_role(FilterParameterPresentation::CenterXPercent,
+                    overlay_source_percent(
+                        overlay.center.x(), geometry.input_bounds.x,
+                        geometry.input_bounds.width, geometry.result_bounds.x,
+                        geometry.result_bounds.width));
+          sync_role(FilterParameterPresentation::CenterYPercent,
+                    overlay_source_percent(
+                        overlay.center.y(), geometry.input_bounds.y,
+                        geometry.input_bounds.height, geometry.result_bounds.y,
+                        geometry.result_bounds.height));
+          if (overlay.radius.has_value()) {
+            sync_role(FilterParameterPresentation::EffectRadiusPercent,
+                      overlay_width_percent_from_normalized(*overlay.radius,
+                                                            geometry));
+          }
+          finish_overlay_gesture(gesture_finished);
+        });
+    proxy_preview->set_tilt_shift_changed_callback(
+        [&, finish_overlay_gesture](NormalizedTiltShiftOverlay overlay,
+                                    bool gesture_finished) {
+          const FilterOverlayGeometry geometry{rendered_input_bounds,
+                                               current_proxy_bounds};
+          const auto sync_role = [&](FilterParameterPresentation role,
+                                     double requested) {
+            if (const auto* control = panel->control_for(role);
+                control != nullptr) {
+              (void)panel->sync_control(*control, requested);
+            }
+          };
+          sync_role(FilterParameterPresentation::CenterXPercent,
+                    overlay_source_percent(
+                        overlay.center.x(), geometry.input_bounds.x,
+                        geometry.input_bounds.width, geometry.result_bounds.x,
+                        geometry.result_bounds.width));
+          sync_role(FilterParameterPresentation::CenterYPercent,
+                    overlay_source_percent(
+                        overlay.center.y(), geometry.input_bounds.y,
+                        geometry.input_bounds.height, geometry.result_bounds.y,
+                        geometry.result_bounds.height));
+          sync_role(FilterParameterPresentation::Angle, overlay.angle_degrees);
+          sync_role(FilterParameterPresentation::TiltFocusHalfWidthPercent,
+                    overlay_width_percent_from_normalized(
+                        overlay.focus_half_width, geometry));
+          sync_role(FilterParameterPresentation::TiltTransitionWidthPercent,
+                    overlay_width_percent_from_normalized(
+                        overlay.transition_width, geometry));
+          finish_overlay_gesture(gesture_finished);
+        });
+    refresh_dialog_overlay();
+    schedule_proxy_render_callback();
+  }
+
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset,
                                        &dialog);
   layout->addWidget(buttons);
@@ -557,9 +591,7 @@ std::optional<FilterInvocation> request_filter_settings(
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   if (auto* reset = buttons->button(QDialogButtonBox::Reset); reset != nullptr) {
     QObject::connect(reset, &QPushButton::clicked, &dialog, [&] {
-      for (const auto& binding : bindings) {
-        binding.reset();
-      }
+      panel->reset_to_defaults();
       preview->setChecked(true);
       flush_preview();
     });
@@ -570,7 +602,9 @@ std::optional<FilterInvocation> request_filter_settings(
       flush_preview();
     }
   });
-  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+  const auto accepted = run_non_modal_dialog(dialog) == QDialog::Accepted;
+  close_filter_proxy_preview(proxy_state);
+  if (!accepted) {
     return std::nullopt;
   }
 

@@ -34,6 +34,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/curves_editor.hpp"
 #include "ui/curves_presets.hpp"
+#include "ui/filter_parameter_panel.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/filter_look_library.hpp"
 #include "ui/font_picker.hpp"
@@ -1001,6 +1002,10 @@ void ui_filter_settings_dialog_shows_before_initial_preview() {
       auto* dialog = qobject_cast<QDialog*>(widget);
       CHECK(dialog != nullptr);
       preview_saw_visible_dialog = dialog->isVisible();
+      // Without a preview source the dialog stays lightweight: no in-dialog
+      // proxy preview surface is created.
+      CHECK(dialog->findChild<QWidget*>(QStringLiteral("filterDialogPreview")) ==
+            nullptr);
       dialog->accept();
       return;
     }
@@ -1151,6 +1156,332 @@ void ui_filter_settings_dialog_reset_restores_named_defaults_and_colors() {
   CHECK(filter_rgb_equal(last_preview.invocation.background, settings->background));
 }
 
+void ui_filter_parameter_panel_round_trips_catalog_and_legacy_specs() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+
+  // Catalog spec with companions: Wave carries the three wave presentation
+  // roles, so the waveform companion appears and spins stay authoritative.
+  const auto* wave = registry.find("patchy.filters.wave");
+  CHECK(wave != nullptr);
+  const auto wave_spec = patchy::ui::filter_dialog_spec_for(*wave);
+  auto initial = registry.default_invocation(wave->identifier);
+  set_filter_integer(initial, "amplitude", 20);
+
+  patchy::ui::FilterParameterPanel panel;
+  patchy::ui::FilterParameterPanelOptions options;
+  options.build_companions = true;
+  panel.rebuild(wave_spec, initial, options);
+
+  std::vector<patchy::ui::FilterParameterPanel::ValueChanges> changes;
+  panel.set_values_changed_callback(
+      [&](const patchy::ui::FilterParameterPanel::ValueChanges& batch) {
+        changes.push_back(batch);
+      });
+
+  auto* amplitude =
+      panel.findChild<QSpinBox*>(QStringLiteral("filterAmplitudeSpin"));
+  CHECK(amplitude != nullptr);
+  CHECK(amplitude->value() == 20);
+  CHECK(panel.findChild<QWidget*>(QStringLiteral("filterWaveformControl")) !=
+        nullptr);
+  CHECK(panel.findChild<QWidget*>(QStringLiteral("filterAngleDial")) ==
+        nullptr);
+
+  amplitude->setValue(24);
+  CHECK(changes.size() == 1);
+  CHECK(changes.back().size() == 1);
+  CHECK(changes.back().front().first == "amplitude");
+
+  auto read = initial;
+  panel.read_into(read);
+  CHECK(filter_integer(read, "amplitude") == 24);
+  CHECK(filter_integer(read, "wavelength") == 48);
+  CHECK(filter_integer(read, "phase") == 0);
+
+  panel.reset_to_defaults();
+  auto defaults_read = initial;
+  panel.read_into(defaults_read);
+  CHECK(filter_integer(defaults_read, "amplitude") == 12);
+  CHECK(filter_integer(defaults_read, "wavelength") == 48);
+  CHECK(filter_integer(defaults_read, "phase") == 0);
+
+  // The angle dial companion appears for filters carrying the Angle role.
+  const auto* motion = registry.find("patchy.filters.motion_blur");
+  CHECK(motion != nullptr);
+  panel.rebuild(patchy::ui::filter_dialog_spec_for(*motion),
+                registry.default_invocation(motion->identifier), options);
+  CHECK(panel.findChild<QWidget*>(QStringLiteral("filterAngleDial")) !=
+        nullptr);
+  CHECK(panel.findChild<QWidget*>(QStringLiteral("filterWaveformControl")) ==
+        nullptr);
+
+  // Legacy hand-built spec: the stable key derives from the control object
+  // name and the reset value comes from the aggregate control.value.
+  const patchy::ui::FilterDialogSpec legacy_spec{
+      QStringLiteral("patchy.filters.sepia"),
+      QStringLiteral("Legacy"),
+      {{QStringLiteral("Amount"), QStringLiteral("filterAmount"), 0, 100, 80,
+        QStringLiteral("%")},
+       {QStringLiteral("Block Size"), QStringLiteral("filterBlockSize"), 1, 64,
+        4, QString()}}};
+  patchy::ui::FilterParameterPanel legacy_panel;
+  legacy_panel.rebuild(legacy_spec, patchy::FilterInvocation{},
+                       patchy::ui::FilterParameterPanelOptions{});
+  auto* legacy_amount =
+      legacy_panel.findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
+  CHECK(legacy_amount != nullptr);
+  CHECK(legacy_amount->value() == 80);
+  patchy::FilterInvocation legacy_read;
+  legacy_panel.read_into(legacy_read);
+  CHECK(filter_integer(legacy_read, "amount") == 80);
+  CHECK(filter_integer(legacy_read, "block_size") == 4);
+}
+
+void ui_filter_settings_dialog_angle_dial_and_waveform_sync_numeric_controls() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+
+  // Motion Blur: the direct dialog now carries the gallery's angle dial, and
+  // dial gestures drive the numeric angle control (and the accepted result).
+  {
+    const auto* motion = registry.find("patchy.filters.motion_blur");
+    CHECK(motion != nullptr);
+    const auto spec = patchy::ui::filter_dialog_spec_for(*motion);
+    bool drove_dialog = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(
+          find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+      CHECK(dialog != nullptr);
+      auto* dial =
+          dialog->findChild<QWidget*>(QStringLiteral("filterAngleDial"));
+      auto* angle_spin =
+          dialog->findChild<QSpinBox*>(QStringLiteral("filterAngleSpin"));
+      CHECK(dial != nullptr && angle_spin != nullptr);
+      CHECK(dial->property("filterAngleDegrees").toInt() == 0);
+      angle_spin->setValue(-180);
+      QApplication::processEvents();
+      CHECK(dial->property("filterAngleDegrees").toInt() == -180);
+      const QPoint dial_top(dial->width() / 2, 10);
+      send_mouse(*dial, QEvent::MouseButtonPress, dial_top, Qt::LeftButton,
+                 Qt::LeftButton);
+      send_mouse(*dial, QEvent::MouseButtonRelease, dial_top, Qt::LeftButton,
+                 Qt::NoButton);
+      QApplication::processEvents();
+      CHECK(angle_spin->value() >= 88 && angle_spin->value() <= 92);
+      CHECK(dial->property("filterAngleDegrees").toInt() ==
+            angle_spin->value());
+      drove_dialog = true;
+      dialog->accept();
+    });
+    const auto settings = patchy::ui::request_filter_settings(nullptr, spec, {});
+    CHECK(drove_dialog);
+    CHECK(settings.has_value());
+    const auto angle = filter_integer(*settings, "angle");
+    CHECK(angle >= 88 && angle <= 92);
+  }
+
+  // Wave: the waveform graph follows the three numeric controls, and a graph
+  // drag/wheel drives them back (same gesture semantics as the gallery).
+  {
+    const auto* wave = registry.find("patchy.filters.wave");
+    CHECK(wave != nullptr);
+    const auto spec = patchy::ui::filter_dialog_spec_for(*wave);
+    bool drove_dialog = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(
+          find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+      CHECK(dialog != nullptr);
+      auto* waveform =
+          dialog->findChild<QWidget*>(QStringLiteral("filterWaveformControl"));
+      auto* amplitude =
+          dialog->findChild<QSpinBox*>(QStringLiteral("filterAmplitudeSpin"));
+      auto* wavelength =
+          dialog->findChild<QSpinBox*>(QStringLiteral("filterWavelengthSpin"));
+      auto* phase =
+          dialog->findChild<QSpinBox*>(QStringLiteral("filterPhaseSpin"));
+      CHECK(waveform != nullptr && amplitude != nullptr &&
+            wavelength != nullptr && phase != nullptr);
+      CHECK(waveform->property("filterWaveAmplitude").toInt() == 12);
+      CHECK(waveform->property("filterWaveWavelength").toInt() == 48);
+      CHECK(waveform->property("filterWavePhase").toInt() == 0);
+      amplitude->setValue(20);
+      QApplication::processEvents();
+      CHECK(waveform->property("filterWaveAmplitude").toInt() == 20);
+      const auto wave_center = waveform->rect().center();
+      drag(*waveform, wave_center,
+           wave_center + QPoint(waveform->width() / 4, -waveform->height() / 4));
+      QApplication::processEvents();
+      CHECK(amplitude->value() > 20);
+      CHECK(phase->value() > 0);
+      CHECK(waveform->property("filterWaveAmplitude").toInt() ==
+            amplitude->value());
+      CHECK(waveform->property("filterWavePhase").toInt() == phase->value());
+      const auto wavelength_before = wavelength->value();
+      send_wheel(*waveform, waveform->rect().center(), 120);
+      QApplication::processEvents();
+      CHECK(wavelength->value() == wavelength_before + 1);
+      drove_dialog = true;
+      dialog->accept();
+    });
+    const auto settings = patchy::ui::request_filter_settings(nullptr, spec, {});
+    CHECK(drove_dialog);
+    CHECK(settings.has_value());
+    CHECK(filter_integer(*settings, "amplitude") > 20);
+    CHECK(filter_integer(*settings, "phase") > 0);
+  }
+}
+
+void ui_filter_settings_dialog_proxy_preview_renders_and_center_overlay_drag_syncs_spins() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto* twirl = registry.find("patchy.filters.twirl");
+  CHECK(twirl != nullptr);
+  const auto spec = patchy::ui::filter_dialog_spec_for(*twirl);
+  const auto pixels =
+      solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(90, 140, 200));
+  const patchy::Rect bounds{0, 0, 96, 64};
+  const patchy::ui::FilterDialogPreviewSource source{&pixels, bounds, QRegion(),
+                                                     &registry};
+
+  bool drove_dialog = false;
+  double dragged_center_x = 0.0;
+  double dragged_center_y = 0.0;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* preview_widget =
+        dialog->findChild<QWidget*>(QStringLiteral("filterDialogPreview"));
+    auto* preview =
+        dynamic_cast<patchy::ui::ZoomableImagePreview*>(preview_widget);
+    auto* center_x =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("filterCenterXSpin"));
+    auto* center_y =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("filterCenterYSpin"));
+    CHECK(preview != nullptr && center_x != nullptr && center_y != nullptr);
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterDialogRenderedFilterId").toString() ==
+                 QStringLiteral("patchy.filters.twirl");
+        },
+        5000));
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterSpatialOverlayVisible").toBool();
+        },
+        3000));
+    CHECK(preview->property("filterSpatialRadiusVisible").toBool());
+    CHECK(center_x->value() == 50.0 && center_y->value() == 50.0);
+
+    const auto displayed_size =
+        QSizeF(preview->image().width() * preview->zoom(),
+               preview->image().height() * preview->zoom());
+    const QRectF displayed(
+        QPointF((preview->width() - displayed_size.width()) / 2.0,
+                (preview->height() - displayed_size.height()) / 2.0),
+        displayed_size);
+    const QPointF overlay_center(
+        displayed.left() +
+            preview->property("filterCenterXNormalized").toDouble() *
+                displayed.width(),
+        displayed.top() +
+            preview->property("filterCenterYNormalized").toDouble() *
+                displayed.height());
+    const auto moved_center =
+        QPointF(displayed.left() + displayed.width() * 0.70,
+                displayed.top() + displayed.height() * 0.30)
+            .toPoint();
+    send_mouse(*preview, QEvent::MouseButtonPress, overlay_center.toPoint(),
+               Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseMove, moved_center, Qt::NoButton,
+               Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseButtonRelease, moved_center,
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(center_x->value() > 50.0 && center_x->value() <= 100.0);
+    CHECK(center_y->value() < 50.0 && center_y->value() >= 0.0);
+    CHECK(std::abs(preview->property("filterCenterXNormalized").toDouble() -
+                   0.70) <= 0.002);
+    CHECK(std::abs(preview->property("filterCenterYNormalized").toDouble() -
+                   0.30) <= 0.002);
+    dragged_center_x = center_x->value();
+    dragged_center_y = center_y->value();
+    save_widget_artifact("ui_filter_settings_dialog_proxy_preview", *dialog);
+    drove_dialog = true;
+    dialog->accept();
+  });
+  const auto settings =
+      patchy::ui::request_filter_settings(nullptr, spec, {}, {}, &source);
+  CHECK(drove_dialog);
+  CHECK(settings.has_value());
+  CHECK(std::abs(std::get<double>(settings->parameters.at("center_x")) -
+                 dragged_center_x) < 0.000001);
+  CHECK(std::abs(std::get<double>(settings->parameters.at("center_y")) -
+                 dragged_center_y) < 0.000001);
+}
+
+void ui_filter_settings_dialog_tilt_shift_overlay_defers_proxy_adoption_until_release() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto* tilt = registry.find("patchy.filters.tilt_shift_blur");
+  CHECK(tilt != nullptr);
+  const auto spec = patchy::ui::filter_dialog_spec_for(*tilt);
+  const auto pixels =
+      solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(200, 120, 60));
+  const patchy::Rect bounds{0, 0, 96, 64};
+  const patchy::ui::FilterDialogPreviewSource source{&pixels, bounds, QRegion(),
+                                                     &registry};
+
+  bool drove_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* preview_widget =
+        dialog->findChild<QWidget*>(QStringLiteral("filterDialogPreview"));
+    auto* preview =
+        dynamic_cast<patchy::ui::ZoomableImagePreview*>(preview_widget);
+    auto* center_x =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("filterCenterXSpin"));
+    CHECK(preview != nullptr && center_x != nullptr);
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterDialogRenderedFilterId").toString() ==
+                 QStringLiteral("patchy.filters.tilt_shift_blur");
+        },
+        5000));
+    CHECK(process_events_until(
+        [&] {
+          return preview->property("filterTiltShiftOverlayVisible").toBool();
+        },
+        3000));
+
+    const auto pending_size = preview->image().size();
+    const auto handle =
+        preview->property("filterTiltShiftCenterPoint").toPoint();
+    send_mouse(*preview, QEvent::MouseButtonPress, handle, Qt::LeftButton,
+               Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseMove, handle + QPoint(14, 8),
+               Qt::NoButton, Qt::LeftButton);
+    process_events_for(120);
+    // Mid-gesture the size-changing proxy must not be adopted, so the
+    // overlay's coordinate system cannot jump under the pointer.
+    CHECK(preview->image().size() == pending_size);
+    CHECK(center_x->value() > 50.0);
+    send_mouse(*preview, QEvent::MouseButtonRelease, handle + QPoint(14, 8),
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    drove_dialog = true;
+    dialog->accept();
+  });
+  const auto settings =
+      patchy::ui::request_filter_settings(nullptr, spec, {}, {}, &source);
+  CHECK(drove_dialog);
+  CHECK(settings.has_value());
+  CHECK(std::get<double>(settings->parameters.at("center_x")) > 50.0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
@@ -1174,6 +1505,14 @@ std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
        ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback},
       {"ui_filter_settings_dialog_reset_restores_named_defaults_and_colors",
        ui_filter_settings_dialog_reset_restores_named_defaults_and_colors},
+      {"ui_filter_parameter_panel_round_trips_catalog_and_legacy_specs",
+       ui_filter_parameter_panel_round_trips_catalog_and_legacy_specs},
+      {"ui_filter_settings_dialog_angle_dial_and_waveform_sync_numeric_controls",
+       ui_filter_settings_dialog_angle_dial_and_waveform_sync_numeric_controls},
+      {"ui_filter_settings_dialog_proxy_preview_renders_and_center_overlay_drag_syncs_spins",
+       ui_filter_settings_dialog_proxy_preview_renders_and_center_overlay_drag_syncs_spins},
+      {"ui_filter_settings_dialog_tilt_shift_overlay_defers_proxy_adoption_until_release",
+       ui_filter_settings_dialog_tilt_shift_overlay_defers_proxy_adoption_until_release},
       {"ui_liquify_dialog_exposes_manual_tools_and_brush_controls",
        ui_liquify_dialog_exposes_manual_tools_and_brush_controls},
       {"ui_liquify_action_applies_selection_as_one_undo_step",

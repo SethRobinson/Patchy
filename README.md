@@ -67,7 +67,7 @@ Click a thumbnail for the full-size image.
   </tr>
   <tr>
     <td align="center" valign="top" width="33%">
-      <a href="docs/images/screenshots/tilt_shift.png"><img src="docs/images/screenshots/tilt_shift.png" width="270" alt="Tilt-Shift Blur in the Visual Filters gallery over a real San Francisco city photograph with draggable focus controls"></a>
+      <a href="docs/images/screenshots/tilt_shift.png"><img src="docs/images/screenshots/tilt_shift.png" width="270" alt="Tilt-Shift Blur in the Filter Gallery over a real San Francisco city photograph with draggable focus controls"></a>
       <br><sub>Tilt-Shift Blur with live on-image focus, angle, and transition controls</sub>
     </td>
     <td align="center" valign="top" width="33%">
@@ -119,7 +119,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Open and save layered PSD and PSB files with groups, masks, clipping masks, saved alpha and spot channels, text objects, Fill Opacity, the full Photoshop blend mode set, layer styles and more
 - Common raster editing tools, including Brush with Flow and timed Airbrush buildup, Healing Brush, Clone Stamp, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients, and shapes
 - Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks with paintable shared masks and per-filter blending
-- Visual Filters & Looks gallery with 29 effects, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks
+- Filter Gallery with 31 effects, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks
 - Photoshop-compatible layer style, pattern, and gradient preset libraries, including .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures
 - Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
 - Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement
@@ -143,14 +143,14 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - New Dodge, Burn, Sponge, Blur, and Sharpen brushes provide local tone, color, and detail corrections. They share Size, Softness, and Strength controls, include tonal-range and vibrance options, respect selections and palette mode, and save as ordinary Photoshop-compatible layer pixels
 - Unsharp Mask and Motion Blur now work as editable native Smart Filters, with Photoshop-compatible settings, PSD descriptors, shared masks, blending, and stack controls. Their destructive Filter menu versions use the same calibrated renderers
 - Brush painting now has separate Opacity and Flow controls plus timed Airbrush buildup while the pointer is held still. Flow uses fixed spatial dabs, respects the per-stroke opacity ceiling, works on grayscale mask targets, and saves as ordinary PSD/PSB pixels
-- New Plastic Wrap filter adds adjustable highlight strength, detail, and smoothness. It is available destructively, in the Visual Filters gallery's Artistic category, and as an editable Photoshop-compatible Smart Filter in PSD files
-- New Visual Filters & Looks gallery with 29 effects across photo looks, blur, sharpen, distort, noise, pixelate, stylize, render, and artistic categories. Search and favorites make effects easy to find, while full-resolution live preview, reorderable effect stacks, per-effect opacity and blending, and reusable Saved Looks support more involved recipes
+- New Plastic Wrap filter adds adjustable highlight strength, detail, and smoothness. It is available destructively, in the Filter Gallery's Artistic category, and as an editable Photoshop-compatible Smart Filter in PSD files
+- New Filter Gallery with 29 effects across photo looks, blur, sharpen, distort, noise, pixelate, stylize, render, and artistic categories. Search and favorites make effects easy to find, while full-resolution live preview, reorderable effect stacks, per-effect opacity and blending, and reusable Saved Looks support more involved recipes
 - Smart Filters now use Photoshop-compatible native PSD data. Smart Objects can carry editable stacks of Gaussian Blur, High Pass, Median, Dust & Scratches, Surface Blur, Unsharp Mask, Motion Blur, and Plastic Wrap, with per-filter visibility and blending plus one shared paintable mask. Supported stacks survive PSD round-trips and rebuild from the original Smart Object contents after edits and transforms
 - Camera raw support opens CR2, CR3, NEF, ARW, RAF, DNG, and more through a 16-bit develop dialog with white balance, exposure, highlight recovery, contrast, highlights, shadows, saturation, vibrance, demosaic, and noise-reduction controls
 - HEIC and HEIF photos now open read-only through platform codecs, including orientation and color-profile handling. Windows offers Store links when a required codec is missing, while Linux explains how to install its optional Flatpak codec extension
 - Layer styles gained Pattern Overlay, Satin, gradient midpoints, expanded Bevel & Emboss controls, and Photoshop-compatible pattern data. A new Styles page and Style Manager add 39 built-in presets plus .asl import/export
 - Pattern and gradient libraries now support Photoshop .pat and .grd files. The Pattern Manager can also import ordinary images, while 20 bundled CC0 photo textures and 13 matching material styles provide ready-to-use wood, stone, metal, fabric, and ground surfaces
-- The Visual Filters collection adds High Pass, Median, Dust & Scratches, Surface Blur, and Tilt-Shift Blur. Tilt-Shift includes a draggable on-image focus control, while the supported classic blur and sharpen filters can be added directly to native Smart Filter stacks
+- The Filter Gallery collection adds High Pass, Median, Dust & Scratches, Surface Blur, and Tilt-Shift Blur. Tilt-Shift includes a draggable on-image focus control, while the supported classic blur and sharpen filters can be added directly to native Smart Filter stacks
 - Text editing gained a searchable font picker with live type specimens and a Character panel for leading, tracking, and horizontal or vertical glyph scaling. Imported PSD text now follows Photoshop's leading, tracking, scaling, transform, and first-baseline behavior more closely
 - Curves has a new point editor and .acv preset support, CMYK PSD files now use their embedded ICC profiles for pixels, text, and effect colors, and gradients gained Classic, Perceptual, and Linear interpolation with Photoshop-compatible alignment
 - New Quick Mask mode lets brushes and other paint tools edit a selection through a red overlay before converting it back to marching ants

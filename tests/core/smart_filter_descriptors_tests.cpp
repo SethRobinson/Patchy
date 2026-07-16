@@ -150,6 +150,15 @@ require_plastic_wrap_filter(const patchy::SmartFilterEntry &entry) {
   return *plastic;
 }
 
+const patchy::MosaicSmartFilter &
+require_mosaic_filter(const patchy::SmartFilterEntry &entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::Mosaic);
+  const auto *mosaic =
+      std::get_if<patchy::MosaicSmartFilter>(&entry.parameters);
+  CHECK(mosaic != nullptr);
+  return *mosaic;
+}
+
 const patchy::UnsharpMaskSmartFilter &
 require_unsharp_mask_filter(const patchy::SmartFilterEntry &entry) {
   CHECK(entry.kind == patchy::SmartFilterKind::UnsharpMask);
@@ -1830,6 +1839,90 @@ void smart_filter_canonical_plastic_wrap_descriptor_authors_and_patches() {
   CHECK(require_plastic_wrap_filter(reread).smoothness == 1);
 }
 
+void smart_filter_canonical_mosaic_descriptor_authors_and_patches() {
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "41414141-5151-6161-8777-828282828282";
+  placement.transform = {3.0, 5.0, 35.0, 5.0, 35.0, 29.0, 3.0, 29.0};
+  placement.width = 32.0;
+  placement.height = 24.0;
+  placement.resolution = 72.0;
+  const std::string placed_uuid = "dfdfdfdf-fbfb-bdbd-8444-585858585858";
+
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::Mosaic;
+  entry.native_name = "Mosaic...";
+  entry.native_class_id = "Msc ";
+  entry.native_filter_id = 0x4d736320U;
+  entry.parameters = patchy::MosaicSmartFilter{6};
+  stack.entries.push_back(std::move(entry));
+
+  const auto descriptor_from_sold = [](std::span<const std::uint8_t> sold) {
+    patchy::psd::BigEndianReader reader(sold);
+    CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) ==
+          "soLD");
+    CHECK(reader.read_u32() == 4U);
+    CHECK(reader.read_u32() == 16U);
+    return patchy::psd::read_descriptor(reader);
+  };
+
+  const auto authored = patchy::psd::author_placed_layer_sold_payload(
+      placement, placed_uuid, &stack);
+  const auto authored_info =
+      patchy::psd::parse_placed_layer_block("SoLd", authored);
+  CHECK(authored_info.has_value() && authored_info->smart_filters.has_value());
+  CHECK(authored_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(authored_info->smart_filters->entries.size() == 1U);
+  const auto &parsed = authored_info->smart_filters->entries.front();
+  CHECK(parsed.native_name == "Mosaic...");
+  CHECK(parsed.native_class_id == "Msc ");
+  CHECK(parsed.native_filter_id == 0x4d736320U);
+  CHECK(require_mosaic_filter(parsed).cell_size_pixels == 6);
+
+  auto descriptor = descriptor_from_sold(authored);
+  const auto *root = patchy::psd::descriptor_object(descriptor, "filterFX");
+  CHECK(root != nullptr);
+  const auto *list = patchy::psd::descriptor_value(*root, "filterFXList");
+  CHECK(list != nullptr &&
+        list->type == patchy::psd::DescriptorValue::Type::List &&
+        list->list_value.size() == 1U &&
+        list->list_value.front().object_value != nullptr);
+  const auto *native_filter = patchy::psd::descriptor_object(
+      *list->list_value.front().object_value, "Fltr");
+  CHECK(native_filter != nullptr && native_filter->class_id == "Msc " &&
+        !native_filter->class_id_long_form);
+  CHECK(native_filter->name == "Mosaic");
+  CHECK(native_filter->key_order.size() == 1U);
+  CHECK(native_filter->key_order[0].key == "ClSz" &&
+        !native_filter->key_order[0].long_form);
+  const auto *cell_size =
+      patchy::psd::descriptor_value(*native_filter, "ClSz");
+  CHECK(cell_size != nullptr);
+  // Photoshop stores Cell Size as a #Pxl unit double (July 2026 capture).
+  CHECK(cell_size->type == patchy::psd::DescriptorValue::Type::UnitFloat &&
+        cell_size->unit == "#Pxl" &&
+        std::abs(cell_size->double_value - 6.0) < 1e-9);
+
+  auto edited = stack;
+  auto &edited_mosaic = std::get<patchy::MosaicSmartFilter>(
+      edited.entries.front().parameters);
+  edited_mosaic.cell_size_pixels = 24;
+  const patchy::psd::SmartFilterDescriptorEdit edit{
+      patchy::psd::SmartFilterDescriptorAction::Replace, &edited};
+  const auto regenerated = patchy::psd::regenerate_placed_layer_payload(
+      "SoLd", authored, placement, nullptr, placed_uuid, edit);
+  CHECK(regenerated.has_value());
+  const auto regenerated_info =
+      patchy::psd::parse_placed_layer_block("SoLd", *regenerated);
+  CHECK(regenerated_info.has_value() &&
+        regenerated_info->smart_filters.has_value());
+  const auto &reread = regenerated_info->smart_filters->entries.front();
+  CHECK(require_mosaic_filter(reread).cell_size_pixels == 24);
+}
+
 const patchy::UnknownPsdBlock& require_placed_layer_block(const patchy::Layer& layer) {
   const auto& blocks = layer.unknown_psd_blocks();
   const auto found = std::find_if(blocks.begin(), blocks.end(), [](const patchy::UnknownPsdBlock& block) {
@@ -2248,6 +2341,75 @@ void psd_photoshop_plastic_wrap_smart_filter_fixture_round_trips_and_edits() {
         original_sold_payload);
   // Plastic Wrap settings live only in SoLd. Preserve Photoshop's unfiltered
   // FEid cache exactly when only the descriptor changes.
+  CHECK(test_global_psd_blocks(edited_reread) == original_globals);
+}
+
+void psd_photoshop_mosaic_smart_filter_fixture_round_trips_and_edits() {
+  const auto fixture_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-mosaic.psd");
+  const auto original = patchy::psd::DocumentIo::read_file(fixture_path);
+  const patchy::Layer *filtered_layer = nullptr;
+  for (const auto &layer : original.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      CHECK(filtered_layer == nullptr);
+      filtered_layer = &layer;
+    }
+  }
+  CHECK(filtered_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*filtered_layer));
+  CHECK(patchy::smart_object_lock_reason(*filtered_layer).empty());
+  const auto *stack = filtered_layer->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto &entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::Mosaic);
+  CHECK(entry.native_name == "Mosaic...");
+  CHECK(entry.native_class_id == "Msc ");
+  CHECK(entry.native_filter_id == 0x4d736320U);
+  CHECK(require_mosaic_filter(entry).cell_size_pixels == 6);
+
+  const auto original_globals = test_global_psd_blocks(original);
+  const auto original_sold_payload =
+      require_placed_layer_block(*filtered_layer).payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(original));
+  CHECK(test_global_psd_blocks(clean) == original_globals);
+  const auto &clean_layer =
+      require_layer_named(clean, filtered_layer->name());
+  check_pixel_layer_storage_equal(*filtered_layer, clean_layer);
+  CHECK(require_placed_layer_block(clean_layer).payload ==
+        original_sold_payload);
+  const auto &clean_mosaic = require_mosaic_filter(
+      require_smart_filter_stack(clean, clean_layer.name()).entries.front());
+  CHECK(clean_mosaic.cell_size_pixels == 6);
+
+  auto edited = original;
+  auto *edited_layer = edited.find_layer(filtered_layer->id());
+  CHECK(edited_layer != nullptr &&
+        edited_layer->smart_filter_stack() != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  auto &edited_mosaic = std::get<patchy::MosaicSmartFilter>(
+      edited_stack.entries.front().parameters);
+  edited_mosaic.cell_size_pixels = 24;
+  edited_stack.entries.front().opacity = 0.42;
+  edited_stack.entries.front().blend_mode = patchy::BlendMode::SoftLight;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto &edited_reread_layer =
+      require_layer_named(edited_reread, filtered_layer->name());
+  const auto &edited_reread_entry =
+      require_smart_filter_stack(edited_reread, filtered_layer->name())
+          .entries.front();
+  CHECK(require_mosaic_filter(edited_reread_entry).cell_size_pixels == 24);
+  CHECK(std::abs(edited_reread_entry.opacity - 0.42) < 1e-9);
+  CHECK(edited_reread_entry.blend_mode == patchy::BlendMode::SoftLight);
+  CHECK(require_placed_layer_block(edited_reread_layer).payload !=
+        original_sold_payload);
+  // Mosaic settings live only in SoLd. Preserve Photoshop's unfiltered FEid
+  // cache exactly when only the descriptor changes.
   CHECK(test_global_psd_blocks(edited_reread) == original_globals);
 }
 
@@ -3168,6 +3330,8 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests() {
        smart_filter_canonical_surface_blur_descriptor_round_trips_and_preserves_unknowns},
       {"smart_filter_canonical_plastic_wrap_descriptor_authors_and_patches",
        smart_filter_canonical_plastic_wrap_descriptor_authors_and_patches},
+      {"smart_filter_canonical_mosaic_descriptor_authors_and_patches",
+       smart_filter_canonical_mosaic_descriptor_authors_and_patches},
       {"psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_median_smart_filter_fixture_round_trips_and_edits",
@@ -3178,6 +3342,8 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests() {
        psd_photoshop_surface_blur_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_plastic_wrap_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_plastic_wrap_smart_filter_fixture_round_trips_and_edits},
+      {"psd_photoshop_mosaic_smart_filter_fixture_round_trips_and_edits",
+       psd_photoshop_mosaic_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_"
        "edits",
        psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_edits},

@@ -1559,6 +1559,8 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   auto motion = registry.default_invocation("patchy.filters.motion_blur");
   motion.parameters["angle"] = std::int64_t{-61};
   motion.parameters["distance"] = std::int64_t{27};
+  auto mosaic = registry.default_invocation("patchy.filters.pixelate");
+  mosaic.parameters["block_size"] = std::int64_t{12};
   const patchy::FilterRecipe recipe{{
       patchy::FilterRecipeEntry{first, true, 0.37,
                                 patchy::BlendMode::Multiply},
@@ -1571,11 +1573,12 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
       patchy::FilterRecipeEntry{unsharp, true, 0.6,
                                 patchy::BlendMode::Luminosity},
       patchy::FilterRecipeEntry{motion, true, 0.4, patchy::BlendMode::Lighten},
+      patchy::FilterRecipeEntry{mosaic, true, 0.7, patchy::BlendMode::Darken},
       patchy::FilterRecipeEntry{second, false, 1.0, patchy::BlendMode::Normal},
   }};
   const auto mapped =
       patchy::smart_filter_entries_from_recipe(recipe, registry);
-  CHECK(mapped.has_value() && mapped->size() == 8U);
+  CHECK(mapped.has_value() && mapped->size() == 9U);
   CHECK((*mapped)[0].kind == patchy::SmartFilterKind::GaussianBlur);
   CHECK((*mapped)[0].enabled);
   CHECK(std::abs((*mapped)[0].opacity - 0.37) < 0.000001);
@@ -1650,9 +1653,17 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
       std::get<patchy::MotionBlurSmartFilter>((*mapped)[6].parameters);
   CHECK(mapped_motion.angle_degrees == -61);
   CHECK(mapped_motion.distance_pixels == 27);
-  CHECK(!(*mapped)[7].enabled);
+  CHECK((*mapped)[7].kind == patchy::SmartFilterKind::Mosaic);
+  CHECK((*mapped)[7].native_name == "Mosaic...");
+  CHECK((*mapped)[7].native_class_id == "Msc ");
+  CHECK((*mapped)[7].native_filter_id == 0x4d736320U);
+  CHECK(std::abs((*mapped)[7].opacity - 0.7) < 0.000001);
+  CHECK((*mapped)[7].blend_mode == patchy::BlendMode::Darken);
+  CHECK(std::get<patchy::MosaicSmartFilter>((*mapped)[7].parameters)
+            .cell_size_pixels == 12);
+  CHECK(!(*mapped)[8].enabled);
   CHECK(std::abs(
-            std::get<patchy::GaussianBlurSmartFilter>((*mapped)[7].parameters)
+            std::get<patchy::GaussianBlurSmartFilter>((*mapped)[8].parameters)
                 .radius_pixels -
             9.0) < 0.000001);
 
@@ -1689,6 +1700,10 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   auto malformed_motion = recipe;
   malformed_motion.entries[6].invocation.parameters["distance"] = 27.0;
   CHECK(!patchy::smart_filter_entries_from_recipe(malformed_motion, registry)
+             .has_value());
+  auto malformed_mosaic = recipe;
+  malformed_mosaic.entries[7].invocation.parameters["block_size"] = 12.0;
+  CHECK(!patchy::smart_filter_entries_from_recipe(malformed_mosaic, registry)
              .has_value());
   CHECK(!patchy::smart_filter_entries_from_recipe({}, registry).has_value());
 }

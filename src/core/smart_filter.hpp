@@ -22,6 +22,7 @@ enum class SmartFilterKind {
   UnsharpMask,
   MotionBlur,
   PlasticWrap,
+  Mosaic,
 };
 
 struct GaussianBlurSmartFilter {
@@ -63,11 +64,18 @@ struct PlasticWrapSmartFilter {
   std::int32_t smoothness{5};
 };
 
+// Photoshop stores Cell Size as a #Pxl unit double but its dialog only
+// produces whole pixels from 2 through 200 (July 2026 captures).
+struct MosaicSmartFilter {
+  std::int32_t cell_size_pixels{8};
+};
+
 using SmartFilterParameters =
     std::variant<std::monostate, GaussianBlurSmartFilter, HighPassSmartFilter,
                  MedianSmartFilter, DustAndScratchesSmartFilter,
                  SurfaceBlurSmartFilter, UnsharpMaskSmartFilter,
-                 MotionBlurSmartFilter, PlasticWrapSmartFilter>;
+                 MotionBlurSmartFilter, PlasticWrapSmartFilter,
+                 MosaicSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};

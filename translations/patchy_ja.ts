@@ -895,8 +895,8 @@
     </message>
     <message>
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="231"/>
-        <source>Visual Filters &amp; Looks</source>
-        <translation>ビジュアルフィルターとルック</translation>
+        <source>Filter Gallery</source>
+        <translation>フィルターギャラリー</translation>
     </message>
     <message>
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="370"/>
@@ -7731,8 +7731,8 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="11176"/>
-        <source>&amp;Visual Filters &amp;&amp; Looks...</source>
-        <translation>ビジュアルフィルター &amp;&amp; ルック(&amp;V)...</translation>
+        <source>Filter &amp;Gallery...</source>
+        <translation>フィルターギャラリー(&amp;G)...</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="11180"/>
@@ -9462,8 +9462,8 @@ To update, paste this into a terminal:
     </message>
     <message>
         <location filename="../src/ui/main_window_adjustments.cpp" line="838"/>
-        <source>Cancelled Visual Filters &amp; Looks</source>
-        <translation>ビジュアルフィルターとルックをキャンセルしました</translation>
+        <source>Cancelled Filter Gallery</source>
+        <translation>フィルターギャラリーをキャンセルしました</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window_adjustments.cpp" line="842"/>
@@ -9472,8 +9472,8 @@ To update, paste this into a terminal:
     </message>
     <message>
         <location filename="../src/ui/main_window_adjustments.cpp" line="889"/>
-        <source>Visual Filter Stack</source>
-        <translation>ビジュアルフィルタースタック</translation>
+        <source>Filter Stack</source>
+        <translation>フィルタースタック</translation>
     </message>
     <message>
         <location line="-37"/>
@@ -12000,6 +12000,30 @@ Clipped to the layer below</source>
         <translation>ラップスマートフィルターを更新しました</translation>
     </message>
     <message>
+        <source>Cancelled Mosaic</source>
+        <translation>モザイクをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Add Mosaic Smart Filter</source>
+        <translation>モザイクスマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Mosaic Smart Filter</source>
+        <translation>モザイクスマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Mosaic as a Smart Filter</source>
+        <translation>モザイクをスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Mosaic Smart Filter</source>
+        <translation>モザイクスマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Mosaic Smart Filter</source>
+        <translation>モザイクスマートフィルターを更新しました</translation>
+    </message>
+    <message>
         <source>Add Unsharp Mask Smart Filter</source>
         <translation>アンシャープマスクスマートフィルターを追加</translation>
     </message>
@@ -12106,6 +12130,10 @@ Clipped to the layer below</source>
     <message>
         <source>This filter is not currently editable as a Smart Filter</source>
         <translation>このフィルターは現在、スマートフィルターとして編集できません</translation>
+    </message>
+    <message>
+        <source>%1 has no editable Photoshop Smart Filter mapping. Rasterize the Smart Object and apply the filter destructively?</source>
+        <translation>%1 には編集可能な Photoshop スマートフィルターの対応がありません。スマートオブジェクトをラスタライズして、フィルターを破壊的に適用しますか？</translation>
     </message>
     <message>
         <source>Add Smart Filter Stack</source>
@@ -12943,6 +12971,8 @@ Clipped to the layer below</source>
     <message><source>Artistic</source><translation>アーティスティック</translation></message>
     <message><source>Highlight Strength</source><translation>ハイライトの強さ</translation></message>
     <message><source> (Highlight %1, Detail %2, Smoothness %3)</source><translation> (ハイライト %1、ディテール %2、滑らかさ %3)</translation></message>
+    <message><source>Mosaic</source><translation>モザイク</translation></message>
+    <message><source> (Cell Size %1 px)</source><translation> (セルサイズ %1 px)</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

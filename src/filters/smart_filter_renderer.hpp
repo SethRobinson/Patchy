@@ -36,6 +36,13 @@ render_photoshop_unsharp_mask(const PixelBuffer &pixels, Rect bounds,
     const PixelBuffer &pixels, Rect bounds, std::int32_t highlight_strength,
     std::int32_t detail, std::int32_t smoothness,
     const FilterProgress *progress = nullptr);
+// Mosaic keeps the input bounds and block-averages alpha-weighted straight
+// RGB plus alpha over a cell grid anchored at the input's local origin (the
+// destructive Pixel Mosaic math). Like Plastic Wrap, the native descriptor
+// round-trips exactly while the pixels are Patchy's own compatible rendering.
+[[nodiscard]] FilterRenderResult render_mosaic(
+    const PixelBuffer &pixels, Rect bounds, std::int32_t cell_size_pixels,
+    const FilterProgress *progress = nullptr);
 
 // Renders a complete native Smart Filter stack from the immutable placed or
 // warped Smart Object preview. Unsupported semantics throw

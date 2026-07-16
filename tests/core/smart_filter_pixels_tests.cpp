@@ -1941,6 +1941,46 @@ void plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths() {
   CHECK(rejected_invalid);
 }
 
+void smart_filter_mosaic_renders_block_average_and_matches_destructive() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto source = patchy::PixelBuffer(9, 7, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      auto *px = source.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(20 + 23 * x);
+      px[1] = static_cast<std::uint8_t>(10 + 31 * y);
+      px[2] = static_cast<std::uint8_t>(200 - 11 * x);
+      px[3] = static_cast<std::uint8_t>(x == 0 ? 0 : 40 + 25 * ((x + y) % 8));
+    }
+  }
+  const patchy::Rect bounds{3, 4, 9, 7};
+  const auto rendered = patchy::render_mosaic(source, bounds, 4);
+  CHECK(rendered.bounds.x == bounds.x && rendered.bounds.y == bounds.y &&
+        rendered.bounds.width == bounds.width &&
+        rendered.bounds.height == bounds.height);
+  // Every pixel of a cell shares one averaged value.
+  const auto *cell_origin = rendered.pixels.pixel(0, 0);
+  const auto *cell_other = rendered.pixels.pixel(3, 3);
+  for (int channel = 0; channel < 4; ++channel) {
+    CHECK(cell_origin[channel] == cell_other[channel]);
+  }
+  // Within the destructive catalog range the smart filter and the destructive
+  // Pixel Mosaic produce identical pixels (the same alpha-weighted math).
+  auto invocation = registry.default_invocation("patchy.filters.pixelate");
+  invocation.parameters["block_size"] = std::int64_t{4};
+  const auto destructive = registry.render(invocation, source, bounds, false);
+  check_filter_result_equal(rendered, destructive);
+
+  bool rejected_invalid = false;
+  try {
+    (void)patchy::render_mosaic(source, bounds, 1);
+  } catch (const std::invalid_argument &) {
+    rejected_invalid = true;
+  }
+  CHECK(rejected_invalid);
+}
+
 void smart_filter_layer_model_revisions_are_explicit() {
   patchy::Layer layer(1, "Filtered", patchy::PixelBuffer(2, 2, patchy::PixelFormat::rgba8()));
   patchy::SmartFilterStack stack;
@@ -1981,6 +2021,8 @@ void smart_filter_layer_model_revisions_are_explicit() {
 
 std::vector<patchy::test::TestCase> smart_filter_pixels_tests() {
   return {
+      {"smart_filter_mosaic_renders_block_average_and_matches_destructive",
+       smart_filter_mosaic_renders_block_average_and_matches_destructive},
       {"smart_filter_layer_model_revisions_are_explicit",
        smart_filter_layer_model_revisions_are_explicit},
       {"smart_filter_gaussian_matches_photoshop_calibrated_kernels",

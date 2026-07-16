@@ -142,12 +142,18 @@ MainWindow/adjustments internals:
   (~38 identical lines) and update/embed share a resolve-and-read preamble.
 - The text-settings-from-editor block appears 3x in main_window.cpp (small real
   differences; text-tool constraint: same-TU helper only).
-- FilterControlSpec parameter editors built twice (filter_workflows vs gallery);
-  three parallel latest-wins preview state machines (the byte-identical
-  CoalescedPreviewEmitter twins were merged into ui/coalesced_preview_emitter.hpp,
-  July 2026); the gallery's two spatial-overlay
-  callbacks re-declare four sync lambdas each (~75 lines/copy — the tilt-shift OVERLAY
-  DRAWING is a patent design-around, only the sync helpers may be factored).
+- DONE (July 2026): the twice-built FilterControlSpec parameter editors
+  (filter_workflows vs gallery) now share ui/filter_parameter_panel.{hpp,cpp}
+  (FilterParameterPanel; FilterParameterPanelOptions preserves the deliberate
+  spin-symbol/width/range deltas). Also DONE (July 2026): the gallery's
+  spatial-overlay sync lambdas are factored into ui/filter_overlay_sync.{hpp,cpp}
+  plus FilterParameterPanel::sync_control, and the proxy/render-worker
+  machinery moved verbatim to ui/filter_preview_proxy.{hpp,cpp} (both now also
+  serve the direct filter dialogs' in-dialog preview; the tilt-shift OVERLAY
+  DRAWING stayed untouched in zoomable_image_preview.cpp — it is a patent
+  design-around). Still open: three parallel latest-wins preview state machines
+  (the byte-identical CoalescedPreviewEmitter twins were merged into
+  ui/coalesced_preview_emitter.hpp, July 2026).
 - layer_style_dialog.cpp: the RGB color row block x7, picker click handlers x9,
   blend-mode combo row x11. (add_slider_spin_row and filter_workflows' add_slider_row
   now both forward to dialog_utils add_dialog_slider_spin_row, July 2026;
@@ -195,10 +201,12 @@ MainWindow/adjustments internals:
   default_*/ensure_*/update_*_color_preview families keyed by effect kind. Stage one
   effect page at a time; widget objectNames, construction order, and the preview/cancel
   pattern-store-restore contract must stay identical.
-- visual_filter_gallery_dialog.cpp: request_visual_filter_gallery is one ~2,035-line
-  function, same idiom, milder. Decompose after (and following the pattern of) the
-  layer-style refactor. Recipe IDs/parameter keys/captured colors are persistence
-  contracts; the tilt-shift grip-bar overlay is patent-pinned.
+- visual_filter_gallery_dialog.cpp: request_visual_filter_gallery is one large
+  function (shrunk by ~700 lines in July 2026 when the parameter panel, proxy
+  machinery, and overlay sync moved to their own TUs, but still a megafunction).
+  Decompose after (and following the pattern of) the layer-style refactor.
+  Recipe IDs/parameter keys/captured colors are persistence contracts; the
+  tilt-shift grip-bar overlay is patent-pinned.
 
 ## Design and bug notes (lower severity, unfixed)
 

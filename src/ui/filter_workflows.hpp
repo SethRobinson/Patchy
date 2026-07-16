@@ -98,6 +98,17 @@ struct FilterPreviewSettings {
   FilterInvocation invocation;
 };
 
+// Optional in-dialog preview source for request_filter_settings. When
+// provided, the dialog shows a bounded zoomable proxy preview with the
+// gallery's draggable spatial overlays; the pixels are consumed once at
+// dialog open to build the proxy and must stay alive until the call returns.
+struct FilterDialogPreviewSource {
+  const PixelBuffer* pixels{nullptr};
+  Rect bounds{};
+  QRegion selection;
+  const FilterRegistry* registry{nullptr};
+};
+
 struct SmartFilterBlendingSettings {
   BlendMode blend_mode{BlendMode::Normal};
   double opacity{1.0};
@@ -114,7 +125,8 @@ using FilterCancelled = ::patchy::FilterCancelled;
 [[nodiscard]] FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter);
 [[nodiscard]] std::optional<FilterInvocation> request_filter_settings(
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed,
-    FilterInvocation initial = {});
+    FilterInvocation initial = {},
+    const FilterDialogPreviewSource* preview_source = nullptr);
 [[nodiscard]] std::optional<SmartFilterBlendingSettings> request_smart_filter_blending_settings(
     QWidget* parent, std::function<void(bool, const SmartFilterBlendingSettings&)> preview_changed = {},
     SmartFilterBlendingSettings initial = {});

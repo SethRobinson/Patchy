@@ -543,6 +543,9 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
     invocation.parameters["highlight_strength"] = std::int64_t{9};
     invocation.parameters["detail"] = std::int64_t{7};
     invocation.parameters["smoothness"] = std::int64_t{5};
+  } else if (kind == SmartFilterKind::Mosaic) {
+    invocation.filter_id = "patchy.smart_filters.mosaic";
+    invocation.parameters["cell_size"] = std::int64_t{8};
   } else {
     invocation.filter_id = "patchy.smart_filters.gaussian_blur";
     invocation.parameters["radius"] = 2.0;
@@ -559,11 +562,13 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
   const auto unsharp = kind == SmartFilterKind::UnsharpMask;
   const auto motion = kind == SmartFilterKind::MotionBlur;
   const auto plastic = kind == SmartFilterKind::PlasticWrap;
+  const auto mosaic = kind == SmartFilterKind::Mosaic;
   FilterDialogSpec spec;
   spec.identifier =
       QString::fromStdString(editable_smart_filter_invocation(kind).filter_id);
   spec.display_name =
-      plastic  ? QObject::tr("Plastic Wrap")
+      mosaic   ? QObject::tr("Mosaic")
+      : plastic  ? QObject::tr("Plastic Wrap")
       : unsharp  ? QObject::tr("Unsharp Mask")
       : motion ? QObject::tr("Motion Blur")
       : surface
@@ -572,6 +577,23 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
                   : (median ? QObject::tr("Median")
                             : (high_pass ? QObject::tr("High Pass")
                                          : QObject::tr("Gaussian Blur"))));
+  if (mosaic) {
+    FilterControlSpec cell;
+    cell.label = QObject::tr("Cell Size");
+    cell.object_name = QStringLiteral("filterCellSize");
+    cell.minimum = 2;
+    cell.maximum = 64;
+    cell.value = 8;
+    cell.suffix = QObject::tr(" px");
+    cell.parameter_key = "cell_size";
+    cell.kind = FilterParameterKind::Integer;
+    cell.default_value = std::int64_t{8};
+    cell.typed_minimum = 2.0;
+    cell.typed_maximum = 200.0;
+    cell.step = 1.0;
+    spec.controls.push_back(std::move(cell));
+    return spec;
+  }
   if (plastic) {
     FilterControlSpec highlight;
     highlight.label = QObject::tr("Highlight Strength");
@@ -646,6 +668,7 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
     angle.typed_minimum = -360.0;
     angle.typed_maximum = 360.0;
     angle.step = 1.0;
+    angle.presentation = FilterParameterPresentation::Angle;
     spec.controls.push_back(std::move(angle));
 
     FilterControlSpec distance;
@@ -792,6 +815,13 @@ SmartFilterStack smart_filter_stack_with_invocation(
         invocation, "detail", plastic->detail, 1, 15);
     plastic->smoothness = smart_filter_integer_from_invocation(
         invocation, "smoothness", plastic->smoothness, 1, 15);
+  } else if (entry.kind == SmartFilterKind::Mosaic) {
+    auto *mosaic = std::get_if<MosaicSmartFilter>(&entry.parameters);
+    if (mosaic == nullptr) {
+      throw std::invalid_argument("Smart Filter settings are unavailable");
+    }
+    mosaic->cell_size_pixels = smart_filter_integer_from_invocation(
+        invocation, "cell_size", mosaic->cell_size_pixels, 2, 200);
   } else {
     throw std::invalid_argument("Smart Filter radius is unavailable");
   }
@@ -809,11 +839,13 @@ SmartFilterEntry make_editable_smart_filter_entry(
   const auto unsharp = kind == SmartFilterKind::UnsharpMask;
   const auto motion = kind == SmartFilterKind::MotionBlur;
   const auto plastic = kind == SmartFilterKind::PlasticWrap;
+  const auto mosaic = kind == SmartFilterKind::Mosaic;
   const auto radius = smart_filter_radius_from_invocation(invocation, 1.0);
   SmartFilterEntry entry;
   entry.kind = kind;
   entry.native_name =
-      plastic  ? "Plastic Wrap..."
+      mosaic   ? "Mosaic..."
+      : plastic  ? "Plastic Wrap..."
       : unsharp  ? "Unsharp Mask..."
       : motion ? "Motion Blur..."
       : surface
@@ -823,14 +855,16 @@ SmartFilterEntry make_editable_smart_filter_entry(
                          ? "Median..."
                          : (high_pass ? "High Pass..." : "Gaussian Blur...")));
   entry.native_class_id =
-      plastic  ? "PlsW"
+      mosaic   ? "Msc "
+      : plastic  ? "PlsW"
       : unsharp  ? "UnsM"
       : motion ? "MtnB"
       : surface
           ? "surfaceBlur"
           : (dust ? "DstS" : (median ? "Mdn " : (high_pass ? "HghP" : "GsnB")));
   entry.native_filter_id =
-      plastic   ? 0x506c7357U
+      mosaic    ? 0x4d736320U
+      : plastic   ? 0x506c7357U
       : unsharp   ? 0x556e734dU
       : motion  ? 0x4d746e42U
       : surface ? 854U
@@ -843,7 +877,11 @@ SmartFilterEntry make_editable_smart_filter_entry(
   entry.blend_mode = BlendMode::Normal;
   entry.foreground = foreground;
   entry.background = background;
-  if (plastic) {
+  if (mosaic) {
+    entry.parameters = MosaicSmartFilter{
+        smart_filter_integer_from_invocation(invocation, "cell_size", 8, 2,
+                                             200)};
+  } else if (plastic) {
     entry.parameters = PlasticWrapSmartFilter{
         smart_filter_integer_from_invocation(
             invocation, "highlight_strength", 9, 0, 20),
@@ -1156,13 +1194,7 @@ void MainWindow::plastic_wrap_smart_filter_dialog(
 void MainWindow::editable_smart_filter_dialog(
     LayerId layer_id, SmartFilterKind kind,
     std::optional<std::size_t> execution_index) {
-  if (kind != SmartFilterKind::GaussianBlur &&
-      kind != SmartFilterKind::HighPass && kind != SmartFilterKind::Median &&
-      kind != SmartFilterKind::DustAndScratches &&
-      kind != SmartFilterKind::SurfaceBlur &&
-      kind != SmartFilterKind::UnsharpMask &&
-      kind != SmartFilterKind::MotionBlur &&
-      kind != SmartFilterKind::PlasticWrap) {
+  if (!native_smart_filter_kind_supported(kind)) {
     return;
   }
   const auto high_pass = kind == SmartFilterKind::HighPass;
@@ -1172,6 +1204,7 @@ void MainWindow::editable_smart_filter_dialog(
   const auto unsharp = kind == SmartFilterKind::UnsharpMask;
   const auto motion = kind == SmartFilterKind::MotionBlur;
   const auto plastic = kind == SmartFilterKind::PlasticWrap;
+  const auto mosaic = kind == SmartFilterKind::Mosaic;
   if (!has_active_document() || canvas_ == nullptr) {
     return;
   }
@@ -1342,6 +1375,16 @@ void MainWindow::editable_smart_filter_dialog(
           static_cast<std::int64_t>(settings->angle_degrees);
       initial_invocation.parameters["distance"] =
           static_cast<std::int64_t>(settings->distance_pixels);
+    } else if (kind == SmartFilterKind::Mosaic) {
+      const auto *settings = std::get_if<MosaicSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (settings == nullptr) {
+        statusBar()->showMessage(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_invocation.parameters["cell_size"] =
+          static_cast<std::int64_t>(settings->cell_size_pixels);
     } else {
       const auto *settings = std::get_if<PlasticWrapSmartFilter>(
           &stack.entries[filter_index].parameters);
@@ -1483,7 +1526,8 @@ void MainWindow::editable_smart_filter_dialog(
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(
-        plastic  ? tr("Cancelled Plastic Wrap")
+        mosaic   ? tr("Cancelled Mosaic")
+        : plastic  ? tr("Cancelled Plastic Wrap")
         : unsharp  ? tr("Cancelled Unsharp Mask")
         : motion ? tr("Cancelled Motion Blur")
         : surface
@@ -1498,7 +1542,9 @@ void MainWindow::editable_smart_filter_dialog(
   auto candidate = smart_filter_stack_with_invocation(
       std::move(stack), filter_index, *settings);
   const auto undo_text =
-      plastic     ? (adding ? tr("Add Plastic Wrap Smart Filter")
+      mosaic      ? (adding ? tr("Add Mosaic Smart Filter")
+                            : tr("Edit Mosaic Smart Filter"))
+      : plastic     ? (adding ? tr("Add Plastic Wrap Smart Filter")
                             : tr("Edit Plastic Wrap Smart Filter"))
       : unsharp     ? (adding ? tr("Add Unsharp Mask Smart Filter")
                             : tr("Edit Unsharp Mask Smart Filter"))
@@ -1515,7 +1561,11 @@ void MainWindow::editable_smart_filter_dialog(
                   : (adding ? tr("Add Gaussian Blur Smart Filter")
                             : tr("Edit Gaussian Blur Smart Filter"));
   const auto status_text =
-      plastic  ? (adding ? (creating_stack
+      mosaic   ? (adding ? (creating_stack
+                                ? tr("Added Mosaic as a Smart Filter")
+                                : tr("Added another Mosaic Smart Filter"))
+                         : tr("Updated Mosaic Smart Filter"))
+      : plastic  ? (adding ? (creating_stack
                                 ? tr("Added Plastic Wrap as a Smart Filter")
                                 : tr("Added another Plastic Wrap Smart Filter"))
                          : tr("Updated Plastic Wrap Smart Filter"))
@@ -1544,12 +1594,6 @@ void MainWindow::editable_smart_filter_dialog(
       : high_pass
           ? (adding
                  ? (creating_stack
-                        ? tr("Added Median as a Smart Filter")
-                        : tr("Added another Median Smart Filter"))
-                 : tr("Updated Median Smart Filter"))
-          : high_pass
-          ? (adding
-                 ? (creating_stack
                         ? tr("Added High Pass as a Smart Filter")
                         : tr("Added another High Pass Smart Filter"))
                  : tr("Updated High Pass Smart Filter"))
@@ -1576,13 +1620,7 @@ void MainWindow::edit_smart_filter(LayerId layer_id,
     return;
   }
   const auto kind = stack->entries[execution_index].kind;
-  if (kind == SmartFilterKind::GaussianBlur ||
-      kind == SmartFilterKind::HighPass || kind == SmartFilterKind::Median ||
-      kind == SmartFilterKind::DustAndScratches ||
-      kind == SmartFilterKind::SurfaceBlur ||
-      kind == SmartFilterKind::UnsharpMask ||
-      kind == SmartFilterKind::MotionBlur ||
-      kind == SmartFilterKind::PlasticWrap) {
+  if (native_smart_filter_kind_supported(kind)) {
     editable_smart_filter_dialog(layer_id, kind, execution_index);
   }
 }
@@ -2045,6 +2083,7 @@ void MainWindow::apply_filter(const QString& identifier) {
     statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
+  bool rasterize_smart_object_for_filter = false;
   if (layer_is_smart_object(*layer)) {
     const auto lock = smart_object_lock_reason(*layer);
     if ((!lock.empty() && lock != "external") ||
@@ -2055,42 +2094,36 @@ void MainWindow::apply_filter(const QString& identifier) {
           tr("This Smart Object can only preserve its imported filters"));
       return;
     }
-    if (identifier == QStringLiteral("patchy.filters.gaussian_blur")) {
-      gaussian_smart_filter_dialog(*active);
+    if (const auto native_kind =
+            native_smart_filter_kind_for(identifier.toStdString());
+        native_kind.has_value()) {
+      editable_smart_filter_dialog(*active, *native_kind);
       return;
     }
-    if (identifier == QStringLiteral("patchy.filters.high_pass")) {
-      high_pass_smart_filter_dialog(*active);
+    // No native mapping. Image > Adjustments stay hard-gated (the
+    // native-integrity rules in docs/smart-objects.md); Filter-menu effects
+    // offer the gallery's all-or-nothing rasterization prompt instead of a
+    // dead-end status message.
+    const auto* unsupported_filter = filters_.find(identifier.toStdString());
+    if (unsupported_filter == nullptr ||
+        is_adjustment_only_filter(*unsupported_filter)) {
+      statusBar()->showMessage(
+          tr("This filter is not currently editable as a Smart Filter"));
       return;
     }
-    if (identifier == QStringLiteral("patchy.filters.median")) {
-      median_smart_filter_dialog(*active);
+    const auto unsupported_name = filter_display_name(*unsupported_filter);
+    const auto answer = show_warning_message(
+        this, tr("Rasterize Smart Object?"),
+        tr("%1 has no editable Photoshop Smart Filter mapping. Rasterize the "
+           "Smart Object and apply the filter destructively?")
+            .arg(unsupported_name),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel,
+        QStringLiteral("filterRasterizeMessageBox"));
+    if (answer != QMessageBox::Yes) {
+      statusBar()->showMessage(tr("Cancelled %1").arg(unsupported_name));
       return;
     }
-    if (identifier ==
-        QStringLiteral("patchy.filters.dust_and_scratches")) {
-      dust_and_scratches_smart_filter_dialog(*active);
-      return;
-    }
-    if (identifier == QStringLiteral("patchy.filters.surface_blur")) {
-      surface_blur_smart_filter_dialog(*active);
-      return;
-    }
-    if (identifier == QStringLiteral("patchy.filters.unsharp_mask")) {
-      unsharp_mask_smart_filter_dialog(*active);
-      return;
-    }
-    if (identifier == QStringLiteral("patchy.filters.motion_blur")) {
-      motion_blur_smart_filter_dialog(*active);
-      return;
-    }
-    if (identifier == QStringLiteral("patchy.filters.plastic_wrap")) {
-      plastic_wrap_smart_filter_dialog(*active);
-      return;
-    }
-    statusBar()->showMessage(
-        tr("This filter is not currently editable as a Smart Filter"));
-    return;
+    rasterize_smart_object_for_filter = true;
   }
   try {
     const auto identifier_text = identifier.toStdString();
@@ -2188,7 +2221,12 @@ void MainWindow::apply_filter(const QString& identifier) {
     };
 
     auto preview_edit_lock = lock_preview_dialog_edits();
-    const auto settings = request_filter_settings(this, dialog_spec, preview_changed, std::move(initial_invocation));
+    const FilterDialogPreviewSource dialog_preview_source{
+        original_pixels.get(), bounds, selection, &filters_};
+    const auto settings =
+        request_filter_settings(this, dialog_spec, preview_changed,
+                                std::move(initial_invocation),
+                                &dialog_preview_source);
     close_async_pixel_preview(preview_state);
     layer = doc.find_layer(*active);
     if (layer == nullptr) {
@@ -2259,9 +2297,19 @@ void MainWindow::apply_filter(const QString& identifier) {
     if (layer == nullptr) {
       return;
     }
+    if (rasterize_smart_object_for_filter) {
+      strip_layer_smart_object_data(doc, *layer);
+    }
     set_layer_pixels_with_bounds(*layer, std::move(final_pixels), final_bounds);
+    if (rasterize_smart_object_for_filter) {
+      refresh_layer_list();
+      refresh_layer_controls();
+    }
     canvas_->document_changed(to_qrect(*last_preview_bounds).united(to_qrect(final_bounds)));
-    statusBar()->showMessage(tr("Applied %1").arg(display_name));
+    statusBar()->showMessage(
+        rasterize_smart_object_for_filter
+            ? tr("Rasterized Smart Object and applied %1").arg(display_name)
+            : tr("Applied %1").arg(display_name));
   } catch (const std::exception& error) {
     if (active.has_value()) {
       if (auto* restore_layer = doc.find_layer(*active); restore_layer != nullptr) {
@@ -2694,7 +2742,7 @@ void MainWindow::visual_filter_gallery_dialog() {
     restore_original();
 
     if (result.outcome == VisualFilterGalleryOutcome::Cancelled) {
-      statusBar()->showMessage(tr("Cancelled Visual Filters & Looks"));
+      statusBar()->showMessage(tr("Cancelled Filter Gallery"));
       return;
     }
     if (result.outcome == VisualFilterGalleryOutcome::Original || !result.recipe.has_value()) {
@@ -2722,7 +2770,7 @@ void MainWindow::visual_filter_gallery_dialog() {
       }
     }
     if (display_name.isEmpty()) {
-      display_name = tr("Visual Filter Stack");
+      display_name = tr("Filter Stack");
     }
 
     bool rasterize_smart_object_for_recipe = false;
@@ -2737,7 +2785,7 @@ void MainWindow::visual_filter_gallery_dialog() {
             QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel,
             QStringLiteral("filterGalleryRasterizeMessageBox"));
         if (answer != QMessageBox::Yes) {
-          statusBar()->showMessage(tr("Cancelled Visual Filters & Looks"));
+          statusBar()->showMessage(tr("Cancelled Filter Gallery"));
           return;
         }
         rasterize_smart_object_for_recipe = true;

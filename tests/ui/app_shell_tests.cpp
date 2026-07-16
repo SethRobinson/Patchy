@@ -1499,19 +1499,19 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   CHECK(patchy::ui::filter_progress_stage_text(patchy::FilterProgressStage::GeneratingClouds) ==
         QStringLiteral("雲模様を生成しています"));
   const auto filter_gallery_action =
-      QCoreApplication::translate("patchy::ui::MainWindow", "&Visual Filters && Looks...");
-  CHECK(filter_gallery_action == QStringLiteral("ビジュアルフィルター && ルック(&V)..."));
+      QCoreApplication::translate("patchy::ui::MainWindow", "Filter &Gallery...");
+  CHECK(filter_gallery_action == QStringLiteral("フィルターギャラリー(&G)..."));
   const auto filter_gallery_tip = QCoreApplication::translate(
       "patchy::ui::MainWindow", "Preview and apply visual filters and photo looks");
   CHECK(filter_gallery_tip == QStringLiteral("ビジュアルフィルターとフォトルックをプレビューして適用"));
   const auto filter_gallery_cancelled =
-      QCoreApplication::translate("patchy::ui::MainWindow", "Cancelled Visual Filters & Looks");
-  CHECK(filter_gallery_cancelled == QStringLiteral("ビジュアルフィルターとルックをキャンセルしました"));
+      QCoreApplication::translate("patchy::ui::MainWindow", "Cancelled Filter Gallery");
+  CHECK(filter_gallery_cancelled == QStringLiteral("フィルターギャラリーをキャンセルしました"));
   const auto filter_gallery_none =
       QCoreApplication::translate("patchy::ui::MainWindow", "No visual filter applied");
   CHECK(filter_gallery_none == QStringLiteral("ビジュアルフィルターは適用されませんでした"));
-  const auto filter_gallery_title = QCoreApplication::translate("QObject", "Visual Filters & Looks");
-  CHECK(filter_gallery_title == QStringLiteral("ビジュアルフィルターとルック"));
+  const auto filter_gallery_title = QCoreApplication::translate("QObject", "Filter Gallery");
+  CHECK(filter_gallery_title == QStringLiteral("フィルターギャラリー"));
   const auto filter_gallery_original = QCoreApplication::translate("QObject", "Original");
   CHECK(filter_gallery_original == QStringLiteral("元画像"));
   const auto filter_gallery_canvas = QCoreApplication::translate("QObject", "Live Canvas Preview");
@@ -1557,12 +1557,12 @@ void ui_filter_gallery_action_retranslates() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* action = require_action(window, "filterGalleryAction");
-  CHECK(action->text() == QStringLiteral("&Visual Filters && Looks..."));
+  CHECK(action->text() == QStringLiteral("Filter &Gallery..."));
   CHECK(action->statusTip() == QStringLiteral("Preview and apply visual filters and photo looks"));
 
   CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("ja"), false));
   QApplication::processEvents();
-  CHECK(action->text() == QStringLiteral("ビジュアルフィルター && ルック(&V)..."));
+  CHECK(action->text() == QStringLiteral("フィルターギャラリー(&G)..."));
   CHECK(action->statusTip() == QStringLiteral("ビジュアルフィルターとフォトルックをプレビューして適用"));
   patchy::ui::ZoomableImagePreview translated_preview;
   CHECK(translated_preview.toolTip() ==
@@ -1570,7 +1570,7 @@ void ui_filter_gallery_action_retranslates() {
 
   CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
   QApplication::processEvents();
-  CHECK(action->text() == QStringLiteral("&Visual Filters && Looks..."));
+  CHECK(action->text() == QStringLiteral("Filter &Gallery..."));
   CHECK(action->statusTip() == QStringLiteral("Preview and apply visual filters and photo looks"));
 }
 

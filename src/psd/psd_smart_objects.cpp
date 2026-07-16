@@ -168,6 +168,7 @@ struct SmartFilterDescriptorSpec {
   std::optional<std::int32_t> highlight_strength;
   std::optional<std::int32_t> detail;
   std::optional<std::int32_t> smoothness;
+  std::optional<std::int32_t> cell_size_pixels;
   const char* default_entry_name{nullptr};
   const char* filter_name{nullptr};
   const char* filter_class_id{nullptr};
@@ -293,6 +294,17 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_name = "Plastic Wrap";
     spec.filter_class_id = "PlsW";
     spec.filter_id = 0x506c7357U;
+  } else if (entry.kind == SmartFilterKind::Mosaic) {
+    const auto *mosaic = std::get_if<MosaicSmartFilter>(&entry.parameters);
+    if (mosaic == nullptr || mosaic->cell_size_pixels < 2 ||
+        mosaic->cell_size_pixels > 200) {
+      return std::nullopt;
+    }
+    spec.cell_size_pixels = mosaic->cell_size_pixels;
+    spec.default_entry_name = "Mosaic...";
+    spec.filter_name = "Mosaic";
+    spec.filter_class_id = "Msc ";
+    spec.filter_id = 0x4d736320U;
   } else {
     return std::nullopt;
   }
@@ -349,6 +361,13 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
   if (spec->smoothness.has_value()) {
     add_smart_filter_value(*filter.object_value, "Smth", false,
                            smart_filter_integer(*spec->smoothness));
+  }
+  if (spec->cell_size_pixels.has_value()) {
+    // Photoshop stores Cell Size as a #Pxl unit double (July 2026 capture).
+    add_smart_filter_value(
+        *filter.object_value, "ClSz", false,
+        smart_filter_unit("#Pxl",
+                          static_cast<double>(*spec->cell_size_pixels)));
   }
   if (spec->amount_percent.has_value()) {
     add_smart_filter_value(*filter.object_value, "Amnt", false,
@@ -661,6 +680,15 @@ bool patch_smart_filter_descriptor(
       }
       smoothness->integer_value = *spec->smoothness;
     }
+    if (spec->cell_size_pixels.has_value()) {
+      auto *cell_size = mutable_value_either(*filter, "ClSz", "cellSize");
+      if (cell_size == nullptr ||
+          cell_size->type != DescriptorValue::Type::UnitFloat ||
+          cell_size->unit != "#Pxl") {
+        return false;
+      }
+      cell_size->double_value = static_cast<double>(*spec->cell_size_pixels);
+    }
   }
   return true;
 }
@@ -949,6 +977,23 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
           entry.kind = SmartFilterKind::SurfaceBlur;
           entry.parameters = SurfaceBlurSmartFilter{
               radius->double_value, threshold->integer_value};
+        } else {
+          entry_supported = false;
+        }
+      } else if (filter != nullptr && filter->class_id == "Msc " &&
+                 entry.native_filter_id == 0x4d736320U) {
+        const auto *cell_size =
+            descriptor_value_either(*filter, "ClSz", "cellSize");
+        if (cell_size != nullptr &&
+            cell_size->type == DescriptorValue::Type::UnitFloat &&
+            cell_size->unit == "#Pxl" &&
+            std::isfinite(cell_size->double_value) &&
+            cell_size->double_value >= 2.0 &&
+            cell_size->double_value <= 200.0 &&
+            std::floor(cell_size->double_value) == cell_size->double_value) {
+          entry.kind = SmartFilterKind::Mosaic;
+          entry.parameters = MosaicSmartFilter{
+              static_cast<std::int32_t>(cell_size->double_value)};
         } else {
           entry_supported = false;
         }

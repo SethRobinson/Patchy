@@ -4311,6 +4311,135 @@ void ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete() {
   CHECK(patchy::smart_object_lock_reason(*linked) == "external");
 }
 
+void ui_pixel_mosaic_direct_action_appends_editable_smart_filter() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* original_layer = std::as_const(document).find_layer(layer_id);
+  CHECK(original_layer != nullptr &&
+        original_layer->smart_filter_stack() == nullptr);
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  accept_filter_dialog({{QStringLiteral("filterCellSizeSpin"), 12}});
+  require_action(window, "filterAction_patchy_filters_pixelate")->trigger();
+  QApplication::processEvents();
+
+  const auto* filtered = std::as_const(document).find_layer(layer_id);
+  CHECK(filtered != nullptr && patchy::layer_is_smart_object(*filtered));
+  const auto* stack = filtered->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto& entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::Mosaic);
+  CHECK(entry.native_name == "Mosaic...");
+  CHECK(entry.native_class_id == "Msc ");
+  const auto* mosaic =
+      std::get_if<patchy::MosaicSmartFilter>(&entry.parameters);
+  CHECK(mosaic != nullptr && mosaic->cell_size_pixels == 12);
+  CHECK(window.statusBar()->currentMessage().contains(
+      QStringLiteral("Mosaic")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(document).find_layer(layer_id);
+  CHECK(restored != nullptr && restored->smart_filter_stack() == nullptr);
+}
+
+void ui_smart_object_direct_unsupported_filter_offers_rasterize() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  patchy::Document built(48, 36, patchy::PixelFormat::rgba8());
+  patchy::Layer artwork(built.allocate_layer_id(), "Artwork",
+                        solid_pixels(20, 16, patchy::PixelFormat::rgba8(),
+                                     QColor(220, 40, 30, 255)));
+  const auto layer_id = artwork.id();
+  const patchy::Rect original_bounds{9, 8, 20, 16};
+  artwork.set_bounds(original_bounds);
+  built.add_layer(std::move(artwork));
+  built.set_active_layer(layer_id);
+  window.add_document_session(std::move(built),
+                              QStringLiteral("Rasterize Prompt"));
+  QApplication::processEvents();
+
+  require_action(window, "filterConvertForSmartFiltersAction")->trigger();
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* converted = std::as_const(document).find_layer(layer_id);
+  CHECK(converted != nullptr && patchy::layer_is_smart_object(*converted));
+  const auto original_pixels = converted->pixels();
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  const auto sepia_action_name = patchy::ui::filter_action_object_name(
+      QStringLiteral("patchy.filters.sepia"));
+
+  // Cancel keeps the Smart Object untouched (no undo entry, no pixel change).
+  bool cancelled_prompt = false;
+  QTimer::singleShot(0, [&] {
+    auto* warning = qobject_cast<QMessageBox*>(find_top_level_dialog(
+        QStringLiteral("filterRasterizeMessageBox")));
+    CHECK(warning != nullptr);
+    auto* cancel = warning->button(QMessageBox::Cancel);
+    CHECK(cancel != nullptr);
+    cancelled_prompt = true;
+    cancel->click();
+  });
+  require_action(window, sepia_action_name.toUtf8().constData())->trigger();
+  QApplication::processEvents();
+  CHECK(cancelled_prompt);
+  const auto* still_smart = std::as_const(document).find_layer(layer_id);
+  CHECK(still_smart != nullptr && patchy::layer_is_smart_object(*still_smart));
+  CHECK(patchy::ui::pixel_buffers_equal(still_smart->pixels(),
+                                        original_pixels));
+  CHECK(window.statusBar()->currentMessage().startsWith(
+      QStringLiteral("Cancelled")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before);
+
+  // Yes rasterizes and applies the filter destructively as one undo step.
+  bool accepted_prompt = false;
+  QTimer::singleShot(0, [&] {
+    auto* warning = qobject_cast<QMessageBox*>(find_top_level_dialog(
+        QStringLiteral("filterRasterizeMessageBox")));
+    CHECK(warning != nullptr);
+    auto* yes = warning->button(QMessageBox::Yes);
+    CHECK(yes != nullptr);
+    accepted_prompt = true;
+    accept_filter_dialog();
+    yes->click();
+  });
+  require_action(window, sepia_action_name.toUtf8().constData())->trigger();
+  QApplication::processEvents();
+  CHECK(accepted_prompt);
+  const auto* rasterized = std::as_const(document).find_layer(layer_id);
+  CHECK(rasterized != nullptr &&
+        !patchy::layer_is_smart_object(*rasterized));
+  CHECK(rasterized->smart_filter_stack() == nullptr);
+  CHECK(!patchy::ui::pixel_buffers_equal(rasterized->pixels(),
+                                         original_pixels));
+  CHECK(window.statusBar()->currentMessage().contains(
+      QStringLiteral("Rasterized Smart Object")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(document).find_layer(layer_id);
+  CHECK(restored != nullptr && patchy::layer_is_smart_object(*restored));
+  CHECK(filter_rect_equal(restored->bounds(), original_bounds));
+  CHECK(patchy::ui::pixel_buffers_equal(restored->pixels(), original_pixels));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> smart_filter_tests() {
@@ -4347,6 +4476,10 @@ std::vector<patchy::test::TestCase> smart_filter_tests() {
        ui_smart_filter_native_integrity_guards_reject_destructive_actions},
       {"ui_unsupported_smart_filter_guards_preserve_photoshop_preview",
        ui_unsupported_smart_filter_guards_preserve_photoshop_preview},
+      {"ui_pixel_mosaic_direct_action_appends_editable_smart_filter",
+       ui_pixel_mosaic_direct_action_appends_editable_smart_filter},
+      {"ui_smart_object_direct_unsupported_filter_offers_rasterize",
+       ui_smart_object_direct_unsupported_filter_offers_rasterize},
       {"ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete",
        ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete},
       {"ui_gaussian_blur_normal_pixel_layer_stays_destructive",

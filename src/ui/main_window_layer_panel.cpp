@@ -1563,6 +1563,15 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                   .arg(plastic->detail)
                   .arg(plastic->smoothness);
         }
+      } else if (entry.kind == SmartFilterKind::Mosaic) {
+        entry_name = QObject::tr("Mosaic");
+        entry_tooltip = entry_name;
+        if (const auto *mosaic =
+                std::get_if<MosaicSmartFilter>(&entry.parameters);
+            mosaic != nullptr) {
+          entry_tooltip += QObject::tr(" (Cell Size %1 px)")
+                               .arg(mosaic->cell_size_pixels);
+        }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
         entry_tooltip = entry_name;

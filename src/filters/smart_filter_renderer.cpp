@@ -45,6 +45,8 @@ constexpr std::int32_t kMinimumPlasticWrapDetail = 1;
 constexpr std::int32_t kMaximumPlasticWrapDetail = 15;
 constexpr std::int32_t kMinimumPlasticWrapSmoothness = 1;
 constexpr std::int32_t kMaximumPlasticWrapSmoothness = 15;
+constexpr std::int32_t kMinimumMosaicCellSize = 2;
+constexpr std::int32_t kMaximumMosaicCellSize = 200;
 constexpr double kGaussianMarginScale = 3.0;
 constexpr double kDirectGaussianMaximumRadius = 8.0;
 constexpr int kProgressScale = 1000000;
@@ -1799,6 +1801,72 @@ apply_stack_mask(const FilterRenderResult &base,
                             cropped_bounds};
 }
 
+// The destructive Pixel Mosaic math: alpha-weighted premultiplied block
+// means, straight-color writes with the normalized alpha, grid anchored at
+// the input's local origin. Bounds are preserved.
+[[nodiscard]] FilterRenderResult render_mosaic_effect(
+    const FilterRenderResult &input, std::int32_t cell_size_pixels,
+    const FilterProgress *progress) {
+  if (input.pixels.empty()) {
+    report_progress(progress, 1, 1, FilterProgressStage::Pixelating);
+    return input;
+  }
+  FilterRenderResult result{
+      PixelBuffer(input.bounds.width, input.bounds.height,
+                  PixelFormat::rgba8()),
+      input.bounds};
+  const auto width = input.bounds.width;
+  const auto height = input.bounds.height;
+  const auto cell = std::max<std::int32_t>(kMinimumMosaicCellSize,
+                                           cell_size_pixels);
+  for (std::int32_t block_y = 0; block_y < height; block_y += cell) {
+    report_progress(progress, block_y, height,
+                    FilterProgressStage::Pixelating);
+    const auto block_height = std::min(cell, height - block_y);
+    for (std::int32_t block_x = 0; block_x < width; block_x += cell) {
+      const auto block_width = std::min(cell, width - block_x);
+      double weight = 0.0;
+      double alpha_sum = 0.0;
+      std::array<double, 3> premultiplied{};
+      for (std::int32_t y = block_y; y < block_y + block_height; ++y) {
+        for (std::int32_t x = block_x; x < block_x + block_width; ++x) {
+          const auto *px = input.pixels.pixel(x, y);
+          const auto alpha = static_cast<double>(px[3]) / 255.0;
+          weight += 1.0;
+          alpha_sum += alpha;
+          for (int channel = 0; channel < 3; ++channel) {
+            premultiplied[static_cast<std::size_t>(channel)] +=
+                static_cast<double>(px[channel]) * alpha;
+          }
+        }
+      }
+      std::array<std::uint8_t, 4> value{};
+      for (int channel = 0; channel < 3; ++channel) {
+        const auto straight =
+            alpha_sum > 0.000001
+                ? premultiplied[static_cast<std::size_t>(channel)] / alpha_sum
+                : 0.0;
+        value[static_cast<std::size_t>(channel)] = static_cast<std::uint8_t>(
+            std::clamp(std::lround(straight), 0L, 255L));
+      }
+      value[3] = static_cast<std::uint8_t>(std::clamp(
+          std::lround(weight > 0.0 ? alpha_sum / weight * 255.0 : 0.0), 0L,
+          255L));
+      for (std::int32_t y = block_y; y < block_y + block_height; ++y) {
+        for (std::int32_t x = block_x; x < block_x + block_width; ++x) {
+          auto *dst = result.pixels.pixel(x, y);
+          dst[0] = value[0];
+          dst[1] = value[1];
+          dst[2] = value[2];
+          dst[3] = value[3];
+        }
+      }
+    }
+  }
+  report_progress(progress, height, height, FilterProgressStage::Pixelating);
+  return result;
+}
+
 void validate_stack(const PixelBuffer &pixels, Rect bounds,
                     const SmartFilterStack &stack) {
   if (pixels.format() != PixelFormat::rgba8() || bounds.width < 0 ||
@@ -1901,6 +1969,11 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
           plastic->detail <= kMaximumPlasticWrapDetail &&
           plastic->smoothness >= kMinimumPlasticWrapSmoothness &&
           plastic->smoothness <= kMaximumPlasticWrapSmoothness;
+    } else if (entry.kind == SmartFilterKind::Mosaic) {
+      const auto *mosaic = std::get_if<MosaicSmartFilter>(&entry.parameters);
+      parameters_valid = mosaic != nullptr &&
+                         mosaic->cell_size_pixels >= kMinimumMosaicCellSize &&
+                         mosaic->cell_size_pixels <= kMaximumMosaicCellSize;
     } else {
       throw std::invalid_argument("Unsupported Smart Filter entry");
     }
@@ -1910,6 +1983,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
          entry.kind != SmartFilterKind::UnsharpMask &&
          entry.kind != SmartFilterKind::MotionBlur &&
          entry.kind != SmartFilterKind::PlasticWrap &&
+         entry.kind != SmartFilterKind::Mosaic &&
          (!std::isfinite(radius) || radius < minimum_radius ||
           radius > maximum_radius)) ||
         !std::isfinite(entry.opacity) ||
@@ -2045,6 +2119,19 @@ FilterRenderResult render_plastic_wrap(
                                     progress);
 }
 
+FilterRenderResult render_mosaic(const PixelBuffer &pixels, Rect bounds,
+                                 std::int32_t cell_size_pixels,
+                                 const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() ||
+      pixels.width() != bounds.width || pixels.height() != bounds.height ||
+      cell_size_pixels < kMinimumMosaicCellSize ||
+      cell_size_pixels > kMaximumMosaicCellSize) {
+    throw std::invalid_argument("Invalid Mosaic input");
+  }
+  return render_mosaic_effect(FilterRenderResult{pixels, bounds},
+                              cell_size_pixels, progress);
+}
+
 FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                              Rect placed_bounds,
                                              Rect filter_canvas_bounds,
@@ -2123,12 +2210,16 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
       filtered = trim_transparent_result(
           render_motion_blur(motion_input, motion.angle_degrees,
                              motion.distance_pixels, &filter_progress));
-    } else {
+    } else if (entry.kind == SmartFilterKind::PlasticWrap) {
       const auto &plastic =
           std::get<PlasticWrapSmartFilter>(entry.parameters);
       filtered = render_plastic_wrap_effect(
           current, plastic.highlight_strength, plastic.detail,
           plastic.smoothness, &filter_progress);
+    } else {
+      const auto &mosaic = std::get<MosaicSmartFilter>(entry.parameters);
+      filtered = render_mosaic_effect(current, mosaic.cell_size_pixels,
+                                      &filter_progress);
     }
     auto blend_progress = phase_progress(progress, phase++, phase_count);
     current = blend_entry_result(current, std::move(filtered), entry.opacity,

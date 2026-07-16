@@ -1338,12 +1338,12 @@ void MainWindow::create_actions() {
   register_document_action(filter_convert_smart_filters_action_);
   filter_menu->addSeparator();
 
-  auto* filter_gallery_action = filter_menu->addAction(tr("&Visual Filters && Looks..."));
+  auto* filter_gallery_action = filter_menu->addAction(tr("Filter &Gallery..."));
   filter_gallery_action->setObjectName(QStringLiteral("filterGalleryAction"));
   filter_gallery_action->setProperty("patchy.channelViewBlocked", true);
   filter_gallery_action->setIcon(simple_icon(QStringLiteral("FX")));
   filter_gallery_action->setStatusTip(tr("Preview and apply visual filters and photo looks"));
-  bind_action_text(filter_gallery_action, "&Visual Filters && Looks...");
+  bind_action_text(filter_gallery_action, "Filter &Gallery...");
   bind_translated_status_tip(filter_gallery_action, "Preview and apply visual filters and photo looks");
   apply_bound_translation(filter_gallery_action);
   refresh_action_tooltip(filter_gallery_action);
