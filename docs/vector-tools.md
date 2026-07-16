@@ -68,6 +68,21 @@ coverage - density and any raster mask multiplied in - into the layer mask).
 While the vector-mask target is active, shape-tool drags and pen commits
 append subpaths to the mask path instead of creating layers.
 
+## Paths panel
+
+The Paths dock tabifies with Channels: outline thumbnails for every saved
+path, the work path (italic, listed last), and a transient row for the active
+layer's shape or vector-mask path. Selecting a row targets it for the pen and
+path tools (the explicit selection outranks the layer/work-path fallback);
+clicking empty space deselects. Double-click saves the work path under a
+generated name or renames a saved path inline. Footer commands: New Path
+(empty, immediately targeted), Fill Path (foreground color through the
+coverage), Stroke Path (a centered round-capped band at the brush size in the
+foreground color; per-stamp brush dynamics are not simulated), Make Selection
+(feather via triple box blur, anti-alias toggle, New/Add/Subtract/Intersect
+operations), and Delete Path. Saved paths round-trip through the PSD path
+resources from phase 8.
+
 ## Appearance editing and fill layers
 
 Double-clicking a shape layer's row (or an imported fill layer's) opens the

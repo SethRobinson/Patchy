@@ -500,6 +500,10 @@ public:
   // Appends subpaths to the active layer's vector mask (undo + cache rebake);
   // used by pen commits and shape drags while the VectorMask target is active.
   void add_subpaths_to_vector_mask(std::vector<patchy::PathSubpath> subpaths, const QString& label);
+  // Paths-panel targeting: an explicitly selected document path takes
+  // precedence over the active shape layer / work-path fallback.
+  void set_active_document_path(std::optional<DocumentPathId> id);
+  [[nodiscard]] std::optional<DocumentPathId> active_document_path() const noexcept;
   // Rounded-corner radius for the rectangular marquee (0 = sharp corners).
   void set_marquee_corner_radius(int pixels) noexcept;
   [[nodiscard]] int marquee_corner_radius() const noexcept;
@@ -1232,6 +1236,7 @@ private:
   bool path_edit_undo_armed_{false};
   bool path_edit_changed_{false};
   qint64 path_nudge_last_ms_{0};
+  std::optional<DocumentPathId> active_document_path_;
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};

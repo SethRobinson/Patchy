@@ -233,6 +233,8 @@ void CanvasWidget::set_document_for_history_restore(Document* document, bool nor
 void CanvasWidget::set_document_internal(Document* document, bool preserve_frame_for_same_size,
                                          bool normal_composite_unchanged) {
   cancel_pen_path();  // an in-flight path belongs to the outgoing document
+  active_document_path_.reset();
+  path_selected_anchors_.clear();
   clear_transient_read_interaction();
   curves_clipping_mode_.reset();
   curves_clipping_channel_.reset();

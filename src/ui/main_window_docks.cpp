@@ -7,6 +7,7 @@
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/paths_panel.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -331,8 +332,8 @@ void MainWindow::set_right_dock_stack_width(int width) {
   const auto max_width = std::max(kRightDockMinimumWidth, this->width() - 260);
   const auto target_width = std::clamp(width, kRightDockMinimumWidth, max_width);
   for (const auto& object_name : {QStringLiteral("layersDock"), QStringLiteral("channelsDock"),
-                                  QStringLiteral("historyDock"), QStringLiteral("propertiesDock"),
-                                  QStringLiteral("infoDock")}) {
+                                  QStringLiteral("pathsDock"), QStringLiteral("historyDock"),
+                                  QStringLiteral("propertiesDock"), QStringLiteral("infoDock")}) {
     auto* dock = findChild<QDockWidget*>(object_name);
     if (dock == nullptr) {
       continue;
@@ -925,6 +926,62 @@ void MainWindow::create_docks() {
       [this](std::vector<ChannelId> order) { reorder_channels_from_panel(std::move(order)); });
   register_document_widget(channel_panel_);
   refresh_channel_panel();
+
+  paths_dock_ = new QDockWidget(tr("Paths"), this);
+  paths_dock_->setObjectName(QStringLiteral("pathsDock"));
+  bind_widget_text(paths_dock_, "Paths");
+  paths_panel_ = new PathsPanel(paths_dock_);
+  paths_dock_->setWidget(paths_panel_);
+  install_collapsible_dock_title(paths_dock_, paths_panel_, QStringLiteral("paths"), 190);
+  paths_dock_->setProperty("patchy.rightDockResizeHost", true);
+  paths_dock_->installEventFilter(this);
+  auto* paths_dock_resize_handle = new QWidget(paths_dock_);
+  paths_dock_resize_handle->setObjectName(QStringLiteral("rightDockResizeHandle"));
+  paths_dock_resize_handle->setProperty("patchy.rightDockResizeHandle", true);
+  paths_dock_resize_handle->setAttribute(Qt::WA_StyledBackground, true);
+  paths_dock_resize_handle->setCursor(Qt::SplitHCursor);
+  paths_dock_resize_handle->installEventFilter(this);
+  addDockWidget(Qt::RightDockWidgetArea, paths_dock_);
+  tabifyDockWidget(channel_dock_, paths_dock_);
+  layers_dock->raise();
+  update_right_dock_resize_handle_geometry(paths_dock_);
+
+  const auto make_path_action = [this](QAction*& target, const char* text, const char* object_name,
+                                       const char* hotkey_id, auto callback) {
+    target = new QAction(tr(text), this);
+    target->setObjectName(QLatin1String(object_name));
+    bind_action_text(target, text);
+    register_hotkey(target, QLatin1String(hotkey_id), QKeySequence(), QStringLiteral("paths"));
+    register_document_action(target);
+    connect(target, &QAction::triggered, this, callback);
+  };
+  make_path_action(path_new_action_, QT_TR_NOOP("New Path"), "pathNewAction", "path.new",
+                   [this] { new_saved_path(); });
+  make_path_action(path_fill_action_, QT_TR_NOOP("Fill Path"), "pathFillAction", "path.fill",
+                   [this] { fill_active_path(); });
+  make_path_action(path_stroke_action_, QT_TR_NOOP("Stroke Path"), "pathStrokeAction", "path.stroke",
+                   [this] { stroke_active_path(); });
+  make_path_action(path_make_selection_action_, QT_TR_NOOP("Make Selection"),
+                   "pathMakeSelectionAction", "path.make_selection",
+                   [this] { make_selection_from_path(); });
+  make_path_action(path_delete_action_, QT_TR_NOOP("Delete Path"), "pathDeleteAction", "path.delete",
+                   [this] { delete_selected_path(); });
+  path_new_action_->setIcon(simple_icon(QStringLiteral("new")));
+  path_fill_action_->setIcon(simple_icon(QStringLiteral("fill")));
+  path_stroke_action_->setIcon(simple_icon(QStringLiteral("SP")));
+  path_make_selection_action_->setIcon(simple_icon(QStringLiteral("channel-load-selection")));
+  path_delete_action_->setIcon(simple_icon(QStringLiteral("trash")));
+  paths_panel_->set_actions(path_new_action_, path_fill_action_, path_stroke_action_,
+                            path_make_selection_action_, path_delete_action_);
+  paths_panel_->set_target_callback([this](PathsPanel::RowKind kind, DocumentPathId id) {
+    handle_paths_panel_target(static_cast<int>(kind), id);
+  });
+  paths_panel_->set_deselect_callback([this] { handle_paths_panel_deselect(); });
+  paths_panel_->set_rename_callback(
+      [this](DocumentPathId id, QString name) { rename_document_path(id, name); });
+  paths_panel_->set_save_work_path_callback([this] { save_work_path_as_named(); });
+  register_document_widget(paths_panel_);
+  refresh_paths_panel();
 
   auto* history_dock = new QDockWidget(tr("History"), this);
   history_dock->setObjectName(QStringLiteral("historyDock"));

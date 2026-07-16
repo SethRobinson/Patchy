@@ -2,6 +2,12 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ja" sourcelanguage="en">
 <context>
+    <name>patchy::ui::PathsPanel</name>
+    <message><source>Saved path. Double-click to rename; select to edit with the pen and path tools.</source><translation>保存済みパス。ダブルクリックで名前を変更、選択するとペン/パスツールで編集できます。</translation></message>
+    <message><source>The temporary work path. Double-click to save it as a named path.</source><translation>一時的な作業用パス。ダブルクリックで名前付きパスとして保存します。</translation></message>
+    <message><source>The active layer&apos;s path (shape or vector mask).</source><translation>アクティブレイヤーのパス（シェイプまたはベクトルマスク）。</translation></message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <location filename="../src/app/main.cpp" line="+290"/>
@@ -12758,6 +12764,42 @@ Clipped to the layer below</source>
     <message><source>Editing vector mask</source><translation>ベクトルマスクを編集中</translation></message>
     <message><source>Showing the vector mask. Alt-click the thumbnail to return.</source><translation>ベクトルマスクを表示中です。サムネイルを Alt クリックすると戻ります。</translation></message>
     <message><source>Editing the vector mask path with the pen and path tools</source><translation>ペンツールとパスツールでベクトルマスクのパスを編集中</translation></message>
+    <message><source>Paths</source><translation>パス</translation></message>
+    <message><source>New Path</source><translation>新規パス</translation></message>
+    <message><source>Fill Path</source><translation>パスを塗りつぶし</translation></message>
+    <message><source>Stroke Path</source><translation>パスの境界線を描く</translation></message>
+    <message><source>Make Selection</source><translation>選択範囲を作成</translation></message>
+    <message><source>Delete Path</source><translation>パスを削除</translation></message>
+    <message><source>%1 Shape Path</source><translation>%1 シェイプパス</translation></message>
+    <message><source>%1 Vector Mask</source><translation>%1 ベクトルマスク</translation></message>
+    <message><source>Rename path</source><translation>パス名を変更</translation></message>
+    <message><source>Renamed the path to %1.</source><translation>パス名を %1 に変更しました。</translation></message>
+    <message><source>Path %1</source><translation>パス %1</translation></message>
+    <message><source>Save path</source><translation>パスを保存</translation></message>
+    <message><source>Saved the work path as %1.</source><translation>作業用パスを %1 として保存しました。</translation></message>
+    <message><source>New path</source><translation>新規パス</translation></message>
+    <message><source>Created %1. Draw into it with the Pen tool.</source><translation>%1 を作成しました。ペンツールで描き込んでください。</translation></message>
+    <message><source>Select a saved path or the work path to delete</source><translation>削除する保存済みパスまたは作業用パスを選択してください</translation></message>
+    <message><source>Delete path</source><translation>パスを削除</translation></message>
+    <message><source>Deleted the path</source><translation>パスを削除しました</translation></message>
+    <message><source>Select a path to fill</source><translation>塗りつぶすパスを選択してください</translation></message>
+    <message><source>Fill path</source><translation>パスを塗りつぶし</translation></message>
+    <message><source>Filled the path with the foreground color</source><translation>パスを描画色で塗りつぶしました</translation></message>
+    <message><source>Select a path to stroke</source><translation>境界線を描くパスを選択してください</translation></message>
+    <message><source>Stroke path</source><translation>パスの境界線を描く</translation></message>
+    <message><source>Stroked the path with the foreground color</source><translation>パスの境界線を描画色で描きました</translation></message>
+    <message><source>Select a path to convert</source><translation>変換するパスを選択してください</translation></message>
+    <message><source>Feather:</source><translation>ぼかし:</translation></message>
+    <message><source>Anti-alias</source><translation>アンチエイリアス</translation></message>
+    <message><source>Operation:</source><translation>処理:</translation></message>
+    <message><source>New Selection</source><translation>新規選択範囲</translation></message>
+    <message><source>Add to Selection</source><translation>選択範囲に追加</translation></message>
+    <message><source>Subtract from Selection</source><translation>選択範囲から削除</translation></message>
+    <message><source>Intersect with Selection</source><translation>選択範囲と交差</translation></message>
+    <message><source>Make selection from path</source><translation>パスから選択範囲を作成</translation></message>
+    <message><source>Made a selection from the path</source><translation>パスから選択範囲を作成しました</translation></message>
+    <message><source>Add to path</source><translation>パスに追加</translation></message>
+    <message><source>Added the shape to %1.</source><translation>シェイプを %1 に追加しました。</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -13415,6 +13457,7 @@ Clipped to the layer below</source>
     <message><source>Shape Fill Color</source><translation>シェイプの塗りの色</translation></message>
     <message><source>Shape Stroke Color</source><translation>シェイプの線の色</translation></message>
     <message><source>Vector mask. Click to edit its path with the pen and path tools, Ctrl-click to load it as a selection, Alt-click to view it, Shift-click to disable it.</source><translation>ベクトルマスク。クリックでペン/パスツールでのパス編集、Ctrl クリックで選択範囲として読み込み、Alt クリックで表示、Shift クリックで無効化します。</translation></message>
+
 </context>
 <context>
     <name>FilterGalleryControls</name>

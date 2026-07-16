@@ -626,8 +626,11 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window_smart_objects.cpp
       src/ui/main_window_stress_test.cpp
       src/ui/main_window_theme.cpp
+      src/ui/main_window_paths.cpp
       src/ui/main_window_tool_options.cpp
       src/ui/main_window_vector.cpp
+      src/ui/paths_panel.hpp
+      src/ui/paths_panel.cpp
       src/ui/shape_appearance_dialog.hpp
       src/ui/shape_appearance_dialog.cpp
       src/ui/measurement_units.hpp

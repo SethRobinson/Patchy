@@ -320,6 +320,9 @@ QPixmap MainWindow::cached_channel_thumbnail(const DocumentChannel& channel) {
 }
 
 void MainWindow::refresh_channel_panel() {
+  // The Paths dock rides the same refresh cadence (document switches, undo
+  // restores, mutations) so its rows never go stale relative to Channels.
+  refresh_paths_panel();
   if (channel_panel_ == nullptr) {
     return;
   }

@@ -10,6 +10,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDockWidget>
 #include <QDoubleSpinBox>
 #include <QLabel>
 #include <QListWidget>
@@ -578,6 +579,117 @@ void ui_vector_mask_shift_click_disable_and_rasterize() {
   CHECK(document.find_layer(*active)->mask().has_value());
 }
 
+QDialog* find_top_level_dialog(const QString& object_name);
+
+void ui_paths_panel_lists_saves_and_targets_paths() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // A Path-mode drag creates the work path; the panel lists it.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  auto* paths_dock = window.findChild<QDockWidget*>(QStringLiteral("pathsDock"));
+  CHECK(paths_dock != nullptr);
+  paths_dock->raise();
+  QApplication::processEvents();
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  CHECK(paths_list->count() == 1);
+  CHECK(paths_list->item(0)->text() == QStringLiteral("Work Path"));
+  CHECK(paths_list->item(0)->font().italic());
+
+  // Double-click saves the work path under a generated name. (Emitted via the
+  // signal: the tabified dock has no reliable item geometry offscreen.)
+  QMetaObject::invokeMethod(paths_list, "itemDoubleClicked", Qt::DirectConnection,
+                            Q_ARG(QListWidgetItem*, paths_list->item(0)));
+  QApplication::processEvents();
+  CHECK(document.work_path() == nullptr);
+  CHECK(document.paths().size() == 1);
+  CHECK(document.paths().front().name() == "Path 1");
+  CHECK(paths_list->count() == 1);
+  CHECK(!paths_list->item(0)->font().italic());
+
+  // New Path creates an empty saved path and targets it: the next Path-mode
+  // drag lands there instead of a fresh work path.
+  window.findChild<QAction*>(QStringLiteral("pathNewAction"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.paths().size() == 2);
+  CHECK(canvas->active_document_path().has_value());
+  canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
+  shape_drag(*canvas, QPoint(400, 100), QPoint(500, 200));
+  const auto* path2 = document.find_path(*canvas->active_document_path());
+  CHECK(path2 != nullptr);
+  CHECK(path2->path().subpaths.size() == 1);
+  CHECK(document.work_path() == nullptr);
+
+  // Clicking empty panel space deselects (back to the work-path routing).
+  send_mouse(*paths_list->viewport(), QEvent::MouseButtonPress,
+             QPoint(paths_list->viewport()->width() / 2, paths_list->viewport()->height() - 4),
+             Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!canvas->active_document_path().has_value());
+}
+
+void ui_paths_panel_fill_stroke_and_make_selection() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(200, 200), QPoint(400, 320));
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
+
+  // Fill Path paints the foreground color into the active raster layer.
+  canvas->set_primary_color(QColor(30, 160, 40));
+  window.findChild<QAction*>(QStringLiteral("pathFillAction"))->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 260)), QColor(30, 160, 40), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 260)), Qt::white, 8));
+
+  // Stroke Path draws a brush-sized band along the outline.
+  canvas->set_primary_color(QColor(200, 40, 160));
+  canvas->set_brush_size(8);
+  window.findChild<QAction*>(QStringLiteral("pathStrokeAction"))->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 260)), QColor(200, 40, 160), 12));
+
+  // Make Selection converts the path (accept the dialog unchanged).
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("makeSelectionDialog"));
+    CHECK(dialog != nullptr);
+    dialog->accept();
+  });
+  window.findChild<QAction*>(QStringLiteral("pathMakeSelectionAction"))->trigger();
+  QApplication::processEvents();
+  const auto selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(std::abs(selection->x() - 200) <= 1);
+  CHECK(std::abs(selection->width() - 200) <= 2);
+
+  // Delete Path removes it and clears the panel targeting.
+  window.findChild<QAction*>(QStringLiteral("pathDeleteAction"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.paths().empty());
+  CHECK(paths_list->count() == 0);
+}
+
 QDialog* find_top_level_dialog(const QString& object_name) {
   for (auto* widget : QApplication::topLevelWidgets()) {
     if (widget->objectName() == object_name) {
@@ -755,6 +867,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_vector_mask_from_current_path_masks_layer", ui_vector_mask_from_current_path_masks_layer},
       {"ui_vector_mask_shift_click_disable_and_rasterize",
        ui_vector_mask_shift_click_disable_and_rasterize},
+      {"ui_paths_panel_lists_saves_and_targets_paths", ui_paths_panel_lists_saves_and_targets_paths},
+      {"ui_paths_panel_fill_stroke_and_make_selection",
+       ui_paths_panel_fill_stroke_and_make_selection},
       {"ui_shape_appearance_dialog_commits_and_cancels",
        ui_shape_appearance_dialog_commits_and_cancels},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},

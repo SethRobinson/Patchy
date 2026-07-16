@@ -231,8 +231,26 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
   if (subpaths.empty()) {
     return;
   }
-  push_undo_snapshot(tr("Add to work path"));
   const auto op = combine_op_for_index(current_vector_combine_index_);
+  // A path explicitly selected in the Paths panel receives the subpaths
+  // instead of the work path.
+  if (active_document_path_id_.has_value()) {
+    if (auto* target = doc.find_path(*active_document_path_id_); target != nullptr) {
+      push_undo_snapshot(tr("Add to path"));
+      auto path = target->path();
+      const auto group = path.next_shape_group();
+      for (auto& subpath : subpaths) {
+        subpath.shape_group = group;
+        subpath.op = op;
+        path.subpaths.push_back(std::move(subpath));
+      }
+      target->set_path(std::move(path));
+      refresh_paths_panel();
+      statusBar()->showMessage(tr("Added the shape to %1.").arg(QString::fromStdString(target->name())));
+      return;
+    }
+  }
+  push_undo_snapshot(tr("Add to work path"));
   if (auto* work = doc.work_path(); work != nullptr) {
     auto path = work->path();
     const auto group = path.next_shape_group();
@@ -253,6 +271,7 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
     created.mark_dirty();  // authored: no original resource bytes to re-emit
     doc.add_path(std::move(created));
   }
+  refresh_paths_panel();
   statusBar()->showMessage(tr("Added the path to the work path."));
 }
 

@@ -327,12 +327,31 @@ Layer* CanvasWidget::path_edit_target_layer() const {
   return nullptr;
 }
 
+void CanvasWidget::set_active_document_path(std::optional<DocumentPathId> id) {
+  if (active_document_path_ == id) {
+    return;
+  }
+  active_document_path_ = id;
+  clear_path_edit_selection();
+  update();
+}
+
+std::optional<DocumentPathId> CanvasWidget::active_document_path() const noexcept {
+  return active_document_path_;
+}
+
 const VectorPath* CanvasWidget::path_edit_target_path() const {
   if (layer_edit_target_ == LayerEditTarget::VectorMask) {
     if (const auto* layer = vector_mask_target_layer(); layer != nullptr) {
       return &layer->vector_mask()->path;
     }
     return nullptr;
+  }
+  if (active_document_path_.has_value() && document_ != nullptr) {
+    if (const auto* path = std::as_const(*document_).find_path(*active_document_path_);
+        path != nullptr) {
+      return &path->path();
+    }
   }
   if (const auto* layer = path_edit_target_layer(); layer != nullptr) {
     return &layer->vector_shape()->path;
@@ -400,6 +419,13 @@ void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
       mark_layer_vector_block_dirty(*layer);
       update_vector_mask_raster(*layer, Rect::from_size(document_->width(), document_->height()));
       document_changed();
+    }
+    return;
+  }
+  if (active_document_path_.has_value()) {
+    if (auto* target = document_->find_path(*active_document_path_); target != nullptr) {
+      target->set_path(std::move(path));
+      update();
     }
     return;
   }
