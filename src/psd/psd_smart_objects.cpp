@@ -169,6 +169,8 @@ struct SmartFilterDescriptorSpec {
   std::optional<std::int32_t> detail;
   std::optional<std::int32_t> smoothness;
   std::optional<std::int32_t> cell_size_pixels;
+  std::optional<std::int32_t> height_pixels;
+  std::optional<std::int32_t> amount_integer;
   const char* default_entry_name{nullptr};
   const char* filter_name{nullptr};
   const char* filter_class_id{nullptr};
@@ -305,6 +307,34 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_name = "Mosaic";
     spec.filter_class_id = "Msc ";
     spec.filter_id = 0x4d736320U;
+  } else if (entry.kind == SmartFilterKind::Emboss) {
+    const auto *emboss = std::get_if<EmbossSmartFilter>(&entry.parameters);
+    if (emboss == nullptr || emboss->angle_degrees < -360 ||
+        emboss->angle_degrees > 360 || emboss->height_pixels < 1 ||
+        emboss->height_pixels > 100 || emboss->amount_percent < 1 ||
+        emboss->amount_percent > 500) {
+      return std::nullopt;
+    }
+    spec.angle_degrees = emboss->angle_degrees;
+    spec.height_pixels = emboss->height_pixels;
+    spec.amount_integer = emboss->amount_percent;
+    spec.default_entry_name = "Emboss...";
+    spec.filter_name = "Emboss";
+    spec.filter_class_id = "Embs";
+    spec.filter_id = 0x456d6273U;
+  } else if (entry.kind == SmartFilterKind::BoxBlur) {
+    const auto *box = std::get_if<BoxBlurSmartFilter>(&entry.parameters);
+    if (box == nullptr) {
+      return std::nullopt;
+    }
+    spec.radius = box->radius_pixels;
+    spec.minimum_radius = 1.0;
+    spec.maximum_radius = 2000.0;
+    spec.default_entry_name = "Box Blur...";
+    spec.filter_name = "Box Blur";
+    spec.filter_class_id = "boxblur";
+    spec.filter_class_id_long_form = true;
+    spec.filter_id = 843U;
   } else {
     return std::nullopt;
   }
@@ -388,6 +418,16 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
   if (spec->angle_degrees.has_value()) {
     add_smart_filter_value(*filter.object_value, "Angl", false,
                            smart_filter_integer(*spec->angle_degrees));
+  }
+  // Photoshop's Emboss key order is Angl, Hght, Amnt, all plain integers
+  // (July 2026 capture).
+  if (spec->height_pixels.has_value()) {
+    add_smart_filter_value(*filter.object_value, "Hght", false,
+                           smart_filter_integer(*spec->height_pixels));
+  }
+  if (spec->amount_integer.has_value()) {
+    add_smart_filter_value(*filter.object_value, "Amnt", false,
+                           smart_filter_integer(*spec->amount_integer));
   }
   if (spec->distance_pixels.has_value()) {
     add_smart_filter_value(*filter.object_value, "Dstn", false,
@@ -689,6 +729,22 @@ bool patch_smart_filter_descriptor(
       }
       cell_size->double_value = static_cast<double>(*spec->cell_size_pixels);
     }
+    if (spec->height_pixels.has_value()) {
+      auto *height = mutable_value_either(*filter, "Hght", "height");
+      if (height == nullptr ||
+          height->type != DescriptorValue::Type::Integer) {
+        return false;
+      }
+      height->integer_value = *spec->height_pixels;
+    }
+    if (spec->amount_integer.has_value()) {
+      auto *amount = mutable_value_either(*filter, "Amnt", "amount");
+      if (amount == nullptr ||
+          amount->type != DescriptorValue::Type::Integer) {
+        return false;
+      }
+      amount->integer_value = *spec->amount_integer;
+    }
   }
   return true;
 }
@@ -961,6 +1017,18 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
         } else {
           entry_supported = false;
         }
+      } else if (filter != nullptr && filter->class_id == "boxblur" &&
+                 filter->class_id_long_form && entry.native_filter_id == 843U) {
+        const auto *radius = descriptor_value_either(*filter, "Rds ", "Rds");
+        if (radius != nullptr &&
+            radius->type == DescriptorValue::Type::UnitFloat &&
+            radius->unit == "#Pxl" && std::isfinite(radius->double_value) &&
+            radius->double_value >= 1.0 && radius->double_value <= 2000.0) {
+          entry.kind = SmartFilterKind::BoxBlur;
+          entry.parameters = BoxBlurSmartFilter{radius->double_value};
+        } else {
+          entry_supported = false;
+        }
       } else if (filter != nullptr && filter->class_id == "surfaceBlur" &&
                  filter->class_id_long_form && entry.native_filter_id == 854U) {
         const auto *radius = descriptor_value_either(*filter, "Rds ", "Rds");
@@ -994,6 +1062,28 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
           entry.kind = SmartFilterKind::Mosaic;
           entry.parameters = MosaicSmartFilter{
               static_cast<std::int32_t>(cell_size->double_value)};
+        } else {
+          entry_supported = false;
+        }
+      } else if (filter != nullptr && filter->class_id == "Embs" &&
+                 entry.native_filter_id == 0x456d6273U) {
+        const auto *angle = descriptor_value_either(*filter, "Angl", "angle");
+        const auto *height =
+            descriptor_value_either(*filter, "Hght", "height");
+        const auto *amount =
+            descriptor_value_either(*filter, "Amnt", "amount");
+        if (angle != nullptr && angle->type == DescriptorValue::Type::Integer &&
+            angle->integer_value >= -360 && angle->integer_value <= 360 &&
+            height != nullptr &&
+            height->type == DescriptorValue::Type::Integer &&
+            height->integer_value >= 1 && height->integer_value <= 100 &&
+            amount != nullptr &&
+            amount->type == DescriptorValue::Type::Integer &&
+            amount->integer_value >= 1 && amount->integer_value <= 500) {
+          entry.kind = SmartFilterKind::Emboss;
+          entry.parameters = EmbossSmartFilter{angle->integer_value,
+                                               height->integer_value,
+                                               amount->integer_value};
         } else {
           entry_supported = false;
         }

@@ -951,6 +951,24 @@ void filter_catalog_defines_stable_named_contracts() {
         CHECK(parameter.maximum == 999.0);
         CHECK(parameter.practical_minimum == 1.0);
         CHECK(parameter.practical_maximum == 64.0);
+      } else if (actual.identifier == "patchy.filters.emboss" &&
+                 parameter.key == "angle") {
+        CHECK(parameter.minimum == -360.0);
+        CHECK(parameter.maximum == 360.0);
+        CHECK(parameter.practical_minimum == -180.0);
+        CHECK(parameter.practical_maximum == 180.0);
+      } else if (actual.identifier == "patchy.filters.emboss" &&
+                 parameter.key == "height") {
+        CHECK(parameter.minimum == 1.0);
+        CHECK(parameter.maximum == 100.0);
+        CHECK(parameter.practical_minimum == 1.0);
+        CHECK(parameter.practical_maximum == 24.0);
+      } else if (actual.identifier == "patchy.filters.emboss" &&
+                 parameter.key == "amount") {
+        CHECK(parameter.minimum == 0.0);
+        CHECK(parameter.maximum == 500.0);
+        CHECK(parameter.practical_minimum == 0.0);
+        CHECK(parameter.practical_maximum == 300.0);
       } else {
         CHECK(!parameter.practical_minimum.has_value());
         CHECK(!parameter.practical_maximum.has_value());
@@ -1561,6 +1579,12 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   motion.parameters["distance"] = std::int64_t{27};
   auto mosaic = registry.default_invocation("patchy.filters.pixelate");
   mosaic.parameters["block_size"] = std::int64_t{12};
+  auto emboss = registry.default_invocation("patchy.filters.emboss");
+  emboss.parameters["angle"] = std::int64_t{-22};
+  emboss.parameters["height"] = std::int64_t{24};
+  emboss.parameters["amount"] = std::int64_t{450};
+  auto box_blur = registry.default_invocation("patchy.filters.box_blur");
+  box_blur.parameters["radius"] = std::int64_t{9};
   const patchy::FilterRecipe recipe{{
       patchy::FilterRecipeEntry{first, true, 0.37,
                                 patchy::BlendMode::Multiply},
@@ -1574,11 +1598,15 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
                                 patchy::BlendMode::Luminosity},
       patchy::FilterRecipeEntry{motion, true, 0.4, patchy::BlendMode::Lighten},
       patchy::FilterRecipeEntry{mosaic, true, 0.7, patchy::BlendMode::Darken},
+      patchy::FilterRecipeEntry{emboss, true, 0.9,
+                                patchy::BlendMode::HardLight},
+      patchy::FilterRecipeEntry{box_blur, true, 0.55,
+                                patchy::BlendMode::Lighten},
       patchy::FilterRecipeEntry{second, false, 1.0, patchy::BlendMode::Normal},
   }};
   const auto mapped =
       patchy::smart_filter_entries_from_recipe(recipe, registry);
-  CHECK(mapped.has_value() && mapped->size() == 9U);
+  CHECK(mapped.has_value() && mapped->size() == 11U);
   CHECK((*mapped)[0].kind == patchy::SmartFilterKind::GaussianBlur);
   CHECK((*mapped)[0].enabled);
   CHECK(std::abs((*mapped)[0].opacity - 0.37) < 0.000001);
@@ -1661,9 +1689,30 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   CHECK((*mapped)[7].blend_mode == patchy::BlendMode::Darken);
   CHECK(std::get<patchy::MosaicSmartFilter>((*mapped)[7].parameters)
             .cell_size_pixels == 12);
-  CHECK(!(*mapped)[8].enabled);
+  CHECK((*mapped)[8].kind == patchy::SmartFilterKind::Emboss);
+  CHECK((*mapped)[8].native_name == "Emboss...");
+  CHECK((*mapped)[8].native_class_id == "Embs");
+  CHECK((*mapped)[8].native_filter_id == 0x456d6273U);
+  CHECK(std::abs((*mapped)[8].opacity - 0.9) < 0.000001);
+  CHECK((*mapped)[8].blend_mode == patchy::BlendMode::HardLight);
+  const auto &mapped_emboss =
+      std::get<patchy::EmbossSmartFilter>((*mapped)[8].parameters);
+  CHECK(mapped_emboss.angle_degrees == -22);
+  CHECK(mapped_emboss.height_pixels == 24);
+  CHECK(mapped_emboss.amount_percent == 450);
+  CHECK((*mapped)[9].kind == patchy::SmartFilterKind::BoxBlur);
+  CHECK((*mapped)[9].native_name == "Box Blur...");
+  CHECK((*mapped)[9].native_class_id == "boxblur");
+  CHECK((*mapped)[9].native_filter_id == 843U);
+  CHECK(std::abs((*mapped)[9].opacity - 0.55) < 0.000001);
+  CHECK((*mapped)[9].blend_mode == patchy::BlendMode::Lighten);
   CHECK(std::abs(
-            std::get<patchy::GaussianBlurSmartFilter>((*mapped)[8].parameters)
+            std::get<patchy::BoxBlurSmartFilter>((*mapped)[9].parameters)
+                .radius_pixels -
+            9.0) < 0.000001);
+  CHECK(!(*mapped)[10].enabled);
+  CHECK(std::abs(
+            std::get<patchy::GaussianBlurSmartFilter>((*mapped)[10].parameters)
                 .radius_pixels -
             9.0) < 0.000001);
 
@@ -1704,6 +1753,17 @@ void filter_recipe_native_smart_filter_mapping_is_all_or_nothing() {
   auto malformed_mosaic = recipe;
   malformed_mosaic.entries[7].invocation.parameters["block_size"] = 12.0;
   CHECK(!patchy::smart_filter_entries_from_recipe(malformed_mosaic, registry)
+             .has_value());
+  // Photoshop's Emboss Amount minimum is 1; Patchy's catalog still allows 0,
+  // which must reject the whole recipe rather than author an invalid value.
+  auto zero_amount_emboss = recipe;
+  zero_amount_emboss.entries[8].invocation.parameters["amount"] =
+      std::int64_t{0};
+  CHECK(!patchy::smart_filter_entries_from_recipe(zero_amount_emboss, registry)
+             .has_value());
+  auto malformed_box = recipe;
+  malformed_box.entries[9].invocation.parameters["radius"] = 9.0;
+  CHECK(!patchy::smart_filter_entries_from_recipe(malformed_box, registry)
              .has_value());
   CHECK(!patchy::smart_filter_entries_from_recipe({}, registry).has_value());
 }

@@ -289,10 +289,10 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
       {"patchy.filters.edge_detect", Category::Stylize, false,
        {{"strength", "filterStrength", 0, 300, 100, Unit::Percent}}},
       {"patchy.filters.emboss", Category::Stylize, false,
-       {{"angle", "filterAngle", -180, 180, 135, Unit::Degrees, Scale::None,
+       {{"angle", "filterAngle", -360, 360, 135, Unit::Degrees, Scale::None,
          Kind::Integer, 1.0, Presentation::Angle},
-        {"height", "filterHeight", 1, 24, 2, Unit::Pixels, Scale::Pixels},
-        {"amount", "filterDepth", 0, 300, 100, Unit::Percent}}},
+        {"height", "filterHeight", 1, 100, 2, Unit::Pixels, Scale::Pixels},
+        {"amount", "filterDepth", 0, 500, 100, Unit::Percent}}},
       {"patchy.filters.glowing_edges", Category::Stylize, false,
        {{"edge_width", "filterEdgeWidth", 1, 12, 2, Unit::Pixels, Scale::Pixels},
         {"brightness", "filterBrightness", 0, 300, 140, Unit::Percent},
@@ -515,6 +515,18 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
                  actual.key == "blur") {
         CHECK(actual.practical_minimum == 0.0);
         CHECK(actual.practical_maximum == 50.0);
+      } else if (actual_filter.identifier == "patchy.filters.emboss" &&
+                 actual.key == "angle") {
+        CHECK(actual.practical_minimum == -180.0);
+        CHECK(actual.practical_maximum == 180.0);
+      } else if (actual_filter.identifier == "patchy.filters.emboss" &&
+                 actual.key == "height") {
+        CHECK(actual.practical_minimum == 1.0);
+        CHECK(actual.practical_maximum == 24.0);
+      } else if (actual_filter.identifier == "patchy.filters.emboss" &&
+                 actual.key == "amount") {
+        CHECK(actual.practical_minimum == 0.0);
+        CHECK(actual.practical_maximum == 300.0);
       } else {
         CHECK(!actual.practical_minimum.has_value());
         CHECK(!actual.practical_maximum.has_value());

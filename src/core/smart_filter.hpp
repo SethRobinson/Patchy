@@ -23,6 +23,8 @@ enum class SmartFilterKind {
   MotionBlur,
   PlasticWrap,
   Mosaic,
+  Emboss,
+  BoxBlur,
 };
 
 struct GaussianBlurSmartFilter {
@@ -70,12 +72,28 @@ struct MosaicSmartFilter {
   std::int32_t cell_size_pixels{8};
 };
 
+// Photoshop stores all three Emboss settings as plain integers ordered
+// Angl, Hght, Amnt (July 2026 captures). Angle is -360..360 and Amount is
+// 1..500 per Adobe's filter reference; Height is accepted through 100 px.
+struct EmbossSmartFilter {
+  std::int32_t angle_degrees{135};
+  std::int32_t height_pixels{2};
+  std::int32_t amount_percent{100};
+};
+
+// Photoshop stores Radius as a #Pxl unit double (July 2026 captures);
+// fractional values are preserved and floored for rendering like Median.
+// Values through 2000 px are accepted on import.
+struct BoxBlurSmartFilter {
+  double radius_pixels{1.0};
+};
+
 using SmartFilterParameters =
     std::variant<std::monostate, GaussianBlurSmartFilter, HighPassSmartFilter,
                  MedianSmartFilter, DustAndScratchesSmartFilter,
                  SurfaceBlurSmartFilter, UnsharpMaskSmartFilter,
                  MotionBlurSmartFilter, PlasticWrapSmartFilter,
-                 MosaicSmartFilter>;
+                 MosaicSmartFilter, EmbossSmartFilter, BoxBlurSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};

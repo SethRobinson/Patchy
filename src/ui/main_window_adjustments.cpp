@@ -546,6 +546,14 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
   } else if (kind == SmartFilterKind::Mosaic) {
     invocation.filter_id = "patchy.smart_filters.mosaic";
     invocation.parameters["cell_size"] = std::int64_t{8};
+  } else if (kind == SmartFilterKind::Emboss) {
+    invocation.filter_id = "patchy.smart_filters.emboss";
+    invocation.parameters["angle"] = std::int64_t{135};
+    invocation.parameters["height"] = std::int64_t{2};
+    invocation.parameters["amount"] = std::int64_t{100};
+  } else if (kind == SmartFilterKind::BoxBlur) {
+    invocation.filter_id = "patchy.smart_filters.box_blur";
+    invocation.parameters["radius"] = 1.0;
   } else {
     invocation.filter_id = "patchy.smart_filters.gaussian_blur";
     invocation.parameters["radius"] = 2.0;
@@ -563,11 +571,15 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
   const auto motion = kind == SmartFilterKind::MotionBlur;
   const auto plastic = kind == SmartFilterKind::PlasticWrap;
   const auto mosaic = kind == SmartFilterKind::Mosaic;
+  const auto emboss = kind == SmartFilterKind::Emboss;
+  const auto box = kind == SmartFilterKind::BoxBlur;
   FilterDialogSpec spec;
   spec.identifier =
       QString::fromStdString(editable_smart_filter_invocation(kind).filter_id);
   spec.display_name =
-      mosaic   ? QObject::tr("Mosaic")
+      box      ? QObject::tr("Box Blur")
+      : emboss   ? QObject::tr("Emboss")
+      : mosaic   ? QObject::tr("Mosaic")
       : plastic  ? QObject::tr("Plastic Wrap")
       : unsharp  ? QObject::tr("Unsharp Mask")
       : motion ? QObject::tr("Motion Blur")
@@ -592,6 +604,73 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
     cell.typed_maximum = 200.0;
     cell.step = 1.0;
     spec.controls.push_back(std::move(cell));
+    return spec;
+  }
+  if (box) {
+    FilterControlSpec radius_control;
+    radius_control.label = QObject::tr("Radius");
+    radius_control.object_name = QStringLiteral("filterRadius");
+    radius_control.minimum = 1;
+    radius_control.maximum = 12;
+    radius_control.value = 1;
+    radius_control.suffix = QObject::tr(" px");
+    radius_control.parameter_key = "radius";
+    radius_control.kind = FilterParameterKind::Double;
+    radius_control.default_value = 1.0;
+    radius_control.typed_minimum = 1.0;
+    radius_control.typed_maximum = 2000.0;
+    // Native descriptors retain fractional radius values; the renderer
+    // floors them like Median.
+    radius_control.step = 0.01;
+    spec.controls.push_back(std::move(radius_control));
+    return spec;
+  }
+  if (emboss) {
+    FilterControlSpec angle;
+    angle.label = QObject::tr("Angle");
+    angle.object_name = QStringLiteral("filterAngle");
+    angle.minimum = -180;
+    angle.maximum = 180;
+    angle.value = 135;
+    angle.suffix = QObject::tr(" degrees");
+    angle.parameter_key = "angle";
+    angle.kind = FilterParameterKind::Integer;
+    angle.default_value = std::int64_t{135};
+    angle.typed_minimum = -360.0;
+    angle.typed_maximum = 360.0;
+    angle.step = 1.0;
+    angle.presentation = FilterParameterPresentation::Angle;
+    spec.controls.push_back(std::move(angle));
+
+    FilterControlSpec height;
+    height.label = QObject::tr("Height");
+    height.object_name = QStringLiteral("filterHeight");
+    height.minimum = 1;
+    height.maximum = 24;
+    height.value = 2;
+    height.suffix = QObject::tr(" px");
+    height.parameter_key = "height";
+    height.kind = FilterParameterKind::Integer;
+    height.default_value = std::int64_t{2};
+    height.typed_minimum = 1.0;
+    height.typed_maximum = 100.0;
+    height.step = 1.0;
+    spec.controls.push_back(std::move(height));
+
+    FilterControlSpec amount;
+    amount.label = QObject::tr("Amount");
+    amount.object_name = QStringLiteral("filterDepth");
+    amount.minimum = 1;
+    amount.maximum = 300;
+    amount.value = 100;
+    amount.suffix = QObject::tr("%");
+    amount.parameter_key = "amount";
+    amount.kind = FilterParameterKind::Integer;
+    amount.default_value = std::int64_t{100};
+    amount.typed_minimum = 1.0;
+    amount.typed_maximum = 500.0;
+    amount.step = 1.0;
+    spec.controls.push_back(std::move(amount));
     return spec;
   }
   if (plastic) {
@@ -822,6 +901,23 @@ SmartFilterStack smart_filter_stack_with_invocation(
     }
     mosaic->cell_size_pixels = smart_filter_integer_from_invocation(
         invocation, "cell_size", mosaic->cell_size_pixels, 2, 200);
+  } else if (entry.kind == SmartFilterKind::Emboss) {
+    auto *emboss = std::get_if<EmbossSmartFilter>(&entry.parameters);
+    if (emboss == nullptr) {
+      throw std::invalid_argument("Smart Filter settings are unavailable");
+    }
+    emboss->angle_degrees = smart_filter_integer_from_invocation(
+        invocation, "angle", emboss->angle_degrees, -360, 360);
+    emboss->height_pixels = smart_filter_integer_from_invocation(
+        invocation, "height", emboss->height_pixels, 1, 100);
+    emboss->amount_percent = smart_filter_integer_from_invocation(
+        invocation, "amount", emboss->amount_percent, 1, 500);
+  } else if (entry.kind == SmartFilterKind::BoxBlur) {
+    auto *box = std::get_if<BoxBlurSmartFilter>(&entry.parameters);
+    if (box == nullptr) {
+      throw std::invalid_argument("Smart Filter settings are unavailable");
+    }
+    box->radius_pixels = std::clamp(radius, 1.0, 2000.0);
   } else {
     throw std::invalid_argument("Smart Filter radius is unavailable");
   }
@@ -840,11 +936,15 @@ SmartFilterEntry make_editable_smart_filter_entry(
   const auto motion = kind == SmartFilterKind::MotionBlur;
   const auto plastic = kind == SmartFilterKind::PlasticWrap;
   const auto mosaic = kind == SmartFilterKind::Mosaic;
+  const auto emboss = kind == SmartFilterKind::Emboss;
+  const auto box = kind == SmartFilterKind::BoxBlur;
   const auto radius = smart_filter_radius_from_invocation(invocation, 1.0);
   SmartFilterEntry entry;
   entry.kind = kind;
   entry.native_name =
-      mosaic   ? "Mosaic..."
+      box      ? "Box Blur..."
+      : emboss   ? "Emboss..."
+      : mosaic   ? "Mosaic..."
       : plastic  ? "Plastic Wrap..."
       : unsharp  ? "Unsharp Mask..."
       : motion ? "Motion Blur..."
@@ -855,7 +955,9 @@ SmartFilterEntry make_editable_smart_filter_entry(
                          ? "Median..."
                          : (high_pass ? "High Pass..." : "Gaussian Blur...")));
   entry.native_class_id =
-      mosaic   ? "Msc "
+      box      ? "boxblur"
+      : emboss   ? "Embs"
+      : mosaic   ? "Msc "
       : plastic  ? "PlsW"
       : unsharp  ? "UnsM"
       : motion ? "MtnB"
@@ -863,7 +965,9 @@ SmartFilterEntry make_editable_smart_filter_entry(
           ? "surfaceBlur"
           : (dust ? "DstS" : (median ? "Mdn " : (high_pass ? "HghP" : "GsnB")));
   entry.native_filter_id =
-      mosaic    ? 0x4d736320U
+      box       ? 843U
+      : emboss    ? 0x456d6273U
+      : mosaic    ? 0x4d736320U
       : plastic   ? 0x506c7357U
       : unsharp   ? 0x556e734dU
       : motion  ? 0x4d746e42U
@@ -877,7 +981,16 @@ SmartFilterEntry make_editable_smart_filter_entry(
   entry.blend_mode = BlendMode::Normal;
   entry.foreground = foreground;
   entry.background = background;
-  if (mosaic) {
+  if (box) {
+    entry.parameters = BoxBlurSmartFilter{std::clamp(radius, 1.0, 2000.0)};
+  } else if (emboss) {
+    entry.parameters = EmbossSmartFilter{
+        smart_filter_integer_from_invocation(invocation, "angle", 135, -360,
+                                             360),
+        smart_filter_integer_from_invocation(invocation, "height", 2, 1, 100),
+        smart_filter_integer_from_invocation(invocation, "amount", 100, 1,
+                                             500)};
+  } else if (mosaic) {
     entry.parameters = MosaicSmartFilter{
         smart_filter_integer_from_invocation(invocation, "cell_size", 8, 2,
                                              200)};
@@ -1205,6 +1318,8 @@ void MainWindow::editable_smart_filter_dialog(
   const auto motion = kind == SmartFilterKind::MotionBlur;
   const auto plastic = kind == SmartFilterKind::PlasticWrap;
   const auto mosaic = kind == SmartFilterKind::Mosaic;
+  const auto emboss = kind == SmartFilterKind::Emboss;
+  const auto box = kind == SmartFilterKind::BoxBlur;
   if (!has_active_document() || canvas_ == nullptr) {
     return;
   }
@@ -1385,6 +1500,29 @@ void MainWindow::editable_smart_filter_dialog(
       }
       initial_invocation.parameters["cell_size"] =
           static_cast<std::int64_t>(settings->cell_size_pixels);
+    } else if (kind == SmartFilterKind::Emboss) {
+      const auto *settings = std::get_if<EmbossSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (settings == nullptr) {
+        statusBar()->showMessage(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_invocation.parameters["angle"] =
+          static_cast<std::int64_t>(settings->angle_degrees);
+      initial_invocation.parameters["height"] =
+          static_cast<std::int64_t>(settings->height_pixels);
+      initial_invocation.parameters["amount"] =
+          static_cast<std::int64_t>(settings->amount_percent);
+    } else if (kind == SmartFilterKind::BoxBlur) {
+      const auto *settings = std::get_if<BoxBlurSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (settings == nullptr) {
+        statusBar()->showMessage(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_invocation.parameters["radius"] = settings->radius_pixels;
     } else {
       const auto *settings = std::get_if<PlasticWrapSmartFilter>(
           &stack.entries[filter_index].parameters);
@@ -1526,7 +1664,9 @@ void MainWindow::editable_smart_filter_dialog(
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(
-        mosaic   ? tr("Cancelled Mosaic")
+        box      ? tr("Cancelled Box Blur")
+        : emboss   ? tr("Cancelled Emboss")
+        : mosaic   ? tr("Cancelled Mosaic")
         : plastic  ? tr("Cancelled Plastic Wrap")
         : unsharp  ? tr("Cancelled Unsharp Mask")
         : motion ? tr("Cancelled Motion Blur")
@@ -1542,7 +1682,11 @@ void MainWindow::editable_smart_filter_dialog(
   auto candidate = smart_filter_stack_with_invocation(
       std::move(stack), filter_index, *settings);
   const auto undo_text =
-      mosaic      ? (adding ? tr("Add Mosaic Smart Filter")
+      box         ? (adding ? tr("Add Box Blur Smart Filter")
+                            : tr("Edit Box Blur Smart Filter"))
+      : emboss      ? (adding ? tr("Add Emboss Smart Filter")
+                            : tr("Edit Emboss Smart Filter"))
+      : mosaic      ? (adding ? tr("Add Mosaic Smart Filter")
                             : tr("Edit Mosaic Smart Filter"))
       : plastic     ? (adding ? tr("Add Plastic Wrap Smart Filter")
                             : tr("Edit Plastic Wrap Smart Filter"))
@@ -1561,7 +1705,15 @@ void MainWindow::editable_smart_filter_dialog(
                   : (adding ? tr("Add Gaussian Blur Smart Filter")
                             : tr("Edit Gaussian Blur Smart Filter"));
   const auto status_text =
-      mosaic   ? (adding ? (creating_stack
+      box      ? (adding ? (creating_stack
+                                ? tr("Added Box Blur as a Smart Filter")
+                                : tr("Added another Box Blur Smart Filter"))
+                         : tr("Updated Box Blur Smart Filter"))
+      : emboss   ? (adding ? (creating_stack
+                                ? tr("Added Emboss as a Smart Filter")
+                                : tr("Added another Emboss Smart Filter"))
+                         : tr("Updated Emboss Smart Filter"))
+      : mosaic   ? (adding ? (creating_stack
                                 ? tr("Added Mosaic as a Smart Filter")
                                 : tr("Added another Mosaic Smart Filter"))
                          : tr("Updated Mosaic Smart Filter"))

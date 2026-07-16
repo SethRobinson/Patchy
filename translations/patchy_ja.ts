@@ -12024,6 +12024,54 @@ Clipped to the layer below</source>
         <translation>モザイクスマートフィルターを更新しました</translation>
     </message>
     <message>
+        <source>Cancelled Box Blur</source>
+        <translation>ぼかし（ボックス）をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Add Box Blur Smart Filter</source>
+        <translation>ぼかし（ボックス）スマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Box Blur Smart Filter</source>
+        <translation>ぼかし（ボックス）スマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Box Blur as a Smart Filter</source>
+        <translation>ぼかし（ボックス）をスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Box Blur Smart Filter</source>
+        <translation>ぼかし（ボックス）スマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Box Blur Smart Filter</source>
+        <translation>ぼかし（ボックス）スマートフィルターを更新しました</translation>
+    </message>
+    <message>
+        <source>Cancelled Emboss</source>
+        <translation>エンボスをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Add Emboss Smart Filter</source>
+        <translation>エンボススマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Emboss Smart Filter</source>
+        <translation>エンボススマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Emboss as a Smart Filter</source>
+        <translation>エンボスをスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Emboss Smart Filter</source>
+        <translation>エンボススマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Emboss Smart Filter</source>
+        <translation>エンボススマートフィルターを更新しました</translation>
+    </message>
+    <message>
         <source>Add Unsharp Mask Smart Filter</source>
         <translation>アンシャープマスクスマートフィルターを追加</translation>
     </message>
@@ -12973,6 +13021,7 @@ Clipped to the layer below</source>
     <message><source> (Highlight %1, Detail %2, Smoothness %3)</source><translation> (ハイライト %1、ディテール %2、滑らかさ %3)</translation></message>
     <message><source>Mosaic</source><translation>モザイク</translation></message>
     <message><source> (Cell Size %1 px)</source><translation> (セルサイズ %1 px)</translation></message>
+    <message><source> (Angle %1 degrees, Height %2 px, Amount %3%)</source><translation> (角度 %1 度、高さ %2 px、量 %3%)</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

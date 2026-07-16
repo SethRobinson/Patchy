@@ -1918,8 +1918,10 @@ void ui_smart_filter_gallery_native_recipe_applies_atomically() {
     duplicate->click();
     QApplication::processEvents();
     if (mixed_recipe) {
+      // Vintage Sepia stays Patchy-only, so the recipe cannot map natively.
+      // (Box Blur was used here until it gained a native mapping.)
       looks->setCurrentItem(require_gallery_filter_item(
-          *looks, QStringLiteral("patchy.filters.box_blur")));
+          *looks, QStringLiteral("patchy.filters.sepia")));
     } else {
       looks->setCurrentItem(require_gallery_filter_item(
           *looks, QStringLiteral("patchy.filters.high_pass")));
@@ -4354,6 +4356,109 @@ void ui_pixel_mosaic_direct_action_appends_editable_smart_filter() {
   CHECK(restored != nullptr && restored->smart_filter_stack() == nullptr);
 }
 
+void ui_emboss_direct_action_appends_editable_smart_filter() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* original_layer = std::as_const(document).find_layer(layer_id);
+  CHECK(original_layer != nullptr &&
+        original_layer->smart_filter_stack() == nullptr);
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  accept_filter_dialog({{QStringLiteral("filterAngleSpin"), -22},
+                        {QStringLiteral("filterHeightSpin"), 5},
+                        {QStringLiteral("filterDepthSpin"), 250}});
+  require_action(window, "filterAction_patchy_filters_emboss")->trigger();
+  QApplication::processEvents();
+
+  const auto* filtered = std::as_const(document).find_layer(layer_id);
+  CHECK(filtered != nullptr && patchy::layer_is_smart_object(*filtered));
+  const auto* stack = filtered->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto& entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::Emboss);
+  CHECK(entry.native_name == "Emboss...");
+  CHECK(entry.native_class_id == "Embs");
+  const auto* emboss =
+      std::get_if<patchy::EmbossSmartFilter>(&entry.parameters);
+  CHECK(emboss != nullptr && emboss->angle_degrees == -22 &&
+        emboss->height_pixels == 5 && emboss->amount_percent == 250);
+  CHECK(window.statusBar()->currentMessage().contains(
+      QStringLiteral("Emboss")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(document).find_layer(layer_id);
+  CHECK(restored != nullptr && restored->smart_filter_stack() == nullptr);
+}
+
+void ui_box_blur_direct_action_appends_editable_smart_filter() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* original_layer = std::as_const(document).find_layer(layer_id);
+  CHECK(original_layer != nullptr &&
+        original_layer->smart_filter_stack() == nullptr);
+  const auto undo_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  bool drove_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* radius =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("filterRadiusSpin"));
+    CHECK(radius != nullptr);
+    CHECK(std::abs(radius->value() - 1.0) < 0.000001);
+    CHECK(radius->maximum() == 2000.0);
+    radius->setValue(5.0);
+    drove_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filterAction_patchy_filters_box_blur")->trigger();
+  QApplication::processEvents();
+  CHECK(drove_dialog);
+
+  const auto* filtered = std::as_const(document).find_layer(layer_id);
+  CHECK(filtered != nullptr && patchy::layer_is_smart_object(*filtered));
+  const auto* stack = filtered->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto& entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::BoxBlur);
+  CHECK(entry.native_name == "Box Blur...");
+  CHECK(entry.native_class_id == "boxblur");
+  const auto* box =
+      std::get_if<patchy::BoxBlurSmartFilter>(&entry.parameters);
+  CHECK(box != nullptr && std::abs(box->radius_pixels - 5.0) < 0.000001);
+  CHECK(window.statusBar()->currentMessage().contains(
+      QStringLiteral("Box Blur")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_before + 1U);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(document).find_layer(layer_id);
+  CHECK(restored != nullptr && restored->smart_filter_stack() == nullptr);
+}
+
 void ui_smart_object_direct_unsupported_filter_offers_rasterize() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -4478,6 +4583,10 @@ std::vector<patchy::test::TestCase> smart_filter_tests() {
        ui_unsupported_smart_filter_guards_preserve_photoshop_preview},
       {"ui_pixel_mosaic_direct_action_appends_editable_smart_filter",
        ui_pixel_mosaic_direct_action_appends_editable_smart_filter},
+      {"ui_emboss_direct_action_appends_editable_smart_filter",
+       ui_emboss_direct_action_appends_editable_smart_filter},
+      {"ui_box_blur_direct_action_appends_editable_smart_filter",
+       ui_box_blur_direct_action_appends_editable_smart_filter},
       {"ui_smart_object_direct_unsupported_filter_offers_rasterize",
        ui_smart_object_direct_unsupported_filter_offers_rasterize},
       {"ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete",

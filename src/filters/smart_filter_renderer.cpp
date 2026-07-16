@@ -47,6 +47,15 @@ constexpr std::int32_t kMinimumPlasticWrapSmoothness = 1;
 constexpr std::int32_t kMaximumPlasticWrapSmoothness = 15;
 constexpr std::int32_t kMinimumMosaicCellSize = 2;
 constexpr std::int32_t kMaximumMosaicCellSize = 200;
+constexpr std::int32_t kMinimumEmbossAngle = -360;
+constexpr std::int32_t kMaximumEmbossAngle = 360;
+constexpr std::int32_t kMinimumEmbossHeight = 1;
+constexpr std::int32_t kMaximumEmbossHeight = 100;
+constexpr std::int32_t kMinimumEmbossAmount = 1;
+constexpr std::int32_t kMaximumEmbossAmount = 500;
+constexpr double kMinimumBoxBlurRadius = 1.0;
+constexpr double kMaximumBoxBlurRadius = 2000.0;
+constexpr std::int32_t kBoxBlurDirectMaximumRadius = 12;
 constexpr double kGaussianMarginScale = 3.0;
 constexpr double kDirectGaussianMaximumRadius = 8.0;
 constexpr int kProgressScale = 1000000;
@@ -1801,6 +1810,248 @@ apply_stack_mask(const FilterRenderResult &base,
                             cropped_bounds};
 }
 
+// The destructive Box Blur math, verbatim: an alpha-weighted separable box
+// average over an edge-clamped window, accumulated in doubles, written as
+// straight color with the normalized alpha. Used for radii through
+// kBoxBlurDirectMaximumRadius so the smart filter matches the destructive
+// path byte for byte.
+[[nodiscard]] FilterRenderResult render_box_blur_direct(
+    const FilterRenderResult &input, std::int32_t radius,
+    const FilterProgress *progress) {
+  const auto width = input.pixels.width();
+  const auto height = input.pixels.height();
+  auto result = input;
+  const auto taps = 2 * radius + 1;
+  const auto axis_weight_sum = static_cast<double>(taps);
+  const auto total_weight = axis_weight_sum * axis_weight_sum;
+
+  const auto row_stride = static_cast<std::size_t>(width) * 4U;
+  std::vector<double> h_rows(row_stride * static_cast<std::size_t>(taps), 0.0);
+  int h_rows_built_through = -1;
+  const auto build_h_row = [&](std::int32_t source_y, double *out) {
+    std::fill(out, out + row_stride, 0.0);
+    for (int dx = -radius; dx <= radius; ++dx) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        const auto sx = std::clamp<std::int32_t>(x + dx, 0, width - 1);
+        const auto *px = input.pixels.pixel(sx, source_y);
+        const auto alpha = static_cast<double>(px[3]) / 255.0;
+        auto *accum = out + static_cast<std::size_t>(x) * 4U;
+        for (int channel = 0; channel < 3; ++channel) {
+          accum[channel] += static_cast<double>(px[channel]) * alpha;
+        }
+        accum[3] += alpha;
+      }
+    }
+  };
+  const auto h_row_for = [&](std::int32_t source_y) -> const double * {
+    return h_rows.data() +
+           static_cast<std::size_t>(source_y % taps) * row_stride;
+  };
+
+  std::vector<double> v_accum(row_stride);
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_progress(progress, y, height, FilterProgressStage::Blurring);
+    const auto needed_through = std::min<std::int32_t>(height - 1, y + radius);
+    while (h_rows_built_through < needed_through) {
+      ++h_rows_built_through;
+      build_h_row(h_rows_built_through,
+                  h_rows.data() +
+                      static_cast<std::size_t>(h_rows_built_through % taps) *
+                          row_stride);
+    }
+    std::fill(v_accum.begin(), v_accum.end(), 0.0);
+    for (int dy = -radius; dy <= radius; ++dy) {
+      const auto sy = std::clamp<std::int32_t>(y + dy, 0, height - 1);
+      const auto *h_row = h_row_for(sy);
+      for (std::size_t i = 0; i < row_stride; ++i) {
+        v_accum[i] += h_row[i];
+      }
+    }
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto *accum = v_accum.data() + static_cast<std::size_t>(x) * 4U;
+      auto *dst = result.pixels.pixel(x, y);
+      const auto alpha_sum = accum[3];
+      for (int channel = 0; channel < 3; ++channel) {
+        const auto value =
+            alpha_sum > 0.000001 ? accum[channel] / alpha_sum : 0.0;
+        dst[channel] = static_cast<std::uint8_t>(
+            std::clamp(std::lround(value), 0L, 255L));
+      }
+      dst[3] = static_cast<std::uint8_t>(std::clamp(
+          std::lround(alpha_sum / total_weight * 255.0), 0L, 255L));
+    }
+  }
+  report_progress(progress, height, height, FilterProgressStage::Blurring);
+  return result;
+}
+
+// Large-radius Box Blur: an exact integer sliding-window box average with
+// the same edge-clamped sampling. The alpha-weighted quotient
+// sum(color * alpha) / sum(alpha) is computed on raw bytes (the /255
+// normalization cancels), so the math is deterministic across toolchains.
+[[nodiscard]] FilterRenderResult render_box_blur_sliding(
+    const FilterRenderResult &input, std::int32_t radius,
+    const FilterProgress *progress) {
+  const auto width = input.pixels.width();
+  const auto height = input.pixels.height();
+  auto result = input;
+  const auto taps = static_cast<std::int64_t>(2) * radius + 1;
+  const auto total_weight = static_cast<double>(taps) * static_cast<double>(taps);
+
+  const auto row_stride = static_cast<std::size_t>(width) * 4U;
+  const auto term = [&](std::int32_t x, std::int32_t y, int channel) {
+    const auto *px = input.pixels.pixel(x, y);
+    return channel < 3 ? static_cast<std::int64_t>(px[channel]) *
+                             static_cast<std::int64_t>(px[3])
+                       : static_cast<std::int64_t>(px[3]);
+  };
+  // Horizontal sliding sums for one source row.
+  std::vector<std::int64_t> h_row(row_stride);
+  const auto build_h_row = [&](std::int32_t source_y) {
+    std::array<std::int64_t, 4> window{};
+    for (std::int32_t t = -radius; t <= radius; ++t) {
+      const auto sx = std::clamp<std::int32_t>(t, 0, width - 1);
+      for (int channel = 0; channel < 4; ++channel) {
+        window[static_cast<std::size_t>(channel)] += term(sx, source_y, channel);
+      }
+    }
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto *out = h_row.data() + static_cast<std::size_t>(x) * 4U;
+      for (int channel = 0; channel < 4; ++channel) {
+        out[channel] = window[static_cast<std::size_t>(channel)];
+      }
+      const auto leaving = std::clamp<std::int32_t>(x - radius, 0, width - 1);
+      const auto entering =
+          std::clamp<std::int32_t>(x + 1 + radius, 0, width - 1);
+      for (int channel = 0; channel < 4; ++channel) {
+        window[static_cast<std::size_t>(channel)] +=
+            term(entering, source_y, channel) - term(leaving, source_y, channel);
+      }
+    }
+  };
+  // Vertical sliding sums of the horizontal sums.
+  std::vector<std::int64_t> v_accum(row_stride, 0);
+  const auto add_row = [&](std::int32_t source_y, std::int64_t sign) {
+    build_h_row(source_y);
+    for (std::size_t i = 0; i < row_stride; ++i) {
+      v_accum[i] += sign * h_row[i];
+    }
+  };
+  for (std::int32_t t = -radius; t <= radius; ++t) {
+    add_row(std::clamp<std::int32_t>(t, 0, height - 1), 1);
+  }
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_progress(progress, y, height, FilterProgressStage::Blurring);
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto *accum = v_accum.data() + static_cast<std::size_t>(x) * 4U;
+      auto *dst = result.pixels.pixel(x, y);
+      const auto alpha_sum = accum[3];
+      for (int channel = 0; channel < 3; ++channel) {
+        const auto value = alpha_sum > 0
+                               ? static_cast<double>(accum[channel]) /
+                                     static_cast<double>(alpha_sum)
+                               : 0.0;
+        dst[channel] = static_cast<std::uint8_t>(
+            std::clamp(std::lround(value), 0L, 255L));
+      }
+      dst[3] = static_cast<std::uint8_t>(std::clamp(
+          std::lround(static_cast<double>(alpha_sum) / total_weight), 0L,
+          255L));
+    }
+    if (y + 1 < height) {
+      add_row(std::clamp<std::int32_t>(y - radius, 0, height - 1), -1);
+      add_row(std::clamp<std::int32_t>(y + 1 + radius, 0, height - 1), 1);
+    }
+  }
+  report_progress(progress, height, height, FilterProgressStage::Blurring);
+  return result;
+}
+
+[[nodiscard]] FilterRenderResult render_box_blur_effect(
+    const FilterRenderResult &input, std::int32_t radius,
+    const FilterProgress *progress) {
+  if (input.pixels.empty()) {
+    report_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return input;
+  }
+  radius = std::clamp(radius, 1,
+                      static_cast<std::int32_t>(kMaximumBoxBlurRadius));
+  if (radius <= kBoxBlurDirectMaximumRadius) {
+    return render_box_blur_direct(input, radius, progress);
+  }
+  return render_box_blur_sliding(input, radius, progress);
+}
+
+// The destructive Emboss math: bilinear edge-clamped luminance samples at
+// +/- the height offset along the angle, written as clamp(128 + (highlight -
+// shadow) * amount / 100) into all three channels. Alpha and bounds are
+// preserved. Luminance is the destructive path's (30R + 59G + 11B) / 100
+// integer formula.
+[[nodiscard]] FilterRenderResult render_emboss_effect(
+    const FilterRenderResult &input, std::int32_t angle_degrees,
+    std::int32_t height_pixels, std::int32_t amount_percent,
+    const FilterProgress *progress) {
+  if (input.pixels.empty()) {
+    report_progress(progress, 1, 1, FilterProgressStage::Embossing);
+    return input;
+  }
+  constexpr double kPi = 3.14159265358979323846;
+  const auto luminance = [](const std::uint8_t *px) {
+    return (static_cast<int>(px[0]) * 30 + static_cast<int>(px[1]) * 59 +
+            static_cast<int>(px[2]) * 11) /
+           100;
+  };
+  const auto sampled_luminance = [&](double x, double y) {
+    x = std::clamp(
+        x, 0.0,
+        static_cast<double>(
+            std::max<std::int32_t>(0, input.pixels.width() - 1)));
+    y = std::clamp(
+        y, 0.0,
+        static_cast<double>(
+            std::max<std::int32_t>(0, input.pixels.height() - 1)));
+    const auto x0 = static_cast<std::int32_t>(std::floor(x));
+    const auto y0 = static_cast<std::int32_t>(std::floor(y));
+    const auto x1 = std::min<std::int32_t>(input.pixels.width() - 1, x0 + 1);
+    const auto y1 = std::min<std::int32_t>(input.pixels.height() - 1, y0 + 1);
+    const auto tx = x - static_cast<double>(x0);
+    const auto ty = y - static_cast<double>(y0);
+    const auto l00 = static_cast<double>(luminance(input.pixels.pixel(x0, y0)));
+    const auto l10 = static_cast<double>(luminance(input.pixels.pixel(x1, y0)));
+    const auto l01 = static_cast<double>(luminance(input.pixels.pixel(x0, y1)));
+    const auto l11 = static_cast<double>(luminance(input.pixels.pixel(x1, y1)));
+    const auto top = l00 * (1.0 - tx) + l10 * tx;
+    const auto bottom = l01 * (1.0 - tx) + l11 * tx;
+    return top * (1.0 - ty) + bottom * ty;
+  };
+  const auto angle = static_cast<double>(angle_degrees) * kPi / 180.0;
+  const auto distance = static_cast<double>(height_pixels);
+  const auto offset_x = std::cos(angle) * distance;
+  const auto offset_y = -std::sin(angle) * distance;
+  auto result = input;
+  for (std::int32_t y = 0; y < result.pixels.height(); ++y) {
+    report_progress(progress, y, result.pixels.height(),
+                    FilterProgressStage::Embossing);
+    for (std::int32_t x = 0; x < result.pixels.width(); ++x) {
+      const auto highlight = sampled_luminance(
+          static_cast<double>(x) - offset_x, static_cast<double>(y) - offset_y);
+      const auto shadow = sampled_luminance(
+          static_cast<double>(x) + offset_x, static_cast<double>(y) + offset_y);
+      const auto value = static_cast<std::uint8_t>(std::clamp(
+          std::lround(128.0 + (highlight - shadow) *
+                                  static_cast<double>(amount_percent) / 100.0),
+          0L, 255L));
+      auto *px = result.pixels.pixel(x, y);
+      px[0] = value;
+      px[1] = value;
+      px[2] = value;
+    }
+  }
+  report_progress(progress, result.pixels.height(), result.pixels.height(),
+                  FilterProgressStage::Embossing);
+  return result;
+}
+
 // The destructive Pixel Mosaic math: alpha-weighted premultiplied block
 // means, straight-color writes with the normalized alpha, grid anchored at
 // the input's local origin. Bounds are preserved.
@@ -1974,6 +2225,21 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
       parameters_valid = mosaic != nullptr &&
                          mosaic->cell_size_pixels >= kMinimumMosaicCellSize &&
                          mosaic->cell_size_pixels <= kMaximumMosaicCellSize;
+    } else if (entry.kind == SmartFilterKind::Emboss) {
+      const auto *emboss = std::get_if<EmbossSmartFilter>(&entry.parameters);
+      parameters_valid = emboss != nullptr &&
+                         emboss->angle_degrees >= kMinimumEmbossAngle &&
+                         emboss->angle_degrees <= kMaximumEmbossAngle &&
+                         emboss->height_pixels >= kMinimumEmbossHeight &&
+                         emboss->height_pixels <= kMaximumEmbossHeight &&
+                         emboss->amount_percent >= kMinimumEmbossAmount &&
+                         emboss->amount_percent <= kMaximumEmbossAmount;
+    } else if (entry.kind == SmartFilterKind::BoxBlur) {
+      const auto *box = std::get_if<BoxBlurSmartFilter>(&entry.parameters);
+      parameters_valid = box != nullptr &&
+                         std::isfinite(box->radius_pixels) &&
+                         box->radius_pixels >= kMinimumBoxBlurRadius &&
+                         box->radius_pixels <= kMaximumBoxBlurRadius;
     } else {
       throw std::invalid_argument("Unsupported Smart Filter entry");
     }
@@ -1984,6 +2250,8 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
          entry.kind != SmartFilterKind::MotionBlur &&
          entry.kind != SmartFilterKind::PlasticWrap &&
          entry.kind != SmartFilterKind::Mosaic &&
+         entry.kind != SmartFilterKind::Emboss &&
+         entry.kind != SmartFilterKind::BoxBlur &&
          (!std::isfinite(radius) || radius < minimum_radius ||
           radius > maximum_radius)) ||
         !std::isfinite(entry.opacity) ||
@@ -2132,6 +2400,41 @@ FilterRenderResult render_mosaic(const PixelBuffer &pixels, Rect bounds,
                               cell_size_pixels, progress);
 }
 
+FilterRenderResult render_box_blur(const PixelBuffer &pixels, Rect bounds,
+                                   double radius_pixels,
+                                   const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() ||
+      pixels.width() != bounds.width || pixels.height() != bounds.height ||
+      !std::isfinite(radius_pixels) ||
+      radius_pixels < kMinimumBoxBlurRadius ||
+      radius_pixels > kMaximumBoxBlurRadius) {
+    throw std::invalid_argument("Invalid Box Blur input");
+  }
+  return render_box_blur_effect(
+      FilterRenderResult{pixels, bounds},
+      static_cast<std::int32_t>(std::floor(radius_pixels)), progress);
+}
+
+FilterRenderResult render_emboss(const PixelBuffer &pixels, Rect bounds,
+                                 std::int32_t angle_degrees,
+                                 std::int32_t height_pixels,
+                                 std::int32_t amount_percent,
+                                 const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() ||
+      pixels.width() != bounds.width || pixels.height() != bounds.height ||
+      angle_degrees < kMinimumEmbossAngle ||
+      angle_degrees > kMaximumEmbossAngle ||
+      height_pixels < kMinimumEmbossHeight ||
+      height_pixels > kMaximumEmbossHeight ||
+      amount_percent < kMinimumEmbossAmount ||
+      amount_percent > kMaximumEmbossAmount) {
+    throw std::invalid_argument("Invalid Emboss input");
+  }
+  return render_emboss_effect(FilterRenderResult{pixels, bounds},
+                              angle_degrees, height_pixels, amount_percent,
+                              progress);
+}
+
 FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                              Rect placed_bounds,
                                              Rect filter_canvas_bounds,
@@ -2216,10 +2519,23 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
       filtered = render_plastic_wrap_effect(
           current, plastic.highlight_strength, plastic.detail,
           plastic.smoothness, &filter_progress);
-    } else {
+    } else if (entry.kind == SmartFilterKind::Mosaic) {
       const auto &mosaic = std::get<MosaicSmartFilter>(entry.parameters);
       filtered = render_mosaic_effect(current, mosaic.cell_size_pixels,
                                       &filter_progress);
+    } else if (entry.kind == SmartFilterKind::Emboss) {
+      const auto &emboss = std::get<EmbossSmartFilter>(entry.parameters);
+      filtered = render_emboss_effect(current, emboss.angle_degrees,
+                                      emboss.height_pixels,
+                                      emboss.amount_percent, &filter_progress);
+    } else {
+      const auto &box = std::get<BoxBlurSmartFilter>(entry.parameters);
+      auto box_input = embed_in_filter_canvas(current.pixels, current.bounds,
+                                              filter_canvas_bounds);
+      filtered = trim_transparent_result(render_box_blur_effect(
+          box_input,
+          static_cast<std::int32_t>(std::floor(box.radius_pixels)),
+          &filter_progress));
     }
     auto blend_progress = phase_progress(progress, phase++, phase_count);
     current = blend_entry_result(current, std::move(filtered), entry.opacity,

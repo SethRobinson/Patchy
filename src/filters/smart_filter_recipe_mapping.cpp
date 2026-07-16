@@ -35,6 +35,12 @@ std::optional<SmartFilterKind> native_smart_filter_kind_for(
   if (filter_id == "patchy.filters.pixelate") {
     return SmartFilterKind::Mosaic;
   }
+  if (filter_id == "patchy.filters.emboss") {
+    return SmartFilterKind::Emboss;
+  }
+  if (filter_id == "patchy.filters.box_blur") {
+    return SmartFilterKind::BoxBlur;
+  }
   return std::nullopt;
 }
 
@@ -49,6 +55,8 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::MotionBlur:
     case SmartFilterKind::PlasticWrap:
     case SmartFilterKind::Mosaic:
+    case SmartFilterKind::Emboss:
+    case SmartFilterKind::BoxBlur:
       return true;
     case SmartFilterKind::Unsupported:
       return false;
@@ -81,8 +89,51 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
     const auto plastic =
         normalized->filter_id == "patchy.filters.plastic_wrap";
     const auto mosaic = normalized->filter_id == "patchy.filters.pixelate";
+    const auto emboss = normalized->filter_id == "patchy.filters.emboss";
+    const auto box_blur = normalized->filter_id == "patchy.filters.box_blur";
     SmartFilterEntry entry;
-    if (mosaic) {
+    if (box_blur) {
+      const auto radius_value = normalized->parameters.find("radius");
+      if (radius_value == normalized->parameters.end()) {
+        return std::nullopt;
+      }
+      const auto *radius = std::get_if<std::int64_t>(&radius_value->second);
+      if (radius == nullptr || *radius < 1 || *radius > 2000) {
+        return std::nullopt;
+      }
+      entry.kind = SmartFilterKind::BoxBlur;
+      entry.native_name = "Box Blur...";
+      entry.native_class_id = "boxblur";
+      entry.native_filter_id = 843U;
+      entry.parameters = BoxBlurSmartFilter{static_cast<double>(*radius)};
+    } else if (emboss) {
+      const auto angle_value = normalized->parameters.find("angle");
+      const auto height_value = normalized->parameters.find("height");
+      const auto amount_value = normalized->parameters.find("amount");
+      if (angle_value == normalized->parameters.end() ||
+          height_value == normalized->parameters.end() ||
+          amount_value == normalized->parameters.end()) {
+        return std::nullopt;
+      }
+      const auto *angle = std::get_if<std::int64_t>(&angle_value->second);
+      const auto *height = std::get_if<std::int64_t>(&height_value->second);
+      const auto *amount = std::get_if<std::int64_t>(&amount_value->second);
+      // Photoshop's Amount minimum is 1; a Patchy amount of 0 stays
+      // destructive-only, which keeps the all-or-nothing rule intact.
+      if (angle == nullptr || *angle < -360 || *angle > 360 ||
+          height == nullptr || *height < 1 || *height > 100 ||
+          amount == nullptr || *amount < 1 || *amount > 500) {
+        return std::nullopt;
+      }
+      entry.kind = SmartFilterKind::Emboss;
+      entry.native_name = "Emboss...";
+      entry.native_class_id = "Embs";
+      entry.native_filter_id = 0x456d6273U;
+      entry.parameters = EmbossSmartFilter{
+          static_cast<std::int32_t>(*angle),
+          static_cast<std::int32_t>(*height),
+          static_cast<std::int32_t>(*amount)};
+    } else if (mosaic) {
       const auto block_value = normalized->parameters.find("block_size");
       if (block_value == normalized->parameters.end()) {
         return std::nullopt;

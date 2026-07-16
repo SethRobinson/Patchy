@@ -1572,6 +1572,33 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
           entry_tooltip += QObject::tr(" (Cell Size %1 px)")
                                .arg(mosaic->cell_size_pixels);
         }
+      } else if (entry.kind == SmartFilterKind::Emboss) {
+        entry_name = QObject::tr("Emboss");
+        entry_tooltip = entry_name;
+        if (const auto *emboss =
+                std::get_if<EmbossSmartFilter>(&entry.parameters);
+            emboss != nullptr) {
+          entry_tooltip +=
+              QObject::tr(" (Angle %1 degrees, Height %2 px, Amount %3%)")
+                  .arg(emboss->angle_degrees)
+                  .arg(emboss->height_pixels)
+                  .arg(emboss->amount_percent);
+        }
+      } else if (entry.kind == SmartFilterKind::BoxBlur) {
+        entry_name = QObject::tr("Box Blur");
+        entry_tooltip = entry_name;
+        if (const auto *box =
+                std::get_if<BoxBlurSmartFilter>(&entry.parameters);
+            box != nullptr) {
+          auto radius = QString::number(box->radius_pixels, 'f', 2);
+          while (radius.endsWith(QLatin1Char('0'))) {
+            radius.chop(1);
+          }
+          if (radius.endsWith(QLatin1Char('.'))) {
+            radius.chop(1);
+          }
+          entry_tooltip += QObject::tr(" (%1 px)").arg(radius);
+        }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
         entry_tooltip = entry_name;

@@ -1358,10 +1358,10 @@ void apply_emboss_to_pixels(PixelBuffer &pixels, const PixelBuffer &original,
                             int angle_degrees, int height, int amount,
                             const FilterProgress *progress) {
   const auto angle = static_cast<double>(angle_degrees) * kFilterPi / 180.0;
-  const auto distance = static_cast<double>(std::clamp(height, 1, 24));
+  const auto distance = static_cast<double>(std::clamp(height, 1, 100));
   const auto offset_x = std::cos(angle) * distance;
   const auto offset_y = -std::sin(angle) * distance;
-  amount = std::clamp(amount, 0, 300);
+  amount = std::clamp(amount, 0, 500);
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     report_filter_progress(progress, y, pixels.height(),
                            FilterProgressStage::Embossing);
@@ -2157,9 +2157,9 @@ void execute_builtin_filter(const FilterRegistry &registry,
   if (identifier == "patchy.filters.emboss") {
     apply_emboss_to_pixels(
         pixels, original,
-        std::clamp(filter_value(invocation, "angle", 135), -180, 180),
-        std::clamp(filter_value(invocation, "height", 2), 1, 24),
-        std::clamp(filter_value(invocation, "amount", 100), 0, 300), progress);
+        std::clamp(filter_value(invocation, "angle", 135), -360, 360),
+        std::clamp(filter_value(invocation, "height", 2), 1, 100),
+        std::clamp(filter_value(invocation, "amount", 100), 0, 500), progress);
     return;
   }
 
@@ -3044,14 +3044,27 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
         {integer_parameter("strength", "Strength", "filterStrength", 0, 300,
                            100, Unit::Percent)});
   } else if (identifier == "patchy.filters.emboss") {
+    // Native Photoshop Emboss ranges (Angle -360..360, Height 1..100 px,
+    // Amount 1..500 %) with the historical practical sliders. The typed
+    // Amount minimum stays 0 because it is a persisted catalog range.
+    auto emboss_angle =
+        integer_parameter("angle", "Angle", "filterAngle", -360, 360, 135,
+                          Unit::Degrees, Scale::None, Presentation::Angle);
+    emboss_angle.practical_minimum = -180.0;
+    emboss_angle.practical_maximum = 180.0;
+    auto emboss_height = integer_parameter(
+        "height", "Height", "filterHeight", 1, 100, 2, Unit::Pixels,
+        Scale::Pixels);
+    emboss_height.practical_minimum = 1.0;
+    emboss_height.practical_maximum = 24.0;
+    auto emboss_amount = integer_parameter(
+        "amount", "Amount", "filterDepth", 0, 500, 100, Unit::Percent);
+    emboss_amount.practical_minimum = 0.0;
+    emboss_amount.practical_maximum = 300.0;
     metadata = catalog_metadata(
         Category::Stylize, false,
-        {integer_parameter("angle", "Angle", "filterAngle", -180, 180, 135,
-                           Unit::Degrees, Scale::None, Presentation::Angle),
-         integer_parameter("height", "Height", "filterHeight", 1, 24, 2,
-                           Unit::Pixels, Scale::Pixels),
-         integer_parameter("amount", "Amount", "filterDepth", 0, 300, 100,
-                           Unit::Percent)});
+        {std::move(emboss_angle), std::move(emboss_height),
+         std::move(emboss_amount)});
   } else if (identifier == "patchy.filters.glowing_edges") {
     metadata = catalog_metadata(
         Category::Stylize, false,

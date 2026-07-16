@@ -1981,6 +1981,144 @@ void smart_filter_mosaic_renders_block_average_and_matches_destructive() {
   CHECK(rejected_invalid);
 }
 
+void smart_filter_emboss_matches_destructive_and_preserves_alpha() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto source = patchy::PixelBuffer(9, 7, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      auto *px = source.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(20 + 23 * x);
+      px[1] = static_cast<std::uint8_t>(10 + 31 * y);
+      px[2] = static_cast<std::uint8_t>(200 - 11 * x);
+      px[3] = static_cast<std::uint8_t>(40 + 25 * ((x + y) % 8));
+    }
+  }
+  const patchy::Rect bounds{3, 4, 9, 7};
+  const auto rendered = patchy::render_emboss(source, bounds, 135, 3, 150);
+  CHECK(rendered.bounds.x == bounds.x && rendered.bounds.y == bounds.y &&
+        rendered.bounds.width == bounds.width &&
+        rendered.bounds.height == bounds.height);
+  // Alpha is preserved byte for byte while RGB becomes the gray relief.
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      CHECK(rendered.pixels.pixel(x, y)[3] == source.pixel(x, y)[3]);
+      CHECK(rendered.pixels.pixel(x, y)[0] == rendered.pixels.pixel(x, y)[1]);
+      CHECK(rendered.pixels.pixel(x, y)[1] == rendered.pixels.pixel(x, y)[2]);
+    }
+  }
+  // Within the destructive catalog range the smart filter and the destructive
+  // Emboss produce identical pixels (the same bilinear luminance math).
+  auto invocation = registry.default_invocation("patchy.filters.emboss");
+  invocation.parameters["angle"] = std::int64_t{135};
+  invocation.parameters["height"] = std::int64_t{3};
+  invocation.parameters["amount"] = std::int64_t{150};
+  const auto destructive = registry.render(invocation, source, bounds, false);
+  check_filter_result_equal(rendered, destructive);
+
+  bool rejected_invalid = false;
+  try {
+    (void)patchy::render_emboss(source, bounds, 135, 3, 0);
+  } catch (const std::invalid_argument &) {
+    rejected_invalid = true;
+  }
+  CHECK(rejected_invalid);
+}
+
+void smart_filter_box_blur_matches_destructive_and_sliding_reference() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto source = patchy::PixelBuffer(9, 7, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      auto *px = source.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(20 + 23 * x);
+      px[1] = static_cast<std::uint8_t>(10 + 31 * y);
+      px[2] = static_cast<std::uint8_t>(200 - 11 * x);
+      px[3] = static_cast<std::uint8_t>(40 + 25 * ((x + y) % 8));
+    }
+  }
+
+  // Radii through the direct cutoff replicate the destructive Box Blur math
+  // byte for byte: blur the radius-padded transparent buffer and compare to
+  // the registry's expanding render of the unpadded source.
+  constexpr int radius = 3;
+  auto padded = patchy::PixelBuffer(source.width() + 2 * radius,
+                                    source.height() + 2 * radius,
+                                    patchy::PixelFormat::rgba8());
+  padded.clear(0);
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      const auto *from = source.pixel(x, y);
+      auto *to = padded.pixel(x + radius, y + radius);
+      to[0] = from[0];
+      to[1] = from[1];
+      to[2] = from[2];
+      to[3] = from[3];
+    }
+  }
+  const patchy::Rect padded_bounds{-radius, -radius, padded.width(),
+                                   padded.height()};
+  const auto rendered =
+      patchy::render_box_blur(padded, padded_bounds, 3.9);
+  auto invocation = registry.default_invocation("patchy.filters.box_blur");
+  invocation.parameters["radius"] = std::int64_t{radius};
+  const auto destructive = registry.render(
+      invocation, source, patchy::Rect{0, 0, 9, 7}, true);
+  check_filter_result_equal(rendered, destructive);
+
+  // Above the cutoff the exact integer sliding path must equal a brute-force
+  // integer reference with the same edge-clamped sampling.
+  const auto sliding =
+      patchy::render_box_blur(source, patchy::Rect{0, 0, 9, 7}, 15.0);
+  constexpr int large_radius = 15;
+  const auto taps = static_cast<std::int64_t>(2 * large_radius + 1);
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      std::array<std::int64_t, 4> sums{};
+      for (int dy = -large_radius; dy <= large_radius; ++dy) {
+        const auto sy =
+            std::clamp(y + dy, 0, source.height() - 1);
+        for (int dx = -large_radius; dx <= large_radius; ++dx) {
+          const auto sx =
+              std::clamp(x + dx, 0, source.width() - 1);
+          const auto *px = source.pixel(sx, sy);
+          for (int channel = 0; channel < 3; ++channel) {
+            sums[static_cast<std::size_t>(channel)] +=
+                static_cast<std::int64_t>(px[channel]) *
+                static_cast<std::int64_t>(px[3]);
+          }
+          sums[3] += static_cast<std::int64_t>(px[3]);
+        }
+      }
+      const auto *actual = sliding.pixels.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        const auto expected = static_cast<std::uint8_t>(std::clamp(
+            std::lround(sums[3] > 0
+                            ? static_cast<double>(
+                                  sums[static_cast<std::size_t>(channel)]) /
+                                  static_cast<double>(sums[3])
+                            : 0.0),
+            0L, 255L));
+        CHECK(actual[channel] == expected);
+      }
+      const auto expected_alpha = static_cast<std::uint8_t>(std::clamp(
+          std::lround(static_cast<double>(sums[3]) /
+                      (static_cast<double>(taps) * static_cast<double>(taps))),
+          0L, 255L));
+      CHECK(actual[3] == expected_alpha);
+    }
+  }
+
+  bool rejected_invalid = false;
+  try {
+    (void)patchy::render_box_blur(source, patchy::Rect{0, 0, 9, 7}, 0.5);
+  } catch (const std::invalid_argument &) {
+    rejected_invalid = true;
+  }
+  CHECK(rejected_invalid);
+}
+
 void smart_filter_layer_model_revisions_are_explicit() {
   patchy::Layer layer(1, "Filtered", patchy::PixelBuffer(2, 2, patchy::PixelFormat::rgba8()));
   patchy::SmartFilterStack stack;
@@ -2023,6 +2161,10 @@ std::vector<patchy::test::TestCase> smart_filter_pixels_tests() {
   return {
       {"smart_filter_mosaic_renders_block_average_and_matches_destructive",
        smart_filter_mosaic_renders_block_average_and_matches_destructive},
+      {"smart_filter_emboss_matches_destructive_and_preserves_alpha",
+       smart_filter_emboss_matches_destructive_and_preserves_alpha},
+      {"smart_filter_box_blur_matches_destructive_and_sliding_reference",
+       smart_filter_box_blur_matches_destructive_and_sliding_reference},
       {"smart_filter_layer_model_revisions_are_explicit",
        smart_filter_layer_model_revisions_are_explicit},
       {"smart_filter_gaussian_matches_photoshop_calibrated_kernels",

@@ -43,6 +43,22 @@ render_photoshop_unsharp_mask(const PixelBuffer &pixels, Rect bounds,
 [[nodiscard]] FilterRenderResult render_mosaic(
     const PixelBuffer &pixels, Rect bounds, std::int32_t cell_size_pixels,
     const FilterProgress *progress = nullptr);
+// Emboss keeps the input bounds and alpha, replacing RGB with the
+// destructive filter's gray relief (bilinear luminance samples at +/- the
+// height offset along the angle). Like Plastic Wrap, the native descriptor
+// round-trips exactly while the pixels are Patchy's own compatible rendering.
+[[nodiscard]] FilterRenderResult render_emboss(
+    const PixelBuffer &pixels, Rect bounds, std::int32_t angle_degrees,
+    std::int32_t height_pixels, std::int32_t amount_percent,
+    const FilterProgress *progress = nullptr);
+// Box Blur keeps the supplied bounds (the stack embeds in the filter canvas
+// and alpha-trims, like Gaussian Blur). Radii through 12 px replicate the
+// destructive Box Blur's double math byte for byte; larger radii use an
+// exact integer sliding-window path with identical edge-clamped sampling.
+// The fractional stored radius is floored for rendering like Median.
+[[nodiscard]] FilterRenderResult render_box_blur(
+    const PixelBuffer &pixels, Rect bounds, double radius_pixels,
+    const FilterProgress *progress = nullptr);
 
 // Renders a complete native Smart Filter stack from the immutable placed or
 // warped Smart Object preview. Unsupported semantics throw

@@ -159,6 +159,24 @@ require_mosaic_filter(const patchy::SmartFilterEntry &entry) {
   return *mosaic;
 }
 
+const patchy::EmbossSmartFilter &
+require_emboss_filter(const patchy::SmartFilterEntry &entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::Emboss);
+  const auto *emboss =
+      std::get_if<patchy::EmbossSmartFilter>(&entry.parameters);
+  CHECK(emboss != nullptr);
+  return *emboss;
+}
+
+const patchy::BoxBlurSmartFilter &
+require_box_blur_filter(const patchy::SmartFilterEntry &entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::BoxBlur);
+  const auto *box =
+      std::get_if<patchy::BoxBlurSmartFilter>(&entry.parameters);
+  CHECK(box != nullptr);
+  return *box;
+}
+
 const patchy::UnsharpMaskSmartFilter &
 require_unsharp_mask_filter(const patchy::SmartFilterEntry &entry) {
   CHECK(entry.kind == patchy::SmartFilterKind::UnsharpMask);
@@ -1923,6 +1941,188 @@ void smart_filter_canonical_mosaic_descriptor_authors_and_patches() {
   CHECK(require_mosaic_filter(reread).cell_size_pixels == 24);
 }
 
+void smart_filter_canonical_emboss_descriptor_authors_and_patches() {
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "41414141-5151-6161-8777-838383838383";
+  placement.transform = {3.0, 5.0, 35.0, 5.0, 35.0, 29.0, 3.0, 29.0};
+  placement.width = 32.0;
+  placement.height = 24.0;
+  placement.resolution = 72.0;
+  const std::string placed_uuid = "dfdfdfdf-fbfb-bdbd-8444-595959595959";
+
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::Emboss;
+  entry.native_name = "Emboss...";
+  entry.native_class_id = "Embs";
+  entry.native_filter_id = 0x456d6273U;
+  entry.parameters = patchy::EmbossSmartFilter{135, 3, 150};
+  stack.entries.push_back(std::move(entry));
+
+  const auto descriptor_from_sold = [](std::span<const std::uint8_t> sold) {
+    patchy::psd::BigEndianReader reader(sold);
+    CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) ==
+          "soLD");
+    CHECK(reader.read_u32() == 4U);
+    CHECK(reader.read_u32() == 16U);
+    return patchy::psd::read_descriptor(reader);
+  };
+
+  const auto authored = patchy::psd::author_placed_layer_sold_payload(
+      placement, placed_uuid, &stack);
+  const auto authored_info =
+      patchy::psd::parse_placed_layer_block("SoLd", authored);
+  CHECK(authored_info.has_value() && authored_info->smart_filters.has_value());
+  CHECK(authored_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(authored_info->smart_filters->entries.size() == 1U);
+  const auto &parsed = authored_info->smart_filters->entries.front();
+  CHECK(parsed.native_name == "Emboss...");
+  CHECK(parsed.native_class_id == "Embs");
+  CHECK(parsed.native_filter_id == 0x456d6273U);
+  CHECK(require_emboss_filter(parsed).angle_degrees == 135);
+  CHECK(require_emboss_filter(parsed).height_pixels == 3);
+  CHECK(require_emboss_filter(parsed).amount_percent == 150);
+
+  auto descriptor = descriptor_from_sold(authored);
+  const auto *root = patchy::psd::descriptor_object(descriptor, "filterFX");
+  CHECK(root != nullptr);
+  const auto *list = patchy::psd::descriptor_value(*root, "filterFXList");
+  CHECK(list != nullptr &&
+        list->type == patchy::psd::DescriptorValue::Type::List &&
+        list->list_value.size() == 1U &&
+        list->list_value.front().object_value != nullptr);
+  const auto *native_filter = patchy::psd::descriptor_object(
+      *list->list_value.front().object_value, "Fltr");
+  CHECK(native_filter != nullptr && native_filter->class_id == "Embs" &&
+        !native_filter->class_id_long_form);
+  CHECK(native_filter->name == "Emboss");
+  // Photoshop's Emboss key order is Angl, Hght, Amnt, all plain integers
+  // (July 2026 capture).
+  CHECK(native_filter->key_order.size() == 3U);
+  CHECK(native_filter->key_order[0].key == "Angl" &&
+        !native_filter->key_order[0].long_form);
+  CHECK(native_filter->key_order[1].key == "Hght" &&
+        !native_filter->key_order[1].long_form);
+  CHECK(native_filter->key_order[2].key == "Amnt" &&
+        !native_filter->key_order[2].long_form);
+  const auto *angle = patchy::psd::descriptor_value(*native_filter, "Angl");
+  const auto *height = patchy::psd::descriptor_value(*native_filter, "Hght");
+  const auto *amount = patchy::psd::descriptor_value(*native_filter, "Amnt");
+  CHECK(angle != nullptr && height != nullptr && amount != nullptr);
+  CHECK(angle->type == patchy::psd::DescriptorValue::Type::Integer &&
+        angle->integer_value == 135);
+  CHECK(height->type == patchy::psd::DescriptorValue::Type::Integer &&
+        height->integer_value == 3);
+  CHECK(amount->type == patchy::psd::DescriptorValue::Type::Integer &&
+        amount->integer_value == 150);
+
+  auto edited = stack;
+  auto &edited_emboss = std::get<patchy::EmbossSmartFilter>(
+      edited.entries.front().parameters);
+  edited_emboss.angle_degrees = -22;
+  edited_emboss.height_pixels = 24;
+  edited_emboss.amount_percent = 500;
+  const patchy::psd::SmartFilterDescriptorEdit edit{
+      patchy::psd::SmartFilterDescriptorAction::Replace, &edited};
+  const auto regenerated = patchy::psd::regenerate_placed_layer_payload(
+      "SoLd", authored, placement, nullptr, placed_uuid, edit);
+  CHECK(regenerated.has_value());
+  const auto regenerated_info =
+      patchy::psd::parse_placed_layer_block("SoLd", *regenerated);
+  CHECK(regenerated_info.has_value() &&
+        regenerated_info->smart_filters.has_value());
+  const auto &reread = regenerated_info->smart_filters->entries.front();
+  CHECK(require_emboss_filter(reread).angle_degrees == -22);
+  CHECK(require_emboss_filter(reread).height_pixels == 24);
+  CHECK(require_emboss_filter(reread).amount_percent == 500);
+}
+
+void smart_filter_canonical_box_blur_descriptor_authors_and_patches() {
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "41414141-5151-6161-8777-848484848484";
+  placement.transform = {3.0, 5.0, 35.0, 5.0, 35.0, 29.0, 3.0, 29.0};
+  placement.width = 32.0;
+  placement.height = 24.0;
+  placement.resolution = 72.0;
+  const std::string placed_uuid = "dfdfdfdf-fbfb-bdbd-8444-606060606060";
+
+  patchy::SmartFilterStack stack;
+  stack.support = patchy::SmartFilterStackSupport::Supported;
+  stack.mask.linked = false;
+  patchy::SmartFilterEntry entry;
+  entry.kind = patchy::SmartFilterKind::BoxBlur;
+  entry.native_name = "Box Blur...";
+  entry.native_class_id = "boxblur";
+  entry.native_filter_id = 843U;
+  entry.parameters = patchy::BoxBlurSmartFilter{5.0};
+  stack.entries.push_back(std::move(entry));
+
+  const auto descriptor_from_sold = [](std::span<const std::uint8_t> sold) {
+    patchy::psd::BigEndianReader reader(sold);
+    CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) ==
+          "soLD");
+    CHECK(reader.read_u32() == 4U);
+    CHECK(reader.read_u32() == 16U);
+    return patchy::psd::read_descriptor(reader);
+  };
+
+  const auto authored = patchy::psd::author_placed_layer_sold_payload(
+      placement, placed_uuid, &stack);
+  const auto authored_info =
+      patchy::psd::parse_placed_layer_block("SoLd", authored);
+  CHECK(authored_info.has_value() && authored_info->smart_filters.has_value());
+  CHECK(authored_info->smart_filters->support ==
+        patchy::SmartFilterStackSupport::Supported);
+  CHECK(authored_info->smart_filters->entries.size() == 1U);
+  const auto &parsed = authored_info->smart_filters->entries.front();
+  CHECK(parsed.native_name == "Box Blur...");
+  CHECK(parsed.native_class_id == "boxblur");
+  CHECK(parsed.native_filter_id == 843U);
+  CHECK(std::abs(require_box_blur_filter(parsed).radius_pixels - 5.0) < 1e-9);
+
+  auto descriptor = descriptor_from_sold(authored);
+  const auto *root = patchy::psd::descriptor_object(descriptor, "filterFX");
+  CHECK(root != nullptr);
+  const auto *list = patchy::psd::descriptor_value(*root, "filterFXList");
+  CHECK(list != nullptr &&
+        list->type == patchy::psd::DescriptorValue::Type::List &&
+        list->list_value.size() == 1U &&
+        list->list_value.front().object_value != nullptr);
+  const auto *native_filter = patchy::psd::descriptor_object(
+      *list->list_value.front().object_value, "Fltr");
+  // Box Blur's class is the full stringID "boxblur" (July 2026 capture).
+  CHECK(native_filter != nullptr && native_filter->class_id == "boxblur" &&
+        native_filter->class_id_long_form);
+  CHECK(native_filter->name == "Box Blur");
+  CHECK(native_filter->key_order.size() == 1U);
+  CHECK(native_filter->key_order[0].key == "Rds " &&
+        !native_filter->key_order[0].long_form);
+  const auto *radius = patchy::psd::descriptor_value(*native_filter, "Rds ");
+  CHECK(radius != nullptr);
+  CHECK(radius->type == patchy::psd::DescriptorValue::Type::UnitFloat &&
+        radius->unit == "#Pxl" && std::abs(radius->double_value - 5.0) < 1e-9);
+
+  auto edited = stack;
+  auto &edited_box = std::get<patchy::BoxBlurSmartFilter>(
+      edited.entries.front().parameters);
+  edited_box.radius_pixels = 250.5;
+  const patchy::psd::SmartFilterDescriptorEdit edit{
+      patchy::psd::SmartFilterDescriptorAction::Replace, &edited};
+  const auto regenerated = patchy::psd::regenerate_placed_layer_payload(
+      "SoLd", authored, placement, nullptr, placed_uuid, edit);
+  CHECK(regenerated.has_value());
+  const auto regenerated_info =
+      patchy::psd::parse_placed_layer_block("SoLd", *regenerated);
+  CHECK(regenerated_info.has_value() &&
+        regenerated_info->smart_filters.has_value());
+  const auto &reread = regenerated_info->smart_filters->entries.front();
+  CHECK(std::abs(require_box_blur_filter(reread).radius_pixels - 250.5) <
+        1e-9);
+}
+
 const patchy::UnknownPsdBlock& require_placed_layer_block(const patchy::Layer& layer) {
   const auto& blocks = layer.unknown_psd_blocks();
   const auto found = std::find_if(blocks.begin(), blocks.end(), [](const patchy::UnknownPsdBlock& block) {
@@ -2409,6 +2609,158 @@ void psd_photoshop_mosaic_smart_filter_fixture_round_trips_and_edits() {
   CHECK(require_placed_layer_block(edited_reread_layer).payload !=
         original_sold_payload);
   // Mosaic settings live only in SoLd. Preserve Photoshop's unfiltered FEid
+  // cache exactly when only the descriptor changes.
+  CHECK(test_global_psd_blocks(edited_reread) == original_globals);
+}
+
+void psd_photoshop_emboss_smart_filter_fixture_round_trips_and_edits() {
+  const auto fixture_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-emboss.psd");
+  const auto original = patchy::psd::DocumentIo::read_file(fixture_path);
+  const patchy::Layer *filtered_layer = nullptr;
+  for (const auto &layer : original.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      CHECK(filtered_layer == nullptr);
+      filtered_layer = &layer;
+    }
+  }
+  CHECK(filtered_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*filtered_layer));
+  CHECK(patchy::smart_object_lock_reason(*filtered_layer).empty());
+  const auto *stack = filtered_layer->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto &entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::Emboss);
+  CHECK(entry.native_name == "Emboss...");
+  CHECK(entry.native_class_id == "Embs");
+  CHECK(entry.native_filter_id == 0x456d6273U);
+  CHECK(require_emboss_filter(entry).angle_degrees == 135);
+  CHECK(require_emboss_filter(entry).height_pixels == 3);
+  CHECK(require_emboss_filter(entry).amount_percent == 150);
+
+  const auto original_globals = test_global_psd_blocks(original);
+  const auto original_sold_payload =
+      require_placed_layer_block(*filtered_layer).payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(original));
+  CHECK(test_global_psd_blocks(clean) == original_globals);
+  const auto &clean_layer =
+      require_layer_named(clean, filtered_layer->name());
+  check_pixel_layer_storage_equal(*filtered_layer, clean_layer);
+  CHECK(require_placed_layer_block(clean_layer).payload ==
+        original_sold_payload);
+  const auto &clean_emboss = require_emboss_filter(
+      require_smart_filter_stack(clean, clean_layer.name()).entries.front());
+  CHECK(clean_emboss.angle_degrees == 135);
+  CHECK(clean_emboss.height_pixels == 3);
+  CHECK(clean_emboss.amount_percent == 150);
+
+  auto edited = original;
+  auto *edited_layer = edited.find_layer(filtered_layer->id());
+  CHECK(edited_layer != nullptr &&
+        edited_layer->smart_filter_stack() != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  auto &edited_emboss = std::get<patchy::EmbossSmartFilter>(
+      edited_stack.entries.front().parameters);
+  edited_emboss.angle_degrees = -22;
+  edited_emboss.height_pixels = 24;
+  edited_emboss.amount_percent = 500;
+  edited_stack.entries.front().opacity = 0.42;
+  edited_stack.entries.front().blend_mode = patchy::BlendMode::SoftLight;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto &edited_reread_layer =
+      require_layer_named(edited_reread, filtered_layer->name());
+  const auto &edited_reread_entry =
+      require_smart_filter_stack(edited_reread, filtered_layer->name())
+          .entries.front();
+  const auto &edited_reread_emboss =
+      require_emboss_filter(edited_reread_entry);
+  CHECK(edited_reread_emboss.angle_degrees == -22);
+  CHECK(edited_reread_emboss.height_pixels == 24);
+  CHECK(edited_reread_emboss.amount_percent == 500);
+  CHECK(std::abs(edited_reread_entry.opacity - 0.42) < 1e-9);
+  CHECK(edited_reread_entry.blend_mode == patchy::BlendMode::SoftLight);
+  CHECK(require_placed_layer_block(edited_reread_layer).payload !=
+        original_sold_payload);
+  // Emboss settings live only in SoLd. Preserve Photoshop's unfiltered FEid
+  // cache exactly when only the descriptor changes.
+  CHECK(test_global_psd_blocks(edited_reread) == original_globals);
+}
+
+void psd_photoshop_box_blur_smart_filter_fixture_round_trips_and_edits() {
+  const auto fixture_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-box-blur.psd");
+  const auto original = patchy::psd::DocumentIo::read_file(fixture_path);
+  const patchy::Layer *filtered_layer = nullptr;
+  for (const auto &layer : original.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      CHECK(filtered_layer == nullptr);
+      filtered_layer = &layer;
+    }
+  }
+  CHECK(filtered_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*filtered_layer));
+  CHECK(patchy::smart_object_lock_reason(*filtered_layer).empty());
+  const auto *stack = filtered_layer->smart_filter_stack();
+  CHECK(stack != nullptr &&
+        stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(stack->entries.size() == 1U);
+  const auto &entry = stack->entries.front();
+  CHECK(entry.kind == patchy::SmartFilterKind::BoxBlur);
+  CHECK(entry.native_name == "Box Blur...");
+  CHECK(entry.native_class_id == "boxblur");
+  CHECK(entry.native_filter_id == 843U);
+  CHECK(std::abs(require_box_blur_filter(entry).radius_pixels - 5.0) < 1e-9);
+
+  const auto original_globals = test_global_psd_blocks(original);
+  const auto original_sold_payload =
+      require_placed_layer_block(*filtered_layer).payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(original));
+  CHECK(test_global_psd_blocks(clean) == original_globals);
+  const auto &clean_layer =
+      require_layer_named(clean, filtered_layer->name());
+  check_pixel_layer_storage_equal(*filtered_layer, clean_layer);
+  CHECK(require_placed_layer_block(clean_layer).payload ==
+        original_sold_payload);
+  CHECK(std::abs(
+            require_box_blur_filter(
+                require_smart_filter_stack(clean, clean_layer.name())
+                    .entries.front())
+                .radius_pixels -
+            5.0) < 1e-9);
+
+  auto edited = original;
+  auto *edited_layer = edited.find_layer(filtered_layer->id());
+  CHECK(edited_layer != nullptr &&
+        edited_layer->smart_filter_stack() != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  auto &edited_box = std::get<patchy::BoxBlurSmartFilter>(
+      edited_stack.entries.front().parameters);
+  edited_box.radius_pixels = 250.5;
+  edited_stack.entries.front().opacity = 0.42;
+  edited_stack.entries.front().blend_mode = patchy::BlendMode::SoftLight;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto &edited_reread_layer =
+      require_layer_named(edited_reread, filtered_layer->name());
+  const auto &edited_reread_entry =
+      require_smart_filter_stack(edited_reread, filtered_layer->name())
+          .entries.front();
+  CHECK(std::abs(require_box_blur_filter(edited_reread_entry).radius_pixels -
+                 250.5) < 1e-9);
+  CHECK(std::abs(edited_reread_entry.opacity - 0.42) < 1e-9);
+  CHECK(edited_reread_entry.blend_mode == patchy::BlendMode::SoftLight);
+  CHECK(require_placed_layer_block(edited_reread_layer).payload !=
+        original_sold_payload);
+  // Box Blur settings live only in SoLd. Preserve Photoshop's unfiltered FEid
   // cache exactly when only the descriptor changes.
   CHECK(test_global_psd_blocks(edited_reread) == original_globals);
 }
@@ -3332,6 +3684,10 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests() {
        smart_filter_canonical_plastic_wrap_descriptor_authors_and_patches},
       {"smart_filter_canonical_mosaic_descriptor_authors_and_patches",
        smart_filter_canonical_mosaic_descriptor_authors_and_patches},
+      {"smart_filter_canonical_emboss_descriptor_authors_and_patches",
+       smart_filter_canonical_emboss_descriptor_authors_and_patches},
+      {"smart_filter_canonical_box_blur_descriptor_authors_and_patches",
+       smart_filter_canonical_box_blur_descriptor_authors_and_patches},
       {"psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_high_pass_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_median_smart_filter_fixture_round_trips_and_edits",
@@ -3344,6 +3700,10 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests() {
        psd_photoshop_plastic_wrap_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_mosaic_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_mosaic_smart_filter_fixture_round_trips_and_edits},
+      {"psd_photoshop_emboss_smart_filter_fixture_round_trips_and_edits",
+       psd_photoshop_emboss_smart_filter_fixture_round_trips_and_edits},
+      {"psd_photoshop_box_blur_smart_filter_fixture_round_trips_and_edits",
+       psd_photoshop_box_blur_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_"
        "edits",
        psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_edits},
