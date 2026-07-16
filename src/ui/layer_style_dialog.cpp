@@ -634,6 +634,108 @@ constexpr int kLayerStylePageRole = Qt::UserRole + 1;
 constexpr int kLayerStyleEffectKindRole = Qt::UserRole + 2;
 constexpr int kLayerStyleEffectIndexRole = Qt::UserRole + 3;
 
+// Grows the vector with defaults until `index` exists (the former per-effect
+// ensure_* lambda family, shared by the enabled-state and save paths).
+template <typename Effect>
+Effect& ensure_effect(std::vector<Effect>& effects, int index, Effect (*make_default)()) {
+  while (index >= 0 && effects.size() <= static_cast<std::size_t>(index)) {
+    effects.push_back(make_default());
+  }
+  return effects[static_cast<std::size_t>(std::max(0, index))];
+}
+
+// Uniform access to the stackable per-effect vectors (Stroke, the shadows and
+// glows, Satin, the overlays), keyed by LayerStyleEffectKind: count drives the
+// remove-instance button, add_instance backs "+", remove_instance backs "-".
+// Bevel & Emboss and its sub-options are not stackable and have no entry.
+struct LayerStyleEffectVectorOps {
+  std::size_t (*count)(const LayerStyle& source);
+  // Inserts a copy of source_index (or a default when empty), enabled, after
+  // the source row; returns the inserted index.
+  int (*add_instance)(LayerStyle& target, int source_index);
+  // Erases index when present; returns the index to select next.
+  int (*remove_instance)(LayerStyle& target, int index);
+};
+
+template <auto Member, auto MakeDefault>
+constexpr LayerStyleEffectVectorOps effect_vector_ops() {
+  return {
+      [](const LayerStyle& source) { return (source.*Member).size(); },
+      [](LayerStyle& target, int source_index) {
+        auto& vector = target.*Member;
+        auto value = MakeDefault();
+        if (!vector.empty()) {
+          value = vector[static_cast<std::size_t>(
+              std::clamp(source_index, 0, static_cast<int>(vector.size()) - 1))];
+        }
+        value.enabled = true;
+        const auto insert_index =
+            vector.empty() ? 0 : std::clamp(source_index + 1, 0, static_cast<int>(vector.size()));
+        vector.insert(vector.begin() + insert_index, std::move(value));
+        return insert_index;
+      },
+      [](LayerStyle& target, int index) {
+        auto& vector = target.*Member;
+        if (index >= 0 && vector.size() > static_cast<std::size_t>(index)) {
+          vector.erase(vector.begin() + index);
+        }
+        return vector.empty() ? 0 : std::min(index, static_cast<int>(vector.size()) - 1);
+      },
+  };
+}
+
+const LayerStyleEffectVectorOps* effect_vector_ops_for_kind(LayerStyleEffectKind kind) {
+  switch (kind) {
+    case LayerStyleEffectKind::Stroke: {
+      static constexpr auto ops = effect_vector_ops<&LayerStyle::strokes, default_stroke>();
+      return &ops;
+    }
+    case LayerStyleEffectKind::InnerShadow: {
+      static constexpr auto ops =
+          effect_vector_ops<&LayerStyle::inner_shadows, default_inner_shadow>();
+      return &ops;
+    }
+    case LayerStyleEffectKind::InnerGlow: {
+      static constexpr auto ops = effect_vector_ops<&LayerStyle::inner_glows, default_inner_glow>();
+      return &ops;
+    }
+    case LayerStyleEffectKind::Satin: {
+      static constexpr auto ops = effect_vector_ops<&LayerStyle::satins, default_satin>();
+      return &ops;
+    }
+    case LayerStyleEffectKind::ColorOverlay: {
+      static constexpr auto ops =
+          effect_vector_ops<&LayerStyle::color_overlays, default_color_overlay>();
+      return &ops;
+    }
+    case LayerStyleEffectKind::GradientOverlay: {
+      static constexpr auto ops =
+          effect_vector_ops<&LayerStyle::gradient_fills, default_gradient_fill>();
+      return &ops;
+    }
+    case LayerStyleEffectKind::PatternOverlay: {
+      static constexpr auto ops =
+          effect_vector_ops<&LayerStyle::pattern_overlays, default_pattern_overlay>();
+      return &ops;
+    }
+    case LayerStyleEffectKind::OuterGlow: {
+      static constexpr auto ops = effect_vector_ops<&LayerStyle::outer_glows, default_outer_glow>();
+      return &ops;
+    }
+    case LayerStyleEffectKind::DropShadow: {
+      static constexpr auto ops =
+          effect_vector_ops<&LayerStyle::drop_shadows, default_drop_shadow>();
+      return &ops;
+    }
+    case LayerStyleEffectKind::BevelEmboss:
+    case LayerStyleEffectKind::BevelContour:
+    case LayerStyleEffectKind::BevelTexture:
+    case LayerStyleEffectKind::None:
+      break;
+  }
+  return nullptr;
+}
+
 // Shared host state for the callback-driven gradient-stop editor used by both
 // Gradient Overlay and gradient Strokes. The editor widget intentionally never
 // owns or mutates its stop vectors; these working vectors remain stable during
@@ -758,6 +860,31 @@ void update_color_preview_label(QWidget* widget, int red, int green, int blue) {
                            .arg(green)
                            .arg(blue));
 }
+
+// One effect's R/G/B slider rows plus its color-preview swatch and the control
+// that opens the picker (the "Color RGB" block formerly duplicated per effect
+// page; picker == preview except Color Overlay's separate button + label).
+struct RgbColorRowWidgets {
+  QSpinBox* red{nullptr};
+  QSpinBox* green{nullptr};
+  QSpinBox* blue{nullptr};
+  QWidget* preview{nullptr};
+  QAbstractButton* picker{nullptr};
+  QWidget* row_container{nullptr};
+
+  [[nodiscard]] RgbColor value() const {
+    return RgbColor{static_cast<std::uint8_t>(red->value()), static_cast<std::uint8_t>(green->value()),
+                    static_cast<std::uint8_t>(blue->value())};
+  }
+  void set_value(RgbColor color) const {
+    red->setValue(color.red);
+    green->setValue(color.green);
+    blue->setValue(color.blue);
+  }
+  void update_preview() const {
+    update_color_preview_label(preview, red->value(), green->value(), blue->value());
+  }
+};
 
 }  // namespace
 
@@ -1041,6 +1168,40 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
     layout->addWidget(row);
     return spin;
+  };
+  // The "Color RGB" form row: R/G/B slider rows plus a clickable preview swatch
+  // button below them. Widgets follow the shared naming scheme
+  // (<prefix>RedSpin/<prefix>GreenSpin/<prefix>BlueSpin/<prefix>ColorPreview).
+  auto make_color_rows = [&add_color_slider_row](QFormLayout* form, QWidget* group,
+                                                 const QString& object_prefix, RgbColor initial) {
+    RgbColorRowWidgets rows;
+    auto* color_row = new QWidget(group);
+    auto* color_layout = new QVBoxLayout(color_row);
+    color_layout->setContentsMargins(0, 0, 0, 0);
+    color_layout->setSpacing(4);
+    rows.row_container = color_row;
+    rows.red = add_color_slider_row(color_layout, color_row, QObject::tr("R"),
+                                    object_prefix + QStringLiteral("RedSpin"), initial.red);
+    rows.green = add_color_slider_row(color_layout, color_row, QObject::tr("G"),
+                                      object_prefix + QStringLiteral("GreenSpin"), initial.green);
+    rows.blue = add_color_slider_row(color_layout, color_row, QObject::tr("B"),
+                                     object_prefix + QStringLiteral("BlueSpin"), initial.blue);
+    auto* preview_row = new QWidget(color_row);
+    auto* preview_layout = new QHBoxLayout(preview_row);
+    preview_layout->setContentsMargins(26, 0, 0, 0);
+    preview_layout->setSpacing(8);
+    auto* preview = new QPushButton(group);
+    preview->setObjectName(object_prefix + QStringLiteral("ColorPreview"));
+    preview->setFixedSize(28, 22);
+    preview->setToolTip(QObject::tr("Choose Color..."));
+    preview_layout->addWidget(preview);
+    preview_layout->addStretch(1);
+    color_layout->addWidget(preview_row);
+    rows.preview = preview;
+    rows.picker = preview;
+    rows.update_preview();
+    form->addRow(QObject::tr("Color RGB"), color_row);
+    return rows;
   };
   auto make_gradient_controls = [&](QFormLayout* form, QWidget* parent_widget, const QString& object_prefix,
                                     const LayerStyleGradient& initial_gradient,
@@ -2411,35 +2572,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   stroke_fill->addItem(QObject::tr("Gradient"), true);
   stroke_fill->setCurrentIndex(stroke.uses_gradient ? 1 : 0);
   stroke_form->addRow(QObject::tr("Fill"), stroke_fill);
-  auto* stroke_color_row = new QWidget(stroke_group);
-  auto* stroke_color_layout = new QVBoxLayout(stroke_color_row);
-  stroke_color_layout->setContentsMargins(0, 0, 0, 0);
-  stroke_color_layout->setSpacing(4);
-  auto* stroke_red =
-      add_color_slider_row(stroke_color_layout, stroke_color_row, QObject::tr("R"),
-                           QStringLiteral("layerStyleStrokeRedSpin"), stroke.color.red);
-  auto* stroke_green =
-      add_color_slider_row(stroke_color_layout, stroke_color_row, QObject::tr("G"),
-                           QStringLiteral("layerStyleStrokeGreenSpin"), stroke.color.green);
-  auto* stroke_blue =
-      add_color_slider_row(stroke_color_layout, stroke_color_row, QObject::tr("B"),
-                           QStringLiteral("layerStyleStrokeBlueSpin"), stroke.color.blue);
-  auto* stroke_preview_row = new QWidget(stroke_color_row);
-  auto* stroke_preview_layout = new QHBoxLayout(stroke_preview_row);
-  stroke_preview_layout->setContentsMargins(26, 0, 0, 0);
-  stroke_preview_layout->setSpacing(8);
-  auto* stroke_color_preview = new QPushButton(stroke_group);
-  stroke_color_preview->setObjectName(QStringLiteral("layerStyleStrokeColorPreview"));
-  stroke_color_preview->setFixedSize(28, 22);
-  stroke_color_preview->setToolTip(QObject::tr("Choose Color..."));
-  stroke_preview_layout->addWidget(stroke_color_preview);
-  stroke_preview_layout->addStretch(1);
-  stroke_color_layout->addWidget(stroke_preview_row);
-  auto update_stroke_color_preview = [stroke_color_preview, stroke_red, stroke_green, stroke_blue] {
-    update_color_preview_label(stroke_color_preview, stroke_red->value(), stroke_green->value(), stroke_blue->value());
-  };
-  update_stroke_color_preview();
-  stroke_form->addRow(QObject::tr("Color RGB"), stroke_color_row);
+  const auto stroke_rows =
+      make_color_rows(stroke_form, stroke_group, QStringLiteral("layerStyleStroke"), stroke.color);
+  auto* stroke_red = stroke_rows.red;
+  auto* stroke_green = stroke_rows.green;
+  auto* stroke_blue = stroke_rows.blue;
   auto* stroke_gradient_group = new QGroupBox(QObject::tr("Gradient"), stroke_group);
   stroke_gradient_group->setObjectName(QStringLiteral("layerStyleStrokeGradientGroup"));
   auto* stroke_gradient_form = new QFormLayout(stroke_gradient_group);
@@ -2450,7 +2587,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   stroke_form->addRow(stroke_gradient_group);
   auto update_stroke_fill_visibility = [&] {
     const bool uses_gradient = stroke_fill->currentData().toBool();
-    stroke_form->setRowVisible(stroke_color_row, !uses_gradient);
+    stroke_form->setRowVisible(stroke_rows.row_container, !uses_gradient);
     stroke_form->setRowVisible(stroke_gradient_group, uses_gradient);
   };
   update_stroke_fill_visibility();
@@ -2484,37 +2621,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       add_slider_spin_row(inner_shadow_form, inner_shadow_group, QObject::tr("Choke"),
                           QStringLiteral("layerStyleInnerShadowChokeSpin"), 0, 100,
                           static_cast<int>(std::round(inner_shadow.choke)), QStringLiteral("%"));
-  auto* inner_shadow_color_row = new QWidget(inner_shadow_group);
-  auto* inner_shadow_color_layout = new QVBoxLayout(inner_shadow_color_row);
-  inner_shadow_color_layout->setContentsMargins(0, 0, 0, 0);
-  inner_shadow_color_layout->setSpacing(4);
-  auto* inner_shadow_red =
-      add_color_slider_row(inner_shadow_color_layout, inner_shadow_color_row, QObject::tr("R"),
-                           QStringLiteral("layerStyleInnerShadowRedSpin"), inner_shadow.color.red);
-  auto* inner_shadow_green =
-      add_color_slider_row(inner_shadow_color_layout, inner_shadow_color_row, QObject::tr("G"),
-                           QStringLiteral("layerStyleInnerShadowGreenSpin"), inner_shadow.color.green);
-  auto* inner_shadow_blue =
-      add_color_slider_row(inner_shadow_color_layout, inner_shadow_color_row, QObject::tr("B"),
-                           QStringLiteral("layerStyleInnerShadowBlueSpin"), inner_shadow.color.blue);
-  auto* inner_shadow_preview_row = new QWidget(inner_shadow_color_row);
-  auto* inner_shadow_preview_layout = new QHBoxLayout(inner_shadow_preview_row);
-  inner_shadow_preview_layout->setContentsMargins(26, 0, 0, 0);
-  inner_shadow_preview_layout->setSpacing(8);
-  auto* inner_shadow_color_preview = new QPushButton(inner_shadow_group);
-  inner_shadow_color_preview->setObjectName(QStringLiteral("layerStyleInnerShadowColorPreview"));
-  inner_shadow_color_preview->setFixedSize(28, 22);
-  inner_shadow_color_preview->setToolTip(QObject::tr("Choose Color..."));
-  inner_shadow_preview_layout->addWidget(inner_shadow_color_preview);
-  inner_shadow_preview_layout->addStretch(1);
-  inner_shadow_color_layout->addWidget(inner_shadow_preview_row);
-  auto update_inner_shadow_color_preview = [inner_shadow_color_preview, inner_shadow_red, inner_shadow_green,
-                                            inner_shadow_blue] {
-    update_color_preview_label(inner_shadow_color_preview, inner_shadow_red->value(), inner_shadow_green->value(),
-                               inner_shadow_blue->value());
-  };
-  update_inner_shadow_color_preview();
-  inner_shadow_form->addRow(QObject::tr("Color RGB"), inner_shadow_color_row);
+  const auto inner_shadow_rows = make_color_rows(
+      inner_shadow_form, inner_shadow_group, QStringLiteral("layerStyleInnerShadow"), inner_shadow.color);
+  auto* inner_shadow_red = inner_shadow_rows.red;
+  auto* inner_shadow_green = inner_shadow_rows.green;
+  auto* inner_shadow_blue = inner_shadow_rows.blue;
   auto* inner_shadow_instance_row = new QWidget(inner_shadow_group);
   auto* inner_shadow_instance_layout = new QHBoxLayout(inner_shadow_instance_row);
   inner_shadow_instance_layout->setContentsMargins(0, 0, 0, 0);
@@ -2557,37 +2668,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   inner_glow_source->addItem(QObject::tr("Center"), static_cast<int>(LayerInnerGlowSource::Center));
   inner_glow_source->setCurrentIndex(std::max(0, inner_glow_source->findData(static_cast<int>(inner_glow.source))));
   inner_glow_form->addRow(QObject::tr("Source"), inner_glow_source);
-  auto* inner_glow_color_row = new QWidget(inner_glow_group);
-  auto* inner_glow_color_layout = new QVBoxLayout(inner_glow_color_row);
-  inner_glow_color_layout->setContentsMargins(0, 0, 0, 0);
-  inner_glow_color_layout->setSpacing(4);
-  auto* inner_glow_red =
-      add_color_slider_row(inner_glow_color_layout, inner_glow_color_row, QObject::tr("R"),
-                           QStringLiteral("layerStyleInnerGlowRedSpin"), inner_glow.color.red);
-  auto* inner_glow_green =
-      add_color_slider_row(inner_glow_color_layout, inner_glow_color_row, QObject::tr("G"),
-                           QStringLiteral("layerStyleInnerGlowGreenSpin"), inner_glow.color.green);
-  auto* inner_glow_blue =
-      add_color_slider_row(inner_glow_color_layout, inner_glow_color_row, QObject::tr("B"),
-                           QStringLiteral("layerStyleInnerGlowBlueSpin"), inner_glow.color.blue);
-  auto* inner_glow_preview_row = new QWidget(inner_glow_color_row);
-  auto* inner_glow_preview_layout = new QHBoxLayout(inner_glow_preview_row);
-  inner_glow_preview_layout->setContentsMargins(26, 0, 0, 0);
-  inner_glow_preview_layout->setSpacing(8);
-  auto* inner_glow_color_preview = new QPushButton(inner_glow_group);
-  inner_glow_color_preview->setObjectName(QStringLiteral("layerStyleInnerGlowColorPreview"));
-  inner_glow_color_preview->setFixedSize(28, 22);
-  inner_glow_color_preview->setToolTip(QObject::tr("Choose Color..."));
-  inner_glow_preview_layout->addWidget(inner_glow_color_preview);
-  inner_glow_preview_layout->addStretch(1);
-  inner_glow_color_layout->addWidget(inner_glow_preview_row);
-  auto update_inner_glow_color_preview = [inner_glow_color_preview, inner_glow_red, inner_glow_green,
-                                          inner_glow_blue] {
-    update_color_preview_label(inner_glow_color_preview, inner_glow_red->value(), inner_glow_green->value(),
-                               inner_glow_blue->value());
-  };
-  update_inner_glow_color_preview();
-  inner_glow_form->addRow(QObject::tr("Color RGB"), inner_glow_color_row);
+  const auto inner_glow_rows = make_color_rows(inner_glow_form, inner_glow_group,
+                                               QStringLiteral("layerStyleInnerGlow"), inner_glow.color);
+  auto* inner_glow_red = inner_glow_rows.red;
+  auto* inner_glow_green = inner_glow_rows.green;
+  auto* inner_glow_blue = inner_glow_rows.blue;
   auto* inner_glow_instance_row = new QWidget(inner_glow_group);
   auto* inner_glow_instance_layout = new QHBoxLayout(inner_glow_instance_row);
   inner_glow_instance_layout->setContentsMargins(0, 0, 0, 0);
@@ -2632,32 +2717,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   satin_invert->setObjectName(QStringLiteral("layerStyleSatinInvertCheck"));
   satin_invert->setChecked(satin.invert);
   satin_form->addRow(QString(), satin_invert);
-  auto* satin_color_row = new QWidget(satin_group);
-  auto* satin_color_layout = new QVBoxLayout(satin_color_row);
-  satin_color_layout->setContentsMargins(0, 0, 0, 0);
-  satin_color_layout->setSpacing(4);
-  auto* satin_red = add_color_slider_row(satin_color_layout, satin_color_row, QObject::tr("R"),
-                                         QStringLiteral("layerStyleSatinRedSpin"), satin.color.red);
-  auto* satin_green = add_color_slider_row(satin_color_layout, satin_color_row, QObject::tr("G"),
-                                           QStringLiteral("layerStyleSatinGreenSpin"), satin.color.green);
-  auto* satin_blue = add_color_slider_row(satin_color_layout, satin_color_row, QObject::tr("B"),
-                                          QStringLiteral("layerStyleSatinBlueSpin"), satin.color.blue);
-  auto* satin_preview_row = new QWidget(satin_color_row);
-  auto* satin_preview_layout = new QHBoxLayout(satin_preview_row);
-  satin_preview_layout->setContentsMargins(26, 0, 0, 0);
-  satin_preview_layout->setSpacing(8);
-  auto* satin_color_preview = new QPushButton(satin_preview_row);
-  satin_color_preview->setObjectName(QStringLiteral("layerStyleSatinColorPreview"));
-  satin_color_preview->setFixedSize(28, 22);
-  satin_color_preview->setToolTip(QObject::tr("Choose Color..."));
-  satin_preview_layout->addWidget(satin_color_preview);
-  satin_preview_layout->addStretch(1);
-  satin_color_layout->addWidget(satin_preview_row);
-  auto update_satin_color_preview = [satin_color_preview, satin_red, satin_green, satin_blue] {
-    update_color_preview_label(satin_color_preview, satin_red->value(), satin_green->value(), satin_blue->value());
-  };
-  update_satin_color_preview();
-  satin_form->addRow(QObject::tr("Color RGB"), satin_color_row);
+  const auto satin_rows =
+      make_color_rows(satin_form, satin_group, QStringLiteral("layerStyleSatin"), satin.color);
+  auto* satin_red = satin_rows.red;
+  auto* satin_green = satin_rows.green;
+  auto* satin_blue = satin_rows.blue;
   satin_layout->addWidget(satin_group);
   satin_layout->addStretch(1);
 
@@ -2702,12 +2766,14 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   color_overlay_preview_layout->addWidget(color_overlay_pick_color);
   color_overlay_preview_layout->addStretch(1);
   color_overlay_color_layout->addWidget(color_overlay_preview_row);
-  auto update_color_overlay_color_preview = [color_overlay_color_preview, color_overlay_red, color_overlay_green,
-                                             color_overlay_blue] {
-    update_color_preview_label(color_overlay_color_preview, color_overlay_red->value(), color_overlay_green->value(),
-                               color_overlay_blue->value());
-  };
-  update_color_overlay_color_preview();
+  RgbColorRowWidgets color_overlay_rows;
+  color_overlay_rows.red = color_overlay_red;
+  color_overlay_rows.green = color_overlay_green;
+  color_overlay_rows.blue = color_overlay_blue;
+  color_overlay_rows.preview = color_overlay_color_preview;
+  color_overlay_rows.picker = color_overlay_pick_color;
+  color_overlay_rows.row_container = color_overlay_color_row;
+  color_overlay_rows.update_preview();
   color_overlay_form->addRow(QObject::tr("Color RGB"), color_overlay_color_row);
   color_overlay_layout->addWidget(color_overlay_group);
   color_overlay_layout->addStretch(1);
@@ -2747,37 +2813,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                                 QStringLiteral("layerStyleOuterGlowSpreadSpin"), 0, 100,
                                                 static_cast<int>(std::round(outer_glow.spread)),
                                                 QStringLiteral("%"));
-  auto* outer_glow_color_row = new QWidget(outer_glow_group);
-  auto* outer_glow_color_layout = new QVBoxLayout(outer_glow_color_row);
-  outer_glow_color_layout->setContentsMargins(0, 0, 0, 0);
-  outer_glow_color_layout->setSpacing(4);
-  auto* outer_glow_red =
-      add_color_slider_row(outer_glow_color_layout, outer_glow_color_row, QObject::tr("R"),
-                           QStringLiteral("layerStyleOuterGlowRedSpin"), outer_glow.color.red);
-  auto* outer_glow_green =
-      add_color_slider_row(outer_glow_color_layout, outer_glow_color_row, QObject::tr("G"),
-                           QStringLiteral("layerStyleOuterGlowGreenSpin"), outer_glow.color.green);
-  auto* outer_glow_blue =
-      add_color_slider_row(outer_glow_color_layout, outer_glow_color_row, QObject::tr("B"),
-                           QStringLiteral("layerStyleOuterGlowBlueSpin"), outer_glow.color.blue);
-  auto* outer_glow_preview_row = new QWidget(outer_glow_color_row);
-  auto* outer_glow_preview_layout = new QHBoxLayout(outer_glow_preview_row);
-  outer_glow_preview_layout->setContentsMargins(26, 0, 0, 0);
-  outer_glow_preview_layout->setSpacing(8);
-  auto* outer_glow_color_preview = new QPushButton(outer_glow_group);
-  outer_glow_color_preview->setObjectName(QStringLiteral("layerStyleOuterGlowColorPreview"));
-  outer_glow_color_preview->setFixedSize(28, 22);
-  outer_glow_color_preview->setToolTip(QObject::tr("Choose Color..."));
-  outer_glow_preview_layout->addWidget(outer_glow_color_preview);
-  outer_glow_preview_layout->addStretch(1);
-  outer_glow_color_layout->addWidget(outer_glow_preview_row);
-  auto update_outer_glow_color_preview = [outer_glow_color_preview, outer_glow_red, outer_glow_green,
-                                          outer_glow_blue] {
-    update_color_preview_label(outer_glow_color_preview, outer_glow_red->value(), outer_glow_green->value(),
-                               outer_glow_blue->value());
-  };
-  update_outer_glow_color_preview();
-  outer_glow_form->addRow(QObject::tr("Color RGB"), outer_glow_color_row);
+  const auto outer_glow_rows = make_color_rows(outer_glow_form, outer_glow_group,
+                                               QStringLiteral("layerStyleOuterGlow"), outer_glow.color);
+  auto* outer_glow_red = outer_glow_rows.red;
+  auto* outer_glow_green = outer_glow_rows.green;
+  auto* outer_glow_blue = outer_glow_rows.blue;
   outer_glow_layout->addWidget(outer_glow_group);
   outer_glow_layout->addStretch(1);
 
@@ -2804,35 +2844,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* shadow_spread = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Spread"),
                                             QStringLiteral("layerStyleDropShadowSpreadSpin"), 0, 100,
                                             static_cast<int>(std::round(shadow.spread)), QStringLiteral("%"));
-  auto* shadow_color_row = new QWidget(shadow_group);
-  auto* shadow_color_layout = new QVBoxLayout(shadow_color_row);
-  shadow_color_layout->setContentsMargins(0, 0, 0, 0);
-  shadow_color_layout->setSpacing(4);
-  auto* shadow_red =
-      add_color_slider_row(shadow_color_layout, shadow_color_row, QObject::tr("R"),
-                           QStringLiteral("layerStyleDropShadowRedSpin"), shadow.color.red);
-  auto* shadow_green =
-      add_color_slider_row(shadow_color_layout, shadow_color_row, QObject::tr("G"),
-                           QStringLiteral("layerStyleDropShadowGreenSpin"), shadow.color.green);
-  auto* shadow_blue =
-      add_color_slider_row(shadow_color_layout, shadow_color_row, QObject::tr("B"),
-                           QStringLiteral("layerStyleDropShadowBlueSpin"), shadow.color.blue);
-  auto* shadow_preview_row = new QWidget(shadow_color_row);
-  auto* shadow_preview_layout = new QHBoxLayout(shadow_preview_row);
-  shadow_preview_layout->setContentsMargins(26, 0, 0, 0);
-  shadow_preview_layout->setSpacing(8);
-  auto* shadow_color_preview = new QPushButton(shadow_group);
-  shadow_color_preview->setObjectName(QStringLiteral("layerStyleDropShadowColorPreview"));
-  shadow_color_preview->setFixedSize(28, 22);
-  shadow_color_preview->setToolTip(QObject::tr("Choose Color..."));
-  shadow_preview_layout->addWidget(shadow_color_preview);
-  shadow_preview_layout->addStretch(1);
-  shadow_color_layout->addWidget(shadow_preview_row);
-  auto update_shadow_color_preview = [shadow_color_preview, shadow_red, shadow_green, shadow_blue] {
-    update_color_preview_label(shadow_color_preview, shadow_red->value(), shadow_green->value(), shadow_blue->value());
-  };
-  update_shadow_color_preview();
-  shadow_form->addRow(QObject::tr("Color RGB"), shadow_color_row);
+  const auto shadow_rows =
+      make_color_rows(shadow_form, shadow_group, QStringLiteral("layerStyleDropShadow"), shadow.color);
+  auto* shadow_red = shadow_rows.red;
+  auto* shadow_green = shadow_rows.green;
+  auto* shadow_blue = shadow_rows.blue;
   shadow_layout->addWidget(shadow_group);
   shadow_layout->addStretch(1);
 
@@ -2857,100 +2873,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     return index <= 0 ? base_name : base_name + QString::number(index + 1);
   };
   auto is_stackable_kind = [](LayerStyleEffectKind kind) {
-    return kind == LayerStyleEffectKind::Stroke || kind == LayerStyleEffectKind::InnerShadow ||
-           kind == LayerStyleEffectKind::InnerGlow || kind == LayerStyleEffectKind::Satin ||
-           kind == LayerStyleEffectKind::ColorOverlay ||
-           kind == LayerStyleEffectKind::GradientOverlay || kind == LayerStyleEffectKind::OuterGlow ||
-           kind == LayerStyleEffectKind::DropShadow || kind == LayerStyleEffectKind::PatternOverlay;
-  };
-  auto vector_count_for_kind = [](const LayerStyle& source, LayerStyleEffectKind kind) -> std::size_t {
-    switch (kind) {
-      case LayerStyleEffectKind::Stroke:
-        return source.strokes.size();
-      case LayerStyleEffectKind::InnerShadow:
-        return source.inner_shadows.size();
-      case LayerStyleEffectKind::InnerGlow:
-        return source.inner_glows.size();
-      case LayerStyleEffectKind::Satin:
-        return source.satins.size();
-      case LayerStyleEffectKind::ColorOverlay:
-        return source.color_overlays.size();
-      case LayerStyleEffectKind::GradientOverlay:
-        return source.gradient_fills.size();
-      case LayerStyleEffectKind::PatternOverlay:
-        return source.pattern_overlays.size();
-      case LayerStyleEffectKind::OuterGlow:
-        return source.outer_glows.size();
-      case LayerStyleEffectKind::DropShadow:
-        return source.drop_shadows.size();
-      case LayerStyleEffectKind::BevelEmboss:
-        return source.bevels.size();
-      case LayerStyleEffectKind::BevelContour:
-      case LayerStyleEffectKind::BevelTexture:
-      case LayerStyleEffectKind::None:
-        return 0U;
-    }
-    return 0U;
+    return effect_vector_ops_for_kind(kind) != nullptr;
   };
   auto ensure_bevel = [](LayerStyle& target, int index) -> LayerBevelEmboss& {
-    while (index >= 0 && target.bevels.size() <= static_cast<std::size_t>(index)) {
-      target.bevels.push_back(default_bevel_emboss());
-    }
-    return target.bevels[static_cast<std::size_t>(std::max(0, index))];
-  };
-  auto ensure_stroke = [](LayerStyle& target, int index) -> LayerStroke& {
-    while (index >= 0 && target.strokes.size() <= static_cast<std::size_t>(index)) {
-      target.strokes.push_back(default_stroke());
-    }
-    return target.strokes[static_cast<std::size_t>(std::max(0, index))];
-  };
-  auto ensure_inner_shadow = [](LayerStyle& target, int index) -> LayerInnerShadow& {
-    while (index >= 0 && target.inner_shadows.size() <= static_cast<std::size_t>(index)) {
-      target.inner_shadows.push_back(default_inner_shadow());
-    }
-    return target.inner_shadows[static_cast<std::size_t>(std::max(0, index))];
-  };
-  auto ensure_inner_glow = [](LayerStyle& target, int index) -> LayerInnerGlow& {
-    while (index >= 0 && target.inner_glows.size() <= static_cast<std::size_t>(index)) {
-      target.inner_glows.push_back(default_inner_glow());
-    }
-    return target.inner_glows[static_cast<std::size_t>(std::max(0, index))];
-  };
-  auto ensure_satin = [](LayerStyle& target, int index) -> LayerSatin& {
-    while (index >= 0 && target.satins.size() <= static_cast<std::size_t>(index)) {
-      target.satins.push_back(default_satin());
-    }
-    return target.satins[static_cast<std::size_t>(std::max(0, index))];
-  };
-  auto ensure_color_overlay = [](LayerStyle& target, int index) -> LayerColorOverlay& {
-    while (index >= 0 && target.color_overlays.size() <= static_cast<std::size_t>(index)) {
-      target.color_overlays.push_back(default_color_overlay());
-    }
-    return target.color_overlays[static_cast<std::size_t>(std::max(0, index))];
-  };
-  auto ensure_gradient_fill = [](LayerStyle& target, int index) -> LayerGradientFill& {
-    while (index >= 0 && target.gradient_fills.size() <= static_cast<std::size_t>(index)) {
-      target.gradient_fills.push_back(default_gradient_fill());
-    }
-    return target.gradient_fills[static_cast<std::size_t>(std::max(0, index))];
-  };
-  auto ensure_pattern_overlay = [](LayerStyle& target, int index) -> LayerPatternOverlay& {
-    while (index >= 0 && target.pattern_overlays.size() <= static_cast<std::size_t>(index)) {
-      target.pattern_overlays.push_back(default_pattern_overlay());
-    }
-    return target.pattern_overlays[static_cast<std::size_t>(std::max(0, index))];
-  };
-  auto ensure_outer_glow = [](LayerStyle& target, int index) -> LayerOuterGlow& {
-    while (index >= 0 && target.outer_glows.size() <= static_cast<std::size_t>(index)) {
-      target.outer_glows.push_back(default_outer_glow());
-    }
-    return target.outer_glows[static_cast<std::size_t>(std::max(0, index))];
-  };
-  auto ensure_drop_shadow = [](LayerStyle& target, int index) -> LayerDropShadow& {
-    while (index >= 0 && target.drop_shadows.size() <= static_cast<std::size_t>(index)) {
-      target.drop_shadows.push_back(default_drop_shadow());
-    }
-    return target.drop_shadows[static_cast<std::size_t>(std::max(0, index))];
+    return ensure_effect(target.bevels, index, default_bevel_emboss);
   };
   auto apply_enabled_states = [&](LayerStyle& result) {
     for (int row = 0; row < categories->count(); ++row) {
@@ -2965,47 +2891,47 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
           break;
         case LayerStyleEffectKind::Stroke:
           if (enabled || result.strokes.size() > static_cast<std::size_t>(std::max(0, index))) {
-            ensure_stroke(result, index).enabled = enabled;
+            ensure_effect(result.strokes, index, default_stroke).enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::InnerShadow:
           if (enabled || result.inner_shadows.size() > static_cast<std::size_t>(std::max(0, index))) {
-            ensure_inner_shadow(result, index).enabled = enabled;
+            ensure_effect(result.inner_shadows, index, default_inner_shadow).enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::InnerGlow:
           if (enabled || result.inner_glows.size() > static_cast<std::size_t>(std::max(0, index))) {
-            ensure_inner_glow(result, index).enabled = enabled;
+            ensure_effect(result.inner_glows, index, default_inner_glow).enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::Satin:
           if (enabled || result.satins.size() > static_cast<std::size_t>(std::max(0, index))) {
-            ensure_satin(result, index).enabled = enabled;
+            ensure_effect(result.satins, index, default_satin).enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::ColorOverlay:
           if (enabled || result.color_overlays.size() > static_cast<std::size_t>(std::max(0, index))) {
-            ensure_color_overlay(result, index).enabled = enabled;
+            ensure_effect(result.color_overlays, index, default_color_overlay).enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::GradientOverlay:
           if (enabled || result.gradient_fills.size() > static_cast<std::size_t>(std::max(0, index))) {
-            ensure_gradient_fill(result, index).enabled = enabled;
+            ensure_effect(result.gradient_fills, index, default_gradient_fill).enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::PatternOverlay:
           if (enabled || result.pattern_overlays.size() > static_cast<std::size_t>(std::max(0, index))) {
-            ensure_pattern_overlay(result, index).enabled = enabled;
+            ensure_effect(result.pattern_overlays, index, default_pattern_overlay).enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::OuterGlow:
           if (enabled || result.outer_glows.size() > static_cast<std::size_t>(std::max(0, index))) {
-            ensure_outer_glow(result, index).enabled = enabled;
+            ensure_effect(result.outer_glows, index, default_outer_glow).enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::DropShadow:
           if (enabled || result.drop_shadows.size() > static_cast<std::size_t>(std::max(0, index))) {
-            ensure_drop_shadow(result, index).enabled = enabled;
+            ensure_effect(result.drop_shadows, index, default_drop_shadow).enabled = enabled;
           }
           break;
         case LayerStyleEffectKind::BevelContour:
@@ -3106,7 +3032,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         if (!enabled && result.strokes.size() <= static_cast<std::size_t>(index)) {
           return;
         }
-        auto& target = ensure_stroke(result, index);
+        auto& target = ensure_effect(result.strokes, index, default_stroke);
         target.enabled = enabled;
         target.size = static_cast<float>(stroke_size->value());
         target.blend_mode = static_cast<BlendMode>(stroke_blend->currentData().toInt());
@@ -3123,7 +3049,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         if (!enabled && result.inner_shadows.size() <= static_cast<std::size_t>(index)) {
           return;
         }
-        auto& target = ensure_inner_shadow(result, index);
+        auto& target = ensure_effect(result.inner_shadows, index, default_inner_shadow);
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(inner_shadow_blend->currentData().toInt());
         target.opacity = static_cast<float>(inner_shadow_opacity->value()) / 100.0F;
@@ -3140,7 +3066,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         if (!enabled && result.inner_glows.size() <= static_cast<std::size_t>(index)) {
           return;
         }
-        auto& target = ensure_inner_glow(result, index);
+        auto& target = ensure_effect(result.inner_glows, index, default_inner_glow);
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(inner_glow_blend->currentData().toInt());
         target.opacity = static_cast<float>(inner_glow_opacity->value()) / 100.0F;
@@ -3156,7 +3082,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         if (!enabled && result.satins.size() <= static_cast<std::size_t>(index)) {
           return;
         }
-        auto& target = ensure_satin(result, index);
+        auto& target = ensure_effect(result.satins, index, default_satin);
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(satin_blend->currentData().toInt());
         target.opacity = static_cast<float>(satin_opacity->value()) / 100.0F;
@@ -3173,7 +3099,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         if (!enabled && result.color_overlays.size() <= static_cast<std::size_t>(index)) {
           return;
         }
-        auto& target = ensure_color_overlay(result, index);
+        auto& target = ensure_effect(result.color_overlays, index, default_color_overlay);
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(color_overlay_blend->currentData().toInt());
         target.opacity = static_cast<float>(color_overlay_opacity->value()) / 100.0F;
@@ -3186,7 +3112,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         if (!enabled && result.gradient_fills.size() <= static_cast<std::size_t>(index)) {
           return;
         }
-        auto& target = ensure_gradient_fill(result, index);
+        auto& target = ensure_effect(result.gradient_fills, index, default_gradient_fill);
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(gradient_blend->currentData().toInt());
         target.opacity = static_cast<float>(gradient_opacity->value()) / 100.0F;
@@ -3197,7 +3123,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         if (!enabled && result.pattern_overlays.size() <= static_cast<std::size_t>(index)) {
           return;
         }
-        auto& target = ensure_pattern_overlay(result, index);
+        auto& target = ensure_effect(result.pattern_overlays, index, default_pattern_overlay);
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(pattern_overlay_blend->currentData().toInt());
         target.opacity = static_cast<float>(pattern_overlay_opacity->value()) / 100.0F;
@@ -3214,7 +3140,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         if (!enabled && result.outer_glows.size() <= static_cast<std::size_t>(index)) {
           return;
         }
-        auto& target = ensure_outer_glow(result, index);
+        auto& target = ensure_effect(result.outer_glows, index, default_outer_glow);
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(outer_glow_blend->currentData().toInt());
         target.opacity = static_cast<float>(outer_glow_opacity->value()) / 100.0F;
@@ -3229,7 +3155,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         if (!enabled && result.drop_shadows.size() <= static_cast<std::size_t>(index)) {
           return;
         }
-        auto& target = ensure_drop_shadow(result, index);
+        auto& target = ensure_effect(result.drop_shadows, index, default_drop_shadow);
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(shadow_blend->currentData().toInt());
         target.opacity = static_cast<float>(shadow_opacity->value()) / 100.0F;
@@ -3279,7 +3205,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     controls->setCurrentIndex(static_cast<int>(item_page(category)));
     const auto kind = item_kind(category);
     const auto index = std::max(0, item_effect_index(category));
-    remove_selected_instance->setEnabled(is_stackable_kind(kind) && vector_count_for_kind(style, kind) > 0U);
+    const auto* stack_ops = effect_vector_ops_for_kind(kind);
+    remove_selected_instance->setEnabled(stack_ops != nullptr && stack_ops->count(style) > 0U);
 
     switch (kind) {
       case LayerStyleEffectKind::BevelEmboss: {
@@ -3461,92 +3388,26 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         break;
     }
 
-    update_stroke_color_preview();
-    update_color_overlay_color_preview();
+    stroke_rows.update_preview();
+    color_overlay_rows.update_preview();
     gradient_controls->update_previews();
     stroke_gradient_controls->update_previews();
-    update_outer_glow_color_preview();
-    update_inner_glow_color_preview();
-    update_satin_color_preview();
-    update_shadow_color_preview();
-    update_inner_shadow_color_preview();
+    outer_glow_rows.update_preview();
+    inner_glow_rows.update_preview();
+    satin_rows.update_preview();
+    shadow_rows.update_preview();
+    inner_shadow_rows.update_preview();
     loading_controls = false;
   };
 
   auto add_effect_instance = [&](LayerStyleEffectKind kind, int source_index) {
-    auto duplicate = [source_index](auto& vector, auto make_default) {
-      using Vector = std::decay_t<decltype(vector)>;
-      using Value = typename Vector::value_type;
-      Value value = make_default();
-      if (!vector.empty()) {
-        value = vector[static_cast<std::size_t>(std::clamp(source_index, 0, static_cast<int>(vector.size()) - 1))];
-      }
-      value.enabled = true;
-      const auto insert_index = vector.empty() ? 0 : std::clamp(source_index + 1, 0, static_cast<int>(vector.size()));
-      vector.insert(vector.begin() + insert_index, std::move(value));
-      return insert_index;
-    };
-    switch (kind) {
-      case LayerStyleEffectKind::Stroke:
-        return duplicate(style.strokes, [] { return default_stroke(); });
-      case LayerStyleEffectKind::InnerShadow:
-        return duplicate(style.inner_shadows, [] { return default_inner_shadow(); });
-      case LayerStyleEffectKind::InnerGlow:
-        return duplicate(style.inner_glows, [] { return default_inner_glow(); });
-      case LayerStyleEffectKind::Satin:
-        return duplicate(style.satins, [] { return default_satin(); });
-      case LayerStyleEffectKind::ColorOverlay:
-        return duplicate(style.color_overlays, [] { return default_color_overlay(); });
-      case LayerStyleEffectKind::GradientOverlay:
-        return duplicate(style.gradient_fills, [] { return default_gradient_fill(); });
-      case LayerStyleEffectKind::PatternOverlay:
-        return duplicate(style.pattern_overlays, [] { return default_pattern_overlay(); });
-      case LayerStyleEffectKind::OuterGlow:
-        return duplicate(style.outer_glows, [] { return default_outer_glow(); });
-      case LayerStyleEffectKind::DropShadow:
-        return duplicate(style.drop_shadows, [] { return default_drop_shadow(); });
-      case LayerStyleEffectKind::BevelEmboss:
-      case LayerStyleEffectKind::BevelContour:
-      case LayerStyleEffectKind::BevelTexture:
-      case LayerStyleEffectKind::None:
-        break;
-    }
-    return 0;
+    const auto* ops = effect_vector_ops_for_kind(kind);
+    return ops != nullptr ? ops->add_instance(style, source_index) : 0;
   };
 
   auto remove_effect_instance = [&](LayerStyleEffectKind kind, int index) {
-    auto remove = [index](auto& vector) {
-      if (index >= 0 && vector.size() > static_cast<std::size_t>(index)) {
-        vector.erase(vector.begin() + index);
-      }
-      return vector.empty() ? 0 : std::min(index, static_cast<int>(vector.size()) - 1);
-    };
-    switch (kind) {
-      case LayerStyleEffectKind::Stroke:
-        return remove(style.strokes);
-      case LayerStyleEffectKind::InnerShadow:
-        return remove(style.inner_shadows);
-      case LayerStyleEffectKind::InnerGlow:
-        return remove(style.inner_glows);
-      case LayerStyleEffectKind::Satin:
-        return remove(style.satins);
-      case LayerStyleEffectKind::ColorOverlay:
-        return remove(style.color_overlays);
-      case LayerStyleEffectKind::GradientOverlay:
-        return remove(style.gradient_fills);
-      case LayerStyleEffectKind::PatternOverlay:
-        return remove(style.pattern_overlays);
-      case LayerStyleEffectKind::OuterGlow:
-        return remove(style.outer_glows);
-      case LayerStyleEffectKind::DropShadow:
-        return remove(style.drop_shadows);
-      case LayerStyleEffectKind::BevelEmboss:
-      case LayerStyleEffectKind::BevelContour:
-      case LayerStyleEffectKind::BevelTexture:
-      case LayerStyleEffectKind::None:
-        break;
-    }
-    return 0;
+    const auto* ops = effect_vector_ops_for_kind(kind);
+    return ops != nullptr ? ops->remove_instance(style, index) : 0;
   };
 
   auto category_check_object_name = [&](LayerStyleEffectKind kind, int index) {
@@ -3809,16 +3670,16 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     if (loading_controls || rebuilding_categories) {
       return;
     }
-    update_stroke_color_preview();
+    stroke_rows.update_preview();
     update_bevel_color_previews();
-    update_color_overlay_color_preview();
+    color_overlay_rows.update_preview();
     gradient_controls->update_previews();
     stroke_gradient_controls->update_previews();
-    update_outer_glow_color_preview();
-    update_inner_glow_color_preview();
-    update_satin_color_preview();
-    update_shadow_color_preview();
-    update_inner_shadow_color_preview();
+    outer_glow_rows.update_preview();
+    inner_glow_rows.update_preview();
+    satin_rows.update_preview();
+    shadow_rows.update_preview();
+    inner_shadow_rows.update_preview();
     auto settings = build_current_settings();
     style = settings.style;
     auto preview_settings = preview_check->isChecked() ? settings : original_settings;
@@ -4257,18 +4118,23 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   });
   QObject::connect(gradient_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
-  QObject::connect(stroke_color_preview, &QPushButton::clicked, &dialog, [&] {
-    const auto chosen =
-        request_patchy_color(&dialog, QColor(stroke_red->value(), stroke_green->value(), stroke_blue->value()),
-                             QObject::tr("Choose Stroke Color"));
-    if (!chosen.has_value()) {
-      return;
-    }
-    stroke_red->setValue(chosen->red());
-    stroke_green->setValue(chosen->green());
-    stroke_blue->setValue(chosen->blue());
-    emit_preview(true);
-  });
+  // Shared modal picker for the RGB color rows: no live preview while picking
+  // (unlike the bevel and gradient-stop pickers), commit on accept only.
+  const auto connect_color_row_picker = [&](const RgbColorRowWidgets& rows, const QString& title) {
+    QObject::connect(rows.picker, &QAbstractButton::clicked, &dialog, [&, rows, title] {
+      const auto current = rows.value();
+      const auto chosen =
+          request_patchy_color(&dialog, QColor(current.red, current.green, current.blue), title);
+      if (!chosen.has_value()) {
+        return;
+      }
+      rows.set_value(RgbColor{static_cast<std::uint8_t>(chosen->red()),
+                              static_cast<std::uint8_t>(chosen->green()),
+                              static_cast<std::uint8_t>(chosen->blue())});
+      emit_preview(true);
+    });
+  };
+  connect_color_row_picker(stroke_rows, QObject::tr("Choose Stroke Color"));
   auto choose_bevel_color = [&](RgbColor& target, const QString& title) {
     const auto original = target;
     auto apply_color = [&](QColor color) {
@@ -4298,78 +4164,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(bevel_shadow_color_button, &QPushButton::clicked, &dialog, [&] {
     choose_bevel_color(bevel_shadow_color, QObject::tr("Choose Shadow Color"));
   });
-  QObject::connect(color_overlay_pick_color, &QPushButton::clicked, &dialog, [&] {
-    const auto chosen =
-        request_patchy_color(&dialog, QColor(color_overlay_red->value(), color_overlay_green->value(), color_overlay_blue->value()),
-                                QObject::tr("Choose Color Overlay Color"));
-    if (!chosen.has_value()) {
-      return;
-    }
-    color_overlay_red->setValue(chosen->red());
-    color_overlay_green->setValue(chosen->green());
-    color_overlay_blue->setValue(chosen->blue());
-    emit_preview(true);
-  });
-  QObject::connect(outer_glow_color_preview, &QPushButton::clicked, &dialog, [&] {
-    const auto chosen = request_patchy_color(
-        &dialog, QColor(outer_glow_red->value(), outer_glow_green->value(), outer_glow_blue->value()),
-        QObject::tr("Choose Outer Glow Color"));
-    if (!chosen.has_value()) {
-      return;
-    }
-    outer_glow_red->setValue(chosen->red());
-    outer_glow_green->setValue(chosen->green());
-    outer_glow_blue->setValue(chosen->blue());
-    emit_preview(true);
-  });
-  QObject::connect(inner_glow_color_preview, &QPushButton::clicked, &dialog, [&] {
-    const auto chosen = request_patchy_color(
-        &dialog, QColor(inner_glow_red->value(), inner_glow_green->value(), inner_glow_blue->value()),
-        QObject::tr("Choose Inner Glow Color"));
-    if (!chosen.has_value()) {
-      return;
-    }
-    inner_glow_red->setValue(chosen->red());
-    inner_glow_green->setValue(chosen->green());
-    inner_glow_blue->setValue(chosen->blue());
-    emit_preview(true);
-  });
-  QObject::connect(satin_color_preview, &QPushButton::clicked, &dialog, [&] {
-    const auto chosen =
-        request_patchy_color(&dialog, QColor(satin_red->value(), satin_green->value(), satin_blue->value()),
-                             QObject::tr("Choose Satin Color"));
-    if (!chosen.has_value()) {
-      return;
-    }
-    satin_red->setValue(chosen->red());
-    satin_green->setValue(chosen->green());
-    satin_blue->setValue(chosen->blue());
-    emit_preview(true);
-  });
-  QObject::connect(shadow_color_preview, &QPushButton::clicked, &dialog, [&] {
-    const auto chosen =
-        request_patchy_color(&dialog, QColor(shadow_red->value(), shadow_green->value(), shadow_blue->value()),
-                             QObject::tr("Choose Drop Shadow Color"));
-    if (!chosen.has_value()) {
-      return;
-    }
-    shadow_red->setValue(chosen->red());
-    shadow_green->setValue(chosen->green());
-    shadow_blue->setValue(chosen->blue());
-    emit_preview(true);
-  });
-  QObject::connect(inner_shadow_color_preview, &QPushButton::clicked, &dialog, [&] {
-    const auto chosen = request_patchy_color(
-        &dialog, QColor(inner_shadow_red->value(), inner_shadow_green->value(), inner_shadow_blue->value()),
-        QObject::tr("Choose Inner Shadow Color"));
-    if (!chosen.has_value()) {
-      return;
-    }
-    inner_shadow_red->setValue(chosen->red());
-    inner_shadow_green->setValue(chosen->green());
-    inner_shadow_blue->setValue(chosen->blue());
-    emit_preview(true);
-  });
+  connect_color_row_picker(color_overlay_rows, QObject::tr("Choose Color Overlay Color"));
+  connect_color_row_picker(outer_glow_rows, QObject::tr("Choose Outer Glow Color"));
+  connect_color_row_picker(inner_glow_rows, QObject::tr("Choose Inner Glow Color"));
+  connect_color_row_picker(satin_rows, QObject::tr("Choose Satin Color"));
+  connect_color_row_picker(shadow_rows, QObject::tr("Choose Drop Shadow Color"));
+  connect_color_row_picker(inner_shadow_rows, QObject::tr("Choose Inner Shadow Color"));
   auto add_selected_instance = [&](LayerStyleEffectKind fallback_kind) {
     const auto* current = categories->currentItem();
     const auto kind = is_stackable_kind(item_kind(current)) ? item_kind(current) : fallback_kind;

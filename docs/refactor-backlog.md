@@ -204,12 +204,22 @@ MainWindow/adjustments internals:
 
 ## Megafunction dialogs (defer until the next feature forces them open)
 
-- layer_style_dialog.cpp: request_layer_style_settings is ONE ~3,700-line function
-  (82% of the file) using 60+ by-reference lambdas as shared mutable state. Plan:
-  a file-local LayerStyleDialogContext class + per-effect page builders + table-driven
-  default_*/ensure_*/update_*_color_preview families keyed by effect kind. Stage one
-  effect page at a time; widget objectNames, construction order, and the preview/cancel
-  pattern-store-restore contract must stay identical.
+- layer_style_dialog.cpp: request_layer_style_settings is ONE ~3,500-line function
+  using 50+ by-reference lambdas as shared mutable state. Plan: a file-local
+  LayerStyleDialogContext class + per-effect page builders. Stage one effect page
+  at a time; widget objectNames, construction order (LayerStyleCategoryPage enum
+  values ARE the QStackedWidget indices, so pages must be created in enum order),
+  and the preview/cancel pattern-store-restore contract must stay identical.
+  Done July 2026 (both stages suite-verified): (1) the ensure_*/count/add/remove
+  per-kind families are table-driven via effect_vector_ops_for_kind
+  (LayerStyleEffectVectorOps keyed by LayerStyleEffectKind; ensure_effect template);
+  (2) the RGB color row block x7, the update_*_color_preview lambdas, and the modal
+  picker click handlers x7 now share RgbColorRowWidgets + make_color_rows +
+  connect_color_row_picker (Color Overlay keeps its label + separate button but
+  fills the same struct; the bevel highlight/shadow pickers stay separate because
+  they live-preview during picking). Remaining: the context class + moving each
+  effect page's construction, load/save switch case, and wiring into per-effect
+  builders.
 - visual_filter_gallery_dialog.cpp: request_visual_filter_gallery is one large
   function (shrunk by ~700 lines in July 2026 when the parameter panel, proxy
   machinery, and overlay sync moved to their own TUs, but still a megafunction).
