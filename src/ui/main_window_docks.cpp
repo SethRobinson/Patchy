@@ -11,6 +11,7 @@
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
+#include "core/vector_shape.hpp"
 #include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
 #include "core/layer_render_utils.hpp"
@@ -583,6 +584,12 @@ void MainWindow::create_docks() {
     }
     if (layer != nullptr && layer->kind() == LayerKind::Adjustment) {
       edit_active_adjustment_layer();
+      return;
+    }
+    if (layer != nullptr && layer_is_vector_shape(*layer) && vector_lock_reason(*layer).empty()) {
+      // Shape and fill layers open their appearance editor (the adjustment-
+      // layer precedent); layer styles stay reachable from the context menu.
+      edit_active_shape_appearance();
       return;
     }
     // Smart objects deliberately fall through to the layer styles dialog too:

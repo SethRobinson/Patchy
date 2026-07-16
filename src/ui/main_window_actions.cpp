@@ -961,6 +961,9 @@ void MainWindow::create_actions() {
   auto* new_adjustment_layer_menu = layer_menu->addMenu(tr("New &Adjustment Layer"));
   new_adjustment_layer_menu->setObjectName(QStringLiteral("layerNewAdjustmentMenu"));
   populate_new_adjustment_layer_menu(new_adjustment_layer_menu, QStringLiteral("layerNew"));
+  auto* new_fill_layer_menu = layer_menu->addMenu(tr("New F&ill Layer"));
+  new_fill_layer_menu->setObjectName(QStringLiteral("layerNewFillMenu"));
+  populate_new_fill_layer_menu(new_fill_layer_menu, QStringLiteral("layerNew"));
   auto* layer_via_copy_action = layer_menu->addAction(tr("Layer Via &Copy"));
   auto* layer_via_cut_action = layer_menu->addAction(tr("Layer Via Cu&t"));
   auto* add_mask_action = layer_menu->addAction(tr("Add Layer &Mask"));
@@ -1193,6 +1196,7 @@ void MainWindow::create_actions() {
   connect(layer_up_action, &QAction::triggered, this, [this] { move_active_layer(1); });
   connect(layer_down_action, &QAction::triggered, this, [this] { move_active_layer(-1); });
   for (auto* action : {add_layer_action, add_folder_action, new_adjustment_layer_menu->menuAction(),
+                       new_fill_layer_menu->menuAction(),
                        layer_via_copy_action, layer_via_cut_action, add_mask_action, layer_clipping_mask_action_,
                        duplicate_layer_action, merge_visible_action, merge_down_action, rename_layer_action,
                        delete_layer_action, fill_layer_action, fill_background_action, clear_layer_action,
@@ -3793,6 +3797,7 @@ void MainWindow::create_actions() {
       {add_layer_action, "&New Layer"},
       {add_folder_action, "New &Folder"},
       {new_adjustment_layer_menu->menuAction(), "New &Adjustment Layer"},
+      {new_fill_layer_menu->menuAction(), "New F&ill Layer"},
       {layer_via_copy_action, "Layer Via &Copy"},
       {layer_via_cut_action, "Layer Via Cu&t"},
       {add_mask_action, "Add Layer &Mask"},

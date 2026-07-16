@@ -6,8 +6,13 @@
 #include "core/document_path.hpp"
 #include "core/vector_shape.hpp"
 
+#include <QAction>
+#include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
+#include <QDoubleSpinBox>
 #include <QSpinBox>
+#include <QTimer>
 
 #include <cmath>
 
@@ -216,6 +221,161 @@ void ui_line_shape_layer_uses_weight_and_stroke_settings() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 212)), Qt::white, 8));
 }
 
+QDialog* find_top_level_dialog(const QString& object_name) {
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == object_name) {
+      return qobject_cast<QDialog*>(widget);
+    }
+  }
+  return nullptr;
+}
+
+void ui_shape_appearance_dialog_commits_and_cancels() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(radius_spin != nullptr);
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+
+  // Commit: enable a 6 px centered stroke and check the live preview fired.
+  bool saw_live_preview = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    auto* stroke_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapeStrokeCheck"));
+    auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
+    auto* stroke_align = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeAlignCombo"));
+    CHECK(stroke_check != nullptr);
+    CHECK(stroke_width != nullptr);
+    CHECK(stroke_align != nullptr);
+    stroke_check->setChecked(true);
+    stroke_width->setValue(6.0);
+    stroke_align->setCurrentIndex(1);  // Center
+    QApplication::processEvents();
+    // Preview applies to the layer immediately: the stroke color defaults to
+    // black over the black fill, so check the model rather than pixels.
+    const auto* preview_layer = document.find_layer(*layer_id);
+    saw_live_preview = preview_layer != nullptr && preview_layer->vector_shape() != nullptr &&
+                       preview_layer->vector_shape()->stroke.enabled;
+    dialog->accept();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(saw_live_preview);
+  auto* layer = document.find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  CHECK(layer->vector_shape()->stroke.enabled);
+  CHECK(std::abs(layer->vector_shape()->stroke.width - 6.0) < 1e-9);
+  CHECK(layer->vector_shape()->stroke.alignment == patchy::VectorStrokeAlignment::Center);
+  CHECK(patchy::layer_vector_block_dirty(*layer));
+
+  // Cancel: change the width, reject, and expect no change to the model.
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
+    CHECK(stroke_width != nullptr);
+    stroke_width->setValue(20.0);
+    QApplication::processEvents();
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  layer = document.find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  CHECK(std::abs(layer->vector_shape()->stroke.width - 6.0) < 1e-9);
+}
+
+void ui_new_solid_fill_layer_uses_selection_mask() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto initial_layers = document.layers().size();
+
+  canvas->set_primary_color(QColor(200, 40, 40));
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(300, 220)));
+  QApplication::processEvents();
+  const auto selection_rect = canvas->selected_document_rect();
+  CHECK(selection_rect.has_value());
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+    CHECK(dialog != nullptr);
+    dialog->accept();
+  });
+  auto* action = window.findChild<QAction*>(QStringLiteral("layerNewSolidColorFillAction"));
+  CHECK(action != nullptr);
+  action->trigger();
+  QApplication::processEvents();
+
+  CHECK(document.layers().size() == initial_layers + 1);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  auto* layer = document.find_layer(*active);
+  CHECK(layer != nullptr);
+  CHECK(layer->name() == "Color Fill 1");
+  CHECK(patchy::layer_is_vector_shape(*layer));
+  CHECK(layer->vector_shape()->path.empty());
+  CHECK(layer->vector_shape()->fill.color == (patchy::RgbColor{200, 40, 40}));
+  CHECK(layer->mask().has_value());
+  CHECK(layer->mask()->bounds.x == selection_rect->x());
+  CHECK(layer->mask()->bounds.width == selection_rect->width());
+  CHECK(layer->mask()->default_color == 0);
+  // Inside the selection the fill shows; outside the mask hides it.
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 160)), QColor(200, 40, 40), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(50, 50)), Qt::white, 8));
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == initial_layers);
+}
+
+void ui_new_gradient_fill_layer_spans_canvas() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_primary_color(Qt::black);
+  canvas->set_secondary_color(Qt::white);
+  // The gradient flow opens the appearance dialog right after creating the
+  // layer; accept it unchanged.
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    dialog->accept();
+  });
+  auto* action = window.findChild<QAction*>(QStringLiteral("layerNewGradientFillAction"));
+  CHECK(action != nullptr);
+  action->trigger();
+  QApplication::processEvents();
+
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  auto* layer = document.find_layer(*active);
+  CHECK(layer != nullptr);
+  CHECK(layer->name() == "Gradient Fill 1");
+  CHECK(layer->vector_shape()->fill.kind == patchy::VectorFillKind::Gradient);
+  // Photoshop's 90-degree linear gradient points up: stop 0 (foreground
+  // black) fills the bottom, the background white the top.
+  const auto top = canvas_pixel(*canvas, QPoint(512, 8));
+  const auto bottom = canvas_pixel(*canvas, QPoint(512, 760));
+  CHECK(bottom.red() + 60 < top.red());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
@@ -227,5 +387,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_tool_pixels_mode_keeps_raster_commit", ui_shape_tool_pixels_mode_keeps_raster_commit},
       {"ui_line_shape_layer_uses_weight_and_stroke_settings",
        ui_line_shape_layer_uses_weight_and_stroke_settings},
+      {"ui_shape_appearance_dialog_commits_and_cancels",
+       ui_shape_appearance_dialog_commits_and_cancels},
+      {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},
+      {"ui_new_gradient_fill_layer_spans_canvas", ui_new_gradient_fill_layer_spans_canvas},
   };
 }

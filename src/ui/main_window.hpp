@@ -66,6 +66,7 @@ class QTimer;
 
 namespace patchy {
 struct LiveShapeParams;
+struct VectorFill;
 struct VectorShapeContent;
 }
 
@@ -573,6 +574,17 @@ private:
   [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
   void refresh_vector_tool_options_visibility();
   void update_vector_swatch_icons();
+  // Fill/stroke editing (main_window_vector.cpp): the live-preview appearance
+  // dialog for the active shape layer, and Layer > New Fill Layer creation
+  // (a shape layer with an empty path = the whole canvas).
+  void edit_active_shape_appearance();
+  [[nodiscard]] Layer build_fill_layer(const patchy::VectorFill& fill, const QString& name);
+  [[nodiscard]] QString unique_fill_layer_name(const QString& base);
+  void create_fill_layer(const patchy::VectorFill& fill, const QString& name, QString label);
+  void new_solid_color_fill_layer();
+  void new_gradient_fill_layer();
+  void new_pattern_fill_layer();
+  void populate_new_fill_layer_menu(QMenu* menu, const QString& object_name_prefix = {});
   void export_smart_object_contents();
   void open_smart_object_contents();
   bool commit_smart_object_child_session(DocumentSession& child_session);

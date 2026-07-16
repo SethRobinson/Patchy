@@ -11,6 +11,37 @@ Probe and fixture-generation scripts live in `local-test-fixtures/vector-probe/`
 all byte-level analysis below. Fixtures are self-authored via COM per the repo
 method rules.
 
+## Shape tools (Line / Rectangle / Ellipse)
+
+The draw tools carry a Shape | Path | Pixels mode combo (persisted
+`tools/vectorToolMode`, default Shape for Photoshop parity). Shape mode creates
+a shape layer from the released drag: the live-shape parameters (rect, rounded
+rect via the Radius option, ellipse, line with Weight) generate the path, and
+the options-bar fill color, stroke toggle/color/width become the layer's
+appearance (stroke alignment defaults to Inside, Photoshop's new-shape
+default). The Combine option (New Layer / Add / Subtract / Intersect /
+Exclude) appends the drag to the active shape layer as a new shape group with
+that operation instead. Path mode appends the same subpaths to the document
+work path. Pixels mode is the legacy raster commit, byte-identical to the
+pre-vector behavior. Mask, channel, and quick-mask edit targets always take
+the raster path, so shapes remain usable as mask-painting tools.
+
+## Appearance editing and fill layers
+
+Double-clicking a shape layer's row (or an imported fill layer's) opens the
+Shape Appearance dialog: fill kind (none / solid / gradient / pattern with
+library presets, gradient style/angle/scale/reverse, pattern scale) and the
+full stroke set (width, solid paint, inside/center/outside alignment, caps,
+joins, dash presets plus a Custom entry preserving PSD-authored dash arrays).
+Edits preview live on the layer and restore on cancel; a gradient or pattern
+stroke paint read from a PSD is kept untouched unless the stroke color is
+explicitly re-picked. Layer > New Fill Layer creates Solid Color (live color
+picker), Gradient (foreground-to-background linear, then the dialog), and
+Pattern fill layers as shape layers with an empty path (= whole canvas); an
+active selection becomes the new layer's raster mask, Photoshop-style. Library
+patterns adopt into the document PatternStore on use so the rasterizer and
+PSD writer resolve them.
+
 ## Photoshop file encodings (observed, PS 27.8 / July 2026)
 
 ### Shape and fill layer structure

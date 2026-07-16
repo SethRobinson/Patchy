@@ -12660,6 +12660,23 @@ Clipped to the layer below</source>
     <message><source>Work Path</source><translation>作業用パス</translation></message>
     <message><source>Created shape layer %1.</source><translation>シェイプレイヤー %1 を作成しました。</translation></message>
     <message><source>Added the shape to the work path.</source><translation>シェイプを作業用パスに追加しました。</translation></message>
+    <message><source>Select a shape layer to edit its appearance</source><translation>外観を編集するシェイプレイヤーを選択してください</translation></message>
+    <message><source>This shape layer&apos;s vector data is preserved but can&apos;t be edited.</source><translation>このシェイプレイヤーのベクトルデータは保持されていますが編集できません。</translation></message>
+    <message><source>Cancelled shape appearance</source><translation>シェイプの外観をキャンセルしました</translation></message>
+    <message><source>Shape appearance</source><translation>シェイプの外観</translation></message>
+    <message><source>Updated the shape appearance</source><translation>シェイプの外観を更新しました</translation></message>
+    <message><source>Color Fill %1</source><translation>カラー塗りつぶし %1</translation></message>
+    <message><source>Gradient Fill %1</source><translation>グラデーション塗りつぶし %1</translation></message>
+    <message><source>Pattern Fill %1</source><translation>パターン塗りつぶし %1</translation></message>
+    <message><source>Created fill layer %1.</source><translation>塗りつぶしレイヤー %1 を作成しました。</translation></message>
+    <message><source>New fill layer</source><translation>新規塗りつぶしレイヤー</translation></message>
+    <message><source>Cancelled fill layer</source><translation>塗りつぶしレイヤーをキャンセルしました</translation></message>
+    <message><source>New Fill Layer</source><translation>新規塗りつぶしレイヤー</translation></message>
+    <message><source>No patterns are available.</source><translation>使用できるパターンがありません。</translation></message>
+    <message><source>New F&amp;ill Layer</source><translation>新規塗りつぶしレイヤー(&amp;I)</translation></message>
+    <message><source>&amp;Solid Color...</source><translation>ベタ塗り(&amp;S)...</translation></message>
+    <message><source>&amp;Gradient...</source><translation>グラデーション(&amp;G)...</translation></message>
+    <message><source>&amp;Pattern...</source><translation>パターン(&amp;P)...</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -13295,6 +13312,27 @@ Clipped to the layer below</source>
     <message><source>Mosaic</source><translation>モザイク</translation></message>
     <message><source> (Cell Size %1 px)</source><translation> (セルサイズ %1 px)</translation></message>
     <message><source> (Angle %1 degrees, Height %2 px, Amount %3%)</source><translation> (角度 %1 度、高さ %2 px、量 %3%)</translation></message>
+    <message><source>Shape Appearance</source><translation>シェイプの外観</translation></message>
+    <message><source>Type:</source><translation>種類:</translation></message>
+    <message><source>No Fill</source><translation>塗りなし</translation></message>
+    <message><source>Solid Color</source><translation>ベタ塗り</translation></message>
+    <message><source>Color...</source><translation>カラー...</translation></message>
+    <message><source>Color:</source><translation>カラー:</translation></message>
+    <message><source>Gradient:</source><translation>グラデーション:</translation></message>
+    <message><source>Angle:</source><translation>角度:</translation></message>
+    <message><source>Pattern:</source><translation>パターン:</translation></message>
+    <message><source>Embedded pattern</source><translation>埋め込みパターン</translation></message>
+    <message><source>Stroke the shape outline</source><translation>シェイプの輪郭に線を描く</translation></message>
+    <message><source>Align:</source><translation>位置:</translation></message>
+    <message><source>Caps:</source><translation>先端:</translation></message>
+    <message><source>Butt</source><translation>バット</translation></message>
+    <message><source>Corners:</source><translation>角:</translation></message>
+    <message><source>Miter</source><translation>マイター</translation></message>
+    <message><source>Dashes:</source><translation>破線:</translation></message>
+    <message><source>Dashed</source><translation>破線</translation></message>
+    <message><source>Dotted</source><translation>点線</translation></message>
+    <message><source>Shape Fill Color</source><translation>シェイプの塗りの色</translation></message>
+    <message><source>Shape Stroke Color</source><translation>シェイプの線の色</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

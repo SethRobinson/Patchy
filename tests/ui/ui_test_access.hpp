@@ -49,6 +49,10 @@ public:
     window.request_warp_text_dialog();
   }
 
+  static void edit_active_shape_appearance(MainWindow& window) {
+    window.edit_active_shape_appearance();
+  }
+
   static ImageSaveOptions image_save_defaults(MainWindow& window) {
     return window.image_save_defaults_for_document();
   }

@@ -627,6 +627,8 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window_theme.cpp
       src/ui/main_window_tool_options.cpp
       src/ui/main_window_vector.cpp
+      src/ui/shape_appearance_dialog.hpp
+      src/ui/shape_appearance_dialog.cpp
       src/ui/measurement_units.hpp
       src/ui/measurement_units.cpp
       src/ui/new_document_dialog.hpp
