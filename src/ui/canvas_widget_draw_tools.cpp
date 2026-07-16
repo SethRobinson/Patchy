@@ -132,6 +132,19 @@ int CanvasWidget::shape_corner_radius() const noexcept {
   return shape_corner_radius_;
 }
 
+void CanvasWidget::set_vector_tool_mode(VectorToolMode mode) noexcept {
+  vector_tool_mode_ = mode;
+}
+
+VectorToolMode CanvasWidget::vector_tool_mode() const noexcept {
+  return vector_tool_mode_;
+}
+
+void CanvasWidget::set_vector_shape_drawn_callback(
+    std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> callback) {
+  vector_shape_drawn_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_fill_opacity(int opacity) noexcept {
   fill_opacity_ = std::clamp(opacity, 1, 100);
 }

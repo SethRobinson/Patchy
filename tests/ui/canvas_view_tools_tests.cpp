@@ -871,6 +871,9 @@ void ui_filled_shape_preview_clears_after_commit() {
   show_window(window);
   auto* canvas = require_canvas(window);
   canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
+  // This test exercises the legacy raster commit; Shape mode (the default)
+  // would route the drag to a new shape layer instead.
+  canvas->set_vector_tool_mode(patchy::ui::VectorToolMode::Pixels);
   canvas->set_primary_color(Qt::black);
   canvas->set_brush_size(96);
   canvas->set_fill_shapes(true);

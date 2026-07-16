@@ -731,12 +731,18 @@ void ui_marquee_fixed_size_and_ratio_options_work() {
 
 void ui_shape_fill_and_corner_radius_apply_to_new_documents() {
   SettingsValueRestorer saved_shape_corner_radius(QStringLiteral("tools/shapeCornerRadius"));
+  SettingsValueRestorer saved_vector_mode(QStringLiteral("tools/vectorToolMode"));
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
   require_action_by_text(window, QStringLiteral("Rect"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+  // This test exercises the legacy raster commit (fill/softness/radius are
+  // Pixels-mode options); Shape mode would create a shape layer instead.
+  auto* vector_mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(vector_mode != nullptr);
+  vector_mode->setCurrentIndex(2);
 
   auto* fill_check = window.findChild<QCheckBox*>(QStringLiteral("shapeFillCheck"));
   auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
@@ -768,12 +774,17 @@ void ui_shape_fill_and_corner_radius_apply_to_new_documents() {
 }
 
 void ui_shape_tool_fixed_size_and_ratio_options_work() {
+  SettingsValueRestorer saved_vector_mode(QStringLiteral("tools/vectorToolMode"));
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
   require_action_by_text(window, QStringLiteral("Rect"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+  // Raster stamping is Pixels-mode behavior (Shape mode would add layers).
+  auto* vector_mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(vector_mode != nullptr);
+  vector_mode->setCurrentIndex(2);
 
   auto* style = window.findChild<QComboBox*>(QStringLiteral("shapeStyleCombo"));
   auto* width = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedWidthSpin"));

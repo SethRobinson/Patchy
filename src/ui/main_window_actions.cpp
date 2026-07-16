@@ -2563,11 +2563,14 @@ void MainWindow::create_actions() {
       {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
        CanvasTool::Eraser});
 
-  add_option_label(tr("Size:"),
-                   {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
-                    CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-                    CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
-                    CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  // The raster brush controls double as the shape tools' Pixels-mode options;
+  // refresh_vector_tool_options_visibility hides them in the vector modes.
+  vector_pixel_only_option_widgets_.push_back(add_option_label(
+      tr("Size:"),
+      {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+       CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+       CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
+       CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
   auto* brush_size = new QSpinBox(toolbar);
   brush_size->setObjectName(QStringLiteral("brushSizeSpin"));
   brush_size->setRange(1, kMaxBrushSize);
@@ -2589,9 +2592,10 @@ void MainWindow::create_actions() {
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
-  add_option_label(tr("Opacity:"),
-                   {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
-                    CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  vector_pixel_only_option_widgets_.push_back(add_option_label(
+      tr("Opacity:"),
+      {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+       CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
   auto* brush_opacity = new QSpinBox(toolbar);
   brush_opacity->setObjectName(QStringLiteral("brushOpacitySpin"));
   brush_opacity->setRange(1, 100);
@@ -2610,11 +2614,12 @@ void MainWindow::create_actions() {
   add_option_widget(brush_opacity_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
-  add_option_label(tr("Soft:"),
-                   {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
-                    CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-                    CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
-                    CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  vector_pixel_only_option_widgets_.push_back(add_option_label(
+      tr("Soft:"),
+      {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+       CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+       CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
+       CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
   auto* brush_softness = new QSpinBox(toolbar);
   brush_softness->setObjectName(QStringLiteral("brushSoftnessSpin"));
   brush_softness->setRange(0, 100);
@@ -2637,6 +2642,11 @@ void MainWindow::create_actions() {
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  for (auto* raster_only :
+       std::initializer_list<QWidget*>{brush_size, brush_size_slider, brush_opacity,
+                                       brush_opacity_slider, brush_softness, brush_softness_slider}) {
+    vector_pixel_only_option_widgets_.push_back(raster_only);
+  }
   connect(brush_size, &QSpinBox::valueChanged, brush_size_slider, &QSlider::setValue);
   connect(brush_size_slider, &QSlider::valueChanged, brush_size, &QSpinBox::setValue);
   connect(brush_size, &QSpinBox::valueChanged, this, [this](int value) {
@@ -3307,9 +3317,154 @@ void MainWindow::create_actions() {
     }
   });
 
+  // Shape | Path | Pixels for the vector-capable draw tools (Shape is the
+  // Photoshop-parity default; Pixels is the legacy raster behavior). The
+  // vector appearance/combine widgets below register for the same tools and
+  // refresh_vector_tool_options_visibility() refines them per mode.
+  add_option_label(tr("Mode:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  vector_mode_combo_ = new QComboBox(toolbar);
+  vector_mode_combo_->setObjectName(QStringLiteral("vectorModeCombo"));
+  vector_mode_combo_->addItems({tr("Shape"), tr("Path"), tr("Pixels")});
+  vector_mode_combo_->setCurrentIndex(0);
+  vector_mode_combo_->setFixedWidth(76);
+  vector_mode_combo_->setToolTip(
+      tr("What the shape tools create: a shape layer, work-path subpaths, or raster pixels"));
+  QPointer<QComboBox> vector_mode_combo_pointer(vector_mode_combo_);
+  register_retranslation([vector_mode_combo_pointer] {
+    if (vector_mode_combo_pointer == nullptr || vector_mode_combo_pointer->count() < 3) {
+      return;
+    }
+    QSignalBlocker blocker(vector_mode_combo_pointer);
+    // MainWindow::tr (not QObject::tr): "Pixels"/"Subtract" exist in the
+    // QObject context with unrelated meanings (color mode, blend mode).
+    vector_mode_combo_pointer->setItemText(0, MainWindow::tr("Shape"));
+    vector_mode_combo_pointer->setItemText(1, MainWindow::tr("Path"));
+    vector_mode_combo_pointer->setItemText(2, MainWindow::tr("Pixels"));
+  });
+  add_option_widget(vector_mode_combo_, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  connect(vector_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    current_vector_tool_mode_ = index == 1   ? VectorToolMode::Path
+                                : index == 2 ? VectorToolMode::Pixels
+                                             : VectorToolMode::Shape;
+    if (canvas_ != nullptr) {
+      canvas_->set_vector_tool_mode(current_vector_tool_mode_);
+      schedule_save_tool_settings();
+    }
+    refresh_options_bar();
+  });
+
+  vector_shape_mode_option_widgets_.push_back(
+      add_option_label(tr("Fill:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
+  vector_fill_swatch_button_ = new QToolButton(toolbar);
+  vector_fill_swatch_button_->setObjectName(QStringLiteral("vectorFillSwatchButton"));
+  vector_fill_swatch_button_->setToolTip(tr("Shape fill color"));
+  vector_fill_swatch_button_->setAutoRaise(true);
+  vector_fill_swatch_button_->setProperty("optionsBarButton", true);
+  add_option_widget(vector_fill_swatch_button_,
+                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  vector_shape_mode_option_widgets_.push_back(vector_fill_swatch_button_);
+  connect(vector_fill_swatch_button_, &QToolButton::clicked, this, [this] {
+    const auto chosen = request_patchy_color(this, current_vector_fill_color_, tr("Shape Fill Color"));
+    if (chosen.has_value()) {
+      current_vector_fill_color_ = *chosen;
+      update_vector_swatch_icons();
+      schedule_save_tool_settings();
+    }
+  });
+
+  auto* vector_stroke_check = new CheckGlyphBox(tr("Stroke"), toolbar);
+  vector_stroke_check->setObjectName(QStringLiteral("vectorStrokeCheck"));
+  vector_stroke_check->setChecked(current_vector_stroke_enabled_);
+  vector_stroke_check->setToolTip(tr("Stroke the shape outline"));
+  add_option_widget(vector_stroke_check, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  vector_shape_mode_option_widgets_.push_back(vector_stroke_check);
+  connect(vector_stroke_check, &QCheckBox::toggled, this, [this](bool checked) {
+    current_vector_stroke_enabled_ = checked;
+    schedule_save_tool_settings();
+  });
+
+  vector_stroke_swatch_button_ = new QToolButton(toolbar);
+  vector_stroke_swatch_button_->setObjectName(QStringLiteral("vectorStrokeSwatchButton"));
+  vector_stroke_swatch_button_->setToolTip(tr("Shape stroke color"));
+  vector_stroke_swatch_button_->setAutoRaise(true);
+  vector_stroke_swatch_button_->setProperty("optionsBarButton", true);
+  add_option_widget(vector_stroke_swatch_button_,
+                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  vector_shape_mode_option_widgets_.push_back(vector_stroke_swatch_button_);
+  connect(vector_stroke_swatch_button_, &QToolButton::clicked, this, [this] {
+    const auto chosen =
+        request_patchy_color(this, current_vector_stroke_color_, tr("Shape Stroke Color"));
+    if (chosen.has_value()) {
+      current_vector_stroke_color_ = *chosen;
+      update_vector_swatch_icons();
+      schedule_save_tool_settings();
+    }
+  });
+
+  auto* vector_stroke_width = new QDoubleSpinBox(toolbar);
+  vector_stroke_width->setObjectName(QStringLiteral("vectorStrokeWidthSpin"));
+  vector_stroke_width->setRange(0.1, 1000.0);
+  vector_stroke_width->setDecimals(1);
+  vector_stroke_width->setValue(current_vector_stroke_width_);
+  vector_stroke_width->setSuffix(QStringLiteral(" px"));
+  vector_stroke_width->setToolTip(tr("Stroke width"));
+  configure_toolbar_spinbox(vector_stroke_width, 64);
+  add_option_widget(vector_stroke_width, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  vector_shape_mode_option_widgets_.push_back(vector_stroke_width);
+  connect(vector_stroke_width, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+    current_vector_stroke_width_ = value;
+    schedule_save_tool_settings();
+  });
+
+  vector_vector_mode_option_widgets_.push_back(
+      add_option_label(tr("Weight:"), {CanvasTool::Line}));
+  auto* vector_line_weight = new QSpinBox(toolbar);
+  vector_line_weight->setObjectName(QStringLiteral("vectorLineWeightSpin"));
+  vector_line_weight->setRange(1, 1000);
+  vector_line_weight->setValue(current_vector_line_weight_);
+  vector_line_weight->setSuffix(QStringLiteral(" px"));
+  vector_line_weight->setToolTip(tr("Line thickness"));
+  configure_toolbar_spinbox(vector_line_weight, 58);
+  add_option_widget(vector_line_weight, {CanvasTool::Line});
+  vector_vector_mode_option_widgets_.push_back(vector_line_weight);
+  connect(vector_line_weight, &QSpinBox::valueChanged, this, [this](int value) {
+    current_vector_line_weight_ = value;
+    schedule_save_tool_settings();
+  });
+
+  vector_vector_mode_option_widgets_.push_back(add_option_label(
+      tr("Combine:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
+  auto* vector_combine_combo = new QComboBox(toolbar);
+  vector_combine_combo->setObjectName(QStringLiteral("vectorCombineCombo"));
+  vector_combine_combo->addItems(
+      {tr("New Layer"), tr("Add"), tr("Subtract"), tr("Intersect"), tr("Exclude")});
+  vector_combine_combo->setCurrentIndex(0);
+  vector_combine_combo->setFixedWidth(96);
+  vector_combine_combo->setToolTip(
+      tr("How the next shape combines with the active shape layer or work path"));
+  QPointer<QComboBox> vector_combine_combo_pointer(vector_combine_combo);
+  register_retranslation([vector_combine_combo_pointer] {
+    if (vector_combine_combo_pointer == nullptr || vector_combine_combo_pointer->count() < 5) {
+      return;
+    }
+    QSignalBlocker blocker(vector_combine_combo_pointer);
+    vector_combine_combo_pointer->setItemText(0, MainWindow::tr("New Layer"));
+    vector_combine_combo_pointer->setItemText(1, MainWindow::tr("Add"));
+    vector_combine_combo_pointer->setItemText(2, MainWindow::tr("Subtract"));
+    vector_combine_combo_pointer->setItemText(3, MainWindow::tr("Intersect"));
+    vector_combine_combo_pointer->setItemText(4, MainWindow::tr("Exclude"));
+  });
+  add_option_widget(vector_combine_combo,
+                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  vector_vector_mode_option_widgets_.push_back(vector_combine_combo);
+  connect(vector_combine_combo, &QComboBox::currentIndexChanged, this,
+          [this](int index) { current_vector_combine_index_ = index; });
+  update_vector_swatch_icons();
+
   auto* fill_shapes = new CheckGlyphBox(tr("Fill"), toolbar);
   fill_shapes->setObjectName(QStringLiteral("shapeFillCheck"));
   add_option_widget(fill_shapes, {CanvasTool::Rectangle, CanvasTool::Ellipse});
+  vector_pixel_only_option_widgets_.push_back(fill_shapes);
   connect(fill_shapes, &QCheckBox::toggled, this, [this](bool checked) {
     current_fill_shapes_ = checked;
     if (canvas_ != nullptr) {

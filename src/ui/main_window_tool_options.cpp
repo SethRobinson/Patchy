@@ -1700,6 +1700,55 @@ void MainWindow::load_tool_settings() {
     QSignalBlocker blocker(shape_corner_radius);
     shape_corner_radius->setValue(canvas_->shape_corner_radius());
   }
+  const auto vector_mode_name =
+      settings.value(QStringLiteral("tools/vectorToolMode"), QStringLiteral("shape")).toString();
+  current_vector_tool_mode_ = vector_mode_name == QStringLiteral("path")     ? VectorToolMode::Path
+                              : vector_mode_name == QStringLiteral("pixels") ? VectorToolMode::Pixels
+                                                                             : VectorToolMode::Shape;
+  canvas_->set_vector_tool_mode(current_vector_tool_mode_);
+  if (vector_mode_combo_ != nullptr) {
+    QSignalBlocker blocker(vector_mode_combo_);
+    vector_mode_combo_->setCurrentIndex(current_vector_tool_mode_ == VectorToolMode::Path     ? 1
+                                        : current_vector_tool_mode_ == VectorToolMode::Pixels ? 2
+                                                                                              : 0);
+  }
+  if (const auto fill_color = QColor(
+          settings.value(QStringLiteral("tools/vectorFillColor"), current_vector_fill_color_.name())
+              .toString());
+      fill_color.isValid()) {
+    current_vector_fill_color_ = fill_color;
+  }
+  if (const auto stroke_color =
+          QColor(settings
+                     .value(QStringLiteral("tools/vectorStrokeColor"), current_vector_stroke_color_.name())
+                     .toString());
+      stroke_color.isValid()) {
+    current_vector_stroke_color_ = stroke_color;
+  }
+  current_vector_stroke_enabled_ =
+      settings.value(QStringLiteral("tools/vectorStrokeEnabled"), current_vector_stroke_enabled_).toBool();
+  current_vector_stroke_width_ = std::clamp(
+      settings.value(QStringLiteral("tools/vectorStrokeWidth"), current_vector_stroke_width_).toDouble(),
+      0.1, 1000.0);
+  current_vector_line_weight_ = std::clamp(
+      settings.value(QStringLiteral("tools/vectorLineWeight"), current_vector_line_weight_).toInt(), 1,
+      1000);
+  if (auto* stroke_check = findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
+      stroke_check != nullptr) {
+    QSignalBlocker blocker(stroke_check);
+    stroke_check->setChecked(current_vector_stroke_enabled_);
+  }
+  if (auto* stroke_width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+      stroke_width != nullptr) {
+    QSignalBlocker blocker(stroke_width);
+    stroke_width->setValue(current_vector_stroke_width_);
+  }
+  if (auto* line_weight = findChild<QSpinBox*>(QStringLiteral("vectorLineWeightSpin"));
+      line_weight != nullptr) {
+    QSignalBlocker blocker(line_weight);
+    line_weight->setValue(current_vector_line_weight_);
+  }
+  update_vector_swatch_icons();
   canvas_->set_fill_opacity(settings.value(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity()).toInt());
   canvas_->set_fill_softness(settings.value(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness()).toInt());
   const auto sync_fill_widget = [this](const QString& spin_name, const QString& slider_name, int value) {
@@ -1797,6 +1846,17 @@ void MainWindow::save_tool_settings() const {
                         : QStringLiteral("desaturate"));
   settings.setValue(QStringLiteral("tools/spongeVibrance"), current_sponge_vibrance_);
   settings.setValue(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius());
+  settings.setValue(QStringLiteral("tools/vectorToolMode"),
+                    current_vector_tool_mode_ == VectorToolMode::Path     ? QStringLiteral("path")
+                    : current_vector_tool_mode_ == VectorToolMode::Pixels ? QStringLiteral("pixels")
+                                                                          : QStringLiteral("shape"));
+  settings.setValue(QStringLiteral("tools/vectorFillColor"),
+                    current_vector_fill_color_.name(QColor::HexRgb));
+  settings.setValue(QStringLiteral("tools/vectorStrokeColor"),
+                    current_vector_stroke_color_.name(QColor::HexRgb));
+  settings.setValue(QStringLiteral("tools/vectorStrokeEnabled"), current_vector_stroke_enabled_);
+  settings.setValue(QStringLiteral("tools/vectorStrokeWidth"), current_vector_stroke_width_);
+  settings.setValue(QStringLiteral("tools/vectorLineWeight"), current_vector_line_weight_);
   settings.setValue(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity());
   settings.setValue(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness());
   settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(canvas_->gradient_method()));
@@ -2059,6 +2119,7 @@ void MainWindow::refresh_options_bar() {
       warp_bend_spin_->setValue(canvas_->warp_style_preset_value());
     }
   }
+  refresh_vector_tool_options_visibility();
   if (options_flow_container_ != nullptr) {
     // Visibility changes alter how many controls there are, so recompute the
     // wrapped height and let the toolbar grow or shrink accordingly.

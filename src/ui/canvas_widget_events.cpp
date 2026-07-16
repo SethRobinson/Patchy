@@ -17,6 +17,7 @@
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
+#include "core/vector_shape.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
@@ -1025,7 +1026,16 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (tool_ == CanvasTool::Gradient || tool_ == CanvasTool::Line || tool_ == CanvasTool::Rectangle ||
       tool_ == CanvasTool::Ellipse) {
-    if (begin_edit(tool_ == CanvasTool::Gradient ? tr("Gradient") : tr("Shape"))) {
+    // A Shape/Path-mode drag never edits the active layer's pixels (the
+    // release routes to MainWindow, which pushes its own undo entry), so it
+    // skips begin_edit; that also lets it start while a shape/text/smart
+    // layer is active, where the raster guard would refuse.
+    const bool vector_shape_drag = tool_ != CanvasTool::Gradient &&
+                                   vector_tool_mode_ != VectorToolMode::Pixels &&
+                                   vector_shape_drawn_callback_ && !quick_mask_active_ &&
+                                   layer_edit_target_ == LayerEditTarget::Content;
+    if (vector_shape_drag ||
+        begin_edit(tool_ == CanvasTool::Gradient ? tr("Gradient") : tr("Shape"))) {
       const auto snapped_point = snapped_document_point(document_point);
       clear_brush_stroke_tracking();
       drawing_shape_ = true;
@@ -1952,6 +1962,25 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       const auto rect = shape_drag_rect(shape_start_, shape_current_);
       shape_from = rect.topLeft();
       shape_end = rect.bottomRight();
+    }
+    // Shape/Path mode hands the drag geometry to MainWindow (shape layer or
+    // work path) instead of painting; mask/channel/quick-mask targets keep the
+    // raster behavior so the drag still edits the targeted plane.
+    if ((tool_ == CanvasTool::Line || tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse) &&
+        vector_tool_mode_ != VectorToolMode::Pixels && vector_shape_drawn_callback_ &&
+        !quick_mask_active_ && layer_edit_target_ == LayerEditTarget::Content) {
+      drawing_shape_ = false;
+      clear_brush_stroke_tracking();
+      update();
+      const auto kind = tool_ == CanvasTool::Line        ? patchy::LiveShapeKind::Line
+                        : tool_ == CanvasTool::Rectangle ? patchy::LiveShapeKind::Rectangle
+                                                         : patchy::LiveShapeKind::Ellipse;
+      const auto corner_rect = normalized_rect(shape_from, shape_end);
+      // Edge semantics: the drag corners are edge coordinates, so the vector
+      // width is right - left (not QRect's inclusive-pixel width).
+      const QRectF bounds(QPointF(corner_rect.topLeft()), QPointF(corner_rect.bottomRight()));
+      vector_shape_drawn_callback_(kind, bounds, QPointF(shape_start_), QPointF(shape_current_));
+      return;
     }
     QRect preview_rect = normalized_rect(shape_from, shape_end);
     if (document_ != nullptr) {

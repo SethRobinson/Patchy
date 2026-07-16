@@ -327,6 +327,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_shape_corner_radius(current_shape_corner_radius_);
   session->canvas->set_shape_style(current_shape_style_);
   session->canvas->set_shape_fixed_size(current_shape_width_, current_shape_height_);
+  session->canvas->set_vector_tool_mode(current_vector_tool_mode_);
   apply_canvas_aid_settings(session->canvas);
 
   auto* canvas = session->canvas;

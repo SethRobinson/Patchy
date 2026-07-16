@@ -43,6 +43,10 @@ class QEvent;
 class QResizeEvent;
 class QTabletEvent;
 
+namespace patchy {
+enum class LiveShapeKind : std::uint8_t;
+}
+
 namespace patchy::ui {
 
 inline constexpr int kMaxBrushSize = 1024;
@@ -76,6 +80,16 @@ enum class CanvasTool {
   SharpenBrush,
   PatternStamp,
   MixerBrush
+};
+
+// What the Line/Rectangle/Ellipse draw tools produce: a vector shape layer
+// (Photoshop's default), subpaths on the document work path, or the legacy
+// raster pixels. Shape and Path drags hand the geometry to MainWindow through
+// vector_shape_drawn_callback_ instead of painting.
+enum class VectorToolMode {
+  Shape,
+  Path,
+  Pixels
 };
 
 // Action that can be bound to a pen barrel/side button. These are the actions
@@ -452,6 +466,13 @@ public:
   [[nodiscard]] MarqueeStyle shape_style() const noexcept;
   void set_shape_fixed_size(int width, int height) noexcept;
   [[nodiscard]] QSize shape_fixed_size() const noexcept;
+  // Shape | Path | Pixels for the Line/Rectangle/Ellipse draw tools. Vector
+  // modes route the released drag to vector_shape_drawn_callback_ (falling
+  // back to raster while a mask/channel/quick-mask target is being edited).
+  void set_vector_tool_mode(VectorToolMode mode) noexcept;
+  [[nodiscard]] VectorToolMode vector_tool_mode() const noexcept;
+  void set_vector_shape_drawn_callback(
+      std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> callback);
   // Rounded-corner radius for the rectangular marquee (0 = sharp corners).
   void set_marquee_corner_radius(int pixels) noexcept;
   [[nodiscard]] int marquee_corner_radius() const noexcept;
@@ -1139,6 +1160,8 @@ private:
   bool shape_from_center_{false};
   MarqueeStyle shape_style_{MarqueeStyle::Normal};
   QSize shape_fixed_size_{1024, 768};
+  VectorToolMode vector_tool_mode_{VectorToolMode::Shape};
+  std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> vector_shape_drawn_callback_;
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};

@@ -199,6 +199,7 @@ int main(int argc, char* argv[]) {
            selection_engines_tests,
            misc_visuals_outline_stress_tests,
            float_window_tests,
+           vector_shape_tool_tests,
            readme_screenshot_tests,
        }) {
     auto group = registration();

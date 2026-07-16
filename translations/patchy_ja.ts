@@ -12631,6 +12631,35 @@ Clipped to the layer below</source>
     <message><source>Applying Liquify...</source><translation>ゆがみを適用しています...</translation></message>
     <message><source>Liquify</source><translation>ゆがみ</translation></message>
     <message><source>Applied Liquify</source><translation>ゆがみを適用しました</translation></message>
+    <message><source>Shape</source><translation>シェイプ</translation></message>
+    <message><source>Path</source><translation>パス</translation></message>
+    <message><source>Pixels</source><translation>ピクセル</translation></message>
+    <message><source>What the shape tools create: a shape layer, work-path subpaths, or raster pixels</source><translation>シェイプツールが作成する対象: シェイプレイヤー、作業用パスのサブパス、またはラスターピクセル</translation></message>
+    <message><source>Fill:</source><translation>塗り:</translation></message>
+    <message><source>Shape fill color</source><translation>シェイプの塗りの色</translation></message>
+    <message><source>Shape Fill Color</source><translation>シェイプの塗りの色</translation></message>
+    <message><source>Stroke</source><translation>線</translation></message>
+    <message><source>Stroke the shape outline</source><translation>シェイプの輪郭に線を描きます</translation></message>
+    <message><source>Shape stroke color</source><translation>シェイプの線の色</translation></message>
+    <message><source>Shape Stroke Color</source><translation>シェイプの線の色</translation></message>
+    <message><source>Stroke width</source><translation>線の太さ</translation></message>
+    <message><source>Weight:</source><translation>太さ:</translation></message>
+    <message><source>Line thickness</source><translation>ラインの太さ</translation></message>
+    <message><source>Combine:</source><translation>結合:</translation></message>
+    <message><source>How the next shape combines with the active shape layer or work path</source><translation>次のシェイプをアクティブなシェイプレイヤーまたは作業用パスとどのように結合するか</translation></message>
+    <message><source>Add</source><translation>結合</translation></message>
+    <message><source>Subtract</source><translation>型抜き</translation></message>
+    <message><source>Intersect</source><translation>交差</translation></message>
+    <message><source>Exclude</source><translation>中マド</translation></message>
+    <message><source>Rectangle %1</source><translation>長方形 %1</translation></message>
+    <message><source>Ellipse %1</source><translation>楕円形 %1</translation></message>
+    <message><source>Line %1</source><translation>ライン %1</translation></message>
+    <message><source>Edit shape</source><translation>シェイプを編集</translation></message>
+    <message><source>New shape layer</source><translation>新規シェイプレイヤー</translation></message>
+    <message><source>Add to work path</source><translation>作業用パスに追加</translation></message>
+    <message><source>Work Path</source><translation>作業用パス</translation></message>
+    <message><source>Created shape layer %1.</source><translation>シェイプレイヤー %1 を作成しました。</translation></message>
+    <message><source>Added the shape to the work path.</source><translation>シェイプを作業用パスに追加しました。</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>

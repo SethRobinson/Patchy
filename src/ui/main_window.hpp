@@ -64,6 +64,11 @@ class QToolBar;
 class QToolButton;
 class QTimer;
 
+namespace patchy {
+struct LiveShapeParams;
+struct VectorShapeContent;
+}
+
 namespace patchy::ui {
 
 struct HueSaturationSettings;
@@ -559,6 +564,15 @@ private:
   void refresh_layer_style_action_states();
   void rasterize_active_layers();
   void rasterize_active_layer_styles();
+  // Vector shape tools (main_window_vector.cpp): a released Shape/Path-mode
+  // drag arrives here with edge-coordinate bounds (Line passes its endpoints).
+  void handle_vector_shape_drawn(patchy::LiveShapeKind kind, QRectF bounds, QPointF line_start,
+                                 QPointF line_end);
+  void create_shape_layer_from_drag(const patchy::LiveShapeParams& params);
+  void add_drag_to_work_path(const patchy::LiveShapeParams& params);
+  [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
+  void refresh_vector_tool_options_visibility();
+  void update_vector_swatch_icons();
   void export_smart_object_contents();
   void open_smart_object_contents();
   bool commit_smart_object_child_session(DocumentSession& child_session);
@@ -1080,6 +1094,25 @@ private:
   CanvasWidget::MarqueeStyle current_shape_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_shape_width_{1024};
   int current_shape_height_{768};
+  VectorToolMode current_vector_tool_mode_{VectorToolMode::Shape};
+  QColor current_vector_fill_color_{Qt::black};
+  bool current_vector_stroke_enabled_{false};
+  QColor current_vector_stroke_color_{Qt::black};
+  double current_vector_stroke_width_{3.0};
+  int current_vector_line_weight_{4};
+  // 0 = New Layer; 1..4 = PathCombineOp Add / Subtract / Intersect / Xor
+  // applied to the active shape layer or work path (session-only).
+  int current_vector_combine_index_{0};
+  QComboBox* vector_mode_combo_{nullptr};
+  QToolButton* vector_fill_swatch_button_{nullptr};
+  QToolButton* vector_stroke_swatch_button_{nullptr};
+  // Per-mode refinement of the shape tools' options bar, applied after the
+  // per-tool pass in refresh_options_bar: raster-only controls hide in the
+  // vector modes, appearance controls show only in Shape mode, combine/weight
+  // in both vector modes.
+  std::vector<QWidget*> vector_pixel_only_option_widgets_;
+  std::vector<QWidget*> vector_shape_mode_option_widgets_;
+  std::vector<QWidget*> vector_vector_mode_option_widgets_;
   int current_healing_diffusion_{5};
   QString current_pattern_stamp_pattern_id_;
   bool current_pattern_stamp_aligned_{true};

@@ -626,6 +626,7 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window_stress_test.cpp
       src/ui/main_window_theme.cpp
       src/ui/main_window_tool_options.cpp
+      src/ui/main_window_vector.cpp
       src/ui/measurement_units.hpp
       src/ui/measurement_units.cpp
       src/ui/new_document_dialog.hpp
@@ -879,6 +880,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/selection_engines_tests.cpp
       tests/ui/misc_visuals_outline_stress_tests.cpp
       tests/ui/float_window_tests.cpp
+      tests/ui/vector_shape_tool_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
     )
     # The split TUs live in tests/ui/ but repeat the historical monolith include

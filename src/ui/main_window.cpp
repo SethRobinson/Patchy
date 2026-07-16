@@ -5649,6 +5649,14 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_text_requested_callback([this](QPoint point, QRect requested_text_box) {
     add_text_at(point, requested_text_box);
   });
+  canvas->set_vector_tool_mode(current_vector_tool_mode_);
+  canvas->set_vector_shape_drawn_callback(
+      [this, canvas](patchy::LiveShapeKind kind, QRectF bounds, QPointF line_start, QPointF line_end) {
+        if (canvas != canvas_) {
+          return;
+        }
+        handle_vector_shape_drawn(kind, bounds, line_start, line_end);
+      });
   canvas->set_active_layer_changed_callback([this, canvas](LayerId layer_id) {
     if (canvas != canvas_) {
       return;
