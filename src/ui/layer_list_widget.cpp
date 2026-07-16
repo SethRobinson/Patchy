@@ -748,6 +748,11 @@ std::optional<LayerCtrlClickTarget> LayerListWidget::ctrl_click_target(QListWidg
       contains_global_point(mask_thumbnail)) {
     return LayerCtrlClickTarget::MaskThumbnail;
   }
+  if (auto* vector_mask_thumbnail =
+          row->findChild<QWidget*>(QStringLiteral("layerVectorMaskThumbnail"));
+      contains_global_point(vector_mask_thumbnail)) {
+    return LayerCtrlClickTarget::VectorMaskThumbnail;
+  }
   if (auto* smart_filter_mask_thumbnail =
           row->findChild<QWidget*>(QStringLiteral("layerSmartFilterMaskThumbnail"));
       contains_global_point(smart_filter_mask_thumbnail)) {

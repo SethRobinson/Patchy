@@ -94,14 +94,23 @@ void CanvasWidget::commit_pen_path(bool closed) {
   pen_handle_dragging_ = false;
   update();
   const auto minimum_anchors = closed ? 3U : 2U;
-  if (anchors.size() < minimum_anchors || !vector_path_committed_callback_) {
+  if (anchors.size() < minimum_anchors) {
     return;
   }
-  VectorPath path;
   PathSubpath subpath;
   subpath.anchors = std::move(anchors);
   subpath.closed = closed;
   subpath.op = PathCombineOp::Add;
+  if (layer_edit_target_ == LayerEditTarget::VectorMask) {
+    std::vector<PathSubpath> subpaths;
+    subpaths.push_back(std::move(subpath));
+    add_subpaths_to_vector_mask(std::move(subpaths), tr("Add to vector mask"));
+    return;
+  }
+  if (!vector_path_committed_callback_) {
+    return;
+  }
+  VectorPath path;
   path.subpaths.push_back(std::move(subpath));
   vector_path_committed_callback_(std::move(path), closed);
 }
@@ -134,7 +143,10 @@ bool CanvasWidget::handle_pen_press(QMouseEvent* event, QPointF document_point) 
     show_edit_locked_message();
     return true;
   }
-  if (document_ == nullptr || quick_mask_active_ || layer_edit_target_ != LayerEditTarget::Content) {
+  const bool vector_mask_target =
+      layer_edit_target_ == LayerEditTarget::VectorMask && vector_mask_target_layer() != nullptr;
+  if (document_ == nullptr || quick_mask_active_ ||
+      (layer_edit_target_ != LayerEditTarget::Content && !vector_mask_target)) {
     report_status_error(tr("The Pen tool draws paths on layer content"));
     return true;
   }
@@ -316,6 +328,12 @@ Layer* CanvasWidget::path_edit_target_layer() const {
 }
 
 const VectorPath* CanvasWidget::path_edit_target_path() const {
+  if (layer_edit_target_ == LayerEditTarget::VectorMask) {
+    if (const auto* layer = vector_mask_target_layer(); layer != nullptr) {
+      return &layer->vector_mask()->path;
+    }
+    return nullptr;
+  }
   if (const auto* layer = path_edit_target_layer(); layer != nullptr) {
     return &layer->vector_shape()->path;
   }
@@ -325,6 +343,42 @@ const VectorPath* CanvasWidget::path_edit_target_path() const {
     }
   }
   return nullptr;
+}
+
+Layer* CanvasWidget::vector_mask_target_layer() const {
+  if (document_ == nullptr) {
+    return nullptr;
+  }
+  const auto active = document_->active_layer_id();
+  if (!active.has_value()) {
+    return nullptr;
+  }
+  auto* layer = document_->find_layer(*active);
+  if (layer != nullptr && layer->vector_mask() != nullptr && vector_lock_reason(*layer).empty()) {
+    return layer;
+  }
+  return nullptr;
+}
+
+void CanvasWidget::add_subpaths_to_vector_mask(std::vector<PathSubpath> subpaths,
+                                               const QString& label) {
+  auto* layer = vector_mask_target_layer();
+  if (layer == nullptr || subpaths.empty() || document_ == nullptr) {
+    return;
+  }
+  if (before_edit_callback_) {
+    before_edit_callback_(label);
+  }
+  auto mask = *layer->vector_mask();
+  const auto group = mask.path.next_shape_group();
+  for (auto& subpath : subpaths) {
+    subpath.shape_group = group;
+    mask.path.subpaths.push_back(std::move(subpath));
+  }
+  layer->set_vector_mask(std::move(mask));
+  mark_layer_vector_block_dirty(*layer);
+  update_vector_mask_raster(*layer, Rect::from_size(document_->width(), document_->height()));
+  document_changed();
 }
 
 void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
@@ -337,6 +391,17 @@ void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
       before_edit_callback_(label);
     }
     path_edit_undo_armed_ = true;
+  }
+  if (layer_edit_target_ == LayerEditTarget::VectorMask) {
+    if (auto* layer = vector_mask_target_layer(); layer != nullptr) {
+      auto mask = *layer->vector_mask();
+      mask.path = std::move(path);
+      layer->set_vector_mask(std::move(mask));
+      mark_layer_vector_block_dirty(*layer);
+      update_vector_mask_raster(*layer, Rect::from_size(document_->width(), document_->height()));
+      document_changed();
+    }
+    return;
   }
   if (auto* layer = path_edit_target_layer(); layer != nullptr) {
     auto content = *layer->vector_shape();

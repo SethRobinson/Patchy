@@ -6330,6 +6330,14 @@ Mixed selection</source>
         <translation>シェイプの結合モードを変更</translation>
     </message>
     <message>
+        <source>Vector masks are edited with the pen and path tools</source>
+        <translation>ベクトルマスクはペンツールとパスツールで編集します</translation>
+    </message>
+    <message>
+        <source>Add to vector mask</source>
+        <translation>ベクトルマスクに追加</translation>
+    </message>
+    <message>
         <source>Shape layers and vector masks can&apos;t be transformed yet. Rasterize first.</source>
         <translation>シェイプレイヤーとベクトルマスクはまだ変形できません。先にラスタライズしてください。</translation>
     </message>
@@ -12722,6 +12730,34 @@ Clipped to the layer below</source>
     <message><source>&amp;Solid Color...</source><translation>ベタ塗り(&amp;S)...</translation></message>
     <message><source>&amp;Gradient...</source><translation>グラデーション(&amp;G)...</translation></message>
     <message><source>&amp;Pattern...</source><translation>パターン(&amp;P)...</translation></message>
+    <message><source>Select a layer to work with vector masks</source><translation>ベクトルマスクを操作するレイヤーを選択してください</translation></message>
+    <message><source>This layer&apos;s vector data is preserved but can&apos;t be edited.</source><translation>このレイヤーのベクトルデータは保持されていますが編集できません。</translation></message>
+    <message><source>The active layer has no vector mask</source><translation>アクティブレイヤーにベクトルマスクがありません</translation></message>
+    <message><source>The active layer already has a vector mask</source><translation>アクティブレイヤーには既にベクトルマスクがあります</translation></message>
+    <message><source>Draw a work path first</source><translation>先に作業用パスを描いてください</translation></message>
+    <message><source>Add vector mask</source><translation>ベクトルマスクを追加</translation></message>
+    <message><source>Added a vector mask</source><translation>ベクトルマスクを追加しました</translation></message>
+    <message><source>Delete vector mask</source><translation>ベクトルマスクを削除</translation></message>
+    <message><source>Deleted the vector mask</source><translation>ベクトルマスクを削除しました</translation></message>
+    <message><source>Disable vector mask</source><translation>ベクトルマスクを無効化</translation></message>
+    <message><source>Enable vector mask</source><translation>ベクトルマスクを有効化</translation></message>
+    <message><source>Disabled the vector mask</source><translation>ベクトルマスクを無効にしました</translation></message>
+    <message><source>Enabled the vector mask</source><translation>ベクトルマスクを有効にしました</translation></message>
+    <message><source>Rasterize vector mask</source><translation>ベクトルマスクをラスタライズ</translation></message>
+    <message><source>Rasterized the vector mask into the layer mask</source><translation>ベクトルマスクをレイヤーマスクにラスタライズしました</translation></message>
+    <message><source>&amp;Vector Mask</source><translation>ベクトルマスク(&amp;V)</translation></message>
+    <message><source>&amp;Reveal All</source><translation>すべての領域を表示(&amp;R)</translation></message>
+    <message><source>&amp;Hide All</source><translation>すべての領域を隠す(&amp;H)</translation></message>
+    <message><source>&amp;Current Path</source><translation>現在のパス(&amp;C)</translation></message>
+    <message><source>&amp;Delete Vector Mask</source><translation>ベクトルマスクを削除(&amp;D)</translation></message>
+    <message><source>D&amp;isable Vector Mask</source><translation>ベクトルマスクを無効化(&amp;I)</translation></message>
+    <message><source>Ras&amp;terize Vector Mask</source><translation>ベクトルマスクをラスタライズ(&amp;T)</translation></message>
+    <message><source>Add to vector mask</source><translation>ベクトルマスクに追加</translation></message>
+    <message><source>Load vector mask selection</source><translation>ベクトルマスクを選択範囲として読み込み</translation></message>
+    <message><source>Loaded the vector mask as a selection</source><translation>ベクトルマスクを選択範囲として読み込みました</translation></message>
+    <message><source>Editing vector mask</source><translation>ベクトルマスクを編集中</translation></message>
+    <message><source>Showing the vector mask. Alt-click the thumbnail to return.</source><translation>ベクトルマスクを表示中です。サムネイルを Alt クリックすると戻ります。</translation></message>
+    <message><source>Editing the vector mask path with the pen and path tools</source><translation>ペンツールとパスツールでベクトルマスクのパスを編集中</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -13378,6 +13414,7 @@ Clipped to the layer below</source>
     <message><source>Dotted</source><translation>点線</translation></message>
     <message><source>Shape Fill Color</source><translation>シェイプの塗りの色</translation></message>
     <message><source>Shape Stroke Color</source><translation>シェイプの線の色</translation></message>
+    <message><source>Vector mask. Click to edit its path with the pen and path tools, Ctrl-click to load it as a selection, Alt-click to view it, Shift-click to disable it.</source><translation>ベクトルマスク。クリックでペン/パスツールでのパス編集、Ctrl クリックで選択範囲として読み込み、Alt クリックで表示、Shift クリックで無効化します。</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

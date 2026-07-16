@@ -55,6 +55,19 @@ corner/smooth. Any direct edit drops the touched groups' live-shape
 annotations (Photoshop's keyShapeInvalidated rule) and re-rasterizes on the
 spot; the target is the active shape layer, falling back to the work path.
 
+## Vector mask UI
+
+Layers with a vector mask grow a third row thumbnail (grayscale of the baked
+coverage, with the density and disabled-cross conventions). Click targets the
+mask path for the pen/path tools (the VectorMask edit target; raster painting
+refuses), Ctrl-click loads the coverage as a selection, Alt-click toggles the
+grayscale mask view, Shift-click disables the mask. Layer > Vector Mask offers
+Reveal All (empty path = full coverage), Hide All (empty inverted path),
+Current Path (copies the work path), Delete, Disable, and Rasterize (bakes the
+coverage - density and any raster mask multiplied in - into the layer mask).
+While the vector-mask target is active, shape-tool drags and pen commits
+append subpaths to the mask path instead of creating layers.
+
 ## Appearance editing and fill layers
 
 Double-clicking a shape layer's row (or an imported fill layer's) opens the

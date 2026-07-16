@@ -11,6 +11,8 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
+#include <QLabel>
+#include <QListWidget>
 #include <QSpinBox>
 #include <QTimer>
 
@@ -468,6 +470,114 @@ void ui_path_select_combine_op_edit_applies() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 160)), Qt::black, 8));
 }
 
+void ui_vector_mask_from_current_path_masks_layer() {
+  VectorSettingsGuard settings_guard;
+  patchy::Document base(400, 300, patchy::PixelFormat::rgb8());
+  base.add_pixel_layer("Red", solid_pixels(400, 300, patchy::PixelFormat::rgb8(), QColor(200, 30, 30)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(base), QStringLiteral("Vector Mask"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // Build a work path over the left half, then convert it to a vector mask.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(0, 0), QPoint(200, 300));
+  CHECK(document.work_path() != nullptr);
+
+  auto* action = window.findChild<QAction*>(QStringLiteral("layerVectorMaskCurrentPathAction"));
+  CHECK(action != nullptr);
+  action->trigger();
+  QApplication::processEvents();
+
+  const auto active = document.active_layer_id();
+  auto* layer = document.find_layer(*active);
+  CHECK(layer != nullptr);
+  CHECK(layer->vector_mask() != nullptr);
+  CHECK(layer->vector_mask()->path.subpaths.size() == 1);
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::VectorMask);
+  // Left half stays red, right half is masked to the checkerboard/white.
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(100, 150)), QColor(200, 30, 30), 8));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(300, 150)), QColor(200, 30, 30), 8));
+
+  // The row grew a vector-mask thumbnail.
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* item = require_layer_item(*layer_list, QStringLiteral("Red"));
+  auto* row = layer_list->itemWidget(item);
+  CHECK(row != nullptr);
+  CHECK(row->findChild<QLabel*>(QStringLiteral("layerVectorMaskThumbnail")) != nullptr);
+
+  // The pen extends the mask path while the vector-mask target is active.
+  canvas->set_tool(patchy::ui::CanvasTool::Pen);
+  pen_click(*canvas, QPoint(250, 50));
+  pen_click(*canvas, QPoint(380, 50));
+  pen_click(*canvas, QPoint(320, 250));
+  pen_click(*canvas, QPoint(250, 50));  // close
+  QApplication::processEvents();
+  layer = document.find_layer(*active);
+  CHECK(layer->vector_mask()->path.subpaths.size() == 2);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(315, 100)), QColor(200, 30, 30), 8));
+}
+
+void ui_vector_mask_shift_click_disable_and_rasterize() {
+  VectorSettingsGuard settings_guard;
+  patchy::Document base(400, 300, patchy::PixelFormat::rgb8());
+  base.add_pixel_layer("Red", solid_pixels(400, 300, patchy::PixelFormat::rgb8(), QColor(200, 30, 30)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(base), QStringLiteral("Vector Mask 2"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(0, 0), QPoint(200, 300));
+  window.findChild<QAction*>(QStringLiteral("layerVectorMaskCurrentPathAction"))->trigger();
+  QApplication::processEvents();
+  const auto active = document.active_layer_id();
+
+  // Shift-click the vector-mask thumbnail disables the mask (full red again).
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  click_layer_row_thumbnail(*layer_list, QStringLiteral("Red"),
+                            QStringLiteral("layerVectorMaskThumbnail"), Qt::ShiftModifier);
+  QApplication::processEvents();
+  auto* layer = document.find_layer(*active);
+  CHECK(layer->vector_mask() != nullptr);
+  CHECK(layer->vector_mask()->disabled);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 150)), QColor(200, 30, 30), 8));
+  click_layer_row_thumbnail(*layer_list, QStringLiteral("Red"),
+                            QStringLiteral("layerVectorMaskThumbnail"), Qt::ShiftModifier);
+  QApplication::processEvents();
+  layer = document.find_layer(*active);
+  CHECK(!layer->vector_mask()->disabled);
+
+  // Rasterize converts the coverage into the raster layer mask.
+  window.findChild<QAction*>(QStringLiteral("layerVectorMaskRasterizeAction"))->trigger();
+  QApplication::processEvents();
+  layer = document.find_layer(*active);
+  CHECK(layer->vector_mask() == nullptr);
+  CHECK(layer->mask().has_value());
+  CHECK(*layer->mask()->pixels.pixel(100, 150) == 255);
+  CHECK(*layer->mask()->pixels.pixel(300, 150) == 0);
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(300, 150)), QColor(200, 30, 30), 8));
+
+  // Delete the raster mask path: Vector Mask > Delete now errors politely
+  // (no vector mask) without crashing.
+  window.findChild<QAction*>(QStringLiteral("layerVectorMaskDeleteAction"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.find_layer(*active)->mask().has_value());
+}
+
 QDialog* find_top_level_dialog(const QString& object_name) {
   for (auto* widget : QApplication::topLevelWidgets()) {
     if (widget->objectName() == object_name) {
@@ -642,6 +752,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_path_select_drags_whole_shape_group", ui_path_select_drags_whole_shape_group},
       {"ui_pen_adds_deletes_and_converts_anchors", ui_pen_adds_deletes_and_converts_anchors},
       {"ui_path_select_combine_op_edit_applies", ui_path_select_combine_op_edit_applies},
+      {"ui_vector_mask_from_current_path_masks_layer", ui_vector_mask_from_current_path_masks_layer},
+      {"ui_vector_mask_shift_click_disable_and_rasterize",
+       ui_vector_mask_shift_click_disable_and_rasterize},
       {"ui_shape_appearance_dialog_commits_and_cancels",
        ui_shape_appearance_dialog_commits_and_cancels},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},

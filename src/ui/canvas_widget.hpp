@@ -48,6 +48,7 @@ namespace patchy {
 enum class LiveShapeKind : std::uint8_t;
 enum class PathCombineOp : std::uint8_t;
 struct PathAnchor;
+struct PathSubpath;
 struct VectorPath;
 }
 
@@ -202,7 +203,10 @@ public:
     // Temporary, full-document grayscale buffer owned by the canvas while a
     // native Smart Filter mask is being edited. The document model is updated
     // only through smart_filter_mask_committed_callback_.
-    SmartFilterMask
+    SmartFilterMask,
+    // The active layer's vector mask path: the pen/shape/path tools edit it,
+    // raster edits refuse (the path is the source of truth).
+    VectorMask
   };
 
   enum class MaskDisplayMode {
@@ -493,6 +497,9 @@ public:
   [[nodiscard]] std::vector<int> path_edit_selected_groups() const;
   void set_selected_subpaths_combine_op(patchy::PathCombineOp op);
   void clear_path_edit_selection();
+  // Appends subpaths to the active layer's vector mask (undo + cache rebake);
+  // used by pen commits and shape drags while the VectorMask target is active.
+  void add_subpaths_to_vector_mask(std::vector<patchy::PathSubpath> subpaths, const QString& label);
   // Rounded-corner radius for the rectangular marquee (0 = sharp corners).
   void set_marquee_corner_radius(int pixels) noexcept;
   [[nodiscard]] int marquee_corner_radius() const noexcept;
@@ -978,6 +985,7 @@ private:
   [[nodiscard]] bool path_edit_tool_active() const noexcept;
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
   [[nodiscard]] patchy::Layer* path_edit_target_layer() const;
+  [[nodiscard]] patchy::Layer* vector_mask_target_layer() const;
   void apply_path_edit(patchy::VectorPath path, const QString& label,
                        const std::vector<int>& touched_groups);
   [[nodiscard]] QPointF path_point_to_screen(double x, double y) const;

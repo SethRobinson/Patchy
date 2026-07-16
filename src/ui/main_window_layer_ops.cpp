@@ -1331,6 +1331,12 @@ void MainWindow::set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, 
   } else if (target == CanvasWidget::LayerEditTarget::SmartFilterMask &&
              !canvas_->editing_smart_filter_mask()) {
     target = CanvasWidget::LayerEditTarget::Content;
+  } else if (target == CanvasWidget::LayerEditTarget::VectorMask) {
+    const auto active = document().active_layer_id();
+    const auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
+    if (layer == nullptr || layer->vector_mask() == nullptr) {
+      target = CanvasWidget::LayerEditTarget::Content;
+    }
   }
   const bool leaving_document_channel = previous_target == CanvasWidget::LayerEditTarget::DocumentChannel ||
                                         previous_target == CanvasWidget::LayerEditTarget::ComponentRed ||
@@ -1353,7 +1359,9 @@ void MainWindow::set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, 
             ? tr("Editing layer mask")
             : target == CanvasWidget::LayerEditTarget::SmartFilterMask
                   ? tr("Editing Smart Filter mask")
-                  : tr("Editing layer pixels"));
+                  : target == CanvasWidget::LayerEditTarget::VectorMask
+                        ? tr("Editing vector mask")
+                        : tr("Editing layer pixels"));
   }
 }
 

@@ -487,6 +487,8 @@ void update_layer_target_styles(QListWidget* list, std::optional<LayerId> active
                       row_active && edit_target == CanvasWidget::LayerEditTarget::Content);
     set_target_active(row_widget->findChild<QWidget*>(QStringLiteral("layerMaskThumbnail")),
                       row_active && edit_target == CanvasWidget::LayerEditTarget::Mask);
+    set_target_active(row_widget->findChild<QWidget*>(QStringLiteral("layerVectorMaskThumbnail")),
+                      row_active && edit_target == CanvasWidget::LayerEditTarget::VectorMask);
     set_target_active(
         row_widget->findChild<QWidget*>(
             QStringLiteral("layerSmartFilterMaskThumbnail")),

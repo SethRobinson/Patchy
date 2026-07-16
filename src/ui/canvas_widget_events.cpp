@@ -1051,10 +1051,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     // release routes to MainWindow, which pushes its own undo entry), so it
     // skips begin_edit; that also lets it start while a shape/text/smart
     // layer is active, where the raster guard would refuse.
-    const bool vector_shape_drag = tool_ != CanvasTool::Gradient &&
-                                   vector_tool_mode_ != VectorToolMode::Pixels &&
-                                   vector_shape_drawn_callback_ && !quick_mask_active_ &&
-                                   layer_edit_target_ == LayerEditTarget::Content;
+    const bool vector_shape_drag =
+        tool_ != CanvasTool::Gradient && vector_tool_mode_ != VectorToolMode::Pixels &&
+        vector_shape_drawn_callback_ && !quick_mask_active_ &&
+        (layer_edit_target_ == LayerEditTarget::Content ||
+         (layer_edit_target_ == LayerEditTarget::VectorMask && vector_mask_target_layer() != nullptr));
     if (vector_shape_drag ||
         begin_edit(tool_ == CanvasTool::Gradient ? tr("Gradient") : tr("Shape"))) {
       const auto snapped_point = snapped_document_point(document_point);
@@ -2017,7 +2018,10 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     // raster behavior so the drag still edits the targeted plane.
     if ((tool_ == CanvasTool::Line || tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse) &&
         vector_tool_mode_ != VectorToolMode::Pixels && vector_shape_drawn_callback_ &&
-        !quick_mask_active_ && layer_edit_target_ == LayerEditTarget::Content) {
+        !quick_mask_active_ &&
+        (layer_edit_target_ == LayerEditTarget::Content ||
+         (layer_edit_target_ == LayerEditTarget::VectorMask &&
+          vector_mask_target_layer() != nullptr))) {
       drawing_shape_ = false;
       clear_brush_stroke_tracking();
       update();
@@ -2670,6 +2674,10 @@ bool CanvasWidget::begin_edit(QString label) {
       layer_edit_target_ == LayerEditTarget::ComponentGreen ||
       layer_edit_target_ == LayerEditTarget::ComponentBlue) {
     report_status_error(tr("Color component channels are read-only"));
+    return false;
+  }
+  if (layer_edit_target_ == LayerEditTarget::VectorMask) {
+    report_status_error(tr("Vector masks are edited with the pen and path tools"));
     return false;
   }
   if (active_layer_locks_image_pixels()) {

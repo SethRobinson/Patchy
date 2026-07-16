@@ -426,6 +426,49 @@ QPixmap layer_mask_thumbnail(const LayerMask& mask) {
   return pixmap;
 }
 
+// The vector-mask thumbnail shows the baked grayscale coverage cache (areas
+// outside cache_bounds are hidden, i.e. black), with the raster-mask border
+// and disabled-cross conventions.
+QPixmap layer_vector_mask_thumbnail(const LayerVectorMask& mask, int document_width,
+                                    int document_height) {
+  constexpr int kSize = 28;
+  QImage image(kSize, kSize, QImage::Format_RGB888);
+  image.fill(Qt::black);
+  if (!mask.cache.empty() && mask.cache.format() == PixelFormat::gray8() && document_width > 0 &&
+      document_height > 0) {
+    for (int y = 0; y < kSize; ++y) {
+      const auto document_y = (static_cast<double>(y) / kSize) * document_height;
+      for (int x = 0; x < kSize; ++x) {
+        const auto document_x = (static_cast<double>(x) / kSize) * document_width;
+        const auto local_x = static_cast<int>(document_x) - mask.cache_bounds.x;
+        const auto local_y = static_cast<int>(document_y) - mask.cache_bounds.y;
+        std::uint8_t value = 0;
+        if (local_x >= 0 && local_y >= 0 && local_x < mask.cache.width() &&
+            local_y < mask.cache.height()) {
+          value = *mask.cache.pixel(local_x, local_y);
+        }
+        if (mask.density != 255) {
+          // Match vector_mask_alpha_at: alpha = coverage * d + (1 - d).
+          const auto density = static_cast<int>(mask.density);
+          value = static_cast<std::uint8_t>((value * density) / 255 + (255 - density));
+        }
+        image.setPixelColor(x, y, QColor(value, value, value));
+      }
+    }
+  }
+  QPixmap pixmap = QPixmap::fromImage(image);
+  QPainter painter(&pixmap);
+  painter.setPen(QPen(QColor(150, 158, 168), 1));
+  painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+  if (mask.disabled) {
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(QColor(232, 70, 70), 2));
+    painter.drawLine(QPoint(3, 3), QPoint(kSize - 4, kSize - 4));
+    painter.drawLine(QPoint(kSize - 4, 3), QPoint(3, kSize - 4));
+  }
+  return pixmap;
+}
+
 QColor adjustment_thumbnail_accent(const Layer& layer) {
   const auto settings = adjustment_settings_from_layer(layer);
   if (!settings.has_value()) {
@@ -1099,7 +1142,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId, std::size_t)> edit_smart_filter_blending = {},
                                std::function<void(LayerId, std::size_t)> duplicate_smart_filter = {},
                                std::function<void(LayerId, std::size_t, int)> move_smart_filter = {},
-                               std::function<void(LayerId, std::size_t)> delete_smart_filter = {}) {
+                               std::function<void(LayerId, std::size_t)> delete_smart_filter = {},
+                               bool vector_mask_target_active = false, QSize document_size = {}) {
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
   row->setAttribute(Qt::WA_StyledBackground, true);
@@ -1252,6 +1296,23 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       mask_preview->installEventFilter(list_parent);
     }
     layout->addWidget(mask_preview, 0, Qt::AlignVCenter);
+  }
+
+  if (layer.vector_mask() != nullptr) {
+    auto* vector_mask_preview = new QLabel(row);
+    vector_mask_preview->setObjectName(QStringLiteral("layerVectorMaskThumbnail"));
+    vector_mask_preview->setFixedSize(30, 30);
+    vector_mask_preview->setPixmap(layer_vector_mask_thumbnail(
+        *layer.vector_mask(), document_size.width(), document_size.height()));
+    vector_mask_preview->setToolTip(
+        QObject::tr("Vector mask. Click to edit its path with the pen and path tools, Ctrl-click to "
+                    "load it as a selection, Alt-click to view it, Shift-click to disable it."));
+    vector_mask_preview->setProperty("layerTargetActive", vector_mask_target_active);
+    vector_mask_preview->setEnabled(ancestors_visible && layer.visible());
+    if (list_parent != nullptr) {
+      vector_mask_preview->installEventFilter(list_parent);
+    }
+    layout->addWidget(vector_mask_preview, 0, Qt::AlignVCenter);
   }
 
   auto* text_column = new QVBoxLayout();
@@ -2370,7 +2431,10 @@ void MainWindow::refresh_layer_list() {
       },
                                       [this](LayerId layer_id, std::size_t execution_index) {
         delete_smart_filter(layer_id, execution_index);
-      }));
+      },
+                                      active.has_value() && *active == it->id() &&
+                                          edit_target == CanvasWidget::LayerEditTarget::VectorMask,
+                                      QSize(document().width(), document().height())));
       if (is_group && group_expanded) {
         append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags);
       }

@@ -44,7 +44,8 @@ inline constexpr const char* kLayerDragMimeType = "application/x-patchy-layer-id
 enum class LayerCtrlClickTarget {
   ContentThumbnail,
   MaskThumbnail,
-  SmartFilterMaskThumbnail
+  SmartFilterMaskThumbnail,
+  VectorMaskThumbnail
 };
 
 class LayerListWidget final : public QListWidget, public QAbstractNativeEventFilter {

@@ -998,6 +998,9 @@ void MainWindow::create_actions() {
   invert_layer_mask_action_ = layer_menu->addAction(tr("&Invert Layer Mask"));
   apply_layer_mask_action_ = layer_menu->addAction(tr("&Apply Layer Mask"));
   layer_clipping_mask_action_ = layer_menu->addAction(tr("Create Clipping Mask"));
+  auto* vector_mask_menu = layer_menu->addMenu(tr("&Vector Mask"));
+  vector_mask_menu->setObjectName(QStringLiteral("layerVectorMaskMenu"));
+  populate_vector_mask_menu(vector_mask_menu, QStringLiteral("layer"));
   layer_menu->addSeparator();
   auto* edit_adjustment_action = layer_menu->addAction(tr("&Edit Adjustment..."));
   layer_blending_options_action_ = layer_menu->addAction(tr("Edit Layer &Styles..."));
@@ -1218,7 +1221,7 @@ void MainWindow::create_actions() {
   connect(layer_up_action, &QAction::triggered, this, [this] { move_active_layer(1); });
   connect(layer_down_action, &QAction::triggered, this, [this] { move_active_layer(-1); });
   for (auto* action : {add_layer_action, add_folder_action, new_adjustment_layer_menu->menuAction(),
-                       new_fill_layer_menu->menuAction(),
+                       new_fill_layer_menu->menuAction(), vector_mask_menu->menuAction(),
                        layer_via_copy_action, layer_via_cut_action, add_mask_action, layer_clipping_mask_action_,
                        duplicate_layer_action, merge_visible_action, merge_down_action, rename_layer_action,
                        delete_layer_action, fill_layer_action, fill_background_action, clear_layer_action,
@@ -3847,6 +3850,7 @@ void MainWindow::create_actions() {
       {add_folder_action, "New &Folder"},
       {new_adjustment_layer_menu->menuAction(), "New &Adjustment Layer"},
       {new_fill_layer_menu->menuAction(), "New F&ill Layer"},
+      {vector_mask_menu->menuAction(), "&Vector Mask"},
       {layer_via_copy_action, "Layer Via &Copy"},
       {layer_via_cut_action, "Layer Via Cu&t"},
       {add_mask_action, "Add Layer &Mask"},

@@ -119,6 +119,13 @@ void MainWindow::handle_vector_shape_drawn(LiveShapeKind kind, QRectF bounds, QP
     }
   }
 
+  // While the vector-mask target is active, drags extend the mask path
+  // regardless of the Shape/Path mode (the Photoshop behavior).
+  if (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask) {
+    canvas_->add_subpaths_to_vector_mask(generate_live_shape_subpaths(params),
+                                         tr("Add to vector mask"));
+    return;
+  }
   if (current_vector_tool_mode_ == VectorToolMode::Path) {
     add_drag_to_work_path(params);
   } else {
@@ -584,6 +591,211 @@ void MainWindow::populate_new_fill_layer_menu(QMenu* menu, const QString& object
            [this] { new_gradient_fill_layer(); });
   add_fill(tr("&Pattern..."), QStringLiteral("PatternFill"),
            [this] { new_pattern_fill_layer(); });
+}
+
+namespace {
+
+// Materializes the vector-mask coverage cache onto the full canvas (zero
+// outside cache_bounds).
+PixelBuffer vector_mask_full_coverage(const LayerVectorMask& mask, int width, int height) {
+  PixelBuffer coverage(width, height, PixelFormat::gray8());
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const auto local_x = x - mask.cache_bounds.x;
+      const auto local_y = y - mask.cache_bounds.y;
+      std::uint8_t value = 0;
+      if (!mask.cache.empty() && local_x >= 0 && local_y >= 0 && local_x < mask.cache.width() &&
+          local_y < mask.cache.height()) {
+        value = *mask.cache.pixel(local_x, local_y);
+      }
+      *coverage.pixel(x, y) = value;
+    }
+  }
+  return coverage;
+}
+
+}  // namespace
+
+Layer* MainWindow::vector_mask_command_layer(bool require_mask) {
+  if (!has_active_document()) {
+    return nullptr;
+  }
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr || layer->kind() == LayerKind::Group) {
+    show_status_error(tr("Select a layer to work with vector masks"));
+    return nullptr;
+  }
+  if (!vector_lock_reason(*layer).empty()) {
+    show_status_error(tr("This layer's vector data is preserved but can't be edited."));
+    return nullptr;
+  }
+  if (require_mask && layer->vector_mask() == nullptr) {
+    show_status_error(tr("The active layer has no vector mask"));
+    return nullptr;
+  }
+  if (!require_mask && layer->vector_mask() != nullptr) {
+    show_status_error(tr("The active layer already has a vector mask"));
+    return nullptr;
+  }
+  return layer;
+}
+
+void MainWindow::add_vector_mask(bool hide_all, bool from_work_path) {
+  auto* layer = vector_mask_command_layer(false);
+  if (layer == nullptr) {
+    return;
+  }
+  auto& doc = document();
+  LayerVectorMask mask;
+  if (from_work_path) {
+    const auto* work = doc.work_path();
+    if (work == nullptr || work->path().empty()) {
+      show_status_error(tr("Draw a work path first"));
+      return;
+    }
+    mask.path = work->path();
+  }
+  mask.inverted = hide_all;
+  push_undo_snapshot(tr("Add vector mask"));
+  layer->set_vector_mask(std::move(mask));
+  mark_layer_vector_block_dirty(*layer);
+  update_vector_mask_raster(*layer, Rect::from_size(doc.width(), doc.height()));
+  if (canvas_ != nullptr) {
+    canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::VectorMask);
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Added a vector mask"));
+}
+
+void MainWindow::delete_active_vector_mask() {
+  auto* layer = vector_mask_command_layer(true);
+  if (layer == nullptr) {
+    return;
+  }
+  push_undo_snapshot(tr("Delete vector mask"));
+  layer->clear_vector_mask();
+  auto& blocks = layer->unknown_psd_blocks();
+  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
+    return block.key == "vmsk" || block.key == "vsms";
+  });
+  mark_layer_vector_block_dirty(*layer);
+  if (canvas_ != nullptr &&
+      canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask) {
+    canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Deleted the vector mask"));
+}
+
+void MainWindow::set_active_layer_vector_mask_disabled(bool disabled) {
+  auto* layer = vector_mask_command_layer(true);
+  if (layer == nullptr) {
+    return;
+  }
+  if (layer->vector_mask()->disabled == disabled) {
+    return;
+  }
+  push_undo_snapshot(disabled ? tr("Disable vector mask") : tr("Enable vector mask"));
+  auto mask = *layer->vector_mask();
+  mask.disabled = disabled;
+  layer->set_vector_mask(std::move(mask));
+  mark_layer_vector_block_dirty(*layer);
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(disabled ? tr("Disabled the vector mask")
+                                    : tr("Enabled the vector mask"));
+}
+
+void MainWindow::rasterize_active_vector_mask() {
+  auto* layer = vector_mask_command_layer(true);
+  if (layer == nullptr) {
+    return;
+  }
+  auto& doc = document();
+  push_undo_snapshot(tr("Rasterize vector mask"));
+  auto coverage = vector_mask_full_coverage(*layer->vector_mask(), doc.width(), doc.height());
+  if (layer->vector_mask()->density != 255) {
+    // Bake the density the way the compositor applies it.
+    const auto density = static_cast<int>(layer->vector_mask()->density);
+    for (int y = 0; y < coverage.height(); ++y) {
+      for (int x = 0; x < coverage.width(); ++x) {
+        auto* value = coverage.pixel(x, y);
+        *value = static_cast<std::uint8_t>((*value * density) / 255 + (255 - density));
+      }
+    }
+  }
+  if (const auto& existing = std::as_const(*layer).mask(); existing.has_value()) {
+    // Both masks multiply in the compositor; the baked result does the same.
+    for (int y = 0; y < coverage.height(); ++y) {
+      for (int x = 0; x < coverage.width(); ++x) {
+        const auto local_x = x - existing->bounds.x;
+        const auto local_y = y - existing->bounds.y;
+        std::uint8_t raster_value = existing->default_color;
+        if (!existing->pixels.empty() && local_x >= 0 && local_y >= 0 &&
+            local_x < existing->pixels.width() && local_y < existing->pixels.height()) {
+          raster_value = *existing->pixels.pixel(local_x, local_y);
+        }
+        auto* value = coverage.pixel(x, y);
+        *value = static_cast<std::uint8_t>((*value * raster_value) / 255);
+      }
+    }
+  }
+  layer->set_mask(LayerMask{Rect::from_size(doc.width(), doc.height()), std::move(coverage), 255,
+                            false});
+  layer->clear_vector_mask();
+  auto& blocks = layer->unknown_psd_blocks();
+  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
+    return block.key == "vmsk" || block.key == "vsms";
+  });
+  mark_layer_vector_block_dirty(*layer);
+  if (canvas_ != nullptr &&
+      canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask) {
+    canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Mask);
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Rasterized the vector mask into the layer mask"));
+}
+
+void MainWindow::populate_vector_mask_menu(QMenu* menu, const QString& object_name_prefix) {
+  if (menu == nullptr) {
+    return;
+  }
+  const auto add_command = [this, menu, &object_name_prefix](const QString& label,
+                                                             const QString& object_key,
+                                                             auto callback) {
+    auto* action = menu->addAction(label);
+    if (!object_name_prefix.isEmpty()) {
+      action->setObjectName(object_name_prefix + object_key + QStringLiteral("Action"));
+      register_document_action(action);
+    }
+    connect(action, &QAction::triggered, this, callback);
+    return action;
+  };
+  add_command(tr("&Reveal All"), QStringLiteral("VectorMaskRevealAll"),
+              [this] { add_vector_mask(false, false); });
+  add_command(tr("&Hide All"), QStringLiteral("VectorMaskHideAll"),
+              [this] { add_vector_mask(true, false); });
+  add_command(tr("&Current Path"), QStringLiteral("VectorMaskCurrentPath"),
+              [this] { add_vector_mask(false, true); });
+  menu->addSeparator();
+  add_command(tr("&Delete Vector Mask"), QStringLiteral("VectorMaskDelete"),
+              [this] { delete_active_vector_mask(); });
+  add_command(tr("D&isable Vector Mask"), QStringLiteral("VectorMaskDisable"), [this] {
+    if (auto* layer = vector_mask_command_layer(true); layer != nullptr) {
+      set_active_layer_vector_mask_disabled(!layer->vector_mask()->disabled);
+    }
+  });
+  add_command(tr("Ras&terize Vector Mask"), QStringLiteral("VectorMaskRasterize"),
+              [this] { rasterize_active_vector_mask(); });
 }
 
 void MainWindow::update_vector_swatch_icons() {

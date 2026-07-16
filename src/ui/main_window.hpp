@@ -592,6 +592,13 @@ private:
   void new_gradient_fill_layer();
   void new_pattern_fill_layer();
   void populate_new_fill_layer_menu(QMenu* menu, const QString& object_name_prefix = {});
+  // Vector masks (main_window_vector.cpp).
+  [[nodiscard]] patchy::Layer* vector_mask_command_layer(bool require_mask);
+  void add_vector_mask(bool hide_all, bool from_work_path);
+  void delete_active_vector_mask();
+  void set_active_layer_vector_mask_disabled(bool disabled);
+  void rasterize_active_vector_mask();
+  void populate_vector_mask_menu(QMenu* menu, const QString& object_name_prefix = {});
   void export_smart_object_contents();
   void open_smart_object_contents();
   bool commit_smart_object_child_session(DocumentSession& child_session);

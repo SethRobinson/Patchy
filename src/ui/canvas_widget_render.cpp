@@ -1741,8 +1741,10 @@ void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
     mask_display_image_revision_ = 0;
     return;
   }
+  const bool vector_mask_display = layer_edit_target_ == LayerEditTarget::VectorMask &&
+                                   layer != nullptr && layer->vector_mask() != nullptr;
   if (!quick_mask_active_ && !component_preview && !smart_filter_mask_target && channel == nullptr &&
-      (layer == nullptr || !layer->mask().has_value())) {
+      (layer == nullptr || (!layer->mask().has_value() && !vector_mask_display))) {
     mask_display_image_ = QImage();
     mask_display_image_layer_ = 0;
     mask_display_image_channel_ = 0;
@@ -1809,6 +1811,12 @@ void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
     overlay_color = QColor(display.color.red, display.color.green, display.color.blue);
     overlay_opacity = std::clamp(display.opacity, 0.0F, 1.0F);
     overlay_selected_areas = display.color_indicates == DocumentChannelColorIndicates::SelectedAreas;
+  } else if (vector_mask_display) {
+    const auto& mask = *layer->vector_mask();
+    pixels = &mask.cache;
+    bounds = QRect(mask.cache_bounds.x, mask.cache_bounds.y, mask.cache_bounds.width,
+                   mask.cache_bounds.height);
+    default_value = 0;
   } else {
     const auto& mask = *layer->mask();
     pixels = &mask.pixels;
