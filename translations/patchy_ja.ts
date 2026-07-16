@@ -8989,6 +8989,42 @@ RGB: -
         <translation>%1 を開きました</translation>
     </message>
     <message>
+        <source>Reopen Document</source>
+        <translation>ドキュメントを開き直す</translation>
+    </message>
+    <message>
+        <source>Reveal in Explorer</source>
+        <translation>エクスプローラーで表示</translation>
+    </message>
+    <message>
+        <source>Reveal in Finder</source>
+        <translation>Finder で表示</translation>
+    </message>
+    <message>
+        <source>Show in File Manager</source>
+        <translation>ファイルマネージャーで表示</translation>
+    </message>
+    <message>
+        <source>Reopen document?</source>
+        <translation>ドキュメントを開き直しますか?</translation>
+    </message>
+    <message>
+        <source>%1 has unsaved changes. Reopen the file from disk and discard them?</source>
+        <translation>%1 には保存されていない変更があります。ディスクからファイルを開き直して変更を破棄しますか?</translation>
+    </message>
+    <message>
+        <source>Reopen</source>
+        <translation>開き直す</translation>
+    </message>
+    <message>
+        <source>Reopened %1</source>
+        <translation>%1 を開き直しました</translation>
+    </message>
+    <message>
+        <source>Reopened %1. %2</source>
+        <translation>%1 を開き直しました。%2</translation>
+    </message>
+    <message>
         <location line="+24"/>
         <source>Open failed</source>
         <translation>開けませんでした</translation>

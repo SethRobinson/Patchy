@@ -383,6 +383,9 @@ private:
   void resize_canvas_dialog();
   void open_document();
   void open_document_path(QString path);
+  // Reloads the session's file from disk in place (tab position, float window,
+  // and session identity survive; undo history and unsaved changes do not).
+  void reopen_document_session(DocumentSession& target_session);
   void import_from_scanner();
   void finish_scanner_import(ScannerAcquireResult result, bool delete_after);
   void import_sprite_sheet();

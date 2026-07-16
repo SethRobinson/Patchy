@@ -1734,6 +1734,151 @@ void ui_first_tab_still_draws_after_second_tab_created() {
   save_widget_artifact("ui_first_tab_draw_after_second_tab", *canvas);
 }
 
+// The document-tab context menu's file actions: all three are disabled on a
+// never-saved document, Copy File Path puts the native path on the clipboard,
+// and Reopen Document reloads the file from disk in place (same tab, undo
+// history cleared, unsaved changes guarded by a prompt).
+void ui_document_tab_context_menu_file_actions() {
+  std::filesystem::create_directories("test-artifacts");
+  const auto path = QFileInfo(QDir(QStringLiteral("test-artifacts"))
+                                  .filePath(QStringLiteral("ui_tab_menu_file_actions.tga")))
+                        .absoluteFilePath();
+  const auto write_solid_file = [&path](QColor color) {
+    patchy::Document source(8, 6, patchy::PixelFormat::rgb8());
+    source.add_pixel_layer("Background", solid_pixels(8, 6, patchy::PixelFormat::rgb8(), color));
+    patchy::tga::DocumentIo::write_file(source, std::filesystem::path(path.toStdWString()));
+  };
+  const QColor original_color(200, 40, 40);
+  const QColor replaced_color(40, 200, 90);
+  write_solid_file(original_color);
+
+  patchy::ui::MainWindow window;
+  show_window(window);  // Tab 0: the untitled startup document (no disk path).
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  auto* tab_bar = tabs->findChild<QTabBar*>();
+  CHECK(tab_bar != nullptr);
+
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+  const auto document_tab = tabs->currentIndex();
+  CHECK(document_tab == 1);
+
+  const auto corner_color = [&window] {
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    const auto* px = document.layers().front().pixels().pixel(0, 0);
+    return QColor(px[0], px[1], px[2]);
+  };
+  CHECK(corner_color() == original_color);
+
+  // Opens the tab's context menu, records the file actions' enabled state, and
+  // optionally triggers one of them while the menu is open (the menu runs a
+  // nested exec loop, hence the timer).
+  bool menu_seen = false;
+  bool file_actions_enabled = false;
+  const auto open_menu = [&](int tab_index, const QString& trigger_object_name) {
+    menu_seen = false;
+    file_actions_enabled = false;
+    QTimer::singleShot(0, [&, trigger_object_name] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        auto* menu = qobject_cast<QMenu*>(widget);
+        if (menu == nullptr || menu->objectName() != QStringLiteral("documentTabContextMenu")) {
+          continue;
+        }
+        const auto action_by_name = [menu](const QString& name) -> QAction* {
+          for (auto* action : menu->actions()) {
+            if (action->objectName() == name) {
+              return action;
+            }
+          }
+          return nullptr;
+        };
+        auto* reopen_action = action_by_name(QStringLiteral("documentTabReopenAction"));
+        auto* reveal_action = action_by_name(QStringLiteral("documentTabRevealAction"));
+        auto* copy_path_action = action_by_name(QStringLiteral("documentTabCopyPathAction"));
+        CHECK(reopen_action != nullptr);
+        CHECK(reveal_action != nullptr);
+        CHECK(copy_path_action != nullptr);
+        menu_seen = true;
+        file_actions_enabled =
+            reopen_action->isEnabled() && reveal_action->isEnabled() && copy_path_action->isEnabled();
+        if (!trigger_object_name.isEmpty()) {
+          auto* trigger_action = action_by_name(trigger_object_name);
+          CHECK(trigger_action != nullptr);
+          trigger_action->trigger();
+        }
+        menu->close();
+        return;
+      }
+      CHECK(false);
+    });
+    const auto context_point = tab_bar->tabRect(tab_index).center();
+    QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                    tab_bar->mapToGlobal(context_point));
+    QApplication::sendEvent(tab_bar, &context_event);
+    QApplication::processEvents();
+    CHECK(menu_seen);
+  };
+
+  // The never-saved startup document offers the file actions disabled.
+  open_menu(0, QString());
+  CHECK(!file_actions_enabled);
+
+  // Copy File Path puts the native path on the clipboard.
+  open_menu(document_tab, QStringLiteral("documentTabCopyPathAction"));
+  CHECK(file_actions_enabled);
+  CHECK(QApplication::clipboard()->text() == QDir::toNativeSeparators(path));
+
+  // Reopen on an unmodified document reloads the disk file in place.
+  write_solid_file(replaced_color);
+  open_menu(document_tab, QStringLiteral("documentTabReopenAction"));
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+  CHECK(tabs->currentIndex() == document_tab);
+  CHECK(corner_color() == replaced_color);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == 0);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == path);
+
+  // A modified document prompts before reopening. The prompt runs a nested
+  // event loop, so it is dismissed from a polling timer.
+  require_action_by_text(window, QStringLiteral("Flip Layer Horizontal"))->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  write_solid_file(original_color);
+  const auto dismiss_prompt_with = [&window](QMessageBox::StandardButton button) {
+    auto* dismiss_timer = new QTimer(&window);
+    dismiss_timer->setInterval(10);
+    QObject::connect(dismiss_timer, &QTimer::timeout, &window, [&window, button, dismiss_timer] {
+      auto* dialog =
+          qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("reopenDocumentMessageBox")));
+      if (dialog == nullptr) {
+        return;
+      }
+      dismiss_timer->stop();
+      dismiss_timer->deleteLater();
+      dialog->button(button)->click();
+    });
+    dismiss_timer->start();
+  };
+
+  // Cancel keeps the in-memory document and its modified state...
+  dismiss_prompt_with(QMessageBox::Cancel);
+  open_menu(document_tab, QStringLiteral("documentTabReopenAction"));
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(corner_color() == replaced_color);
+
+  // ...and Yes discards it in favor of the disk file.
+  dismiss_prompt_with(QMessageBox::Yes);
+  open_menu(document_tab, QStringLiteral("documentTabReopenAction"));
+  QApplication::processEvents();
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(corner_color() == original_color);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == 0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
@@ -1769,5 +1914,6 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_merge_down_into_position_locked_background_works",
        ui_merge_down_into_position_locked_background_works},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},
+      {"ui_document_tab_context_menu_file_actions", ui_document_tab_context_menu_file_actions},
   };
 }

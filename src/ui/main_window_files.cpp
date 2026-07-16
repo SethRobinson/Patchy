@@ -844,6 +844,58 @@ QString path_with_default_extension(QString path, const QString& selected_filter
   return path + QStringLiteral(".psd");
 }
 
+// Interactive-open machinery shared by open_document_path and the document-tab
+// Reopen command. Camera raws get the interactive develop step (white balance,
+// exposure, ...) and nullopt means the user cancelled it there; with the
+// preference off, raws fall through to the normal path, where the format
+// registry develops camera defaults. Everything else loads on a worker thread
+// behind a modal progress dialog so big documents keep the UI responsive.
+// Load failures propagate as exceptions.
+std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, const QString& path) {
+  const QFileInfo info(path);
+  const auto extension = info.suffix().toLower();
+  if (raw::is_camera_raw_extension(extension.toStdString()) &&
+      app_settings().value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool()) {
+    auto outcome = run_raw_develop_dialog(parent, path);
+    if (!outcome.has_value()) {
+      return std::nullopt;
+    }
+    OpenDocumentResult loaded{std::move(outcome->document), info.fileName(), extension, {}};
+    if (const auto default_layer_id = default_non_group_layer_id(loaded.document.layers());
+        default_layer_id.has_value()) {
+      loaded.document.set_active_layer(*default_layer_id);
+    }
+    return loaded;
+  }
+
+  QProgressDialog progress(MainWindow::tr("Opening %1...").arg(info.fileName()), QString(), 0, 0, parent);
+  progress.setObjectName(QStringLiteral("openProgressDialog"));
+  progress.setWindowTitle(
+      MainWindow::tr("Opening %1").arg(elided_open_progress_title_file_name(progress, info.fileName())));
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(0);
+  progress.setCancelButton(nullptr);
+  progress.setAutoClose(false);
+  progress.setAutoReset(false);
+  remember_dialog_position(progress);
+  progress.show();
+  progress.raise();
+  progress.activateWindow();
+  QApplication::processEvents();
+  const auto close_progress = qScopeGuard([&progress] {
+    progress.close();
+    QApplication::processEvents();
+  });
+  Q_UNUSED(close_progress);
+
+  auto open_future = std::async(std::launch::async, [path] { return load_document_from_path(path); });
+  while (open_future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
+    QApplication::processEvents(QEventLoop::AllEvents, 15);
+  }
+
+  return open_future.get();
+}
+
 }  // namespace
 
 void MainWindow::open_document() {
@@ -957,57 +1009,15 @@ void MainWindow::open_document_path(QString path) {
     return;
   }
   try {
-    const auto info = QFileInfo(path);
-
-    OpenDocumentResult loaded;
-    const auto extension = info.suffix().toLower();
-    if (raw::is_camera_raw_extension(extension.toStdString()) &&
-        app_settings().value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool()) {
-      // Camera raws get the interactive develop step (white balance, exposure, ...).
-      // Cancel means the open never happened. With the preference off, raws fall through
-      // to the normal path below, where the format registry develops camera defaults.
-      auto outcome = run_raw_develop_dialog(this, path);
-      if (!outcome.has_value()) {
-        return;
-      }
-      loaded = OpenDocumentResult{std::move(outcome->document), info.fileName(), extension, {}};
-      if (const auto default_layer_id = default_non_group_layer_id(loaded.document.layers());
-          default_layer_id.has_value()) {
-        loaded.document.set_active_layer(*default_layer_id);
-      }
-    } else {
-      QProgressDialog progress(tr("Opening %1...").arg(info.fileName()), QString(), 0, 0, this);
-      progress.setObjectName(QStringLiteral("openProgressDialog"));
-      progress.setWindowTitle(
-          tr("Opening %1").arg(elided_open_progress_title_file_name(progress, info.fileName())));
-      progress.setWindowModality(Qt::WindowModal);
-      progress.setMinimumDuration(0);
-      progress.setCancelButton(nullptr);
-      progress.setAutoClose(false);
-      progress.setAutoReset(false);
-      remember_dialog_position(progress);
-      progress.show();
-      progress.raise();
-      progress.activateWindow();
-      QApplication::processEvents();
-      const auto close_progress = qScopeGuard([&progress] {
-        progress.close();
-        QApplication::processEvents();
-      });
-      Q_UNUSED(close_progress);
-
-      auto open_future = std::async(std::launch::async, [path] { return load_document_from_path(path); });
-      while (open_future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
-        QApplication::processEvents(QEventLoop::AllEvents, 15);
-      }
-
-      loaded = open_future.get();
+    auto loaded = load_document_interactive(this, path);
+    if (!loaded.has_value()) {
+      return;
     }
 
-    add_document_session(std::move(loaded.document), loaded.file_name, path);
-    if (is_photoshop_document_extension(loaded.extension) &&
+    add_document_session(std::move(loaded->document), loaded->file_name, path);
+    if (is_photoshop_document_extension(loaded->extension) &&
         app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
-      show_compatibility_report(this, document(), loaded.file_name);
+      show_compatibility_report(this, document(), loaded->file_name);
     }
     canvas_->fit_to_view();
     session().undo_stack.clear();
@@ -1023,29 +1033,108 @@ void MainWindow::open_document_path(QString path) {
     add_recent_file(path);
     remember_open_directory_for_path(path);
     add_recent_folder(QFileInfo(path).absolutePath());
-    if (loaded.import_notices.isEmpty()) {
+    if (loaded->import_notices.isEmpty()) {
       statusBar()->showMessage(tr("Opened %1").arg(path));
     } else {
       // Import notes ride the status bar by default; the consolidated popup is
       // opt-in via the same preference that gates the PSD compatibility report
       // (Seth: do not annoy people with info popups).
-      auto status_notes = loaded.import_notices.front();
-      if (loaded.import_notices.size() > 1) {
+      auto status_notes = loaded->import_notices.front();
+      if (loaded->import_notices.size() > 1) {
         status_notes +=
-            tr(" (+%n more import note(s))", nullptr, static_cast<int>(loaded.import_notices.size()) - 1);
+            tr(" (+%n more import note(s))", nullptr, static_cast<int>(loaded->import_notices.size()) - 1);
       }
-      statusBar()->showMessage(tr("Opened %1. %2").arg(loaded.file_name, status_notes));
+      statusBar()->showMessage(tr("Opened %1. %2").arg(loaded->file_name, status_notes));
       if (app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
         QStringList bullets;
-        bullets.reserve(loaded.import_notices.size());
-        for (const auto& notice : loaded.import_notices) {
+        bullets.reserve(loaded->import_notices.size());
+        for (const auto& notice : loaded->import_notices) {
           bullets.push_back(QStringLiteral("• ") + notice);
         }
         show_information_message(this, tr("Import Notes"),
                                  tr("%1 opened with notes:\n\n%2")
-                                     .arg(loaded.file_name, bullets.join(QLatin1Char('\n'))),
+                                     .arg(loaded->file_name, bullets.join(QLatin1Char('\n'))),
                                  QStringLiteral("importNoticesMessageBox"));
       }
+    }
+  } catch (const std::exception& error) {
+    show_open_failed_message_box(this, QString::fromUtf8(error.what()));
+  }
+}
+
+void MainWindow::reopen_document_session(DocumentSession& target_session) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto path = target_session.path;
+  if (path.isEmpty()) {
+    return;
+  }
+  // The discard prompt and every post-load refresh act on the ACTIVE session,
+  // so the target must be activated first (raising its float window when it
+  // lives in one).
+  activate_document_session(target_session);
+  if (!QFileInfo::exists(path)) {
+    statusBar()->showMessage(tr("File is missing"));
+    return;
+  }
+  if (session_is_modified(target_session)) {
+    const auto title = target_session.title.isEmpty() ? tr("Untitled") : target_session.title;
+    const auto answer = show_warning_message(
+        this, tr("Reopen document?"),
+        tr("%1 has unsaved changes. Reopen the file from disk and discard them?").arg(title),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel,
+        QStringLiteral("reopenDocumentMessageBox"));
+    if (answer != QMessageBox::Yes) {
+      return;
+    }
+  }
+  try {
+    auto loaded = load_document_interactive(this, path);
+    if (!loaded.has_value()) {
+      return;
+    }
+
+    // Replace the document in place: tab position, float window, and session
+    // identity survive (smart-object child tabs reference session ids). An open
+    // inline text edit still targets the outgoing document, so settle it first.
+    finish_active_text_editor();
+    layer_thumbnail_cache_.clear();
+    channel_thumbnail_cache_.clear();
+    target_session.document = std::move(loaded->document);
+    target_session.undo_stack.clear();
+    target_session.redo_stack.clear();
+    target_session.selection_move_coalescing = false;
+    target_session.collapsed_layer_groups.clear();
+    collect_initially_collapsed_layer_groups(target_session.document.layers(),
+                                             target_session.collapsed_layer_groups);
+    ++target_session.revision;
+    target_session.saved_revision = target_session.revision;
+    canvas_->set_document(&target_session.document);
+    canvas_->fit_to_view();
+    if (history_list_ != nullptr) {
+      history_list_->clear();
+    }
+    update_history(tr("Reopen"));
+    refresh_layer_list();
+    refresh_layer_controls();
+    refresh_channel_panel();
+    refresh_palette_panel();
+    schedule_palette_compliance_check();
+    maybe_offer_indexed_palette_adoption();
+    update_undo_redo_actions();
+    update_document_action_state();
+    refresh_document_tab_titles();
+    if (loaded->import_notices.isEmpty()) {
+      statusBar()->showMessage(tr("Reopened %1").arg(path));
+    } else {
+      auto status_notes = loaded->import_notices.front();
+      if (loaded->import_notices.size() > 1) {
+        status_notes +=
+            tr(" (+%n more import note(s))", nullptr, static_cast<int>(loaded->import_notices.size()) - 1);
+      }
+      statusBar()->showMessage(tr("Reopened %1. %2").arg(loaded->file_name, status_notes));
     }
   } catch (const std::exception& error) {
     show_open_failed_message_box(this, QString::fromUtf8(error.what()));
@@ -1845,10 +1934,13 @@ void MainWindow::reveal_path_in_file_explorer(const QString& path, bool is_file)
       statusBar()->showMessage(tr("File is missing"));
       return;
     }
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
     // Open the containing folder with the file pre-selected.
     QProcess::startDetached(QStringLiteral("explorer.exe"),
                             {QStringLiteral("/select,") + QDir::toNativeSeparators(info.absoluteFilePath())});
+#elif defined(Q_OS_MACOS)
+    // open -R reveals the file selected in Finder (a plain folder open loses the selection).
+    QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-R"), info.absoluteFilePath()});
 #else
     QDesktopServices::openUrl(QUrl::fromLocalFile(info.absolutePath()));
 #endif

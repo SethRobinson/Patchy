@@ -1117,11 +1117,34 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   auto* close_others_action = menu.addAction(tr("Close Others"));
   auto* close_all_action = menu.addAction(tr("Close All"));
   auto* float_action = menu.addAction(tr("Float in Window"));
+  menu.addSeparator();
+  auto* reopen_action = menu.addAction(tr("Reopen Document"));
+#if defined(Q_OS_WIN)
+  auto* reveal_action = menu.addAction(tr("Reveal in Explorer"));
+#elif defined(Q_OS_MACOS)
+  auto* reveal_action = menu.addAction(tr("Reveal in Finder"));
+#else
+  auto* reveal_action = menu.addAction(tr("Show in File Manager"));
+#endif
+  auto* copy_path_action = menu.addAction(tr("Copy File Path"));
   close_action->setObjectName(QStringLiteral("documentTabCloseAction"));
   close_others_action->setObjectName(QStringLiteral("documentTabCloseOthersAction"));
   close_all_action->setObjectName(QStringLiteral("documentTabCloseAllAction"));
   float_action->setObjectName(QStringLiteral("documentTabFloatAction"));
+  reopen_action->setObjectName(QStringLiteral("documentTabReopenAction"));
+  reveal_action->setObjectName(QStringLiteral("documentTabRevealAction"));
+  copy_path_action->setObjectName(QStringLiteral("documentTabCopyPathAction"));
   close_others_action->setEnabled(sessions_.size() > 1);
+  // The file actions need a disk path; never-saved documents (and embedded
+  // smart-object child tabs) have none.
+  const auto* target_session =
+      session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->widget(tab_index)));
+  const auto document_path = target_session != nullptr ? target_session->path : QString();
+  const auto session_id = target_session != nullptr ? target_session->session_id : 0;
+  const bool has_path = !document_path.isEmpty();
+  reopen_action->setEnabled(has_path);
+  reveal_action->setEnabled(has_path);
+  copy_path_action->setEnabled(has_path);
 
   connect(close_action, &QAction::triggered, this, [this, tab_index] { close_document_tab(tab_index); });
   connect(close_others_action, &QAction::triggered, this,
@@ -1135,6 +1158,18 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
         target_session != nullptr) {
       float_document_session(*target_session);
     }
+  });
+  connect(reopen_action, &QAction::triggered, this, [this, session_id] {
+    if (auto* reopen_session = session_with_id(session_id); reopen_session != nullptr) {
+      reopen_document_session(*reopen_session);
+    }
+  });
+  connect(reveal_action, &QAction::triggered, this, [this, document_path] {
+    reveal_path_in_file_explorer(document_path, /*is_file=*/true);
+  });
+  connect(copy_path_action, &QAction::triggered, this, [this, document_path] {
+    QApplication::clipboard()->setText(QDir::toNativeSeparators(document_path));
+    statusBar()->showMessage(tr("File path copied"));
   });
   menu.exec(tab_bar->mapToGlobal(position));
 }
