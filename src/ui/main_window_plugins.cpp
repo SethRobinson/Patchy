@@ -387,9 +387,9 @@ void MainWindow::run_legacy_plugin(QString identifier) {
     show_status_error(tr("Select an editable 8-bit pixel layer before running the plug-in"));
     return;
   }
-  if (layer_is_text(*layer) || layer_is_smart_object(*layer)) {
+  if (layer_pixels_are_procedural(*layer)) {
     show_status_error(
-        tr("Rasterize Text and Smart Object layers before editing their pixels"));
+        tr("Rasterize Text, Smart Object, and Shape layers before editing their pixels"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {

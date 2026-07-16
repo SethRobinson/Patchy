@@ -725,10 +725,10 @@ void MainWindow::cut_selection() {
   }
   if (std::any_of(layers_to_cut.begin(), layers_to_cut.end(), [this](LayerId id) {
         const auto* layer = std::as_const(document()).find_layer(id);
-        return layer != nullptr && (layer_is_text(*layer) || layer_is_smart_object(*layer));
+        return layer != nullptr && layer_pixels_are_procedural(*layer);
       })) {
     show_status_error(
-        tr("Rasterize Text and Smart Object layers before editing their pixels"));
+        tr("Rasterize Text, Smart Object, and Shape layers before editing their pixels"));
     return;
   }
 
@@ -1142,10 +1142,10 @@ void MainWindow::layer_via_cut() {
   }
   if (std::any_of(payload->source_layer_ids.begin(), payload->source_layer_ids.end(), [this](LayerId id) {
         const auto* layer = std::as_const(document()).find_layer(id);
-        return layer != nullptr && (layer_is_text(*layer) || layer_is_smart_object(*layer));
+        return layer != nullptr && layer_pixels_are_procedural(*layer);
       })) {
     show_status_error(
-        tr("Rasterize Text and Smart Object layers before editing their pixels"));
+        tr("Rasterize Text, Smart Object, and Shape layers before editing their pixels"));
     return;
   }
 
@@ -1507,9 +1507,9 @@ void MainWindow::apply_active_layer_mask() {
     show_status_error(tr("Layer pixels are locked."));
     return;
   }
-  if (layer_is_text(*layer) || layer_is_smart_object(*layer)) {
+  if (layer_pixels_are_procedural(*layer)) {
     show_status_error(
-        tr("Rasterize Text and Smart Object layers before editing their pixels"));
+        tr("Rasterize Text, Smart Object, and Shape layers before editing their pixels"));
     return;
   }
   const auto& source_pixels = std::as_const(*layer).pixels();
@@ -2487,13 +2487,13 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
   for (const auto id : editable_ids) {
     const auto* layer = std::as_const(doc).find_layer(id);
     if (layer != nullptr && layer->kind() == LayerKind::Pixel &&
-        !layer_is_text(*layer) && !layer_is_smart_object(*layer)) {
+        !layer_pixels_are_procedural(*layer)) {
       fillable_ids.push_back(id);
     }
   }
   if (fillable_ids.empty()) {
     show_status_error(
-        tr("Text and Smart Object pixels cannot be filled. Rasterize the layer first."));
+        tr("Text, Smart Object, and Shape pixels cannot be filled. Rasterize the layer first."));
     return;
   }
   canvas_->begin_processing_operation();
@@ -2597,16 +2597,17 @@ void MainWindow::clear_active_layer() {
 
   auto& doc = document();
 
-  // Delete on a text or smart-object layer removes the whole object, matching
-  // Photoshop. Clearing its pixels would leave an invisible layer whose text metadata
-  // (or placed-layer data) still exists, so the "erased" content comes back the next
-  // time that data is used. Such layers are left untouched while an inline text edit
-  // is in progress (Delete belongs to typing) or while a selection is active
-  // (Photoshop refuses to Clear these layers).
+  // Delete on a text, smart-object, or shape layer removes the whole object,
+  // matching Photoshop. Clearing its pixels would leave an invisible layer whose
+  // source data (text metadata, placed-layer data, vector content) still exists,
+  // so the "erased" content comes back the next time that data is used. Such
+  // layers are left untouched while an inline text edit is in progress (Delete
+  // belongs to typing) or while a selection is active (Photoshop refuses to
+  // Clear these layers).
   std::vector<LayerId> object_layer_ids;
   for (const auto id : editable_ids) {
     if (const auto* layer = doc.find_layer(id);
-        layer != nullptr && (layer_is_text(*layer) || layer_is_smart_object(*layer))) {
+        layer != nullptr && layer_pixels_are_procedural(*layer)) {
       object_layer_ids.push_back(id);
     }
   }
@@ -2637,8 +2638,7 @@ void MainWindow::clear_active_layer() {
   auto options = edit_options(*canvas_);
   for (const auto id : editable_ids) {
     const auto* layer = doc.find_layer(id);
-    if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_is_text(*layer) ||
-        layer_is_smart_object(*layer)) {
+    if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_pixels_are_procedural(*layer)) {
       continue;
     }
     options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
@@ -2734,9 +2734,9 @@ void MainWindow::stroke_selection() {
     show_status_error(tr("Select an editable pixel layer first"));
     return;
   }
-  if (layer_is_text(*layer) || layer_is_smart_object(*layer)) {
+  if (layer_pixels_are_procedural(*layer)) {
     show_status_error(
-        tr("Rasterize Text and Smart Object layers before editing their pixels"));
+        tr("Rasterize Text, Smart Object, and Shape layers before editing their pixels"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
@@ -2883,9 +2883,10 @@ void MainWindow::crop_to_selection() {
     show_status_error(tr("Make a rectangular selection before cropping"));
     return;
   }
-  if (document_contains_smart_objects(std::as_const(document()))) {
+  if (document_contains_smart_objects(std::as_const(document())) ||
+      document_contains_vector_content(std::as_const(document()))) {
     show_status_error(
-        tr("Rasterize Smart Objects before changing document geometry"));
+        tr("Rasterize Smart Objects and Shape layers before changing document geometry"));
     return;
   }
 
@@ -2912,9 +2913,10 @@ void MainWindow::crop_to_selection() {
 
 void MainWindow::rotate_canvas_clockwise() {
   auto& doc = document();
-  if (document_contains_smart_objects(std::as_const(doc))) {
+  if (document_contains_smart_objects(std::as_const(doc)) ||
+      document_contains_vector_content(std::as_const(doc))) {
     show_status_error(
-        tr("Rasterize Smart Objects before changing document geometry"));
+        tr("Rasterize Smart Objects and Shape layers before changing document geometry"));
     return;
   }
   push_undo_snapshot(tr("Rotate canvas"));
@@ -2934,9 +2936,10 @@ void MainWindow::rotate_canvas_clockwise() {
 
 void MainWindow::rotate_canvas_counterclockwise() {
   auto& doc = document();
-  if (document_contains_smart_objects(std::as_const(doc))) {
+  if (document_contains_smart_objects(std::as_const(doc)) ||
+      document_contains_vector_content(std::as_const(doc))) {
     show_status_error(
-        tr("Rasterize Smart Objects before changing document geometry"));
+        tr("Rasterize Smart Objects and Shape layers before changing document geometry"));
     return;
   }
   push_undo_snapshot(tr("Rotate canvas"));

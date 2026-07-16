@@ -45,6 +45,9 @@ struct BrushPreset;
 [[nodiscard]] bool layer_tree_contains_smart_filters(const Layer& layer);
 [[nodiscard]] bool layer_tree_contains_smart_object(const Layer& layer);
 [[nodiscard]] bool document_contains_smart_objects(const Document& document);
+// Any layer carrying a vector shape or vector mask (geometry-op guard until
+// the vector geometry integration lands).
+[[nodiscard]] bool document_contains_vector_content(const Document& document);
 
 // Localized display name for an adjustment layer kind ("Levels", "Curves", ...).
 [[nodiscard]] QString localized_adjustment_display_name(AdjustmentKind kind);

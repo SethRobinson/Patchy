@@ -1274,7 +1274,7 @@ bool promote_flat_alpha_to_layer_mask(Document& document) {
   }
   Layer& layer = document.layers().front();
   if (layer.kind() != LayerKind::Pixel || !layer.children().empty() || layer.mask().has_value() ||
-      layer_is_text(layer) || layer_is_smart_object(layer)) {
+      layer_pixels_are_procedural(layer)) {
     return false;
   }
 

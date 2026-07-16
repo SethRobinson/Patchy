@@ -6286,6 +6286,22 @@ Mixed selection</source>
         <translation>スマートオブジェクトの内容には描画できません。ピクセルを編集するにはレイヤーをラスタライズしてください。</translation>
     </message>
     <message>
+        <source>Shape layers can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
+        <translation>シェイプレイヤーには描画できません。ピクセルを編集するにはレイヤーをラスタライズしてください。</translation>
+    </message>
+    <message>
+        <source>Shape layers and vector masks can&apos;t be transformed yet. Rasterize first.</source>
+        <translation>シェイプレイヤーとベクトルマスクはまだ変形できません。先にラスタライズしてください。</translation>
+    </message>
+    <message>
+        <source>Shape layers can&apos;t be warped. Convert to a smart object or rasterize first.</source>
+        <translation>シェイプレイヤーはワープできません。スマートオブジェクトに変換するか、先にラスタライズしてください。</translation>
+    </message>
+    <message>
+        <source>Shape layers and vector masks can&apos;t be warped. Convert to a smart object or rasterize first.</source>
+        <translation>シェイプレイヤーとベクトルマスクはワープできません。スマートオブジェクトに変換するか、先にラスタライズしてください。</translation>
+    </message>
+    <message>
         <location line="+2304"/>
         <source>Magnetic Lasso</source>
         <translation>マグネット投げ縄</translation>
@@ -12540,8 +12556,8 @@ Clipped to the layer below</source>
         <translation>ペイントツールは共有スマートフィルターマスクを編集しています。クリックするとレイヤーピクセルの編集に戻ります。</translation>
     </message>
     <message>
-        <source>Rasterize Smart Objects before changing document geometry</source>
-        <translation>ドキュメントの形状を変更する前に、スマートオブジェクトをラスタライズしてください</translation>
+        <source>Rasterize Smart Objects and Shape layers before changing document geometry</source>
+        <translation>ドキュメントの形状を変更する前に、スマートオブジェクトとシェイプレイヤーをラスタライズしてください</translation>
     </message>
     <message>
         <source>Use Free Transform or rasterize Smart Objects before flipping</source>
@@ -12552,12 +12568,12 @@ Clipped to the layer below</source>
         <translation>破壊的なフィルターや色調補正を適用する前に、スマートオブジェクトをラスタライズしてください</translation>
     </message>
     <message>
-        <source>Text and Smart Object pixels cannot be filled. Rasterize the layer first.</source>
-        <translation>テキストとスマートオブジェクトのピクセルは塗りつぶせません。先にレイヤーをラスタライズしてください。</translation>
+        <source>Text, Smart Object, and Shape pixels cannot be filled. Rasterize the layer first.</source>
+        <translation>テキスト、スマートオブジェクト、シェイプのピクセルは塗りつぶせません。先にレイヤーをラスタライズしてください。</translation>
     </message>
     <message>
-        <source>Rasterize Text and Smart Object layers before editing their pixels</source>
-        <translation>ピクセルを編集する前に、テキストとスマートオブジェクトのレイヤーをラスタライズしてください</translation>
+        <source>Rasterize Text, Smart Object, and Shape layers before editing their pixels</source>
+        <translation>ピクセルを編集する前に、テキスト、スマートオブジェクト、シェイプのレイヤーをラスタライズしてください</translation>
     </message>
     <message>
         <source>Rasterize Smart Objects before changing palette pixels</source>

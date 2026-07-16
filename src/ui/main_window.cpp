@@ -7334,6 +7334,7 @@ void MainWindow::rasterize_active_layers() {
     Rect before;
     bool clear_text{false};
     bool clear_smart_object{false};
+    bool clear_vector{false};
   };
   auto& doc = document();
   std::vector<PendingRasterize> pending;
@@ -7349,7 +7350,7 @@ void MainWindow::rasterize_active_layers() {
     }
     pending.push_back(PendingRasterize{id, std::move(*rasterized), layer_render_bounds(*layer),
                                        layer->kind() == LayerKind::Text || layer_is_text(*layer),
-                                       layer_is_smart_object(*layer)});
+                                       layer_is_smart_object(*layer), layer_is_vector_shape(*layer)});
   }
   if (pending.empty()) {
     if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
@@ -7378,6 +7379,9 @@ void MainWindow::rasterize_active_layers() {
       // The pixels already are the preview; dropping the metadata and the preserved
       // placed-layer blocks makes this a plain pixel layer everywhere, resave included.
       strip_layer_smart_object_data(doc, *layer);
+    }
+    if (change.clear_vector) {
+      strip_layer_vector_data(*layer);
     }
     affected = unite_rect(affected, layer_render_bounds(*layer));
   }
@@ -7442,8 +7446,10 @@ void MainWindow::rasterize_active_layer_styles() {
       clear_layer_text_metadata(*layer);
     }
     // Baking effects into the pixels breaks the preview's tie to the placed source, so
-    // a smart object also demotes to a plain pixel layer here.
+    // a smart object also demotes to a plain pixel layer here - and so does a
+    // shape layer (the cache is no longer a pure path render).
     strip_layer_smart_object_data(doc, *layer);
+    strip_layer_vector_data(*layer);
     affected = unite_rect(affected, layer_render_bounds(*layer));
   }
   refresh_layer_list();
@@ -7609,6 +7615,7 @@ void MainWindow::merge_down() {
     target.layer_style() = {};
     clear_layer_text_metadata(target);
     strip_layer_smart_object_data(doc, target);
+    strip_layer_vector_data(target);
     clear_layer_psd_style_source(target);
     target.set_visible(true);
   }

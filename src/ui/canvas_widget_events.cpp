@@ -2615,6 +2615,10 @@ bool CanvasWidget::begin_edit(QString label) {
     report_status_error(tr("Smart object contents can't be painted. Rasterize the layer to edit its pixels."));
     return false;
   }
+  if (layer_is_vector_shape(*layer)) {
+    report_status_error(tr("Shape layers can't be painted. Rasterize the layer to edit its pixels."));
+    return false;
+  }
 
   if (before_edit_callback_) {
     before_edit_callback_(label);

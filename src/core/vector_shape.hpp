@@ -234,9 +234,19 @@ inline constexpr const char* kVectorRasterStatusPhotoshop = "psd_raster_preview"
 inline constexpr const char* kVectorRasterStatusPatchy = "patchy_raster";
 
 [[nodiscard]] bool layer_has_vector_shape_marker(const Layer& layer);
+// The real predicate: the metadata marker AND the structured content.
+[[nodiscard]] bool layer_is_vector_shape(const Layer& layer);
+// Text, smart-object, or vector-shape: pixels are a derived cache of richer
+// content, so hand edits must rasterize first (the shared guard condition).
+[[nodiscard]] bool layer_pixels_are_procedural(const Layer& layer);
 [[nodiscard]] std::string vector_lock_reason(const Layer& layer);
 [[nodiscard]] bool layer_vector_block_dirty(const Layer& layer);
 void mark_layer_vector_block_dirty(Layer& layer);
+// The rasterize / merge-target semantic: drops the vector fields, every
+// patchy.vector.* key, and the preserved PSD vector blocks so the layer
+// becomes a plain pixel layer everywhere, resave included (the
+// strip_layer_smart_object_data pattern).
+void strip_layer_vector_data(Layer& layer);
 
 // --- path text codec (tests, custom-shape library storage; PSD uses the
 // binary record forms instead) ---

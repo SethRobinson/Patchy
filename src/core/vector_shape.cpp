@@ -1,5 +1,8 @@
 #include "core/vector_shape.hpp"
 
+#include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -113,12 +116,39 @@ std::string vector_lock_reason(const Layer& layer) {
   return it != metadata.end() ? it->second : std::string{};
 }
 
+bool layer_is_vector_shape(const Layer& layer) {
+  return layer_has_vector_shape_marker(layer) && layer.vector_shape() != nullptr;
+}
+
+bool layer_pixels_are_procedural(const Layer& layer) {
+  return layer_is_text(layer) || layer_is_smart_object(layer) || layer_is_vector_shape(layer);
+}
+
 bool layer_vector_block_dirty(const Layer& layer) {
   return layer.metadata().contains(kLayerMetadataVectorBlockDirty);
 }
 
 void mark_layer_vector_block_dirty(Layer& layer) {
   layer.metadata()[kLayerMetadataVectorBlockDirty] = "1";
+}
+
+void strip_layer_vector_data(Layer& layer) {
+  layer.clear_vector_shape();
+  layer.clear_vector_mask();
+  auto& metadata = layer.metadata();
+  for (auto it = metadata.begin(); it != metadata.end();) {
+    if (it->first.rfind("patchy.vector.", 0) == 0 || it->first == kLayerMetadataVectorShape) {
+      it = metadata.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  auto& blocks = layer.unknown_psd_blocks();
+  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
+    return block.key == "vmsk" || block.key == "vsms" || block.key == "vscg" || block.key == "vstk" ||
+           block.key == "vogk" || block.key == "vowv" || block.key == "SoCo" || block.key == "GdFl" ||
+           block.key == "PtFl";
+  });
 }
 
 std::string serialize_vector_path(const VectorPath& path) {

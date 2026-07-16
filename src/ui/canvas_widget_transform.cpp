@@ -474,6 +474,12 @@ bool CanvasWidget::begin_free_transform() {
     report_status_error(tr("This smart object is preview-only and can't be transformed. Rasterize the layer first."));
     return false;
   }
+  if (layer_is_vector_shape(*layer) || layer_has_enabled_vector_mask(*layer)) {
+    // Interim guard until the vector geometry-ops phase lands: transforming the
+    // raster while the path stays put would desync the shape from its source.
+    report_status_error(tr("Shape layers and vector masks can't be transformed yet. Rasterize first."));
+    return false;
+  }
   const auto local_transform_rect = opaque_pixel_local_rect(*layer);
   if (!local_transform_rect.has_value()) {
     report_status_error(tr("Layer has no opaque pixels to transform"));
@@ -1347,6 +1353,10 @@ bool CanvasWidget::begin_warp_transform() {
   }
   if (layer_is_smart_object(*layer) && !smart_object_lock_reason(*layer).empty()) {
     report_status_error(tr("This smart object is preview-only and can't be warped. Rasterize the layer first."));
+    return false;
+  }
+  if (layer_is_vector_shape(*layer) || layer_has_enabled_vector_mask(*layer)) {
+    report_status_error(tr("Shape layers and vector masks can't be warped. Convert to a smart object or rasterize first."));
     return false;
   }
 

@@ -69,6 +69,23 @@ bool document_contains_smart_objects(const Document& document) {
                      layer_tree_contains_smart_object);
 }
 
+namespace {
+
+bool layer_tree_contains_vector_content(const Layer& layer) {
+  if (layer.vector_shape() != nullptr || layer.vector_mask() != nullptr) {
+    return true;
+  }
+  return std::any_of(layer.children().begin(), layer.children().end(),
+                     layer_tree_contains_vector_content);
+}
+
+}  // namespace
+
+bool document_contains_vector_content(const Document& document) {
+  return std::any_of(document.layers().begin(), document.layers().end(),
+                     layer_tree_contains_vector_content);
+}
+
 QString localized_adjustment_display_name(AdjustmentKind kind) {
   switch (kind) {
     case AdjustmentKind::Levels:
@@ -483,7 +500,8 @@ bool layer_has_rasterizable_content(const Layer& layer) {
 }
 
 bool layer_can_rasterize(const Layer& layer) {
-  return layer.kind() == LayerKind::Text || layer_is_text(layer) || layer_is_smart_object(layer);
+  return layer.kind() == LayerKind::Text || layer_is_text(layer) || layer_is_smart_object(layer) ||
+         layer_is_vector_shape(layer);
 }
 
 bool layer_can_rasterize_layer_style(const Layer& layer) {

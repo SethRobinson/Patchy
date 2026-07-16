@@ -302,8 +302,8 @@ bool flat_save_discards_layers(const Document& document) {
     return !layers.empty();
   }
   const Layer& layer = layers.front();
-  if (layer.kind() != LayerKind::Pixel || !layer.children().empty() || layer_is_text(layer) ||
-      layer_is_smart_object(layer)) {
+  if (layer.kind() != LayerKind::Pixel || !layer.children().empty() ||
+      layer_pixels_are_procedural(layer)) {
     return true;
   }
   if (layer.mask().has_value() && !layer_mask_is_document_alpha(layer)) {

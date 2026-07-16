@@ -233,10 +233,10 @@ void apply_palette_to_layers(std::vector<Layer>& layers, const patchy::PaletteLu
     if (layer.kind() == LayerKind::Adjustment) {
       continue;
     }
-    // A Smart Object's pixels are a derived cache. Rewriting that cache without
-    // changing its source and native descriptor would make the document lie on
+    // Smart Object and shape-layer pixels are derived caches. Rewriting a
+    // cache without changing its source data would make the document lie on
     // its next render or Photoshop round-trip.
-    if (layer_is_smart_object(layer)) {
+    if (layer_is_smart_object(layer) || layer_is_vector_shape(layer)) {
       continue;
     }
     auto& pixels = layer.pixels();
@@ -262,7 +262,7 @@ void apply_palette_to_layers(std::vector<Layer>& layers, const patchy::PaletteLu
     if (layer.kind() == LayerKind::Adjustment) {
       continue;
     }
-    if (layer_is_smart_object(layer)) {
+    if (layer_is_smart_object(layer) || layer_is_vector_shape(layer)) {
       continue;
     }
     const auto& pixels = layer.pixels();

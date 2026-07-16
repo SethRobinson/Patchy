@@ -2838,8 +2838,9 @@ void MainWindow::refresh_document_info() {
     set_property_label_text(active_layer_info_label_,
                             tr("Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6")
                                 .arg(QString::fromStdString(layer->name()))
-                                .arg(layer_is_text(*layer) ? layer_kind_name(LayerKind::Text)
-                                                           : layer_kind_name(layer->kind()))
+                                .arg(layer_is_text(*layer)           ? layer_kind_name(LayerKind::Text)
+                                     : layer_is_vector_shape(*layer) ? layer_kind_name(LayerKind::Vector)
+                                                                     : layer_kind_name(layer->kind()))
                                 .arg(blend_mode_name(layer->blend_mode()))
                                 .arg(static_cast<int>(std::round(layer->opacity() * 100.0F)))
                                 .arg(layer->visible() ? tr("Visible") : tr("Hidden"))
