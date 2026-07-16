@@ -1,6 +1,7 @@
 #include "ui/raw_develop_dialog.hpp"
 
 #include "ui/app_settings.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/zoomable_image_preview.hpp"
 
@@ -734,7 +735,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   state->start = [state](RawPreviewState::Work work) {
     state->in_flight = true;
     auto* app = QCoreApplication::instance();
-    std::thread([state, work, app]() mutable {
+    run_tracked_background_worker([state, work, app]() mutable {
       RawPreviewState::Completion completion;
       completion.final_render = work.final_render;
       QString error;
@@ -784,7 +785,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
             }
           },
           Qt::QueuedConnection);
-    }).detach();
+    });
   };
 
   // --- Wiring ---

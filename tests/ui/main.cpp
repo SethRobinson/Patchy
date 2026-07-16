@@ -9,6 +9,7 @@
 #include "test_harness.hpp"
 
 #include "ui/app_settings.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/localization.hpp"
 
 #include <QApplication>
@@ -230,5 +231,9 @@ int main(int argc, char* argv[]) {
     cleanup_after_visual_test();
   }
 
+  // Detached preview/render workers capture the QApplication pointer; wait
+  // for them before the suite's QApplication is destroyed (the same shutdown
+  // latch src/app/main.cpp uses).
+  patchy::ui::wait_for_tracked_background_workers();
   return failures == 0 ? 0 : 1;
 }

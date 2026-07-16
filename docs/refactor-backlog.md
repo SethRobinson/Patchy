@@ -210,11 +210,11 @@ MainWindow/adjustments internals:
 
 ## Design and bug notes (lower severity, unfixed)
 
-- Detached std::threads in the async preview/render machinery capture a raw
-  QCoreApplication* and invokeMethod on it; nothing joins them at shutdown — quitting
-  mid-render can call into a destroyed QApplication and race static-cache teardown
-  (main_window_adjustments.cpp, canvas_widget_render.cpp, visual_filter_gallery_dialog.cpp).
-  A shutdown latch or tracked jthread owner would bound it.
+- FIXED (July 2026): the detached async preview/render std::threads now run through
+  `run_tracked_background_worker` (src/ui/background_workers.{hpp,cpp}); app main and
+  the UI test runner call `wait_for_tracked_background_workers()` after the event loop
+  and before QApplication destruction, closing the quit-mid-render shutdown race. Any
+  NEW detached worker must use the tracker, never a bare std::thread(...).detach().
 - color_panel.cpp: three function-local-static global registries invisibly couple every
   picker to MainWindow palette mode; ~MainWindow clears the hook unconditionally
   (order-dependent if two windows ever coexist). Compare-before-clear or an owner object.

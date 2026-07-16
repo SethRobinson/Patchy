@@ -1,5 +1,6 @@
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/splash_dialog.hpp"
@@ -431,7 +432,9 @@ int main(int argc, char* argv[]) {
     stress_options.preset = *stress_preset;
     stress_options.report_dir = parser.value(stress_report_dir_option);
     window.start_cli_stress_test(stress_options);
-    return app.exec();
+    const int stress_result = app.exec();
+    patchy::ui::wait_for_tracked_background_workers();
+    return stress_result;
   }
   // Guard the splash-closed callback: if the app quits before the splash auto-closes, the window is
   // torn down first and the QPointer goes null, so we skip touching a destroyed window.
@@ -470,5 +473,8 @@ int main(int argc, char* argv[]) {
   // The window (declared after `app`) is destroyed before the application object; drop
   // the handler so a late event cannot reach a dead window.
   app.file_open_handler = nullptr;
+  // Detached preview/render workers capture the QCoreApplication pointer;
+  // wait for them before the window and application objects are destroyed.
+  patchy::ui::wait_for_tracked_background_workers();
   return exec_result;
 }

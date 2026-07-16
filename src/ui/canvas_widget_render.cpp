@@ -8,6 +8,7 @@
 // must stay identical.
 
 #include "ui/canvas_widget.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/canvas_widget_shared.hpp"
 
 #include "core/adjustment_layer.hpp"
@@ -877,7 +878,7 @@ void CanvasWidget::start_async_render_cache_refresh() {
   const auto generation = ++async_render_cache_generation_;
   auto* app = QApplication::instance();
   QPointer<CanvasWidget> widget(this);
-  std::thread([app, widget, generation, snapshot_size, document_snapshot = std::move(document_snapshot)] {
+  run_tracked_background_worker([app, widget, generation, snapshot_size, document_snapshot = std::move(document_snapshot)] {
     auto image = std::make_shared<QImage>();
     try {
       if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
@@ -924,7 +925,7 @@ void CanvasWidget::start_async_render_cache_refresh() {
           }
         },
         Qt::QueuedConnection);
-  }).detach();
+  });
 }
 
 void CanvasWidget::cancel_async_render_cache_refresh() noexcept {

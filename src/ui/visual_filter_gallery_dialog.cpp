@@ -2,6 +2,7 @@
 
 #include "filters/smart_filter_recipe_mapping.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/filter_gallery_controls.hpp"
 #include "ui/filter_look_library.hpp"
@@ -1619,7 +1620,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         auto error = std::make_shared<QString>();
         auto cancelled = std::make_shared<bool>(false);
         auto* app = QCoreApplication::instance();
-        std::thread([app, thumbnail_render_state, proxy_registry,
+        run_tracked_background_worker([app, thumbnail_render_state, proxy_registry,
                      thumbnail_proxy, exact_source_bounds, exact_renderer,
                      recipe = std::move(recipe), invocation, id, generation,
                      rendered, error, cancelled, thumbnail_timer,
@@ -1687,7 +1688,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                 }
               },
               Qt::QueuedConnection);
-        }).detach();
+        });
       }
       return;
     }

@@ -1,5 +1,6 @@
 #include "ui/filter_preview_proxy.hpp"
 
+#include "ui/background_workers.hpp"
 #include "ui/filter_workflows.hpp"
 
 #include <QCoreApplication>
@@ -300,7 +301,7 @@ make_filter_proxy_render_start(std::shared_ptr<FilterProxyPreviewState> state,
     const auto filter_id = work.active_filter_id;
     auto entry_ids = std::move(work.entry_ids);
     auto recipe = std::move(work.recipe);
-    std::thread([app, state, registry, proxy, exact_source_bounds,
+    run_tracked_background_worker([app, state, registry, proxy, exact_source_bounds,
                  exact_renderer, recipe = std::move(recipe),
                  entry_ids = std::move(entry_ids), generation, active_entry_id,
                  filter_id, rendered, error, cancelled]() mutable {
@@ -357,7 +358,7 @@ make_filter_proxy_render_start(std::shared_ptr<FilterProxyPreviewState> state,
             }
           },
           Qt::QueuedConnection);
-    }).detach();
+    });
   };
 }
 

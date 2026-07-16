@@ -516,6 +516,8 @@ if(PATCHY_BUILD_APP)
       src/ui/action_icons.cpp
       src/ui/app_settings.hpp
       src/ui/app_settings.cpp
+      src/ui/background_workers.hpp
+      src/ui/background_workers.cpp
       src/ui/gradient_library.cpp
       src/ui/gradient_manager_dialog.cpp
       src/ui/blend_mode_ui.cpp

@@ -23,6 +23,7 @@
 #include "psd/psd_filter_effects.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "ui/action_icons.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/app_settings.hpp"
 #include "render/compositor.hpp"
 #include "ui/blend_mode_ui.hpp"
@@ -1597,7 +1598,7 @@ void MainWindow::editable_smart_filter_dialog(
         const auto generation = ++preview_state->generation;
         auto* app = QCoreApplication::instance();
         auto window = QPointer<MainWindow>(this);
-        std::thread([app, window, preview_state, generation, layer_id,
+        run_tracked_background_worker([app, window, preview_state, generation, layer_id,
                      unfiltered_pixels, unfiltered_bounds, last_preview_bounds,
                      filter_canvas_bounds, candidate = std::move(*candidate)] {
           auto result = std::make_shared<FilterRenderResult>();
@@ -1649,7 +1650,7 @@ void MainWindow::editable_smart_filter_dialog(
                 }
               },
               Qt::QueuedConnection);
-        }).detach();
+        });
       };
   const auto preview_changed =
       [preview_state](FilterPreviewSettings settings) {
@@ -1874,7 +1875,7 @@ void MainWindow::edit_smart_filter_blending(
         const auto generation = ++preview_state->generation;
         auto* app = QCoreApplication::instance();
         auto window = QPointer<MainWindow>(this);
-        std::thread([app, window, preview_state, generation, layer_id,
+        run_tracked_background_worker([app, window, preview_state, generation, layer_id,
                      unfiltered_pixels, unfiltered_bounds, last_preview_bounds,
                      filter_canvas_bounds, candidate = std::move(candidate)] {
           auto result = std::make_shared<FilterRenderResult>();
@@ -1926,7 +1927,7 @@ void MainWindow::edit_smart_filter_blending(
                 }
               },
               Qt::QueuedConnection);
-        }).detach();
+        });
       };
   const auto preview_changed =
       [preview_state](bool enabled,
@@ -2343,7 +2344,7 @@ void MainWindow::apply_filter(const QString& identifier) {
           auto result_bounds = std::make_shared<Rect>(bounds);
           auto* app = QCoreApplication::instance();
           auto window = QPointer<MainWindow>(this);
-          std::thread([app, window, preview_state, generation, original_pixels, result_bounds, last_preview_bounds,
+          run_tracked_background_worker([app, window, preview_state, generation, original_pixels, result_bounds, last_preview_bounds,
                        selection, bounds, settings, preview_registry, active] {
             auto result = std::make_shared<PixelBuffer>();
             auto error = std::make_shared<QString>();
@@ -2385,7 +2386,7 @@ void MainWindow::apply_filter(const QString& identifier) {
                   }
                 },
                 Qt::QueuedConnection);
-          }).detach();
+          });
         };
     const auto preview_changed = [preview_state](FilterPreviewSettings settings) {
       enqueue_async_pixel_preview(preview_state, std::move(settings), !settings.preview_enabled);
@@ -2764,7 +2765,7 @@ void MainWindow::visual_filter_gallery_dialog() {
           auto* app = QCoreApplication::instance();
           auto window = QPointer<MainWindow>(this);
           const auto generation = work.generation;
-          std::thread([app, window, preview_state, preview_registry,
+          run_tracked_background_worker([app, window, preview_state, preview_registry,
                        original_pixels, selection, bounds, session_id,
                        layer_id, last_preview_bounds, preview_shows_original,
                        target_canvas, generation,
@@ -2820,7 +2821,7 @@ void MainWindow::visual_filter_gallery_dialog() {
                   }
                 },
                 Qt::QueuedConnection);
-          }).detach();
+          });
         };
 
     const auto preview_changed =
@@ -3199,7 +3200,7 @@ void MainWindow::levels_dialog() {
     const auto generation = ++preview_state->generation;
     auto* app = QCoreApplication::instance();
     auto window = QPointer<MainWindow>(this);
-    std::thread([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
+    run_tracked_background_worker([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
       auto result = std::make_shared<PixelBuffer>(*original_pixels);
       try {
         apply_levels_to_pixels(*result, bounds, selection, request.settings, nullptr);
@@ -3230,7 +3231,7 @@ void MainWindow::levels_dialog() {
             }
           },
           Qt::QueuedConnection);
-    }).detach();
+    });
   };
   const auto preview_changed = [preview_state](bool enabled, const LevelsSettings& settings) {
     enqueue_async_pixel_preview(preview_state, LevelsPreviewRequest{enabled, settings},
@@ -3389,7 +3390,7 @@ void MainWindow::curves_dialog() {
     const auto generation = ++preview_state->generation;
     auto* app = QCoreApplication::instance();
     auto window = QPointer<MainWindow>(this);
-    std::thread([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
+    run_tracked_background_worker([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
       auto result = std::make_shared<PixelBuffer>(*original_pixels);
       try {
         apply_curves_to_pixels(*result, bounds, selection, request.settings, nullptr);
@@ -3420,7 +3421,7 @@ void MainWindow::curves_dialog() {
             }
           },
           Qt::QueuedConnection);
-    }).detach();
+    });
   };
   const auto preview_changed = [preview_state](bool enabled, const CurvesSettings& settings) {
     enqueue_async_pixel_preview(preview_state, CurvesPreviewRequest{enabled, settings},
@@ -3572,7 +3573,7 @@ void MainWindow::hue_saturation_dialog() {
     const auto generation = ++preview_state->generation;
     auto* app = QCoreApplication::instance();
     auto window = QPointer<MainWindow>(this);
-    std::thread([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
+    run_tracked_background_worker([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
       auto result = std::make_shared<PixelBuffer>(*original_pixels);
       try {
         apply_hue_saturation_to_pixels(*result, bounds, selection, request.settings, nullptr);
@@ -3603,7 +3604,7 @@ void MainWindow::hue_saturation_dialog() {
             }
           },
           Qt::QueuedConnection);
-    }).detach();
+    });
   };
   const auto preview_changed = [preview_state, hue_saturation_has_effect](bool enabled,
                                                                          const HueSaturationSettings& settings) {
@@ -3706,7 +3707,7 @@ void MainWindow::color_balance_dialog() {
     const auto generation = ++preview_state->generation;
     auto* app = QCoreApplication::instance();
     auto window = QPointer<MainWindow>(this);
-    std::thread([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
+    run_tracked_background_worker([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
       auto result = std::make_shared<PixelBuffer>(*original_pixels);
       try {
         apply_color_balance_to_pixels(*result, bounds, selection, request.settings, nullptr);
@@ -3737,7 +3738,7 @@ void MainWindow::color_balance_dialog() {
             }
           },
           Qt::QueuedConnection);
-    }).detach();
+    });
   };
   const auto preview_changed = [preview_state, color_balance_has_effect](bool enabled,
                                                                          const ColorBalanceSettings& settings) {
