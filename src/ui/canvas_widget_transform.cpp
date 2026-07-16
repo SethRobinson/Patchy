@@ -96,6 +96,7 @@ bool layer_needs_composited_transform_preview(const Layer& layer) {
   return std::abs(layer.opacity() - 1.0F) > 0.001F || std::abs(layer.fill_opacity() - 1.0F) > 0.001F ||
          layer.blend_mode() != BlendMode::Normal ||
          (layer.mask().has_value() && !layer.mask()->disabled) ||
+         patchy::layer_has_enabled_vector_mask(layer) ||
          (layer.layer_style().effects_visible && !layer.layer_style().empty());
 }
 

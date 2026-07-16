@@ -63,4 +63,12 @@ struct ShapeRasterResult {
                                                        const PatternStore* patterns,
                                                        const Layer* layer_for_pattern_anchor);
 
+// Bakes the layer's vector shape into pixels()/bounds() and stamps the
+// raster-status metadata (the text-layer "pixels are a cache" contract). The
+// compositor never rasterizes - these run at edit/import time only. No-ops
+// when the layer carries no vector shape / vector mask.
+void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* patterns);
+// Regenerates the vector mask's grayscale cache from its path.
+void update_vector_mask_raster(Layer& layer, Rect canvas);
+
 }  // namespace patchy

@@ -34,6 +34,14 @@ namespace patchy {
 [[nodiscard]] Rect layer_bounds_with_effects(const Layer& layer, Rect bounds) noexcept;
 [[nodiscard]] Rect layer_render_bounds(const Layer& layer) noexcept;
 [[nodiscard]] bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept;
+// Vector-mask coverage sample (1.0 when absent/disabled; density folds in).
+// Both layer_mask_alpha_at overloads already multiply this in, so every mask
+// consumer that funnels through them gets vector masks automatically.
+[[nodiscard]] float vector_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y);
+// Gate helpers for fast paths that skip per-pixel mask sampling (defined here
+// so headers do not need the complete LayerVectorMask type).
+[[nodiscard]] bool layer_has_enabled_vector_mask(const Layer& layer) noexcept;
+[[nodiscard]] bool layer_vector_mask_hides_effects(const Layer& layer) noexcept;
 [[nodiscard]] float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y);
 [[nodiscard]] float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y, Rect mask_bounds);
 [[nodiscard]] std::vector<float> layer_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds,

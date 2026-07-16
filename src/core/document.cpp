@@ -198,6 +198,49 @@ const DocumentChannel* Document::find_channel(ChannelId id) const noexcept {
   return found == channels_.end() ? nullptr : &*found;
 }
 
+DocumentPath& Document::add_path(DocumentPath path) {
+  if (path.id() == 0) {
+    throw std::invalid_argument("Document path id 0 is reserved");
+  }
+  if (find_path(path.id()) != nullptr) {
+    throw std::invalid_argument("Document path ids must be unique");
+  }
+  if (path.kind() == DocumentPathKind::Work && work_path() != nullptr) {
+    throw std::invalid_argument("A document holds at most one work path");
+  }
+  paths_.push_back(std::move(path));
+  return paths_.back();
+}
+
+DocumentPath* Document::find_path(DocumentPathId id) noexcept {
+  const auto found = std::find_if(paths_.begin(), paths_.end(),
+                                  [id](const DocumentPath& path) { return path.id() == id; });
+  return found == paths_.end() ? nullptr : &*found;
+}
+
+const DocumentPath* Document::find_path(DocumentPathId id) const noexcept {
+  const auto found = std::find_if(paths_.begin(), paths_.end(),
+                                  [id](const DocumentPath& path) { return path.id() == id; });
+  return found == paths_.end() ? nullptr : &*found;
+}
+
+DocumentPath* Document::work_path() noexcept {
+  const auto found = std::find_if(paths_.begin(), paths_.end(), [](const DocumentPath& path) {
+    return path.kind() == DocumentPathKind::Work;
+  });
+  return found == paths_.end() ? nullptr : &*found;
+}
+
+bool Document::remove_path(DocumentPathId id) {
+  const auto found = std::find_if(paths_.begin(), paths_.end(),
+                                  [id](const DocumentPath& path) { return path.id() == id; });
+  if (found == paths_.end()) {
+    return false;
+  }
+  paths_.erase(found);
+  return true;
+}
+
 void Document::set_active_layer(LayerId id) {
   if (find_layer(id) == nullptr) {
     throw std::invalid_argument("Cannot activate a layer that does not exist");
@@ -278,6 +321,21 @@ void Document::resize_canvas(std::int32_t width, std::int32_t height) {
 
 LayerId Document::allocate_layer_id() noexcept {
   return next_layer_id_++;
+}
+
+const std::vector<DocumentPath>& Document::paths() const noexcept {
+  return paths_;
+}
+
+std::vector<DocumentPath>& Document::paths() noexcept {
+  return paths_;
+}
+
+DocumentPathId Document::allocate_path_id() noexcept {
+  while (next_path_id_ == 0 || find_path(next_path_id_) != nullptr) {
+    ++next_path_id_;
+  }
+  return next_path_id_++;
 }
 
 ChannelId Document::allocate_channel_id() {

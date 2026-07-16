@@ -952,6 +952,29 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
   return band;
 }
 
+void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* patterns) {
+  const auto* shape = layer.vector_shape();
+  if (shape == nullptr) {
+    return;
+  }
+  auto raster = rasterize_vector_shape(*shape, canvas, patterns, &layer);
+  layer.set_pixels(std::move(raster.pixels));
+  layer.set_bounds(raster.bounds);
+  layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+}
+
+void update_vector_mask_raster(Layer& layer, Rect canvas) {
+  const auto* mask = layer.vector_mask();
+  if (mask == nullptr) {
+    return;
+  }
+  auto updated = *mask;
+  auto coverage = rasterize_vector_mask_coverage(updated, canvas);
+  updated.cache_bounds = coverage.bounds;
+  updated.cache = std::move(coverage.pixels);
+  layer.set_vector_mask(std::move(updated));
+}
+
 CoverageBuffer rasterize_vector_mask_coverage(const LayerVectorMask& mask, Rect clip) {
   VectorRasterOptions options;
   options.clip = clip;

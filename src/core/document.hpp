@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/document_channel.hpp"
+#include "core/document_path.hpp"
 #include "core/layer.hpp"
 #include "core/palette.hpp"
 #include "core/pattern_resource.hpp"
@@ -120,6 +121,8 @@ public:
   [[nodiscard]] std::vector<Layer>& layers() noexcept;
   [[nodiscard]] const std::vector<DocumentChannel>& channels() const noexcept;
   [[nodiscard]] std::vector<DocumentChannel>& channels() noexcept;
+  [[nodiscard]] const std::vector<DocumentPath>& paths() const noexcept;
+  [[nodiscard]] std::vector<DocumentPath>& paths() noexcept;
   [[nodiscard]] std::optional<LayerId> active_layer_id() const noexcept;
 
   Layer& add_pixel_layer(std::string name, PixelBuffer pixels);
@@ -129,6 +132,12 @@ public:
   DocumentChannel& add_channel(DocumentChannel channel);
   [[nodiscard]] DocumentChannel* find_channel(ChannelId id) noexcept;
   [[nodiscard]] const DocumentChannel* find_channel(ChannelId id) const noexcept;
+  DocumentPath& add_path(DocumentPath path);
+  [[nodiscard]] DocumentPath* find_path(DocumentPathId id) noexcept;
+  [[nodiscard]] const DocumentPath* find_path(DocumentPathId id) const noexcept;
+  // The (single) work path, if present.
+  [[nodiscard]] DocumentPath* work_path() noexcept;
+  bool remove_path(DocumentPathId id);
 
   void set_active_layer(LayerId id);
   void clear_active_layer() noexcept;
@@ -139,6 +148,7 @@ public:
   void resize_canvas(std::int32_t width, std::int32_t height);
   [[nodiscard]] LayerId allocate_layer_id() noexcept;
   [[nodiscard]] ChannelId allocate_channel_id();
+  [[nodiscard]] DocumentPathId allocate_path_id() noexcept;
   [[nodiscard]] std::string next_alpha_channel_name() const;
   [[nodiscard]] std::size_t maximum_saved_channel_count(bool includes_merged_transparency = false) const noexcept;
 
@@ -160,9 +170,11 @@ private:
   std::vector<DocumentGuide> guides_{};
   std::vector<Layer> layers_{};
   std::vector<DocumentChannel> channels_{};
+  std::vector<DocumentPath> paths_{};
   std::optional<LayerId> active_layer_id_{};
   LayerId next_layer_id_{1};
   ChannelId next_channel_id_{1};
+  DocumentPathId next_path_id_{1};
 };
 
 }  // namespace patchy

@@ -3,6 +3,7 @@
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_buffer.hpp"
+#include "core/vector_shape.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -93,7 +94,8 @@ std::optional<PixelBuffer> document_alpha_rgba8(const Document& document) {
     return std::nullopt;
   }
   const Layer& layer = document.layers().front();
-  if (layer.kind() != LayerKind::Pixel || !layer.children().empty() || !layer_mask_is_document_alpha(layer)) {
+  if (layer.kind() != LayerKind::Pixel || !layer.children().empty() || !layer_mask_is_document_alpha(layer) ||
+      layer_has_enabled_vector_mask(layer)) {
     return std::nullopt;
   }
   const auto& mask = layer.mask();
@@ -331,32 +333,62 @@ bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) 
   return document_area > 0 && clipped_area * 4 >= document_area;
 }
 
+bool layer_has_enabled_vector_mask(const Layer& layer) noexcept {
+  return layer.vector_mask() != nullptr && !layer.vector_mask()->disabled;
+}
+
+bool layer_vector_mask_hides_effects(const Layer& layer) noexcept {
+  return layer.vector_mask() != nullptr && !layer.vector_mask()->disabled &&
+         layer.vector_mask()->hides_effects;
+}
+
+float vector_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y) {
+  const auto* vector_mask = layer.vector_mask();
+  if (vector_mask == nullptr || vector_mask->disabled) {
+    return 1.0F;
+  }
+  float coverage = 0.0F;
+  if (!vector_mask->cache_bounds.empty() && !vector_mask->cache.empty() &&
+      vector_mask->cache.format() == PixelFormat::gray8() && vector_mask->cache_bounds.contains(x, y)) {
+    const auto local_x = x - vector_mask->cache_bounds.x;
+    const auto local_y = y - vector_mask->cache_bounds.y;
+    coverage = static_cast<float>(*vector_mask->cache.pixel(local_x, local_y)) / 255.0F;
+  } else if (vector_mask->path.empty() && !vector_mask->inverted) {
+    coverage = 1.0F;  // reveal-all mask with no baked cache
+  }
+  // Density lifts the hidden floor (Photoshop's vector mask density): at
+  // density 255 the mask applies fully, at 0 it hides nothing.
+  const float density = static_cast<float>(vector_mask->density) / 255.0F;
+  return coverage * density + (1.0F - density);
+}
+
 float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y) {
   const auto& mask = layer.mask();
   if (!mask.has_value() || mask->disabled) {
-    return 1.0F;
+    return vector_mask_alpha_at(layer, x, y);
   }
   return layer_mask_alpha_at(layer, x, y, mask->bounds);
 }
 
 float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y, Rect mask_bounds) {
+  const auto vector_alpha = vector_mask_alpha_at(layer, x, y);
   const auto& mask = layer.mask();
   if (!mask.has_value() || mask->disabled) {
-    return 1.0F;
+    return vector_alpha;
   }
   if (mask->pixels.empty() || mask->pixels.format() != PixelFormat::gray8()) {
-    return static_cast<float>(mask->default_color) / 255.0F;
+    return vector_alpha * static_cast<float>(mask->default_color) / 255.0F;
   }
   if (!mask_bounds.contains(x, y)) {
-    return static_cast<float>(mask->default_color) / 255.0F;
+    return vector_alpha * static_cast<float>(mask->default_color) / 255.0F;
   }
 
   const auto local_x = x - mask_bounds.x;
   const auto local_y = y - mask_bounds.y;
   if (local_x < 0 || local_y < 0 || local_x >= mask->pixels.width() || local_y >= mask->pixels.height()) {
-    return static_cast<float>(mask->default_color) / 255.0F;
+    return vector_alpha * static_cast<float>(mask->default_color) / 255.0F;
   }
-  return static_cast<float>(*mask->pixels.pixel(local_x, local_y)) / 255.0F;
+  return vector_alpha * static_cast<float>(*mask->pixels.pixel(local_x, local_y)) / 255.0F;
 }
 
 std::vector<float> layer_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds, Rect mask_bounds,

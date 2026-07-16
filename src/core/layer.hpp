@@ -16,6 +16,8 @@
 namespace patchy {
 
 struct SmartFilterStack;
+struct VectorShapeContent;
+struct LayerVectorMask;
 
 using LayerId = std::uint64_t;
 using LayerLockFlags = std::uint32_t;
@@ -476,6 +478,10 @@ public:
   // editors replace the whole stack through set_smart_filter_stack(), so a
   // read can never silently bypass revision tracking.
   [[nodiscard]] const SmartFilterStack* smart_filter_stack() const noexcept;
+  // Vector shape content / vector mask follow the same immutable-through-Layer
+  // pattern (replace whole via the setters; shared across undo snapshots).
+  [[nodiscard]] const VectorShapeContent* vector_shape() const noexcept;
+  [[nodiscard]] const LayerVectorMask* vector_mask() const noexcept;
   [[nodiscard]] std::uint64_t render_revision() const noexcept;
   [[nodiscard]] std::uint64_t content_revision() const noexcept;
   // Changes only when the pixel buffer may have changed. Alpha-bound caches
@@ -502,6 +508,10 @@ public:
   void set_blend_if_rgb_compatible(bool compatible) noexcept;
   void set_smart_filter_stack(SmartFilterStack stack);
   void clear_smart_filter_stack() noexcept;
+  void set_vector_shape(VectorShapeContent content);
+  void clear_vector_shape() noexcept;
+  void set_vector_mask(LayerVectorMask mask);
+  void clear_vector_mask() noexcept;
   void add_child(Layer child);
   // For composition-affecting state changes that live on ANOTHER layer (e.g. a
   // sibling joining/leaving this layer's clipping group): bumps the render
@@ -530,6 +540,8 @@ private:
   std::vector<UnknownPsdBlock> unknown_psd_blocks_{};
   LayerStyle layer_style_{};
   std::shared_ptr<const SmartFilterStack> smart_filter_stack_{};
+  std::shared_ptr<const VectorShapeContent> vector_shape_{};
+  std::shared_ptr<const LayerVectorMask> vector_mask_{};
   std::uint64_t render_revision_{1};
   std::uint64_t content_revision_{1};
   std::uint64_t pixel_revision_{1};

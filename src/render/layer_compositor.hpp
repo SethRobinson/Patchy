@@ -263,7 +263,9 @@ inline float layer_mask_alpha_for_render(const Layer& layer, std::int32_t x, std
 // shadow, outer glow, outside strokes) can place output beyond the masked shape;
 // interior effects are already confined by their mask-shaped source.
 inline bool layer_mask_clips_effect_output(const Layer& layer) {
-  return layer.layer_style().layer_mask_hides_effects && layer.mask().has_value() && !layer.mask()->disabled;
+  return (layer.layer_style().layer_mask_hides_effects && layer.mask().has_value() &&
+          !layer.mask()->disabled) ||
+         layer_vector_mask_hides_effects(layer);
 }
 
 template <typename Target, typename Callback>
@@ -1840,7 +1842,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       const auto channels = format.channels;
       const auto* source_bytes = source.data().data();
       const auto source_stride = source.stride_bytes();
-      const auto has_enabled_mask = layer.mask().has_value() && !layer.mask()->disabled;
+      const auto has_enabled_mask = (layer.mask().has_value() && !layer.mask()->disabled) ||
+                                    layer_has_enabled_vector_mask(layer);
       bool composited_by_target = false;
       if (!has_blend_if && !has_enabled_mask && prepared_satins.empty() && layer.fill_opacity() == 1.0F &&
           layer.blend_mode() == BlendMode::Normal) {

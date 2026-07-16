@@ -1,5 +1,6 @@
 #include "core/layer.hpp"
 #include "core/smart_filter.hpp"
+#include "core/vector_shape.hpp"
 
 #include <algorithm>
 #include <array>
@@ -553,6 +554,44 @@ void Layer::set_blend_if_rgb_compatible(bool compatible) noexcept {
 
 void Layer::set_smart_filter_stack(SmartFilterStack stack) {
   smart_filter_stack_ = std::make_shared<const SmartFilterStack>(std::move(stack));
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+}
+
+const VectorShapeContent* Layer::vector_shape() const noexcept {
+  return vector_shape_.get();
+}
+
+const LayerVectorMask* Layer::vector_mask() const noexcept {
+  return vector_mask_.get();
+}
+
+void Layer::set_vector_shape(VectorShapeContent content) {
+  vector_shape_ = std::make_shared<const VectorShapeContent>(std::move(content));
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+}
+
+void Layer::clear_vector_shape() noexcept {
+  if (!vector_shape_) {
+    return;
+  }
+  vector_shape_.reset();
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+}
+
+void Layer::set_vector_mask(LayerVectorMask mask) {
+  vector_mask_ = std::make_shared<const LayerVectorMask>(std::move(mask));
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+}
+
+void Layer::clear_vector_mask() noexcept {
+  if (!vector_mask_) {
+    return;
+  }
+  vector_mask_.reset();
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
 }

@@ -1,8 +1,11 @@
+#include "core/document.hpp"
 #include "core/layer.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "render/compositor.hpp"
 
 #include "core_test_support.hpp"
 #include "test_harness.hpp"
@@ -651,6 +654,155 @@ void stroke_shape_composites_fill_and_stroke() {
   CHECK(mixed[2] > 100 && mixed[2] < 140);  // half the stroke blue
 }
 
+patchy::PixelBuffer solid_rgba(std::int32_t width, std::int32_t height, std::uint8_t r, std::uint8_t g,
+                               std::uint8_t b, std::uint8_t a = 255) {
+  patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = r;
+      px[1] = g;
+      px[2] = b;
+      px[3] = a;
+    }
+  }
+  return pixels;
+}
+
+patchy::LayerVectorMask baked_triangle_mask(Rect canvas) {
+  patchy::LayerVectorMask mask;
+  PathSubpath triangle;
+  triangle.closed = true;
+  triangle.op = PathCombineOp::Add;
+  triangle.anchors = {corner(16, 2), corner(30, 30), corner(2, 30)};
+  mask.path.subpaths = {triangle};
+  auto coverage = patchy::rasterize_vector_mask_coverage(mask, canvas);
+  mask.cache_bounds = coverage.bounds;
+  mask.cache = std::move(coverage.pixels);
+  return mask;
+}
+
+void vector_mask_composites_in_flatten() {
+  const Rect canvas{0, 0, 32, 32};
+  patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", solid_rgba(32, 32, 255, 255, 255));
+  patchy::Layer blue(2, "blue", solid_rgba(32, 32, 0, 0, 255));
+  blue.set_vector_mask(baked_triangle_mask(canvas));
+  document.add_layer(std::move(blue));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto pixel = [&](std::int32_t x, std::int32_t y) {
+    const auto* px = flattened.pixel(x, y);
+    return std::array<std::uint8_t, 3>{px[0], px[1], px[2]};
+  };
+  CHECK(pixel(16, 20) == (std::array<std::uint8_t, 3>{0, 0, 255}));  // inside the triangle
+  CHECK(pixel(2, 4) == (std::array<std::uint8_t, 3>{255, 255, 255}));  // masked out
+  CHECK(pixel(30, 4) == (std::array<std::uint8_t, 3>{255, 255, 255}));
+
+  // Disabled vector mask reveals the whole layer.
+  auto* layer = document.find_layer(2);
+  auto disabled = *layer->vector_mask();
+  disabled.disabled = true;
+  layer->set_vector_mask(std::move(disabled));
+  const auto revealed = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* corner_pixel = revealed.pixel(2, 4);
+  CHECK(corner_pixel[2] == 255 && corner_pixel[0] == 0);
+
+  // Density 128 lifts the hidden floor to about half coverage.
+  auto dense = *layer->vector_mask();
+  dense.disabled = false;
+  dense.density = 128;
+  layer->set_vector_mask(std::move(dense));
+  const auto lifted = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* half = lifted.pixel(2, 4);
+  CHECK(half[2] >= 250);                  // blue channel saturated either way
+  CHECK(half[0] > 100 && half[0] < 160);  // red/green mid-blend = ~half coverage
+  CHECK(half[1] > 100 && half[1] < 160);
+}
+
+void vector_mask_multiplies_with_raster_mask() {
+  const Rect canvas{0, 0, 32, 32};
+  patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", solid_rgba(32, 32, 255, 255, 255));
+  patchy::Layer green(2, "green", solid_rgba(32, 32, 0, 200, 0));
+
+  // Raster mask: top half revealed.
+  patchy::PixelBuffer mask_pixels(32, 32, patchy::PixelFormat::gray8());
+  for (std::int32_t y = 0; y < 32; ++y) {
+    for (std::int32_t x = 0; x < 32; ++x) {
+      *mask_pixels.pixel(x, y) = y < 16 ? 255 : 0;
+    }
+  }
+  patchy::LayerMask raster_mask;
+  raster_mask.bounds = canvas;
+  raster_mask.pixels = std::move(mask_pixels);
+  green.set_mask(std::move(raster_mask));
+
+  // Vector mask: left-half rect.
+  patchy::LayerVectorMask vector_mask;
+  vector_mask.path.subpaths = {rect_subpath(0, 0, 16, 32, PathCombineOp::Add, 0)};
+  auto coverage = patchy::rasterize_vector_mask_coverage(vector_mask, canvas);
+  vector_mask.cache_bounds = coverage.bounds;
+  vector_mask.cache = std::move(coverage.pixels);
+  green.set_vector_mask(std::move(vector_mask));
+  document.add_layer(std::move(green));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(8, 8)[1] == 200);     // top-left: both masks reveal
+  CHECK(flattened.pixel(24, 8)[1] == 255);    // top-right: vector hides
+  CHECK(flattened.pixel(8, 24)[1] == 255);    // bottom-left: raster hides
+  CHECK(flattened.pixel(24, 24)[1] == 255);   // both hide
+}
+
+void update_vector_shape_raster_bakes_pixels() {
+  const Rect canvas{0, 0, 40, 40};
+  patchy::Layer layer(9, "shape", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  content.path.subpaths = {rect_subpath(6, 8, 22, 20, PathCombineOp::Add, 0)};
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = patchy::RgbColor{10, 180, 90};
+  layer.set_vector_shape(std::move(content));
+
+  const auto revision_before = layer.content_revision();
+  patchy::update_vector_shape_raster(layer, canvas, nullptr);
+  CHECK(layer.content_revision() > revision_before);
+  CHECK(layer.bounds().x == 6 && layer.bounds().y == 8);
+  CHECK(layer.bounds().width == 16 && layer.bounds().height == 12);
+  const auto* px = std::as_const(layer).pixels().pixel(4, 4);
+  CHECK(px[0] == 10 && px[1] == 180 && px[2] == 90 && px[3] == 255);
+  CHECK(layer.metadata().at(patchy::kLayerMetadataVectorRasterStatus) ==
+        patchy::kVectorRasterStatusPatchy);
+
+  // Copies share the immutable content (undo snapshots stay cheap).
+  const patchy::Layer copy = layer;
+  CHECK(copy.vector_shape() == layer.vector_shape());
+  CHECK(patchy::layer_has_enabled_vector_mask(layer) == false);
+}
+
+void document_paths_add_find_and_work_semantics() {
+  patchy::Document document(16, 16, patchy::PixelFormat::rgb8());
+  const auto id = document.allocate_path_id();
+  document.add_path(patchy::DocumentPath(id, "Alpha", patchy::DocumentPathKind::Saved, VectorPath{}));
+  const auto work_id = document.allocate_path_id();
+  document.add_path(patchy::DocumentPath(work_id, "Work Path", patchy::DocumentPathKind::Work, VectorPath{}));
+  CHECK(document.paths().size() == 2);
+  CHECK(document.find_path(id) != nullptr);
+  CHECK(document.work_path() != nullptr && document.work_path()->id() == work_id);
+
+  bool threw = false;
+  try {
+    document.add_path(
+        patchy::DocumentPath(document.allocate_path_id(), "second work", patchy::DocumentPathKind::Work,
+                             VectorPath{}));
+  } catch (const std::exception&) {
+    threw = true;
+  }
+  CHECK(threw);
+  CHECK(document.remove_path(work_id));
+  CHECK(document.work_path() == nullptr);
+  CHECK(!document.remove_path(9999));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_raster_tests() {
@@ -673,5 +825,9 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"stroke_dashes_and_offset", stroke_dashes_and_offset},
       {"stroke_golden_digests_are_stable", stroke_golden_digests_are_stable},
       {"stroke_shape_composites_fill_and_stroke", stroke_shape_composites_fill_and_stroke},
+      {"vector_mask_composites_in_flatten", vector_mask_composites_in_flatten},
+      {"vector_mask_multiplies_with_raster_mask", vector_mask_multiplies_with_raster_mask},
+      {"update_vector_shape_raster_bakes_pixels", update_vector_shape_raster_bakes_pixels},
+      {"document_paths_add_find_and_work_semantics", document_paths_add_find_and_work_semantics},
   };
 }

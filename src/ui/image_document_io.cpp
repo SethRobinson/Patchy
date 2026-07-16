@@ -457,8 +457,8 @@ bool has_enabled_backdrop_dependent_style(const LayerStyle& style) noexcept {
 
 bool layer_style_cache_eligible(const Layer& layer, const PixelBuffer& source) {
   if (layer.kind() != LayerKind::Pixel || layer.blend_mode() != BlendMode::Normal || has_enabled_mask(layer) ||
-      render_detail::layer_has_rendered_blend_if(layer) || source.empty() ||
-      source.format().bit_depth != BitDepth::UInt8 || source.format().channels < 3) {
+      patchy::layer_has_enabled_vector_mask(layer) || render_detail::layer_has_rendered_blend_if(layer) ||
+      source.empty() || source.format().bit_depth != BitDepth::UInt8 || source.format().channels < 3) {
     return false;
   }
   const auto& style = layer.layer_style();
