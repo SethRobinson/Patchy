@@ -1,6 +1,9 @@
 // MainWindow's action/menu/tool-palette/options-bar construction, split out of
 // main_window.cpp: create_actions() builds the menu bar, tool palette and Options
 // bar, plus add_tool_action and the anonymous-namespace helpers only they use.
+// Also the retranslation machinery those menus feed (register_retranslation,
+// retranslate_ui, retranslate_bound_children, refresh_language_actions and the
+// combo retranslators).
 // Pure function moves from main_window.cpp; behavior must stay identical.
 
 #include "ui/main_window.hpp"
@@ -3804,6 +3807,89 @@ QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QSt
   group->addAction(action);
   register_document_action(action);
   return action;
+}
+
+void MainWindow::register_retranslation(std::function<void()> callback) {
+  if (!callback) {
+    return;
+  }
+  callback();
+  retranslation_callbacks_.push_back(std::move(callback));
+}
+
+void MainWindow::retranslate_bound_children() {
+  apply_bound_translation(this);
+  const auto children = findChildren<QObject*>();
+  for (auto* child : children) {
+    apply_bound_translation(child);
+  }
+}
+
+void MainWindow::retranslate_blend_combo() {
+  if (blend_combo_ == nullptr) {
+    return;
+  }
+  QSignalBlocker blocker(blend_combo_);
+  for (int index = 0; index < blend_combo_->count(); ++index) {
+    blend_combo_->setItemText(index, blend_mode_name(static_cast<BlendMode>(blend_combo_->itemData(index).toInt())));
+  }
+}
+
+void MainWindow::retranslate_brush_preset_combo() {
+  if (brush_preset_combo_ == nullptr) {
+    return;
+  }
+  QSignalBlocker blocker(brush_preset_combo_);
+  for (int index = 0; index < brush_preset_combo_->count(); ++index) {
+    if (const auto* preset = find_brush_preset(brush_preset_combo_->itemData(index).toString()); preset != nullptr) {
+      brush_preset_combo_->setItemText(index, brush_preset_display_name(*preset));
+    }
+  }
+}
+
+void MainWindow::refresh_language_actions() {
+  const auto current = LocalizationManager::instance().current_language();
+  if (language_english_action_ != nullptr) {
+    language_english_action_->setChecked(current == QStringLiteral("en"));
+  }
+  if (language_japanese_action_ != nullptr) {
+    language_japanese_action_->setChecked(current == QStringLiteral("ja"));
+  }
+}
+
+void MainWindow::retranslate_ui() {
+  retranslate_bound_children();
+  if (menuBar() != nullptr) {
+    for (auto* action : menuBar()->actions()) {
+      apply_bound_translation(action);
+    }
+  }
+  for (const auto& callback : retranslation_callbacks_) {
+    callback();
+  }
+  refresh_language_actions();
+  retranslate_blend_combo();
+  retranslate_brush_preset_combo();
+  if (text_size_spin_ != nullptr) {
+    text_size_spin_->setSuffix(tr(" pt"));
+  }
+  const auto actions = findChildren<QAction*>();
+  for (auto* action : actions) {
+    refresh_action_tooltip(action);
+  }
+  rebuild_recent_files_menu();
+  rebuild_recent_folders_menu();
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_channel_panel();
+  refresh_document_info();
+  refresh_color_buttons();
+  refresh_text_color_button();
+  update_undo_redo_actions();
+  update_document_action_state();
+  if (statusBar() != nullptr) {
+    statusBar()->showMessage(tr("Ready"));
+  }
 }
 
 }  // namespace patchy::ui

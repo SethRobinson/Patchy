@@ -81,6 +81,10 @@ constexpr auto kTranslationToolTipProperty = "patchy.translationToolTip";
 constexpr auto kTranslationStatusTipProperty = "patchy.translationStatusTip";
 constexpr auto kMainWindowTranslationContext = "patchy::ui::MainWindow";
 
+// The application-wide dark QSS theme (defined in main_window_theme.cpp);
+// applied once by the MainWindow constructor.
+[[nodiscard]] QString photoshop_style();
+
 QString translate_source(const QObject* object, const char* property_name);
 void bind_translated_text(QObject* object, const char* source, const char* context = kMainWindowTranslationContext);
 void bind_translated_tooltip(QObject* object, const char* source,
@@ -112,6 +116,13 @@ void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset);
 constexpr int kDefaultTextAntiAlias = 3;
 // Select the combo row whose data matches value (falls back to the default row).
 void set_text_smoothing_combo_value(QComboBox* combo, int value);
+// Current anti-alias strength from the Smoothing combo (default when unset).
+[[nodiscard]] int text_smoothing_combo_value(const QComboBox* combo);
+
+// Property set to true on an inline text editor once its session is committed
+// or cancelled; shared by the text-tool plumbing in main_window.cpp and
+// refresh_options_bar in main_window_tool_options.cpp.
+constexpr auto kTextEditorFinishedProperty = "patchy.textEditorFinished";
 
 
 // Layer-list row styling and edit-target highlighting, shared by the
@@ -157,6 +168,12 @@ std::optional<Layer> clone_layer_tree_with_document_ids(
     Document& document, const Layer& source,
     const std::vector<SmartFilterEffectsRecord>* transferred_records = nullptr,
     PhotoshopLayerIdAllocator* native_layer_ids = nullptr);
+
+// Insert a layer as the sibling directly above anchor_id (append at top level
+// when the anchor is absent). Shared by the add-layer flow in
+// main_window_layer_ops.cpp and the text-editor preview plumbing in
+// main_window.cpp.
+void insert_layer_after_anchor(Document& document, Layer layer, std::optional<LayerId> anchor_id);
 
 // Solid-color pixel buffer for new layers/documents.
 [[nodiscard]] PixelBuffer make_solid_pixels(std::int32_t width, std::int32_t height, QColor color,

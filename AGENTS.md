@@ -69,7 +69,11 @@ Windows is the lead platform and must never regress: the release handoff above s
 - `main_window_chrome.cpp` — frameless-window machinery, `configure_window_chrome()`, and `use_custom_window_chrome()` (the platform gate; deliberately concentrates the `Q_OS_WIN` window-frame code).
 - `main_window_palette.cpp` — palette-mode document mutations, palette file I/O, panel/chip refresh, compliance scan.
 - `main_window_adjustments.cpp` — Filter menu apply flow, adjustment dialogs, adjustment-layer create/preview/edit, async pixel-preview machinery.
-- `main_window_actions.cpp` — `create_actions()`: all menus, the tool palette, and the per-tool options bar.
+- `main_window_actions.cpp` — `create_actions()`: all menus, the tool palette, and the per-tool options bar; also the retranslation machinery (`register_retranslation`, `retranslate_ui` and friends).
+- `main_window_layer_ops.cpp` — clipboard cut/copy/copy-merged/paste, transform/warp dialogs, layer add/folder/via-copy/via-cut, masks, duplicate/rename, layer styles (edit/copy/paste/delete + the layer context menu), delete/move, merge-visible, fill/clear/stroke, selection expand/contract/border, layer flips, crop-to-selection, canvas rotation. `rasterize_active_layers`, `rasterize_active_layer_styles`, and `merge_down` deliberately stay in main_window.cpp: they render text layers through the internal text pipeline.
+- `main_window_tool_options.cpp` — preset-library accessors (brush tip/pattern/gradient/style) and brush-tip import/define, per-layer opacity/fill/blend/visibility/lock/clipping handlers, color buttons + gradient-stop dialog, tool activation and tool-settings load/save, transform-session controls, `register_option_action`/`refresh_options_bar`, selection-mode buttons, `sync_brush_controls_from_canvas`. `current_text_color` and `sync_text_options_from_active_editor` stay in main_window.cpp (they read editor formats through internal text helpers).
+- `main_window_theme.cpp` — `photoshop_style()`, the application-wide QSS theme (declared in main_window_shared.hpp).
+- `main_window_plugins.cpp` — legacy Photoshop plug-in scan/register/run.
 - `main_window_layer_panel.cpp` — layer-list rows (`make_layer_row_widget`, thumbnails, summaries) and the panel refresh/drag/visibility plumbing.
 - `main_window_files.cpp` — file-format tables (`file_format_entries()` static lives here, exactly once), open/save/export/print/import members, recent files/folders.
 - `main_window_smart_objects.cpp` — smart-object export/commit/refresh/relink/embed/replace/convert/place flows.
@@ -80,7 +84,7 @@ Windows is the lead platform and must never regress: the release handoff above s
 - `main_window_history.cpp` — undo/redo, `push_undo_snapshot`, selection history, history-panel refresh.
 - `main_window_shared.{hpp,cpp}` — helpers used by more than one of these TUs. Per-file helpers live in each TU's anonymous namespace; when a second TU needs one, MOVE it here and declare it in the header (never copy it — a duplicated helper with a static local forks its state, and an extern declaration alongside a same-name anonymous-namespace definition makes every call ambiguous). The split TUs repeat main_window.cpp's full include block; that is deliberate.
 
-main_window.cpp itself keeps the constructor/eventFilter/input plumbing, the text tool (both member blocks plus its anonymous-namespace render pipeline), layer operations, clipboard, options-bar state, and the register_* machinery.
+main_window.cpp itself keeps the constructor/eventFilter/input plumbing, `configure_canvas`, the text tool (both member blocks plus its anonymous-namespace render pipeline), the text-pipeline-dependent layer ops (rasterize, merge_down), and the register_*/PreviewDialogEditLock/document-action-state machinery.
 
 Do NOT attempt the text tool as a pure-move split: the text render pipeline is shared between too many members; it is really a "design a text_render module with its own header" job, not a file split (tried and backed out).
 

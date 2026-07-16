@@ -332,6 +332,15 @@ QString tool_name(CanvasTool tool) {
   return QObject::tr("Tool");
 }
 
+int text_smoothing_combo_value(const QComboBox* combo) {
+  if (combo == nullptr) {
+    return kDefaultTextAntiAlias;
+  }
+  bool ok = false;
+  const auto value = combo->currentData().toInt(&ok);
+  return std::clamp(ok ? value : kDefaultTextAntiAlias, 0, 16);
+}
+
 void set_text_smoothing_combo_value(QComboBox* combo, int value) {
   if (combo == nullptr) {
     return;
@@ -716,6 +725,34 @@ std::optional<int> request_integer_input(QWidget* parent, const QString& object_
     return std::nullopt;
   }
   return spin->value();
+}
+
+namespace {
+
+std::vector<Layer>* layer_siblings_containing(std::vector<Layer>& layers, LayerId id, std::size_t& index) {
+  for (std::size_t i = 0; i < layers.size(); ++i) {
+    if (layers[i].id() == id) {
+      index = i;
+      return &layers;
+    }
+    if (auto* found = layer_siblings_containing(layers[i].children(), id, index); found != nullptr) {
+      return found;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
+void insert_layer_after_anchor(Document& document, Layer layer, std::optional<LayerId> anchor_id) {
+  if (anchor_id.has_value()) {
+    std::size_t index = 0;
+    if (auto* siblings = layer_siblings_containing(document.layers(), *anchor_id, index); siblings != nullptr) {
+      siblings->insert(siblings->begin() + static_cast<std::ptrdiff_t>(index + 1U), std::move(layer));
+      return;
+    }
+  }
+  document.add_layer(std::move(layer));
 }
 
 }  // namespace patchy::ui

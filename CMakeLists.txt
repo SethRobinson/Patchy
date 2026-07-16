@@ -607,14 +607,18 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window_document_dialogs.cpp
       src/ui/main_window_files.cpp
       src/ui/main_window_history.cpp
+      src/ui/main_window_layer_ops.cpp
       src/ui/main_window_layer_panel.cpp
       src/ui/main_window_palette.cpp
+      src/ui/main_window_plugins.cpp
       src/ui/main_window_preferences.cpp
       src/ui/main_window_sessions.cpp
       src/ui/main_window_shared.hpp
       src/ui/main_window_shared.cpp
       src/ui/main_window_smart_objects.cpp
       src/ui/main_window_stress_test.cpp
+      src/ui/main_window_theme.cpp
+      src/ui/main_window_tool_options.cpp
       src/ui/measurement_units.hpp
       src/ui/measurement_units.cpp
       src/ui/new_document_dialog.hpp
