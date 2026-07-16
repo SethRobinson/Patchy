@@ -581,6 +581,51 @@ void ui_vector_mask_shift_click_disable_and_rasterize() {
 
 QDialog* find_top_level_dialog(const QString& object_name);
 
+void ui_free_transform_scales_shape_layer_crisply() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+
+  auto* free_transform_action = window.findChild<QAction*>(QStringLiteral("editFreeTransformAction"));
+  CHECK(free_transform_action != nullptr);
+  free_transform_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  // Drag the bottom-right handle outward: (300,220) -> (500,340).
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 220)),
+       canvas->widget_position_for_document_point(QPoint(500, 340)));
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  const auto* content = layer->vector_shape();
+  CHECK(content != nullptr);
+  const auto& anchors = content->path.subpaths[0].anchors;
+  CHECK(std::abs(anchors[2].anchor_x - 500.0) < 2.0);
+  CHECK(std::abs(anchors[2].anchor_y - 340.0) < 2.0);
+  // A pure axis-aligned scale keeps the live-rect annotation, scaled.
+  CHECK(content->origination.size() == 1);
+  CHECK(std::abs(content->origination[0].right - 500.0) < 2.0);
+  CHECK(patchy::layer_vector_block_dirty(*layer));
+  // The re-raster is crisp: bounds match the scaled path, and the pixels come
+  // from the rasterizer (fill reaches exactly to the new edges).
+  CHECK(std::abs(layer->bounds().x - 100) <= 1);
+  CHECK(std::abs(layer->bounds().x + layer->bounds().width - 500) <= 1);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(490, 330)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(510, 330)), Qt::white, 8));
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  layer = document.find_layer(layer_id);
+  CHECK(std::abs(layer->vector_shape()->path.subpaths[0].anchors[2].anchor_x - 300.0) < 0.5);
+}
+
 void ui_polygon_tool_creates_polygons_and_stars() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer saved_sides(QStringLiteral("tools/polygonSides"));
@@ -1004,6 +1049,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_paths_panel_lists_saves_and_targets_paths", ui_paths_panel_lists_saves_and_targets_paths},
       {"ui_paths_panel_fill_stroke_and_make_selection",
        ui_paths_panel_fill_stroke_and_make_selection},
+      {"ui_free_transform_scales_shape_layer_crisply",
+       ui_free_transform_scales_shape_layer_crisply},
       {"ui_polygon_tool_creates_polygons_and_stars", ui_polygon_tool_creates_polygons_and_stars},
       {"ui_custom_shape_stamps_and_defines", ui_custom_shape_stamps_and_defines},
       {"ui_line_arrowheads_extend_the_shape", ui_line_arrowheads_extend_the_shape},

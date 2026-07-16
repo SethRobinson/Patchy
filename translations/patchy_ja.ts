@@ -6344,6 +6344,10 @@ Mixed selection</source>
         <translation>ベクトルマスクに追加</translation>
     </message>
     <message>
+        <source>This layer&apos;s vector data is preserved but can&apos;t be edited.</source>
+        <translation>このレイヤーのベクトルデータは保持されていますが編集できません。</translation>
+    </message>
+    <message>
         <source>Shape layers and vector masks can&apos;t be transformed yet. Rasterize first.</source>
         <translation>シェイプレイヤーとベクトルマスクはまだ変形できません。先にラスタライズしてください。</translation>
     </message>

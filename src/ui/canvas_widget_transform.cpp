@@ -9,6 +9,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
 
+#include "core/vector_shape.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -474,10 +475,8 @@ bool CanvasWidget::begin_free_transform() {
     report_status_error(tr("This smart object is preview-only and can't be transformed. Rasterize the layer first."));
     return false;
   }
-  if (layer_is_vector_shape(*layer) || layer_has_enabled_vector_mask(*layer)) {
-    // Interim guard until the vector geometry-ops phase lands: transforming the
-    // raster while the path stays put would desync the shape from its source.
-    report_status_error(tr("Shape layers and vector masks can't be transformed yet. Rasterize first."));
+  if (!vector_lock_reason(*layer).empty()) {
+    report_status_error(tr("This layer's vector data is preserved but can't be edited."));
     return false;
   }
   const auto local_transform_rect = opaque_pixel_local_rect(*layer);
@@ -1195,6 +1194,18 @@ void CanvasWidget::commit_free_transform() {
       if (text_layer_transform_render_callback_ && text_layer_transform_render_callback_(*transform_layer_id_)) {
         new_bounds = layer->bounds();
       }
+    } else if (layer_is_vector_shape(*layer) || layer->vector_mask() != nullptr) {
+      // The text-layer pattern for vectors: apply the affine to the path
+      // model and re-rasterize crisply (replacing the resampled pixels).
+      const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_,
+                                              transform_angle_, transform_scale_x_sign_,
+                                              transform_scale_y_sign_);
+      const std::array<double, 6> matrix{delta.m11(), delta.m12(), delta.m21(),
+                                         delta.m22(), delta.dx(),  delta.dy()};
+      patchy::transform_layer_vector_data(
+          *document_, *layer, matrix,
+          Rect::from_size(document_->width(), document_->height()));
+      new_bounds = layer->bounds();
     } else if (layer_is_smart_object(*layer) && smart_object_lock_reason(*layer).empty()) {
       // The text-layer pattern for placed content: compose the delta into the
       // placement quad, then re-render crisply from the embedded source (the

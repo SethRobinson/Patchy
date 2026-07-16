@@ -99,6 +99,22 @@ foreground color; per-stamp brush dynamics are not simulated), Make Selection
 operations), and Delete Path. Saved paths round-trip through the PSD path
 resources from phase 8.
 
+## Geometry operations
+
+Every document-geometry op transforms the vector data alongside the pixels
+and re-rasterizes crisply at the new canvas: Image Size scales anchor points
+(and the shape stroke width), Canvas Size translates by the anchor offset,
+crop translates by the crop origin (canvas-relative PSD records depend on
+this), the 90-degree rotates map edge coordinates, and the per-layer flips
+mirror about the layer's pixel-bounds center. Free Transform applies its
+affine delta to the path model and re-rasterizes instead of resampling (the
+text-layer pattern), so scaled shapes stay sharp; Move already translated the
+model. Live-shape annotations survive positive axis-aligned scale + translate
+and are dropped otherwise (the path stays exact), matching the
+keyShapeInvalidated rule. Saved and work paths ride the document-level ops
+too. Warp still refuses on vector layers (convert to a smart object or
+rasterize first).
+
 ## Appearance editing and fill layers
 
 Double-clicking a shape layer's row (or an imported fill layer's) opens the

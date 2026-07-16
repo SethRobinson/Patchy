@@ -6,7 +6,10 @@
 #include "core/pixel_tools.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/document_path.hpp"
 #include "core/pixel_tools_internal.hpp"
+#include "core/vector_raster.hpp"
+#include "core/vector_shape.hpp"
 
 #include <algorithm>
 #include <array>
@@ -597,6 +600,103 @@ void rotate_document_channel_counterclockwise(DocumentChannel& channel) {
 
 }  // namespace
 
+namespace {
+
+// Live-shape annotations survive positive axis-aligned scale + translate;
+// everything else drops them (the path stays the exact source of truth, the
+// keyShapeInvalidated rule).
+bool matrix_keeps_live_shapes(const std::array<double, 6>& matrix) {
+  return matrix[1] == 0.0 && matrix[2] == 0.0 && matrix[0] > 0.0 && matrix[3] > 0.0;
+}
+
+void transform_origination_or_drop(VectorShapeContent& content,
+                                   const std::array<double, 6>& matrix) {
+  if (content.origination.empty()) {
+    return;
+  }
+  if (!matrix_keeps_live_shapes(matrix)) {
+    content.origination.clear();
+    return;
+  }
+  const double sx = matrix[0];
+  const double sy = matrix[3];
+  const double tx = matrix[4];
+  const double ty = matrix[5];
+  const double uniform_scale = (sx + sy) / 2.0;
+  for (auto& params : content.origination) {
+    params.left = params.left * sx + tx;
+    params.right = params.right * sx + tx;
+    params.top = params.top * sy + ty;
+    params.bottom = params.bottom * sy + ty;
+    for (std::size_t i = 0; i < params.box_corners.size(); i += 2) {
+      params.box_corners[i] = params.box_corners[i] * sx + tx;
+      params.box_corners[i + 1] = params.box_corners[i + 1] * sy + ty;
+    }
+    for (auto& radius : params.corner_radii) {
+      radius *= uniform_scale;
+    }
+    params.line_start_x = params.line_start_x * sx + tx;
+    params.line_end_x = params.line_end_x * sx + tx;
+    params.line_start_y = params.line_start_y * sy + ty;
+    params.line_end_y = params.line_end_y * sy + ty;
+    params.line_weight *= uniform_scale;
+    params.arrow_width *= uniform_scale;
+    params.arrow_length *= uniform_scale;
+    params.transform[4] = params.transform[4] * sx + tx;
+    params.transform[5] = params.transform[5] * sy + ty;
+  }
+}
+
+}  // namespace
+
+void transform_layer_vector_data(Document& document, Layer& layer,
+                                 const std::array<double, 6>& matrix, Rect canvas_after,
+                                 double stroke_scale) {
+  bool touched = false;
+  if (const auto* shape = layer.vector_shape(); shape != nullptr) {
+    auto content = *shape;
+    transform_vector_path(content.path, matrix);
+    transform_origination_or_drop(content, matrix);
+    if (stroke_scale != 1.0 && stroke_scale > 0.0) {
+      content.stroke.width *= stroke_scale;
+    }
+    layer.set_vector_shape(std::move(content));
+    layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+    update_vector_shape_raster(layer, canvas_after, &document.metadata().patterns);
+    touched = true;
+  }
+  if (const auto* mask = layer.vector_mask(); mask != nullptr) {
+    auto updated = *mask;
+    transform_vector_path(updated.path, matrix);
+    layer.set_vector_mask(std::move(updated));
+    update_vector_mask_raster(layer, canvas_after);
+    touched = true;
+  }
+  if (touched) {
+    mark_layer_vector_block_dirty(layer);
+  }
+}
+
+void transform_document_vector_data(Document& document, const std::array<double, 6>& matrix,
+                                    Rect canvas_after, double stroke_scale) {
+  const auto walk = [&document, &matrix, canvas_after, stroke_scale](auto&& self,
+                                                                     std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (layer.kind() == LayerKind::Group) {
+        self(self, layer.children());
+        continue;
+      }
+      transform_layer_vector_data(document, layer, matrix, canvas_after, stroke_scale);
+    }
+  };
+  walk(walk, document.layers());
+  for (auto& path : document.paths()) {
+    auto updated = path.path();
+    transform_vector_path(updated, matrix);
+    path.set_path(std::move(updated));  // marks the path dirty for the writer
+  }
+}
+
 Rect flip_layer_horizontal(Document& document, LayerId layer_id) {
   auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr) {
@@ -618,6 +718,9 @@ Rect flip_layer_horizontal(Document& document, LayerId layer_id) {
     }
   }
   flip_layer_mask_horizontal(*layer, bounds);
+  const double center_x = bounds.x + bounds.width / 2.0;
+  transform_layer_vector_data(document, *layer, {-1.0, 0.0, 0.0, 1.0, 2.0 * center_x, 0.0},
+                              Rect::from_size(document.width(), document.height()));
   return layer->bounds();
 }
 
@@ -638,6 +741,9 @@ Rect flip_layer_vertical(Document& document, LayerId layer_id) {
     std::copy(temp.begin(), temp.end(), bottom.begin());
   }
   flip_layer_mask_vertical(*layer, bounds);
+  const double center_y = bounds.y + bounds.height / 2.0;
+  transform_layer_vector_data(document, *layer, {1.0, 0.0, 0.0, -1.0, 0.0, 2.0 * center_y},
+                              Rect::from_size(document.width(), document.height()));
   return layer->bounds();
 }
 
@@ -660,6 +766,10 @@ void resize_image_and_layers(Document& document, std::int32_t width, std::int32_
     resize_document_channel_image(channel, width, height);
   }
   document.resize_canvas(width, height);
+  const auto sx = static_cast<double>(width) / old_width;
+  const auto sy = static_cast<double>(height) / old_height;
+  transform_document_vector_data(document, {sx, 0.0, 0.0, sy, 0.0, 0.0},
+                                 Rect::from_size(width, height), (sx + sy) / 2.0);
 }
 
 void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32_t height, CanvasAnchor anchor,
@@ -676,6 +786,10 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
   for (auto& layer : document.layers()) {
     resize_layer_to_canvas(layer, width, height, offset, extension_color);
   }
+  transform_document_vector_data(document,
+                                 {1.0, 0.0, 0.0, 1.0, static_cast<double>(offset.x),
+                                  static_cast<double>(offset.y)},
+                                 Rect::from_size(width, height));
 }
 
 bool crop_document(Document& document, Rect crop) {
@@ -691,6 +805,10 @@ bool crop_document(Document& document, Rect crop) {
     crop_document_channel(channel, crop);
   }
   document.resize_canvas(crop.width, crop.height);
+  transform_document_vector_data(document,
+                                 {1.0, 0.0, 0.0, 1.0, static_cast<double>(-crop.x),
+                                  static_cast<double>(-crop.y)},
+                                 Rect::from_size(crop.width, crop.height));
   return true;
 }
 
@@ -704,6 +822,10 @@ void rotate_document_clockwise(Document& document) {
     rotate_document_channel_clockwise(channel);
   }
   document.resize_canvas(old_height, old_width);
+  // Edge coordinates rotate as (x, y) -> (H - y, x).
+  transform_document_vector_data(document,
+                                 {0.0, 1.0, -1.0, 0.0, static_cast<double>(old_height), 0.0},
+                                 Rect::from_size(old_height, old_width));
 }
 
 void rotate_document_counterclockwise(Document& document) {
@@ -716,6 +838,10 @@ void rotate_document_counterclockwise(Document& document) {
     rotate_document_channel_counterclockwise(channel);
   }
   document.resize_canvas(old_height, old_width);
+  // Edge coordinates rotate as (x, y) -> (y, W - x).
+  transform_document_vector_data(document,
+                                 {0.0, -1.0, 1.0, 0.0, 0.0, static_cast<double>(old_width)},
+                                 Rect::from_size(old_height, old_width));
 }
 
 }  // namespace patchy

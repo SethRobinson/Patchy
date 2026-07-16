@@ -24,6 +24,8 @@
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/vector_live_shapes.hpp"
+#include "core/vector_shape.hpp"
 #include "core/rect_utils.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/blend_mode_ui.hpp"
@@ -130,6 +132,7 @@ constexpr StepBaseline kStepBaselines[] = {
     {"34_free_transform", 724.4},   {"35_zoom_pan", 112.3},        {"36_history_build", 70.0},
     {"37_undo_redo", 12299.2},      {"38_merge_visible", 2485.8},  {"39_psd_save", 784.0},
     {"40_psd_reload", 1090.8},      {"41_multi_document", 436.3},  {"42_final_composite", 1089.3},
+    {"43_vector_shapes", 400.0},
 };
 
 double baseline_for_step(const QString& id) {
@@ -1976,6 +1979,37 @@ void StressTestRunner::phase_composite() {
     if (!scaled.save(QDir(report_dir_).filePath(QStringLiteral("stress-scene.png")))) {
       report_.warnings.append(QStringLiteral("Scene PNG save failed"));
     }
+  }, canvas_megapixels());
+
+  // 43: vector shape layer - create a live rounded rect, run the document
+  // geometry ops over it (rotate round trip + flip), then rasterize it away
+  // so the composite checksum stays comparable to earlier baselines.
+  step("43_vector_shapes", "Shape layer create + geometry ops + rasterize", "vector", [&] {
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::RoundedRectangle;
+    params.left = size_ * 0.1;
+    params.top = size_ * 0.1;
+    params.right = size_ * 0.55;
+    params.bottom = size_ * 0.45;
+    params.corner_radii = {24.0, 24.0, 24.0, 24.0};
+    patchy::populate_live_shape_box_corners(params);
+    w.create_or_extend_shape_layer(patchy::generate_live_shape_subpaths(params), params,
+                                   QStringLiteral("Stress Shape %1"));
+    settle();
+    if (const auto active = doc().active_layer_id(); active.has_value()) {
+      static_cast<void>(patchy::flip_layer_horizontal(doc(), *active));
+    }
+    patchy::rotate_document_clockwise(doc());
+    patchy::rotate_document_counterclockwise(doc());
+    if (canvas() != nullptr) {
+      canvas()->document_changed();
+    }
+    settle();
+    w.rasterize_active_layers();
+    settle();
+    w.undo();  // rasterize
+    w.undo();  // shape layer
+    settle();
   }, canvas_megapixels());
 }
 

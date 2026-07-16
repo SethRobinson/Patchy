@@ -1,6 +1,9 @@
+#include "core/document.hpp"
 #include "core/document_path.hpp"
 #include "core/layer.hpp"
+#include "core/pixel_tools.hpp"
 #include "core/vector_live_shapes.hpp"
+#include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 
 #include "test_harness.hpp"
@@ -309,6 +312,112 @@ void document_path_revision_and_dirty_semantics() {
   CHECK(work.content_revision() > before);
 }
 
+// Builds a 100x80 document holding a live-rect shape layer (10,10)-(50,40)
+// and a saved path with one square subpath.
+patchy::Document geometry_test_document() {
+  patchy::Document document(100, 80, patchy::PixelFormat::rgb8());
+  patchy::Layer shape(document.allocate_layer_id(), "Shape", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  patchy::LiveShapeParams params;
+  params.kind = patchy::LiveShapeKind::Rectangle;
+  params.left = 10;
+  params.top = 10;
+  params.right = 50;
+  params.bottom = 40;
+  patchy::populate_live_shape_box_corners(params);
+  content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+  content.origination = {params};
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = patchy::RgbColor{10, 20, 30};
+  content.stroke.enabled = true;
+  content.stroke.width = 4.0;
+  shape.set_vector_shape(content);
+  shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(100, 80), nullptr);
+  document.add_layer(std::move(shape));
+
+  patchy::VectorPath saved;
+  patchy::PathSubpath square;
+  for (const auto& [x, y] : {std::pair{60.0, 50.0}, {90.0, 50.0}, {90.0, 70.0}, {60.0, 70.0}}) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+    anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+    square.anchors.push_back(anchor);
+  }
+  saved.subpaths.push_back(square);
+  patchy::DocumentPath path(document.allocate_path_id(), "Path 1", patchy::DocumentPathKind::Saved,
+                            std::move(saved));
+  path.reset_dirty();
+  document.add_path(std::move(path));
+  return document;
+}
+
+void geometry_ops_transform_vector_data() {
+  // Crop translates paths, keeps live params, and re-normalizes saved paths.
+  {
+    auto document = geometry_test_document();
+    CHECK(patchy::crop_document(document, patchy::Rect{10, 10, 80, 60}));
+    const auto* layer = &document.layers()[0];
+    const auto* content = layer->vector_shape();
+    CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_x - 0.0) < 1e-9);
+    CHECK(content->origination.size() == 1);
+    CHECK(std::abs(content->origination[0].left - 0.0) < 1e-9);
+    CHECK(std::abs(content->origination[0].bottom - 30.0) < 1e-9);
+    CHECK(patchy::layer_vector_block_dirty(*layer));
+    CHECK(layer->bounds().x == 0);
+    CHECK(document.paths()[0].dirty());
+    CHECK(std::abs(document.paths()[0].path().subpaths[0].anchors[0].anchor_x - 50.0) < 1e-9);
+  }
+  // Image resize scales anchors, live params, and the stroke width.
+  {
+    auto document = geometry_test_document();
+    patchy::resize_image_and_layers(document, 200, 160);
+    const auto* content = document.layers()[0].vector_shape();
+    CHECK(std::abs(content->path.subpaths[0].anchors[2].anchor_x - 100.0) < 1e-9);
+    CHECK(std::abs(content->origination[0].right - 100.0) < 1e-9);
+    CHECK(std::abs(content->stroke.width - 8.0) < 1e-9);
+    CHECK(document.layers()[0].bounds().width >= 80);
+    CHECK(std::abs(document.paths()[0].path().subpaths[0].anchors[1].anchor_x - 180.0) < 1e-9);
+  }
+  // Rotate clockwise maps edge coordinates (x, y) -> (H - y, x) and drops the
+  // live annotation (the path is exact).
+  {
+    auto document = geometry_test_document();
+    patchy::rotate_document_clockwise(document);
+    const auto* content = document.layers()[0].vector_shape();
+    CHECK(content->origination.empty());
+    // Anchor (10, 10) -> (80 - 10, 10) = (70, 10).
+    CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_x - 70.0) < 1e-9);
+    CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_y - 10.0) < 1e-9);
+    CHECK(document.width() == 80);
+    // Path occupies 40..70 horizontally; the 4 px centered stroke reaches 2
+    // px beyond it.
+    CHECK(std::abs(document.layers()[0].bounds().x - 38) <= 1);
+  }
+  // Canvas resize translates by the anchor offset.
+  {
+    auto document = geometry_test_document();
+    patchy::resize_canvas_and_layers(document, 120, 100, patchy::CanvasAnchor::Center);
+    const auto* content = document.layers()[0].vector_shape();
+    CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_x - 20.0) < 1e-9);
+    CHECK(content->origination.size() == 1);
+  }
+  // A per-layer flip mirrors the path about the pixel-bounds center.
+  {
+    auto document = geometry_test_document();
+    const auto layer_id = document.layers()[0].id();
+    static_cast<void>(patchy::flip_layer_horizontal(document, layer_id));
+    const auto* content = document.layers()[0].vector_shape();
+    CHECK(content->origination.empty());
+    // Bounds spanned 8..52 (stroke reach); mirroring about the center swaps
+    // the rect's 10 and 50 edges.
+    const auto& anchors = content->path.subpaths[0].anchors;
+    const auto min_x = std::min({anchors[0].anchor_x, anchors[1].anchor_x, anchors[2].anchor_x,
+                                 anchors[3].anchor_x});
+    CHECK(std::abs(min_x - 10.0) < 1e-6);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_shape_tests() {
@@ -323,5 +432,6 @@ std::vector<patchy::test::TestCase> vector_shape_tests() {
       {"vector_path_bounds_groups_and_transforms", vector_path_bounds_groups_and_transforms},
       {"vector_metadata_flags_round_trip", vector_metadata_flags_round_trip},
       {"document_path_revision_and_dirty_semantics", document_path_revision_and_dirty_semantics},
+      {"geometry_ops_transform_vector_data", geometry_ops_transform_vector_data},
   };
 }

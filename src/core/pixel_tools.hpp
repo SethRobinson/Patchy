@@ -5,6 +5,7 @@
 #include "core/palette.hpp"
 #include "core/rect_utils.hpp"
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -190,5 +191,18 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
 [[nodiscard]] bool crop_document(Document& document, Rect crop);
 void rotate_document_clockwise(Document& document);
 void rotate_document_counterclockwise(Document& document);
+
+// Applies an affine (a, b, c, d, tx, ty like transform_vector_path) to a
+// layer's vector shape/mask (dropping live-shape annotations unless the
+// matrix is a positive axis-aligned scale + translate) and re-rasterizes at
+// canvas_after. stroke_scale != 1 additionally scales the shape stroke width
+// (Image Size). The document-wide variant also transforms every saved/work
+// path. Every geometry op above already calls these; they are exposed for
+// the free-transform commit.
+void transform_layer_vector_data(Document& document, Layer& layer,
+                                 const std::array<double, 6>& matrix, Rect canvas_after,
+                                 double stroke_scale = 1.0);
+void transform_document_vector_data(Document& document, const std::array<double, 6>& matrix,
+                                    Rect canvas_after, double stroke_scale = 1.0);
 
 }  // namespace patchy

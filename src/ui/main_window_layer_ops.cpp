@@ -2891,10 +2891,8 @@ void MainWindow::crop_to_selection() {
     show_status_error(tr("Make a rectangular selection before cropping"));
     return;
   }
-  if (document_contains_smart_objects(std::as_const(document())) ||
-      document_contains_vector_content(std::as_const(document()))) {
-    show_status_error(
-        tr("Rasterize Smart Objects and Shape layers before changing document geometry"));
+  if (document_contains_smart_objects(std::as_const(document()))) {
+    show_status_error(tr("Rasterize Smart Objects before changing document geometry"));
     return;
   }
 
@@ -2921,10 +2919,8 @@ void MainWindow::crop_to_selection() {
 
 void MainWindow::rotate_canvas_clockwise() {
   auto& doc = document();
-  if (document_contains_smart_objects(std::as_const(doc)) ||
-      document_contains_vector_content(std::as_const(doc))) {
-    show_status_error(
-        tr("Rasterize Smart Objects and Shape layers before changing document geometry"));
+  if (document_contains_smart_objects(std::as_const(doc))) {
+    show_status_error(tr("Rasterize Smart Objects before changing document geometry"));
     return;
   }
   push_undo_snapshot(tr("Rotate canvas"));
@@ -2944,10 +2940,8 @@ void MainWindow::rotate_canvas_clockwise() {
 
 void MainWindow::rotate_canvas_counterclockwise() {
   auto& doc = document();
-  if (document_contains_smart_objects(std::as_const(doc)) ||
-      document_contains_vector_content(std::as_const(doc))) {
-    show_status_error(
-        tr("Rasterize Smart Objects and Shape layers before changing document geometry"));
+  if (document_contains_smart_objects(std::as_const(doc))) {
+    show_status_error(tr("Rasterize Smart Objects before changing document geometry"));
     return;
   }
   push_undo_snapshot(tr("Rotate canvas"));
