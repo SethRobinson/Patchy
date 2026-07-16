@@ -1507,6 +1507,107 @@ void ui_smart_filter_blending_more_menu_cancel_apply_is_atomic() {
         original_cache_body);
 }
 
+// Opening the blending-options or settings dialog with Preview on and
+// unchanged values must not repaint the layer: the current raster may be
+// Photoshop's own preview of the stack, and swapping in Patchy's render of
+// identical settings visibly changed the image (July 2026 field report).
+void ui_smart_filter_dialogs_with_preview_keep_unchanged_pixels() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path(
+          "photoshop-smart-filter-model.psd")
+          .wstring());
+  CHECK(QFileInfo::exists(path));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  const auto layer_id =
+      select_named_layer(window, QStringLiteral("Gaussian radius 2.0"));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  layers->scrollToItem(
+      require_layer_item(*layers, QStringLiteral("Gaussian radius 2.0")),
+      QAbstractItemView::PositionAtCenter);
+  QApplication::processEvents();
+
+  // Stand in for Photoshop's baked preview: doctor one byte of the stored
+  // raster so any re-render of the unchanged stack is detectable.
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  auto doctored = std::as_const(*layer).pixels();
+  doctored.pixel(0, 0)[0] =
+      static_cast<std::uint8_t>(doctored.pixel(0, 0)[0] ^ 0x40U);
+  layer->set_pixels(doctored);
+
+  const auto pixels_are_doctored = [&] {
+    const auto* current = std::as_const(document).find_layer(layer_id);
+    return current != nullptr &&
+           patchy::ui::pixel_buffers_equal(current->pixels(), doctored);
+  };
+  const auto active_row = [&]() -> QWidget* {
+    auto* item =
+        require_layer_item(*layers, QStringLiteral("Gaussian radius 2.0"));
+    auto* row = layers->itemWidget(item);
+    CHECK(row != nullptr);
+    return row;
+  };
+
+  bool blending_checked = false;
+  QTimer::singleShot(20, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("smartFilterBlendingDialog")));
+    CHECK(dialog != nullptr);
+    auto* opacity = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("smartFilterOpacitySpin"));
+    auto* preview = dialog->findChild<QCheckBox*>(
+        QStringLiteral("smartFilterBlendingPreviewCheck"));
+    CHECK(opacity != nullptr && preview != nullptr && preview->isChecked());
+    // Opening with unchanged settings keeps the stored raster.
+    process_events_for(150);
+    CHECK(pixels_are_doctored());
+    // A real change previews...
+    opacity->setValue(40.0);
+    CHECK(process_events_until([&] { return !pixels_are_doctored(); }));
+    // ...and returning to the stored value restores the exact raster.
+    opacity->setValue(100.0);
+    CHECK(process_events_until([&] { return pixels_are_doctored(); }));
+    blending_checked = true;
+    dialog->reject();
+  });
+  auto* blending_action = active_row()->findChild<QAction*>(
+      QStringLiteral("layerSmartFilterBlendingAction"));
+  CHECK(blending_action != nullptr);
+  blending_action->trigger();
+  process_events_for(50);
+  CHECK(blending_checked);
+  CHECK(pixels_are_doctored());
+
+  // The settings dialog takes the same unchanged-restore path.
+  bool edit_checked = false;
+  QTimer::singleShot(20, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    process_events_for(150);
+    CHECK(pixels_are_doctored());
+    edit_checked = true;
+    dialog->reject();
+  });
+  auto* edit_button = active_row()->findChild<QToolButton*>(
+      QStringLiteral("layerSmartFilterEditButton"));
+  CHECK(edit_button != nullptr);
+  edit_button->click();
+  process_events_for(50);
+  CHECK(edit_checked);
+  CHECK(pixels_are_doctored());
+}
+
 void ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache() {
   SettingsValueRestorer notes_setting(
       QStringLiteral("imports/showPsdWarningsAndInfo"));
@@ -4567,6 +4668,8 @@ std::vector<patchy::test::TestCase> smart_filter_tests() {
        ui_smart_filter_mask_thumbnail_routes_edits_and_resyncs_undo},
       {"ui_smart_filter_blending_more_menu_cancel_apply_is_atomic",
        ui_smart_filter_blending_more_menu_cancel_apply_is_atomic},
+      {"ui_smart_filter_dialogs_with_preview_keep_unchanged_pixels",
+       ui_smart_filter_dialogs_with_preview_keep_unchanged_pixels},
       {"ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache",
        ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache},
       {"ui_smart_filter_multiple_gaussian_duplicate_reorder_delete_roundtrip",

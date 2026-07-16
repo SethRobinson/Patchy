@@ -1564,7 +1564,20 @@ void MainWindow::editable_smart_filter_dialog(
        unfiltered_pixels, unfiltered_bounds, original_pixels,
        original_bounds, filter_canvas_bounds,
        last_preview_bounds](const FilterPreviewSettings& settings) {
-        if (!settings.preview_enabled) {
+        auto candidate =
+            settings.preview_enabled
+                ? std::optional<SmartFilterStack>(
+                      smart_filter_stack_with_invocation(
+                          stack, filter_index, settings.invocation))
+                : std::nullopt;
+        // Unchanged settings restore the stored raster instead of re-rendering:
+        // the layer's current pixels may be Photoshop's own preview of this
+        // stack, and swapping in Patchy's render of identical settings would
+        // visibly change the image just because the dialog opened with Preview
+        // on.
+        if (!candidate.has_value() ||
+            candidate->entries[filter_index].parameters ==
+                stack.entries[filter_index].parameters) {
           preview_state->pending.reset();
           ++preview_state->generation;
           if (auto* preview_layer = document().find_layer(layer_id);
@@ -1580,16 +1593,13 @@ void MainWindow::editable_smart_filter_dialog(
           }
           return;
         }
-
-        const auto candidate = smart_filter_stack_with_invocation(
-            stack, filter_index, settings.invocation);
         preview_state->in_flight = true;
         const auto generation = ++preview_state->generation;
         auto* app = QCoreApplication::instance();
         auto window = QPointer<MainWindow>(this);
         std::thread([app, window, preview_state, generation, layer_id,
                      unfiltered_pixels, unfiltered_bounds, last_preview_bounds,
-                     filter_canvas_bounds, candidate] {
+                     filter_canvas_bounds, candidate = std::move(*candidate)] {
           auto result = std::make_shared<FilterRenderResult>();
           auto error = std::make_shared<QString>();
           try {
@@ -1829,7 +1839,16 @@ void MainWindow::edit_smart_filter_blending(
        unfiltered_pixels, unfiltered_bounds, original_pixels, original_bounds,
        filter_canvas_bounds,
        last_preview_bounds](const PreviewRequest& request) {
-        if (!request.enabled) {
+        // Unchanged blending settings restore the stored raster instead of
+        // re-rendering: the layer's current pixels may be Photoshop's own
+        // preview of this stack, and swapping in Patchy's render of identical
+        // settings would visibly change the image just because the dialog
+        // opened with Preview on.
+        const auto& entry = original_stack.entries[execution_index];
+        const bool unchanged =
+            request.settings.blend_mode == entry.blend_mode &&
+            std::abs(request.settings.opacity - entry.opacity) < 0.0000001;
+        if (!request.enabled || unchanged) {
           preview_state->pending.reset();
           ++preview_state->generation;
           if (auto* preview_layer = document().find_layer(layer_id);

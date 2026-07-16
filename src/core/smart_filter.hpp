@@ -29,47 +29,56 @@ enum class SmartFilterKind {
 
 struct GaussianBlurSmartFilter {
   double radius_pixels{0.0};
+  bool operator==(const GaussianBlurSmartFilter&) const = default;
 };
 
 struct HighPassSmartFilter {
   double radius_pixels{0.0};
+  bool operator==(const HighPassSmartFilter&) const = default;
 };
 
 struct MedianSmartFilter {
   double radius_pixels{1.0};
+  bool operator==(const MedianSmartFilter&) const = default;
 };
 
 struct DustAndScratchesSmartFilter {
   std::int32_t radius_pixels{1};
   std::int32_t threshold{0};
+  bool operator==(const DustAndScratchesSmartFilter&) const = default;
 };
 
 struct SurfaceBlurSmartFilter {
   double radius_pixels{5.0};
   std::int32_t threshold{15};
+  bool operator==(const SurfaceBlurSmartFilter&) const = default;
 };
 
 struct UnsharpMaskSmartFilter {
   double amount_percent{150.0};
   double radius_pixels{2.0};
   std::int32_t threshold{8};
+  bool operator==(const UnsharpMaskSmartFilter&) const = default;
 };
 
 struct MotionBlurSmartFilter {
   std::int32_t angle_degrees{0};
   std::int32_t distance_pixels{12};
+  bool operator==(const MotionBlurSmartFilter&) const = default;
 };
 
 struct PlasticWrapSmartFilter {
   std::int32_t highlight_strength{9};
   std::int32_t detail{7};
   std::int32_t smoothness{5};
+  bool operator==(const PlasticWrapSmartFilter&) const = default;
 };
 
 // Photoshop stores Cell Size as a #Pxl unit double but its dialog only
 // produces whole pixels from 2 through 200 (July 2026 captures).
 struct MosaicSmartFilter {
   std::int32_t cell_size_pixels{8};
+  bool operator==(const MosaicSmartFilter&) const = default;
 };
 
 // Photoshop stores all three Emboss settings as plain integers ordered
@@ -79,6 +88,7 @@ struct EmbossSmartFilter {
   std::int32_t angle_degrees{135};
   std::int32_t height_pixels{2};
   std::int32_t amount_percent{100};
+  bool operator==(const EmbossSmartFilter&) const = default;
 };
 
 // Photoshop stores Radius as a #Pxl unit double (July 2026 captures);
@@ -86,6 +96,7 @@ struct EmbossSmartFilter {
 // Values through 2000 px are accepted on import.
 struct BoxBlurSmartFilter {
   double radius_pixels{1.0};
+  bool operator==(const BoxBlurSmartFilter&) const = default;
 };
 
 using SmartFilterParameters =
