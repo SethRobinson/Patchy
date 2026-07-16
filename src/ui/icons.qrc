@@ -90,6 +90,8 @@
     <file alias="tool-eyedropper.svg">icons/tool-eyedropper.svg</file>
     <file alias="tool-text.svg">icons/tool-text.svg</file>
     <file alias="tool-pen.svg">icons/tool-pen.svg</file>
+    <file alias="tool-path-select.svg">icons/tool-path-select.svg</file>
+    <file alias="tool-direct-select.svg">icons/tool-direct-select.svg</file>
     <file alias="tool-pan.svg">icons/tool-pan.svg</file>
     <file alias="tool-zoom.svg">icons/tool-zoom.svg</file>
     <file alias="tool-flyout-corner.svg">icons/tool-flyout-corner.svg</file>

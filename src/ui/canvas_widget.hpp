@@ -29,6 +29,7 @@
 #include <array>
 #include <cstdint>
 #include <chrono>
+#include <set>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -45,6 +46,7 @@ class QTabletEvent;
 
 namespace patchy {
 enum class LiveShapeKind : std::uint8_t;
+enum class PathCombineOp : std::uint8_t;
 struct PathAnchor;
 struct VectorPath;
 }
@@ -83,7 +85,9 @@ enum class CanvasTool {
   PatternStamp,
   MixerBrush,
   // July 2026 vector tools (append-only: values ride persisted settings).
-  Pen
+  Pen,
+  PathSelect,
+  DirectSelect
 };
 
 // What the Line/Rectangle/Ellipse draw tools produce: a vector shape layer
@@ -483,6 +487,12 @@ public:
   [[nodiscard]] bool pen_session_active() const noexcept;
   void commit_pen_path(bool closed);
   void cancel_pen_path();
+  // Path editing (PathSelect / DirectSelect / Pen add-delete) on the active
+  // shape layer's path or the work path.
+  [[nodiscard]] bool path_edit_has_selection() const noexcept;
+  [[nodiscard]] std::vector<int> path_edit_selected_groups() const;
+  void set_selected_subpaths_combine_op(patchy::PathCombineOp op);
+  void clear_path_edit_selection();
   // Rounded-corner radius for the rectangular marquee (0 = sharp corners).
   void set_marquee_corner_radius(int pixels) noexcept;
   [[nodiscard]] int marquee_corner_radius() const noexcept;
@@ -964,6 +974,24 @@ private:
   bool handle_pen_release(QMouseEvent* event);
   bool handle_pen_key(QKeyEvent* event);
   void draw_pen_overlay(QPainter& painter);
+  // Path editing (canvas_widget_vector_tools.cpp).
+  [[nodiscard]] bool path_edit_tool_active() const noexcept;
+  [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
+  [[nodiscard]] patchy::Layer* path_edit_target_layer() const;
+  void apply_path_edit(patchy::VectorPath path, const QString& label,
+                       const std::vector<int>& touched_groups);
+  [[nodiscard]] QPointF path_point_to_screen(double x, double y) const;
+  [[nodiscard]] std::pair<int, int> path_anchor_at(QPointF widget_point) const;
+  [[nodiscard]] int path_handle_at(QPointF widget_point, std::pair<int, int>& anchor) const;
+  [[nodiscard]] bool path_segment_at(QPointF widget_point, std::pair<int, int>& segment,
+                                     double& segment_t) const;
+  bool handle_path_edit_press(QMouseEvent* event, QPointF document_point);
+  bool handle_path_edit_move(QMouseEvent* event, QPointF document_point);
+  bool handle_path_edit_release(QMouseEvent* event);
+  bool handle_path_edit_key(QKeyEvent* event);
+  bool pen_modifies_existing_path(QMouseEvent* event, QPointF document_point);
+  void delete_selected_path_anchors();
+  void draw_path_edit_overlay(QPainter& painter);
   [[nodiscard]] QRect draw_mask_line(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_mask_gradient(QPoint from, QPoint to);
   [[nodiscard]] QRect draw_mask_rectangle(QPoint from, QPoint to, bool erase);
@@ -1185,6 +1213,17 @@ private:
   bool pen_handle_dragging_{false};
   bool pen_handles_broken_{false};
   QPointF pen_hover_document_{};
+  // Path-edit session state (selection keys are (subpath, anchor) indices).
+  enum class PathEditDrag { None, Anchors, HandleIn, HandleOut, Marquee };
+  std::set<std::pair<int, int>> path_selected_anchors_;
+  PathEditDrag path_drag_mode_{PathEditDrag::None};
+  std::pair<int, int> path_drag_anchor_{-1, -1};
+  QPointF path_drag_last_document_{};
+  QPointF path_marquee_start_{};
+  QPointF path_marquee_current_{};
+  bool path_edit_undo_armed_{false};
+  bool path_edit_changed_{false};
+  qint64 path_nudge_last_ms_{0};
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};

@@ -13,6 +13,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
+#include "core/vector_shape.hpp"
 #include "core/warp_mesh.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
@@ -323,6 +324,10 @@ const char* tool_action_source(CanvasTool tool) {
       return "Zoom";
     case CanvasTool::Pen:
       return "Pen";
+    case CanvasTool::PathSelect:
+      return "Path Select";
+    case CanvasTool::DirectSelect:
+      return "Direct Select";
   }
   return "Tool";
 }
@@ -387,6 +392,10 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.zoom");
     case CanvasTool::Pen:
       return QStringLiteral("tools.pen");
+    case CanvasTool::PathSelect:
+      return QStringLiteral("tools.path_select");
+    case CanvasTool::DirectSelect:
+      return QStringLiteral("tools.direct_select");
   }
   return QStringLiteral("tools.unknown");
 }
@@ -664,6 +673,12 @@ QIcon tool_icon(CanvasTool tool) {
       break;
     case CanvasTool::Pen:
       name = "tool-pen";
+      break;
+    case CanvasTool::PathSelect:
+      name = "tool-path-select";
+      break;
+    case CanvasTool::DirectSelect:
+      name = "tool-direct-select";
       break;
   }
   return QIcon(QStringLiteral(":/patchy/icons/%1.svg").arg(QLatin1String(name)));
@@ -1922,6 +1937,18 @@ void MainWindow::create_actions() {
   configure_tool_flyout(tool_palette, shape_menu, shape_tool_button, rect_tool_action,
                         {line_tool_action, rect_tool_action, ellipse_tool_action});
   type_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T));
+  auto* path_select_menu = new QMenu(tr("Path Tools"), tool_palette);
+  path_select_menu->setObjectName(QStringLiteral("pathSelectToolMenu"));
+  bind_widget_text(path_select_menu, "Path Tools");
+  auto* path_select_action = create_flyout_tool_action(path_select_menu, tr("Path Select"),
+                                                       CanvasTool::PathSelect, QKeySequence(Qt::Key_A));
+  auto* direct_select_action =
+      create_flyout_tool_action(path_select_menu, tr("Direct Select"), CanvasTool::DirectSelect,
+                                QKeySequence(Qt::SHIFT | Qt::Key_A));
+  auto* path_select_button = new QToolButton(tool_palette);
+  path_select_button->setObjectName(QStringLiteral("pathSelectToolButton"));
+  configure_tool_flyout(tool_palette, path_select_menu, path_select_button, path_select_action,
+                        {path_select_action, direct_select_action});
   tool_palette->addSeparator();
 
   add_tool_action(tool_palette, tool_group, tr("Pick"), CanvasTool::Eyedropper, QKeySequence(Qt::Key_I));
@@ -3445,7 +3472,8 @@ void MainWindow::create_actions() {
   });
 
   vector_vector_mode_option_widgets_.push_back(add_option_label(
-      tr("Combine:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen}));
+      tr("Combine:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                       CanvasTool::PathSelect, CanvasTool::DirectSelect}));
   auto* vector_combine_combo = new QComboBox(toolbar);
   vector_combine_combo->setObjectName(QStringLiteral("vectorCombineCombo"));
   vector_combine_combo->addItems(
@@ -3467,10 +3495,23 @@ void MainWindow::create_actions() {
     vector_combine_combo_pointer->setItemText(4, MainWindow::tr("Exclude"));
   });
   add_option_widget(vector_combine_combo,
-                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
+                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                     CanvasTool::PathSelect, CanvasTool::DirectSelect});
   vector_vector_mode_option_widgets_.push_back(vector_combine_combo);
-  connect(vector_combine_combo, &QComboBox::currentIndexChanged, this,
-          [this](int index) { current_vector_combine_index_ = index; });
+  connect(vector_combine_combo, &QComboBox::currentIndexChanged, this, [this](int index) {
+    current_vector_combine_index_ = index;
+    // With a path-select selection, the combo edits the selected shapes'
+    // combine operation in place (indices 1-4; "New Layer" is creation-only).
+    if (canvas_ != nullptr && index >= 1 &&
+        (canvas_->tool() == CanvasTool::PathSelect ||
+         canvas_->tool() == CanvasTool::DirectSelect) &&
+        canvas_->path_edit_has_selection()) {
+      canvas_->set_selected_subpaths_combine_op(index == 1   ? patchy::PathCombineOp::Add
+                                                : index == 2 ? patchy::PathCombineOp::Subtract
+                                                : index == 3 ? patchy::PathCombineOp::Intersect
+                                                             : patchy::PathCombineOp::Xor);
+    }
+  });
   update_vector_swatch_icons();
 
   auto* fill_shapes = new CheckGlyphBox(tr("Fill"), toolbar);

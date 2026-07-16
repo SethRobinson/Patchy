@@ -320,6 +320,154 @@ void ui_pen_tool_path_mode_keys_and_handles() {
   CHECK(document.work_path()->path().subpaths.size() == 2);
 }
 
+// Creates a 200x120 rectangle shape layer at (100,100)-(300,220) and returns
+// its layer id (Shape mode, zero corner radius).
+patchy::LayerId make_rect_shape_layer(patchy::ui::MainWindow& window,
+                                      patchy::ui::CanvasWidget& canvas) {
+  canvas.set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(radius_spin != nullptr);
+  radius_spin->setValue(0);
+  shape_drag(canvas, QPoint(100, 100), QPoint(300, 220));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  return *active;
+}
+
+void ui_direct_select_drags_anchor_with_single_undo() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  // Drag the top-left anchor from (100,100) to (60,70).
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(60, 70)));
+  QApplication::processEvents();
+
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  const auto* content = layer->vector_shape();
+  CHECK(content != nullptr);
+  CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_x - 60.0) < 1.0);
+  CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_y - 70.0) < 1.0);
+  // Editing the rectangle's anchors drops its live-shape annotation.
+  CHECK(content->origination.empty());
+  CHECK(patchy::layer_vector_block_dirty(*layer));
+  CHECK(canvas->path_edit_has_selection());
+
+  // The whole drag is one history entry: a single undo restores everything.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  layer = document.find_layer(layer_id);
+  const auto* restored = layer->vector_shape();
+  CHECK(std::abs(restored->path.subpaths[0].anchors[0].anchor_x - 100.0) < 0.5);
+  CHECK(restored->origination.size() == 1);
+}
+
+void ui_path_select_drags_whole_shape_group() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  // Press on the top-left anchor: PathSelect grabs the whole group; drag by
+  // (50, 30).
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(150, 130)));
+  QApplication::processEvents();
+
+  auto* layer = document.find_layer(layer_id);
+  const auto* content = layer->vector_shape();
+  CHECK(content != nullptr);
+  const auto& anchors = content->path.subpaths[0].anchors;
+  CHECK(anchors.size() == 4);
+  CHECK(std::abs(anchors[0].anchor_x - 150.0) < 1.0);
+  CHECK(std::abs(anchors[2].anchor_x - 350.0) < 1.0);
+  CHECK(std::abs(anchors[2].anchor_y - 250.0) < 1.0);
+  CHECK(layer->bounds().x == 150);
+  CHECK(layer->bounds().y == 130);
+}
+
+void ui_pen_adds_deletes_and_converts_anchors() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Pen);
+  // Click the middle of the top edge: adds an anchor (no new session).
+  pen_click(*canvas, QPoint(200, 100));
+  CHECK(!canvas->pen_session_active());
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer->vector_shape()->path.subpaths[0].anchors.size() == 5);
+  CHECK(layer->vector_shape()->origination.empty());
+  // The insertion t comes from 24-step sampling, so the anchor lands within
+  // half a sample step of the click.
+  const auto inserted_x = layer->vector_shape()->path.subpaths[0].anchors[1].anchor_x;
+  CHECK(std::abs(inserted_x - 200.0) < 12.0);
+
+  // Clicking an anchor deletes it.
+  const auto inserted_y = layer->vector_shape()->path.subpaths[0].anchors[1].anchor_y;
+  pen_click(*canvas, QPoint(static_cast<int>(inserted_x), static_cast<int>(inserted_y)));
+  CHECK(!canvas->pen_session_active());
+  layer = document.find_layer(layer_id);
+  CHECK(layer->vector_shape()->path.subpaths[0].anchors.size() == 4);
+
+  // Alt+click converts a corner anchor to smooth (handles appear).
+  const auto corner = canvas->widget_position_for_document_point(QPoint(300, 100));
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton,
+             Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner, Qt::LeftButton, Qt::NoButton,
+             Qt::AltModifier);
+  QApplication::processEvents();
+  layer = document.find_layer(layer_id);
+  const auto& converted = layer->vector_shape()->path.subpaths[0].anchors[1];
+  CHECK(converted.smooth);
+  CHECK(std::abs(converted.out_x - converted.anchor_x) > 1.0);
+}
+
+void ui_path_select_combine_op_edit_applies() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+
+  // Add an inner rectangle with Subtract (combine index 2).
+  auto* combine_combo = window.findChild<QComboBox*>(QStringLiteral("vectorCombineCombo"));
+  CHECK(combine_combo != nullptr);
+  combine_combo->setCurrentIndex(2);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(160, 140), QPoint(240, 190));
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer->vector_shape()->path.subpaths.size() == 2);
+  CHECK(layer->vector_shape()->path.subpaths[1].op == patchy::PathCombineOp::Subtract);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 160)), Qt::white, 8));
+
+  // Select the inner shape with PathSelect and flip it to Add via the combo.
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  const auto inner_anchor = canvas->widget_position_for_document_point(QPoint(160, 140));
+  drag(*canvas, inner_anchor, inner_anchor);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_has_selection());
+  combine_combo->setCurrentIndex(1);  // Add
+  QApplication::processEvents();
+  layer = document.find_layer(layer_id);
+  CHECK(layer->vector_shape()->path.subpaths[1].op == patchy::PathCombineOp::Add);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 160)), Qt::black, 8));
+}
+
 QDialog* find_top_level_dialog(const QString& object_name) {
   for (auto* widget : QApplication::topLevelWidgets()) {
     if (widget->objectName() == object_name) {
@@ -489,6 +637,11 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_pen_tool_click_and_close_creates_shape_layer",
        ui_pen_tool_click_and_close_creates_shape_layer},
       {"ui_pen_tool_path_mode_keys_and_handles", ui_pen_tool_path_mode_keys_and_handles},
+      {"ui_direct_select_drags_anchor_with_single_undo",
+       ui_direct_select_drags_anchor_with_single_undo},
+      {"ui_path_select_drags_whole_shape_group", ui_path_select_drags_whole_shape_group},
+      {"ui_pen_adds_deletes_and_converts_anchors", ui_pen_adds_deletes_and_converts_anchors},
+      {"ui_path_select_combine_op_edit_applies", ui_path_select_combine_op_edit_applies},
       {"ui_shape_appearance_dialog_commits_and_cancels",
        ui_shape_appearance_dialog_commits_and_cancels},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},

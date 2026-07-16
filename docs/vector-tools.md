@@ -39,6 +39,22 @@ Combine option); any other mode routes to the work path. The construction
 overlay draws in canvas_widget_vector_tools.cpp - note canvas_widget_pen.cpp
 is TABLET input, not this tool.
 
+## Path editing (Path Select / Direct Select)
+
+Path Select (A, the black arrow) selects and drags whole shape groups; Direct
+Select (Shift+A, the white arrow) works per anchor: click or marquee to
+select, drag anchors or the handle knobs of selected anchors (smooth pairs
+mirror), Shift adds to the selection, arrows nudge (1 px, Shift 10 px,
+coalesced into one history entry per burst), Delete removes the selected
+anchors (subpaths that drop under two anchors disappear), Escape deselects.
+With a selection active the options-bar Combine box rewrites the selected
+shapes' combine operation in place. The Pen doubles as the point editor:
+clicking a segment of the target path inserts an anchor with an exact
+de Casteljau split, clicking an anchor deletes it, and Alt+click toggles
+corner/smooth. Any direct edit drops the touched groups' live-shape
+annotations (Photoshop's keyShapeInvalidated rule) and re-rasterizes on the
+spot; the target is the active shape layer, falling back to the work path.
+
 ## Appearance editing and fill layers
 
 Double-clicking a shape layer's row (or an imported fill layer's) opens the

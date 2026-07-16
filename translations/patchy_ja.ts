@@ -6294,6 +6294,42 @@ Mixed selection</source>
         <translation>ペンツールはレイヤーコンテンツにパスを描きます</translation>
     </message>
     <message>
+        <source>Select a shape layer or draw a path first</source>
+        <translation>先にシェイプレイヤーを選択するかパスを描いてください</translation>
+    </message>
+    <message>
+        <source>Move shape</source>
+        <translation>シェイプを移動</translation>
+    </message>
+    <message>
+        <source>Edit path</source>
+        <translation>パスを編集</translation>
+    </message>
+    <message>
+        <source>Delete anchors</source>
+        <translation>アンカーポイントを削除</translation>
+    </message>
+    <message>
+        <source>Nudge anchors</source>
+        <translation>アンカーポイントを移動</translation>
+    </message>
+    <message>
+        <source>Convert point</source>
+        <translation>ポイントを切り替え</translation>
+    </message>
+    <message>
+        <source>Delete anchor</source>
+        <translation>アンカーポイントを削除</translation>
+    </message>
+    <message>
+        <source>Add anchor</source>
+        <translation>アンカーポイントを追加</translation>
+    </message>
+    <message>
+        <source>Change shape combine mode</source>
+        <translation>シェイプの結合モードを変更</translation>
+    </message>
+    <message>
         <source>Shape layers and vector masks can&apos;t be transformed yet. Rasterize first.</source>
         <translation>シェイプレイヤーとベクトルマスクはまだ変形できません。先にラスタライズしてください。</translation>
     </message>
@@ -12664,6 +12700,9 @@ Clipped to the layer below</source>
     <message><source>Work Path</source><translation>作業用パス</translation></message>
     <message><source>Created shape layer %1.</source><translation>シェイプレイヤー %1 を作成しました。</translation></message>
     <message><source>Shape %1</source><translation>シェイプ %1</translation></message>
+    <message><source>Path Select</source><translation>パスコンポーネント選択</translation></message>
+    <message><source>Direct Select</source><translation>ダイレクト選択</translation></message>
+    <message><source>Path Tools</source><translation>パスツール</translation></message>
     <message><source>Added the path to the work path.</source><translation>パスを作業用パスに追加しました。</translation></message>
     <message><source>Added the shape to the work path.</source><translation>シェイプを作業用パスに追加しました。</translation></message>
     <message><source>Select a shape layer to edit its appearance</source><translation>外観を編集するシェイプレイヤーを選択してください</translation></message>

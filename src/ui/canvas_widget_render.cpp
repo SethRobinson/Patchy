@@ -781,6 +781,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_selection_overlay(painter);
   draw_quick_select_stroke_overlay(painter);
   draw_pen_overlay(painter);
+  draw_path_edit_overlay(painter);
   draw_shape_preview(painter, exposed_rect);
   draw_drag_size_readout(painter);
   draw_text_rect_preview(painter);
