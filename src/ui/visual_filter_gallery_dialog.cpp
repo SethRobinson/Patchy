@@ -1,5 +1,6 @@
 #include "ui/visual_filter_gallery_dialog.hpp"
 
+#include "filters/smart_filter_recipe_mapping.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/filter_gallery_controls.hpp"
@@ -67,6 +68,7 @@ constexpr int kThumbnailReadyRole = Qt::UserRole + 2;
 constexpr int kFilterCategoryRole = Qt::UserRole + 3;
 constexpr int kRecipeEntryIdRole = Qt::UserRole + 4;
 constexpr int kThumbnailExactRole = Qt::UserRole + 5;
+constexpr int kSmartFilterBadgeRole = Qt::UserRole + 6;
 constexpr int kMaximumThumbnailDimension = 180;
 
 constexpr std::array<FilterCategory, 9> kGalleryCategoryOrder = {
@@ -159,7 +161,11 @@ struct GalleryThumbnailRenderState {
   std::atomic<std::uint64_t> generation{0};
 };
 
-[[nodiscard]] QIcon thumbnail_icon(const QImage& source) {
+constexpr QColor kSmartFilterBadgeFill{0x14, 0x73, 0xe6};
+constexpr QColor kSmartFilterBadgeBorder{0x9c, 0xcf, 0xff};
+
+[[nodiscard]] QIcon thumbnail_icon(const QImage& source,
+                                   bool smart_filter_badge = false) {
   constexpr int width = 128;
   constexpr int height = 78;
   QImage thumbnail(width, height, QImage::Format_ARGB32_Premultiplied);
@@ -179,8 +185,42 @@ struct GalleryThumbnailRenderState {
     painter.drawImage((width - scaled.width()) / 2,
                       (height - scaled.height()) / 2, scaled);
   }
+  if (smart_filter_badge) {
+    // Deliberately unlocalized glyph, like the favorite star; the row tooltip
+    // carries the localized explanation.
+    const QRect chip(width - 27, height - 18, 24, 15);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(kSmartFilterBadgeBorder, 1.0));
+    painter.setBrush(kSmartFilterBadgeFill);
+    painter.drawRoundedRect(chip, 3.0, 3.0);
+    auto badge_font = painter.font();
+    badge_font.setPointSizeF(8.0);
+    badge_font.setBold(true);
+    painter.setFont(badge_font);
+    painter.setPen(Qt::white);
+    painter.drawText(chip, Qt::AlignCenter, QStringLiteral("SF"));
+  }
   painter.end();
   return QIcon(QPixmap::fromImage(thumbnail));
+}
+
+[[nodiscard]] QIcon warning_icon() {
+  constexpr int size = 16;
+  QImage image(size, size, QImage::Format_ARGB32_Premultiplied);
+  image.fill(Qt::transparent);
+  QPainter painter(&image);
+  painter.setRenderHint(QPainter::Antialiasing);
+  QPolygonF triangle;
+  triangle << QPointF(8.0, 1.5) << QPointF(15.0, 14.5) << QPointF(1.0, 14.5);
+  painter.setPen(QPen(QColor(120, 90, 20), 1.0));
+  painter.setBrush(QColor(255, 202, 58));
+  painter.drawPolygon(triangle);
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(QColor(60, 45, 10));
+  painter.drawRect(QRectF(7.2, 5.5, 1.6, 5.0));
+  painter.drawEllipse(QRectF(7.2, 11.5, 1.6, 1.6));
+  painter.end();
+  return QIcon(QPixmap::fromImage(image));
 }
 
 [[nodiscard]] double numeric_value(const FilterParameterValue& value,
@@ -203,7 +243,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     VisualFilterGalleryPreviewCallback preview_changed,
     FilterLookLibrary* look_library,
     VisualFilterGalleryExactRecipeRenderer exact_renderer,
-    VisualFilterGalleryExactPreviewCallback exact_preview_ready) {
+    VisualFilterGalleryExactPreviewCallback exact_preview_ready,
+    GalleryTargetContext target_context) {
   const Rect exact_source_bounds{bounds.x, bounds.y,
                                  immutable_original.width(),
                                  immutable_original.height()};
@@ -239,6 +280,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     settings.setValue(QLatin1String(kGalleryFavoritesKey), cleaned_favorites);
   }
 
+  const auto smart_object_target =
+      target_context.kind == GalleryTargetKind::SmartObject;
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("filterGalleryDialog"));
   dialog.setWindowTitle(QObject::tr("Filter Gallery"));
@@ -474,6 +517,17 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   parameter_layout->addWidget(applied_effects, 1);
   content->addWidget(parameters);
 
+  auto* outcome_label = new QLabel(&dialog);
+  outcome_label->setObjectName(QStringLiteral("filterGalleryOutcomeLabel"));
+  outcome_label->setWordWrap(true);
+  if (!smart_object_target) {
+    outcome_label->setText(
+        QObject::tr("Applies permanently to this layer. To keep effects "
+                    "editable, use Filter > Convert for Smart Filters "
+                    "first."));
+  }
+  root->addWidget(outcome_label);
+
   auto* footer = new QHBoxLayout();
   auto* status = new QLabel(QObject::tr("Ready"), &dialog);
   status->setObjectName(QStringLiteral("filterGalleryStatusLabel"));
@@ -511,6 +565,25 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     item->setData(kThumbnailExactRole, false);
     item->setData(kFilterCategoryRole,
                   gallery_category_token(definition->catalog.category));
+    const auto badged = native_smart_filter_kind_for(id).has_value();
+    item->setData(kSmartFilterBadgeRole, badged);
+    item->setIcon(thumbnail_icon(QImage(), badged));
+    if (badged) {
+      item->setToolTip(
+          smart_object_target
+              ? QObject::tr("Applies to this Smart Object as an editable "
+                            "Smart Filter.")
+              : QObject::tr(
+                    "This filter can run as an editable Smart Filter. Use "
+                    "Filter > Convert for Smart Filters on this layer to "
+                    "keep it editable."));
+    } else {
+      item->setToolTip(
+          smart_object_target
+              ? QObject::tr("This filter has no Smart Filter mapping. "
+                            "Applying it will rasterize the Smart Object.")
+              : QObject::tr("Applies permanently to the layer pixels."));
+    }
     filter_items.emplace(id, item);
   }
   looks->setCurrentRow(0);
@@ -608,6 +681,58 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   };
   rebuild_saved_looks({});
 
+  // The badge and the per-entry marks come from the same single decision
+  // point as Apply (smart_filter_recipe_mapping); the whole-recipe outcome
+  // prefers the caller's predicate because caller-side constraints (the
+  // 64-entry native stack cap) are not visible to the mapper.
+  const auto entry_blocks_smart_mapping =
+      [&](const FilterRecipeEntry& entry) {
+        FilterRecipe one_entry_recipe;
+        one_entry_recipe.entries.push_back(entry);
+        return !smart_filter_entries_from_recipe(one_entry_recipe, registry)
+                    .has_value();
+      };
+  const auto recipe_maps_to_smart_stack = [&](const FilterRecipe& recipe) {
+    if (target_context.recipe_maps_to_smart_stack) {
+      return target_context.recipe_maps_to_smart_stack(recipe);
+    }
+    return smart_filter_entries_from_recipe(recipe, registry).has_value();
+  };
+  std::function<void()> refresh_smart_filter_hints;
+  refresh_smart_filter_hints = [&] {
+    if (!smart_object_target) {
+      return;
+    }
+    const auto recipe = current_recipe();
+    // An empty recipe is Original: nothing gets baked, so keep the positive
+    // text instead of the raw mapper's empty-recipe rejection.
+    const auto mappable =
+        !recipe.has_value() || recipe_maps_to_smart_stack(*recipe);
+    outcome_label->setText(
+        mappable
+            ? QObject::tr("Applies as editable Smart Filters.")
+            : QObject::tr("Applying will rasterize the Smart Object (some "
+                          "effects have no Smart Filter mapping)."));
+    // setIcon/setToolTip emit itemChanged; keep the recipe handlers out.
+    const auto was_rebuilding = rebuilding_applied_list;
+    rebuilding_applied_list = true;
+    const QSignalBlocker blocker(applied_list);
+    for (int row = 0; row < applied_list->count(); ++row) {
+      auto* item = applied_list->item(row);
+      const auto* entry = find_recipe_entry(
+          item->data(kRecipeEntryIdRole).toULongLong());
+      const auto blocks =
+          entry != nullptr && entry_blocks_smart_mapping(entry->value);
+      item->setIcon(blocks ? warning_icon() : QIcon());
+      item->setToolTip(
+          blocks ? QObject::tr("This effect cannot be applied as a Smart "
+                               "Filter. Applying the stack will rasterize "
+                               "the Smart Object.")
+                 : QString());
+    }
+    rebuilding_applied_list = was_rebuilding;
+  };
+
   std::function<void()> rebuild_applied_list;
   rebuild_applied_list = [&] {
     rebuilding_applied_list = true;
@@ -642,6 +767,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     duplicate_effect->setEnabled(has_active);
     remove_effect->setEnabled(has_active);
     rebuilding_applied_list = false;
+    refresh_smart_filter_hints();
   };
   std::function<void()> schedule_thumbnails;
   const auto update_favorite_button = [&] {
@@ -875,6 +1001,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
               schedule_thumbnails();
             }
             mark_recipe_custom();
+            refresh_smart_filter_hints();
             if (refresh_spatial_overlay) {
               refresh_spatial_overlay();
             }
@@ -972,6 +1099,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
           schedule_thumbnails();
         }
         mark_recipe_custom();
+        refresh_smart_filter_hints();
         refresh_spatial_overlay();
         if (gesture_finished) {
           schedule_render();
@@ -1032,6 +1160,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
           item->second->setData(kThumbnailExactRole, false);
         }
         mark_recipe_custom();
+        refresh_smart_filter_hints();
         refresh_spatial_overlay();
         if (gesture_finished) {
           if (schedule_thumbnails) {
@@ -1182,6 +1311,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                         entry->value.enabled =
                             item->checkState() == Qt::Checked;
                         mark_recipe_custom();
+                        refresh_smart_filter_hints();
                         schedule_render();
                        emit_canvas_preview();
                      }
@@ -1450,6 +1580,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
           schedule_thumbnails();
         }
         mark_recipe_custom();
+        refresh_smart_filter_hints();
       }
       rebuild_parameter_editor();
       schedule_render();
@@ -1539,8 +1670,9 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                   if (const auto found = filter_items.find(id);
                       found != filter_items.end()) {
                     if (error->isEmpty()) {
-                      found->second->setIcon(
-                          thumbnail_icon(rendered->image));
+                      found->second->setIcon(thumbnail_icon(
+                          rendered->image,
+                          native_smart_filter_kind_for(id).has_value()));
                       found->second->setData(
                           kThumbnailExactRole,
                           rendered->exact_result != nullptr);

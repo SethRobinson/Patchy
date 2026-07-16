@@ -53,6 +53,22 @@ struct VisualFilterGalleryExactPreview {
 using VisualFilterGalleryExactPreviewCallback =
     std::function<void(const VisualFilterGalleryExactPreview&)>;
 
+enum class GalleryTargetKind {
+  PlainLayer,
+  SmartObject,
+};
+
+// Describes the layer the accepted recipe will be applied to, so the gallery
+// can show the destructive/non-destructive outcome before Apply. For a
+// smart-object target, recipe_maps_to_smart_stack must answer exactly what the
+// caller's Apply path will do (including caller-side constraints such as the
+// 64-entry native stack cap). When it is null, the gallery falls back to
+// smart_filter_entries_from_recipe over its own registry.
+struct GalleryTargetContext {
+  GalleryTargetKind kind{GalleryTargetKind::PlainLayer};
+  std::function<bool(const FilterRecipe&)> recipe_maps_to_smart_stack;
+};
+
 // Presents every catalogued Filter-menu effect over an immutable, bounded
 // proxy of the supplied layer pixels. A null preview recipe means Original;
 // the result outcome distinguishes accepting Original from cancelling.
@@ -63,6 +79,7 @@ using VisualFilterGalleryExactPreviewCallback =
     VisualFilterGalleryPreviewCallback preview_changed = {},
     FilterLookLibrary* look_library = nullptr,
     VisualFilterGalleryExactRecipeRenderer exact_renderer = {},
-    VisualFilterGalleryExactPreviewCallback exact_preview_ready = {});
+    VisualFilterGalleryExactPreviewCallback exact_preview_ready = {},
+    GalleryTargetContext target_context = {});
 
 }  // namespace patchy::ui

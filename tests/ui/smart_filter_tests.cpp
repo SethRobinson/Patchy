@@ -2067,6 +2067,11 @@ void ui_smart_filter_gallery_native_recipe_applies_atomically() {
         find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
     CHECK(dialog != nullptr);
     configure_gaussian_recipe(*dialog, false);
+    auto* outcome = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryOutcomeLabel"));
+    CHECK(outcome != nullptr);
+    CHECK(outcome->text() ==
+          QStringLiteral("Applies as editable Smart Filters."));
     CHECK(process_events_until(
         [&] {
           const auto* layer = std::as_const(document).find_layer(layer_id);
@@ -2156,6 +2161,21 @@ void ui_smart_filter_gallery_native_recipe_applies_atomically() {
         find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
     CHECK(dialog != nullptr);
     configure_gaussian_recipe(*dialog, true);
+    // The outcome line already announces what the rasterize prompt below
+    // will ask, and the blocking Sepia entry carries the warning mark.
+    auto* outcome = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryOutcomeLabel"));
+    auto* applied = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryAppliedEffectsList"));
+    CHECK(outcome != nullptr && applied != nullptr);
+    CHECK(outcome->text() ==
+          QStringLiteral("Applying will rasterize the Smart Object (some "
+                         "effects have no Smart Filter mapping)."));
+    CHECK(applied->count() == 2);
+    CHECK(applied->item(0)->text() == QStringLiteral("Vintage Sepia"));
+    CHECK(!applied->item(0)->icon().isNull());
+    CHECK(applied->item(1)->text() == QStringLiteral("Gaussian Blur"));
+    CHECK(applied->item(1)->icon().isNull());
     auto* buttons = dialog->findChild<QDialogButtonBox*>(
         QStringLiteral("filterGalleryButtonBox"));
     CHECK(buttons != nullptr &&
@@ -2228,6 +2248,18 @@ void ui_smart_filter_gallery_native_recipe_applies_atomically() {
       duplicate->click();
     }
     CHECK(applied->count() == 65);
+    // The caller's 64-entry native stack cap rejects this recipe, not the
+    // per-entry mapper: the outcome line flips to the rasterize text while
+    // no individual row carries a warning mark.
+    auto* outcome = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryOutcomeLabel"));
+    CHECK(outcome != nullptr);
+    CHECK(outcome->text() ==
+          QStringLiteral("Applying will rasterize the Smart Object (some "
+                         "effects have no Smart Filter mapping)."));
+    for (int row = 0; row < applied->count(); ++row) {
+      CHECK(applied->item(row)->icon().isNull());
+    }
     const auto* layer = std::as_const(document).find_layer(layer_id);
     CHECK(layer != nullptr);
     CHECK(filter_rect_equal(layer->bounds(), original_bounds));

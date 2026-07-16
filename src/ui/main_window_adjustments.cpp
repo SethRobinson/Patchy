@@ -2897,13 +2897,29 @@ void MainWindow::visual_filter_gallery_dialog() {
       };
     }
 
+    GalleryTargetContext gallery_target;
+    gallery_target.kind = smart_object_target
+                              ? GalleryTargetKind::SmartObject
+                              : GalleryTargetKind::PlainLayer;
+    if (smart_object_target) {
+      gallery_target.recipe_maps_to_smart_stack =
+          [preview_registry, native_base_stack,
+           native_new_stack_mask](const FilterRecipe& recipe) {
+            return smart_filter_stack_with_recipe(native_base_stack,
+                                                  native_new_stack_mask,
+                                                  recipe, *preview_registry)
+                .has_value();
+          };
+    }
+
     auto preview_edit_lock = lock_preview_dialog_edits();
     VisualFilterGalleryResult result;
     try {
       result = request_visual_filter_gallery(
           this, *original_pixels, bounds, selection, filters_, foreground,
           background, preview_changed, nullptr,
-          std::move(exact_recipe_renderer), std::move(exact_preview_ready));
+          std::move(exact_recipe_renderer), std::move(exact_preview_ready),
+          std::move(gallery_target));
     } catch (...) {
       close_latest_cancellable_pixel_preview(preview_state);
       restore_original();

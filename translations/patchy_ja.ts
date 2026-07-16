@@ -994,6 +994,46 @@
         <translation>選択したエフェクトを削除します</translation>
     </message>
     <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="525"/>
+        <source>Applies permanently to this layer. To keep effects editable, use Filter &gt; Convert for Smart Filters first.</source>
+        <translation>このレイヤーに恒久的に適用されます。エフェクトを編集可能なまま保つには、先に フィルター &gt; スマートフィルター用に変換 を使用してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="574"/>
+        <source>Applies to this Smart Object as an editable Smart Filter.</source>
+        <translation>このスマートオブジェクトに編集可能なスマートフィルターとして適用されます。</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>This filter can run as an editable Smart Filter. Use Filter &gt; Convert for Smart Filters on this layer to keep it editable.</source>
+        <translation>このフィルターは編集可能なスマートフィルターとして実行できます。編集可能なまま保つには、このレイヤーで フィルター &gt; スマートフィルター用に変換 を使用してください。</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>This filter has no Smart Filter mapping. Applying it will rasterize the Smart Object.</source>
+        <translation>このフィルターにはスマートフィルターへの対応がありません。適用するとスマートオブジェクトはラスタライズされます。</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Applies permanently to the layer pixels.</source>
+        <translation>レイヤーのピクセルに恒久的に適用されます。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="713"/>
+        <source>Applies as editable Smart Filters.</source>
+        <translation>編集可能なスマートフィルターとして適用されます。</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Applying will rasterize the Smart Object (some effects have no Smart Filter mapping).</source>
+        <translation>適用するとスマートオブジェクトはラスタライズされます（一部のエフェクトにはスマートフィルターへの対応がありません）。</translation>
+    </message>
+    <message>
+        <location line="+14"/>
+        <source>This effect cannot be applied as a Smart Filter. Applying the stack will rasterize the Smart Object.</source>
+        <translation>このエフェクトはスマートフィルターとして適用できません。適用するとスマートオブジェクトはラスタライズされます。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/visual_filter_gallery_dialog.cpp" line="334"/>
         <source>Apply</source>
         <translation>適用</translation>

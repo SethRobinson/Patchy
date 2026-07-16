@@ -1843,10 +1843,12 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
       CHECK(item->text() == expected_names[row]);
     }
     CHECK(preview->property("previewFitMode").toBool());
+    // Placeholder icons exist from creation, so thumbnail readiness is
+    // signaled by the ready role, never by icon nullity.
     CHECK(process_events_until(
         [&] {
           for (int row = 0; row < looks->count(); ++row) {
-            if (looks->item(row)->icon().isNull()) {
+            if (!looks->item(row)->data(Qt::UserRole + 2).toBool()) {
               return false;
             }
           }
@@ -3200,18 +3202,21 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
         QStringLiteral("filterGalleryStatusLabel"));
     CHECK(category != nullptr && search != nullptr && looks != nullptr &&
           preview != nullptr && status != nullptr);
-    int icons_at_first_tick = -1;
+    // Placeholder icons exist from creation, so thumbnail readiness is
+    // signaled by the ready role, never by icon nullity.
+    int ready_at_first_tick = -1;
     bool first_tick = false;
     QTimer::singleShot(0, dialog, [&] {
       first_tick = true;
-      icons_at_first_tick = 0;
+      ready_at_first_tick = 0;
       for (int row = 0; row < looks->count(); ++row) {
-        icons_at_first_tick += looks->item(row)->icon().isNull() ? 0 : 1;
+        ready_at_first_tick +=
+            looks->item(row)->data(Qt::UserRole + 2).toBool() ? 1 : 0;
       }
     });
     CHECK(process_events_until([&] { return first_tick; }, 500));
-    CHECK(icons_at_first_tick >= 1);
-    CHECK(icons_at_first_tick < looks->count());
+    CHECK(ready_at_first_tick >= 1);
+    CHECK(ready_at_first_tick < looks->count());
 
     category->setCurrentIndex(
         require_combo_data_index(*category, QStringLiteral("render")));
@@ -3225,7 +3230,8 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
     QTimer::singleShot(0, dialog, [&] { ui_marker = true; });
     CHECK(process_events_until([&] { return ui_marker; }, 500));
     CHECK(dialog->isVisible());
-    CHECK(process_events_until([&] { return !clouds->icon().isNull(); }, 5000));
+    CHECK(process_events_until(
+        [&] { return clouds->data(Qt::UserRole + 2).toBool(); }, 5000));
 
     search->clear();
     auto* slow = require_gallery_filter_item(
@@ -3259,6 +3265,237 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
   const auto result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255});
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+}
+
+const QStringList& expected_smart_capable_gallery_ids() {
+  static const QStringList ids = {
+      QStringLiteral("patchy.filters.box_blur"),
+      QStringLiteral("patchy.filters.gaussian_blur"),
+      QStringLiteral("patchy.filters.motion_blur"),
+      QStringLiteral("patchy.filters.surface_blur"),
+      QStringLiteral("patchy.filters.unsharp_mask"),
+      QStringLiteral("patchy.filters.high_pass"),
+      QStringLiteral("patchy.filters.median"),
+      QStringLiteral("patchy.filters.dust_and_scratches"),
+      QStringLiteral("patchy.filters.pixelate"),
+      QStringLiteral("patchy.filters.emboss"),
+      QStringLiteral("patchy.filters.plastic_wrap"),
+  };
+  return ids;
+}
+
+// Counts pixels of the badge chip's fill color in the icon's bottom-right
+// corner. The check deliberately targets the chip background, not the "SF"
+// glyph, because offscreen font metrics vary.
+int smart_filter_badge_pixel_count(const QIcon& icon) {
+  const auto image = icon.pixmap(QSize(128, 78)).toImage();
+  int count = 0;
+  for (int y = 60; y < 75; ++y) {
+    for (int x = 101; x < 125; ++x) {
+      if (image.pixelColor(x, y) == QColor(0x14, 0x73, 0xe6)) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
+void ui_filter_gallery_smart_filter_badges_and_tooltips() {
+  GallerySettingsRestorer gallery_settings;
+  ensure_artifact_dir();
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  patchy::ui::MainWindow theme_host;
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* outcome = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryOutcomeLabel"));
+    CHECK(looks != nullptr && outcome != nullptr);
+
+    const auto& smart_ids = expected_smart_capable_gallery_ids();
+    CHECK(looks->count() == expected_filter_gallery_ids().size() + 1);
+    auto* original = looks->item(0);
+    CHECK(!original->data(Qt::UserRole + 6).isValid());
+    CHECK(original->toolTip().isEmpty());
+    int badged_rows = 0;
+    for (int row = 1; row < looks->count(); ++row) {
+      auto* item = looks->item(row);
+      const auto id = item->data(Qt::UserRole + 1).toString();
+      const auto capable = smart_ids.contains(id);
+      CHECK(item->data(Qt::UserRole + 6).toBool() == capable);
+      CHECK(item->toolTip() ==
+            (capable
+                 ? QStringLiteral(
+                       "This filter can run as an editable Smart Filter. "
+                       "Use Filter > Convert for Smart Filters on this "
+                       "layer to keep it editable.")
+                 : QStringLiteral("Applies permanently to the layer "
+                                  "pixels.")));
+      badged_rows += capable ? 1 : 0;
+    }
+    CHECK(badged_rows == smart_ids.size());
+
+    // Placeholder icons already carry the chip before any thumbnail renders.
+    auto* gaussian = require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.gaussian_blur"));
+    auto* sepia = require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.sepia"));
+    CHECK(smart_filter_badge_pixel_count(gaussian->icon()) > 50);
+    CHECK(smart_filter_badge_pixel_count(sepia->icon()) == 0);
+
+    // The plain-layer outcome line is static across selection and edits.
+    const auto plain_outcome = QStringLiteral(
+        "Applies permanently to this layer. To keep effects editable, use "
+        "Filter > Convert for Smart Filters first.");
+    CHECK(outcome->text() == plain_outcome);
+    looks->setCurrentItem(gaussian);
+    QApplication::processEvents();
+    auto* radius = dialog->findChild<QSpinBox*>(
+        QStringLiteral("filterRadiusSpin"));
+    CHECK(radius != nullptr);
+    radius->setValue(5);
+    QApplication::processEvents();
+    CHECK(outcome->text() == plain_outcome);
+
+    // The rendered thumbnail keeps the chip when it replaces the placeholder.
+    CHECK(process_events_until(
+        [&] { return gaussian->data(Qt::UserRole + 2).toBool(); }, 20000));
+    CHECK(smart_filter_badge_pixel_count(gaussian->icon()) > 50);
+    save_widget_artifact("ui_filter_gallery_smart_filter_badges", *dialog);
+
+    drove_dialog = true;
+    dialog->reject();
+  });
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255});
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+}
+
+void ui_filter_gallery_smart_object_outcome_line_and_warning_marks() {
+  GallerySettingsRestorer gallery_settings;
+  ensure_artifact_dir();
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  patchy::ui::MainWindow theme_host;
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  bool drove_dialog = false;
+  const auto editable_outcome =
+      QStringLiteral("Applies as editable Smart Filters.");
+  const auto rasterize_outcome = QStringLiteral(
+      "Applying will rasterize the Smart Object (some effects have no "
+      "Smart Filter mapping).");
+  const auto warning_tooltip = QStringLiteral(
+      "This effect cannot be applied as a Smart Filter. Applying the stack "
+      "will rasterize the Smart Object.");
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* applied = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryAppliedEffectsList"));
+    auto* duplicate = dialog->findChild<QPushButton*>(
+        QStringLiteral("filterGalleryDuplicateEffectButton"));
+    auto* remove = dialog->findChild<QPushButton*>(
+        QStringLiteral("filterGalleryRemoveEffectButton"));
+    auto* outcome = dialog->findChild<QLabel*>(
+        QStringLiteral("filterGalleryOutcomeLabel"));
+    CHECK(looks != nullptr && applied != nullptr && duplicate != nullptr &&
+          remove != nullptr && outcome != nullptr);
+
+    // Smart-object tooltip variants.
+    CHECK(require_gallery_filter_item(
+              *looks, QStringLiteral("patchy.filters.gaussian_blur"))
+              ->toolTip() ==
+          QStringLiteral("Applies to this Smart Object as an editable "
+                         "Smart Filter."));
+    CHECK(require_gallery_filter_item(
+              *looks, QStringLiteral("patchy.filters.sepia"))
+              ->toolTip() ==
+          QStringLiteral("This filter has no Smart Filter mapping. "
+                         "Applying it will rasterize the Smart Object."));
+
+    // The empty recipe is Original: nothing rasterizes.
+    CHECK(outcome->text() == editable_outcome);
+
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.gaussian_blur")));
+    QApplication::processEvents();
+    CHECK(applied->count() == 1);
+    CHECK(outcome->text() == editable_outcome);
+    CHECK(applied->item(0)->icon().isNull());
+    CHECK(applied->item(0)->toolTip().isEmpty());
+
+    // A Patchy-only entry flips the outcome and marks exactly that row.
+    duplicate->click();
+    QApplication::processEvents();
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.sepia")));
+    QApplication::processEvents();
+    CHECK(applied->count() == 2);
+    CHECK(applied->item(0)->text() == QStringLiteral("Vintage Sepia"));
+    CHECK(outcome->text() == rasterize_outcome);
+    CHECK(!applied->item(0)->icon().isNull());
+    CHECK(applied->item(0)->toolTip() == warning_tooltip);
+    CHECK(applied->item(1)->icon().isNull());
+    CHECK(applied->item(1)->toolTip().isEmpty());
+    save_widget_artifact("ui_filter_gallery_smart_object_hints", *dialog);
+
+    // The mapping is all-or-nothing over disabled entries too.
+    applied->item(0)->setCheckState(Qt::Unchecked);
+    QApplication::processEvents();
+    CHECK(outcome->text() == rasterize_outcome);
+    CHECK(!applied->item(0)->icon().isNull());
+
+    remove->click();
+    QApplication::processEvents();
+    CHECK(applied->count() == 1);
+    CHECK(outcome->text() == editable_outcome);
+    CHECK(applied->item(0)->icon().isNull());
+
+    // Parameter gates come from the real mapper, not the static ID list:
+    // Photoshop's Emboss Amount minimum is 1, so amount 0 stays destructive.
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.emboss")));
+    QApplication::processEvents();
+    CHECK(applied->count() == 1);
+    CHECK(applied->item(0)->text() == QStringLiteral("Emboss"));
+    CHECK(outcome->text() == editable_outcome);
+    auto* amount = dialog->findChild<QSpinBox*>(
+        QStringLiteral("filterDepthSpin"));
+    CHECK(amount != nullptr);
+    amount->setValue(0);
+    QApplication::processEvents();
+    CHECK(outcome->text() == rasterize_outcome);
+    CHECK(!applied->item(0)->icon().isNull());
+    CHECK(applied->item(0)->toolTip() == warning_tooltip);
+    amount->setValue(100);
+    QApplication::processEvents();
+    CHECK(outcome->text() == editable_outcome);
+    CHECK(applied->item(0)->icon().isNull());
+    CHECK(applied->item(0)->toolTip().isEmpty());
+
+    drove_dialog = true;
+    dialog->reject();
+  });
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255}, {}, nullptr, {}, {},
+      patchy::ui::GalleryTargetContext{
+          patchy::ui::GalleryTargetKind::SmartObject, {}});
   CHECK(drove_dialog);
   CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
 }
@@ -3380,6 +3617,10 @@ std::vector<patchy::test::TestCase> destructive_filters_gallery_tests() {
        ui_filter_gallery_tilt_shift_overlay_uses_grip_bars},
       {"ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop",
        ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop},
+      {"ui_filter_gallery_smart_filter_badges_and_tooltips",
+       ui_filter_gallery_smart_filter_badges_and_tooltips},
+      {"ui_filter_gallery_smart_object_outcome_line_and_warning_marks",
+       ui_filter_gallery_smart_object_outcome_line_and_warning_marks},
       {"ui_all_builtin_filters_render_stroke_contact_sheet",
        ui_all_builtin_filters_render_stroke_contact_sheet},
   };
