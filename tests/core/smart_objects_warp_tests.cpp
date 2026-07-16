@@ -1353,6 +1353,270 @@ void psd_descriptor_writer_round_trips_smart_filter_sold_if_available() {
   check_sold_descriptor_round_trip(layer);
 }
 
+// Walks a written PSD/PSB to its merged-composite section and returns the RLE
+// row byte counts, or an empty vector for raw composites.
+std::vector<std::uint32_t> composite_rle_row_lengths(std::span<const std::uint8_t> bytes) {
+  patchy::psd::BigEndianReader reader(bytes);
+  (void)patchy::psd::read_signature(reader);
+  const auto version = reader.read_u16();
+  reader.skip(6);
+  const auto channels = reader.read_u16();
+  const auto height = reader.read_u32();
+  (void)reader.read_u32();  // width
+  (void)reader.read_u16();  // depth
+  (void)reader.read_u16();  // mode
+  reader.skip(reader.read_u32());  // color mode data
+  reader.skip(reader.read_u32());  // image resources
+  const auto layer_length = version == 2 ? reader.read_u64() : reader.read_u32();
+  reader.skip(static_cast<std::size_t>(layer_length));
+  if (reader.read_u16() != 1) {
+    return {};
+  }
+  std::vector<std::uint32_t> lengths(static_cast<std::size_t>(height) * channels);
+  for (auto& length : lengths) {
+    length = version == 2 ? reader.read_u32() : reader.read_u16();
+  }
+  return lengths;
+}
+
+// Pixels whose composite rows RLE-encode to odd byte counts without padding:
+// each channel row is a 60-byte run plus a four-byte literal (2 + 5 = 7 bytes).
+patchy::PixelBuffer odd_rle_row_pixels(std::int32_t width, std::int32_t height) {
+  patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      const bool tail = x >= width - 4;
+      pixel[0] = tail ? static_cast<std::uint8_t>(10 + x + y) : 0;
+      pixel[1] = tail ? static_cast<std::uint8_t>(90 + x + y) : 0;
+      pixel[2] = tail ? static_cast<std::uint8_t>(170 + x + y) : 0;
+    }
+  }
+  return pixels;
+}
+
+// Photoshop's smart-object embed parser rejects documents whose embedded
+// PSD/PSB composite has any odd-length RLE row (Photoshop 2026, pinned by
+// byte-level bisection July 2026; docs/ps-compat.md). Every composite Patchy
+// writes is even-rowed so a Patchy PSD/PSB placed or embedded anywhere stays
+// openable.
+void psd_composite_rle_rows_are_even_for_photoshop_embeds() {
+  patchy::Document document(64, 3, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Odd", odd_rle_row_pixels(64, 3));
+
+  for (const bool large_document : {false, true}) {
+    const auto bytes =
+        patchy::psd::DocumentIo::write_layered_rgb8(document, patchy::psd::WriteOptions{large_document});
+    const auto lengths = composite_rle_row_lengths(bytes);
+    CHECK(lengths.size() == 9U);
+    for (const auto length : lengths) {
+      CHECK((length % 2U) == 0U);
+    }
+    const auto reread = patchy::psd::DocumentIo::read(bytes);
+    CHECK(reread.layers().size() == 1);
+    const auto& pixels = reread.layers().front().pixels();
+    const auto expected = odd_rle_row_pixels(64, 3);
+    CHECK(pixels.width() == 64 && pixels.height() == 3);
+    for (std::int32_t y = 0; y < 3; ++y) {
+      for (std::int32_t x = 0; x < 64; ++x) {
+        CHECK(std::memcmp(pixels.pixel(x, y), expected.pixel(x, y), 3) == 0);
+      }
+    }
+  }
+}
+
+// A minimal PSB (v2, 3 channels, one 4-pixel row) whose composite rows are the
+// odd five-byte literal [3, a, b, c, d] — the shape Patchy wrote before the
+// even-row rule and the shape Photoshop rejects as an embed.
+std::vector<std::uint8_t> odd_composite_mini_psb() {
+  patchy::psd::BigEndianWriter writer;
+  for (const char ch : {'8', 'B', 'P', 'S'}) {
+    writer.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  writer.write_u16(2);  // PSB
+  for (int i = 0; i < 6; ++i) {
+    writer.write_u8(0);
+  }
+  writer.write_u16(3);   // channels
+  writer.write_u32(1);   // height
+  writer.write_u32(4);   // width
+  writer.write_u16(8);   // depth
+  writer.write_u16(3);   // RGB
+  writer.write_u32(0);   // color mode data
+  writer.write_u32(0);   // image resources
+  writer.write_u64(0);   // layer and mask section
+  writer.write_u16(1);   // RLE composite
+  for (int channel = 0; channel < 3; ++channel) {
+    writer.write_u32(5);
+  }
+  for (int channel = 0; channel < 3; ++channel) {
+    writer.write_u8(3);  // literal of four bytes
+    for (int i = 0; i < 4; ++i) {
+      writer.write_u8(static_cast<std::uint8_t>(50 * channel + i));
+    }
+  }
+  return writer.bytes();
+}
+
+// Saving a document whose stored embed still has odd composite rows rewrites
+// the embedded bytes (the repair path for files saved before the even-row
+// rule); the decoded pixels stay identical.
+void psd_smart_object_embed_odd_composite_normalized_on_save() {
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Smart", solid_rgb(4, 2, 10, 20, 30));
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"SoLd", {5, 6, 7, 8}});
+  const auto odd_psb = odd_composite_mini_psb();
+  document.metadata().smart_objects.add_embedded(
+      "11111111-2222-3333-4444-555555555555", "inner.psb", "8BPB",
+      std::make_shared<const std::vector<std::uint8_t>>(odd_psb));
+
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* source = reread.metadata().smart_objects.find("11111111-2222-3333-4444-555555555555");
+  CHECK(source != nullptr && source->file_bytes != nullptr);
+  CHECK(source->file_bytes->size() == odd_psb.size() + 3U);  // one literal split per row
+  const auto lengths = composite_rle_row_lengths(*source->file_bytes);
+  CHECK(lengths.size() == 3U);
+  for (const auto length : lengths) {
+    CHECK(length == 6U);
+  }
+  const auto inner = patchy::psd::DocumentIo::read(
+      {source->file_bytes->data(), source->file_bytes->size()});
+  CHECK(inner.width() == 4 && inner.height() == 1);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(inner);
+  for (std::int32_t x = 0; x < 4; ++x) {
+    CHECK(flattened.pixel(x, 0)[0] == static_cast<std::uint8_t>(x));
+    CHECK(flattened.pixel(x, 0)[1] == static_cast<std::uint8_t>(50 + x));
+    CHECK(flattened.pixel(x, 0)[2] == static_cast<std::uint8_t>(100 + x));
+  }
+
+  // Already-normalized embeds re-emit untouched: the next save is byte-stable.
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(reread);
+  const auto resaved_reread = patchy::psd::DocumentIo::read(resaved);
+  const auto* stable = resaved_reread.metadata().smart_objects.find("11111111-2222-3333-4444-555555555555");
+  CHECK(stable != nullptr && stable->file_bytes != nullptr);
+  CHECK(*stable->file_bytes == *source->file_bytes);
+}
+
+// Photoshop keys placed layers by their 'lyid' layer id when a Smart Filter
+// cache (FEid) is present; a smart-object layer without one makes it reject
+// the whole file (Photoshop 2026, pinned by byte-level bisection July 2026).
+// Saving assigns fresh unique ids to id-less smart-object layers and keeps
+// preserved ones untouched.
+void psd_smart_object_layers_get_layer_ids_on_save() {
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  const auto embed = std::make_shared<const std::vector<std::uint8_t>>(odd_composite_mini_psb());
+  auto& first = document.add_pixel_layer("First", solid_rgb(4, 2, 10, 20, 30));
+  first.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"SoLd", {5, 6, 7, 8}});
+  first.metadata()[patchy::kLayerMetadataSmartObject] = "aaaa";
+  auto& second = document.add_pixel_layer("Second", solid_rgb(4, 2, 40, 50, 60));
+  second.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"SoLd", {5, 6, 7, 8}});
+  second.metadata()[patchy::kLayerMetadataSmartObject] = "bbbb";
+  patchy::set_photoshop_layer_id(second, 7);
+  auto& plain = document.add_pixel_layer("Plain", solid_rgb(4, 2, 70, 80, 90));
+  document.metadata().smart_objects.add_embedded("aaaa", "a.psb", "8BPB", embed);
+  document.metadata().smart_objects.add_embedded("bbbb", "b.psb", "8BPB", embed);
+  (void)plain;
+
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(reread.layers().size() == 3);
+  const auto first_id = patchy::photoshop_layer_id(*find_layer_named(reread.layers(), "First"));
+  const auto second_id = patchy::photoshop_layer_id(*find_layer_named(reread.layers(), "Second"));
+  const auto plain_id = patchy::photoshop_layer_id(*find_layer_named(reread.layers(), "Plain"));
+  CHECK(first_id.has_value());
+  CHECK(second_id.has_value() && *second_id == 7U);  // preserved, not reassigned
+  CHECK(*first_id != *second_id);
+  CHECK(*first_id == 8U);  // continues above the largest preserved id
+  CHECK(!plain_id.has_value());  // only smart-object layers need ids
+}
+
+// The July 2026 field failure: a Patchy-authored smart-filter PSD Photoshop
+// refused to open ("program error"), root causes odd embed-composite rows and
+// a missing 'lyid'. Resaving through the fixed writer must repair both.
+void psd_local_smart_filter_file_repairs_on_resave_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa_with_filters.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] akiko_cycling_okinawa_with_filters fixture missing: " << path.string() << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* layer = find_layer_named(reread.layers(), "akiko_cycling_okinawa");
+  CHECK(layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*layer));
+  CHECK(patchy::photoshop_layer_id(*layer).has_value());
+  const auto* source =
+      reread.metadata().smart_objects.find(patchy::smart_object_source_uuid(*layer));
+  CHECK(source != nullptr && source->file_bytes != nullptr);
+  for (const auto length : composite_rle_row_lengths(*source->file_bytes)) {
+    CHECK((length % 2U) == 0U);
+  }
+}
+
+// A clean (undirtied) element from an existing file goes through the surgical
+// rebuild: only the embedded bytes and the length fields change, the wrapper
+// (version, uuid, name, unmodeled trailer bytes) stays verbatim.
+void psd_smart_object_clean_element_normalization_keeps_wrapper() {
+  const auto odd_psb = odd_composite_mini_psb();
+  patchy::psd::BigEndianWriter body;
+  for (const char ch : {'l', 'i', 'F', 'D'}) {
+    body.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  body.write_u32(7);
+  body.write_u8(36);
+  for (const char ch : std::string_view("22222222-3333-4444-5555-666666666666")) {
+    body.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  body.write_u32(6);  // unicode "in.psb"
+  for (const char ch : std::string_view("in.psb")) {
+    body.write_u16(static_cast<std::uint16_t>(ch));
+  }
+  for (const char ch : std::string_view("8BPB8BIM")) {
+    body.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  body.write_u64(odd_psb.size());
+  body.write_u8(0);  // no file-open descriptor
+  body.write_bytes(odd_psb);
+  body.write_u32(0);        // child document id
+  patchy::psd::write_f64(body, 0.0);  // asset mod time
+  body.write_u8(0);         // asset locked state
+  for (int i = 0; i < 5; ++i) {
+    body.write_u8(0xAB);  // unmodeled trailer bytes (a version-8-style tail)
+  }
+  patchy::psd::BigEndianWriter element;
+  element.write_u64(body.bytes().size());
+  element.write_bytes(body.bytes());
+  const auto padding = (4U - (body.bytes().size() % 4U)) % 4U;
+  for (std::size_t i = 0; i < padding; ++i) {
+    element.write_u8(0);
+  }
+
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Smart", solid_rgb(4, 2, 10, 20, 30));
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"SoLd", {5, 6, 7, 8}});
+  document.metadata().unknown_psd_resources.push_back(
+      patchy::UnknownPsdBlock{"lnk2", element.bytes()});
+
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* parsed = read.metadata().smart_objects.find("22222222-3333-4444-5555-666666666666");
+  CHECK(parsed != nullptr && !parsed->dirty && parsed->original_element_bytes != nullptr);
+  CHECK(parsed->file_bytes != nullptr && *parsed->file_bytes == odd_psb);  // read stays faithful
+
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(read));
+  const auto* normalized = reread.metadata().smart_objects.find("22222222-3333-4444-5555-666666666666");
+  CHECK(normalized != nullptr && normalized->file_bytes != nullptr);
+  CHECK(normalized->file_bytes->size() == odd_psb.size() + 3U);
+  const auto lengths = composite_rle_row_lengths(*normalized->file_bytes);
+  CHECK(lengths.size() == 3U);
+  for (const auto length : lengths) {
+    CHECK(length == 6U);
+  }
+  CHECK(normalized->filename == "in.psb");
+  CHECK(normalized->original_element_bytes != nullptr);
+  const std::array<std::uint8_t, 5> marker{0xAB, 0xAB, 0xAB, 0xAB, 0xAB};
+  CHECK(std::search(normalized->original_element_bytes->begin(), normalized->original_element_bytes->end(),
+                    marker.begin(), marker.end()) != normalized->original_element_bytes->end());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> smart_objects_warp_tests() {
@@ -1400,5 +1664,15 @@ std::vector<patchy::test::TestCase> smart_objects_warp_tests() {
       {"psd_descriptor_writer_round_trips_sold", psd_descriptor_writer_round_trips_sold},
       {"psd_descriptor_writer_round_trips_smart_filter_sold_if_available",
        psd_descriptor_writer_round_trips_smart_filter_sold_if_available},
+      {"psd_composite_rle_rows_are_even_for_photoshop_embeds",
+       psd_composite_rle_rows_are_even_for_photoshop_embeds},
+      {"psd_smart_object_embed_odd_composite_normalized_on_save",
+       psd_smart_object_embed_odd_composite_normalized_on_save},
+      {"psd_smart_object_layers_get_layer_ids_on_save",
+       psd_smart_object_layers_get_layer_ids_on_save},
+      {"psd_local_smart_filter_file_repairs_on_resave_if_available",
+       psd_local_smart_filter_file_repairs_on_resave_if_available},
+      {"psd_smart_object_clean_element_normalization_keeps_wrapper",
+       psd_smart_object_clean_element_normalization_keeps_wrapper},
   };
 }

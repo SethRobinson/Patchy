@@ -358,6 +358,13 @@ void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, b
 void write_rgb8_image_data_with_extra_channels(
     BigEndianWriter& writer, const PixelBuffer& pixels,
     std::span<const std::span<const std::uint8_t>> extra_channels, bool wide_rle_counts);
+// Rebuilds an embedded PSD/PSB whose merged-composite RLE rows include odd byte
+// counts, splitting one literal per odd row (identical decode). Photoshop's
+// smart-object embed parser rejects odd composite rows outright; see the
+// make_packbits_row_even note in psd_channel_data.cpp. Returns nullopt when the
+// bytes are not an 8-bit RLE-composite PSD/PSB or are already compliant.
+[[nodiscard]] std::optional<std::vector<std::uint8_t>> even_composite_rows_normalized(
+    std::span<const std::uint8_t> file_bytes);
 std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
                                             std::int32_t height, bool wide_rle_counts);
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader& reader, const Header& header,
@@ -404,8 +411,10 @@ std::optional<LayerStyle> parse_patchy_layer_style(std::span<const std::uint8_t>
 // pipeline for the layer info section (definitions in psd_layer_records.cpp).
 LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
                               const CmykColorConverter& cmyk);
+// synthesized_photoshop_layer_id: nonzero writes a fresh 'lyid' block for a
+// smart-object layer that has none preserved (see write_layer_record).
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
-                        bool large_document);
+                        bool large_document, std::uint32_t synthesized_photoshop_layer_id);
 void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document);
 
 // Image-resources (8BIM) section codec (definitions in psd_image_resources.cpp).

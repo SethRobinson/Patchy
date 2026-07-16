@@ -58,10 +58,47 @@ namespace {
 
 // encode_packbits_row moved to psd_descriptor.{hpp,cpp} (shared with the ILBM writer).
 
+// Photoshop's smart-object embed parser reads a composite's RLE rows in two-byte
+// units: one odd-length compressed row anywhere in the merged image data makes it
+// reject the whole document ("Could not open ... because of a program error") as
+// soon as a Smart Filter cache forces the embedded file to be parsed eagerly.
+// Pinned against Photoshop 2026 by byte-level bisection (July 2026): evenizing
+// every composite row of a rejected embed makes it open; evenizing all but one
+// does not. Layer channels and FEid cache planes are exempt — Photoshop itself
+// writes odd rows there. Splitting the first multi-byte literal packet re-encodes
+// the row one byte longer with an identical decode.
+void make_packbits_row_even(std::vector<std::uint8_t>& row) {
+  if ((row.size() % 2U) == 0U) {
+    return;
+  }
+  std::size_t i = 0;
+  while (i < row.size()) {
+    const auto flag = static_cast<std::int8_t>(row[i]);
+    if (flag >= 1) {
+      // Literal of flag+1 bytes: emit its first byte as a one-byte literal
+      // packet of its own. [f, b0, b1, ...] -> [0, b0, f-1, b1, ...].
+      row.insert(row.begin() + static_cast<std::ptrdiff_t>(i), 0);
+      std::swap(row[i + 1], row[i + 2]);
+      row[i + 2] = static_cast<std::uint8_t>(flag - 1);
+      return;
+    }
+    if (flag == -128) {
+      i += 1;  // no-op flag byte
+    } else {
+      i += 2;  // one-byte literal or repeat packet, both two bytes
+    }
+  }
+  // Unreachable for rows from encode_packbits_row: every packet it emits except
+  // an even-flag literal has an even size, so an odd row contains a splittable
+  // literal. Leave a foreign row without one unchanged.
+}
+
 // RLE row byte counts are u16 in PSD and u32 in PSB (wide_rle_counts).
+// even_rows applies the merged-composite constraint documented above.
 std::vector<std::uint8_t> encode_packbits_rows(std::span<const std::uint8_t> planar_channels,
                                                std::int32_t width, std::int32_t height,
-                                               std::uint16_t channel_count, bool wide_rle_counts) {
+                                               std::uint16_t channel_count, bool wide_rle_counts,
+                                               bool even_rows = false) {
   if (width < 0 || height < 0) {
     throw std::runtime_error("PSD channel dimensions cannot be negative");
   }
@@ -81,6 +118,9 @@ std::vector<std::uint8_t> encode_packbits_rows(std::span<const std::uint8_t> pla
     for (std::int32_t y = 0; y < height; ++y) {
       const auto row_offset = channel_offset + static_cast<std::size_t>(y) * row_width;
       auto encoded = encode_packbits_row(planar_channels.subspan(row_offset, row_width));
+      if (even_rows) {
+        make_packbits_row_even(encoded);
+      }
       if (encoded.size() > max_row_bytes) {
         throw std::runtime_error("PSD PackBits row is too large");
       }
@@ -189,7 +229,9 @@ EncodedChannel encode_channel(std::uint16_t id, std::int32_t width, std::int32_t
 
 void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, bool wide_rle_counts) {
   const auto raw_data = planar_rgb8_data(pixels);
-  const auto rle_data = encode_packbits_rows(raw_data, pixels.width(), pixels.height(), 3, wide_rle_counts);
+  const auto rle_data =
+      encode_packbits_rows(raw_data, pixels.width(), pixels.height(), 3, wide_rle_counts,
+                           /*even_rows=*/true);
   if (rle_data.size() < raw_data.size()) {
     writer.write_u16(kCompressionRle);
     writer.write_bytes(rle_data);
@@ -293,6 +335,7 @@ void write_rgb8_image_data_with_extra_channels(
   const auto max_row_bytes = wide_rle_counts ? 0xFFFFFFFFULL : 0xFFFFULL;
   const auto append_encoded_row = [&](std::span<const std::uint8_t> row) {
     auto encoded = encode_packbits_row(row);
+    make_packbits_row_even(encoded);
     if (encoded.size() > max_row_bytes) {
       throw std::runtime_error("PSD PackBits row is too large");
     }
@@ -534,6 +577,89 @@ std::vector<std::vector<std::uint8_t>> read_flat_image_channels_from(
   }
 
   throw std::runtime_error("Unsupported PSD composite compression");
+}
+
+std::optional<std::vector<std::uint8_t>> even_composite_rows_normalized(
+    std::span<const std::uint8_t> file_bytes) {
+  try {
+    BigEndianReader reader(file_bytes);
+    if (key_string(read_signature(reader)) != "8BPS") {
+      return std::nullopt;
+    }
+    const auto version = reader.read_u16();
+    if (version != 1 && version != 2) {
+      return std::nullopt;
+    }
+    reader.skip(6);
+    const auto channels = reader.read_u16();
+    const auto height = reader.read_u32();
+    (void)reader.read_u32();  // width
+    const auto depth = reader.read_u16();
+    (void)reader.read_u16();  // mode
+    if (depth != 8 || channels == 0 || height == 0) {
+      return std::nullopt;
+    }
+    reader.skip(reader.read_u32());  // color mode data
+    reader.skip(reader.read_u32());  // image resources
+    // Layer-and-mask section length is u32 in PSD, u64 in PSB.
+    const auto layer_length = version == 2 ? reader.read_u64() : reader.read_u32();
+    if (layer_length > reader.remaining()) {
+      return std::nullopt;
+    }
+    reader.skip(static_cast<std::size_t>(layer_length));
+    const auto composite_offset = reader.position();
+    if (reader.read_u16() != kCompressionRle) {
+      return std::nullopt;
+    }
+    const auto row_count = static_cast<std::size_t>(height) * channels;
+    std::vector<std::uint32_t> row_lengths(row_count);
+    for (auto& length : row_lengths) {
+      length = version == 2 ? reader.read_u32() : reader.read_u16();
+    }
+    std::size_t odd_rows = 0;
+    std::size_t data_size = 0;
+    for (const auto length : row_lengths) {
+      odd_rows += length & 1U;
+      data_size += length;
+    }
+    // The composite is the file's final section; anything else fails closed.
+    if (odd_rows == 0 || data_size != reader.remaining()) {
+      return std::nullopt;
+    }
+
+    std::vector<std::vector<std::uint8_t>> rows;
+    rows.reserve(row_count);
+    for (const auto length : row_lengths) {
+      const auto start = reader.position();
+      reader.skip(length);
+      std::vector<std::uint8_t> row(file_bytes.begin() + static_cast<std::ptrdiff_t>(start),
+                                    file_bytes.begin() + static_cast<std::ptrdiff_t>(start + length));
+      make_packbits_row_even(row);
+      if ((row.size() % 2U) != 0U || (version == 1 && row.size() > 0xFFFFULL)) {
+        return std::nullopt;  // no splittable literal or u16 count overflow
+      }
+      rows.push_back(std::move(row));
+    }
+
+    std::vector<std::uint8_t> normalized(file_bytes.begin(),
+                                         file_bytes.begin() + static_cast<std::ptrdiff_t>(composite_offset));
+    BigEndianWriter writer;
+    writer.write_u16(kCompressionRle);
+    for (const auto& row : rows) {
+      if (version == 2) {
+        writer.write_u32(static_cast<std::uint32_t>(row.size()));
+      } else {
+        writer.write_u16(static_cast<std::uint16_t>(row.size()));
+      }
+    }
+    for (const auto& row : rows) {
+      writer.write_bytes(row);
+    }
+    normalized.insert(normalized.end(), writer.bytes().begin(), writer.bytes().end());
+    return normalized;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
 }
 
 }  // namespace patchy::psd

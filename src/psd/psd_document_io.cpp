@@ -1066,8 +1066,17 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
       std::any_of(global_blocks.begin(), global_blocks.end(), [](const UnknownPsdBlock& block) {
         return block.key.rfind("lnk", 0) == 0 || block.key.rfind("Lnk", 0) == 0;
       });
+  // Smart-object layers must carry a 'lyid' layer id or Photoshop rejects the
+  // file once a Smart Filter cache is present (see write_layer_record). Fresh
+  // ids continue above the largest preserved one; assignment follows record
+  // order so repeated saves stay deterministic.
+  auto next_layer_id = next_photoshop_layer_id(document.layers());
   for (const auto& encoded : encoded_layers) {
-    write_layer_record(layer_info, encoded, !has_smart_object_sources, options.large_document);
+    const bool needs_layer_id = has_smart_object_sources && encoded.layer != nullptr &&
+                                layer_is_smart_object(*encoded.layer) &&
+                                !photoshop_layer_id(*encoded.layer).has_value();
+    write_layer_record(layer_info, encoded, !has_smart_object_sources, options.large_document,
+                       needs_layer_id ? next_layer_id++ : 0U);
   }
   for (const auto& encoded : encoded_layers) {
     for (const auto& channel : encoded.channels) {

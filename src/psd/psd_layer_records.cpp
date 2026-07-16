@@ -474,7 +474,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
 }
 
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
-                        bool large_document) {
+                        bool large_document, std::uint32_t synthesized_photoshop_layer_id) {
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.x));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y + encoded.bounds.height));
@@ -539,6 +539,18 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   write_pascal_string(extra, name, 4);
   auto unicode_name = unicode_string_payload(name);
   write_additional_layer_block(extra, {'l', 'u', 'n', 'i'}, unicode_name, large_document);
+
+  // Photoshop's Smart Filter open path keys placed layers by their 'lyid' layer
+  // id: with an FEid cache present, a smart-object layer without one makes
+  // Photoshop reject the whole document ("Could not open ... because of a
+  // program error"; pinned by byte-level bisection against Photoshop 2026,
+  // July 2026). Imported layers re-emit their preserved block below; the caller
+  // passes a fresh unique id (nonzero) only for id-less smart-object layers.
+  if (synthesized_photoshop_layer_id != 0U) {
+    BigEndianWriter layer_id;
+    layer_id.write_u32(synthesized_photoshop_layer_id);
+    write_additional_layer_block(extra, {'l', 'y', 'i', 'd'}, layer_id.bytes(), large_document);
+  }
 
   if (encoded.kind == EncodedLayerKind::GroupBoundary) {
     const auto payload = section_divider_payload(3U, BlendMode::Normal, false);
