@@ -87,6 +87,7 @@ class BrushDynamicsButton;
 class BrushTipLibrary;
 class BrushTipPicker;
 class DocumentFloatWindow;
+class CustomShapeLibrary;
 class PalettePanel;
 class PathsPanel;
 class StartPanel;
@@ -577,7 +578,7 @@ private:
   void create_or_extend_shape_layer(std::vector<patchy::PathSubpath> subpaths,
                                     std::optional<patchy::LiveShapeParams> origination,
                                     const QString& name_pattern);
-  void handle_vector_path_committed(patchy::VectorPath path, bool closed);
+  void handle_vector_path_committed(patchy::VectorPath path, bool closed, VectorPathSource source);
   void add_subpaths_to_work_path(std::vector<patchy::PathSubpath> subpaths);
   [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
   void refresh_vector_tool_options_visibility();
@@ -613,6 +614,11 @@ private:
   void fill_active_path();
   void stroke_active_path();
   void make_selection_from_path();
+  // Custom shapes (main_window_vector.cpp).
+  [[nodiscard]] CustomShapeLibrary& custom_shape_library();
+  void refresh_custom_shape_combo();
+  void apply_custom_shape_selection();
+  void define_custom_shape_from_path();
   void export_smart_object_contents();
   void open_smart_object_contents();
   bool commit_smart_object_child_session(DocumentSession& child_session);
@@ -951,6 +957,7 @@ private:
   BrushTipLibrary* brush_tip_library_{nullptr};
   PatternLibrary* pattern_library_{nullptr};
   GradientLibrary* gradient_library_{nullptr};
+  CustomShapeLibrary* custom_shape_library_{nullptr};
   StyleLibrary* style_library_{nullptr};
   BrushTipPicker* brush_tip_picker_{nullptr};
   BrushDynamicsButton* brush_dynamics_button_{nullptr};
@@ -1152,6 +1159,9 @@ private:
   // applied to the active shape layer or work path (session-only).
   int current_vector_combine_index_{0};
   QComboBox* vector_mode_combo_{nullptr};
+  QComboBox* custom_shape_combo_{nullptr};
+  bool current_line_arrow_start_{false};
+  bool current_line_arrow_end_{false};
   QToolButton* vector_fill_swatch_button_{nullptr};
   QToolButton* vector_stroke_swatch_button_{nullptr};
   // Per-mode refinement of the shape tools' options bar, applied after the

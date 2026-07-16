@@ -12789,17 +12789,29 @@ Clipped to the layer below</source>
     <message><source>Stroke path</source><translation>パスの境界線を描く</translation></message>
     <message><source>Stroked the path with the foreground color</source><translation>パスの境界線を描画色で描きました</translation></message>
     <message><source>Select a path to convert</source><translation>変換するパスを選択してください</translation></message>
-    <message><source>Feather:</source><translation>ぼかし:</translation></message>
-    <message><source>Anti-alias</source><translation>アンチエイリアス</translation></message>
     <message><source>Operation:</source><translation>処理:</translation></message>
-    <message><source>New Selection</source><translation>新規選択範囲</translation></message>
-    <message><source>Add to Selection</source><translation>選択範囲に追加</translation></message>
-    <message><source>Subtract from Selection</source><translation>選択範囲から削除</translation></message>
     <message><source>Intersect with Selection</source><translation>選択範囲と交差</translation></message>
     <message><source>Make selection from path</source><translation>パスから選択範囲を作成</translation></message>
     <message><source>Made a selection from the path</source><translation>パスから選択範囲を作成しました</translation></message>
     <message><source>Add to path</source><translation>パスに追加</translation></message>
     <message><source>Added the shape to %1.</source><translation>シェイプを %1 に追加しました。</translation></message>
+    <message><source>Polygon</source><translation>多角形</translation></message>
+    <message><source>Custom Shape</source><translation>カスタムシェイプ</translation></message>
+    <message><source>Polygon %1</source><translation>多角形 %1</translation></message>
+    <message><source>Custom Shape %1</source><translation>カスタムシェイプ %1</translation></message>
+    <message><source>Sides:</source><translation>角数:</translation></message>
+    <message><source>Star inset:</source><translation>星の切り込み:</translation></message>
+    <message><source>0 makes a plain polygon; higher values pull in star points</source><translation>0 で通常の多角形、値を上げると星形の切り込みが深くなります</translation></message>
+    <message><source>Shape:</source><translation>シェイプ:</translation></message>
+    <message><source>Arrow start</source><translation>開始点に矢印</translation></message>
+    <message><source>Arrow end</source><translation>終了点に矢印</translation></message>
+    <message><source>Add an arrowhead at the line start</source><translation>ラインの開始点に矢じりを付けます</translation></message>
+    <message><source>Add an arrowhead at the line end</source><translation>ラインの終了点に矢じりを付けます</translation></message>
+    <message><source>Define Custom Shape from Path</source><translation>パスからカスタムシェイプを定義</translation></message>
+    <message><source>Select a path or shape layer to define a custom shape</source><translation>カスタムシェイプを定義するパスまたはシェイプレイヤーを選択してください</translation></message>
+    <message><source>The path is too small to define a shape</source><translation>パスが小さすぎてシェイプを定義できません</translation></message>
+    <message><source>Could not save the custom shape</source><translation>カスタムシェイプを保存できませんでした</translation></message>
+    <message><source>Defined %1 from the path.</source><translation>パスから %1 を定義しました。</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -13456,6 +13468,22 @@ Clipped to the layer below</source>
     <message><source>Dotted</source><translation>点線</translation></message>
     <message><source>Shape Fill Color</source><translation>シェイプの塗りの色</translation></message>
     <message><source>Shape Stroke Color</source><translation>シェイプの線の色</translation></message>
+    <message><source>Square</source><comment>stroke cap</comment><translation>スクエア</translation></message>
+    <message><source>Arrows</source><translation>矢印</translation></message>
+    <message><source>Symbols</source><translation>シンボル</translation></message>
+    <message><source>Arrow Right</source><translation>右矢印</translation></message>
+    <message><source>Arrow Left</source><translation>左矢印</translation></message>
+    <message><source>Arrow Up</source><translation>上矢印</translation></message>
+    <message><source>Arrow Down</source><translation>下矢印</translation></message>
+    <message><source>Arrow Double</source><translation>両方向矢印</translation></message>
+    <message><source>Chevron</source><translation>シェブロン</translation></message>
+    <message><source>Arrow Curved</source><translation>曲線矢印</translation></message>
+    <message><source>Check Mark</source><translation>チェックマーク</translation></message>
+    <message><source>Cross</source><translation>クロス</translation></message>
+    <message><source>Plus</source><translation>プラス</translation></message>
+    <message><source>Triangle</source><translation>三角形</translation></message>
+    <message><source>Speech Bubble</source><translation>吹き出し</translation></message>
+    <message><source>Lightning Bolt</source><translation>稲妻</translation></message>
     <message><source>Vector mask. Click to edit its path with the pen and path tools, Ctrl-click to load it as a selection, Alt-click to view it, Shift-click to disable it.</source><translation>ベクトルマスク。クリックでペン/パスツールでのパス編集、Ctrl クリックで選択範囲として読み込み、Alt クリックで表示、Shift クリックで無効化します。</translation></message>
 
 </context>

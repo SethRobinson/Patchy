@@ -6,6 +6,7 @@
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/custom_shape_library.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -328,6 +329,20 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_shape_style(current_shape_style_);
   session->canvas->set_shape_fixed_size(current_shape_width_, current_shape_height_);
   session->canvas->set_vector_tool_mode(current_vector_tool_mode_);
+  if (auto* sides = findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")); sides != nullptr) {
+    session->canvas->set_polygon_sides(sides->value());
+  }
+  if (auto* inset = findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin")); inset != nullptr) {
+    session->canvas->set_polygon_star_inset(inset->value());
+  }
+  if (custom_shape_combo_ != nullptr) {
+    const auto shape_id = custom_shape_combo_->currentData().toString();
+    const auto* shape_entry =
+        shape_id.isEmpty() ? nullptr : custom_shape_library().find_entry_by_shape_id(shape_id);
+    session->canvas->set_custom_shape_path(
+        shape_entry != nullptr ? std::make_shared<const patchy::VectorPath>(shape_entry->path)
+                               : std::shared_ptr<const patchy::VectorPath>{});
+  }
   apply_canvas_aid_settings(session->canvas);
 
   auto* canvas = session->canvas;

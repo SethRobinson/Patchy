@@ -754,6 +754,8 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolPenAction", "Pen"},
       {"toolPathSelectAction", "Path Select"},
       {"toolDirectSelectAction", "Direct Select"},
+      {"toolPolygonAction", "Polygon"},
+      {"toolCustomShapeAction", "Custom Shape"},
       {"toolPickAction", "Pick"},
       {"toolTypeAction", "Type"},
       {"toolHandAction", "Hand"},

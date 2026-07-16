@@ -88,7 +88,17 @@ enum class CanvasTool {
   // July 2026 vector tools (append-only: values ride persisted settings).
   Pen,
   PathSelect,
-  DirectSelect
+  DirectSelect,
+  Polygon,
+  CustomShape
+};
+
+// Which tool produced a committed vector path; MainWindow picks the layer
+// name pattern (Pen/Polygon/CustomShape all route the same way otherwise).
+enum class VectorPathSource {
+  Pen,
+  Polygon,
+  CustomShape
 };
 
 // What the Line/Rectangle/Ellipse draw tools produce: a vector shape layer
@@ -487,7 +497,16 @@ public:
       std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> callback);
   // Pen tool (canvas_widget_vector_tools.cpp - the tablet-input TU is
   // canvas_widget_pen.cpp): a committed path arrives as one subpath.
-  void set_vector_path_committed_callback(std::function<void(patchy::VectorPath, bool)> callback);
+  void set_vector_path_committed_callback(
+      std::function<void(patchy::VectorPath, bool, VectorPathSource)> callback);
+  // Polygon tool options (sides, star inset percent 0 = plain polygon) and
+  // the custom-shape stamp path (unit-box normalized).
+  void set_polygon_sides(int sides) noexcept;
+  [[nodiscard]] int polygon_sides() const noexcept;
+  void set_polygon_star_inset(int percent) noexcept;
+  [[nodiscard]] int polygon_star_inset() const noexcept;
+  void set_custom_shape_path(std::shared_ptr<const patchy::VectorPath> path);
+  [[nodiscard]] const patchy::VectorPath* custom_shape_path() const noexcept;
   [[nodiscard]] bool pen_session_active() const noexcept;
   void commit_pen_path(bool closed);
   void cancel_pen_path();
@@ -504,6 +523,9 @@ public:
   // precedence over the active shape layer / work-path fallback.
   void set_active_document_path(std::optional<DocumentPathId> id);
   [[nodiscard]] std::optional<DocumentPathId> active_document_path() const noexcept;
+  // The path the pen/path tools currently edit (panel > vector mask > shape
+  // layer > work path); null when nothing is targetable.
+  [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
   // Rounded-corner radius for the rectangular marquee (0 = sharp corners).
   void set_marquee_corner_radius(int pixels) noexcept;
   [[nodiscard]] int marquee_corner_radius() const noexcept;
@@ -987,7 +1009,6 @@ private:
   void draw_pen_overlay(QPainter& painter);
   // Path editing (canvas_widget_vector_tools.cpp).
   [[nodiscard]] bool path_edit_tool_active() const noexcept;
-  [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
   [[nodiscard]] patchy::Layer* path_edit_target_layer() const;
   [[nodiscard]] patchy::Layer* vector_mask_target_layer() const;
   void apply_path_edit(patchy::VectorPath path, const QString& label,
@@ -1004,6 +1025,9 @@ private:
   bool pen_modifies_existing_path(QMouseEvent* event, QPointF document_point);
   void delete_selected_path_anchors();
   void draw_path_edit_overlay(QPainter& painter);
+  [[nodiscard]] patchy::PathSubpath polygon_drag_subpath(QPointF center, QPointF radius_point) const;
+  void commit_polygon_drag(QPointF center, QPointF radius_point);
+  void commit_custom_shape_drag(QRectF bounds);
   [[nodiscard]] QRect draw_mask_line(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_mask_gradient(QPoint from, QPoint to);
   [[nodiscard]] QRect draw_mask_rectangle(QPoint from, QPoint to, bool erase);
@@ -1219,7 +1243,10 @@ private:
   QSize shape_fixed_size_{1024, 768};
   VectorToolMode vector_tool_mode_{VectorToolMode::Shape};
   std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> vector_shape_drawn_callback_;
-  std::function<void(patchy::VectorPath, bool)> vector_path_committed_callback_;
+  std::function<void(patchy::VectorPath, bool, VectorPathSource)> vector_path_committed_callback_;
+  int polygon_sides_{5};
+  int polygon_star_inset_{0};
+  std::shared_ptr<const patchy::VectorPath> custom_shape_path_;
   std::vector<patchy::PathAnchor> pen_anchors_;
   bool pen_session_active_{false};
   bool pen_handle_dragging_{false};

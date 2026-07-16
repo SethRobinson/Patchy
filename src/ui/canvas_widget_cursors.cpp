@@ -221,7 +221,8 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(Qt::SizeAllCursor);
     return;
   }
-  if (tool_ == CanvasTool::Pen) {
+  if (tool_ == CanvasTool::Pen || tool_ == CanvasTool::Polygon ||
+      tool_ == CanvasTool::CustomShape) {
     setCursor(Qt::CrossCursor);
     return;
   }

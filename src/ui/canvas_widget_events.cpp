@@ -1046,14 +1046,20 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (tool_ == CanvasTool::Gradient || tool_ == CanvasTool::Line || tool_ == CanvasTool::Rectangle ||
-      tool_ == CanvasTool::Ellipse) {
+      tool_ == CanvasTool::Ellipse || tool_ == CanvasTool::Polygon ||
+      tool_ == CanvasTool::CustomShape) {
     // A Shape/Path-mode drag never edits the active layer's pixels (the
     // release routes to MainWindow, which pushes its own undo entry), so it
     // skips begin_edit; that also lets it start while a shape/text/smart
-    // layer is active, where the raster guard would refuse.
+    // layer is active, where the raster guard would refuse. Polygon and
+    // Custom Shape are vector-only, so they ignore the Pixels mode.
+    const bool vector_only_tool =
+        tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape;
     const bool vector_shape_drag =
-        tool_ != CanvasTool::Gradient && vector_tool_mode_ != VectorToolMode::Pixels &&
-        vector_shape_drawn_callback_ && !quick_mask_active_ &&
+        tool_ != CanvasTool::Gradient &&
+        (vector_only_tool ||
+         (vector_tool_mode_ != VectorToolMode::Pixels && vector_shape_drawn_callback_)) &&
+        !quick_mask_active_ &&
         (layer_edit_target_ == LayerEditTarget::Content ||
          (layer_edit_target_ == LayerEditTarget::VectorMask && vector_mask_target_layer() != nullptr));
     if (vector_shape_drag ||
@@ -1065,9 +1071,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       shape_start_ = snapped_point;
       shape_current_ = snapped_point;
       shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
-                                  (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
+                                  (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
+                          tool_ == CanvasTool::CustomShape);
       shape_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 &&
-                           (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
+                           (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
+                          tool_ == CanvasTool::CustomShape);
       update();
     }
   }
@@ -1259,9 +1267,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       shape_current_ = snapped_document_point(document_point);
     }
     shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
-                                (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
+                                (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
+                          tool_ == CanvasTool::CustomShape);
     shape_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 &&
-                         (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
+                         (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
+                          tool_ == CanvasTool::CustomShape);
     update();
   } else if (move_drag_pending_ || moving_layer_) {
     std::optional<QRectF> old_transform_controls_rect;
@@ -2002,16 +2012,37 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       shape_current_ = snapped_point;
     }
     shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
-                                (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
+                                (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
+                          tool_ == CanvasTool::CustomShape);
     shape_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 &&
-                         (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
+                         (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
+                          tool_ == CanvasTool::CustomShape);
     const auto erase = false;
     auto shape_from = shape_start_;
     auto shape_end = shape_current_;
-    if (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse) {
+    if (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
+        tool_ == CanvasTool::CustomShape) {
       const auto rect = shape_drag_rect(shape_start_, shape_current_);
       shape_from = rect.topLeft();
       shape_end = rect.bottomRight();
+    }
+    // Polygon and Custom Shape commit canvas-side (they carry their own
+    // geometry options) through the committed-path callback.
+    if ((tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape) && !quick_mask_active_ &&
+        (layer_edit_target_ == LayerEditTarget::Content ||
+         (layer_edit_target_ == LayerEditTarget::VectorMask &&
+          vector_mask_target_layer() != nullptr))) {
+      drawing_shape_ = false;
+      clear_brush_stroke_tracking();
+      update();
+      if (tool_ == CanvasTool::Polygon) {
+        commit_polygon_drag(QPointF(shape_start_), QPointF(shape_current_));
+      } else {
+        const auto corner_rect = normalized_rect(shape_from, shape_end);
+        commit_custom_shape_drag(
+            QRectF(QPointF(corner_rect.topLeft()), QPointF(corner_rect.bottomRight())));
+      }
+      return;
     }
     // Shape/Path mode hands the drag geometry to MainWindow (shape layer or
     // work path) instead of painting; mask/channel/quick-mask targets keep the

@@ -12,12 +12,14 @@
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/color_panel.hpp"
+#include "ui/custom_shape_library.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/shape_appearance_dialog.hpp"
 
+#include <QComboBox>
 #include <QIcon>
 #include <QMenu>
 #include <QPainter>
@@ -94,6 +96,13 @@ void MainWindow::handle_vector_shape_drawn(LiveShapeKind kind, QRectF bounds, QP
     params.line_end_x = line_end.x();
     params.line_end_y = line_end.y();
     params.line_weight = std::max(1, current_vector_line_weight_);
+    // Photoshop's default arrowhead proportions: width 5x, length 10x weight.
+    params.arrow_start = current_line_arrow_start_;
+    params.arrow_end = current_line_arrow_end_;
+    if (current_line_arrow_start_ || current_line_arrow_end_) {
+      params.arrow_width = params.line_weight * 5.0;
+      params.arrow_length = params.line_weight * 10.0;
+    }
   } else {
     params.left = bounds.left();
     params.top = bounds.top();
@@ -212,15 +221,26 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
   statusBar()->showMessage(tr("Created shape layer %1.").arg(QString::fromStdString(name)));
 }
 
-void MainWindow::handle_vector_path_committed(VectorPath path, bool closed) {
+void MainWindow::handle_vector_path_committed(VectorPath path, bool closed,
+                                              VectorPathSource source) {
   (void)closed;  // open pen paths fill their implied chord like Photoshop
   if (!has_active_document() || canvas_ == nullptr || path.subpaths.empty()) {
     return;
   }
-  // The Pen has no Pixels behavior: Shape creates/extends a shape layer,
+  // While the vector-mask target is active, polygon/custom commits extend the
+  // mask path (pen commits handle this canvas-side before reaching here).
+  if (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask) {
+    canvas_->add_subpaths_to_vector_mask(std::move(path.subpaths), tr("Add to vector mask"));
+    return;
+  }
+  // These tools have no Pixels behavior: Shape creates/extends a shape layer,
   // anything else lands on the work path.
   if (current_vector_tool_mode_ == VectorToolMode::Shape) {
-    create_or_extend_shape_layer(std::move(path.subpaths), std::nullopt, tr("Shape %1"));
+    const auto name_pattern = source == VectorPathSource::Polygon ? tr("Polygon %1")
+                              : source == VectorPathSource::CustomShape
+                                  ? tr("Custom Shape %1")
+                                  : tr("Shape %1");
+    create_or_extend_shape_layer(std::move(path.subpaths), std::nullopt, name_pattern);
     return;
   }
   add_subpaths_to_work_path(std::move(path.subpaths));
@@ -301,7 +321,9 @@ void MainWindow::refresh_vector_tool_options_visibility() {
   const bool shape_tool = current_tool_ == CanvasTool::Line ||
                           current_tool_ == CanvasTool::Rectangle ||
                           current_tool_ == CanvasTool::Ellipse ||
-                          current_tool_ == CanvasTool::Pen;
+                          current_tool_ == CanvasTool::Pen ||
+                          current_tool_ == CanvasTool::Polygon ||
+                          current_tool_ == CanvasTool::CustomShape;
   if (!shape_tool) {
     return;  // per-tool visibility already hid every mode-specific widget
   }
@@ -815,6 +837,89 @@ void MainWindow::populate_vector_mask_menu(QMenu* menu, const QString& object_na
   });
   add_command(tr("Ras&terize Vector Mask"), QStringLiteral("VectorMaskRasterize"),
               [this] { rasterize_active_vector_mask(); });
+}
+
+CustomShapeLibrary& MainWindow::custom_shape_library() {
+  if (custom_shape_library_ == nullptr) {
+    custom_shape_library_ = new CustomShapeLibrary({}, this);
+    custom_shape_library_->restore_default_shapes();
+    connect(custom_shape_library_, &CustomShapeLibrary::changed, this, [this] {
+      refresh_custom_shape_combo();
+      apply_custom_shape_selection();
+    });
+  }
+  return *custom_shape_library_;
+}
+
+void MainWindow::refresh_custom_shape_combo() {
+  if (custom_shape_combo_ == nullptr) {
+    return;
+  }
+  const auto previous = custom_shape_combo_->currentData().toString();
+  QSignalBlocker blocker(custom_shape_combo_);
+  custom_shape_combo_->clear();
+  for (const auto& entry : custom_shape_library().entries()) {
+    custom_shape_combo_->addItem(QIcon(entry.thumbnail), custom_shape_display_name(entry),
+                                 entry.id);
+  }
+  if (const auto index = custom_shape_combo_->findData(previous); index >= 0) {
+    custom_shape_combo_->setCurrentIndex(index);
+  }
+}
+
+void MainWindow::apply_custom_shape_selection() {
+  if (custom_shape_combo_ == nullptr || canvas_ == nullptr) {
+    return;
+  }
+  const auto shape_id = custom_shape_combo_->currentData().toString();
+  const auto* entry = custom_shape_library().find_entry_by_shape_id(shape_id);
+  canvas_->set_custom_shape_path(entry != nullptr
+                                     ? std::make_shared<const VectorPath>(entry->path)
+                                     : std::shared_ptr<const VectorPath>{});
+}
+
+void MainWindow::define_custom_shape_from_path() {
+  QString path_name;
+  const auto* path = resolved_panel_path(&path_name);
+  if (path == nullptr || path->empty()) {
+    // Fall back to the active layer's path / work path without a panel selection.
+    if (canvas_ != nullptr) {
+      path = canvas_->path_edit_target_path();
+    }
+  }
+  if (path == nullptr || path->empty()) {
+    show_status_error(tr("Select a path or shape layer to define a custom shape"));
+    return;
+  }
+  const auto bounds = path->bounds();
+  if (!bounds.has_value() || bounds->right - bounds->left < 1e-6 ||
+      bounds->bottom - bounds->top < 1e-6) {
+    show_status_error(tr("The path is too small to define a shape"));
+    return;
+  }
+  // Normalize into the unit box.
+  auto normalized = *path;
+  const auto width = bounds->right - bounds->left;
+  const auto height = bounds->bottom - bounds->top;
+  const auto scale = 1.0 / std::max(width, height);
+  transform_vector_path(normalized, {scale, 0.0, 0.0, scale, -bounds->left * scale,
+                                     -bounds->top * scale});
+  const auto name = tr("Custom Shape %1").arg(custom_shape_library().entries().size() + 1);
+  const auto storage_id = custom_shape_library().add_shape(name, normalized);
+  if (storage_id.isEmpty()) {
+    show_status_error(tr("Could not save the custom shape"));
+    return;
+  }
+  if (custom_shape_combo_ != nullptr) {
+    if (const auto* entry = custom_shape_library().find_entry(storage_id); entry != nullptr) {
+      if (const auto index = custom_shape_combo_->findData(entry->id); index >= 0) {
+        QSignalBlocker blocker(custom_shape_combo_);
+        custom_shape_combo_->setCurrentIndex(index);
+      }
+      apply_custom_shape_selection();
+    }
+  }
+  statusBar()->showMessage(tr("Defined %1 from the path.").arg(name));
 }
 
 void MainWindow::update_vector_swatch_icons() {

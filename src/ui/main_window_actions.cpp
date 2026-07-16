@@ -328,6 +328,10 @@ const char* tool_action_source(CanvasTool tool) {
       return "Path Select";
     case CanvasTool::DirectSelect:
       return "Direct Select";
+    case CanvasTool::Polygon:
+      return "Polygon";
+    case CanvasTool::CustomShape:
+      return "Custom Shape";
   }
   return "Tool";
 }
@@ -396,6 +400,10 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.path_select");
     case CanvasTool::DirectSelect:
       return QStringLiteral("tools.direct_select");
+    case CanvasTool::Polygon:
+      return QStringLiteral("tools.polygon");
+    case CanvasTool::CustomShape:
+      return QStringLiteral("tools.custom_shape");
   }
   return QStringLiteral("tools.unknown");
 }
@@ -680,6 +688,12 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::DirectSelect:
       name = "tool-direct-select";
       break;
+    case CanvasTool::Polygon:
+      name = "tool-polygon";
+      break;
+    case CanvasTool::CustomShape:
+      name = "tool-custom-shape";
+      break;
   }
   return QIcon(QStringLiteral(":/patchy/icons/%1.svg").arg(QLatin1String(name)));
 }
@@ -890,6 +904,12 @@ void MainWindow::create_actions() {
   register_hotkey(define_brush_tip_action, "edit.define_brush_tip");
   connect(define_brush_tip_action, &QAction::triggered, this, [this] { define_brush_tip_from_selection(); });
   register_document_action(define_brush_tip_action);
+  auto* define_custom_shape_action = edit_menu->addAction(tr("Define Custom Shape from Path"));
+  define_custom_shape_action->setObjectName(QStringLiteral("editDefineCustomShapeAction"));
+  register_hotkey(define_custom_shape_action, "edit.define_custom_shape");
+  connect(define_custom_shape_action, &QAction::triggered, this,
+          [this] { define_custom_shape_from_path(); });
+  register_document_action(define_custom_shape_action);
   select_all_action->setObjectName(QStringLiteral("editSelectAllAction"));
   clear_selection_action->setObjectName(QStringLiteral("editDeselectAction"));
   reselect_action->setObjectName(QStringLiteral("selectReselectAction"));
@@ -1935,10 +1955,15 @@ void MainWindow::create_actions() {
   auto* rect_tool_action = create_flyout_tool_action(shape_menu, tr("Rect"), CanvasTool::Rectangle, QKeySequence(Qt::Key_U));
   auto* ellipse_tool_action =
       create_flyout_tool_action(shape_menu, tr("Ellipse"), CanvasTool::Ellipse, QKeySequence(Qt::SHIFT | Qt::Key_U));
+  auto* polygon_tool_action =
+      create_flyout_tool_action(shape_menu, tr("Polygon"), CanvasTool::Polygon, QKeySequence());
+  auto* custom_shape_tool_action = create_flyout_tool_action(
+      shape_menu, tr("Custom Shape"), CanvasTool::CustomShape, QKeySequence());
   auto* shape_tool_button = new QToolButton(tool_palette);
   shape_tool_button->setObjectName(QStringLiteral("shapeToolButton"));
   configure_tool_flyout(tool_palette, shape_menu, shape_tool_button, rect_tool_action,
-                        {line_tool_action, rect_tool_action, ellipse_tool_action});
+                        {line_tool_action, rect_tool_action, ellipse_tool_action,
+                         polygon_tool_action, custom_shape_tool_action});
   type_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T));
   auto* path_select_menu = new QMenu(tr("Path Tools"), tool_palette);
   path_select_menu->setObjectName(QStringLiteral("pathSelectToolMenu"));
@@ -3363,7 +3388,8 @@ void MainWindow::create_actions() {
   // Photoshop-parity default; Pixels is the legacy raster behavior). The
   // vector appearance/combine widgets below register for the same tools and
   // refresh_vector_tool_options_visibility() refines them per mode.
-  add_option_label(tr("Mode:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
+  add_option_label(tr("Mode:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                     CanvasTool::Polygon, CanvasTool::CustomShape});
   vector_mode_combo_ = new QComboBox(toolbar);
   vector_mode_combo_->setObjectName(QStringLiteral("vectorModeCombo"));
   vector_mode_combo_->addItems({tr("Shape"), tr("Path"), tr("Pixels")});
@@ -3383,7 +3409,8 @@ void MainWindow::create_actions() {
     vector_mode_combo_pointer->setItemText(1, MainWindow::tr("Path"));
     vector_mode_combo_pointer->setItemText(2, MainWindow::tr("Pixels"));
   });
-  add_option_widget(vector_mode_combo_, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
+  add_option_widget(vector_mode_combo_, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                     CanvasTool::Polygon, CanvasTool::CustomShape});
   connect(vector_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     current_vector_tool_mode_ = index == 1   ? VectorToolMode::Path
                                 : index == 2 ? VectorToolMode::Pixels
@@ -3396,14 +3423,16 @@ void MainWindow::create_actions() {
   });
 
   vector_shape_mode_option_widgets_.push_back(
-      add_option_label(tr("Fill:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen}));
+      add_option_label(tr("Fill:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                     CanvasTool::Polygon, CanvasTool::CustomShape}));
   vector_fill_swatch_button_ = new QToolButton(toolbar);
   vector_fill_swatch_button_->setObjectName(QStringLiteral("vectorFillSwatchButton"));
   vector_fill_swatch_button_->setToolTip(tr("Shape fill color"));
   vector_fill_swatch_button_->setAutoRaise(true);
   vector_fill_swatch_button_->setProperty("optionsBarButton", true);
   add_option_widget(vector_fill_swatch_button_,
-                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
+                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                     CanvasTool::Polygon, CanvasTool::CustomShape});
   vector_shape_mode_option_widgets_.push_back(vector_fill_swatch_button_);
   connect(vector_fill_swatch_button_, &QToolButton::clicked, this, [this] {
     const auto chosen = request_patchy_color(this, current_vector_fill_color_, tr("Shape Fill Color"));
@@ -3418,7 +3447,8 @@ void MainWindow::create_actions() {
   vector_stroke_check->setObjectName(QStringLiteral("vectorStrokeCheck"));
   vector_stroke_check->setChecked(current_vector_stroke_enabled_);
   vector_stroke_check->setToolTip(tr("Stroke the shape outline"));
-  add_option_widget(vector_stroke_check, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
+  add_option_widget(vector_stroke_check, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                     CanvasTool::Polygon, CanvasTool::CustomShape});
   vector_shape_mode_option_widgets_.push_back(vector_stroke_check);
   connect(vector_stroke_check, &QCheckBox::toggled, this, [this](bool checked) {
     current_vector_stroke_enabled_ = checked;
@@ -3431,7 +3461,8 @@ void MainWindow::create_actions() {
   vector_stroke_swatch_button_->setAutoRaise(true);
   vector_stroke_swatch_button_->setProperty("optionsBarButton", true);
   add_option_widget(vector_stroke_swatch_button_,
-                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
+                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                     CanvasTool::Polygon, CanvasTool::CustomShape});
   vector_shape_mode_option_widgets_.push_back(vector_stroke_swatch_button_);
   connect(vector_stroke_swatch_button_, &QToolButton::clicked, this, [this] {
     const auto chosen =
@@ -3451,7 +3482,8 @@ void MainWindow::create_actions() {
   vector_stroke_width->setSuffix(QStringLiteral(" px"));
   vector_stroke_width->setToolTip(tr("Stroke width"));
   configure_toolbar_spinbox(vector_stroke_width, 64);
-  add_option_widget(vector_stroke_width, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
+  add_option_widget(vector_stroke_width, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                     CanvasTool::Polygon, CanvasTool::CustomShape});
   vector_shape_mode_option_widgets_.push_back(vector_stroke_width);
   connect(vector_stroke_width, &QDoubleSpinBox::valueChanged, this, [this](double value) {
     current_vector_stroke_width_ = value;
@@ -3476,6 +3508,7 @@ void MainWindow::create_actions() {
 
   vector_vector_mode_option_widgets_.push_back(add_option_label(
       tr("Combine:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                       CanvasTool::Polygon, CanvasTool::CustomShape,
                        CanvasTool::PathSelect, CanvasTool::DirectSelect}));
   auto* vector_combine_combo = new QComboBox(toolbar);
   vector_combine_combo->setObjectName(QStringLiteral("vectorCombineCombo"));
@@ -3499,6 +3532,7 @@ void MainWindow::create_actions() {
   });
   add_option_widget(vector_combine_combo,
                     {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                     CanvasTool::Polygon, CanvasTool::CustomShape,
                      CanvasTool::PathSelect, CanvasTool::DirectSelect});
   vector_vector_mode_option_widgets_.push_back(vector_combine_combo);
   connect(vector_combine_combo, &QComboBox::currentIndexChanged, this, [this](int index) {
@@ -3516,6 +3550,73 @@ void MainWindow::create_actions() {
     }
   });
   update_vector_swatch_icons();
+
+  vector_vector_mode_option_widgets_.push_back(
+      add_option_label(tr("Sides:"), {CanvasTool::Polygon}));
+  auto* polygon_sides = new QSpinBox(toolbar);
+  polygon_sides->setObjectName(QStringLiteral("polygonSidesSpin"));
+  polygon_sides->setRange(3, 100);
+  polygon_sides->setValue(5);
+  configure_toolbar_spinbox(polygon_sides, 52);
+  add_option_widget(polygon_sides, {CanvasTool::Polygon});
+  vector_vector_mode_option_widgets_.push_back(polygon_sides);
+  connect(polygon_sides, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_polygon_sides(value);
+      schedule_save_tool_settings();
+    }
+  });
+
+  vector_vector_mode_option_widgets_.push_back(
+      add_option_label(tr("Star inset:"), {CanvasTool::Polygon}));
+  auto* polygon_star_inset = new QSpinBox(toolbar);
+  polygon_star_inset->setObjectName(QStringLiteral("polygonStarInsetSpin"));
+  polygon_star_inset->setRange(0, 99);
+  polygon_star_inset->setValue(0);
+  polygon_star_inset->setSuffix(QStringLiteral("%"));
+  polygon_star_inset->setToolTip(tr("0 makes a plain polygon; higher values pull in star points"));
+  configure_toolbar_spinbox(polygon_star_inset, 56);
+  add_option_widget(polygon_star_inset, {CanvasTool::Polygon});
+  vector_vector_mode_option_widgets_.push_back(polygon_star_inset);
+  connect(polygon_star_inset, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_polygon_star_inset(value);
+      schedule_save_tool_settings();
+    }
+  });
+
+  vector_vector_mode_option_widgets_.push_back(
+      add_option_label(tr("Shape:"), {CanvasTool::CustomShape}));
+  custom_shape_combo_ = new QComboBox(toolbar);
+  custom_shape_combo_->setObjectName(QStringLiteral("customShapeCombo"));
+  custom_shape_combo_->setIconSize(QSize(24, 24));
+  custom_shape_combo_->setFixedWidth(150);
+  refresh_custom_shape_combo();
+  add_option_widget(custom_shape_combo_, {CanvasTool::CustomShape});
+  vector_vector_mode_option_widgets_.push_back(custom_shape_combo_);
+  connect(custom_shape_combo_, &QComboBox::currentIndexChanged, this, [this](int) {
+    apply_custom_shape_selection();
+    schedule_save_tool_settings();
+  });
+
+  auto* line_arrow_start = new CheckGlyphBox(tr("Arrow start"), toolbar);
+  line_arrow_start->setObjectName(QStringLiteral("lineArrowStartCheck"));
+  line_arrow_start->setToolTip(tr("Add an arrowhead at the line start"));
+  add_option_widget(line_arrow_start, {CanvasTool::Line});
+  vector_vector_mode_option_widgets_.push_back(line_arrow_start);
+  connect(line_arrow_start, &QCheckBox::toggled, this, [this](bool checked) {
+    current_line_arrow_start_ = checked;
+    schedule_save_tool_settings();
+  });
+  auto* line_arrow_end = new CheckGlyphBox(tr("Arrow end"), toolbar);
+  line_arrow_end->setObjectName(QStringLiteral("lineArrowEndCheck"));
+  line_arrow_end->setToolTip(tr("Add an arrowhead at the line end"));
+  add_option_widget(line_arrow_end, {CanvasTool::Line});
+  vector_vector_mode_option_widgets_.push_back(line_arrow_end);
+  connect(line_arrow_end, &QCheckBox::toggled, this, [this](bool checked) {
+    current_line_arrow_end_ = checked;
+    schedule_save_tool_settings();
+  });
 
   auto* fill_shapes = new CheckGlyphBox(tr("Fill"), toolbar);
   fill_shapes->setObjectName(QStringLiteral("shapeFillCheck"));

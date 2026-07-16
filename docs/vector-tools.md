@@ -39,6 +39,22 @@ Combine option); any other mode routes to the work path. The construction
 overlay draws in canvas_widget_vector_tools.cpp - note canvas_widget_pen.cpp
 is TABLET input, not this tool.
 
+## Polygon, Custom Shape, and line arrowheads
+
+The Polygon tool drags center-out (the first vertex tracks the cursor) with a
+Sides option and a Star inset percent (0 = plain polygon); Custom Shape stamps
+a library shape into the drag rect (Shift keeps it square). Both are
+vector-only (the Pixels mode is ignored) and write plain paths - Photoshop's
+polygon/custom origination descriptors were not probed, so per the fallback
+policy no origination is invented and PS opens them as regular path shapes.
+The Line tool gains arrow start/end checkboxes (head width 5x and length 10x
+the weight, the Photoshop default proportions) encoded through the probed
+keyOriginLine arrow keys. The CustomShapeLibrary (JSON sidecars under
+settings/shapes, unit-box normalized paths via the v1 text codec) ships 17
+code-generated builtins (arrows and symbols; ids shape.builtin.* are
+append-only), and Edit > Define Custom Shape from Path normalizes the current
+path into a new user entry.
+
 ## Path editing (Path Select / Direct Select)
 
 Path Select (A, the black arrow) selects and drags whole shape groups; Direct

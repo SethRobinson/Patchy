@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <utility>
 #include <vector>
 
@@ -76,8 +77,81 @@ void drop_origination_for_groups(VectorShapeContent& content, const std::vector<
 }  // namespace
 
 void CanvasWidget::set_vector_path_committed_callback(
-    std::function<void(patchy::VectorPath, bool)> callback) {
+    std::function<void(patchy::VectorPath, bool, VectorPathSource)> callback) {
   vector_path_committed_callback_ = std::move(callback);
+}
+
+void CanvasWidget::set_polygon_sides(int sides) noexcept {
+  polygon_sides_ = std::clamp(sides, 3, 100);
+}
+
+int CanvasWidget::polygon_sides() const noexcept {
+  return polygon_sides_;
+}
+
+void CanvasWidget::set_polygon_star_inset(int percent) noexcept {
+  polygon_star_inset_ = std::clamp(percent, 0, 99);
+}
+
+int CanvasWidget::polygon_star_inset() const noexcept {
+  return polygon_star_inset_;
+}
+
+void CanvasWidget::set_custom_shape_path(std::shared_ptr<const patchy::VectorPath> path) {
+  custom_shape_path_ = std::move(path);
+}
+
+const patchy::VectorPath* CanvasWidget::custom_shape_path() const noexcept {
+  return custom_shape_path_.get();
+}
+
+// Center-out polygon/star: the first vertex points at the drag cursor.
+PathSubpath CanvasWidget::polygon_drag_subpath(QPointF center, QPointF radius_point) const {
+  PathSubpath subpath;
+  const double radius = std::hypot(radius_point.x() - center.x(), radius_point.y() - center.y());
+  if (radius < 0.5) {
+    return subpath;
+  }
+  const double base_angle =
+      std::atan2(radius_point.y() - center.y(), radius_point.x() - center.x());
+  const int sides = std::clamp(polygon_sides_, 3, 100);
+  const bool star = polygon_star_inset_ > 0;
+  const double inner_radius = radius * (100 - polygon_star_inset_) / 100.0;
+  const int point_count = star ? sides * 2 : sides;
+  for (int i = 0; i < point_count; ++i) {
+    const double point_radius = star && (i % 2) != 0 ? inner_radius : radius;
+    const double angle =
+        base_angle + i * 2.0 * std::numbers::pi / point_count;
+    PathAnchor anchor;
+    anchor.anchor_x = center.x() + point_radius * std::cos(angle);
+    anchor.anchor_y = center.y() + point_radius * std::sin(angle);
+    anchor.in_x = anchor.anchor_x;
+    anchor.in_y = anchor.anchor_y;
+    anchor.out_x = anchor.anchor_x;
+    anchor.out_y = anchor.anchor_y;
+    subpath.anchors.push_back(anchor);
+  }
+  return subpath;
+}
+
+void CanvasWidget::commit_polygon_drag(QPointF center, QPointF radius_point) {
+  auto subpath = polygon_drag_subpath(center, radius_point);
+  if (subpath.anchors.empty() || !vector_path_committed_callback_) {
+    return;
+  }
+  VectorPath path;
+  path.subpaths.push_back(std::move(subpath));
+  vector_path_committed_callback_(std::move(path), true, VectorPathSource::Polygon);
+}
+
+void CanvasWidget::commit_custom_shape_drag(QRectF bounds) {
+  if (custom_shape_path_ == nullptr || custom_shape_path_->empty() ||
+      !vector_path_committed_callback_ || bounds.width() < 1.0 || bounds.height() < 1.0) {
+    return;
+  }
+  auto path = *custom_shape_path_;
+  transform_vector_path(path, {bounds.width(), 0.0, 0.0, bounds.height(), bounds.x(), bounds.y()});
+  vector_path_committed_callback_(std::move(path), true, VectorPathSource::CustomShape);
 }
 
 bool CanvasWidget::pen_session_active() const noexcept {
@@ -112,7 +186,7 @@ void CanvasWidget::commit_pen_path(bool closed) {
   }
   VectorPath path;
   path.subpaths.push_back(std::move(subpath));
-  vector_path_committed_callback_(std::move(path), closed);
+  vector_path_committed_callback_(std::move(path), closed, VectorPathSource::Pen);
 }
 
 void CanvasWidget::cancel_pen_path() {

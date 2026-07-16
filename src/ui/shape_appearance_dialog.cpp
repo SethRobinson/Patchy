@@ -244,7 +244,8 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   stroke_cap_combo->setObjectName(QStringLiteral("shapeStrokeCapCombo"));
   stroke_cap_combo->addItem(QObject::tr("Butt"), static_cast<int>(VectorStrokeCap::Butt));
   stroke_cap_combo->addItem(QObject::tr("Round"), static_cast<int>(VectorStrokeCap::Round));
-  stroke_cap_combo->addItem(QObject::tr("Square"), static_cast<int>(VectorStrokeCap::Square));
+  stroke_cap_combo->addItem(QObject::tr("Square", "stroke cap"),
+                            static_cast<int>(VectorStrokeCap::Square));
   stroke_form->addRow(QObject::tr("Caps:"), stroke_cap_combo);
 
   auto* stroke_join_combo = new QComboBox(stroke_group);

@@ -18,6 +18,7 @@
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
+#include "core/vector_shape.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
@@ -254,13 +255,37 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
 
   auto doc_a = shape_start_;
   auto doc_b = shape_current_;
-  if (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse) {
+  if (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
+      tool_ == CanvasTool::CustomShape) {
     const auto rect = shape_drag_rect(shape_start_, shape_current_);
     doc_a = rect.topLeft();
     doc_b = rect.bottomRight();
   }
   const auto a = widget_position(doc_a);
   const auto b = widget_position(doc_b);
+
+  // The vector-only tools preview as an accent outline (the committed result
+  // is a shape layer or path, never raster paint).
+  if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape) {
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(QColor(116, 192, 255), 1.2));
+    painter.setBrush(Qt::NoBrush);
+    if (tool_ == CanvasTool::Polygon) {
+      const auto subpath = polygon_drag_subpath(QPointF(shape_start_), QPointF(shape_current_));
+      QPolygonF outline;
+      for (const auto& anchor : subpath.anchors) {
+        outline << widget_position_f(QPointF(anchor.anchor_x, anchor.anchor_y));
+      }
+      if (!outline.isEmpty()) {
+        painter.drawPolygon(outline);
+      }
+    } else {
+      painter.drawRect(QRectF(QPointF(a), QPointF(b)));
+    }
+    painter.restore();
+    return;
+  }
 
   // A document-channel preview is not an RGB paint preview. The committed edit
   // first converts the paint color to gray, then presents that gray either by

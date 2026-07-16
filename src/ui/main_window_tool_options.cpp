@@ -1748,6 +1748,42 @@ void MainWindow::load_tool_settings() {
     QSignalBlocker blocker(line_weight);
     line_weight->setValue(current_vector_line_weight_);
   }
+  current_line_arrow_start_ =
+      settings.value(QStringLiteral("tools/lineArrowStart"), current_line_arrow_start_).toBool();
+  current_line_arrow_end_ =
+      settings.value(QStringLiteral("tools/lineArrowEnd"), current_line_arrow_end_).toBool();
+  if (auto* arrow_start = findChild<QCheckBox*>(QStringLiteral("lineArrowStartCheck"));
+      arrow_start != nullptr) {
+    QSignalBlocker blocker(arrow_start);
+    arrow_start->setChecked(current_line_arrow_start_);
+  }
+  if (auto* arrow_end = findChild<QCheckBox*>(QStringLiteral("lineArrowEndCheck"));
+      arrow_end != nullptr) {
+    QSignalBlocker blocker(arrow_end);
+    arrow_end->setChecked(current_line_arrow_end_);
+  }
+  if (auto* sides = findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")); sides != nullptr) {
+    QSignalBlocker blocker(sides);
+    sides->setValue(
+        std::clamp(settings.value(QStringLiteral("tools/polygonSides"), sides->value()).toInt(), 3, 100));
+    canvas_->set_polygon_sides(sides->value());
+  }
+  if (auto* inset = findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin")); inset != nullptr) {
+    QSignalBlocker blocker(inset);
+    inset->setValue(std::clamp(
+        settings.value(QStringLiteral("tools/polygonStarInset"), inset->value()).toInt(), 0, 99));
+    canvas_->set_polygon_star_inset(inset->value());
+  }
+  if (custom_shape_combo_ != nullptr) {
+    const auto stored_shape = settings.value(QStringLiteral("tools/customShapeId")).toString();
+    if (!stored_shape.isEmpty()) {
+      if (const auto index = custom_shape_combo_->findData(stored_shape); index >= 0) {
+        QSignalBlocker blocker(custom_shape_combo_);
+        custom_shape_combo_->setCurrentIndex(index);
+      }
+    }
+    apply_custom_shape_selection();
+  }
   update_vector_swatch_icons();
   canvas_->set_fill_opacity(settings.value(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity()).toInt());
   canvas_->set_fill_softness(settings.value(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness()).toInt());
@@ -1857,6 +1893,18 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/vectorStrokeEnabled"), current_vector_stroke_enabled_);
   settings.setValue(QStringLiteral("tools/vectorStrokeWidth"), current_vector_stroke_width_);
   settings.setValue(QStringLiteral("tools/vectorLineWeight"), current_vector_line_weight_);
+  settings.setValue(QStringLiteral("tools/lineArrowStart"), current_line_arrow_start_);
+  settings.setValue(QStringLiteral("tools/lineArrowEnd"), current_line_arrow_end_);
+  if (auto* sides = findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")); sides != nullptr) {
+    settings.setValue(QStringLiteral("tools/polygonSides"), sides->value());
+  }
+  if (auto* inset = findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin")); inset != nullptr) {
+    settings.setValue(QStringLiteral("tools/polygonStarInset"), inset->value());
+  }
+  if (custom_shape_combo_ != nullptr) {
+    settings.setValue(QStringLiteral("tools/customShapeId"),
+                      custom_shape_combo_->currentData().toString());
+  }
   settings.setValue(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity());
   settings.setValue(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness());
   settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(canvas_->gradient_method()));

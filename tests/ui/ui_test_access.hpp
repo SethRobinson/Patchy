@@ -5,6 +5,7 @@
 // inside namespace patchy::ui), so the qualified name
 // patchy::ui::MainWindowTestAccess must not change.
 
+#include "ui/custom_shape_library.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/main_window.hpp"
 
@@ -51,6 +52,10 @@ public:
 
   static void edit_active_shape_appearance(MainWindow& window) {
     window.edit_active_shape_appearance();
+  }
+
+  static CustomShapeLibrary& custom_shape_library(MainWindow& window) {
+    return window.custom_shape_library();
   }
 
   static ImageSaveOptions image_save_defaults(MainWindow& window) {

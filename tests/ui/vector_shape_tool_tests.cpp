@@ -581,6 +581,140 @@ void ui_vector_mask_shift_click_disable_and_rasterize() {
 
 QDialog* find_top_level_dialog(const QString& object_name);
 
+void ui_polygon_tool_creates_polygons_and_stars() {
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_sides(QStringLiteral("tools/polygonSides"));
+  SettingsValueRestorer saved_inset(QStringLiteral("tools/polygonStarInset"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Polygon);
+  auto* sides = window.findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"));
+  auto* inset = window.findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin"));
+  CHECK(sides != nullptr);
+  CHECK(inset != nullptr);
+  sides->setValue(6);
+  inset->setValue(0);
+
+  // Center-out drag: center (300,300), first vertex at the cursor (300,200).
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 300)),
+       canvas->widget_position_for_document_point(QPoint(300, 200)));
+  QApplication::processEvents();
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  auto* layer = document.find_layer(*active);
+  CHECK(layer != nullptr);
+  CHECK(layer->name() == "Polygon 1");
+  const auto& hexagon = layer->vector_shape()->path.subpaths[0];
+  CHECK(hexagon.anchors.size() == 6);
+  CHECK(std::abs(hexagon.anchors[0].anchor_x - 300.0) < 1.0);
+  CHECK(std::abs(hexagon.anchors[0].anchor_y - 200.0) < 1.0);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 300)), Qt::black, 8));
+
+  // Star inset doubles the point count.
+  inset->setValue(50);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(600, 300)),
+       canvas->widget_position_for_document_point(QPoint(600, 220)));
+  QApplication::processEvents();
+  layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer->name() == "Polygon 2");
+  CHECK(layer->vector_shape()->path.subpaths[0].anchors.size() == 12);
+}
+
+void ui_custom_shape_stamps_and_defines() {
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  CHECK(combo != nullptr);
+  CHECK(combo->count() >= 17);  // the code-generated builtins
+  const auto heart_index = combo->findData(QStringLiteral("shape.builtin.heart"));
+  CHECK(heart_index >= 0);
+  combo->setCurrentIndex(heart_index);
+  QApplication::processEvents();
+  CHECK(canvas->custom_shape_path() != nullptr);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(300, 300)));
+  QApplication::processEvents();
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  auto* layer = document.find_layer(*active);
+  CHECK(layer != nullptr);
+  CHECK(layer->name() == "Custom Shape 1");
+  CHECK(layer->vector_shape()->path.subpaths.size() == 1);
+  CHECK(layer->vector_shape()->path.subpaths[0].anchors.size() == 6);
+  // The heart lobes cover the upper half's center.
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 180)), Qt::black, 8));
+
+  // Define Custom Shape from the active shape layer's path, then stamp it.
+  auto& library = patchy::ui::MainWindowTestAccess::custom_shape_library(window);
+  QStringList user_shapes_before;
+  for (const auto& entry : library.entries()) {
+    user_shapes_before.append(entry.storage_id);
+  }
+  const auto entries_before = combo->count();
+  window.findChild<QAction*>(QStringLiteral("editDefineCustomShapeAction"))->trigger();
+  QApplication::processEvents();
+  CHECK(combo->count() == entries_before + 1);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(500, 100)),
+       canvas->widget_position_for_document_point(QPoint(600, 200)));
+  QApplication::processEvents();
+  layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer->name() == "Custom Shape 2");
+  CHECK(layer->vector_shape()->path.subpaths[0].anchors.size() == 6);
+
+  // Remove the shape the test defined so runs never accumulate user entries.
+  QStringList added;
+  for (const auto& entry : library.entries()) {
+    if (!user_shapes_before.contains(entry.storage_id)) {
+      added.append(entry.storage_id);
+    }
+  }
+  for (const auto& storage_id : added) {
+    CHECK(library.remove_shape(storage_id));
+  }
+}
+
+void ui_line_arrowheads_extend_the_shape() {
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_start(QStringLiteral("tools/lineArrowStart"));
+  SettingsValueRestorer saved_end(QStringLiteral("tools/lineArrowEnd"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Line);
+  auto* weight_spin = window.findChild<QSpinBox*>(QStringLiteral("vectorLineWeightSpin"));
+  CHECK(weight_spin != nullptr);
+  weight_spin->setValue(6);
+  auto* arrow_end = window.findChild<QCheckBox*>(QStringLiteral("lineArrowEndCheck"));
+  CHECK(arrow_end != nullptr);
+  arrow_end->setChecked(true);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 200)),
+       canvas->widget_position_for_document_point(QPoint(400, 200)));
+  QApplication::processEvents();
+  auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  const auto* content = layer->vector_shape();
+  CHECK(content != nullptr);
+  CHECK(content->path.subpaths.size() == 2);  // body quad + arrowhead
+  CHECK(content->origination.size() == 1);
+  CHECK(content->origination[0].arrow_end);
+  // The head is wider than the 6 px body: bounds reach ~15 px from the axis.
+  CHECK(layer->bounds().height > 20);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 200)), Qt::black, 8));
+}
+
 void ui_paths_panel_lists_saves_and_targets_paths() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -870,6 +1004,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_paths_panel_lists_saves_and_targets_paths", ui_paths_panel_lists_saves_and_targets_paths},
       {"ui_paths_panel_fill_stroke_and_make_selection",
        ui_paths_panel_fill_stroke_and_make_selection},
+      {"ui_polygon_tool_creates_polygons_and_stars", ui_polygon_tool_creates_polygons_and_stars},
+      {"ui_custom_shape_stamps_and_defines", ui_custom_shape_stamps_and_defines},
+      {"ui_line_arrowheads_extend_the_shape", ui_line_arrowheads_extend_the_shape},
       {"ui_shape_appearance_dialog_commits_and_cancels",
        ui_shape_appearance_dialog_commits_and_cancels},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},

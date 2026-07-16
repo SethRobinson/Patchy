@@ -5657,12 +5657,21 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
         }
         handle_vector_shape_drawn(kind, bounds, line_start, line_end);
       });
-  canvas->set_vector_path_committed_callback([this, canvas](patchy::VectorPath path, bool closed) {
-    if (canvas != canvas_) {
-      return;
-    }
-    handle_vector_path_committed(std::move(path), closed);
-  });
+  canvas->set_vector_path_committed_callback(
+      [this, canvas](patchy::VectorPath path, bool closed, VectorPathSource source) {
+        if (canvas != canvas_) {
+          return;
+        }
+        handle_vector_path_committed(std::move(path), closed, source);
+      });
+  canvas->set_polygon_sides(
+      findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")) != nullptr
+          ? findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"))->value()
+          : 5);
+  canvas->set_polygon_star_inset(
+      findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin")) != nullptr
+          ? findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin"))->value()
+          : 0);
   canvas->set_active_layer_changed_callback([this, canvas](LayerId layer_id) {
     if (canvas != canvas_) {
       return;

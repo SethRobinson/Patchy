@@ -631,6 +631,10 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window_vector.cpp
       src/ui/paths_panel.hpp
       src/ui/paths_panel.cpp
+      src/ui/custom_shape_library.hpp
+      src/ui/custom_shape_library.cpp
+      src/ui/default_custom_shapes.hpp
+      src/ui/default_custom_shapes.cpp
       src/ui/shape_appearance_dialog.hpp
       src/ui/shape_appearance_dialog.cpp
       src/ui/measurement_units.hpp
