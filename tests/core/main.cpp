@@ -155,6 +155,7 @@ int main(int argc, char** argv) {
            raw_heif_tests,
            flat_formats_misc_tests,
            infra_selection_tests,
+           vector_shape_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),

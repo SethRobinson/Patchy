@@ -32,3 +32,4 @@ std::vector<patchy::test::TestCase> flat_formats_bmp_tests();
 std::vector<patchy::test::TestCase> raw_heif_tests();
 std::vector<patchy::test::TestCase> flat_formats_misc_tests();
 std::vector<patchy::test::TestCase> infra_selection_tests();
+std::vector<patchy::test::TestCase> vector_shape_tests();

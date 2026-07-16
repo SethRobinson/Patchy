@@ -50,11 +50,18 @@ method rules.
   4 (open smooth), 5 (open corner). Three coordinate pairs, each pair is
   (y then x), each value i32 8.24 fixed point expressed as a FRACTION of the
   canvas dimension (y/height, x/width; matches `fixed_path_delta` in
-  layer_metadata.cpp). Pair order: **control point toward the NEXT anchor
-  (leaving), then the anchor, then the control point toward the PREVIOUS
-  anchor (entering)** - pinned via DOM leftDirection/rightDirection authoring
-  plus the asymmetric-curve fixture render.
+  layer_metadata.cpp). Pair order: **control toward the PREVIOUS anchor (in),
+  then the anchor, then the control toward the NEXT anchor (out)** - pinned
+  numerically against PS's own live-ellipse knots and the donut-probe render
+  (the rule-distinguishing point (49,15) rendered empty, rejecting the
+  out-first reading).
 - Corner knots store all three pairs equal when no handles.
+- Capture-script gotcha: ExtendScript's PathPointInfo.leftDirection lands in
+  the file's OUT slot and rightDirection in the IN slot (reversed from the
+  DOM documentation), so DOM-authored probe curves carry visually swapped
+  handles. Harmless for record-layout probing and for render-parity fixtures
+  (both readers see the same bytes), but do not treat DOM-authored curved
+  fixtures as the intended visual shapes.
 
 ### Render semantics (pinned by fixture BMPs)
 

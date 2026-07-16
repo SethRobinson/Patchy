@@ -54,6 +54,7 @@ add_library(patchy_core
   src/core/document.cpp
   src/core/document_channel.cpp
   src/core/document_geometry.cpp
+  src/core/document_path.cpp
   src/core/layer.cpp
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
@@ -73,6 +74,8 @@ add_library(patchy_core
   src/core/style_contour.cpp
   src/core/style_presets.cpp
   src/core/text_warp.cpp
+  src/core/vector_live_shapes.cpp
+  src/core/vector_shape.cpp
   src/core/warp_mesh.hpp
   src/core/warp_mesh.cpp
 )
@@ -818,6 +821,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/smart_filter_pixels_tests.cpp
     tests/core/smart_objects_warp_tests.cpp
     tests/core/stroke_mask_effects_tests.cpp
+    tests/core/vector_shape_tests.cpp
   )
   # The split TUs live in tests/core/ but repeat the historical test_main.cpp
   # include block ("test_harness.hpp" etc.), so tests/ must be on the include path.
