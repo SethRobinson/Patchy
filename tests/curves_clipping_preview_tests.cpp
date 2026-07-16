@@ -1,5 +1,7 @@
 #include "ui/curves_clipping_preview.hpp"
 
+#include "test_harness.hpp"
+
 #include <QColor>
 #include <QImage>
 
@@ -9,14 +11,6 @@
 #include <string>
 
 namespace {
-
-#define CHECK(condition)                                                                    \
-  do {                                                                                      \
-    if (!(condition)) {                                                                     \
-      throw std::runtime_error(std::string("CHECK failed: ") + #condition + " at " +      \
-                               __FILE__ + ":" + std::to_string(__LINE__));                  \
-    }                                                                                       \
-  } while (false)
 
 void check_color(const QImage& image, int x, int y, int red, int green, int blue,
                  int alpha = 255) {

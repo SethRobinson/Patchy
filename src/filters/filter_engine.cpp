@@ -1,6 +1,7 @@
 #include "filters/filter_engine.hpp"
 
 #include "core/adjustment_layer.hpp"
+#include "filters/filter_support.hpp"
 #include "filters/rgba_filter_staging.hpp"
 #include "filters/smart_filter_renderer.hpp"
 
@@ -161,26 +162,6 @@ void blend_filter_with_original(PixelBuffer &pixels,
   }
   finish_filter_row_progress(progress, pixels.height(), progress_offset,
                              progress_total);
-}
-
-FilterProgress filter_progress_phase(const FilterProgress *progress,
-                                     int phase_index, int phase_count) {
-  if (progress == nullptr || !progress->update) {
-    return {};
-  }
-  return FilterProgress{[progress, phase_index,
-                         phase_count](int completed, int total,
-                                      FilterProgressStage stage) {
-    constexpr int kPhaseScale = 1000;
-    const auto safe_phase_count = std::max(1, phase_count);
-    const auto safe_total = std::max(1, total);
-    const auto clamped_completed = std::clamp(completed, 0, safe_total);
-    const auto phase_completed = (clamped_completed * kPhaseScale) / safe_total;
-    return progress->update(std::clamp(phase_index, 0, safe_phase_count - 1) *
-                                    kPhaseScale +
-                                phase_completed,
-                            safe_phase_count * kPhaseScale, stage);
-  }};
 }
 
 std::uint8_t filter_blend_byte(std::uint8_t base, std::uint8_t overlay,

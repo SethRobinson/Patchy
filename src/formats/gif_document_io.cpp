@@ -2,6 +2,7 @@
 
 #include "formats/binary_le.hpp"
 #include "formats/document_flatten.hpp"
+#include "formats/format_file_io.hpp"
 #include "core/palette.hpp"
 
 #include <algorithm>
@@ -197,15 +198,7 @@ std::vector<std::uint8_t> write(const Document& document) {
 }
 
 void write_file(const Document& document, const std::filesystem::path& path) {
-  const auto bytes = write(document);
-  std::ofstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error("Could not open GIF file for writing");
-  }
-  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-  if (!file) {
-    throw std::runtime_error("Could not write GIF file");
-  }
+  formats::write_file_bytes(path, write(document), "GIF");
 }
 
 }  // namespace patchy::gif

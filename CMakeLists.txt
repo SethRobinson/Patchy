@@ -273,6 +273,7 @@ add_library(patchy_filters
   src/filters/builtin_filters.cpp
   src/filters/filter_engine.cpp
   src/filters/filter_registry.cpp
+  src/filters/filter_support.hpp
   src/filters/rgba_filter_staging.hpp
   src/filters/smart_filter_recipe_mapping.cpp
   src/filters/smart_filter_renderer.cpp
@@ -284,6 +285,7 @@ add_library(patchy_formats
   src/formats/aseprite_document_io.cpp
   src/formats/bmp_document_io.cpp
   src/formats/document_flatten.cpp
+  src/formats/format_file_io.cpp
   src/formats/format_registry.cpp
   src/formats/gif_document_io.cpp
   src/formats/heif_document_io.cpp
@@ -750,7 +752,7 @@ if(PATCHY_BUILD_APP)
       )
     endif()
     add_custom_command(TARGET patchy POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_directory
+      COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
               ${PROJECT_SOURCE_DIR}/test-fixtures
               $<TARGET_FILE_DIR:patchy>/test-fixtures
       COMMENT "Copying Patchy test fixtures next to the app binary"

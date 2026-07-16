@@ -2,6 +2,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/rect_utils.hpp"
+#include "filters/filter_support.hpp"
 
 #include <algorithm>
 #include <array>
@@ -67,12 +68,6 @@ constexpr double kDirectGaussianMaximumRadius = 8.0;
 constexpr int kProgressScale = 1000000;
 constexpr std::int32_t kSurfaceBlurDirectMaximumRadius = 8;
 
-[[nodiscard]] bool supported_blend_mode(BlendMode mode) noexcept {
-  const auto value = static_cast<int>(mode);
-  return value >= static_cast<int>(BlendMode::Normal) &&
-         value <= static_cast<int>(BlendMode::Divide);
-}
-
 void report_progress(const FilterProgress *progress, int completed, int total,
                      FilterProgressStage stage) {
   if (progress == nullptr || !progress->update) {
@@ -124,34 +119,6 @@ void report_fraction(const FilterProgress *progress, std::uint64_t completed,
             static_cast<std::int64_t>(safe_phase_count) * phase_scale)),
         safe_phase_count * phase_scale, stage);
   }};
-}
-
-[[nodiscard]] Rect checked_union_bounds(Rect left, Rect right) {
-  if (left.empty()) {
-    return right;
-  }
-  if (right.empty()) {
-    return left;
-  }
-  const auto left_x2 = static_cast<std::int64_t>(left.x) + left.width;
-  const auto left_y2 = static_cast<std::int64_t>(left.y) + left.height;
-  const auto right_x2 = static_cast<std::int64_t>(right.x) + right.width;
-  const auto right_y2 = static_cast<std::int64_t>(right.y) + right.height;
-  const auto x1 = std::min<std::int64_t>(left.x, right.x);
-  const auto y1 = std::min<std::int64_t>(left.y, right.y);
-  const auto x2 = std::max(left_x2, right_x2);
-  const auto y2 = std::max(left_y2, right_y2);
-  if (x1 < std::numeric_limits<std::int32_t>::min() ||
-      y1 < std::numeric_limits<std::int32_t>::min() ||
-      x2 > std::numeric_limits<std::int32_t>::max() ||
-      y2 > std::numeric_limits<std::int32_t>::max() ||
-      x2 - x1 > std::numeric_limits<std::int32_t>::max() ||
-      y2 - y1 > std::numeric_limits<std::int32_t>::max()) {
-    throw std::overflow_error("Smart Filter result bounds overflow");
-  }
-  return Rect{static_cast<std::int32_t>(x1), static_cast<std::int32_t>(y1),
-              static_cast<std::int32_t>(x2 - x1),
-              static_cast<std::int32_t>(y2 - y1)};
 }
 
 [[nodiscard]] const std::uint8_t *
@@ -1602,7 +1569,8 @@ blend_entry_result(const FilterRenderResult &before,
   constexpr std::uint64_t kChannelScale = 255U;
   const auto effect_weight = static_cast<std::uint64_t>(
       std::floor(opacity * static_cast<double>(kOpacityScale) + 0.5));
-  const auto bounds = checked_union_bounds(before.bounds, filtered.bounds);
+  const auto bounds = checked_union_bounds(before.bounds, filtered.bounds,
+                                           "Smart Filter result bounds overflow");
   PixelBuffer output(bounds.width, bounds.height, PixelFormat::rgba8());
   output.clear(0);
 
@@ -1746,7 +1714,8 @@ apply_stack_mask(const FilterRenderResult &base,
                  const FilterRenderResult &filtered,
                  const SmartFilterMask &mask, const FilterProgress *progress) {
   constexpr std::uint64_t kMaskScale = 255U;
-  const auto bounds = checked_union_bounds(base.bounds, filtered.bounds);
+  const auto bounds = checked_union_bounds(base.bounds, filtered.bounds,
+                                           "Smart Filter result bounds overflow");
   PixelBuffer output(bounds.width, bounds.height, PixelFormat::rgba8());
   output.clear(0);
   std::int32_t minimum_x = bounds.width;
@@ -2476,7 +2445,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
           radius > maximum_radius)) ||
         !std::isfinite(entry.opacity) ||
         entry.opacity < 0.0 || entry.opacity > 1.0 ||
-        !supported_blend_mode(entry.blend_mode)) {
+        !recipe_blend_mode_supported(entry.blend_mode)) {
       throw std::invalid_argument("Unsupported Smart Filter entry");
     }
   }

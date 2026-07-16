@@ -2,6 +2,7 @@
 
 #include "formats/binary_le.hpp"
 #include "formats/document_flatten.hpp"
+#include "formats/format_file_io.hpp"
 
 #include <algorithm>
 #include <array>
@@ -505,12 +506,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
 }
 
 Document DocumentIo::read_file(const std::filesystem::path& path, std::vector<std::string>* notices) {
-  std::ifstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error("Could not open ICO file");
-  }
-  std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-  return read(bytes, notices);
+  return read(formats::read_file_bytes(path, "ICO"), notices);
 }
 
 std::vector<std::uint8_t> DocumentIo::write(const Document& document, WriteOptions options) {
@@ -590,15 +586,7 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document, WriteOptio
 }
 
 void DocumentIo::write_file(const Document& document, const std::filesystem::path& path, WriteOptions options) {
-  const auto bytes = write(document, options);
-  std::ofstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error("Could not open ICO file for writing");
-  }
-  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-  if (!file) {
-    throw std::runtime_error("Could not write ICO file");
-  }
+  formats::write_file_bytes(path, write(document, options), "ICO");
 }
 
 }  // namespace patchy::ico

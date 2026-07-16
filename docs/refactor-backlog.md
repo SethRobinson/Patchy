@@ -54,12 +54,13 @@ language, so QSettings state leaks between tests by construction, and order chan
 need a full-suite shakeout run. shot_readme_* test names are a contract with
 scripts/make-readme-screenshots.ps1 (runtime "shot_readme" substring filter).
 
-Harness niceties still open: port the UI suite's dbghelp AV handler to the core main
-(tests/core/main.cpp — still not done); a PATCHY_TEST(fn) macro would kill the
-name/function double-entry; the four hand-rolled runner loops (tests/core/main.cpp,
-tests/ui/main.cpp, perf_tests, curves_clipping_preview_tests) could share one;
-curves_clipping_preview_tests re-defines CHECK instead of using test_harness.hpp.
+Harness niceties still open: a PATCHY_TEST(fn) macro would kill the name/function
+double-entry; the four hand-rolled runner loops (tests/core/main.cpp,
+tests/ui/main.cpp, perf_tests, curves_clipping_preview_tests) could share one.
 (The core suite's /bigobj C1128 risk is gone now that no core test TU exceeds ~3k lines.)
+DONE (July 2026): the UI suite's crash handlers (dbghelp AV stack walker + the POSIX
+signal/terminate reporters) are ported verbatim to tests/core/main.cpp;
+curves_clipping_preview_tests now includes test_harness.hpp instead of re-defining CHECK.
 
 ## Duplication inventory (verified copy-paste; sizes approximate)
 
@@ -103,10 +104,13 @@ Filters (~800 lines, canary-gated):
   the helper's copy loops are the historical block verbatim (the two files had differed
   only in pointer-star whitespace). Outputs stayed bit-identical (calibrated filter
   tests and catalog canaries green, no re-pin).
-- filter progress trio + filter_progress_phase duplicated across filter_engine,
-  filter_registry, smart_filter_renderer; recipe_blend_mode_supported and
-  union_bounds/checked_union_bounds duplicated between filter_registry and
-  smart_filter_renderer.
+- DONE (July 2026): filter_progress_phase (byte-identical in filter_engine +
+  filter_registry), recipe_blend_mode_supported / supported_blend_mode, and
+  union_bounds / checked_union_bounds (identical math, per-caller error text kept
+  via an overflow_message parameter) now live in filters/filter_support.hpp
+  (internal to src/filters; never include it elsewhere). smart_filter_renderer's
+  report_progress/report_fraction/phase_progress were deliberately NOT merged:
+  its phase_progress uses kProgressScale-based overflow-guarded math, a real delta.
 - Levels RECORD math (clamp_levels_record/levels_master_record/set_levels_master_record
   and the per-channel accessors) is deduped: exported from core/adjustment_layer.hpp,
   copies deleted from ui/filter_workflows.cpp, psd/psd_adjustments.cpp, and the
@@ -120,9 +124,14 @@ Filters (~800 lines, canary-gated):
   filter tent blur): deliberately different numerics, each pinned by different canaries.
 
 I/O and formats:
-- acv_curves_io.cpp re-implements psd::BigEndianReader line-for-line; use it.
-- read_file/write_file wrappers copy-pasted across ~9 format TUs (+ 4 repeat the
-  rename-first-layer-to-stem block); one shared helper with a format-name parameter.
+- DONE (July 2026): acv's Reader now derives from psd::BigEndianReader (keeping only
+  the ACV-specific read_tag/remaining_bytes_are_zero); truncation errors now say
+  "Unexpected end of PSD data" (the UI wraps them in the generic load-failure notice,
+  and ACV records are the same shapes as native PSD curv records).
+- DONE (July 2026): the read_file/write_file wrappers across aseprite/bmp/gif/ico/
+  ilbm/pcx/tga now share formats/format_file_io.{hpp,cpp} (read_file_bytes,
+  rename_first_layer_to_stem, write_file_bytes; format-name parameter keeps every
+  historical error string byte-identical). Internal to src/formats.
 - The raw-or-PackBits plane decode loop re-implemented 5x around the shared
   decode_packbits (psd channel data, psd_patterns, pat_reader, abr_reader,
   psd_filter_effects); pat_reader duplicates psd_patterns' whole VMA slot parse
@@ -139,6 +148,13 @@ I/O and formats:
   explicit fallback parameters.
 
 MainWindow/adjustments internals:
+- NOTE (July 2026): main_window.cpp was split further (theme QSS -> main_window_theme.cpp,
+  legacy plugins -> main_window_plugins.cpp, retranslation -> main_window_actions.cpp,
+  clipboard + layer ops -> main_window_layer_ops.cpp, tool/options-bar/color state ->
+  main_window_tool_options.cpp; ~14.6k -> ~9k lines). The remainder is the text tool
+  (~7k lines, needs the designed text_render module, not a file split), input plumbing,
+  and the text-pipeline-dependent rasterize/merge_down. Duplication items below still
+  exist; several now live in the new TUs (flip pair, fill/clear ladder -> main_window_layer_ops.cpp).
 - main_window_adjustments.cpp: the async preview worker lambda x4 (~200 lines), the
   destructive-dialog guard/apply/restore phases x4 (~250 lines), the smart-filter
   command guard preamble x6 (~100 lines), progress-dialog boilerplate x4 (two sites
@@ -262,8 +278,8 @@ MainWindow/adjustments internals:
   and patchy_layer_style_payload plus its orphaned write-side helpers
   (psd_layer_styles.cpp — plFX is read for back-compat but styles are written as
   lfx2 only).
-- Build: the patchy target re-copies the whole test-fixtures tree on every rebuild
-  (POST_BUILD, no up-to-date check); vcpkg.json's manifest (qtbase+qtsvg) cannot satisfy
+- Build: DONE (July 2026) the patchy fixture copy now uses copy_directory_if_different
+  (was an unconditional copy_directory every rebuild); vcpkg.json's manifest (qtbase+qtsvg) cannot satisfy
   the build's PrintSupport/Network/LinguistTools/Test + qtimageformats requirements, so
   the dev-vcpkg preset is likely unusable as-is; patchy_color is referenced 54 lines
   before its target definition (legal, but a reordering trap).

@@ -7,6 +7,7 @@
 
 #include "core/palette.hpp"
 #include "formats/binary_le.hpp"
+#include "formats/format_file_io.hpp"
 
 #include "formats/miniz/miniz.h"
 
@@ -497,12 +498,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
 }
 
 Document DocumentIo::read_file(const std::filesystem::path& path, std::vector<std::string>* notices) {
-  std::ifstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error("Could not open Aseprite file");
-  }
-  std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-  return read(bytes, notices);
+  return read(formats::read_file_bytes(path, "Aseprite"), notices);
 }
 
 namespace {
@@ -715,15 +711,7 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document) {
 }
 
 void DocumentIo::write_file(const Document& document, const std::filesystem::path& path) {
-  const auto bytes = write(document);
-  std::ofstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error("Could not open Aseprite file for writing");
-  }
-  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-  if (!file) {
-    throw std::runtime_error("Could not write Aseprite file");
-  }
+  formats::write_file_bytes(path, write(document), "Aseprite");
 }
 
 }  // namespace patchy::aseprite

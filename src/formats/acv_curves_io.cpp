@@ -1,5 +1,7 @@
 #include "formats/acv_curves_io.hpp"
 
+#include "psd/psd_binary.hpp"
+
 #include <array>
 #include <fstream>
 #include <iterator>
@@ -21,49 +23,15 @@ constexpr std::uint16_t kMaxPointCount = 19;
 constexpr std::size_t kMaxFileBytes = 4096;
 constexpr CurveControlPoint kIdentityPoints[]{{0, 0}, {255, 255}};
 
-class Reader {
+// Big-endian record reader: psd::BigEndianReader does the numeric reads (ACV
+// records are the same big-endian shapes as native PSD `curv` records), plus
+// the ACV-specific tag and trailing-zero checks.
+class Reader : public psd::BigEndianReader {
 public:
-  explicit Reader(std::span<const std::uint8_t> bytes) : bytes_(bytes) {}
-
-  [[nodiscard]] std::size_t remaining() const noexcept { return bytes_.size() - offset_; }
-
-  [[nodiscard]] std::uint8_t read_u8() {
-    require(1);
-    return bytes_[offset_++];
-  }
-
-  [[nodiscard]] std::uint16_t read_u16() {
-    require(2);
-    const auto value = static_cast<std::uint16_t>((static_cast<std::uint16_t>(bytes_[offset_]) << 8U) |
-                                                  static_cast<std::uint16_t>(bytes_[offset_ + 1]));
-    offset_ += 2;
-    return value;
-  }
-
-  [[nodiscard]] std::uint32_t read_u32() {
-    require(4);
-    const auto value = (static_cast<std::uint32_t>(bytes_[offset_]) << 24U) |
-                       (static_cast<std::uint32_t>(bytes_[offset_ + 1]) << 16U) |
-                       (static_cast<std::uint32_t>(bytes_[offset_ + 2]) << 8U) |
-                       static_cast<std::uint32_t>(bytes_[offset_ + 3]);
-    offset_ += 4;
-    return value;
-  }
-
-  [[nodiscard]] bool starts_with(std::string_view expected) const noexcept {
-    if (expected.size() > remaining()) {
-      return false;
-    }
-    for (std::size_t index = 0; index < expected.size(); ++index) {
-      if (bytes_[offset_ + index] != static_cast<std::uint8_t>(expected[index])) {
-        return false;
-      }
-    }
-    return true;
-  }
+  explicit Reader(std::span<const std::uint8_t> bytes) : psd::BigEndianReader(bytes), bytes_(bytes) {}
 
   [[nodiscard]] bool remaining_bytes_are_zero() const noexcept {
-    for (std::size_t index = offset_; index < bytes_.size(); ++index) {
+    for (std::size_t index = position(); index < bytes_.size(); ++index) {
       if (bytes_[index] != 0) {
         return false;
       }
@@ -84,14 +52,7 @@ public:
   }
 
 private:
-  void require(std::size_t count) const {
-    if (count > remaining()) {
-      throw std::runtime_error("Curves preset data ended unexpectedly");
-    }
-  }
-
   std::span<const std::uint8_t> bytes_;
-  std::size_t offset_{0};
 };
 
 void write_u16(std::vector<std::uint8_t>& bytes, std::uint16_t value) {

@@ -1,6 +1,7 @@
 #include "filters/filter_registry.hpp"
 
 #include "core/blend_math.hpp"
+#include "filters/filter_support.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -160,32 +161,6 @@ void remap_spatial_parameters_for_padding(
   }
 }
 
-bool recipe_blend_mode_supported(BlendMode mode) noexcept {
-  const auto value = static_cast<int>(mode);
-  return value >= static_cast<int>(BlendMode::Normal) &&
-         value <= static_cast<int>(BlendMode::Divide);
-}
-
-FilterProgress filter_progress_phase(const FilterProgress *progress,
-                                     int phase_index, int phase_count) {
-  if (progress == nullptr || !progress->update) {
-    return {};
-  }
-  return FilterProgress{[progress, phase_index,
-                         phase_count](int completed, int total,
-                                      FilterProgressStage stage) {
-    constexpr int kPhaseScale = 1000;
-    const auto safe_phase_count = std::max(1, phase_count);
-    const auto safe_total = std::max(1, total);
-    const auto clamped_completed = std::clamp(completed, 0, safe_total);
-    const auto phase_completed = (clamped_completed * kPhaseScale) / safe_total;
-    return progress->update(std::clamp(phase_index, 0, safe_phase_count - 1) *
-                                    kPhaseScale +
-                                phase_completed,
-                            safe_phase_count * kPhaseScale, stage);
-  }};
-}
-
 void blit_buffer(PixelBuffer &destination, const PixelBuffer &source,
                  std::int32_t x, std::int32_t y) {
   const auto row_bytes = static_cast<std::size_t>(source.width()) *
@@ -195,34 +170,6 @@ void blit_buffer(PixelBuffer &destination, const PixelBuffer &source,
     auto *destination_row = destination.pixel(x, y + row);
     std::copy(source_row, source_row + row_bytes, destination_row);
   }
-}
-
-Rect union_bounds(Rect left, Rect right) {
-  if (left.empty()) {
-    return right;
-  }
-  if (right.empty()) {
-    return left;
-  }
-  const auto x1 = std::min<std::int64_t>(left.x, right.x);
-  const auto y1 = std::min<std::int64_t>(left.y, right.y);
-  const auto x2 =
-      std::max<std::int64_t>(static_cast<std::int64_t>(left.x) + left.width,
-                             static_cast<std::int64_t>(right.x) + right.width);
-  const auto y2 =
-      std::max<std::int64_t>(static_cast<std::int64_t>(left.y) + left.height,
-                             static_cast<std::int64_t>(right.y) + right.height);
-  if (x1 < std::numeric_limits<std::int32_t>::min() ||
-      y1 < std::numeric_limits<std::int32_t>::min() ||
-      x2 > std::numeric_limits<std::int32_t>::max() ||
-      y2 > std::numeric_limits<std::int32_t>::max() ||
-      x2 - x1 > std::numeric_limits<std::int32_t>::max() ||
-      y2 - y1 > std::numeric_limits<std::int32_t>::max()) {
-    throw std::overflow_error("Filter result bounds overflow");
-  }
-  return Rect{static_cast<std::int32_t>(x1), static_cast<std::int32_t>(y1),
-              static_cast<std::int32_t>(x2 - x1),
-              static_cast<std::int32_t>(y2 - y1)};
 }
 
 FilterRenderResult blend_recipe_result(FilterRenderResult before,
@@ -246,7 +193,8 @@ FilterRenderResult blend_recipe_result(FilterRenderResult before,
     return before;
   }
 
-  const auto bounds = union_bounds(before.bounds, filtered.bounds);
+  const auto bounds = checked_union_bounds(before.bounds, filtered.bounds,
+                                           "Filter result bounds overflow");
   const auto align_to_bounds = [bounds](FilterRenderResult result) {
     if (result.bounds.x == bounds.x && result.bounds.y == bounds.y &&
         result.bounds.width == bounds.width &&

@@ -4,6 +4,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/palette.hpp"
 #include "formats/binary_le.hpp"
+#include "formats/format_file_io.hpp"
 #include "formats/palette_io.hpp"
 #include "render/layer_compositor.hpp"
 
@@ -944,16 +945,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes) {
 }
 
 Document DocumentIo::read_file(const std::filesystem::path& path) {
-  std::ifstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error("Could not open BMP file");
-  }
-  std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-  auto document = read(bytes);
-  const auto stem = path.stem().string();
-  if (!stem.empty() && !document.layers().empty()) {
-    document.layers().front().set_name(stem);
-  }
+  auto document = read(formats::read_file_bytes(path, "BMP"));
+  formats::rename_first_layer_to_stem(document, path);
   return document;
 }
 
@@ -972,15 +965,7 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document, WriteOptio
 }
 
 void DocumentIo::write_file(const Document& document, const std::filesystem::path& path, WriteOptions options) {
-  const auto bytes = write(document, options);
-  std::ofstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error("Could not open BMP file for writing");
-  }
-  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-  if (!file) {
-    throw std::runtime_error("Could not write BMP file");
-  }
+  formats::write_file_bytes(path, write(document, options), "BMP");
 }
 
 }  // namespace patchy::bmp
