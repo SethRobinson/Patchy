@@ -143,10 +143,12 @@ struct Cell {
   std::int64_t area{0};
 };
 
+enum class WindingRule { EvenOdd, NonZero };
+
 // Exact-area cell rasterizer over one buffer-relative edge list. Emits gray8
-// even-odd coverage into `out` (width x height, buffer-relative).
-void rasterize_edges_even_odd(const std::vector<Edge>& edges, std::int32_t width, std::int32_t height,
-                              PixelBuffer& out) {
+// coverage into `out` (width x height, buffer-relative).
+void rasterize_edges(const std::vector<Edge>& edges, std::int32_t width, std::int32_t height,
+                     WindingRule rule, PixelBuffer& out) {
   // Bucket edges by their first touched row.
   std::vector<std::int32_t> bucket_heads(static_cast<std::size_t>(height) + 1, -1);
   std::vector<std::int32_t> bucket_next(edges.size(), -1);
@@ -269,7 +271,7 @@ void rasterize_edges_even_odd(const std::vector<Edge>& edges, std::int32_t width
     }
     active.resize(keep);
 
-    // Sweep the row: signed winding coverage, folded even-odd.
+    // Sweep the row: signed winding coverage folded by the winding rule.
     auto* row_bytes = bytes + static_cast<std::size_t>(row) * stride;
     std::int64_t running_cover = 0;
     for (std::int32_t x = 0; x < width; ++x) {
@@ -277,9 +279,13 @@ void rasterize_edges_even_odd(const std::vector<Edge>& edges, std::int32_t width
       const std::int64_t twice_area = running_cover * (2 * kSub) + cell.area;
       running_cover += cell.cover;
       std::int64_t c = divide_rounded(twice_area, 2 * kSub);
-      c = ((c % (2 * kSub)) + 2 * kSub) % (2 * kSub);
-      if (c > kSub) {
-        c = 2 * kSub - c;
+      if (rule == WindingRule::EvenOdd) {
+        c = ((c % (2 * kSub)) + 2 * kSub) % (2 * kSub);
+        if (c > kSub) {
+          c = 2 * kSub - c;
+        }
+      } else {
+        c = std::min<std::int64_t>(c >= 0 ? c : -c, kSub);
       }
       row_bytes[x] = static_cast<std::uint8_t>((c * 255 + kSub / 2) / kSub);
     }
@@ -413,6 +419,332 @@ void trim_coverage(CoverageBuffer& buffer) {
   buffer.pixels = std::move(pixels);
 }
 
+// ---------------------------------------------------------------------------
+// Stroker: flattens subpaths to polylines, applies dashes, and emits closed
+// outline loops (segment quads + join/cap fans) rasterized with NONZERO
+// winding so overlapping pieces union. Outline math uses doubles (normals
+// need sqrt); every emitted point is quantized to 24.8 fixed before
+// rasterization, and expressions stay simple sums/products, keeping output
+// deterministic in practice (verified by the pinned goldens across
+// toolchains).
+// ---------------------------------------------------------------------------
+
+struct DPoint {
+  double x{0.0};
+  double y{0.0};
+};
+
+// Flattens one subpath into a document-space polyline. Curves go through the
+// same integer flattener as fills (converted back to doubles exactly), so
+// stroke and fill geometry always agree.
+std::vector<DPoint> subpath_polyline(const PathSubpath& subpath) {
+  std::vector<DPoint> points;
+  const auto count = subpath.anchors.size();
+  if (count == 0) {
+    return points;
+  }
+  const auto push = [&points](double x, double y) {
+    if (!points.empty() && points.back().x == x && points.back().y == y) {
+      return;
+    }
+    points.push_back(DPoint{x, y});
+  };
+  push(subpath.anchors[0].anchor_x, subpath.anchors[0].anchor_y);
+  const auto segment_count = subpath.closed ? count : count - 1;
+  for (std::size_t i = 0; i < segment_count; ++i) {
+    const auto& a = subpath.anchors[i];
+    const auto& b = subpath.anchors[(i + 1) % count];
+    const FixedPoint from{to_fixed(a.anchor_x), to_fixed(a.anchor_y)};
+    const FixedPoint c1{to_fixed(a.out_x), to_fixed(a.out_y)};
+    const FixedPoint c2{to_fixed(b.in_x), to_fixed(b.in_y)};
+    const FixedPoint to{to_fixed(b.anchor_x), to_fixed(b.anchor_y)};
+    if ((c1.x == from.x && c1.y == from.y && c2.x == to.x && c2.y == to.y)) {
+      push(b.anchor_x, b.anchor_y);
+      continue;
+    }
+    std::vector<Edge> segment_edges;
+    flatten_cubic_recursive(from, c1, c2, to, 6, segment_edges);
+    for (const auto& edge : segment_edges) {
+      push(static_cast<double>(edge.to.x) / kSub, static_cast<double>(edge.to.y) / kSub);
+    }
+    // Ensure the exact endpoint lands (flatten skips zero-length tails).
+    push(b.anchor_x, b.anchor_y);
+  }
+  // Closed subpaths wrap implicitly: drop the duplicated closing point so the
+  // wrap-around segment/join indexing sees clean vertices.
+  if (subpath.closed && points.size() > 1 && points.front().x == points.back().x &&
+      points.front().y == points.back().y) {
+    points.pop_back();
+  }
+  return points;
+}
+
+struct StrokeRun {
+  std::vector<DPoint> points;
+  bool closed{false};
+};
+
+double distance(const DPoint& a, const DPoint& b) noexcept {
+  const double dx = b.x - a.x;
+  const double dy = b.y - a.y;
+  return std::sqrt(dx * dx + dy * dy);
+}
+
+// Splits a polyline into dash runs. Dash entries are stroke-width multiples
+// (the vstk descriptor's unitless values); offset likewise.
+std::vector<StrokeRun> apply_dashes(const std::vector<DPoint>& points, bool closed,
+                                    const std::vector<double>& dashes_px, double offset_px) {
+  std::vector<StrokeRun> runs;
+  if (points.size() < 2) {
+    return runs;
+  }
+  double pattern_total = 0.0;
+  for (const auto dash : dashes_px) {
+    pattern_total += std::max(dash, 0.0);
+  }
+  if (dashes_px.empty() || pattern_total <= 0.0) {
+    runs.push_back(StrokeRun{points, closed});
+    return runs;
+  }
+
+  // Walk the (possibly closed) polyline, toggling on/off at dash boundaries.
+  std::vector<DPoint> walk = points;
+  if (closed) {
+    walk.push_back(points.front());
+  }
+  double phase = std::fmod(offset_px, pattern_total);
+  if (phase < 0.0) {
+    phase += pattern_total;
+  }
+  std::size_t dash_index = 0;
+  while (phase >= std::max(dashes_px[dash_index], 0.0)) {
+    phase -= std::max(dashes_px[dash_index], 0.0);
+    dash_index = (dash_index + 1) % dashes_px.size();
+    if (phase <= 0.0) {
+      break;
+    }
+  }
+  bool on = dash_index % 2 == 0;
+  double remaining = std::max(dashes_px[dash_index], 0.0) - phase;
+
+  StrokeRun current;
+  const auto begin_run = [&current](const DPoint& at) {
+    current.points.clear();
+    current.points.push_back(at);
+  };
+  const auto finish_run = [&runs, &current]() {
+    if (current.points.size() >= 2) {
+      runs.push_back(StrokeRun{current.points, false});
+    }
+    current.points.clear();
+  };
+  if (on) {
+    begin_run(walk.front());
+  }
+  for (std::size_t i = 0; i + 1 < walk.size(); ++i) {
+    DPoint a = walk[i];
+    const DPoint b = walk[i + 1];
+    double segment_left = distance(a, b);
+    while (segment_left > remaining && remaining >= 0.0) {
+      const double t = remaining / segment_left;
+      const DPoint cut{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t};
+      if (on) {
+        current.points.push_back(cut);
+        finish_run();
+      } else {
+        begin_run(cut);
+      }
+      on = !on;
+      segment_left -= remaining;
+      a = cut;
+      dash_index = (dash_index + 1) % dashes_px.size();
+      remaining = std::max(dashes_px[dash_index], 0.0);
+      if (remaining <= 0.0) {
+        remaining = 1e-9;  // zero-length entries advance without emitting
+      }
+    }
+    remaining -= segment_left;
+    if (on) {
+      current.points.push_back(b);
+    }
+  }
+  finish_run();
+  return runs;
+}
+
+// Emits one closed outline loop into the edge list (buffer-relative fixed).
+void append_outline_loop(const std::vector<DPoint>& loop, std::int32_t origin_x, std::int32_t origin_y,
+                         std::vector<Edge>& edges) {
+  if (loop.size() < 3) {
+    return;
+  }
+  const std::int32_t shift_x = origin_x * kSub;
+  const std::int32_t shift_y = origin_y * kSub;
+  FixedPoint previous{to_fixed(loop[0].x) - shift_x, to_fixed(loop[0].y) - shift_y};
+  const FixedPoint first = previous;
+  for (std::size_t i = 1; i < loop.size(); ++i) {
+    const FixedPoint point{to_fixed(loop[i].x) - shift_x, to_fixed(loop[i].y) - shift_y};
+    if (point.x != previous.x || point.y != previous.y) {
+      edges.push_back(Edge{previous, point});
+    }
+    previous = point;
+  }
+  if (previous.x != first.x || previous.y != first.y) {
+    edges.push_back(Edge{previous, first});
+  }
+}
+
+// Subdivided arc fan between two unit vectors around `center` (radius h),
+// using normalized-midpoint halving (sqrt only; no trig).
+void append_arc_fan(const DPoint& center, DPoint from_unit, DPoint to_unit, double radius,
+                    std::int32_t origin_x, std::int32_t origin_y, std::vector<Edge>& edges, int depth = 0) {
+  const double chord_x = to_unit.x - from_unit.x;
+  const double chord_y = to_unit.y - from_unit.y;
+  const double chord = std::sqrt(chord_x * chord_x + chord_y * chord_y);
+  if (depth >= 6 || chord * radius <= 0.25) {
+    append_outline_loop({center,
+                         DPoint{center.x + from_unit.x * radius, center.y + from_unit.y * radius},
+                         DPoint{center.x + to_unit.x * radius, center.y + to_unit.y * radius}},
+                        origin_x, origin_y, edges);
+    return;
+  }
+  double mid_x = from_unit.x + to_unit.x;
+  double mid_y = from_unit.y + to_unit.y;
+  const double mid_length = std::sqrt(mid_x * mid_x + mid_y * mid_y);
+  if (mid_length <= 1e-12) {
+    // Opposite vectors (half circle): split via the perpendicular.
+    mid_x = -from_unit.y;
+    mid_y = from_unit.x;
+  } else {
+    mid_x /= mid_length;
+    mid_y /= mid_length;
+  }
+  const DPoint mid{mid_x, mid_y};
+  append_arc_fan(center, from_unit, mid, radius, origin_x, origin_y, edges, depth + 1);
+  append_arc_fan(center, mid, to_unit, radius, origin_x, origin_y, edges, depth + 1);
+}
+
+// Builds the stroke outline loops for one run at half-width h.
+void append_run_outline(const StrokeRun& run, double h, VectorStrokeCap cap, VectorStrokeJoin join,
+                        double miter_limit, std::int32_t origin_x, std::int32_t origin_y,
+                        std::vector<Edge>& edges) {
+  const auto& pts = run.points;
+  if (pts.size() < 2 || h <= 0.0) {
+    return;
+  }
+  const std::size_t segment_count = run.closed ? pts.size() : pts.size() - 1;
+
+  // Segment quads.
+  std::vector<DPoint> directions(segment_count);
+  for (std::size_t i = 0; i < segment_count; ++i) {
+    const auto& a = pts[i];
+    const auto& b = pts[(i + 1) % pts.size()];
+    const double length = distance(a, b);
+    if (length <= 1e-12) {
+      directions[i] = DPoint{0.0, 0.0};
+      continue;
+    }
+    directions[i] = DPoint{(b.x - a.x) / length, (b.y - a.y) / length};
+    const DPoint n{-directions[i].y * h, directions[i].x * h};
+    append_outline_loop({DPoint{a.x + n.x, a.y + n.y}, DPoint{b.x + n.x, b.y + n.y},
+                         DPoint{b.x - n.x, b.y - n.y}, DPoint{a.x - n.x, a.y - n.y}},
+                        origin_x, origin_y, edges);
+  }
+
+  // Joins at interior vertices (every vertex for closed runs).
+  const std::size_t first_join = run.closed ? 0 : 1;
+  const std::size_t join_count = run.closed ? pts.size() : (pts.size() >= 2 ? pts.size() - 2 : 0);
+  for (std::size_t j = 0; j < join_count; ++j) {
+    const std::size_t vertex = (first_join + j) % pts.size();
+    const std::size_t incoming = (vertex + segment_count - 1) % segment_count;
+    const std::size_t outgoing = vertex % segment_count;
+    const DPoint du = directions[incoming];
+    const DPoint dv = directions[outgoing];
+    if ((du.x == 0.0 && du.y == 0.0) || (dv.x == 0.0 && dv.y == 0.0)) {
+      continue;
+    }
+    const double cross = du.x * dv.y - du.y * dv.x;
+    if (std::abs(cross) <= 1e-12) {
+      continue;  // straight or reversal; quads already overlap
+    }
+    const double side = cross > 0.0 ? -1.0 : 1.0;  // outer side of the turn
+    const DPoint n_in{-du.y * side, du.x * side};
+    const DPoint n_out{-dv.y * side, dv.x * side};
+    const DPoint& v = pts[vertex];
+    if (join == VectorStrokeJoin::Bevel) {
+      append_outline_loop({v, DPoint{v.x + n_in.x * h, v.y + n_in.y * h},
+                           DPoint{v.x + n_out.x * h, v.y + n_out.y * h}},
+                          origin_x, origin_y, edges);
+    } else if (join == VectorStrokeJoin::Round) {
+      append_arc_fan(v, n_in, n_out, h, origin_x, origin_y, edges);
+    } else {
+      // Miter: outer point along the normal bisector at h / cos(alpha/2);
+      // ratio 1/cos(alpha/2) checked against the limit (bevel fallback).
+      double bis_x = n_in.x + n_out.x;
+      double bis_y = n_in.y + n_out.y;
+      const double bis_length = std::sqrt(bis_x * bis_x + bis_y * bis_y);
+      if (bis_length <= 1e-12) {
+        append_outline_loop({v, DPoint{v.x + n_in.x * h, v.y + n_in.y * h},
+                             DPoint{v.x + n_out.x * h, v.y + n_out.y * h}},
+                            origin_x, origin_y, edges);
+        continue;
+      }
+      bis_x /= bis_length;
+      bis_y /= bis_length;
+      const double cos_half = n_in.x * bis_x + n_in.y * bis_y;  // unit dot
+      const double ratio = cos_half > 1e-9 ? 1.0 / cos_half : 1e9;
+      if (ratio > std::max(miter_limit, 1.0)) {
+        append_outline_loop({v, DPoint{v.x + n_in.x * h, v.y + n_in.y * h},
+                             DPoint{v.x + n_out.x * h, v.y + n_out.y * h}},
+                            origin_x, origin_y, edges);
+      } else {
+        const DPoint m{v.x + bis_x * h * ratio, v.y + bis_y * h * ratio};
+        append_outline_loop({v, DPoint{v.x + n_in.x * h, v.y + n_in.y * h}, m,
+                             DPoint{v.x + n_out.x * h, v.y + n_out.y * h}},
+                            origin_x, origin_y, edges);
+      }
+    }
+  }
+
+  // Caps on open runs.
+  if (!run.closed && cap != VectorStrokeCap::Butt) {
+    const auto add_cap = [&](const DPoint& end, DPoint direction) {
+      if (direction.x == 0.0 && direction.y == 0.0) {
+        return;
+      }
+      const DPoint n{-direction.y, direction.x};
+      if (cap == VectorStrokeCap::Square) {
+        append_outline_loop(
+            {DPoint{end.x + n.x * h, end.y + n.y * h},
+             DPoint{end.x + n.x * h + direction.x * h, end.y + n.y * h + direction.y * h},
+             DPoint{end.x - n.x * h + direction.x * h, end.y - n.y * h + direction.y * h},
+             DPoint{end.x - n.x * h, end.y - n.y * h}},
+            origin_x, origin_y, edges);
+      } else {
+        append_arc_fan(end, n, direction, h, origin_x, origin_y, edges);
+        append_arc_fan(end, direction, DPoint{-n.x, -n.y}, h, origin_x, origin_y, edges);
+      }
+    };
+    // Find the first/last non-degenerate directions.
+    DPoint first_dir{0.0, 0.0};
+    for (const auto& d : directions) {
+      if (d.x != 0.0 || d.y != 0.0) {
+        first_dir = d;
+        break;
+      }
+    }
+    DPoint last_dir{0.0, 0.0};
+    for (auto it = directions.rbegin(); it != directions.rend(); ++it) {
+      if (it->x != 0.0 || it->y != 0.0) {
+        last_dir = *it;
+        break;
+      }
+    }
+    add_cap(pts.front(), DPoint{-first_dir.x, -first_dir.y});
+    add_cap(pts.back(), last_dir);
+  }
+}
+
 }  // namespace
 
 CoverageBuffer rasterize_vector_path(const VectorPath& path, const VectorRasterOptions& options) {
@@ -481,7 +813,8 @@ CoverageBuffer rasterize_vector_path(const VectorPath& path, const VectorRasterO
       group_coverage.pixels = PixelBuffer(group_bounds.width, group_bounds.height, PixelFormat::gray8());
       std::vector<Edge> edges;
       flatten_group(path, group.first, group.end, group_bounds.x, group_bounds.y, edges);
-      rasterize_edges_even_odd(edges, group_bounds.width, group_bounds.height, group_coverage.pixels);
+      rasterize_edges(edges, group_bounds.width, group_bounds.height, WindingRule::EvenOdd,
+                      group_coverage.pixels);
     }
 
     if (first_group) {
@@ -542,6 +875,83 @@ CoverageBuffer rasterize_vector_path(const VectorPath& path, const VectorRasterO
   return accumulator;
 }
 
+CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStroke& stroke,
+                                       const VectorRasterOptions& options) {
+  if (options.clip.empty() || path.empty() || !(stroke.width > 0.0)) {
+    return CoverageBuffer{};
+  }
+  // Inside/outside strokes rasterize the centered band at DOUBLE width, then
+  // clip by the fill region (or its complement): the clipped half is exactly
+  // `width` deep and its path-edge side keeps the crisp fill-coverage AA.
+  const bool centered = stroke.alignment == VectorStrokeAlignment::Center;
+  const double geometry_width = centered ? stroke.width : stroke.width * 2.0;
+  const double half = geometry_width / 2.0;
+
+  // Bounds: path hull expanded by the band's reach (half width; miter/square
+  // caps reach at most half * max(miter_limit-capped ratio, sqrt(2)) - use a
+  // conservative 2x half + 2px guard).
+  const auto hull = path.bounds();
+  if (!hull.has_value()) {
+    return CoverageBuffer{};
+  }
+  const double reach = half * 2.0 + 2.0;
+  Rect band_bounds{static_cast<std::int32_t>(std::floor(hull->left - reach)),
+                   static_cast<std::int32_t>(std::floor(hull->top - reach)), 0, 0};
+  band_bounds.width = static_cast<std::int32_t>(std::ceil(hull->right + reach)) - band_bounds.x + 1;
+  band_bounds.height = static_cast<std::int32_t>(std::ceil(hull->bottom + reach)) - band_bounds.y + 1;
+  band_bounds = intersect_rects(band_bounds, options.clip);
+  if (band_bounds.empty()) {
+    return CoverageBuffer{};
+  }
+
+  // Resolve dash entries (stroke-width multiples) to pixels.
+  std::vector<double> dashes_px;
+  dashes_px.reserve(stroke.dashes.size());
+  for (const auto dash : stroke.dashes) {
+    dashes_px.push_back(dash * stroke.width);
+  }
+  const double offset_px = stroke.dash_offset * stroke.width;
+
+  std::vector<Edge> edges;
+  for (const auto& subpath : path.subpaths) {
+    const auto polyline = subpath_polyline(subpath);
+    if (polyline.size() < 2) {
+      continue;
+    }
+    const auto runs = apply_dashes(polyline, subpath.closed, dashes_px, offset_px);
+    for (const auto& run : runs) {
+      append_run_outline(run, half, stroke.cap, stroke.join, stroke.miter_limit, band_bounds.x,
+                         band_bounds.y, edges);
+    }
+  }
+  if (edges.empty()) {
+    return CoverageBuffer{};
+  }
+  CoverageBuffer band;
+  band.bounds = band_bounds;
+  band.pixels = PixelBuffer(band_bounds.width, band_bounds.height, PixelFormat::gray8());
+  rasterize_edges(edges, band_bounds.width, band_bounds.height, WindingRule::NonZero, band.pixels);
+
+  if (!centered) {
+    VectorRasterOptions region_options;
+    region_options.clip = options.clip;
+    const auto region = rasterize_vector_path(path, region_options);
+    auto* bytes = band.pixels.data().data();
+    const auto stride = band.pixels.stride_bytes();
+    const bool inside = stroke.alignment == VectorStrokeAlignment::Inside;
+    for (std::int32_t y = 0; y < band_bounds.height; ++y) {
+      auto* row = bytes + static_cast<std::size_t>(y) * stride;
+      for (std::int32_t x = 0; x < band_bounds.width; ++x) {
+        const auto region_coverage = coverage_at(region, band_bounds.x + x, band_bounds.y + y);
+        const auto clip_value = inside ? region_coverage : 255 - region_coverage;
+        row[x] = static_cast<std::uint8_t>((row[x] * clip_value + 127) / 255);
+      }
+    }
+  }
+  trim_coverage(band);
+  return band;
+}
+
 CoverageBuffer rasterize_vector_mask_coverage(const LayerVectorMask& mask, Rect clip) {
   VectorRasterOptions options;
   options.clip = clip;
@@ -564,57 +974,44 @@ CoverageBuffer rasterize_vector_mask_coverage(const LayerVectorMask& mask, Rect 
   return inverted;
 }
 
-ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect canvas,
-                                         const PatternStore* patterns,
-                                         const Layer* layer_for_pattern_anchor) {
-  ShapeRasterResult result;
-  const bool fill_on = content.stroke.fill_enabled && content.fill.kind != VectorFillKind::None;
-  if (!fill_on) {
-    return result;
-  }
-  VectorRasterOptions options;
-  options.clip = canvas;
-  const auto coverage = rasterize_vector_path(content.path, options);
-  if (coverage.bounds.empty()) {
-    return result;
-  }
+namespace {
 
-  result.bounds = coverage.bounds;
-  result.pixels = PixelBuffer(coverage.bounds.width, coverage.bounds.height, PixelFormat::rgba8());
-  auto* out = result.pixels.data().data();
-  const auto out_stride = result.pixels.stride_bytes();
+// Paints a coverage buffer with a VectorFill into straight-alpha RGBA8.
+PixelBuffer paint_coverage(const CoverageBuffer& coverage, const VectorFill& fill, Rect canvas,
+                           const PatternStore* patterns, const Layer* layer_for_pattern_anchor) {
+  PixelBuffer pixels(coverage.bounds.width, coverage.bounds.height, PixelFormat::rgba8());
+  auto* out = pixels.data().data();
+  const auto out_stride = pixels.stride_bytes();
   const auto* cov = coverage.pixels.data().data();
   const auto cov_stride = coverage.pixels.stride_bytes();
 
-  if (content.fill.kind == VectorFillKind::Solid) {
-    const auto color = content.fill.color;
+  if (fill.kind == VectorFillKind::Solid) {
     for (std::int32_t y = 0; y < coverage.bounds.height; ++y) {
       auto* row = out + static_cast<std::size_t>(y) * out_stride;
       const auto* cov_row = cov + static_cast<std::size_t>(y) * cov_stride;
       for (std::int32_t x = 0; x < coverage.bounds.width; ++x) {
-        row[x * 4 + 0] = color.red;
-        row[x * 4 + 1] = color.green;
-        row[x * 4 + 2] = color.blue;
+        row[x * 4 + 0] = fill.color.red;
+        row[x * 4 + 1] = fill.color.green;
+        row[x * 4 + 2] = fill.color.blue;
         row[x * 4 + 3] = cov_row[x];
       }
     }
-    return result;
+    return pixels;
   }
 
-  if (content.fill.kind == VectorFillKind::Gradient) {
-    // align_with_layer follows the shape's own coverage bounds (the layer's
+  if (fill.kind == VectorFillKind::Gradient) {
+    // align_with_layer follows the painted region's bounds (the layer's
     // transparency bounds once baked); otherwise the canvas.
-    const Rect gradient_bounds = content.fill.gradient.align_with_layer ? coverage.bounds : canvas;
+    const Rect gradient_bounds = fill.gradient.align_with_layer ? coverage.bounds : canvas;
     for (std::int32_t y = 0; y < coverage.bounds.height; ++y) {
       auto* row = out + static_cast<std::size_t>(y) * out_stride;
       const auto* cov_row = cov + static_cast<std::size_t>(y) * cov_stride;
       const auto document_y = coverage.bounds.y + y;
       for (std::int32_t x = 0; x < coverage.bounds.width; ++x) {
         const auto document_x = coverage.bounds.x + x;
-        const auto position =
-            gradient_position(content.fill.gradient, gradient_bounds, document_x, document_y);
-        const auto color = gradient_color_dithered(content.fill.gradient, position, document_x, document_y);
-        const auto opacity = gradient_stop_opacity(content.fill.gradient, position);
+        const auto position = gradient_position(fill.gradient, gradient_bounds, document_x, document_y);
+        const auto color = gradient_color_dithered(fill.gradient, position, document_x, document_y);
+        const auto opacity = gradient_stop_opacity(fill.gradient, position);
         row[x * 4 + 0] = color.red;
         row[x * 4 + 1] = color.green;
         row[x * 4 + 2] = color.blue;
@@ -622,39 +1019,138 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
             std::clamp<long>(std::lround(static_cast<double>(cov_row[x]) * opacity), 0L, 255L));
       }
     }
-    return result;
+    return pixels;
   }
 
-  // Pattern fill.
-  const PatternResource* resource =
-      patterns != nullptr ? patterns->find(content.fill.pattern_id) : nullptr;
-  if (resource == nullptr || resource->tile.width() <= 0 || resource->tile.height() <= 0) {
-    // Missing tiles render transparent (the layer keeps its coverage bounds).
+  if (fill.kind == VectorFillKind::Pattern) {
+    const PatternResource* resource = patterns != nullptr ? patterns->find(fill.pattern_id) : nullptr;
+    if (resource == nullptr || resource->tile.width() <= 0 || resource->tile.height() <= 0) {
+      return pixels;  // transparent (missing tiles)
+    }
+    const Layer anchor_fallback;
+    const Layer& anchor_layer =
+        layer_for_pattern_anchor != nullptr ? *layer_for_pattern_anchor : anchor_fallback;
+    const PatternTileSampler sampler(resource->tile, anchor_layer, static_cast<float>(fill.pattern_scale),
+                                     static_cast<float>(fill.pattern_angle_degrees), fill.pattern_linked,
+                                     static_cast<float>(fill.pattern_phase_x),
+                                     static_cast<float>(fill.pattern_phase_y));
     for (std::int32_t y = 0; y < coverage.bounds.height; ++y) {
       auto* row = out + static_cast<std::size_t>(y) * out_stride;
-      std::memset(row, 0, static_cast<std::size_t>(coverage.bounds.width) * 4);
+      const auto* cov_row = cov + static_cast<std::size_t>(y) * cov_stride;
+      const auto document_y = coverage.bounds.y + y;
+      for (std::int32_t x = 0; x < coverage.bounds.width; ++x) {
+        const auto sample = sampler.sample(coverage.bounds.x + x, document_y);
+        row[x * 4 + 0] = sample.color.red;
+        row[x * 4 + 1] = sample.color.green;
+        row[x * 4 + 2] = sample.color.blue;
+        row[x * 4 + 3] = static_cast<std::uint8_t>(
+            std::clamp<long>(std::lround(static_cast<double>(cov_row[x]) * sample.alpha), 0L, 255L));
+      }
     }
+  }
+  return pixels;
+}
+
+Rect union_rects(Rect a, Rect b) noexcept {
+  if (a.empty()) {
+    return b;
+  }
+  if (b.empty()) {
+    return a;
+  }
+  const auto x0 = std::min(a.x, b.x);
+  const auto y0 = std::min(a.y, b.y);
+  const auto x1 = std::max(a.x + a.width, b.x + b.width);
+  const auto y1 = std::max(a.y + a.height, b.y + b.height);
+  return Rect{x0, y0, x1 - x0, y1 - y0};
+}
+
+}  // namespace
+
+ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect canvas,
+                                         const PatternStore* patterns,
+                                         const Layer* layer_for_pattern_anchor) {
+  ShapeRasterResult result;
+  VectorRasterOptions options;
+  options.clip = canvas;
+
+  const bool fill_on = content.stroke.fill_enabled && content.fill.kind != VectorFillKind::None;
+  CoverageBuffer fill_coverage;
+  if (fill_on) {
+    fill_coverage = rasterize_vector_path(content.path, options);
+  }
+  const bool stroke_on =
+      content.stroke.enabled && content.stroke.width > 0.0 && content.stroke.opacity > 0.0 &&
+      content.stroke.content.kind != VectorFillKind::None && !content.path.empty();
+  CoverageBuffer stroke_coverage;
+  if (stroke_on) {
+    stroke_coverage = rasterize_vector_stroke(content.path, content.stroke, options);
+  }
+
+  const Rect bounds = union_rects(fill_coverage.bounds, stroke_coverage.bounds);
+  if (bounds.empty()) {
     return result;
   }
-  const Layer anchor_fallback;
-  const Layer& anchor_layer = layer_for_pattern_anchor != nullptr ? *layer_for_pattern_anchor : anchor_fallback;
-  const PatternTileSampler sampler(resource->tile, anchor_layer,
-                                   static_cast<float>(content.fill.pattern_scale),
-                                   static_cast<float>(content.fill.pattern_angle_degrees),
-                                   content.fill.pattern_linked,
-                                   static_cast<float>(content.fill.pattern_phase_x),
-                                   static_cast<float>(content.fill.pattern_phase_y));
-  for (std::int32_t y = 0; y < coverage.bounds.height; ++y) {
-    auto* row = out + static_cast<std::size_t>(y) * out_stride;
-    const auto* cov_row = cov + static_cast<std::size_t>(y) * cov_stride;
-    const auto document_y = coverage.bounds.y + y;
-    for (std::int32_t x = 0; x < coverage.bounds.width; ++x) {
-      const auto sample = sampler.sample(coverage.bounds.x + x, document_y);
-      row[x * 4 + 0] = sample.color.red;
-      row[x * 4 + 1] = sample.color.green;
-      row[x * 4 + 2] = sample.color.blue;
-      row[x * 4 + 3] = static_cast<std::uint8_t>(std::clamp<long>(
-          std::lround(static_cast<double>(cov_row[x]) * sample.alpha), 0L, 255L));
+  result.bounds = bounds;
+  result.pixels = PixelBuffer(bounds.width, bounds.height, PixelFormat::rgba8());
+  auto* out = result.pixels.data().data();
+  const auto out_stride = result.pixels.stride_bytes();
+
+  if (!fill_coverage.bounds.empty()) {
+    const auto fill_pixels =
+        paint_coverage(fill_coverage, content.fill, canvas, patterns, layer_for_pattern_anchor);
+    const auto* src = fill_pixels.data().data();
+    const auto src_stride = fill_pixels.stride_bytes();
+    for (std::int32_t y = 0; y < fill_coverage.bounds.height; ++y) {
+      auto* row = out + static_cast<std::size_t>(fill_coverage.bounds.y - bounds.y + y) * out_stride +
+                  static_cast<std::size_t>(fill_coverage.bounds.x - bounds.x) * 4;
+      std::memcpy(row, src + static_cast<std::size_t>(y) * src_stride,
+                  static_cast<std::size_t>(fill_coverage.bounds.width) * 4);
+    }
+  }
+
+  if (!stroke_coverage.bounds.empty()) {
+    // The stroke paints over the fill within the same raster. Blend mode and
+    // opacity apply against the fill where it exists; Photoshop composites
+    // live shape strokes against the full backdrop, so non-Normal stroke
+    // modes against content BELOW the layer are approximated by this baked
+    // result.
+    const auto stroke_pixels =
+        paint_coverage(stroke_coverage, content.stroke.content, canvas, patterns, layer_for_pattern_anchor);
+    const auto* src = stroke_pixels.data().data();
+    const auto src_stride = stroke_pixels.stride_bytes();
+    for (std::int32_t y = 0; y < stroke_coverage.bounds.height; ++y) {
+      auto* row = out + static_cast<std::size_t>(stroke_coverage.bounds.y - bounds.y + y) * out_stride +
+                  static_cast<std::size_t>(stroke_coverage.bounds.x - bounds.x) * 4;
+      const auto* stroke_row = src + static_cast<std::size_t>(y) * src_stride;
+      for (std::int32_t x = 0; x < stroke_coverage.bounds.width; ++x) {
+        const double source_alpha =
+            (static_cast<double>(stroke_row[x * 4 + 3]) / 255.0) * content.stroke.opacity;
+        if (source_alpha <= 0.0) {
+          continue;
+        }
+        auto* dest = row + static_cast<std::size_t>(x) * 4;
+        const double dest_alpha = static_cast<double>(dest[3]) / 255.0;
+        std::array<std::uint8_t, 3> source_rgb{stroke_row[x * 4 + 0], stroke_row[x * 4 + 1],
+                                               stroke_row[x * 4 + 2]};
+        if (content.stroke.blend_mode != BlendMode::Normal && dest_alpha > 0.0) {
+          source_rgb = composite_blended_rgb(source_rgb, {dest[0], dest[1], dest[2]},
+                                             content.stroke.blend_mode, 1.0F,
+                                             static_cast<float>(dest_alpha));
+        }
+        const double out_alpha = source_alpha + dest_alpha * (1.0 - source_alpha);
+        if (out_alpha <= 0.0) {
+          dest[0] = dest[1] = dest[2] = dest[3] = 0;
+          continue;
+        }
+        for (int channel = 0; channel < 3; ++channel) {
+          const double blended = (source_rgb[static_cast<std::size_t>(channel)] * source_alpha +
+                                  dest[channel] * dest_alpha * (1.0 - source_alpha)) /
+                                 out_alpha;
+          dest[channel] = static_cast<std::uint8_t>(std::clamp<long>(std::lround(blended), 0L, 255L));
+        }
+        dest[3] = static_cast<std::uint8_t>(std::clamp<long>(std::lround(out_alpha * 255.0), 0L, 255L));
+      }
     }
   }
   return result;

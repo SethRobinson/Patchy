@@ -417,6 +417,240 @@ void raster_shape_paints_solid_gradient_pattern() {
   CHECK(patchy::rasterize_vector_shape(content, canvas, &store, nullptr).bounds.empty());
 }
 
+patchy::CoverageBuffer stroke_coverage(const VectorPath& path, const patchy::VectorStroke& stroke,
+                                       Rect clip) {
+  VectorRasterOptions options;
+  options.clip = clip;
+  return patchy::rasterize_vector_stroke(path, stroke, options);
+}
+
+PathSubpath open_line(double x0, double y0, double x1, double y1) {
+  PathSubpath subpath;
+  subpath.closed = false;
+  subpath.op = PathCombineOp::Add;
+  subpath.anchors = {corner(x0, y0), corner(x1, y1)};
+  return subpath;
+}
+
+void stroke_center_band_and_miter_corner() {
+  VectorPath path;
+  path.subpaths = {rect_subpath(8, 8, 24, 24, PathCombineOp::Add, 0)};
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 4.0;
+  const auto band = stroke_coverage(path, stroke, Rect{0, 0, 40, 40});
+  CHECK(coverage_pixel(band, 6, 16) == 255);   // outer half of the band
+  CHECK(coverage_pixel(band, 9, 16) == 255);   // inner half
+  CHECK(coverage_pixel(band, 5, 16) == 0);     // outside the band
+  CHECK(coverage_pixel(band, 10, 16) == 0);    // interior past the band
+  CHECK(coverage_pixel(band, 16, 16) == 0);    // shape interior
+  CHECK(coverage_pixel(band, 6, 6) == 255);    // miter fills the outer corner
+}
+
+void stroke_alignment_inside_outside() {
+  VectorPath path;
+  path.subpaths = {rect_subpath(8, 8, 24, 24, PathCombineOp::Add, 0)};
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 4.0;
+  stroke.alignment = patchy::VectorStrokeAlignment::Inside;
+  const auto inside = stroke_coverage(path, stroke, Rect{0, 0, 40, 40});
+  CHECK(coverage_pixel(inside, 9, 16) == 255);
+  CHECK(coverage_pixel(inside, 11, 16) == 255);
+  CHECK(coverage_pixel(inside, 7, 16) == 0);
+  CHECK(coverage_pixel(inside, 12, 16) == 0);
+
+  stroke.alignment = patchy::VectorStrokeAlignment::Outside;
+  const auto outside = stroke_coverage(path, stroke, Rect{0, 0, 40, 40});
+  CHECK(coverage_pixel(outside, 4, 16) == 255);
+  CHECK(coverage_pixel(outside, 7, 16) == 255);
+  CHECK(coverage_pixel(outside, 3, 16) == 0);
+  CHECK(coverage_pixel(outside, 8, 16) == 0);
+}
+
+void stroke_caps_butt_square_round() {
+  VectorPath path;
+  path.subpaths = {open_line(10, 10, 20, 10)};
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 4.0;
+
+  stroke.cap = patchy::VectorStrokeCap::Butt;
+  const auto butt = stroke_coverage(path, stroke, Rect{0, 0, 32, 32});
+  CHECK(coverage_pixel(butt, 10, 10) == 255);
+  CHECK(coverage_pixel(butt, 9, 10) == 0);
+
+  stroke.cap = patchy::VectorStrokeCap::Square;
+  const auto square = stroke_coverage(path, stroke, Rect{0, 0, 32, 32});
+  CHECK(coverage_pixel(square, 8, 10) == 255);
+  CHECK(coverage_pixel(square, 8, 8) == 255);  // square corner
+  CHECK(coverage_pixel(square, 7, 10) == 0);
+
+  stroke.cap = patchy::VectorStrokeCap::Round;
+  const auto round_cap = stroke_coverage(path, stroke, Rect{0, 0, 32, 32});
+  CHECK(coverage_pixel(round_cap, 8, 10) > 200);
+  // The r=2 arc clips the corner pixel partially (square fills it fully).
+  const auto round_corner = coverage_pixel(round_cap, 8, 8);
+  CHECK(round_corner > 0 && round_corner < 200);
+  CHECK(coverage_pixel(round_cap, 7, 10) == 0);
+  CHECK(coverage_pixel(round_cap, 7, 7) == 0);
+}
+
+void stroke_joins_miter_bevel_round() {
+  VectorPath path;
+  PathSubpath bend;
+  bend.closed = false;
+  bend.op = PathCombineOp::Add;
+  bend.anchors = {corner(10, 30), corner(10, 10), corner(30, 10)};
+  path.subpaths = {bend};
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 6.0;
+
+  stroke.join = patchy::VectorStrokeJoin::Miter;
+  const auto miter = stroke_coverage(path, stroke, Rect{0, 0, 40, 40});
+  CHECK(coverage_pixel(miter, 7, 7) == 255);  // outer corner filled
+
+  stroke.join = patchy::VectorStrokeJoin::Bevel;
+  const auto bevel = stroke_coverage(path, stroke, Rect{0, 0, 40, 40});
+  CHECK(coverage_pixel(bevel, 7, 7) < 40);  // corner cut by the bevel edge
+  CHECK(coverage_pixel(bevel, 7, 12) == 255);
+
+  stroke.join = patchy::VectorStrokeJoin::Round;
+  const auto round_join = stroke_coverage(path, stroke, Rect{0, 0, 40, 40});
+  const auto round_corner = coverage_pixel(round_join, 7, 7);
+  CHECK(round_corner > 0 && round_corner < 200);  // r=3 arc clips the corner
+  CHECK(coverage_pixel(round_join, 6, 6) == 0);
+  CHECK(coverage_pixel(round_join, 8, 8) > 200);
+
+  // Miter limit 1.0 forces the bevel fallback at a right angle (ratio ~1.41).
+  stroke.join = patchy::VectorStrokeJoin::Miter;
+  stroke.miter_limit = 1.0;
+  const auto limited = stroke_coverage(path, stroke, Rect{0, 0, 40, 40});
+  CHECK(coverage_pixel(limited, 7, 7) < 40);
+}
+
+void stroke_dashes_and_offset() {
+  VectorPath path;
+  path.subpaths = {open_line(10, 10, 26, 10)};
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 2.0;
+  stroke.dashes = {2.0, 1.0};  // 4 px on, 2 px off
+  const auto dashed = stroke_coverage(path, stroke, Rect{0, 0, 40, 40});
+  CHECK(coverage_pixel(dashed, 12, 10) == 255);
+  CHECK(coverage_pixel(dashed, 15, 10) == 0);
+  CHECK(coverage_pixel(dashed, 17, 10) == 255);
+
+  stroke.dash_offset = 1.0;  // 2 px into the pattern
+  const auto shifted = stroke_coverage(path, stroke, Rect{0, 0, 40, 40});
+  CHECK(coverage_pixel(shifted, 11, 10) == 255);
+  CHECK(coverage_pixel(shifted, 13, 10) == 0);
+  CHECK(coverage_pixel(shifted, 16, 10) == 255);
+}
+
+void stroke_golden_digests_are_stable() {
+  struct Golden {
+    const char* name;
+    VectorPath path;
+    patchy::VectorStroke stroke;
+  };
+  std::vector<Golden> goldens;
+  {
+    VectorPath rect;
+    rect.subpaths = {rect_subpath(6.4, 8.7, 41.9, 30.2, PathCombineOp::Add, 0)};
+    patchy::VectorStroke stroke;
+    stroke.enabled = true;
+    stroke.width = 5.0;
+    goldens.push_back({"rect-miter", rect, stroke});
+  }
+  {
+    VectorPath diagonal;
+    diagonal.subpaths = {open_line(4.2, 40.6, 44.8, 6.3)};
+    patchy::VectorStroke stroke;
+    stroke.enabled = true;
+    stroke.width = 4.0;
+    stroke.cap = patchy::VectorStrokeCap::Round;
+    stroke.join = patchy::VectorStrokeJoin::Round;
+    stroke.dashes = {2.0, 1.5};
+    stroke.dash_offset = 0.5;
+    goldens.push_back({"dashed-round", diagonal, stroke});
+  }
+  {
+    VectorPath triangle;
+    PathSubpath tri;
+    tri.closed = true;
+    tri.op = PathCombineOp::Add;
+    tri.anchors = {corner(24.3, 6.8), corner(44.1, 40.5), corner(5.7, 40.5)};
+    triangle.subpaths = {tri};
+    patchy::VectorStroke stroke;
+    stroke.enabled = true;
+    stroke.width = 4.0;
+    stroke.join = patchy::VectorStrokeJoin::Bevel;
+    stroke.alignment = patchy::VectorStrokeAlignment::Outside;
+    goldens.push_back({"triangle-bevel-outside", triangle, stroke});
+  }
+  const std::array<std::uint64_t, 3> expected = {
+      0xc4f59f165c24660dULL,
+      0x1b622f58b0b6eddfULL,
+      0x13f6f65e8fea07c8ULL,
+  };
+  bool all_match = true;
+  for (std::size_t i = 0; i < goldens.size(); ++i) {
+    const auto band = stroke_coverage(goldens[i].path, goldens[i].stroke, Rect{0, 0, 48, 48});
+    CHECK(!band.bounds.empty());
+    const auto hash = fnv1a_hash_bytes(band.pixels.data());
+    if (hash != expected[i]) {
+      std::fprintf(stderr, "stroke golden[%zu] %s: 0x%016llxULL (bounds %d,%d %dx%d)\n", i,
+                   goldens[i].name, static_cast<unsigned long long>(hash), band.bounds.x, band.bounds.y,
+                   band.bounds.width, band.bounds.height);
+      all_match = false;
+    }
+  }
+  CHECK(all_match);
+}
+
+void stroke_shape_composites_fill_and_stroke() {
+  const Rect canvas{0, 0, 40, 40};
+  patchy::VectorShapeContent content;
+  content.path.subpaths = {rect_subpath(10, 10, 26, 26, PathCombineOp::Add, 0)};
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = patchy::RgbColor{200, 30, 30};
+  content.stroke.enabled = true;
+  content.stroke.width = 4.0;
+  content.stroke.content.kind = patchy::VectorFillKind::Solid;
+  content.stroke.content.color = patchy::RgbColor{20, 40, 220};
+
+  const auto composed = patchy::rasterize_vector_shape(content, canvas, nullptr, nullptr);
+  CHECK(!composed.bounds.empty());
+  const auto pixel_at = [&](std::int32_t x, std::int32_t y) {
+    return composed.pixels.pixel(x - composed.bounds.x, y - composed.bounds.y);
+  };
+  const auto* interior = pixel_at(18, 18);
+  CHECK(interior[0] == 200 && interior[3] == 255);
+  const auto* band = pixel_at(9, 18);
+  CHECK(band[2] == 220 && band[3] == 255);
+  const auto* inner_band = pixel_at(11, 18);  // stroke covers the fill here
+  CHECK(inner_band[2] == 220 && inner_band[0] == 20);
+
+  // Stroke-only (fillEnabled false): interior transparent, band painted.
+  content.stroke.fill_enabled = false;
+  const auto stroke_only = patchy::rasterize_vector_shape(content, canvas, nullptr, nullptr);
+  const auto* hollow = stroke_only.pixels.pixel(18 - stroke_only.bounds.x, 18 - stroke_only.bounds.y);
+  CHECK(hollow[3] == 0);
+  const auto* ring = stroke_only.pixels.pixel(9 - stroke_only.bounds.x, 18 - stroke_only.bounds.y);
+  CHECK(ring[2] == 220 && ring[3] == 255);
+
+  // 50% stroke opacity blends over the fill's inner half.
+  content.stroke.fill_enabled = true;
+  content.stroke.opacity = 0.5;
+  const auto faded = patchy::rasterize_vector_shape(content, canvas, nullptr, nullptr);
+  const auto* mixed = faded.pixels.pixel(11 - faded.bounds.x, 18 - faded.bounds.y);
+  CHECK(mixed[3] == 255);
+  CHECK(mixed[0] > 90 && mixed[0] < 130);   // red shows through
+  CHECK(mixed[2] > 100 && mixed[2] < 140);  // half the stroke blue
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_raster_tests() {
@@ -432,5 +666,12 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"raster_mask_inverted_coverage", raster_mask_inverted_coverage},
       {"raster_golden_digests_are_stable", raster_golden_digests_are_stable},
       {"raster_shape_paints_solid_gradient_pattern", raster_shape_paints_solid_gradient_pattern},
+      {"stroke_center_band_and_miter_corner", stroke_center_band_and_miter_corner},
+      {"stroke_alignment_inside_outside", stroke_alignment_inside_outside},
+      {"stroke_caps_butt_square_round", stroke_caps_butt_square_round},
+      {"stroke_joins_miter_bevel_round", stroke_joins_miter_bevel_round},
+      {"stroke_dashes_and_offset", stroke_dashes_and_offset},
+      {"stroke_golden_digests_are_stable", stroke_golden_digests_are_stable},
+      {"stroke_shape_composites_fill_and_stroke", stroke_shape_composites_fill_and_stroke},
   };
 }
