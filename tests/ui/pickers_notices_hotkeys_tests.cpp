@@ -642,16 +642,24 @@ void ui_compatibility_report_pins_native_vs_private_adjustment_kinds() {
     return patchy::ui::compatibility_warnings_for_document(document);
   };
 
-  // Every kind with a native Photoshop block export stays warning-free.
+  // Every modeled kind writes a native Photoshop block and stays warning-free
+  // (Color Balance included since the July 2026 blnc migration).
   for (const auto kind :
        {patchy::AdjustmentKind::Levels, patchy::AdjustmentKind::Curves, patchy::AdjustmentKind::HueSaturation,
-        patchy::AdjustmentKind::Invert, patchy::AdjustmentKind::Posterize, patchy::AdjustmentKind::Threshold,
-        patchy::AdjustmentKind::BrightnessContrast}) {
+        patchy::AdjustmentKind::ColorBalance, patchy::AdjustmentKind::Invert, patchy::AdjustmentKind::Posterize,
+        patchy::AdjustmentKind::Threshold, patchy::AdjustmentKind::BrightnessContrast}) {
     CHECK(adjustment_warnings(kind).isEmpty());
   }
-  // Color Balance still rides only the private plAD block and must warn.
-  const auto color_balance_text = adjustment_warnings(patchy::AdjustmentKind::ColorBalance).join(QLatin1Char('\n'));
-  CHECK(color_balance_text.contains(QStringLiteral("Patchy-native adjustment layer")));
+
+  // An adjustment layer whose settings cannot be parsed still warns.
+  patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(120, 90, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+  patchy::Layer opaque(document.allocate_layer_id(), "Mystery", patchy::LayerKind::Adjustment);
+  opaque.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  document.add_layer(std::move(opaque));
+  const auto opaque_text = patchy::ui::compatibility_warnings_for_document(document).join(QLatin1Char('\n'));
+  CHECK(opaque_text.contains(QStringLiteral("Patchy-native adjustment layer")));
 }
 
 void ui_compatibility_report_flags_cmyk_rgb_conversion() {

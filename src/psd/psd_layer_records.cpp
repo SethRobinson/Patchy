@@ -138,7 +138,7 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
   }
   if (encoded.kind == EncodedLayerKind::Adjustment &&
       (block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
-       block.key == "post" || block.key == "thrs" || block.key == "brit")) {
+       block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc")) {
     return true;
   }
   // A Brightness/Contrast edit regenerates legacy-only 'brit'; the preserved
@@ -620,14 +620,20 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
           photoshop_brightness_contrast_payload(settings->brightness_contrast, *encoded.layer),
           large_document);
     }
+    if (settings.has_value() && settings->kind == AdjustmentKind::ColorBalance) {
+      write_additional_layer_block(
+          extra, kPhotoshopColorBalanceBlockKey,
+          photoshop_color_balance_payload(settings->color_balance, find_layer_block(*encoded.layer, "blnc")),
+          large_document);
+    }
     // Native Curves carries the complete Patchy point model. Writing plAD next
     // to curv makes Photoshop report "unknown data" on every open, even though
-    // it recognizes the native adjustment. Legacy plAD remains readable and is
-    // migrated to curv on save; malformed native layers stay opaque above and
-    // therefore retain both raw blocks. Kinds newer than plAD v4 (Invert, ...)
-    // are native-block only: old builds would misread their kind byte as Levels.
-    if (!settings.has_value() ||
-        (settings->kind != AdjustmentKind::Curves && patchy_plad_supports_kind(settings->kind))) {
+    // it recognizes the native adjustment; a plAD-only Color Balance opened in
+    // Photoshop as an opaque white NORMAL raster (no native block at all).
+    // Both migrated to native-only writes; legacy plAD remains readable.
+    // Kinds newer than plAD v4 (Invert, ...) are native-block only: old builds
+    // would misread their kind byte as Levels.
+    if (!settings.has_value() || patchy_plad_supports_kind(settings->kind)) {
       const auto payload = patchy_adjustment_payload(*encoded.layer);
       if (!payload.empty()) {
         write_additional_layer_block(extra, kPatchyAdjustmentBlockKey, payload, large_document);

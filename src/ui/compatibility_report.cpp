@@ -139,14 +139,10 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
   }
   if (layer.kind() == LayerKind::Adjustment) {
     const auto settings = adjustment_settings_from_layer(layer);
-    // Levels, Curves, Hue/Saturation, Invert, Posterize, Threshold, and
-    // Brightness/Contrast write native Photoshop blocks (levl / curv / hue2 /
-    // nvrt / post / thrs / brit); Color Balance is still Patchy-private plAD.
-    if (!settings.has_value() ||
-        (settings->kind != AdjustmentKind::Levels && settings->kind != AdjustmentKind::Curves &&
-         settings->kind != AdjustmentKind::HueSaturation && settings->kind != AdjustmentKind::Invert &&
-         settings->kind != AdjustmentKind::Posterize && settings->kind != AdjustmentKind::Threshold &&
-         settings->kind != AdjustmentKind::BrightnessContrast)) {
+    // Every modeled adjustment kind writes a native Photoshop block (levl /
+    // curv / hue2 / blnc / nvrt / post / thrs / brit); only an adjustment
+    // layer whose settings cannot be parsed stays Patchy-opaque.
+    if (!settings.has_value()) {
       warnings << QObject::tr("%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may "
                               "appear as an unsupported adjustment in other editors.")
                        .arg(QString::fromStdString(layer.name()));

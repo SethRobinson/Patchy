@@ -2058,6 +2058,159 @@ void psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve() {
   CHECK(edited_restored->brightness_contrast.contrast == 60);
 }
 
+void psd_color_balance_writes_native_blnc_only_and_round_trips() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 100, 100));
+
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::ColorBalance;
+  settings.color_balance = patchy::ColorBalanceAdjustment{45, -25, 35};
+  patchy::Layer adjustment(document.allocate_layer_id(), "Color Balance", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(adjustment, settings);
+  document.add_layer(std::move(adjustment));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto extra = psd_layer_extra_data(bytes, 1);
+  const auto blnc = psd_layer_block_payload(extra, "blnc");
+  CHECK(blnc.has_value());
+  CHECK(blnc->size() == 20);
+  // PS 2026's midtones-only shape: zero shadows, the model triple as
+  // midtones, zero highlights, preserve luminosity off.
+  const std::array<std::uint8_t, 20> expected{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2D, 0xFF, 0xE7,
+                                              0x00, 0x23, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  CHECK(std::equal(blnc->begin(), blnc->end(), expected.begin()));
+  // A plAD-only Color Balance opened in Photoshop as an opaque white NORMAL
+  // raster layer; the private block is gone for good.
+  CHECK(!psd_layer_block_payload(extra, "plAD").has_value());
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  const auto restored = patchy::adjustment_settings_from_layer(read.layers()[1]);
+  CHECK(restored.has_value());
+  CHECK(restored->kind == patchy::AdjustmentKind::ColorBalance);
+  CHECK(restored->color_balance.cyan_red == 45);
+  CHECK(restored->color_balance.magenta_green == -25);
+  CHECK(restored->color_balance.yellow_blue == 35);
+}
+
+void psd_legacy_plad_color_balance_migrates_to_native_blnc() {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_bytes(std::array<std::uint8_t, 4>{'P', 'L', 'A', 'D'});
+  writer.write_u16(4);
+  writer.write_u8(3);  // Color Balance.
+  const auto write_i32 = [&writer](int value) { writer.write_u32(static_cast<std::uint32_t>(value)); };
+  for (int channel = 0; channel < 4; ++channel) {
+    write_i32(0);
+    write_i32(255);
+    write_i32(100);
+    write_i32(0);
+    write_i32(255);
+  }
+  write_i32(0);    // Levels channel.
+  write_i32(0);    // Curve shadow output.
+  write_i32(128);  // Curve midtone output.
+  write_i32(255);  // Curve highlight output.
+  write_i32(0);    // Hue shift.
+  write_i32(0);    // Saturation delta.
+  write_i32(0);    // Lightness delta.
+  write_i32(50);   // Cyan/red.
+  write_i32(-10);  // Magenta/green.
+  write_i32(20);   // Yellow/blue.
+  write_i32(0);    // Colorize disabled.
+  write_i32(0);
+  write_i32(25);
+  write_i32(0);
+
+  const auto bytes = single_adjustment_layer_psd({{{'p', 'l', 'A', 'D'}, writer.bytes()}});
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  CHECK(document.layers().size() == 1);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::ColorBalance);
+  CHECK(settings->color_balance.cyan_red == 50);
+
+  const auto migrated = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto migrated_extra = psd_layer_extra_data(migrated, 0);
+  CHECK(!psd_layer_block_payload(migrated_extra, "plAD").has_value());
+  const auto blnc = psd_layer_block_payload(migrated_extra, "blnc");
+  CHECK(blnc.has_value());
+  const auto migrated_settings =
+      patchy::adjustment_settings_from_layer(patchy::psd::DocumentIo::read(migrated).layers().front());
+  CHECK(migrated_settings.has_value());
+  CHECK(migrated_settings->kind == patchy::AdjustmentKind::ColorBalance);
+  CHECK(migrated_settings->color_balance.cyan_red == 50);
+  CHECK(migrated_settings->color_balance.magenta_green == -10);
+  CHECK(migrated_settings->color_balance.yellow_blue == 20);
+}
+
+void psd_photoshop_color_balance_fixtures_import_patch_and_preserve() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-color-balance.psd");
+  CHECK(std::filesystem::exists(path));
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
+  const auto document = patchy::psd::DocumentIo::read_file(path, options);
+  const auto* layer = find_layer_named(document.layers(), "Color Balance 1");
+  CHECK(layer != nullptr);
+  const auto settings = patchy::adjustment_settings_from_layer(*layer);
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::ColorBalance);
+  CHECK(settings->color_balance.cyan_red == 45);
+  CHECK(settings->color_balance.magenta_green == -25);
+  CHECK(settings->color_balance.yellow_blue == 35);
+  // Midtones-only with preserve luminosity off: nothing unrendered.
+  CHECK(std::none_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("does not render") != std::string::npos;
+  }));
+  // Unedited resave is byte-identical (patching identical midtones is a no-op).
+  const auto resaved = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 1), "blnc");
+  CHECK(resaved.has_value());
+  const std::array<std::uint8_t, 20> expected{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2D, 0xFF, 0xE7,
+                                              0x00, 0x23, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  CHECK(resaved->size() == 20);
+  CHECK(std::equal(resaved->begin(), resaved->end(), expected.begin()));
+
+  // The full fixture carries shadows/highlights and preserve luminosity:
+  // modeled midtones import, the rest is preserved and reported.
+  const auto full_path = patchy::test::committed_psd_fixture_path("photoshop-color-balance-full.psd");
+  CHECK(std::filesystem::exists(full_path));
+  std::vector<std::string> full_notices;
+  patchy::psd::ReadOptions full_options;
+  full_options.notices = &full_notices;
+  auto full_document = patchy::psd::DocumentIo::read_file(full_path, full_options);
+  const auto* full_layer = find_layer_named(full_document.layers(), "Color Balance 1");
+  CHECK(full_layer != nullptr);
+  const auto full_settings = patchy::adjustment_settings_from_layer(*full_layer);
+  CHECK(full_settings.has_value());
+  CHECK(full_settings->color_balance.cyan_red == 45);
+  CHECK(std::any_of(full_notices.begin(), full_notices.end(), [](const std::string& notice) {
+    return notice.find("does not render") != std::string::npos;
+  }));
+  const auto full_original{psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(full_document), 1), "blnc")};
+  CHECK(full_original.has_value());
+  const std::array<std::uint8_t, 20> full_expected{0xFF, 0xF6, 0x00, 0x05, 0x00, 0x0F, 0x00, 0x2D, 0xFF, 0xE7,
+                                                   0x00, 0x23, 0xFF, 0xE2, 0x00, 0x14, 0xFF, 0xFB, 0x01, 0x00};
+  CHECK(full_original->size() == 20);
+  CHECK(std::equal(full_original->begin(), full_original->end(), full_expected.begin()));
+
+  // A midtones edit patches in place: shadows, highlights, and the preserve
+  // luminosity byte keep their imported values.
+  auto* editable = full_document.find_layer(full_layer->id());
+  CHECK(editable != nullptr);
+  auto edited_settings = *full_settings;
+  edited_settings.color_balance = patchy::ColorBalanceAdjustment{-60, 15, 0};
+  patchy::configure_adjustment_layer(*editable, edited_settings);
+  const auto edited = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(full_document), 1), "blnc");
+  CHECK(edited.has_value());
+  const std::array<std::uint8_t, 20> edited_expected{0xFF, 0xF6, 0x00, 0x05, 0x00, 0x0F, 0xFF, 0xC4, 0x00, 0x0F,
+                                                     0x00, 0x00, 0xFF, 0xE2, 0x00, 0x14, 0xFF, 0xFB, 0x01, 0x00};
+  CHECK(edited->size() == 20);
+  CHECK(std::equal(edited->begin(), edited->end(), edited_expected.begin()));
+}
+
 void psd_native_nvrt_adjustment_imports_and_renders() {
   const auto bytes = single_adjustment_layer_psd({{{'n', 'v', 'r', 't'}, {}}});
   const auto document = patchy::psd::DocumentIo::read(bytes);
@@ -2148,5 +2301,11 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        psd_brightness_contrast_writes_native_brit_only_and_round_trips},
       {"psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve",
        psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve},
+      {"psd_color_balance_writes_native_blnc_only_and_round_trips",
+       psd_color_balance_writes_native_blnc_only_and_round_trips},
+      {"psd_legacy_plad_color_balance_migrates_to_native_blnc",
+       psd_legacy_plad_color_balance_migrates_to_native_blnc},
+      {"psd_photoshop_color_balance_fixtures_import_patch_and_preserve",
+       psd_photoshop_color_balance_fixtures_import_patch_and_preserve},
   };
 }

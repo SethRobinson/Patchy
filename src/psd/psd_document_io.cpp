@@ -369,6 +369,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
                                std::vector<std::string>* notices) {
   has_merged_transparency = false;
   int modern_brightness_contrast_count = 0;
+  int unrendered_color_balance_count = 0;
   const auto layer_info_length = large_document
                                      ? read_section_length_u64(layer_reader, "layer info")
                                      : static_cast<std::uint64_t>(read_section_length(layer_reader, "layer info"));
@@ -529,6 +530,13 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       } else if (block.key == "thrs") {
         if (auto parsed = parse_photoshop_threshold_adjustment(block.payload); parsed.has_value()) {
           native_adjustment_settings = parsed;
+        }
+      } else if (block.key == "blnc") {
+        if (auto parsed = parse_photoshop_color_balance_adjustment(block.payload); parsed.has_value()) {
+          native_adjustment_settings = parsed;
+          if (photoshop_color_balance_payload_has_unrendered_data(block.payload)) {
+            ++unrendered_color_balance_count;
+          }
         }
       } else if (block.key == "brit") {
         brit_adjustment_settings = parse_photoshop_brightness_contrast_adjustment(block.payload);
@@ -705,6 +713,12 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
                        (modern_brightness_contrast_count == 1 ? "" : "s") +
                        " use" + (modern_brightness_contrast_count == 1 ? "s" : "") +
                        " Photoshop's modern algorithm; Patchy renders and edits with legacy semantics.");
+  }
+  if (unrendered_color_balance_count > 0 && notices != nullptr) {
+    notices->push_back(std::to_string(unrendered_color_balance_count) + " Color Balance layer" +
+                       (unrendered_color_balance_count == 1 ? " carries" : "s carry") +
+                       " shadow/highlight or preserve-luminosity settings that Patchy preserves but does "
+                       "not render.");
   }
   return build_group_hierarchy(std::move(decoded_layers));
 }

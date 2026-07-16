@@ -94,6 +94,10 @@ constexpr std::array<char, 4> kPhotoshopThresholdBlockKey{'t', 'h', 'r', 's'};
 // useLegacy, Auto=false). A parseable CgEd is authoritative over brit.
 constexpr std::array<char, 4> kPhotoshopBrightnessContrastBlockKey{'b', 'r', 'i', 't'};
 constexpr std::array<char, 4> kPhotoshopBrightnessContrastDescriptorBlockKey{'C', 'g', 'E', 'd'};
+// Color Balance: 20 bytes (PS 2026 capture) - shadows i16 x3, midtones i16 x3,
+// highlights i16 x3 (cyan/red, magenta/green, yellow/blue each), preserve
+// luminosity u8, pad u8. Patchy models the midtones triple only.
+constexpr std::array<char, 4> kPhotoshopColorBalanceBlockKey{'b', 'l', 'n', 'c'};
 // version u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3.
 constexpr std::size_t kPhotoshopHueSaturationHeaderSize = 16;
 constexpr int kMaxTextSizePixels = 8192;
@@ -428,6 +432,16 @@ std::vector<std::uint8_t> photoshop_brightness_contrast_payload(const Brightness
 // True when a Brightness/Contrast edit must drop the preserved 'CgEd' block
 // (a stale descriptor would win over the regenerated 'brit' in Photoshop).
 [[nodiscard]] bool brightness_contrast_descriptor_is_stale(const Layer& layer);
+std::optional<AdjustmentSettings> parse_photoshop_color_balance_adjustment(
+    std::span<const std::uint8_t> payload);
+// Patch-in-place: only the midtones bytes are rewritten from the model; the
+// imported shadows/highlights values and the preserve-luminosity byte keep
+// their original bytes (Patchy preserves but does not render them).
+std::vector<std::uint8_t> photoshop_color_balance_payload(const ColorBalanceAdjustment& settings,
+                                                          const UnknownPsdBlock* original);
+// True when the payload carries settings Patchy preserves but does not render
+// (nonzero shadows/highlights or preserve luminosity) - drives the import notice.
+[[nodiscard]] bool photoshop_color_balance_payload_has_unrendered_data(std::span<const std::uint8_t> payload);
 std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer);
 std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::uint8_t> payload);
 // plAD's kind byte only encodes the original v4 kinds; old builds read unknown

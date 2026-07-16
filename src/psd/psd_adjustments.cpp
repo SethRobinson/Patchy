@@ -507,15 +507,69 @@ std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::u
 bool patchy_plad_supports_kind(AdjustmentKind kind) {
   switch (kind) {
     case AdjustmentKind::Levels:
-    case AdjustmentKind::Curves:
     case AdjustmentKind::HueSaturation:
-    case AdjustmentKind::ColorBalance:
       return true;
+    case AdjustmentKind::Curves:
+    case AdjustmentKind::ColorBalance:
+      // Both migrated to native-only writes (Curves 2026-07 for the
+      // Photoshop unknown-data warning; Color Balance 2026-07 because a
+      // plAD-only layer opened in Photoshop as an opaque white NORMAL raster).
+      // plAD kind bytes 1 and 3 are still READ for legacy imports.
+      return false;
     case AdjustmentKind::Invert:
     case AdjustmentKind::Posterize:
     case AdjustmentKind::Threshold:
     case AdjustmentKind::BrightnessContrast:
       return false;
+  }
+  return false;
+}
+
+std::optional<AdjustmentSettings> parse_photoshop_color_balance_adjustment(
+    std::span<const std::uint8_t> payload) {
+  if (payload.size() < 12) {
+    return std::nullopt;
+  }
+  BigEndianReader reader(payload);
+  reader.skip(6);  // shadows: preserved via patch-in-place, not modeled
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::ColorBalance;
+  settings.color_balance.cyan_red =
+      std::clamp(static_cast<int>(static_cast<std::int16_t>(reader.read_u16())), -100, 100);
+  settings.color_balance.magenta_green =
+      std::clamp(static_cast<int>(static_cast<std::int16_t>(reader.read_u16())), -100, 100);
+  settings.color_balance.yellow_blue =
+      std::clamp(static_cast<int>(static_cast<std::int16_t>(reader.read_u16())), -100, 100);
+  return settings;
+}
+
+std::vector<std::uint8_t> photoshop_color_balance_payload(const ColorBalanceAdjustment& settings,
+                                                          const UnknownPsdBlock* original) {
+  std::vector<std::uint8_t> payload;
+  if (original != nullptr && original->payload.size() >= 12) {
+    payload = original->payload;  // keep shadows/highlights/preserve-luminosity bytes
+  } else {
+    payload.assign(20, 0);  // PS 2026's fresh midtones-only shape
+  }
+  const auto write_i16_at = [&payload](std::size_t offset, int value) {
+    const auto encoded = static_cast<std::uint16_t>(static_cast<std::int16_t>(std::clamp(value, -100, 100)));
+    payload[offset] = static_cast<std::uint8_t>(encoded >> 8U);
+    payload[offset + 1] = static_cast<std::uint8_t>(encoded & 0xFFU);
+  };
+  write_i16_at(6, settings.cyan_red);
+  write_i16_at(8, settings.magenta_green);
+  write_i16_at(10, settings.yellow_blue);
+  return payload;
+}
+
+bool photoshop_color_balance_payload_has_unrendered_data(std::span<const std::uint8_t> payload) {
+  for (std::size_t index = 0; index < payload.size(); ++index) {
+    const auto in_shadows = index < 6;
+    const auto in_highlights = index >= 12 && index < 18;
+    const auto is_preserve_luminosity = index == 18;
+    if ((in_shadows || in_highlights || is_preserve_luminosity) && payload[index] != 0) {
+      return true;
+    }
   }
   return false;
 }
