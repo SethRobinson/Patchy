@@ -1,8 +1,8 @@
 #pragma once
 
 #include "core/pattern_resource.hpp"
+#include "ui/preset_library.hpp"
 
-#include <QObject>
 #include <QPixmap>
 #include <QSize>
 #include <QString>
@@ -32,22 +32,29 @@ struct PatternLibraryEntry {
   QPixmap thumbnail;
 };
 
+struct PatternLibraryTraits {
+  using Entry = PatternLibraryEntry;
+  static constexpr const char* kSubdir = "patterns";
+  static constexpr bool kHasFolders = true;
+  static constexpr bool kUngroupedSortsFirst = true;
+  [[nodiscard]] static const QString& id(const Entry& entry) { return entry.storage_id; }
+};
+
+using PatternLibraryBase = PresetLibraryT<PatternLibraryTraits>;
+
 // Persistent application-wide pattern collection. Each entry is one lossless
 // RGBA PNG plus a JSON sidecar {"id", "sourceId" (when remapped), "name",
 // "folder"} in
 // <settings dir>/patterns. The storage UUID is deliberately separate from the
 // Photoshop id: imported ids can contain path-unsafe text and must remain stable
 // so importing the matching .pat can resolve an existing PSD reference.
-class PatternLibrary : public QObject {
+class PatternLibrary : public PatternLibraryBase {
   Q_OBJECT
 
 public:
   // storage_dir is overridable for tests; empty = <settings dir>/patterns.
   explicit PatternLibrary(QString storage_dir = {}, QObject* parent = nullptr);
 
-  [[nodiscard]] const QString& storage_dir() const noexcept;
-  [[nodiscard]] const std::vector<PatternLibraryEntry>& entries() const noexcept;
-  [[nodiscard]] const PatternLibraryEntry* find_entry(const QString& storage_id) const;
   [[nodiscard]] const PatternLibraryEntry* find_entry_by_pattern_id(const QString& id) const;
 
   // Loads a full-resolution RGBA tile by its Photoshop id. PixelBuffer is
@@ -114,29 +121,19 @@ public:
   // Pair with restore_default_patterns() for the manager's factory-restore action.
   int reset_default_patterns_to_factory();
 
-  // Folder names in display order; ungrouped patterns are not a folder.
-  [[nodiscard]] QStringList folders() const;
-
-signals:
-  void changed();
-
 private:
   void reload();
-  void sort_entries();
   QString add_pattern_internal(const QString& name, const PixelBuffer& tile,
                                const QString& folder, const QString& pattern_id,
                                const QString& source_id = {});
-  bool remove_pattern_internal(const QString& storage_id);
+  bool remove_entry_files(const QString& storage_id);
   [[nodiscard]] QString png_path(const QString& storage_id) const;
-  [[nodiscard]] QString json_path(const QString& storage_id) const;
   bool write_sidecar(const PatternLibraryEntry& entry) const;
   [[nodiscard]] std::optional<PixelBuffer> tile_for_entry(
       const PatternLibraryEntry& entry) const;
   void invalidate_cached_tile(const QString& storage_id) const;
   void cache_tile(const QString& storage_id, PixelBuffer tile) const;
 
-  QString storage_dir_;
-  std::vector<PatternLibraryEntry> entries_;
   mutable std::vector<std::pair<QString, PixelBuffer>> tile_cache_;
 };
 

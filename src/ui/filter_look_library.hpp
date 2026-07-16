@@ -1,8 +1,8 @@
 #pragma once
 
 #include "filters/filter_registry.hpp"
+#include "ui/preset_library.hpp"
 
-#include <QObject>
 #include <QString>
 
 #include <cstdint>
@@ -32,19 +32,25 @@ struct FilterLookLibraryEntry {
   FilterRecipe recipe;
 };
 
+struct FilterLookLibraryTraits {
+  using Entry = FilterLookLibraryEntry;
+  static constexpr const char* kSubdir = "looks";
+  static constexpr bool kHasFolders = false;
+  static constexpr bool kUngroupedSortsFirst = false;
+  [[nodiscard]] static const QString& id(const Entry& entry) { return entry.id; }
+};
+
+using FilterLookLibraryBase = PresetLibraryT<FilterLookLibraryTraits>;
+
 // Persistent application-wide user Looks. Each Look is one bounded,
 // self-contained version-1 JSON record in <settings directory>/looks. Records
 // are independent so one malformed file cannot hide or damage its neighbors.
 // The storage directory is injectable for tests.
-class FilterLookLibrary : public QObject {
+class FilterLookLibrary : public FilterLookLibraryBase {
   Q_OBJECT
 
 public:
   explicit FilterLookLibrary(QString storage_dir = {}, QObject* parent = nullptr);
-
-  [[nodiscard]] const QString& storage_dir() const noexcept;
-  [[nodiscard]] const std::vector<FilterLookLibraryEntry>& entries() const noexcept;
-  [[nodiscard]] const FilterLookLibraryEntry* find_entry(const QString& id) const;
 
   // add_look always creates a new stable UUID. Rename and remove never change
   // or reuse it. In-memory state changes only after the disk operation succeeds.
@@ -54,17 +60,9 @@ public:
                    FilterLookLibraryError* error = nullptr);
   bool remove_look(const QString& id, FilterLookLibraryError* error = nullptr);
 
-signals:
-  void changed();
-
 private:
   void reload();
-  void sort_entries();
   [[nodiscard]] bool write_entry(const FilterLookLibraryEntry& entry) const;
-  [[nodiscard]] QString json_path(const QString& id) const;
-
-  QString storage_dir_;
-  std::vector<FilterLookLibraryEntry> entries_;
 };
 
 }  // namespace patchy::ui

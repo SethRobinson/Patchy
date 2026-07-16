@@ -3,8 +3,8 @@
 #include "core/layer.hpp"
 #include "core/pattern_resource.hpp"
 #include "psd/asl_io.hpp"
+#include "ui/preset_library.hpp"
 
-#include <QObject>
 #include <QPixmap>
 #include <QString>
 #include <QStringList>
@@ -37,6 +37,16 @@ struct StyleLibraryEntry {
 
 inline constexpr int kStyleThumbnailExtent = 96;
 
+struct StyleLibraryTraits {
+  using Entry = StyleLibraryEntry;
+  static constexpr const char* kSubdir = "styles";
+  static constexpr bool kHasFolders = true;
+  static constexpr bool kUngroupedSortsFirst = true;
+  [[nodiscard]] static const QString& id(const Entry& entry) { return entry.storage_id; }
+};
+
+using StyleLibraryBase = PresetLibraryT<StyleLibraryTraits>;
+
 // Persistent application-wide layer-style preset collection, the style twin of
 // PatternLibrary. Each entry is one single-style .asl file (self-contained:
 // effects, optional blendOptions, and the referenced pattern tiles) plus a JSON
@@ -44,16 +54,13 @@ inline constexpr int kStyleThumbnailExtent = 96;
 // thumbnail PNG in <settings dir>/styles. The storage UUID is deliberately
 // separate from the style id so imported ids stay stable for re-import
 // deduplication while filenames stay path-safe.
-class StyleLibrary : public QObject {
+class StyleLibrary : public StyleLibraryBase {
   Q_OBJECT
 
 public:
   // storage_dir is overridable for tests; empty = <settings dir>/styles.
   explicit StyleLibrary(QString storage_dir = {}, QObject* parent = nullptr);
 
-  [[nodiscard]] const QString& storage_dir() const noexcept;
-  [[nodiscard]] const std::vector<StyleLibraryEntry>& entries() const noexcept;
-  [[nodiscard]] const StyleLibraryEntry* find_entry(const QString& storage_id) const;
   [[nodiscard]] const StyleLibraryEntry* find_entry_by_style_id(const QString& id) const;
 
   // The pattern tiles embedded in an entry's .asl file (lazy, small LRU cache).
@@ -106,22 +113,14 @@ public:
   // shipped definitions, retaining their storage ids and fixed style ids.
   int reset_default_styles_to_factory();
 
-  // Folder names in display order; ungrouped styles are not a folder.
-  [[nodiscard]] QStringList folders() const;
-
-signals:
-  void changed();
-
 private:
   void reload();
-  void sort_entries();
   QString add_style_internal(const QString& name, const LayerStyle& style,
                              const std::optional<psd::AslBlendSettings>& blend_settings,
                              std::span<const PatternResource> patterns, const QString& folder,
                              const QString& style_id, const QString& source_id = {});
-  bool remove_style_internal(const QString& storage_id);
+  bool remove_entry_files(const QString& storage_id);
   [[nodiscard]] QString asl_path(const QString& storage_id) const;
-  [[nodiscard]] QString json_path(const QString& storage_id) const;
   [[nodiscard]] QString thumbnail_path(const QString& storage_id) const;
   bool write_sidecar(const StyleLibraryEntry& entry) const;
   bool write_entry_asl(const StyleLibraryEntry& entry,
@@ -131,8 +130,6 @@ private:
                          bool save_cache);
   void invalidate_cached_patterns(const QString& storage_id) const;
 
-  QString storage_dir_;
-  std::vector<StyleLibraryEntry> entries_;
   mutable std::vector<std::pair<QString, std::vector<PatternResource>>> pattern_cache_;
 };
 

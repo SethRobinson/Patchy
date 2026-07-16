@@ -3,7 +3,6 @@
 #include "core/blend_math.hpp"
 #include "core/gradient_presets.hpp"
 #include "psd/grd_io.hpp"
-#include "ui/app_settings.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -19,12 +18,6 @@
 
 namespace patchy::ui {
 namespace {
-
-QString default_storage_dir() {
-  const auto settings = app_settings();
-  return QFileInfo(settings.fileName()).absolutePath() +
-         QStringLiteral("/gradients");
-}
 
 LayerStyleGradient render_gradient(const GradientDefinition &definition) {
   LayerStyleGradient result;
@@ -90,34 +83,12 @@ QString gradient_folder_display_name(const QString &folder) {
 }
 
 GradientLibrary::GradientLibrary(QString storage_dir, QObject *parent)
-    : QObject(parent),
-      storage_dir_(storage_dir.isEmpty() ? default_storage_dir()
-                                         : std::move(storage_dir)) {
+    : GradientLibraryBase(std::move(storage_dir), parent) {
   reload();
 }
 
-const QString &GradientLibrary::storage_dir() const noexcept {
-  return storage_dir_;
-}
-const std::vector<GradientLibraryEntry> &
-GradientLibrary::entries() const noexcept {
-  return entries_;
-}
-
-const GradientLibraryEntry *
-GradientLibrary::find_entry(const QString &storage_id) const {
-  const auto found =
-      std::find_if(entries_.begin(), entries_.end(), [&](const auto &entry) {
-        return entry.storage_id == storage_id;
-      });
-  return found == entries_.end() ? nullptr : &*found;
-}
-
 QString GradientLibrary::grd_path(const QString &id) const {
-  return storage_dir_ + '/' + id + QStringLiteral(".grd");
-}
-QString GradientLibrary::json_path(const QString &id) const {
-  return storage_dir_ + '/' + id + QStringLiteral(".json");
+  return storage_path(id, ".grd");
 }
 
 void GradientLibrary::reload() {
@@ -158,18 +129,9 @@ void GradientLibrary::reload() {
   sort_entries();
 }
 
-void GradientLibrary::sort_entries() {
-  std::sort(entries_.begin(), entries_.end(), [](const auto &a, const auto &b) {
-    const auto folder =
-        QString::compare(a.folder, b.folder, Qt::CaseInsensitive);
-    if (folder != 0)
-      return folder < 0;
-    const auto name = QString::compare(a.name, b.name, Qt::CaseInsensitive);
-    return name != 0 ? name < 0 : a.storage_id < b.storage_id;
-  });
-}
-
 bool GradientLibrary::write_sidecar(const GradientLibraryEntry &entry) const {
+  // Persisted contract: the gradient sidecar always writes BOTH keys, folder
+  // included when empty (unlike the other libraries' omit-when-empty shape).
   QJsonObject object;
   object.insert(QStringLiteral("name"), entry.name);
   object.insert(QStringLiteral("folder"), entry.folder);
@@ -219,60 +181,37 @@ QString GradientLibrary::duplicate_gradient(const QString &id) {
 }
 
 bool GradientLibrary::rename_gradient(const QString &id, const QString &name) {
-  auto *entry = const_cast<GradientLibraryEntry *>(find_entry(id));
-  if (!entry || name.trimmed().isEmpty())
-    return false;
-  const auto old = entry->name;
-  entry->name = name.trimmed();
-  if (!save_entry(*entry)) {
-    entry->name = old;
-    return false;
-  }
-  sort_entries();
-  emit changed();
-  return true;
+  // Gradient edits rewrite the .grd payload too (the name/folder live inside
+  // it), and a no-op rename still rewrites; both preserved from before the
+  // shared skeleton.
+  return rename_entry(id, name, /*skip_unchanged=*/false,
+                      [this](const GradientLibraryEntry &entry) {
+                        return save_entry(entry);
+                      });
 }
 
 bool GradientLibrary::set_gradient_folder(const QString &id,
                                           const QString &folder) {
-  auto *entry = const_cast<GradientLibraryEntry *>(find_entry(id));
-  if (!entry)
-    return false;
-  const auto old = entry->folder;
-  entry->folder = folder.trimmed();
-  if (!save_entry(*entry)) {
-    entry->folder = old;
-    return false;
-  }
-  sort_entries();
-  emit changed();
+  return set_entry_folder(id, folder, /*skip_unchanged=*/false,
+                          [this](const GradientLibraryEntry &entry) {
+                            return save_entry(entry);
+                          });
+}
+
+bool GradientLibrary::remove_entry_files(const QString &id) {
+  QFile::remove(grd_path(id));
+  QFile::remove(json_path(id));
   return true;
 }
 
-bool GradientLibrary::remove_internal(const QString &id) {
-  const auto found =
-      std::find_if(entries_.begin(), entries_.end(),
-                   [&](const auto &entry) { return entry.storage_id == id; });
-  if (found == entries_.end())
-    return false;
-  QFile::remove(grd_path(id));
-  QFile::remove(json_path(id));
-  entries_.erase(found);
-  return true;
-}
 bool GradientLibrary::remove_gradient(const QString &id) {
-  const auto ok = remove_internal(id);
-  if (ok)
-    emit changed();
-  return ok;
+  return remove_entry(
+      id, [this](const QString &storage_id) { return remove_entry_files(storage_id); });
 }
+
 int GradientLibrary::remove_gradients(const QStringList &ids) {
-  int count = 0;
-  for (const auto &id : ids)
-    count += remove_internal(id);
-  if (count)
-    emit changed();
-  return count;
+  return remove_entries(
+      ids, [this](const QString &storage_id) { return remove_entry_files(storage_id); });
 }
 
 QString GradientLibrary::import_grd(const QString &path, QString &error,

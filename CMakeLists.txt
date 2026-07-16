@@ -630,6 +630,8 @@ if(PATCHY_BUILD_APP)
       src/ui/pattern_manager_dialog.cpp
       src/ui/photo_pattern_presets.hpp
       src/ui/photo_pattern_presets.cpp
+      src/ui/preset_library.hpp
+      src/ui/preset_library.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
       src/ui/raw_develop_dialog.hpp

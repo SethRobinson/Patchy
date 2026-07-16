@@ -2,7 +2,6 @@
 
 #include "core/pattern_presets.hpp"
 #include "psd/pat_reader.hpp"
-#include "ui/app_settings.hpp"
 #include "ui/photo_pattern_presets.hpp"
 
 #include <QCoreApplication>
@@ -39,19 +38,10 @@ constexpr qint64 kMaxPatFileBytes = 32LL * 1024LL * 1024LL;
 constexpr std::int64_t kMaxImagePatternPixels = 8LL * 1024LL * 1024LL;
 constexpr int kMaxPatternDimension = 30'000;
 
-[[nodiscard]] QString default_storage_dir() {
-  const auto settings = app_settings();
-  return QFileInfo(settings.fileName()).absolutePath() + QStringLiteral("/patterns");
-}
-
-[[nodiscard]] QString qstring_from_utf8(const std::string& text) {
-  return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
-}
-
-[[nodiscard]] std::string utf8_from_qstring(const QString& text) {
-  const auto bytes = text.toUtf8();
-  return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
-}
+using presets::pattern_tiles_equal;
+using presets::qstring_from_utf8;
+using presets::save_png;
+using presets::utf8_from_qstring;
 
 [[nodiscard]] QImage image_from_pattern_tile(const PixelBuffer& tile) {
   if (tile.empty() || tile.format() != PixelFormat::rgba8() || tile.width() <= 0 ||
@@ -87,23 +77,6 @@ constexpr int kMaxPatternDimension = 30'000;
   } catch (const std::exception&) {
     return std::nullopt;
   }
-}
-
-[[nodiscard]] bool pattern_tiles_equal(const PixelBuffer& lhs, const PixelBuffer& rhs) {
-  return lhs.width() == rhs.width() && lhs.height() == rhs.height() &&
-         lhs.format() == rhs.format() && lhs.data().size() == rhs.data().size() &&
-         std::equal(lhs.data().begin(), lhs.data().end(), rhs.data().begin());
-}
-
-[[nodiscard]] bool save_png(const QImage& image, const QString& path) {
-  if (image.isNull()) {
-    return false;
-  }
-  QSaveFile file(path);
-  if (!file.open(QIODevice::WriteOnly) || !image.save(&file, "PNG")) {
-    return false;
-  }
-  return file.commit();
 }
 
 [[nodiscard]] QString fresh_pattern_id() {
@@ -184,41 +157,16 @@ QPixmap pattern_thumbnail(const PixelBuffer& tile, int extent) {
 }
 
 PatternLibrary::PatternLibrary(QString storage_dir, QObject* parent)
-    : QObject(parent),
-      storage_dir_(storage_dir.isEmpty() ? default_storage_dir() : std::move(storage_dir)) {
+    : PatternLibraryBase(std::move(storage_dir), parent) {
   reload();
 }
 
-const QString& PatternLibrary::storage_dir() const noexcept {
-  return storage_dir_;
-}
-
-const std::vector<PatternLibraryEntry>& PatternLibrary::entries() const noexcept {
-  return entries_;
-}
-
-const PatternLibraryEntry* PatternLibrary::find_entry(const QString& storage_id) const {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&storage_id](const PatternLibraryEntry& entry) {
-                                    return entry.storage_id == storage_id;
-                                  });
-  return found == entries_.end() ? nullptr : &*found;
-}
-
 const PatternLibraryEntry* PatternLibrary::find_entry_by_pattern_id(const QString& id) const {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&id](const PatternLibraryEntry& entry) {
-                                    return entry.id == id;
-                                  });
-  return found == entries_.end() ? nullptr : &*found;
+  return find_entry_if([&id](const PatternLibraryEntry& entry) { return entry.id == id; });
 }
 
 QString PatternLibrary::png_path(const QString& storage_id) const {
-  return storage_dir_ + QStringLiteral("/") + storage_id + QStringLiteral(".png");
-}
-
-QString PatternLibrary::json_path(const QString& storage_id) const {
-  return storage_dir_ + QStringLiteral("/") + storage_id + QStringLiteral(".json");
+  return storage_path(storage_id, ".png");
 }
 
 void PatternLibrary::reload() {
@@ -267,34 +215,6 @@ void PatternLibrary::reload() {
     entries_.push_back(std::move(entry));
   }
   sort_entries();
-}
-
-void PatternLibrary::sort_entries() {
-  std::sort(entries_.begin(), entries_.end(),
-            [](const PatternLibraryEntry& a, const PatternLibraryEntry& b) {
-              if (a.folder.isEmpty() != b.folder.isEmpty()) {
-                return a.folder.isEmpty();
-              }
-              const auto folder_order = QString::compare(a.folder, b.folder, Qt::CaseInsensitive);
-              if (folder_order != 0) {
-                return folder_order < 0;
-              }
-              const auto name_order = QString::compare(a.name, b.name, Qt::CaseInsensitive);
-              if (name_order != 0) {
-                return name_order < 0;
-              }
-              return a.storage_id < b.storage_id;
-            });
-}
-
-QStringList PatternLibrary::folders() const {
-  QStringList result;
-  for (const auto& entry : entries_) {
-    if (!entry.folder.isEmpty() && !result.contains(entry.folder)) {
-      result.append(entry.folder);
-    }
-  }
-  return result;
 }
 
 bool PatternLibrary::write_sidecar(const PatternLibraryEntry& entry) const {
@@ -647,88 +567,33 @@ QString PatternLibrary::duplicate_pattern(const QString& storage_id) {
 }
 
 bool PatternLibrary::rename_pattern(const QString& storage_id, const QString& name) {
-  const auto trimmed = name.trimmed();
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&storage_id](const PatternLibraryEntry& entry) {
-                                    return entry.storage_id == storage_id;
-                                  });
-  if (found == entries_.end() || trimmed.isEmpty()) {
-    return false;
-  }
-  if (found->name == trimmed) {
-    return true;
-  }
-  auto updated = *found;
-  updated.name = trimmed;
-  if (!write_sidecar(updated)) {
-    return false;
-  }
-  found->name = trimmed;
-  sort_entries();
-  emit changed();
-  return true;
+  return rename_entry(storage_id, name, /*skip_unchanged=*/true,
+                      [this](const PatternLibraryEntry& entry) { return write_sidecar(entry); });
 }
 
 bool PatternLibrary::set_pattern_folder(const QString& storage_id, const QString& folder) {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&storage_id](const PatternLibraryEntry& entry) {
-                                    return entry.storage_id == storage_id;
-                                  });
-  if (found == entries_.end()) {
-    return false;
-  }
-  const auto trimmed = folder.trimmed();
-  if (found->folder == trimmed) {
-    return true;
-  }
-  auto updated = *found;
-  updated.folder = trimmed;
-  if (!write_sidecar(updated)) {
-    return false;
-  }
-  found->folder = trimmed;
-  sort_entries();
-  emit changed();
-  return true;
+  return set_entry_folder(storage_id, folder, /*skip_unchanged=*/true,
+                          [this](const PatternLibraryEntry& entry) { return write_sidecar(entry); });
 }
 
-bool PatternLibrary::remove_pattern_internal(const QString& storage_id) {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&storage_id](const PatternLibraryEntry& entry) {
-                                    return entry.storage_id == storage_id;
-                                  });
-  if (found == entries_.end()) {
-    return false;
-  }
+bool PatternLibrary::remove_entry_files(const QString& storage_id) {
   const auto tile_path = png_path(storage_id);
   if (QFileInfo::exists(tile_path) && !QFile::remove(tile_path) && QFileInfo::exists(tile_path)) {
     return false;
   }
   (void)QFile::remove(json_path(storage_id));
   invalidate_cached_tile(storage_id);
-  entries_.erase(found);
   return true;
 }
 
 bool PatternLibrary::remove_pattern(const QString& storage_id) {
-  if (!remove_pattern_internal(storage_id)) {
-    return false;
-  }
-  emit changed();
-  return true;
+  return remove_entry(storage_id,
+                      [this](const QString& id) { return remove_entry_files(id); });
 }
 
 int PatternLibrary::remove_patterns(const QStringList& storage_ids) {
-  int removed = 0;
-  for (const auto& storage_id : storage_ids) {
-    if (remove_pattern_internal(storage_id)) {
-      ++removed;
-    }
-  }
-  if (removed > 0) {
-    emit changed();
-  }
-  return removed;
+  return remove_entries(storage_ids,
+                        [this](const QString& id) { return remove_entry_files(id); });
 }
 
 namespace {

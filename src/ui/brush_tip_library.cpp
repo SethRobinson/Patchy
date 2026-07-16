@@ -1,7 +1,6 @@
 #include "ui/brush_tip_library.hpp"
 
 #include "psd/abr_reader.hpp"
-#include "ui/app_settings.hpp"
 #include "ui/default_brush_tips.hpp"
 
 #include <QDir>
@@ -91,11 +90,6 @@ constexpr std::size_t kTipCacheLimit = 16;
   if (token == QStringLiteral("canvas")) return patchy::BrushTextureStyle::Canvas;
   if (token == QStringLiteral("speckle")) return patchy::BrushTextureStyle::Speckle;
   return patchy::BrushTextureStyle::FineGrain;
-}
-
-[[nodiscard]] QString default_storage_dir() {
-  const auto settings = app_settings();
-  return QFileInfo(settings.fileName()).absolutePath() + QStringLiteral("/brushes");
 }
 
 // Crops to the non-zero bounding box; returns false when the mask is entirely empty.
@@ -231,30 +225,12 @@ struct BrushTipLibrary::StoredTip {
 };
 
 BrushTipLibrary::BrushTipLibrary(QString storage_dir, QObject* parent)
-    : QObject(parent), storage_dir_(storage_dir.isEmpty() ? default_storage_dir() : std::move(storage_dir)) {
+    : BrushTipLibraryBase(std::move(storage_dir), parent) {
   reload();
 }
 
-const QString& BrushTipLibrary::storage_dir() const noexcept {
-  return storage_dir_;
-}
-
-const std::vector<BrushTipEntry>& BrushTipLibrary::entries() const noexcept {
-  return entries_;
-}
-
-const BrushTipEntry* BrushTipLibrary::find_entry(const QString& id) const {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&id](const BrushTipEntry& entry) { return entry.id == id; });
-  return found == entries_.end() ? nullptr : &*found;
-}
-
 QString BrushTipLibrary::png_path(const QString& id) const {
-  return storage_dir_ + QStringLiteral("/") + id + QStringLiteral(".png");
-}
-
-QString BrushTipLibrary::json_path(const QString& id) const {
-  return storage_dir_ + QStringLiteral("/") + id + QStringLiteral(".json");
+  return storage_path(id, ".png");
 }
 
 void BrushTipLibrary::reload() {
@@ -305,34 +281,6 @@ void BrushTipLibrary::reload() {
     entries_.push_back(std::move(entry));
   }
   sort_entries();
-}
-
-void BrushTipLibrary::sort_entries() {
-  // Ungrouped tips first, then folders alphabetically; by name inside each group.
-  std::sort(entries_.begin(), entries_.end(), [](const BrushTipEntry& a, const BrushTipEntry& b) {
-    if (a.folder.isEmpty() != b.folder.isEmpty()) {
-      return a.folder.isEmpty();
-    }
-    const auto folder_order = QString::compare(a.folder, b.folder, Qt::CaseInsensitive);
-    if (folder_order != 0) {
-      return folder_order < 0;
-    }
-    const auto name_order = QString::compare(a.name, b.name, Qt::CaseInsensitive);
-    if (name_order != 0) {
-      return name_order < 0;
-    }
-    return a.id < b.id;
-  });
-}
-
-QStringList BrushTipLibrary::folders() const {
-  QStringList folders;
-  for (const auto& entry : entries_) {
-    if (!entry.folder.isEmpty() && !folders.contains(entry.folder)) {
-      folders.append(entry.folder);
-    }
-  }
-  return folders;
 }
 
 std::shared_ptr<const patchy::BrushTip> BrushTipLibrary::tip(const QString& id) const {
@@ -659,32 +607,15 @@ int BrushTipLibrary::apply_default_tip_dynamics() {
 }
 
 bool BrushTipLibrary::rename_tip(const QString& id, const QString& name) {
-  const auto trimmed = name.trimmed();
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&id](const BrushTipEntry& entry) { return entry.id == id; });
-  if (found == entries_.end() || trimmed.isEmpty()) {
-    return false;
-  }
-  auto updated = *found;
-  updated.name = trimmed;
-  if (!write_sidecar(updated)) {
-    return false;
-  }
-  found->name = trimmed;
-  sort_entries();
-  emit changed();
-  return true;
+  // A rename to the unchanged name still rewrites the sidecar (historical
+  // brush behavior, unlike styles/patterns).
+  return rename_entry(id, name, /*skip_unchanged=*/false,
+                      [this](const BrushTipEntry& entry) { return write_sidecar(entry); });
 }
 
-bool BrushTipLibrary::remove_tip_internal(const QString& id) {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&id](const BrushTipEntry& entry) { return entry.id == id; });
-  if (found == entries_.end()) {
-    return false;
-  }
+bool BrushTipLibrary::remove_entry_files(const QString& id) {
   QFile::remove(png_path(id));
   QFile::remove(json_path(id));
-  entries_.erase(found);
   tip_cache_.erase(std::remove_if(tip_cache_.begin(), tip_cache_.end(),
                                   [&id](const auto& cached) { return cached.first == id; }),
                    tip_cache_.end());
@@ -692,24 +623,13 @@ bool BrushTipLibrary::remove_tip_internal(const QString& id) {
 }
 
 bool BrushTipLibrary::remove_tip(const QString& id) {
-  if (!remove_tip_internal(id)) {
-    return false;
-  }
-  emit changed();
-  return true;
+  return remove_entry(id,
+                      [this](const QString& tip_id) { return remove_entry_files(tip_id); });
 }
 
 int BrushTipLibrary::remove_tips(const QStringList& ids) {
-  int removed = 0;
-  for (const auto& id : ids) {
-    if (remove_tip_internal(id)) {
-      ++removed;
-    }
-  }
-  if (removed > 0) {
-    emit changed();
-  }
-  return removed;
+  return remove_entries(ids,
+                        [this](const QString& tip_id) { return remove_entry_files(tip_id); });
 }
 
 bool BrushTipLibrary::set_tip_spacing(const QString& id, double spacing) {
@@ -733,24 +653,8 @@ bool BrushTipLibrary::set_tip_spacing(const QString& id, double spacing) {
 }
 
 bool BrushTipLibrary::set_tip_folder(const QString& id, const QString& folder) {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&id](const BrushTipEntry& entry) { return entry.id == id; });
-  if (found == entries_.end()) {
-    return false;
-  }
-  const auto trimmed = folder.trimmed();
-  if (found->folder == trimmed) {
-    return true;
-  }
-  auto updated = *found;
-  updated.folder = trimmed;
-  if (!write_sidecar(updated)) {
-    return false;
-  }
-  found->folder = trimmed;
-  sort_entries();
-  emit changed();
-  return true;
+  return set_entry_folder(id, folder, /*skip_unchanged=*/true,
+                          [this](const BrushTipEntry& entry) { return write_sidecar(entry); });
 }
 
 QJsonObject brush_dynamics_to_json(const patchy::BrushDynamics& dynamics) {

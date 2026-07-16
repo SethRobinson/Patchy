@@ -1,7 +1,6 @@
 #include "ui/filter_look_library.hpp"
 
 #include "psd/psd_layer_effects.hpp"
-#include "ui/app_settings.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -37,12 +36,6 @@ constexpr qsizetype kMaximumParametersPerEntry = 64;
 // JSON numbers are interoperably exact only through 53 bits. Filter catalog
 // integers are much smaller; reject values that cannot round-trip exactly.
 constexpr double kMaximumExactJsonInteger = 9007199254740991.0;
-
-[[nodiscard]] QString default_storage_dir() {
-  const auto settings = app_settings();
-  return QFileInfo(settings.fileName()).absolutePath() +
-         QStringLiteral("/looks");
-}
 
 void set_error(FilterLookLibraryError* destination,
                FilterLookLibraryError value) {
@@ -467,31 +460,8 @@ void set_error(FilterLookLibraryError* destination,
 }  // namespace
 
 FilterLookLibrary::FilterLookLibrary(QString storage_dir, QObject* parent)
-    : QObject(parent),
-      storage_dir_(storage_dir.isEmpty() ? default_storage_dir()
-                                         : std::move(storage_dir)) {
+    : FilterLookLibraryBase(std::move(storage_dir), parent) {
   reload();
-}
-
-const QString& FilterLookLibrary::storage_dir() const noexcept {
-  return storage_dir_;
-}
-
-const std::vector<FilterLookLibraryEntry>& FilterLookLibrary::entries() const
-    noexcept {
-  return entries_;
-}
-
-const FilterLookLibraryEntry* FilterLookLibrary::find_entry(
-    const QString& id) const {
-  const auto found = std::find_if(
-      entries_.begin(), entries_.end(),
-      [&id](const FilterLookLibraryEntry& entry) { return entry.id == id; });
-  return found == entries_.end() ? nullptr : &*found;
-}
-
-QString FilterLookLibrary::json_path(const QString& id) const {
-  return storage_dir_ + QStringLiteral("/") + id + QStringLiteral(".json");
 }
 
 void FilterLookLibrary::reload() {
@@ -522,19 +492,6 @@ void FilterLookLibrary::reload() {
     entries_.push_back(std::move(*entry));
   }
   sort_entries();
-}
-
-void FilterLookLibrary::sort_entries() {
-  std::sort(entries_.begin(), entries_.end(),
-            [](const FilterLookLibraryEntry& lhs,
-               const FilterLookLibraryEntry& rhs) {
-              const auto name_order =
-                  QString::compare(lhs.name, rhs.name, Qt::CaseInsensitive);
-              if (name_order != 0) {
-                return name_order < 0;
-              }
-              return lhs.id < rhs.id;
-            });
 }
 
 bool FilterLookLibrary::write_entry(

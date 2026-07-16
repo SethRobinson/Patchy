@@ -64,14 +64,23 @@ curves_clipping_preview_tests re-defines CHECK instead of using test_harness.hpp
 ## Duplication inventory (verified copy-paste; sizes approximate)
 
 Preset libraries and managers (~1,900 lines total, the biggest win):
-- Five *_library.cpp files (style, pattern, brush_tip, gradient, filter_look) share a
-  quintuplicated CRUD/sidecar/reload/sort/folders skeleton (rename_style vs rename_pattern
-  etc. are diff-identical), a triplicated factory-defaults version-gate quartet, and
-  byte-identical file-scope helpers (utf8 conversions, save_png, pattern_tiles_equal,
-  default_storage_dir x5). Suggested shape: PresetLibraryBase (QObject + changed()) +
-  a traits/template layer; sidecar JSON bytes and version-gate semantics are persisted
-  contracts — parameterize the deltas (brush's QFile write + extra keys; gradient's
-  always-write-folder), never normalize them. Keep per-class tr() strings.
+- DONE (July 2026): the five *_library.cpp files now share src/ui/preset_library.hpp —
+  PresetLibraryBase (QObject, changed() signal, storage dir resolution, json/storage
+  paths) + PresetLibraryT<Traits> (entries/find_entry/find_entry_if, sort, folders(),
+  and the rename/set-folder/remove skeletons taking per-class write/remove callables).
+  Template members instantiate lazily, so FilterLookLibrary (no folders) uses the same
+  base. Concrete classes keep Q_OBJECT solely for their tr() contexts (the signal
+  lives in the base; moc handles the template base via the *LibraryBase alias). The
+  persisted deltas were parameterized, not normalized: brush's QFile sidecar write and
+  extra keys, gradient's always-write-folder sidecar and payload+sidecar rewrites, the
+  per-class skip-vs-rewrite behavior for no-op renames, and gradient's no-ungrouped-first
+  sort order. Shared helpers (utf8 conversions, save_png, pattern_tiles_equal) live in
+  patchy::ui::presets. Deliberately NOT merged: the factory-defaults version-gate
+  quartets (the rosters/comparisons ARE the deltas and the gate semantics are persisted
+  contracts; bodies kept verbatim per class) and layer_style_dialog's local
+  pattern_tiles_equal (that file is its own backlog entry). Verified byte-identical
+  sidecar/payload output across add/rename/set-folder/restore/reset on all five
+  libraries before and after the extraction.
 - Four *_manager_dialog.cpp files are structural quadruplets (tree + details form +
   Import/Export/Duplicate/Delete/Restore + Close/Use); use_selected is diff-identical
   between style and pattern managers. Suggested: a scaffold builder taking library

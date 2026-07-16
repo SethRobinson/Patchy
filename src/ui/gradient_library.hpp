@@ -1,13 +1,11 @@
 #pragma once
 
 #include "core/layer.hpp"
+#include "ui/preset_library.hpp"
 
-#include <QObject>
 #include <QPixmap>
 #include <QString>
 #include <QStringList>
-
-#include <vector>
 
 namespace patchy::ui {
 
@@ -21,16 +19,24 @@ struct GradientLibraryEntry {
   QPixmap thumbnail;
 };
 
-class GradientLibrary : public QObject {
+struct GradientLibraryTraits {
+  using Entry = GradientLibraryEntry;
+  static constexpr const char *kSubdir = "gradients";
+  static constexpr bool kHasFolders = true;
+  // Historical gradient order has no ungrouped-first rule (unlike the other
+  // folder libraries); preserved as-is.
+  static constexpr bool kUngroupedSortsFirst = false;
+  [[nodiscard]] static const QString &id(const Entry &entry) {
+    return entry.storage_id;
+  }
+};
+
+using GradientLibraryBase = PresetLibraryT<GradientLibraryTraits>;
+
+class GradientLibrary : public GradientLibraryBase {
   Q_OBJECT
 public:
   explicit GradientLibrary(QString storage_dir = {}, QObject *parent = nullptr);
-
-  [[nodiscard]] const QString &storage_dir() const noexcept;
-  [[nodiscard]] const std::vector<GradientLibraryEntry> &
-  entries() const noexcept;
-  [[nodiscard]] const GradientLibraryEntry *
-  find_entry(const QString &storage_id) const;
 
   QString add_gradient(const QString &name,
                        const GradientDefinition &definition,
@@ -53,20 +59,12 @@ public:
   has_all_default_gradients_introduced_after(int newer_than_version) const;
   [[nodiscard]] bool default_gradients_match_factory() const;
 
-signals:
-  void changed();
-
 private:
   void reload();
-  void sort_entries();
   bool save_entry(const GradientLibraryEntry &entry) const;
   bool write_sidecar(const GradientLibraryEntry &entry) const;
-  bool remove_internal(const QString &storage_id);
+  bool remove_entry_files(const QString &storage_id);
   [[nodiscard]] QString grd_path(const QString &storage_id) const;
-  [[nodiscard]] QString json_path(const QString &storage_id) const;
-
-  QString storage_dir_;
-  std::vector<GradientLibraryEntry> entries_;
 };
 
 [[nodiscard]] QPixmap gradient_thumbnail(const GradientDefinition &definition,

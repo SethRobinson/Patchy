@@ -5,7 +5,6 @@
 #include "core/style_presets.hpp"
 #include "psd/psd_layer_effects.hpp"
 #include "render/compositor.hpp"
-#include "ui/app_settings.hpp"
 #include "ui/photo_pattern_presets.hpp"
 
 #include <QCoreApplication>
@@ -35,19 +34,10 @@ namespace {
 constexpr std::size_t kPatternCacheLimit = 8;
 constexpr qint64 kMaxAslFileBytes = 32LL * 1024LL * 1024LL;
 
-[[nodiscard]] QString default_storage_dir() {
-  const auto settings = app_settings();
-  return QFileInfo(settings.fileName()).absolutePath() + QStringLiteral("/styles");
-}
-
-[[nodiscard]] QString qstring_from_utf8(const std::string& text) {
-  return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
-}
-
-[[nodiscard]] std::string utf8_from_qstring(const QString& text) {
-  const auto bytes = text.toUtf8();
-  return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
-}
+using presets::pattern_tiles_equal;
+using presets::qstring_from_utf8;
+using presets::save_png;
+using presets::utf8_from_qstring;
 
 [[nodiscard]] QString fresh_style_id() {
   return qstring_from_utf8(generate_pattern_uuid());
@@ -58,12 +48,6 @@ constexpr qint64 kMaxAslFileBytes = 32LL * 1024LL * 1024LL;
 [[nodiscard]] bool styles_equal(const LayerStyle& lhs, const LayerStyle& rhs) {
   return psd::photoshop_lfx2_layer_style_payload(lhs) ==
          psd::photoshop_lfx2_layer_style_payload(rhs);
-}
-
-[[nodiscard]] bool pattern_tiles_equal(const PixelBuffer& lhs, const PixelBuffer& rhs) {
-  return lhs.width() == rhs.width() && lhs.height() == rhs.height() &&
-         lhs.format() == rhs.format() && lhs.data().size() == rhs.data().size() &&
-         std::equal(lhs.data().begin(), lhs.data().end(), rhs.data().begin());
 }
 
 [[nodiscard]] std::optional<PixelBuffer> rgba_buffer_from_image(const QImage& source) {
@@ -104,17 +88,6 @@ constexpr qint64 kMaxAslFileBytes = 32LL * 1024LL * 1024LL;
     }
   }
   return result;
-}
-
-[[nodiscard]] bool save_png(const QImage& image, const QString& path) {
-  if (image.isNull()) {
-    return false;
-  }
-  QSaveFile file(path);
-  if (!file.open(QIODevice::WriteOnly) || !image.save(&file, "PNG")) {
-    return false;
-  }
-  return file.commit();
 }
 
 }  // namespace
@@ -252,45 +225,20 @@ QPixmap render_style_preview(const LayerStyle& style,
 }
 
 StyleLibrary::StyleLibrary(QString storage_dir, QObject* parent)
-    : QObject(parent),
-      storage_dir_(storage_dir.isEmpty() ? default_storage_dir() : std::move(storage_dir)) {
+    : StyleLibraryBase(std::move(storage_dir), parent) {
   reload();
 }
 
-const QString& StyleLibrary::storage_dir() const noexcept {
-  return storage_dir_;
-}
-
-const std::vector<StyleLibraryEntry>& StyleLibrary::entries() const noexcept {
-  return entries_;
-}
-
-const StyleLibraryEntry* StyleLibrary::find_entry(const QString& storage_id) const {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&storage_id](const StyleLibraryEntry& entry) {
-                                    return entry.storage_id == storage_id;
-                                  });
-  return found == entries_.end() ? nullptr : &*found;
-}
-
 const StyleLibraryEntry* StyleLibrary::find_entry_by_style_id(const QString& id) const {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&id](const StyleLibraryEntry& entry) {
-                                    return entry.id == id;
-                                  });
-  return found == entries_.end() ? nullptr : &*found;
+  return find_entry_if([&id](const StyleLibraryEntry& entry) { return entry.id == id; });
 }
 
 QString StyleLibrary::asl_path(const QString& storage_id) const {
-  return storage_dir_ + QStringLiteral("/") + storage_id + QStringLiteral(".asl");
-}
-
-QString StyleLibrary::json_path(const QString& storage_id) const {
-  return storage_dir_ + QStringLiteral("/") + storage_id + QStringLiteral(".json");
+  return storage_path(storage_id, ".asl");
 }
 
 QString StyleLibrary::thumbnail_path(const QString& storage_id) const {
-  return storage_dir_ + QStringLiteral("/") + storage_id + QStringLiteral(".png");
+  return storage_path(storage_id, ".png");
 }
 
 std::optional<psd::AslReadResult> StyleLibrary::read_entry_asl(const QString& storage_id) const {
@@ -402,34 +350,6 @@ void StyleLibrary::reload() {
     entries_.push_back(std::move(entry));
   }
   sort_entries();
-}
-
-void StyleLibrary::sort_entries() {
-  std::sort(entries_.begin(), entries_.end(),
-            [](const StyleLibraryEntry& a, const StyleLibraryEntry& b) {
-              if (a.folder.isEmpty() != b.folder.isEmpty()) {
-                return a.folder.isEmpty();
-              }
-              const auto folder_order = QString::compare(a.folder, b.folder, Qt::CaseInsensitive);
-              if (folder_order != 0) {
-                return folder_order < 0;
-              }
-              const auto name_order = QString::compare(a.name, b.name, Qt::CaseInsensitive);
-              if (name_order != 0) {
-                return name_order < 0;
-              }
-              return a.storage_id < b.storage_id;
-            });
-}
-
-QStringList StyleLibrary::folders() const {
-  QStringList result;
-  for (const auto& entry : entries_) {
-    if (!entry.folder.isEmpty() && !result.contains(entry.folder)) {
-      result.append(entry.folder);
-    }
-  }
-  return result;
 }
 
 bool StyleLibrary::write_sidecar(const StyleLibraryEntry& entry) const {
@@ -699,59 +619,16 @@ QString StyleLibrary::duplicate_style(const QString& storage_id) {
 }
 
 bool StyleLibrary::rename_style(const QString& storage_id, const QString& name) {
-  const auto trimmed = name.trimmed();
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&storage_id](const StyleLibraryEntry& entry) {
-                                    return entry.storage_id == storage_id;
-                                  });
-  if (found == entries_.end() || trimmed.isEmpty()) {
-    return false;
-  }
-  if (found->name == trimmed) {
-    return true;
-  }
-  auto updated = *found;
-  updated.name = trimmed;
-  if (!write_sidecar(updated)) {
-    return false;
-  }
-  found->name = trimmed;
-  sort_entries();
-  emit changed();
-  return true;
+  return rename_entry(storage_id, name, /*skip_unchanged=*/true,
+                      [this](const StyleLibraryEntry& entry) { return write_sidecar(entry); });
 }
 
 bool StyleLibrary::set_style_folder(const QString& storage_id, const QString& folder) {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&storage_id](const StyleLibraryEntry& entry) {
-                                    return entry.storage_id == storage_id;
-                                  });
-  if (found == entries_.end()) {
-    return false;
-  }
-  const auto trimmed = folder.trimmed();
-  if (found->folder == trimmed) {
-    return true;
-  }
-  auto updated = *found;
-  updated.folder = trimmed;
-  if (!write_sidecar(updated)) {
-    return false;
-  }
-  found->folder = trimmed;
-  sort_entries();
-  emit changed();
-  return true;
+  return set_entry_folder(storage_id, folder, /*skip_unchanged=*/true,
+                          [this](const StyleLibraryEntry& entry) { return write_sidecar(entry); });
 }
 
-bool StyleLibrary::remove_style_internal(const QString& storage_id) {
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [&storage_id](const StyleLibraryEntry& entry) {
-                                    return entry.storage_id == storage_id;
-                                  });
-  if (found == entries_.end()) {
-    return false;
-  }
+bool StyleLibrary::remove_entry_files(const QString& storage_id) {
   const auto entry_path = asl_path(storage_id);
   if (QFileInfo::exists(entry_path) && !QFile::remove(entry_path) &&
       QFileInfo::exists(entry_path)) {
@@ -760,29 +637,17 @@ bool StyleLibrary::remove_style_internal(const QString& storage_id) {
   (void)QFile::remove(json_path(storage_id));
   (void)QFile::remove(thumbnail_path(storage_id));
   invalidate_cached_patterns(storage_id);
-  entries_.erase(found);
   return true;
 }
 
 bool StyleLibrary::remove_style(const QString& storage_id) {
-  if (!remove_style_internal(storage_id)) {
-    return false;
-  }
-  emit changed();
-  return true;
+  return remove_entry(storage_id,
+                      [this](const QString& id) { return remove_entry_files(id); });
 }
 
 int StyleLibrary::remove_styles(const QStringList& storage_ids) {
-  int removed = 0;
-  for (const auto& storage_id : storage_ids) {
-    if (remove_style_internal(storage_id)) {
-      ++removed;
-    }
-  }
-  if (removed > 0) {
-    emit changed();
-  }
-  return removed;
+  return remove_entries(storage_ids,
+                        [this](const QString& id) { return remove_entry_files(id); });
 }
 
 int StyleLibrary::restore_default_styles(int newer_than_version) {

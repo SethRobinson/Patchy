@@ -1,10 +1,10 @@
 #pragma once
 
 #include "core/brush_tip.hpp"
+#include "ui/preset_library.hpp"
 
 #include <QImage>
 #include <QJsonObject>
-#include <QObject>
 #include <QPixmap>
 #include <QSize>
 #include <QString>
@@ -38,16 +38,22 @@ struct BrushTipEntry {
 // one tip and users can drop files in by hand. Full masks load lazily; entries carry ready-to-draw
 // thumbnails. Supported Photoshop dynamics and included Flow/Airbrush tool settings live in the
 // sidecar with the tip.
-class BrushTipLibrary : public QObject {
+struct BrushTipLibraryTraits {
+  using Entry = BrushTipEntry;
+  static constexpr const char* kSubdir = "brushes";
+  static constexpr bool kHasFolders = true;
+  static constexpr bool kUngroupedSortsFirst = true;
+  [[nodiscard]] static const QString& id(const Entry& entry) { return entry.id; }
+};
+
+using BrushTipLibraryBase = PresetLibraryT<BrushTipLibraryTraits>;
+
+class BrushTipLibrary : public BrushTipLibraryBase {
   Q_OBJECT
 
 public:
   // storage_dir is overridable for tests; empty = <settings dir>/brushes.
   explicit BrushTipLibrary(QString storage_dir = {}, QObject* parent = nullptr);
-
-  [[nodiscard]] const QString& storage_dir() const noexcept;
-  [[nodiscard]] const std::vector<BrushTipEntry>& entries() const noexcept;
-  [[nodiscard]] const BrushTipEntry* find_entry(const QString& id) const;
 
   // Full-resolution tip for painting; cached after first load. Null for unknown/unreadable ids
   // and for the built-in round id.
@@ -94,11 +100,6 @@ public:
   // the tip cache stays valid.
   bool set_tip_dynamics(const QString& id, const patchy::BrushDynamics& dynamics,
                         double base_angle_degrees, double base_roundness);
-  // Folder names in display order (ungrouped tips are not a folder and sort first).
-  [[nodiscard]] QStringList folders() const;
-
-signals:
-  void changed();
 
 private:
   struct StoredTip;
@@ -109,14 +110,10 @@ private:
                            double base_angle_degrees = 0.0, double base_roundness = 100.0,
                            std::optional<int> tool_flow_percent = std::nullopt,
                            std::optional<bool> tool_airbrush = std::nullopt);
-  bool remove_tip_internal(const QString& id);
+  bool remove_entry_files(const QString& id);
   [[nodiscard]] QString png_path(const QString& id) const;
-  [[nodiscard]] QString json_path(const QString& id) const;
   bool write_sidecar(const BrushTipEntry& entry) const;
-  void sort_entries();
 
-  QString storage_dir_;
-  std::vector<BrushTipEntry> entries_;
   mutable std::vector<std::pair<QString, std::shared_ptr<const patchy::BrushTip>>> tip_cache_;
 };
 
