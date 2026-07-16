@@ -156,6 +156,7 @@ int main(int argc, char** argv) {
            flat_formats_misc_tests,
            infra_selection_tests,
            vector_shape_tests,
+           vector_raster_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),
