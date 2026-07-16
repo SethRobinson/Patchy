@@ -1231,7 +1231,8 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
                                 layer_is_smart_object(*encoded.layer) &&
                                 !photoshop_layer_id(*encoded.layer).has_value();
     write_layer_record(layer_info, encoded, !has_smart_object_sources, options.large_document,
-                       needs_layer_id ? next_layer_id++ : 0U);
+                       needs_layer_id ? next_layer_id++ : 0U,
+                       Rect::from_size(document.width(), document.height()));
   }
   for (const auto& encoded : encoded_layers) {
     for (const auto& channel : encoded.channels) {

@@ -11,6 +11,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/document_path.hpp"
 #include "core/text_warp.hpp"
+#include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
@@ -484,7 +485,8 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
 // synthesized_photoshop_layer_id: nonzero writes a fresh 'lyid' block for a
 // smart-object layer that has none preserved (see write_layer_record).
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
-                        bool large_document, std::uint32_t synthesized_photoshop_layer_id);
+                        bool large_document, std::uint32_t synthesized_photoshop_layer_id,
+                        Rect canvas);
 void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document);
 
 // Vector shape/path codec: vmsk/vsms path records, SoCo/GdFl/PtFl fill
@@ -513,6 +515,27 @@ std::optional<VectorStroke> parse_vector_stroke_block(std::span<const std::uint8
 std::optional<std::vector<LiveShapeParams>> parse_vector_origination_block(
     std::span<const std::uint8_t> payload);
 [[nodiscard]] bool is_vector_content_block_key(std::string_view key) noexcept;
+// Write side: payloads regenerate patch-in-place from preserved originals
+// where possible, otherwise the PS 27.8-captured canonical shapes; all padded
+// to 4 bytes like Photoshop's own vector blocks.
+[[nodiscard]] const char* vector_fill_block_key(VectorFillKind kind);
+std::vector<std::uint8_t> vector_mask_block_payload(const VectorPath& path, bool disabled, bool inverted,
+                                                    bool unlinked, std::int32_t canvas_width,
+                                                    std::int32_t canvas_height);
+std::vector<std::uint8_t> vector_fill_block_payload(const VectorFill& fill,
+                                                    const UnknownPsdBlock* original);
+std::vector<std::uint8_t> vector_stroke_block_payload(const VectorStroke& stroke,
+                                                      const UnknownPsdBlock* original);
+std::vector<std::uint8_t> vector_origination_block_payload(std::span<const LiveShapeParams> origination,
+                                                           const UnknownPsdBlock* original);
+// The baked "derived from other data" user-mask plane Photoshop stores beside
+// non-default vector-mask density/feather: UNFEATHERED path coverage over the
+// path's pixel hull (+1 px pad), deterministic.
+[[nodiscard]] CoverageBuffer vector_mask_derived_plane(const LayerVectorMask& mask);
+std::vector<std::uint8_t> document_path_resource_payload(const DocumentPath& path,
+                                                         std::int32_t canvas_width,
+                                                         std::int32_t canvas_height);
+void upsert_document_path_resources(std::vector<ImageResource>& resources, const Document& document);
 // Post-read pass (after global pattern blocks decode): rasterizes shape layers
 // whose channels were empty and bakes vector-mask caches that did not import a
 // derived plane.
@@ -521,6 +544,9 @@ void finalize_vector_layers(Document& document);
 void parse_document_path_resources(Document& document, std::span<const std::uint8_t> image_resources);
 
 // Image-resources (8BIM) section codec (definitions in psd_image_resources.cpp).
+void upsert_image_resource(std::vector<ImageResource>& resources, std::uint16_t id,
+                           std::vector<std::uint8_t> payload);
+void remove_image_resource(std::vector<ImageResource>& resources, std::uint16_t id);
 std::optional<std::vector<std::uint8_t>> find_image_resource_payload(std::span<const std::uint8_t> resources,
                                                                      std::uint16_t id);
 ParsedCompositeChannelResources parse_composite_channel_resources(

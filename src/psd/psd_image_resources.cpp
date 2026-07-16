@@ -55,6 +55,37 @@
 
 namespace patchy::psd {
 
+// Promoted from the anonymous namespace so the vector codec can upsert the
+// saved-path resources (declared in psd_io_internal.hpp).
+void upsert_image_resource(std::vector<ImageResource>& resources, std::uint16_t id,
+                           std::vector<std::uint8_t> payload) {
+  bool replaced = false;
+  for (auto it = resources.begin(); it != resources.end();) {
+    if (it->id != id) {
+      ++it;
+      continue;
+    }
+    if (!replaced) {
+      it->signature = {'8', 'B', 'I', 'M'};
+      it->name.clear();
+      it->payload = std::move(payload);
+      replaced = true;
+      ++it;
+    } else {
+      it = resources.erase(it);
+    }
+  }
+  if (!replaced) {
+    resources.push_back(ImageResource{std::array<char, 4>{'8', 'B', 'I', 'M'}, id, {}, std::move(payload)});
+  }
+}
+
+void remove_image_resource(std::vector<ImageResource>& resources, std::uint16_t id) {
+  resources.erase(std::remove_if(resources.begin(), resources.end(),
+                                 [id](const ImageResource& resource) { return resource.id == id; }),
+                  resources.end());
+}
+
 namespace {
 
 std::optional<std::vector<ImageResource>> read_image_resources(std::span<const std::uint8_t> bytes) {
@@ -261,35 +292,6 @@ std::vector<std::uint8_t> grid_guides_resource_for_document(const Document& docu
     writer.write_u8(guide.orientation == GuideOrientation::Horizontal ? 1U : 0U);
   }
   return writer.bytes();
-}
-
-void upsert_image_resource(std::vector<ImageResource>& resources, std::uint16_t id,
-                           std::vector<std::uint8_t> payload) {
-  bool replaced = false;
-  for (auto it = resources.begin(); it != resources.end();) {
-    if (it->id != id) {
-      ++it;
-      continue;
-    }
-    if (!replaced) {
-      it->signature = {'8', 'B', 'I', 'M'};
-      it->name.clear();
-      it->payload = std::move(payload);
-      replaced = true;
-      ++it;
-    } else {
-      it = resources.erase(it);
-    }
-  }
-  if (!replaced) {
-    resources.push_back(ImageResource{std::array<char, 4>{'8', 'B', 'I', 'M'}, id, {}, std::move(payload)});
-  }
-}
-
-void remove_image_resource(std::vector<ImageResource>& resources, std::uint16_t id) {
-  resources.erase(std::remove_if(resources.begin(), resources.end(),
-                                 [id](const ImageResource& resource) { return resource.id == id; }),
-                  resources.end());
 }
 
 [[nodiscard]] std::vector<std::uint8_t> patchy_palette_resource(std::span<const RgbColor> colors, bool mode_active,
@@ -684,6 +686,7 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
       sanitized_grid_cycle_32(document.grid_settings().horizontal_cycle_32) != kDefaultGridCycle32 ||
       sanitized_grid_cycle_32(document.grid_settings().vertical_cycle_32) != kDefaultGridCycle32;
 
+  upsert_document_path_resources(*parsed, document);
   upsert_image_resource(*parsed, kImageResourceResolutionInfo, resolution_resource_for_document(document));
   if (had_grid_guides_resource || has_non_default_grid_guides) {
     upsert_image_resource(*parsed, kImageResourceGridAndGuidesInfo, grid_guides_resource_for_document(document));

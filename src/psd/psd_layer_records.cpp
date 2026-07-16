@@ -124,9 +124,14 @@ bool is_smart_object_reference_block(std::string_view key) {
 }
 
 bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block,
-                             bool generated_style_block) {
+                             bool generated_style_block, bool generated_vector_blocks) {
   if (block.key == "luni" || block.key == "plFX" || block.key == "lspf" || block.key == "lmgm" ||
       (block.key == "plAD" && encoded.kind == EncodedLayerKind::Adjustment)) {
+    return true;
+  }
+  // Edited vector content regenerates its blocks; the preserved originals
+  // would be stale (dirty-or-verbatim rule). vowv rides along with vogk.
+  if (generated_vector_blocks && (is_vector_content_block_key(block.key) || block.key == "vowv")) {
     return true;
   }
   // A moved/transformed smart object regenerates its placed-layer blocks (see the
@@ -178,6 +183,28 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document) {
   if (layer.kind() != LayerKind::Pixel) {
     throw std::runtime_error("Layered PSD export currently supports pixel and group layers only");
   }
+  if (layer_is_vector_shape(layer)) {
+    // Photoshop's shape/fill layer convention (docs/vector-tools.md): empty
+    // record bounds and 2-byte channels (just the compression marker) for
+    // transparency + RGB; the fill regenerates from the vector blocks.
+    EncodedLayer encoded;
+    encoded.layer = &layer;
+    encoded.kind = EncodedLayerKind::Pixel;
+    encoded.bounds = Rect{};
+    encoded.blending_ranges = &layer.raw_psd_blending_ranges();
+    for (const auto channel_id :
+         {kChannelTransparency, kChannelRed, kChannelGreen, kChannelBlue}) {
+      encoded.channels.push_back(EncodedChannel{channel_id, 0, 0, kCompressionRaw, {}});
+    }
+    if (layer.mask().has_value() && !layer.mask()->pixels.empty() &&
+        layer.mask()->pixels.format() == PixelFormat::gray8()) {
+      const auto& mask_pixels = layer.mask()->pixels;
+      encoded.channels.push_back(encode_channel(kChannelUserMask, mask_pixels.width(),
+                                                mask_pixels.height(), mask_pixels.data(),
+                                                large_document));
+    }
+    return encoded;
+  }
   const auto& pixels = layer.pixels();
   if (pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3 || pixels.format().channels > 4) {
     throw std::runtime_error("Layered PSD export currently supports RGB/RGBA 8-bit layers only");
@@ -202,13 +229,26 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document) {
     }
     channel_ids.push_back(kChannelUserMask);
   }
+  // Non-default vector-mask density/feather ride the mask-parameters form,
+  // which Photoshop pairs with a baked "derived" user-mask plane (docs/
+  // vector-tools.md). Only when no real raster mask occupies the slot.
+  CoverageBuffer derived_plane;
+  if (const auto* vector_mask = layer.vector_mask();
+      vector_mask != nullptr && !layer.mask().has_value() &&
+      (vector_mask->density != 255 || vector_mask->feather > 0.0)) {
+    derived_plane = vector_mask_derived_plane(*vector_mask);
+    if (!derived_plane.bounds.empty()) {
+      channel_ids.push_back(kChannelUserMask);
+    }
+  }
 
   const auto pixel_count = static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height());
   encoded.channels.reserve(channel_ids.size());
   for (std::size_t channel_index = 0; channel_index < channel_ids.size(); ++channel_index) {
     const auto channel_id = channel_ids[channel_index];
     if (channel_id == kChannelUserMask) {
-      const auto& mask_pixels = layer.mask()->pixels;
+      const auto& mask_pixels =
+          layer.mask().has_value() ? layer.mask()->pixels : derived_plane.pixels;
       encoded.channels.push_back(encode_channel(channel_id, mask_pixels.width(), mask_pixels.height(),
                                                 mask_pixels.data(), large_document));
     } else {
@@ -504,7 +544,8 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
 }
 
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
-                        bool large_document, std::uint32_t synthesized_photoshop_layer_id) {
+                        bool large_document, std::uint32_t synthesized_photoshop_layer_id,
+                        Rect canvas) {
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.x));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y + encoded.bounds.height));
@@ -532,6 +573,11 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   if (!encoded_layer_visible(encoded)) {
     record_flags |= 0x02U;
   }
+  // Bit 4: "pixel data irrelevant to document appearance" — Photoshop sets it
+  // on shape/fill layers (whose channels are empty).
+  if (encoded.layer != nullptr && layer_is_vector_shape(*encoded.layer)) {
+    record_flags |= 0x10U;
+  }
   writer.write_u8(record_flags);
   writer.write_u8(0);
 
@@ -556,6 +602,26 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     }
     mask_data.write_u8(mask_flags);
     mask_data.write_u16(0);
+    write_length_prefixed_block(extra, mask_data.bytes());
+  } else if (const auto* vector_mask =
+                 encoded.layer != nullptr ? encoded.layer->vector_mask() : nullptr;
+             vector_mask != nullptr && encoded.kind == EncodedLayerKind::Pixel &&
+             (vector_mask->density != 255 || vector_mask->feather > 0.0)) {
+    // Non-default vector-mask parameters: the 28-byte mask-parameters form
+    // with the derived-plane rect, section flags bit 3 (rendered from other
+    // data) + bit 4 (parameters present), then vector density (u8 raw) and
+    // vector feather (f64) — the PS 27.8 capture layout.
+    const auto plane = vector_mask_derived_plane(*vector_mask);
+    BigEndianWriter mask_data;
+    mask_data.write_u32(static_cast<std::uint32_t>(plane.bounds.y));
+    mask_data.write_u32(static_cast<std::uint32_t>(plane.bounds.x));
+    mask_data.write_u32(static_cast<std::uint32_t>(plane.bounds.y + plane.bounds.height));
+    mask_data.write_u32(static_cast<std::uint32_t>(plane.bounds.x + plane.bounds.width));
+    mask_data.write_u8(0);     // default color
+    mask_data.write_u8(0x18);  // bit 3 derived + bit 4 parameters
+    mask_data.write_u8(0x0C);  // parameter flags: vector density + vector feather
+    mask_data.write_u8(vector_mask->density);
+    write_f64(mask_data, vector_mask->feather);
     write_length_prefixed_block(extra, mask_data.bytes());
   } else {
     extra.write_u32(0);  // layer mask data
@@ -669,6 +735,55 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     write_additional_layer_block(extra, {'T', 'y', 'S', 'h'}, *generated_text_payload, large_document);
   }
 
+  // Vector shape/mask blocks regenerate when edited (dirty) or authored fresh
+  // (no preserved originals); untouched imported layers re-emit their exact
+  // original bytes through the preserved loop below instead.
+  const bool generated_vector_blocks =
+      encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Pixel &&
+      (encoded.layer->vector_shape() != nullptr || encoded.layer->vector_mask() != nullptr) &&
+      vector_lock_reason(*encoded.layer).empty() &&
+      (layer_vector_block_dirty(*encoded.layer) ||
+       find_layer_block(*encoded.layer, "vmsk") == nullptr);
+  if (generated_vector_blocks) {
+    if (const auto* content = encoded.layer->vector_shape(); content != nullptr) {
+      write_additional_layer_block(
+          extra, *block_key_from_string(vector_fill_block_key(content->fill.kind)),
+          vector_fill_block_payload(content->fill,
+                                    find_layer_block(*encoded.layer,
+                                                     vector_fill_block_key(content->fill.kind))),
+          large_document);
+      if (!content->path.empty()) {
+        write_additional_layer_block(
+            extra, {'v', 'm', 's', 'k'},
+            vector_mask_block_payload(content->path, content->path_disabled, content->path_inverted,
+                                      false, canvas.width, canvas.height),
+            large_document);
+      }
+      if (!content->origination.empty()) {
+        BigEndianWriter vowv;
+        vowv.write_u32(2);
+        write_additional_layer_block(extra, {'v', 'o', 'w', 'v'}, vowv.bytes(), large_document);
+        write_additional_layer_block(
+            extra, {'v', 'o', 'g', 'k'},
+            vector_origination_block_payload(content->origination,
+                                             find_layer_block(*encoded.layer, "vogk")),
+            large_document);
+      }
+      if (content->stroke.enabled || find_layer_block(*encoded.layer, "vstk") != nullptr) {
+        write_additional_layer_block(
+            extra, {'v', 's', 't', 'k'},
+            vector_stroke_block_payload(content->stroke, find_layer_block(*encoded.layer, "vstk")),
+            large_document);
+      }
+    } else if (const auto* vector_mask = encoded.layer->vector_mask(); vector_mask != nullptr) {
+      write_additional_layer_block(
+          extra, {'v', 'm', 's', 'k'},
+          vector_mask_block_payload(vector_mask->path, vector_mask->disabled, vector_mask->inverted,
+                                    vector_mask->unlinked, canvas.width, canvas.height),
+          large_document);
+    }
+  }
+
   if (encoded.layer != nullptr) {
     const auto fill_opacity_byte = static_cast<std::uint8_t>(
         std::clamp(std::lround(encoded.layer->fill_opacity() * 255.0F), 0L, 255L));
@@ -691,7 +806,8 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     }
 
     for (const auto& block : encoded.layer->unknown_psd_blocks()) {
-      if (should_skip_layer_block(encoded, block, generated_text_payload.has_value(), generated_style_payload)) {
+      if (should_skip_layer_block(encoded, block, generated_text_payload.has_value(), generated_style_payload,
+                                  generated_vector_blocks)) {
         continue;
       }
       if (block.key == "iOpa" && block.payload.size() == 4U) {

@@ -20,7 +20,7 @@ namespace patchy {
 
 // One bezier knot. Control points are absolute document-pixel positions:
 // control_in leads toward the PREVIOUS anchor, control_out toward the NEXT.
-// (PSD knot records store the pairs in (out, anchor, in) order, y before x,
+// (PSD knot records store the pairs in (in, anchor, out) order, y before x,
 // as 8.24 fixed-point fractions of the canvas extent - converted at I/O.)
 // smooth mirrors Photoshop's linked-knot selectors (1/4) vs corner (2/5).
 struct PathAnchor {
@@ -106,6 +106,8 @@ struct VectorFill {
   bool pattern_linked{true};
   double pattern_phase_x{0.0};
   double pattern_phase_y{0.0};
+
+  friend bool operator==(const VectorFill&, const VectorFill&) = default;
 };
 
 enum class VectorStrokeAlignment : std::uint8_t { Inside, Center, Outside };
@@ -131,6 +133,8 @@ struct VectorStroke {
   double opacity{1.0};
   VectorFill content{};
   double resolution{72.0};
+
+  friend bool operator==(const VectorStroke&, const VectorStroke&) = default;
 };
 
 // Live-shape parameter kinds. Values are Patchy's own; the PSD keyOriginType
@@ -184,6 +188,8 @@ struct LiveShapeParams {
   // Custom/unmodeled origination: the entry's raw descriptor bytes, re-emitted
   // verbatim while the group is untouched.
   std::vector<std::uint8_t> raw_descriptor;
+
+  friend bool operator==(const LiveShapeParams&, const LiveShapeParams&) = default;
 };
 
 // The whole editable content of a shape/fill layer.
@@ -264,5 +270,8 @@ void strip_layer_vector_data(Layer& layer);
 // b*x + d*y + ty), used by move/transform/resize integration.
 void transform_vector_path(VectorPath& path, const std::array<double, 6>& matrix);
 void translate_vector_path(VectorPath& path, double dx, double dy);
+// Translates the path AND every absolute-coordinate origination field
+// (bbox, box corners, line endpoints, transform translation).
+void translate_vector_shape_content(VectorShapeContent& content, double dx, double dy);
 
 }  // namespace patchy

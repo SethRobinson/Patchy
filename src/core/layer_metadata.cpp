@@ -1,6 +1,7 @@
 #include "core/layer_metadata.hpp"
 
 #include "core/smart_object.hpp"
+#include "core/vector_shape.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -305,16 +306,38 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
       mask->bounds.y += dy;
     }
 
+    // The raw byte-translation of preserved vmsk/vsms payloads remains ONLY
+    // for layers without a parsed model (locked/unparsed vector data); parsed
+    // paths translate through the model below, and translating both would
+    // double-shift.
+    const bool model_owns_vector_paths =
+        std::as_const(layer).vector_shape() != nullptr || std::as_const(layer).vector_mask() != nullptr;
     const auto has_vector_mask =
         std::any_of(std::as_const(layer).unknown_psd_blocks().begin(), std::as_const(layer).unknown_psd_blocks().end(),
                     [](const UnknownPsdBlock& block) { return is_photoshop_vector_mask_block(block.key); });
-    if (has_vector_mask) {
+    if (has_vector_mask && !model_owns_vector_paths) {
       for (auto& block : layer.unknown_psd_blocks()) {
         if (is_photoshop_vector_mask_block(block.key)) {
           translate_vector_mask_payload(block.payload, dx, dy, document_width, document_height);
         }
       }
     }
+  }
+
+  if (const auto* content = std::as_const(layer).vector_shape(); content != nullptr) {
+    auto moved = *content;
+    translate_vector_shape_content(moved, dx, dy);
+    layer.set_vector_shape(std::move(moved));
+    mark_layer_vector_block_dirty(layer);
+  }
+  if (const auto* vector_mask = std::as_const(layer).vector_mask();
+      vector_mask != nullptr && !vector_mask->unlinked) {
+    auto moved = *vector_mask;
+    translate_vector_path(moved.path, dx, dy);
+    moved.cache_bounds.x += dx;
+    moved.cache_bounds.y += dy;
+    layer.set_vector_mask(std::move(moved));
+    mark_layer_vector_block_dirty(layer);
   }
 
   if (layer_is_smart_object(std::as_const(layer))) {

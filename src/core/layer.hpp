@@ -101,6 +101,8 @@ struct RgbColor {
   std::uint8_t red{0};
   std::uint8_t green{0};
   std::uint8_t blue{0};
+
+  friend bool operator==(const RgbColor&, const RgbColor&) = default;
 };
 
 // Photoshop Blend If stores the two halves of each black and white triangle
@@ -167,6 +169,8 @@ struct GradientColorStop {
   // background color. Layer effects normally contain resolved User colors,
   // while the application preset library preserves these roles.
   Kind kind{Kind::User};
+
+  friend bool operator==(const GradientColorStop&, const GradientColorStop&) = default;
 };
 
 struct GradientAlphaStop {
@@ -174,6 +178,8 @@ struct GradientAlphaStop {
   float opacity{1.0F};
   // Same destination-stop convention as GradientColorStop::midpoint.
   float midpoint{0.5F};
+
+  friend bool operator==(const GradientAlphaStop&, const GradientAlphaStop&) = default;
 };
 
 enum class LayerStyleGradientType {
@@ -200,6 +206,8 @@ struct GradientNoiseSettings {
   GradientNoiseColorModel color_model{GradientNoiseColorModel::RGB};
   std::array<std::uint16_t, 4> minimum{0, 0, 0, 0};
   std::array<std::uint16_t, 4> maximum{100, 100, 100, 100};
+
+  friend bool operator==(const GradientNoiseSettings&, const GradientNoiseSettings&) = default;
 };
 
 struct GradientDefinition {
@@ -210,6 +218,8 @@ struct GradientDefinition {
   std::vector<GradientColorStop> color_stops;
   std::vector<GradientAlphaStop> alpha_stops;
   GradientNoiseSettings noise;
+
+  friend bool operator==(const GradientDefinition&, const GradientDefinition&) = default;
 };
 
 struct LayerStyleGradient : GradientDefinition {
@@ -222,6 +232,8 @@ struct LayerStyleGradient : GradientDefinition {
   bool align_with_layer{true};
   float offset_x_percent{0.0F};
   float offset_y_percent{0.0F};
+
+  friend bool operator==(const LayerStyleGradient&, const LayerStyleGradient&) = default;
 };
 
 struct LayerDropShadow {

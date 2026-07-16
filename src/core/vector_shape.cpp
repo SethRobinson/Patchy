@@ -293,4 +293,24 @@ void translate_vector_path(VectorPath& path, double dx, double dy) {
   transform_vector_path(path, {1.0, 0.0, 0.0, 1.0, dx, dy});
 }
 
+void translate_vector_shape_content(VectorShapeContent& content, double dx, double dy) {
+  translate_vector_path(content.path, dx, dy);
+  for (auto& params : content.origination) {
+    params.left += dx;
+    params.right += dx;
+    params.top += dy;
+    params.bottom += dy;
+    for (std::size_t i = 0; i < params.box_corners.size(); i += 2) {
+      params.box_corners[i] += dx;
+      params.box_corners[i + 1] += dy;
+    }
+    params.line_start_x += dx;
+    params.line_end_x += dx;
+    params.line_start_y += dy;
+    params.line_end_y += dy;
+    params.transform[4] += dx;
+    params.transform[5] += dy;
+  }
+}
+
 }  // namespace patchy
