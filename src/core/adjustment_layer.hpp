@@ -74,12 +74,22 @@ inline constexpr const char* kLayerMetadataAdjustmentColorBalanceMagentaGreen =
     "patchy.adjustment.color_balance.magenta_green";
 inline constexpr const char* kLayerMetadataAdjustmentColorBalanceYellowBlue =
     "patchy.adjustment.color_balance.yellow_blue";
+inline constexpr const char* kLayerMetadataAdjustmentPosterizeLevels = "patchy.adjustment.posterize.levels";
+inline constexpr const char* kLayerMetadataAdjustmentThresholdLevel = "patchy.adjustment.threshold.level";
+inline constexpr const char* kLayerMetadataAdjustmentBrightnessContrastBrightness =
+    "patchy.adjustment.brightness_contrast.brightness";
+inline constexpr const char* kLayerMetadataAdjustmentBrightnessContrastContrast =
+    "patchy.adjustment.brightness_contrast.contrast";
 
 enum class AdjustmentKind {
   Levels,
   Curves,
   HueSaturation,
-  ColorBalance
+  ColorBalance,
+  Invert,
+  Posterize,
+  Threshold,
+  BrightnessContrast
 };
 
 enum class LevelsChannel {
@@ -158,12 +168,34 @@ struct ColorBalanceAdjustment {
   int yellow_blue{0};
 };
 
+// Levels 2..255: wider than the destructive dialog's 2..16 so Photoshop
+// 'post' files with any legal value round-trip.
+struct PosterizeAdjustment {
+  int levels{4};
+};
+
+// Level 1..255 (Photoshop's 'thrs' range; the destructive filter keeps its
+// historical 0..255 clamp).
+struct ThresholdAdjustment {
+  int level{128};
+};
+
+// Photoshop legacy-mode ranges (-100..100 both). Values from modern-mode
+// CgEd blocks (-150..150 / -50..100) clamp into this model on import.
+struct BrightnessContrastAdjustment {
+  int brightness{0};
+  int contrast{0};
+};
+
 struct AdjustmentSettings {
   AdjustmentKind kind{AdjustmentKind::Levels};
   LevelsAdjustment levels{};
   CurvesAdjustment curves{};
   HueSaturationAdjustment hue_saturation{};
   ColorBalanceAdjustment color_balance{};
+  PosterizeAdjustment posterize{};
+  ThresholdAdjustment threshold{};
+  BrightnessContrastAdjustment brightness_contrast{};
 };
 
 // Levels record math shared by the UI dialogs and the PSD lvls codec: the
@@ -194,6 +226,20 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
 // instead of layering an ambiguous point onto it.
 [[nodiscard]] CurvesAdjustment curves_adjustment_from_eyedropper_samples(
     const CurvesEyedropperSamples& samples);
+
+// The single shared formulas between the destructive catalog filters
+// (filter_engine.cpp delegates here) and the adjustment layers: rounding is
+// lround-based to match the historical filter_clamp_byte semantics, and
+// threshold operates on the (30r + 59g + 11b) / 100 integer luminance.
+[[nodiscard]] std::uint8_t posterize_channel_value(std::uint8_t value, int levels);
+[[nodiscard]] int threshold_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue);
+// Photoshop legacy-mode Brightness/Contrast, calibrated against PS 2026 ramp
+// captures (July 2026). DELIBERATELY different from the destructive
+// patchy.filters.brightness_contrast formula (which is byte-pinned and keeps
+// its historical linear (100+c)/100 slope for positive contrast): the
+// adjustment layer round-trips as a native Photoshop legacy 'brit' record, so
+// it must render Photoshop's math, like the Levels dual-formula precedent.
+[[nodiscard]] std::uint8_t brightness_contrast_channel_value(std::uint8_t value, int brightness, int contrast);
 
 [[nodiscard]] bool layer_is_adjustment(const Layer& layer);
 [[nodiscard]] std::string adjustment_kind_key(AdjustmentKind kind);

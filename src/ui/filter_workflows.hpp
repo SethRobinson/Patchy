@@ -66,6 +66,10 @@ struct ColorBalanceSettings {
   int yellow_blue{0};
 };
 
+using PosterizeSettings = PosterizeAdjustment;
+using ThresholdSettings = ThresholdAdjustment;
+using BrightnessContrastSettings = BrightnessContrastAdjustment;
+
 struct FilterControlSpec {
   // The first six fields retain the legacy aggregate shape used by existing UI
   // tests and helpers. Catalog-generated specs also fill the typed fields below.
@@ -142,6 +146,15 @@ using FilterCancelled = ::patchy::FilterCancelled;
 [[nodiscard]] std::optional<ColorBalanceSettings> request_color_balance_settings(
     QWidget* parent, std::function<void(bool, const ColorBalanceSettings&)> preview_changed = {},
     ColorBalanceSettings initial = {});
+[[nodiscard]] std::optional<PosterizeSettings> request_posterize_settings(
+    QWidget* parent, std::function<void(bool, const PosterizeSettings&)> preview_changed = {},
+    PosterizeSettings initial = {});
+[[nodiscard]] std::optional<ThresholdSettings> request_threshold_settings(
+    QWidget* parent, std::function<void(bool, const ThresholdSettings&)> preview_changed = {},
+    ThresholdSettings initial = {});
+[[nodiscard]] std::optional<BrightnessContrastSettings> request_brightness_contrast_settings(
+    QWidget* parent, std::function<void(bool, const BrightnessContrastSettings&)> preview_changed = {},
+    BrightnessContrastSettings initial = {});
 // When a blur-family filter grows the layer (see build_filter_preview_pixels), the
 // returned buffer is larger than `original` and `result_bounds`, if provided,
 // receives the new document-space bounds (origin shifted, size grown). For other

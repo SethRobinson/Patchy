@@ -1561,6 +1561,523 @@ void psd_writer_uses_photoshop_bottom_to_top_layer_record_order() {
   CHECK(no_background_read.layers()[1].name() == "Top");
 }
 
+void adjustment_invert_math_lut_and_metadata_round_trip() {
+  CHECK(patchy::adjustment_kind_key(patchy::AdjustmentKind::Invert) == "invert");
+  const auto kind = patchy::adjustment_kind_from_key("invert");
+  CHECK(kind.has_value());
+  CHECK(*kind == patchy::AdjustmentKind::Invert);
+  CHECK(patchy::adjustment_display_name(patchy::AdjustmentKind::Invert) == "Invert");
+
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Invert;
+  CHECK(patchy::adjustment_has_effect(settings));
+
+  patchy::Layer layer(1, "Invert", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(layer, settings);
+  CHECK(patchy::layer_is_adjustment(layer));
+  const auto restored = patchy::adjustment_settings_from_layer(layer);
+  CHECK(restored.has_value());
+  CHECK(restored->kind == patchy::AdjustmentKind::Invert);
+
+  const auto inverted = patchy::apply_adjustment_to_color(patchy::RgbColor{1, 2, 3}, settings);
+  CHECK(inverted.red == 254);
+  CHECK(inverted.green == 253);
+  CHECK(inverted.blue == 252);
+
+  const auto lut = patchy::build_adjustment_lut(settings);
+  CHECK(lut.has_value());
+  for (int value = 0; value < 256; ++value) {
+    const auto index = static_cast<std::size_t>(value);
+    CHECK(lut->red[index] == 255 - value);
+    CHECK(lut->green[index] == 255 - value);
+    CHECK(lut->blue[index] == 255 - value);
+  }
+
+  // The destructive catalog filter shares the 255 - v formula; at its default
+  // amount the two paths must stay byte-identical over a full-ramp buffer.
+  auto adjusted = solid_rgb(16, 16, 0, 0, 0);
+  auto filtered = solid_rgb(16, 16, 0, 0, 0);
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 16; ++x) {
+      const auto value = static_cast<std::uint8_t>(y * 16 + x);
+      auto* adjusted_px = adjusted.pixel(x, y);
+      auto* filtered_px = filtered.pixel(x, y);
+      adjusted_px[0] = filtered_px[0] = value;
+      adjusted_px[1] = filtered_px[1] = static_cast<std::uint8_t>(255 - value);
+      adjusted_px[2] = filtered_px[2] = static_cast<std::uint8_t>(value ^ 0x5A);
+    }
+  }
+  patchy::apply_adjustment_to_pixels(adjusted, settings);
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  registry.apply(registry.default_invocation("patchy.filters.invert"), filtered);
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 16; ++x) {
+      const auto* adjusted_px = adjusted.pixel(x, y);
+      const auto* filtered_px = filtered.pixel(x, y);
+      CHECK(adjusted_px[0] == filtered_px[0]);
+      CHECK(adjusted_px[1] == filtered_px[1]);
+      CHECK(adjusted_px[2] == filtered_px[2]);
+    }
+  }
+}
+
+void psd_invert_adjustment_writes_native_nvrt_only_and_round_trips() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(1, 1, 10, 200, 30));
+
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Invert;
+  patchy::Layer adjustment(document.allocate_layer_id(), "Invert", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(adjustment, settings);
+  document.add_layer(std::move(adjustment));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto extra_data = psd_layer_extra_data(bytes, 1);
+  const auto nvrt = psd_layer_block_payload(extra_data, "nvrt");
+  CHECK(nvrt.has_value());
+  CHECK(nvrt->empty());
+  // Kinds newer than plAD v4 are native-block only: an old build reading a
+  // plAD with an unknown kind byte would misread the layer as Levels.
+  CHECK(!psd_layer_block_payload(extra_data, "plAD").has_value());
+  CHECK(!psd_layer_block_payload(extra_data, "levl").has_value());
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2);
+  CHECK(read.layers()[1].kind() == patchy::LayerKind::Adjustment);
+  const auto restored = patchy::adjustment_settings_from_layer(read.layers()[1]);
+  CHECK(restored.has_value());
+  CHECK(restored->kind == patchy::AdjustmentKind::Invert);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(read);
+  CHECK(flattened.pixel(0, 0)[0] == 245);
+  CHECK(flattened.pixel(0, 0)[1] == 55);
+  CHECK(flattened.pixel(0, 0)[2] == 225);
+
+  // A resave keeps the same native-only block shape.
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(read);
+  const auto resaved_extra = psd_layer_extra_data(resaved, 1);
+  CHECK(psd_layer_block_payload(resaved_extra, "nvrt").has_value());
+  CHECK(!psd_layer_block_payload(resaved_extra, "plAD").has_value());
+}
+
+void psd_photoshop_invert_fixture_imports_renders_and_round_trips() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-invert.psd");
+  CHECK(std::filesystem::exists(path));
+
+  const auto editable = patchy::psd::DocumentIo::read_file(path);
+  const auto* adjustment = find_layer_named(editable.layers(), "Invert 1");
+  CHECK(adjustment != nullptr);
+  CHECK(adjustment->kind() == patchy::LayerKind::Adjustment);
+  const auto settings = patchy::adjustment_settings_from_layer(*adjustment);
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::Invert);
+
+  // Invert is exactly 255 - v per channel in Photoshop too, so Patchy's
+  // composite must match Photoshop's flattened result byte for byte.
+  patchy::psd::ReadOptions flat_options;
+  flat_options.prefer_flat_composite = true;
+  const auto photoshop_reference = patchy::psd::DocumentIo::read_file(path, flat_options);
+  const auto reference_flat = patchy::Compositor{}.flatten_rgb8(photoshop_reference);
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(editable);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  CHECK(metrics.max_channel_delta == 0);
+
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(editable);
+  const auto extra = psd_layer_extra_data(resaved, 1);
+  CHECK(psd_layer_block_payload(extra, "nvrt").has_value());
+  CHECK(!psd_layer_block_payload(extra, "plAD").has_value());
+  const auto reread = patchy::psd::DocumentIo::read(resaved);
+  const auto* reread_adjustment = find_layer_named(reread.layers(), "Invert 1");
+  CHECK(reread_adjustment != nullptr);
+  const auto reread_settings = patchy::adjustment_settings_from_layer(*reread_adjustment);
+  CHECK(reread_settings.has_value());
+  CHECK(reread_settings->kind == patchy::AdjustmentKind::Invert);
+}
+
+void adjustment_posterize_threshold_math_lut_and_metadata_round_trip() {
+  CHECK(patchy::adjustment_kind_key(patchy::AdjustmentKind::Posterize) == "posterize");
+  CHECK(patchy::adjustment_kind_key(patchy::AdjustmentKind::Threshold) == "threshold");
+  CHECK(patchy::adjustment_kind_from_key("posterize") == patchy::AdjustmentKind::Posterize);
+  CHECK(patchy::adjustment_kind_from_key("threshold") == patchy::AdjustmentKind::Threshold);
+  CHECK(patchy::adjustment_display_name(patchy::AdjustmentKind::Posterize) == "Posterize");
+  CHECK(patchy::adjustment_display_name(patchy::AdjustmentKind::Threshold) == "Threshold");
+
+  // Metadata round trip clamps to the model ranges.
+  patchy::AdjustmentSettings posterize;
+  posterize.kind = patchy::AdjustmentKind::Posterize;
+  posterize.posterize.levels = 300;
+  patchy::Layer posterize_layer(1, "Posterize", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(posterize_layer, posterize);
+  auto restored = patchy::adjustment_settings_from_layer(posterize_layer);
+  CHECK(restored.has_value());
+  CHECK(restored->kind == patchy::AdjustmentKind::Posterize);
+  CHECK(restored->posterize.levels == 255);
+
+  patchy::AdjustmentSettings threshold;
+  threshold.kind = patchy::AdjustmentKind::Threshold;
+  threshold.threshold.level = 0;
+  patchy::Layer threshold_layer(2, "Threshold", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(threshold_layer, threshold);
+  restored = patchy::adjustment_settings_from_layer(threshold_layer);
+  CHECK(restored.has_value());
+  CHECK(restored->kind == patchy::AdjustmentKind::Threshold);
+  CHECK(restored->threshold.level == 1);
+
+  // Posterize bucket boundaries at levels 2 and 4.
+  CHECK(patchy::posterize_channel_value(127, 2) == 0);
+  CHECK(patchy::posterize_channel_value(128, 2) == 255);
+  CHECK(patchy::posterize_channel_value(0, 4) == 0);
+  CHECK(patchy::posterize_channel_value(60, 4) == 85);
+  CHECK(patchy::posterize_channel_value(128, 4) == 170);
+  CHECK(patchy::posterize_channel_value(255, 4) == 255);
+
+  // Threshold decisions use the mixed luminance, pinned by a colored pixel
+  // where a per-channel map would answer differently.
+  threshold.threshold.level = 128;
+  const auto red_result = patchy::apply_adjustment_to_color(patchy::RgbColor{255, 0, 0}, threshold);
+  CHECK(red_result.red == 0);  // luminance 76 < 128 -> black despite red = 255
+  const auto green_result = patchy::apply_adjustment_to_color(patchy::RgbColor{0, 255, 0}, threshold);
+  CHECK(green_result.red == 255);  // luminance 150 >= 128 -> white
+  CHECK(!patchy::build_adjustment_lut(threshold).has_value());
+  CHECK(patchy::adjustment_has_effect(threshold));
+
+  posterize.posterize.levels = 4;
+  const auto posterize_lut = patchy::build_adjustment_lut(posterize);
+  CHECK(posterize_lut.has_value());
+  for (int value = 0; value < 256; ++value) {
+    const auto expected = patchy::posterize_channel_value(static_cast<std::uint8_t>(value), 4);
+    CHECK(posterize_lut->red[static_cast<std::size_t>(value)] == expected);
+  }
+  CHECK(patchy::adjustment_has_effect(posterize));
+
+  // Destructive catalog parity over a deterministic ramp: the two paths share
+  // one formula and must stay byte-identical (posterize at the destructive
+  // range's edges, threshold at the shared default).
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  for (const int levels : {2, 4, 16}) {
+    auto adjusted = solid_rgb(16, 16, 0, 0, 0);
+    auto filtered = solid_rgb(16, 16, 0, 0, 0);
+    for (std::int32_t y = 0; y < 16; ++y) {
+      for (std::int32_t x = 0; x < 16; ++x) {
+        const auto value = static_cast<std::uint8_t>(y * 16 + x);
+        auto* adjusted_px = adjusted.pixel(x, y);
+        auto* filtered_px = filtered.pixel(x, y);
+        adjusted_px[0] = filtered_px[0] = value;
+        adjusted_px[1] = filtered_px[1] = static_cast<std::uint8_t>(255 - value);
+        adjusted_px[2] = filtered_px[2] = static_cast<std::uint8_t>(value ^ 0x5A);
+      }
+    }
+    posterize.posterize.levels = levels;
+    patchy::apply_adjustment_to_pixels(adjusted, posterize);
+    auto invocation = registry.default_invocation("patchy.filters.posterize");
+    invocation.parameters["levels"] = static_cast<std::int64_t>(levels);
+    registry.apply(invocation, filtered);
+    for (std::int32_t y = 0; y < 16; ++y) {
+      for (std::int32_t x = 0; x < 16; ++x) {
+        CHECK(std::memcmp(adjusted.pixel(x, y), filtered.pixel(x, y), 3) == 0);
+      }
+    }
+  }
+  {
+    auto adjusted = solid_rgb(16, 16, 0, 0, 0);
+    auto filtered = solid_rgb(16, 16, 0, 0, 0);
+    for (std::int32_t y = 0; y < 16; ++y) {
+      for (std::int32_t x = 0; x < 16; ++x) {
+        const auto value = static_cast<std::uint8_t>(y * 16 + x);
+        auto* adjusted_px = adjusted.pixel(x, y);
+        auto* filtered_px = filtered.pixel(x, y);
+        adjusted_px[0] = filtered_px[0] = value;
+        adjusted_px[1] = filtered_px[1] = static_cast<std::uint8_t>(255 - value);
+        adjusted_px[2] = filtered_px[2] = static_cast<std::uint8_t>(value ^ 0x5A);
+      }
+    }
+    threshold.threshold.level = 128;
+    patchy::apply_adjustment_to_pixels(adjusted, threshold);
+    registry.apply(registry.default_invocation("patchy.filters.threshold"), filtered);
+    for (std::int32_t y = 0; y < 16; ++y) {
+      for (std::int32_t x = 0; x < 16; ++x) {
+        CHECK(std::memcmp(adjusted.pixel(x, y), filtered.pixel(x, y), 3) == 0);
+      }
+    }
+  }
+}
+
+void psd_posterize_threshold_write_native_blocks_and_round_trip() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 100, 100));
+
+  patchy::AdjustmentSettings posterize;
+  posterize.kind = patchy::AdjustmentKind::Posterize;
+  posterize.posterize.levels = 6;
+  patchy::Layer posterize_layer(document.allocate_layer_id(), "Posterize", patchy::LayerKind::Adjustment);
+  posterize_layer.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(posterize_layer, posterize);
+  document.add_layer(std::move(posterize_layer));
+
+  patchy::AdjustmentSettings threshold;
+  threshold.kind = patchy::AdjustmentKind::Threshold;
+  threshold.threshold.level = 96;
+  patchy::Layer threshold_layer(document.allocate_layer_id(), "Threshold", patchy::LayerKind::Adjustment);
+  threshold_layer.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(threshold_layer, threshold);
+  document.add_layer(std::move(threshold_layer));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto posterize_extra = psd_layer_extra_data(bytes, 1);
+  const auto post = psd_layer_block_payload(posterize_extra, "post");
+  CHECK(post.has_value());
+  CHECK(post->size() == 4);
+  CHECK((*post)[0] == 0 && (*post)[1] == 6 && (*post)[2] == 0 && (*post)[3] == 0);
+  CHECK(!psd_layer_block_payload(posterize_extra, "plAD").has_value());
+  const auto threshold_extra = psd_layer_extra_data(bytes, 2);
+  const auto thrs = psd_layer_block_payload(threshold_extra, "thrs");
+  CHECK(thrs.has_value());
+  CHECK(thrs->size() == 4);
+  CHECK((*thrs)[0] == 0 && (*thrs)[1] == 96 && (*thrs)[2] == 0 && (*thrs)[3] == 0);
+  CHECK(!psd_layer_block_payload(threshold_extra, "plAD").has_value());
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 3);
+  const auto read_posterize = patchy::adjustment_settings_from_layer(read.layers()[1]);
+  CHECK(read_posterize.has_value());
+  CHECK(read_posterize->kind == patchy::AdjustmentKind::Posterize);
+  CHECK(read_posterize->posterize.levels == 6);
+  const auto read_threshold = patchy::adjustment_settings_from_layer(read.layers()[2]);
+  CHECK(read_threshold.has_value());
+  CHECK(read_threshold->kind == patchy::AdjustmentKind::Threshold);
+  CHECK(read_threshold->threshold.level == 96);
+}
+
+void psd_photoshop_posterize_threshold_fixtures_import_and_round_trip() {
+  const auto posterize_path = patchy::test::committed_psd_fixture_path("photoshop-posterize.psd");
+  CHECK(std::filesystem::exists(posterize_path));
+  const auto posterize_doc = patchy::psd::DocumentIo::read_file(posterize_path);
+  const auto* posterize_layer = find_layer_named(posterize_doc.layers(), "Posterize 1");
+  CHECK(posterize_layer != nullptr);
+  const auto posterize_settings = patchy::adjustment_settings_from_layer(*posterize_layer);
+  CHECK(posterize_settings.has_value());
+  CHECK(posterize_settings->kind == patchy::AdjustmentKind::Posterize);
+  CHECK(posterize_settings->posterize.levels == 6);
+  // An unedited resave re-emits the imported payload byte-for-byte.
+  const auto posterize_resaved = patchy::psd::DocumentIo::write_layered_rgb8(posterize_doc);
+  const auto resaved_post = psd_layer_block_payload(psd_layer_extra_data(posterize_resaved, 1), "post");
+  CHECK(resaved_post.has_value());
+  CHECK((*resaved_post)[1] == 6);
+
+  const auto threshold_path = patchy::test::committed_psd_fixture_path("photoshop-threshold.psd");
+  CHECK(std::filesystem::exists(threshold_path));
+  const auto threshold_doc = patchy::psd::DocumentIo::read_file(threshold_path);
+  const auto* threshold_layer = find_layer_named(threshold_doc.layers(), "Threshold 1");
+  CHECK(threshold_layer != nullptr);
+  const auto threshold_settings = patchy::adjustment_settings_from_layer(*threshold_layer);
+  CHECK(threshold_settings.has_value());
+  CHECK(threshold_settings->kind == patchy::AdjustmentKind::Threshold);
+  CHECK(threshold_settings->threshold.level == 96);
+  CHECK(threshold_layer->mask().has_value());
+
+  // Every fixture color's luminance (117..148) sits far above level 96, so
+  // Patchy's threshold decisions match Photoshop's on this file and the
+  // composite comparison is exact.
+  patchy::psd::ReadOptions flat_options;
+  flat_options.prefer_flat_composite = true;
+  const auto reference = patchy::psd::DocumentIo::read_file(threshold_path, flat_options);
+  const auto reference_flat = patchy::Compositor{}.flatten_rgb8(reference);
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(threshold_doc);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  CHECK(metrics.max_channel_delta == 0);
+}
+
+void adjustment_brightness_contrast_math_lut_and_metadata_round_trip() {
+  CHECK(patchy::adjustment_kind_key(patchy::AdjustmentKind::BrightnessContrast) == "brightness_contrast");
+  CHECK(patchy::adjustment_kind_from_key("brightness_contrast") == patchy::AdjustmentKind::BrightnessContrast);
+  CHECK(patchy::adjustment_display_name(patchy::AdjustmentKind::BrightnessContrast) == "Brightness/Contrast");
+
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::BrightnessContrast;
+  settings.brightness_contrast.brightness = 150;
+  settings.brightness_contrast.contrast = -120;
+  patchy::Layer layer(1, "Brightness/Contrast", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(layer, settings);
+  const auto restored = patchy::adjustment_settings_from_layer(layer);
+  CHECK(restored.has_value());
+  CHECK(restored->kind == patchy::AdjustmentKind::BrightnessContrast);
+  CHECK(restored->brightness_contrast.brightness == 100);
+  CHECK(restored->brightness_contrast.contrast == -100);
+
+  // Points pinned exactly by the PS 2026 legacy-mode ramp captures.
+  CHECK(patchy::brightness_contrast_channel_value(0, 30, 0) == 30);    // pure brightness is a plain add
+  CHECK(patchy::brightness_contrast_channel_value(250, 30, 0) == 255);
+  CHECK(patchy::brightness_contrast_channel_value(64, 0, 50) == 1);    // slope 2 around the 127.5 pivot
+  CHECK(patchy::brightness_contrast_channel_value(65, 0, 50) == 3);
+  CHECK(patchy::brightness_contrast_channel_value(69, 0, 50) == 11);
+  CHECK(patchy::brightness_contrast_channel_value(126, 0, 100) == 0);  // c = 100 thresholds at v + b >= 127
+  CHECK(patchy::brightness_contrast_channel_value(127, 0, 100) == 255);
+  CHECK(patchy::brightness_contrast_channel_value(176, -50, 100) == 0);   // brightness folds into the input
+  CHECK(patchy::brightness_contrast_channel_value(177, -50, 100) == 255);
+  // Negative contrast adds brightness to the OUTPUT (model value; PS's own
+  // LUT wobbles within +/-1 of this formula).
+  CHECK(patchy::brightness_contrast_channel_value(1, -40, -40) == 12);
+
+  // Deliberate divergence from the byte-pinned destructive filter: positive
+  // contrast uses Photoshop's 100/(100-c) slope, not the catalog's linear
+  // (100+c)/100. If this ever "unifies", pinned pixels change - keep both.
+  CHECK(patchy::brightness_contrast_channel_value(64, 0, 50) !=
+        static_cast<std::uint8_t>(std::clamp(std::lround((64.0 - 128.0) * 1.5 + 128.0), 0L, 255L)));
+
+  settings.brightness_contrast.brightness = 20;
+  settings.brightness_contrast.contrast = 35;
+  const auto lut = patchy::build_adjustment_lut(settings);
+  CHECK(lut.has_value());
+  for (int value = 0; value < 256; ++value) {
+    const auto expected = patchy::brightness_contrast_channel_value(static_cast<std::uint8_t>(value), 20, 35);
+    CHECK(lut->red[static_cast<std::size_t>(value)] == expected);
+    CHECK(lut->green[static_cast<std::size_t>(value)] == expected);
+    CHECK(lut->blue[static_cast<std::size_t>(value)] == expected);
+  }
+  CHECK(patchy::adjustment_has_effect(settings));
+  settings.brightness_contrast = patchy::BrightnessContrastAdjustment{};
+  CHECK(!patchy::adjustment_has_effect(settings));
+}
+
+void psd_brightness_contrast_writes_native_brit_only_and_round_trips() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 100, 100));
+
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::BrightnessContrast;
+  settings.brightness_contrast.brightness = 30;
+  settings.brightness_contrast.contrast = -20;
+  patchy::Layer adjustment(document.allocate_layer_id(), "Brightness/Contrast", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(adjustment, settings);
+  document.add_layer(std::move(adjustment));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto extra = psd_layer_extra_data(bytes, 1);
+  const auto brit = psd_layer_block_payload(extra, "brit");
+  CHECK(brit.has_value());
+  CHECK(brit->size() == 8);
+  // Photoshop 2026's legacy-mode shape: brightness i16, contrast i16,
+  // mean 127, lab 0, pad 0.
+  const std::array<std::uint8_t, 8> expected{0x00, 0x1E, 0xFF, 0xEC, 0x00, 0x7F, 0x00, 0x00};
+  CHECK(std::equal(brit->begin(), brit->end(), expected.begin()));
+  CHECK(!psd_layer_block_payload(extra, "CgEd").has_value());
+  CHECK(!psd_layer_block_payload(extra, "plAD").has_value());
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  const auto restored = patchy::adjustment_settings_from_layer(read.layers()[1]);
+  CHECK(restored.has_value());
+  CHECK(restored->kind == patchy::AdjustmentKind::BrightnessContrast);
+  CHECK(restored->brightness_contrast.brightness == 30);
+  CHECK(restored->brightness_contrast.contrast == -20);
+}
+
+void psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve() {
+  // Legacy fixture: 'brit' only, exact parameter recovery, and a composite
+  // match within the calibrated +/-1 envelope.
+  const auto legacy_path = patchy::test::committed_psd_fixture_path("photoshop-brightness-contrast-legacy.psd");
+  CHECK(std::filesystem::exists(legacy_path));
+  const auto legacy_doc = patchy::psd::DocumentIo::read_file(legacy_path);
+  const auto* legacy_layer = find_layer_named(legacy_doc.layers(), "Brightness/Contrast 1");
+  CHECK(legacy_layer != nullptr);
+  const auto legacy_settings = patchy::adjustment_settings_from_layer(*legacy_layer);
+  CHECK(legacy_settings.has_value());
+  CHECK(legacy_settings->kind == patchy::AdjustmentKind::BrightnessContrast);
+  CHECK(legacy_settings->brightness_contrast.brightness == 30);
+  CHECK(legacy_settings->brightness_contrast.contrast == -20);
+
+  patchy::psd::ReadOptions flat_options;
+  flat_options.prefer_flat_composite = true;
+  const auto legacy_reference = patchy::psd::DocumentIo::read_file(legacy_path, flat_options);
+  const auto reference_flat = patchy::Compositor{}.flatten_rgb8(legacy_reference);
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(legacy_doc);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  CHECK(metrics.max_channel_delta <= 1);
+
+  // Unedited resave re-emits the imported 'brit' byte-for-byte.
+  const auto legacy_original_brit =
+      psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(legacy_doc), 1),
+                              "brit");
+  CHECK(legacy_original_brit.has_value());
+  const std::array<std::uint8_t, 8> legacy_expected{0x00, 0x1E, 0xFF, 0xEC, 0x00, 0x7F, 0x00, 0x00};
+  CHECK(legacy_original_brit->size() == 8);
+  CHECK(std::equal(legacy_original_brit->begin(), legacy_original_brit->end(), legacy_expected.begin()));
+
+  // Modern fixture: the CgEd descriptor is authoritative (the compatibility
+  // 'brit' beside it is all zeros), values clamp into the legacy model, and
+  // the read reports the algorithm approximation.
+  const auto modern_path = patchy::test::committed_psd_fixture_path("photoshop-brightness-contrast-modern.psd");
+  CHECK(std::filesystem::exists(modern_path));
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions notice_options;
+  notice_options.notices = &notices;
+  const auto modern_doc = patchy::psd::DocumentIo::read_file(modern_path, notice_options);
+  const auto* modern_layer = find_layer_named(modern_doc.layers(), "Brightness/Contrast 1");
+  CHECK(modern_layer != nullptr);
+  const auto modern_settings = patchy::adjustment_settings_from_layer(*modern_layer);
+  CHECK(modern_settings.has_value());
+  CHECK(modern_settings->brightness_contrast.brightness == 40);
+  CHECK(modern_settings->brightness_contrast.contrast == 25);
+  CHECK(std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("modern algorithm") != std::string::npos;
+  }));
+
+  // Unedited: both original blocks survive byte-for-byte.
+  const auto modern_resaved = patchy::psd::DocumentIo::write_layered_rgb8(modern_doc);
+  const auto modern_extra = psd_layer_extra_data(modern_resaved, 1);
+  const auto modern_brit = psd_layer_block_payload(modern_extra, "brit");
+  CHECK(modern_brit.has_value());
+  CHECK(std::all_of(modern_brit->begin(), modern_brit->end(), [](std::uint8_t byte) { return byte == 0; }));
+  CHECK(psd_layer_block_payload(modern_extra, "CgEd").has_value());
+
+  // An edit regenerates legacy 'brit' and drops the stale CgEd descriptor
+  // (Photoshop would otherwise keep reading the old modern values).
+  auto edited_doc = patchy::psd::DocumentIo::read_file(modern_path);
+  auto* edited_layer = edited_doc.find_layer(find_layer_named(edited_doc.layers(), "Brightness/Contrast 1")->id());
+  CHECK(edited_layer != nullptr);
+  auto edited_settings = *patchy::adjustment_settings_from_layer(*edited_layer);
+  edited_settings.brightness_contrast.brightness = -15;
+  edited_settings.brightness_contrast.contrast = 60;
+  patchy::configure_adjustment_layer(*edited_layer, edited_settings);
+  const auto edited_resaved = patchy::psd::DocumentIo::write_layered_rgb8(edited_doc);
+  const auto edited_extra = psd_layer_extra_data(edited_resaved, 1);
+  const auto edited_brit = psd_layer_block_payload(edited_extra, "brit");
+  CHECK(edited_brit.has_value());
+  CHECK(edited_brit->size() == 8);
+  const std::array<std::uint8_t, 8> edited_expected{0xFF, 0xF1, 0x00, 0x3C, 0x00, 0x7F, 0x00, 0x00};
+  CHECK(std::equal(edited_brit->begin(), edited_brit->end(), edited_expected.begin()));
+  CHECK(!psd_layer_block_payload(edited_extra, "CgEd").has_value());
+  const auto edited_read = patchy::psd::DocumentIo::read(edited_resaved);
+  const auto edited_restored =
+      patchy::adjustment_settings_from_layer(*find_layer_named(edited_read.layers(), "Brightness/Contrast 1"));
+  CHECK(edited_restored.has_value());
+  CHECK(edited_restored->brightness_contrast.brightness == -15);
+  CHECK(edited_restored->brightness_contrast.contrast == 60);
+}
+
+void psd_native_nvrt_adjustment_imports_and_renders() {
+  const auto bytes = single_adjustment_layer_psd({{{'n', 'v', 'r', 't'}, {}}});
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  CHECK(document.layers().size() == 1);
+  CHECK(document.layers().front().kind() == patchy::LayerKind::Adjustment);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::Invert);
+
+  patchy::Document composited(1, 1, patchy::PixelFormat::rgb8());
+  composited.add_pixel_layer("Base", solid_rgb(1, 1, 0, 200, 64));
+  patchy::Layer adjustment(composited.allocate_layer_id(), "Invert", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(adjustment, *settings);
+  composited.add_layer(std::move(adjustment));
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(composited);
+  CHECK(flattened.pixel(0, 0)[0] == 255);
+  CHECK(flattened.pixel(0, 0)[1] == 55);
+  CHECK(flattened.pixel(0, 0)[2] == 191);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> adjustments_curves_tests() {
@@ -1612,5 +2129,24 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        psd_generic_bg_colorize_writes_comparison_artifacts_if_available},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
        psd_writer_uses_photoshop_bottom_to_top_layer_record_order},
+      {"adjustment_invert_math_lut_and_metadata_round_trip",
+       adjustment_invert_math_lut_and_metadata_round_trip},
+      {"psd_invert_adjustment_writes_native_nvrt_only_and_round_trips",
+       psd_invert_adjustment_writes_native_nvrt_only_and_round_trips},
+      {"psd_native_nvrt_adjustment_imports_and_renders", psd_native_nvrt_adjustment_imports_and_renders},
+      {"psd_photoshop_invert_fixture_imports_renders_and_round_trips",
+       psd_photoshop_invert_fixture_imports_renders_and_round_trips},
+      {"adjustment_posterize_threshold_math_lut_and_metadata_round_trip",
+       adjustment_posterize_threshold_math_lut_and_metadata_round_trip},
+      {"psd_posterize_threshold_write_native_blocks_and_round_trip",
+       psd_posterize_threshold_write_native_blocks_and_round_trip},
+      {"psd_photoshop_posterize_threshold_fixtures_import_and_round_trip",
+       psd_photoshop_posterize_threshold_fixtures_import_and_round_trip},
+      {"adjustment_brightness_contrast_math_lut_and_metadata_round_trip",
+       adjustment_brightness_contrast_math_lut_and_metadata_round_trip},
+      {"psd_brightness_contrast_writes_native_brit_only_and_round_trips",
+       psd_brightness_contrast_writes_native_brit_only_and_round_trips},
+      {"psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve",
+       psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve},
   };
 }

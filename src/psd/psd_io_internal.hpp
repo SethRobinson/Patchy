@@ -80,6 +80,20 @@ constexpr std::array<char, 4> kPhotoshopCurvesAdjustmentBlockKey{'c', 'u', 'r', 
 constexpr std::array<char, 4> kPhotoshopCurvesExtraMarker{'C', 'r', 'v', ' '};
 constexpr std::array<char, 4> kPhotoshopHueSaturationBlockKey{'h', 'u', 'e', '2'};
 constexpr std::uint16_t kPhotoshopHueSaturationVersion = 2;
+// Invert carries no settings: Photoshop writes the block with an empty payload.
+constexpr std::array<char, 4> kPhotoshopInvertBlockKey{'n', 'v', 'r', 't'};
+// Posterize and Threshold are 4 bytes each: u16 value + 2 zero pad bytes
+// (pinned by PS 2026 captures: photoshop-posterize.psd levels 6 = 00 06 00 00,
+// photoshop-threshold.psd level 96 = 00 60 00 00).
+constexpr std::array<char, 4> kPhotoshopPosterizeBlockKey{'p', 'o', 's', 't'};
+constexpr std::array<char, 4> kPhotoshopThresholdBlockKey{'t', 'h', 'r', 's'};
+// Brightness/Contrast: legacy-mode PS 2026 writes ONLY the 8-byte 'brit'
+// (brightness i16, contrast i16, mean u16 = 127, lab u8 = 0, pad u8 = 0);
+// modern mode writes an all-zero 'brit' plus a 'CgEd' descriptor (u32 version
+// 16, class "null", items Vrsn=1, Brgh, Cntr, means=127, "Lab "=false,
+// useLegacy, Auto=false). A parseable CgEd is authoritative over brit.
+constexpr std::array<char, 4> kPhotoshopBrightnessContrastBlockKey{'b', 'r', 'i', 't'};
+constexpr std::array<char, 4> kPhotoshopBrightnessContrastDescriptorBlockKey{'C', 'g', 'E', 'd'};
 // version u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3.
 constexpr std::size_t kPhotoshopHueSaturationHeaderSize = 16;
 constexpr int kMaxTextSizePixels = 8192;
@@ -392,8 +406,33 @@ std::optional<AdjustmentSettings> parse_photoshop_curves_adjustment(
     std::span<const std::uint8_t> payload);
 std::vector<std::uint8_t> photoshop_curves_payload(const CurvesAdjustment& curves,
                                                    const UnknownPsdBlock* original);
+std::optional<AdjustmentSettings> parse_photoshop_posterize_adjustment(std::span<const std::uint8_t> payload);
+std::vector<std::uint8_t> photoshop_posterize_payload(const PosterizeAdjustment& settings,
+                                                      const UnknownPsdBlock* original);
+std::optional<AdjustmentSettings> parse_photoshop_threshold_adjustment(std::span<const std::uint8_t> payload);
+std::vector<std::uint8_t> photoshop_threshold_payload(const ThresholdAdjustment& settings,
+                                                      const UnknownPsdBlock* original);
+std::optional<AdjustmentSettings> parse_photoshop_brightness_contrast_adjustment(
+    std::span<const std::uint8_t> payload);
+struct BrightnessContrastDescriptorParse {
+  AdjustmentSettings settings;
+  bool use_legacy{false};
+};
+std::optional<BrightnessContrastDescriptorParse> parse_photoshop_brightness_contrast_descriptor(
+    std::span<const std::uint8_t> payload);
+// Re-emits the imported 'brit' bytes when the layer's settings still match the
+// imported state (CgEd authoritative); regenerates the legacy 8-byte shape on
+// a real edit. `layer` provides the preserved original blocks.
+std::vector<std::uint8_t> photoshop_brightness_contrast_payload(const BrightnessContrastAdjustment& settings,
+                                                                const Layer& layer);
+// True when a Brightness/Contrast edit must drop the preserved 'CgEd' block
+// (a stale descriptor would win over the regenerated 'brit' in Photoshop).
+[[nodiscard]] bool brightness_contrast_descriptor_is_stale(const Layer& layer);
 std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer);
 std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::uint8_t> payload);
+// plAD's kind byte only encodes the original v4 kinds; old builds read unknown
+// values as Levels, so newer kinds must never be written into plAD.
+[[nodiscard]] bool patchy_plad_supports_kind(AdjustmentKind kind);
 
 // Layer-style codecs: lfx2/lrFX parse, global-light resolution, and the private
 // plFX block (definitions in psd_layer_styles.cpp). The public lfx2 write API

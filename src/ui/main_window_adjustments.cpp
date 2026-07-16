@@ -3104,6 +3104,10 @@ void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& 
     connect(action, &QAction::triggered, this, callback);
     return action;
   };
+  // Photoshop's New Adjustment Layer ordering puts Brightness/Contrast first.
+  // No mnemonic: B and C are taken by Color Balance and Curves.
+  add_adjustment(tr("Brightness/Contrast..."), QStringLiteral("BrightnessContrastAdjustment"),
+                 QStringLiteral("BC"), [this] { new_brightness_contrast_adjustment_layer(); });
   add_adjustment(tr("&Levels..."), QStringLiteral("LevelsAdjustment"), QStringLiteral("LVL"),
                  [this] { new_levels_adjustment_layer(); });
   add_adjustment(tr("&Curves..."), QStringLiteral("CurvesAdjustment"), QStringLiteral("CRV"),
@@ -3112,6 +3116,13 @@ void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& 
                  [this] { new_hue_saturation_adjustment_layer(); });
   add_adjustment(tr("Color &Balance..."), QStringLiteral("ColorBalanceAdjustment"), QStringLiteral("CB"),
                  [this] { new_color_balance_adjustment_layer(); });
+  // No ellipsis: Invert has no settings, so no dialog opens.
+  add_adjustment(tr("&Invert"), QStringLiteral("InvertAdjustment"), QStringLiteral("INV"),
+                 [this] { new_invert_adjustment_layer(); });
+  add_adjustment(tr("&Posterize..."), QStringLiteral("PosterizeAdjustment"), QStringLiteral("PST"),
+                 [this] { new_posterize_adjustment_layer(); });
+  add_adjustment(tr("&Threshold..."), QStringLiteral("ThresholdAdjustment"), QStringLiteral("THR"),
+                 [this] { new_threshold_adjustment_layer(); });
 }
 
 void MainWindow::new_levels_adjustment_layer() {
@@ -3763,6 +3774,112 @@ void MainWindow::apply_color_balance_adjustment(int cyan_red, int magenta_green,
   create_adjustment_layer(tr("Color Balance"), settings);
 }
 
+void MainWindow::new_invert_adjustment_layer() {
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::Invert;
+  create_adjustment_layer(tr("Invert"), settings);
+}
+
+void MainWindow::new_posterize_adjustment_layer() {
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const PosterizeSettings& posterize) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::Posterize;
+    settings.posterize.levels = std::clamp(posterize.levels, 2, 255);
+    update_adjustment_layer_preview(tr("Posterize"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_posterize_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Posterize"));
+    return;
+  }
+  apply_posterize_adjustment(*settings, true);
+}
+
+void MainWindow::apply_posterize_adjustment(const PosterizeSettings& posterize, bool allow_identity) {
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::Posterize;
+  settings.posterize.levels = std::clamp(posterize.levels, 2, 255);
+  if (!allow_identity && !adjustment_has_effect(settings)) {
+    return;
+  }
+  create_adjustment_layer(tr("Posterize"), settings);
+}
+
+void MainWindow::new_threshold_adjustment_layer() {
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const ThresholdSettings& threshold) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::Threshold;
+    settings.threshold.level = std::clamp(threshold.level, 1, 255);
+    update_adjustment_layer_preview(tr("Threshold"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_threshold_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Threshold"));
+    return;
+  }
+  apply_threshold_adjustment(*settings, true);
+}
+
+void MainWindow::apply_threshold_adjustment(const ThresholdSettings& threshold, bool allow_identity) {
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::Threshold;
+  settings.threshold.level = std::clamp(threshold.level, 1, 255);
+  if (!allow_identity && !adjustment_has_effect(settings)) {
+    return;
+  }
+  create_adjustment_layer(tr("Threshold"), settings);
+}
+
+void MainWindow::new_brightness_contrast_adjustment_layer() {
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](
+                                   bool enabled, const BrightnessContrastSettings& brightness_contrast) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::BrightnessContrast;
+    settings.brightness_contrast.brightness = std::clamp(brightness_contrast.brightness, -100, 100);
+    settings.brightness_contrast.contrast = std::clamp(brightness_contrast.contrast, -100, 100);
+    update_adjustment_layer_preview(tr("Brightness/Contrast"), settings, enabled, preview_id,
+                                    restore_active_layer);
+  };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_brightness_contrast_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Brightness/Contrast"));
+    return;
+  }
+  apply_brightness_contrast_adjustment(*settings, true);
+}
+
+void MainWindow::apply_brightness_contrast_adjustment(const BrightnessContrastSettings& brightness_contrast,
+                                                      bool allow_identity) {
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::BrightnessContrast;
+  settings.brightness_contrast.brightness = std::clamp(brightness_contrast.brightness, -100, 100);
+  settings.brightness_contrast.contrast = std::clamp(brightness_contrast.contrast, -100, 100);
+  if (!allow_identity && !adjustment_has_effect(settings)) {
+    return;
+  }
+  create_adjustment_layer(tr("Brightness/Contrast"), settings);
+}
+
 Layer MainWindow::build_adjustment_layer(QString label, const AdjustmentSettings& settings) {
   auto& doc = document();
   Layer layer(doc.allocate_layer_id(), label.toStdString(), LayerKind::Adjustment);
@@ -3863,6 +3980,10 @@ void MainWindow::edit_active_adjustment_layer() {
   const auto original_settings = adjustment_settings_from_layer(*layer);
   if (!original_settings.has_value()) {
     show_status_error(tr("This adjustment layer has no editable settings"));
+    return;
+  }
+  if (original_settings->kind == AdjustmentKind::Invert) {
+    statusBar()->showMessage(tr("Invert has no settings to edit"));
     return;
   }
 
@@ -3996,6 +4117,69 @@ void MainWindow::edit_active_adjustment_layer() {
             ColorBalanceAdjustment{std::clamp(result->cyan_red, -100, 100),
                                    std::clamp(result->magenta_green, -100, 100),
                                    std::clamp(result->yellow_blue, -100, 100)};
+      }
+      break;
+    }
+    case AdjustmentKind::Invert:
+      break;  // handled by the early return above; nothing to edit
+    case AdjustmentKind::Posterize: {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const PosterizeSettings& posterize) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
+        auto settings = *original_settings;
+        settings.posterize.levels = std::clamp(posterize.levels, 2, 255);
+        apply_settings(settings);
+      };
+      const auto result = request_posterize_settings(
+          this, preview_changed, PosterizeSettings{original_settings->posterize.levels});
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->posterize.levels = std::clamp(result->levels, 2, 255);
+      }
+      break;
+    }
+    case AdjustmentKind::Threshold: {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const ThresholdSettings& threshold) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
+        auto settings = *original_settings;
+        settings.threshold.level = std::clamp(threshold.level, 1, 255);
+        apply_settings(settings);
+      };
+      const auto result = request_threshold_settings(
+          this, preview_changed, ThresholdSettings{original_settings->threshold.level});
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->threshold.level = std::clamp(result->level, 1, 255);
+      }
+      break;
+    }
+    case AdjustmentKind::BrightnessContrast: {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const BrightnessContrastSettings& brightness_contrast) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
+        auto settings = *original_settings;
+        settings.brightness_contrast.brightness = std::clamp(brightness_contrast.brightness, -100, 100);
+        settings.brightness_contrast.contrast = std::clamp(brightness_contrast.contrast, -100, 100);
+        apply_settings(settings);
+      };
+      const auto result = request_brightness_contrast_settings(
+          this, preview_changed,
+          BrightnessContrastSettings{original_settings->brightness_contrast.brightness,
+                                     original_settings->brightness_contrast.contrast});
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->brightness_contrast.brightness = std::clamp(result->brightness, -100, 100);
+        accepted_settings->brightness_contrast.contrast = std::clamp(result->contrast, -100, 100);
       }
       break;
     }

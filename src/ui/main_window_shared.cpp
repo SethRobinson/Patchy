@@ -79,6 +79,14 @@ QString localized_adjustment_display_name(AdjustmentKind kind) {
       return QObject::tr("Hue/Saturation");
     case AdjustmentKind::ColorBalance:
       return QObject::tr("Color Balance");
+    case AdjustmentKind::Invert:
+      return QObject::tr("Invert");
+    case AdjustmentKind::Posterize:
+      return QObject::tr("Posterize");
+    case AdjustmentKind::Threshold:
+      return QObject::tr("Threshold");
+    case AdjustmentKind::BrightnessContrast:
+      return QObject::tr("Brightness/Contrast");
   }
   return QObject::tr("Adjustment");
 }

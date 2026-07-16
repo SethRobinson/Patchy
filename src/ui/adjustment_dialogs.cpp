@@ -1353,4 +1353,47 @@ std::optional<ColorBalanceSettings> request_color_balance_settings(
       std::move(preview_changed));
 }
 
+std::optional<PosterizeSettings> request_posterize_settings(
+    QWidget* parent, std::function<void(bool, const PosterizeSettings&)> preview_changed,
+    PosterizeSettings initial) {
+  initial.levels = std::clamp(initial.levels, 2, 255);
+  return request_adjustment_settings_dialog<PosterizeSettings>(
+      parent, QStringLiteral("patchyPosterizeDialog"), QObject::tr("Posterize"),
+      QStringLiteral("posterizePreviewCheck"),
+      {{QObject::tr("Levels"), QStringLiteral("posterizeLevels"), 2, 255, initial.levels, {}}},
+      [](const std::vector<QSpinBox*>& spins) { return PosterizeSettings{spins[0]->value()}; },
+      std::move(preview_changed));
+}
+
+std::optional<ThresholdSettings> request_threshold_settings(
+    QWidget* parent, std::function<void(bool, const ThresholdSettings&)> preview_changed,
+    ThresholdSettings initial) {
+  initial.level = std::clamp(initial.level, 1, 255);
+  return request_adjustment_settings_dialog<ThresholdSettings>(
+      parent, QStringLiteral("patchyThresholdDialog"), QObject::tr("Threshold"),
+      QStringLiteral("thresholdPreviewCheck"),
+      {{QObject::tr("Threshold Level"), QStringLiteral("thresholdLevel"), 1, 255, initial.level, {}}},
+      [](const std::vector<QSpinBox*>& spins) { return ThresholdSettings{spins[0]->value()}; },
+      std::move(preview_changed));
+}
+
+std::optional<BrightnessContrastSettings> request_brightness_contrast_settings(
+    QWidget* parent, std::function<void(bool, const BrightnessContrastSettings&)> preview_changed,
+    BrightnessContrastSettings initial) {
+  initial.brightness = std::clamp(initial.brightness, -100, 100);
+  initial.contrast = std::clamp(initial.contrast, -100, 100);
+  // Object names deliberately differ from the destructive catalog dialog's
+  // filterBrightness/filterContrast so tests can target each unambiguously.
+  return request_adjustment_settings_dialog<BrightnessContrastSettings>(
+      parent, QStringLiteral("patchyBrightnessContrastDialog"), QObject::tr("Brightness/Contrast"),
+      QStringLiteral("brightnessContrastPreviewCheck"),
+      {{QObject::tr("Brightness"), QStringLiteral("brightnessContrastBrightness"), -100, 100,
+        initial.brightness, {}},
+       {QObject::tr("Contrast"), QStringLiteral("brightnessContrastContrast"), -100, 100, initial.contrast, {}}},
+      [](const std::vector<QSpinBox*>& spins) {
+        return BrightnessContrastSettings{spins[0]->value(), spins[1]->value()};
+      },
+      std::move(preview_changed));
+}
+
 }  // namespace patchy::ui

@@ -1108,6 +1108,25 @@ void ui_adjustment_layer_thumbnails_show_type_symbols() {
   color_balance.color_balance = patchy::ColorBalanceAdjustment{45, -25, 35};
   add_adjustment_layer(QStringLiteral("Color Balance"), color_balance);
 
+  patchy::AdjustmentSettings invert;
+  invert.kind = patchy::AdjustmentKind::Invert;
+  add_adjustment_layer(QStringLiteral("Invert"), invert);
+
+  patchy::AdjustmentSettings posterize;
+  posterize.kind = patchy::AdjustmentKind::Posterize;
+  posterize.posterize.levels = 5;
+  add_adjustment_layer(QStringLiteral("Posterize"), posterize);
+
+  patchy::AdjustmentSettings threshold;
+  threshold.kind = patchy::AdjustmentKind::Threshold;
+  threshold.threshold.level = 96;
+  add_adjustment_layer(QStringLiteral("Threshold"), threshold);
+
+  patchy::AdjustmentSettings brightness_contrast;
+  brightness_contrast.kind = patchy::AdjustmentKind::BrightnessContrast;
+  brightness_contrast.brightness_contrast = patchy::BrightnessContrastAdjustment{25, 40};
+  add_adjustment_layer(QStringLiteral("Brightness/Contrast"), brightness_contrast);
+
   patchy::ui::MainWindow window;
   window.add_document_session(std::move(document), QStringLiteral("Adjustment Thumbnails"));
   show_window(window);
@@ -1128,6 +1147,10 @@ void ui_adjustment_layer_thumbnails_show_type_symbols() {
   const auto curves_image = thumbnail_image(QStringLiteral("Curves"));
   const auto hue_saturation_image = thumbnail_image(QStringLiteral("Hue/Saturation"));
   const auto color_balance_image = thumbnail_image(QStringLiteral("Color Balance"));
+  const auto invert_image = thumbnail_image(QStringLiteral("Invert"));
+  const auto posterize_image = thumbnail_image(QStringLiteral("Posterize"));
+  const auto threshold_image = thumbnail_image(QStringLiteral("Threshold"));
+  const auto brightness_contrast_image = thumbnail_image(QStringLiteral("Brightness/Contrast"));
 
   auto vivid_pixels = [](const QImage& image) {
     int count = 0;
@@ -1177,6 +1200,12 @@ void ui_adjustment_layer_thumbnails_show_type_symbols() {
   const auto curves_non_black = non_black_pixels(curves_image);
   const auto levels_curves_difference = differing_pixels(levels_image, curves_image);
   const auto hue_color_balance_difference = differing_pixels(hue_saturation_image, color_balance_image);
+  const auto invert_non_black = non_black_pixels(invert_image);
+  const auto invert_color_balance_difference = differing_pixels(invert_image, color_balance_image);
+  const auto posterize_non_black = non_black_pixels(posterize_image);
+  const auto threshold_non_black = non_black_pixels(threshold_image);
+  const auto posterize_threshold_difference = differing_pixels(posterize_image, threshold_image);
+  const auto threshold_invert_difference = differing_pixels(threshold_image, invert_image);
   CHECK(levels_vivid > 80);
   CHECK(curves_vivid > 80);
   CHECK(hue_saturation_vivid > 120);
@@ -1185,6 +1214,242 @@ void ui_adjustment_layer_thumbnails_show_type_symbols() {
   CHECK(curves_non_black > 300);
   CHECK(levels_curves_difference > 100);
   CHECK(hue_color_balance_difference > 100);
+  CHECK(invert_non_black > 60);
+  CHECK(invert_color_balance_difference > 80);
+  CHECK(posterize_non_black > 60);
+  CHECK(threshold_non_black > 60);
+  CHECK(posterize_threshold_difference > 60);
+  // Threshold and Invert share the split-square motif but differ in the two
+  // triangles between the vertical and diagonal splits (~49 px).
+  CHECK(threshold_invert_difference > 30);
+  CHECK(non_black_pixels(brightness_contrast_image) > 60);
+  CHECK(differing_pixels(brightness_contrast_image, threshold_image) > 60);
+}
+
+void ui_invert_adjustment_layer_creates_without_dialog_and_reports_no_edit_settings() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  canvas->set_primary_color(QColor(255, 0, 0));
+  use_solid_fill_settings(canvas);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(120, 120)));
+  QApplication::processEvents();
+
+  // Invert has no settings, so the action creates the layer without a dialog.
+  require_action(window, "layerNewInvertAdjustmentAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(layer_list->item(0) != nullptr);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Invert"));
+  auto* adjustment_row = layer_list->itemWidget(layer_list->item(0));
+  CHECK(adjustment_row != nullptr);
+  CHECK(adjustment_row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) != nullptr);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 255, 255), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 300)), QColor(255, 0, 0), 8));
+
+  // Editing reports that there is nothing to edit instead of opening a dialog.
+  require_action(window, "layerEditAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Invert has no settings to edit"));
+
+  // Undo removes the adjustment layer, leaving the fill's Paint Layer and the
+  // Background, and restores the un-inverted red fill.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 2);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Paint Layer"));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(255, 0, 0), 8));
+}
+
+void ui_posterize_and_threshold_adjustment_layers_create_and_edit() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  canvas->set_primary_color(QColor(100, 100, 100));
+  use_solid_fill_settings(canvas);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  // Posterize create: levels 2 sends gray 100 to black, with a live preview.
+  bool saw_posterize_preview = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyPosterizeDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* levels = dialog->findChild<QSpinBox*>(QStringLiteral("posterizeLevelsSpin"));
+      CHECK(levels != nullptr);
+      CHECK(levels->value() == 4);
+      levels->setValue(2);
+      process_events_for(120);
+      saw_posterize_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 0, 0), 6);
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "layerNewPosterizeAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_posterize_preview);
+  CHECK(layer_list->item(0) != nullptr);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Posterize"));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 0, 0), 6));
+
+  // Posterize edit: the dialog reopens with the stored value; 255 levels is a
+  // near-identity that restores the gray.
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyPosterizeDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* levels = dialog->findChild<QSpinBox*>(QStringLiteral("posterizeLevelsSpin"));
+      CHECK(levels != nullptr);
+      CHECK(levels->value() == 2);
+      levels->setValue(255);
+      process_events_for(120);
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "layerEditAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(100, 100, 100), 6));
+
+  // Threshold create on top: gray 100 has luminance 100, so level 99 turns it
+  // white.
+  bool saw_threshold_preview = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyThresholdDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* level = dialog->findChild<QSpinBox*>(QStringLiteral("thresholdLevelSpin"));
+      CHECK(level != nullptr);
+      CHECK(level->value() == 128);
+      level->setValue(99);
+      process_events_for(120);
+      saw_threshold_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(255, 255, 255), 6);
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "layerNewThresholdAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_threshold_preview);
+  CHECK(layer_list->item(0) != nullptr);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Threshold"));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(255, 255, 255), 6));
+
+  // Threshold edit: level 101 sits above luminance 100 and flips it to black.
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyThresholdDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* level = dialog->findChild<QSpinBox*>(QStringLiteral("thresholdLevelSpin"));
+      CHECK(level != nullptr);
+      CHECK(level->value() == 99);
+      level->setValue(101);
+      process_events_for(120);
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "layerEditAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 0, 0), 6));
+}
+
+void ui_brightness_contrast_adjustment_layer_creates_and_edits() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  canvas->set_primary_color(QColor(100, 100, 100));
+  use_solid_fill_settings(canvas);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  // Create with brightness +50: gray 100 becomes 150 (pure brightness is a
+  // plain add in the calibrated legacy model).
+  bool saw_preview = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyBrightnessContrastDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* brightness = dialog->findChild<QSpinBox*>(QStringLiteral("brightnessContrastBrightnessSpin"));
+      auto* contrast = dialog->findChild<QSpinBox*>(QStringLiteral("brightnessContrastContrastSpin"));
+      CHECK(brightness != nullptr);
+      CHECK(contrast != nullptr);
+      CHECK(brightness->value() == 0);
+      CHECK(contrast->value() == 0);
+      brightness->setValue(50);
+      process_events_for(120);
+      saw_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(150, 150, 150), 6);
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "layerNewBrightnessContrastAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_preview);
+  CHECK(layer_list->item(0) != nullptr);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Brightness/Contrast"));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(150, 150, 150), 6));
+
+  // Edit: the stored value reopens; contrast 100 thresholds at v + b >= 127,
+  // so brightness 0 sends gray 100 to black.
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyBrightnessContrastDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* brightness = dialog->findChild<QSpinBox*>(QStringLiteral("brightnessContrastBrightnessSpin"));
+      auto* contrast = dialog->findChild<QSpinBox*>(QStringLiteral("brightnessContrastContrastSpin"));
+      CHECK(brightness != nullptr);
+      CHECK(contrast != nullptr);
+      CHECK(brightness->value() == 50);
+      brightness->setValue(0);
+      contrast->setValue(100);
+      process_events_for(120);
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "layerEditAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 0, 0), 6));
 }
 
 void ui_levels_dialog_remaps_selected_tonal_range() {
@@ -2368,6 +2633,12 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_alt_click_layer_boundary_toggles_clipping", ui_alt_click_layer_boundary_toggles_clipping},
       {"ui_adjustment_layer_thumbnails_show_type_symbols",
        ui_adjustment_layer_thumbnails_show_type_symbols},
+      {"ui_invert_adjustment_layer_creates_without_dialog_and_reports_no_edit_settings",
+       ui_invert_adjustment_layer_creates_without_dialog_and_reports_no_edit_settings},
+      {"ui_posterize_and_threshold_adjustment_layers_create_and_edit",
+       ui_posterize_and_threshold_adjustment_layers_create_and_edit},
+      {"ui_brightness_contrast_adjustment_layer_creates_and_edits",
+       ui_brightness_contrast_adjustment_layer_creates_and_edits},
       {"ui_levels_dialog_remaps_selected_tonal_range", ui_levels_dialog_remaps_selected_tonal_range},
       {"ui_curves_dialog_remaps_midtones_in_selection", ui_curves_dialog_remaps_midtones_in_selection},
       {"ui_curves_editor_points_channels_keyboard_auto_and_reset",

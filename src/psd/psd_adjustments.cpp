@@ -67,6 +67,13 @@ std::uint8_t adjustment_kind_value(AdjustmentKind kind) {
       return 2U;
     case AdjustmentKind::ColorBalance:
       return 3U;
+    case AdjustmentKind::Invert:
+    case AdjustmentKind::Posterize:
+    case AdjustmentKind::Threshold:
+    case AdjustmentKind::BrightnessContrast:
+      // Unreachable: patchy_adjustment_payload never writes plAD for kinds
+      // newer than v4 (old parsers would misread the byte as Levels).
+      return 0U;
   }
   return 0U;
 }
@@ -497,9 +504,189 @@ std::vector<std::uint8_t> photoshop_curves_payload(const CurvesAdjustment& curve
 
 std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::uint8_t> payload);
 
+bool patchy_plad_supports_kind(AdjustmentKind kind) {
+  switch (kind) {
+    case AdjustmentKind::Levels:
+    case AdjustmentKind::Curves:
+    case AdjustmentKind::HueSaturation:
+    case AdjustmentKind::ColorBalance:
+      return true;
+    case AdjustmentKind::Invert:
+    case AdjustmentKind::Posterize:
+    case AdjustmentKind::Threshold:
+    case AdjustmentKind::BrightnessContrast:
+      return false;
+  }
+  return false;
+}
+
+std::optional<AdjustmentSettings> parse_photoshop_posterize_adjustment(std::span<const std::uint8_t> payload) {
+  if (payload.size() < 2) {
+    return std::nullopt;
+  }
+  BigEndianReader reader(payload);
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::Posterize;
+  settings.posterize.levels = std::clamp(static_cast<int>(reader.read_u16()), 2, 255);
+  return settings;
+}
+
+std::vector<std::uint8_t> photoshop_posterize_payload(const PosterizeAdjustment& settings,
+                                                      const UnknownPsdBlock* original) {
+  const auto levels = std::clamp(settings.levels, 2, 255);
+  if (original != nullptr) {
+    // Unedited imported payloads re-emit byte-for-byte (curv-style guard) so
+    // any undocumented trailing bytes Photoshop may add survive untouched.
+    const auto parsed = parse_photoshop_posterize_adjustment(original->payload);
+    if (parsed.has_value() && parsed->posterize.levels == levels) {
+      return original->payload;
+    }
+  }
+  BigEndianWriter writer;
+  writer.write_u16(static_cast<std::uint16_t>(levels));
+  writer.write_u16(0);
+  return writer.bytes();
+}
+
+std::optional<AdjustmentSettings> parse_photoshop_brightness_contrast_adjustment(
+    std::span<const std::uint8_t> payload) {
+  if (payload.size() < 4) {
+    return std::nullopt;
+  }
+  BigEndianReader reader(payload);
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::BrightnessContrast;
+  settings.brightness_contrast.brightness =
+      std::clamp(static_cast<int>(static_cast<std::int16_t>(reader.read_u16())), -100, 100);
+  settings.brightness_contrast.contrast =
+      std::clamp(static_cast<int>(static_cast<std::int16_t>(reader.read_u16())), -100, 100);
+  return settings;
+}
+
+std::optional<BrightnessContrastDescriptorParse> parse_photoshop_brightness_contrast_descriptor(
+    std::span<const std::uint8_t> payload) {
+  if (payload.size() < 4) {
+    return std::nullopt;
+  }
+  try {
+    BigEndianReader reader(payload);
+    if (reader.read_u32() != 16) {
+      return std::nullopt;
+    }
+    const auto descriptor = read_descriptor(reader);
+    const auto* brightness = descriptor_value(descriptor, "Brgh");
+    const auto* contrast = descriptor_value(descriptor, "Cntr");
+    if (brightness == nullptr || brightness->type != DescriptorValue::Type::Integer ||
+        contrast == nullptr || contrast->type != DescriptorValue::Type::Integer) {
+      return std::nullopt;
+    }
+    BrightnessContrastDescriptorParse parsed;
+    parsed.settings.kind = AdjustmentKind::BrightnessContrast;
+    // Modern-mode values live in wider ranges (-150..150 / -50..100); they
+    // clamp into the legacy model, the accepted approximation.
+    parsed.settings.brightness_contrast.brightness = std::clamp(brightness->integer_value, -100, 100);
+    parsed.settings.brightness_contrast.contrast = std::clamp(contrast->integer_value, -100, 100);
+    if (const auto* legacy = descriptor_value(descriptor, "useLegacy");
+        legacy != nullptr && legacy->type == DescriptorValue::Type::Bool) {
+      parsed.use_legacy = legacy->bool_value;
+    }
+    return parsed;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+namespace {
+
+// The imported state the current settings are compared against for the
+// unedited-round-trip guards: a parseable CgEd wins over brit.
+std::optional<BrightnessContrastAdjustment> original_brightness_contrast_state(const Layer& layer) {
+  const UnknownPsdBlock* brit = nullptr;
+  const UnknownPsdBlock* descriptor = nullptr;
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.key == "brit") {
+      brit = &block;
+    } else if (block.key == "CgEd") {
+      descriptor = &block;
+    }
+  }
+  if (descriptor != nullptr) {
+    if (const auto parsed = parse_photoshop_brightness_contrast_descriptor(descriptor->payload);
+        parsed.has_value()) {
+      return parsed->settings.brightness_contrast;
+    }
+  }
+  if (brit != nullptr) {
+    if (const auto parsed = parse_photoshop_brightness_contrast_adjustment(brit->payload); parsed.has_value()) {
+      return parsed->brightness_contrast;
+    }
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
+std::vector<std::uint8_t> photoshop_brightness_contrast_payload(const BrightnessContrastAdjustment& settings,
+                                                                const Layer& layer) {
+  const auto brightness = std::clamp(settings.brightness, -100, 100);
+  const auto contrast = std::clamp(settings.contrast, -100, 100);
+  const auto original = original_brightness_contrast_state(layer);
+  if (original.has_value() && original->brightness == brightness && original->contrast == contrast) {
+    for (const auto& block : layer.unknown_psd_blocks()) {
+      if (block.key == "brit") {
+        return block.payload;  // unedited: byte-identical round trip
+      }
+    }
+  }
+  BigEndianWriter writer;
+  writer.write_u16(static_cast<std::uint16_t>(static_cast<std::int16_t>(brightness)));
+  writer.write_u16(static_cast<std::uint16_t>(static_cast<std::int16_t>(contrast)));
+  writer.write_u16(127);  // mean, Photoshop's fixed midpoint
+  writer.write_u8(0);     // lab
+  writer.write_u8(0);     // pad
+  return writer.bytes();
+}
+
+bool brightness_contrast_descriptor_is_stale(const Layer& layer) {
+  const auto settings = adjustment_settings_from_layer(layer);
+  if (!settings.has_value() || settings->kind != AdjustmentKind::BrightnessContrast) {
+    return false;
+  }
+  const auto original = original_brightness_contrast_state(layer);
+  return !original.has_value() ||
+         original->brightness != settings->brightness_contrast.brightness ||
+         original->contrast != settings->brightness_contrast.contrast;
+}
+
+std::optional<AdjustmentSettings> parse_photoshop_threshold_adjustment(std::span<const std::uint8_t> payload) {
+  if (payload.size() < 2) {
+    return std::nullopt;
+  }
+  BigEndianReader reader(payload);
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::Threshold;
+  settings.threshold.level = std::clamp(static_cast<int>(reader.read_u16()), 1, 255);
+  return settings;
+}
+
+std::vector<std::uint8_t> photoshop_threshold_payload(const ThresholdAdjustment& settings,
+                                                      const UnknownPsdBlock* original) {
+  const auto level = std::clamp(settings.level, 1, 255);
+  if (original != nullptr) {
+    const auto parsed = parse_photoshop_threshold_adjustment(original->payload);
+    if (parsed.has_value() && parsed->threshold.level == level) {
+      return original->payload;
+    }
+  }
+  BigEndianWriter writer;
+  writer.write_u16(static_cast<std::uint16_t>(level));
+  writer.write_u16(0);
+  return writer.bytes();
+}
+
 std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
   const auto settings = adjustment_settings_from_layer(layer);
-  if (!settings.has_value()) {
+  if (!settings.has_value() || !patchy_plad_supports_kind(settings->kind)) {
     return {};
   }
 

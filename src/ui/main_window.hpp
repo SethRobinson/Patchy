@@ -67,9 +67,12 @@ class QTimer;
 namespace patchy::ui {
 
 struct HueSaturationSettings;
-// Same alias as filter_workflows.hpp (an alias cannot be forward-declared);
+// Same aliases as filter_workflows.hpp (an alias cannot be forward-declared);
 // identical redeclaration is legal and compiler-checked.
 using LevelsSettings = LevelsAdjustment;
+using PosterizeSettings = PosterizeAdjustment;
+using ThresholdSettings = ThresholdAdjustment;
+using BrightnessContrastSettings = BrightnessContrastAdjustment;
 struct ScannerAcquireResult;
 struct UpdateInfo;
 class BrushDynamicsButton;
@@ -514,6 +517,14 @@ private:
   void color_balance_dialog();
   void apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue,
                                       bool allow_identity = false);
+  void new_invert_adjustment_layer();
+  void new_posterize_adjustment_layer();
+  void apply_posterize_adjustment(const PosterizeSettings& settings, bool allow_identity = false);
+  void new_threshold_adjustment_layer();
+  void apply_threshold_adjustment(const ThresholdSettings& settings, bool allow_identity = false);
+  void new_brightness_contrast_adjustment_layer();
+  void apply_brightness_contrast_adjustment(const BrightnessContrastSettings& settings,
+                                            bool allow_identity = false);
   [[nodiscard]] Layer build_adjustment_layer(QString label, const AdjustmentSettings& settings);
   void update_adjustment_layer_preview(QString label, const AdjustmentSettings& settings, bool enabled,
                                        std::optional<LayerId>& preview_id,

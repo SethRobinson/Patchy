@@ -305,6 +305,10 @@ void ui_main_window_renders_color_controls() {
   CHECK(require_action(window, "layerNewCurvesAdjustmentAction") != nullptr);
   CHECK(require_action(window, "layerNewHueSaturationAdjustmentAction") != nullptr);
   CHECK(require_action(window, "layerNewColorBalanceAdjustmentAction") != nullptr);
+  CHECK(require_action(window, "layerNewInvertAdjustmentAction") != nullptr);
+  CHECK(require_action(window, "layerNewPosterizeAdjustmentAction") != nullptr);
+  CHECK(require_action(window, "layerNewThresholdAdjustmentAction") != nullptr);
+  CHECK(require_action(window, "layerNewBrightnessContrastAdjustmentAction") != nullptr);
   CHECK(window.findChild<QToolButton*>(QStringLiteral("layerNewAdjustmentButton")) != nullptr);
   CHECK(window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin")) != nullptr);
   for (auto* button : window.findChildren<QPushButton*>()) {

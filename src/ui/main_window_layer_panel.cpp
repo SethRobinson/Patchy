@@ -208,6 +208,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cmath>
+#include <numbers>
 #include <cstdlib>
 #include <exception>
 #include <functional>
@@ -439,6 +440,14 @@ QColor adjustment_thumbnail_accent(const Layer& layer) {
       return QColor(215, 135, 255);
     case AdjustmentKind::ColorBalance:
       return QColor(245, 190, 100);
+    case AdjustmentKind::Invert:
+      return QColor(200, 205, 212);
+    case AdjustmentKind::Posterize:
+      return QColor(95, 205, 215);
+    case AdjustmentKind::Threshold:
+      return QColor(235, 128, 118);
+    case AdjustmentKind::BrightnessContrast:
+      return QColor(250, 225, 120);
   }
   return QColor(145, 175, 215);
 }
@@ -571,6 +580,16 @@ QString adjustment_settings_summary(const Layer& layer) {
           .arg(settings->color_balance.cyan_red)
           .arg(settings->color_balance.magenta_green)
           .arg(settings->color_balance.yellow_blue);
+    case AdjustmentKind::Invert:
+      return QObject::tr("Invert");
+    case AdjustmentKind::Posterize:
+      return QObject::tr("Posterize: %1 levels").arg(settings->posterize.levels);
+    case AdjustmentKind::Threshold:
+      return QObject::tr("Threshold: level %1").arg(settings->threshold.level);
+    case AdjustmentKind::BrightnessContrast:
+      return QObject::tr("Brightness/Contrast: brightness %1, contrast %2")
+          .arg(settings->brightness_contrast.brightness)
+          .arg(settings->brightness_contrast.contrast);
   }
   return QObject::tr("Adjustment");
 }
@@ -784,6 +803,86 @@ void draw_color_balance_adjustment_thumbnail_symbol(QPainter& painter, const Col
   draw_bar(21.0, QColor(248, 222, 72), QColor(85, 130, 255), settings.yellow_blue);
 }
 
+void draw_brightness_contrast_adjustment_thumbnail_symbol(QPainter& painter, const QColor& accent) {
+  // A small sun: brightness rays around a half-filled (contrast) disc.
+  const QPointF center(14.0, 14.0);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setPen(QPen(accent.lighter(115), 1.6));
+  for (int ray = 0; ray < 8; ++ray) {
+    const auto angle = ray * std::numbers::pi / 4.0;
+    const QPointF direction(std::cos(angle), std::sin(angle));
+    painter.drawLine(center + direction * 7.0, center + direction * 9.5);
+  }
+  const QRectF disc(center.x() - 5.0, center.y() - 5.0, 10.0, 10.0);
+  QPainterPath left_half;
+  left_half.moveTo(center);
+  left_half.arcTo(disc, 90.0, 180.0);
+  left_half.closeSubpath();
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(QColor(238, 243, 248));
+  painter.drawEllipse(disc);
+  painter.setBrush(QColor(31, 37, 46));
+  painter.drawPath(left_half);
+  painter.setPen(QPen(accent.lighter(115), 1.2));
+  painter.setBrush(Qt::NoBrush);
+  painter.drawEllipse(disc);
+}
+
+void draw_posterize_adjustment_thumbnail_symbol(QPainter& painter, const QColor& accent) {
+  // A descending stair-step: the banded tone ramp posterize produces.
+  constexpr int kSteps = 4;
+  const QRectF graph(6.0, 7.0, 16.0, 14.0);
+  painter.setPen(Qt::NoPen);
+  for (int step = 0; step < kSteps; ++step) {
+    const auto step_width = graph.width() / kSteps;
+    const auto step_height = graph.height() * (kSteps - step) / kSteps;
+    const auto gray = 70 + step * 55;
+    painter.setBrush(QColor(gray, gray, gray));
+    painter.drawRect(QRectF(graph.left() + step * step_width, graph.bottom() - step_height,
+                            step_width, step_height));
+  }
+  painter.setPen(QPen(accent.lighter(120), 1.5));
+  painter.setBrush(Qt::NoBrush);
+  painter.drawRect(graph);
+}
+
+void draw_threshold_adjustment_thumbnail_symbol(QPainter& painter, const QColor& accent) {
+  // A hard vertical black/white split: everything below the level goes black,
+  // everything above goes white.
+  const QRectF square(7.0, 7.0, 14.0, 14.0);
+  painter.setPen(Qt::NoPen);
+  painter.fillRect(QRectF(square.left(), square.top(), square.width() / 2.0, square.height()),
+                   QColor(238, 243, 248));
+  painter.fillRect(QRectF(square.center().x(), square.top(), square.width() / 2.0, square.height()),
+                   QColor(31, 37, 46));
+  painter.setPen(QPen(accent.lighter(120), 1.5));
+  painter.setBrush(Qt::NoBrush);
+  painter.drawRect(square);
+  painter.drawLine(QPointF(square.center().x(), square.top()), QPointF(square.center().x(), square.bottom()));
+}
+
+void draw_invert_adjustment_thumbnail_symbol(QPainter& painter, const QColor& accent) {
+  // A square split along the diagonal into a light and a dark half: a negative.
+  const QRectF square(7.0, 7.0, 14.0, 14.0);
+  QPainterPath upper_left;
+  upper_left.moveTo(square.topLeft());
+  upper_left.lineTo(square.topRight());
+  upper_left.lineTo(square.bottomLeft());
+  upper_left.closeSubpath();
+  QPainterPath lower_right;
+  lower_right.moveTo(square.topRight());
+  lower_right.lineTo(square.bottomRight());
+  lower_right.lineTo(square.bottomLeft());
+  lower_right.closeSubpath();
+  painter.setPen(Qt::NoPen);
+  painter.fillPath(upper_left, QColor(238, 243, 248));
+  painter.fillPath(lower_right, QColor(31, 37, 46));
+  painter.setPen(QPen(accent.lighter(120), 1.5));
+  painter.setBrush(Qt::NoBrush);
+  painter.drawRect(square);
+  painter.drawLine(square.topRight(), square.bottomLeft());
+}
+
 QPixmap layer_content_thumbnail(const Layer& layer) {
   constexpr int kSize = 28;
   if (layer.kind() == LayerKind::Group) {
@@ -926,6 +1025,18 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
           break;
         case AdjustmentKind::ColorBalance:
           draw_color_balance_adjustment_thumbnail_symbol(painter, settings->color_balance);
+          break;
+        case AdjustmentKind::Invert:
+          draw_invert_adjustment_thumbnail_symbol(painter, accent);
+          break;
+        case AdjustmentKind::Posterize:
+          draw_posterize_adjustment_thumbnail_symbol(painter, accent);
+          break;
+        case AdjustmentKind::Threshold:
+          draw_threshold_adjustment_thumbnail_symbol(painter, accent);
+          break;
+        case AdjustmentKind::BrightnessContrast:
+          draw_brightness_contrast_adjustment_thumbnail_symbol(painter, accent);
           break;
       }
     }

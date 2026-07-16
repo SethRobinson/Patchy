@@ -734,6 +734,22 @@
         <translation>ポスタリゼーション</translation>
     </message>
     <message>
+        <source>Threshold Level</source>
+        <translation>しきい値レベル</translation>
+    </message>
+    <message>
+        <source>Posterize: %1 levels</source>
+        <translation>ポスタリゼーション: %1 階調</translation>
+    </message>
+    <message>
+        <source>Threshold: level %1</source>
+        <translation>しきい値: レベル %1</translation>
+    </message>
+    <message>
+        <source>Brightness/Contrast: brightness %1, contrast %2</source>
+        <translation>明るさ・コントラスト: 明るさ %1、コントラスト %2</translation>
+    </message>
+    <message>
         <location line="+3"/>
         <source>Box Blur</source>
         <translation>ボックスぼかし</translation>
@@ -7719,6 +7735,50 @@ Mixed selection</source>
         <location line="+13"/>
         <source>&amp;Invert</source>
         <translation>反転(&amp;I)</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <translation>反転</translation>
+    </message>
+    <message>
+        <source>Invert has no settings to edit</source>
+        <translation>反転には編集できる設定がありません</translation>
+    </message>
+    <message>
+        <source>&amp;Posterize...</source>
+        <translation>ポスタリゼーション(&amp;P)...</translation>
+    </message>
+    <message>
+        <source>&amp;Threshold...</source>
+        <translation>しきい値(&amp;T)...</translation>
+    </message>
+    <message>
+        <source>Posterize</source>
+        <translation>ポスタリゼーション</translation>
+    </message>
+    <message>
+        <source>Threshold</source>
+        <translation>しきい値</translation>
+    </message>
+    <message>
+        <source>Cancelled Posterize</source>
+        <translation>ポスタリゼーションをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Cancelled Threshold</source>
+        <translation>しきい値をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Brightness/Contrast...</source>
+        <translation>明るさ・コントラスト...</translation>
+    </message>
+    <message>
+        <source>Brightness/Contrast</source>
+        <translation>明るさ・コントラスト</translation>
+    </message>
+    <message>
+        <source>Cancelled Brightness/Contrast</source>
+        <translation>明るさ・コントラストをキャンセルしました</translation>
     </message>
     <message>
         <location line="+2"/>

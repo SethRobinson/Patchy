@@ -628,6 +628,32 @@ void ui_compatibility_report_treats_levels_as_native_psd_adjustment() {
   CHECK(warnings.isEmpty());
 }
 
+void ui_compatibility_report_pins_native_vs_private_adjustment_kinds() {
+  const auto adjustment_warnings = [](patchy::AdjustmentKind kind) {
+    patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background",
+                             solid_pixels(120, 90, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+    patchy::AdjustmentSettings settings;
+    settings.kind = kind;
+    patchy::Layer adjustment(document.allocate_layer_id(), "Adjustment", patchy::LayerKind::Adjustment);
+    adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+    patchy::configure_adjustment_layer(adjustment, settings);
+    document.add_layer(std::move(adjustment));
+    return patchy::ui::compatibility_warnings_for_document(document);
+  };
+
+  // Every kind with a native Photoshop block export stays warning-free.
+  for (const auto kind :
+       {patchy::AdjustmentKind::Levels, patchy::AdjustmentKind::Curves, patchy::AdjustmentKind::HueSaturation,
+        patchy::AdjustmentKind::Invert, patchy::AdjustmentKind::Posterize, patchy::AdjustmentKind::Threshold,
+        patchy::AdjustmentKind::BrightnessContrast}) {
+    CHECK(adjustment_warnings(kind).isEmpty());
+  }
+  // Color Balance still rides only the private plAD block and must warn.
+  const auto color_balance_text = adjustment_warnings(patchy::AdjustmentKind::ColorBalance).join(QLatin1Char('\n'));
+  CHECK(color_balance_text.contains(QStringLiteral("Patchy-native adjustment layer")));
+}
+
 void ui_compatibility_report_flags_cmyk_rgb_conversion() {
   patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
   document.metadata().values["psd.color_mode"] = "CMYK";
@@ -1610,6 +1636,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_compatibility_report_ignores_patchy_written_psd_blocks},
       {"ui_compatibility_report_treats_levels_as_native_psd_adjustment",
        ui_compatibility_report_treats_levels_as_native_psd_adjustment},
+      {"ui_compatibility_report_pins_native_vs_private_adjustment_kinds",
+       ui_compatibility_report_pins_native_vs_private_adjustment_kinds},
       {"ui_compatibility_report_flags_cmyk_rgb_conversion",
        ui_compatibility_report_flags_cmyk_rgb_conversion},
       {"ui_compatibility_report_flags_unrendered_styles_on_groups",

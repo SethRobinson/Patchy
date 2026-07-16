@@ -137,7 +137,16 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
     return true;
   }
   if (encoded.kind == EncodedLayerKind::Adjustment &&
-      (block.key == "levl" || block.key == "curv" || block.key == "hue2")) {
+      (block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
+       block.key == "post" || block.key == "thrs" || block.key == "brit")) {
+    return true;
+  }
+  // A Brightness/Contrast edit regenerates legacy-only 'brit'; the preserved
+  // modern 'CgEd' descriptor must be dropped with it, or Photoshop reads the
+  // stale descriptor as authoritative over the new values. Unedited layers
+  // keep it for byte-identical round trips.
+  if (encoded.kind == EncodedLayerKind::Adjustment && block.key == "CgEd" && encoded.layer != nullptr &&
+      brightness_contrast_descriptor_is_stale(*encoded.layer)) {
     return true;
   }
   if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx")) {
@@ -590,12 +599,35 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
           photoshop_hue2_payload(settings->hue_saturation, find_layer_block(*encoded.layer, "hue2")),
           large_document);
     }
+    if (settings.has_value() && settings->kind == AdjustmentKind::Invert) {
+      write_additional_layer_block(extra, kPhotoshopInvertBlockKey, {}, large_document);
+    }
+    if (settings.has_value() && settings->kind == AdjustmentKind::Posterize) {
+      write_additional_layer_block(
+          extra, kPhotoshopPosterizeBlockKey,
+          photoshop_posterize_payload(settings->posterize, find_layer_block(*encoded.layer, "post")),
+          large_document);
+    }
+    if (settings.has_value() && settings->kind == AdjustmentKind::Threshold) {
+      write_additional_layer_block(
+          extra, kPhotoshopThresholdBlockKey,
+          photoshop_threshold_payload(settings->threshold, find_layer_block(*encoded.layer, "thrs")),
+          large_document);
+    }
+    if (settings.has_value() && settings->kind == AdjustmentKind::BrightnessContrast) {
+      write_additional_layer_block(
+          extra, kPhotoshopBrightnessContrastBlockKey,
+          photoshop_brightness_contrast_payload(settings->brightness_contrast, *encoded.layer),
+          large_document);
+    }
     // Native Curves carries the complete Patchy point model. Writing plAD next
     // to curv makes Photoshop report "unknown data" on every open, even though
     // it recognizes the native adjustment. Legacy plAD remains readable and is
     // migrated to curv on save; malformed native layers stay opaque above and
-    // therefore retain both raw blocks.
-    if (!settings.has_value() || settings->kind != AdjustmentKind::Curves) {
+    // therefore retain both raw blocks. Kinds newer than plAD v4 (Invert, ...)
+    // are native-block only: old builds would misread their kind byte as Levels.
+    if (!settings.has_value() ||
+        (settings->kind != AdjustmentKind::Curves && patchy_plad_supports_kind(settings->kind))) {
       const auto payload = patchy_adjustment_payload(*encoded.layer);
       if (!payload.empty()) {
         write_additional_layer_block(extra, kPatchyAdjustmentBlockKey, payload, large_document);

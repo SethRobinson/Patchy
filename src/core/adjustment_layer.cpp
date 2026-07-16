@@ -672,6 +672,42 @@ AdjustmentLut build_curves_lut(const CurvesAdjustment& curves) {
   return lut;
 }
 
+std::uint8_t posterize_channel_value(std::uint8_t value, int levels) {
+  const auto denominator = std::max(1, levels - 1);
+  const auto bucket =
+      static_cast<int>(std::round(static_cast<double>(value) * denominator / 255.0));
+  return static_cast<std::uint8_t>(
+      std::clamp(std::lround(static_cast<double>(bucket) * 255.0 / denominator), 0L, 255L));
+}
+
+int threshold_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
+  return (static_cast<int>(red) * 30 + static_cast<int>(green) * 59 + static_cast<int>(blue) * 11) / 100;
+}
+
+std::uint8_t brightness_contrast_channel_value(std::uint8_t value, int brightness, int contrast) {
+  // PS 2026 legacy-mode calibration (nine 256-ramp COM captures, July 2026):
+  // positive contrast folds brightness into the INPUT and expands around the
+  // 127.5 pivot with slope 100/(100-c); c = 100 is a hard threshold at
+  // (v + b) >= 127; negative contrast compresses around 127.5 first and adds
+  // brightness to the OUTPUT. Every capture matches this model within +/-1
+  // (Photoshop's own LUT shows sub-LSB fixed-point noise); the c = 0,
+  // c = 100, and both 100-level interaction captures match exactly.
+  const auto b = std::clamp(brightness, -100, 100);
+  const auto c = std::clamp(contrast, -100, 100);
+  if (c == 0) {
+    return static_cast<std::uint8_t>(std::clamp(static_cast<int>(value) + b, 0, 255));
+  }
+  if (c >= 100) {
+    return static_cast<int>(value) + b >= 127 ? 255 : 0;
+  }
+  if (c > 0) {
+    const auto raw = (static_cast<double>(value) + b - 127.5) * 100.0 / (100.0 - c) + 127.5;
+    return static_cast<std::uint8_t>(std::clamp(std::lround(raw), 0L, 255L));
+  }
+  const auto raw = (static_cast<double>(value) - 127.5) * (100.0 + c) / 100.0 + 127.5;
+  return static_cast<std::uint8_t>(std::clamp(std::lround(raw) + b, 0L, 255L));
+}
+
 bool layer_is_adjustment(const Layer& layer) {
   return layer.kind() == LayerKind::Adjustment && adjustment_settings_from_layer(layer).has_value();
 }
@@ -686,6 +722,14 @@ std::string adjustment_kind_key(AdjustmentKind kind) {
       return "hue_saturation";
     case AdjustmentKind::ColorBalance:
       return "color_balance";
+    case AdjustmentKind::Invert:
+      return "invert";
+    case AdjustmentKind::Posterize:
+      return "posterize";
+    case AdjustmentKind::Threshold:
+      return "threshold";
+    case AdjustmentKind::BrightnessContrast:
+      return "brightness_contrast";
   }
   return "levels";
 }
@@ -700,6 +744,14 @@ std::string adjustment_display_name(AdjustmentKind kind) {
       return "Hue/Saturation";
     case AdjustmentKind::ColorBalance:
       return "Color Balance";
+    case AdjustmentKind::Invert:
+      return "Invert";
+    case AdjustmentKind::Posterize:
+      return "Posterize";
+    case AdjustmentKind::Threshold:
+      return "Threshold";
+    case AdjustmentKind::BrightnessContrast:
+      return "Brightness/Contrast";
   }
   return "Adjustment";
 }
@@ -716,6 +768,18 @@ std::optional<AdjustmentKind> adjustment_kind_from_key(std::string_view key) {
   }
   if (key == "color_balance") {
     return AdjustmentKind::ColorBalance;
+  }
+  if (key == "invert") {
+    return AdjustmentKind::Invert;
+  }
+  if (key == "posterize") {
+    return AdjustmentKind::Posterize;
+  }
+  if (key == "threshold") {
+    return AdjustmentKind::Threshold;
+  }
+  if (key == "brightness_contrast") {
+    return AdjustmentKind::BrightnessContrast;
   }
   return std::nullopt;
 }
@@ -779,6 +843,14 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
   settings.color_balance.cyan_red = metadata_int_or(layer, kLayerMetadataAdjustmentColorBalanceCyanRed, 0);
   settings.color_balance.magenta_green = metadata_int_or(layer, kLayerMetadataAdjustmentColorBalanceMagentaGreen, 0);
   settings.color_balance.yellow_blue = metadata_int_or(layer, kLayerMetadataAdjustmentColorBalanceYellowBlue, 0);
+  settings.posterize.levels =
+      std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentPosterizeLevels, 4), 2, 255);
+  settings.threshold.level =
+      std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentThresholdLevel, 128), 1, 255);
+  settings.brightness_contrast.brightness =
+      std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentBrightnessContrastBrightness, 0), -100, 100);
+  settings.brightness_contrast.contrast =
+      std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentBrightnessContrastContrast, 0), -100, 100);
   return settings;
 }
 
@@ -845,6 +917,14 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
                    std::clamp(settings.color_balance.magenta_green, -100, 100));
   set_metadata_int(layer, kLayerMetadataAdjustmentColorBalanceYellowBlue,
                    std::clamp(settings.color_balance.yellow_blue, -100, 100));
+  set_metadata_int(layer, kLayerMetadataAdjustmentPosterizeLevels,
+                   std::clamp(settings.posterize.levels, 2, 255));
+  set_metadata_int(layer, kLayerMetadataAdjustmentThresholdLevel,
+                   std::clamp(settings.threshold.level, 1, 255));
+  set_metadata_int(layer, kLayerMetadataAdjustmentBrightnessContrastBrightness,
+                   std::clamp(settings.brightness_contrast.brightness, -100, 100));
+  set_metadata_int(layer, kLayerMetadataAdjustmentBrightnessContrastContrast,
+                   std::clamp(settings.brightness_contrast.contrast, -100, 100));
 }
 
 RgbColor apply_adjustment_to_color(RgbColor color, const AdjustmentSettings& settings) {
@@ -857,6 +937,28 @@ RgbColor apply_adjustment_to_color(RgbColor color, const AdjustmentSettings& set
       return apply_hue_saturation(color, settings.hue_saturation);
     case AdjustmentKind::ColorBalance:
       return apply_color_balance(color, settings.color_balance);
+    case AdjustmentKind::Invert:
+      // The one shared formula with the destructive patchy.filters.invert path
+      // (filter_engine.cpp); both must stay 255 - v per channel.
+      return RgbColor{static_cast<std::uint8_t>(255 - color.red), static_cast<std::uint8_t>(255 - color.green),
+                      static_cast<std::uint8_t>(255 - color.blue)};
+    case AdjustmentKind::Posterize:
+      return RgbColor{posterize_channel_value(color.red, settings.posterize.levels),
+                      posterize_channel_value(color.green, settings.posterize.levels),
+                      posterize_channel_value(color.blue, settings.posterize.levels)};
+    case AdjustmentKind::Threshold: {
+      const auto value = threshold_luminance(color.red, color.green, color.blue) >= settings.threshold.level
+                             ? std::uint8_t{255}
+                             : std::uint8_t{0};
+      return RgbColor{value, value, value};
+    }
+    case AdjustmentKind::BrightnessContrast: {
+      const auto brightness = settings.brightness_contrast.brightness;
+      const auto contrast = settings.brightness_contrast.contrast;
+      return RgbColor{brightness_contrast_channel_value(color.red, brightness, contrast),
+                      brightness_contrast_channel_value(color.green, brightness, contrast),
+                      brightness_contrast_channel_value(color.blue, brightness, contrast)};
+    }
   }
   return color;
 }
@@ -885,7 +987,10 @@ void apply_adjustment_to_pixels(PixelBuffer& pixels, const AdjustmentSettings& s
 }
 
 std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& settings) {
-  if (settings.kind == AdjustmentKind::HueSaturation) {
+  // Hue/Saturation mixes channels through HSL; Threshold compares the mixed
+  // RGB luminance, so a per-channel gray-probe LUT would be wrong for any
+  // colored pixel. Both take the per-pixel path.
+  if (settings.kind == AdjustmentKind::HueSaturation || settings.kind == AdjustmentKind::Threshold) {
     return std::nullopt;
   }
   if (settings.kind == AdjustmentKind::Curves) {
@@ -894,8 +999,8 @@ std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& sett
   AdjustmentLut lut;
   for (int value = 0; value < 256; ++value) {
     const auto probe = static_cast<std::uint8_t>(value);
-    // Levels, Curves and Color Balance are per-channel maps, so a gray probe
-    // reads off each channel's transfer curve exactly.
+    // Levels, Curves, Color Balance and Invert are per-channel maps, so a gray
+    // probe reads off each channel's transfer curve exactly.
     const auto adjusted = apply_adjustment_to_color(RgbColor{probe, probe, probe}, settings);
     lut.red[static_cast<std::size_t>(value)] = adjusted.red;
     lut.green[static_cast<std::size_t>(value)] = adjusted.green;
@@ -926,6 +1031,15 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
     case AdjustmentKind::ColorBalance:
       return settings.color_balance.cyan_red != 0 || settings.color_balance.magenta_green != 0 ||
              settings.color_balance.yellow_blue != 0;
+    case AdjustmentKind::Invert:
+      return true;  // parameterless; the layer always inverts
+    case AdjustmentKind::Posterize:
+    case AdjustmentKind::Threshold:
+      // Any legal level alters typical content; the conservative "always
+      // effective" posture keeps live previews from being dropped.
+      return true;
+    case AdjustmentKind::BrightnessContrast:
+      return settings.brightness_contrast.brightness != 0 || settings.brightness_contrast.contrast != 0;
   }
   return false;
 }

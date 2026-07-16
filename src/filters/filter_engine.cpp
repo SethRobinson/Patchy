@@ -1,5 +1,6 @@
 #include "filters/filter_engine.hpp"
 
+#include "core/adjustment_layer.hpp"
 #include "filters/rgba_filter_staging.hpp"
 #include "filters/smart_filter_renderer.hpp"
 
@@ -1905,7 +1906,10 @@ void execute_builtin_filter(const FilterRegistry &registry,
       report_filter_row_progress(progress, y, pixels.height());
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
         auto *px = pixels.pixel(x, y);
-        const auto value = filter_luminance(px) >= threshold ? 255 : 0;
+        // Shared with the Threshold adjustment layer (core/adjustment_layer);
+        // both must keep the integer (30r + 59g + 11b) / 100 luminance.
+        const auto value =
+            threshold_luminance(px[0], px[1], px[2]) >= threshold ? 255 : 0;
         px[0] = static_cast<std::uint8_t>(value);
         px[1] = static_cast<std::uint8_t>(value);
         px[2] = static_cast<std::uint8_t>(value);
@@ -1918,16 +1922,13 @@ void execute_builtin_filter(const FilterRegistry &registry,
   if (identifier == "patchy.filters.posterize") {
     const auto levels =
         std::clamp(filter_value(invocation, "levels", 4), 2, 16);
-    const auto denominator = std::max(1, levels - 1);
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       report_filter_row_progress(progress, y, pixels.height());
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
         auto *px = pixels.pixel(x, y);
         for (std::uint16_t channel = 0; channel < channels; ++channel) {
-          const auto bucket = static_cast<int>(std::round(
-              static_cast<double>(px[channel]) * denominator / 255.0));
-          px[channel] = filter_clamp_byte(
-              std::round(static_cast<double>(bucket) * 255.0 / denominator));
+          // Shared with the Posterize adjustment layer (core/adjustment_layer).
+          px[channel] = posterize_channel_value(px[channel], levels);
         }
       }
     }

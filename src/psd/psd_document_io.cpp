@@ -365,8 +365,10 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
                                std::uint16_t source_color_mode, float global_light_angle,
                                float global_light_altitude, bool large_document,
                                const CmykToRgbTransform* cmyk_icc,
-                               bool& has_merged_transparency) {
+                               bool& has_merged_transparency,
+                               std::vector<std::string>* notices) {
   has_merged_transparency = false;
+  int modern_brightness_contrast_count = 0;
   const auto layer_info_length = large_document
                                      ? read_section_length_u64(layer_reader, "layer info")
                                      : static_cast<std::uint64_t>(read_section_length(layer_reader, "layer info"));
@@ -498,6 +500,9 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     std::optional<AdjustmentSettings> native_adjustment_settings;
     std::optional<AdjustmentSettings> native_curves_settings;
     std::optional<AdjustmentSettings> patchy_adjustment_settings;
+    std::optional<AdjustmentSettings> brit_adjustment_settings;
+    std::optional<AdjustmentSettings> cged_adjustment_settings;
+    bool cged_uses_modern_algorithm = false;
     bool has_native_curves = false;
     for (const auto& block : record.additional_blocks) {
       if (block.key == "levl") {
@@ -511,9 +516,41 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
         if (auto parsed = parse_photoshop_curves_adjustment(block.payload); parsed.has_value()) {
           native_curves_settings = parsed;
         }
+      } else if (block.key == "nvrt") {
+        // Invert has no settings; Photoshop writes the block with an empty
+        // payload, so any payload length is accepted.
+        AdjustmentSettings invert_settings;
+        invert_settings.kind = AdjustmentKind::Invert;
+        native_adjustment_settings = invert_settings;
+      } else if (block.key == "post") {
+        if (auto parsed = parse_photoshop_posterize_adjustment(block.payload); parsed.has_value()) {
+          native_adjustment_settings = parsed;
+        }
+      } else if (block.key == "thrs") {
+        if (auto parsed = parse_photoshop_threshold_adjustment(block.payload); parsed.has_value()) {
+          native_adjustment_settings = parsed;
+        }
+      } else if (block.key == "brit") {
+        brit_adjustment_settings = parse_photoshop_brightness_contrast_adjustment(block.payload);
+      } else if (block.key == "CgEd") {
+        if (auto parsed = parse_photoshop_brightness_contrast_descriptor(block.payload); parsed.has_value()) {
+          cged_adjustment_settings = parsed->settings;
+          cged_uses_modern_algorithm = !parsed->use_legacy;
+        }
       } else if (block.key == "plAD") {
         patchy_adjustment_settings = parse_patchy_adjustment(block.payload);
       }
+    }
+    // Brightness/Contrast resolution is order-independent: a parseable CgEd
+    // descriptor (modern PS writes an all-zero compatibility 'brit' beside it)
+    // is authoritative; legacy-mode files carry 'brit' only.
+    if (cged_adjustment_settings.has_value()) {
+      native_adjustment_settings = cged_adjustment_settings;
+      if (cged_uses_modern_algorithm) {
+        ++modern_brightness_contrast_count;
+      }
+    } else if (brit_adjustment_settings.has_value()) {
+      native_adjustment_settings = brit_adjustment_settings;
     }
     // Native Photoshop adjustment data is authoritative over Patchy's private
     // fallback. A valid curv block is editable; an unrecognized one deliberately
@@ -663,6 +700,12 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
   if ((layer_info_length % 2U) != 0 && layer_reader.remaining() > 0) {
     layer_reader.skip(1);
   }
+  if (modern_brightness_contrast_count > 0 && notices != nullptr) {
+    notices->push_back(std::to_string(modern_brightness_contrast_count) + " Brightness/Contrast layer" +
+                       (modern_brightness_contrast_count == 1 ? "" : "s") +
+                       " use" + (modern_brightness_contrast_count == 1 ? "s" : "") +
+                       " Photoshop's modern algorithm; Patchy renders and edits with legacy semantics.");
+  }
   return build_group_hierarchy(std::move(decoded_layers));
 }
 
@@ -797,7 +840,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
                               global_light_angle, global_light_altitude, header.large_document, cmyk_icc,
-                              has_merged_transparency);
+                              has_merged_transparency, options.notices);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
