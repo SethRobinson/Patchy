@@ -221,6 +221,10 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(Qt::SizeAllCursor);
     return;
   }
+  if (tool_ == CanvasTool::Pen) {
+    setCursor(Qt::CrossCursor);
+    return;
+  }
   // Alt turns a paint/shape/fill tool into a temporary colour picker; show the
   // eyedropper so the mode is obvious. Placed before the brush branches so it
   // also overrides the large-brush overlay crosshair while Alt is held. The

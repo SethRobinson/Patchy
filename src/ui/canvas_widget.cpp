@@ -232,6 +232,7 @@ void CanvasWidget::set_document_for_history_restore(Document* document, bool nor
 
 void CanvasWidget::set_document_internal(Document* document, bool preserve_frame_for_same_size,
                                          bool normal_composite_unchanged) {
+  cancel_pen_path();  // an in-flight path belongs to the outgoing document
   clear_transient_read_interaction();
   curves_clipping_mode_.reset();
   curves_clipping_channel_.reset();
@@ -356,6 +357,11 @@ void CanvasWidget::set_tool(CanvasTool tool) {
   const auto tool_changed = tool_ != tool;
   const auto old_transform_controls_rect = move_transform_controls_rect();
   if (tool_changed) {
+    if (pen_session_active_) {
+      // Switching away commits the open path (Photoshop keeps the work): the
+      // callback routes it to a shape layer or the work path.
+      commit_pen_path(false);
+    }
     cancel_magnetic_lasso();
     finish_free_transform();
     finish_warp_transform();

@@ -221,6 +221,105 @@ void ui_line_shape_layer_uses_weight_and_stroke_settings() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 212)), Qt::white, 8));
 }
 
+void pen_click(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
+  const auto widget_point = canvas.widget_position_for_document_point(document_point);
+  drag(canvas, widget_point, widget_point);
+  QApplication::processEvents();
+}
+
+void ui_pen_tool_click_and_close_creates_shape_layer() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto initial_layers = document.layers().size();
+
+  canvas->set_tool(patchy::ui::CanvasTool::Pen);
+  CHECK(canvas->vector_tool_mode() == patchy::ui::VectorToolMode::Shape);
+  pen_click(*canvas, QPoint(100, 100));
+  CHECK(canvas->pen_session_active());
+  pen_click(*canvas, QPoint(300, 100));
+  pen_click(*canvas, QPoint(200, 250));
+  // Clicking the first anchor closes and commits the shape.
+  pen_click(*canvas, QPoint(100, 100));
+  CHECK(!canvas->pen_session_active());
+
+  CHECK(document.layers().size() == initial_layers + 1);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  auto* layer = document.find_layer(*active);
+  CHECK(layer != nullptr);
+  CHECK(layer->name() == "Shape 1");
+  const auto* content = layer->vector_shape();
+  CHECK(content != nullptr);
+  CHECK(content->path.subpaths.size() == 1);
+  CHECK(content->path.subpaths[0].closed);
+  CHECK(content->path.subpaths[0].anchors.size() == 3);
+  CHECK(content->origination.empty());
+  // Default black fill inside the triangle; white outside.
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 140)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(110, 240)), Qt::white, 8));
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == initial_layers);
+}
+
+void ui_pen_tool_path_mode_keys_and_handles() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  const auto initial_layers = document.layers().size();
+  canvas->set_tool(patchy::ui::CanvasTool::Pen);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+
+  // Click, click, drag-for-smooth-handles, Backspace pops it, Enter commits.
+  pen_click(*canvas, QPoint(100, 100));
+  pen_click(*canvas, QPoint(260, 120));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 240)),
+       canvas->widget_position_for_document_point(QPoint(260, 280)));
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Backspace);
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->pen_session_active());
+  const auto* work = document.work_path();
+  CHECK(work != nullptr);
+  CHECK(work->path().subpaths.size() == 1);
+  CHECK(!work->path().subpaths[0].closed);
+  CHECK(work->path().subpaths[0].anchors.size() == 2);
+  CHECK(document.layers().size() == initial_layers);  // no shape layer in Path mode
+
+  // A drag places a smooth anchor with mirrored handles.
+  pen_click(*canvas, QPoint(400, 100));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(500, 200)),
+       canvas->widget_position_for_document_point(QPoint(540, 240)));
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(document.work_path()->path().subpaths.size() == 2);
+  const auto& smooth_subpath = document.work_path()->path().subpaths[1];
+  CHECK(smooth_subpath.anchors.size() == 2);
+  CHECK(smooth_subpath.anchors[1].smooth);
+  CHECK(std::abs(smooth_subpath.anchors[1].out_x - 540.0) < 1.5);
+  CHECK(std::abs(smooth_subpath.anchors[1].in_x - 460.0) < 1.5);
+
+  // Escape cancels a session without touching the work path.
+  pen_click(*canvas, QPoint(600, 100));
+  pen_click(*canvas, QPoint(700, 100));
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->pen_session_active());
+  CHECK(document.work_path()->path().subpaths.size() == 2);
+}
+
 QDialog* find_top_level_dialog(const QString& object_name) {
   for (auto* widget : QApplication::topLevelWidgets()) {
     if (widget->objectName() == object_name) {
@@ -387,6 +486,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_tool_pixels_mode_keeps_raster_commit", ui_shape_tool_pixels_mode_keeps_raster_commit},
       {"ui_line_shape_layer_uses_weight_and_stroke_settings",
        ui_line_shape_layer_uses_weight_and_stroke_settings},
+      {"ui_pen_tool_click_and_close_creates_shape_layer",
+       ui_pen_tool_click_and_close_creates_shape_layer},
+      {"ui_pen_tool_path_mode_keys_and_handles", ui_pen_tool_path_mode_keys_and_handles},
       {"ui_shape_appearance_dialog_commits_and_cancels",
        ui_shape_appearance_dialog_commits_and_cancels},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},

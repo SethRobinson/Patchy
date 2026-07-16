@@ -26,6 +26,19 @@ work path. Pixels mode is the legacy raster commit, byte-identical to the
 pre-vector behavior. Mask, channel, and quick-mask edit targets always take
 the raster path, so shapes remain usable as mask-painting tools.
 
+## Pen tool
+
+The Pen (hotkey P) draws bezier paths anchor by anchor: click places a corner
+anchor, click-drag pulls symmetric smooth handles (Alt while dragging breaks
+the pair), clicking the first anchor closes and commits, Enter commits the
+open path (it fills its implied chord, the Photoshop open-subpath rule),
+Backspace/Delete pops the last anchor, and Escape cancels the session. Tool
+switches and document switches commit/cancel respectively. In Shape mode a
+committed path becomes a shape layer (or extends the active one per the
+Combine option); any other mode routes to the work path. The construction
+overlay draws in canvas_widget_vector_tools.cpp - note canvas_widget_pen.cpp
+is TABLET input, not this tool.
+
 ## Appearance editing and fill layers
 
 Double-clicking a shape layer's row (or an imported fill layer's) opens the

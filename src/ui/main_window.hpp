@@ -66,7 +66,9 @@ class QTimer;
 
 namespace patchy {
 struct LiveShapeParams;
+struct PathSubpath;
 struct VectorFill;
+struct VectorPath;
 struct VectorShapeContent;
 }
 
@@ -571,6 +573,11 @@ private:
                                  QPointF line_end);
   void create_shape_layer_from_drag(const patchy::LiveShapeParams& params);
   void add_drag_to_work_path(const patchy::LiveShapeParams& params);
+  void create_or_extend_shape_layer(std::vector<patchy::PathSubpath> subpaths,
+                                    std::optional<patchy::LiveShapeParams> origination,
+                                    const QString& name_pattern);
+  void handle_vector_path_committed(patchy::VectorPath path, bool closed);
+  void add_subpaths_to_work_path(std::vector<patchy::PathSubpath> subpaths);
   [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
   void refresh_vector_tool_options_visibility();
   void update_vector_swatch_icons();

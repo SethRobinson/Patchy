@@ -234,7 +234,8 @@ bool CanvasWidget::event(QEvent* event) {
       // Accepting the override suppresses the app-level shortcuts (layer.clear binds
       // Backspace on macOS and Delete everywhere) so keyPressEvent receives a plain key
       // event instead of QShortcutMap consuming it first.
-      if (magnetic_lasso_active() || (!guides_locked_ && has_selected_guides())) {
+      if (magnetic_lasso_active() || pen_session_active_ ||
+          (!guides_locked_ && has_selected_guides())) {
         event->accept();
         return true;
       }
@@ -464,6 +465,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Pen && event->button() == Qt::LeftButton) {
+    if (handle_pen_press(event, document_position_f(event->position()))) {
+      event->accept();
+      return;
+    }
+  }
+
   const auto document_point = document_position(event->pos());
   const auto document_point_f = document_position_f(event->position());
   const auto effective_tool = effective_tool_for_input();
@@ -487,6 +495,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::BlurBrush:
       case CanvasTool::SharpenBrush:
       case CanvasTool::Text:
+      case CanvasTool::Pen:
         return true;
       default:
         return false;
@@ -1144,6 +1153,13 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Pen) {
+    handle_pen_move(event, document_position_f(event->position()));
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
+
   if (dragging_warp_handle_) {
     clear_move_hover_outline();
     set_warp_handle_document_position(warp_drag_index_, document_position_f(event->position()));
@@ -1495,6 +1511,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     clear_move_hover_outline();
     event->accept();
     return;
+  }
+
+  if (tool_ == CanvasTool::Pen) {
+    if (handle_pen_release(event)) {
+      event->accept();
+      return;
+    }
   }
 
   if (dragging_guide_) {
@@ -2131,6 +2154,13 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       return;
     }
     show_edit_locked_message();
+    event->accept();
+    return;
+  }
+
+  // An active pen-path session owns Escape/Backspace/Delete/Enter the same way
+  // the magnetic lasso does (ShortcutOverride accepted in event()).
+  if (handle_pen_key(event)) {
     event->accept();
     return;
   }

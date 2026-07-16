@@ -751,6 +751,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolLineAction", "Line"},
       {"toolRectAction", "Rect"},
       {"toolEllipseAction", "Ellipse"},
+      {"toolPenAction", "Pen"},
       {"toolPickAction", "Pick"},
       {"toolTypeAction", "Type"},
       {"toolHandAction", "Hand"},

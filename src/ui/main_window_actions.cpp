@@ -321,6 +321,8 @@ const char* tool_action_source(CanvasTool tool) {
       return "Hand";
     case CanvasTool::Zoom:
       return "Zoom";
+    case CanvasTool::Pen:
+      return "Pen";
   }
   return "Tool";
 }
@@ -383,6 +385,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.hand");
     case CanvasTool::Zoom:
       return QStringLiteral("tools.zoom");
+    case CanvasTool::Pen:
+      return QStringLiteral("tools.pen");
   }
   return QStringLiteral("tools.unknown");
 }
@@ -657,6 +661,9 @@ QIcon tool_icon(CanvasTool tool) {
       break;
     case CanvasTool::Zoom:
       name = "tool-zoom";
+      break;
+    case CanvasTool::Pen:
+      name = "tool-pen";
       break;
   }
   return QIcon(QStringLiteral(":/patchy/icons/%1.svg").arg(QLatin1String(name)));
@@ -1901,6 +1908,7 @@ void MainWindow::create_actions() {
                         {dodge_action, burn_action, sponge_action});
   tool_palette->addSeparator();
 
+  add_tool_action(tool_palette, tool_group, tr("Pen"), CanvasTool::Pen, QKeySequence(Qt::Key_P));
   auto* shape_menu = new QMenu(tr("Shape Tools"), tool_palette);
   shape_menu->setObjectName(QStringLiteral("shapeToolMenu"));
   bind_widget_text(shape_menu, "Shape Tools");
@@ -3325,7 +3333,7 @@ void MainWindow::create_actions() {
   // Photoshop-parity default; Pixels is the legacy raster behavior). The
   // vector appearance/combine widgets below register for the same tools and
   // refresh_vector_tool_options_visibility() refines them per mode.
-  add_option_label(tr("Mode:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Mode:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
   vector_mode_combo_ = new QComboBox(toolbar);
   vector_mode_combo_->setObjectName(QStringLiteral("vectorModeCombo"));
   vector_mode_combo_->addItems({tr("Shape"), tr("Path"), tr("Pixels")});
@@ -3345,7 +3353,7 @@ void MainWindow::create_actions() {
     vector_mode_combo_pointer->setItemText(1, MainWindow::tr("Path"));
     vector_mode_combo_pointer->setItemText(2, MainWindow::tr("Pixels"));
   });
-  add_option_widget(vector_mode_combo_, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_widget(vector_mode_combo_, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
   connect(vector_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     current_vector_tool_mode_ = index == 1   ? VectorToolMode::Path
                                 : index == 2 ? VectorToolMode::Pixels
@@ -3358,14 +3366,14 @@ void MainWindow::create_actions() {
   });
 
   vector_shape_mode_option_widgets_.push_back(
-      add_option_label(tr("Fill:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
+      add_option_label(tr("Fill:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen}));
   vector_fill_swatch_button_ = new QToolButton(toolbar);
   vector_fill_swatch_button_->setObjectName(QStringLiteral("vectorFillSwatchButton"));
   vector_fill_swatch_button_->setToolTip(tr("Shape fill color"));
   vector_fill_swatch_button_->setAutoRaise(true);
   vector_fill_swatch_button_->setProperty("optionsBarButton", true);
   add_option_widget(vector_fill_swatch_button_,
-                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
   vector_shape_mode_option_widgets_.push_back(vector_fill_swatch_button_);
   connect(vector_fill_swatch_button_, &QToolButton::clicked, this, [this] {
     const auto chosen = request_patchy_color(this, current_vector_fill_color_, tr("Shape Fill Color"));
@@ -3380,7 +3388,7 @@ void MainWindow::create_actions() {
   vector_stroke_check->setObjectName(QStringLiteral("vectorStrokeCheck"));
   vector_stroke_check->setChecked(current_vector_stroke_enabled_);
   vector_stroke_check->setToolTip(tr("Stroke the shape outline"));
-  add_option_widget(vector_stroke_check, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_widget(vector_stroke_check, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
   vector_shape_mode_option_widgets_.push_back(vector_stroke_check);
   connect(vector_stroke_check, &QCheckBox::toggled, this, [this](bool checked) {
     current_vector_stroke_enabled_ = checked;
@@ -3393,7 +3401,7 @@ void MainWindow::create_actions() {
   vector_stroke_swatch_button_->setAutoRaise(true);
   vector_stroke_swatch_button_->setProperty("optionsBarButton", true);
   add_option_widget(vector_stroke_swatch_button_,
-                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
   vector_shape_mode_option_widgets_.push_back(vector_stroke_swatch_button_);
   connect(vector_stroke_swatch_button_, &QToolButton::clicked, this, [this] {
     const auto chosen =
@@ -3413,7 +3421,7 @@ void MainWindow::create_actions() {
   vector_stroke_width->setSuffix(QStringLiteral(" px"));
   vector_stroke_width->setToolTip(tr("Stroke width"));
   configure_toolbar_spinbox(vector_stroke_width, 64);
-  add_option_widget(vector_stroke_width, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_widget(vector_stroke_width, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
   vector_shape_mode_option_widgets_.push_back(vector_stroke_width);
   connect(vector_stroke_width, &QDoubleSpinBox::valueChanged, this, [this](double value) {
     current_vector_stroke_width_ = value;
@@ -3437,7 +3445,7 @@ void MainWindow::create_actions() {
   });
 
   vector_vector_mode_option_widgets_.push_back(add_option_label(
-      tr("Combine:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
+      tr("Combine:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen}));
   auto* vector_combine_combo = new QComboBox(toolbar);
   vector_combine_combo->setObjectName(QStringLiteral("vectorCombineCombo"));
   vector_combine_combo->addItems(
@@ -3459,7 +3467,7 @@ void MainWindow::create_actions() {
     vector_combine_combo_pointer->setItemText(4, MainWindow::tr("Exclude"));
   });
   add_option_widget(vector_combine_combo,
-                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen});
   vector_vector_mode_option_widgets_.push_back(vector_combine_combo);
   connect(vector_combine_combo, &QComboBox::currentIndexChanged, this,
           [this](int index) { current_vector_combine_index_ = index; });

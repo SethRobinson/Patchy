@@ -552,6 +552,7 @@ if(PATCHY_BUILD_APP)
       src/ui/canvas_widget_selection.cpp
       src/ui/canvas_widget_selection_engines.cpp
       src/ui/canvas_widget_transform.cpp
+      src/ui/canvas_widget_vector_tools.cpp
       src/ui/canvas_widget_view.cpp
       src/ui/channel_panel.hpp
       src/ui/channel_panel.cpp

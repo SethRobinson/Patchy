@@ -45,6 +45,8 @@ class QTabletEvent;
 
 namespace patchy {
 enum class LiveShapeKind : std::uint8_t;
+struct PathAnchor;
+struct VectorPath;
 }
 
 namespace patchy::ui {
@@ -79,7 +81,9 @@ enum class CanvasTool {
   BlurBrush,
   SharpenBrush,
   PatternStamp,
-  MixerBrush
+  MixerBrush,
+  // July 2026 vector tools (append-only: values ride persisted settings).
+  Pen
 };
 
 // What the Line/Rectangle/Ellipse draw tools produce: a vector shape layer
@@ -473,6 +477,12 @@ public:
   [[nodiscard]] VectorToolMode vector_tool_mode() const noexcept;
   void set_vector_shape_drawn_callback(
       std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> callback);
+  // Pen tool (canvas_widget_vector_tools.cpp - the tablet-input TU is
+  // canvas_widget_pen.cpp): a committed path arrives as one subpath.
+  void set_vector_path_committed_callback(std::function<void(patchy::VectorPath, bool)> callback);
+  [[nodiscard]] bool pen_session_active() const noexcept;
+  void commit_pen_path(bool closed);
+  void cancel_pen_path();
   // Rounded-corner radius for the rectangular marquee (0 = sharp corners).
   void set_marquee_corner_radius(int pixels) noexcept;
   [[nodiscard]] int marquee_corner_radius() const noexcept;
@@ -947,6 +957,13 @@ private:
   [[nodiscard]] QRect draw_ellipse(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect flood_fill(QPoint start);
   [[nodiscard]] QRect shape_drag_rect(QPoint anchor, QPoint current) const;
+  // Pen tool session (canvas_widget_vector_tools.cpp).
+  [[nodiscard]] bool pen_click_closes_path(QPointF document_point) const;
+  bool handle_pen_press(QMouseEvent* event, QPointF document_point);
+  bool handle_pen_move(QMouseEvent* event, QPointF document_point);
+  bool handle_pen_release(QMouseEvent* event);
+  bool handle_pen_key(QKeyEvent* event);
+  void draw_pen_overlay(QPainter& painter);
   [[nodiscard]] QRect draw_mask_line(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_mask_gradient(QPoint from, QPoint to);
   [[nodiscard]] QRect draw_mask_rectangle(QPoint from, QPoint to, bool erase);
@@ -1162,6 +1179,12 @@ private:
   QSize shape_fixed_size_{1024, 768};
   VectorToolMode vector_tool_mode_{VectorToolMode::Shape};
   std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> vector_shape_drawn_callback_;
+  std::function<void(patchy::VectorPath, bool)> vector_path_committed_callback_;
+  std::vector<patchy::PathAnchor> pen_anchors_;
+  bool pen_session_active_{false};
+  bool pen_handle_dragging_{false};
+  bool pen_handles_broken_{false};
+  QPointF pen_hover_document_{};
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};

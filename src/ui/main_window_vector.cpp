@@ -127,8 +127,14 @@ void MainWindow::handle_vector_shape_drawn(LiveShapeKind kind, QRectF bounds, QP
 }
 
 void MainWindow::create_shape_layer_from_drag(const LiveShapeParams& params) {
-  auto& doc = document();
   auto subpaths = generate_live_shape_subpaths(params);
+  create_or_extend_shape_layer(std::move(subpaths), params, shape_layer_base_name(params.kind));
+}
+
+void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
+                                              std::optional<LiveShapeParams> origination,
+                                              const QString& name_pattern) {
+  auto& doc = document();
   if (subpaths.empty()) {
     return;
   }
@@ -150,9 +156,10 @@ void MainWindow::create_shape_layer_from_drag(const LiveShapeParams& params) {
           subpath.op = op;
           content.path.subpaths.push_back(std::move(subpath));
         }
-        auto origination = params;
-        origination.index = group;
-        content.origination.push_back(std::move(origination));
+        if (origination.has_value()) {
+          origination->index = group;
+          content.origination.push_back(std::move(*origination));
+        }
         layer->set_vector_shape(std::move(content));
         layer->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
         mark_layer_vector_block_dirty(*layer);
@@ -170,7 +177,7 @@ void MainWindow::create_shape_layer_from_drag(const LiveShapeParams& params) {
   int suffix = 1;
   std::string name;
   do {
-    name = shape_layer_base_name(params.kind).arg(suffix++).toStdString();
+    name = name_pattern.arg(suffix++).toStdString();
   } while (existing_names.contains(name));
 
   auto anchor_id = doc.active_layer_id();
@@ -183,7 +190,9 @@ void MainWindow::create_shape_layer_from_drag(const LiveShapeParams& params) {
   const auto layer_id = layer.id();
   auto content = current_shape_appearance_content();
   content.path.subpaths = std::move(subpaths);
-  content.origination = {params};
+  if (origination.has_value()) {
+    content.origination = {std::move(*origination)};
+  }
   layer.set_vector_shape(std::move(content));
   layer.metadata()[kLayerMetadataVectorShape] = "1";
   layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
@@ -196,9 +205,22 @@ void MainWindow::create_shape_layer_from_drag(const LiveShapeParams& params) {
   statusBar()->showMessage(tr("Created shape layer %1.").arg(QString::fromStdString(name)));
 }
 
-void MainWindow::add_drag_to_work_path(const LiveShapeParams& params) {
+void MainWindow::handle_vector_path_committed(VectorPath path, bool closed) {
+  (void)closed;  // open pen paths fill their implied chord like Photoshop
+  if (!has_active_document() || canvas_ == nullptr || path.subpaths.empty()) {
+    return;
+  }
+  // The Pen has no Pixels behavior: Shape creates/extends a shape layer,
+  // anything else lands on the work path.
+  if (current_vector_tool_mode_ == VectorToolMode::Shape) {
+    create_or_extend_shape_layer(std::move(path.subpaths), std::nullopt, tr("Shape %1"));
+    return;
+  }
+  add_subpaths_to_work_path(std::move(path.subpaths));
+}
+
+void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
   auto& doc = document();
-  auto subpaths = generate_live_shape_subpaths(params);
   if (subpaths.empty()) {
     return;
   }
@@ -224,7 +246,11 @@ void MainWindow::add_drag_to_work_path(const LiveShapeParams& params) {
     created.mark_dirty();  // authored: no original resource bytes to re-emit
     doc.add_path(std::move(created));
   }
-  statusBar()->showMessage(tr("Added the shape to the work path."));
+  statusBar()->showMessage(tr("Added the path to the work path."));
+}
+
+void MainWindow::add_drag_to_work_path(const LiveShapeParams& params) {
+  add_subpaths_to_work_path(generate_live_shape_subpaths(params));
 }
 
 VectorShapeContent MainWindow::current_shape_appearance_content() const {
@@ -248,7 +274,8 @@ VectorShapeContent MainWindow::current_shape_appearance_content() const {
 void MainWindow::refresh_vector_tool_options_visibility() {
   const bool shape_tool = current_tool_ == CanvasTool::Line ||
                           current_tool_ == CanvasTool::Rectangle ||
-                          current_tool_ == CanvasTool::Ellipse;
+                          current_tool_ == CanvasTool::Ellipse ||
+                          current_tool_ == CanvasTool::Pen;
   if (!shape_tool) {
     return;  // per-tool visibility already hid every mode-specific widget
   }

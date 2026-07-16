@@ -6290,6 +6290,10 @@ Mixed selection</source>
         <translation>シェイプレイヤーには描画できません。ピクセルを編集するにはレイヤーをラスタライズしてください。</translation>
     </message>
     <message>
+        <source>The Pen tool draws paths on layer content</source>
+        <translation>ペンツールはレイヤーコンテンツにパスを描きます</translation>
+    </message>
+    <message>
         <source>Shape layers and vector masks can&apos;t be transformed yet. Rasterize first.</source>
         <translation>シェイプレイヤーとベクトルマスクはまだ変形できません。先にラスタライズしてください。</translation>
     </message>
@@ -12659,6 +12663,8 @@ Clipped to the layer below</source>
     <message><source>Add to work path</source><translation>作業用パスに追加</translation></message>
     <message><source>Work Path</source><translation>作業用パス</translation></message>
     <message><source>Created shape layer %1.</source><translation>シェイプレイヤー %1 を作成しました。</translation></message>
+    <message><source>Shape %1</source><translation>シェイプ %1</translation></message>
+    <message><source>Added the path to the work path.</source><translation>パスを作業用パスに追加しました。</translation></message>
     <message><source>Added the shape to the work path.</source><translation>シェイプを作業用パスに追加しました。</translation></message>
     <message><source>Select a shape layer to edit its appearance</source><translation>外観を編集するシェイプレイヤーを選択してください</translation></message>
     <message><source>This shape layer&apos;s vector data is preserved but can&apos;t be edited.</source><translation>このシェイプレイヤーのベクトルデータは保持されていますが編集できません。</translation></message>
