@@ -1350,6 +1350,24 @@ void MainWindow::create_actions() {
   register_hotkey(filter_gallery_action, "filter.gallery");
   connect(filter_gallery_action, &QAction::triggered, this, [this] { visual_filter_gallery_dialog(); });
   register_document_action(filter_gallery_action);
+
+  auto* liquify_action = filter_menu->addAction(tr("&Liquify..."));
+  liquify_action->setObjectName(QStringLiteral("filterLiquifyAction"));
+  liquify_action->setProperty("patchy.channelViewBlocked", true);
+  liquify_action->setIcon(simple_icon(QStringLiteral("LIQ")));
+  liquify_action->setStatusTip(
+      tr("Push, pull, twist, pucker, or bloat pixels with a brush"));
+  bind_action_text(liquify_action, "&Liquify...");
+  bind_translated_status_tip(
+      liquify_action,
+      "Push, pull, twist, pucker, or bloat pixels with a brush");
+  apply_bound_translation(liquify_action);
+  refresh_action_tooltip(liquify_action);
+  register_hotkey(liquify_action, "filter.liquify",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_X));
+  connect(liquify_action, &QAction::triggered, this,
+          [this] { liquify_dialog(); });
+  register_document_action(liquify_action);
   filter_menu->addSeparator();
 
   const auto add_filter_submenu = [this, filter_menu](
@@ -1412,24 +1430,6 @@ void MainWindow::create_actions() {
     }
     return filter_menu;
   };
-
-  auto* liquify_action = filter_distort_menu->addAction(tr("&Liquify..."));
-  liquify_action->setObjectName(QStringLiteral("filterLiquifyAction"));
-  liquify_action->setProperty("patchy.channelViewBlocked", true);
-  liquify_action->setIcon(simple_icon(QStringLiteral("LIQ")));
-  liquify_action->setStatusTip(
-      tr("Push, pull, twist, pucker, or bloat pixels with a brush"));
-  bind_action_text(liquify_action, "&Liquify...");
-  bind_translated_status_tip(
-      liquify_action,
-      "Push, pull, twist, pucker, or bloat pixels with a brush");
-  apply_bound_translation(liquify_action);
-  refresh_action_tooltip(liquify_action);
-  register_hotkey(liquify_action, "filter.liquify",
-                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_X));
-  connect(liquify_action, &QAction::triggered, this,
-          [this] { liquify_dialog(); });
-  register_document_action(liquify_action);
 
   for (const auto& filter : filters_.filters()) {
     const auto identifier = QString::fromStdString(filter.identifier);

@@ -550,7 +550,8 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
   CHECK(filter_menu->actions().size() >= 4);
   CHECK(filter_menu->actions()[1]->isSeparator());
   CHECK(filter_menu->actions()[2] == gallery_action);
-  CHECK(filter_menu->actions()[3]->isSeparator());
+  CHECK(filter_menu->actions()[3] == liquify_action);
+  CHECK(filter_menu->actions()[4]->isSeparator());
   const auto* convert_command = window.hotkey_registry().find_command(
       QStringLiteral("filter.convert_for_smart_filters"));
   CHECK(convert_command != nullptr);
@@ -624,11 +625,7 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
     auto* menu = window.findChild<QMenu*>(QString::fromLatin1(expected_menu.object_name));
     CHECK(menu != nullptr);
     CHECK(filter_action_object_names(*menu) == expected_menu.action_object_names);
-    if (QString::fromLatin1(expected_menu.object_name) ==
-        QStringLiteral("filterDistortMenu")) {
-      CHECK(!menu->actions().isEmpty());
-      CHECK(menu->actions().front() == liquify_action);
-    }
+    CHECK(!menu->actions().contains(liquify_action));
   }
   CHECK(actual_submenus == expected_submenus);
   auto* dust_action = require_action(

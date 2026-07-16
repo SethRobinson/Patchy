@@ -4,7 +4,7 @@ This document is the implementation, PSD-interoperability, and legal contract fo
 
 ## Product and UI contract
 
-`Filter > Distort > Liquify...` opens a dedicated brush workspace. Liquify is not a `FilterRegistry` entry: it is an ordered sequence of gestures rather than one named invocation with stable parameters. It therefore does not appear in the Filter Gallery, cannot be saved in a Look, and has no private filter identifier. Its persisted hotkey command ID is `filter.liquify`; the default is Ctrl+Shift+X.
+`Filter > Liquify...` opens a dedicated brush workspace. Liquify is not a `FilterRegistry` entry: it is an ordered sequence of gestures rather than one named invocation with stable parameters. It therefore does not appear in the Filter Gallery, cannot be saved in a Look, and has no private filter identifier. Its persisted hotkey command ID is `filter.liquify`; the default is Ctrl+Shift+X.
 
 The tools are Warp, Reconstruct, Smooth, Twirl, Pucker, Bloat, Freeze, and Thaw. Twirl rotates clockwise; Alt/Option reverses it. Brush Size is 5 through 2000 px; Pressure and Density are 1 through 100 percent. The freeze mask is an edit-time protection field shown as a blue overlay. Restore All clears both displacement and protection. Cancel changes nothing. Apply renders once from the immutable original pixels, respects the document selection, keeps the original layer bounds, and creates one undo entry. Pixels outside the source bounds are edge-clamped, so a deformation at a layer edge does not create a transparent seam.
 
