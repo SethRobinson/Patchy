@@ -2025,6 +2025,109 @@ void smart_filter_emboss_matches_destructive_and_preserves_alpha() {
   CHECK(rejected_invalid);
 }
 
+void smart_filter_radial_blur_matches_destructive() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto source = patchy::PixelBuffer(9, 7, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      auto *px = source.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(20 + 23 * x);
+      px[1] = static_cast<std::uint8_t>(10 + 31 * y);
+      px[2] = static_cast<std::uint8_t>(200 - 11 * x);
+      px[3] = static_cast<std::uint8_t>(40 + 25 * ((x + y) % 8));
+    }
+  }
+  const patchy::Rect bounds{3, 4, 9, 7};
+  // Quality Good renders 16 samples about the default 50 percent center: the
+  // exact destructive sweep, byte for byte.
+  const auto rendered = patchy::render_radial_blur(
+      source, bounds, 42, 16, static_cast<double>(source.width() - 1) * 0.5,
+      static_cast<double>(source.height() - 1) * 0.5);
+  auto invocation = registry.default_invocation("patchy.filters.radial_blur");
+  invocation.parameters["amount"] = std::int64_t{42};
+  invocation.parameters["samples"] = std::int64_t{16};
+  const auto destructive = registry.render(invocation, source, bounds, false);
+  check_filter_result_equal(rendered, destructive);
+
+  bool rejected_invalid = false;
+  try {
+    (void)patchy::render_radial_blur(source, bounds, 0, 16, 4.0, 3.0);
+  } catch (const std::invalid_argument &) {
+    rejected_invalid = true;
+  }
+  CHECK(rejected_invalid);
+}
+
+void smart_filter_add_noise_matches_destructive_and_is_deterministic() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  auto source = patchy::PixelBuffer(9, 7, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      auto *px = source.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(20 + 23 * x);
+      px[1] = static_cast<std::uint8_t>(10 + 31 * y);
+      px[2] = static_cast<std::uint8_t>(200 - 11 * x);
+      px[3] = static_cast<std::uint8_t>(40 + 25 * ((x + y) % 8));
+    }
+  }
+  const patchy::Rect bounds{3, 4, 9, 7};
+  const auto rendered =
+      patchy::render_add_noise(source, bounds, 25.5, true, true, 77);
+  auto invocation = registry.default_invocation("patchy.filters.add_noise");
+  invocation.parameters["amount"] = 25.5;
+  invocation.parameters["distribution"] = std::string("gaussian");
+  invocation.parameters["monochromatic"] = true;
+  invocation.parameters["seed"] = std::int64_t{77};
+  const auto destructive = registry.render(invocation, source, bounds, false);
+  check_filter_result_equal(rendered, destructive);
+
+  // Deterministic: identical inputs re-render identical bytes; alpha and
+  // bounds stay untouched; a monochromatic delta moves RGB together.
+  const auto again =
+      patchy::render_add_noise(source, bounds, 25.5, true, true, 77);
+  check_filter_result_equal(rendered, again);
+  bool noise_changed = false;
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      const auto *before = source.pixel(x, y);
+      const auto *after = rendered.pixels.pixel(x, y);
+      CHECK(after[3] == before[3]);
+      // Monochromatic: every unclamped channel moves by the same delta.
+      const auto delta_r = static_cast<int>(after[0]) - before[0];
+      const auto delta_g = static_cast<int>(after[1]) - before[1];
+      if (after[0] != 0 && after[0] != 255 && after[1] != 0 &&
+          after[1] != 255) {
+        CHECK(delta_r == delta_g);
+      }
+      noise_changed = noise_changed || delta_r != 0;
+    }
+  }
+  CHECK(noise_changed);
+
+  // Uniform and gaussian distributions and different seeds produce different
+  // pixels.
+  const auto uniform =
+      patchy::render_add_noise(source, bounds, 25.5, false, true, 77);
+  const auto reseeded =
+      patchy::render_add_noise(source, bounds, 25.5, true, true, 78);
+  bool uniform_differs = false;
+  bool reseeded_differs = false;
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      uniform_differs = uniform_differs ||
+                        std::memcmp(uniform.pixels.pixel(x, y),
+                                    rendered.pixels.pixel(x, y), 3) != 0;
+      reseeded_differs = reseeded_differs ||
+                         std::memcmp(reseeded.pixels.pixel(x, y),
+                                     rendered.pixels.pixel(x, y), 3) != 0;
+    }
+  }
+  CHECK(uniform_differs);
+  CHECK(reseeded_differs);
+}
+
 void smart_filter_box_blur_matches_destructive_and_sliding_reference() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -2165,6 +2268,10 @@ std::vector<patchy::test::TestCase> smart_filter_pixels_tests() {
        smart_filter_emboss_matches_destructive_and_preserves_alpha},
       {"smart_filter_box_blur_matches_destructive_and_sliding_reference",
        smart_filter_box_blur_matches_destructive_and_sliding_reference},
+      {"smart_filter_radial_blur_matches_destructive",
+       smart_filter_radial_blur_matches_destructive},
+      {"smart_filter_add_noise_matches_destructive_and_is_deterministic",
+       smart_filter_add_noise_matches_destructive_and_is_deterministic},
       {"smart_filter_layer_model_revisions_are_explicit",
        smart_filter_layer_model_revisions_are_explicit},
       {"smart_filter_gaussian_matches_photoshop_calibrated_kernels",

@@ -68,6 +68,26 @@ double filter_number(const FilterInvocation &invocation, std::string_view key,
   return fallback;
 }
 
+std::string filter_option(const FilterInvocation &invocation,
+                          std::string_view key, std::string_view fallback) {
+  const auto found = invocation.parameters.find(key);
+  if (found == invocation.parameters.end()) {
+    return std::string(fallback);
+  }
+  const auto *option = std::get_if<std::string>(&found->second);
+  return option != nullptr ? *option : std::string(fallback);
+}
+
+bool filter_boolean(const FilterInvocation &invocation, std::string_view key,
+                    bool fallback) {
+  const auto found = invocation.parameters.find(key);
+  if (found == invocation.parameters.end()) {
+    return fallback;
+  }
+  const auto *flag = std::get_if<bool>(&found->second);
+  return flag != nullptr ? *flag : fallback;
+}
+
 double filter_center_coordinate(std::int32_t extent, double percent) {
   return static_cast<double>(std::max<std::int32_t>(0, extent - 1)) *
          std::clamp(percent, 0.0, 100.0) / 100.0;
@@ -2244,6 +2264,23 @@ void execute_builtin_filter(const FilterRegistry &registry,
     return;
   }
 
+  if (identifier == "patchy.filters.add_noise") {
+    const auto amount =
+        std::clamp(filter_number(invocation, "amount", 12.5), 0.1, 400.0);
+    const auto gaussian =
+        filter_option(invocation, "distribution", "uniform") == "gaussian";
+    const auto monochromatic =
+        filter_boolean(invocation, "monochromatic", false);
+    const auto seed = std::clamp(filter_value(invocation, "seed", 1), 0,
+                                 999999999);
+    stage_rgba_and_render(pixels, [&](PixelBuffer &rgba) {
+      return render_add_noise(rgba,
+                              Rect::from_size(rgba.width(), rgba.height()),
+                              amount, gaussian, monochromatic, seed, progress);
+    });
+    return;
+  }
+
   if (identifier == "patchy.filters.film_grain") {
     const auto amount =
         std::clamp(filter_value(invocation, "amount", 50), 0, 100);
@@ -2358,6 +2395,33 @@ double_parameter(std::string key, std::string display_name,
   definition.unit = unit;
   definition.spatial_scale = spatial_scale;
   definition.presentation = presentation;
+  return definition;
+}
+
+FilterParameterDefinition
+boolean_parameter(std::string key, std::string display_name,
+                  std::string control_object_name, bool default_value) {
+  FilterParameterDefinition definition;
+  definition.key = std::move(key);
+  definition.display_name = std::move(display_name);
+  definition.control_object_name = std::move(control_object_name);
+  definition.kind = FilterParameterKind::Boolean;
+  definition.default_value = default_value;
+  return definition;
+}
+
+FilterParameterDefinition
+option_parameter(std::string key, std::string display_name,
+                 std::string control_object_name,
+                 std::vector<FilterParameterOption> options,
+                 std::string default_value) {
+  FilterParameterDefinition definition;
+  definition.key = std::move(key);
+  definition.display_name = std::move(display_name);
+  definition.control_object_name = std::move(control_object_name);
+  definition.kind = FilterParameterKind::Option;
+  definition.default_value = std::move(default_value);
+  definition.options = std::move(options);
   return definition;
 }
 
@@ -3134,6 +3198,20 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                            75, Unit::Percent),
          integer_parameter("contrast", "Contrast", "filterContrast", 0, 100, 60,
                            Unit::Percent)});
+  } else if (identifier == "patchy.filters.add_noise") {
+    auto noise_amount = double_parameter("amount", "Amount", "filterAmount",
+                                         0.1, 400.0, 12.5, 0.1, Unit::Percent);
+    noise_amount.practical_minimum = 0.1;
+    noise_amount.practical_maximum = 100.0;
+    metadata = catalog_metadata(
+        Category::Noise, false,
+        {std::move(noise_amount),
+         option_parameter("distribution", "Distribution", "filterDistribution",
+                          {{"uniform", "Uniform"}, {"gaussian", "Gaussian"}},
+                          "uniform"),
+         boolean_parameter("monochromatic", "Monochromatic",
+                           "filterMonochromatic", false),
+         integer_parameter("seed", "Seed", "filterSeed", 0, 999999999, 1)});
   } else if (identifier == "patchy.filters.film_grain") {
     metadata = catalog_metadata(Category::Noise, false, {amount("Amount", 50)});
   } else if (identifier == "patchy.filters.vignette") {

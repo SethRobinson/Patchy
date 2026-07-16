@@ -177,6 +177,24 @@ require_box_blur_filter(const patchy::SmartFilterEntry &entry) {
   return *box;
 }
 
+const patchy::RadialBlurSmartFilter &
+require_radial_blur_filter(const patchy::SmartFilterEntry &entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::RadialBlur);
+  const auto *radial =
+      std::get_if<patchy::RadialBlurSmartFilter>(&entry.parameters);
+  CHECK(radial != nullptr);
+  return *radial;
+}
+
+const patchy::AddNoiseSmartFilter &
+require_add_noise_filter(const patchy::SmartFilterEntry &entry) {
+  CHECK(entry.kind == patchy::SmartFilterKind::AddNoise);
+  const auto *noise =
+      std::get_if<patchy::AddNoiseSmartFilter>(&entry.parameters);
+  CHECK(noise != nullptr);
+  return *noise;
+}
+
 const patchy::UnsharpMaskSmartFilter &
 require_unsharp_mask_filter(const patchy::SmartFilterEntry &entry) {
   CHECK(entry.kind == patchy::SmartFilterKind::UnsharpMask);
@@ -2765,6 +2783,155 @@ void psd_photoshop_box_blur_smart_filter_fixture_round_trips_and_edits() {
   CHECK(test_global_psd_blocks(edited_reread) == original_globals);
 }
 
+void psd_photoshop_radial_blur_smart_filter_fixtures_round_trip_and_gate() {
+  // The Spin capture imports as a fully supported, editable stack.
+  const auto spin_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-radial-blur.psd");
+  const auto spin = patchy::psd::DocumentIo::read_file(spin_path);
+  const patchy::Layer *spin_layer = nullptr;
+  for (const auto &layer : spin.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      spin_layer = &layer;
+    }
+  }
+  CHECK(spin_layer != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*spin_layer).empty());
+  const auto *spin_stack = spin_layer->smart_filter_stack();
+  CHECK(spin_stack != nullptr &&
+        spin_stack->support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(spin_stack->entries.size() == 1U);
+  const auto &spin_entry = spin_stack->entries.front();
+  CHECK(spin_entry.native_name == "Radial Blur...");
+  CHECK(spin_entry.native_class_id == "RdlB");
+  CHECK(spin_entry.native_filter_id == 0x52646c42U);
+  const auto &spin_settings = require_radial_blur_filter(spin_entry);
+  CHECK(spin_settings.amount == 10);
+  CHECK(spin_settings.quality == patchy::RadialBlurQuality::Good);
+
+  // Unedited resave keeps the SoLd byte-identical; an edit patches in place.
+  const auto original_sold = require_placed_layer_block(*spin_layer).payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(spin));
+  const auto &clean_layer = require_layer_named(clean, spin_layer->name());
+  CHECK(require_placed_layer_block(clean_layer).payload == original_sold);
+
+  auto edited = spin;
+  auto *edited_layer = edited.find_layer(spin_layer->id());
+  CHECK(edited_layer != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  auto &edited_settings = std::get<patchy::RadialBlurSmartFilter>(
+      edited_stack.entries.front().parameters);
+  edited_settings.amount = 42;
+  edited_settings.quality = patchy::RadialBlurQuality::Best;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto &reread_settings = require_radial_blur_filter(
+      require_smart_filter_stack(edited_reread, spin_layer->name())
+          .entries.front());
+  CHECK(reread_settings.amount == 42);
+  CHECK(reread_settings.quality == patchy::RadialBlurQuality::Best);
+
+  // The Zoom capture stays fail-closed: Patchy models the Spin method only,
+  // so the whole stack keeps Photoshop's preserved preview.
+  const auto zoom_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-radial-blur-zoom.psd");
+  const auto zoom = patchy::psd::DocumentIo::read_file(zoom_path);
+  const patchy::Layer *zoom_layer = nullptr;
+  for (const auto &layer : zoom.layers()) {
+    if (patchy::layer_is_smart_object(layer)) {
+      zoom_layer = &layer;
+    }
+  }
+  CHECK(zoom_layer != nullptr);
+  CHECK(!patchy::smart_object_lock_reason(*zoom_layer).empty());
+  const auto *zoom_stack = zoom_layer->smart_filter_stack();
+  CHECK(zoom_stack == nullptr ||
+        zoom_stack->support == patchy::SmartFilterStackSupport::Unsupported);
+  // Preservation: the zoom SoLd re-emits byte-for-byte.
+  const auto zoom_sold = require_placed_layer_block(*zoom_layer).payload;
+  const auto zoom_clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(zoom));
+  CHECK(require_placed_layer_block(
+            require_layer_named(zoom_clean, zoom_layer->name()))
+            .payload == zoom_sold);
+}
+
+void psd_photoshop_add_noise_smart_filter_fixtures_round_trip_and_edit() {
+  const auto uniform_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-add-noise.psd");
+  const auto uniform = patchy::psd::DocumentIo::read_file(uniform_path);
+  const patchy::Layer *uniform_layer = nullptr;
+  for (const auto &layer : uniform.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      uniform_layer = &layer;
+    }
+  }
+  CHECK(uniform_layer != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*uniform_layer).empty());
+  const auto *uniform_stack = uniform_layer->smart_filter_stack();
+  CHECK(uniform_stack != nullptr &&
+        uniform_stack->support == patchy::SmartFilterStackSupport::Supported);
+  const auto &uniform_entry = uniform_stack->entries.front();
+  CHECK(uniform_entry.native_name == "Add Noise...");
+  CHECK(uniform_entry.native_class_id == "AdNs");
+  CHECK(uniform_entry.native_filter_id == 0x41644e73U);
+  const auto &uniform_settings = require_add_noise_filter(uniform_entry);
+  CHECK(std::abs(uniform_settings.amount_percent - 12.5) < 1e-9);
+  CHECK(!uniform_settings.gaussian);
+  CHECK(!uniform_settings.monochromatic);
+  CHECK(uniform_settings.seed == 123456);
+
+  const auto gaussian_path = patchy::test::committed_psd_fixture_path(
+      "photoshop-smart-filter-add-noise-gaussian.psd");
+  const auto gaussian = patchy::psd::DocumentIo::read_file(gaussian_path);
+  const patchy::Layer *gaussian_layer = nullptr;
+  for (const auto &layer : gaussian.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      gaussian_layer = &layer;
+    }
+  }
+  CHECK(gaussian_layer != nullptr);
+  const auto &gaussian_settings = require_add_noise_filter(
+      require_smart_filter_stack(gaussian, gaussian_layer->name())
+          .entries.front());
+  CHECK(std::abs(gaussian_settings.amount_percent - 8.0) < 1e-9);
+  CHECK(gaussian_settings.gaussian);
+  CHECK(gaussian_settings.monochromatic);
+  CHECK(gaussian_settings.seed == 654321);
+
+  // Unedited resave keeps the SoLd byte-identical; an edit patches known
+  // leaves and preserves the imported seed.
+  const auto original_sold = require_placed_layer_block(*uniform_layer).payload;
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(uniform));
+  CHECK(require_placed_layer_block(
+            require_layer_named(clean, uniform_layer->name()))
+            .payload == original_sold);
+
+  auto edited = uniform;
+  auto *edited_layer = edited.find_layer(uniform_layer->id());
+  CHECK(edited_layer != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  auto &edited_settings = std::get<patchy::AddNoiseSmartFilter>(
+      edited_stack.entries.front().parameters);
+  edited_settings.amount_percent = 33.25;
+  edited_settings.gaussian = true;
+  edited_settings.monochromatic = true;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(edited));
+  const auto &reread_settings = require_add_noise_filter(
+      require_smart_filter_stack(edited_reread, uniform_layer->name())
+          .entries.front());
+  CHECK(std::abs(reread_settings.amount_percent - 33.25) < 1e-9);
+  CHECK(reread_settings.gaussian);
+  CHECK(reread_settings.monochromatic);
+  CHECK(reread_settings.seed == 123456);
+}
+
 void psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_edits() {
   const auto fixture_path = patchy::test::committed_psd_fixture_path(
       "photoshop-smart-filter-unsharp-motion.psd");
@@ -3704,6 +3871,10 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests() {
        psd_photoshop_emboss_smart_filter_fixture_round_trips_and_edits},
       {"psd_photoshop_box_blur_smart_filter_fixture_round_trips_and_edits",
        psd_photoshop_box_blur_smart_filter_fixture_round_trips_and_edits},
+      {"psd_photoshop_radial_blur_smart_filter_fixtures_round_trip_and_gate",
+       psd_photoshop_radial_blur_smart_filter_fixtures_round_trip_and_gate},
+      {"psd_photoshop_add_noise_smart_filter_fixtures_round_trip_and_edit",
+       psd_photoshop_add_noise_smart_filter_fixtures_round_trip_and_edit},
       {"psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_"
        "edits",
        psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_edits},

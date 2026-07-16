@@ -552,6 +552,18 @@ void plastic_wrap(PixelBuffer& pixels) {
   });
 }
 
+void add_noise(PixelBuffer& pixels) {
+  require_uint8(pixels);
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    return;
+  }
+  stage_rgba_and_render(pixels, [](const PixelBuffer& rgba) {
+    return render_add_noise(rgba,
+                            Rect::from_size(rgba.width(), rgba.height()),
+                            12.5, false, false, 1);
+  });
+}
+
 void lens_blur(PixelBuffer& pixels) {
   require_uint8(pixels);
   apply_lens_blur_filter(pixels, 15.0, 6, 50, 0);
@@ -1014,6 +1026,7 @@ void register_builtin_filters(FilterRegistry& registry) {
   add("patchy.filters.pixelate", "Pixel Mosaic", pixelate);
   add("patchy.filters.color_halftone", "Color Halftone", color_halftone);
   add("patchy.filters.film_grain", "Analog Grain", film_grain);
+  add("patchy.filters.add_noise", "Add Noise", add_noise);
   add("patchy.filters.vignette", "Lens Vignette", vignette);
   add("patchy.filters.high_pass", "High Pass", high_pass);
   add("patchy.filters.median", "Median", median);

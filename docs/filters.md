@@ -12,7 +12,7 @@ These paths are intentionally separate. Their defaults are not equivalent for ev
 
 ## Stable identifiers and schemas
 
-The 38 built-in filter IDs are persisted compatibility identifiers. Never rename or reuse one:
+The 39 built-in filter IDs are persisted compatibility identifiers. Never rename or reuse one:
 
 ```text
 patchy.filters.invert
@@ -44,6 +44,7 @@ patchy.filters.clouds
 patchy.filters.pixelate
 patchy.filters.color_halftone
 patchy.filters.film_grain
+patchy.filters.add_noise
 patchy.filters.vignette
 patchy.filters.high_pass
 patchy.filters.median
@@ -83,6 +84,7 @@ Parameter keys are stable within a filter schema. The version-1 keys and default
 | `pixelate` | `block_size=4` |
 | `color_halftone` | `cell_size=10`, `intensity=75`, `contrast=60` |
 | `film_grain` | `amount=50` |
+| `add_noise` | `amount=12.5`, `distribution=uniform`, `monochromatic=false`, `seed=1` |
 | `vignette` | `strength=55`, `center_x=50.0`, `center_y=50.0` |
 | `high_pass` | `radius=10.0` |
 | `median` | `radius=1.0` |
@@ -101,7 +103,7 @@ Values are normalized through the catalog before execution. Integer, double, boo
 
 Seven filters belong to Image > Adjustments: Invert, Brightness/Contrast, Grayscale, Desaturate, Auto Contrast, Threshold, and Posterize. Grayscale currently has no direct action.
 
-The gallery exposes the other 31 effects in the fixed catalog and category order below. Display labels are translated, but order is never locale-sorted.
+The gallery exposes the other 32 effects in the fixed catalog and category order below. Display labels are translated, but order is never locale-sorted.
 
 | Category token | Gallery effects in order |
 | --- | --- |
@@ -109,7 +111,7 @@ The gallery exposes the other 31 effects in the fixed catalog and category order
 | `blur` | Box Blur (`patchy.filters.box_blur`), Gaussian Blur (`patchy.filters.gaussian_blur`), Motion Blur (`patchy.filters.motion_blur`), Radial Blur (`patchy.filters.radial_blur`), Surface Blur (`patchy.filters.surface_blur`), Lens Blur (`patchy.filters.lens_blur`), Iris Blur (`patchy.filters.iris_blur`), Tilt-Shift Blur (`patchy.filters.tilt_shift_blur`) |
 | `sharpen` | Sharpen (`patchy.filters.sharpen`), Unsharp Mask (`patchy.filters.unsharp_mask`), High Pass (`patchy.filters.high_pass`) |
 | `distort` | Twirl (`patchy.filters.twirl`), Wave (`patchy.filters.wave`), Pinch/Bloat (`patchy.filters.pinch_bloat`) |
-| `noise` | Analog Grain (`patchy.filters.film_grain`), Median (`patchy.filters.median`), Dust & Scratches (`patchy.filters.dust_and_scratches`) |
+| `noise` | Analog Grain (`patchy.filters.film_grain`), Add Noise (`patchy.filters.add_noise`), Median (`patchy.filters.median`), Dust & Scratches (`patchy.filters.dust_and_scratches`) |
 | `pixelate` | Pixel Mosaic (`patchy.filters.pixelate`), Color Halftone (`patchy.filters.color_halftone`) |
 | `stylize` | Edge Detect (`patchy.filters.edge_detect`), Emboss (`patchy.filters.emboss`), Glowing Edges (`patchy.filters.glowing_edges`) |
 | `render` | Clouds (`patchy.filters.clouds`) |
@@ -202,7 +204,8 @@ Output growth and translation support are catalog metadata:
 
 - Box Blur and Gaussian Blur grow by their radius and have translation support equal to that radius.
 - Motion Blur accepts a user-entered Angle from -360 through 360 degrees and Distance from 1 through 999 px. Its practical controls use -180 through 180 degrees and 1 through 64 px. Rendering uses one fixed, premultiplied-alpha line kernel, grows conservatively by the distance, and has translation support of distance plus one for bilinear sampling.
-- Radial Blur keeps the historical centered growth calculation for exact default compatibility. An edited center computes growth from the actual sampled corner sweep without a fixed pixel cap. Impossible dimensions fail through the registry's checked padding path instead of clipping valid output. Amount zero has no growth.
+- Radial Blur keeps the historical centered growth calculation for exact default compatibility. An edited center computes growth from the actual sampled corner sweep without a fixed pixel cap. Impossible dimensions fail through the registry's checked padding path instead of clipping valid output. Amount zero has no growth. As a native Smart Filter it maps only when the center is the default 50/50 (Photoshop's `RdlB` descriptor stores no center), the amount is 1 through 100, and samples land exactly on a quality tier (Draft 8, Good 16, Best 32); Photoshop's Zoom method is deliberately unsupported and keeps its imported stack preview-locked.
+- Add Noise applies deterministic position-hashed noise to RGB only: uniform, or a sum-of-four-uniforms gaussian approximation with no transcendental calls (cross-toolchain stable). Amount is a double percent from 0.1 through 400 with a practical slider through 100; the seed (0 through 999999999) feeds the hash, so re-renders reproduce the same noise, and the amount deliberately does not scale for thumbnails (like Analog Grain). Bounds and alpha stay byte-identical, so it neither grows nor advertises translation support.
 - Unsharp Mask accepts Amount 1 through 500 percent, fractional Radius 0.1 through 1000 px with a practical slider through 12 px, and Threshold 0 through 255. It does not grow, preserves alpha, and advertises translation support of `ceil(3 * radius)`. Photoshop scales the signed detail before subtracting Threshold from its magnitude; the radius-2.5 low-pass has its own measured byte kernel rather than Gaussian Blur's radius-2.5 kernel.
 - High Pass keeps the input bounds and alpha. Its linked slider spans the practical 0.1 through 12 px range, with a default of 10 px, while typed values, recipes, and native Smart Filter imports retain Photoshop's 0.1 through 1000 px range. Translation support is three times the radius.
 - Median keeps the input bounds. Its linked slider spans the practical 1 through 25 px range, with a default of 1 px, while typed values, recipes, and native Smart Filter imports retain Photoshop's 1 through 500 px range. Photoshop floors fractional radii for rendering without rewriting the stored value. Median advertises no finite translation support because transparent RGB extension chooses the nearest visible source across the full input; selected filtering must process the complete layer before restoring unselected pixels.

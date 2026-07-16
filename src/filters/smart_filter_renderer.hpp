@@ -59,6 +59,27 @@ render_photoshop_unsharp_mask(const PixelBuffer &pixels, Rect bounds,
 [[nodiscard]] FilterRenderResult render_box_blur(
     const PixelBuffer &pixels, Rect bounds, double radius_pixels,
     const FilterProgress *progress = nullptr);
+// Radial Blur (Photoshop's Spin method) rotationally sweeps bilinear
+// premultiplied samples about the supplied center, given in BUFFER
+// coordinates. It replicates the destructive patchy.filters.radial_blur math
+// byte for byte; the stack embeds in the filter canvas first so output can
+// grow inside it like Gaussian Blur. Quality maps Draft/Good/Best to
+// 8/16/32 samples. Photoshop's Zoom method is deliberately unsupported and
+// keeps its stack preview-locked.
+[[nodiscard]] FilterRenderResult render_radial_blur(
+    const PixelBuffer &pixels, Rect bounds, std::int32_t amount,
+    std::int32_t samples, double center_x, double center_y,
+    const FilterProgress *progress = nullptr);
+// Add Noise keeps the input bounds and alpha, adding deterministic
+// position-hashed noise to RGB: uniform, or a sum-of-four-uniforms gaussian
+// approximation; monochromatic applies one delta to all three channels. The
+// native FlRs seed feeds the hash so re-renders are reproducible; the pixels
+// are Patchy's own compatible rendering, not Photoshop's noise, and match the
+// destructive patchy.filters.add_noise byte for byte.
+[[nodiscard]] FilterRenderResult render_add_noise(
+    const PixelBuffer &pixels, Rect bounds, double amount_percent,
+    bool gaussian, bool monochromatic, std::int32_t seed,
+    const FilterProgress *progress = nullptr);
 
 // Renders a complete native Smart Filter stack from the immutable placed or
 // warped Smart Object preview. Unsupported semantics throw

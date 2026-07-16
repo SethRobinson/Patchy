@@ -498,6 +498,46 @@ double smart_filter_radius_from_invocation(const FilterInvocation& invocation,
   return fallback;
 }
 
+double smart_filter_number_from_invocation(const FilterInvocation& invocation,
+                                           std::string_view key,
+                                           double fallback) {
+  const auto found = invocation.parameters.find(key);
+  if (found == invocation.parameters.end()) {
+    return fallback;
+  }
+  if (const auto* value = std::get_if<double>(&found->second);
+      value != nullptr && std::isfinite(*value)) {
+    return *value;
+  }
+  if (const auto* value = std::get_if<std::int64_t>(&found->second);
+      value != nullptr) {
+    return static_cast<double>(*value);
+  }
+  return fallback;
+}
+
+std::string smart_filter_option_from_invocation(
+    const FilterInvocation& invocation, std::string_view key,
+    std::string_view fallback) {
+  const auto found = invocation.parameters.find(key);
+  if (found == invocation.parameters.end()) {
+    return std::string(fallback);
+  }
+  const auto* value = std::get_if<std::string>(&found->second);
+  return value != nullptr ? *value : std::string(fallback);
+}
+
+bool smart_filter_boolean_from_invocation(const FilterInvocation& invocation,
+                                          std::string_view key,
+                                          bool fallback) {
+  const auto found = invocation.parameters.find(key);
+  if (found == invocation.parameters.end()) {
+    return fallback;
+  }
+  const auto* value = std::get_if<bool>(&found->second);
+  return value != nullptr ? *value : fallback;
+}
+
 std::int32_t smart_filter_integer_from_invocation(
     const FilterInvocation& invocation, std::string_view key,
     std::int32_t fallback, std::int32_t minimum, std::int32_t maximum) {
@@ -555,6 +595,16 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
   } else if (kind == SmartFilterKind::BoxBlur) {
     invocation.filter_id = "patchy.smart_filters.box_blur";
     invocation.parameters["radius"] = 1.0;
+  } else if (kind == SmartFilterKind::RadialBlur) {
+    invocation.filter_id = "patchy.smart_filters.radial_blur";
+    invocation.parameters["amount"] = std::int64_t{10};
+    invocation.parameters["quality"] = std::string("good");
+  } else if (kind == SmartFilterKind::AddNoise) {
+    invocation.filter_id = "patchy.smart_filters.add_noise";
+    invocation.parameters["amount"] = 12.5;
+    invocation.parameters["distribution"] = std::string("uniform");
+    invocation.parameters["monochromatic"] = false;
+    invocation.parameters["seed"] = std::int64_t{1};
   } else {
     invocation.filter_id = "patchy.smart_filters.gaussian_blur";
     invocation.parameters["radius"] = 2.0;
@@ -574,11 +624,15 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
   const auto mosaic = kind == SmartFilterKind::Mosaic;
   const auto emboss = kind == SmartFilterKind::Emboss;
   const auto box = kind == SmartFilterKind::BoxBlur;
+  const auto radial = kind == SmartFilterKind::RadialBlur;
+  const auto noise = kind == SmartFilterKind::AddNoise;
   FilterDialogSpec spec;
   spec.identifier =
       QString::fromStdString(editable_smart_filter_invocation(kind).filter_id);
   spec.display_name =
-      box      ? QObject::tr("Box Blur")
+      radial   ? QObject::tr("Radial Blur")
+      : noise    ? QObject::tr("Add Noise")
+      : box      ? QObject::tr("Box Blur")
       : emboss   ? QObject::tr("Emboss")
       : mosaic   ? QObject::tr("Mosaic")
       : plastic  ? QObject::tr("Plastic Wrap")
@@ -590,6 +644,62 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
                   : (median ? QObject::tr("Median")
                             : (high_pass ? QObject::tr("High Pass")
                                          : QObject::tr("Gaussian Blur"))));
+  if (radial) {
+    FilterControlSpec amount;
+    amount.label = QObject::tr("Amount");
+    amount.object_name = QStringLiteral("filterAmount");
+    amount.minimum = 1;
+    amount.maximum = 100;
+    amount.value = 10;
+    amount.parameter_key = "amount";
+    amount.kind = FilterParameterKind::Integer;
+    amount.default_value = std::int64_t{10};
+    amount.typed_minimum = 1.0;
+    amount.typed_maximum = 100.0;
+    amount.step = 1.0;
+    spec.controls.push_back(std::move(amount));
+    FilterControlSpec quality;
+    quality.label = QObject::tr("Quality");
+    quality.object_name = QStringLiteral("filterQuality");
+    quality.parameter_key = "quality";
+    quality.kind = FilterParameterKind::Option;
+    quality.default_value = std::string("good");
+    quality.options = {{"draft", "Draft"}, {"good", "Good"}, {"best", "Best"}};
+    spec.controls.push_back(std::move(quality));
+    return spec;
+  }
+  if (noise) {
+    FilterControlSpec amount;
+    amount.label = QObject::tr("Amount");
+    amount.object_name = QStringLiteral("filterAmount");
+    amount.minimum = 1;
+    amount.maximum = 100;
+    amount.value = 12;
+    amount.suffix = QObject::tr(" %");
+    amount.parameter_key = "amount";
+    amount.kind = FilterParameterKind::Double;
+    amount.default_value = 12.5;
+    amount.typed_minimum = 0.1;
+    amount.typed_maximum = 400.0;
+    amount.step = 0.1;
+    spec.controls.push_back(std::move(amount));
+    FilterControlSpec distribution;
+    distribution.label = QObject::tr("Distribution");
+    distribution.object_name = QStringLiteral("filterDistribution");
+    distribution.parameter_key = "distribution";
+    distribution.kind = FilterParameterKind::Option;
+    distribution.default_value = std::string("uniform");
+    distribution.options = {{"uniform", "Uniform"}, {"gaussian", "Gaussian"}};
+    spec.controls.push_back(std::move(distribution));
+    FilterControlSpec monochromatic;
+    monochromatic.label = QObject::tr("Monochromatic");
+    monochromatic.object_name = QStringLiteral("filterMonochromatic");
+    monochromatic.parameter_key = "monochromatic";
+    monochromatic.kind = FilterParameterKind::Boolean;
+    monochromatic.default_value = false;
+    spec.controls.push_back(std::move(monochromatic));
+    return spec;
+  }
   if (mosaic) {
     FilterControlSpec cell;
     cell.label = QObject::tr("Cell Size");
@@ -919,6 +1029,42 @@ SmartFilterStack smart_filter_stack_with_invocation(
       throw std::invalid_argument("Smart Filter settings are unavailable");
     }
     box->radius_pixels = std::clamp(radius, 1.0, 2000.0);
+  } else if (entry.kind == SmartFilterKind::RadialBlur) {
+    auto *radial = std::get_if<RadialBlurSmartFilter>(&entry.parameters);
+    if (radial == nullptr) {
+      throw std::invalid_argument("Smart Filter settings are unavailable");
+    }
+    radial->amount = smart_filter_integer_from_invocation(
+        invocation, "amount", radial->amount, 1, 100);
+    const auto quality = smart_filter_option_from_invocation(
+        invocation, "quality",
+        radial->quality == RadialBlurQuality::Draft
+            ? "draft"
+            : (radial->quality == RadialBlurQuality::Good ? "good" : "best"));
+    radial->quality = quality == "draft"
+                          ? RadialBlurQuality::Draft
+                          : (quality == "best" ? RadialBlurQuality::Best
+                                               : RadialBlurQuality::Good);
+  } else if (entry.kind == SmartFilterKind::AddNoise) {
+    auto *noise = std::get_if<AddNoiseSmartFilter>(&entry.parameters);
+    if (noise == nullptr) {
+      throw std::invalid_argument("Smart Filter settings are unavailable");
+    }
+    noise->amount_percent = std::clamp(
+        smart_filter_number_from_invocation(invocation, "amount",
+                                            noise->amount_percent),
+        0.1, 400.0);
+    noise->gaussian = smart_filter_option_from_invocation(
+                          invocation, "distribution",
+                          noise->gaussian ? "gaussian" : "uniform") ==
+                      "gaussian";
+    noise->monochromatic = smart_filter_boolean_from_invocation(
+        invocation, "monochromatic", noise->monochromatic);
+    // The seed has no dialog control; the imported/authored value persists.
+    noise->seed = std::clamp(
+        smart_filter_integer_from_invocation(invocation, "seed", noise->seed,
+                                             0, 999999999),
+        0, 999999999);
   } else {
     throw std::invalid_argument("Smart Filter radius is unavailable");
   }
@@ -939,11 +1085,15 @@ SmartFilterEntry make_editable_smart_filter_entry(
   const auto mosaic = kind == SmartFilterKind::Mosaic;
   const auto emboss = kind == SmartFilterKind::Emboss;
   const auto box = kind == SmartFilterKind::BoxBlur;
+  const auto radial = kind == SmartFilterKind::RadialBlur;
+  const auto add_noise = kind == SmartFilterKind::AddNoise;
   const auto radius = smart_filter_radius_from_invocation(invocation, 1.0);
   SmartFilterEntry entry;
   entry.kind = kind;
   entry.native_name =
-      box      ? "Box Blur..."
+      radial   ? "Radial Blur..."
+      : add_noise ? "Add Noise..."
+      : box      ? "Box Blur..."
       : emboss   ? "Emboss..."
       : mosaic   ? "Mosaic..."
       : plastic  ? "Plastic Wrap..."
@@ -956,7 +1106,9 @@ SmartFilterEntry make_editable_smart_filter_entry(
                          ? "Median..."
                          : (high_pass ? "High Pass..." : "Gaussian Blur...")));
   entry.native_class_id =
-      box      ? "boxblur"
+      radial   ? "RdlB"
+      : add_noise ? "AdNs"
+      : box      ? "boxblur"
       : emboss   ? "Embs"
       : mosaic   ? "Msc "
       : plastic  ? "PlsW"
@@ -966,7 +1118,9 @@ SmartFilterEntry make_editable_smart_filter_entry(
           ? "surfaceBlur"
           : (dust ? "DstS" : (median ? "Mdn " : (high_pass ? "HghP" : "GsnB")));
   entry.native_filter_id =
-      box       ? 843U
+      radial    ? 0x52646c42U
+      : add_noise ? 0x41644e73U
+      : box       ? 843U
       : emboss    ? 0x456d6273U
       : mosaic    ? 0x4d736320U
       : plastic   ? 0x506c7357U
@@ -982,7 +1136,26 @@ SmartFilterEntry make_editable_smart_filter_entry(
   entry.blend_mode = BlendMode::Normal;
   entry.foreground = foreground;
   entry.background = background;
-  if (box) {
+  if (radial) {
+    const auto quality =
+        smart_filter_option_from_invocation(invocation, "quality", "good");
+    entry.parameters = RadialBlurSmartFilter{
+        smart_filter_integer_from_invocation(invocation, "amount", 10, 1, 100),
+        quality == "draft" ? RadialBlurQuality::Draft
+                           : (quality == "best" ? RadialBlurQuality::Best
+                                                : RadialBlurQuality::Good)};
+  } else if (add_noise) {
+    entry.parameters = AddNoiseSmartFilter{
+        std::clamp(
+            smart_filter_number_from_invocation(invocation, "amount", 12.5),
+            0.1, 400.0),
+        smart_filter_option_from_invocation(invocation, "distribution",
+                                            "uniform") == "gaussian",
+        smart_filter_boolean_from_invocation(invocation, "monochromatic",
+                                             false),
+        smart_filter_integer_from_invocation(invocation, "seed", 1, 0,
+                                             999999999)};
+  } else if (box) {
     entry.parameters = BoxBlurSmartFilter{std::clamp(radius, 1.0, 2000.0)};
   } else if (emboss) {
     entry.parameters = EmbossSmartFilter{
@@ -1321,6 +1494,8 @@ void MainWindow::editable_smart_filter_dialog(
   const auto mosaic = kind == SmartFilterKind::Mosaic;
   const auto emboss = kind == SmartFilterKind::Emboss;
   const auto box = kind == SmartFilterKind::BoxBlur;
+  const auto radial = kind == SmartFilterKind::RadialBlur;
+  const auto add_noise = kind == SmartFilterKind::AddNoise;
   if (!has_active_document() || canvas_ == nullptr) {
     return;
   }
@@ -1524,6 +1699,35 @@ void MainWindow::editable_smart_filter_dialog(
         return;
       }
       initial_invocation.parameters["radius"] = settings->radius_pixels;
+    } else if (kind == SmartFilterKind::RadialBlur) {
+      const auto *settings = std::get_if<RadialBlurSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (settings == nullptr) {
+        show_status_error(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_invocation.parameters["amount"] =
+          static_cast<std::int64_t>(settings->amount);
+      initial_invocation.parameters["quality"] = std::string(
+          settings->quality == RadialBlurQuality::Draft
+              ? "draft"
+              : (settings->quality == RadialBlurQuality::Good ? "good"
+                                                              : "best"));
+    } else if (kind == SmartFilterKind::AddNoise) {
+      const auto *settings = std::get_if<AddNoiseSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (settings == nullptr) {
+        show_status_error(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_invocation.parameters["amount"] = settings->amount_percent;
+      initial_invocation.parameters["distribution"] =
+          std::string(settings->gaussian ? "gaussian" : "uniform");
+      initial_invocation.parameters["monochromatic"] = settings->monochromatic;
+      initial_invocation.parameters["seed"] =
+          static_cast<std::int64_t>(settings->seed);
     } else {
       const auto *settings = std::get_if<PlasticWrapSmartFilter>(
           &stack.entries[filter_index].parameters);
@@ -1675,7 +1879,9 @@ void MainWindow::editable_smart_filter_dialog(
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(
-        box      ? tr("Cancelled Box Blur")
+        radial   ? tr("Cancelled Radial Blur")
+        : add_noise ? tr("Cancelled Add Noise")
+        : box      ? tr("Cancelled Box Blur")
         : emboss   ? tr("Cancelled Emboss")
         : mosaic   ? tr("Cancelled Mosaic")
         : plastic  ? tr("Cancelled Plastic Wrap")
@@ -1693,7 +1899,11 @@ void MainWindow::editable_smart_filter_dialog(
   auto candidate = smart_filter_stack_with_invocation(
       std::move(stack), filter_index, *settings);
   const auto undo_text =
-      box         ? (adding ? tr("Add Box Blur Smart Filter")
+      radial      ? (adding ? tr("Add Radial Blur Smart Filter")
+                            : tr("Edit Radial Blur Smart Filter"))
+      : add_noise   ? (adding ? tr("Add Add Noise Smart Filter")
+                            : tr("Edit Add Noise Smart Filter"))
+      : box         ? (adding ? tr("Add Box Blur Smart Filter")
                             : tr("Edit Box Blur Smart Filter"))
       : emboss      ? (adding ? tr("Add Emboss Smart Filter")
                             : tr("Edit Emboss Smart Filter"))
@@ -1716,7 +1926,15 @@ void MainWindow::editable_smart_filter_dialog(
                   : (adding ? tr("Add Gaussian Blur Smart Filter")
                             : tr("Edit Gaussian Blur Smart Filter"));
   const auto status_text =
-      box      ? (adding ? (creating_stack
+      radial   ? (adding ? (creating_stack
+                                ? tr("Added Radial Blur as a Smart Filter")
+                                : tr("Added another Radial Blur Smart Filter"))
+                         : tr("Updated Radial Blur Smart Filter"))
+      : add_noise ? (adding ? (creating_stack
+                                ? tr("Added Add Noise as a Smart Filter")
+                                : tr("Added another Add Noise Smart Filter"))
+                         : tr("Updated Add Noise Smart Filter"))
+      : box      ? (adding ? (creating_stack
                                 ? tr("Added Box Blur as a Smart Filter")
                                 : tr("Added another Box Blur Smart Filter"))
                          : tr("Updated Box Blur Smart Filter"))

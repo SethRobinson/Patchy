@@ -334,6 +334,14 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
         {"contrast", "filterContrast", 0, 100, 60, Unit::Percent}}},
       {"patchy.filters.film_grain", Category::Noise, false,
        {{"amount", "filterAmount", 0, 100, 50, Unit::Percent}}},
+      {"patchy.filters.add_noise", Category::Noise, false,
+       {{"amount", "filterAmount", 0.1, 400, 12.5, Unit::Percent,
+         Scale::None, Kind::Double, 0.1},
+        {"distribution", "filterDistribution", 0, 0, 0, Unit::None,
+         Scale::None, Kind::Option},
+        {"monochromatic", "filterMonochromatic", 0, 0, 0, Unit::None,
+         Scale::None, Kind::Boolean},
+        {"seed", "filterSeed", 0, 999999999, 1, Unit::None}}},
       {"patchy.filters.vignette", Category::PhotoLooks, false,
        {{"strength", "filterStrength", 0, 100, 55, Unit::Percent},
         {"center_x", "filterCenterX", 0, 100, 50, Unit::Percent, Scale::None,
@@ -445,6 +453,30 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
         CHECK(default_value != nullptr);
         CHECK(std::abs(*default_value - wanted.default_value) < 0.000001);
       }
+      const auto& control = dialog_spec.controls[parameter_index];
+      CHECK(control.parameter_key == wanted.key);
+      CHECK(control.object_name == QString::fromLatin1(wanted.object_name));
+      CHECK(control.kind == wanted.kind);
+      CHECK(control.presentation == wanted.presentation);
+      CHECK(!control.label.isEmpty());
+      // Option and Boolean parameters carry no numeric range; their controls
+      // are a combo box and a check box.
+      if (wanted.kind == patchy::FilterParameterKind::Option ||
+          wanted.kind == patchy::FilterParameterKind::Boolean) {
+        CHECK(!actual.minimum.has_value());
+        CHECK(!actual.maximum.has_value());
+        if (wanted.kind == patchy::FilterParameterKind::Option) {
+          CHECK(!actual.options.empty());
+          CHECK(control.options.size() == actual.options.size());
+          CHECK(std::get_if<std::string>(&actual.default_value) != nullptr);
+        } else {
+          CHECK(std::get_if<bool>(&actual.default_value) != nullptr);
+        }
+        CHECK(actual.unit == wanted.unit);
+        CHECK(actual.spatial_scale == wanted.spatial_scale);
+        CHECK(actual.display_name.empty() == false);
+        continue;
+      }
       CHECK(actual.minimum.has_value());
       CHECK(actual.maximum.has_value());
       CHECK(*actual.minimum == wanted.minimum);
@@ -455,10 +487,6 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
       CHECK(actual.presentation == wanted.presentation);
       CHECK(actual.display_name.empty() == false);
 
-      const auto& control = dialog_spec.controls[parameter_index];
-      CHECK(control.parameter_key == wanted.key);
-      CHECK(control.object_name == QString::fromLatin1(wanted.object_name));
-      CHECK(control.kind == wanted.kind);
       const auto practical_minimum =
           actual.practical_minimum.value_or(wanted.minimum);
       const auto practical_maximum =
@@ -473,8 +501,6 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
       CHECK(*control.typed_minimum == wanted.minimum);
       CHECK(*control.typed_maximum == wanted.maximum);
       CHECK(std::abs(control.step.value_or(1.0) - wanted.step) < 0.000001);
-      CHECK(control.presentation == wanted.presentation);
-      CHECK(!control.label.isEmpty());
       if (actual_filter.identifier == "patchy.filters.high_pass" &&
           actual.key == "radius") {
         CHECK(actual.practical_minimum == 0.1);
@@ -527,6 +553,10 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
                  actual.key == "amount") {
         CHECK(actual.practical_minimum == 0.0);
         CHECK(actual.practical_maximum == 300.0);
+      } else if (actual_filter.identifier == "patchy.filters.add_noise" &&
+                 actual.key == "amount") {
+        CHECK(actual.practical_minimum == 0.1);
+        CHECK(actual.practical_maximum == 100.0);
       } else {
         CHECK(!actual.practical_minimum.has_value());
         CHECK(!actual.practical_maximum.has_value());
@@ -600,6 +630,7 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
         QStringLiteral("filterAction_patchy_filters_pinch_bloat")}},
       {"filterNoiseMenu",
        {QStringLiteral("filterAction_patchy_filters_film_grain"),
+        QStringLiteral("filterAction_patchy_filters_add_noise"),
         QStringLiteral("filterAction_patchy_filters_median"),
         QStringLiteral("filterAction_patchy_filters_dust_and_scratches")}},
       {"filterPixelateMenu",

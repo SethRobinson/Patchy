@@ -321,6 +321,7 @@ void filters_register_and_apply() {
   CHECK(registry.find("patchy.filters.lens_blur") != nullptr);
   CHECK(registry.find("patchy.filters.iris_blur") != nullptr);
   CHECK(registry.find("patchy.filters.plastic_wrap") != nullptr);
+  CHECK(registry.find("patchy.filters.add_noise") != nullptr);
 
   auto pixels = solid_rgb(1, 1, 1, 2, 3);
   registry.apply("patchy.filters.invert", pixels);
@@ -662,6 +663,7 @@ void filter_catalog_defines_stable_named_contracts() {
       {"patchy.filters.color_halftone", Category::Pixelate, false,
        {{"cell_size", 10}, {"intensity", 75}, {"contrast", 60}}},
       {"patchy.filters.film_grain", Category::Noise, false, {{"amount", 50}}},
+      {"patchy.filters.add_noise", Category::Noise, false, {{"seed", 1}}},
       {"patchy.filters.vignette", Category::PhotoLooks, false, {{"strength", 55}}},
       {"patchy.filters.high_pass", Category::Sharpen, false, {{"radius", 10}}},
       {"patchy.filters.median", Category::Noise, false, {{"radius", 1}}},
@@ -860,6 +862,42 @@ void filter_catalog_defines_stable_named_contracts() {
         CHECK(!actual.catalog.parameters[index].practical_maximum.has_value());
       }
       spatial_parameters.insert("patchy.filters.tilt_shift_blur/blur");
+      continue;
+    }
+    if (actual.identifier == "patchy.filters.add_noise") {
+      using Kind = patchy::FilterParameterKind;
+      using Unit = patchy::FilterParameterUnit;
+      CHECK(actual.catalog.parameters.size() == 4U);
+      const auto invocation = registry.default_invocation(actual.identifier);
+      const auto& noise_amount = actual.catalog.parameters[0];
+      CHECK(noise_amount.key == "amount");
+      CHECK(noise_amount.control_object_name == "filterAmount");
+      CHECK(noise_amount.kind == Kind::Double);
+      CHECK(noise_amount.minimum == 0.1 && noise_amount.maximum == 400.0);
+      CHECK(noise_amount.step == 0.1);
+      CHECK(noise_amount.unit == Unit::Percent);
+      CHECK(std::get<double>(noise_amount.default_value) == 12.5);
+      CHECK(noise_amount.practical_minimum == 0.1);
+      CHECK(noise_amount.practical_maximum == 100.0);
+      const auto& distribution = actual.catalog.parameters[1];
+      CHECK(distribution.key == "distribution");
+      CHECK(distribution.kind == Kind::Option);
+      CHECK(distribution.options.size() == 2U);
+      CHECK(distribution.options[0].value == "uniform");
+      CHECK(distribution.options[1].value == "gaussian");
+      CHECK(std::get<std::string>(distribution.default_value) == "uniform");
+      const auto& monochromatic = actual.catalog.parameters[2];
+      CHECK(monochromatic.key == "monochromatic");
+      CHECK(monochromatic.kind == Kind::Boolean);
+      CHECK(!std::get<bool>(monochromatic.default_value));
+      const auto& seed = actual.catalog.parameters[3];
+      CHECK(seed.key == "seed");
+      CHECK(seed.kind == Kind::Integer);
+      CHECK(std::get<std::int64_t>(seed.default_value) == 1);
+      CHECK(std::get<double>(invocation.parameters.at("amount")) == 12.5);
+      CHECK(std::get<std::string>(invocation.parameters.at("distribution")) ==
+            "uniform");
+      CHECK(!std::get<bool>(invocation.parameters.at("monochromatic")));
       continue;
     }
     const auto center_count = has_center_parameters(actual.identifier) ? 2U : 0U;

@@ -1304,6 +1304,50 @@
         <translation>放射状ぼかし</translation>
     </message>
     <message>
+        <source>Add Noise</source>
+        <translation>ノイズを加える</translation>
+    </message>
+    <message>
+        <source>Uniform</source>
+        <translation>均等に分布</translation>
+    </message>
+    <message>
+        <source>Draft</source>
+        <translation>標準</translation>
+    </message>
+    <message>
+        <source>Good</source>
+        <translation>高い</translation>
+    </message>
+    <message>
+        <source>Best</source>
+        <translation>最高</translation>
+    </message>
+    <message>
+        <source>Quality</source>
+        <translation>画質</translation>
+    </message>
+    <message>
+        <source>Distribution</source>
+        <translation>分布方法</translation>
+    </message>
+    <message>
+        <source>Monochromatic</source>
+        <translation>グレースケールノイズ</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Spin, %2 quality)</source>
+        <translation> (量 %1、回転、画質: %2)</translation>
+    </message>
+    <message>
+        <source> (%1%, %2%3)</source>
+        <translation> (%1%、%2%3)</translation>
+    </message>
+    <message>
+        <source>, Monochromatic</source>
+        <translation>、グレースケール</translation>
+    </message>
+    <message>
         <location line="+9"/>
         <source>Glowing Edges</source>
         <translation>光彩エッジ</translation>
@@ -12162,6 +12206,54 @@ Clipped to the layer below</source>
     <message>
         <source>Cancelled Box Blur</source>
         <translation>ぼかし（ボックス）をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Cancelled Radial Blur</source>
+        <translation>放射状ぼかしをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Cancelled Add Noise</source>
+        <translation>ノイズを加えるをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Add Radial Blur Smart Filter</source>
+        <translation>放射状ぼかしスマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Radial Blur Smart Filter</source>
+        <translation>放射状ぼかしスマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Add Add Noise Smart Filter</source>
+        <translation>ノイズを加えるスマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit Add Noise Smart Filter</source>
+        <translation>ノイズを加えるスマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added Radial Blur as a Smart Filter</source>
+        <translation>放射状ぼかしをスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Radial Blur Smart Filter</source>
+        <translation>放射状ぼかしスマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Radial Blur Smart Filter</source>
+        <translation>放射状ぼかしスマートフィルターを更新しました</translation>
+    </message>
+    <message>
+        <source>Added Add Noise as a Smart Filter</source>
+        <translation>ノイズを加えるをスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another Add Noise Smart Filter</source>
+        <translation>ノイズを加えるスマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated Add Noise Smart Filter</source>
+        <translation>ノイズを加えるスマートフィルターを更新しました</translation>
     </message>
     <message>
         <source>Add Box Blur Smart Filter</source>

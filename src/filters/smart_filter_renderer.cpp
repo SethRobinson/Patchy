@@ -55,6 +55,12 @@ constexpr std::int32_t kMinimumEmbossAmount = 1;
 constexpr std::int32_t kMaximumEmbossAmount = 500;
 constexpr double kMinimumBoxBlurRadius = 1.0;
 constexpr double kMaximumBoxBlurRadius = 2000.0;
+constexpr std::int32_t kMinimumRadialBlurAmount = 1;
+constexpr std::int32_t kMaximumRadialBlurAmount = 100;
+constexpr double kMinimumAddNoiseAmount = 0.1;
+constexpr double kMaximumAddNoiseAmount = 400.0;
+constexpr std::int32_t kMinimumAddNoiseSeed = 0;
+constexpr std::int32_t kMaximumAddNoiseSeed = 999999999;
 constexpr std::int32_t kBoxBlurDirectMaximumRadius = 12;
 constexpr double kGaussianMarginScale = 3.0;
 constexpr double kDirectGaussianMaximumRadius = 8.0;
@@ -2052,6 +2058,204 @@ apply_stack_mask(const FilterRenderResult &base,
   return result;
 }
 
+// Verbatim replicas of filter_engine.cpp's bilinear premultiplied sampling
+// helpers so render_radial_blur stays byte-identical to the destructive
+// patchy.filters.radial_blur (pinned by
+// smart_filter_radial_blur_matches_destructive); keep both in sync.
+constexpr double kRadialBlurPi = 3.14159265358979323846;
+
+struct RadialBlurAccum {
+  std::array<double, 3> premultiplied_color{0.0, 0.0, 0.0};
+  double alpha{0.0};
+  double weight{0.0};
+};
+
+void radial_blur_accumulate_pixel(RadialBlurAccum &accum,
+                                  const PixelBuffer &original,
+                                  const std::uint8_t *px, double weight) {
+  if (weight <= 0.0) {
+    return;
+  }
+  const auto alpha = original.format().channels >= 4
+                         ? static_cast<double>(px[3]) / 255.0
+                         : 1.0;
+  accum.weight += weight;
+  accum.alpha += alpha * weight;
+  for (std::uint16_t channel = 0;
+       channel < std::min<std::uint16_t>(original.format().channels, 3);
+       ++channel) {
+    accum.premultiplied_color[static_cast<std::size_t>(channel)] +=
+        static_cast<double>(px[channel]) * alpha * weight;
+  }
+}
+
+void radial_blur_accumulate_sample(RadialBlurAccum &accum,
+                                   const PixelBuffer &original, double x,
+                                   double y, double weight = 1.0) {
+  x = std::clamp(
+      x, 0.0,
+      static_cast<double>(std::max<std::int32_t>(0, original.width() - 1)));
+  y = std::clamp(
+      y, 0.0,
+      static_cast<double>(std::max<std::int32_t>(0, original.height() - 1)));
+  const auto x0 = static_cast<std::int32_t>(std::floor(x));
+  const auto y0 = static_cast<std::int32_t>(std::floor(y));
+  const auto x1 = std::min<std::int32_t>(original.width() - 1, x0 + 1);
+  const auto y1 = std::min<std::int32_t>(original.height() - 1, y0 + 1);
+  const auto tx = x - static_cast<double>(x0);
+  const auto ty = y - static_cast<double>(y0);
+  radial_blur_accumulate_pixel(accum, original, original.pixel(x0, y0),
+                               weight * (1.0 - tx) * (1.0 - ty));
+  radial_blur_accumulate_pixel(accum, original, original.pixel(x1, y0),
+                               weight * tx * (1.0 - ty));
+  radial_blur_accumulate_pixel(accum, original, original.pixel(x0, y1),
+                               weight * (1.0 - tx) * ty);
+  radial_blur_accumulate_pixel(accum, original, original.pixel(x1, y1),
+                               weight * tx * ty);
+}
+
+void radial_blur_write_pixel(PixelBuffer &pixels, std::int32_t x,
+                             std::int32_t y, const RadialBlurAccum &accum) {
+  auto *dst = pixels.pixel(x, y);
+  const auto channels = pixels.format().channels;
+  const auto normalized_alpha =
+      channels >= 4 && accum.weight > 0.0 ? accum.alpha / accum.weight : 1.0;
+  for (std::uint16_t channel = 0;
+       channel < std::min<std::uint16_t>(channels, 3); ++channel) {
+    const auto value =
+        accum.alpha > 0.000001
+            ? accum.premultiplied_color[static_cast<std::size_t>(channel)] /
+                  accum.alpha
+            : 0.0;
+    dst[channel] = static_cast<std::uint8_t>(
+        std::clamp(std::lround(value), 0L, 255L));
+  }
+  if (channels >= 4) {
+    dst[3] = static_cast<std::uint8_t>(
+        std::clamp(std::lround(normalized_alpha * 255.0), 0L, 255L));
+  }
+}
+
+// The destructive Radial Blur math: a rotational sample sweep of
+// amount * 3.6 degrees about the supplied center in buffer coordinates.
+[[nodiscard]] FilterRenderResult render_radial_blur_effect(
+    const FilterRenderResult &input, std::int32_t amount, std::int32_t samples,
+    double center_x, double center_y, const FilterProgress *progress) {
+  if (input.pixels.empty()) {
+    report_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return input;
+  }
+  FilterRenderResult result{
+      PixelBuffer(input.bounds.width, input.bounds.height,
+                  PixelFormat::rgba8()),
+      input.bounds};
+  const auto clamped_amount = std::clamp(amount, 0, 100);
+  const auto clamped_samples = std::clamp(samples, 4, 32);
+  const auto sweep =
+      static_cast<double>(clamped_amount) * 3.6 * kRadialBlurPi / 180.0;
+  for (std::int32_t y = 0; y < input.bounds.height; ++y) {
+    report_progress(progress, y, input.bounds.height,
+                    FilterProgressStage::Blurring);
+    for (std::int32_t x = 0; x < input.bounds.width; ++x) {
+      const auto dx = static_cast<double>(x) - center_x;
+      const auto dy = static_cast<double>(y) - center_y;
+      RadialBlurAccum accum;
+      for (int sample = 0; sample < clamped_samples; ++sample) {
+        const auto t =
+            clamped_samples <= 1
+                ? 0.0
+                : static_cast<double>(sample) /
+                          static_cast<double>(clamped_samples - 1) -
+                      0.5;
+        const auto angle = sweep * t;
+        const auto source_x =
+            center_x + dx * std::cos(angle) - dy * std::sin(angle);
+        const auto source_y =
+            center_y + dx * std::sin(angle) + dy * std::cos(angle);
+        radial_blur_accumulate_sample(accum, input.pixels, source_x, source_y);
+      }
+      radial_blur_write_pixel(result.pixels, x, y, accum);
+    }
+  }
+  report_progress(progress, input.bounds.height, input.bounds.height,
+                  FilterProgressStage::Blurring);
+  return result;
+}
+
+// The same position-hash mix as filter_engine.cpp's filter_noise_hash; keep
+// both in sync (smart_filter_add_noise_matches_destructive pins parity).
+[[nodiscard]] std::uint32_t add_noise_hash(std::int32_t x, std::int32_t y,
+                                           std::uint32_t seed) noexcept {
+  auto value = static_cast<std::uint32_t>(x + 16384) * 374761393U;
+  value ^= static_cast<std::uint32_t>(y + 8192) * 668265263U;
+  value ^= seed * 2246822519U;
+  value ^= value >> 13U;
+  value *= 1274126177U;
+  value ^= value >> 16U;
+  return value;
+}
+
+// Deterministic Add Noise: RGB gains position-hashed deltas, alpha and
+// bounds stay byte-identical. All math is hash integers plus exactly-rounded
+// IEEE multiplies, so outputs are cross-toolchain stable.
+[[nodiscard]] FilterRenderResult render_add_noise_effect(
+    const FilterRenderResult &input, double amount_percent, bool gaussian,
+    bool monochromatic, std::int32_t seed, const FilterProgress *progress) {
+  if (input.pixels.empty()) {
+    report_progress(progress, 1, 1, FilterProgressStage::AddingGrain);
+    return input;
+  }
+  auto result = input;
+  const auto range =
+      std::clamp(amount_percent, kMinimumAddNoiseAmount, kMaximumAddNoiseAmount) *
+      2.55;
+  const auto lane_base =
+      static_cast<std::uint32_t>(
+          std::clamp(seed, kMinimumAddNoiseSeed, kMaximumAddNoiseSeed)) *
+      16U;
+  const auto unit_from_hash = [](std::uint32_t hash) {
+    return static_cast<double>(hash) * (2.0 / 4294967295.0) - 1.0;
+  };
+  const auto delta_for_lane = [&](std::int32_t x, std::int32_t y,
+                                  std::uint32_t lane) {
+    if (!gaussian) {
+      return std::lround(
+          unit_from_hash(add_noise_hash(x, y, lane_base + lane * 4U)) * range);
+    }
+    // Sum of four uniforms: a deterministic gaussian approximation with no
+    // transcendental calls (those vary across toolchains).
+    double sum = 0.0;
+    for (std::uint32_t sample = 1; sample <= 4U; ++sample) {
+      sum += unit_from_hash(add_noise_hash(x, y, lane_base + lane * 4U + sample));
+    }
+    return std::lround(sum * 0.5 * range);
+  };
+  const auto clamp_byte = [](long value) {
+    return static_cast<std::uint8_t>(std::clamp(value, 0L, 255L));
+  };
+  for (std::int32_t y = 0; y < result.bounds.height; ++y) {
+    report_progress(progress, y, result.bounds.height,
+                    FilterProgressStage::AddingGrain);
+    for (std::int32_t x = 0; x < result.bounds.width; ++x) {
+      auto *px = result.pixels.pixel(x, y);
+      if (monochromatic) {
+        const auto delta = delta_for_lane(x, y, 3U);
+        for (int channel = 0; channel < 3; ++channel) {
+          px[channel] = clamp_byte(static_cast<long>(px[channel]) + delta);
+        }
+      } else {
+        for (std::uint32_t channel = 0; channel < 3U; ++channel) {
+          px[channel] = clamp_byte(static_cast<long>(px[channel]) +
+                                   delta_for_lane(x, y, channel));
+        }
+      }
+    }
+  }
+  report_progress(progress, result.bounds.height, result.bounds.height,
+                  FilterProgressStage::AddingGrain);
+  return result;
+}
+
 // The destructive Pixel Mosaic math: alpha-weighted premultiplied block
 // means, straight-color writes with the normalized alpha, grid anchored at
 // the input's local origin. Bounds are preserved.
@@ -2240,6 +2444,20 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
                          std::isfinite(box->radius_pixels) &&
                          box->radius_pixels >= kMinimumBoxBlurRadius &&
                          box->radius_pixels <= kMaximumBoxBlurRadius;
+    } else if (entry.kind == SmartFilterKind::RadialBlur) {
+      const auto *radial =
+          std::get_if<RadialBlurSmartFilter>(&entry.parameters);
+      parameters_valid = radial != nullptr &&
+                         radial->amount >= kMinimumRadialBlurAmount &&
+                         radial->amount <= kMaximumRadialBlurAmount;
+    } else if (entry.kind == SmartFilterKind::AddNoise) {
+      const auto *noise = std::get_if<AddNoiseSmartFilter>(&entry.parameters);
+      parameters_valid = noise != nullptr &&
+                         std::isfinite(noise->amount_percent) &&
+                         noise->amount_percent >= kMinimumAddNoiseAmount &&
+                         noise->amount_percent <= kMaximumAddNoiseAmount &&
+                         noise->seed >= kMinimumAddNoiseSeed &&
+                         noise->seed <= kMaximumAddNoiseSeed;
     } else {
       throw std::invalid_argument("Unsupported Smart Filter entry");
     }
@@ -2252,6 +2470,8 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
          entry.kind != SmartFilterKind::Mosaic &&
          entry.kind != SmartFilterKind::Emboss &&
          entry.kind != SmartFilterKind::BoxBlur &&
+         entry.kind != SmartFilterKind::RadialBlur &&
+         entry.kind != SmartFilterKind::AddNoise &&
          (!std::isfinite(radius) || radius < minimum_radius ||
           radius > maximum_radius)) ||
         !std::isfinite(entry.opacity) ||
@@ -2528,6 +2748,37 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
       filtered = render_emboss_effect(current, emboss.angle_degrees,
                                       emboss.height_pixels,
                                       emboss.amount_percent, &filter_progress);
+    } else if (entry.kind == SmartFilterKind::RadialBlur) {
+      const auto &radial = std::get<RadialBlurSmartFilter>(entry.parameters);
+      const auto content_bounds = current.bounds;
+      auto radial_input = embed_in_filter_canvas(
+          current.pixels, current.bounds, filter_canvas_bounds);
+      // The sweep pivots on the CONTENT center expressed in canvas buffer
+      // coordinates (the same image-space point the destructive path's
+      // padded-percent remap produces), never the canvas center.
+      const auto center_x =
+          static_cast<double>(content_bounds.x - radial_input.bounds.x) +
+          static_cast<double>(
+              std::max<std::int32_t>(0, content_bounds.width - 1)) *
+              0.5;
+      const auto center_y =
+          static_cast<double>(content_bounds.y - radial_input.bounds.y) +
+          static_cast<double>(
+              std::max<std::int32_t>(0, content_bounds.height - 1)) *
+              0.5;
+      const auto samples = radial.quality == RadialBlurQuality::Draft
+                               ? 8
+                               : (radial.quality == RadialBlurQuality::Good
+                                      ? 16
+                                      : 32);
+      filtered = trim_transparent_result(
+          render_radial_blur_effect(radial_input, radial.amount, samples,
+                                    center_x, center_y, &filter_progress));
+    } else if (entry.kind == SmartFilterKind::AddNoise) {
+      const auto &noise = std::get<AddNoiseSmartFilter>(entry.parameters);
+      filtered = render_add_noise_effect(current, noise.amount_percent,
+                                         noise.gaussian, noise.monochromatic,
+                                         noise.seed, &filter_progress);
     } else {
       const auto &box = std::get<BoxBlurSmartFilter>(entry.parameters);
       auto box_input = embed_in_filter_canvas(current.pixels, current.bounds,
@@ -2552,6 +2803,39 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                              const FilterProgress *progress) {
   return render_smart_filter_stack(placed_pixels, placed_bounds, placed_bounds,
                                    stack, progress);
+}
+
+FilterRenderResult render_radial_blur(const PixelBuffer &pixels, Rect bounds,
+                                      std::int32_t amount,
+                                      std::int32_t samples, double center_x,
+                                      double center_y,
+                                      const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() ||
+      pixels.width() != bounds.width || pixels.height() != bounds.height ||
+      amount < kMinimumRadialBlurAmount || amount > kMaximumRadialBlurAmount ||
+      samples < 4 || samples > 32 || !std::isfinite(center_x) ||
+      !std::isfinite(center_y)) {
+    throw std::invalid_argument("Invalid Radial Blur input");
+  }
+  return render_radial_blur_effect(FilterRenderResult{pixels, bounds}, amount,
+                                   samples, center_x, center_y, progress);
+}
+
+FilterRenderResult render_add_noise(const PixelBuffer &pixels, Rect bounds,
+                                    double amount_percent, bool gaussian,
+                                    bool monochromatic, std::int32_t seed,
+                                    const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() ||
+      pixels.width() != bounds.width || pixels.height() != bounds.height ||
+      !std::isfinite(amount_percent) ||
+      amount_percent < kMinimumAddNoiseAmount ||
+      amount_percent > kMaximumAddNoiseAmount ||
+      seed < kMinimumAddNoiseSeed || seed > kMaximumAddNoiseSeed) {
+    throw std::invalid_argument("Invalid Add Noise input");
+  }
+  return render_add_noise_effect(FilterRenderResult{pixels, bounds},
+                                 amount_percent, gaussian, monochromatic, seed,
+                                 progress);
 }
 
 } // namespace patchy

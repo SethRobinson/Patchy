@@ -743,6 +743,7 @@ const QStringList& expected_filter_gallery_ids() {
       QStringLiteral("patchy.filters.wave"),
       QStringLiteral("patchy.filters.pinch_bloat"),
       QStringLiteral("patchy.filters.film_grain"),
+      QStringLiteral("patchy.filters.add_noise"),
       QStringLiteral("patchy.filters.median"),
       QStringLiteral("patchy.filters.dust_and_scratches"),
       QStringLiteral("patchy.filters.pixelate"),
@@ -1827,6 +1828,7 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
         QStringLiteral("High Pass"),       QStringLiteral("Twirl"),
         QStringLiteral("Wave"),
         QStringLiteral("Pinch/Bloat"),     QStringLiteral("Analog Grain"),
+        QStringLiteral("Add Noise"),
         QStringLiteral("Median"),
         QStringLiteral("Dust & Scratches"),
         QStringLiteral("Pixel Mosaic"),    QStringLiteral("Color Halftone"),
@@ -2264,11 +2266,11 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
         {QStringLiteral("blur"), expected_filter_gallery_ids().mid(7, 8)},
         {QStringLiteral("sharpen"), expected_filter_gallery_ids().mid(15, 3)},
         {QStringLiteral("distort"), expected_filter_gallery_ids().mid(18, 3)},
-        {QStringLiteral("noise"), expected_filter_gallery_ids().mid(21, 3)},
-        {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(24, 2)},
-        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(26, 3)},
-        {QStringLiteral("render"), expected_filter_gallery_ids().mid(29, 1)},
-        {QStringLiteral("artistic"), expected_filter_gallery_ids().mid(30, 1)},
+        {QStringLiteral("noise"), expected_filter_gallery_ids().mid(21, 4)},
+        {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(25, 2)},
+        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(27, 3)},
+        {QStringLiteral("render"), expected_filter_gallery_ids().mid(30, 1)},
+        {QStringLiteral("artistic"), expected_filter_gallery_ids().mid(31, 1)},
     }};
     for (const auto& [token, ids] : categories) {
       category->setCurrentIndex(require_combo_data_index(*category, token));
@@ -3282,6 +3284,8 @@ const QStringList& expected_smart_capable_gallery_ids() {
       QStringLiteral("patchy.filters.pixelate"),
       QStringLiteral("patchy.filters.emboss"),
       QStringLiteral("patchy.filters.plastic_wrap"),
+      QStringLiteral("patchy.filters.radial_blur"),
+      QStringLiteral("patchy.filters.add_noise"),
   };
   return ids;
 }

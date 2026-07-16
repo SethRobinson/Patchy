@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <string>
 #include <utility>
 
 namespace patchy {
@@ -41,6 +42,12 @@ std::optional<SmartFilterKind> native_smart_filter_kind_for(
   if (filter_id == "patchy.filters.box_blur") {
     return SmartFilterKind::BoxBlur;
   }
+  if (filter_id == "patchy.filters.radial_blur") {
+    return SmartFilterKind::RadialBlur;
+  }
+  if (filter_id == "patchy.filters.add_noise") {
+    return SmartFilterKind::AddNoise;
+  }
   return std::nullopt;
 }
 
@@ -57,6 +64,8 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::Mosaic:
     case SmartFilterKind::Emboss:
     case SmartFilterKind::BoxBlur:
+    case SmartFilterKind::RadialBlur:
+    case SmartFilterKind::AddNoise:
       return true;
     case SmartFilterKind::Unsupported:
       return false;
@@ -91,8 +100,77 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
     const auto mosaic = normalized->filter_id == "patchy.filters.pixelate";
     const auto emboss = normalized->filter_id == "patchy.filters.emboss";
     const auto box_blur = normalized->filter_id == "patchy.filters.box_blur";
+    const auto radial_blur = normalized->filter_id == "patchy.filters.radial_blur";
+    const auto add_noise = normalized->filter_id == "patchy.filters.add_noise";
     SmartFilterEntry entry;
-    if (box_blur) {
+    if (radial_blur) {
+      const auto amount_value = normalized->parameters.find("amount");
+      const auto samples_value = normalized->parameters.find("samples");
+      const auto center_x_value = normalized->parameters.find("center_x");
+      const auto center_y_value = normalized->parameters.find("center_y");
+      if (amount_value == normalized->parameters.end() ||
+          samples_value == normalized->parameters.end() ||
+          center_x_value == normalized->parameters.end() ||
+          center_y_value == normalized->parameters.end()) {
+        return std::nullopt;
+      }
+      const auto *amount = std::get_if<std::int64_t>(&amount_value->second);
+      const auto *samples = std::get_if<std::int64_t>(&samples_value->second);
+      const auto *center_x = std::get_if<double>(&center_x_value->second);
+      const auto *center_y = std::get_if<double>(&center_y_value->second);
+      // Photoshop's descriptor has no blur center and its Amount minimum is
+      // 1, so an edited center or amount 0 stays destructive-only. Samples
+      // must land exactly on a quality tier (Draft 8, Good 16, Best 32).
+      if (amount == nullptr || *amount < 1 || *amount > 100 ||
+          samples == nullptr ||
+          (*samples != 8 && *samples != 16 && *samples != 32) ||
+          center_x == nullptr || *center_x != 50.0 || center_y == nullptr ||
+          *center_y != 50.0) {
+        return std::nullopt;
+      }
+      entry.kind = SmartFilterKind::RadialBlur;
+      entry.native_name = "Radial Blur...";
+      entry.native_class_id = "RdlB";
+      entry.native_filter_id = 0x52646c42U;
+      entry.parameters = RadialBlurSmartFilter{
+          static_cast<std::int32_t>(*amount),
+          *samples == 8 ? RadialBlurQuality::Draft
+                        : (*samples == 16 ? RadialBlurQuality::Good
+                                          : RadialBlurQuality::Best)};
+    } else if (add_noise) {
+      const auto amount_value = normalized->parameters.find("amount");
+      const auto distribution_value =
+          normalized->parameters.find("distribution");
+      const auto monochromatic_value =
+          normalized->parameters.find("monochromatic");
+      const auto seed_value = normalized->parameters.find("seed");
+      if (amount_value == normalized->parameters.end() ||
+          distribution_value == normalized->parameters.end() ||
+          monochromatic_value == normalized->parameters.end() ||
+          seed_value == normalized->parameters.end()) {
+        return std::nullopt;
+      }
+      const auto *amount = std::get_if<double>(&amount_value->second);
+      const auto *distribution =
+          std::get_if<std::string>(&distribution_value->second);
+      const auto *monochromatic =
+          std::get_if<bool>(&monochromatic_value->second);
+      const auto *seed = std::get_if<std::int64_t>(&seed_value->second);
+      if (amount == nullptr || !std::isfinite(*amount) || *amount < 0.1 ||
+          *amount > 400.0 || distribution == nullptr ||
+          (*distribution != "uniform" && *distribution != "gaussian") ||
+          monochromatic == nullptr || seed == nullptr || *seed < 0 ||
+          *seed > 999999999) {
+        return std::nullopt;
+      }
+      entry.kind = SmartFilterKind::AddNoise;
+      entry.native_name = "Add Noise...";
+      entry.native_class_id = "AdNs";
+      entry.native_filter_id = 0x41644e73U;
+      entry.parameters = AddNoiseSmartFilter{
+          *amount, *distribution == "gaussian", *monochromatic,
+          static_cast<std::int32_t>(*seed)};
+    } else if (box_blur) {
       const auto radius_value = normalized->parameters.find("radius");
       if (radius_value == normalized->parameters.end()) {
         return std::nullopt;

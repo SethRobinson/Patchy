@@ -172,6 +172,10 @@ struct SmartFilterDescriptorSpec {
   std::optional<std::int32_t> cell_size_pixels;
   std::optional<std::int32_t> height_pixels;
   std::optional<std::int32_t> amount_integer;
+  // Radial Blur emits Amnt, BlrM (always Spn), BlrQ in that order.
+  std::optional<RadialBlurSmartFilter> radial_blur;
+  // Add Noise emits Dstr, Nose, Mnch, FlRs in that order.
+  std::optional<AddNoiseSmartFilter> add_noise;
   const char* default_entry_name{nullptr};
   const char* filter_name{nullptr};
   const char* filter_class_id{nullptr};
@@ -336,6 +340,28 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_class_id = "boxblur";
     spec.filter_class_id_long_form = true;
     spec.filter_id = 843U;
+  } else if (entry.kind == SmartFilterKind::RadialBlur) {
+    const auto *radial = std::get_if<RadialBlurSmartFilter>(&entry.parameters);
+    if (radial == nullptr || radial->amount < 1 || radial->amount > 100) {
+      return std::nullopt;
+    }
+    spec.radial_blur = *radial;
+    spec.default_entry_name = "Radial Blur...";
+    spec.filter_name = "Radial Blur";
+    spec.filter_class_id = "RdlB";
+    spec.filter_id = 0x52646c42U;
+  } else if (entry.kind == SmartFilterKind::AddNoise) {
+    const auto *noise = std::get_if<AddNoiseSmartFilter>(&entry.parameters);
+    if (noise == nullptr || !std::isfinite(noise->amount_percent) ||
+        noise->amount_percent < 0.1 || noise->amount_percent > 400.0 ||
+        noise->seed < 0 || noise->seed > 999999999) {
+      return std::nullopt;
+    }
+    spec.add_noise = *noise;
+    spec.default_entry_name = "Add Noise...";
+    spec.filter_name = "Add Noise";
+    spec.filter_class_id = "AdNs";
+    spec.filter_id = 0x41644e73U;
   } else {
     return std::nullopt;
   }
@@ -433,6 +459,36 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
   if (spec->distance_pixels.has_value()) {
     add_smart_filter_value(*filter.object_value, "Dstn", false,
                            smart_filter_unit("#Pxl", *spec->distance_pixels));
+  }
+  if (spec->radial_blur.has_value()) {
+    // Photoshop's Radial Blur key order is Amnt (plain integer), BlrM, BlrQ
+    // (July 2026 capture). Patchy authors the Spin method only.
+    add_smart_filter_value(*filter.object_value, "Amnt", false,
+                           smart_filter_integer(spec->radial_blur->amount));
+    add_smart_filter_value(*filter.object_value, "BlrM", false,
+                           smart_filter_enum("BlrM", false, "Spn ", false));
+    const auto quality =
+        spec->radial_blur->quality == RadialBlurQuality::Draft
+            ? "Drft"
+            : (spec->radial_blur->quality == RadialBlurQuality::Good ? "Gd  "
+                                                                     : "Bst ");
+    add_smart_filter_value(*filter.object_value, "BlrQ", false,
+                           smart_filter_enum("BlrQ", false, quality, false));
+  }
+  if (spec->add_noise.has_value()) {
+    // Photoshop's Add Noise key order is Dstr, Nose (#Prc), Mnch, FlRs
+    // (July 2026 capture); the seed is stored verbatim.
+    add_smart_filter_value(
+        *filter.object_value, "Dstr", false,
+        smart_filter_enum("Dstr", false,
+                          spec->add_noise->gaussian ? "Gsn " : "Unfr", false));
+    add_smart_filter_value(
+        *filter.object_value, "Nose", false,
+        smart_filter_unit("#Prc", spec->add_noise->amount_percent));
+    add_smart_filter_value(*filter.object_value, "Mnch", false,
+                           smart_filter_bool(spec->add_noise->monochromatic));
+    add_smart_filter_value(*filter.object_value, "FlRs", false,
+                           smart_filter_integer(spec->add_noise->seed));
   }
   add_smart_filter_value(*item.object_value, "Fltr", false, std::move(filter));
   add_smart_filter_value(
@@ -745,6 +801,45 @@ bool patch_smart_filter_descriptor(
         return false;
       }
       amount->integer_value = *spec->amount_integer;
+    }
+    if (spec->radial_blur.has_value()) {
+      auto *amount = mutable_value_either(*filter, "Amnt", "amount");
+      auto *method = mutable_value_either(*filter, "BlrM", "blurMethod");
+      auto *quality = mutable_value_either(*filter, "BlrQ", "blurQuality");
+      if (amount == nullptr ||
+          amount->type != DescriptorValue::Type::Integer || method == nullptr ||
+          method->type != DescriptorValue::Type::Enum ||
+          method->enum_value != "Spn " || quality == nullptr ||
+          quality->type != DescriptorValue::Type::Enum) {
+        return false;
+      }
+      amount->integer_value = spec->radial_blur->amount;
+      quality->enum_value =
+          spec->radial_blur->quality == RadialBlurQuality::Draft
+              ? "Drft"
+              : (spec->radial_blur->quality == RadialBlurQuality::Good
+                     ? "Gd  "
+                     : "Bst ");
+    }
+    if (spec->add_noise.has_value()) {
+      auto *distribution = mutable_value_either(*filter, "Dstr", "distribution");
+      auto *amount = mutable_value_either(*filter, "Nose", "noise");
+      auto *monochromatic =
+          mutable_value_either(*filter, "Mnch", "monochromatic");
+      auto *seed = mutable_value_either(*filter, "FlRs", "FlRs");
+      if (distribution == nullptr ||
+          distribution->type != DescriptorValue::Type::Enum ||
+          amount == nullptr ||
+          amount->type != DescriptorValue::Type::UnitFloat ||
+          amount->unit != "#Prc" || monochromatic == nullptr ||
+          monochromatic->type != DescriptorValue::Type::Bool ||
+          seed == nullptr || seed->type != DescriptorValue::Type::Integer) {
+        return false;
+      }
+      distribution->enum_value = spec->add_noise->gaussian ? "Gsn " : "Unfr";
+      amount->double_value = spec->add_noise->amount_percent;
+      monochromatic->bool_value = spec->add_noise->monochromatic;
+      seed->integer_value = spec->add_noise->seed;
     }
   }
   return true;
@@ -1085,6 +1180,64 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
           entry.parameters = EmbossSmartFilter{angle->integer_value,
                                                height->integer_value,
                                                amount->integer_value};
+        } else {
+          entry_supported = false;
+        }
+      } else if (filter != nullptr && filter->class_id == "RdlB" &&
+                 entry.native_filter_id == 0x52646c42U) {
+        const auto *amount = descriptor_value_either(*filter, "Amnt", "amount");
+        const auto *method =
+            descriptor_value_either(*filter, "BlrM", "blurMethod");
+        const auto *quality =
+            descriptor_value_either(*filter, "BlrQ", "blurQuality");
+        // Patchy models the Spin method only; a Zoom entry (or an unknown
+        // quality token) stays Unsupported and preview-locks the stack.
+        const auto spin = method != nullptr &&
+                          method->type == DescriptorValue::Type::Enum &&
+                          method->enum_value == "Spn ";
+        const auto quality_valid =
+            quality != nullptr && quality->type == DescriptorValue::Type::Enum &&
+            (quality->enum_value == "Drft" || quality->enum_value == "Gd  " ||
+             quality->enum_value == "Bst ");
+        if (amount != nullptr &&
+            amount->type == DescriptorValue::Type::Integer &&
+            amount->integer_value >= 1 && amount->integer_value <= 100 &&
+            spin && quality_valid) {
+          entry.kind = SmartFilterKind::RadialBlur;
+          entry.parameters = RadialBlurSmartFilter{
+              amount->integer_value,
+              quality->enum_value == "Drft"
+                  ? RadialBlurQuality::Draft
+                  : (quality->enum_value == "Gd  " ? RadialBlurQuality::Good
+                                                   : RadialBlurQuality::Best)};
+        } else {
+          entry_supported = false;
+        }
+      } else if (filter != nullptr && filter->class_id == "AdNs" &&
+                 entry.native_filter_id == 0x41644e73U) {
+        const auto *distribution =
+            descriptor_value_either(*filter, "Dstr", "distribution");
+        const auto *amount = descriptor_value_either(*filter, "Nose", "noise");
+        const auto *monochromatic =
+            descriptor_value_either(*filter, "Mnch", "monochromatic");
+        const auto *seed = descriptor_value_either(*filter, "FlRs", "FlRs");
+        const auto distribution_valid =
+            distribution != nullptr &&
+            distribution->type == DescriptorValue::Type::Enum &&
+            (distribution->enum_value == "Unfr" ||
+             distribution->enum_value == "Gsn ");
+        if (distribution_valid && amount != nullptr &&
+            amount->type == DescriptorValue::Type::UnitFloat &&
+            amount->unit == "#Prc" && std::isfinite(amount->double_value) &&
+            amount->double_value >= 0.1 && amount->double_value <= 400.0 &&
+            monochromatic != nullptr &&
+            monochromatic->type == DescriptorValue::Type::Bool &&
+            seed != nullptr && seed->type == DescriptorValue::Type::Integer &&
+            seed->integer_value >= 0 && seed->integer_value <= 999999999) {
+          entry.kind = SmartFilterKind::AddNoise;
+          entry.parameters = AddNoiseSmartFilter{
+              amount->double_value, distribution->enum_value == "Gsn ",
+              monochromatic->bool_value, seed->integer_value};
         } else {
           entry_supported = false;
         }

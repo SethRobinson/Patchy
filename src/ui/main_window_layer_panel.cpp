@@ -1710,6 +1710,43 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
           }
           entry_tooltip += QObject::tr(" (%1 px)").arg(radius);
         }
+      } else if (entry.kind == SmartFilterKind::RadialBlur) {
+        entry_name = QObject::tr("Radial Blur");
+        entry_tooltip = entry_name;
+        if (const auto *radial =
+                std::get_if<RadialBlurSmartFilter>(&entry.parameters);
+            radial != nullptr) {
+          const auto quality =
+              radial->quality == RadialBlurQuality::Draft
+                  ? QObject::tr("Draft")
+                  : (radial->quality == RadialBlurQuality::Good
+                         ? QObject::tr("Good")
+                         : QObject::tr("Best"));
+          entry_tooltip += QObject::tr(" (Amount %1, Spin, %2 quality)")
+                               .arg(radial->amount)
+                               .arg(quality);
+        }
+      } else if (entry.kind == SmartFilterKind::AddNoise) {
+        entry_name = QObject::tr("Add Noise");
+        entry_tooltip = entry_name;
+        if (const auto *noise =
+                std::get_if<AddNoiseSmartFilter>(&entry.parameters);
+            noise != nullptr) {
+          auto amount = QString::number(noise->amount_percent, 'f', 2);
+          while (amount.endsWith(QLatin1Char('0'))) {
+            amount.chop(1);
+          }
+          if (amount.endsWith(QLatin1Char('.'))) {
+            amount.chop(1);
+          }
+          entry_tooltip += QObject::tr(" (%1%, %2%3)")
+                               .arg(amount)
+                               .arg(noise->gaussian ? QObject::tr("Gaussian")
+                                                    : QObject::tr("Uniform"))
+                               .arg(noise->monochromatic
+                                        ? QObject::tr(", Monochromatic")
+                                        : QString());
+        }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
         entry_tooltip = entry_name;

@@ -25,6 +25,8 @@ enum class SmartFilterKind {
   Mosaic,
   Emboss,
   BoxBlur,
+  RadialBlur,
+  AddNoise,
 };
 
 struct GaussianBlurSmartFilter {
@@ -99,12 +101,40 @@ struct BoxBlurSmartFilter {
   bool operator==(const BoxBlurSmartFilter&) const = default;
 };
 
+// Photoshop stores Amnt as a plain integer 1..100 plus BlrM (Spn/Zm) and
+// BlrQ (Drft/Gd/Bst) enums; the blur CENTER is not stored in the descriptor
+// (July 2026 captures). Patchy models the Spin method only - a Zoom entry
+// stays Unsupported and preview-locks its stack.
+enum class RadialBlurQuality {
+  Draft,
+  Good,
+  Best,
+};
+
+struct RadialBlurSmartFilter {
+  std::int32_t amount{10};
+  RadialBlurQuality quality{RadialBlurQuality::Good};
+  bool operator==(const RadialBlurSmartFilter&) const = default;
+};
+
+// Photoshop stores Dstr (Unfr/Gsn), Nose as a #Prc unit double, Mnch, and
+// the FlRs random seed verbatim (July 2026 captures). Patchy renders its own
+// deterministic position-hashed noise from the same seed.
+struct AddNoiseSmartFilter {
+  double amount_percent{12.5};
+  bool gaussian{false};
+  bool monochromatic{false};
+  std::int32_t seed{1};
+  bool operator==(const AddNoiseSmartFilter&) const = default;
+};
+
 using SmartFilterParameters =
     std::variant<std::monostate, GaussianBlurSmartFilter, HighPassSmartFilter,
                  MedianSmartFilter, DustAndScratchesSmartFilter,
                  SurfaceBlurSmartFilter, UnsharpMaskSmartFilter,
                  MotionBlurSmartFilter, PlasticWrapSmartFilter,
-                 MosaicSmartFilter, EmbossSmartFilter, BoxBlurSmartFilter>;
+                 MosaicSmartFilter, EmbossSmartFilter, BoxBlurSmartFilter,
+                 RadialBlurSmartFilter, AddNoiseSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};
