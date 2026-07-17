@@ -506,6 +506,20 @@ renderer exactly:
   pixel means. Patchy's crisper render is deliberate (the unrotated linear
   tap applied in rotated space).
 
+### Stroke outline winding (fixed July 2026)
+
+The stroker builds the band as a union of per-segment quads plus join/cap
+wedges rasterized under the nonzero rule; every loop must carry the SAME
+orientation (append_outline_loop normalizes by signed area). Join wedges
+were previously emitted with the turn-direction-dependent winding, which
+CANCELLED the segment quads a wedge overlapped - invisible while wedges
+stayed inside their own corner gap, but a wide stroke on a densely
+flattened large-radius arc (short quads, long wedges) showed hatched
+notches near the arc-to-straight junction, dependent on width/geometry
+(the vectors_overlay_stroke.psd frame corner;
+stroke_arc_band_has_no_winding_notches pins the fix, and the stroke golden
+digests were deliberately re-pinned for it).
+
 ### Interior effects vs the vector stroke (probed July 2026)
 
 The fx-sofi-center/outside/nofill and fx-drsh-outside probes pinned where

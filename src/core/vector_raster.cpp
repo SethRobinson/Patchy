@@ -573,17 +573,34 @@ std::vector<StrokeRun> apply_dashes(const std::vector<DPoint>& points, bool clos
 }
 
 // Emits one closed outline loop into the edge list (buffer-relative fixed).
+// The stroke band unions its loops under nonzero winding, so every loop must
+// carry the SAME orientation: a join wedge emitted with the opposite winding
+// cancels the segment quads it overlaps instead of accumulating - on a
+// densely flattened arc the long wedges sweep across many short quads and
+// bite a hatched notch out of the band (the vectors_overlay_stroke top-right
+// corner glitch, July 2026). Normalize by signed area before emitting.
 void append_outline_loop(const std::vector<DPoint>& loop, std::int32_t origin_x, std::int32_t origin_y,
                          std::vector<Edge>& edges) {
   if (loop.size() < 3) {
     return;
   }
+  double doubled_area = 0.0;
+  for (std::size_t i = 0; i < loop.size(); ++i) {
+    const auto& a = loop[i];
+    const auto& b = loop[(i + 1) % loop.size()];
+    doubled_area += a.x * b.y - b.x * a.y;
+  }
+  const bool reverse = doubled_area > 0.0;
   const std::int32_t shift_x = origin_x * kSub;
   const std::int32_t shift_y = origin_y * kSub;
-  FixedPoint previous{to_fixed(loop[0].x) - shift_x, to_fixed(loop[0].y) - shift_y};
+  const auto point_at = [&](std::size_t index) {
+    const auto& p = reverse ? loop[loop.size() - 1 - index] : loop[index];
+    return FixedPoint{to_fixed(p.x) - shift_x, to_fixed(p.y) - shift_y};
+  };
+  FixedPoint previous = point_at(0);
   const FixedPoint first = previous;
   for (std::size_t i = 1; i < loop.size(); ++i) {
-    const FixedPoint point{to_fixed(loop[i].x) - shift_x, to_fixed(loop[i].y) - shift_y};
+    const FixedPoint point = point_at(i);
     if (point.x != previous.x || point.y != previous.y) {
       edges.push_back(Edge{previous, point});
     }

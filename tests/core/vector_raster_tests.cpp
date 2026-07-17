@@ -474,6 +474,44 @@ void stroke_alignment_inside_outside() {
   CHECK(coverage_pixel(outside, 8, 16) == 0);
 }
 
+void stroke_arc_band_has_no_winding_notches() {
+  // Regression (July 2026, vectors_overlay_stroke.psd): join wedges were
+  // emitted with the opposite winding to the segment quads, so a wedge
+  // sweeping across the short quads of a densely flattened arc CANCELLED
+  // them under the nonzero rule - a wide inside stroke on a large-radius
+  // rounded corner showed a hatched notch near the arc-to-straight junction.
+  // The mid-band ring of the corner must be fully covered.
+  LiveShapeParams params;
+  params.kind = LiveShapeKind::RoundedRectangle;
+  params.left = 145.0;
+  params.top = 533.0;
+  params.right = 1088.0;
+  params.bottom = 1247.0;
+  params.corner_radii = {50.0, 100.0, 12.0, 12.0};  // TL, TR, BR, BL
+  VectorPath path;
+  path.subpaths = patchy::generate_live_shape_subpaths(params);
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 29.9;
+  stroke.alignment = patchy::VectorStrokeAlignment::Inside;
+  const auto band = stroke_coverage(path, stroke, Rect{0, 0, 1200, 1799});
+  CHECK(!band.bounds.empty());
+  // Top-right corner arc: center (988, 633), radius 100; the inside band's
+  // midline sits at radius 100 - width/2. The notch lived around 65..90
+  // degrees and just below the junction on the straight right edge.
+  const double mid_radius = 100.0 - 29.9 / 2.0;
+  for (int degrees = 0; degrees <= 90; degrees += 2) {
+    const double radians = degrees * 3.14159265358979323846 / 180.0;
+    const auto x = static_cast<std::int32_t>(std::lround(988.0 + mid_radius * std::sin(radians)));
+    const auto y = static_cast<std::int32_t>(std::lround(633.0 - mid_radius * std::cos(radians)));
+    CHECK(coverage_pixel(band, x, y) == 255);
+  }
+  const auto edge_mid = static_cast<std::int32_t>(std::lround(1088.0 - 29.9 / 2.0));
+  for (std::int32_t y = 633; y <= 720; y += 4) {
+    CHECK(coverage_pixel(band, edge_mid, y) == 255);
+  }
+}
+
 void stroke_caps_butt_square_round() {
   VectorPath path;
   path.subpaths = {open_line(10, 10, 20, 10)};
@@ -596,10 +634,14 @@ void stroke_golden_digests_are_stable() {
     stroke.alignment = patchy::VectorStrokeAlignment::Outside;
     goldens.push_back({"triangle-bevel-outside", triangle, stroke});
   }
+  // Re-pinned July 2026 for the outline-winding normalization (join wedges
+  // now share the segment quads' orientation; see
+  // stroke_arc_band_has_no_winding_notches) - a deliberate rendering fix
+  // that shifts AA seam cells on mitered/beveled corners.
   const std::array<std::uint64_t, 3> expected = {
-      0xc4f59f165c24660dULL,
+      0x2612ef398d543549ULL,
       0x1b622f58b0b6eddfULL,
-      0x13f6f65e8fea07c8ULL,
+      0x78fd384c6ca059d4ULL,
   };
   bool all_match = true;
   for (std::size_t i = 0; i < goldens.size(); ++i) {
@@ -823,6 +865,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"raster_shape_paints_solid_gradient_pattern", raster_shape_paints_solid_gradient_pattern},
       {"stroke_center_band_and_miter_corner", stroke_center_band_and_miter_corner},
       {"stroke_alignment_inside_outside", stroke_alignment_inside_outside},
+      {"stroke_arc_band_has_no_winding_notches", stroke_arc_band_has_no_winding_notches},
       {"stroke_caps_butt_square_round", stroke_caps_butt_square_round},
       {"stroke_joins_miter_bevel_round", stroke_joins_miter_bevel_round},
       {"stroke_dashes_and_offset", stroke_dashes_and_offset},
