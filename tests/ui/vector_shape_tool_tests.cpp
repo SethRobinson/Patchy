@@ -4,6 +4,7 @@
 #include "ui_test_support.hpp"
 
 #include "core/document_path.hpp"
+#include "core/pixel_buffer.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/default_custom_shapes.hpp"
 
@@ -22,7 +23,9 @@
 #include <QStatusBar>
 #include <QTimer>
 
+#include <array>
 #include <cmath>
+#include <cstdio>
 
 using namespace patchy::test::ui;
 
@@ -931,14 +934,23 @@ void ui_paths_panel_fill_stroke_and_make_selection() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 260)), QColor(30, 160, 40), 8));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 260)), Qt::white, 8));
 
-  // Stroke Path draws a brush-sized band along the outline.
+  // Stroke Path draws a brush-sized band along the outline. The targeted
+  // path's outline overlay now draws with any tool, covering the band's
+  // center line in a widget grab, so deselect (empty-space click) first: the
+  // overlay must disappear and reveal the painted stroke.
   canvas->set_primary_color(QColor(200, 40, 160));
   canvas->set_brush_size(8);
   window.findChild<QAction*>(QStringLiteral("pathStrokeAction"))->trigger();
   QApplication::processEvents();
+  send_mouse(*paths_list->viewport(), QEvent::MouseButtonPress,
+             QPoint(paths_list->viewport()->width() / 2, paths_list->viewport()->height() - 4),
+             Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 260)), QColor(200, 40, 160), 12));
 
-  // Make Selection converts the path (accept the dialog unchanged).
+  // Make Selection converts the path (re-select the row first).
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("makeSelectionDialog"));
     CHECK(dialog != nullptr);
@@ -1419,14 +1431,30 @@ void ui_paths_panel_actions_follow_row_selection() {
         make_selection != nullptr && delete_action != nullptr);
   CHECK(list->count() == 1);  // the work path
 
-  // No row selected yet: only New Path is available.
+  // Drawing auto-targets the work path row (Photoshop highlights it as soon
+  // as you draw), so the row commands start enabled.
+  CHECK(canvas->active_document_path().has_value());
+  CHECK(new_action->isEnabled());
+  CHECK(fill->isEnabled());
+  CHECK(stroke->isEnabled());
+  CHECK(make_selection->isEnabled());
+  CHECK(delete_action->isEnabled());
+
+  // Clicking the empty area below the rows deselects and disables them.
+  send_mouse(*list->viewport(), QEvent::MouseButtonPress,
+             QPoint(list->viewport()->width() / 2, list->viewport()->height() - 4), Qt::LeftButton,
+             Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!canvas->active_document_path().has_value());
   CHECK(new_action->isEnabled());
   CHECK(!fill->isEnabled());
   CHECK(!stroke->isEnabled());
   CHECK(!make_selection->isEnabled());
   CHECK(!delete_action->isEnabled());
 
-  // A real mouse click on the row (press + release) enables the row commands.
+  // A real mouse click on the row (press + release) re-enables the row
+  // commands: the panel must refresh action states on selectionChanged, not
+  // just currentItemChanged (the click updates the current item first).
   const auto row_rect = list->visualItemRect(list->item(0));
   send_mouse(*list->viewport(), QEvent::MouseButtonPress, row_rect.center(), Qt::LeftButton,
              Qt::LeftButton);
@@ -1438,18 +1466,280 @@ void ui_paths_panel_actions_follow_row_selection() {
   CHECK(stroke->isEnabled());
   CHECK(make_selection->isEnabled());
   CHECK(delete_action->isEnabled());
+}
 
-  // Clicking the empty area below the rows deselects and disables them again.
-  send_mouse(*list->viewport(), QEvent::MouseButtonPress,
-             QPoint(list->viewport()->width() / 2, list->viewport()->height() - 4), Qt::LeftButton,
-             Qt::LeftButton);
+// True when a pixel near the document point reads as the path-overlay accent
+// (116, 192, 255) in a canvas grab: distinctly blue-leaning against the
+// white/black canvas content these tests use.
+bool accent_overlay_near(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
+  const auto image = canvas.grab().toImage();
+  const auto center = canvas.widget_position_for_document_point(document_point);
+  for (int dy = -3; dy <= 3; ++dy) {
+    for (int dx = -3; dx <= 3; ++dx) {
+      const QPoint probe(center.x() + dx, center.y() + dy);
+      if (!image.rect().contains(probe)) {
+        continue;
+      }
+      const auto color = image.pixelColor(probe);
+      if (color.blue() >= 200 && color.blue() - color.red() >= 60 &&
+          color.green() > color.red()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void ui_paths_panel_target_shows_overlay_with_any_tool() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  // A Path-mode drag creates the work path AND targets its row (Photoshop
+  // highlights Work Path as soon as you draw).
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  CHECK(canvas->active_document_path().has_value());
+  CHECK(canvas->panel_path_targeted());
+
+  // The outline stays visible with ANY tool (the Photoshop target-path rule).
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
   QApplication::processEvents();
-  CHECK(!canvas->active_document_path().has_value());
-  CHECK(new_action->isEnabled());
-  CHECK(!fill->isEnabled());
-  CHECK(!stroke->isEnabled());
-  CHECK(!make_selection->isEnabled());
-  CHECK(!delete_action->isEnabled());
+  CHECK(accent_overlay_near(*canvas, QPoint(100, 160)));  // left edge midpoint
+
+  // Clicking empty panel space hides it.
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  send_mouse(*paths_list->viewport(), QEvent::MouseButtonPress,
+             QPoint(paths_list->viewport()->width() / 2, paths_list->viewport()->height() - 4),
+             Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!canvas->panel_path_targeted());
+  CHECK(!accent_overlay_near(*canvas, QPoint(100, 160)));
+
+  // Re-selecting the row shows it again; Escape under a path tool (with no
+  // anchor selection to clear first) dismisses the panel targeting. A path
+  // tool still displays its edit-target fallback (it would edit the work
+  // path), so switch to Move to see the outline actually gone.
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
+  CHECK(canvas->panel_path_targeted());
+  CHECK(accent_overlay_near(*canvas, QPoint(100, 160)));
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->panel_path_targeted());
+  CHECK(paths_list->selectedItems().isEmpty());
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  QApplication::processEvents();
+  CHECK(!accent_overlay_near(*canvas, QPoint(100, 160)));
+}
+
+void ui_shape_layer_auto_targets_path_row_until_dismissed() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // A Shape-mode drag creates a shape layer; its transient row auto-targets
+  // so the outline shows on canvas with any tool.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(120, 140), QPoint(320, 260));
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  CHECK(patchy::layer_is_vector_shape(*document.find_layer(*active)));
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  CHECK(paths_list->count() == 1);  // the transient layer row
+  CHECK(!paths_list->selectedItems().isEmpty());
+  CHECK(canvas->panel_path_targeted());
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  QApplication::processEvents();
+  CHECK(accent_overlay_near(*canvas, QPoint(120, 200)));  // shape left edge
+
+  // Dismissing hides it, and a panel refresh must NOT resurrect it while the
+  // same layer stays active.
+  send_mouse(*paths_list->viewport(), QEvent::MouseButtonPress,
+             QPoint(paths_list->viewport()->width() / 2, paths_list->viewport()->height() - 4),
+             Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!canvas->panel_path_targeted());
+  patchy::ui::MainWindowTestAccess::refresh_paths_panel(window);
+  QApplication::processEvents();
+  CHECK(!canvas->panel_path_targeted());
+  CHECK(paths_list->selectedItems().isEmpty());
+
+  // An explicit row click re-shows it (and clears the dismissal).
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
+  CHECK(canvas->panel_path_targeted());
+  patchy::ui::MainWindowTestAccess::refresh_paths_panel(window);
+  QApplication::processEvents();
+  CHECK(canvas->panel_path_targeted());
+  CHECK(!paths_list->selectedItems().isEmpty());
+}
+
+void ui_paths_panel_ctrl_click_loads_selection() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(200, 200), QPoint(400, 320));
+  CHECK(!canvas->has_selection());
+
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  CHECK(paths_list->count() == 1);
+  const auto row_rect = paths_list->visualItemRect(paths_list->item(0));
+  send_mouse(*paths_list->viewport(), QEvent::MouseButtonPress, row_rect.center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*paths_list->viewport(), QEvent::MouseButtonRelease, row_rect.center(), Qt::LeftButton,
+             Qt::NoButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  const auto selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(std::abs(selection->x() - 200) <= 1);
+  CHECK(std::abs(selection->y() - 200) <= 1);
+  CHECK(std::abs(selection->width() - 200) <= 2);
+  CHECK(std::abs(selection->height() - 120) <= 2);
+}
+
+void ui_paths_panel_duplicate_and_reorder() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // Two saved paths via New Path + Path-mode drags (each drag lands in the
+  // targeted saved path).
+  canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  mode_combo->setCurrentIndex(1);  // Path
+  window.findChild<QAction*>(QStringLiteral("pathNewAction"))->trigger();
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(100, 100), QPoint(200, 200));
+  window.findChild<QAction*>(QStringLiteral("pathNewAction"))->trigger();
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(300, 100), QPoint(400, 200));
+  CHECK(document.paths().size() == 2);
+
+  // Duplicate Path copies the selected row under "<name> copy" and targets it.
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  CHECK(paths_list->count() == 2);
+  paths_list->setCurrentRow(0);  // "Path 1"
+  QApplication::processEvents();
+  window.findChild<QAction*>(QStringLiteral("pathDuplicateAction"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.paths().size() == 3);
+  CHECK(document.paths().back().name() == "Path 1 copy");
+  CHECK(document.paths().back().path().subpaths.size() == 1);
+  CHECK(canvas->active_document_path().has_value());
+  CHECK(*canvas->active_document_path() == document.paths().back().id());
+
+  // Undo removes the copy.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.paths().size() == 2);
+
+  // Drag-reorder (via the model, like the channel panel test): move "Path 2"
+  // above "Path 1" and check the document order followed.
+  CHECK(paths_list->model()->moveRow(QModelIndex(), 1, QModelIndex(), 0));
+  QApplication::processEvents();
+  QApplication::processEvents();  // the reorder commit is deferred one tick
+  CHECK(document.paths().size() == 2);
+  CHECK(document.paths()[0].name() == "Path 2");
+  CHECK(document.paths()[1].name() == "Path 1");
+
+  // Undo restores the original order.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.paths()[0].name() == "Path 1");
+  CHECK(document.paths()[1].name() == "Path 2");
+}
+
+void ui_make_work_path_from_selection_traces_selection() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // A donut selection: outer rect with a rectangular hole.
+  patchy::PixelBuffer coverage(document.width(), document.height(),
+                               patchy::PixelFormat::gray8());
+  for (int y = 0; y < coverage.height(); ++y) {
+    for (int x = 0; x < coverage.width(); ++x) {
+      const bool outer = x >= 100 && x < 300 && y >= 100 && y < 260;
+      const bool hole = x >= 160 && x < 240 && y >= 140 && y < 220;
+      *coverage.pixel(x, y) = outer && !hole ? 255 : 0;
+    }
+  }
+  canvas->replace_selection_from_grayscale(coverage, QStringLiteral("test selection"));
+  CHECK(canvas->has_selection());
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("makeWorkPathDialog"));
+    CHECK(dialog != nullptr);
+    dialog->accept();
+  });
+  window.findChild<QAction*>(QStringLiteral("pathFromSelectionAction"))->trigger();
+  QApplication::processEvents();
+
+  const auto* work = document.work_path();
+  CHECK(work != nullptr);
+  CHECK(work->path().subpaths.size() == 2);
+  const auto& outer_subpath = work->path().subpaths[0];
+  const auto& hole_subpath = work->path().subpaths[1];
+  CHECK(outer_subpath.op == patchy::PathCombineOp::Add);
+  CHECK(hole_subpath.op == patchy::PathCombineOp::Subtract);
+  CHECK(outer_subpath.anchors.size() == 4);
+  CHECK(hole_subpath.anchors.size() == 4);
+  const auto bounds_of = [](const patchy::PathSubpath& subpath) {
+    double min_x = 1e9;
+    double min_y = 1e9;
+    double max_x = -1e9;
+    double max_y = -1e9;
+    for (const auto& anchor : subpath.anchors) {
+      min_x = std::min(min_x, anchor.anchor_x);
+      min_y = std::min(min_y, anchor.anchor_y);
+      max_x = std::max(max_x, anchor.anchor_x);
+      max_y = std::max(max_y, anchor.anchor_y);
+    }
+    return std::array<double, 4>{min_x, min_y, max_x, max_y};
+  };
+  const auto outer_bounds = bounds_of(outer_subpath);
+  CHECK(std::abs(outer_bounds[0] - 100.0) <= 0.5);
+  CHECK(std::abs(outer_bounds[1] - 100.0) <= 0.5);
+  CHECK(std::abs(outer_bounds[2] - 300.0) <= 0.5);
+  CHECK(std::abs(outer_bounds[3] - 260.0) <= 0.5);
+  const auto hole_bounds = bounds_of(hole_subpath);
+  CHECK(std::abs(hole_bounds[0] - 160.0) <= 0.5);
+  CHECK(std::abs(hole_bounds[1] - 140.0) <= 0.5);
+  CHECK(std::abs(hole_bounds[2] - 240.0) <= 0.5);
+  CHECK(std::abs(hole_bounds[3] - 220.0) <= 0.5);
+
+  // The work path row is targeted (its outline shows immediately).
+  CHECK(canvas->active_document_path().has_value());
+  CHECK(*canvas->active_document_path() == work->id());
+  CHECK(canvas->panel_path_targeted());
 }
 
 }  // namespace
@@ -1498,5 +1788,13 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},
       {"ui_new_gradient_fill_layer_spans_canvas", ui_new_gradient_fill_layer_spans_canvas},
       {"ui_paths_panel_actions_follow_row_selection", ui_paths_panel_actions_follow_row_selection},
+      {"ui_paths_panel_target_shows_overlay_with_any_tool",
+       ui_paths_panel_target_shows_overlay_with_any_tool},
+      {"ui_shape_layer_auto_targets_path_row_until_dismissed",
+       ui_shape_layer_auto_targets_path_row_until_dismissed},
+      {"ui_paths_panel_ctrl_click_loads_selection", ui_paths_panel_ctrl_click_loads_selection},
+      {"ui_paths_panel_duplicate_and_reorder", ui_paths_panel_duplicate_and_reorder},
+      {"ui_make_work_path_from_selection_traces_selection",
+       ui_make_work_path_from_selection_traces_selection},
   };
 }

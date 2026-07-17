@@ -964,15 +964,23 @@ void MainWindow::create_docks() {
   make_path_action(path_make_selection_action_, QT_TR_NOOP("Make Selection"),
                    "pathMakeSelectionAction", "path.make_selection",
                    [this] { make_selection_from_path(); });
+  make_path_action(path_from_selection_action_, QT_TR_NOOP("Make Work Path from Selection"),
+                   "pathFromSelectionAction", "path.from_selection",
+                   [this] { make_work_path_from_selection(); });
+  make_path_action(path_duplicate_action_, QT_TR_NOOP("Duplicate Path"), "pathDuplicateAction",
+                   "path.duplicate", [this] { duplicate_selected_path(); });
   make_path_action(path_delete_action_, QT_TR_NOOP("Delete Path"), "pathDeleteAction", "path.delete",
                    [this] { delete_selected_path(); });
   path_new_action_->setIcon(simple_icon(QStringLiteral("new")));
   path_fill_action_->setIcon(simple_icon(QStringLiteral("fill")));
-  path_stroke_action_->setIcon(simple_icon(QStringLiteral("SP")));
+  path_stroke_action_->setIcon(simple_icon(QStringLiteral("stroke-path")));
   path_make_selection_action_->setIcon(simple_icon(QStringLiteral("channel-load-selection")));
+  path_from_selection_action_->setIcon(simple_icon(QStringLiteral("channel-save-selection")));
+  path_duplicate_action_->setIcon(simple_icon(QStringLiteral("dup")));
   path_delete_action_->setIcon(simple_icon(QStringLiteral("trash")));
   paths_panel_->set_actions(path_new_action_, path_fill_action_, path_stroke_action_,
-                            path_make_selection_action_, path_delete_action_);
+                            path_make_selection_action_, path_from_selection_action_,
+                            path_duplicate_action_, path_delete_action_);
   paths_panel_->set_target_callback([this](PathsPanel::RowKind kind, DocumentPathId id) {
     handle_paths_panel_target(static_cast<int>(kind), id);
   });
@@ -980,6 +988,11 @@ void MainWindow::create_docks() {
   paths_panel_->set_rename_callback(
       [this](DocumentPathId id, QString name) { rename_document_path(id, name); });
   paths_panel_->set_save_work_path_callback([this] { save_work_path_as_named(); });
+  paths_panel_->set_load_selection_callback([this](PathsPanel::RowKind kind, DocumentPathId id) {
+    load_path_as_selection(static_cast<int>(kind), id);
+  });
+  paths_panel_->set_reorder_callback(
+      [this](std::vector<DocumentPathId> order) { reorder_paths_from_panel(std::move(order)); });
   register_document_widget(paths_panel_);
   refresh_paths_panel();
 

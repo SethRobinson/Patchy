@@ -56,6 +56,13 @@ void DocumentPath::set_kind(DocumentPathKind kind) noexcept {
     return;
   }
   kind_ = kind;
+  // A kind change moves the path between resource homes (saved 2000..2997 vs
+  // work 1025), so the imported source is no longer valid: drop it and let
+  // the writer allocate a fresh id and regenerate the payload. Keeping the
+  // old id would write a saved path at 1025, which readers demote back to
+  // the work path.
+  resource_id_.reset();
+  raw_payload_.reset();
   mark_dirty();
 }
 

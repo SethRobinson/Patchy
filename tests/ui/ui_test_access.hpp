@@ -107,6 +107,10 @@ public:
     window.update_document_action_state();
   }
 
+  static void refresh_paths_panel(MainWindow& window) {
+    window.refresh_paths_panel();
+  }
+
   static void set_round_brush_session(MainWindow& window, BrushDynamics dynamics,
                                       double base_angle_degrees, double base_roundness) {
     window.round_brush_dynamics_ = std::move(dynamics);

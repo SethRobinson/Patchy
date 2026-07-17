@@ -1,6 +1,7 @@
 #include "core/document.hpp"
 #include "core/document_path.hpp"
 #include "core/layer.hpp"
+#include "core/path_fit.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
@@ -418,6 +419,89 @@ void geometry_ops_transform_vector_data() {
   }
 }
 
+void path_fit_square_keeps_four_corner_anchors() {
+  // A traced rectangle (collinear runs already collapsed) must fit to exactly
+  // its four corners with collapsed handles, at any reasonable tolerance.
+  const std::vector<patchy::FitPoint> square{{10.0, 10.0}, {50.0, 10.0}, {50.0, 40.0}, {10.0, 40.0}};
+  const auto fitted = patchy::fit_closed_loop(square, 2.0);
+  CHECK(fitted.closed);
+  CHECK(fitted.anchors.size() == 4);
+  for (const auto& anchor : fitted.anchors) {
+    CHECK(!anchor.smooth);
+    CHECK(nearly(anchor.in_x, anchor.anchor_x, 1e-9));
+    CHECK(nearly(anchor.in_y, anchor.anchor_y, 1e-9));
+    CHECK(nearly(anchor.out_x, anchor.anchor_x, 1e-9));
+    CHECK(nearly(anchor.out_y, anchor.anchor_y, 1e-9));
+  }
+  bool found_first_corner = false;
+  for (const auto& anchor : fitted.anchors) {
+    if (nearly(anchor.anchor_x, 10.0, 1e-9) && nearly(anchor.anchor_y, 10.0, 1e-9)) {
+      found_first_corner = true;
+    }
+  }
+  CHECK(found_first_corner);
+  // Winding: clockwise in y-down coordinates reads positive (an outer loop).
+  CHECK(patchy::loop_signed_area(square) > 0.0);
+  const auto reversed = std::vector<patchy::FitPoint>{square.rbegin(), square.rend()};
+  CHECK(patchy::loop_signed_area(reversed) < 0.0);
+}
+
+void path_fit_circle_is_smooth_and_within_tolerance() {
+  // A dense circle polygon fits into a small set of smooth anchors whose
+  // curve stays within the tolerance of the true circle.
+  constexpr double kRadius = 50.0;
+  constexpr double kCenter = 60.0;
+  std::vector<patchy::FitPoint> circle;
+  for (int step = 0; step < 360; ++step) {
+    const double angle = step * 3.14159265358979323846 / 180.0;
+    circle.push_back({kCenter + kRadius * std::cos(angle), kCenter + kRadius * std::sin(angle)});
+  }
+  constexpr double kTolerance = 2.0;
+  const auto fitted = patchy::fit_closed_loop(circle, kTolerance);
+  CHECK(fitted.closed);
+  // Two smooth seam anchors suffice when each half-circle fits one cubic
+  // within tolerance (radius 50 leaves ~1px of error per semicircle).
+  CHECK(fitted.anchors.size() >= 2);
+  CHECK(fitted.anchors.size() <= 24);  // far fewer than the 360 input points
+  for (const auto& anchor : fitted.anchors) {
+    CHECK(anchor.smooth);
+  }
+  // Evaluate every segment densely: the fitted curve must hug the circle.
+  const auto& anchors = fitted.anchors;
+  for (std::size_t i = 0; i < anchors.size(); ++i) {
+    const auto& a = anchors[i];
+    const auto& b = anchors[(i + 1) % anchors.size()];
+    for (int step = 0; step <= 16; ++step) {
+      const double t = step / 16.0;
+      const double u = 1.0 - t;
+      const double x = u * u * u * a.anchor_x + 3.0 * t * u * u * a.out_x +
+                       3.0 * t * t * u * b.in_x + t * t * t * b.anchor_x;
+      const double y = u * u * u * a.anchor_y + 3.0 * t * u * u * a.out_y +
+                       3.0 * t * t * u * b.in_y + t * t * t * b.anchor_y;
+      const double radius = std::hypot(x - kCenter, y - kCenter);
+      CHECK(std::abs(radius - kRadius) <= kTolerance + 0.6);
+    }
+  }
+  // Deterministic: the same input fits to the identical anchor list.
+  const auto again = patchy::fit_closed_loop(circle, kTolerance);
+  CHECK(again.anchors == fitted.anchors);
+}
+
+void path_fit_staircase_smooths_diagonal() {
+  // A pixel-trace staircase (unit steps) along a diagonal collapses into a
+  // near-line fit instead of keeping every stair corner.
+  std::vector<patchy::FitPoint> loop;
+  for (int i = 0; i < 20; ++i) {  // stair edge: right 1, down 1, twenty times
+    loop.push_back({static_cast<double>(i), static_cast<double>(i)});
+    loop.push_back({static_cast<double>(i + 1), static_cast<double>(i)});
+  }
+  loop.push_back({20.0, 20.0});
+  loop.push_back({0.0, 20.0});  // close the triangle-ish region
+  const auto fitted = patchy::fit_closed_loop(loop, 2.0);
+  CHECK(fitted.anchors.size() >= 3);
+  CHECK(fitted.anchors.size() <= 8);  // the 40 stair vertices must not survive
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_shape_tests() {
@@ -433,5 +517,9 @@ std::vector<patchy::test::TestCase> vector_shape_tests() {
       {"vector_metadata_flags_round_trip", vector_metadata_flags_round_trip},
       {"document_path_revision_and_dirty_semantics", document_path_revision_and_dirty_semantics},
       {"geometry_ops_transform_vector_data", geometry_ops_transform_vector_data},
+      {"path_fit_square_keeps_four_corner_anchors", path_fit_square_keeps_four_corner_anchors},
+      {"path_fit_circle_is_smooth_and_within_tolerance",
+       path_fit_circle_is_smooth_and_within_tolerance},
+      {"path_fit_staircase_smooths_diagonal", path_fit_staircase_smooths_diagonal},
   };
 }

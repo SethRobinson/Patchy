@@ -533,6 +533,14 @@ public:
   // precedence over the active shape layer / work-path fallback.
   void set_active_document_path(std::optional<DocumentPathId> id);
   [[nodiscard]] std::optional<DocumentPathId> active_document_path() const noexcept;
+  // True while a Paths-panel row is selected: the targeted path's outline then
+  // draws with ANY tool (Photoshop's target-path display); anchors and handles
+  // still require a path tool.
+  void set_panel_path_targeted(bool targeted);
+  [[nodiscard]] bool panel_path_targeted() const noexcept;
+  // Invoked when Escape (path tools, nothing else to dismiss) asks to hide the
+  // targeted path; MainWindow clears the Paths-panel selection in response.
+  void set_path_display_dismiss_callback(std::function<void()> callback);
   // The path the pen/path tools currently edit (panel > vector mask > shape
   // layer > work path); null when nothing is targetable.
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
@@ -1049,6 +1057,10 @@ private:
   bool handle_path_edit_release(QMouseEvent* event);
   bool handle_path_edit_key(QKeyEvent* event);
   bool pen_modifies_existing_path(QMouseEvent* event, QPointF document_point);
+  // Drops selection keys that no longer index into the path: outside edits
+  // (Make Work Path replacing the work path, undo shrinking a subpath) can
+  // invalidate them between events; every mutating consumer prunes first.
+  void prune_path_edit_selection(const patchy::VectorPath& path);
   void delete_selected_path_anchors();
   void draw_path_edit_overlay(QPainter& painter);
   [[nodiscard]] patchy::PathSubpath polygon_drag_subpath(QPointF center, QPointF radius_point) const;
@@ -1296,6 +1308,8 @@ private:
   bool path_edit_changed_{false};
   qint64 path_nudge_last_ms_{0};
   std::optional<DocumentPathId> active_document_path_;
+  bool panel_path_targeted_{false};
+  std::function<void()> path_display_dismiss_callback_;
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};

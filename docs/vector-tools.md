@@ -112,24 +112,59 @@ append subpaths to the mask path instead of creating layers.
 
 ## Paths panel
 
-The Paths dock tabifies with Channels: outline thumbnails for every saved
-path, the work path (italic, listed last), and a transient row for the active
-layer's shape or vector-mask path. Selecting a row targets it for the pen and
-path tools (the explicit selection outranks the layer/work-path fallback);
-clicking empty space deselects. Double-click saves the work path under a
-generated name or renames a saved path inline. Footer commands: New Path
-(empty, immediately targeted), Fill Path (foreground color through the
-coverage), Stroke Path (a centered round-capped band at the brush size in the
-foreground color; per-stamp brush dynamics are not simulated), Make Selection
-(feather via triple box blur, anti-alias toggle, New/Add/Subtract/Intersect
-operations), and Delete Path. The row commands enable only while a row is
-selected (New Path just needs a document); the panel refreshes those states on
-selectionChanged as well as currentItemChanged because a real mouse click
-updates the current item before the selection commits, and
-update_document_action_state re-applies the row rule after its blanket
-document-action pass (the channel-panel pattern; pinned by
-ui_paths_panel_actions_follow_row_selection). Saved paths round-trip through
-the PSD path resources from phase 8.
+The Paths dock tabifies with Channels: filled coverage thumbnails (a
+thumbnail-space rasterize so boolean subtract/intersect/xor holes read
+correctly, under a 1 px outline) for every saved path, the work path (italic,
+listed last), and a transient row for the active layer's shape or vector-mask
+path. Selecting a row targets it for the pen and path tools (the explicit
+selection outranks the layer/work-path fallback); clicking empty space
+deselects. Double-click saves the work path under a generated name (the row
+drops straight into inline rename, and the promoted path moves to the END of
+the list - PS placement; DocumentPath::set_kind drops the stale 1025 resource
+source so the writer allocates a saved-range id,
+psd_work_path_saved_as_named_round_trips). Ctrl-click (Cmd on macOS) loads a
+row's path as a selection without changing the targeting (the channel-panel
+convention). Saved rows drag-reorder among themselves (the layer row stays
+first, the work path last; the panel reverts frame-breaking drops - the
+channel-panel pattern); the PSD writer assigns the sorted saved-range id set
+by document order so a reorder survives the round trip with verbatim payloads
+(psd_saved_paths_reorder_round_trips). Three writer invariants keep that
+safe: new paths allocate ABOVE the highest stored id (adding a path never
+relocates a clean sibling into a gap), stored ids outside 2000..2997 never
+enter the saved set, and the path-range stream entries are normalized to
+ascending id order after upserts (upsert appends brand-new ids at the end,
+which would otherwise diverge from the id-sorted order Patchy's reader and
+Photoshop both reconstruct).
+
+Targeting drives the canvas overlay (July 2026, Photoshop's target-path
+display): while any row is selected, the path outline draws with EVERY tool
+via CanvasWidget::panel_path_targeted_; anchors/handles stay path-tool-only.
+Drawing into the work path auto-selects its row, and activating a shape or
+vector-mask layer auto-targets the transient row. Dismissal is per layer:
+empty-space click or Escape (path tools, second stage after clearing the
+anchor selection, via the path-display dismiss callback) hides the row and
+MainWindow::path_row_hidden_for_layer_ keeps it hidden until the layer
+changes, the user re-clicks the row, or a new drag commits. Note a path tool
+still displays its edit-target fallback after a dismissal - it shows what it
+would edit; only non-path tools go outline-free.
+
+Footer commands: New Path (empty, immediately targeted), Fill Path
+(foreground color through the coverage), Stroke Path (a centered round-capped
+band at the brush size in the foreground color; per-stamp brush dynamics are
+not simulated), Make Selection (feather via triple box blur, anti-alias
+toggle, New/Add/Subtract/Intersect operations), Make Work Path from Selection
+(tolerance dialog 0.5-10 px persisted at paths/makeWorkPathTolerance, default
+2.0; traces the hard selection region and fits it via core/path_fit -
+Douglas-Peucker corners + Schneider least-squares cubics; outer loops become
+Add subpaths, holes Subtract, in tracer order), and Delete Path. Duplicate
+Path lives in the row context menu ("<name> copy", uniquified). The row
+commands enable only while a row is selected (New Path and Make Work Path
+just need a document); the panel refreshes those states on selectionChanged
+as well as currentItemChanged because a real mouse click updates the current
+item before the selection commits, and update_document_action_state
+re-applies the row rule after its blanket document-action pass (the
+channel-panel pattern; pinned by ui_paths_panel_actions_follow_row_selection).
+Saved paths round-trip through the PSD path resources from phase 8.
 
 ## Geometry operations
 
@@ -416,6 +451,12 @@ Cleared as expired prior art (reasoning, not legal advice):
   by ~2021-2024. Vector masks per se (PS 6/7 era) likewise.
 - Boolean path combine modes, even-odd/nonzero fills, stroke dashing,
   caps/joins are decades-old published techniques.
+- Selection-to-path conversion (Make Work Path) uses classic published
+  methods only: marching-style boundary tracing, Douglas-Peucker (1973)
+  simplification, and Schneider's least-squares cubic fitting ("An Algorithm
+  for Automatically Fitting Digitized Curves", Graphics Gems, 1990) -
+  Photoshop has shipped the equivalent since version 3 (1994); any patents
+  are long expired.
 
 Excluded from implementation pending their own review (do NOT build without a
 new patent check):

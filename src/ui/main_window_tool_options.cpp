@@ -1030,6 +1030,9 @@ void MainWindow::set_active_layer_from_selection() {
       if (canvas_ != nullptr) {
         canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
       }
+      // The Paths panel's transient layer-path row (and its Photoshop-style
+      // auto-targeting) follows the active layer.
+      refresh_paths_panel();
     }
     if (canvas_ != nullptr) {
       update_layer_target_styles(layer_list_, doc.active_layer_id(), canvas_->layer_edit_target());

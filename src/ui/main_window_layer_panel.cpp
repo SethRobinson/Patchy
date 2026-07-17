@@ -2463,6 +2463,10 @@ void MainWindow::refresh_layer_list() {
   }
   layer_list_->viewport()->update();
   layer_list_->viewport()->repaint();
+  // The Paths panel's transient layer-path row follows the active layer, and
+  // every structural layer change funnels through here; the panel's
+  // revision-keyed thumbnail cache keeps this cheap.
+  refresh_paths_panel();
 }
 
 QPixmap MainWindow::cached_layer_content_thumbnail(const Layer& layer) {

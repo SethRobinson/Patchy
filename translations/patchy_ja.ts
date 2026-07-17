@@ -4,6 +4,7 @@
 <context>
     <name>patchy::ui::PathsPanel</name>
     <message><source>Saved path. Double-click to rename; select to edit with the pen and path tools.</source><translation>保存済みパス。ダブルクリックで名前を変更、選択するとペン/パスツールで編集できます。</translation></message>
+    <message><source>Ctrl-click to load the path as a selection; drag to reorder.</source><translation>Ctrl+クリックでパスを選択範囲として読み込み、ドラッグで並べ替えます。</translation></message>
     <message><source>The temporary work path. Double-click to save it as a named path.</source><translation>一時的な作業用パス。ダブルクリックで名前付きパスとして保存します。</translation></message>
     <message><source>The active layer&apos;s path (shape or vector mask).</source><translation>アクティブレイヤーのパス（シェイプまたはベクトルマスク）。</translation></message>
 </context>
@@ -12777,6 +12778,8 @@ Clipped to the layer below</source>
     <message><source>Fill Path</source><translation>パスを塗りつぶし</translation></message>
     <message><source>Stroke Path</source><translation>パスの境界線を描く</translation></message>
     <message><source>Make Selection</source><translation>選択範囲を作成</translation></message>
+    <message><source>Make Work Path from Selection</source><translation>選択範囲から作業用パスを作成</translation></message>
+    <message><source>Duplicate Path</source><translation>パスを複製</translation></message>
     <message><source>Delete Path</source><translation>パスを削除</translation></message>
     <message><source>%1 Shape Path</source><translation>%1 シェイプパス</translation></message>
     <message><source>%1 Vector Mask</source><translation>%1 ベクトルマスク</translation></message>
@@ -12790,6 +12793,20 @@ Clipped to the layer below</source>
     <message><source>Select a saved path or the work path to delete</source><translation>削除する保存済みパスまたは作業用パスを選択してください</translation></message>
     <message><source>Delete path</source><translation>パスを削除</translation></message>
     <message><source>Deleted the path</source><translation>パスを削除しました</translation></message>
+    <message><source>The path is empty</source><translation>パスが空です</translation></message>
+    <message><source>Load path as selection</source><translation>パスを選択範囲として読み込み</translation></message>
+    <message><source>Loaded %1 as a selection.</source><translation>%1 を選択範囲として読み込みました。</translation></message>
+    <message><source>Select a saved path or the work path to duplicate</source><translation>複製する保存済みパスまたは作業用パスを選択してください</translation></message>
+    <message><source>Duplicate path</source><translation>パスを複製</translation></message>
+    <message><source>Duplicated the path as %1.</source><translation>パスを %1 として複製しました。</translation></message>
+    <message><source>Reorder paths</source><translation>パスを並べ替え</translation></message>
+    <message><source>Reordered paths</source><translation>パスを並べ替えました</translation></message>
+    <message><source>Make a selection first</source><translation>先に選択範囲を作成してください</translation></message>
+    <message><source>Make Work Path</source><translation>作業用パスを作成</translation></message>
+    <message><source>Tolerance:</source><translation>許容値:</translation></message>
+    <message><source>The selection is too small to trace</source><translation>選択範囲が小さすぎてトレースできません</translation></message>
+    <message><source>Make work path</source><translation>作業用パスを作成</translation></message>
+    <message><source>Made a work path from the selection.</source><translation>選択範囲から作業用パスを作成しました。</translation></message>
     <message><source>Select a path to fill</source><translation>塗りつぶすパスを選択してください</translation></message>
     <message><source>Fill path</source><translation>パスを塗りつぶし</translation></message>
     <message><source>Filled the path with the foreground color</source><translation>パスを描画色で塗りつぶしました</translation></message>

@@ -4,6 +4,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "psd/psd_filter_effects.hpp"
+#include "support/string_utils.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/brush_presets.hpp"
@@ -38,6 +39,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
@@ -773,6 +775,47 @@ void insert_layer_after_anchor(Document& document, Layer layer, std::optional<La
     }
   }
   document.add_layer(std::move(layer));
+}
+
+std::string duplicate_name_stem(std::string_view name) {
+  constexpr std::string_view kCopySuffix = " copy";
+  constexpr std::string_view kNumberedCopySuffix = " copy ";
+  const auto lower = ascii_lower_copy(name);
+  if (lower.size() > kCopySuffix.size() && lower.ends_with(kCopySuffix)) {
+    return std::string(name.substr(0, name.size() - kCopySuffix.size()));
+  }
+
+  const auto suffix_position = lower.rfind(kNumberedCopySuffix);
+  if (suffix_position == std::string::npos || suffix_position == 0) {
+    return std::string(name);
+  }
+  const auto number_position = suffix_position + kNumberedCopySuffix.size();
+  if (number_position >= lower.size()) {
+    return std::string(name);
+  }
+
+  bool suffix_is_number = true;
+  for (auto index = number_position; index < lower.size(); ++index) {
+    if (std::isdigit(static_cast<unsigned char>(lower[index])) == 0) {
+      suffix_is_number = false;
+      break;
+    }
+  }
+  return suffix_is_number ? std::string(name.substr(0, suffix_position)) : std::string(name);
+}
+
+std::string next_duplicate_name(std::string_view source_name,
+                                const std::set<std::string>& existing_names) {
+  const auto stem = duplicate_name_stem(source_name);
+  for (int copy_index = 1;; ++copy_index) {
+    auto candidate = stem + " copy";
+    if (copy_index > 1) {
+      candidate += " " + std::to_string(copy_index);
+    }
+    if (!existing_names.contains(candidate)) {
+      return candidate;
+    }
+  }
 }
 
 }  // namespace patchy::ui

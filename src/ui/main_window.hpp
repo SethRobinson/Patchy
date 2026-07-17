@@ -603,17 +603,26 @@ private:
   void populate_vector_mask_menu(QMenu* menu, const QString& object_name_prefix = {});
   // Paths panel (main_window_paths.cpp).
   [[nodiscard]] const patchy::VectorPath* resolved_panel_path(QString* name = nullptr) const;
+  [[nodiscard]] const patchy::VectorPath* resolved_row_path(int kind, patchy::DocumentPathId id,
+                                                            QString* name = nullptr) const;
   void refresh_paths_panel();
   void handle_paths_panel_target(int kind, patchy::DocumentPathId id);
   void handle_paths_panel_deselect();
+  void load_path_as_selection(int kind, patchy::DocumentPathId id);
+  void reorder_paths_from_panel(std::vector<patchy::DocumentPathId> order);
+  // The one targeting sink: records the id, clears any dismissed-row state,
+  // syncs the canvas, and refreshes the panel (row highlight + overlay).
+  void target_document_path_row(patchy::DocumentPathId id);
   void rename_document_path(patchy::DocumentPathId id, const QString& name);
   [[nodiscard]] QString unique_saved_path_name();
   void save_work_path_as_named();
   void new_saved_path();
+  void duplicate_selected_path();
   void delete_selected_path();
   void fill_active_path();
   void stroke_active_path();
   void make_selection_from_path();
+  void make_work_path_from_selection();
   // Custom shapes (main_window_vector.cpp).
   [[nodiscard]] CustomShapeLibrary& custom_shape_library();
   void refresh_custom_shape_combo();
@@ -736,6 +745,8 @@ private:
   void refresh_layer_controls();
   void refresh_channel_panel();
   [[nodiscard]] QPixmap cached_channel_thumbnail(const DocumentChannel& channel);
+  [[nodiscard]] QPixmap cached_path_thumbnail(const patchy::DocumentPath& path, int document_width,
+                                              int document_height);
   void create_alpha_channel();
   void save_selection_as_channel();
   void load_channel_as_selection();
@@ -886,6 +897,17 @@ private:
     QPixmap thumbnail;
   };
   std::unordered_map<ChannelId, ChannelThumbnailCacheEntry> channel_thumbnail_cache_;
+  // Saved/work path thumbnails, keyed on DocumentPath::content_revision (the
+  // documented cache key) plus the canvas extent; refresh_paths_panel now
+  // rides layer activation and every shape drag, so rows must not
+  // re-rasterize unless their path (or the document size) changed.
+  struct PathThumbnailCacheEntry {
+    std::uint64_t content_revision{0};
+    std::int32_t document_width{0};
+    std::int32_t document_height{0};
+    QPixmap thumbnail;
+  };
+  std::unordered_map<patchy::DocumentPathId, PathThumbnailCacheEntry> path_thumbnail_cache_;
   CanvasWidget* quick_mask_thumbnail_canvas_{nullptr};
   std::uint64_t quick_mask_thumbnail_revision_{0};
   QPixmap quick_mask_thumbnail_;
@@ -896,10 +918,17 @@ private:
   PathsPanel* paths_panel_{nullptr};
   QDockWidget* paths_dock_{nullptr};
   std::optional<patchy::DocumentPathId> active_document_path_id_;
+  // The layer whose transient Paths-panel row the user explicitly dismissed
+  // (empty-space click / Esc): auto-targeting skips it while that layer stays
+  // active, so the outline stays hidden until the layer changes or the user
+  // re-selects the row (Photoshop's target-path dismissal behavior).
+  std::optional<LayerId> path_row_hidden_for_layer_;
   QAction* path_new_action_{nullptr};
   QAction* path_fill_action_{nullptr};
   QAction* path_stroke_action_{nullptr};
   QAction* path_make_selection_action_{nullptr};
+  QAction* path_from_selection_action_{nullptr};
+  QAction* path_duplicate_action_{nullptr};
   QAction* path_delete_action_{nullptr};
   QSlider* opacity_slider_{nullptr};
   QSpinBox* opacity_spin_{nullptr};

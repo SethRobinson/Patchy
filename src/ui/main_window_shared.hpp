@@ -20,6 +20,8 @@
 
 #include <cstdint>
 #include <optional>
+#include <set>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -177,6 +179,14 @@ std::optional<Layer> clone_layer_tree_with_document_ids(
 // main_window_layer_ops.cpp and the text-editor preview plumbing in
 // main_window.cpp.
 void insert_layer_after_anchor(Document& document, Layer layer, std::optional<LayerId> anchor_id);
+
+// Photoshop-style "<name> copy" / "<name> copy N" naming (an existing
+// " copy"/" copy N" stem is stripped first so "X copy" duplicates to
+// "X copy 2", not "X copy copy"). Shared by layer duplication in
+// main_window_layer_ops.cpp and path duplication in main_window_paths.cpp.
+[[nodiscard]] std::string duplicate_name_stem(std::string_view name);
+[[nodiscard]] std::string next_duplicate_name(std::string_view source_name,
+                                              const std::set<std::string>& existing_names);
 
 // Solid-color pixel buffer for new layers/documents.
 [[nodiscard]] PixelBuffer make_solid_pixels(std::int32_t width, std::int32_t height, QColor color,

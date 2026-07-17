@@ -470,6 +470,115 @@ void psd_saved_paths_write_round_trips_and_edits() {
   (void)original_bytes;
 }
 
+void psd_saved_paths_reorder_round_trips() {
+  // Panel drag-reorder swaps the document order of the saved paths; the
+  // writer renumbers the moved paths onto the sorted id set (verbatim payload
+  // bytes move with them) so the order survives write -> read.
+  auto document = read_fixture("photoshop-saved-paths.psd");
+  std::vector<std::string> saved_names;
+  for (const auto& path : document.paths()) {
+    if (path.kind() == patchy::DocumentPathKind::Saved) {
+      saved_names.push_back(path.name());
+    }
+  }
+  CHECK(saved_names == (std::vector<std::string>{"Alpha Path", "Beta Path"}));
+
+  // Reorder exactly like MainWindow::reorder_paths_from_panel: saved paths in
+  // the new order, the work path after the block.
+  auto& paths = document.paths();
+  std::vector<patchy::DocumentPath> reordered;
+  for (auto& path : paths) {
+    if (path.name() == "Beta Path") {
+      reordered.push_back(std::move(path));
+    }
+  }
+  for (auto& path : paths) {
+    if (!path.name().empty() && path.name() == "Alpha Path") {
+      reordered.push_back(std::move(path));
+    }
+  }
+  for (auto& path : paths) {
+    if (path.kind() == patchy::DocumentPathKind::Work) {
+      reordered.push_back(std::move(path));
+    }
+  }
+  CHECK(reordered.size() == paths.size());
+  paths = std::move(reordered);
+
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  std::vector<std::string> reread_names;
+  std::vector<std::uint16_t> reread_ids;
+  for (const auto& path : reread.paths()) {
+    if (path.kind() == patchy::DocumentPathKind::Saved) {
+      reread_names.push_back(path.name());
+      CHECK(path.resource_id().has_value());
+      reread_ids.push_back(*path.resource_id());
+    }
+  }
+  CHECK(reread_names == (std::vector<std::string>{"Beta Path", "Alpha Path"}));
+  CHECK(reread_ids == (std::vector<std::uint16_t>{2000, 2001}));
+  // The moved payloads stayed verbatim: Beta keeps its two subpaths (the
+  // donut) and Alpha its clipping-path flag under the new ids.
+  for (const auto& path : reread.paths()) {
+    if (path.name() == "Beta Path") {
+      CHECK(path.path().subpaths.size() == 2);
+    }
+    if (path.name() == "Alpha Path") {
+      CHECK(path.is_clipping_path());
+    }
+  }
+  bool has_work_path = false;
+  for (const auto& path : reread.paths()) {
+    has_work_path = has_work_path || path.kind() == patchy::DocumentPathKind::Work;
+  }
+  CHECK(has_work_path);
+}
+
+void psd_work_path_saved_as_named_round_trips() {
+  // Save Path (Work -> Saved) must drop the stale 1025 resource source so the
+  // writer allocates a saved-range id; the old 1025 entry disappears (no
+  // phantom work path) and clean siblings keep their ids.
+  auto document = read_fixture("photoshop-saved-paths.psd");
+  auto* work = document.work_path();
+  CHECK(work != nullptr);
+  CHECK(work->resource_id().has_value() && *work->resource_id() == patchy::kPsdWorkPathResourceId);
+  const auto promoted_id = work->id();
+  work->set_name("Promoted Path");
+  work->set_kind(patchy::DocumentPathKind::Saved);
+  CHECK(!work->resource_id().has_value());
+  // The UI additionally moves the promoted path to the end (PS placement);
+  // mirror that so sibling ids stay put.
+  auto& paths = document.paths();
+  const auto it = std::find_if(paths.begin(), paths.end(), [promoted_id](const patchy::DocumentPath& path) {
+    return path.id() == promoted_id;
+  });
+  CHECK(it != paths.end());
+  std::rotate(it, it + 1, paths.end());
+
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  CHECK(reread.paths().size() == 3);
+  bool found_promoted = false;
+  for (const auto& path : reread.paths()) {
+    CHECK(path.kind() == patchy::DocumentPathKind::Saved);  // no phantom work path
+    CHECK(path.resource_id().has_value());
+    if (path.name() == "Promoted Path") {
+      found_promoted = true;
+      CHECK(*path.resource_id() >= patchy::kPsdSavedPathResourceFirst);
+      CHECK(*path.resource_id() <= patchy::kPsdSavedPathResourceLast);
+      CHECK(path.path().subpaths.size() >= 1);
+    }
+    if (path.name() == "Alpha Path") {
+      CHECK(*path.resource_id() == 2000);  // clean siblings keep their ids
+    }
+    if (path.name() == "Beta Path") {
+      CHECK(*path.resource_id() == 2001);
+    }
+  }
+  CHECK(found_promoted);
+}
+
 void psd_authored_shape_layer_writes_native_blocks() {
   // A shape layer authored from scratch (no preserved originals) writes the
   // native block set and reopens with an identical model.
@@ -543,6 +652,8 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_vector_move_translates_model_and_round_trips", psd_vector_move_translates_model_and_round_trips},
       {"psd_vector_mask_and_params_write_round_trip", psd_vector_mask_and_params_write_round_trip},
       {"psd_saved_paths_write_round_trips_and_edits", psd_saved_paths_write_round_trips_and_edits},
+      {"psd_saved_paths_reorder_round_trips", psd_saved_paths_reorder_round_trips},
+      {"psd_work_path_saved_as_named_round_trips", psd_work_path_saved_as_named_round_trips},
       {"psd_authored_shape_layer_writes_native_blocks", psd_authored_shape_layer_writes_native_blocks},
   };
 }

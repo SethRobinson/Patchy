@@ -5665,6 +5665,13 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
         }
         handle_vector_path_committed(std::move(path), closed, source);
       });
+  canvas->set_path_display_dismiss_callback([this, canvas] {
+    if (canvas != canvas_) {
+      return;
+    }
+    handle_paths_panel_deselect();
+    refresh_paths_panel();
+  });
   canvas->set_polygon_sides(
       findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")) != nullptr
           ? findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"))->value()
@@ -5680,6 +5687,10 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     reveal_layer_in_layer_list(layer_id);
     refresh_layer_controls();
     refresh_options_bar();
+    // The Paths panel's transient layer-path row (and its auto-targeting)
+    // follows the active layer; canvas-driven changes (Move-tool auto-select)
+    // bypass set_active_layer_from_selection.
+    refresh_paths_panel();
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
   canvas->set_error_status_callback([this](QString message) { show_status_error(message); });

@@ -8,12 +8,15 @@
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/path_fit.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/paths_panel.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/selection_outline.hpp"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -21,6 +24,7 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QImage>
 #include <QPainter>
 #include <QPainterPath>
 #include <QStatusBar>
@@ -37,7 +41,9 @@ namespace patchy::ui {
 
 namespace {
 
-// 42x30 outline thumbnail of a path over the document extent.
+// 42x30 thumbnail of a path over the document extent: filled coverage (so
+// boolean subtract/intersect/xor holes read exactly like the canvas) under a
+// light outline stroke.
 QPixmap path_outline_thumbnail(const VectorPath& path, int document_width, int document_height) {
   constexpr int kWidth = 42;
   constexpr int kHeight = 30;
@@ -45,9 +51,29 @@ QPixmap path_outline_thumbnail(const VectorPath& path, int document_width, int d
   pixmap.fill(QColor(52, 56, 64));
   if (document_width > 0 && document_height > 0 && !path.empty()) {
     QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing, true);
     const auto scale_x = static_cast<double>(kWidth) / document_width;
     const auto scale_y = static_cast<double>(kHeight) / document_height;
+    // Rasterize a thumbnail-space copy for the fill (cheap at 42x30).
+    auto scaled = path;
+    transform_vector_path(scaled, {scale_x, 0.0, 0.0, scale_y, 0.0, 0.0});
+    VectorRasterOptions thumbnail_options;
+    thumbnail_options.clip = Rect::from_size(kWidth, kHeight);
+    if (const auto coverage = rasterize_vector_path(scaled, thumbnail_options);
+        !coverage.pixels.empty()) {
+      QImage fill(coverage.pixels.width(), coverage.pixels.height(),
+                  QImage::Format_ARGB32_Premultiplied);
+      constexpr int kFillGray = 165;
+      for (int y = 0; y < coverage.pixels.height(); ++y) {
+        auto* line = reinterpret_cast<QRgb*>(fill.scanLine(y));
+        for (int x = 0; x < coverage.pixels.width(); ++x) {
+          const auto alpha = *coverage.pixels.pixel(x, y);
+          const auto component = static_cast<int>(kFillGray) * alpha / 255;
+          line[x] = qRgba(component, component, component, alpha);
+        }
+      }
+      painter.drawImage(coverage.bounds.x, coverage.bounds.y, fill);
+    }
+    painter.setRenderHint(QPainter::Antialiasing, true);
     QPainterPath outline;
     for (const auto& subpath : path.subpaths) {
       if (subpath.anchors.empty()) {
@@ -99,16 +125,12 @@ PixelBuffer path_selection_coverage(const VectorPath& path, int width, int heigh
 
 }  // namespace
 
-const VectorPath* MainWindow::resolved_panel_path(QString* name) const {
-  if (!has_active_document() || paths_panel_ == nullptr) {
-    return nullptr;
-  }
-  const auto row = paths_panel_->selected_row();
-  if (!row.has_value()) {
+const VectorPath* MainWindow::resolved_row_path(int kind, DocumentPathId id, QString* name) const {
+  if (!has_active_document()) {
     return nullptr;
   }
   const auto& doc = document();
-  if (row->kind == PathsPanel::RowKind::LayerPath) {
+  if (static_cast<PathsPanel::RowKind>(kind) == PathsPanel::RowKind::LayerPath) {
     const auto active = doc.active_layer_id();
     const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
     if (layer == nullptr) {
@@ -130,7 +152,7 @@ const VectorPath* MainWindow::resolved_panel_path(QString* name) const {
     }
     return nullptr;
   }
-  const auto* path = doc.find_path(row->id);
+  const auto* path = doc.find_path(id);
   if (path == nullptr) {
     return nullptr;
   }
@@ -140,11 +162,36 @@ const VectorPath* MainWindow::resolved_panel_path(QString* name) const {
   return &path->path();
 }
 
+const VectorPath* MainWindow::resolved_panel_path(QString* name) const {
+  if (paths_panel_ == nullptr) {
+    return nullptr;
+  }
+  const auto row = paths_panel_->selected_row();
+  if (!row.has_value()) {
+    return nullptr;
+  }
+  return resolved_row_path(static_cast<int>(row->kind), row->id, name);
+}
+
+QPixmap MainWindow::cached_path_thumbnail(const DocumentPath& path, int document_width,
+                                          int document_height) {
+  auto& cached = path_thumbnail_cache_[path.id()];
+  if (cached.thumbnail.isNull() || cached.content_revision != path.content_revision() ||
+      cached.document_width != document_width || cached.document_height != document_height) {
+    cached.content_revision = path.content_revision();
+    cached.document_width = document_width;
+    cached.document_height = document_height;
+    cached.thumbnail = path_outline_thumbnail(path.path(), document_width, document_height);
+  }
+  return cached.thumbnail;
+}
+
 void MainWindow::refresh_paths_panel() {
   if (paths_panel_ == nullptr) {
     return;
   }
   if (!has_active_document()) {
+    path_thumbnail_cache_.clear();
     paths_panel_->set_rows({});
     paths_panel_->set_document_available(false);
     return;
@@ -181,14 +228,23 @@ void MainWindow::refresh_paths_panel() {
     }
     rows.push_back(PathsPanel::Row{PathsPanel::RowKind::SavedPath, path.id(),
                                    QString::fromStdString(path.name()),
-                                   path_outline_thumbnail(path.path(), doc.width(), doc.height())});
+                                   cached_path_thumbnail(path, doc.width(), doc.height())});
   }
   if (work != nullptr) {
     rows.push_back(PathsPanel::Row{PathsPanel::RowKind::WorkPath, work->id(),
                                    QString::fromStdString(work->name()),
-                                   path_outline_thumbnail(work->path(), doc.width(), doc.height())});
+                                   cached_path_thumbnail(*work, doc.width(), doc.height())});
   }
+  // Deleted paths leave stale cache entries; prune to the live id set.
+  std::erase_if(path_thumbnail_cache_, [&doc](const auto& entry) {
+    return std::as_const(doc).find_path(entry.first) == nullptr;
+  });
 
+  // A dismissed layer-path row stays hidden only while its layer is active.
+  if (path_row_hidden_for_layer_.has_value() &&
+      doc.active_layer_id() != path_row_hidden_for_layer_) {
+    path_row_hidden_for_layer_.reset();
+  }
   std::optional<PathsPanel::Row> selected;
   if (active_document_path_id_.has_value()) {
     for (const auto& row : rows) {
@@ -204,13 +260,34 @@ void MainWindow::refresh_paths_panel() {
       }
     }
   }
+  // Photoshop parity: the active layer's shape / vector-mask path row is
+  // auto-targeted (its outline shows with any tool) unless the user dismissed
+  // it for this layer.
+  if (!selected.has_value() && !rows.empty() &&
+      rows.front().kind == PathsPanel::RowKind::LayerPath &&
+      !path_row_hidden_for_layer_.has_value()) {
+    selected = rows.front();
+  }
   paths_panel_->set_rows(std::move(rows), selected);
+  if (canvas_ != nullptr) {
+    canvas_->set_panel_path_targeted(paths_panel_->selected_row().has_value());
+  }
+}
+
+void MainWindow::target_document_path_row(DocumentPathId id) {
+  active_document_path_id_ = id;
+  path_row_hidden_for_layer_.reset();
+  if (canvas_ != nullptr) {
+    canvas_->set_active_document_path(id);
+  }
+  refresh_paths_panel();
 }
 
 void MainWindow::handle_paths_panel_target(int kind, DocumentPathId id) {
   if (canvas_ == nullptr) {
     return;
   }
+  path_row_hidden_for_layer_.reset();  // an explicit row click re-shows the path
   if (static_cast<PathsPanel::RowKind>(kind) == PathsPanel::RowKind::LayerPath) {
     active_document_path_id_.reset();
     canvas_->set_active_document_path(std::nullopt);
@@ -218,16 +295,107 @@ void MainWindow::handle_paths_panel_target(int kind, DocumentPathId id) {
     active_document_path_id_ = id;
     canvas_->set_active_document_path(id);
   }
+  canvas_->set_panel_path_targeted(true);
   canvas_->update();
 }
 
 void MainWindow::handle_paths_panel_deselect() {
   active_document_path_id_.reset();
+  if (has_active_document()) {
+    path_row_hidden_for_layer_ = document().active_layer_id();
+  }
   if (canvas_ != nullptr) {
     canvas_->set_active_document_path(std::nullopt);
+    canvas_->set_panel_path_targeted(false);
     canvas_->clear_path_edit_selection();
     canvas_->update();
   }
+}
+
+void MainWindow::load_path_as_selection(int kind, DocumentPathId id) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  QString path_name;
+  const auto* path = resolved_row_path(kind, id, &path_name);
+  if (path == nullptr || path->empty()) {
+    show_status_error(tr("The path is empty"));
+    return;
+  }
+  const auto& doc = document();
+  const auto coverage = path_selection_coverage(*path, doc.width(), doc.height());
+  canvas_->replace_selection_from_grayscale(coverage, tr("Load path as selection"));
+  statusBar()->showMessage(tr("Loaded %1 as a selection.").arg(path_name));
+}
+
+void MainWindow::duplicate_selected_path() {
+  if (paths_panel_ == nullptr || !has_active_document()) {
+    return;
+  }
+  const auto row = paths_panel_->selected_row();
+  if (!row.has_value() || row->kind == PathsPanel::RowKind::LayerPath) {
+    show_status_error(tr("Select a saved path or the work path to duplicate"));
+    return;
+  }
+  auto& doc = document();
+  const auto* source = doc.find_path(row->id);
+  if (source == nullptr) {
+    return;
+  }
+  push_undo_snapshot(tr("Duplicate path"));
+  // "<name> copy", uniquified the Photoshop way (the shared layer-duplication
+  // helper strips an existing " copy"/" copy N" stem first).
+  std::set<std::string> existing;
+  for (const auto& path : doc.paths()) {
+    existing.insert(path.name());
+  }
+  const auto name = next_duplicate_name(source->name(), existing);
+  DocumentPath created(doc.allocate_path_id(), name, DocumentPathKind::Saved, source->path());
+  created.mark_dirty();  // authored copy: no original resource bytes to re-emit
+  target_document_path_row(doc.add_path(std::move(created)).id());
+  statusBar()->showMessage(tr("Duplicated the path as %1.").arg(QString::fromStdString(name)));
+}
+
+void MainWindow::reorder_paths_from_panel(std::vector<DocumentPathId> order) {
+  if (!has_active_document()) {
+    return;
+  }
+  auto& doc = document();
+  auto& paths = doc.paths();
+  // `order` lists the saved paths in their new panel order; accept only a
+  // permutation of the current saved set.
+  std::vector<DocumentPathId> current;
+  for (const auto& path : std::as_const(paths)) {
+    if (path.kind() == DocumentPathKind::Saved) {
+      current.push_back(path.id());
+    }
+  }
+  // is_permutation over unique ids already implies order is duplicate-free.
+  if (order.size() != current.size() ||
+      !std::is_permutation(order.begin(), order.end(), current.begin())) {
+    refresh_paths_panel();
+    return;
+  }
+  if (order == current) {
+    return;
+  }
+  push_undo_snapshot(tr("Reorder paths"));
+  std::vector<DocumentPath> reordered;
+  reordered.reserve(paths.size());
+  for (const auto id : order) {
+    auto it = std::find_if(paths.begin(), paths.end(),
+                           [id](const DocumentPath& path) { return path.id() == id; });
+    if (it != paths.end()) {
+      reordered.push_back(std::move(*it));
+      paths.erase(it);
+    }
+  }
+  for (auto& path : paths) {  // the work path keeps its spot after the block
+    reordered.push_back(std::move(path));
+  }
+  paths = std::move(reordered);
+  refresh_paths_panel();
+  statusBar()->showMessage(tr("Reordered paths"));
 }
 
 void MainWindow::rename_document_path(DocumentPathId id, const QString& name) {
@@ -265,14 +433,25 @@ void MainWindow::save_work_path_as_named() {
   }
   push_undo_snapshot(tr("Save path"));
   const auto name = unique_saved_path_name();
+  const auto saved_id = work->id();
   work->set_name(name.toStdString());
   work->set_kind(DocumentPathKind::Saved);
-  active_document_path_id_ = work->id();
-  if (canvas_ != nullptr) {
-    canvas_->set_active_document_path(work->id());
+  // Photoshop appends the saved path below the existing ones; moving it to
+  // the end also keeps the siblings' resource ids stable (the writer assigns
+  // ids by document order).
+  auto& paths = doc.paths();
+  if (const auto it = std::find_if(paths.begin(), paths.end(),
+                                   [saved_id](const DocumentPath& path) {
+                                     return path.id() == saved_id;
+                                   });
+      it != paths.end()) {
+    std::rotate(it, it + 1, paths.end());
   }
-  refresh_paths_panel();
+  target_document_path_row(saved_id);
   statusBar()->showMessage(tr("Saved the work path as %1.").arg(name));
+  if (paths_panel_ != nullptr) {
+    paths_panel_->begin_rename(*active_document_path_id_);  // let the user name it right away
+  }
 }
 
 void MainWindow::new_saved_path() {
@@ -285,12 +464,7 @@ void MainWindow::new_saved_path() {
   DocumentPath created(doc.allocate_path_id(), name.toStdString(), DocumentPathKind::Saved,
                        VectorPath{});
   created.mark_dirty();
-  const auto id = doc.add_path(std::move(created)).id();
-  active_document_path_id_ = id;
-  if (canvas_ != nullptr) {
-    canvas_->set_active_document_path(id);
-  }
-  refresh_paths_panel();
+  target_document_path_row(doc.add_path(std::move(created)).id());
   statusBar()->showMessage(tr("Created %1. Draw into it with the Pen tool.").arg(name));
 }
 
@@ -482,7 +656,17 @@ void MainWindow::make_selection_from_path() {
   connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   layout->addWidget(buttons);
+  // The QSS sub-control gotcha: spin-button styling lands AFTER children exist.
+  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    return;
+  }
+  // Non-modal dialog: re-resolve everything the event loop may have changed.
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  path = resolved_panel_path(&path_name);
+  if (path == nullptr || path->empty()) {
     return;
   }
 
@@ -573,6 +757,87 @@ void MainWindow::make_selection_from_path() {
   }
   canvas_->replace_selection_from_grayscale(coverage, tr("Make selection from path"));
   statusBar()->showMessage(tr("Made a selection from the path"));
+}
+
+void MainWindow::make_work_path_from_selection() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  if (!canvas_->has_selection()) {
+    show_status_error(tr("Make a selection first"));
+    return;
+  }
+  const auto tolerance_key = QStringLiteral("paths/makeWorkPathTolerance");
+  auto settings = app_settings();
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("makeWorkPathDialog"));
+  dialog.setWindowTitle(tr("Make Work Path"));
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* form = new QFormLayout();
+  auto* tolerance = new QDoubleSpinBox(&dialog);
+  tolerance->setObjectName(QStringLiteral("makeWorkPathToleranceSpin"));
+  tolerance->setRange(0.5, 10.0);
+  tolerance->setDecimals(1);
+  tolerance->setSingleStep(0.5);
+  tolerance->setSuffix(QStringLiteral(" px"));
+  tolerance->setValue(std::clamp(settings.value(tolerance_key, 2.0).toDouble(), 0.5, 10.0));
+  form->addRow(tr("Tolerance:"), tolerance);
+  layout->addLayout(form);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+  // The QSS sub-control gotcha: spin-button styling lands AFTER children exist.
+  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    return;
+  }
+  settings.setValue(tolerance_key, tolerance->value());
+  // The dialog is non-modal: the document (and canvas) can be closed or
+  // switched while it is open, so re-validate before touching either.
+  if (canvas_ == nullptr || !has_active_document() || !canvas_->has_selection()) {
+    return;
+  }
+
+  const auto loops = trace_selection_outlines(canvas_->selected_document_region());
+  VectorPath fitted;
+  for (const auto& loop : loops) {
+    std::vector<FitPoint> points;
+    points.reserve(static_cast<std::size_t>(loop.points.size()));
+    for (const auto& point : loop.points) {
+      points.push_back(FitPoint{point.x(), point.y()});
+    }
+    auto subpath = fit_closed_loop(points, tolerance->value());
+    if (subpath.anchors.size() < 2) {
+      continue;
+    }
+    // Outer boundaries (clockwise in y-down coordinates) add coverage, holes
+    // (counterclockwise) subtract; the tracer orders outers before their
+    // holes, so the sequential combine reproduces the selection.
+    subpath.op = loop_signed_area(points) >= 0.0 ? PathCombineOp::Add : PathCombineOp::Subtract;
+    subpath.shape_group = static_cast<std::int32_t>(fitted.subpaths.size());
+    fitted.subpaths.push_back(std::move(subpath));
+  }
+  if (fitted.subpaths.empty()) {
+    show_status_error(tr("The selection is too small to trace"));
+    return;
+  }
+  push_undo_snapshot(tr("Make work path"));
+  auto& doc = document();
+  DocumentPathId work_id = 0;
+  if (auto* work = doc.work_path(); work != nullptr) {
+    work->set_path(std::move(fitted));  // Photoshop replaces the work path
+    work_id = work->id();
+    // Anchor-selection keys into the replaced geometry are stale.
+    canvas_->clear_path_edit_selection();
+  } else {
+    DocumentPath created(doc.allocate_path_id(), tr("Work Path").toStdString(),
+                         DocumentPathKind::Work, std::move(fitted));
+    created.mark_dirty();  // authored: no original resource bytes to re-emit
+    work_id = doc.add_path(std::move(created)).id();
+  }
+  target_document_path_row(work_id);
+  statusBar()->showMessage(tr("Made a work path from the selection."));
 }
 
 }  // namespace patchy::ui

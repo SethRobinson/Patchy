@@ -43,19 +43,27 @@ public:
   using DeselectCallback = std::function<void()>;
   using RenameCallback = std::function<void(DocumentPathId, QString)>;
   using SaveWorkPathCallback = std::function<void()>;
+  using LoadSelectionCallback = std::function<void(RowKind, DocumentPathId)>;
+  using ReorderCallback = std::function<void(std::vector<DocumentPathId>)>;
 
   explicit PathsPanel(QWidget* parent = nullptr);
 
   void set_rows(std::vector<Row> rows, std::optional<Row> selected = std::nullopt);
   void set_document_available(bool available);
   void set_actions(QAction* new_path, QAction* fill_path, QAction* stroke_path,
-                   QAction* make_selection, QAction* delete_path);
+                   QAction* make_selection, QAction* from_selection, QAction* duplicate_path,
+                   QAction* delete_path);
   void set_target_callback(TargetCallback callback);
   void set_deselect_callback(DeselectCallback callback);
   void set_rename_callback(RenameCallback callback);
   void set_save_work_path_callback(SaveWorkPathCallback callback);
+  void set_load_selection_callback(LoadSelectionCallback callback);
+  void set_reorder_callback(ReorderCallback callback);
 
   [[nodiscard]] std::optional<Row> selected_row() const;
+  // Starts an inline rename of the saved path's row (used right after the work
+  // path is saved so the user can name it immediately).
+  void begin_rename(DocumentPathId id);
 
 protected:
   void changeEvent(QEvent* event) override;
@@ -69,6 +77,8 @@ private:
   void handle_current_item_changed(QListWidgetItem* current);
   void handle_item_double_clicked(QListWidgetItem* item);
   void handle_item_changed(QListWidgetItem* item);
+  void handle_rows_moved();
+  [[nodiscard]] std::vector<DocumentPathId> saved_path_order() const;
   void show_context_menu(const QPoint& position);
   void refresh_action_states();
 
@@ -77,13 +87,19 @@ private:
   QAction* fill_path_action_{nullptr};
   QAction* stroke_path_action_{nullptr};
   QAction* make_selection_action_{nullptr};
+  QAction* from_selection_action_{nullptr};
+  QAction* duplicate_path_action_{nullptr};
   QAction* delete_path_action_{nullptr};
   TargetCallback target_callback_;
   DeselectCallback deselect_callback_;
   RenameCallback rename_callback_;
   SaveWorkPathCallback save_work_path_callback_;
+  LoadSelectionCallback load_selection_callback_;
+  ReorderCallback reorder_callback_;
+  std::vector<Row> committed_rows_;
   bool updating_{false};
   bool document_available_{false};
+  bool ctrl_load_mouse_press_{false};
 };
 
 }  // namespace patchy::ui

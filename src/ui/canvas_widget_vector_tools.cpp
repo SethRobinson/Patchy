@@ -498,6 +498,22 @@ std::optional<DocumentPathId> CanvasWidget::active_document_path() const noexcep
   return active_document_path_;
 }
 
+void CanvasWidget::set_panel_path_targeted(bool targeted) {
+  if (panel_path_targeted_ == targeted) {
+    return;
+  }
+  panel_path_targeted_ = targeted;
+  update();
+}
+
+bool CanvasWidget::panel_path_targeted() const noexcept {
+  return panel_path_targeted_;
+}
+
+void CanvasWidget::set_path_display_dismiss_callback(std::function<void()> callback) {
+  path_display_dismiss_callback_ = std::move(callback);
+}
+
 const VectorPath* CanvasWidget::path_edit_target_path() const {
   if (layer_edit_target_ == LayerEditTarget::VectorMask) {
     if (const auto* layer = vector_mask_target_layer(); layer != nullptr) {
@@ -829,6 +845,17 @@ bool CanvasWidget::handle_path_edit_move(QMouseEvent* event, QPointF document_po
     return true;
   }
   path_drag_last_document_ = document_point;
+  prune_path_edit_selection(*path);
+  const auto drag_anchor_valid =
+      path_drag_anchor_.first >= 0 &&
+      path_drag_anchor_.first < static_cast<int>(path->subpaths.size()) &&
+      path_drag_anchor_.second >= 0 &&
+      path_drag_anchor_.second <
+          static_cast<int>(
+              path->subpaths[static_cast<std::size_t>(path_drag_anchor_.first)].anchors.size());
+  if (path_drag_mode_ != PathEditDrag::Anchors && !drag_anchor_valid) {
+    return true;  // the dragged anchor vanished under an outside edit
+  }
   auto working = *path;
   std::vector<int> touched_groups;
   const auto touch_group = [&working, &touched_groups](int subpath_index) {
@@ -921,9 +948,22 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
   return true;
 }
 
+void CanvasWidget::prune_path_edit_selection(const VectorPath& path) {
+  std::erase_if(path_selected_anchors_, [&path](const std::pair<int, int>& key) {
+    return key.first < 0 || key.first >= static_cast<int>(path.subpaths.size()) ||
+           key.second < 0 ||
+           key.second >= static_cast<int>(
+               path.subpaths[static_cast<std::size_t>(key.first)].anchors.size());
+  });
+}
+
 void CanvasWidget::delete_selected_path_anchors() {
   const auto* path = path_edit_target_path();
-  if (path == nullptr || path_selected_anchors_.empty()) {
+  if (path == nullptr) {
+    return;
+  }
+  prune_path_edit_selection(*path);
+  if (path_selected_anchors_.empty()) {
     return;
   }
   auto working = *path;
@@ -946,8 +986,21 @@ void CanvasWidget::delete_selected_path_anchors() {
 }
 
 bool CanvasWidget::handle_path_edit_key(QKeyEvent* event) {
-  if ((tool_ != CanvasTool::PathSelect && tool_ != CanvasTool::DirectSelect) ||
-      path_selected_anchors_.empty()) {
+  if (!path_edit_tool_active()) {
+    return false;
+  }
+  if (path_selected_anchors_.empty() || tool_ == CanvasTool::Pen) {
+    // Photoshop's second-stage Escape: with no anchors selected (and no pen
+    // session - handle_pen_key already consumed that), Esc dismisses the
+    // targeted path display via the Paths panel. Sessions whose own Escape
+    // handlers run later in keyPressEvent (guide drags, warp/free transform,
+    // text-rect drags) keep priority - never swallow their cancel key.
+    if (event->key() == Qt::Key_Escape && panel_path_targeted_ &&
+        path_display_dismiss_callback_ && !dragging_guide_ && !warping_layer_ &&
+        !transforming_layer_ && !dragging_text_rect_) {
+      path_display_dismiss_callback_();
+      return true;
+    }
     return false;
   }
   switch (event->key()) {
@@ -964,6 +1017,10 @@ bool CanvasWidget::handle_path_edit_key(QKeyEvent* event) {
     case Qt::Key_Down: {
       const auto* path = path_edit_target_path();
       if (path == nullptr) {
+        return true;
+      }
+      prune_path_edit_selection(*path);
+      if (path_selected_anchors_.empty()) {
         return true;
       }
       const double step = (event->modifiers() & Qt::ShiftModifier) != 0 ? 10.0 : 1.0;
@@ -1153,7 +1210,11 @@ void CanvasWidget::clear_path_edit_selection() {
 }
 
 void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
-  if (!path_edit_tool_active() || pen_session_active_) {
+  // The outline draws with ANY tool while a Paths-panel row is targeted
+  // (Photoshop's target-path display); anchors, handles, and the marquee are
+  // editing surfaces and stay path-tool-only.
+  const bool editing = path_edit_tool_active();
+  if ((!editing && !panel_path_targeted_) || pen_session_active_) {
     return;
   }
   const auto* path = path_edit_target_path();
@@ -1182,6 +1243,11 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
   painter.setPen(QPen(accent, 1.2));
   painter.setBrush(Qt::NoBrush);
   painter.drawPath(outline);
+
+  if (!editing) {
+    painter.restore();
+    return;
+  }
 
   // Handles of selected anchors (DirectSelect editing surface).
   painter.setPen(QPen(accent, 1.0));

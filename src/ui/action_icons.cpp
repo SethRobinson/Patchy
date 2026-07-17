@@ -299,6 +299,12 @@ QIcon simple_icon(QString text, QColor accent) {
     dashed.setStyle(Qt::DashLine);
     painter.setPen(dashed);
     painter.drawRect(QRect(8, 8, 16, 16));
+  } else if (text == QStringLiteral("stroke-path")) {
+    // Stroke Path: a thin path circle with one arc painted as a thick band.
+    painter.setPen(QPen(accent, 1.6));
+    painter.drawEllipse(QRectF(8.0, 8.0, 16.0, 16.0));
+    painter.setPen(QPen(accent, 4.5, Qt::SolidLine, Qt::RoundCap));
+    painter.drawArc(QRectF(8.0, 8.0, 16.0, 16.0), 200 * 16, 140 * 16);
   } else if (text == QStringLiteral("eye") || text == QStringLiteral("eyeOff")) {
     QPainterPath eye;
     eye.moveTo(5.5, 16.0);

@@ -983,15 +983,70 @@ void upsert_document_path_resources(std::vector<ImageResource>& resources, const
     }
     return false;
   };
+  // Deterministic id assignment: the saved paths share the sorted set of
+  // their stored resource ids (plus fresh allocations for new paths),
+  // assigned in DOCUMENT order. A Paths-panel reorder thereby renumbers the
+  // moved paths in place - their verbatim payload bytes move to the new id -
+  // so the order survives a round-trip (stream order is normalized below and
+  // Photoshop sorts by id). Stored ids stay untouched (the document is const
+  // during writes); the mapping recomputes identically every save. New paths
+  // allocate ABOVE the highest stored id first so merely adding a path never
+  // relocates a clean sibling into a lower gap id.
+  const auto stored_saved_id = [](const DocumentPath& path) -> std::optional<std::uint16_t> {
+    // Only ids inside the saved range participate: a stale out-of-range id
+    // must never leak into the saved set (1025 would demote a saved path
+    // back to the work path on reload).
+    if (path.kind() != DocumentPathKind::Work && path.resource_id().has_value() &&
+        *path.resource_id() >= kPsdSavedPathResourceFirst &&
+        *path.resource_id() <= kPsdSavedPathResourceLast) {
+      return *path.resource_id();
+    }
+    return std::nullopt;
+  };
+  std::size_t saved_count = 0;
+  std::uint16_t max_stored_id = 0;
+  std::vector<std::uint16_t> target_ids;
+  for (const auto& path : document.paths()) {
+    if (path.kind() == DocumentPathKind::Work) {
+      continue;
+    }
+    ++saved_count;
+    if (const auto id = stored_saved_id(path); id.has_value()) {
+      target_ids.push_back(*id);
+      max_stored_id = std::max(max_stored_id, *id);
+    }
+  }
+  const auto above_first = target_ids.empty()
+                               ? kPsdSavedPathResourceFirst
+                               : static_cast<std::uint16_t>(std::min<int>(
+                                     kPsdSavedPathResourceLast, max_stored_id + 1));
+  for (std::uint16_t candidate = above_first;
+       candidate <= kPsdSavedPathResourceLast && target_ids.size() < saved_count; ++candidate) {
+    if (!id_taken(candidate)) {
+      target_ids.push_back(candidate);
+    }
+  }
+  for (std::uint16_t candidate = kPsdSavedPathResourceFirst;
+       candidate < above_first && target_ids.size() < saved_count; ++candidate) {
+    if (!id_taken(candidate)) {
+      target_ids.push_back(candidate);
+    }
+  }
+  std::sort(target_ids.begin(), target_ids.end());
+  const bool renumbering = target_ids.size() == saved_count;  // false only past 998 paths
+  std::size_t saved_index = 0;
   for (const auto& path : document.paths()) {
     std::uint16_t resource_id = 0;
-    if (path.resource_id().has_value()) {
-      resource_id = *path.resource_id();
-    } else if (path.kind() == DocumentPathKind::Work) {
-      resource_id = kPsdWorkPathResourceId;
+    if (path.kind() == DocumentPathKind::Work) {
+      resource_id = kPsdWorkPathResourceId;  // the work path's only valid home
+    } else if (renumbering) {
+      resource_id = target_ids[saved_index++];
+    } else if (const auto id = stored_saved_id(path); id.has_value()) {
+      resource_id = *id;
     } else {
-      // Deterministic allocation: the lowest free saved-path id (stable
-      // across saves; the document itself stays const during writes).
+      // Exhaustion fallback (>998 saved paths): per-path lowest free id so
+      // every path a slot exists for still writes; the rest are skipped
+      // rather than corrupting another path's resource.
       for (std::uint16_t candidate = kPsdSavedPathResourceFirst;
            candidate <= kPsdSavedPathResourceLast; ++candidate) {
         if (!id_taken(candidate)) {
@@ -1000,13 +1055,17 @@ void upsert_document_path_resources(std::vector<ImageResource>& resources, const
         }
       }
       if (resource_id == 0) {
-        continue;  // 998 saved paths exhausted; skip rather than corrupt
+        continue;
       }
     }
-    const bool needs_payload =
-        path.dirty() || path.raw_payload() == nullptr || !path.resource_id().has_value();
+    const bool relocated = !path.resource_id().has_value() || *path.resource_id() != resource_id;
+    const bool needs_payload = path.dirty() || path.raw_payload() == nullptr || relocated;
     if (needs_payload) {
-      auto payload = document_path_resource_payload(path, document.width(), document.height());
+      // Clean paths re-emit their original bytes verbatim even at a new id;
+      // only dirty (user-edited) paths regenerate.
+      auto payload = !path.dirty() && path.raw_payload() != nullptr
+                         ? *path.raw_payload()
+                         : document_path_resource_payload(path, document.width(), document.height());
       upsert_image_resource(resources, resource_id, std::move(payload));
     }
     if (path.kind() != DocumentPathKind::Work) {
@@ -1017,6 +1076,32 @@ void upsert_document_path_resources(std::vector<ImageResource>& resources, const
         }
       }
     }
+  }
+
+  // Normalize stream order: Patchy's reader imports paths in stream order,
+  // but upsert appends brand-new ids at the END of the list while
+  // relocations replace in place, so a renumbered save could otherwise read
+  // back in a different panel order. Sort the path-range entries among their
+  // own slots (ascending id = document order), leaving every other resource
+  // exactly where it was. Id-sorted inputs (every PS and Patchy file) make
+  // this a no-op.
+  std::vector<std::size_t> path_slots;
+  for (std::size_t index = 0; index < resources.size(); ++index) {
+    const auto id = resources[index].id;
+    if ((id >= kPsdSavedPathResourceFirst && id <= kPsdSavedPathResourceLast) ||
+        id == kPsdWorkPathResourceId) {
+      path_slots.push_back(index);
+    }
+  }
+  std::vector<ImageResource> path_entries;
+  path_entries.reserve(path_slots.size());
+  for (const auto slot : path_slots) {
+    path_entries.push_back(std::move(resources[slot]));
+  }
+  std::sort(path_entries.begin(), path_entries.end(),
+            [](const ImageResource& a, const ImageResource& b) { return a.id < b.id; });
+  for (std::size_t index = 0; index < path_slots.size(); ++index) {
+    resources[path_slots[index]] = std::move(path_entries[index]);
   }
 
   // Clipping-path selector (2999): pascal name padded even + 4 zero bytes + 1.

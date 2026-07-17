@@ -190,6 +190,8 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
         update_vector_shape_raster(*layer, canvas_rect, patterns);
         refresh_layer_list();
         refresh_layer_controls();
+        path_row_hidden_for_layer_.reset();  // a fresh drag re-shows the outline
+        refresh_paths_panel();
         canvas_->document_changed();
         return;
       }
@@ -225,6 +227,8 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
   doc.set_active_layer(layer_id);
   refresh_layer_list();
   refresh_layer_controls();
+  path_row_hidden_for_layer_.reset();
+  refresh_paths_panel();  // the transient layer-path row auto-targets the new shape
   canvas_->document_changed();
   statusBar()->showMessage(tr("Created shape layer %1.").arg(QString::fromStdString(name)));
 }
@@ -279,6 +283,7 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
     }
   }
   push_undo_snapshot(tr("Add to work path"));
+  DocumentPathId work_id = 0;
   if (auto* work = doc.work_path(); work != nullptr) {
     auto path = work->path();
     const auto group = path.next_shape_group();
@@ -288,6 +293,7 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
       path.subpaths.push_back(std::move(subpath));
     }
     work->set_path(std::move(path));
+    work_id = work->id();
   } else {
     VectorPath path;
     for (auto& subpath : subpaths) {
@@ -297,7 +303,14 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
     DocumentPath created(doc.allocate_path_id(), tr("Work Path").toStdString(),
                          DocumentPathKind::Work, std::move(path));
     created.mark_dirty();  // authored: no original resource bytes to re-emit
-    doc.add_path(std::move(created));
+    work_id = doc.add_path(std::move(created)).id();
+  }
+  // Photoshop highlights the Work Path row as soon as you draw, keeping the
+  // outline visible across tool switches.
+  active_document_path_id_ = work_id;
+  path_row_hidden_for_layer_.reset();
+  if (canvas_ != nullptr) {
+    canvas_->set_active_document_path(work_id);
   }
   refresh_paths_panel();
   statusBar()->showMessage(tr("Added the path to the work path."));

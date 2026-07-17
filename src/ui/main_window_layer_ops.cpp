@@ -510,46 +510,6 @@ std::optional<LayerGroupingDestination> common_sibling_grouping_destination(
   return LayerGroupingDestination{siblings, topmost->index - static_cast<std::size_t>(moved_below_topmost)};
 }
 
-std::string duplicate_name_stem(std::string_view name) {
-  constexpr std::string_view kCopySuffix = " copy";
-  constexpr std::string_view kNumberedCopySuffix = " copy ";
-  const auto lower = ascii_lower_copy(name);
-  if (lower.size() > kCopySuffix.size() && lower.ends_with(kCopySuffix)) {
-    return std::string(name.substr(0, name.size() - kCopySuffix.size()));
-  }
-
-  const auto suffix_position = lower.rfind(kNumberedCopySuffix);
-  if (suffix_position == std::string::npos || suffix_position == 0) {
-    return std::string(name);
-  }
-  const auto number_position = suffix_position + kNumberedCopySuffix.size();
-  if (number_position >= lower.size()) {
-    return std::string(name);
-  }
-
-  bool suffix_is_number = true;
-  for (auto index = number_position; index < lower.size(); ++index) {
-    if (std::isdigit(static_cast<unsigned char>(lower[index])) == 0) {
-      suffix_is_number = false;
-      break;
-    }
-  }
-  return suffix_is_number ? std::string(name.substr(0, suffix_position)) : std::string(name);
-}
-
-std::string next_duplicate_layer_name(std::string_view source_name, const std::set<std::string>& existing_names) {
-  const auto stem = duplicate_name_stem(source_name);
-  for (int copy_index = 1;; ++copy_index) {
-    auto candidate = stem + " copy";
-    if (copy_index > 1) {
-      candidate += " " + std::to_string(copy_index);
-    }
-    if (!existing_names.contains(candidate)) {
-      return candidate;
-    }
-  }
-}
-
 void collect_referenced_smart_filter_records(const Layer& layer,
                                              const SmartFilterEffectsStore& store,
                                              std::vector<SmartFilterEffectsRecord>& records) {
@@ -955,7 +915,7 @@ void MainWindow::paste_clipboard() {
             tr("Smart Filter cache data could not be duplicated safely"));
         return;
       }
-      pasted->set_name(next_duplicate_layer_name(it->name(), existing_names));
+      pasted->set_name(next_duplicate_name(it->name(), existing_names));
       existing_names.insert(pasted->name());
       doc.add_layer(std::move(*pasted));
     }
@@ -1611,7 +1571,7 @@ void MainWindow::duplicate_layers(std::vector<LayerId> ids) {
           tr("Smart Filter cache data could not be duplicated safely"));
       return;
     }
-    duplicate->set_name(next_duplicate_layer_name(source->name(), existing_names));
+    duplicate->set_name(next_duplicate_name(source->name(), existing_names));
     existing_names.insert(duplicate->name());
     doc.add_layer(std::move(*duplicate));
   }
