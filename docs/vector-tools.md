@@ -122,8 +122,14 @@ generated name or renames a saved path inline. Footer commands: New Path
 coverage), Stroke Path (a centered round-capped band at the brush size in the
 foreground color; per-stamp brush dynamics are not simulated), Make Selection
 (feather via triple box blur, anti-alias toggle, New/Add/Subtract/Intersect
-operations), and Delete Path. Saved paths round-trip through the PSD path
-resources from phase 8.
+operations), and Delete Path. The row commands enable only while a row is
+selected (New Path just needs a document); the panel refreshes those states on
+selectionChanged as well as currentItemChanged because a real mouse click
+updates the current item before the selection commits, and
+update_document_action_state re-applies the row rule after its blanket
+document-action pass (the channel-panel pattern; pinned by
+ui_paths_panel_actions_follow_row_selection). Saved paths round-trip through
+the PSD path resources from phase 8.
 
 ## Geometry operations
 

@@ -1391,6 +1391,67 @@ void ui_layer_context_menu_offers_shape_appearance_for_shape_layers() {
   CHECK(!pixel_layer_actions.contains(QStringLiteral("layerContextEditShapeAppearanceAction")));
 }
 
+void ui_paths_panel_actions_follow_row_selection() {
+  // A real mouse click updates the list's CURRENT item before committing the
+  // selection, so the panel must refresh its action states on selectionChanged
+  // too; clicking a row used to leave Fill/Stroke/Make Selection/Delete stuck
+  // disabled (and the post-open blanket enable left them wrongly enabled).
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  auto* new_action = window.findChild<QAction*>(QStringLiteral("pathNewAction"));
+  auto* fill = window.findChild<QAction*>(QStringLiteral("pathFillAction"));
+  auto* stroke = window.findChild<QAction*>(QStringLiteral("pathStrokeAction"));
+  auto* make_selection = window.findChild<QAction*>(QStringLiteral("pathMakeSelectionAction"));
+  auto* delete_action = window.findChild<QAction*>(QStringLiteral("pathDeleteAction"));
+  CHECK(list != nullptr && new_action != nullptr && fill != nullptr && stroke != nullptr &&
+        make_selection != nullptr && delete_action != nullptr);
+  CHECK(list->count() == 1);  // the work path
+
+  // No row selected yet: only New Path is available.
+  CHECK(new_action->isEnabled());
+  CHECK(!fill->isEnabled());
+  CHECK(!stroke->isEnabled());
+  CHECK(!make_selection->isEnabled());
+  CHECK(!delete_action->isEnabled());
+
+  // A real mouse click on the row (press + release) enables the row commands.
+  const auto row_rect = list->visualItemRect(list->item(0));
+  send_mouse(*list->viewport(), QEvent::MouseButtonPress, row_rect.center(), Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(*list->viewport(), QEvent::MouseButtonRelease, row_rect.center(), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->active_document_path().has_value());
+  CHECK(fill->isEnabled());
+  CHECK(stroke->isEnabled());
+  CHECK(make_selection->isEnabled());
+  CHECK(delete_action->isEnabled());
+
+  // Clicking the empty area below the rows deselects and disables them again.
+  send_mouse(*list->viewport(), QEvent::MouseButtonPress,
+             QPoint(list->viewport()->width() / 2, list->viewport()->height() - 4), Qt::LeftButton,
+             Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!canvas->active_document_path().has_value());
+  CHECK(new_action->isEnabled());
+  CHECK(!fill->isEnabled());
+  CHECK(!stroke->isEnabled());
+  CHECK(!make_selection->isEnabled());
+  CHECK(!delete_action->isEnabled());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
@@ -1436,5 +1497,6 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_appearance_dialog_commits_and_cancels},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},
       {"ui_new_gradient_fill_layer_spans_canvas", ui_new_gradient_fill_layer_spans_canvas},
+      {"ui_paths_panel_actions_follow_row_selection", ui_paths_panel_actions_follow_row_selection},
   };
 }

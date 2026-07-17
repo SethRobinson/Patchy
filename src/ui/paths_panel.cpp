@@ -60,6 +60,15 @@ PathsPanel::PathsPanel(QWidget* parent) : QWidget(parent) {
   // via object names to avoid six extra members.
   connect(list_, &QListWidget::currentItemChanged, this,
           [this](QListWidgetItem* current, QListWidgetItem*) { handle_current_item_changed(current); });
+  // A real mouse click updates the CURRENT item first (currentItemChanged
+  // fires while the item is not yet selected) and commits the selection
+  // afterwards, so the action states must also track selectionChanged or a
+  // click leaves Fill/Stroke/Make Selection/Delete stuck disabled.
+  connect(list_, &QListWidget::itemSelectionChanged, this, [this] {
+    if (!updating_) {
+      refresh_action_states();
+    }
+  });
   connect(list_, &QListWidget::itemDoubleClicked, this,
           [this](QListWidgetItem* item) { handle_item_double_clicked(item); });
   connect(list_, &QListWidget::itemChanged, this,

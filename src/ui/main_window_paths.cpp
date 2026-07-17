@@ -149,7 +149,9 @@ void MainWindow::refresh_paths_panel() {
     paths_panel_->set_document_available(false);
     return;
   }
-  paths_panel_->set_document_available(true);
+  // Match update_document_action_state's availability rule so a refresh during
+  // a preview-dialog edit lock cannot re-enable the path commands.
+  paths_panel_->set_document_available(!preview_dialog_edit_locked());
   const auto& doc = document();
   std::vector<PathsPanel::Row> rows;
 

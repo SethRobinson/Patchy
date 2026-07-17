@@ -51,6 +51,7 @@
 #include "ui/measurement_units.hpp"
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
+#include "ui/paths_panel.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/style_library.hpp"
@@ -8930,6 +8931,12 @@ void MainWindow::update_document_action_state() {
   }
   if (cascade_windows_action_ != nullptr) {
     cascade_windows_action_->setEnabled(has_document && !locked);
+  }
+  if (paths_panel_ != nullptr) {
+    // Keep after the broad document-action pass above, which just blanket-enabled
+    // the five path actions: Fill/Stroke/Make Selection/Delete follow the panel's
+    // row selection (set_document_available re-runs refresh_action_states).
+    paths_panel_->set_document_available(has_document && !locked);
   }
   if (channel_panel_ != nullptr) {
     // Keep these panel-specific rules after the broad document action pass above:
