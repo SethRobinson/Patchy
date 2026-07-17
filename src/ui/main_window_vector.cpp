@@ -5,6 +5,7 @@
 // main_window_actions.cpp, refined by refresh_vector_tool_options_visibility).
 #include "ui/main_window.hpp"
 
+#include "core/blend_math.hpp"
 #include "core/document_path.hpp"
 #include "core/layer_tree.hpp"
 #include "core/pattern_resource.hpp"
@@ -15,16 +16,23 @@
 #include "ui/color_panel.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/edit_conversions.hpp"
+#include "ui/gradient_library.hpp"
+#include "ui/gradient_manager_dialog.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/pattern_library.hpp"
+#include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/shape_appearance_dialog.hpp"
 
+#include <QBrush>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFormLayout>
@@ -37,7 +45,9 @@
 #include <QSignalBlocker>
 #include <QStandardItemModel>
 #include <QStatusBar>
+#include <QTimer>
 #include <QToolButton>
+#include <QTransform>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -82,6 +92,32 @@ void collect_shape_layer_names(const std::vector<Layer>& layers, std::set<std::s
   for (const auto& layer : layers) {
     names.insert(layer.name());
     collect_shape_layer_names(layer.children(), names);
+  }
+}
+
+// Copies pattern tiles referenced by the fill (and stroke paint) into the
+// document store so the rasterizer and the PSD writer can resolve them
+// (the ensure_patterns_for_style convention: library first, bundle repair).
+void ensure_vector_fill_patterns(Document& doc, const VectorShapeContent& content,
+                                 const PatternLibrary& library) {
+  for (const auto* fill : {&content.fill, &content.stroke.content}) {
+    if (fill->kind != VectorFillKind::Pattern || fill->pattern_id.empty()) {
+      continue;
+    }
+    // A stored entry only satisfies the reference when it can actually
+    // render; an empty tile (a poisoned adopt) must be replaced, which the
+    // healing adopt below performs.
+    if (const auto* existing = doc.metadata().patterns.find(fill->pattern_id);
+        existing != nullptr && !existing->tile.empty()) {
+      continue;
+    }
+    if (auto resource = library.resource(QString::fromStdString(fill->pattern_id));
+        resource.has_value()) {
+      resource->provenance = PatternProvenance::Authored;
+      doc.metadata().patterns.adopt(*resource);
+    } else if (auto bundled = bundled_pattern_resource(fill->pattern_id); bundled.has_value()) {
+      doc.metadata().patterns.adopt(*bundled);
+    }
   }
 }
 
@@ -225,6 +261,9 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
   if (origination.has_value()) {
     content.origination = {std::move(*origination)};
   }
+  // A pattern default picked from the library must land in the document store
+  // before the rasterize (and before the writer's Patt collection).
+  ensure_vector_fill_patterns(doc, content, pattern_library());
   layer.set_vector_shape(std::move(content));
   layer.metadata()[kLayerMetadataVectorShape] = "1";
   layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
@@ -328,19 +367,12 @@ void MainWindow::add_drag_to_work_path(const LiveShapeParams& params) {
 
 VectorShapeContent MainWindow::current_shape_appearance_content() const {
   VectorShapeContent content;
-  content.fill.kind = VectorFillKind::Solid;
-  content.fill.color = RgbColor{static_cast<std::uint8_t>(current_vector_fill_color_.red()),
-                                static_cast<std::uint8_t>(current_vector_fill_color_.green()),
-                                static_cast<std::uint8_t>(current_vector_fill_color_.blue())};
+  content.fill = current_vector_fill_;
   content.stroke.enabled = current_vector_stroke_enabled_;
   content.stroke.width = current_vector_stroke_width_;
   // Photoshop's default for new shapes: the stroke hugs the inside of the path.
   content.stroke.alignment = VectorStrokeAlignment::Inside;
-  content.stroke.content.kind = VectorFillKind::Solid;
-  content.stroke.content.color =
-      RgbColor{static_cast<std::uint8_t>(current_vector_stroke_color_.red()),
-               static_cast<std::uint8_t>(current_vector_stroke_color_.green()),
-               static_cast<std::uint8_t>(current_vector_stroke_color_.blue())};
+  content.stroke.content = current_vector_stroke_paint_;
   return content;
 }
 
@@ -351,6 +383,24 @@ void MainWindow::refresh_vector_tool_options_visibility() {
                           current_tool_ == CanvasTool::Pen ||
                           current_tool_ == CanvasTool::Polygon ||
                           current_tool_ == CanvasTool::CustomShape;
+  const bool select_tool = current_tool_ == CanvasTool::PathSelect ||
+                           current_tool_ == CanvasTool::DirectSelect;
+  if (select_tool) {
+    // The appearance controls live-edit the selected shape layer; they only
+    // show while one is editable (the Combine combo keeps its per-tool
+    // visibility for plain path selections).
+    const bool live = editable_active_vector_shape_layer() != nullptr;
+    for (auto* widget : vector_shape_mode_option_widgets_) {
+      if (widget != nullptr) {
+        widget->setVisible(live);
+      }
+    }
+    if (live) {
+      sync_shape_appearance_options_from_active_layer();
+    }
+    update_vector_swatch_icons();
+    return;
+  }
   if (!shape_tool) {
     return;  // per-tool visibility already hid every mode-specific widget
   }
@@ -395,38 +445,13 @@ void MainWindow::refresh_vector_tool_options_visibility() {
       widget->setVisible(false);
     }
   }
+  if (shape_mode) {
+    // Photoshop-style: with a shape layer selected the bar reflects (and
+    // edits) that layer, and its appearance sticks as the next-shape default.
+    sync_shape_appearance_options_from_active_layer();
+  }
   update_vector_swatch_icons();
 }
-
-namespace {
-
-// Copies pattern tiles referenced by the fill (and stroke paint) into the
-// document store so the rasterizer and the PSD writer can resolve them
-// (the ensure_patterns_for_style convention: library first, bundle repair).
-void ensure_vector_fill_patterns(Document& doc, const VectorShapeContent& content,
-                                 const PatternLibrary& library) {
-  for (const auto* fill : {&content.fill, &content.stroke.content}) {
-    if (fill->kind != VectorFillKind::Pattern || fill->pattern_id.empty()) {
-      continue;
-    }
-    // A stored entry only satisfies the reference when it can actually
-    // render; an empty tile (a poisoned adopt) must be replaced, which the
-    // healing adopt below performs.
-    if (const auto* existing = doc.metadata().patterns.find(fill->pattern_id);
-        existing != nullptr && !existing->tile.empty()) {
-      continue;
-    }
-    if (auto resource = library.resource(QString::fromStdString(fill->pattern_id));
-        resource.has_value()) {
-      resource->provenance = PatternProvenance::Authored;
-      doc.metadata().patterns.adopt(*resource);
-    } else if (auto bundled = bundled_pattern_resource(fill->pattern_id); bundled.has_value()) {
-      doc.metadata().patterns.adopt(*bundled);
-    }
-  }
-}
-
-}  // namespace
 
 void MainWindow::edit_active_shape_appearance() {
   // The appearance dialog is a preview dialog; never stack one on another.
@@ -1177,23 +1202,448 @@ void MainWindow::define_custom_shape_from_path() {
   statusBar()->showMessage(tr("Defined %1 from the path.").arg(name));
 }
 
+std::optional<PatternResource> MainWindow::resolve_vector_pattern_resource(
+    const std::string& pattern_id) {
+  if (pattern_id.empty()) {
+    return std::nullopt;
+  }
+  if (has_active_document()) {
+    if (const auto* existing = std::as_const(document()).metadata().patterns.find(pattern_id);
+        existing != nullptr && !existing->tile.empty()) {
+      return *existing;
+    }
+  }
+  if (auto resource = pattern_library().resource(QString::fromStdString(pattern_id));
+      resource.has_value() && !resource->tile.empty()) {
+    return resource;
+  }
+  if (auto bundled = bundled_pattern_resource(pattern_id);
+      bundled.has_value() && !bundled->tile.empty()) {
+    return bundled;
+  }
+  return std::nullopt;
+}
+
 void MainWindow::update_vector_swatch_icons() {
-  const auto make_swatch = [](QColor color) {
+  const auto make_swatch = [this](const VectorFill& paint) {
     QPixmap pixmap(20, 14);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QColor(0, 0, 0, 160));
-    painter.setBrush(color);
-    painter.drawRoundedRect(QRectF(0.5, 0.5, 19.0, 13.0), 2.0, 2.0);
+    const QRectF box(0.5, 0.5, 19.0, 13.0);
+    switch (paint.kind) {
+      case VectorFillKind::None: {
+        // Photoshop's "no paint" swatch: white chip with a red slash.
+        painter.setPen(QColor(0, 0, 0, 160));
+        painter.setBrush(Qt::white);
+        painter.drawRoundedRect(box, 2.0, 2.0);
+        painter.setPen(QPen(QColor(214, 44, 44), 2.0));
+        painter.drawLine(QPointF(3.0, 11.0), QPointF(17.0, 3.0));
+        break;
+      }
+      case VectorFillKind::Gradient: {
+        const auto ramp = gradient_thumbnail(paint.gradient, 20, 14);
+        painter.setBrush(QBrush(ramp));
+        painter.setPen(QColor(0, 0, 0, 160));
+        painter.drawRoundedRect(box, 2.0, 2.0);
+        break;
+      }
+      case VectorFillKind::Pattern: {
+        if (const auto resource = resolve_vector_pattern_resource(paint.pattern_id);
+            resource.has_value()) {
+          const auto tile = pattern_thumbnail(resource->tile, 20);
+          painter.setBrush(QBrush(tile));
+          painter.setPen(QColor(0, 0, 0, 160));
+          painter.drawRoundedRect(box, 2.0, 2.0);
+        } else {
+          // Unresolvable pattern renders as no paint (the rasterizer's rule).
+          painter.setPen(QColor(0, 0, 0, 160));
+          painter.setBrush(QColor(190, 190, 190));
+          painter.drawRoundedRect(box, 2.0, 2.0);
+        }
+        break;
+      }
+      case VectorFillKind::Solid: {
+        painter.setPen(QColor(0, 0, 0, 160));
+        painter.setBrush(QColor(paint.color.red, paint.color.green, paint.color.blue));
+        painter.drawRoundedRect(box, 2.0, 2.0);
+        break;
+      }
+    }
     return QIcon(pixmap);
   };
   if (vector_fill_swatch_button_ != nullptr) {
-    vector_fill_swatch_button_->setIcon(make_swatch(current_vector_fill_color_));
+    vector_fill_swatch_button_->setIcon(make_swatch(current_vector_fill_));
   }
   if (vector_stroke_swatch_button_ != nullptr) {
-    vector_stroke_swatch_button_->setIcon(make_swatch(current_vector_stroke_color_));
+    vector_stroke_swatch_button_->setIcon(make_swatch(current_vector_stroke_paint_));
   }
+}
+
+// --- Options-bar paint pickers and live editing of the selected shape ---
+
+patchy::Layer* MainWindow::editable_active_vector_shape_layer() {
+  if (!has_active_document()) {
+    return nullptr;
+  }
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr || !layer_is_vector_shape(*layer) || !vector_lock_reason(*layer).empty()) {
+    return nullptr;
+  }
+  return layer;
+}
+
+bool MainWindow::vector_appearance_controls_live() const {
+  if (current_tool_ == CanvasTool::PathSelect || current_tool_ == CanvasTool::DirectSelect) {
+    return true;
+  }
+  const bool shape_tool = current_tool_ == CanvasTool::Line ||
+                          current_tool_ == CanvasTool::Rectangle ||
+                          current_tool_ == CanvasTool::Ellipse ||
+                          current_tool_ == CanvasTool::Pen ||
+                          current_tool_ == CanvasTool::Polygon ||
+                          current_tool_ == CanvasTool::CustomShape;
+  if (!shape_tool) {
+    return false;
+  }
+  // The appearance controls only show in (effective) Shape mode; the
+  // vector-only tools coerce a persisted Pixels mode to Path.
+  const bool vector_only_tool = current_tool_ == CanvasTool::Pen ||
+                                current_tool_ == CanvasTool::Polygon ||
+                                current_tool_ == CanvasTool::CustomShape;
+  const auto effective_mode =
+      vector_only_tool && current_vector_tool_mode_ == VectorToolMode::Pixels
+          ? VectorToolMode::Path
+          : current_vector_tool_mode_;
+  return effective_mode == VectorToolMode::Shape;
+}
+
+void MainWindow::sync_shape_appearance_options_from_active_layer() {
+  // A pending debounced user edit outranks a passive sync; without this guard
+  // a refresh between the spin edit and the apply would revert the mirror and
+  // silently drop the edit.
+  if (vector_appearance_apply_timer_ != nullptr && vector_appearance_apply_timer_->isActive()) {
+    return;
+  }
+  auto* layer = editable_active_vector_shape_layer();
+  if (layer == nullptr) {
+    return;
+  }
+  const auto* content = std::as_const(*layer).vector_shape();
+  if (content == nullptr) {
+    return;
+  }
+  current_vector_fill_ = content->fill;
+  current_vector_stroke_enabled_ = content->stroke.enabled;
+  current_vector_stroke_width_ = std::clamp(content->stroke.width, 0.1, 1000.0);
+  current_vector_stroke_paint_ = content->stroke.content;
+  if (auto* stroke_check = findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
+      stroke_check != nullptr) {
+    QSignalBlocker blocker(stroke_check);
+    stroke_check->setChecked(current_vector_stroke_enabled_);
+  }
+  if (auto* stroke_width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+      stroke_width != nullptr) {
+    QSignalBlocker blocker(stroke_width);
+    stroke_width->setValue(current_vector_stroke_width_);
+  }
+  update_vector_swatch_icons();
+}
+
+bool MainWindow::apply_options_bar_appearance_to_active_shape() {
+  if (canvas_ == nullptr || !vector_appearance_controls_live()) {
+    return false;
+  }
+  auto* layer = editable_active_vector_shape_layer();
+  if (layer == nullptr) {
+    return false;
+  }
+  const auto* existing = std::as_const(*layer).vector_shape();
+  if (existing == nullptr) {
+    return false;
+  }
+  auto content = *existing;
+  content.fill = current_vector_fill_;
+  content.stroke.enabled = current_vector_stroke_enabled_;
+  content.stroke.width = current_vector_stroke_width_;
+  content.stroke.content = current_vector_stroke_paint_;
+  if (existing->fill == content.fill && existing->stroke == content.stroke) {
+    return false;  // no-op; also keeps stale debounced applies harmless
+  }
+  const auto layer_id = layer->id();
+  auto& doc = document();
+  push_undo_snapshot(tr("Shape appearance"));
+  auto* target = doc.find_layer(layer_id);
+  if (target == nullptr) {
+    return false;
+  }
+  ensure_vector_fill_patterns(doc, content, pattern_library());
+  target->set_vector_shape(std::move(content));
+  target->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+  mark_layer_vector_block_dirty(*target);
+  update_vector_shape_raster(*target, Rect::from_size(doc.width(), doc.height()),
+                             &doc.metadata().patterns);
+  canvas_->document_changed();
+  refresh_layer_thumbnails();
+  return true;
+}
+
+void MainWindow::schedule_vector_appearance_apply() {
+  if (!vector_appearance_controls_live() || editable_active_vector_shape_layer() == nullptr) {
+    return;
+  }
+  if (vector_appearance_apply_timer_ == nullptr) {
+    vector_appearance_apply_timer_ = new QTimer(this);
+    vector_appearance_apply_timer_->setSingleShot(true);
+    vector_appearance_apply_timer_->setInterval(250);
+    connect(vector_appearance_apply_timer_, &QTimer::timeout, this,
+            [this] { apply_options_bar_appearance_to_active_shape(); });
+  }
+  vector_appearance_apply_timer_->start();
+}
+
+void MainWindow::show_vector_paint_menu(bool for_stroke) {
+  auto* button = for_stroke ? vector_stroke_swatch_button_ : vector_fill_swatch_button_;
+  if (button == nullptr) {
+    return;
+  }
+  const auto& paint = for_stroke ? current_vector_stroke_paint_ : current_vector_fill_;
+  QMenu menu(button);
+  menu.setObjectName(for_stroke ? QStringLiteral("vectorStrokePaintMenu")
+                                : QStringLiteral("vectorFillPaintMenu"));
+  const auto add_kind = [&](const QString& label, const char* object_name, VectorFillKind kind,
+                            auto callback) {
+    auto* action = menu.addAction(label);
+    action->setObjectName(QLatin1String(object_name));
+    action->setCheckable(true);
+    action->setChecked(paint.kind == kind);
+    connect(action, &QAction::triggered, this, callback);
+    return action;
+  };
+  if (!for_stroke) {
+    add_kind(tr("No Fill"), "vectorFillNoneAction", VectorFillKind::None, [this] {
+      current_vector_fill_.kind = VectorFillKind::None;
+      update_vector_swatch_icons();
+      schedule_save_tool_settings();
+      apply_options_bar_appearance_to_active_shape();
+    });
+  }
+  add_kind(tr("Solid Color..."), for_stroke ? "vectorStrokeSolidAction" : "vectorFillSolidAction",
+           VectorFillKind::Solid, [this, for_stroke] { pick_vector_solid_color(for_stroke); });
+  add_kind(tr("Gradient..."), for_stroke ? "vectorStrokeGradientAction" : "vectorFillGradientAction",
+           VectorFillKind::Gradient, [this, for_stroke] { pick_vector_gradient(for_stroke); });
+  add_kind(tr("Pattern..."), for_stroke ? "vectorStrokePatternAction" : "vectorFillPatternAction",
+           VectorFillKind::Pattern, [this, for_stroke] { pick_vector_pattern(for_stroke); });
+  menu.exec(button->mapToGlobal(QPoint(0, button->height())));
+}
+
+void MainWindow::pick_vector_solid_color(bool for_stroke) {
+  auto& paint = for_stroke ? current_vector_stroke_paint_ : current_vector_fill_;
+  const QColor initial(paint.color.red, paint.color.green, paint.color.blue);
+  const auto title = for_stroke ? tr("Shape Stroke Color") : tr("Shape Fill Color");
+  const auto commit_mirror = [this, for_stroke](QColor color) {
+    auto& target = for_stroke ? current_vector_stroke_paint_ : current_vector_fill_;
+    target.kind = VectorFillKind::Solid;
+    target.color = RgbColor{static_cast<std::uint8_t>(color.red()),
+                            static_cast<std::uint8_t>(color.green()),
+                            static_cast<std::uint8_t>(color.blue())};
+    update_vector_swatch_icons();
+    schedule_save_tool_settings();
+  };
+  auto* layer = vector_appearance_controls_live() ? editable_active_vector_shape_layer() : nullptr;
+  if (layer == nullptr || canvas_ == nullptr) {
+    if (const auto chosen = request_patchy_color(this, initial, title); chosen.has_value()) {
+      commit_mirror(*chosen);
+    }
+    return;
+  }
+  // Live scrub on the selected shape (the new_solid_color_fill_layer pattern):
+  // preview by direct mutation, restore on cancel, commit undoably on accept.
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto layer_id = layer->id();
+  const Layer original_layer = *layer;
+  const auto preview_color = [this, layer_id, for_stroke](QColor color) {
+    auto* target = document().find_layer(layer_id);
+    if (target == nullptr || target->vector_shape() == nullptr || canvas_ == nullptr) {
+      return;
+    }
+    auto content = *std::as_const(*target).vector_shape();
+    auto& target_paint = for_stroke ? content.stroke.content : content.fill;
+    target_paint.kind = VectorFillKind::Solid;
+    target_paint.color = RgbColor{static_cast<std::uint8_t>(color.red()),
+                                  static_cast<std::uint8_t>(color.green()),
+                                  static_cast<std::uint8_t>(color.blue())};
+    target->set_vector_shape(std::move(content));
+    target->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+    update_vector_shape_raster(*target, Rect::from_size(document().width(), document().height()),
+                               &document().metadata().patterns);
+    canvas_->document_changed();
+  };
+  preview_color(initial);
+  const auto chosen = request_patchy_color(this, initial, title, preview_color);
+  if (auto* target = document().find_layer(layer_id); target != nullptr) {
+    *target = original_layer;
+    canvas_->document_changed();
+  }
+  preview_edit_lock.release();
+  refresh_layer_thumbnails();
+  if (!chosen.has_value()) {
+    statusBar()->showMessage(tr("Cancelled shape appearance"));
+    return;
+  }
+  commit_mirror(*chosen);
+  apply_options_bar_appearance_to_active_shape();
+}
+
+void MainWindow::pick_vector_gradient(bool for_stroke) {
+  auto& paint = for_stroke ? current_vector_stroke_paint_ : current_vector_fill_;
+  auto& stored_id = for_stroke ? current_vector_stroke_gradient_id_ : current_vector_fill_gradient_id_;
+  std::optional<GradientDefinition> current;
+  if (paint.kind == VectorFillKind::Gradient) {
+    current = static_cast<const GradientDefinition&>(paint.gradient);
+  }
+  const auto selected = request_gradient_manager(this, gradient_library(), stored_id, current);
+  if (selected.isEmpty()) {
+    return;
+  }
+  const auto* entry = gradient_library().find_entry(selected);
+  if (entry == nullptr) {
+    return;
+  }
+  const auto foreground = canvas_ != nullptr ? canvas_->primary_color() : QColor(Qt::black);
+  const auto background = canvas_ != nullptr ? canvas_->secondary_color() : QColor(Qt::white);
+  const bool was_gradient = paint.kind == VectorFillKind::Gradient;
+  paint.kind = VectorFillKind::Gradient;
+  // Presets replace the definition; existing placement (type/angle/scale/
+  // reverse) is the user's and stays - fresh gradients start linear at 90.
+  static_cast<GradientDefinition&>(paint.gradient) = resolve_gradient_definition(
+      entry->definition,
+      RgbColor{static_cast<std::uint8_t>(foreground.red()),
+               static_cast<std::uint8_t>(foreground.green()),
+               static_cast<std::uint8_t>(foreground.blue())},
+      RgbColor{static_cast<std::uint8_t>(background.red()),
+               static_cast<std::uint8_t>(background.green()),
+               static_cast<std::uint8_t>(background.blue())});
+  if (!was_gradient) {
+    paint.gradient.type = LayerStyleGradientType::Linear;
+    paint.gradient.angle_degrees = 90.0F;
+    paint.gradient.scale = 1.0F;
+    paint.gradient.reverse = false;
+  }
+  stored_id = selected;
+  update_vector_swatch_icons();
+  schedule_save_tool_settings();
+  apply_options_bar_appearance_to_active_shape();
+}
+
+void MainWindow::pick_vector_pattern(bool for_stroke) {
+  auto& paint = for_stroke ? current_vector_stroke_paint_ : current_vector_fill_;
+  const auto storage_id = request_pattern_manager(this, pattern_library(),
+                                                  QString::fromStdString(paint.pattern_id));
+  if (storage_id.isEmpty()) {
+    return;
+  }
+  const auto resource = pattern_library().resource_for_entry(storage_id);
+  if (!resource.has_value() || resource->tile.empty()) {
+    return;
+  }
+  const bool was_pattern = paint.kind == VectorFillKind::Pattern;
+  paint.kind = VectorFillKind::Pattern;
+  paint.pattern_id = resource->id;
+  paint.pattern_name = resource->name;
+  if (!was_pattern) {
+    // Placement params reset only on a fresh switch to Pattern; re-picking a
+    // tile keeps the layer's tuned scale/angle/offset (the appearance dialog
+    // owns detailed placement).
+    paint.pattern_scale = 1.0;
+    paint.pattern_angle_degrees = 0.0;
+    paint.pattern_linked = true;
+    paint.pattern_phase_x = 0.0;
+    paint.pattern_phase_y = 0.0;
+  }
+  update_vector_swatch_icons();
+  schedule_save_tool_settings();
+  apply_options_bar_appearance_to_active_shape();
+}
+
+QBrush MainWindow::vector_fill_preview_brush(const patchy::VectorFill& paint) const {
+  switch (paint.kind) {
+    case VectorFillKind::None:
+      return QBrush(Qt::NoBrush);
+    case VectorFillKind::Solid:
+      return QBrush(QColor(paint.color.red, paint.color.green, paint.color.blue));
+    case VectorFillKind::Gradient: {
+      // Drag-preview approximation (the commit rasterizes exactly): ObjectMode
+      // gradients span the painted path's bounds; Reflected/Diamond fall back
+      // to linear, easing/dither are skipped, and alpha stops apply at the
+      // color-stop locations.
+      const auto& gradient = paint.gradient;
+      QGradientStops stops;
+      for (const auto& stop : gradient.color_stops) {
+        // Color and alpha sample the raw ramp position; reverse only flips
+        // where the stop lands visually (matching gradient_position's rule).
+        const auto source = std::clamp(stop.location, 0.0F, 1.0F);
+        const auto location = gradient.reverse ? 1.0F - source : source;
+        QColor color(stop.color.red, stop.color.green, stop.color.blue);
+        color.setAlphaF(std::clamp(gradient_stop_opacity(gradient, source, false), 0.0F, 1.0F));
+        stops.append({location, color});
+      }
+      std::sort(stops.begin(), stops.end(),
+                [](const QGradientStop& a, const QGradientStop& b) { return a.first < b.first; });
+      const auto angle_radians = gradient.angle_degrees * 3.14159265358979323846 / 180.0;
+      const auto scale = std::max(0.05F, gradient.scale);
+      const QPointF center(0.5, 0.5);
+      const QPointF half(std::cos(angle_radians) * 0.5 * scale,
+                         -std::sin(angle_radians) * 0.5 * scale);
+      if (gradient.type == LayerStyleGradientType::Radial) {
+        QRadialGradient radial(center, 0.5 * scale);
+        radial.setCoordinateMode(QGradient::ObjectMode);
+        radial.setStops(stops);
+        return QBrush(radial);
+      }
+      if (gradient.type == LayerStyleGradientType::Angle) {
+        QConicalGradient conical(center, gradient.angle_degrees);
+        conical.setCoordinateMode(QGradient::ObjectMode);
+        conical.setStops(stops);
+        return QBrush(conical);
+      }
+      QLinearGradient linear(center - half, center + half);
+      linear.setCoordinateMode(QGradient::ObjectMode);
+      if (gradient.type == LayerStyleGradientType::Reflected) {
+        linear.setStart(center);
+        linear.setFinalStop(center + half);
+        linear.setSpread(QGradient::ReflectSpread);
+      }
+      linear.setStops(stops);
+      return QBrush(linear);
+    }
+    case VectorFillKind::Pattern: {
+      auto* self = const_cast<MainWindow*>(this);
+      const auto resource = self->resolve_vector_pattern_resource(paint.pattern_id);
+      if (!resource.has_value()) {
+        return QBrush(Qt::NoBrush);  // missing tiles render as no paint
+      }
+      QBrush brush(QPixmap::fromImage(qimage_from_pixel_buffer(resource->tile)));
+      // Document-space placement mirroring PatternTileSampler: anchor at the
+      // phase (a NEW layer's effects reference point is the origin), rotate,
+      // then scale. The sampler's doc-to-tile mapping is R(angle); tile-to-doc
+      // is its inverse, which in Qt's y-down rotate() convention is -angle
+      // (the pattern appears rotated counterclockwise, the PS dial).
+      QTransform placement;
+      placement.translate(paint.pattern_phase_x, paint.pattern_phase_y);
+      placement.rotate(-paint.pattern_angle_degrees);
+      placement.scale(std::max(0.01, paint.pattern_scale), std::max(0.01, paint.pattern_scale));
+      brush.setTransform(placement);
+      return brush;
+    }
+  }
+  return QBrush(Qt::NoBrush);
 }
 
 }  // namespace patchy::ui

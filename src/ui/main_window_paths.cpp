@@ -11,6 +11,7 @@
 #include "core/palette.hpp"
 #include "core/path_fit.hpp"
 #include "core/pattern_resource.hpp"
+#include "core/pattern_sampler.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/app_settings.hpp"
@@ -596,11 +597,17 @@ void MainWindow::fill_active_path() {
     }
   }
 
-  // Options: contents (foreground/background/pattern) and opacity, persisted
-  // like the other paths dialogs.
+  // Options: contents (foreground/background/pattern), the pattern placement
+  // (scale/angle/offset/align - raster-only, rendered by the shared
+  // PatternTileSampler), and opacity, persisted like the other paths dialogs.
   const auto contents_key = QStringLiteral("paths/fillContents");
   const auto pattern_key = QStringLiteral("paths/fillPatternId");
   const auto opacity_key = QStringLiteral("paths/fillOpacity");
+  const auto scale_key = QStringLiteral("paths/fillPatternScale");
+  const auto angle_key = QStringLiteral("paths/fillPatternAngle");
+  const auto offset_x_key = QStringLiteral("paths/fillPatternOffsetX");
+  const auto offset_y_key = QStringLiteral("paths/fillPatternOffsetY");
+  const auto align_key = QStringLiteral("paths/fillPatternAlignLayer");
   auto settings = app_settings();
   QDialog dialog(this);
   dialog.setObjectName(QStringLiteral("fillPathDialog"));
@@ -625,6 +632,34 @@ void MainWindow::fill_active_path() {
     }
   }
   form->addRow(tr("Pattern:"), pattern_combo);
+  auto* pattern_scale = new QSpinBox(&dialog);
+  pattern_scale->setObjectName(QStringLiteral("fillPathPatternScaleSpin"));
+  pattern_scale->setRange(1, 1000);
+  pattern_scale->setSuffix(QStringLiteral("%"));
+  form->addRow(tr("Scale:"), pattern_scale);
+  auto* pattern_angle = new QDoubleSpinBox(&dialog);
+  pattern_angle->setObjectName(QStringLiteral("fillPathPatternAngleSpin"));
+  pattern_angle->setRange(-180.0, 180.0);
+  pattern_angle->setDecimals(1);
+  pattern_angle->setSuffix(QStringLiteral("°"));
+  form->addRow(tr("Angle:"), pattern_angle);
+  auto* pattern_offset_x = new QDoubleSpinBox(&dialog);
+  pattern_offset_x->setObjectName(QStringLiteral("fillPathPatternOffsetXSpin"));
+  pattern_offset_x->setRange(-30000.0, 30000.0);
+  pattern_offset_x->setDecimals(1);
+  pattern_offset_x->setSuffix(QStringLiteral(" px"));
+  form->addRow(tr("Offset X:"), pattern_offset_x);
+  auto* pattern_offset_y = new QDoubleSpinBox(&dialog);
+  pattern_offset_y->setObjectName(QStringLiteral("fillPathPatternOffsetYSpin"));
+  pattern_offset_y->setRange(-30000.0, 30000.0);
+  pattern_offset_y->setDecimals(1);
+  pattern_offset_y->setSuffix(QStringLiteral(" px"));
+  form->addRow(tr("Offset Y:"), pattern_offset_y);
+  auto* pattern_align = new QCheckBox(tr("Align with layer"), &dialog);
+  pattern_align->setObjectName(QStringLiteral("fillPathPatternAlignCheck"));
+  pattern_align->setToolTip(tr(
+      "Anchor the tile grid to the layer's position; unchecked anchors it to the document origin"));
+  form->addRow(QString(), pattern_align);
   auto* opacity = new QSpinBox(&dialog);
   opacity->setObjectName(QStringLiteral("fillPathOpacitySpin"));
   opacity->setRange(1, 100);
@@ -642,11 +677,23 @@ void MainWindow::fill_active_path() {
     }
   }
   opacity->setValue(std::clamp(settings.value(opacity_key, 100).toInt(), 1, 100));
-  const auto sync_pattern_enabled = [contents, pattern_combo, form] {
+  pattern_scale->setValue(std::clamp(settings.value(scale_key, 100).toInt(), 1, 1000));
+  pattern_angle->setValue(std::clamp(settings.value(angle_key, 0.0).toDouble(), -180.0, 180.0));
+  pattern_offset_x->setValue(
+      std::clamp(settings.value(offset_x_key, 0.0).toDouble(), -30000.0, 30000.0));
+  pattern_offset_y->setValue(
+      std::clamp(settings.value(offset_y_key, 0.0).toDouble(), -30000.0, 30000.0));
+  pattern_align->setChecked(settings.value(align_key, false).toBool());
+  const auto sync_pattern_enabled = [contents, pattern_combo, pattern_scale, pattern_angle,
+                                     pattern_offset_x, pattern_offset_y, pattern_align, form] {
     const bool pattern_active = contents->currentIndex() == 2;
-    pattern_combo->setEnabled(pattern_active);
-    if (auto* label = form->labelForField(pattern_combo); label != nullptr) {
-      label->setEnabled(pattern_active);  // grey the row label with the combo
+    for (QWidget* field :
+         std::initializer_list<QWidget*>{pattern_combo, pattern_scale, pattern_angle,
+                                         pattern_offset_x, pattern_offset_y, pattern_align}) {
+      field->setEnabled(pattern_active);
+      if (auto* label = form->labelForField(field); label != nullptr) {
+        label->setEnabled(pattern_active);  // grey the row label with the field
+      }
     }
   };
   sync_pattern_enabled();
@@ -659,6 +706,11 @@ void MainWindow::fill_active_path() {
   settings.setValue(contents_key, contents->currentIndex());
   settings.setValue(pattern_key, pattern_combo->currentData().toString());
   settings.setValue(opacity_key, opacity->value());
+  settings.setValue(scale_key, pattern_scale->value());
+  settings.setValue(angle_key, pattern_angle->value());
+  settings.setValue(offset_x_key, pattern_offset_x->value());
+  settings.setValue(offset_y_key, pattern_offset_y->value());
+  settings.setValue(align_key, pattern_align->isChecked());
   // Non-modal dialog: re-resolve everything the event loop may have changed.
   if (canvas_ == nullptr || !has_active_document()) {
     return;
@@ -703,8 +755,19 @@ void MainWindow::fill_active_path() {
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const bool lock_transparency = layer_locks_transparent_pixels(*layer);
-  const auto tile_width = pattern.has_value() ? pattern->tile.width() : 0;
-  const auto tile_height = pattern.has_value() ? pattern->tile.height() : 0;
+  // Tiles anchor at the document origin by default (the historical fill rule);
+  // Align with layer anchors them at the layer's effects reference point, the
+  // same "Link with Layer" semantic pattern shape fills use. At the default
+  // 100%/0 deg/0 offset the sampler's nearest path reproduces the old direct
+  // tile lookup byte-for-byte.
+  std::optional<PatternTileSampler> sampler;
+  if (pattern.has_value()) {
+    sampler.emplace(pattern->tile, *layer,
+                    static_cast<float>(pattern_scale->value()) / 100.0F,
+                    static_cast<float>(pattern_angle->value()), pattern_align->isChecked(),
+                    static_cast<float>(pattern_offset_x->value()),
+                    static_cast<float>(pattern_offset_y->value()));
+  }
   for (int y = 0; y < pixels.height(); ++y) {
     const auto document_y = bounds.y + y;
     if (document_y < 0 || document_y >= doc.height()) {
@@ -723,16 +786,14 @@ void MainWindow::fill_active_path() {
       std::uint8_t source_red = static_cast<std::uint8_t>(color.red());
       std::uint8_t source_green = static_cast<std::uint8_t>(color.green());
       std::uint8_t source_blue = static_cast<std::uint8_t>(color.blue());
-      if (pattern.has_value()) {
-        // Tiles align to the document origin (the Photoshop fill rule).
-        const auto* tile_pixel = pattern->tile.pixel(document_x % tile_width,
-                                                     document_y % tile_height);
-        source_red = tile_pixel[0];
-        source_green = tile_pixel[1];
-        source_blue = tile_pixel[2];
-        if (pattern->tile.format().channels >= 4) {
-          alpha = alpha * tile_pixel[3] / 255;
-        }
+      if (sampler.has_value()) {
+        const auto sample = sampler->sample(document_x, document_y);
+        source_red = sample.color.red;
+        source_green = sample.color.green;
+        source_blue = sample.color.blue;
+        // Integer alpha math keeps the default path identical to the old
+        // direct lookup (sample.alpha is texel/255 exactly when unfiltered).
+        alpha = alpha * static_cast<int>(std::lround(sample.alpha * 255.0F)) / 255;
       }
       if (alpha == 0) {
         continue;

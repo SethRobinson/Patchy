@@ -28,6 +28,12 @@ struct ShapeAppearanceSettings {
   std::optional<LiveShapeParams> geometry;
 };
 
+// GRD presets may defer stops to the tool colors; shape fills store concrete
+// colors, so resolve at pick time (shared with the options-bar paint pickers).
+[[nodiscard]] GradientDefinition resolve_gradient_definition(GradientDefinition definition,
+                                                             RgbColor foreground,
+                                                             RgbColor background);
+
 // Live-preview dialog for a shape layer's fill and stroke (the
 // request_levels_settings convention): every control change fires
 // preview_changed with the full settings; returns nullopt on cancel. Pattern

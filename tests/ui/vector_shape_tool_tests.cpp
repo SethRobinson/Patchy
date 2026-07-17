@@ -41,7 +41,11 @@ public:
     auto settings = patchy::ui::app_settings();
     for (const auto* key :
          {"tools/vectorToolMode", "tools/vectorFillColor", "tools/vectorStrokeColor",
-          "tools/vectorStrokeEnabled", "tools/vectorStrokeWidth", "tools/vectorLineWeight"}) {
+          "tools/vectorStrokeEnabled", "tools/vectorStrokeWidth", "tools/vectorLineWeight",
+          "tools/vectorFillKind", "tools/vectorFillPatternId", "tools/vectorFillGradientId",
+          "tools/vectorStrokePaintKind", "tools/vectorStrokePatternId",
+          "tools/vectorStrokeGradientId", "paths/fillPatternScale", "paths/fillPatternAngle",
+          "paths/fillPatternOffsetX", "paths/fillPatternOffsetY", "paths/fillPatternAlignLayer"}) {
       settings.remove(QString::fromLatin1(key));
     }
     settings.sync();
@@ -54,12 +58,23 @@ private:
   SettingsValueRestorer stroke_enabled_{QStringLiteral("tools/vectorStrokeEnabled")};
   SettingsValueRestorer stroke_width_{QStringLiteral("tools/vectorStrokeWidth")};
   SettingsValueRestorer line_weight_{QStringLiteral("tools/vectorLineWeight")};
+  SettingsValueRestorer fill_kind_{QStringLiteral("tools/vectorFillKind")};
+  SettingsValueRestorer fill_pattern_id_{QStringLiteral("tools/vectorFillPatternId")};
+  SettingsValueRestorer fill_gradient_id_{QStringLiteral("tools/vectorFillGradientId")};
+  SettingsValueRestorer stroke_paint_kind_{QStringLiteral("tools/vectorStrokePaintKind")};
+  SettingsValueRestorer stroke_pattern_id_{QStringLiteral("tools/vectorStrokePatternId")};
+  SettingsValueRestorer stroke_gradient_id_{QStringLiteral("tools/vectorStrokeGradientId")};
   SettingsValueRestorer corner_radius_{QStringLiteral("tools/shapeCornerRadius")};
   SettingsValueRestorer work_path_tolerance_{QStringLiteral("paths/makeWorkPathTolerance")};
   SettingsValueRestorer simulate_pressure_{QStringLiteral("paths/strokeSimulatePressure")};
   SettingsValueRestorer fill_contents_{QStringLiteral("paths/fillContents")};
   SettingsValueRestorer fill_pattern_{QStringLiteral("paths/fillPatternId")};
   SettingsValueRestorer fill_opacity_{QStringLiteral("paths/fillOpacity")};
+  SettingsValueRestorer fill_pattern_scale_{QStringLiteral("paths/fillPatternScale")};
+  SettingsValueRestorer fill_pattern_angle_{QStringLiteral("paths/fillPatternAngle")};
+  SettingsValueRestorer fill_pattern_offset_x_{QStringLiteral("paths/fillPatternOffsetX")};
+  SettingsValueRestorer fill_pattern_offset_y_{QStringLiteral("paths/fillPatternOffsetY")};
+  SettingsValueRestorer fill_pattern_align_{QStringLiteral("paths/fillPatternAlignLayer")};
 };
 
 void shape_drag(patchy::ui::CanvasWidget& canvas, QPoint document_from, QPoint document_to) {
@@ -1355,6 +1370,42 @@ void ui_shape_pattern_fill_uses_custom_library_pattern() {
     const auto pattern_index = pattern_combo->findData(pattern_id);
     CHECK(pattern_index >= 0);
     pattern_combo->setCurrentIndex(pattern_index);
+    // Placement params: angle, offsets, and the align-with-layer anchor.
+    auto* angle_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapePatternAngleSpin"));
+    auto* offset_x_spin =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapePatternOffsetXSpin"));
+    auto* offset_y_spin =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapePatternOffsetYSpin"));
+    auto* align_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapePatternAlignCheck"));
+    CHECK(angle_spin != nullptr && offset_x_spin != nullptr && offset_y_spin != nullptr &&
+          align_check != nullptr);
+    CHECK(align_check->isChecked());  // pattern_linked defaults on
+    angle_spin->setValue(30.0);
+    offset_x_spin->setValue(5.0);
+    offset_y_spin->setValue(-2.0);
+    align_check->setChecked(false);
+    // Pattern STROKE paint: enable the stroke, switch its paint to Pattern.
+    auto* stroke_check = dialog->findChild<QCheckBox*>(QStringLiteral("shapeStrokeCheck"));
+    auto* paint_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
+    auto* stroke_pattern_combo =
+        dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePatternCombo"));
+    auto* stroke_color_button = dialog->findChild<QWidget*>(QStringLiteral("shapeStrokeColorButton"));
+    CHECK(stroke_check != nullptr && paint_combo != nullptr && stroke_pattern_combo != nullptr &&
+          stroke_color_button != nullptr);
+    stroke_check->setChecked(true);
+    CHECK(stroke_color_button->isVisible());  // solid paint shows the color row
+    const auto pattern_paint_index =
+        paint_combo->findData(static_cast<int>(patchy::VectorFillKind::Pattern));
+    CHECK(pattern_paint_index >= 0);
+    paint_combo->setCurrentIndex(pattern_paint_index);
+    CHECK(!stroke_color_button->isVisible());  // pattern paint swaps the rows
+    CHECK(stroke_pattern_combo->isVisible());
+    const auto stroke_pattern_index = stroke_pattern_combo->findData(pattern_id);
+    CHECK(stroke_pattern_index >= 0);
+    stroke_pattern_combo->setCurrentIndex(stroke_pattern_index);
+    auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
+    CHECK(stroke_width != nullptr);
+    stroke_width->setValue(6.0);
     QApplication::processEvents();
     dialog->accept();
   });
@@ -1365,6 +1416,13 @@ void ui_shape_pattern_fill_uses_custom_library_pattern() {
   CHECK(layer != nullptr);
   CHECK(layer->vector_shape()->fill.kind == patchy::VectorFillKind::Pattern);
   CHECK(layer->vector_shape()->fill.pattern_id == pattern_id.toStdString());
+  CHECK(std::abs(layer->vector_shape()->fill.pattern_angle_degrees - 30.0) < 1e-9);
+  CHECK(std::abs(layer->vector_shape()->fill.pattern_phase_x - 5.0) < 1e-9);
+  CHECK(std::abs(layer->vector_shape()->fill.pattern_phase_y + 2.0) < 1e-9);
+  CHECK(!layer->vector_shape()->fill.pattern_linked);
+  CHECK(layer->vector_shape()->stroke.enabled);
+  CHECK(layer->vector_shape()->stroke.content.kind == patchy::VectorFillKind::Pattern);
+  CHECK(layer->vector_shape()->stroke.content.pattern_id == pattern_id.toStdString());
   // The healthy tile healed the poisoned store entry and the raster shows the
   // checker colors inside the shape.
   const auto* adopted = document.metadata().patterns.find(pattern_id.toStdString());
@@ -1376,6 +1434,172 @@ void ui_shape_pattern_fill_uses_custom_library_pattern() {
   CHECK(matches_checker);
 
   CHECK(window.pattern_library().remove_pattern(storage_id));
+}
+
+void ui_options_bar_pattern_fill_creates_pattern_shape() {
+  // The options-bar Fill picker's backing mirror can hold a pattern; a drawn
+  // shape then carries it, the tile is adopted into the document store (the
+  // Patt-block hard-refusal rule), and the mirror seeds later documents too.
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  patchy::PixelBuffer tile(8, 8, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < 8; ++y) {
+    for (int x = 0; x < 8; ++x) {
+      auto* px = tile.pixel(x, y);
+      const bool first = ((x / 4) + (y / 4)) % 2 == 0;
+      px[0] = first ? 20 : 230;
+      px[1] = first ? 160 : 80;
+      px[2] = first ? 80 : 190;
+      px[3] = 255;
+    }
+  }
+  const auto pattern_id = QStringLiteral("patchy-test-options-bar-pattern");
+  if (const auto* stale = window.pattern_library().find_entry_by_pattern_id(pattern_id);
+      stale != nullptr) {
+    CHECK(window.pattern_library().remove_pattern(stale->storage_id));
+  }
+  const auto storage_id = window.pattern_library().add_pattern(
+      QStringLiteral("Options Bar Pattern"), tile, QStringLiteral("Tests"), pattern_id);
+  CHECK(!storage_id.isEmpty());
+
+  // The tool ACTION (not canvas->set_tool) carries the application-level tool
+  // state that later documents inherit.
+  require_action_by_text(window, QStringLiteral("Rect"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  auto& fill = patchy::ui::MainWindowTestAccess::current_vector_fill(window);
+  fill.kind = patchy::VectorFillKind::Pattern;
+  fill.pattern_id = pattern_id.toStdString();
+  fill.pattern_name = "Options Bar Pattern";
+  patchy::ui::MainWindowTestAccess::update_vector_swatch_icons(window);
+
+  shape_drag(*canvas, QPoint(120, 140), QPoint(320, 260));
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  const auto* layer = std::as_const(document).find_layer(*active);
+  CHECK(layer != nullptr);
+  CHECK(layer->vector_shape() != nullptr);
+  CHECK(layer->vector_shape()->fill.kind == patchy::VectorFillKind::Pattern);
+  CHECK(layer->vector_shape()->fill.pattern_id == pattern_id.toStdString());
+  const auto* adopted = document.metadata().patterns.find(pattern_id.toStdString());
+  CHECK(adopted != nullptr);
+  CHECK(!adopted->tile.empty());
+  const auto inside = canvas_pixel(*canvas, QPoint(220, 200));
+  CHECK(color_close(inside, QColor(20, 160, 80), 12) || color_close(inside, QColor(230, 80, 190), 12));
+
+  // The mirror is application-wide: a brand-new document's first drag uses it
+  // (the current_* mirror rule; the commit pulls, never a per-canvas copy).
+  accept_new_document_dialog(320, 240);
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  auto* new_canvas = require_canvas(window);
+  CHECK(new_canvas != canvas);
+  CHECK(new_canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*new_canvas, QPoint(40, 40), QPoint(200, 160));
+  auto* new_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, new_canvas);
+  CHECK(new_document != nullptr);
+  const auto new_active = new_document->active_layer_id();
+  CHECK(new_active.has_value());
+  const auto* new_layer = std::as_const(*new_document).find_layer(*new_active);
+  CHECK(new_layer != nullptr && new_layer->vector_shape() != nullptr);
+  CHECK(new_layer->vector_shape()->fill.kind == patchy::VectorFillKind::Pattern);
+  CHECK(new_document->metadata().patterns.find(pattern_id.toStdString()) != nullptr);
+
+  CHECK(window.pattern_library().remove_pattern(storage_id));
+}
+
+void ui_options_bar_edits_selected_shape_appearance() {
+  // Photoshop's live options bar: with a shape layer selected, the appearance
+  // controls show for the path-select tools, edit the LAYER (one undo entry
+  // per gesture), and stick as the next-shape defaults.
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  require_action_by_text(window, QStringLiteral("Rect"))->trigger();
+  QApplication::processEvents();
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  const auto base_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  // The tool ACTION updates the application-level tool the options bar keys
+  // its live-edit gating on.
+  require_action_by_text(window, QStringLiteral("Path Select"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::PathSelect);
+  auto* stroke_check = window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
+  auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+  CHECK(stroke_check != nullptr && stroke_width != nullptr);
+  // The appearance controls show for the select tool because the active layer
+  // is an editable shape.
+  CHECK(stroke_check->isVisible());
+  CHECK(!stroke_check->isChecked());  // synced from the strokeless layer
+
+  // Toggling the stroke applies to the selected shape immediately.
+  stroke_check->setChecked(true);
+  QApplication::processEvents();
+  {
+    const auto* layer = std::as_const(document).find_layer(*layer_id);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    CHECK(layer->vector_shape()->stroke.enabled);
+    CHECK(patchy::layer_vector_block_dirty(*layer));
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 1);
+
+  // The width spin debounces; the deterministic test applies directly (the
+  // pending timer later no-ops through the equality check).
+  stroke_width->setValue(8.0);
+  CHECK(patchy::ui::MainWindowTestAccess::apply_options_bar_appearance(window));
+  {
+    const auto* layer = std::as_const(document).find_layer(*layer_id);
+    CHECK(std::abs(layer->vector_shape()->stroke.width - 8.0) < 1e-9);
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 2);
+
+  // A fill edit through the mirror (the popup pickers' backing state).
+  auto& fill = patchy::ui::MainWindowTestAccess::current_vector_fill(window);
+  fill.kind = patchy::VectorFillKind::Solid;
+  fill.color = patchy::RgbColor{200, 30, 30};
+  CHECK(patchy::ui::MainWindowTestAccess::apply_options_bar_appearance(window));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 3);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 160)), QColor(200, 30, 30), 8));
+  // Re-applying identical values is a no-op and pushes nothing.
+  CHECK(!patchy::ui::MainWindowTestAccess::apply_options_bar_appearance(window));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth + 3);
+
+  // Sticky: the next drawn shape inherits the edited appearance.
+  require_action_by_text(window, QStringLiteral("Rect"))->trigger();
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(400, 300), QPoint(500, 400));
+  const auto second_id = document.active_layer_id();
+  CHECK(second_id.has_value() && *second_id != *layer_id);
+  const auto* second = std::as_const(document).find_layer(*second_id);
+  CHECK(second != nullptr && second->vector_shape() != nullptr);
+  CHECK(second->vector_shape()->stroke.enabled);
+  CHECK(std::abs(second->vector_shape()->stroke.width - 8.0) < 1e-9);
+  CHECK(second->vector_shape()->fill.color == (patchy::RgbColor{200, 30, 30}));
+
+  // Undo unwinds the appearance edits one gesture at a time.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();  // second shape
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();  // fill color
+  QApplication::processEvents();
+  {
+    const auto* layer = std::as_const(document).find_layer(*layer_id);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    CHECK(layer->vector_shape()->fill.color == (patchy::RgbColor{0, 0, 0}));
+    CHECK(layer->vector_shape()->stroke.enabled);  // stroke gesture still applied
+  }
 }
 
 void ui_new_fill_layer_clips_to_targeted_path() {
@@ -2126,21 +2350,57 @@ void ui_fill_path_supports_patterns() {
   CHECK(pattern_selected);
 
   // The active Paint Layer gained checker pixels inside the path (never the
-  // magenta foreground); outside stays untouched.
+  // magenta foreground); outside stays untouched. Document-origin tiling makes
+  // the expected color at (304, 260) exact: tile (0, 4) = the second color.
   const auto active = document.active_layer_id();
   CHECK(active.has_value());
   const auto* paint_layer = std::as_const(document).find_layer(*active);
   CHECK(paint_layer != nullptr);
-  const auto& pixels = paint_layer->pixels();
-  CHECK(pixels.format().channels == 4);
-  const auto* inside = pixels.pixel(300, 260);
-  CHECK(inside[3] == 255U);
-  const bool matches_checker =
-      (inside[0] == 10U && inside[1] == 200U && inside[2] == 30U) ||
-      (inside[0] == 240U && inside[1] == 40U && inside[2] == 220U);
-  CHECK(matches_checker);
-  const auto* outside = pixels.pixel(150, 260);
-  CHECK(outside[3] == 0U);
+  {
+    const auto& pixels = paint_layer->pixels();
+    CHECK(pixels.format().channels == 4);
+    const auto* inside = pixels.pixel(304, 260);
+    CHECK(inside[3] == 255U);
+    CHECK(inside[0] == 240U && inside[1] == 40U && inside[2] == 220U);
+    const auto* outside = pixels.pixel(150, 260);
+    CHECK(outside[3] == 0U);
+  }
+
+  // Undo the fill, then fill again with a 4 px X offset: the tile grid
+  // shifts so the same document pixel lands on the OTHER checker cell.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  if (auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+      paths_list != nullptr && paths_list->count() > 0) {
+    paths_list->setCurrentRow(0);  // keep the work path targeted for the refill
+    QApplication::processEvents();
+  }
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("fillPathDialog"));
+    CHECK(dialog != nullptr);
+    auto* contents = dialog->findChild<QComboBox*>(QStringLiteral("fillPathContentsCombo"));
+    auto* offset_x = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("fillPathPatternOffsetXSpin"));
+    auto* angle = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("fillPathPatternAngleSpin"));
+    CHECK(contents != nullptr && offset_x != nullptr && angle != nullptr);
+    // The placement rows grey out with non-pattern contents, like the combo.
+    contents->setCurrentIndex(0);
+    CHECK(!offset_x->isEnabled());
+    contents->setCurrentIndex(2);
+    CHECK(offset_x->isEnabled());
+    CHECK(angle->isEnabled());
+    offset_x->setValue(4.0);
+    dialog->accept();
+  });
+  window.findChild<QAction*>(QStringLiteral("pathFillAction"))->trigger();
+  QApplication::processEvents();
+  {
+    const auto* refetched = std::as_const(document).find_layer(*active);
+    CHECK(refetched != nullptr);
+    const auto& pixels = refetched->pixels();
+    const auto* inside = pixels.pixel(304, 260);
+    CHECK(inside[3] == 255U);
+    CHECK(inside[0] == 10U && inside[1] == 200U && inside[2] == 30U);
+  }
 
   CHECK(window.pattern_library().remove_pattern(storage_id));
 }
@@ -2407,6 +2667,10 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_new_fill_layer_clips_to_targeted_path", ui_new_fill_layer_clips_to_targeted_path},
       {"ui_shape_pattern_fill_uses_custom_library_pattern",
        ui_shape_pattern_fill_uses_custom_library_pattern},
+      {"ui_options_bar_pattern_fill_creates_pattern_shape",
+       ui_options_bar_pattern_fill_creates_pattern_shape},
+      {"ui_options_bar_edits_selected_shape_appearance",
+       ui_options_bar_edits_selected_shape_appearance},
       {"ui_path_edits_refresh_panel_thumbnails", ui_path_edits_refresh_panel_thumbnails},
       {"ui_paths_panel_clipping_path_toggle", ui_paths_panel_clipping_path_toggle},
       {"ui_shape_mode_drag_previews_fill_appearance",

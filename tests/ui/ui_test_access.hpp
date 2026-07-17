@@ -54,6 +54,24 @@ public:
     window.edit_active_shape_appearance();
   }
 
+  // Options-bar paint mirrors (the popup pickers' backing state) and the
+  // live-edit application, callable without driving the modal manager dialogs.
+  static patchy::VectorFill& current_vector_fill(MainWindow& window) {
+    return window.current_vector_fill_;
+  }
+
+  static patchy::VectorFill& current_vector_stroke_paint(MainWindow& window) {
+    return window.current_vector_stroke_paint_;
+  }
+
+  static bool apply_options_bar_appearance(MainWindow& window) {
+    return window.apply_options_bar_appearance_to_active_shape();
+  }
+
+  static void update_vector_swatch_icons(MainWindow& window) {
+    window.update_vector_swatch_icons();
+  }
+
   static CustomShapeLibrary& custom_shape_library(MainWindow& window) {
     return window.custom_shape_library();
   }

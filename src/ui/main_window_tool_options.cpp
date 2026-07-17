@@ -66,6 +66,7 @@
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/photo_pattern_presets.hpp"
+#include "ui/shape_appearance_dialog.hpp"
 #include "ui/style_library.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
@@ -1715,19 +1716,73 @@ void MainWindow::load_tool_settings() {
                                         : current_vector_tool_mode_ == VectorToolMode::Pixels ? 2
                                                                                               : 0);
   }
-  if (const auto fill_color = QColor(
-          settings.value(QStringLiteral("tools/vectorFillColor"), current_vector_fill_color_.name())
-              .toString());
-      fill_color.isValid()) {
-    current_vector_fill_color_ = fill_color;
-  }
-  if (const auto stroke_color =
-          QColor(settings
-                     .value(QStringLiteral("tools/vectorStrokeColor"), current_vector_stroke_color_.name())
-                     .toString());
-      stroke_color.isValid()) {
-    current_vector_stroke_color_ = stroke_color;
-  }
+  // Options-bar paint mirrors: solid colors keep the historical keys; the
+  // paint kind and pattern/gradient references are their own append-only keys.
+  // Gradient placement and pattern placement params deliberately reset to
+  // defaults each launch (the appearance dialog owns per-layer tuning).
+  const auto load_vector_paint = [this, &settings](patchy::VectorFill& paint,
+                                                   QString& gradient_id, const char* color_key,
+                                                   const char* kind_key, const char* pattern_key,
+                                                   const char* gradient_key) {
+    const QColor default_color(paint.color.red, paint.color.green, paint.color.blue);
+    if (const auto color = QColor(
+            settings.value(QLatin1String(color_key), default_color.name()).toString());
+        color.isValid()) {
+      paint.color = RgbColor{static_cast<std::uint8_t>(color.red()),
+                             static_cast<std::uint8_t>(color.green()),
+                             static_cast<std::uint8_t>(color.blue())};
+    }
+    const auto kind_name = settings.value(QLatin1String(kind_key), QStringLiteral("solid")).toString();
+    paint.kind = kind_name == QStringLiteral("none")       ? patchy::VectorFillKind::None
+                 : kind_name == QStringLiteral("gradient") ? patchy::VectorFillKind::Gradient
+                 : kind_name == QStringLiteral("pattern")  ? patchy::VectorFillKind::Pattern
+                                                           : patchy::VectorFillKind::Solid;
+    if (paint.kind == patchy::VectorFillKind::Pattern) {
+      const auto pattern_id = settings.value(QLatin1String(pattern_key)).toString();
+      if (const auto* entry = pattern_library().find_entry_by_pattern_id(pattern_id);
+          entry != nullptr) {
+        paint.pattern_id = pattern_id.toStdString();
+        paint.pattern_name = entry->name.toStdString();
+      } else {
+        paint.kind = patchy::VectorFillKind::Solid;  // unresolvable reference
+      }
+    }
+    if (paint.kind == patchy::VectorFillKind::Gradient) {
+      gradient_id = settings.value(QLatin1String(gradient_key)).toString();
+      const auto* entry = gradient_library().find_entry(gradient_id);
+      if (entry == nullptr && !gradient_library().entries().empty()) {
+        gradient_id = gradient_library().entries().front().storage_id;
+        entry = gradient_library().find_entry(gradient_id);
+      }
+      const auto foreground = canvas_ != nullptr ? canvas_->primary_color() : QColor(Qt::black);
+      const auto background = canvas_ != nullptr ? canvas_->secondary_color() : QColor(Qt::white);
+      const auto fg = RgbColor{static_cast<std::uint8_t>(foreground.red()),
+                               static_cast<std::uint8_t>(foreground.green()),
+                               static_cast<std::uint8_t>(foreground.blue())};
+      const auto bg = RgbColor{static_cast<std::uint8_t>(background.red()),
+                               static_cast<std::uint8_t>(background.green()),
+                               static_cast<std::uint8_t>(background.blue())};
+      if (entry != nullptr) {
+        static_cast<GradientDefinition&>(paint.gradient) =
+            resolve_gradient_definition(entry->definition, fg, bg);
+      } else {
+        paint.gradient.color_stops = {GradientColorStop{0.0F, fg, 0.5F},
+                                      GradientColorStop{1.0F, bg, 0.5F}};
+        paint.gradient.alpha_stops = {GradientAlphaStop{0.0F, 1.0F, 0.5F},
+                                      GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+      }
+      paint.gradient.type = LayerStyleGradientType::Linear;
+      paint.gradient.angle_degrees = 90.0F;
+      paint.gradient.scale = 1.0F;
+      paint.gradient.reverse = false;
+    }
+  };
+  load_vector_paint(current_vector_fill_, current_vector_fill_gradient_id_,
+                    "tools/vectorFillColor", "tools/vectorFillKind", "tools/vectorFillPatternId",
+                    "tools/vectorFillGradientId");
+  load_vector_paint(current_vector_stroke_paint_, current_vector_stroke_gradient_id_,
+                    "tools/vectorStrokeColor", "tools/vectorStrokePaintKind",
+                    "tools/vectorStrokePatternId", "tools/vectorStrokeGradientId");
   current_vector_stroke_enabled_ =
       settings.value(QStringLiteral("tools/vectorStrokeEnabled"), current_vector_stroke_enabled_).toBool();
   current_vector_stroke_width_ = std::clamp(
@@ -1889,10 +1944,27 @@ void MainWindow::save_tool_settings() const {
                     current_vector_tool_mode_ == VectorToolMode::Path     ? QStringLiteral("path")
                     : current_vector_tool_mode_ == VectorToolMode::Pixels ? QStringLiteral("pixels")
                                                                           : QStringLiteral("shape"));
-  settings.setValue(QStringLiteral("tools/vectorFillColor"),
-                    current_vector_fill_color_.name(QColor::HexRgb));
-  settings.setValue(QStringLiteral("tools/vectorStrokeColor"),
-                    current_vector_stroke_color_.name(QColor::HexRgb));
+  const auto save_vector_paint = [&settings](const patchy::VectorFill& paint,
+                                             const QString& gradient_id, const char* color_key,
+                                             const char* kind_key, const char* pattern_key,
+                                             const char* gradient_key) {
+    settings.setValue(QLatin1String(color_key),
+                      QColor(paint.color.red, paint.color.green, paint.color.blue)
+                          .name(QColor::HexRgb));
+    settings.setValue(QLatin1String(kind_key),
+                      paint.kind == patchy::VectorFillKind::None       ? QStringLiteral("none")
+                      : paint.kind == patchy::VectorFillKind::Gradient ? QStringLiteral("gradient")
+                      : paint.kind == patchy::VectorFillKind::Pattern  ? QStringLiteral("pattern")
+                                                                       : QStringLiteral("solid"));
+    settings.setValue(QLatin1String(pattern_key), QString::fromStdString(paint.pattern_id));
+    settings.setValue(QLatin1String(gradient_key), gradient_id);
+  };
+  save_vector_paint(current_vector_fill_, current_vector_fill_gradient_id_,
+                    "tools/vectorFillColor", "tools/vectorFillKind", "tools/vectorFillPatternId",
+                    "tools/vectorFillGradientId");
+  save_vector_paint(current_vector_stroke_paint_, current_vector_stroke_gradient_id_,
+                    "tools/vectorStrokeColor", "tools/vectorStrokePaintKind",
+                    "tools/vectorStrokePatternId", "tools/vectorStrokeGradientId");
   settings.setValue(QStringLiteral("tools/vectorStrokeEnabled"), current_vector_stroke_enabled_);
   settings.setValue(QStringLiteral("tools/vectorStrokeWidth"), current_vector_stroke_width_);
   settings.setValue(QStringLiteral("tools/vectorLineWeight"), current_vector_line_weight_);

@@ -3439,57 +3439,47 @@ void MainWindow::create_actions() {
     refresh_options_bar();
   });
 
+  // The appearance controls also register for the path-select tools: there
+  // they show only while an editable shape layer is active and live-edit it
+  // (refresh_vector_tool_options_visibility refines; Photoshop's behavior).
+  const std::initializer_list<CanvasTool> vector_appearance_tools{
+      CanvasTool::Line,    CanvasTool::Rectangle,  CanvasTool::Ellipse,
+      CanvasTool::Pen,     CanvasTool::Polygon,    CanvasTool::CustomShape,
+      CanvasTool::PathSelect, CanvasTool::DirectSelect};
   vector_shape_mode_option_widgets_.push_back(
-      add_option_label(tr("Fill:"), {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
-                     CanvasTool::Polygon, CanvasTool::CustomShape}));
+      add_option_label(tr("Fill:"), vector_appearance_tools));
   vector_fill_swatch_button_ = new QToolButton(toolbar);
   vector_fill_swatch_button_->setObjectName(QStringLiteral("vectorFillSwatchButton"));
-  vector_fill_swatch_button_->setToolTip(tr("Shape fill color"));
+  vector_fill_swatch_button_->setToolTip(tr("Shape fill: none, solid color, gradient, or pattern"));
   vector_fill_swatch_button_->setAutoRaise(true);
   vector_fill_swatch_button_->setProperty("optionsBarButton", true);
-  add_option_widget(vector_fill_swatch_button_,
-                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
-                     CanvasTool::Polygon, CanvasTool::CustomShape});
+  add_option_widget(vector_fill_swatch_button_, vector_appearance_tools);
   vector_shape_mode_option_widgets_.push_back(vector_fill_swatch_button_);
-  connect(vector_fill_swatch_button_, &QToolButton::clicked, this, [this] {
-    const auto chosen = request_patchy_color(this, current_vector_fill_color_, tr("Shape Fill Color"));
-    if (chosen.has_value()) {
-      current_vector_fill_color_ = *chosen;
-      update_vector_swatch_icons();
-      schedule_save_tool_settings();
-    }
-  });
+  connect(vector_fill_swatch_button_, &QToolButton::clicked, this,
+          [this] { show_vector_paint_menu(false); });
 
   auto* vector_stroke_check = new CheckGlyphBox(tr("Stroke"), toolbar);
   vector_stroke_check->setObjectName(QStringLiteral("vectorStrokeCheck"));
   vector_stroke_check->setChecked(current_vector_stroke_enabled_);
   vector_stroke_check->setToolTip(tr("Stroke the shape outline"));
-  add_option_widget(vector_stroke_check, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
-                     CanvasTool::Polygon, CanvasTool::CustomShape});
+  add_option_widget(vector_stroke_check, vector_appearance_tools);
   vector_shape_mode_option_widgets_.push_back(vector_stroke_check);
   connect(vector_stroke_check, &QCheckBox::toggled, this, [this](bool checked) {
     current_vector_stroke_enabled_ = checked;
     schedule_save_tool_settings();
+    apply_options_bar_appearance_to_active_shape();
   });
 
   vector_stroke_swatch_button_ = new QToolButton(toolbar);
   vector_stroke_swatch_button_->setObjectName(QStringLiteral("vectorStrokeSwatchButton"));
-  vector_stroke_swatch_button_->setToolTip(tr("Shape stroke color"));
+  vector_stroke_swatch_button_->setToolTip(
+      tr("Shape stroke: solid color, gradient, or pattern"));
   vector_stroke_swatch_button_->setAutoRaise(true);
   vector_stroke_swatch_button_->setProperty("optionsBarButton", true);
-  add_option_widget(vector_stroke_swatch_button_,
-                    {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
-                     CanvasTool::Polygon, CanvasTool::CustomShape});
+  add_option_widget(vector_stroke_swatch_button_, vector_appearance_tools);
   vector_shape_mode_option_widgets_.push_back(vector_stroke_swatch_button_);
-  connect(vector_stroke_swatch_button_, &QToolButton::clicked, this, [this] {
-    const auto chosen =
-        request_patchy_color(this, current_vector_stroke_color_, tr("Shape Stroke Color"));
-    if (chosen.has_value()) {
-      current_vector_stroke_color_ = *chosen;
-      update_vector_swatch_icons();
-      schedule_save_tool_settings();
-    }
-  });
+  connect(vector_stroke_swatch_button_, &QToolButton::clicked, this,
+          [this] { show_vector_paint_menu(true); });
 
   auto* vector_stroke_width = new QDoubleSpinBox(toolbar);
   vector_stroke_width->setObjectName(QStringLiteral("vectorStrokeWidthSpin"));
@@ -3499,12 +3489,12 @@ void MainWindow::create_actions() {
   vector_stroke_width->setSuffix(QStringLiteral(" px"));
   vector_stroke_width->setToolTip(tr("Stroke width"));
   configure_toolbar_spinbox(vector_stroke_width, 64);
-  add_option_widget(vector_stroke_width, {CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
-                     CanvasTool::Polygon, CanvasTool::CustomShape});
+  add_option_widget(vector_stroke_width, vector_appearance_tools);
   vector_shape_mode_option_widgets_.push_back(vector_stroke_width);
   connect(vector_stroke_width, &QDoubleSpinBox::valueChanged, this, [this](double value) {
     current_vector_stroke_width_ = value;
     schedule_save_tool_settings();
+    schedule_vector_appearance_apply();
   });
 
   vector_vector_mode_option_widgets_.push_back(

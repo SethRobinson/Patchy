@@ -5694,9 +5694,9 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
         // Pulled at draw time from the application-wide options-bar state, so
         // the preview can never desync from what the commit will produce.
         CanvasWidget::ShapePreviewAppearance appearance;
-        appearance.fill = current_vector_fill_color_;
+        appearance.fill = vector_fill_preview_brush(current_vector_fill_);
         appearance.stroke_enabled = current_vector_stroke_enabled_;
-        appearance.stroke = current_vector_stroke_color_;
+        appearance.stroke = vector_fill_preview_brush(current_vector_stroke_paint_);
         appearance.stroke_width = current_vector_stroke_width_;
         appearance.line_weight = current_vector_line_weight_;
         return appearance;

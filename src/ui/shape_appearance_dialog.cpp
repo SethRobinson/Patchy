@@ -48,21 +48,6 @@ QIcon color_swatch_icon(RgbColor color) {
   return QIcon(pixmap);
 }
 
-// GRD presets may defer stops to the tool colors; shape fills store concrete
-// colors, so resolve at pick time (the layer-style dialog's convention).
-GradientDefinition resolve_gradient_definition(GradientDefinition definition, RgbColor foreground,
-                                               RgbColor background) {
-  for (auto& stop : definition.color_stops) {
-    if (stop.kind == GradientColorStop::Kind::Foreground) {
-      stop.color = foreground;
-    } else if (stop.kind == GradientColorStop::Kind::Background) {
-      stop.color = background;
-    }
-    stop.kind = GradientColorStop::Kind::User;
-  }
-  return definition;
-}
-
 // Dash presets, stored in stroke-width multiples like the vstk descriptor.
 const std::vector<double>& dash_preset(int index) {
   static const std::vector<double> kSolid{};
@@ -80,8 +65,9 @@ const std::vector<double>& dash_preset(int index) {
 
 struct DialogState {
   ShapeAppearanceSettings settings;
-  // Set when the user picks a stroke color; otherwise a gradient/pattern
-  // stroke paint read from a PSD is preserved untouched.
+  // Set on any stroke-paint interaction (paint kind, color, gradient, or
+  // pattern controls); an untouched PSD-authored paint round-trips verbatim
+  // because the model is only rewritten when a control changes it.
   bool stroke_paint_touched{false};
   // A PSD-authored dash pattern that matches no preset, restorable after
   // trying the presets.
@@ -89,6 +75,21 @@ struct DialogState {
 };
 
 }  // namespace
+
+// GRD presets may defer stops to the tool colors; shape fills store concrete
+// colors, so resolve at pick time (the layer-style dialog's convention).
+GradientDefinition resolve_gradient_definition(GradientDefinition definition, RgbColor foreground,
+                                               RgbColor background) {
+  for (auto& stop : definition.color_stops) {
+    if (stop.kind == GradientColorStop::Kind::Foreground) {
+      stop.color = foreground;
+    } else if (stop.kind == GradientColorStop::Kind::Background) {
+      stop.color = background;
+    }
+    stop.kind = GradientColorStop::Kind::User;
+  }
+  return definition;
+}
 
 std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     QWidget* parent, std::function<void(const ShapeAppearanceSettings&)> preview_changed,
@@ -243,14 +244,36 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   auto* fill_color_row = fill_color_button;
   fill_form->addRow(QObject::tr("Color:"), fill_color_row);
 
+  // Both the fill and the stroke paint offer the same preset lists.
+  const auto populate_gradient_combo = [gradient_library](QComboBox* combo) {
+    combo->setIconSize(QSize(64, 16));
+    if (gradient_library != nullptr) {
+      for (const auto& entry : gradient_library->entries()) {
+        combo->addItem(QIcon(entry.thumbnail), entry.name, entry.storage_id);
+      }
+    }
+  };
+  const auto populate_pattern_combo = [pattern_library, document_patterns](QComboBox* combo) {
+    combo->setIconSize(QSize(24, 24));
+    if (document_patterns != nullptr) {
+      for (const auto& resource : document_patterns->patterns) {
+        const auto name = resource.name.empty() ? QObject::tr("Embedded pattern")
+                                                : QString::fromStdString(resource.name);
+        combo->addItem(name, QString::fromStdString(resource.id));
+      }
+    }
+    if (pattern_library != nullptr) {
+      for (const auto& entry : pattern_library->entries()) {
+        if (combo->findData(entry.id) < 0) {
+          combo->addItem(QIcon(entry.thumbnail), entry.name, entry.id);
+        }
+      }
+    }
+  };
+
   auto* fill_gradient_combo = new QComboBox(fill_group);
   fill_gradient_combo->setObjectName(QStringLiteral("shapeFillGradientCombo"));
-  fill_gradient_combo->setIconSize(QSize(64, 16));
-  if (gradient_library != nullptr) {
-    for (const auto& entry : gradient_library->entries()) {
-      fill_gradient_combo->addItem(QIcon(entry.thumbnail), entry.name, entry.storage_id);
-    }
-  }
+  populate_gradient_combo(fill_gradient_combo);
   fill_form->addRow(QObject::tr("Gradient:"), fill_gradient_combo);
 
   auto* gradient_type_combo = new QComboBox(fill_group);
@@ -284,21 +307,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
 
   auto* fill_pattern_combo = new QComboBox(fill_group);
   fill_pattern_combo->setObjectName(QStringLiteral("shapeFillPatternCombo"));
-  fill_pattern_combo->setIconSize(QSize(24, 24));
-  if (document_patterns != nullptr) {
-    for (const auto& resource : document_patterns->patterns) {
-      const auto name = resource.name.empty() ? QObject::tr("Embedded pattern")
-                                              : QString::fromStdString(resource.name);
-      fill_pattern_combo->addItem(name, QString::fromStdString(resource.id));
-    }
-  }
-  if (pattern_library != nullptr) {
-    for (const auto& entry : pattern_library->entries()) {
-      if (fill_pattern_combo->findData(entry.id) < 0) {
-        fill_pattern_combo->addItem(QIcon(entry.thumbnail), entry.name, entry.id);
-      }
-    }
-  }
+  populate_pattern_combo(fill_pattern_combo);
   fill_form->addRow(QObject::tr("Pattern:"), fill_pattern_combo);
 
   auto* pattern_scale_spin = new QSpinBox(fill_group);
@@ -307,6 +316,39 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   pattern_scale_spin->setSuffix(QStringLiteral("%"));
   configure_dialog_spinbox(pattern_scale_spin, 72);
   fill_form->addRow(QObject::tr("Scale:"), pattern_scale_spin);
+
+  // Pattern placement (PtFl Angl / phase / Algn; rendered by the shared
+  // PatternTileSampler and round-tripped through the PSD writer).
+  auto* pattern_angle_spin = new QDoubleSpinBox(fill_group);
+  pattern_angle_spin->setObjectName(QStringLiteral("shapePatternAngleSpin"));
+  pattern_angle_spin->setRange(-180.0, 180.0);
+  pattern_angle_spin->setDecimals(1);
+  pattern_angle_spin->setSuffix(QStringLiteral("°"));
+  configure_dialog_spinbox(pattern_angle_spin, 72);
+  fill_form->addRow(QObject::tr("Angle:"), pattern_angle_spin);
+
+  auto* pattern_offset_x_spin = new QDoubleSpinBox(fill_group);
+  pattern_offset_x_spin->setObjectName(QStringLiteral("shapePatternOffsetXSpin"));
+  pattern_offset_x_spin->setRange(-30000.0, 30000.0);
+  pattern_offset_x_spin->setDecimals(1);
+  pattern_offset_x_spin->setSuffix(QStringLiteral(" px"));
+  configure_dialog_spinbox(pattern_offset_x_spin, 80);
+  fill_form->addRow(QObject::tr("Offset X:"), pattern_offset_x_spin);
+
+  auto* pattern_offset_y_spin = new QDoubleSpinBox(fill_group);
+  pattern_offset_y_spin->setObjectName(QStringLiteral("shapePatternOffsetYSpin"));
+  pattern_offset_y_spin->setRange(-30000.0, 30000.0);
+  pattern_offset_y_spin->setDecimals(1);
+  pattern_offset_y_spin->setSuffix(QStringLiteral(" px"));
+  configure_dialog_spinbox(pattern_offset_y_spin, 80);
+  fill_form->addRow(QObject::tr("Offset Y:"), pattern_offset_y_spin);
+
+  auto* pattern_align_check = new QCheckBox(QObject::tr("Align with layer"), fill_group);
+  pattern_align_check->setObjectName(QStringLiteral("shapePatternAlignCheck"));
+  pattern_align_check->setToolTip(
+      QObject::tr("Anchor the tile grid to the layer's position; unchecked anchors it to the "
+                  "document origin"));
+  fill_form->addRow(QString(), pattern_align_check);
 
   dialog_layout->addWidget(fill_group);
 
@@ -334,11 +376,102 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   configure_dialog_spinbox(stroke_width_spin, 80);
   stroke_form->addRow(QObject::tr("Width:"), stroke_width_spin);
 
+  // Stroke paint: solid color, gradient, or pattern (vstk strokeStyleContent
+  // takes the same three content shapes as the fill). A PSD-authored gradient
+  // or pattern paint shows truthfully and stays untouched until edited.
+  auto* stroke_paint_combo = new QComboBox(stroke_group);
+  stroke_paint_combo->setObjectName(QStringLiteral("shapeStrokePaintCombo"));
+  stroke_paint_combo->addItem(QObject::tr("Solid Color"), static_cast<int>(VectorFillKind::Solid));
+  stroke_paint_combo->addItem(QObject::tr("Gradient"), static_cast<int>(VectorFillKind::Gradient));
+  stroke_paint_combo->addItem(QObject::tr("Pattern"), static_cast<int>(VectorFillKind::Pattern));
+  stroke_form->addRow(QObject::tr("Paint:"), stroke_paint_combo);
+
   auto* stroke_color_button = new QPushButton(stroke_group);
   stroke_color_button->setObjectName(QStringLiteral("shapeStrokeColorButton"));
   stroke_color_button->setIcon(color_swatch_icon(state->settings.stroke.content.color));
   stroke_color_button->setText(QObject::tr("Color..."));
   stroke_form->addRow(QObject::tr("Color:"), stroke_color_button);
+
+  auto* stroke_gradient_combo = new QComboBox(stroke_group);
+  stroke_gradient_combo->setObjectName(QStringLiteral("shapeStrokeGradientCombo"));
+  populate_gradient_combo(stroke_gradient_combo);
+  stroke_form->addRow(QObject::tr("Gradient:"), stroke_gradient_combo);
+
+  auto* stroke_gradient_type_combo = new QComboBox(stroke_group);
+  stroke_gradient_type_combo->setObjectName(QStringLiteral("shapeStrokeGradientTypeCombo"));
+  stroke_gradient_type_combo->addItem(QObject::tr("Linear"),
+                                      static_cast<int>(LayerStyleGradientType::Linear));
+  stroke_gradient_type_combo->addItem(QObject::tr("Radial"),
+                                      static_cast<int>(LayerStyleGradientType::Radial));
+  stroke_gradient_type_combo->addItem(QObject::tr("Angle"),
+                                      static_cast<int>(LayerStyleGradientType::Angle));
+  stroke_gradient_type_combo->addItem(QObject::tr("Reflected"),
+                                      static_cast<int>(LayerStyleGradientType::Reflected));
+  stroke_gradient_type_combo->addItem(QObject::tr("Diamond"),
+                                      static_cast<int>(LayerStyleGradientType::Diamond));
+  stroke_form->addRow(QObject::tr("Style:"), stroke_gradient_type_combo);
+
+  auto* stroke_gradient_angle_spin = new QSpinBox(stroke_group);
+  stroke_gradient_angle_spin->setObjectName(QStringLiteral("shapeStrokeGradientAngleSpin"));
+  stroke_gradient_angle_spin->setRange(-180, 180);
+  stroke_gradient_angle_spin->setSuffix(QStringLiteral("°"));
+  configure_dialog_spinbox(stroke_gradient_angle_spin, 72);
+  stroke_form->addRow(QObject::tr("Angle:"), stroke_gradient_angle_spin);
+
+  auto* stroke_gradient_scale_spin = new QSpinBox(stroke_group);
+  stroke_gradient_scale_spin->setObjectName(QStringLiteral("shapeStrokeGradientScaleSpin"));
+  stroke_gradient_scale_spin->setRange(10, 1000);
+  stroke_gradient_scale_spin->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(stroke_gradient_scale_spin, 72);
+  stroke_form->addRow(QObject::tr("Scale:"), stroke_gradient_scale_spin);
+
+  auto* stroke_gradient_reverse_check = new QCheckBox(QObject::tr("Reverse"), stroke_group);
+  stroke_gradient_reverse_check->setObjectName(
+      QStringLiteral("shapeStrokeGradientReverseCheck"));
+  stroke_form->addRow(QString(), stroke_gradient_reverse_check);
+
+  auto* stroke_pattern_combo = new QComboBox(stroke_group);
+  stroke_pattern_combo->setObjectName(QStringLiteral("shapeStrokePatternCombo"));
+  populate_pattern_combo(stroke_pattern_combo);
+  stroke_form->addRow(QObject::tr("Pattern:"), stroke_pattern_combo);
+
+  auto* stroke_pattern_scale_spin = new QSpinBox(stroke_group);
+  stroke_pattern_scale_spin->setObjectName(QStringLiteral("shapeStrokePatternScaleSpin"));
+  stroke_pattern_scale_spin->setRange(1, 1000);
+  stroke_pattern_scale_spin->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(stroke_pattern_scale_spin, 72);
+  stroke_form->addRow(QObject::tr("Scale:"), stroke_pattern_scale_spin);
+
+  auto* stroke_pattern_angle_spin = new QDoubleSpinBox(stroke_group);
+  stroke_pattern_angle_spin->setObjectName(QStringLiteral("shapeStrokePatternAngleSpin"));
+  stroke_pattern_angle_spin->setRange(-180.0, 180.0);
+  stroke_pattern_angle_spin->setDecimals(1);
+  stroke_pattern_angle_spin->setSuffix(QStringLiteral("°"));
+  configure_dialog_spinbox(stroke_pattern_angle_spin, 72);
+  stroke_form->addRow(QObject::tr("Angle:"), stroke_pattern_angle_spin);
+
+  auto* stroke_pattern_offset_x_spin = new QDoubleSpinBox(stroke_group);
+  stroke_pattern_offset_x_spin->setObjectName(QStringLiteral("shapeStrokePatternOffsetXSpin"));
+  stroke_pattern_offset_x_spin->setRange(-30000.0, 30000.0);
+  stroke_pattern_offset_x_spin->setDecimals(1);
+  stroke_pattern_offset_x_spin->setSuffix(QStringLiteral(" px"));
+  configure_dialog_spinbox(stroke_pattern_offset_x_spin, 80);
+  stroke_form->addRow(QObject::tr("Offset X:"), stroke_pattern_offset_x_spin);
+
+  auto* stroke_pattern_offset_y_spin = new QDoubleSpinBox(stroke_group);
+  stroke_pattern_offset_y_spin->setObjectName(QStringLiteral("shapeStrokePatternOffsetYSpin"));
+  stroke_pattern_offset_y_spin->setRange(-30000.0, 30000.0);
+  stroke_pattern_offset_y_spin->setDecimals(1);
+  stroke_pattern_offset_y_spin->setSuffix(QStringLiteral(" px"));
+  configure_dialog_spinbox(stroke_pattern_offset_y_spin, 80);
+  stroke_form->addRow(QObject::tr("Offset Y:"), stroke_pattern_offset_y_spin);
+
+  auto* stroke_pattern_align_check = new QCheckBox(QObject::tr("Align with layer"), stroke_group);
+  stroke_pattern_align_check->setObjectName(QStringLiteral("shapeStrokePatternAlignCheck"));
+  stroke_pattern_align_check->setToolTip(
+      QObject::tr("Anchor the tile grid to the layer's position; unchecked anchors it to the "
+                  "document origin"));
+  stroke_form->addRow(QString(), stroke_pattern_align_check);
 
   auto* stroke_align_combo = new QComboBox(stroke_group);
   stroke_align_combo->setObjectName(QStringLiteral("shapeStrokeAlignCombo"));
@@ -399,10 +532,15 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     set_row(gradient_reverse_check, gradient);
     set_row(fill_pattern_combo, pattern);
     set_row(pattern_scale_spin, pattern);
+    set_row(pattern_angle_spin, pattern);
+    set_row(pattern_offset_x_spin, pattern);
+    set_row(pattern_offset_y_spin, pattern);
+    set_row(pattern_align_check, pattern);
   };
 
   // The stroke rows only apply while the stroke is enabled; grey them out
   // rather than hiding so the dialog never changes height under the pointer.
+  // The per-paint-kind rows additionally hide like the fill section's.
   const auto refresh_stroke_rows = [=] {
     const bool enabled = stroke_check->isChecked();
     const auto set_row = [stroke_form](QWidget* field, bool row_enabled) {
@@ -411,12 +549,41 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         label->setEnabled(row_enabled);
       }
     };
-    set_row(stroke_width_spin, enabled);
-    set_row(stroke_color_button, enabled);
-    set_row(stroke_align_combo, enabled);
-    set_row(stroke_cap_combo, enabled);
-    set_row(stroke_join_combo, enabled);
-    set_row(stroke_dash_combo, enabled);
+    const auto set_row_visible = [stroke_form](QWidget* field, bool visible) {
+      field->setVisible(visible);
+      if (auto* label = stroke_form->labelForField(field); label != nullptr) {
+        label->setVisible(visible);
+      }
+    };
+    const auto paint_kind = state->settings.stroke.content.kind;
+    const bool solid_paint = paint_kind != VectorFillKind::Gradient &&
+                             paint_kind != VectorFillKind::Pattern;
+    const bool gradient_paint = paint_kind == VectorFillKind::Gradient;
+    const bool pattern_paint = paint_kind == VectorFillKind::Pattern;
+    set_row_visible(stroke_color_button, solid_paint);
+    set_row_visible(stroke_gradient_combo, gradient_paint);
+    set_row_visible(stroke_gradient_type_combo, gradient_paint);
+    set_row_visible(stroke_gradient_angle_spin, gradient_paint);
+    set_row_visible(stroke_gradient_scale_spin, gradient_paint);
+    set_row_visible(stroke_gradient_reverse_check, gradient_paint);
+    set_row_visible(stroke_pattern_combo, pattern_paint);
+    set_row_visible(stroke_pattern_scale_spin, pattern_paint);
+    set_row_visible(stroke_pattern_angle_spin, pattern_paint);
+    set_row_visible(stroke_pattern_offset_x_spin, pattern_paint);
+    set_row_visible(stroke_pattern_offset_y_spin, pattern_paint);
+    set_row_visible(stroke_pattern_align_check, pattern_paint);
+    for (QWidget* field :
+         std::initializer_list<QWidget*>{stroke_width_spin, stroke_paint_combo,
+                                         stroke_color_button, stroke_gradient_combo,
+                                         stroke_gradient_type_combo, stroke_gradient_angle_spin,
+                                         stroke_gradient_scale_spin, stroke_gradient_reverse_check,
+                                         stroke_pattern_combo, stroke_pattern_scale_spin,
+                                         stroke_pattern_angle_spin, stroke_pattern_offset_x_spin,
+                                         stroke_pattern_offset_y_spin, stroke_pattern_align_check,
+                                         stroke_align_combo, stroke_cap_combo, stroke_join_combo,
+                                         stroke_dash_combo}) {
+      set_row(field, enabled);
+    }
   };
 
   const auto sync_gradient_controls = [=] {
@@ -431,6 +598,50 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     gradient_scale_spin->setValue(
         std::clamp(static_cast<int>(std::lround(gradient.scale * 100.0F)), 10, 1000));
     gradient_reverse_check->setChecked(gradient.reverse);
+  };
+
+  const auto sync_stroke_paint_controls = [=] {
+    const auto& content = state->settings.stroke.content;
+    {
+      QSignalBlocker paint_blocker(stroke_paint_combo);
+      const auto paint_index = stroke_paint_combo->findData(static_cast<int>(
+          content.kind == VectorFillKind::Gradient || content.kind == VectorFillKind::Pattern
+              ? content.kind
+              : VectorFillKind::Solid));
+      stroke_paint_combo->setCurrentIndex(std::max(0, paint_index));
+    }
+    {
+      QSignalBlocker type_blocker(stroke_gradient_type_combo);
+      QSignalBlocker angle_blocker(stroke_gradient_angle_spin);
+      QSignalBlocker scale_blocker(stroke_gradient_scale_spin);
+      QSignalBlocker reverse_blocker(stroke_gradient_reverse_check);
+      const auto& gradient = content.gradient;
+      stroke_gradient_type_combo->setCurrentIndex(std::max(
+          0, stroke_gradient_type_combo->findData(static_cast<int>(gradient.type))));
+      stroke_gradient_angle_spin->setValue(static_cast<int>(std::lround(gradient.angle_degrees)));
+      stroke_gradient_scale_spin->setValue(
+          std::clamp(static_cast<int>(std::lround(gradient.scale * 100.0F)), 10, 1000));
+      stroke_gradient_reverse_check->setChecked(gradient.reverse);
+    }
+    {
+      QSignalBlocker pattern_blocker(stroke_pattern_combo);
+      if (const auto pattern_index =
+              stroke_pattern_combo->findData(QString::fromStdString(content.pattern_id));
+          pattern_index >= 0) {
+        stroke_pattern_combo->setCurrentIndex(pattern_index);
+      }
+      QSignalBlocker scale_blocker(stroke_pattern_scale_spin);
+      stroke_pattern_scale_spin->setValue(
+          std::clamp(static_cast<int>(std::lround(content.pattern_scale * 100.0)), 1, 1000));
+      QSignalBlocker angle_blocker(stroke_pattern_angle_spin);
+      stroke_pattern_angle_spin->setValue(content.pattern_angle_degrees);
+      QSignalBlocker offset_x_blocker(stroke_pattern_offset_x_spin);
+      stroke_pattern_offset_x_spin->setValue(content.pattern_phase_x);
+      QSignalBlocker offset_y_blocker(stroke_pattern_offset_y_spin);
+      stroke_pattern_offset_y_spin->setValue(content.pattern_phase_y);
+      QSignalBlocker align_blocker(stroke_pattern_align_check);
+      stroke_pattern_align_check->setChecked(content.pattern_linked);
+    }
   };
 
   // Initial control state from the settings.
@@ -449,6 +660,14 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     QSignalBlocker pattern_scale_blocker(pattern_scale_spin);
     pattern_scale_spin->setValue(std::clamp(
         static_cast<int>(std::lround(state->settings.fill.pattern_scale * 100.0)), 1, 1000));
+    QSignalBlocker pattern_angle_blocker(pattern_angle_spin);
+    pattern_angle_spin->setValue(state->settings.fill.pattern_angle_degrees);
+    QSignalBlocker pattern_offset_x_blocker(pattern_offset_x_spin);
+    pattern_offset_x_spin->setValue(state->settings.fill.pattern_phase_x);
+    QSignalBlocker pattern_offset_y_blocker(pattern_offset_y_spin);
+    pattern_offset_y_spin->setValue(state->settings.fill.pattern_phase_y);
+    QSignalBlocker pattern_align_blocker(pattern_align_check);
+    pattern_align_check->setChecked(state->settings.fill.pattern_linked);
     QSignalBlocker align_blocker(stroke_align_combo);
     stroke_align_combo->setCurrentIndex(std::max(
         0, stroke_align_combo->findData(static_cast<int>(state->settings.stroke.alignment))));
@@ -477,6 +696,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     stroke_dash_combo->setCurrentIndex(dash_index);
   }
   sync_gradient_controls();
+  sync_stroke_paint_controls();
   refresh_fill_rows();
   refresh_stroke_rows();
 
@@ -564,6 +784,22 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     state->settings.fill.pattern_scale = static_cast<double>(value) / 100.0;
     notify();
   });
+  QObject::connect(pattern_angle_spin, &QDoubleSpinBox::valueChanged, &dialog, [=](double value) {
+    state->settings.fill.pattern_angle_degrees = value;
+    notify();
+  });
+  QObject::connect(pattern_offset_x_spin, &QDoubleSpinBox::valueChanged, &dialog, [=](double value) {
+    state->settings.fill.pattern_phase_x = value;
+    notify();
+  });
+  QObject::connect(pattern_offset_y_spin, &QDoubleSpinBox::valueChanged, &dialog, [=](double value) {
+    state->settings.fill.pattern_phase_y = value;
+    notify();
+  });
+  QObject::connect(pattern_align_check, &QCheckBox::toggled, &dialog, [=](bool checked) {
+    state->settings.fill.pattern_linked = checked;
+    notify();
+  });
   QObject::connect(stroke_check, &QCheckBox::toggled, &dialog, [=](bool checked) {
     state->settings.stroke.enabled = checked;
     refresh_stroke_rows();
@@ -605,6 +841,106 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   });
   QObject::connect(stroke_dash_combo, &QComboBox::currentIndexChanged, &dialog, [=](int index) {
     state->settings.stroke.dashes = index <= 2 ? dash_preset(index) : state->custom_dashes;
+    notify();
+  });
+  QObject::connect(stroke_paint_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
+    auto& content = state->settings.stroke.content;
+    content.kind = static_cast<VectorFillKind>(stroke_paint_combo->currentData().toInt());
+    state->stroke_paint_touched = true;
+    if (content.kind == VectorFillKind::Gradient && content.gradient.color_stops.empty()) {
+      // First switch to Gradient: seed from the selected preset (or FG->BG),
+      // the fill kind-combo's convention.
+      if (gradient_library != nullptr && stroke_gradient_combo->count() > 0) {
+        if (const auto* entry =
+                gradient_library->find_entry(stroke_gradient_combo->currentData().toString());
+            entry != nullptr) {
+          static_cast<GradientDefinition&>(content.gradient) =
+              resolve_gradient_definition(entry->definition, foreground, background);
+        }
+      }
+      if (content.gradient.color_stops.empty()) {
+        content.gradient.color_stops = {GradientColorStop{0.0F, foreground, 0.5F},
+                                        GradientColorStop{1.0F, background, 0.5F}};
+        content.gradient.alpha_stops = {GradientAlphaStop{0.0F, 1.0F, 0.5F},
+                                        GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+      }
+      sync_stroke_paint_controls();
+    }
+    if (content.kind == VectorFillKind::Pattern && content.pattern_id.empty() &&
+        stroke_pattern_combo->count() > 0) {
+      content.pattern_id = stroke_pattern_combo->currentData().toString().toStdString();
+      content.pattern_name = stroke_pattern_combo->currentText().toStdString();
+    }
+    refresh_stroke_rows();
+    notify();
+  });
+  QObject::connect(stroke_gradient_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
+    if (gradient_library == nullptr) {
+      return;
+    }
+    if (const auto* entry =
+            gradient_library->find_entry(stroke_gradient_combo->currentData().toString());
+        entry != nullptr) {
+      static_cast<GradientDefinition&>(state->settings.stroke.content.gradient) =
+          resolve_gradient_definition(entry->definition, foreground, background);
+      state->stroke_paint_touched = true;
+      notify();
+    }
+  });
+  QObject::connect(stroke_gradient_type_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
+    state->settings.stroke.content.gradient.type =
+        static_cast<LayerStyleGradientType>(stroke_gradient_type_combo->currentData().toInt());
+    state->stroke_paint_touched = true;
+    notify();
+  });
+  QObject::connect(stroke_gradient_angle_spin, &QSpinBox::valueChanged, &dialog, [=](int value) {
+    state->settings.stroke.content.gradient.angle_degrees = static_cast<float>(value);
+    state->stroke_paint_touched = true;
+    notify();
+  });
+  QObject::connect(stroke_gradient_scale_spin, &QSpinBox::valueChanged, &dialog, [=](int value) {
+    state->settings.stroke.content.gradient.scale = static_cast<float>(value) / 100.0F;
+    state->stroke_paint_touched = true;
+    notify();
+  });
+  QObject::connect(stroke_gradient_reverse_check, &QCheckBox::toggled, &dialog, [=](bool checked) {
+    state->settings.stroke.content.gradient.reverse = checked;
+    state->stroke_paint_touched = true;
+    notify();
+  });
+  QObject::connect(stroke_pattern_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
+    state->settings.stroke.content.pattern_id =
+        stroke_pattern_combo->currentData().toString().toStdString();
+    state->settings.stroke.content.pattern_name = stroke_pattern_combo->currentText().toStdString();
+    state->stroke_paint_touched = true;
+    notify();
+  });
+  QObject::connect(stroke_pattern_scale_spin, &QSpinBox::valueChanged, &dialog, [=](int value) {
+    state->settings.stroke.content.pattern_scale = static_cast<double>(value) / 100.0;
+    state->stroke_paint_touched = true;
+    notify();
+  });
+  QObject::connect(stroke_pattern_angle_spin, &QDoubleSpinBox::valueChanged, &dialog,
+                   [=](double value) {
+    state->settings.stroke.content.pattern_angle_degrees = value;
+    state->stroke_paint_touched = true;
+    notify();
+  });
+  QObject::connect(stroke_pattern_offset_x_spin, &QDoubleSpinBox::valueChanged, &dialog,
+                   [=](double value) {
+    state->settings.stroke.content.pattern_phase_x = value;
+    state->stroke_paint_touched = true;
+    notify();
+  });
+  QObject::connect(stroke_pattern_offset_y_spin, &QDoubleSpinBox::valueChanged, &dialog,
+                   [=](double value) {
+    state->settings.stroke.content.pattern_phase_y = value;
+    state->stroke_paint_touched = true;
+    notify();
+  });
+  QObject::connect(stroke_pattern_align_check, &QCheckBox::toggled, &dialog, [=](bool checked) {
+    state->settings.stroke.content.pattern_linked = checked;
+    state->stroke_paint_touched = true;
     notify();
   });
 

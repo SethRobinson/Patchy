@@ -12720,13 +12720,23 @@ Clipped to the layer below</source>
     <message><source>Pixels</source><translation>ピクセル</translation></message>
     <message><source>What the shape tools create: a shape layer, work-path subpaths, or raster pixels</source><translation>シェイプツールが作成する対象: シェイプレイヤー、作業用パスのサブパス、またはラスターピクセル</translation></message>
     <message><source>Fill:</source><translation>塗り:</translation></message>
-    <message><source>Shape fill color</source><translation>シェイプの塗りの色</translation></message>
+    <message><source>Shape fill: none, solid color, gradient, or pattern</source><translation>シェイプの塗り: なし、ベタ塗り、グラデーション、またはパターン</translation></message>
     <message><source>Shape Fill Color</source><translation>シェイプの塗りの色</translation></message>
     <message><source>Stroke</source><translation>線</translation></message>
     <message><source>Stroke the shape outline</source><translation>シェイプの輪郭に線を描きます</translation></message>
-    <message><source>Shape stroke color</source><translation>シェイプの線の色</translation></message>
+    <message><source>Shape stroke: solid color, gradient, or pattern</source><translation>シェイプの線: ベタ塗り、グラデーション、またはパターン</translation></message>
     <message><source>Shape Stroke Color</source><translation>シェイプの線の色</translation></message>
     <message><source>Stroke width</source><translation>線の太さ</translation></message>
+    <message><source>No Fill</source><translation>塗りなし</translation></message>
+    <message><source>Solid Color...</source><translation>ベタ塗り...</translation></message>
+    <message><source>Gradient...</source><translation>グラデーション...</translation></message>
+    <message><source>Pattern...</source><translation>パターン...</translation></message>
+    <message><source>Scale:</source><translation>比率:</translation></message>
+    <message><source>Angle:</source><translation>角度:</translation></message>
+    <message><source>Offset X:</source><translation>オフセット X:</translation></message>
+    <message><source>Offset Y:</source><translation>オフセット Y:</translation></message>
+    <message><source>Align with layer</source><translation>レイヤーに整列</translation></message>
+    <message><source>Anchor the tile grid to the layer&apos;s position; unchecked anchors it to the document origin</source><translation>タイルの基準をレイヤーの位置に合わせます。オフの場合はドキュメントの原点に合わせます</translation></message>
     <message><source>Weight:</source><translation>太さ:</translation></message>
     <message><source>Line thickness</source><translation>ラインの太さ</translation></message>
     <message><source>Combine:</source><translation>結合:</translation></message>
@@ -13535,6 +13545,11 @@ Clipped to the layer below</source>
     <message><source>Angle:</source><translation>角度:</translation></message>
     <message><source>Pattern:</source><translation>パターン:</translation></message>
     <message><source>Embedded pattern</source><translation>埋め込みパターン</translation></message>
+    <message><source>Offset X:</source><translation>オフセット X:</translation></message>
+    <message><source>Offset Y:</source><translation>オフセット Y:</translation></message>
+    <message><source>Align with layer</source><translation>レイヤーに整列</translation></message>
+    <message><source>Anchor the tile grid to the layer&apos;s position; unchecked anchors it to the document origin</source><translation>タイルの基準をレイヤーの位置に合わせます。オフの場合はドキュメントの原点に合わせます</translation></message>
+    <message><source>Paint:</source><translation>ペイント:</translation></message>
     <message><source>Stroke the shape outline</source><translation>シェイプの輪郭に線を描く</translation></message>
     <message><source>Align:</source><translation>位置:</translation></message>
     <message><source>Caps:</source><translation>先端:</translation></message>

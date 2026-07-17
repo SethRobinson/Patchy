@@ -25,7 +25,13 @@ struct PatternSampleRgba {
 // origin; the descriptor phase adds on top in both cases. Filtering was fitted
 // against PS 2026 scale probes: 100% tiles nearest (byte-crisp), magnification
 // interpolates linearly between texels on the INTEGER grid, and minification
-// box-averages the source footprint each output pixel covers.
+// box-averages the source footprint each output pixel covers. Rotation was
+// pinned by the July 2026 full-canvas probes (probe-pat-rot30 /
+// pat-rot30-phase / pat-order-a/b, 100% cell-classification fits): PS maps
+// document to tile space as R(angle) @ (p - anchor) / scale with
+// R = [[cos, -sin], [sin, cos]] - the pattern APPEARS rotated
+// counterclockwise for a positive angle, matching the dial - and the phase
+// subtracts in DOCUMENT space before the rotation, unscaled.
 class PatternTileSampler {
 public:
   PatternTileSampler(const PixelBuffer& tile, const Layer& layer, float scale, float angle_degrees,
@@ -117,8 +123,9 @@ public:
     auto u = static_cast<double>(x) - anchor_x_;
     auto v = static_cast<double>(y) - anchor_y_;
     if (rotated_) {
-      const auto ru = u * cosine_ + v * sine_;  // inverse rotation into tile space
-      const auto rv = -u * sine_ + v * cosine_;
+      // R(angle) @ (p - anchor): the PS-probed document-to-tile mapping.
+      const auto ru = u * cosine_ - v * sine_;
+      const auto rv = u * sine_ + v * cosine_;
       u = ru;
       v = rv;
     }

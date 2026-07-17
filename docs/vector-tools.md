@@ -21,19 +21,43 @@ The draw tools carry a Shape | Path | Pixels mode combo (persisted
 `tools/vectorToolMode`, default Shape for Photoshop parity). Shape-mode drags
 preview with the ACTUAL appearance (options-bar fill and stroke, pulled at
 draw time through shape_preview_appearance_callback_ so no per-canvas mirror
-can desync; stroke previews centered, arrowheads appear at commit) - but only
-on the Content edit target: mask/channel/quick-mask targets keep their
+can desync; pattern fills preview as textured QBrushes with the placement
+composed onto the view transform, gradients as ObjectMode QGradient
+approximations; stroke previews centered, arrowheads appear at commit) - but
+only on the Content edit target: mask/channel/quick-mask targets keep their
 raster previews and the vector-mask target keeps the outline. Shape mode creates
 a shape layer from the released drag: the live-shape parameters (rect, rounded
 rect via the Radius option, ellipse, line with Weight) generate the path, and
-the options-bar fill color, stroke toggle/color/width become the layer's
-appearance (stroke alignment defaults to Inside, Photoshop's new-shape
-default). The Combine option (New Layer / Add / Subtract / Intersect /
-Exclude) appends the drag to the active shape layer as a new shape group with
-that operation instead. Path mode appends the same subpaths to the document
-work path. Pixels mode is the legacy raster commit, byte-identical to the
-pre-vector behavior. Mask, channel, and quick-mask edit targets always take
-the raster path, so shapes remain usable as mask-painting tools.
+the options-bar fill and stroke paints become the layer's appearance (stroke
+alignment defaults to Inside, Photoshop's new-shape default). The Combine
+option (New Layer / Add / Subtract / Intersect / Exclude) appends the drag to
+the active shape layer as a new shape group with that operation instead. Path
+mode appends the same subpaths to the document work path. Pixels mode is the
+legacy raster commit, byte-identical to the pre-vector behavior. Mask,
+channel, and quick-mask edit targets always take the raster path, so shapes
+remain usable as mask-painting tools.
+
+The options-bar Fill and Stroke swatches (July 2026) are popup pickers: No
+Fill (fill only) / Solid Color... / Gradient... / Pattern..., backed by two
+application-wide `VectorFill` mirrors (`current_vector_fill_`,
+`current_vector_stroke_paint_` in MainWindow). Gradient picks resolve a
+GradientLibrary preset's FG/BG stops at pick time (shared
+resolve_gradient_definition); pattern picks come from the Pattern Manager and
+adopt into the document store at commit (`ensure_vector_fill_patterns` in
+create_or_extend_shape_layer - the Patt-block hard-refusal rule). Persisted
+keys: the historical vectorFillColor/vectorStrokeColor plus append-only
+vectorFillKind/vectorFillPatternId/vectorFillGradientId and the
+vectorStrokePaintKind/PatternId/GradientId trio; gradient and pattern
+PLACEMENT deliberately resets each launch (the appearance dialog owns
+per-layer tuning). Selecting an editable shape layer syncs the controls to
+that layer, edits apply to it live (one "Shape appearance" undo entry per
+gesture; the width spin debounces a burst into one entry via
+vector_appearance_apply_timer_), and the synced values stick as the
+next-shape defaults - Photoshop's behavior. The same controls register for
+Path Select / Direct Select, visible there only while an editable shape layer
+is active. A pending debounced apply outranks passive sync (the guard in
+sync_shape_appearance_options_from_active_layer), and a stale debounced apply
+no-ops through the fill/stroke equality check.
 
 ## Pen tool
 
@@ -168,8 +192,14 @@ would edit; only non-path tools go outline-free.
 
 Footer commands: New Path (empty, immediately targeted), Fill Path (a
 persisted options dialog: foreground/background color or a PATTERN from the
-document store + pattern library, tiles aligned to the document origin, plus
-opacity; palette mode writes hard snapped pixels via snap_pixel_to_palette
+document store + pattern library with Scale/Angle/Offset X-Y/Align-with-layer
+placement rows - rendered through the shared PatternTileSampler, so the
+default 100%/0deg/0-offset fill stays byte-identical to the historical
+document-origin tiling, and Align with layer anchors at the target layer's
+effects reference point - plus opacity; the placement rows grey out with
+non-pattern contents, keys paths/fillPattern{Scale,Angle,OffsetX,OffsetY,
+AlignLayer}; raster-only, zero PSD-format impact; palette mode writes hard
+snapped pixels via snap_pixel_to_palette
 with the coverage threshold), Stroke Path (replays the flattened
 path through the BRUSH ENGINE as synthetic input - current tip, size,
 opacity, dynamics, foreground color, one "Stroke path" undo entry via the
@@ -237,10 +267,16 @@ Shape Appearance dialog; the layer context menu offers the same editor as
 "Edit Shape Appearance..." directly after Edit Layer Styles (which stays the
 first item, per the standing rule). The dialog covers fill kind (none / solid
 / gradient / pattern with library presets, gradient style/angle/scale/reverse,
-pattern scale) and the full stroke set (width, solid paint,
-inside/center/outside alignment, caps, joins, dash presets plus a Custom entry
-preserving PSD-authored dash arrays); the stroke rows grey out while the
-stroke checkbox is off. Single-live-shape layers additionally get a Geometry
+pattern scale/angle/offset X-Y/align-with-layer) and the full stroke set
+(width, a Paint combo choosing solid color / gradient / pattern content with
+the same per-kind rows as the fill - so PSD-authored gradient and pattern
+strokes display truthfully and are editable - plus inside/center/outside
+alignment, caps, joins, dash presets and a Custom entry preserving
+PSD-authored dash arrays); the stroke rows grey out while the stroke checkbox
+is off, and the per-paint-kind stroke rows hide like the fill section's. The
+pattern align-with-layer checkbox maps `pattern_linked`: anchored to the
+layer's effects reference point when on, the document origin when off, offsets
+adding on top in both cases (the PatternTileSampler rule). Single-live-shape layers additionally get a Geometry
 section (rect/rounded bounds + per-corner radii - a radius promotes a plain
 rect to rounded - ellipse bounds, line endpoints/weight): edits regenerate
 the group's subpaths via generate_live_shape_subpaths and the shape STAYS
@@ -460,6 +496,15 @@ renderer exactly:
 - Stroke dashes: dash boundaries land where each renderer's arc-length
   integration puts them; sub-pixel flattening differences flip a handful of
   dash-edge pixels (mean delta ~0.3 on the strokes fixture).
+- ROTATED pattern fills: the placement mapping is pinned exactly
+  (R(angle) @ (p - anchor) / scale, 100% cell-classification agreement on the
+  July 2026 full-canvas probes), but Photoshop resamples rotated tiles with
+  its own soft per-cell filter (cells render slightly shrunken with light
+  gutters), so per-pixel deltas along cell edges are large while the
+  structure matches. psd_pattern_params_probe_render_parity_if_available
+  therefore checks confident-cell classification agreement (>= 97%), not
+  pixel means. Patchy's crisper render is deliberate (the unrotated linear
+  tap applied in rotated space).
 - Photoshop's baked derived mask plane (mask flags bit 3) holds UNFEATHERED
   path coverage; the feather parameter applies at render time. Patchy bakes
   its own feathered cache (triple box blur, radius ~ feather/2) - close but

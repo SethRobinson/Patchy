@@ -643,18 +643,9 @@ DescriptorObject fill_content_object(const VectorFill& fill) {
       break;
     }
     case VectorFillKind::Pattern: {
+      // Non-default keys in PS 27.8's captured order - Algn, phase, Scl, Angl,
+      // then Ptrn last (probe-pattern-params, July 2026); defaults omitted.
       object.class_id = "patternLayer";
-      DescriptorObject pattern;
-      pattern.class_id = "Ptrn";
-      put_value(pattern, "Nm  ", make_text_value(fill.pattern_name));
-      put_value(pattern, "Idnt", make_text_value(fill.pattern_id));
-      put_value(object, "Ptrn", make_object_value(std::move(pattern)));
-      if (std::fabs(fill.pattern_angle_degrees) > 1e-9) {
-        put_value(object, "Angl", make_unit_value("#Ang", fill.pattern_angle_degrees));
-      }
-      if (std::fabs(fill.pattern_scale - 1.0) > 1e-9) {
-        put_value(object, "Scl ", make_unit_value("#Prc", fill.pattern_scale * 100.0));
-      }
       if (!fill.pattern_linked) {
         put_value(object, "Algn", make_bool_value(false));
       }
@@ -665,6 +656,17 @@ DescriptorObject fill_content_object(const VectorFill& fill) {
         put_value(phase, "Vrtc", make_double_value(fill.pattern_phase_y));
         put_value(object, "phase", make_object_value(std::move(phase)));
       }
+      if (std::fabs(fill.pattern_scale - 1.0) > 1e-9) {
+        put_value(object, "Scl ", make_unit_value("#Prc", fill.pattern_scale * 100.0));
+      }
+      if (std::fabs(fill.pattern_angle_degrees) > 1e-9) {
+        put_value(object, "Angl", make_unit_value("#Ang", fill.pattern_angle_degrees));
+      }
+      DescriptorObject pattern;
+      pattern.class_id = "Ptrn";
+      put_value(pattern, "Nm  ", make_text_value(fill.pattern_name));
+      put_value(pattern, "Idnt", make_text_value(fill.pattern_id));
+      put_value(object, "Ptrn", make_object_value(std::move(pattern)));
       break;
     }
     case VectorFillKind::Solid:

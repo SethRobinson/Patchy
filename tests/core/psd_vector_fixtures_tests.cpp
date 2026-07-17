@@ -667,12 +667,24 @@ patchy::Layer make_pattern_shape_layer(patchy::Document& document, const char* f
   content.fill.kind = patchy::VectorFillKind::Pattern;
   content.fill.pattern_id = fill_pattern_id;
   content.fill.pattern_name = "patchy fill pattern";
+  // Non-default placement params ride PtFl's Algn/phase/Scl/Angl keys (PS
+  // 27.8 order pinned by probe-pattern-params) and must round-trip.
+  content.fill.pattern_scale = 1.5;
+  content.fill.pattern_angle_degrees = 30.0;
+  content.fill.pattern_linked = false;
+  content.fill.pattern_phase_x = 10.0;
+  content.fill.pattern_phase_y = 20.0;
   if (stroke_pattern_id != nullptr) {
     content.stroke.enabled = true;
     content.stroke.width = 3.0;
     content.stroke.content.kind = patchy::VectorFillKind::Pattern;
     content.stroke.content.pattern_id = stroke_pattern_id;
     content.stroke.content.pattern_name = "patchy stroke pattern";
+    content.stroke.content.pattern_scale = 0.5;
+    content.stroke.content.pattern_angle_degrees = -45.0;
+    content.stroke.content.pattern_linked = false;
+    content.stroke.content.pattern_phase_x = -3.0;
+    content.stroke.content.pattern_phase_y = 7.0;
   }
   shape.set_vector_shape(content);
   shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
@@ -703,6 +715,39 @@ void psd_pattern_fill_shape_embeds_patt_block() {
   stroke_pattern.tile = checker_tile(4, 30, 30, 200);
   document.metadata().patterns.adopt(stroke_pattern);
   document.add_layer(make_pattern_shape_layer(document, kFillId, kStrokeId));
+  // A GRADIENT stroke paint (now UI-authorable) rides the same
+  // strokeStyleContent writer; round-trip it beside the pattern layers.
+  {
+    patchy::Layer gradient_stroke(document.allocate_layer_id(), "Gradient Stroke",
+                                  patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    patchy::PathSubpath rect;
+    for (const auto& [x, y] : {std::pair{20.0, 20.0}, {44.0, 20.0}, {44.0, 44.0}, {20.0, 44.0}}) {
+      patchy::PathAnchor anchor;
+      anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+      anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+      rect.anchors.push_back(anchor);
+    }
+    content.path.subpaths.push_back(rect);
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    content.fill.color = patchy::RgbColor{200, 60, 40};
+    content.stroke.enabled = true;
+    content.stroke.width = 4.0;
+    content.stroke.content.kind = patchy::VectorFillKind::Gradient;
+    content.stroke.content.gradient.type = patchy::LayerStyleGradientType::Linear;
+    content.stroke.content.gradient.angle_degrees = 45.0F;
+    content.stroke.content.gradient.color_stops = {
+        patchy::GradientColorStop{0.0F, patchy::RgbColor{20, 40, 220}, 0.5F},
+        patchy::GradientColorStop{1.0F, patchy::RgbColor{240, 240, 40}, 0.5F}};
+    content.stroke.content.gradient.alpha_stops = {patchy::GradientAlphaStop{0.0F, 1.0F, 0.5F},
+                                                   patchy::GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+    gradient_stroke.set_vector_shape(content);
+    gradient_stroke.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(
+        gradient_stroke, patchy::Rect::from_size(document.width(), document.height()),
+        &document.metadata().patterns);
+    document.add_layer(std::move(gradient_stroke));
+  }
 
   const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
   // Photoshop acceptance probe: dump the authored bytes for a manual COM check.
@@ -730,10 +775,99 @@ void psd_pattern_fill_shape_embeds_patt_block() {
   CHECK(roundtrip->fill.pattern_id == kFillId);
   CHECK(roundtrip->stroke.content.kind == patchy::VectorFillKind::Pattern);
   CHECK(roundtrip->stroke.content.pattern_id == kStrokeId);
+  // Placement params survive on both the fill and the stroke paint.
+  CHECK(std::fabs(roundtrip->fill.pattern_scale - 1.5) < 1e-9);
+  CHECK(std::fabs(roundtrip->fill.pattern_angle_degrees - 30.0) < 1e-9);
+  CHECK(!roundtrip->fill.pattern_linked);
+  CHECK(std::fabs(roundtrip->fill.pattern_phase_x - 10.0) < 1e-9);
+  CHECK(std::fabs(roundtrip->fill.pattern_phase_y - 20.0) < 1e-9);
+  CHECK(std::fabs(roundtrip->stroke.content.pattern_scale - 0.5) < 1e-9);
+  CHECK(std::fabs(roundtrip->stroke.content.pattern_angle_degrees + 45.0) < 1e-9);
+  CHECK(!roundtrip->stroke.content.pattern_linked);
+  CHECK(std::fabs(roundtrip->stroke.content.pattern_phase_x + 3.0) < 1e-9);
+  CHECK(std::fabs(roundtrip->stroke.content.pattern_phase_y - 7.0) < 1e-9);
+  const auto* gradient_roundtrip = reread.layers()[2].vector_shape();
+  CHECK(gradient_roundtrip != nullptr);
+  CHECK(gradient_roundtrip->stroke.enabled);
+  CHECK(gradient_roundtrip->stroke.content.kind == patchy::VectorFillKind::Gradient);
+  CHECK(std::fabs(gradient_roundtrip->stroke.content.gradient.angle_degrees - 45.0F) < 0.01F);
+  CHECK(gradient_roundtrip->stroke.content.gradient.color_stops.size() == 2);
   // The rendered pattern pixels survive the round trip exactly.
   const auto flat_original = patchy::Compositor{}.flatten_rgb8(document);
   const auto flat_reread = patchy::Compositor{}.flatten_rgb8(reread);
   CHECK(rgb_diff_metrics(flat_original, flat_reread).max_channel_delta == 0);
+}
+
+void psd_pattern_params_probe_render_parity_if_available() {
+  // PS 27.8's own render of non-default pattern placement on a full-canvas
+  // pattern fill layer (angle 30 + scale 150% + phase (10,20), single-op Mk
+  // authoring; local-test-fixtures/vector-probe/probe-pattern-params2.jsx).
+  // Pins the reader's param parsing against a real PS file and keeps the
+  // PatternTileSampler's calibrated rotation/scale/phase mapping
+  // (R(angle) @ (p - anchor) / scale) honest.
+  const auto path =
+      patchy::test::local_format_fixture_path("vector-probe", "probe-pat-full-combo.psd");
+  const auto reference_path =
+      patchy::test::local_format_fixture_path("vector-probe", "probe-pat-full-combo.bmp");
+  if (!std::filesystem::exists(path) || !std::filesystem::exists(reference_path)) {
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.layers().size() == 2);
+  const auto* fill_content = layer_at(document, 1).vector_shape();
+  CHECK(fill_content != nullptr);
+  CHECK(fill_content->fill.kind == VectorFillKind::Pattern);
+  CHECK(std::fabs(fill_content->fill.pattern_scale - 1.5) < 1e-6);
+  CHECK(std::fabs(fill_content->fill.pattern_angle_degrees - 30.0) < 1e-6);
+  CHECK(fill_content->fill.pattern_linked);  // Algn omitted = linked default
+  CHECK(std::fabs(fill_content->fill.pattern_phase_x - 10.0) < 1e-6);
+  CHECK(std::fabs(fill_content->fill.pattern_phase_y - 20.0) < 1e-6);
+  // Photoshop resamples ROTATED patterns with its own soft per-cell filter
+  // (shrunken cells with light gutters), so pixel-mean parity is the wrong
+  // gauge here. Instead pin the placement STRUCTURE: at every reference pixel
+  // that is confidently dark or light (4-neighborhood agrees), Patchy's
+  // render must classify the same way. A transposed rotation or a wrong
+  // anchor scores ~50% on this metric; the calibrated mapping scores ~100%.
+  const auto reference_doc = patchy::bmp::DocumentIo::read_file(reference_path);
+  const auto& reference = std::as_const(reference_doc).layers().front().pixels();
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.width() == reference.width());
+  CHECK(flattened.height() == reference.height());
+  const auto classify = [](const std::uint8_t* px) {
+    if (px[0] < 70 && px[1] < 70 && px[2] < 70) {
+      return 1;  // dark cell
+    }
+    if (px[0] > 210 && px[1] > 210 && px[2] > 210) {
+      return 0;  // light cell
+    }
+    return -1;  // edge/filtered
+  };
+  std::int64_t agreed = 0;
+  std::int64_t confident = 0;
+  for (std::int32_t y = 1; y < reference.height() - 1; ++y) {
+    for (std::int32_t x = 1; x < reference.width() - 1; ++x) {
+      const auto want = classify(reference.pixel(x, y));
+      if (want < 0 || classify(reference.pixel(x - 1, y)) != want ||
+          classify(reference.pixel(x + 1, y)) != want ||
+          classify(reference.pixel(x, y - 1)) != want ||
+          classify(reference.pixel(x, y + 1)) != want) {
+        continue;
+      }
+      const auto* got = flattened.pixel(x, y);
+      const auto luminance = (static_cast<int>(got[0]) + got[1] + got[2]) / 3;
+      ++confident;
+      agreed += (luminance < 128) == (want == 1) ? 1 : 0;
+    }
+  }
+  const auto agreement = confident > 0 ? static_cast<double>(agreed) / static_cast<double>(confident) : 0.0;
+  if (agreement < 0.97) {
+    write_rgb8_bmp_artifact("psd_pattern_params_probe_patchy", flattened);
+    write_rgb8_bmp_artifact("psd_pattern_params_probe_photoshop", reference);
+    std::fprintf(stderr, "pattern-params probe: agreement %.4f (%lld/%lld)\n", agreement,
+                 static_cast<long long>(agreed), static_cast<long long>(confident));
+  }
+  CHECK(confident > 1000);
+  CHECK(agreement >= 0.97);
 }
 
 void psd_pattern_fill_missing_tile_writes_placeholder() {
@@ -988,6 +1122,8 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_damaged_partial_vogk_import_heals_on_resave", psd_damaged_partial_vogk_import_heals_on_resave},
       {"psd_damaged_pattern_file_resave_is_photoshop_safe_if_available",
        psd_damaged_pattern_file_resave_is_photoshop_safe_if_available},
+      {"psd_pattern_params_probe_render_parity_if_available",
+       psd_pattern_params_probe_render_parity_if_available},
       {"collect_referenced_pattern_resources_covers_vector_content",
        collect_referenced_pattern_resources_covers_vector_content},
   };

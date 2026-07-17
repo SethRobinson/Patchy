@@ -2845,6 +2845,11 @@ void MainWindow::refresh_layer_controls() {
     update_layer_target_styles(layer_list_, active, canvas_->layer_edit_target());
   }
   refresh_edit_target_chip();
+  if (vector_appearance_controls_live()) {
+    // Undo/redo and dialog edits land here: keep the options-bar appearance
+    // mirrors following the active shape layer (the Photoshop sticky sync).
+    sync_shape_appearance_options_from_active_layer();
+  }
   updating_layer_controls_ = false;
   refresh_document_info();
 }

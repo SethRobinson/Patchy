@@ -671,18 +671,30 @@ bool CanvasWidget::draw_shape_appearance_preview(QPainter& painter,
   if (path.isEmpty()) {
     return false;
   }
+  // Texture (pattern) brushes arrive in document space; compose the
+  // widget-from-document view onto their placement so tiles track zoom/pan.
+  // ObjectMode gradients span the painted path's bounds and solid colors are
+  // position-free - both stay untouched.
+  const auto document_origin = widget_position_f(QPointF(0.0, 0.0));
+  QTransform view;
+  view.translate(document_origin.x(), document_origin.y());
+  view.scale(zoom_, zoom_);
+  const auto widget_space_brush = [&view](QBrush brush) {
+    if (brush.style() == Qt::TexturePattern) {
+      brush.setTransform(brush.transform() * view);
+    }
+    return brush;
+  };
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
   painter.setPen(Qt::NoPen);
-  if (appearance.fill.isValid()) {
-    painter.setBrush(appearance.fill);
-  } else {
-    painter.setBrush(Qt::NoBrush);
-  }
+  painter.setBrush(widget_space_brush(appearance.fill));
   painter.drawPath(path);
-  if (appearance.stroke_enabled && appearance.stroke.isValid() && appearance.stroke_width > 0.0) {
+  if (appearance.stroke_enabled && appearance.stroke.style() != Qt::NoBrush &&
+      appearance.stroke_width > 0.0) {
     painter.setBrush(Qt::NoBrush);
-    painter.setPen(QPen(appearance.stroke, std::max(0.5, appearance.stroke_width * zoom_)));
+    painter.setPen(QPen(widget_space_brush(appearance.stroke),
+                        std::max(0.5, appearance.stroke_width * zoom_)));
     painter.drawPath(path);
   }
   painter.restore();

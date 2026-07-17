@@ -13,6 +13,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/stress_test.hpp"
 
+#include <QBrush>
 #include <QByteArray>
 #include <QColor>
 #include <QDialog>
@@ -583,6 +584,24 @@ private:
   [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
   void refresh_vector_tool_options_visibility();
   void update_vector_swatch_icons();
+  // Options-bar paint pickers (main_window_vector.cpp): the swatch buttons pop
+  // a None/Solid/Gradient/Pattern menu editing the mirrors above; with an
+  // editable shape layer active the edit ALSO applies to that layer
+  // (Photoshop's live options-bar editing).
+  void show_vector_paint_menu(bool for_stroke);
+  void pick_vector_solid_color(bool for_stroke);
+  void pick_vector_gradient(bool for_stroke);
+  void pick_vector_pattern(bool for_stroke);
+  [[nodiscard]] patchy::Layer* editable_active_vector_shape_layer();
+  [[nodiscard]] bool vector_appearance_controls_live() const;
+  // Resolves a pattern id to renderable tiles: document store first, then the
+  // library, then the bundled presets (the rasterizer's own fallback order).
+  [[nodiscard]] std::optional<patchy::PatternResource> resolve_vector_pattern_resource(
+      const std::string& pattern_id);
+  void sync_shape_appearance_options_from_active_layer();
+  bool apply_options_bar_appearance_to_active_shape();
+  void schedule_vector_appearance_apply();
+  [[nodiscard]] QBrush vector_fill_preview_brush(const patchy::VectorFill& fill) const;
   // Fill/stroke editing (main_window_vector.cpp): the live-preview appearance
   // dialog for the active shape layer, and Layer > New Fill Layer creation
   // (a shape layer with an empty path = the whole canvas).
@@ -1196,10 +1215,18 @@ private:
   int current_shape_width_{1024};
   int current_shape_height_{768};
   VectorToolMode current_vector_tool_mode_{VectorToolMode::Shape};
-  QColor current_vector_fill_color_{Qt::black};
+  // Full paint mirrors (None/Solid/Gradient/Pattern) for the options-bar
+  // fill/stroke pickers; VectorFill's defaults are solid black, matching the
+  // historical QColor mirrors. Sticky like Photoshop: selecting a shape layer
+  // syncs these, and they seed the next new shape.
+  patchy::VectorFill current_vector_fill_{};
   bool current_vector_stroke_enabled_{false};
-  QColor current_vector_stroke_color_{Qt::black};
+  patchy::VectorFill current_vector_stroke_paint_{};
   double current_vector_stroke_width_{3.0};
+  // Library storage ids of the last PICKED gradient presets (persisted; a
+  // custom gradient synced from a layer lives only for the session).
+  QString current_vector_fill_gradient_id_;
+  QString current_vector_stroke_gradient_id_;
   int current_vector_line_weight_{4};
   // 0 = New Layer; 1..4 = PathCombineOp Add / Subtract / Intersect / Xor
   // applied to the active shape layer or work path (session-only).
@@ -1210,6 +1237,9 @@ private:
   bool current_line_arrow_end_{false};
   QToolButton* vector_fill_swatch_button_{nullptr};
   QToolButton* vector_stroke_swatch_button_{nullptr};
+  // Debounces live-editing bursts (stroke-width spin / its popup slider) into
+  // one undo entry + one rasterize.
+  QTimer* vector_appearance_apply_timer_{nullptr};
   // Per-mode refinement of the shape tools' options bar, applied after the
   // per-tool pass in refresh_options_bar: raster-only controls hide in the
   // vector modes, appearance controls show only in Shape mode, combine/weight

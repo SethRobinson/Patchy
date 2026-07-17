@@ -11,6 +11,7 @@
 #include "ui/selection_outline.hpp"
 
 #include <QBasicTimer>
+#include <QBrush>
 #include <QColor>
 #include <QCursor>
 #include <QElapsedTimer>
@@ -513,9 +514,13 @@ public:
   // fill/stroke) instead of the raster-paint preview. Pulled through a
   // callback at draw time so the values can never go stale per canvas.
   struct ShapePreviewAppearance {
-    QColor fill;  // invalid = no fill
+    // Document-space paints (Qt::NoBrush = no fill). Texture brushes carry the
+    // pattern placement in their transform and get the widget-from-document
+    // view composed on top at draw time; ObjectMode gradient brushes span the
+    // painted shape's bounds and stay untransformed.
+    QBrush fill{Qt::NoBrush};
     bool stroke_enabled{false};
-    QColor stroke;
+    QBrush stroke{Qt::NoBrush};
     double stroke_width{1.0};
     int line_weight{1};
   };
