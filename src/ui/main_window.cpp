@@ -5689,6 +5689,18 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     refresh_paths_panel();
   });
+  canvas->set_shape_preview_appearance_callback(
+      [this]() -> std::optional<CanvasWidget::ShapePreviewAppearance> {
+        // Pulled at draw time from the application-wide options-bar state, so
+        // the preview can never desync from what the commit will produce.
+        CanvasWidget::ShapePreviewAppearance appearance;
+        appearance.fill = current_vector_fill_color_;
+        appearance.stroke_enabled = current_vector_stroke_enabled_;
+        appearance.stroke = current_vector_stroke_color_;
+        appearance.stroke_width = current_vector_stroke_width_;
+        appearance.line_weight = current_vector_line_weight_;
+        return appearance;
+      });
   canvas->set_polygon_sides(
       findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")) != nullptr
           ? findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"))->value()

@@ -83,6 +83,11 @@ void CanvasWidget::set_vector_path_committed_callback(
   vector_path_committed_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_shape_preview_appearance_callback(
+    std::function<std::optional<ShapePreviewAppearance>()> callback) {
+  shape_preview_appearance_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_polygon_sides(int sides) noexcept {
   polygon_sides_ = std::clamp(sides, 3, 100);
 }

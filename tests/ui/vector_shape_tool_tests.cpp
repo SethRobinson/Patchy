@@ -1127,6 +1127,98 @@ void ui_new_solid_fill_layer_uses_selection_mask() {
   CHECK(document.layers().size() == initial_layers);
 }
 
+void ui_shape_geometry_edits_live_shape() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(120, 140), QPoint(320, 260));
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+
+  // Edit the live rect's bounds and one corner radius through the dialog.
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    auto* x_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryXSpin"));
+    auto* y_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryYSpin"));
+    auto* width_spin =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryWidthSpin"));
+    auto* height_spin =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryHeightSpin"));
+    auto* radius_tl =
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryRadiusTopLeftSpin"));
+    CHECK(x_spin != nullptr && y_spin != nullptr && width_spin != nullptr &&
+          height_spin != nullptr && radius_tl != nullptr);
+    CHECK(std::abs(x_spin->value() - 120.0) < 0.6);
+    CHECK(std::abs(width_spin->value() - 200.0) < 0.6);
+    x_spin->setValue(100.0);
+    y_spin->setValue(100.0);
+    width_spin->setValue(400.0);
+    height_spin->setValue(200.0);
+    radius_tl->setValue(30.0);
+    QApplication::processEvents();
+    dialog->accept();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+
+  const auto* layer = std::as_const(document).find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  const auto* content = layer->vector_shape();
+  CHECK(content != nullptr);
+  // The shape stays LIVE with the edited parameters.
+  CHECK(content->origination.size() == 1);
+  CHECK(content->origination[0].kind == patchy::LiveShapeKind::RoundedRectangle);
+  CHECK(std::abs(content->origination[0].left - 100.0) < 1e-6);
+  CHECK(std::abs(content->origination[0].right - 500.0) < 1e-6);
+  CHECK(std::abs(content->origination[0].bottom - 300.0) < 1e-6);
+  CHECK(std::abs(content->origination[0].corner_radii[0] - 30.0) < 1e-6);
+  // The raster followed: inside is the black fill, the rounded top-left
+  // corner is cut, and the old area outside the new bounds stays white.
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 200)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(103, 103)), Qt::white, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(95, 95)), Qt::white, 8));
+
+  // Undo restores the original drag geometry in one step.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(document).find_layer(*layer_id);
+  CHECK(restored != nullptr);
+  CHECK(std::abs(restored->vector_shape()->origination[0].left - 120.0) < 1e-6);
+}
+
+void ui_shape_mode_drag_previews_fill_appearance() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);  // Shape mode default
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+
+  // Mid-drag the preview shows the ACTUAL fill (default black, full
+  // opacity), not the translucent raster-paint preview.
+  send_mouse(*canvas, QEvent::MouseButtonPress,
+             canvas->widget_position_for_document_point(QPoint(150, 150)), Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove,
+             canvas->widget_position_for_document_point(QPoint(400, 300)), Qt::NoButton,
+             Qt::LeftButton);
+  const auto center = canvas_pixel(*canvas, QPoint(275, 225));
+  CHECK(color_close(center, Qt::black, 30));
+  send_mouse(*canvas, QEvent::MouseButtonRelease,
+             canvas->widget_position_for_document_point(QPoint(400, 300)), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+}
+
 void ui_paths_panel_clipping_path_toggle() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -2314,6 +2406,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_pattern_fill_uses_custom_library_pattern},
       {"ui_path_edits_refresh_panel_thumbnails", ui_path_edits_refresh_panel_thumbnails},
       {"ui_paths_panel_clipping_path_toggle", ui_paths_panel_clipping_path_toggle},
+      {"ui_shape_mode_drag_previews_fill_appearance",
+       ui_shape_mode_drag_previews_fill_appearance},
+      {"ui_shape_geometry_edits_live_shape", ui_shape_geometry_edits_live_shape},
       {"ui_new_gradient_fill_layer_spans_canvas", ui_new_gradient_fill_layer_spans_canvas},
       {"ui_paths_panel_actions_follow_row_selection", ui_paths_panel_actions_follow_row_selection},
       {"ui_paths_panel_target_shows_overlay_with_any_tool",

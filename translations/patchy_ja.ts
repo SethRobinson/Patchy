@@ -13512,6 +13512,20 @@ Clipped to the layer below</source>
     <message><source> (Cell Size %1 px)</source><translation> (セルサイズ %1 px)</translation></message>
     <message><source> (Angle %1 degrees, Height %2 px, Amount %3%)</source><translation> (角度 %1 度、高さ %2 px、量 %3%)</translation></message>
     <message><source>Shape Appearance</source><translation>シェイプの外観</translation></message>
+    <message><source>Geometry</source><translation>ジオメトリ</translation></message>
+    <message><source>Start X:</source><translation>開始 X:</translation></message>
+    <message><source>Start Y:</source><translation>開始 Y:</translation></message>
+    <message><source>End X:</source><translation>終了 X:</translation></message>
+    <message><source>End Y:</source><translation>終了 Y:</translation></message>
+    <message><source>Weight:</source><translation>太さ:</translation></message>
+    <message><source>X:</source><translation>X:</translation></message>
+    <message><source>Y:</source><translation>Y:</translation></message>
+    <message><source>Width:</source><translation>幅:</translation></message>
+    <message><source>Height:</source><translation>高さ:</translation></message>
+    <message><source>Top left radius:</source><translation>左上の角丸半径:</translation></message>
+    <message><source>Top right radius:</source><translation>右上の角丸半径:</translation></message>
+    <message><source>Bottom right radius:</source><translation>右下の角丸半径:</translation></message>
+    <message><source>Bottom left radius:</source><translation>左下の角丸半径:</translation></message>
     <message><source>Type:</source><translation>種類:</translation></message>
     <message><source>No Fill</source><translation>塗りなし</translation></message>
     <message><source>Solid Color</source><translation>ベタ塗り</translation></message>

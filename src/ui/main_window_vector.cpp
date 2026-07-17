@@ -441,7 +441,25 @@ void MainWindow::edit_active_shape_appearance() {
   }
   const auto layer_id = *active;
   const Layer original_layer = *layer;
-  ShapeAppearanceSettings initial{layer->vector_shape()->fill, layer->vector_shape()->stroke};
+  ShapeAppearanceSettings initial{layer->vector_shape()->fill, layer->vector_shape()->stroke, {}};
+  // Geometry is editable for single-live-shape layers whose every subpath
+  // belongs to that origination group (the regeneration replaces the whole
+  // group; anything else keeps the section hidden).
+  {
+    const auto& content = *layer->vector_shape();
+    if (content.origination.size() == 1 && content.origination[0].raw_descriptor.empty()) {
+      const auto kind = content.origination[0].kind;
+      const auto group = content.origination[0].index;
+      const bool single_group =
+          std::all_of(content.path.subpaths.begin(), content.path.subpaths.end(),
+                      [group](const PathSubpath& subpath) { return subpath.shape_group == group; });
+      if (single_group &&
+          (kind == LiveShapeKind::Rectangle || kind == LiveShapeKind::RoundedRectangle ||
+           kind == LiveShapeKind::Ellipse || kind == LiveShapeKind::Line)) {
+        initial.geometry = content.origination[0];
+      }
+    }
+  }
 
   const auto apply_settings = [this, layer_id](const ShapeAppearanceSettings& settings) {
     auto& target_doc = document();
@@ -452,6 +470,41 @@ void MainWindow::edit_active_shape_appearance() {
     auto content = *target->vector_shape();
     content.fill = settings.fill;
     content.stroke = settings.stroke;
+    if (settings.geometry.has_value() && content.origination.size() == 1) {
+      // Regenerate the live shape from the edited parameters; the shape STAYS
+      // live (this is a parameter edit, not a direct path edit).
+      auto params = *settings.geometry;
+      params.index = content.origination[0].index;
+      populate_live_shape_box_corners(params);
+      if (params.kind == LiveShapeKind::Line) {
+        // The line's bbox is the generated quad's hull.
+        VectorPath preview;
+        preview.subpaths = generate_live_shape_subpaths(params);
+        if (const auto hull = preview.bounds(); hull.has_value()) {
+          params.left = hull->left;
+          params.top = hull->top;
+          params.right = hull->right;
+          params.bottom = hull->bottom;
+        }
+      }
+      const auto group = params.index;
+      auto op = PathCombineOp::Add;
+      for (const auto& subpath : content.path.subpaths) {
+        if (subpath.shape_group == group) {
+          op = subpath.op;
+          break;
+        }
+      }
+      std::erase_if(content.path.subpaths, [group](const PathSubpath& subpath) {
+        return subpath.shape_group == group;
+      });
+      for (auto& subpath : generate_live_shape_subpaths(params)) {
+        subpath.shape_group = group;
+        subpath.op = op;
+        content.path.subpaths.push_back(std::move(subpath));
+      }
+      content.origination[0] = params;
+    }
     ensure_vector_fill_patterns(target_doc, content, pattern_library());
     target->set_vector_shape(std::move(content));
     target->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;

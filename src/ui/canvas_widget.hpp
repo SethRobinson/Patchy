@@ -509,6 +509,18 @@ public:
   // canvas_widget_pen.cpp): a committed path arrives as one subpath.
   void set_vector_path_committed_callback(
       std::function<void(patchy::VectorPath, bool, VectorPathSource)> callback);
+  // Shape-mode drags preview with the shape's ACTUAL appearance (options-bar
+  // fill/stroke) instead of the raster-paint preview. Pulled through a
+  // callback at draw time so the values can never go stale per canvas.
+  struct ShapePreviewAppearance {
+    QColor fill;  // invalid = no fill
+    bool stroke_enabled{false};
+    QColor stroke;
+    double stroke_width{1.0};
+    int line_weight{1};
+  };
+  void set_shape_preview_appearance_callback(
+      std::function<std::optional<ShapePreviewAppearance>()> callback);
   // Polygon tool options (sides, star inset percent 0 = plain polygon) and
   // the custom-shape stamp path (unit-box normalized).
   void set_polygon_sides(int sides) noexcept;
@@ -879,6 +891,9 @@ private:
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
   [[nodiscard]] QPoint shape_constrained_current() const;
   void draw_shape_preview(QPainter& painter, QRect exposed_rect);
+  // Shape-mode live preview with the actual fill/stroke appearance; returns
+  // false when the tool/geometry has no appearance form (caller falls back).
+  bool draw_shape_appearance_preview(QPainter& painter, const ShapePreviewAppearance& appearance);
   void draw_drag_size_readout(QPainter& painter) const;
   void draw_text_rect_preview(QPainter& painter) const;
   void draw_zoom_preview(QPainter& painter) const;
@@ -1309,6 +1324,7 @@ private:
   VectorToolMode vector_tool_mode_{VectorToolMode::Shape};
   std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> vector_shape_drawn_callback_;
   std::function<void(patchy::VectorPath, bool, VectorPathSource)> vector_path_committed_callback_;
+  std::function<std::optional<ShapePreviewAppearance>()> shape_preview_appearance_callback_;
   int polygon_sides_{5};
   int polygon_star_inset_{0};
   std::shared_ptr<const patchy::VectorPath> custom_shape_path_;

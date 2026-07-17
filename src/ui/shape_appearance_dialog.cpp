@@ -28,6 +28,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <memory>
 #include <utility>
@@ -107,6 +108,115 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       preview_changed(state->settings);
     }
   };
+
+  // --- Geometry (single live-shape layers only) ---
+  if (state->settings.geometry.has_value()) {
+    const auto kind = state->settings.geometry->kind;
+    auto* geometry_group = new QGroupBox(QObject::tr("Geometry"), &dialog);
+    auto* geometry_layout = new QVBoxLayout(geometry_group);
+    geometry_layout->setContentsMargins(10, 8, 10, 8);
+    geometry_layout->setSpacing(4);
+    auto* geometry_form = new QFormLayout();
+    geometry_form->setHorizontalSpacing(10);
+    geometry_form->setVerticalSpacing(8);
+    geometry_layout->addLayout(geometry_form);
+    const auto make_spin = [&](const char* name, double minimum, double maximum, double value) {
+      auto* spin = new QDoubleSpinBox(geometry_group);
+      spin->setObjectName(QLatin1String(name));
+      spin->setRange(minimum, maximum);
+      spin->setDecimals(1);
+      spin->setSuffix(QStringLiteral(" px"));
+      spin->setValue(value);
+      configure_dialog_spinbox(spin, 72);
+      return spin;
+    };
+    const auto& geometry = *state->settings.geometry;
+    if (kind == LiveShapeKind::Line) {
+      auto* start_x = make_spin("shapeGeometryLineStartXSpin", -30000, 30000, geometry.line_start_x);
+      auto* start_y = make_spin("shapeGeometryLineStartYSpin", -30000, 30000, geometry.line_start_y);
+      auto* end_x = make_spin("shapeGeometryLineEndXSpin", -30000, 30000, geometry.line_end_x);
+      auto* end_y = make_spin("shapeGeometryLineEndYSpin", -30000, 30000, geometry.line_end_y);
+      auto* weight = make_spin("shapeGeometryLineWeightSpin", 0.5, 1000, geometry.line_weight);
+      geometry_form->addRow(QObject::tr("Start X:"), start_x);
+      geometry_form->addRow(QObject::tr("Start Y:"), start_y);
+      geometry_form->addRow(QObject::tr("End X:"), end_x);
+      geometry_form->addRow(QObject::tr("End Y:"), end_y);
+      geometry_form->addRow(QObject::tr("Weight:"), weight);
+      const auto apply_line = [state, notify, start_x, start_y, end_x, end_y, weight] {
+        auto& params = *state->settings.geometry;
+        params.line_start_x = start_x->value();
+        params.line_start_y = start_y->value();
+        params.line_end_x = end_x->value();
+        params.line_end_y = end_y->value();
+        params.line_weight = weight->value();
+        if (params.arrow_start || params.arrow_end) {
+          // Keep the default arrowhead proportions tied to the weight.
+          params.arrow_width = params.line_weight * 5.0;
+          params.arrow_length = params.line_weight * 10.0;
+        }
+        notify();
+      };
+      for (auto* spin : {start_x, start_y, end_x, end_y, weight}) {
+        QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog, apply_line);
+      }
+    } else {
+      auto* x_spin = make_spin("shapeGeometryXSpin", -30000, 30000, geometry.left);
+      auto* y_spin = make_spin("shapeGeometryYSpin", -30000, 30000, geometry.top);
+      auto* width_spin =
+          make_spin("shapeGeometryWidthSpin", 0.5, 60000, geometry.right - geometry.left);
+      auto* height_spin =
+          make_spin("shapeGeometryHeightSpin", 0.5, 60000, geometry.bottom - geometry.top);
+      geometry_form->addRow(QObject::tr("X:"), x_spin);
+      geometry_form->addRow(QObject::tr("Y:"), y_spin);
+      geometry_form->addRow(QObject::tr("Width:"), width_spin);
+      geometry_form->addRow(QObject::tr("Height:"), height_spin);
+      std::array<QDoubleSpinBox*, 4> radius_spins{nullptr, nullptr, nullptr, nullptr};
+      if (kind == LiveShapeKind::Rectangle || kind == LiveShapeKind::RoundedRectangle) {
+        // Model order TL, TR, BR, BL; a radius on a plain rect promotes it to
+        // a rounded rect (the generator clamps oversized values).
+        const std::array<const char*, 4> names{
+            "shapeGeometryRadiusTopLeftSpin", "shapeGeometryRadiusTopRightSpin",
+            "shapeGeometryRadiusBottomRightSpin", "shapeGeometryRadiusBottomLeftSpin"};
+        const std::array<QString, 4> labels{
+            QObject::tr("Top left radius:"), QObject::tr("Top right radius:"),
+            QObject::tr("Bottom right radius:"), QObject::tr("Bottom left radius:")};
+        for (std::size_t corner = 0; corner < 4; ++corner) {
+          radius_spins[corner] =
+              make_spin(names[corner], 0, 30000, geometry.corner_radii[corner]);
+          geometry_form->addRow(labels[corner], radius_spins[corner]);
+        }
+      }
+      const auto apply_box = [state, notify, x_spin, y_spin, width_spin, height_spin,
+                              radius_spins] {
+        auto& params = *state->settings.geometry;
+        params.left = x_spin->value();
+        params.top = y_spin->value();
+        params.right = x_spin->value() + width_spin->value();
+        params.bottom = y_spin->value() + height_spin->value();
+        if (radius_spins[0] != nullptr) {
+          for (std::size_t corner = 0; corner < 4; ++corner) {
+            params.corner_radii[corner] = radius_spins[corner]->value();
+          }
+          const bool any_radius =
+              params.corner_radii[0] > 0.0 || params.corner_radii[1] > 0.0 ||
+              params.corner_radii[2] > 0.0 || params.corner_radii[3] > 0.0;
+          if (params.kind == LiveShapeKind::Rectangle && any_radius) {
+            params.kind = LiveShapeKind::RoundedRectangle;
+          }
+        }
+        notify();
+      };
+      for (auto* spin : {x_spin, y_spin, width_spin, height_spin}) {
+        QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog, apply_box);
+      }
+      for (auto* spin : radius_spins) {
+        if (spin != nullptr) {
+          QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog, apply_box);
+        }
+      }
+    }
+    dialog_layout->addWidget(geometry_group);
+  }
 
   // --- Fill ---
   auto* fill_group = new QGroupBox(QObject::tr("Fill"), &dialog);

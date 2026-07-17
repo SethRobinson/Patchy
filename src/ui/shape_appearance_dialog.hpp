@@ -16,11 +16,16 @@ namespace patchy::ui {
 class GradientLibrary;
 class PatternLibrary;
 
-// The editable appearance of a shape/fill layer (the dialog leaves the path,
-// origination, and flags untouched).
+// The editable appearance of a shape/fill layer. `geometry` carries the
+// layer's single live-shape origination when the caller allows editing it
+// (rect/rounded-rect bounds and radii, ellipse bounds, line endpoints and
+// weight); the dialog edits the params in place and the caller regenerates
+// the subpaths. Dialog-based geometry editing is the patent-cleared route -
+// on-canvas live-shape gizmos stay excluded (docs/vector-tools.md).
 struct ShapeAppearanceSettings {
   VectorFill fill;
   VectorStroke stroke;
+  std::optional<LiveShapeParams> geometry;
 };
 
 // Live-preview dialog for a shape layer's fill and stroke (the

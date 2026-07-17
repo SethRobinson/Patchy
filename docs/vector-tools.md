@@ -18,7 +18,12 @@ method rules.
 ## Shape tools (Line / Rectangle / Ellipse)
 
 The draw tools carry a Shape | Path | Pixels mode combo (persisted
-`tools/vectorToolMode`, default Shape for Photoshop parity). Shape mode creates
+`tools/vectorToolMode`, default Shape for Photoshop parity). Shape-mode drags
+preview with the ACTUAL appearance (options-bar fill and stroke, pulled at
+draw time through shape_preview_appearance_callback_ so no per-canvas mirror
+can desync; stroke previews centered, arrowheads appear at commit) - but only
+on the Content edit target: mask/channel/quick-mask targets keep their
+raster previews and the vector-mask target keeps the outline. Shape mode creates
 a shape layer from the released drag: the live-shape parameters (rect, rounded
 rect via the Radius option, ellipse, line with Weight) generate the path, and
 the options-bar fill color, stroke toggle/color/width become the layer's
@@ -235,7 +240,16 @@ first item, per the standing rule). The dialog covers fill kind (none / solid
 pattern scale) and the full stroke set (width, solid paint,
 inside/center/outside alignment, caps, joins, dash presets plus a Custom entry
 preserving PSD-authored dash arrays); the stroke rows grey out while the
-stroke checkbox is off. Edits preview live on the layer and restore on cancel;
+stroke checkbox is off. Single-live-shape layers additionally get a Geometry
+section (rect/rounded bounds + per-corner radii - a radius promotes a plain
+rect to rounded - ellipse bounds, line endpoints/weight): edits regenerate
+the group's subpaths via generate_live_shape_subpaths and the shape STAYS
+live (a parameter edit, not a direct path edit; dialog-based editing is the
+patent-cleared route, on-canvas gizmos stay excluded). The section only
+appears when the layer has exactly one modeled origination and every subpath
+belongs to that group. Pattern adoption self-heals: PatternStore::adopt
+replaces a same-id entry whose tile is EMPTY (a poisoned earlier adopt would
+otherwise render transparent forever and block re-adoption). Edits preview live on the layer and restore on cancel;
 a gradient or pattern stroke paint read from a PSD is kept untouched unless
 the stroke color is explicitly re-picked. Edit > Define Custom Shape from Path
 prompts for the shape name (prefilled with the generated fallback). Layer > New Fill Layer creates Solid Color (live color

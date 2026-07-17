@@ -264,6 +264,22 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
   const auto a = widget_position(doc_a);
   const auto b = widget_position(doc_b);
 
+  // Shape mode previews with the ACTUAL appearance (options-bar fill and
+  // stroke), like Photoshop; Path and Pixels modes keep their previews, and
+  // so do the raster-committing edit targets (masks, channels, quick mask)
+  // and the vector-mask target (its drags append mask subpaths, not a fill).
+  const bool vector_shape_tool = tool_ == CanvasTool::Line || tool_ == CanvasTool::Rectangle ||
+                                 tool_ == CanvasTool::Ellipse || tool_ == CanvasTool::Polygon ||
+                                 tool_ == CanvasTool::CustomShape;
+  if (vector_shape_tool && vector_tool_mode_ == VectorToolMode::Shape &&
+      layer_edit_target_ == LayerEditTarget::Content && !quick_mask_active_ &&
+      !editing_smart_filter_mask() && shape_preview_appearance_callback_) {
+    if (const auto appearance = shape_preview_appearance_callback_();
+        appearance.has_value() && draw_shape_appearance_preview(painter, *appearance)) {
+      return;
+    }
+  }
+
   // The vector-only tools preview as an accent outline (the committed result
   // is a shape layer or path, never raster paint).
   if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape) {
@@ -567,6 +583,110 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
     }
     painter.drawEllipse(normalized_rect(a, b));
   }
+}
+
+bool CanvasWidget::draw_shape_appearance_preview(QPainter& painter,
+                                                 const ShapePreviewAppearance& appearance) {
+  // Approximation notes: stroke draws centered regardless of the committed
+  // inside alignment, and line arrowheads appear at commit; both stay close
+  // enough for a live drag preview.
+  QPainterPath path;
+  const auto to_widget = [this](QPointF document_point) {
+    return widget_position_f(document_point);
+  };
+  const auto drag_rect = shape_drag_rect(shape_start_, shape_current_);
+  const QRectF widget_rect(to_widget(QPointF(drag_rect.topLeft())),
+                           to_widget(QPointF(drag_rect.bottomRight())));
+  switch (tool_) {
+    case CanvasTool::Rectangle: {
+      if (shape_corner_radius_ > 0) {
+        const auto radius = static_cast<double>(shape_corner_radius_) * zoom_;
+        const auto clamped =
+            std::min(radius, std::min(widget_rect.width(), widget_rect.height()) / 2.0);
+        path.addRoundedRect(widget_rect, clamped, clamped);
+      } else {
+        path.addRect(widget_rect);
+      }
+      break;
+    }
+    case CanvasTool::Ellipse:
+      path.addEllipse(widget_rect);
+      break;
+    case CanvasTool::Line: {
+      // The committed line is a filled band of the weight; preview the same
+      // band with a flat-capped pen path.
+      QPainterPath spine;
+      spine.moveTo(to_widget(QPointF(shape_start_)));
+      spine.lineTo(to_widget(QPointF(shape_current_)));
+      QPainterPathStroker stroker;
+      stroker.setWidth(std::max(1.0, static_cast<double>(appearance.line_weight) * zoom_));
+      stroker.setCapStyle(Qt::FlatCap);
+      path = stroker.createStroke(spine);
+      break;
+    }
+    case CanvasTool::Polygon: {
+      const auto subpath = polygon_drag_subpath(QPointF(shape_start_), QPointF(shape_current_));
+      if (subpath.anchors.size() < 3) {
+        return false;
+      }
+      QPolygonF outline;
+      for (const auto& anchor : subpath.anchors) {
+        outline << to_widget(QPointF(anchor.anchor_x, anchor.anchor_y));
+      }
+      path.addPolygon(outline);
+      path.closeSubpath();
+      break;
+    }
+    case CanvasTool::CustomShape: {
+      if (custom_shape_path_ == nullptr || custom_shape_path_->subpaths.empty() ||
+          drag_rect.width() <= 0 || drag_rect.height() <= 0) {
+        return false;
+      }
+      // The stamp scales the unit-box shape into the drag rect.
+      for (const auto& subpath : custom_shape_path_->subpaths) {
+        if (subpath.anchors.empty()) {
+          continue;
+        }
+        const auto map = [&](double x, double y) {
+          return to_widget(QPointF(drag_rect.x() + x * drag_rect.width(),
+                                   drag_rect.y() + y * drag_rect.height()));
+        };
+        const auto& anchors = subpath.anchors;
+        path.moveTo(map(anchors[0].anchor_x, anchors[0].anchor_y));
+        const auto anchor_count = anchors.size();
+        const auto segment_count = subpath.closed ? anchor_count : anchor_count - 1;
+        for (std::size_t i = 0; i < segment_count; ++i) {
+          const auto& from = anchors[i];
+          const auto& to = anchors[(i + 1) % anchor_count];
+          path.cubicTo(map(from.out_x, from.out_y), map(to.in_x, to.in_y),
+                       map(to.anchor_x, to.anchor_y));
+        }
+        path.closeSubpath();
+      }
+      break;
+    }
+    default:
+      return false;
+  }
+  if (path.isEmpty()) {
+    return false;
+  }
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setPen(Qt::NoPen);
+  if (appearance.fill.isValid()) {
+    painter.setBrush(appearance.fill);
+  } else {
+    painter.setBrush(Qt::NoBrush);
+  }
+  painter.drawPath(path);
+  if (appearance.stroke_enabled && appearance.stroke.isValid() && appearance.stroke_width > 0.0) {
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(appearance.stroke, std::max(0.5, appearance.stroke_width * zoom_)));
+    painter.drawPath(path);
+  }
+  painter.restore();
+  return true;
 }
 
 void CanvasWidget::draw_drag_size_readout(QPainter& painter) const {
