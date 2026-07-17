@@ -303,6 +303,9 @@ add_library(patchy_formats
   src/formats/raw_document_io.cpp
   src/formats/raw_tone.cpp
   src/formats/raw_white_balance.cpp
+  src/formats/svg_document_read.cpp
+  src/formats/svg_document_write.cpp
+  src/formats/svg_xml.cpp
   src/formats/tga_document_io.cpp
   src/formats/miniz/miniz.c
 )
@@ -836,6 +839,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/smart_filter_pixels_tests.cpp
     tests/core/smart_objects_warp_tests.cpp
     tests/core/stroke_mask_effects_tests.cpp
+    tests/core/svg_tests.cpp
     tests/core/vector_raster_tests.cpp
     tests/core/vector_shape_tests.cpp
   )
@@ -892,6 +896,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/misc_visuals_outline_stress_tests.cpp
       tests/ui/float_window_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
+      tests/ui/svg_ui_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
     )
     # The split TUs live in tests/ui/ but repeat the historical monolith include

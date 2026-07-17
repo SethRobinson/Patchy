@@ -397,6 +397,11 @@ private:
   void resize_canvas_dialog();
   void open_document();
   void open_document_path(QString path);
+  // SVG post-open pass: renders text layers the Qt-free reader marked
+  // kLayerMetadataSvgPendingText through the internal text pipeline and
+  // positions them from their baseline point + text-anchor. Defined in
+  // main_window.cpp (it needs the text render machinery there).
+  void render_pending_svg_text_layers(Document& target);
   // Reloads the session's file from disk in place (tab position, float window,
   // and session identity survive; undo history and unsaved changes do not).
   void reopen_document_session(DocumentSession& target_session);
@@ -414,7 +419,9 @@ private:
   // asking first).
   bool save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options = std::nullopt,
                              bool flatten_confirmed = false);
-  bool confirm_flatten_layers_for_save();
+  // extension picks the wording: SVG keeps vector shapes and only bakes the
+  // rest, so its copy-save warning must not claim everything flattens.
+  bool confirm_flatten_layers_for_save(const QString& extension = {});
   void export_flat_image();
   void page_setup();
   void print_document();
@@ -648,6 +655,14 @@ private:
   void refresh_custom_shape_combo();
   void apply_custom_shape_selection();
   void define_custom_shape_from_path();
+  // The Photoshop Shapes-panel SVG import: one stampable custom shape per
+  // file (paint ignored, geometry merged and unit-normalized). The _with_path
+  // form is the dialogless core so tests can drive it.
+  void define_custom_shape_from_svg_file();
+  bool define_custom_shape_from_svg_path(const QString& path);
+  // Edit > Paste of system-clipboard SVG (image/svg+xml data or <svg> text)
+  // as editable shape layers; false = not SVG content, use the normal paste.
+  bool paste_svg_from_clipboard();
   void export_smart_object_contents();
   void open_smart_object_contents();
   bool commit_smart_object_child_session(DocumentSession& child_session);

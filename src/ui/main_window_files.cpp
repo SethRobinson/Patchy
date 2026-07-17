@@ -23,6 +23,7 @@
 #include "formats/bmp_document_io.hpp"
 #include "formats/heif_document_io.hpp"
 #include "formats/raw_document_io.hpp"
+#include "formats/svg_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_filter_effects.hpp"
@@ -409,6 +410,16 @@ const QList<FileFormatEntry>& file_format_entries() {
        {QStringLiteral("lbm"), QStringLiteral("iff")},
        true,
        true},
+      // SVG opens as editable shape layers and saves/exports with vectors
+      // preserved (the layered svg writer, not write_flat_image_file). It
+      // stays OUT of save_extension_preserves_layers on purpose: masks,
+      // styles, and text bake on save, so layered saves keep Photoshop's
+      // warn + save-a-copy semantics. .svgz is read-only.
+      {QT_TRANSLATE_NOOP("QObject", "SVG Image"),
+       {QStringLiteral("svg"), QStringLiteral("svgz")},
+       {QStringLiteral("svg")},
+       true,
+       true},
     };
     // Camera raws open through the develop pipeline and are never written: empty
     // save_extensions marks the entry read-only, so Save As/Export skip it. The extension
@@ -657,6 +668,10 @@ std::vector<std::uint8_t> read_all_file_bytes(const QString& path) {
   return std::vector<std::uint8_t>(bytes, bytes + data.size());
 }
 
+bool is_svg_extension(const QString& extension) {
+  return extension == QStringLiteral("svg") || extension == QStringLiteral("svgz");
+}
+
 OpenDocumentResult load_document_from_path(QString path) {
   const auto info = QFileInfo(path);
   const auto extension = info.suffix().toLower();
@@ -748,6 +763,11 @@ OpenDocumentResult load_document_from_path(QString path) {
         opened.print_settings().horizontal_ppi = kUntaggedImportPpi;
         opened.print_settings().vertical_ppi = kUntaggedImportPpi;
       }
+      // The SVG reader sets its own density (96 PPI for physical units, 72
+      // otherwise), so it is deliberately not in the densityless set.
+      if (is_svg_extension(extension)) {
+        decode_pending_svg_images(opened.layers(), import_notices);
+      }
     } catch (const std::exception& registry_error) {
       // Nonstandard files that a Qt plugin still understands (e.g. OS/2 BMPs) keep opening
       // through the Qt fallback; when Qt cannot read them either, report the registry
@@ -772,6 +792,12 @@ OpenDocumentResult load_document_from_path(QString path) {
       opened = document_from_qimage(image, heif_family ? std::string("Background")
                                                        : info.completeBaseName().toStdString());
       apply_imported_image_density(opened, read_all_file_bytes(path), image);
+      if (is_svg_extension(extension)) {
+        // The editable importer refused (too complex / past the supported
+        // subset) and the qsvg plugin rasterized instead - say so, with why.
+        import_notices.push_back(QObject::tr("SVG was imported as flattened raster: %1")
+                                     .arg(QString::fromUtf8(registry_error.what())));
+      }
     }
   } else {
     load_via_qt();
@@ -782,8 +808,10 @@ OpenDocumentResult load_document_from_path(QString path) {
   // promoted inside the reader (saved alpha channels), while a layered file's single
   // layer OWNS its transparency; promoting it grew a phantom mask on single-text-layer
   // files like the table tent's Content.psb and would push authored transparency into
-  // a document alpha channel on resave.
-  if (!opened.metadata().values.contains("psd.version")) {
+  // a document alpha channel on resave. SVG is excluded for the same structural
+  // reason: its layers own their transparency, and the promotion's set_pixels would
+  // clobber a lone placed <image> layer's offset bounds.
+  if (!opened.metadata().values.contains("psd.version") && !is_svg_extension(extension)) {
     promote_flat_alpha_to_layer_mask(opened);
   }
   if (const auto default_layer_id = default_non_group_layer_id(opened.layers()); default_layer_id.has_value()) {
@@ -1013,6 +1041,7 @@ void MainWindow::open_document_path(QString path) {
     if (!loaded.has_value()) {
       return;
     }
+    render_pending_svg_text_layers(loaded->document);
 
     add_document_session(std::move(loaded->document), loaded->file_name, path);
     if (is_photoshop_document_extension(loaded->extension) &&
@@ -1095,6 +1124,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     if (!loaded.has_value()) {
       return;
     }
+    render_pending_svg_text_layers(loaded->document);
 
     // Replace the document in place: tab position, float window, and session
     // identity survive (smart-object child tabs reference session ids). An open
@@ -1448,7 +1478,7 @@ bool MainWindow::save_document_as() {
   path = path_with_default_extension(path, selected_filter);
   const auto extension = extension_for_path(path);
   const bool discards_layers = layered_document && !save_extension_preserves_layers(extension);
-  if (discards_layers && !confirm_flatten_layers_for_save()) {
+  if (discards_layers && !confirm_flatten_layers_for_save(extension)) {
     return false;
   }
   std::optional<ImageSaveOptions> image_options;
@@ -1461,15 +1491,21 @@ bool MainWindow::save_document_as() {
   return save_document_to_path(path, image_options, /*flatten_confirmed*/ discards_layers);
 }
 
-bool MainWindow::confirm_flatten_layers_for_save() {
+bool MainWindow::confirm_flatten_layers_for_save(const QString& extension) {
   const bool linked_external_child =
       session().smart_object_link.has_value() && session().smart_object_link->external;
   // A linked smart-object child writes the linked file itself (the file on disk is the
   // document), so its flat save is a real save; everything else saves a flattened copy
   // and keeps the layered document open with its unsaved changes (Photoshop's
-  // save-a-copy semantics).
+  // save-a-copy semantics). SVG gets its own wording: shape layers stay real
+  // vectors there and only the rest bakes.
   const auto message =
-      linked_external_child
+      extension == QStringLiteral("svg")
+          ? tr("SVG keeps shape layers as vectors, but masks, layer styles, text, and adjustments are "
+               "baked into images, so Patchy will save a copy. The open document will keep its layers "
+               "and unsaved changes. To keep everything editable, save as a Photoshop document (.psd) "
+               "instead.")
+      : linked_external_child
           ? tr("This file format cannot store layers. Continue saving and flatten the linked file?")
           : tr("This file format cannot store layers, so Patchy will save a flattened copy. The open "
                "document will keep its layers and unsaved changes. To keep layers in the file, save as a "
@@ -1487,7 +1523,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
   const auto extension = extension_for_path(path);
   const bool discards_layers = !save_extension_preserves_layers(extension) &&
                                flat_save_discards_layers(std::as_const(document()));
-  if (discards_layers && !flatten_confirmed && !confirm_flatten_layers_for_save()) {
+  if (discards_layers && !flatten_confirmed && !confirm_flatten_layers_for_save(extension)) {
     return false;
   }
   if (!is_photoshop_document_extension(extension) &&
@@ -1522,12 +1558,25 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       }
     }
 
+    QString export_notes_suffix;
     if (is_photoshop_document_extension(extension)) {
       psd::DocumentIo::write_layered_rgb8_file(document(), path.toStdString(),
                                                psd::WriteOptions{extension == QStringLiteral("psb")});
     } else if (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) {
       // Layered save: the Aseprite writer keeps the layer tree instead of flattening.
       aseprite::DocumentIo::write_file(document(), path.toStdString());
+    } else if (extension == QStringLiteral("svg")) {
+      // Structure-preserving vector write (never write_flat_image_file):
+      // shape layers stay SVG vectors, the writer reports what it baked.
+      std::vector<std::string> svg_notices;
+      svg::DocumentIo::write_file(document(), path.toStdString(), &svg_notices);
+      if (!svg_notices.empty()) {
+        export_notes_suffix = QStringLiteral(" ") + QString::fromStdString(svg_notices.front());
+        if (svg_notices.size() > 1) {
+          export_notes_suffix +=
+              tr(" (+%n more export note(s))", nullptr, static_cast<int>(svg_notices.size()) - 1);
+        }
+      }
     } else {
       write_flat_image_file(document(), path, extension, effective_image_options);
     }
@@ -1544,7 +1593,10 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       }
       update_history(tr("Save"));
       add_recent_file(path);
-      statusBar()->showMessage(tr("Saved flattened copy %1").arg(path));
+      statusBar()->showMessage((extension == QStringLiteral("svg") ? tr("Saved SVG copy %1.")
+                                                                   : tr("Saved flattened copy %1"))
+                                   .arg(path) +
+                               export_notes_suffix);
       return true;
     }
     auto& active_session = session();
@@ -1564,7 +1616,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     set_session_saved(active_session);
     update_history(tr("Save"));
     add_recent_file(path);
-    statusBar()->showMessage(tr("Saved %1").arg(path));
+    statusBar()->showMessage(tr("Saved %1").arg(path) + export_notes_suffix);
     return true;
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Save failed"), QString::fromUtf8(error.what()),
@@ -1592,10 +1644,12 @@ void MainWindow::export_flat_image() {
 
   try {
     const auto extension = extension_for_path(path);
+    const bool svg_export = extension == QStringLiteral("svg");
     std::optional<ImageSaveOptions> image_options;
-    if (!is_photoshop_document_extension(extension)) {
+    if (!is_photoshop_document_extension(extension) && !svg_export) {
       // for_export adds the nearest-neighbor Scale combo to every raster format's options
-      // (a scale-only dialog for formats with no other options).
+      // (a scale-only dialog for formats with no other options). SVG has no
+      // raster options: vectors scale client-side.
       image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document(),
                                                 /*for_export*/ true);
       if (!image_options.has_value()) {
@@ -1603,8 +1657,21 @@ void MainWindow::export_flat_image() {
       }
     }
     const auto effective_image_options = image_options.value_or(image_save_defaults_for_document());
+    QString export_notes_suffix;
     if (is_photoshop_document_extension(extension)) {
       psd::DocumentIo::write_flat_rgb8_file(document(), path.toStdString());
+    } else if (svg_export) {
+      // The same structure-preserving writer as Save As: shape layers export
+      // as real vectors even from the "flat" export flow.
+      std::vector<std::string> svg_notices;
+      svg::DocumentIo::write_file(document(), path.toStdString(), &svg_notices);
+      if (!svg_notices.empty()) {
+        export_notes_suffix = QStringLiteral(" ") + QString::fromStdString(svg_notices.front());
+        if (svg_notices.size() > 1) {
+          export_notes_suffix +=
+              tr(" (+%n more export note(s))", nullptr, static_cast<int>(svg_notices.size()) - 1);
+        }
+      }
     } else {
       write_flat_image_file(document(), path, extension, effective_image_options);
     }
@@ -1613,7 +1680,7 @@ void MainWindow::export_flat_image() {
     }
     remember_save_directory_for_path(path);
     update_history(tr("Export flat image"));
-    statusBar()->showMessage(tr("Exported %1").arg(path));
+    statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),
                           QStringLiteral("exportFailedMessageBox"));

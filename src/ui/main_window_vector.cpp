@@ -12,6 +12,7 @@
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "formats/svg_document_io.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/custom_shape_library.hpp"
@@ -35,6 +36,8 @@
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFile>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QIcon>
 #include <QLineEdit>
@@ -1208,6 +1211,84 @@ void MainWindow::define_custom_shape_from_path() {
     }
   }
   statusBar()->showMessage(tr("Defined %1 from the path.").arg(name));
+}
+
+void MainWindow::define_custom_shape_from_svg_file() {
+  const auto path = get_open_file_name(this, tr("Define Custom Shape from SVG File"),
+                                       file_dialog_initial_path(QString(), QString()),
+                                       tr("SVG Files (*.svg *.svgz);;All Files (*.*)"), nullptr,
+                                       QStringLiteral("defineCustomShapeSvgFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  define_custom_shape_from_svg_path(path);
+}
+
+bool MainWindow::define_custom_shape_from_svg_path(const QString& path) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    show_status_error(tr("Could not read %1").arg(path));
+    return false;
+  }
+  const auto raw = file.readAll();
+  patchy::Document imported;
+  try {
+    imported = svg::DocumentIo::read(
+        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(raw.constData()),
+                                      static_cast<std::size_t>(raw.size())));
+  } catch (const std::exception& error) {
+    show_status_error(tr("Could not read the SVG: %1").arg(QString::fromUtf8(error.what())));
+    return false;
+  }
+  // The Photoshop Shapes-panel behavior: one stampable shape per file, all
+  // drawable geometry merged (paint ignored), combine ops preserved so holes
+  // keep cutting when stamped. Shape groups renumber per source layer.
+  VectorPath merged;
+  std::int32_t group_base = 0;
+  const auto collect = [&](auto&& self, const std::vector<Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      if (!layer.children().empty()) {
+        self(self, layer.children());
+      }
+      const auto* shape = layer.vector_shape();
+      if (shape == nullptr || shape->path.subpaths.empty()) {
+        continue;
+      }
+      std::int32_t highest = 0;
+      for (const auto& subpath : shape->path.subpaths) {
+        auto copy = subpath;
+        highest = std::max(highest, copy.shape_group);
+        copy.shape_group += group_base;
+        merged.subpaths.push_back(std::move(copy));
+      }
+      group_base += highest + 1;
+    }
+  };
+  collect(collect, imported.layers());
+  const auto bounds = merged.bounds();
+  if (!bounds.has_value() || bounds->right - bounds->left < 1e-6 || bounds->bottom - bounds->top < 1e-6) {
+    show_status_error(tr("The SVG has no shape geometry to define"));
+    return false;
+  }
+  const auto scale = 1.0 / std::max(bounds->right - bounds->left, bounds->bottom - bounds->top);
+  transform_vector_path(merged, {scale, 0.0, 0.0, scale, -bounds->left * scale, -bounds->top * scale});
+  const auto name = QFileInfo(path).completeBaseName();
+  const auto storage_id = custom_shape_library().add_shape(name.isEmpty() ? tr("SVG Shape") : name, merged);
+  if (storage_id.isEmpty()) {
+    show_status_error(tr("Could not save the custom shape"));
+    return false;
+  }
+  if (custom_shape_combo_ != nullptr) {
+    if (const auto* entry = custom_shape_library().find_entry(storage_id); entry != nullptr) {
+      if (const auto index = custom_shape_combo_->findData(entry->id); index >= 0) {
+        QSignalBlocker blocker(custom_shape_combo_);
+        custom_shape_combo_->setCurrentIndex(index);
+      }
+      apply_custom_shape_selection();
+    }
+  }
+  statusBar()->showMessage(tr("Defined custom shape %1 from the SVG").arg(name));
+  return true;
 }
 
 std::optional<PatternResource> MainWindow::resolve_vector_pattern_resource(

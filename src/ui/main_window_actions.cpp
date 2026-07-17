@@ -910,6 +910,13 @@ void MainWindow::create_actions() {
   connect(define_custom_shape_action, &QAction::triggered, this,
           [this] { define_custom_shape_from_path(); });
   register_document_action(define_custom_shape_action);
+  // Needs no document (the shape lands in the application library), so it is
+  // deliberately not a document action - the Photoshop Shapes-panel import.
+  auto* define_custom_shape_svg_action = edit_menu->addAction(tr("Define Custom Shape from SVG File"));
+  define_custom_shape_svg_action->setObjectName(QStringLiteral("editDefineCustomShapeFromSvgAction"));
+  register_hotkey(define_custom_shape_svg_action, "edit.define_custom_shape_svg");
+  connect(define_custom_shape_svg_action, &QAction::triggered, this,
+          [this] { define_custom_shape_from_svg_file(); });
   select_all_action->setObjectName(QStringLiteral("editSelectAllAction"));
   clear_selection_action->setObjectName(QStringLiteral("editDeselectAction"));
   reselect_action->setObjectName(QStringLiteral("selectReselectAction"));

@@ -203,6 +203,18 @@
         <translation>Amiga IFF 画像</translation>
     </message>
     <message>
+        <source>SVG Image</source>
+        <translation>SVG 画像</translation>
+    </message>
+    <message>
+        <source>SVG was imported as flattened raster: %1</source>
+        <translation>SVG は統合されたラスターとしてインポートされました: %1</translation>
+    </message>
+    <message>
+        <source>An embedded SVG image could not be decoded (layer %1)</source>
+        <translation>埋め込まれた SVG 画像をデコードできませんでした (レイヤー %1)</translation>
+    </message>
+    <message>
         <source>Camera Raw Image</source>
         <translation>カメラ Raw 画像</translation>
     </message>
@@ -7411,6 +7423,54 @@ Mixed selection</source>
         <translation>統合したコピー %1 を保存しました</translation>
     </message>
     <message>
+        <source>SVG keeps shape layers as vectors, but masks, layer styles, text, and adjustments are baked into images, so Patchy will save a copy. The open document will keep its layers and unsaved changes. To keep everything editable, save as a Photoshop document (.psd) instead.</source>
+        <translation>SVG はシェイプレイヤーをベクターのまま保存しますが、マスク、レイヤースタイル、テキスト、調整レイヤーは画像として書き出されるため、Patchy はコピーを保存します。開いているドキュメントのレイヤーと未保存の変更はそのまま残ります。すべてを編集可能なまま残すには、Photoshop ドキュメント (.psd) として保存してください。</translation>
+    </message>
+    <message>
+        <source>Saved SVG copy %1.</source>
+        <translation>SVG のコピー %1 を保存しました。</translation>
+    </message>
+    <message numerus="yes">
+        <source> (+%n more export note(s))</source>
+        <translation>
+            <numerusform> (ほか %n 件のエクスポートノート)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Define Custom Shape from SVG File</source>
+        <translation>SVG ファイルからカスタムシェイプを定義</translation>
+    </message>
+    <message>
+        <source>SVG Files (*.svg *.svgz);;All Files (*.*)</source>
+        <translation>SVG ファイル (*.svg *.svgz);;すべてのファイル (*.*)</translation>
+    </message>
+    <message>
+        <source>Could not read the SVG: %1</source>
+        <translation>SVG を読み込めませんでした: %1</translation>
+    </message>
+    <message>
+        <source>The SVG has no shape geometry to define</source>
+        <translation>この SVG には定義できるシェイプのジオメトリがありません</translation>
+    </message>
+    <message>
+        <source>Defined custom shape %1 from the SVG</source>
+        <translation>SVG からカスタムシェイプ %1 を定義しました</translation>
+    </message>
+    <message>
+        <source>SVG Shape</source>
+        <translation>SVG シェイプ</translation>
+    </message>
+    <message>
+        <source>Paste shape</source>
+        <translation>シェイプをペースト</translation>
+    </message>
+    <message numerus="yes">
+        <source>Pasted %n SVG shape layer(s)</source>
+        <translation>
+            <numerusform>SVG シェイプレイヤーを %n 枚ペーストしました</numerusform>
+        </translation>
+    </message>
+    <message>
         <location line="+963"/>
         <location filename="../src/ui/main_window_adjustments.cpp" line="+415"/>
         <source>Filters are unavailable while viewing a document channel</source>
@@ -10607,7 +10667,7 @@ To update, paste this into a terminal:
         <location line="-296"/>
         <location line="+226"/>
         <location line="+321"/>
-        <source>Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp);;All Files (*.*)</source>
+        <source>Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.svg *.svgz);;All Files (*.*)</source>
         <translation>埋め込み可能なファイル (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp);;すべてのファイル (*.*)</translation>
     </message>
     <message>

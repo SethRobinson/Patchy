@@ -158,6 +158,7 @@ int main(int argc, char** argv) {
            vector_shape_tests,
            vector_raster_tests,
            psd_vector_fixtures_tests,
+           svg_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),

@@ -46,6 +46,16 @@ inline constexpr const char* kLayerMetadataPsdTextBoxBounds = "patchy.psd.text.b
 inline constexpr const char* kLayerMetadataPsdTextTailBounds = "patchy.psd.text.tail_bounds";
 inline constexpr const char* kLayerMetadataPsdTextIndex = "patchy.psd.text.index";
 
+// SVG import handoff (the Qt-free reader cannot decode PNGs or render text):
+// MainWindow's post-open pass decodes pending_image data URIs, renders
+// pending_text layers through the internal text pipeline (positioning from
+// the baseline point + anchor), then drops these keys.
+inline constexpr const char* kLayerMetadataSvgPendingImage = "patchy.svg.pending_image";
+inline constexpr const char* kLayerMetadataSvgPendingText = "patchy.svg.pending_text_render";
+inline constexpr const char* kLayerMetadataSvgTextAnchor = "patchy.svg.text_anchor";
+inline constexpr const char* kLayerMetadataSvgTextBaselineX = "patchy.svg.text_baseline_x";
+inline constexpr const char* kLayerMetadataSvgTextBaselineY = "patchy.svg.text_baseline_y";
+
 using LayerAffineTransform = std::array<double, 6>;
 
 [[nodiscard]] bool layer_locks_transparent_pixels(const Layer& layer);

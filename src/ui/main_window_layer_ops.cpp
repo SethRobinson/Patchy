@@ -26,10 +26,12 @@
 #include "core/palette_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
 #include "formats/aseprite_document_io.hpp"
+#include "formats/svg_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/heif_document_io.hpp"
 #include "formats/raw_document_io.hpp"
@@ -860,6 +862,80 @@ void MainWindow::copy_merged() {
   statusBar()->showMessage(tr("Copied merged %1 x %2 px").arg(copy_rect.width).arg(copy_rect.height));
 }
 
+bool MainWindow::paste_svg_from_clipboard() {
+  const auto* mime = QApplication::clipboard()->mimeData();
+  if (mime == nullptr) {
+    return false;
+  }
+  QByteArray svg_bytes;
+  if (mime->hasFormat(QStringLiteral("image/svg+xml"))) {
+    svg_bytes = mime->data(QStringLiteral("image/svg+xml"));
+  } else if (mime->hasText()) {
+    const auto text = mime->text();
+    const auto head = QStringView(text).trimmed();
+    if (head.startsWith(QStringLiteral("<svg")) ||
+        (head.startsWith(QStringLiteral("<?xml")) && text.contains(QStringLiteral("<svg")))) {
+      svg_bytes = text.toUtf8();
+    }
+  }
+  if (svg_bytes.isEmpty()) {
+    return false;
+  }
+  Document imported;
+  try {
+    imported = svg::DocumentIo::read(std::span<const std::uint8_t>(
+        reinterpret_cast<const std::uint8_t*>(svg_bytes.constData()), static_cast<std::size_t>(svg_bytes.size())));
+  } catch (const std::exception&) {
+    // Not usable as vectors; the caller falls through to the raster rendition
+    // most SVG-producing apps also put on the clipboard.
+    return false;
+  }
+  render_pending_svg_text_layers(imported);
+  QStringList image_notices;
+  decode_pending_svg_images(imported.layers(), image_notices);
+  if (imported.layers().empty()) {
+    return false;
+  }
+
+  auto& doc = document();
+  push_undo_snapshot(tr("Paste shape"));
+  for (const auto& resource : imported.metadata().patterns.patterns) {
+    doc.metadata().patterns.adopt(resource);
+  }
+  std::set<std::string> existing_names;
+  collect_layer_names(doc.layers(), existing_names);
+  const auto canvas = Rect::from_size(doc.width(), doc.height());
+  // The imported bake was clipped to the SVG's own canvas; re-rasterize
+  // against this document's.
+  const auto rebake = [&](auto&& self, Layer& layer) -> void {
+    for (auto& child : layer.children()) {
+      self(self, child);
+    }
+    update_vector_shape_raster(layer, canvas, &doc.metadata().patterns);
+    update_vector_mask_raster(layer, canvas);
+  };
+  int added = 0;
+  for (const auto& layer : imported.layers()) {
+    auto pasted = clone_layer_tree_with_document_ids(doc, layer);
+    if (!pasted.has_value()) {
+      continue;
+    }
+    // Fresh content keeps its SVG name; only a collision earns the copy suffix.
+    if (existing_names.contains(layer.name())) {
+      pasted->set_name(next_duplicate_name(layer.name(), existing_names));
+    }
+    existing_names.insert(pasted->name());
+    rebake(rebake, *pasted);
+    doc.add_layer(std::move(*pasted));
+    ++added;
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Pasted %n SVG shape layer(s)", nullptr, added));
+  return true;
+}
+
 void MainWindow::paste_clipboard() {
   // See copy_selection: focus inside a color picker routes the paste to it (a
   // clipboard color becomes the picker's current color).
@@ -925,6 +1001,15 @@ void MainWindow::paste_clipboard() {
     statusBar()->showMessage(
         tr("Pasted %1 layer(s)").arg(static_cast<qulonglong>(clipboard_->layers_top_to_bottom.size())));
     return;
+  }
+
+  // System-clipboard SVG (Illustrator/Inkscape/browser copies) pastes as
+  // editable shape layers, checked before the raster-image fallback (apps
+  // that put SVG on the clipboard usually put a raster rendition on it too).
+  if (!clipboard_.has_value() || clipboard_->pixels.empty()) {
+    if (paste_svg_from_clipboard()) {
+      return;
+    }
   }
 
   PixelBuffer pixels;

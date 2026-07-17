@@ -1472,8 +1472,8 @@ void MainWindow::place_embedded_file() {
   }
   const auto path = get_open_file_name(
       this, tr("Place Embedded"), file_dialog_initial_path(QString(), QString()),
-      tr("Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp);;All Files (*.*)"), nullptr,
-      QStringLiteral("placeEmbeddedFileDialog"));
+      tr("Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.svg *.svgz);;All Files (*.*)"),
+      nullptr, QStringLiteral("placeEmbeddedFileDialog"));
   if (path.isEmpty()) {
     return;
   }

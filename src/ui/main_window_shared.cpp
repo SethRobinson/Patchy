@@ -23,6 +23,7 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QImage>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -36,6 +37,7 @@
 #include <QStandardPaths>
 #include <QStyle>
 #include <QToolBar>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -148,6 +150,43 @@ void set_layer_pixels_with_bounds(Layer& layer, PixelBuffer pixels, Rect new_bou
   const auto y = new_bounds.y;
   layer.set_pixels(std::move(pixels));
   layer.set_bounds(Rect{x, y, layer.pixels().width(), layer.pixels().height()});
+}
+
+void decode_pending_svg_images(std::vector<Layer>& layers, QStringList& import_notices) {
+  for (auto& layer : layers) {
+    if (!layer.children().empty()) {
+      decode_pending_svg_images(layer.children(), import_notices);
+    }
+    auto& metadata = layer.metadata();
+    const auto pending = metadata.find(kLayerMetadataSvgPendingImage);
+    if (pending == metadata.end()) {
+      continue;
+    }
+    const QString uri = QString::fromStdString(pending->second);
+    metadata.erase(pending);
+    QImage image;
+    if (const auto comma = uri.indexOf(QLatin1Char(',')); comma > 0) {
+      const auto header = uri.left(comma);
+      const auto payload = QStringView(uri).mid(comma + 1).toLatin1();
+      const auto bytes = header.contains(QStringLiteral("base64"))
+                             ? QByteArray::fromBase64(payload)
+                             : QUrl::fromPercentEncoding(payload).toUtf8();
+      image = QImage::fromData(bytes);
+    }
+    const auto bounds = layer.bounds();
+    if (image.isNull() || bounds.width <= 0 || bounds.height <= 0) {
+      import_notices.push_back(QObject::tr("An embedded SVG image could not be decoded (layer %1)")
+                                   .arg(QString::fromStdString(layer.name())));
+      continue;
+    }
+    image = image.convertToFormat(QImage::Format_RGBA8888)
+                .scaled(bounds.width, bounds.height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    PixelBuffer pixels(bounds.width, bounds.height, PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < bounds.height; ++y) {
+      std::memcpy(pixels.row(y).data(), image.constScanLine(y), static_cast<std::size_t>(bounds.width) * 4U);
+    }
+    set_layer_pixels_with_bounds(layer, std::move(pixels), bounds);
+  }
 }
 
 PixelBuffer selection_mask_pixels(const CanvasWidget& canvas, QRect selection_rect) {

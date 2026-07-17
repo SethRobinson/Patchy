@@ -7,6 +7,7 @@
 #include "formats/ilbm_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/raw_document_io.hpp"
+#include "formats/svg_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "psd/psd_document_io.hpp"
 #include "support/string_utils.hpp"
@@ -93,6 +94,16 @@ void register_builtin_formats(FormatRegistry& registry) {
                              },
                              [](const Document& document) { return aseprite::DocumentIo::write(document); },
                              [](std::span<const std::uint8_t> bytes) { return aseprite::sniff(bytes); }});
+  registry.register_handler({"patchy.formats.svg",
+                             "SVG Image",
+                             svg::svg_extensions(),
+                             [](std::span<const std::uint8_t> bytes) {
+                               FormatReadResult result;
+                               result.document = svg::DocumentIo::read(bytes, &result.notices);
+                               return result;
+                             },
+                             [](const Document& document) { return svg::DocumentIo::write(document); },
+                             [](std::span<const std::uint8_t> bytes) { return svg::sniff(bytes); }});
   registry.register_handler({"patchy.formats.pcx",
                              "PCX Image",
                              {".pcx"},

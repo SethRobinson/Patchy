@@ -79,6 +79,12 @@ void set_layer_pixels_preserving_origin(Layer& layer, PixelBuffer pixels, Rect o
 // layer (e.g. a blur bleeding into transparency) and the origin must shift.
 void set_layer_pixels_with_bounds(Layer& layer, PixelBuffer pixels, Rect new_bounds);
 
+// SVG <image> elements arrive from the Qt-free reader as data-URI strings in
+// layer metadata (kLayerMetadataSvgPendingImage); this decodes them where
+// QImage lives. Thread-safe (QImage decoding needs no GUI thread); the file
+// open path runs it on the load worker, clipboard paste on the main thread.
+void decode_pending_svg_images(std::vector<Layer>& layers, QStringList& import_notices);
+
 // Object-property-based translation binding: bind_* stores the source string on the
 // object and applies it; retranslate_bound_children re-applies every binding after a
 // language switch (apply_bound_translation dispatches on the object's type).

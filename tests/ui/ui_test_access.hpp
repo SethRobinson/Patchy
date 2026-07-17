@@ -104,6 +104,14 @@ public:
     window.place_embedded_file_with_path(path);
   }
 
+  static void paste_clipboard(MainWindow& window) {
+    window.paste_clipboard();
+  }
+
+  static bool define_custom_shape_from_svg_path(MainWindow& window, const QString& path) {
+    return window.define_custom_shape_from_svg_path(path);
+  }
+
   static void relink_smart_object_contents_with_path(MainWindow& window, const QString& path) {
     window.relink_smart_object_contents_with_path(path);
   }

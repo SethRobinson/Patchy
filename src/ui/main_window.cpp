@@ -7385,6 +7385,63 @@ void MainWindow::request_warp_text_dialog() {
   refresh_layer_controls();
 }
 
+// SVG post-open pass. The Qt-free SVG reader stores each <text> element's
+// content and font as ordinary patchy.text.* metadata plus a pending-render
+// marker with the SVG baseline point and text-anchor; this renders the glyphs
+// through the internal text pipeline and positions the layer so the first
+// baseline lands on that point (start/middle/end anchoring against the
+// rendered width). Runs on the main thread before the document becomes a
+// session (fonts are not worker-thread material).
+void MainWindow::render_pending_svg_text_layers(Document& target) {
+  const auto process = [&](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (!layer.children().empty()) {
+        self(self, layer.children());
+      }
+      auto& metadata = layer.metadata();
+      if (!metadata.contains(kLayerMetadataSvgPendingText)) {
+        continue;
+      }
+      const auto take_double = [&metadata](const char* key) {
+        const auto found = metadata.find(key);
+        return found == metadata.end() ? 0.0 : QString::fromStdString(found->second).toDouble();
+      };
+      const double baseline_x = take_double(kLayerMetadataSvgTextBaselineX);
+      const double baseline_y = take_double(kLayerMetadataSvgTextBaselineY);
+      const auto anchor_entry = metadata.find(kLayerMetadataSvgTextAnchor);
+      const auto anchor = anchor_entry == metadata.end() ? std::string("start") : anchor_entry->second;
+      metadata.erase(kLayerMetadataSvgPendingText);
+      metadata.erase(kLayerMetadataSvgTextAnchor);
+      metadata.erase(kLayerMetadataSvgTextBaselineX);
+      metadata.erase(kLayerMetadataSvgTextBaselineY);
+
+      auto pixels = render_text_layer_pixels_from_metadata(layer);
+      if (!pixels.has_value() || pixels->empty()) {
+        continue;  // stays an empty text layer; the text tool can still edit it
+      }
+      const auto inputs = text_render_inputs_from_layer(layer);
+      double ascent = inputs.has_value() ? static_cast<double>(inputs->settings.size) : 0.0;
+      if (inputs.has_value()) {
+        QFont font(inputs->settings.family);
+        font.setPixelSize(std::max(1, inputs->settings.size));
+        font.setBold(inputs->settings.bold);
+        font.setItalic(inputs->settings.italic);
+        ascent = QFontMetricsF(font).ascent();
+      }
+      const double shift = anchor == "middle" ? pixels->width() / 2.0 : anchor == "end" ? pixels->width() : 0.0;
+      const Rect placed{static_cast<std::int32_t>(std::lround(baseline_x - shift)),
+                        static_cast<std::int32_t>(std::lround(baseline_y - ascent)), pixels->width(),
+                        pixels->height()};
+      // set_pixels resets bounds to the buffer at the origin, so the bounds
+      // must follow it (the text-commit ordering convention).
+      layer.set_pixels(std::move(*pixels));
+      layer.set_bounds(placed);
+      metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
+    }
+  };
+  process(process, target.layers());
+}
+
 void MainWindow::rasterize_active_layers() {
   finish_active_text_editor();
   const auto ids = selected_or_active_layer_ids();

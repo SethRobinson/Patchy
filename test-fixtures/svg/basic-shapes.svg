@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Self-authored Patchy test fixture: the editable-import feature set on one
+     page (live shapes, curves, gradients, boolean fill rules, groups,
+     stylesheet classes, strokes, opacity). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160" viewBox="0 0 240 160">
+  <defs>
+    <linearGradient id="fade" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0" stop-color="#204a87"/>
+      <stop offset="1" stop-color="#73d216"/>
+    </linearGradient>
+  </defs>
+  <style>.badge{fill:#f57900;stroke:#8f4a06;stroke-width:2;}</style>
+  <rect id="Backdrop" x="0" y="0" width="240" height="160" fill="url(#fade)"/>
+  <g id="Cluster" opacity="0.85">
+    <rect id="Panel" x="16" y="16" width="88" height="56" rx="8" fill="#ffffff" fill-opacity="0.9"/>
+    <circle id="Dot" cx="40" cy="44" r="14" class="badge"/>
+    <ellipse id="Blob" cx="80" cy="44" rx="18" ry="10" fill="#3465a4"/>
+  </g>
+  <path id="Ring" fill-rule="evenodd" fill="#cc0000"
+        d="M168 24 A28 28 0 1 0 168 80 A28 28 0 1 0 168 24 Z M168 38 A14 14 0 1 1 168 66 A14 14 0 1 1 168 38 Z"/>
+  <path id="Wave" fill="none" stroke="#2e3436" stroke-width="4" stroke-linecap="round" stroke-dasharray="12 6"
+        d="M12 130 C 52 100 92 160 132 128 S 212 100 228 124"/>
+  <line id="Strut" x1="120" y1="88" x2="120" y2="150" stroke="#555753" stroke-width="6"/>
+  <polygon id="Kite" points="200,96 224,116 200,136 188,116" fill="#75507b" stroke="#5c3566" stroke-width="2"/>
+</svg>
