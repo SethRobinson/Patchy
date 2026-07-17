@@ -400,8 +400,14 @@ namespace {
 void ensure_vector_fill_patterns(Document& doc, const VectorShapeContent& content,
                                  const PatternLibrary& library) {
   for (const auto* fill : {&content.fill, &content.stroke.content}) {
-    if (fill->kind != VectorFillKind::Pattern || fill->pattern_id.empty() ||
-        doc.metadata().patterns.find(fill->pattern_id) != nullptr) {
+    if (fill->kind != VectorFillKind::Pattern || fill->pattern_id.empty()) {
+      continue;
+    }
+    // A stored entry only satisfies the reference when it can actually
+    // render; an empty tile (a poisoned adopt) must be replaced, which the
+    // healing adopt below performs.
+    if (const auto* existing = doc.metadata().patterns.find(fill->pattern_id);
+        existing != nullptr && !existing->tile.empty()) {
       continue;
     }
     if (auto resource = library.resource(QString::fromStdString(fill->pattern_id));

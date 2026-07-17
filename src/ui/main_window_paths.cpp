@@ -640,7 +640,7 @@ void MainWindow::fill_active_path() {
     const auto id = pattern_combo->currentData().toString();
     if (!id.isEmpty()) {
       if (const auto* existing = doc.metadata().patterns.find(id.toStdString());
-          existing != nullptr) {
+          existing != nullptr && !existing->tile.empty()) {
         pattern = *existing;
       } else if (auto resource = pattern_library().resource(id); resource.has_value()) {
         pattern = std::move(*resource);

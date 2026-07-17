@@ -49,7 +49,20 @@ const PatternResource* PatternStore::find(std::string_view id) const noexcept {
 }
 
 void PatternStore::adopt(const PatternResource& resource) {
-  if (resource.id.empty() || find(resource.id) != nullptr) {
+  if (resource.id.empty()) {
+    return;
+  }
+  const auto it = std::find_if(patterns.begin(), patterns.end(),
+                               [&resource](const PatternResource& existing) {
+                                 return existing.id == resource.id;
+                               });
+  if (it != patterns.end()) {
+    // A stored entry with an EMPTY tile can never render (a poisoned adopt
+    // from an earlier failure); let a healthy same-id resource heal it.
+    // Healthy stored tiles stay untouched (the document's pixels win).
+    if (it->tile.empty() && !resource.tile.empty()) {
+      *it = resource;
+    }
     return;
   }
   patterns.push_back(resource);
