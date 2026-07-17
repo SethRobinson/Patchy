@@ -175,8 +175,20 @@ const CustomShapeLibraryEntry* CustomShapeLibrary::find_entry_by_shape_id(
 
 int CustomShapeLibrary::restore_default_shapes() {
   int added = 0;
+  bool refreshed = false;
   for (const auto& builtin : builtin_custom_shapes()) {
-    if (find_entry_by_shape_id(QLatin1String(builtin.id)) != nullptr) {
+    if (const auto* existing = find_entry_by_shape_id(QLatin1String(builtin.id))) {
+      // Builtin geometry is code-authoritative: a sidecar materialized by an
+      // older build picks up path changes here (user renames are kept; the
+      // app never edits a builtin's geometry in place, so a difference always
+      // means the code moved on).
+      if (existing->path != builtin.path) {
+        const auto it = entry_iterator(existing->storage_id);
+        it->path = builtin.path;
+        it->thumbnail = custom_shape_thumbnail(it->path);
+        write_sidecar(*it);
+        refreshed = true;
+      }
       continue;
     }
     // The storage id doubles as the shape id for builtins (stable filenames).
@@ -187,6 +199,9 @@ int CustomShapeLibrary::restore_default_shapes() {
              .isEmpty()) {
       ++added;
     }
+  }
+  if (refreshed) {
+    emit changed();
   }
   return added;
 }

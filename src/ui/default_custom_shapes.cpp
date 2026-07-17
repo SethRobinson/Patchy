@@ -35,6 +35,14 @@ PathAnchor smooth(double x, double y, double in_dx, double in_dy, double out_dx,
   return anchor;
 }
 
+// A corner anchor that still carries handles (the tangent breaks at the
+// anchor, so Direct Select must not mirror them).
+PathAnchor cusp(double x, double y, double in_dx, double in_dy, double out_dx, double out_dy) {
+  auto anchor = smooth(x, y, in_dx, in_dy, out_dx, out_dy);
+  anchor.smooth = false;
+  return anchor;
+}
+
 VectorPath polygon_path(std::initializer_list<std::pair<double, double>> points) {
   VectorPath path;
   PathSubpath subpath;
@@ -92,27 +100,38 @@ std::vector<BuiltinCustomShape> build_shapes() {
   add("shape.builtin.chevron-right", "Chevron", "Arrows",
       polygon_path({{0.2, 0.0}, {0.55, 0.0}, {0.9, 0.5}, {0.55, 1.0}, {0.2, 1.0}, {0.55, 0.5}}));
   {
-    // Curved arrow: a quarter-band sweeping from the bottom-left up to the
-    // right, ending in a head. Band inner radius 0.45, outer 0.75 about the
-    // bottom-right corner (1, 1); head at the top.
-    const double k_outer = kLiveShapeKappa * 0.75;
-    const double k_inner = kLiveShapeKappa * 0.45;
+    // Curved arrow: a quarter-annulus band swept about a center below the
+    // head, from a horizontal tail cut on the bottom edge up to a rightward
+    // tangent where a barbed head (twice the band's thickness) takes over.
+    // Authored in band coordinates with the sweep center at the origin, then
+    // normalized onto the unit box; the affine map keeps the kappa quarter
+    // arcs exact ellipse quarters with matching tangents.
+    const double r_outer = 0.9;
+    const double r_inner = 0.6;
+    const double r_mid = (r_outer + r_inner) / 2.0;
+    const double head_half_width = 0.28;
+    const double head_length = 0.4;
+    const double k_outer = kLiveShapeKappa * r_outer;
+    const double k_inner = kLiveShapeKappa * r_inner;
     VectorPath path;
     PathSubpath subpath;
     subpath.anchors = {
-        corner(0.25, 1.0),
-        smooth(1.0, 0.25, -k_outer, 0.0, 0.0, 0.0),  // outer arc end (up at the right)
-        corner(0.8, 0.25),
-        corner(1.1, 0.0),  // arrow tip reaches slightly outside, clamped below
-        corner(1.4, 0.25),
-        corner(1.2, 0.25),
-        smooth(1.0, 0.55, 0.0, -k_inner, -k_inner, 0.0),
-        corner(0.55, 1.0),
+        cusp(-r_outer, 0.0, 0.0, 0.0, 0.0, -k_outer),  // tail cut, outer corner
+        cusp(0.0, -r_outer, -k_outer, 0.0, 0.0, 0.0),  // outer arc end (moving +x)
+        corner(0.0, -r_mid - head_half_width),         // outer barb
+        corner(head_length, -r_mid),                   // tip
+        corner(0.0, -r_mid + head_half_width),         // inner barb
+        cusp(0.0, -r_inner, 0.0, 0.0, -k_inner, 0.0),  // inner arc start
+        cusp(-r_inner, 0.0, 0.0, -k_inner, 0.0, 0.0),  // tail cut, inner corner
     };
-    // Clamp into the unit box (the tip construction overshoots by design).
+    const double scale_x = 1.0 / (r_outer + head_length);
+    const double scale_y = 1.0 / (r_mid + head_half_width);
     for (auto& anchor : subpath.anchors) {
-      for (double* value : {&anchor.anchor_x, &anchor.in_x, &anchor.out_x}) {
-        *value = std::min(1.0, std::max(0.0, *value / 1.4));
+      for (double* x : {&anchor.anchor_x, &anchor.in_x, &anchor.out_x}) {
+        *x = (*x + r_outer) * scale_x;
+      }
+      for (double* y : {&anchor.anchor_y, &anchor.in_y, &anchor.out_y}) {
+        *y = (*y + r_mid + head_half_width) * scale_y;
       }
     }
     path.subpaths.push_back(std::move(subpath));
@@ -121,16 +140,18 @@ std::vector<BuiltinCustomShape> build_shapes() {
 
   // --- Symbols ---
   {
-    // Heart: two kappa lobes meeting in the notch and the point.
+    // Heart: near-circular crowns with horizontal tangents at the top, a
+    // cusp notch between them, and a cusp bottom point joined by gently
+    // bowed sides (vertical tangents at the widest point).
     VectorPath path;
     PathSubpath subpath;
     subpath.anchors = {
-        corner(0.5, 0.3),
-        smooth(0.25, 0.05, 0.14, -0.06, -0.14, 0.06),
-        smooth(0.0, 0.3, 0.0, -0.14, 0.0, 0.14),
-        corner(0.5, 1.0),
-        smooth(1.0, 0.3, 0.0, 0.14, 0.0, -0.14),
-        smooth(0.75, 0.05, 0.14, 0.06, -0.14, -0.06),
+        cusp(0.5, 0.18, 0.055, -0.09, -0.055, -0.09),
+        smooth(0.26, 0.0, 0.105, 0.0, -0.13, 0.0),
+        smooth(0.0, 0.3, 0.0, -0.155, 0.0, 0.16),
+        cusp(0.5, 1.0, -0.27, -0.16, 0.27, -0.16),
+        smooth(1.0, 0.3, 0.0, 0.16, 0.0, -0.155),
+        smooth(0.74, 0.0, 0.13, 0.0, -0.105, 0.0),
     };
     path.subpaths.push_back(std::move(subpath));
     add("shape.builtin.heart", "Heart", "Symbols", std::move(path));

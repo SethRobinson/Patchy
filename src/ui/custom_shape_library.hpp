@@ -45,7 +45,9 @@ public:
 
   // Writes any missing builtin shapes (first run and after updates add new
   // builtins; user deletions of builtins are respected via the settings gate
-  // the caller owns).
+  // the caller owns) and refreshes the stored geometry of builtins whose
+  // path changed in code (renames are kept). Returns the number of shapes
+  // added; geometry refreshes do not count.
   int restore_default_shapes();
 
 private:

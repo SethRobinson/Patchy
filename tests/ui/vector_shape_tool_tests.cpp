@@ -5,6 +5,7 @@
 
 #include "core/document_path.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/default_custom_shapes.hpp"
 
 #include <QAction>
 #include <QCheckBox>
@@ -728,6 +729,79 @@ void ui_custom_shape_stamps_and_defines() {
   }
 }
 
+void ui_custom_shape_builtin_geometry_refreshes() {
+  // Builtin shape geometry is code-authoritative: a sidecar materialized by
+  // an older build (simulated by tampering the stored path into a triangle)
+  // is rewritten to the current code geometry by restore_default_shapes(),
+  // while a user rename survives and refreshes never count as adds.
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto storage = directory.filePath(QStringLiteral("shapes"));
+  const auto heart_id = QStringLiteral("shape.builtin.heart");
+  const patchy::ui::BuiltinCustomShape* builtin_heart = nullptr;
+  for (const auto& builtin : patchy::ui::builtin_custom_shapes()) {
+    if (heart_id == QLatin1String(builtin.id)) {
+      builtin_heart = &builtin;
+    }
+  }
+  CHECK(builtin_heart != nullptr);
+
+  QString sidecar_file;
+  {
+    patchy::ui::CustomShapeLibrary library(storage);
+    CHECK(library.restore_default_shapes() ==
+          static_cast<int>(patchy::ui::builtin_custom_shapes().size()));
+    const auto* heart = library.find_entry_by_shape_id(heart_id);
+    CHECK(heart != nullptr);
+    // rename_shape re-sorts the entry vector, so `heart` dangles afterwards;
+    // capture the storage id first.
+    const auto heart_storage_id = heart->storage_id;
+    CHECK(library.rename_shape(heart_storage_id, QStringLiteral("My Heart")));
+    sidecar_file = storage + QStringLiteral("/") + heart_storage_id + QStringLiteral(".json");
+  }
+
+  patchy::VectorPath triangle;
+  patchy::PathSubpath triangle_subpath;
+  for (const auto& [x, y] : {std::pair{0.5, 0.0}, {1.0, 1.0}, {0.0, 1.0}}) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+    anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+    triangle_subpath.anchors.push_back(anchor);
+  }
+  triangle.subpaths.push_back(triangle_subpath);
+  {
+    QFile file(sidecar_file);
+    CHECK(file.open(QIODevice::ReadOnly));
+    auto object = QJsonDocument::fromJson(file.readAll()).object();
+    file.close();
+    object.insert(QStringLiteral("path"),
+                  QString::fromStdString(patchy::serialize_vector_path(triangle)));
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
+    file.close();
+  }
+
+  {
+    patchy::ui::CustomShapeLibrary library(storage);
+    const auto* heart = library.find_entry_by_shape_id(heart_id);
+    CHECK(heart != nullptr);
+    CHECK(heart->path == triangle);  // the tampered sidecar loaded as written
+    CHECK(library.restore_default_shapes() == 0);
+    heart = library.find_entry_by_shape_id(heart_id);
+    CHECK(heart != nullptr);
+    CHECK(heart->path == builtin_heart->path);
+    CHECK(heart->name == QStringLiteral("My Heart"));
+  }
+  {
+    // The refresh reached the sidecar, not just the in-memory entry.
+    patchy::ui::CustomShapeLibrary library(storage);
+    const auto* heart = library.find_entry_by_shape_id(heart_id);
+    CHECK(heart != nullptr);
+    CHECK(heart->path == builtin_heart->path);
+    CHECK(heart->name == QStringLiteral("My Heart"));
+  }
+}
+
 void ui_line_arrowheads_extend_the_shape() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer saved_start(QStringLiteral("tools/lineArrowStart"));
@@ -1053,6 +1127,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_free_transform_scales_shape_layer_crisply},
       {"ui_polygon_tool_creates_polygons_and_stars", ui_polygon_tool_creates_polygons_and_stars},
       {"ui_custom_shape_stamps_and_defines", ui_custom_shape_stamps_and_defines},
+      {"ui_custom_shape_builtin_geometry_refreshes", ui_custom_shape_builtin_geometry_refreshes},
       {"ui_line_arrowheads_extend_the_shape", ui_line_arrowheads_extend_the_shape},
       {"ui_shape_appearance_dialog_commits_and_cancels",
        ui_shape_appearance_dialog_commits_and_cancels},

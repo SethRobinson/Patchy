@@ -56,8 +56,10 @@ the weight, the Photoshop default proportions) encoded through the probed
 keyOriginLine arrow keys. The CustomShapeLibrary (JSON sidecars under
 settings/shapes, unit-box normalized paths via the v1 text codec) ships 17
 code-generated builtins (arrows and symbols; ids shape.builtin.* are
-append-only), and Edit > Define Custom Shape from Path normalizes the current
-path into a new user entry.
+append-only, and builtin geometry is code-authoritative: restore_default_shapes
+runs at startup and rewrites any builtin sidecar whose stored path differs
+from the code's, keeping user renames), and Edit > Define Custom Shape from
+Path normalizes the current path into a new user entry.
 
 ## Path editing (Path Select / Direct Select)
 
