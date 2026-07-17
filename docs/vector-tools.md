@@ -251,7 +251,16 @@ belongs to that group. Pattern adoption self-heals: PatternStore::adopt
 replaces a same-id entry whose tile is EMPTY (a poisoned earlier adopt would
 otherwise render transparent forever and block re-adoption). Edits preview live on the layer and restore on cancel;
 a gradient or pattern stroke paint read from a PSD is kept untouched unless
-the stroke color is explicitly re-picked. Edit > Define Custom Shape from Path
+the stroke color is explicitly re-picked. The preview rasterizes on a
+BACKGROUND worker (AsyncPixelPreviewState, promoted to main_window_shared.hpp;
+pattern fills at small scales cost seconds) behind the canvas processing
+overlay: the vector MODEL applies synchronously in start, only the baked
+pixels lag, requests coalesce, and the pattern-anchor reference point rides a
+scratch layer so the live Layer is never touched off-thread. Accepting drains
+the in-flight render and commits ITS result (no second rasterize; a 60s
+drain timeout falls back to the synchronous apply). The dialog's spins run
+with keyboardTracking off so typing "10" into the pattern scale never renders
+at "1" first. Edit > Define Custom Shape from Path
 prompts for the shape name (prefilled with the generated fallback). Layer > New Fill Layer creates Solid Color (live color
 picker), Gradient (foreground-to-background linear, then the dialog), and
 Pattern fill layers as shape layers with an empty path (= whole canvas); a

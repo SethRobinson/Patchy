@@ -19,6 +19,8 @@
 #include <QString>
 
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -187,6 +189,45 @@ void insert_layer_after_anchor(Document& document, Layer layer, std::optional<La
 [[nodiscard]] std::string duplicate_name_stem(std::string_view name);
 [[nodiscard]] std::string next_duplicate_name(std::string_view source_name,
                                               const std::set<std::string>& existing_names);
+
+// Coalescing async preview plumbing shared by the adjustment/filter dialogs
+// (main_window_adjustments.cpp) and the shape-appearance dialog
+// (main_window_vector.cpp): `start` launches a background render for the
+// request; while one is in flight further requests replace `pending` and the
+// completion handler chains the newest. All fields are confined to the UI
+// thread; workers compare `generation` after marshaling back.
+template <typename Request>
+struct AsyncPixelPreviewState {
+  bool closed{false};
+  bool in_flight{false};
+  std::uint64_t generation{0};
+  std::optional<Request> pending;
+  std::function<void(const Request&)> start;
+};
+
+template <typename Request>
+void enqueue_async_pixel_preview(const std::shared_ptr<AsyncPixelPreviewState<Request>>& state,
+                                 Request request, bool immediate = false) {
+  if (state == nullptr || state->closed || !state->start) {
+    return;
+  }
+  if (!immediate && state->in_flight) {
+    state->pending = std::move(request);
+    return;
+  }
+  state->start(request);
+}
+
+template <typename Request>
+void close_async_pixel_preview(const std::shared_ptr<AsyncPixelPreviewState<Request>>& state) {
+  if (state == nullptr) {
+    return;
+  }
+  state->closed = true;
+  ++state->generation;
+  state->pending.reset();
+  state->start = {};
+}
 
 // Solid-color pixel buffer for new layers/documents.
 [[nodiscard]] PixelBuffer make_solid_pixels(std::int32_t width, std::int32_t height, QColor color,

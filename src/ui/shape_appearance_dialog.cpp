@@ -608,6 +608,16 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     notify();
   });
 
+  // Value spins commit on Enter/arrows/focus-out only: per-keystroke preview
+  // renders made typing "10" into the pattern scale render at "1" first (a
+  // 10000-texel-per-pixel minification).
+  for (auto* spin : dialog.findChildren<QDoubleSpinBox*>()) {
+    spin->setKeyboardTracking(false);
+  }
+  for (auto* spin : dialog.findChildren<QSpinBox*>()) {
+    spin->setKeyboardTracking(false);
+  }
+
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }

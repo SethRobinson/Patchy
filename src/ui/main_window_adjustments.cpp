@@ -228,38 +228,9 @@ namespace {
 
 constexpr int kFilterProgressMinimumDurationMs = 1000;
 
-template <typename Request>
-struct AsyncPixelPreviewState {
-  bool closed{false};
-  bool in_flight{false};
-  std::uint64_t generation{0};
-  std::optional<Request> pending;
-  std::function<void(const Request&)> start;
-};
-
-template <typename Request>
-void enqueue_async_pixel_preview(const std::shared_ptr<AsyncPixelPreviewState<Request>>& state, Request request,
-                                 bool immediate = false) {
-  if (state == nullptr || state->closed || !state->start) {
-    return;
-  }
-  if (!immediate && state->in_flight) {
-    state->pending = std::move(request);
-    return;
-  }
-  state->start(request);
-}
-
-template <typename Request>
-void close_async_pixel_preview(const std::shared_ptr<AsyncPixelPreviewState<Request>>& state) {
-  if (state == nullptr) {
-    return;
-  }
-  state->closed = true;
-  ++state->generation;
-  state->pending.reset();
-  state->start = {};
-}
+// AsyncPixelPreviewState and its enqueue/close helpers moved to
+// main_window_shared.hpp (the shape-appearance preview in
+// main_window_vector.cpp uses them too).
 
 // The direct adjustment dialogs above predate cooperative cancellation: they
 // coalesce requests and discard stale results, but let the current render finish.

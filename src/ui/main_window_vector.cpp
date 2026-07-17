@@ -11,6 +11,7 @@
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/dialog_utils.hpp"
@@ -21,14 +22,18 @@
 #include "ui/shape_appearance_dialog.hpp"
 
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFormLayout>
 #include <QIcon>
 #include <QLineEdit>
 #include <QMenu>
 #include <QPainter>
 #include <QPixmap>
+#include <QPointer>
 #include <QSignalBlocker>
 #include <QStandardItemModel>
 #include <QStatusBar>
@@ -37,6 +42,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -461,13 +467,8 @@ void MainWindow::edit_active_shape_appearance() {
     }
   }
 
-  const auto apply_settings = [this, layer_id](const ShapeAppearanceSettings& settings) {
-    auto& target_doc = document();
-    auto* target = target_doc.find_layer(layer_id);
-    if (target == nullptr || target->vector_shape() == nullptr) {
-      return;
-    }
-    auto content = *target->vector_shape();
+  const auto assemble_content = [](const ShapeAppearanceSettings& settings,
+                                   VectorShapeContent content) {
     content.fill = settings.fill;
     content.stroke = settings.stroke;
     if (settings.geometry.has_value() && content.origination.size() == 1) {
@@ -505,6 +506,16 @@ void MainWindow::edit_active_shape_appearance() {
       }
       content.origination[0] = params;
     }
+    return content;
+  };
+  const auto apply_settings = [this, layer_id,
+                               assemble_content](const ShapeAppearanceSettings& settings) {
+    auto& target_doc = document();
+    auto* target = target_doc.find_layer(layer_id);
+    if (target == nullptr || target->vector_shape() == nullptr) {
+      return;
+    }
+    auto content = assemble_content(settings, *target->vector_shape());
     ensure_vector_fill_patterns(target_doc, content, pattern_library());
     target->set_vector_shape(std::move(content));
     target->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
@@ -512,6 +523,83 @@ void MainWindow::edit_active_shape_appearance() {
                                &target_doc.metadata().patterns);
     canvas_->document_changed();
     refresh_layer_thumbnails();
+  };
+
+  // The preview rasterizes on a background worker (pattern fills at small
+  // scales can take seconds) with the canvas processing overlay; requests
+  // coalesce while one is in flight. The layer's vector MODEL updates
+  // immediately - only the baked pixels lag.
+  struct ShapePreviewRequest {
+    ShapeAppearanceSettings settings;
+  };
+  auto preview_state = std::make_shared<AsyncPixelPreviewState<ShapePreviewRequest>>();
+  preview_state->start = [this, preview_state, layer_id,
+                          assemble_content](const ShapePreviewRequest& request) {
+    auto& target_doc = document();
+    auto* target = target_doc.find_layer(layer_id);
+    if (target == nullptr || target->vector_shape() == nullptr || canvas_ == nullptr) {
+      return;
+    }
+    auto content = assemble_content(request.settings, *target->vector_shape());
+    ensure_vector_fill_patterns(target_doc, content, pattern_library());
+    target->set_vector_shape(content);
+    target->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+    const auto canvas_rect = Rect::from_size(target_doc.width(), target_doc.height());
+    auto patterns = std::make_shared<const PatternStore>(target_doc.metadata().patterns);
+    const auto reference =
+        layer_effects_reference_point(*std::as_const(target_doc).find_layer(layer_id));
+    auto shared_content = std::make_shared<const VectorShapeContent>(std::move(content));
+    preview_state->in_flight = true;
+    const auto generation = ++preview_state->generation;
+    canvas_->begin_processing_operation(tr("Updating shape..."));
+    auto* app = QCoreApplication::instance();
+    auto window = QPointer<MainWindow>(this);
+    run_tracked_background_worker([app, window, preview_state, generation, layer_id, canvas_rect,
+                                   patterns, reference, shared_content] {
+      auto result = std::make_shared<ShapeRasterResult>();
+      try {
+        // The pattern sampler anchors at the layer's effects reference point;
+        // a scratch anchor layer carries the snapshot so the live Layer is
+        // never touched off-thread.
+        Layer anchor(0, "", PixelBuffer());
+        set_layer_effects_reference_point(anchor, reference[0], reference[1]);
+        *result = rasterize_vector_shape(*shared_content, canvas_rect, patterns.get(), &anchor);
+      } catch (const std::exception&) {
+        result.reset();
+      }
+      if (app == nullptr) {
+        return;
+      }
+      QMetaObject::invokeMethod(
+          app,
+          [window, preview_state, generation, layer_id, result]() mutable {
+            preview_state->in_flight = false;
+            if (window != nullptr && window->canvas_ != nullptr) {
+              window->canvas_->end_processing_operation();
+            }
+            const auto has_pending = preview_state->pending.has_value();
+            if (!preview_state->closed && !has_pending &&
+                generation == preview_state->generation && window != nullptr &&
+                result != nullptr) {
+              if (auto* preview_layer = window->document().find_layer(layer_id);
+                  preview_layer != nullptr && preview_layer->vector_shape() != nullptr) {
+                preview_layer->set_pixels(std::move(result->pixels));
+                preview_layer->set_bounds(result->bounds);
+                if (window->canvas_ != nullptr) {
+                  window->canvas_->document_changed();
+                }
+                window->refresh_layer_thumbnails();
+              }
+            }
+            if (!preview_state->closed && preview_state->pending.has_value() &&
+                preview_state->start) {
+              auto next = *preview_state->pending;
+              preview_state->pending.reset();
+              preview_state->start(next);
+            }
+          },
+          Qt::QueuedConnection);
+    });
   };
   const auto restore_original_layer = [this, layer_id, original_layer] {
     if (auto* target = document().find_layer(layer_id); target != nullptr) {
@@ -524,8 +612,11 @@ void MainWindow::edit_active_shape_appearance() {
   auto preview_edit_lock = lock_preview_dialog_edits();
   const auto foreground = canvas_->primary_color();
   const auto background = canvas_->secondary_color();
+  const auto preview_changed = [preview_state](const ShapeAppearanceSettings& settings) {
+    enqueue_async_pixel_preview(preview_state, ShapePreviewRequest{settings});
+  };
   const auto accepted = request_shape_appearance_settings(
-      this, apply_settings, std::move(initial), &gradient_library(), &pattern_library(),
+      this, preview_changed, std::move(initial), &gradient_library(), &pattern_library(),
       &doc.metadata().patterns,
       RgbColor{static_cast<std::uint8_t>(foreground.red()),
                static_cast<std::uint8_t>(foreground.green()),
@@ -533,6 +624,25 @@ void MainWindow::edit_active_shape_appearance() {
       RgbColor{static_cast<std::uint8_t>(background.red()),
                static_cast<std::uint8_t>(background.green()),
                static_cast<std::uint8_t>(background.blue())});
+  // On accept, drain the in-flight preview: its result IS the final raster,
+  // so the commit reuses it instead of re-rasterizing (the second freeze).
+  if (accepted.has_value()) {
+    QElapsedTimer drain;
+    drain.start();
+    while ((preview_state->in_flight || preview_state->pending.has_value()) &&
+           drain.elapsed() < 60000) {
+      QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    }
+  }
+  const bool preview_current = accepted.has_value() && !preview_state->in_flight &&
+                               !preview_state->pending.has_value();
+  close_async_pixel_preview(preview_state);
+  std::optional<Layer> preview_result;
+  if (preview_current) {
+    if (const auto* target = std::as_const(document()).find_layer(layer_id); target != nullptr) {
+      preview_result = *target;
+    }
+  }
   restore_original_layer();
   preview_edit_lock.release();
   if (!accepted.has_value()) {
@@ -540,9 +650,20 @@ void MainWindow::edit_active_shape_appearance() {
     return;
   }
   push_undo_snapshot(tr("Shape appearance"));
-  apply_settings(*accepted);
-  if (auto* target = document().find_layer(layer_id); target != nullptr) {
-    mark_layer_vector_block_dirty(*target);
+  if (preview_result.has_value()) {
+    if (auto* target = document().find_layer(layer_id); target != nullptr) {
+      *target = std::move(*preview_result);
+      mark_layer_vector_block_dirty(*target);
+      canvas_->document_changed();
+      refresh_layer_thumbnails();
+    }
+  } else {
+    // The drain timed out (still rendering after 60s): fall back to the
+    // synchronous apply so the commit is never stale.
+    apply_settings(*accepted);
+    if (auto* target = document().find_layer(layer_id); target != nullptr) {
+      mark_layer_vector_block_dirty(*target);
+    }
   }
   refresh_layer_list();
   refresh_layer_controls();
