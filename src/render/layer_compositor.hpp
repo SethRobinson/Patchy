@@ -1981,22 +1981,95 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
         render_inner_glow(destination, layer, source, clip, bounds, glow, layer_mask_bounds, masks, index);
       });
     }
+    // Interior overlays on a stroked shape layer apply to the FILL plane and
+    // the vector stroke re-composites above them (PS 2026 probes
+    // fx-sofi-center/outside, docs/vector-tools.md). A stroke-only shape's
+    // overlay covers the stroke, which the legacy combined path already
+    // renders. The split planes come from the shape bake; when absent or
+    // mismatched (no stroke, non-Normal stroke blend, transform-preview
+    // override, preserved import raster) the legacy behavior stands. Blend-If
+    // layers keep the legacy path too - the re-stamp cannot reproduce the
+    // per-pixel gate.
+    const PixelBuffer* interior_source = &source;
+    const PixelBuffer* stroke_restamp = nullptr;
+    if (!has_blend_if) {
+      if (const auto* shape = layer.vector_shape();
+          shape != nullptr && !shape->stroke_cache.empty() && !shape->fill_cache.empty() &&
+          &source == &layer.pixels() && shape->fill_cache.width() == source.width() &&
+          shape->fill_cache.height() == source.height() &&
+          shape->stroke_cache.width() == source.width() &&
+          shape->stroke_cache.height() == source.height()) {
+        // Gate on an overlay that will actually paint: a needless re-stamp
+        // would double-composite the stroke's AA edges.
+        const auto overlay_paints = [](const auto& overlays) {
+          return std::any_of(overlays.begin(), overlays.end(), [](const auto& overlay) {
+            return overlay.enabled && overlay.opacity > 0.0F;
+          });
+        };
+        if (overlay_paints(style.pattern_overlays) || overlay_paints(style.gradient_fills) ||
+            overlay_paints(style.color_overlays)) {
+          interior_source = &shape->fill_cache;
+          stroke_restamp = &shape->stroke_cache;
+        }
+      }
+    }
     // Overlay stacking pinned against Photoshop 2026 (pairwise 100%-opacity
     // probes): pattern under gradient under color, i.e. Color Overlay paints
     // last. The historical color-then-gradient order was inverted vs PS.
     for (const auto& overlay : style.pattern_overlays) {
       profile_compositor_step(destination, layer, "pattern_overlay", clip, [&] {
-        render_pattern_overlay(destination, layer, source, clip, bounds, overlay, layer_mask_bounds, patterns);
+        render_pattern_overlay(destination, layer, *interior_source, clip, bounds, overlay,
+                               layer_mask_bounds, patterns);
       });
     }
     for (const auto& fill : style.gradient_fills) {
       profile_compositor_step(destination, layer, "gradient_fill", clip, [&] {
-        render_gradient_fill(destination, layer, source, clip, bounds, fill, layer_mask_bounds);
+        render_gradient_fill(destination, layer, *interior_source, clip, bounds, fill, layer_mask_bounds);
       });
     }
     for (const auto& overlay : style.color_overlays) {
       profile_compositor_step(destination, layer, "color_overlay", clip, [&] {
-        render_color_overlay(destination, layer, source, clip, bounds, overlay, layer_mask_bounds);
+        render_color_overlay(destination, layer, *interior_source, clip, bounds, overlay, layer_mask_bounds);
+      });
+    }
+    if (stroke_restamp != nullptr && !draw_rect.empty()) {
+      // The vector stroke re-composites above the interior overlays with the
+      // base pass's factors (mask, opacity, fill opacity, layer blend); satin
+      // folding and clip-coverage recording stay with the base pass.
+      profile_compositor_step(destination, layer, "vector_stroke_over_overlays", draw_rect, [&] {
+        const auto* stroke_bytes = stroke_restamp->data().data();
+        const auto stroke_stride = stroke_restamp->stride_bytes();
+        for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+          const auto sy = y - bounds.y;
+          const auto* stroke_row = stroke_bytes + static_cast<std::size_t>(sy) * stroke_stride;
+          for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+            const auto sx = x - bounds.x;
+            const auto* px = stroke_row + static_cast<std::size_t>(sx) * 4;
+            const auto source_alpha = static_cast<float>(px[3]) / 255.0F;
+            if (source_alpha <= 0.0F) {
+              continue;
+            }
+            const auto source_coverage =
+                source_alpha * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+            const auto special_fill = layer.fill_opacity() != 1.0F &&
+                                      blend_mode_has_special_fill(layer.blend_mode());
+            auto alpha = source_coverage * layer.opacity();
+            if (layer.fill_opacity() != 1.0F) {
+              alpha *= layer.fill_opacity();
+            }
+            if (alpha <= 0.0F) {
+              continue;
+            }
+            const auto color = RgbColor{px[0], px[1], px[2]};
+            if (special_fill) {
+              destination.composite_special_fill_color(x, y, color, source_coverage,
+                                                       layer.fill_opacity(), layer.opacity(),
+                                                       layer.blend_mode());
+            } else {
+              destination.composite_color(x, y, color, alpha, layer.blend_mode());
+            }
+          }
+        }
       });
     }
     for (std::uint32_t index = 0; index < style.bevels.size(); ++index) {

@@ -505,6 +505,26 @@ renderer exactly:
   therefore checks confident-cell classification agreement (>= 97%), not
   pixel means. Patchy's crisper render is deliberate (the unrotated linear
   tap applied in rotated space).
+
+### Interior effects vs the vector stroke (probed July 2026)
+
+The fx-sofi-center/outside/nofill and fx-drsh-outside probes pinned where
+layer effects sit relative to a shape layer's vector stroke: interior
+overlays (Color/Gradient/Pattern Overlay) apply to the FILL plane only and
+the VECTOR STROKE composites above them; on a stroke-only shape (fill
+disabled) the overlay covers the stroke itself; drop shadows (and the
+silhouette generally) key off the full fill+stroke coverage; the Stroke
+EFFECT (frFX) stays above the vector stroke. Implementation: the shape bake
+emits split fill/stroke planes (ShapeRasterResult::fill_pixels/stroke_pixels,
+cached on VectorShapeContent::fill_cache/stroke_cache in lockstep with
+pixels(); empty for strokeless shapes, non-Normal stroke blends, or
+un-rebaked imports) and the compositor's overlay passes read the fill plane
+with a stroke re-stamp after Color Overlay
+(compositor_interior_overlay_stays_under_vector_stroke and the _if_available
+probe test pin it). Blend-If layers and transform-preview overrides keep the
+legacy combined-plane behavior. An inner shadow whose extent hides under the
+stroke matches PS either way (the fx-irsh probe render is fully covered by
+the stroke), so inner effects keep their full-silhouette geometry.
 - Photoshop's baked derived mask plane (mask flags bit 3) holds UNFEATHERED
   path coverage; the feather parameter applies at render time. Patchy bakes
   its own feathered cache (triple box blur, radius ~ feather/2) - close but

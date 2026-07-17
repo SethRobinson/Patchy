@@ -610,6 +610,14 @@ void MainWindow::edit_active_shape_appearance() {
                   preview_layer != nullptr && preview_layer->vector_shape() != nullptr) {
                 preview_layer->set_pixels(std::move(result->pixels));
                 preview_layer->set_bounds(result->bounds);
+                // Keep the style-compositing planes in lockstep with the
+                // preview pixels (interior overlays render under the stroke).
+                // Content is shared immutably, so the caches go through
+                // set_vector_shape on a copy.
+                auto preview_content = *preview_layer->vector_shape();
+                preview_content.fill_cache = std::move(result->fill_pixels);
+                preview_content.stroke_cache = std::move(result->stroke_pixels);
+                preview_layer->set_vector_shape(std::move(preview_content));
                 if (window->canvas_ != nullptr) {
                   window->canvas_->document_changed();
                 }

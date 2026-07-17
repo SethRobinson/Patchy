@@ -5,6 +5,8 @@
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
 #include "core/gradient_presets.hpp"
+#include "core/vector_raster.hpp"
+#include "core/vector_shape.hpp"
 #include "filters/filter_engine.hpp"
 #include "filters/filter_registry.hpp"
 #include "filters/smart_filter_recipe_mapping.hpp"
@@ -956,6 +958,76 @@ void compositor_renders_layer_style_color_overlay() {
   CHECK(px[2] == 20);
 }
 
+patchy::Layer make_stroked_shape_layer(patchy::Document& document, bool fill_enabled) {
+  patchy::Layer shape(document.allocate_layer_id(), "Shape", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  patchy::PathSubpath rect;
+  for (const auto& [x, y] : {std::pair{24.0, 24.0}, {72.0, 24.0}, {72.0, 72.0}, {24.0, 72.0}}) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+    anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+    rect.anchors.push_back(anchor);
+  }
+  content.path.subpaths.push_back(rect);
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = patchy::RgbColor{30, 60, 220};
+  content.stroke.enabled = true;
+  content.stroke.width = 10.0;
+  content.stroke.alignment = patchy::VectorStrokeAlignment::Center;
+  content.stroke.fill_enabled = fill_enabled;
+  content.stroke.content.kind = patchy::VectorFillKind::Solid;
+  content.stroke.content.color = patchy::RgbColor{20, 200, 60};
+  shape.set_vector_shape(content);
+  shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(96, 96),
+                                     &document.metadata().patterns);
+  return shape;
+}
+
+void compositor_interior_overlay_stays_under_vector_stroke() {
+  // PS 2026 probes (fx-sofi-center/outside/nofill, docs/vector-tools.md):
+  // interior overlays cover a stroked shape layer's FILL only, with the
+  // vector stroke composited above; a stroke-only shape's overlay covers the
+  // stroke itself.
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.blend_mode = patchy::BlendMode::Normal;
+  overlay.color = patchy::RgbColor{255, 0, 0};
+  overlay.opacity = 1.0F;
+  {
+    patchy::Document document(96, 96, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(96, 96, 255, 255, 255));
+    auto& layer = document.add_layer(make_stroked_shape_layer(document, true));
+    layer.layer_style().color_overlays.push_back(overlay);
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    // Fill center: the overlay covers the fill.
+    CHECK(flattened.pixel(48, 48)[0] == 255);
+    CHECK(flattened.pixel(48, 48)[1] == 0);
+    // Stroke band (centered width 10 on the y=24 edge spans 19..29): the
+    // green vector stroke stays above the overlay, inner and outer halves.
+    CHECK(flattened.pixel(48, 21)[1] == 200);
+    CHECK(flattened.pixel(48, 26)[1] == 200);
+    CHECK(flattened.pixel(48, 21)[0] == 20);
+    // Outside stays the backdrop.
+    CHECK(flattened.pixel(8, 8)[0] == 255);
+    CHECK(flattened.pixel(8, 8)[2] == 255);
+  }
+  {
+    // Stroke-only shape (fill disabled): the overlay covers the stroke (the
+    // legacy combined path, matching fx-sofi-nofill).
+    patchy::Document document(96, 96, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(96, 96, 255, 255, 255));
+    auto& layer = document.add_layer(make_stroked_shape_layer(document, false));
+    layer.layer_style().color_overlays.push_back(overlay);
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(48, 21)[0] == 255);
+    CHECK(flattened.pixel(48, 21)[1] == 0);
+    // The disabled fill leaves the interior showing the backdrop.
+    CHECK(flattened.pixel(48, 48)[0] == 255);
+    CHECK(flattened.pixel(48, 48)[1] == 255);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
@@ -996,5 +1068,7 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
       {"compositor_renders_sparse_drop_shadow_from_visible_alpha_bounds",
        compositor_renders_sparse_drop_shadow_from_visible_alpha_bounds},
       {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
+      {"compositor_interior_overlay_stays_under_vector_stroke",
+       compositor_interior_overlay_stays_under_vector_stroke},
   };
 }

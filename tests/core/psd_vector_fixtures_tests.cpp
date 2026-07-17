@@ -870,6 +870,39 @@ void psd_pattern_params_probe_render_parity_if_available() {
   CHECK(agreement >= 0.97);
 }
 
+void psd_interior_overlay_vs_stroke_probe_if_available() {
+  // PS 2026 render of a red Color Overlay on a blue-filled shape with a
+  // centered 10 px checker pattern stroke (probe-effects-vs-stroke.jsx):
+  // the overlay covers the FILL only and the vector stroke stays above it.
+  const auto path =
+      patchy::test::local_format_fixture_path("vector-probe", "probe-fx-sofi-center.psd");
+  const auto reference_path =
+      patchy::test::local_format_fixture_path("vector-probe", "probe-fx-sofi-center.bmp");
+  if (!std::filesystem::exists(path) || !std::filesystem::exists(reference_path)) {
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto reference_doc = patchy::bmp::DocumentIo::read_file(reference_path);
+  const auto& reference = std::as_const(reference_doc).layers().front().pixels();
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto close_to = [](const std::uint8_t* a, const std::uint8_t* b, int tolerance) {
+    return std::abs(int(a[0]) - int(b[0])) <= tolerance &&
+           std::abs(int(a[1]) - int(b[1])) <= tolerance &&
+           std::abs(int(a[2]) - int(b[2])) <= tolerance;
+  };
+  // Fill center: pure overlay red in both renders.
+  CHECK(flattened.pixel(48, 48)[0] > 240);
+  CHECK(flattened.pixel(48, 48)[1] < 12);
+  CHECK(close_to(flattened.pixel(48, 48), reference.pixel(48, 48), 8));
+  // Stroke band (fill edge 24, centered width 10 spans 19..29): checker cell
+  // interiors match PS byte-close and are NOT red. (48,21) is a white cell,
+  // (52,21) a dark cell of the 8 px checker anchored at the origin.
+  CHECK(close_to(flattened.pixel(48, 21), reference.pixel(48, 21), 12));
+  CHECK(close_to(flattened.pixel(52, 21), reference.pixel(52, 21), 12));
+  CHECK(flattened.pixel(52, 21)[0] < 90);   // dark cell, not overlay red
+  CHECK(flattened.pixel(48, 21)[1] > 200);  // white cell, not overlay red
+}
+
 void psd_pattern_fill_missing_tile_writes_placeholder() {
   // A referenced pattern with no usable tile anywhere (poisoned store entry,
   // or no entry at all) must never leave a dangling reference: the writer
@@ -1124,6 +1157,8 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
        psd_damaged_pattern_file_resave_is_photoshop_safe_if_available},
       {"psd_pattern_params_probe_render_parity_if_available",
        psd_pattern_params_probe_render_parity_if_available},
+      {"psd_interior_overlay_vs_stroke_probe_if_available",
+       psd_interior_overlay_vs_stroke_probe_if_available},
       {"collect_referenced_pattern_resources_covers_vector_content",
        collect_referenced_pattern_resources_covers_vector_content},
   };

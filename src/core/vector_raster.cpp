@@ -960,6 +960,14 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
   auto raster = rasterize_vector_shape(*shape, canvas, patterns, &layer);
   layer.set_pixels(std::move(raster.pixels));
   layer.set_bounds(raster.bounds);
+  // The split planes ride the content so the compositor can apply interior
+  // overlays under the vector stroke; they stay in lockstep with pixels().
+  // Content is shared immutably (undo snapshots hold the same object), so the
+  // caches land through set_vector_shape on a copy, never in place.
+  auto updated = *shape;
+  updated.fill_cache = std::move(raster.fill_pixels);
+  updated.stroke_cache = std::move(raster.stroke_pixels);
+  layer.set_vector_shape(std::move(updated));
   layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
 }
 
@@ -1208,17 +1216,31 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
   result.pixels = PixelBuffer(bounds.width, bounds.height, PixelFormat::rgba8());
   auto* out = result.pixels.data().data();
   const auto out_stride = result.pixels.stride_bytes();
+  // Interior overlay effects need the fill and stroke as separate planes
+  // (stroke composites above the overlays); a non-Normal stroke blend folds
+  // against the fill during the bake and cannot be re-stamped standalone.
+  const bool split_planes = !fill_coverage.bounds.empty() && !stroke_coverage.bounds.empty() &&
+                            content.stroke.blend_mode == BlendMode::Normal;
 
   if (!fill_coverage.bounds.empty()) {
     const auto fill_pixels =
         paint_coverage(fill_coverage, content.fill, canvas, patterns, layer_for_pattern_anchor);
     const auto* src = fill_pixels.data().data();
     const auto src_stride = fill_pixels.stride_bytes();
+    if (split_planes) {
+      result.fill_pixels = PixelBuffer(bounds.width, bounds.height, PixelFormat::rgba8());
+    }
     for (std::int32_t y = 0; y < fill_coverage.bounds.height; ++y) {
-      auto* row = out + static_cast<std::size_t>(fill_coverage.bounds.y - bounds.y + y) * out_stride +
-                  static_cast<std::size_t>(fill_coverage.bounds.x - bounds.x) * 4;
-      std::memcpy(row, src + static_cast<std::size_t>(y) * src_stride,
+      const auto row_offset =
+          static_cast<std::size_t>(fill_coverage.bounds.y - bounds.y + y) * out_stride +
+          static_cast<std::size_t>(fill_coverage.bounds.x - bounds.x) * 4;
+      std::memcpy(out + row_offset, src + static_cast<std::size_t>(y) * src_stride,
                   static_cast<std::size_t>(fill_coverage.bounds.width) * 4);
+      if (split_planes) {
+        std::memcpy(result.fill_pixels.data().data() + row_offset,
+                    src + static_cast<std::size_t>(y) * src_stride,
+                    static_cast<std::size_t>(fill_coverage.bounds.width) * 4);
+      }
     }
   }
 
@@ -1232,6 +1254,28 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
         paint_coverage(stroke_coverage, content.stroke.content, canvas, patterns, layer_for_pattern_anchor);
     const auto* src = stroke_pixels.data().data();
     const auto src_stride = stroke_pixels.stride_bytes();
+    if (split_planes) {
+      // Standalone stroke plane: paint color with coverage x stroke opacity
+      // (quantized separately so the combined bake below stays byte-stable).
+      result.stroke_pixels = PixelBuffer(bounds.width, bounds.height, PixelFormat::rgba8());
+      auto* plane = result.stroke_pixels.data().data();
+      const auto plane_stride = result.stroke_pixels.stride_bytes();
+      for (std::int32_t y = 0; y < stroke_coverage.bounds.height; ++y) {
+        auto* plane_row = plane +
+                          static_cast<std::size_t>(stroke_coverage.bounds.y - bounds.y + y) * plane_stride +
+                          static_cast<std::size_t>(stroke_coverage.bounds.x - bounds.x) * 4;
+        const auto* stroke_row = src + static_cast<std::size_t>(y) * src_stride;
+        for (std::int32_t x = 0; x < stroke_coverage.bounds.width; ++x) {
+          const auto alpha =
+              (static_cast<double>(stroke_row[x * 4 + 3]) / 255.0) * content.stroke.opacity;
+          plane_row[x * 4 + 0] = stroke_row[x * 4 + 0];
+          plane_row[x * 4 + 1] = stroke_row[x * 4 + 1];
+          plane_row[x * 4 + 2] = stroke_row[x * 4 + 2];
+          plane_row[x * 4 + 3] =
+              static_cast<std::uint8_t>(std::clamp<long>(std::lround(alpha * 255.0), 0L, 255L));
+        }
+      }
+    }
     for (std::int32_t y = 0; y < stroke_coverage.bounds.height; ++y) {
       auto* row = out + static_cast<std::size_t>(stroke_coverage.bounds.y - bounds.y + y) * out_stride +
                   static_cast<std::size_t>(stroke_coverage.bounds.x - bounds.x) * 4;

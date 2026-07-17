@@ -51,6 +51,13 @@ struct VectorRasterOptions {
 struct ShapeRasterResult {
   Rect bounds{};
   PixelBuffer pixels{};  // straight-alpha RGBA8
+  // Split planes over the same `bounds` for style compositing: interior
+  // overlay effects apply to the FILL plane and the vector stroke composites
+  // above them (PS 2026 probes fx-sofi-*, docs/vector-tools.md). Populated
+  // only when a fill AND a Normal-blend stroke both rendered; empty
+  // otherwise, in which case the compositor keeps the combined-plane path.
+  PixelBuffer fill_pixels{};
+  PixelBuffer stroke_pixels{};
 };
 
 // Rasterizes fill coverage and paints the fill appearance (solid, gradient

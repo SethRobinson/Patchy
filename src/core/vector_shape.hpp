@@ -202,6 +202,14 @@ struct VectorShapeContent {
   VectorFill fill{};
   VectorStroke stroke{};
   std::vector<LiveShapeParams> origination;
+  // Style-compositing caches (never serialized; rebuilt with the pixel bake):
+  // straight-alpha planes over the layer's baked bounds. Interior overlay
+  // effects apply over fill_cache and the vector stroke re-composites above
+  // from stroke_cache (PS 2026 probes fx-sofi-*). Empty when the layer has no
+  // stroke, a non-Normal stroke blend, or an un-rebaked import - the
+  // compositor then keeps the legacy combined-plane behavior.
+  PixelBuffer fill_cache{};
+  PixelBuffer stroke_cache{};
 };
 
 // A vector mask on any layer. Coexists with (multiplies against) the raster
