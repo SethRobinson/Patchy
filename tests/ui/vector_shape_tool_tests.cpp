@@ -1126,6 +1126,44 @@ void ui_new_solid_fill_layer_uses_selection_mask() {
   CHECK(document.layers().size() == initial_layers);
 }
 
+void ui_new_fill_layer_clips_to_targeted_path() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // A Path-mode rect drag creates AND targets the work path.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(200, 200), QPoint(400, 320));
+  CHECK(canvas->panel_path_targeted());
+
+  canvas->set_primary_color(QColor(40, 90, 200));
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+    CHECK(dialog != nullptr);
+    dialog->accept();
+  });
+  window.findChild<QAction*>(QStringLiteral("layerNewSolidColorFillAction"))->trigger();
+  QApplication::processEvents();
+
+  // Photoshop's "current path" rule: the new fill layer's shape path IS the
+  // targeted path, so the fill clips to it.
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  const auto* layer = std::as_const(document).find_layer(*active);
+  CHECK(layer != nullptr);
+  CHECK(patchy::layer_is_vector_shape(*layer));
+  CHECK(layer->vector_shape()->path.subpaths.size() == 1);
+  CHECK(layer->vector_shape()->path.subpaths[0].anchors.size() == 4);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 260)), QColor(40, 90, 200), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(100, 100)), Qt::white, 8));
+}
+
 void ui_new_gradient_fill_layer_spans_canvas() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -2096,6 +2134,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_appearance_dialog_commits_and_cancels",
        ui_shape_appearance_dialog_commits_and_cancels},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},
+      {"ui_new_fill_layer_clips_to_targeted_path", ui_new_fill_layer_clips_to_targeted_path},
       {"ui_new_gradient_fill_layer_spans_canvas", ui_new_gradient_fill_layer_spans_canvas},
       {"ui_paths_panel_actions_follow_row_selection", ui_paths_panel_actions_follow_row_selection},
       {"ui_paths_panel_target_shows_overlay_with_any_tool",

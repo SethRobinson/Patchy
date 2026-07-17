@@ -494,6 +494,14 @@ Layer MainWindow::build_fill_layer(const VectorFill& fill, const QString& name) 
   auto& doc = document();
   Layer layer(doc.allocate_layer_id(), name.toStdString(), PixelBuffer());
   VectorShapeContent content;  // empty path = the whole canvas
+  // Photoshop's "current path" rule: a targeted Paths-panel row clips the new
+  // fill layer to that path (it becomes the layer's shape path); with no row
+  // targeted the fill spans the canvas.
+  if (canvas_ != nullptr && canvas_->panel_path_targeted()) {
+    if (const auto* path = resolved_panel_path(); path != nullptr && !path->empty()) {
+      content.path = *path;
+    }
+  }
   content.fill = fill;
   content.stroke.enabled = false;
   ensure_vector_fill_patterns(doc, content, pattern_library());

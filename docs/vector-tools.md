@@ -230,8 +230,10 @@ a gradient or pattern stroke paint read from a PSD is kept untouched unless
 the stroke color is explicitly re-picked. Edit > Define Custom Shape from Path
 prompts for the shape name (prefilled with the generated fallback). Layer > New Fill Layer creates Solid Color (live color
 picker), Gradient (foreground-to-background linear, then the dialog), and
-Pattern fill layers as shape layers with an empty path (= whole canvas); an
-active selection becomes the new layer's raster mask, Photoshop-style. Library
+Pattern fill layers as shape layers with an empty path (= whole canvas); a
+TARGETED Paths-panel row becomes the new layer's shape path (Photoshop's
+"current path" rule, build_fill_layer), and an active selection still becomes
+the raster mask, Photoshop-style. Library
 patterns adopt into the document PatternStore on use so the rasterizer and
 PSD writer resolve them.
 
