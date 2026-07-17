@@ -125,6 +125,13 @@ not part of any release package.
   https://commons.wikimedia.org/wiki/File:Cityscape_of_San_Francisco.jpg
   (SHA-256 `8B09FA97853316DC4C548C7A1631D4C0955148338DF7CA2E75BAA5BC576DDE0D`).
   It is used only to regenerate the README Tilt-Shift Blur screenshot.
+- `test-fixtures/svg/hot_air_balloons_cc0.svg`: "Hot Air Balloon Scene," a
+  vector illustration published under the Creative Commons CC0 1.0 Universal
+  Public Domain Dedication (uploader OpenClipart). The exact file was
+  downloaded on 2026-07-18 from https://freesvg.org/hot-air-balloon-scene
+  (SHA-256 `72F141E0F46C71E646349B56B28812C17653AF045739C89F73C0D02B44021DA4`).
+  It is used only to regenerate the README SVG-import screenshot and by the
+  SVG import tests.
 - `test-fixtures/ico/cpython-py.ico`: the CPython `py.ico` application icon
   from https://github.com/python/cpython (`PC/icons/py.ico`), included under the
   Python Software Foundation License 2.0 as a real-world multi-size icon sample.

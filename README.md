@@ -79,6 +79,20 @@ Click a thumbnail for the full-size image.
       <br><sub>Quick Mask turns a selection into a brush-editable red overlay, then back into marching ants</sub>
     </td>
   </tr>
+  <tr>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/vector_tools.png"><img src="docs/images/screenshots/vector_tools.png" width="270" alt="Flat vector sunset poster built from shape layers, with Direct Select showing a mountain ridge's anchors and the Paths panel floating beside the canvas"></a>
+      <br><sub>Vector shape layers: gradient fills, pen paths, anchor editing, and the Paths panel</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/shape_appearance.png"><img src="docs/images/screenshots/shape_appearance.png" width="270" alt="Shape Appearance dialog editing a rounded-rectangle badge with a Golden Hour gradient fill, dashed stroke, and per-corner radius controls, beside a star with a rust pattern stroke"></a>
+      <br><sub>Shape fills and strokes: solid, gradient, or pattern paint, dashes, and live corner radii</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/svg_import.png"><img src="docs/images/screenshots/svg_import.png" width="270" alt="CC0 hot air balloon SVG clip art opened as editable shape layers with group folders in the Layers panel and the big balloon's bezier anchors selected on canvas"></a>
+      <br><sub>SVG files open as editable shape layers: groups become folders, paths stay live vectors</sub>
+    </td>
+  </tr>
 </table>
 
 ## Video
@@ -94,10 +108,10 @@ notarized (Robinson Technologies Corporation).
 
 | Platform                  | Package                     | Download                                                                                      |
 | ------------------------- | --------------------------- | --------------------------------------------------------------------------------------------- |
-| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (16 MB)     |
-| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (16 MB) |
-| macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (27 MB)                           |
-| Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (2 MB)                    |
+| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (28 MB)     |
+| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (28 MB) |
+| macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (41 MB)                           |
+| Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (14 MB)                   |
 
 Linux one-line install (paste into a terminal; fetches the bundle and installs it,
 pulling the shared KDE runtime from Flathub automatically):
@@ -118,15 +132,17 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 - Open and save layered PSD and PSB files with groups, masks, clipping masks, saved alpha and spot channels, text objects, Fill Opacity, the full Photoshop blend mode set, layer styles and more
 - Common raster editing tools, including Brush with Flow and timed Airbrush buildup, Healing Brush, Clone Stamp, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients, and shapes
-- Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks with paintable shared masks and per-filter blending
-- Filter Gallery with 31 effects, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks
+- Vector tools: Pen paths, editable shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient, or pattern fills and strokes, vector masks, path selection and anchor editing, and a Paths panel with fill, stroke, and make-selection commands, all round-tripping through PSD files that open correctly in Photoshop
+- Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold) with live preview, editable settings, and native Photoshop PSD data
+- Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks (13 filter types) with paintable shared masks and per-filter blending
+- Filter Gallery with 32 effects, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks, plus a manual Liquify workspace with warp, twirl, pucker, bloat, and freeze brushes
 - Photoshop-compatible layer style, pattern, and gradient preset libraries, including .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures
 - Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
 - Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement
 - Rich text with per-run color, font, size, and style, plus a searchable font picker and Character controls for leading, tracking, and horizontal or vertical glyph scaling
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
 - Pixel-art and game-dev extras: seamless tile preview window, sprite sheet export/import, and nearest-neighbor scaled export (2x-8x)
-- Reads and writes a wide range of formats: PSD/PSB, PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), and Aseprite files
+- Reads and writes a wide range of formats: PSD/PSB, PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), Aseprite files, and SVG (opens as editable shape layers, exports with vectors preserved)
 - Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) through a 16-bit develop dialog, and HEIC/HEIF photos through platform codecs
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
 - Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), legacy .8bf plugins, and command line options
@@ -137,18 +153,18 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
-### Unreleased
+### 0.80 - July 18, 2026
 
-- New vector workflows bring Photoshop-compatible shape layers, pen paths, and vector masks. The Rectangle, Ellipse, Line, Polygon, and Custom Shape tools draw editable shape layers with solid, gradient, or pattern fills and full stroke controls, the Pen builds bezier paths point by point, and the Path Select and Direct Select tools move whole shapes or individual anchors with live re-rendering
-- A new Paths panel manages saved paths and the work path with fill, stroke, and make-selection commands, layers can carry vector masks alongside raster masks, prebuilt custom shapes include arrows and common symbols, and shape layers, vector masks, and saved paths round-trip through PSD and PSB files that open correctly in Photoshop
-- The Pen tool now shows what a click will do before you commit: cursor badges mark adding, deleting, and converting points plus closing the path, holding Ctrl temporarily switches to Direct Select for quick anchor fixes, and a status hint explains the close, commit, and cancel keys. The Path Select tools moved next to the Pen, shape layers gained an Edit Shape Appearance context-menu entry, and Define Custom Shape asks for a name
-- The Paths panel now works like Photoshop's: a selected path stays visible on the canvas with any tool, drawing highlights the Work Path row, and selecting a shape layer shows its path outline until you dismiss it with Esc or a click on empty panel space. Ctrl-click a row (or press Ctrl+Enter) to load it as a selection, drag rows to reorder saved paths, duplicate a path from the context menu, and turn any selection into a work path with the new Make Work Path from Selection command. Path thumbnails now show filled coverage so holes and boolean shapes read at a glance
-- Paths became first-class citizens: Ctrl+T with a path tool free-transforms the targeted path (or just the selected anchors), Stroke Path draws with your actual brush including an optional pressure taper, Fill Path offers foreground, background, or pattern contents with opacity, and New Fill Layer clips to the targeted path. Shape and fill layers now carry a vector badge in the layer list that opens their appearance editor
-- Shape-mode drags preview with their real fill and stroke while you drag, live rectangles, ellipses, and lines can be re-edited numerically (bounds, per-corner radii, endpoints, weight) from a new Geometry section in the appearance dialog, a Clipping Path entry in the Paths panel menu marks a saved path for print cutouts, View > Show Target Path (Ctrl+Shift+H) hides the path outline, and panel thumbnails follow anchor edits live
-- The shape tools' Fill and Stroke swatches became full paint pickers: choose no fill, a solid color, a gradient preset, or a pattern for either one, and selecting an existing shape with the pen, shape, or path selection tools shows its appearance in the options bar where edits apply to the shape directly and carry over to the next one you draw, like Photoshop. Pattern fills and pattern strokes gained angle, offset, and align-with-layer placement controls in the appearance dialog (stroke paint now supports gradients and patterns there too), Fill Path in the Paths panel offers the same scale, angle, and offset options, and rotated patterns now match Photoshop's direction exactly in both rendering and PSD round-trips
-- Color, gradient, and pattern overlay layer effects on a shape layer now cover only the shape's fill, leaving the vector stroke visible on top, matching how Photoshop renders a stroked shape with overlay effects
-- SVG files now open as editable shape layers: rectangles, circles, ellipses, and lines come in as live shapes, groups become layer folders, and gradients, stylesheet classes, clip paths, simple patterns, embedded images, and basic text all survive the trip (files past the supported subset fall back to a flattened raster import, and .svgz works too). Save As and Export write SVG back out with shape layers kept as real vectors, embedding whatever had to be rasterized as images, so exports always look like the document
-- SVG also plugs into the vector workflows: paste SVG from the clipboard as shape layers, place an SVG as an embedded smart object, and Edit > Define Custom Shape from SVG File turns a file's geometry into a stampable custom shape
+- Vector tools are here: the Rectangle, Ellipse, Line, Polygon, and Custom Shape tools draw editable shape layers, the Pen builds bezier paths point by point with cursor badges that show what each click will do, and the Path Select and Direct Select tools move whole shapes or individual anchors with live re-rendering. Shape layers, vector masks, and saved paths round-trip through PSD and PSB files that open correctly in Photoshop
+- Shapes carry a full appearance: no fill, solid color, gradient, or pattern fills and strokes, with stroke width, inside/center/outside alignment, caps, joins, and dashes. Edit them from the options bar's new Fill and Stroke paint pickers or the Shape Appearance dialog, where live rectangles, ellipses, and lines can also be re-edited numerically (bounds, per-corner radii, endpoints, weight). Layer > New Fill Layer creates solid, gradient, and pattern fill layers that can clip to a path
+- A Photoshop-style Paths panel manages saved paths and the work path: fill a path with color or a pattern, stroke it through the real brush engine with an optional pressure taper, convert paths to selections and selections to work paths, free-transform a path or just its selected anchors with Ctrl+T, drag rows to reorder, and mark a saved path as the print clipping path
+- SVG files open as editable shape layers: live shapes, groups as folders, gradients, stylesheet classes, clip paths, simple patterns, embedded images, and basic text all survive (files past the supported subset fall back to a flattened raster import, and .svgz works too). Save As and Export write SVG back out with shape layers kept as real vectors. You can also paste SVG from the clipboard as shapes, place an SVG as an embedded smart object, and turn an SVG file into a stampable custom shape
+- New Liquify workspace (Filter > Liquify) with Warp, Reconstruct, Smooth, Twirl, Pucker, Bloat, Freeze, and Thaw brushes over a live preview
+- New Lens Blur (aperture blade count, curvature, and rotation) and Iris Blur (elliptical focus region) filters, plus Add Noise with uniform or Gaussian distribution, bringing the Filter Gallery to 32 effects
+- Emboss, Box Blur, Radial Blur, Add Noise, and Mosaic now work as editable native Smart Filters, bringing the roster to 13 filter types. The Filter Gallery marks which effects can apply as Smart Filters on the current layer, and Photoshop now opens Patchy-authored Smart Filter files correctly
+- Four new adjustment layers: Brightness/Contrast, Invert, Posterize, and Threshold, all reading and writing native Photoshop PSD data. Color Balance adjustment layers now save natively too, so Photoshop no longer opens them as flat white layers
+- Redesigned New Document dialog with a preset card grid, and Patchy now starts with a clean workspace instead of an empty untitled document
+- The tool palette is reorganized into clusters with new Stamp and Gradient/Fill flyouts, options-bar number fields gained slider popups with common values, and document tabs offer Reopen, Reveal in Explorer/Finder, and Copy File Path
 
 ### 0.20 - July 15, 2026
 
@@ -170,18 +186,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Resolution and measurement handling now matches Photoshop more closely: image resolution is independent metadata, rulers can use pixels, inches, centimeters, millimeters, points, or percent, and Image Size, New Document, Smart Object placement, and printing share the same PPI model
 - Photoshop Fill Opacity now reads, renders, edits, and writes through PSD files, including the special Fill behavior used by Color Burn, Linear Burn, Color Dodge, Linear Dodge, and Difference
 - Fixed Stroke styles on masked layers, filter-stack reordering, Smart Filter conversion state, macOS scanner flow, text Bold/Italic shortcuts, gradient alignment, Blend If controls, and several session-close and revision-cache bugs
-
-### 0.16 - July 11, 2026
-
-- New Channels panel with editable saved alpha channels, read-only RGB component previews, selection save/load, colored overlays, and lossless PSD/PSB preservation of spot channels
-- Smart Objects now round-trip through PSD and PSB files, including embedded and linked content. Place or convert layers, edit or replace contents, update or relink external files, embed linked objects, duplicate them independently, and rasterize them when needed
-- New Warp Transform tool with a draggable 4x4 cage, live preview, and Photoshop-compatible style presets. Smart Objects keep the warp non-destructive, while pixel layers apply it in one undoable step
-- Warp Text supports all 15 Photoshop warp styles plus horizontal and vertical distortion, with a live dialog preview and editable text preserved through Photoshop round-trips
-- Documents can float in separate OS windows: drag tabs out to float them, drop windows on the tab bar to dock them, or use Window > Tile, Cascade, Float All in Windows, and Consolidate All to Tabs
-- Clipping masks now render and round-trip through PSD files, with Ctrl+Alt+G, clickable row badges, and Photoshop-style Alt-click between layer rows. View Layer Mask shows a mask in grayscale and selects it for painting
-- Hue/Saturation Colorize now renders, loads, and saves as a native PSD adjustment. CMYK PSD fixes restore effect and text colors, accept empty layer channels, and improve imported adjustment-layer clipping behavior
-- Text edits now show apply and cancel buttons in the options bar, new text layers appear in the Layers panel as soon as editing starts, and layer badges open their matching Smart Object or Layer Style controls
-- Fixed transparent Smart Object pixels turning black after PSD/PSB saves, phantom masks appearing on some files, and slow zooming or panning on very large documents
 
 [Older releases](RELEASE-HISTORY.md)
 
@@ -249,15 +253,14 @@ Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-
 
 Important Photoshop features that are not supported yet, or are only partially supported:
 
-- Vector/path workflows, including pen paths, editable shape layers, vector masks, and editable stroke/fill appearance
-- Editable Smart Filters currently support Gaussian Blur, High Pass, Median, Dust & Scratches, Surface Blur, Unsharp Mask, Motion Blur, and Plastic Wrap stacks, paintable shared masks, and per-filter opacity and blend modes. Unsupported imported filter types (including the Blur Gallery) remain preview-locked and byte-preserved
+- Editable Smart Filters cover 13 filter types with paintable shared masks and per-filter opacity and blend modes; unsupported imported filter types (including the Blur Gallery and Liquify smart filters) remain preview-locked and byte-preserved
 - Full Photoshop adjustment-layer compatibility beyond Patchy's current adjustment support
 - CMYK/Lab editing and export, editable spot separations and RGB component channels, multi-channel overlays, 16/32-bit editing, HDR/EXR, and full color-management parity (Patchy converts CMYK/Lab to RGB on open, but does not edit or save in those color modes)
-- Layer comps, timeline/video/animation workflows, Camera Raw, Liquify, content-aware tools, and generative tools
+- Layer comps, timeline/video/animation workflows, content-aware tools, and generative tools
 - Actions, batch processing, scripting, UXP/JSX panels, and other automation workflows
 - High-fidelity PSD/PSB edge cases, including layered PSB writing and byte-perfect preservation of every Photoshop-only metadata block
 - Not tested much yet; expect bugs
-- Patchy is slower than Photoshop, especially on large documents and it doesn't support GPU acceleration at all.  However, being CPU only helps with porting and stability so kind of a trade-off that makes sense, for now.  That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.\
+- Patchy is slower than Photoshop, especially on large documents and it doesn't support GPU acceleration at all.  However, being CPU only helps with porting and stability so kind of a trade-off that makes sense, for now.  That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.
 
 
 ## License

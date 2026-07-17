@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.26)
 
 project(
   Patchy
-  VERSION 0.20
+  VERSION 0.80
   DESCRIPTION "A native, PSD-oriented image editor foundation"
   LANGUAGES CXX
 )

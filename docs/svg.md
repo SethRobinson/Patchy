@@ -174,8 +174,9 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
   chunking. tests/ui/svg_ui_tests.cpp - editable open, a QSvgRenderer
   cross-check (independent renderer, mean-delta tolerance), the text
   positioning pass, data-URI images, save-a-copy + reopen parity, paste,
-  shape-library import, place. Fixture: test-fixtures/svg/basic-shapes.svg
-  (self-authored).
+  shape-library import, place. Fixtures: test-fixtures/svg/basic-shapes.svg
+  (self-authored) and test-fixtures/svg/hot_air_balloons_cc0.svg (CC0 clip
+  art, NOTICE-THIRD-PARTY.md; drives the README SVG-import screenshot scene).
 
 ## Photoshop parity notes
 

@@ -311,6 +311,50 @@ private:
   QVariant value_;
 };
 
+// The MainWindow constructor loads tools/* settings, so pin the vector keys
+// to their defaults for deterministic runs on developer machines.
+class VectorSettingsGuard {
+public:
+  VectorSettingsGuard() {
+    auto settings = patchy::ui::app_settings();
+    for (const auto* key :
+         {"tools/vectorToolMode", "tools/vectorFillColor", "tools/vectorStrokeColor",
+          "tools/vectorStrokeEnabled", "tools/vectorStrokeWidth", "tools/vectorLineWeight",
+          "tools/vectorFillKind", "tools/vectorFillPatternId", "tools/vectorFillGradientId",
+          "tools/vectorStrokePaintKind", "tools/vectorStrokePatternId",
+          "tools/vectorStrokeGradientId", "paths/fillPatternScale", "paths/fillPatternAngle",
+          "paths/fillPatternOffsetX", "paths/fillPatternOffsetY", "paths/fillPatternAlignLayer"}) {
+      settings.remove(QString::fromLatin1(key));
+    }
+    settings.sync();
+  }
+
+private:
+  SettingsValueRestorer mode_{QStringLiteral("tools/vectorToolMode")};
+  SettingsValueRestorer fill_{QStringLiteral("tools/vectorFillColor")};
+  SettingsValueRestorer stroke_color_{QStringLiteral("tools/vectorStrokeColor")};
+  SettingsValueRestorer stroke_enabled_{QStringLiteral("tools/vectorStrokeEnabled")};
+  SettingsValueRestorer stroke_width_{QStringLiteral("tools/vectorStrokeWidth")};
+  SettingsValueRestorer line_weight_{QStringLiteral("tools/vectorLineWeight")};
+  SettingsValueRestorer fill_kind_{QStringLiteral("tools/vectorFillKind")};
+  SettingsValueRestorer fill_pattern_id_{QStringLiteral("tools/vectorFillPatternId")};
+  SettingsValueRestorer fill_gradient_id_{QStringLiteral("tools/vectorFillGradientId")};
+  SettingsValueRestorer stroke_paint_kind_{QStringLiteral("tools/vectorStrokePaintKind")};
+  SettingsValueRestorer stroke_pattern_id_{QStringLiteral("tools/vectorStrokePatternId")};
+  SettingsValueRestorer stroke_gradient_id_{QStringLiteral("tools/vectorStrokeGradientId")};
+  SettingsValueRestorer corner_radius_{QStringLiteral("tools/shapeCornerRadius")};
+  SettingsValueRestorer work_path_tolerance_{QStringLiteral("paths/makeWorkPathTolerance")};
+  SettingsValueRestorer simulate_pressure_{QStringLiteral("paths/strokeSimulatePressure")};
+  SettingsValueRestorer fill_contents_{QStringLiteral("paths/fillContents")};
+  SettingsValueRestorer fill_pattern_{QStringLiteral("paths/fillPatternId")};
+  SettingsValueRestorer fill_opacity_{QStringLiteral("paths/fillOpacity")};
+  SettingsValueRestorer fill_pattern_scale_{QStringLiteral("paths/fillPatternScale")};
+  SettingsValueRestorer fill_pattern_angle_{QStringLiteral("paths/fillPatternAngle")};
+  SettingsValueRestorer fill_pattern_offset_x_{QStringLiteral("paths/fillPatternOffsetX")};
+  SettingsValueRestorer fill_pattern_offset_y_{QStringLiteral("paths/fillPatternOffsetY")};
+  SettingsValueRestorer fill_pattern_align_{QStringLiteral("paths/fillPatternAlignLayer")};
+};
+
 class GallerySettingsRestorer {
 public:
   GallerySettingsRestorer()

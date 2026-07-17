@@ -12,8 +12,9 @@
 # akiko_cycling_okinawa.jpg, ipad_main_v04.psd, mow_master.psd); scenes whose
 # fixture is missing are skipped with a [SKIP] line. The Camera Raw scene uses
 # local-test-fixtures/raw/fujifilm_xt1.raf, a CC0 sample from raw.pixls.us. The
-# Tilt-Shift scene uses the committed CC0 San Francisco photograph documented
-# in NOTICE-THIRD-PARTY.md.
+# Tilt-Shift scene uses the committed CC0 San Francisco photograph and the SVG
+# import scene the committed CC0 hot-air-balloon clip art, both documented in
+# NOTICE-THIRD-PARTY.md.
 param(
     [switch]$SkipBuild,
     [string]$Scene = 'shot_readme'

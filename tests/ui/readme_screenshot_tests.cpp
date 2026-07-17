@@ -1,6 +1,8 @@
 #include "ui/canvas_widget.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
+#include "core/document_path.hpp"
+#include "core/vector_shape.hpp"
 #include "core/gradient_presets.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pattern_presets.hpp"
@@ -2142,6 +2144,564 @@ void shot_readme_quick_mask() {
   save_readme_shot("shot_readme_quick_mask", window.grab().toImage());
 }
 
+// ===========================================================================
+// Vector tools, shape appearance, and SVG import scenes (0.80)
+// ===========================================================================
+
+void readme_shape_drag(patchy::ui::CanvasWidget& canvas, QPoint document_from, QPoint document_to) {
+  drag(canvas, canvas.widget_position_for_document_point(document_from),
+       canvas.widget_position_for_document_point(document_to));
+  QApplication::processEvents();
+}
+
+void readme_pen_click(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
+  const auto widget_point = canvas.widget_position_for_document_point(document_point);
+  drag(canvas, widget_point, widget_point);
+  QApplication::processEvents();
+}
+
+// A smooth pen anchor: press at the anchor and drag out to the handle end.
+void readme_pen_smooth(patchy::ui::CanvasWidget& canvas, QPoint anchor, QPoint handle_end) {
+  drag(canvas, canvas.widget_position_for_document_point(anchor),
+       canvas.widget_position_for_document_point(handle_end));
+  QApplication::processEvents();
+}
+
+patchy::RgbColor readme_rgb(QColor color) {
+  return patchy::RgbColor{static_cast<std::uint8_t>(color.red()),
+                          static_cast<std::uint8_t>(color.green()),
+                          static_cast<std::uint8_t>(color.blue())};
+}
+
+patchy::LayerStyleGradient readme_vector_gradient(
+    std::initializer_list<std::pair<double, QColor>> stops, patchy::LayerStyleGradientType type,
+    float angle_degrees) {
+  patchy::LayerStyleGradient gradient;
+  gradient.type = type;
+  gradient.angle_degrees = angle_degrees;
+  for (const auto& [location, color] : stops) {
+    patchy::GradientColorStop stop;
+    stop.location = static_cast<float>(location);
+    stop.color = readme_rgb(color);
+    gradient.color_stops.push_back(stop);
+  }
+  gradient.alpha_stops.push_back({0.0F, 1.0F, 0.5F});
+  gradient.alpha_stops.push_back({1.0F, 1.0F, 0.5F});
+  return gradient;
+}
+
+// Vector tools: a flat sunset poster built layer by layer with the real shape
+// tools - gradient-filled sky and sun, two pen-drawn mountain ridges,
+// custom-shape pines, stars, and a ring moon - captured with Direct Select
+// showing the front ridge's anchors and the Paths panel floating beside the
+// canvas with the saved cloud path, the work path, and the ridge's shape path.
+void shot_readme_vector_tools() {
+  VectorSettingsGuard vector_guard;
+  SettingsValueRestorer custom_shape_restorer(QStringLiteral("tools/customShapeId"));
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  patchy::Document poster(1180, 780, patchy::PixelFormat::rgb8());
+  poster.add_pixel_layer("Background",
+                         solid_pixels(1180, 780, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  window.add_document_session(std::move(poster), QStringLiteral("Sunset Poster"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* rulers_action = require_action(window, "viewToggleRulersAction");
+  if (!rulers_action->isChecked()) {
+    rulers_action->trigger();
+  }
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+
+  auto& fill = patchy::ui::MainWindowTestAccess::current_vector_fill(window);
+  const auto set_gradient_fill = [&](patchy::LayerStyleGradient gradient) {
+    fill = patchy::VectorFill{};
+    fill.kind = patchy::VectorFillKind::Gradient;
+    fill.gradient = std::move(gradient);
+    patchy::ui::MainWindowTestAccess::update_vector_swatch_icons(window);
+  };
+  const auto set_solid_fill = [&](QColor color) {
+    fill = patchy::VectorFill{};
+    fill.kind = patchy::VectorFillKind::Solid;
+    fill.color = readme_rgb(color);
+    patchy::ui::MainWindowTestAccess::update_vector_swatch_icons(window);
+  };
+  // Every renamed layer in this scene is a freshly committed shape layer; the
+  // vector CHECK catches a failed drag (which would leave the raster
+  // Background active and silently rename it instead).
+  const auto rename_active = [&](const char* name) {
+    const auto active = document.active_layer_id();
+    CHECK(active.has_value());
+    auto* layer = document.find_layer(*active);
+    CHECK(layer != nullptr);
+    CHECK(patchy::layer_is_vector_shape(*layer));
+    layer->set_name(name);
+  };
+
+  // Sky: a near-full-canvas rectangle with a vertical sunset gradient. The
+  // drag stays one pixel inside the document: a press exactly on the canvas
+  // corner lands in the gutter and the shape tools ignore the gesture.
+  require_action_by_text(window, QStringLiteral("Rect"))->trigger();
+  QApplication::processEvents();
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(radius_spin != nullptr);
+  radius_spin->setValue(0);
+  set_gradient_fill(readme_vector_gradient({{0.0, QColor(0xff, 0x8b, 0x5e)},
+                                            {0.55, QColor(0x8a, 0x4a, 0x8f)},
+                                            {1.0, QColor(0x23, 0x2a, 0x63)}},
+                                           patchy::LayerStyleGradientType::Linear, 90.0F));
+  readme_shape_drag(*canvas, QPoint(1, 1), QPoint(1179, 779));
+  CHECK(document.layers().size() == 2);
+  rename_active("Sky");
+
+  // Sun: a radial-gradient ellipse low over the horizon.
+  require_action_by_text(window, QStringLiteral("Ellipse"))->trigger();
+  QApplication::processEvents();
+  set_gradient_fill(readme_vector_gradient({{0.0, QColor(0xff, 0xf6, 0xcf)},
+                                            {0.55, QColor(0xff, 0xd4, 0x65)},
+                                            {1.0, QColor(0xff, 0x9a, 0x4d)}},
+                                           patchy::LayerStyleGradientType::Radial, 90.0F));
+  readme_shape_drag(*canvas, QPoint(430, 320), QPoint(750, 640));
+  rename_active("Sun");
+
+  // Two mountain ridges drawn with the Pen. Mid-session clicks always extend
+  // the path, so only each session's FIRST click must stay clear of the
+  // previously active layer's path (the pen doubles as the point editor).
+  require_action_by_text(window, QStringLiteral("Pen"))->trigger();
+  QApplication::processEvents();
+  set_solid_fill(QColor(0x4a, 0x2b, 0x68));
+  readme_pen_click(*canvas, QPoint(80, 470));
+  for (const auto point : {QPoint(230, 390), QPoint(450, 560), QPoint(700, 430), QPoint(960, 560),
+                           QPoint(1180, 500), QPoint(1180, 780), QPoint(0, 780), QPoint(0, 540)}) {
+    readme_pen_click(*canvas, point);
+  }
+  readme_pen_click(*canvas, QPoint(80, 470));  // closing click commits the shape
+  CHECK(!canvas->pen_session_active());
+  rename_active("Back Ridge");
+
+  set_solid_fill(QColor(0x2c, 0x17, 0x46));
+  readme_pen_click(*canvas, QPoint(300, 690));
+  for (const auto point : {QPoint(520, 555), QPoint(760, 660), QPoint(1000, 570), QPoint(1180, 660),
+                           QPoint(1180, 780), QPoint(0, 780), QPoint(0, 655)}) {
+    readme_pen_click(*canvas, point);
+  }
+  readme_pen_click(*canvas, QPoint(300, 690));
+  CHECK(!canvas->pen_session_active());
+  rename_active("Front Ridge");
+  const auto front_ridge_id = *document.active_layer_id();
+
+  // Pines, stars, and a ring moon from the built-in custom shape library; the
+  // Add combine op keeps each cluster on one shape layer.
+  require_action_by_text(window, QStringLiteral("Custom Shape"))->trigger();
+  QApplication::processEvents();
+  auto* shape_combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  auto* combine_combo = window.findChild<QComboBox*>(QStringLiteral("vectorCombineCombo"));
+  CHECK(shape_combo != nullptr && combine_combo != nullptr);
+  const auto stamp_cluster = [&](const char* shape_id, QColor color, const char* name,
+                                 std::initializer_list<std::pair<QPoint, QPoint>> drags) {
+    const auto row = shape_combo->findData(QLatin1String(shape_id));
+    CHECK(row >= 0);
+    shape_combo->setCurrentIndex(row);
+    QApplication::processEvents();
+    set_solid_fill(color);
+    bool first = true;
+    for (const auto& [from, to] : drags) {
+      combine_combo->setCurrentIndex(first ? 0 : 1);  // New Layer, then Add
+      readme_shape_drag(*canvas, from, to);
+      first = false;
+    }
+    combine_combo->setCurrentIndex(0);
+    rename_active(name);
+  };
+  stamp_cluster("shape.builtin.triangle", QColor(0x1b, 0x0e, 0x33), "Pine Trees",
+                {{QPoint(150, 545), QPoint(240, 700)},
+                 {QPoint(255, 585), QPoint(330, 700)},
+                 {QPoint(965, 575), QPoint(1050, 700)}});
+  stamp_cluster("shape.builtin.star", QColor(0xff, 0xe9, 0xa8), "Stars",
+                {{QPoint(390, 60), QPoint(455, 125)},
+                 {QPoint(540, 140), QPoint(580, 180)},
+                 {QPoint(1010, 205), QPoint(1045, 240)}});
+  stamp_cluster("shape.builtin.ring", QColor(0xff, 0xe9, 0xa8), "Moon",
+                {{QPoint(880, 90), QPoint(985, 195)}});
+
+  // A cloud path drawn in Path mode and saved (double-click promotes the work
+  // path), then a fresh work-path halo around the sun, so the panel lists a
+  // saved path, the work path, and the active layer's shape path together.
+  require_action_by_text(window, QStringLiteral("Pen"))->trigger();
+  QApplication::processEvents();
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+  readme_pen_click(*canvas, QPoint(170, 200));
+  readme_pen_smooth(*canvas, QPoint(350, 165), QPoint(430, 185));
+  readme_pen_smooth(*canvas, QPoint(560, 205), QPoint(640, 222));
+  readme_pen_click(*canvas, QPoint(790, 185));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  QListWidgetItem* work_row = nullptr;
+  for (int row = 0; row < paths_list->count(); ++row) {
+    if (paths_list->item(row)->text() == QStringLiteral("Work Path")) {
+      work_row = paths_list->item(row);
+    }
+  }
+  CHECK(work_row != nullptr);
+  CHECK(QMetaObject::invokeMethod(paths_list, "itemDoubleClicked", Qt::DirectConnection,
+                                  Q_ARG(QListWidgetItem*, work_row)));
+  QApplication::processEvents();
+  // The save drops the row into inline rename; commit it with an empty-space
+  // click, then give the saved path its scene name through the document.
+  send_mouse(*paths_list->viewport(), QEvent::MouseButtonPress,
+             QPoint(paths_list->viewport()->width() / 2, paths_list->viewport()->height() - 4),
+             Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(document.paths().size() == 1);
+  document.find_path(document.paths().front().id())->set_name("Cloud Path");
+  patchy::ui::MainWindowTestAccess::refresh_paths_panel(window);
+  require_action_by_text(window, QStringLiteral("Ellipse"))->trigger();
+  QApplication::processEvents();
+  readme_shape_drag(*canvas, QPoint(400, 290), QPoint(780, 670));  // sun-halo work path
+  mode_combo->setCurrentIndex(0);  // back to Shape mode
+  QApplication::processEvents();
+
+  // Select the front ridge and switch to Direct Select: the ridge outline and
+  // anchors draw on canvas, and a marquee leaves the mid anchors selected.
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* ridge_item = require_layer_item(*layer_list, QStringLiteral("Front Ridge"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(ridge_item);
+  ridge_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(document.active_layer_id() == front_ridge_id);
+  // The halo drawing left the Work Path row explicitly selected, which
+  // outranks the transient layer row; retarget the ridge's shape path so the
+  // marquee (and the canvas overlay) work on the ridge.
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Direct Select"))->trigger();
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(360, 470)),
+       canvas->widget_position_for_document_point(QPoint(1060, 760)));
+  QApplication::processEvents();
+
+  // Float the Paths panel over the canvas so the layer list stays visible in
+  // the same shot (the two docks share the right-side tab stack).
+  auto* paths_dock = window.findChild<QDockWidget*>(QStringLiteral("pathsDock"));
+  CHECK(paths_dock != nullptr);
+  paths_dock->setFloating(true);
+  paths_dock->resize(300, 320);
+  const QPoint paths_offset(64, 246);
+  paths_dock->move(window.geometry().topLeft() + paths_offset);
+  paths_dock->show();
+  paths_dock->raise();
+  process_events_for(250);
+  CHECK(paths_list->count() == 3);  // Front Ridge Shape Path, Cloud Path, Work Path
+
+  reset_readme_status_bar(window);
+  auto base = window.grab().toImage();
+  draw_readme_overlay(base, paths_dock->grab().toImage(), paths_offset);
+  save_readme_shot("shot_readme_vector_tools", base);
+  paths_dock->setFloating(false);
+  QApplication::processEvents();
+
+  // Rulers persist to view settings on window teardown; restore the clean state.
+  rulers_action->trigger();
+  QApplication::processEvents();
+}
+
+// Shape appearance: a badge composition (ring accent, gradient rounded-rect
+// card, star with a Coarse Rust pattern stroke) with the Shape Appearance
+// dialog open on the card - the fill switched live to the Golden Hour library
+// gradient and the stroke dashed - showing the paint, stroke, and per-corner
+// Geometry controls.
+void shot_readme_shape_appearance() {
+  VectorSettingsGuard vector_guard;
+  SettingsValueRestorer custom_shape_restorer(QStringLiteral("tools/customShapeId"));
+  SettingsValueRestorer polygon_sides_restorer(QStringLiteral("tools/polygonSides"));
+  SettingsValueRestorer polygon_inset_restorer(QStringLiteral("tools/polygonStarInset"));
+  SettingsValueRestorer pattern_version_restorer(QStringLiteral("patterns/defaultPatternsVersion"));
+  // A fresh pattern library seeded with the bundled CC0 photo textures, so the
+  // pattern stroke resolves the Coarse Rust preset deterministically.
+  clear_pattern_test_state();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"), 0);
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  CHECK(window.pattern_library().find_entry_by_pattern_id(
+            QStringLiteral("f0705a00-000c-4c8b-9e3d-2a5b6c77e00c")) != nullptr);
+  window.gradient_library().restore_default_gradients();
+
+  QImage backdrop(1180, 780, QImage::Format_RGB32);
+  {
+    QPainter painter(&backdrop);
+    QLinearGradient shade(0, 0, 0, 780);
+    shade.setColorAt(0.0, QColor(0x1a, 0x20, 0x38));
+    shade.setColorAt(1.0, QColor(0x10, 0x14, 0x24));
+    painter.fillRect(backdrop.rect(), shade);
+    painter.setPen(QPen(QColor(255, 255, 255, 10), 1));
+    for (int x = 0; x < 1180; x += 48) {
+      painter.drawLine(x, 0, x, 780);
+    }
+    for (int y = 0; y < 780; y += 48) {
+      painter.drawLine(0, y, 1180, y);
+    }
+  }
+  window.add_document_session(patchy::ui::document_from_qimage(backdrop, "Backdrop"),
+                              QStringLiteral("Badge Design"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+  const auto backdrop_id = *document.active_layer_id();
+
+  auto& fill = patchy::ui::MainWindowTestAccess::current_vector_fill(window);
+  auto& stroke_paint = patchy::ui::MainWindowTestAccess::current_vector_stroke_paint(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto rename_active = [&](const char* name) {
+    const auto active = document.active_layer_id();
+    CHECK(active.has_value());
+    auto* layer = document.find_layer(*active);
+    CHECK(layer != nullptr);
+    CHECK(patchy::layer_is_vector_shape(*layer));
+    layer->set_name(name);
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  };
+  // The options-bar appearance controls live-edit the selected shape layer, so
+  // every stroke checkbox/width change below happens with the raster Backdrop
+  // active. New shapes insert above the active layer, so drawing star, card,
+  // then ring while re-selecting Backdrop stacks them ring < card < star.
+  const auto select_backdrop = [&] {
+    auto* item = require_layer_item(*layer_list, QStringLiteral("Backdrop"));
+    layer_list->clearSelection();
+    layer_list->setCurrentItem(item);
+    item->setSelected(true);
+    QApplication::processEvents();
+    CHECK(document.active_layer_id() == backdrop_id);
+  };
+
+  // Star with a chunky Coarse Rust pattern stroke; it ends up topmost.
+  require_action_by_text(window, QStringLiteral("Polygon"))->trigger();
+  QApplication::processEvents();
+  auto* sides_spin = window.findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"));
+  auto* inset_spin = window.findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin"));
+  auto* stroke_check = window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck"));
+  auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+  CHECK(sides_spin != nullptr && inset_spin != nullptr && stroke_check != nullptr &&
+        stroke_width != nullptr);
+  sides_spin->setValue(5);
+  inset_spin->setValue(45);
+  stroke_check->setChecked(true);
+  stroke_width->setValue(12.0);
+  fill = patchy::VectorFill{};
+  fill.kind = patchy::VectorFillKind::Solid;
+  fill.color = readme_rgb(QColor(0xff, 0xd2, 0x57));
+  stroke_paint = patchy::VectorFill{};
+  stroke_paint.kind = patchy::VectorFillKind::Pattern;
+  stroke_paint.pattern_id = "f0705a00-000c-4c8b-9e3d-2a5b6c77e00c";  // Coarse Rust
+  stroke_paint.pattern_name = "Coarse Rust";
+  patchy::ui::MainWindowTestAccess::update_vector_swatch_icons(window);
+  readme_shape_drag(*canvas, QPoint(630, 560), QPoint(630, 430));  // center-out drag
+  rename_active("Star Burst");
+
+  // The badge card: a rounded rectangle (live shape, so the dialog grows its
+  // Geometry section) with a warm fill and a deep plum stroke, under the star.
+  select_backdrop();
+  require_action_by_text(window, QStringLiteral("Rect"))->trigger();
+  QApplication::processEvents();
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(radius_spin != nullptr);
+  radius_spin->setValue(36);
+  stroke_width->setValue(8.0);
+  fill = patchy::VectorFill{};
+  fill.kind = patchy::VectorFillKind::Solid;
+  fill.color = readme_rgb(QColor(0xc9, 0x6a, 0x3f));
+  stroke_paint = patchy::VectorFill{};
+  stroke_paint.kind = patchy::VectorFillKind::Solid;
+  stroke_paint.color = readme_rgb(QColor(0x4a, 0x1f, 0x3c));
+  patchy::ui::MainWindowTestAccess::update_vector_swatch_icons(window);
+  readme_shape_drag(*canvas, QPoint(120, 140), QPoint(680, 600));
+  rename_active("Badge Card");
+  const auto card_id = *document.active_layer_id();
+
+  // Ring accent tucked behind the card's top-left corner.
+  select_backdrop();
+  require_action_by_text(window, QStringLiteral("Custom Shape"))->trigger();
+  QApplication::processEvents();
+  auto* shape_combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  CHECK(shape_combo != nullptr);
+  const auto ring_row = shape_combo->findData(QStringLiteral("shape.builtin.ring"));
+  CHECK(ring_row >= 0);
+  shape_combo->setCurrentIndex(ring_row);
+  QApplication::processEvents();
+  stroke_check->setChecked(false);
+  fill = patchy::VectorFill{};
+  fill.kind = patchy::VectorFillKind::Solid;
+  fill.color = readme_rgb(QColor(0x3d, 0x4a, 0x7d));
+  patchy::ui::MainWindowTestAccess::update_vector_swatch_icons(window);
+  readme_shape_drag(*canvas, QPoint(80, 70), QPoint(230, 220));
+  rename_active("Ring");
+
+  // Open the Shape Appearance dialog on the card and restyle it live: Golden
+  // Hour gradient fill, dashed stroke. The preview rasterizes on a background
+  // worker, so the capture waits for the card's pixels to actually change.
+  auto* card_item = require_layer_item(*layer_list, QStringLiteral("Badge Card"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(card_item);
+  card_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(document.active_layer_id() == card_id);
+  const QPoint card_sample(350, 350);  // clear of the star and the ring
+  const auto before_color = canvas_pixel(*canvas, card_sample);
+
+  bool captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    auto* fill_kind_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
+    auto* gradient_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillGradientCombo"));
+    auto* type_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeGradientTypeCombo"));
+    auto* angle_spin = dialog->findChild<QSpinBox*>(QStringLiteral("shapeGradientAngleSpin"));
+    auto* dash_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeDashCombo"));
+    CHECK(fill_kind_combo != nullptr && gradient_combo != nullptr && type_combo != nullptr &&
+          angle_spin != nullptr && dash_combo != nullptr);
+    const auto gradient_kind_row = fill_kind_combo->findText(QObject::tr("Gradient"));
+    CHECK(gradient_kind_row >= 0);
+    fill_kind_combo->setCurrentIndex(gradient_kind_row);
+    const auto golden_row = gradient_combo->findText(QStringLiteral("Golden Hour"));
+    CHECK(golden_row >= 0);
+    gradient_combo->setCurrentIndex(golden_row);
+    type_combo->setCurrentIndex(
+        type_combo->findData(static_cast<int>(patchy::LayerStyleGradientType::Linear)));
+    angle_spin->setValue(90);
+    dash_combo->setCurrentIndex(1);  // Dashed
+    QApplication::processEvents();
+    const QPoint dialog_offset(800, 88);
+    dialog->move(window.geometry().topLeft() + dialog_offset);
+    QApplication::processEvents();
+    CHECK(process_events_until(
+        [&] { return !color_close(canvas_pixel(*canvas, card_sample), before_color, 8); }, 20000));
+    process_events_for(400);  // let the coalesced dash re-render land too
+    reset_readme_status_bar(window);
+    auto base = window.grab().toImage();
+    draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
+    save_readme_shot("shot_readme_shape_appearance", base);
+    captured = true;
+    dialog->accept();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(captured);
+  clear_pattern_test_state();
+}
+
+// Depth-first walk sharing one best-candidate state, so a nested group's
+// local runner-up can never overwrite the global winner's folder chain.
+void readme_collect_largest_editable_shape(const std::vector<patchy::Layer>& layers,
+                                           double maximum_width, std::vector<QString>& chain,
+                                           const patchy::Layer*& best, double& best_area,
+                                           std::vector<QString>& best_chain) {
+  for (const auto& layer : layers) {
+    if (layer.kind() == patchy::LayerKind::Group) {
+      chain.push_back(QString::fromStdString(layer.name()));
+      readme_collect_largest_editable_shape(layer.children(), maximum_width, chain, best, best_area,
+                                            best_chain);
+      chain.pop_back();
+      continue;
+    }
+    if (!patchy::layer_is_vector_shape(layer) || layer.vector_shape() == nullptr) {
+      continue;
+    }
+    std::size_t anchors = 0;
+    for (const auto& subpath : layer.vector_shape()->path.subpaths) {
+      anchors += subpath.anchors.size();
+    }
+    const auto area = static_cast<double>(layer.bounds().width) * layer.bounds().height;
+    if (anchors >= 8 && layer.bounds().width < maximum_width && area > best_area) {
+      best = &layer;
+      best_area = area;
+      best_chain = chain;
+      best_chain.push_back(QString::fromStdString(layer.name()));
+    }
+  }
+}
+
+// SVG import: the CC0 hot-air-balloon clip art opens as editable shape layers -
+// groups become folders, rows carry the vector badge - and Direct Select shows
+// the largest balloon envelope's bezier anchors right on the canvas.
+void shot_readme_svg_import() {
+  VectorSettingsGuard vector_guard;
+  const auto path =
+      patchy::test::committed_format_fixture_path("svg", "hot_air_balloons_cc0.svg");
+  CHECK(std::filesystem::exists(path));
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, QString::fromStdString(path.string()));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 1920);
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, 380);
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+
+  // The largest editable shape narrower than 40% of the canvas: the sky,
+  // ground, and lake span the full width, so the winner is the big central
+  // balloon's outline path. The walk also records its folder chain.
+  std::vector<QString> folder_chain;
+  std::vector<QString> best_chain;
+  const patchy::Layer* envelope = nullptr;
+  double envelope_area = 0.0;
+  readme_collect_largest_editable_shape(std::as_const(document).layers(), document.width() * 0.4,
+                                        folder_chain, envelope, envelope_area, best_chain);
+  CHECK(envelope != nullptr);
+  CHECK(!best_chain.empty());
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  for (std::size_t depth = 0; depth + 1 < best_chain.size(); ++depth) {
+    expand_layer_folder_row(*layer_list, best_chain[depth]);
+  }
+  auto* envelope_item = require_layer_item(*layer_list, best_chain.back());
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(envelope_item);
+  envelope_item->setSelected(true);
+  QApplication::processEvents();
+
+  // Direct Select shows the envelope's anchors; a marquee over its bounds
+  // selects them so they read as solid squares.
+  require_action_by_text(window, QStringLiteral("Direct Select"))->trigger();
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  const auto bounds = envelope->bounds();
+  drag(*canvas,
+       canvas->widget_position_for_document_point(QPoint(bounds.x - 14, bounds.y - 14)),
+       canvas->widget_position_for_document_point(
+           QPoint(bounds.x + bounds.width + 14, bounds.y + bounds.height + 14)));
+  process_events_for(250);
+
+  // Scroll the list to its top so the group-to-folder story is visible: the
+  // outer folder rows lead the panel while the balloon's anchors carry the
+  // editability story on canvas.
+  auto* outer_folder_item = require_layer_item(*layer_list, best_chain.front());
+  layer_list->scrollToItem(outer_folder_item, QAbstractItemView::PositionAtTop);
+  QApplication::processEvents();
+
+  reset_readme_status_bar(window);
+  save_readme_shot("shot_readme_svg_import", window.grab().toImage());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> readme_screenshot_tests() {
@@ -2162,5 +2722,8 @@ std::vector<patchy::test::TestCase> readme_screenshot_tests() {
       {"shot_readme_material_styles", shot_readme_material_styles},
       {"shot_readme_camera_raw", shot_readme_camera_raw},
       {"shot_readme_quick_mask", shot_readme_quick_mask},
+      {"shot_readme_vector_tools", shot_readme_vector_tools},
+      {"shot_readme_shape_appearance", shot_readme_shape_appearance},
+      {"shot_readme_svg_import", shot_readme_svg_import},
   };
 }
