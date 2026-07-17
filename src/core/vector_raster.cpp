@@ -1098,6 +1098,9 @@ PixelBuffer paint_coverage(const CoverageBuffer& coverage, const VectorFill& fil
   if (fill.kind == VectorFillKind::Gradient) {
     // align_with_layer follows the painted region's bounds (the layer's
     // transparency bounds once baked); otherwise the canvas.
+    // Fill layers render Photoshop's GdFl geometry: the linear span is the
+    // center chord of the aligned bounds and a Classic 2-stop ramp eases by
+    // the clamped catmull-rom scaled by smoothness (probe5c/5d, PS 27.8).
     const Rect gradient_bounds = fill.gradient.align_with_layer ? coverage.bounds : canvas;
     for (std::int32_t y = 0; y < coverage.bounds.height; ++y) {
       auto* row = out + static_cast<std::size_t>(y) * out_stride;
@@ -1105,9 +1108,11 @@ PixelBuffer paint_coverage(const CoverageBuffer& coverage, const VectorFill& fil
       const auto document_y = coverage.bounds.y + y;
       for (std::int32_t x = 0; x < coverage.bounds.width; ++x) {
         const auto document_x = coverage.bounds.x + x;
-        const auto position = gradient_position(fill.gradient, gradient_bounds, document_x, document_y);
-        const auto color = gradient_color_dithered(fill.gradient, position, document_x, document_y);
-        const auto opacity = gradient_stop_opacity(fill.gradient, position);
+        const auto position = gradient_position(fill.gradient, gradient_bounds, document_x,
+                                                document_y, GradientSpanBasis::CenterChord);
+        const auto color =
+            gradient_color_dithered(fill.gradient, position, document_x, document_y, true);
+        const auto opacity = gradient_stop_opacity(fill.gradient, position, true);
         row[x * 4 + 0] = color.red;
         row[x * 4 + 1] = color.green;
         row[x * 4 + 2] = color.blue;

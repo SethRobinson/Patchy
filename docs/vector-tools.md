@@ -268,15 +268,34 @@ captured order (kind-dependent):
 - App-level (`executeActionGet` keyOriginType) path-drawn subpaths report
   keyActionMode entries instead of live-shape data.
 
+### GdFl gradient fill geometry (calibrated July 2026, probe5c/5d/5e)
+
+Separating span from easing with smoothness-0 probes pinned the fill-layer
+renderer exactly:
+
+- Linear span = the CENTER CHORD of the aligned bounds:
+  min(w/|cos a|, h/|sin a|), centered on the bounds center (measured within
+  0.5 px at angles 0/20/37/60/75/90 on full-canvas and inset-rect layers; the
+  earlier "matches neither" note came from conflating easing with span). This
+  intentionally differs from the corner-to-corner projection layer-style
+  overlays use - overlays keep their separately pinned calibration via
+  GradientSpanBasis::LayerProjection.
+- Classic easing applies even to TWO-stop ramps: per-segment catmull-rom with
+  duplicated virtual endpoints (f(t) = 0.5t + 1.5t^2 - t^3 for a plain 2-stop
+  ramp), scaled by smoothness/4096. The OPACITY ramp eases identically
+  (probe5e-alpha). Midpoints are the piecewise-linear law through
+  (midpoint, 50%) and apply BEFORE the ease (probe5e-mdpn30s).
+- gradient_color/gradient_stop_opacity expose this via the
+  endpoint_smoothing flag; the vector fill painter passes it, layer styles
+  keep the historical default.
+
 ### Known render divergences (July 2026)
 
-- GdFl / gradient-fill shading: Photoshop's fill-layer linear gradient is an
-  S-eased ramp whose effective span at non-axis angles matches neither the
-  overlay-calibrated projection (w cos + h sin) nor the center chord
-  (probe-grad-*.bmp in local-test-fixtures/vector-probe). Patchy renders the
-  overlay-calibrated geometry, within mean ~5/255 of PS on the committed
-  gradient fixture. Exact calibration is a follow-up (smoothness-0 probes will
-  separate span from easing).
+- GdFl with UNEVENLY spaced stops: Photoshop parametrizes its smoothness
+  spline non-uniformly by stop location; Patchy's uniform per-segment
+  catmull differs by a few /255 near uneven stops (gradient fixture: mean
+  1.2, max 8). A closed form was not identified from probes
+  (probe5e-ms3uneven); revisit only if it ever shows visually.
 - Stroke dashes: dash boundaries land where each renderer's arc-length
   integration puts them; sub-pixel flattening differences flip a handful of
   dash-edge pixels (mean delta ~0.3 on the strokes fixture).

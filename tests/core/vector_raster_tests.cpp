@@ -369,8 +369,11 @@ void raster_shape_paints_solid_gradient_pattern() {
   gradient.align_with_layer = true;
   const auto shaded = patchy::rasterize_vector_shape(content, canvas, nullptr, nullptr);
   CHECK(!shaded.bounds.empty());
-  const auto position = patchy::gradient_position(gradient, shaded.bounds, 10, 10);
-  const auto expected_color = patchy::gradient_color_dithered(gradient, position, 10, 10);
+  // The fill painter renders the GdFl-calibrated geometry: center-chord span
+  // and the smoothness ease applied even to two-stop ramps.
+  const auto position = patchy::gradient_position(gradient, shaded.bounds, 10, 10,
+                                                  patchy::GradientSpanBasis::CenterChord);
+  const auto expected_color = patchy::gradient_color_dithered(gradient, position, 10, 10, true);
   const auto* shaded_pixel = shaded.pixels.pixel(10 - shaded.bounds.x, 10 - shaded.bounds.y);
   CHECK(shaded_pixel[0] == expected_color.red);
   CHECK(shaded_pixel[1] == expected_color.green);

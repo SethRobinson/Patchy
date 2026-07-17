@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 namespace patchy {
@@ -499,7 +500,8 @@ FillCompositeResult composite_special_fill_rgb(std::array<std::uint8_t, 3> sourc
   return result;
 }
 
-float gradient_stop_opacity(const LayerStyleGradient& gradient, float position) {
+float gradient_stop_opacity(const LayerStyleGradient& gradient, float position,
+                            bool endpoint_smoothing) {
   if (gradient.form == GradientDefinitionForm::Noise) {
     return gradient.noise.add_transparency
                ? static_cast<float>(
@@ -527,13 +529,26 @@ float gradient_stop_opacity(const LayerStyleGradient& gradient, float position) 
       if (right.midpoint != 0.5F) {
         t = midpoint_remap(t,right. midpoint);
       }
+      if (endpoint_smoothing && gradient.smoothness > 0) {
+        // GdFl fill layers ease the opacity ramp exactly like the color ramp
+        // (probe5e-alpha, PS 27.8): per-segment catmull-rom with duplicated
+        // virtual endpoints, scaled by smoothness.
+        const auto previous = index > 1U ? stops[index - 2U].opacity : left.opacity;
+        const auto next = index + 1U < stops.size() ? stops[index + 1U].opacity : right.opacity;
+        const auto linear = static_cast<double>(left.opacity) +
+                            (static_cast<double>(right.opacity) - left.opacity) * t;
+        const auto cubic = catmull_rom(previous, left.opacity, right.opacity, next, t);
+        const auto smoothness = static_cast<double>(gradient.smoothness) / 4096.0;
+        return std::clamp(static_cast<float>(linear + (cubic - linear) * smoothness), 0.0F, 1.0F);
+      }
       return left.opacity + (right.opacity - left.opacity) * t;
     }
   }
   return stops.back().opacity;
 }
 
-RgbColor gradient_color(const LayerStyleGradient& gradient, float position) {
+RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
+                        bool endpoint_smoothing) {
   if (gradient.form == GradientDefinitionForm::Noise) {
     auto noise_channel = [&](int channel) {
       return gradient_noise_channel(gradient.noise, channel, position);
@@ -628,8 +643,9 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position) {
       const auto next =
           index + 1U < stops.size() ? stops[index + 1U].color : right.color;
       const auto smoothness =
-          stops.size() > 2U ? static_cast<double>(gradient.smoothness) / 4096.0
-                            : 0.0;
+          stops.size() > 2U || endpoint_smoothing
+              ? static_cast<double>(gradient.smoothness) / 4096.0
+              : 0.0;
       auto channel = [&](std::uint8_t p0, std::uint8_t p1, std::uint8_t p2,
                          std::uint8_t p3) {
         const auto linear = linear_channel(p1, p2);
@@ -649,8 +665,8 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position) {
 
 RgbColor gradient_color_dithered(const LayerStyleGradient& gradient,
                                  float position, std::int32_t x,
-                                 std::int32_t y) {
-  auto color = gradient_color(gradient, position);
+                                 std::int32_t y, bool endpoint_smoothing) {
+  auto color = gradient_color(gradient, position, endpoint_smoothing);
   if (!gradient.dither) {
     return color;
   }
@@ -668,7 +684,8 @@ RgbColor gradient_color_dithered(const LayerStyleGradient& gradient,
   return color;
 }
 
-float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::int32_t x, std::int32_t y) {
+float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::int32_t x,
+                        std::int32_t y, GradientSpanBasis basis) {
   const auto center_x = static_cast<float>(bounds.x) + static_cast<float>(bounds.width) *
                             (0.5F + gradient.offset_x_percent / 100.0F);
   const auto center_y = static_cast<float>(bounds.y) + static_cast<float>(bounds.height) *
@@ -685,9 +702,20 @@ float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::in
   // gradients on wide layers (the bevel_examine.psd text only reached the
   // middle of its 90-degree gradient). At 0/90 degrees this is exactly the
   // width/height; between them it is the projected corner-to-corner extent.
+  // GdFl fill layers instead span the CENTER CHORD through the bounds
+  // (min(w/|cos|, h/|sin|)) - Photoshop 27.8 measurements in
+  // docs/vector-tools.md; both bases agree at exact axis angles.
+  const auto abs_cos = std::abs(std::cos(radians));
+  const auto abs_sin = std::abs(std::sin(radians));
   const auto projected_span =
-      std::max(1.0F, std::abs(std::cos(radians)) * static_cast<float>(bounds.width) +
-                         std::abs(std::sin(radians)) * static_cast<float>(bounds.height));
+      basis == GradientSpanBasis::CenterChord
+          ? std::max(1.0F,
+                     std::min(abs_cos > 1e-6F ? static_cast<float>(bounds.width) / abs_cos
+                                              : std::numeric_limits<float>::infinity(),
+                              abs_sin > 1e-6F ? static_cast<float>(bounds.height) / abs_sin
+                                              : std::numeric_limits<float>::infinity()))
+          : std::max(1.0F, abs_cos * static_cast<float>(bounds.width) +
+                               abs_sin * static_cast<float>(bounds.height));
   float position = 0.0F;
   switch (gradient.type) {
     case LayerStyleGradientType::Radial: {
