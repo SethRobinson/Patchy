@@ -1588,6 +1588,50 @@ void ui_shape_layer_auto_targets_path_row_until_dismissed() {
   CHECK(!paths_list->selectedItems().isEmpty());
 }
 
+void ui_shape_layer_row_shows_vector_badge() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(120, 140), QPoint(320, 260));
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* shape_item = require_layer_item(*layer_list, QStringLiteral("Rectangle 1"));
+  auto* shape_row = layer_list->itemWidget(shape_item);
+  CHECK(shape_row != nullptr);
+  auto* badge = shape_row->findChild<QToolButton*>(QStringLiteral("layerVectorBadgeButton"));
+  CHECK(badge != nullptr);
+  CHECK(!badge->icon().isNull());
+
+  // Plain raster layers carry no vector badge.
+  auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  auto* background_row = layer_list->itemWidget(background_item);
+  CHECK(background_row != nullptr);
+  CHECK(background_row->findChild<QToolButton*>(QStringLiteral("layerVectorBadgeButton")) ==
+        nullptr);
+
+  // Clicking the badge opens the Shape Appearance dialog. The badge defers
+  // its open by one timer tick, so queue the reject AFTER the click: the
+  // open fires first and blocks in the dialog loop, then the reject timer
+  // fires inside that loop.
+  bool dialog_seen = false;
+  badge->click();
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    dialog_seen = dialog != nullptr;
+    if (dialog != nullptr) {
+      dialog->reject();
+    }
+  });
+  QApplication::processEvents();
+  CHECK(dialog_seen);
+}
+
 void ui_paths_panel_ctrl_click_loads_selection() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -1618,6 +1662,15 @@ void ui_paths_panel_ctrl_click_loads_selection() {
   CHECK(std::abs(selection->y() - 200) <= 1);
   CHECK(std::abs(selection->width() - 200) <= 2);
   CHECK(std::abs(selection->height() - 120) <= 2);
+
+  // Ctrl+Enter on the canvas loads the targeted row too (the PS staple).
+  canvas->clear_selection();
+  CHECK(!canvas->has_selection());
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
 }
 
 void ui_paths_panel_duplicate_and_reorder() {
@@ -1792,6 +1845,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_paths_panel_target_shows_overlay_with_any_tool},
       {"ui_shape_layer_auto_targets_path_row_until_dismissed",
        ui_shape_layer_auto_targets_path_row_until_dismissed},
+      {"ui_shape_layer_row_shows_vector_badge", ui_shape_layer_row_shows_vector_badge},
       {"ui_paths_panel_ctrl_click_loads_selection", ui_paths_panel_ctrl_click_loads_selection},
       {"ui_paths_panel_duplicate_and_reorder", ui_paths_panel_duplicate_and_reorder},
       {"ui_make_work_path_from_selection_traces_selection",

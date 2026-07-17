@@ -1134,7 +1134,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                bool smart_filter_mask_target_active = false,
                                bool smart_filter_mask_size_supported = true,
                                std::function<void(LayerId)> open_layer_styles = {},
-                               std::function<void(LayerId)> open_smart_object = {}, bool clipped = false,
+                               std::function<void(LayerId)> open_smart_object = {},
+                               std::function<void(LayerId)> open_shape_appearance = {}, bool clipped = false,
                                std::function<void(LayerId)> toggle_clipping = {},
                                std::function<void(LayerId, bool)> set_smart_filter_stack_enabled = {},
                                std::function<void(LayerId, std::size_t, bool)> set_smart_filter_enabled = {},
@@ -1393,6 +1394,14 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                : QObject::tr("Smart object. Click to edit its contents."),
         std::move(open_smart_object));
     smart_badge->setProperty("smartObjectLinked", linked);
+  }
+  if (layer_is_vector_shape(layer)) {
+    // Shape/fill layers bake their pixels, so the thumbnail alone cannot
+    // reveal the vector content; the badge makes it explicit (and opens the
+    // appearance editor, mirroring the fx badge).
+    add_badge_button(QStringLiteral("layerVectorBadgeButton"), QStringLiteral("badge-vector"),
+                     QObject::tr("Vector shape layer. Click to edit its appearance."),
+                     std::move(open_shape_appearance));
   }
   text_column->addLayout(details_row);
 
@@ -2397,6 +2406,16 @@ void MainWindow::refresh_layer_list() {
           document().set_active_layer(layer_id);
         }
         open_smart_object_contents();
+      },
+                                      [this](LayerId layer_id) {
+        if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
+          return;
+        }
+        reveal_layer_in_layer_list(layer_id);
+        if (document().active_layer_id() != layer_id) {
+          document().set_active_layer(layer_id);
+        }
+        edit_active_shape_appearance();
       },
                                       row_clipped,
                                       [this](LayerId layer_id) {

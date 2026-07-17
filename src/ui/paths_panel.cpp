@@ -134,7 +134,8 @@ void PathsPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) {
       flags |= Qt::ItemIsEditable | Qt::ItemIsDragEnabled;
       item->setToolTip(tr("Saved path. Double-click to rename; select to edit with the pen and "
                           "path tools.") + QLatin1Char('\n') +
-                       tr("Ctrl-click to load the path as a selection; drag to reorder."));
+                       tr("Ctrl-click or Ctrl+Enter loads the path as a selection; drag to "
+                          "reorder."));
     } else if (row.kind == RowKind::WorkPath) {
       QFont italic = item->font();
       italic.setItalic(true);

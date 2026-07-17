@@ -514,6 +514,10 @@ void CanvasWidget::set_path_display_dismiss_callback(std::function<void()> callb
   path_display_dismiss_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_path_load_selection_callback(std::function<void()> callback) {
+  path_load_selection_callback_ = std::move(callback);
+}
+
 const VectorPath* CanvasWidget::path_edit_target_path() const {
   if (layer_edit_target_ == LayerEditTarget::VectorMask) {
     if (const auto* layer = vector_mask_target_layer(); layer != nullptr) {

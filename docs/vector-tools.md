@@ -124,7 +124,10 @@ the list - PS placement; DocumentPath::set_kind drops the stale 1025 resource
 source so the writer allocates a saved-range id,
 psd_work_path_saved_as_named_round_trips). Ctrl-click (Cmd on macOS) loads a
 row's path as a selection without changing the targeting (the channel-panel
-convention). Saved rows drag-reorder among themselves (the layer row stays
+convention), and Ctrl+Enter on the CANVAS does the same for the targeted row
+- deliberately a canvas key, not an app shortcut: the inline text editor owns
+a window-scoped Ctrl+Return while it exists, and session commit keys
+(transform/warp) keep priority in keyPressEvent. Saved rows drag-reorder among themselves (the layer row stays
 first, the work path last; the panel reverts frame-breaking drops - the
 channel-panel pattern); the PSD writer assigns the sorted saved-range id set
 by document order so a reorder survives the round trip with verbatim payloads
@@ -184,6 +187,10 @@ rasterize first).
 
 ## Appearance editing and fill layers
 
+Shape/fill layers carry a vector badge on their layer-list row
+(layerVectorBadgeButton, the badge-fx pattern): their pixels are a baked
+cache, so the thumbnail alone cannot reveal the vector content. Clicking the
+badge opens the Shape Appearance dialog.
 Double-clicking a shape layer's row (or an imported fill layer's) opens the
 Shape Appearance dialog; the layer context menu offers the same editor as
 "Edit Shape Appearance..." directly after Edit Layer Styles (which stays the

@@ -5672,6 +5672,14 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     handle_paths_panel_deselect();
     refresh_paths_panel();
   });
+  canvas->set_path_load_selection_callback([this, canvas] {
+    if (canvas != canvas_ || paths_panel_ == nullptr) {
+      return;
+    }
+    if (const auto row = paths_panel_->selected_row(); row.has_value()) {
+      load_path_as_selection(static_cast<int>(row->kind), row->id);
+    }
+  });
   canvas->set_polygon_sides(
       findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")) != nullptr
           ? findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"))->value()

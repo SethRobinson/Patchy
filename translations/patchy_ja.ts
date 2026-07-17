@@ -4,7 +4,7 @@
 <context>
     <name>patchy::ui::PathsPanel</name>
     <message><source>Saved path. Double-click to rename; select to edit with the pen and path tools.</source><translation>保存済みパス。ダブルクリックで名前を変更、選択するとペン/パスツールで編集できます。</translation></message>
-    <message><source>Ctrl-click to load the path as a selection; drag to reorder.</source><translation>Ctrl+クリックでパスを選択範囲として読み込み、ドラッグで並べ替えます。</translation></message>
+    <message><source>Ctrl-click or Ctrl+Enter loads the path as a selection; drag to reorder.</source><translation>Ctrl+クリックまたは Ctrl+Enter でパスを選択範囲として読み込み、ドラッグで並べ替えます。</translation></message>
     <message><source>The temporary work path. Double-click to save it as a named path.</source><translation>一時的な作業用パス。ダブルクリックで名前付きパスとして保存します。</translation></message>
     <message><source>The active layer&apos;s path (shape or vector mask).</source><translation>アクティブレイヤーのパス（シェイプまたはベクトルマスク）。</translation></message>
 </context>
@@ -3212,6 +3212,10 @@
         <location line="+578"/>
         <source>Smart object. Click to edit its contents.</source>
         <translation>スマートオブジェクト。クリックで内容を編集します。</translation>
+    </message>
+    <message>
+        <source>Vector shape layer. Click to edit its appearance.</source>
+        <translation>ベクトルシェイプレイヤー。クリックで外観を編集します。</translation>
     </message>
     <message>
         <location line="-1"/>

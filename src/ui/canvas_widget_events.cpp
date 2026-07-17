@@ -2391,6 +2391,17 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  // Ctrl+Enter loads the targeted Paths-panel path as a selection (Photoshop).
+  // Deliberately after the transform/warp/text-rect handlers so session
+  // commit/cancel keys keep priority.
+  if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) &&
+      event->modifiers() == Qt::ControlModifier && panel_path_targeted_ &&
+      path_load_selection_callback_) {
+    path_load_selection_callback_();
+    event->accept();
+    return;
+  }
+
   if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
     if (selecting_) {
       spacebar_repositioning_drag_rect_ = true;

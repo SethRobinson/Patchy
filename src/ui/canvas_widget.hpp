@@ -541,6 +541,10 @@ public:
   // Invoked when Escape (path tools, nothing else to dismiss) asks to hide the
   // targeted path; MainWindow clears the Paths-panel selection in response.
   void set_path_display_dismiss_callback(std::function<void()> callback);
+  // Invoked on Ctrl+Enter while a Paths-panel row is targeted (Photoshop's
+  // load-path-as-selection key). Canvas-scoped rather than an app shortcut:
+  // the inline text editor owns a window-scoped Ctrl+Return while it exists.
+  void set_path_load_selection_callback(std::function<void()> callback);
   // The path the pen/path tools currently edit (panel > vector mask > shape
   // layer > work path); null when nothing is targetable.
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
@@ -1310,6 +1314,7 @@ private:
   std::optional<DocumentPathId> active_document_path_;
   bool panel_path_targeted_{false};
   std::function<void()> path_display_dismiss_callback_;
+  std::function<void()> path_load_selection_callback_;
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};
