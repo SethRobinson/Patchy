@@ -5580,6 +5580,9 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   // windows two canvases are live at once, and an edit (or an async completion)
   // must never snapshot whichever document happens to be active.
   canvas->set_before_edit_callback([this, canvas](QString label) {
+    if (scripted_stroke_undo_suppressed_) {
+      return;  // Stroke Path already pushed one snapshot for the whole command
+    }
     if (auto* target_session = session_for_canvas(canvas); target_session != nullptr) {
       push_undo_snapshot(*target_session, std::move(label));
     }

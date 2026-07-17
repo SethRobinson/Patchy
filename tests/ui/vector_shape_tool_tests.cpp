@@ -53,6 +53,8 @@ private:
   SettingsValueRestorer stroke_width_{QStringLiteral("tools/vectorStrokeWidth")};
   SettingsValueRestorer line_weight_{QStringLiteral("tools/vectorLineWeight")};
   SettingsValueRestorer corner_radius_{QStringLiteral("tools/shapeCornerRadius")};
+  SettingsValueRestorer work_path_tolerance_{QStringLiteral("paths/makeWorkPathTolerance")};
+  SettingsValueRestorer simulate_pressure_{QStringLiteral("paths/strokeSimulatePressure")};
 };
 
 void shape_drag(patchy::ui::CanvasWidget& canvas, QPoint document_from, QPoint document_to) {
@@ -934,14 +936,29 @@ void ui_paths_panel_fill_stroke_and_make_selection() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 260)), QColor(30, 160, 40), 8));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 260)), Qt::white, 8));
 
-  // Stroke Path draws a brush-sized band along the outline. The targeted
-  // path's outline overlay now draws with any tool, covering the band's
-  // center line in a widget grab, so deselect (empty-space click) first: the
-  // overlay must disappear and reveal the painted stroke.
+  // Stroke Path replays the path through the BRUSH ENGINE (one undo entry).
+  // The targeted path's outline overlay draws with any tool and would cover
+  // the stroke's center line in a widget grab, so deselect (empty-space
+  // click) before sampling: the overlay must disappear and reveal the paint.
   canvas->set_primary_color(QColor(200, 40, 160));
   canvas->set_brush_size(8);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  const auto undo_depth_before =
+      patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("strokePathDialog"));
+    CHECK(dialog != nullptr);
+    auto* simulate =
+        dialog->findChild<QCheckBox*>(QStringLiteral("strokePathSimulatePressureCheck"));
+    CHECK(simulate != nullptr);
+    simulate->setChecked(false);
+    dialog->accept();
+  });
   window.findChild<QAction*>(QStringLiteral("pathStrokeAction"))->trigger();
   QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_depth_before + 1);
   send_mouse(*paths_list->viewport(), QEvent::MouseButtonPress,
              QPoint(paths_list->viewport()->width() / 2, paths_list->viewport()->height() - 4),
              Qt::LeftButton, Qt::LeftButton);
@@ -1728,6 +1745,81 @@ void ui_paths_panel_duplicate_and_reorder() {
   CHECK(document.paths()[1].name() == "Path 2");
 }
 
+void ui_stroke_path_simulate_pressure_tapers() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // Pin the pen-input mapping the taper rides (the user's preferences could
+  // disable pressure->size).
+  auto pen_settings = canvas->pen_input_settings();
+  pen_settings.pressure_size = true;
+  pen_settings.pressure_size_min_percent = 20;
+  pen_settings.pressure_opacity = false;
+  canvas->set_pen_input_settings(pen_settings);
+
+  // An open horizontal line as the work path (document API: no implied chord).
+  patchy::PathAnchor start;
+  start.anchor_x = start.in_x = start.out_x = 150.0;
+  start.anchor_y = start.in_y = start.out_y = 300.0;
+  auto end = start;
+  end.anchor_x = end.in_x = end.out_x = 450.0;
+  patchy::PathSubpath line;
+  line.closed = false;
+  line.anchors = {start, end};
+  patchy::VectorPath path;
+  path.subpaths.push_back(line);
+  patchy::DocumentPath work(document.allocate_path_id(), "Work Path",
+                            patchy::DocumentPathKind::Work, std::move(path));
+  work.mark_dirty();
+  document.add_path(std::move(work));
+  patchy::ui::MainWindowTestAccess::refresh_paths_panel(window);
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
+
+  canvas->set_primary_color(QColor(20, 20, 20));
+  canvas->set_brush_size(20);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("strokePathDialog"));
+    CHECK(dialog != nullptr);
+    dialog->findChild<QCheckBox*>(QStringLiteral("strokePathSimulatePressureCheck"))
+        ->setChecked(true);
+    dialog->accept();
+  });
+  window.findChild<QAction*>(QStringLiteral("pathStrokeAction"))->trigger();
+  QApplication::processEvents();
+
+  // The taper: thin near the ends, full brush width in the middle. The
+  // startup document paints onto the transparent "Paint Layer" (the active
+  // layer), so measure painted alpha there, not on the Background.
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  const auto* paint_layer = std::as_const(document).find_layer(*active);
+  CHECK(paint_layer != nullptr);
+  const auto& pixels = paint_layer->pixels();
+  CHECK(pixels.format().channels == 4);
+  const auto thickness_at = [&pixels](int x) {
+    int count = 0;
+    for (int y = 250; y <= 350; ++y) {
+      if (pixels.pixel(x, y)[3] > 0U) {
+        ++count;
+      }
+    }
+    return count;
+  };
+  const int start_thickness = thickness_at(160);
+  const int mid_thickness = thickness_at(300);
+  CHECK(mid_thickness >= 15);
+  CHECK(start_thickness >= 1);
+  CHECK(start_thickness <= mid_thickness / 2);
+}
+
 void ui_path_free_transform_moves_scales_and_undoes() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -1923,6 +2015,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_paths_panel_duplicate_and_reorder", ui_paths_panel_duplicate_and_reorder},
       {"ui_path_free_transform_moves_scales_and_undoes",
        ui_path_free_transform_moves_scales_and_undoes},
+      {"ui_stroke_path_simulate_pressure_tapers", ui_stroke_path_simulate_pressure_tapers},
       {"ui_make_work_path_from_selection_traces_selection",
        ui_make_work_path_from_selection_traces_selection},
   };

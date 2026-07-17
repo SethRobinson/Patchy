@@ -152,9 +152,13 @@ still displays its edit-target fallback after a dismissal - it shows what it
 would edit; only non-path tools go outline-free.
 
 Footer commands: New Path (empty, immediately targeted), Fill Path
-(foreground color through the coverage), Stroke Path (a centered round-capped
-band at the brush size in the foreground color; per-stamp brush dynamics are
-not simulated), Make Selection (feather via triple box blur, anti-alias
+(foreground color through the coverage), Stroke Path (replays the flattened
+path through the BRUSH ENGINE as synthetic input - current tip, size,
+opacity, dynamics, foreground color, one "Stroke path" undo entry via the
+scripted_stroke_undo_suppressed_ flag; the dialog's persisted Simulate
+Pressure option sends tablet events with a sine taper riding the user's
+pen-input pressure mapping, and open subpaths do NOT gain the fill-only
+implied chord), Make Selection (feather via triple box blur, anti-alias
 toggle, New/Add/Subtract/Intersect operations), Make Work Path from Selection
 (tolerance dialog 0.5-10 px persisted at paths/makeWorkPathTolerance, default
 2.0; traces the hard selection region and fits it via core/path_fit -

@@ -12825,6 +12825,10 @@ Clipped to the layer below</source>
     <message><source>Make Work Path</source><translation>作業用パスを作成</translation></message>
     <message><source>Tolerance:</source><translation>許容値:</translation></message>
     <message><source>The selection is too small to trace</source><translation>選択範囲が小さすぎてトレースできません</translation></message>
+    <message><source>Strokes along the path with the current brush and the foreground color.</source><translation>現在のブラシと描画色でパスに沿って描画します。</translation></message>
+    <message><source>Simulate pressure</source><translation>筆圧をシミュレート</translation></message>
+    <message><source>Tapers the stroke from thin to full and back, as if drawn with a pressure pen.</source><translation>筆圧ペンで描いたように、細く始まり太くなって細く終わるストロークにします。</translation></message>
+    <message><source>Stroked the path with the current brush</source><translation>現在のブラシでパスの境界線を描きました</translation></message>
     <message><source>Make work path</source><translation>作業用パスを作成</translation></message>
     <message><source>Made a work path from the selection.</source><translation>選択範囲から作業用パスを作成しました。</translation></message>
     <message><source>Select a path to fill</source><translation>塗りつぶすパスを選択してください</translation></message>

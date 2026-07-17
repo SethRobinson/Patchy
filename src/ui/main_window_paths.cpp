@@ -18,6 +18,7 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/selection_outline.hpp"
 
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -25,9 +26,14 @@
 #include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QImage>
+#include <QLabel>
+#include <QLineF>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPointingDevice>
 #include <QStatusBar>
+#include <QTabletEvent>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -100,6 +106,44 @@ QPixmap path_outline_thumbnail(const VectorPath& path, int document_width, int d
   border.setPen(QPen(QColor(150, 158, 168), 1));
   border.drawRect(QRect(0, 0, kWidth - 1, kHeight - 1));
   return pixmap;
+}
+
+// Dense document-space polylines for stroking with the brush engine: one per
+// subpath, sampled every ~2 px (the engine applies its own stamp spacing
+// between input events). Closed subpaths traverse their closing segment; open
+// subpaths do NOT gain the fill-only implied chord.
+std::vector<std::vector<QPointF>> stroke_polylines_for_path(const VectorPath& path) {
+  std::vector<std::vector<QPointF>> polylines;
+  for (const auto& subpath : path.subpaths) {
+    if (subpath.anchors.size() < 2) {
+      continue;
+    }
+    std::vector<QPointF> points;
+    const auto anchor_count = subpath.anchors.size();
+    const auto segment_count = subpath.closed ? anchor_count : anchor_count - 1;
+    points.emplace_back(subpath.anchors[0].anchor_x, subpath.anchors[0].anchor_y);
+    for (std::size_t i = 0; i < segment_count; ++i) {
+      const auto& a = subpath.anchors[i];
+      const auto& b = subpath.anchors[(i + 1) % anchor_count];
+      const QPointF p0(a.anchor_x, a.anchor_y);
+      const QPointF p1(a.out_x, a.out_y);
+      const QPointF p2(b.in_x, b.in_y);
+      const QPointF p3(b.anchor_x, b.anchor_y);
+      const auto hull =
+          QLineF(p0, p1).length() + QLineF(p1, p2).length() + QLineF(p2, p3).length();
+      const int steps = std::clamp(static_cast<int>(std::lround(hull / 2.0)), 4, 400);
+      for (int step = 1; step <= steps; ++step) {
+        const double t = static_cast<double>(step) / steps;
+        const double u = 1.0 - t;
+        points.emplace_back(u * u * u * p0.x() + 3.0 * t * u * u * p1.x() +
+                                3.0 * t * t * u * p2.x() + t * t * t * p3.x(),
+                            u * u * u * p0.y() + 3.0 * t * u * u * p1.y() +
+                                3.0 * t * t * u * p2.y() + t * t * t * p3.y());
+      }
+    }
+    polylines.push_back(std::move(points));
+  }
+  return polylines;
 }
 
 // Full-canvas grayscale coverage of a path (no feather).
@@ -567,59 +611,107 @@ void MainWindow::stroke_active_path() {
     show_status_error(tr("Layer pixels are locked."));
     return;
   }
-  push_undo_snapshot(tr("Stroke path"));
-  // A centered round-capped band at the brush size, painted with the
-  // foreground color (the brush-tool defaults; per-stamp dynamics are not
-  // simulated).
-  VectorStroke stroke;
-  stroke.enabled = true;
-  stroke.width = std::max(1, canvas_->brush_size());
-  stroke.cap = VectorStrokeCap::Round;
-  stroke.join = VectorStrokeJoin::Round;
-  stroke.alignment = VectorStrokeAlignment::Center;
-  VectorRasterOptions options;
-  options.clip = Rect::from_size(doc.width(), doc.height());
-  const auto band = rasterize_vector_stroke(*path, stroke, options);
-  const auto color = canvas_->primary_color();
-  auto& pixels = layer->pixels();
-  const auto bounds = layer->bounds();
-  const bool lock_transparency = layer_locks_transparent_pixels(*layer);
-  for (int y = 0; y < pixels.height(); ++y) {
-    const auto document_y = bounds.y + y;
-    for (int x = 0; x < pixels.width(); ++x) {
-      const auto document_x = bounds.x + x;
-      const auto local_x = document_x - band.bounds.x;
-      const auto local_y = document_y - band.bounds.y;
-      std::uint8_t alpha = 0;
-      if (!band.pixels.empty() && local_x >= 0 && local_y >= 0 && local_x < band.pixels.width() &&
-          local_y < band.pixels.height()) {
-        alpha = *band.pixels.pixel(local_x, local_y);
-      }
-      if (alpha == 0) {
-        continue;
-      }
-      auto* pixel = pixels.pixel(x, y);
-      const auto channels = pixels.format().channels;
-      const auto existing_alpha = channels >= 4 ? pixel[3] : std::uint8_t{255};
-      if (lock_transparency && existing_alpha == 0) {
-        continue;
-      }
-      const auto blend = [alpha](std::uint8_t source, std::uint8_t destination) {
-        return static_cast<std::uint8_t>((source * alpha + destination * (255 - alpha) + 127) / 255);
-      };
-      pixel[0] = blend(static_cast<std::uint8_t>(color.red()), pixel[0]);
-      pixel[1] = blend(static_cast<std::uint8_t>(color.green()), pixel[1]);
-      if (channels >= 3) {
-        pixel[2] = blend(static_cast<std::uint8_t>(color.blue()), pixel[2]);
-      }
-      if (channels >= 4 && !lock_transparency) {
-        pixel[3] = static_cast<std::uint8_t>(existing_alpha + (255 - existing_alpha) * alpha / 255);
-      }
-    }
+
+  const auto simulate_key = QStringLiteral("paths/strokeSimulatePressure");
+  auto settings = app_settings();
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("strokePathDialog"));
+  dialog.setWindowTitle(tr("Stroke Path"));
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* note = new QLabel(tr("Strokes along the path with the current brush and the "
+                             "foreground color."),
+                          &dialog);
+  note->setWordWrap(true);
+  layout->addWidget(note);
+  auto* simulate = new QCheckBox(tr("Simulate pressure"), &dialog);
+  simulate->setObjectName(QStringLiteral("strokePathSimulatePressureCheck"));
+  simulate->setToolTip(tr("Tapers the stroke from thin to full and back, as if drawn with a "
+                          "pressure pen."));
+  simulate->setChecked(settings.value(simulate_key, false).toBool());
+  layout->addWidget(simulate);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    return;
   }
-  canvas_->document_changed();
+  settings.setValue(simulate_key, simulate->isChecked());
+  // Non-modal dialog: re-resolve everything the event loop may have changed.
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  path = resolved_panel_path(&path_name);
+  if (path == nullptr || path->empty()) {
+    return;
+  }
+
+  const auto polylines = stroke_polylines_for_path(*path);
+  if (polylines.empty()) {
+    show_status_error(tr("Select a path to stroke"));
+    return;
+  }
+  // One history entry for the whole command; the per-stroke undo pushes from
+  // the synthetic input below are suppressed.
+  push_undo_snapshot(tr("Stroke path"));
+  scripted_stroke_undo_suppressed_ = true;
+  const auto previous_tool = canvas_->tool();
+  canvas_->set_tool(CanvasTool::Brush);
+  const auto origin = canvas_->widget_position_for_document_point(QPoint(0, 0));
+  const auto zoom = canvas_->zoom();
+  const auto widget_point = [&](QPointF document_point) {
+    return QPointF(origin.x() + document_point.x() * zoom,
+                   origin.y() + document_point.y() * zoom);
+  };
+  // The stylus device mirrors the test harness's synthetic pen: pressure
+  // rides the canvas's own pen-input settings, so Simulate Pressure behaves
+  // exactly like drawing the path with a real pen.
+  static QPointingDevice stroke_pen(
+      QStringLiteral("Patchy stroke-path pen"), 1004, QInputDevice::DeviceType::Stylus,
+      QPointingDevice::PointerType::Pen,
+      QInputDevice::Capability::Position | QInputDevice::Capability::Pressure, 1, 3);
+  for (const auto& polyline : polylines) {
+    if (polyline.empty()) {
+      continue;
+    }
+    // Cumulative arc length drives the taper profile.
+    std::vector<double> arc(polyline.size(), 0.0);
+    for (std::size_t i = 1; i < polyline.size(); ++i) {
+      arc[i] = arc[i - 1] + QLineF(polyline[i - 1], polyline[i]).length();
+    }
+    const auto total = std::max(arc.back(), 1e-6);
+    const auto send_point = [&](QEvent::Type mouse_type, QEvent::Type tablet_type,
+                                std::size_t index) {
+      const auto position = widget_point(polyline[index]);
+      const auto global = canvas_->mapToGlobal(position.toPoint());
+      if (simulate->isChecked()) {
+        // The classic taper: thin at the ends, full in the middle.
+        const auto pressure = std::sin(arc[index] / total * 3.14159265358979323846);
+        QTabletEvent event(tablet_type, &stroke_pen, position, QPointF(global),
+                           std::clamp(pressure, 0.02, 1.0), 0.0F, 0.0F, 0.0F, 0.0, 0.0F,
+                           Qt::NoModifier, Qt::LeftButton,
+                           tablet_type == QEvent::TabletRelease ? Qt::NoButton : Qt::LeftButton);
+        QApplication::sendEvent(canvas_, &event);
+      } else {
+        QMouseEvent event(mouse_type, position, QPointF(global),
+                          mouse_type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
+                          mouse_type == QEvent::MouseButtonRelease ? Qt::NoButton
+                                                                   : Qt::LeftButton,
+                          Qt::NoModifier);
+        QApplication::sendEvent(canvas_, &event);
+      }
+    };
+    send_point(QEvent::MouseButtonPress, QEvent::TabletPress, 0);
+    for (std::size_t i = 1; i < polyline.size(); ++i) {
+      send_point(QEvent::MouseMove, QEvent::TabletMove, i);
+    }
+    send_point(QEvent::MouseButtonRelease, QEvent::TabletRelease, polyline.size() - 1);
+  }
+  canvas_->set_tool(previous_tool);
+  scripted_stroke_undo_suppressed_ = false;
+  QApplication::processEvents();
   refresh_layer_thumbnails();
-  statusBar()->showMessage(tr("Stroked the path with the foreground color"));
+  statusBar()->showMessage(tr("Stroked the path with the current brush"));
 }
 
 void MainWindow::make_selection_from_path() {

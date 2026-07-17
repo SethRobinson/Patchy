@@ -918,6 +918,10 @@ private:
   PathsPanel* paths_panel_{nullptr};
   QDockWidget* paths_dock_{nullptr};
   std::optional<patchy::DocumentPathId> active_document_path_id_;
+  // True while Stroke Path replays synthetic brush input: the per-stroke undo
+  // pushes from the canvas's before-edit callback are suppressed so the whole
+  // command stays one "Stroke path" history entry.
+  bool scripted_stroke_undo_suppressed_{false};
   // The layer whose transient Paths-panel row the user explicitly dismissed
   // (empty-space click / Esc): auto-targeting skips it while that layer stays
   // active, so the outline stays hidden until the layer changes or the user
