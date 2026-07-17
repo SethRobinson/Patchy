@@ -7,6 +7,7 @@
 #include "core/pixel_buffer.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/default_custom_shapes.hpp"
+#include "ui/pattern_library.hpp"
 
 #include <QAction>
 #include <QCheckBox>
@@ -55,6 +56,9 @@ private:
   SettingsValueRestorer corner_radius_{QStringLiteral("tools/shapeCornerRadius")};
   SettingsValueRestorer work_path_tolerance_{QStringLiteral("paths/makeWorkPathTolerance")};
   SettingsValueRestorer simulate_pressure_{QStringLiteral("paths/strokeSimulatePressure")};
+  SettingsValueRestorer fill_contents_{QStringLiteral("paths/fillContents")};
+  SettingsValueRestorer fill_pattern_{QStringLiteral("paths/fillPatternId")};
+  SettingsValueRestorer fill_opacity_{QStringLiteral("paths/fillOpacity")};
 };
 
 void shape_drag(patchy::ui::CanvasWidget& canvas, QPoint document_from, QPoint document_to) {
@@ -929,8 +933,16 @@ void ui_paths_panel_fill_stroke_and_make_selection() {
   paths_list->setCurrentRow(0);
   QApplication::processEvents();
 
-  // Fill Path paints the foreground color into the active raster layer.
+  // Fill Path paints the foreground color into the active raster layer (the
+  // dialog's default contents).
   canvas->set_primary_color(QColor(30, 160, 40));
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("fillPathDialog"));
+    CHECK(dialog != nullptr);
+    dialog->findChild<QComboBox*>(QStringLiteral("fillPathContentsCombo"))->setCurrentIndex(0);
+    dialog->findChild<QSpinBox*>(QStringLiteral("fillPathOpacitySpin"))->setValue(100);
+    dialog->accept();
+  });
   window.findChild<QAction*>(QStringLiteral("pathFillAction"))->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 260)), QColor(30, 160, 40), 8));
@@ -1745,6 +1757,86 @@ void ui_paths_panel_duplicate_and_reorder() {
   CHECK(document.paths()[1].name() == "Path 2");
 }
 
+void ui_fill_path_supports_patterns() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(200, 200), QPoint(400, 320));
+
+  // Install a deterministic two-color checker pattern (the test settings
+  // sandbox leaves the library unpopulated, so bundled entries are not
+  // guaranteed here).
+  patchy::PixelBuffer tile(8, 8, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < 8; ++y) {
+    for (int x = 0; x < 8; ++x) {
+      auto* px = tile.pixel(x, y);
+      const bool first = ((x / 4) + (y / 4)) % 2 == 0;
+      px[0] = first ? 10 : 240;
+      px[1] = first ? 200 : 40;
+      px[2] = first ? 30 : 220;
+      px[3] = 255;
+    }
+  }
+  const auto pattern_id = QStringLiteral("patchy-test-fill-path-pattern");
+  if (const auto* stale = window.pattern_library().find_entry_by_pattern_id(pattern_id);
+      stale != nullptr) {
+    CHECK(window.pattern_library().remove_pattern(stale->storage_id));
+  }
+  const auto storage_id = window.pattern_library().add_pattern(
+      QStringLiteral("Fill Path Test"), tile, QStringLiteral("Tests"), pattern_id);
+  CHECK(!storage_id.isEmpty());
+
+  // A deliberately absurd foreground proves the pattern pixels were used.
+  canvas->set_primary_color(QColor(255, 0, 255));
+  bool pattern_selected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("fillPathDialog"));
+    CHECK(dialog != nullptr);
+    auto* contents = dialog->findChild<QComboBox*>(QStringLiteral("fillPathContentsCombo"));
+    auto* pattern = dialog->findChild<QComboBox*>(QStringLiteral("fillPathPatternCombo"));
+    CHECK(contents != nullptr && pattern != nullptr);
+    contents->setCurrentIndex(2);  // Pattern
+    CHECK(pattern->isEnabled());
+    const auto index = pattern->findData(pattern_id);
+    pattern_selected = index >= 0;
+    if (pattern_selected) {
+      pattern->setCurrentIndex(index);
+    }
+    dialog->findChild<QSpinBox*>(QStringLiteral("fillPathOpacitySpin"))->setValue(100);
+    dialog->accept();
+  });
+  window.findChild<QAction*>(QStringLiteral("pathFillAction"))->trigger();
+  QApplication::processEvents();
+  CHECK(pattern_selected);
+
+  // The active Paint Layer gained checker pixels inside the path (never the
+  // magenta foreground); outside stays untouched.
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  const auto* paint_layer = std::as_const(document).find_layer(*active);
+  CHECK(paint_layer != nullptr);
+  const auto& pixels = paint_layer->pixels();
+  CHECK(pixels.format().channels == 4);
+  const auto* inside = pixels.pixel(300, 260);
+  CHECK(inside[3] == 255U);
+  const bool matches_checker =
+      (inside[0] == 10U && inside[1] == 200U && inside[2] == 30U) ||
+      (inside[0] == 240U && inside[1] == 40U && inside[2] == 220U);
+  CHECK(matches_checker);
+  const auto* outside = pixels.pixel(150, 260);
+  CHECK(outside[3] == 0U);
+
+  CHECK(window.pattern_library().remove_pattern(storage_id));
+}
+
 void ui_stroke_path_simulate_pressure_tapers() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -2016,6 +2108,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_path_free_transform_moves_scales_and_undoes",
        ui_path_free_transform_moves_scales_and_undoes},
       {"ui_stroke_path_simulate_pressure_tapers", ui_stroke_path_simulate_pressure_tapers},
+      {"ui_fill_path_supports_patterns", ui_fill_path_supports_patterns},
       {"ui_make_work_path_from_selection_traces_selection",
        ui_make_work_path_from_selection_traces_selection},
   };

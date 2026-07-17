@@ -151,8 +151,11 @@ changes, the user re-clicks the row, or a new drag commits. Note a path tool
 still displays its edit-target fallback after a dismissal - it shows what it
 would edit; only non-path tools go outline-free.
 
-Footer commands: New Path (empty, immediately targeted), Fill Path
-(foreground color through the coverage), Stroke Path (replays the flattened
+Footer commands: New Path (empty, immediately targeted), Fill Path (a
+persisted options dialog: foreground/background color or a PATTERN from the
+document store + pattern library, tiles aligned to the document origin, plus
+opacity; palette mode writes hard snapped pixels via snap_pixel_to_palette
+with the coverage threshold), Stroke Path (replays the flattened
 path through the BRUSH ENGINE as synthetic input - current tip, size,
 opacity, dynamics, foreground color, one "Stroke path" undo entry via the
 scripted_stroke_undo_suppressed_ flag; the dialog's persisted Simulate

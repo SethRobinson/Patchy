@@ -8,13 +8,16 @@
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/palette.hpp"
 #include "core/path_fit.hpp"
+#include "core/pattern_resource.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/paths_panel.hpp"
+#include "ui/pattern_library.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/selection_outline.hpp"
 
@@ -29,9 +32,11 @@
 #include <QLabel>
 #include <QLineF>
 #include <QMouseEvent>
+#include <QIcon>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointingDevice>
+#include <QSpinBox>
 #include <QStatusBar>
 #include <QTabletEvent>
 #include <QVBoxLayout>
@@ -538,23 +543,126 @@ void MainWindow::fill_active_path() {
     show_status_error(tr("Select a path to fill"));
     return;
   }
+  {
+    const auto& doc = document();
+    const auto active = doc.active_layer_id();
+    const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+    if (layer == nullptr || layer->kind() != LayerKind::Pixel ||
+        layer_pixels_are_procedural(*layer)) {
+      show_status_error(tr("Select an editable pixel layer first"));
+      return;
+    }
+    if (layer_id_locks_image_pixels(*active)) {
+      show_status_error(tr("Layer pixels are locked."));
+      return;
+    }
+  }
+
+  // Options: contents (foreground/background/pattern) and opacity, persisted
+  // like the other paths dialogs.
+  const auto contents_key = QStringLiteral("paths/fillContents");
+  const auto pattern_key = QStringLiteral("paths/fillPatternId");
+  const auto opacity_key = QStringLiteral("paths/fillOpacity");
+  auto settings = app_settings();
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("fillPathDialog"));
+  dialog.setWindowTitle(tr("Fill Path"));
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* form = new QFormLayout();
+  auto* contents = new QComboBox(&dialog);
+  contents->setObjectName(QStringLiteral("fillPathContentsCombo"));
+  contents->addItems({tr("Foreground color"), tr("Background color"), tr("Pattern")});
+  form->addRow(tr("Contents:"), contents);
+  auto* pattern_combo = new QComboBox(&dialog);
+  pattern_combo->setObjectName(QStringLiteral("fillPathPatternCombo"));
+  pattern_combo->setIconSize(QSize(24, 24));
+  for (const auto& resource : document().metadata().patterns.patterns) {
+    const auto name = resource.name.empty() ? tr("Embedded pattern")
+                                            : QString::fromStdString(resource.name);
+    pattern_combo->addItem(name, QString::fromStdString(resource.id));
+  }
+  for (const auto& entry : pattern_library().entries()) {
+    if (pattern_combo->findData(entry.id) < 0) {
+      pattern_combo->addItem(QIcon(entry.thumbnail), entry.name, entry.id);
+    }
+  }
+  form->addRow(tr("Pattern:"), pattern_combo);
+  auto* opacity = new QSpinBox(&dialog);
+  opacity->setObjectName(QStringLiteral("fillPathOpacitySpin"));
+  opacity->setRange(1, 100);
+  opacity->setSuffix(QStringLiteral("%"));
+  form->addRow(tr("Opacity:"), opacity);
+  layout->addLayout(form);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+  contents->setCurrentIndex(std::clamp(settings.value(contents_key, 0).toInt(), 0, 2));
+  if (const auto stored = settings.value(pattern_key).toString(); !stored.isEmpty()) {
+    if (const auto index = pattern_combo->findData(stored); index >= 0) {
+      pattern_combo->setCurrentIndex(index);
+    }
+  }
+  opacity->setValue(std::clamp(settings.value(opacity_key, 100).toInt(), 1, 100));
+  const auto sync_pattern_enabled = [contents, pattern_combo] {
+    pattern_combo->setEnabled(contents->currentIndex() == 2);
+  };
+  sync_pattern_enabled();
+  connect(contents, &QComboBox::currentIndexChanged, &dialog, sync_pattern_enabled);
+  // The QSS sub-control gotcha: spin-button styling lands AFTER children exist.
+  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    return;
+  }
+  settings.setValue(contents_key, contents->currentIndex());
+  settings.setValue(pattern_key, pattern_combo->currentData().toString());
+  settings.setValue(opacity_key, opacity->value());
+  // Non-modal dialog: re-resolve everything the event loop may have changed.
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  path = resolved_panel_path(&path_name);
+  if (path == nullptr || path->empty()) {
+    return;
+  }
   auto& doc = document();
   const auto active = doc.active_layer_id();
   auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
-  if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_pixels_are_procedural(*layer)) {
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_pixels_are_procedural(*layer) ||
+      layer_id_locks_image_pixels(*active)) {
     show_status_error(tr("Select an editable pixel layer first"));
     return;
   }
-  if (layer_id_locks_image_pixels(*active)) {
-    show_status_error(tr("Layer pixels are locked."));
-    return;
+
+  const bool use_pattern = contents->currentIndex() == 2;
+  std::optional<PatternResource> pattern;
+  if (use_pattern) {
+    const auto id = pattern_combo->currentData().toString();
+    if (!id.isEmpty()) {
+      if (const auto* existing = doc.metadata().patterns.find(id.toStdString());
+          existing != nullptr) {
+        pattern = *existing;
+      } else if (auto resource = pattern_library().resource(id); resource.has_value()) {
+        pattern = std::move(*resource);
+      }
+    }
+    if (!pattern.has_value() || pattern->tile.empty()) {
+      show_status_error(tr("Choose a pattern to fill with"));
+      return;
+    }
   }
+
   push_undo_snapshot(tr("Fill path"));
   const auto coverage = path_selection_coverage(*path, doc.width(), doc.height());
-  const auto color = canvas_->primary_color();
+  const auto color =
+      contents->currentIndex() == 1 ? canvas_->secondary_color() : canvas_->primary_color();
+  const int opacity_percent = opacity->value();
+  const auto* palette_snap = canvas_->palette_snap_for_edits();
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const bool lock_transparency = layer_locks_transparent_pixels(*layer);
+  const auto tile_width = pattern.has_value() ? pattern->tile.width() : 0;
+  const auto tile_height = pattern.has_value() ? pattern->tile.height() : 0;
   for (int y = 0; y < pixels.height(); ++y) {
     const auto document_y = bounds.y + y;
     if (document_y < 0 || document_y >= doc.height()) {
@@ -565,7 +673,25 @@ void MainWindow::fill_active_path() {
       if (document_x < 0 || document_x >= doc.width()) {
         continue;
       }
-      const auto alpha = *coverage.pixel(document_x, document_y);
+      auto alpha = static_cast<int>(*coverage.pixel(document_x, document_y));
+      if (alpha == 0) {
+        continue;
+      }
+      alpha = alpha * opacity_percent / 100;
+      std::uint8_t source_red = static_cast<std::uint8_t>(color.red());
+      std::uint8_t source_green = static_cast<std::uint8_t>(color.green());
+      std::uint8_t source_blue = static_cast<std::uint8_t>(color.blue());
+      if (pattern.has_value()) {
+        // Tiles align to the document origin (the Photoshop fill rule).
+        const auto* tile_pixel = pattern->tile.pixel(document_x % tile_width,
+                                                     document_y % tile_height);
+        source_red = tile_pixel[0];
+        source_green = tile_pixel[1];
+        source_blue = tile_pixel[2];
+        if (pattern->tile.format().channels >= 4) {
+          alpha = alpha * tile_pixel[3] / 255;
+        }
+      }
       if (alpha == 0) {
         continue;
       }
@@ -575,13 +701,30 @@ void MainWindow::fill_active_path() {
       if (lock_transparency && existing_alpha == 0) {
         continue;
       }
+      if (palette_snap != nullptr) {
+        // Palette mode writes hard pixels: coverage below the threshold writes
+        // nothing, anything above writes the source snapped to the palette.
+        if (static_cast<float>(alpha) / 255.0F < palette_snap->coverage_threshold) {
+          continue;
+        }
+        pixel[0] = source_red;
+        pixel[1] = source_green;
+        if (channels >= 3) {
+          pixel[2] = source_blue;
+        }
+        if (channels >= 4 && !lock_transparency) {
+          pixel[3] = 255;
+        }
+        snap_pixel_to_palette(pixel, channels, *palette_snap);
+        continue;
+      }
       const auto blend = [alpha](std::uint8_t source, std::uint8_t destination) {
         return static_cast<std::uint8_t>((source * alpha + destination * (255 - alpha) + 127) / 255);
       };
-      pixel[0] = blend(static_cast<std::uint8_t>(color.red()), pixel[0]);
-      pixel[1] = blend(static_cast<std::uint8_t>(color.green()), pixel[1]);
+      pixel[0] = blend(source_red, pixel[0]);
+      pixel[1] = blend(source_green, pixel[1]);
       if (channels >= 3) {
-        pixel[2] = blend(static_cast<std::uint8_t>(color.blue()), pixel[2]);
+        pixel[2] = blend(source_blue, pixel[2]);
       }
       if (channels >= 4 && !lock_transparency) {
         pixel[3] = static_cast<std::uint8_t>(existing_alpha + (255 - existing_alpha) * alpha / 255);
@@ -590,7 +733,8 @@ void MainWindow::fill_active_path() {
   }
   canvas_->document_changed();
   refresh_layer_thumbnails();
-  statusBar()->showMessage(tr("Filled the path with the foreground color"));
+  statusBar()->showMessage(use_pattern ? tr("Filled the path with the pattern")
+                                       : tr("Filled the path"));
 }
 
 void MainWindow::stroke_active_path() {
