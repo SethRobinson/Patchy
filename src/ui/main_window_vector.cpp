@@ -13,6 +13,7 @@
 #include "core/vector_shape.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/custom_shape_library.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/photo_pattern_presets.hpp"
@@ -20,12 +21,19 @@
 #include "ui/shape_appearance_dialog.hpp"
 
 #include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
 #include <QIcon>
+#include <QLineEdit>
 #include <QMenu>
 #include <QPainter>
 #include <QPixmap>
+#include <QSignalBlocker>
+#include <QStandardItemModel>
 #include <QStatusBar>
 #include <QToolButton>
+#include <QVBoxLayout>
 
 #include <algorithm>
 #include <cmath>
@@ -327,8 +335,32 @@ void MainWindow::refresh_vector_tool_options_visibility() {
   if (!shape_tool) {
     return;  // per-tool visibility already hid every mode-specific widget
   }
-  const bool vector_mode = current_vector_tool_mode_ != VectorToolMode::Pixels;
-  const bool shape_mode = current_vector_tool_mode_ == VectorToolMode::Shape;
+  // Pen/Polygon/Custom Shape never rasterize: a persisted Pixels mode behaves
+  // as Path for them, so the combo greys the Pixels entry out and displays the
+  // effective mode instead - without rewriting the setting the raster-capable
+  // Line/Rect/Ellipse tools still use.
+  const bool vector_only_tool = current_tool_ == CanvasTool::Pen ||
+                                current_tool_ == CanvasTool::Polygon ||
+                                current_tool_ == CanvasTool::CustomShape;
+  const auto effective_mode =
+      vector_only_tool && current_vector_tool_mode_ == VectorToolMode::Pixels
+          ? VectorToolMode::Path
+          : current_vector_tool_mode_;
+  if (vector_mode_combo_ != nullptr) {
+    if (auto* model = qobject_cast<QStandardItemModel*>(vector_mode_combo_->model());
+        model != nullptr && model->item(2) != nullptr) {
+      model->item(2)->setEnabled(!vector_only_tool);
+    }
+    const int display_index = effective_mode == VectorToolMode::Path     ? 1
+                              : effective_mode == VectorToolMode::Pixels ? 2
+                                                                         : 0;
+    if (vector_mode_combo_->currentIndex() != display_index) {
+      QSignalBlocker blocker(vector_mode_combo_);
+      vector_mode_combo_->setCurrentIndex(display_index);
+    }
+  }
+  const bool vector_mode = effective_mode != VectorToolMode::Pixels;
+  const bool shape_mode = effective_mode == VectorToolMode::Shape;
   for (auto* widget : vector_pixel_only_option_widgets_) {
     if (widget != nullptr && vector_mode) {
       widget->setVisible(false);
@@ -904,7 +936,29 @@ void MainWindow::define_custom_shape_from_path() {
   const auto scale = 1.0 / std::max(width, height);
   transform_vector_path(normalized, {scale, 0.0, 0.0, scale, -bounds->left * scale,
                                      -bounds->top * scale});
-  const auto name = tr("Custom Shape %1").arg(custom_shape_library().entries().size() + 1);
+  // Name prompt, prefilled with the generated fallback (Photoshop's flow).
+  const auto default_name =
+      tr("Custom Shape %1").arg(custom_shape_library().entries().size() + 1);
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("defineCustomShapeDialog"));
+  dialog.setWindowTitle(tr("Define Custom Shape"));
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* form = new QFormLayout();
+  auto* name_edit = new QLineEdit(default_name, &dialog);
+  name_edit->setObjectName(QStringLiteral("defineCustomShapeNameEdit"));
+  name_edit->selectAll();
+  form->addRow(tr("Name:"), name_edit);
+  layout->addLayout(form);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    statusBar()->showMessage(tr("Cancelled defining a custom shape"));
+    return;
+  }
+  const auto trimmed_name = name_edit->text().trimmed();
+  const auto name = trimmed_name.isEmpty() ? default_name : trimmed_name;
   const auto storage_id = custom_shape_library().add_shape(name, normalized);
   if (storage_id.isEmpty()) {
     show_status_error(tr("Could not save the custom shape"));

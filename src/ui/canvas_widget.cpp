@@ -364,6 +364,8 @@ void CanvasWidget::set_tool(CanvasTool tool) {
       // callback routes it to a shape layer or the work path.
       commit_pen_path(false);
     }
+    pen_temp_direct_select_ = false;
+    pen_session_drag_anchor_ = -1;
     cancel_magnetic_lasso();
     finish_free_transform();
     finish_warp_transform();

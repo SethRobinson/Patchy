@@ -166,6 +166,7 @@ void CanvasWidget::commit_pen_path(bool closed) {
   pen_anchors_.clear();
   pen_session_active_ = false;
   pen_handle_dragging_ = false;
+  pen_session_drag_anchor_ = -1;
   update();
   const auto minimum_anchors = closed ? 3U : 2U;
   if (anchors.size() < minimum_anchors) {
@@ -196,6 +197,7 @@ void CanvasWidget::cancel_pen_path() {
   pen_anchors_.clear();
   pen_session_active_ = false;
   pen_handle_dragging_ = false;
+  pen_session_drag_anchor_ = -1;
   update();
 }
 
@@ -224,6 +226,11 @@ bool CanvasWidget::handle_pen_press(QMouseEvent* event, QPointF document_point) 
     report_status_error(tr("The Pen tool draws paths on layer content"));
     return true;
   }
+  // Ctrl temporarily acts as Direct Select (the classic pen accelerator):
+  // adjust anchors or handles without leaving the Pen, release to keep drawing.
+  if ((event->modifiers() & Qt::ControlModifier) != 0) {
+    return handle_pen_ctrl_press(event, document_point);
+  }
   if (pen_click_closes_path(document_point)) {
     commit_pen_path(true);
     return true;
@@ -233,6 +240,7 @@ bool CanvasWidget::handle_pen_press(QMouseEvent* event, QPointF document_point) 
   if (pen_modifies_existing_path(event, document_point)) {
     return true;
   }
+  const bool starting_session = !pen_session_active_;
   const auto snapped = snapped_document_point_f(document_point);
   PathAnchor anchor;
   anchor.anchor_x = snapped.x();
@@ -247,8 +255,45 @@ bool CanvasWidget::handle_pen_press(QMouseEvent* event, QPointF document_point) 
   pen_handle_dragging_ = true;
   pen_handles_broken_ = false;
   pen_hover_document_ = snapped;
+  if (starting_session && status_callback_) {
+    status_callback_(tr("Click to add points, drag for curves. Click the first point to close; "
+                        "Enter commits an open path; Esc cancels."));
+  }
   update();
   return true;
+}
+
+// Ctrl+press with the Pen: Direct Select semantics without switching tools.
+// Mid-session the drag moves an anchor of the in-progress path; otherwise the
+// gesture latches onto the path-edit handlers until release.
+bool CanvasWidget::handle_pen_ctrl_press(QMouseEvent* event, QPointF document_point) {
+  if (pen_session_active_) {
+    const auto index = pen_session_anchor_at(QPointF(event->position()));
+    if (index >= 0) {
+      pen_session_drag_anchor_ = index;
+      pen_session_drag_last_document_ = document_point;
+      update();
+    }
+    // Swallow even on a miss: Ctrl must never extend or close the path.
+    return true;
+  }
+  if (path_edit_target_path() == nullptr) {
+    return true;  // nothing to select; a modifier chord should not flash an error
+  }
+  pen_temp_direct_select_ = true;
+  return handle_path_edit_press(event, document_point);
+}
+
+int CanvasWidget::pen_session_anchor_at(QPointF widget_point) const {
+  for (int i = 0; i < static_cast<int>(pen_anchors_.size()); ++i) {
+    const auto& anchor = pen_anchors_[static_cast<std::size_t>(i)];
+    const auto screen = path_point_to_screen(anchor.anchor_x, anchor.anchor_y);
+    if (std::hypot(screen.x() - widget_point.x(), screen.y() - widget_point.y()) <=
+        kPathHitRadiusPx) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 bool CanvasWidget::handle_pen_move(QMouseEvent* event, QPointF document_point) {
@@ -256,6 +301,28 @@ bool CanvasWidget::handle_pen_move(QMouseEvent* event, QPointF document_point) {
     return false;
   }
   pen_hover_document_ = document_point;
+  if (pen_temp_direct_select_) {
+    return handle_path_edit_move(event, document_point);
+  }
+  if (pen_session_drag_anchor_ >= 0) {
+    if (pen_session_drag_anchor_ >= static_cast<int>(pen_anchors_.size()) ||
+        (event->buttons() & Qt::LeftButton) == 0) {
+      pen_session_drag_anchor_ = -1;  // popped anchor or a lost release
+      return true;
+    }
+    auto& anchor = pen_anchors_[static_cast<std::size_t>(pen_session_drag_anchor_)];
+    const auto dx = document_point.x() - pen_session_drag_last_document_.x();
+    const auto dy = document_point.y() - pen_session_drag_last_document_.y();
+    pen_session_drag_last_document_ = document_point;
+    anchor.anchor_x += dx;
+    anchor.anchor_y += dy;
+    anchor.in_x += dx;
+    anchor.in_y += dy;
+    anchor.out_x += dx;
+    anchor.out_y += dy;
+    update();
+    return true;
+  }
   if (pen_handle_dragging_ && !pen_anchors_.empty() &&
       (event->buttons() & Qt::LeftButton) != 0) {
     auto& anchor = pen_anchors_.back();
@@ -285,6 +352,18 @@ bool CanvasWidget::handle_pen_release(QMouseEvent* event) {
   if (tool_ != CanvasTool::Pen || event->button() != Qt::LeftButton) {
     return false;
   }
+  if (pen_temp_direct_select_) {
+    const bool handled = handle_path_edit_release(event);
+    pen_temp_direct_select_ = false;
+    apply_pen_cursor(QPointF(event->position()), event->modifiers());
+    return handled;
+  }
+  if (pen_session_drag_anchor_ >= 0) {
+    pen_session_drag_anchor_ = -1;
+    apply_pen_cursor(QPointF(event->position()), event->modifiers());
+    update();
+    return true;
+  }
   pen_handle_dragging_ = false;
   return pen_session_active_;
 }
@@ -299,6 +378,7 @@ bool CanvasWidget::handle_pen_key(QKeyEvent* event) {
       if (!pen_anchors_.empty()) {
         pen_anchors_.pop_back();
       }
+      pen_session_drag_anchor_ = -1;  // the dragged anchor may just have popped
       if (pen_anchors_.empty()) {
         pen_session_active_ = false;
         pen_handle_dragging_ = false;
@@ -384,6 +464,10 @@ void CanvasWidget::draw_pen_overlay(QPainter& painter) {
 bool CanvasWidget::path_edit_tool_active() const noexcept {
   return tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect ||
          tool_ == CanvasTool::Pen;
+}
+
+CanvasTool CanvasWidget::path_edit_tool() const noexcept {
+  return tool_ == CanvasTool::Pen && pen_temp_direct_select_ ? CanvasTool::DirectSelect : tool_;
 }
 
 Layer* CanvasWidget::path_edit_target_layer() const {
@@ -556,15 +640,20 @@ int CanvasWidget::path_handle_at(QPointF widget_point, std::pair<int, int>& anch
       continue;
     }
     const auto& anchor_data = path->subpaths[s].anchors[a];
-    const auto in_screen = path_point_to_screen(anchor_data.in_x, anchor_data.in_y);
-    if (std::hypot(in_screen.x() - widget_point.x(), in_screen.y() - widget_point.y()) <=
-        kPathHitRadiusPx) {
+    // A collapsed handle (corner anchors keep in == out == anchor) sits on the
+    // anchor square; it is not grabbable there - the anchor drag wins.
+    const auto anchor_screen = path_point_to_screen(anchor_data.anchor_x, anchor_data.anchor_y);
+    const auto grabbable = [&](QPointF handle_screen) {
+      return std::hypot(handle_screen.x() - anchor_screen.x(),
+                        handle_screen.y() - anchor_screen.y()) > 0.5 &&
+             std::hypot(handle_screen.x() - widget_point.x(),
+                        handle_screen.y() - widget_point.y()) <= kPathHitRadiusPx;
+    };
+    if (grabbable(path_point_to_screen(anchor_data.in_x, anchor_data.in_y))) {
       anchor = key;
       return -1;
     }
-    const auto out_screen = path_point_to_screen(anchor_data.out_x, anchor_data.out_y);
-    if (std::hypot(out_screen.x() - widget_point.x(), out_screen.y() - widget_point.y()) <=
-        kPathHitRadiusPx) {
+    if (grabbable(path_point_to_screen(anchor_data.out_x, anchor_data.out_y))) {
       anchor = key;
       return 1;
     }
@@ -618,7 +707,8 @@ bool CanvasWidget::path_segment_at(QPointF widget_point, std::pair<int, int>& se
 }
 
 bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_point) {
-  if ((tool_ != CanvasTool::PathSelect && tool_ != CanvasTool::DirectSelect) ||
+  const auto edit_tool = path_edit_tool();
+  if ((edit_tool != CanvasTool::PathSelect && edit_tool != CanvasTool::DirectSelect) ||
       event->button() != Qt::LeftButton) {
     return false;
   }
@@ -636,7 +726,7 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   path_drag_last_document_ = document_point;
 
   const auto widget_point = QPointF(event->position());
-  if (tool_ == CanvasTool::DirectSelect) {
+  if (edit_tool == CanvasTool::DirectSelect) {
     std::pair<int, int> handle_anchor{-1, -1};
     if (const auto side = path_handle_at(widget_point, handle_anchor); side != 0) {
       path_drag_mode_ = side < 0 ? PathEditDrag::HandleIn : PathEditDrag::HandleOut;
@@ -647,7 +737,7 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   }
   if (const auto anchor = path_anchor_at(widget_point); anchor.first >= 0) {
     const bool additive = (event->modifiers() & Qt::ShiftModifier) != 0;
-    if (tool_ == CanvasTool::PathSelect) {
+    if (edit_tool == CanvasTool::PathSelect) {
       // Whole shape-group selection.
       const auto group =
           path->subpaths[static_cast<std::size_t>(anchor.first)].shape_group;
@@ -684,7 +774,7 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   if (path_segment_at(widget_point, segment, segment_t)) {
     const auto& subpath = path->subpaths[static_cast<std::size_t>(segment.first)];
     const auto anchor_count = static_cast<int>(subpath.anchors.size());
-    if (tool_ == CanvasTool::PathSelect) {
+    if (edit_tool == CanvasTool::PathSelect) {
       const auto group = subpath.shape_group;
       path_selected_anchors_.clear();
       for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
@@ -717,7 +807,8 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
 }
 
 bool CanvasWidget::handle_path_edit_move(QMouseEvent* event, QPointF document_point) {
-  if (tool_ != CanvasTool::PathSelect && tool_ != CanvasTool::DirectSelect) {
+  const auto edit_tool = path_edit_tool();
+  if (edit_tool != CanvasTool::PathSelect && edit_tool != CanvasTool::DirectSelect) {
     return false;
   }
   if (path_drag_mode_ == PathEditDrag::None || (event->buttons() & Qt::LeftButton) == 0) {
@@ -780,13 +871,14 @@ bool CanvasWidget::handle_path_edit_move(QMouseEvent* event, QPointF document_po
   }
   path_edit_changed_ = true;
   apply_path_edit(std::move(working),
-                  tool_ == CanvasTool::PathSelect ? tr("Move shape") : tr("Edit path"),
+                  edit_tool == CanvasTool::PathSelect ? tr("Move shape") : tr("Edit path"),
                   touched_groups);
   return true;
 }
 
 bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
-  if (tool_ != CanvasTool::PathSelect && tool_ != CanvasTool::DirectSelect) {
+  const auto edit_tool = path_edit_tool();
+  if (edit_tool != CanvasTool::PathSelect && edit_tool != CanvasTool::DirectSelect) {
     return false;
   }
   if (event->button() != Qt::LeftButton) {
@@ -802,7 +894,7 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
         for (int a = 0; a < static_cast<int>(subpath.anchors.size()); ++a) {
           const auto& anchor = subpath.anchors[static_cast<std::size_t>(a)];
           if (rect.contains(QPointF(anchor.anchor_x, anchor.anchor_y))) {
-            if (tool_ == CanvasTool::DirectSelect) {
+            if (edit_tool == CanvasTool::DirectSelect) {
               path_selected_anchors_.insert({s, a});
             } else {
               groups_in_box.insert(subpath.shape_group);
@@ -810,7 +902,7 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
           }
         }
       }
-      if (tool_ == CanvasTool::PathSelect) {
+      if (edit_tool == CanvasTool::PathSelect) {
         for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
           if (!groups_in_box.contains(path->subpaths[static_cast<std::size_t>(s)].shape_group)) {
             continue;
@@ -912,24 +1004,44 @@ bool CanvasWidget::handle_path_edit_key(QKeyEvent* event) {
   }
 }
 
-bool CanvasWidget::pen_modifies_existing_path(QMouseEvent* event, QPointF document_point) {
-  (void)document_point;
-  if (pen_session_active_) {
-    return false;
+CanvasWidget::PenHoverHit CanvasWidget::pen_hover_hit(QPointF widget_point, QPointF document_point,
+                                                      Qt::KeyboardModifiers modifiers) const {
+  PenHoverHit hit;
+  if (pen_click_closes_path(document_point)) {
+    hit.action = PenHoverAction::Close;
+    return hit;
   }
+  if (pen_session_active_) {
+    return hit;  // mid-session clicks always extend the path
+  }
+  if (path_edit_target_path() == nullptr) {
+    return hit;
+  }
+  if (hit.anchor = path_anchor_at(widget_point); hit.anchor.first >= 0) {
+    hit.action = (modifiers & Qt::AltModifier) != 0 ? PenHoverAction::Convert
+                                                    : PenHoverAction::Delete;
+    return hit;
+  }
+  if (path_segment_at(widget_point, hit.segment, hit.segment_t)) {
+    hit.action = PenHoverAction::Add;  // Alt deliberately ignored over segments
+  }
+  return hit;
+}
+
+bool CanvasWidget::pen_modifies_existing_path(QMouseEvent* event, QPointF document_point) {
+  const auto hit = pen_hover_hit(QPointF(event->position()), document_point, event->modifiers());
   const auto* path = path_edit_target_path();
   if (path == nullptr) {
     return false;
   }
-  const auto widget_point = QPointF(event->position());
-  if (const auto anchor = path_anchor_at(widget_point); anchor.first >= 0) {
-    auto working = *path;
-    auto& subpath = working.subpaths[static_cast<std::size_t>(anchor.first)];
-    const auto group = subpath.shape_group;
-    path_edit_undo_armed_ = false;
-    if ((event->modifiers() & Qt::AltModifier) != 0) {
+  switch (hit.action) {
+    case PenHoverAction::Convert: {
       // Convert point: smooth <-> corner.
-      auto& anchor_data = subpath.anchors[static_cast<std::size_t>(anchor.second)];
+      auto working = *path;
+      auto& subpath = working.subpaths[static_cast<std::size_t>(hit.anchor.first)];
+      const auto group = subpath.shape_group;
+      path_edit_undo_armed_ = false;
+      auto& anchor_data = subpath.anchors[static_cast<std::size_t>(hit.anchor.second)];
       if (anchor_data.smooth || anchor_data.in_x != anchor_data.anchor_x ||
           anchor_data.in_y != anchor_data.anchor_y || anchor_data.out_x != anchor_data.anchor_x ||
           anchor_data.out_y != anchor_data.anchor_y) {
@@ -942,9 +1054,9 @@ bool CanvasWidget::pen_modifies_existing_path(QMouseEvent* event, QPointF docume
         // Corner -> smooth: derive handles from the neighbor direction.
         const auto anchor_count = static_cast<int>(subpath.anchors.size());
         const auto& previous =
-            subpath.anchors[static_cast<std::size_t>((anchor.second + anchor_count - 1) % anchor_count)];
+            subpath.anchors[static_cast<std::size_t>((hit.anchor.second + anchor_count - 1) % anchor_count)];
         const auto& next =
-            subpath.anchors[static_cast<std::size_t>((anchor.second + 1) % anchor_count)];
+            subpath.anchors[static_cast<std::size_t>((hit.anchor.second + 1) % anchor_count)];
         const double tangent_x = (next.anchor_x - previous.anchor_x) / 6.0;
         const double tangent_y = (next.anchor_y - previous.anchor_y) / 6.0;
         anchor_data.smooth = true;
@@ -956,31 +1068,36 @@ bool CanvasWidget::pen_modifies_existing_path(QMouseEvent* event, QPointF docume
       apply_path_edit(std::move(working), tr("Convert point"), {group});
       return true;
     }
-    // Delete the clicked anchor (Photoshop's auto delete-anchor).
-    subpath.anchors.erase(subpath.anchors.begin() + anchor.second);
-    if (subpath.anchors.size() < 2) {
-      working.subpaths.erase(working.subpaths.begin() + anchor.first);
+    case PenHoverAction::Delete: {
+      // Delete the clicked anchor (Photoshop's auto delete-anchor).
+      auto working = *path;
+      auto& subpath = working.subpaths[static_cast<std::size_t>(hit.anchor.first)];
+      const auto group = subpath.shape_group;
+      path_edit_undo_armed_ = false;
+      subpath.anchors.erase(subpath.anchors.begin() + hit.anchor.second);
+      if (subpath.anchors.size() < 2) {
+        working.subpaths.erase(working.subpaths.begin() + hit.anchor.first);
+      }
+      path_selected_anchors_.clear();
+      apply_path_edit(std::move(working), tr("Delete anchor"), {group});
+      return true;
     }
-    path_selected_anchors_.clear();
-    apply_path_edit(std::move(working), tr("Delete anchor"), {group});
-    return true;
+    case PenHoverAction::Add: {
+      auto working = *path;
+      auto& subpath = working.subpaths[static_cast<std::size_t>(hit.segment.first)];
+      const auto group = subpath.shape_group;
+      const auto anchor_count = static_cast<int>(subpath.anchors.size());
+      auto& a = subpath.anchors[static_cast<std::size_t>(hit.segment.second)];
+      auto& b = subpath.anchors[static_cast<std::size_t>((hit.segment.second + 1) % anchor_count)];
+      const auto inserted = split_segment_anchor(a, b, std::clamp(hit.segment_t, 0.05, 0.95));
+      subpath.anchors.insert(subpath.anchors.begin() + hit.segment.second + 1, inserted);
+      path_edit_undo_armed_ = false;
+      apply_path_edit(std::move(working), tr("Add anchor"), {group});
+      return true;
+    }
+    default:
+      return false;  // Draw and Close: the press handler owns those
   }
-  std::pair<int, int> segment{-1, -1};
-  double segment_t = 0.5;
-  if (path_segment_at(widget_point, segment, segment_t)) {
-    auto working = *path;
-    auto& subpath = working.subpaths[static_cast<std::size_t>(segment.first)];
-    const auto group = subpath.shape_group;
-    const auto anchor_count = static_cast<int>(subpath.anchors.size());
-    auto& a = subpath.anchors[static_cast<std::size_t>(segment.second)];
-    auto& b = subpath.anchors[static_cast<std::size_t>((segment.second + 1) % anchor_count)];
-    const auto inserted = split_segment_anchor(a, b, std::clamp(segment_t, 0.05, 0.95));
-    subpath.anchors.insert(subpath.anchors.begin() + segment.second + 1, inserted);
-    path_edit_undo_armed_ = false;
-    apply_path_edit(std::move(working), tr("Add anchor"), {group});
-    return true;
-  }
-  return false;
 }
 
 bool CanvasWidget::path_edit_has_selection() const noexcept {

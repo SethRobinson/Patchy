@@ -1947,6 +1947,20 @@ void MainWindow::create_actions() {
   tool_palette->addSeparator();
 
   add_tool_action(tool_palette, tool_group, tr("Pen"), CanvasTool::Pen, QKeySequence(Qt::Key_P));
+  // The Path Tools flyout sits directly after the Pen: drawing and adjusting
+  // paths alternate constantly, so the two slots stay adjacent.
+  auto* path_select_menu = new QMenu(tr("Path Tools"), tool_palette);
+  path_select_menu->setObjectName(QStringLiteral("pathSelectToolMenu"));
+  bind_widget_text(path_select_menu, "Path Tools");
+  auto* path_select_action = create_flyout_tool_action(path_select_menu, tr("Path Select"),
+                                                       CanvasTool::PathSelect, QKeySequence(Qt::Key_A));
+  auto* direct_select_action =
+      create_flyout_tool_action(path_select_menu, tr("Direct Select"), CanvasTool::DirectSelect,
+                                QKeySequence(Qt::SHIFT | Qt::Key_A));
+  auto* path_select_button = new QToolButton(tool_palette);
+  path_select_button->setObjectName(QStringLiteral("pathSelectToolButton"));
+  configure_tool_flyout(tool_palette, path_select_menu, path_select_button, path_select_action,
+                        {path_select_action, direct_select_action});
   auto* shape_menu = new QMenu(tr("Shape Tools"), tool_palette);
   shape_menu->setObjectName(QStringLiteral("shapeToolMenu"));
   bind_widget_text(shape_menu, "Shape Tools");
@@ -1965,18 +1979,6 @@ void MainWindow::create_actions() {
                         {line_tool_action, rect_tool_action, ellipse_tool_action,
                          polygon_tool_action, custom_shape_tool_action});
   type_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T));
-  auto* path_select_menu = new QMenu(tr("Path Tools"), tool_palette);
-  path_select_menu->setObjectName(QStringLiteral("pathSelectToolMenu"));
-  bind_widget_text(path_select_menu, "Path Tools");
-  auto* path_select_action = create_flyout_tool_action(path_select_menu, tr("Path Select"),
-                                                       CanvasTool::PathSelect, QKeySequence(Qt::Key_A));
-  auto* direct_select_action =
-      create_flyout_tool_action(path_select_menu, tr("Direct Select"), CanvasTool::DirectSelect,
-                                QKeySequence(Qt::SHIFT | Qt::Key_A));
-  auto* path_select_button = new QToolButton(tool_palette);
-  path_select_button->setObjectName(QStringLiteral("pathSelectToolButton"));
-  configure_tool_flyout(tool_palette, path_select_menu, path_select_button, path_select_action,
-                        {path_select_action, direct_select_action});
   tool_palette->addSeparator();
 
   add_tool_action(tool_palette, tool_group, tr("Pick"), CanvasTool::Eyedropper, QKeySequence(Qt::Key_I));

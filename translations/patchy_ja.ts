@@ -6300,6 +6300,10 @@ Mixed selection</source>
         <translation>ペンツールはレイヤーコンテンツにパスを描きます</translation>
     </message>
     <message>
+        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
+        <translation>クリックでポイントを追加、ドラッグで曲線を描画。最初のポイントをクリックすると閉じ、Enter で開いたパスを確定、Esc でキャンセルします。</translation>
+    </message>
+    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>先にシェイプレイヤーを選択するかパスを描いてください</translation>
     </message>
@@ -12812,6 +12816,9 @@ Clipped to the layer below</source>
     <message><source>Add an arrowhead at the line start</source><translation>ラインの開始点に矢じりを付けます</translation></message>
     <message><source>Add an arrowhead at the line end</source><translation>ラインの終了点に矢じりを付けます</translation></message>
     <message><source>Define Custom Shape from Path</source><translation>パスからカスタムシェイプを定義</translation></message>
+    <message><source>Define Custom Shape</source><translation>カスタムシェイプを定義</translation></message>
+    <message><source>Cancelled defining a custom shape</source><translation>カスタムシェイプの定義をキャンセルしました</translation></message>
+    <message><source>Edit Shape Appearance...</source><translation>シェイプの外観を編集...</translation></message>
     <message><source>Select a path or shape layer to define a custom shape</source><translation>カスタムシェイプを定義するパスまたはシェイプレイヤーを選択してください</translation></message>
     <message><source>The path is too small to define a shape</source><translation>パスが小さすぎてシェイプを定義できません</translation></message>
     <message><source>Could not save the custom shape</source><translation>カスタムシェイプを保存できませんでした</translation></message>

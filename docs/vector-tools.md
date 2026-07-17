@@ -43,12 +43,31 @@ Combine option); any other mode routes to the work path. The construction
 overlay draws in canvas_widget_vector_tools.cpp - note canvas_widget_pen.cpp
 is TABLET input, not this tool.
 
+Pen feedback (July 2026 UX pass): the cursor is a badge crosshair that
+advertises what a click will do - plus over a segment (insert), minus over an
+anchor (delete), a caret with Alt over an anchor (convert), a small ring over
+the first anchor when closing is possible, plain otherwise. One classifier
+(`pen_hover_hit`) drives both the cursor and the click editor so they can
+never disagree; badge cursors are cached per state next to the selection-tool
+cursors (canvas_widget_cursors.cpp), and modifier-only refreshes ride the
+folded-modifier key filter (never live `keyboardModifiers()`). Holding Ctrl
+temporarily acts as Direct Select (the arrow cursor shows it): with no session
+it latches the gesture onto the path-edit handlers (drag anchors or handle
+knobs, one "Edit path" undo entry); mid-session it drags an anchor of the
+in-progress path without adding one. Ctrl clicks never insert, delete, close,
+or extend. The first anchor of a session also emits a one-line status hint
+with the close/commit/cancel keys.
+
 ## Polygon, Custom Shape, and line arrowheads
 
 The Polygon tool drags center-out (the first vertex tracks the cursor) with a
 Sides option and a Star inset percent (0 = plain polygon); Custom Shape stamps
 a library shape into the drag rect (Shift keeps it square). Both are
-vector-only (the Pixels mode is ignored) and write plain paths - Photoshop's
+vector-only, so the options-bar mode combo greys out its Pixels entry for
+them (and for the Pen) and displays the effective mode (Path) when the
+persisted `tools/vectorToolMode` is Pixels - the setting itself stays
+untouched for the raster-capable Line/Rect/Ellipse. They write plain paths -
+Photoshop's
 polygon/custom origination descriptors were not probed, so per the fallback
 policy no origination is invented and PS opens them as regular path shapes.
 The Line tool gains arrow start/end checkboxes (head width 5x and length 10x
@@ -66,7 +85,8 @@ Path normalizes the current path into a new user entry.
 Path Select (A, the black arrow) selects and drags whole shape groups; Direct
 Select (Shift+A, the white arrow) works per anchor: click or marquee to
 select, drag anchors or the handle knobs of selected anchors (smooth pairs
-mirror), Shift adds to the selection, arrows nudge (1 px, Shift 10 px,
+mirror; a collapsed handle sitting on its corner anchor is not grabbable -
+the anchor drag wins), Shift adds to the selection, arrows nudge (1 px, Shift 10 px,
 coalesced into one history entry per burst), Delete removes the selected
 anchors (subpaths that drop under two anchors disappear), Escape deselects.
 With a selection active the options-bar Combine box rewrites the selected
@@ -124,13 +144,17 @@ rasterize first).
 ## Appearance editing and fill layers
 
 Double-clicking a shape layer's row (or an imported fill layer's) opens the
-Shape Appearance dialog: fill kind (none / solid / gradient / pattern with
-library presets, gradient style/angle/scale/reverse, pattern scale) and the
-full stroke set (width, solid paint, inside/center/outside alignment, caps,
-joins, dash presets plus a Custom entry preserving PSD-authored dash arrays).
-Edits preview live on the layer and restore on cancel; a gradient or pattern
-stroke paint read from a PSD is kept untouched unless the stroke color is
-explicitly re-picked. Layer > New Fill Layer creates Solid Color (live color
+Shape Appearance dialog; the layer context menu offers the same editor as
+"Edit Shape Appearance..." directly after Edit Layer Styles (which stays the
+first item, per the standing rule). The dialog covers fill kind (none / solid
+/ gradient / pattern with library presets, gradient style/angle/scale/reverse,
+pattern scale) and the full stroke set (width, solid paint,
+inside/center/outside alignment, caps, joins, dash presets plus a Custom entry
+preserving PSD-authored dash arrays); the stroke rows grey out while the
+stroke checkbox is off. Edits preview live on the layer and restore on cancel;
+a gradient or pattern stroke paint read from a PSD is kept untouched unless
+the stroke color is explicitly re-picked. Edit > Define Custom Shape from Path
+prompts for the shape name (prefilled with the generated fallback). Layer > New Fill Layer creates Solid Color (live color
 picker), Gradient (foreground-to-background linear, then the dialog), and
 Pattern fill layers as shape layers with an empty path (= whole canvas); an
 active selection becomes the new layer's raster mask, Photoshop-style. Library

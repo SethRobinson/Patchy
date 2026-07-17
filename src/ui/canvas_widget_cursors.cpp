@@ -140,6 +140,82 @@ QCursor build_magic_wand_cursor(CanvasWidget::SelectionMode mode) {
   return QCursor(pixmap, kMagicWandCursorHotspotX, kMagicWandCursorHotspotY);
 }
 
+// Badge for the pen's context action. Add/Delete reuse the selection-badge
+// glyphs (+/-) so the two cursor families never drift apart; Convert draws the
+// corner/smooth caret and Close a small ring, all with the same halo/ink pass.
+void paint_pen_action_badge(QPainter& painter, CanvasWidget::PenHoverAction action,
+                            QPointF center) {
+  using PenHoverAction = CanvasWidget::PenHoverAction;
+  switch (action) {
+    case PenHoverAction::Add:
+      paint_selection_mode_badge(painter, CanvasWidget::SelectionMode::Add, center);
+      return;
+    case PenHoverAction::Delete:
+      paint_selection_mode_badge(painter, CanvasWidget::SelectionMode::Subtract, center);
+      return;
+    case PenHoverAction::Convert: {
+      constexpr double kGlyphHalf = 3.0;
+      const auto stroke = [&](const QColor& color, double width) {
+        painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap));
+        painter.drawLine(center + QPointF(-kGlyphHalf, kGlyphHalf),
+                         center + QPointF(0.0, -kGlyphHalf));
+        painter.drawLine(center + QPointF(0.0, -kGlyphHalf),
+                         center + QPointF(kGlyphHalf, kGlyphHalf));
+      };
+      stroke(kSelectionCursorHalo, kSelectionCursorHaloWidth);
+      stroke(kSelectionCursorInk, kSelectionCursorWidth);
+      return;
+    }
+    case PenHoverAction::Close: {
+      const auto stroke = [&](const QColor& color, double width) {
+        painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(center, 2.8, 2.8);
+      };
+      stroke(kSelectionCursorHalo, kSelectionCursorHaloWidth);
+      stroke(kSelectionCursorInk, kSelectionCursorWidth);
+      return;
+    }
+    case PenHoverAction::Draw:
+      return;
+  }
+}
+
+// The pen cursor is the selection tools' crosshair plus a context-action badge
+// (what a click would do: add/delete an anchor, convert it, close the path).
+// The crosshair is identical for all five states so badge changes never shift
+// or re-weight the cursor under the pointer.
+QCursor build_pen_tool_cursor(CanvasWidget::PenHoverAction action) {
+  constexpr int kSize = 32;
+  constexpr double kArm = 9.0;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const QPointF hotspot(10.0, 10.0);
+  const auto cross = [&](const QColor& color, double width) {
+    painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(hotspot + QPointF(-kArm, 0.0), hotspot + QPointF(kArm, 0.0));
+    painter.drawLine(hotspot + QPointF(0.0, -kArm), hotspot + QPointF(0.0, kArm));
+  };
+  cross(kSelectionCursorHalo, kSelectionCursorHaloWidth);
+  cross(kSelectionCursorInk, kSelectionCursorWidth);
+  paint_pen_action_badge(painter, action, QPointF(23.0, 23.0));
+  painter.end();
+  return QCursor(pixmap, static_cast<int>(hotspot.x()), static_cast<int>(hotspot.y()));
+}
+
+QCursor pen_tool_cursor(CanvasWidget::PenHoverAction action) {
+  static const std::array<QCursor, 5> cursors = [] {
+    std::array<QCursor, 5> result;
+    for (std::size_t i = 0; i < result.size(); ++i) {
+      result[i] = build_pen_tool_cursor(static_cast<CanvasWidget::PenHoverAction>(i));
+    }
+    return result;
+  }();
+  return cursors[static_cast<std::size_t>(action)];
+}
+
 // Cursors are cached per combine mode: update_tool_cursor() runs on every mouse
 // move, so we build the four variants once instead of re-rasterising each time.
 QCursor selection_tool_cursor(CanvasWidget::SelectionMode mode) {
@@ -165,6 +241,18 @@ QCursor magic_wand_cursor(CanvasWidget::SelectionMode mode) {
 }
 
 }  // namespace
+
+void CanvasWidget::apply_pen_cursor(QPointF widget_point, Qt::KeyboardModifiers modifiers) {
+  // Ctrl = temporary Direct Select: the arrow advertises the mode, and the
+  // badge classification is skipped mid-gesture so drags never flicker it.
+  if ((modifiers & Qt::ControlModifier) != 0 || pen_temp_direct_select_ ||
+      pen_session_drag_anchor_ >= 0) {
+    setCursor(Qt::ArrowCursor);
+    return;
+  }
+  const auto hit = pen_hover_hit(widget_point, document_position_f(widget_point), modifiers);
+  setCursor(pen_tool_cursor(hit.action));
+}
 
 bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
   switch (tool_) {
@@ -221,8 +309,13 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(Qt::SizeAllCursor);
     return;
   }
-  if (tool_ == CanvasTool::Pen || tool_ == CanvasTool::Polygon ||
-      tool_ == CanvasTool::CustomShape) {
+  if (tool_ == CanvasTool::Pen) {
+    const auto modifiers =
+        pen_cursor_modifier_override_.value_or(QApplication::keyboardModifiers());
+    apply_pen_cursor(QPointF(last_mouse_position_), modifiers);
+    return;
+  }
+  if (tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape) {
     setCursor(Qt::CrossCursor);
     return;
   }

@@ -141,6 +141,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 - New vector workflows bring Photoshop-compatible shape layers, pen paths, and vector masks. The Rectangle, Ellipse, Line, Polygon, and Custom Shape tools draw editable shape layers with solid, gradient, or pattern fills and full stroke controls, the Pen builds bezier paths point by point, and the Path Select and Direct Select tools move whole shapes or individual anchors with live re-rendering
 - A new Paths panel manages saved paths and the work path with fill, stroke, and make-selection commands, layers can carry vector masks alongside raster masks, prebuilt custom shapes include arrows and common symbols, and shape layers, vector masks, and saved paths round-trip through PSD and PSB files that open correctly in Photoshop
+- The Pen tool now shows what a click will do before you commit: cursor badges mark adding, deleting, and converting points plus closing the path, holding Ctrl temporarily switches to Direct Select for quick anchor fixes, and a status hint explains the close, commit, and cancel keys. The Path Select tools moved next to the Pen, shape layers gained an Edit Shape Appearance context-menu entry, and Define Custom Shape asks for a name
 
 ### 0.20 - July 15, 2026
 

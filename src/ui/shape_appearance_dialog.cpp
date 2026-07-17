@@ -291,6 +291,24 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     set_row(pattern_scale_spin, pattern);
   };
 
+  // The stroke rows only apply while the stroke is enabled; grey them out
+  // rather than hiding so the dialog never changes height under the pointer.
+  const auto refresh_stroke_rows = [=] {
+    const bool enabled = stroke_check->isChecked();
+    const auto set_row = [stroke_form](QWidget* field, bool row_enabled) {
+      field->setEnabled(row_enabled);
+      if (auto* label = stroke_form->labelForField(field); label != nullptr) {
+        label->setEnabled(row_enabled);
+      }
+    };
+    set_row(stroke_width_spin, enabled);
+    set_row(stroke_color_button, enabled);
+    set_row(stroke_align_combo, enabled);
+    set_row(stroke_cap_combo, enabled);
+    set_row(stroke_join_combo, enabled);
+    set_row(stroke_dash_combo, enabled);
+  };
+
   const auto sync_gradient_controls = [=] {
     QSignalBlocker type_blocker(gradient_type_combo);
     QSignalBlocker angle_blocker(gradient_angle_spin);
@@ -350,6 +368,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   }
   sync_gradient_controls();
   refresh_fill_rows();
+  refresh_stroke_rows();
 
   // --- Wiring ---
   QObject::connect(fill_kind_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
@@ -437,6 +456,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   });
   QObject::connect(stroke_check, &QCheckBox::toggled, &dialog, [=](bool checked) {
     state->settings.stroke.enabled = checked;
+    refresh_stroke_rows();
     notify();
   });
   QObject::connect(stroke_width_spin, &QDoubleSpinBox::valueChanged, &dialog, [=](double value) {

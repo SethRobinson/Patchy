@@ -673,7 +673,8 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
   // Every flyout button carries the QSS corner-marker property, including the
   // smudge/dodge buttons that historically lacked the indicator.
   for (const auto* name : {"marqueeToolButton", "lassoToolButton", "wandToolButton", "gradientToolButton",
-                           "stampToolButton", "detailToolButton", "toneToolButton", "shapeToolButton"}) {
+                           "stampToolButton", "detailToolButton", "toneToolButton", "shapeToolButton",
+                           "pathSelectToolButton"}) {
     auto* button = window.findChild<QToolButton*>(QString::fromLatin1(name));
     CHECK(button != nullptr);
     CHECK(button->property("toolFlyout").toBool());

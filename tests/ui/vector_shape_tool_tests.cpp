@@ -14,8 +14,12 @@
 #include <QDockWidget>
 #include <QDoubleSpinBox>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QSpinBox>
+#include <QStandardItemModel>
+#include <QStatusBar>
 #include <QTimer>
 
 #include <cmath>
@@ -707,9 +711,20 @@ void ui_custom_shape_stamps_and_defines() {
     user_shapes_before.append(entry.storage_id);
   }
   const auto entries_before = combo->count();
+  // The action prompts for a name, prefilled with the generated fallback.
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("defineCustomShapeDialog"));
+    CHECK(dialog != nullptr);
+    auto* name_edit = dialog->findChild<QLineEdit*>(QStringLiteral("defineCustomShapeNameEdit"));
+    CHECK(name_edit != nullptr);
+    CHECK(!name_edit->text().isEmpty());
+    name_edit->setText(QStringLiteral("Test Heart Copy"));
+    dialog->accept();
+  });
   window.findChild<QAction*>(QStringLiteral("editDefineCustomShapeAction"))->trigger();
   QApplication::processEvents();
   CHECK(combo->count() == entries_before + 1);
+  CHECK(combo->currentText() == QStringLiteral("Test Heart Copy"));
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(500, 100)),
        canvas->widget_position_for_document_point(QPoint(600, 200)));
   QApplication::processEvents();
@@ -978,7 +993,13 @@ void ui_shape_appearance_dialog_commits_and_cancels() {
     CHECK(stroke_check != nullptr);
     CHECK(stroke_width != nullptr);
     CHECK(stroke_align != nullptr);
+    // Stroke rows grey out while the stroke is disabled.
+    CHECK(!stroke_check->isChecked());
+    CHECK(!stroke_width->isEnabled());
+    CHECK(!stroke_align->isEnabled());
     stroke_check->setChecked(true);
+    CHECK(stroke_width->isEnabled());
+    CHECK(stroke_align->isEnabled());
     stroke_width->setValue(6.0);
     stroke_align->setCurrentIndex(1);  // Center
     QApplication::processEvents();
@@ -1098,6 +1119,278 @@ void ui_new_gradient_fill_layer_spans_canvas() {
   CHECK(bottom.red() + 60 < top.red());
 }
 
+void ui_pen_hover_shows_context_cursor_badges() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Pen);
+  canvas->setFocus();
+  // Cursor state is driven by hover moves carrying the event's own modifiers
+  // (the offscreen platform never clears the global keyboard state).
+  const auto hover = [&](QPoint document_point, Qt::KeyboardModifiers modifiers) {
+    send_mouse(*canvas, QEvent::MouseMove,
+               canvas->widget_position_for_document_point(document_point), Qt::NoButton,
+               Qt::NoButton, modifiers);
+    return canvas->cursor();
+  };
+
+  const auto plain = hover(QPoint(500, 400), Qt::NoModifier);
+  CHECK(plain.shape() == Qt::BitmapCursor);
+  CHECK(plain.hotSpot() == QPoint(10, 10));
+  const auto plain_image = plain.pixmap().toImage();
+
+  const auto add = hover(QPoint(200, 100), Qt::NoModifier);  // top-edge segment
+  CHECK(add.shape() == Qt::BitmapCursor);
+  const auto add_image = add.pixmap().toImage();
+  CHECK(add_image != plain_image);
+
+  const auto del = hover(QPoint(100, 100), Qt::NoModifier);  // anchor
+  const auto delete_image = del.pixmap().toImage();
+  CHECK(delete_image != plain_image);
+  CHECK(delete_image != add_image);
+
+  const auto convert = hover(QPoint(100, 100), Qt::AltModifier);  // Alt over anchor
+  const auto convert_image = convert.pixmap().toImage();
+  CHECK(convert_image != delete_image);
+  CHECK(convert_image != plain_image);
+
+  // Ctrl with a stationary pointer flips to the temporary Direct Select arrow
+  // and back on release (the folded-modifier filter path).
+  hover(QPoint(500, 400), Qt::NoModifier);
+  send_key_press(*canvas, Qt::Key_Control, Qt::NoModifier);
+  CHECK(canvas->cursor().shape() == Qt::ArrowCursor);
+  send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+
+  // Mid-session, hovering the first anchor advertises the close action.
+  pen_click(*canvas, QPoint(500, 300));
+  pen_click(*canvas, QPoint(650, 300));
+  pen_click(*canvas, QPoint(575, 420));
+  CHECK(canvas->pen_session_active());
+  const auto close = hover(QPoint(500, 300), Qt::NoModifier);
+  const auto close_image = close.pixmap().toImage();
+  CHECK(close_image != plain_image);
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
+void ui_pen_ctrl_drag_direct_selects_committed_anchor_then_draws() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Pen);
+  // Ctrl+click on an anchor selects it - it must never delete (the plain-click
+  // pen behavior) or start a session.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(100, 100)), Qt::ControlModifier);
+  QApplication::processEvents();
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer->vector_shape()->path.subpaths[0].anchors.size() == 4);
+  CHECK(canvas->path_edit_has_selection());
+  CHECK(!canvas->pen_session_active());
+
+  // Ctrl+drag moves the anchor with Direct Select semantics.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(60, 70)), Qt::ControlModifier);
+  QApplication::processEvents();
+  layer = document.find_layer(layer_id);
+  const auto* content = layer->vector_shape();
+  CHECK(content->path.subpaths[0].anchors.size() == 4);
+  CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_x - 60.0) < 1.0);
+  CHECK(std::abs(content->path.subpaths[0].anchors[0].anchor_y - 70.0) < 1.0);
+  CHECK(content->origination.empty());
+  CHECK(!canvas->pen_session_active());
+
+  // Releasing Ctrl leaves the Pen drawing as usual.
+  pen_click(*canvas, QPoint(600, 80));
+  CHECK(canvas->pen_session_active());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+
+  // The whole Ctrl-drag is one history entry.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  layer = document.find_layer(layer_id);
+  CHECK(std::abs(layer->vector_shape()->path.subpaths[0].anchors[0].anchor_x - 100.0) < 0.5);
+  CHECK(layer->vector_shape()->origination.size() == 1);
+}
+
+void ui_pen_ctrl_drag_moves_in_progress_session_anchor() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Pen);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+
+  pen_click(*canvas, QPoint(100, 100));
+  pen_click(*canvas, QPoint(300, 100));
+  pen_click(*canvas, QPoint(200, 250));
+  CHECK(canvas->pen_session_active());
+
+  // Ctrl+drag the middle anchor of the in-progress path; the session survives
+  // and no anchor is added.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 100)),
+       canvas->widget_position_for_document_point(QPoint(340, 140)), Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->pen_session_active());
+
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->pen_session_active());
+  const auto* work = document.work_path();
+  CHECK(work != nullptr);
+  CHECK(work->path().subpaths.size() == 1);
+  const auto& anchors = work->path().subpaths[0].anchors;
+  CHECK(anchors.size() == 3);
+  CHECK(std::abs(anchors[1].anchor_x - 340.0) < 1.5);
+  CHECK(std::abs(anchors[1].anchor_y - 140.0) < 1.5);
+  // The handles rode along with the anchor.
+  CHECK(std::abs(anchors[1].in_x - 340.0) < 1.5);
+  CHECK(std::abs(anchors[1].out_x - 340.0) < 1.5);
+}
+
+void ui_pen_session_start_shows_hint_message() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto hint = QStringLiteral(
+      "Click to add points, drag for curves. Click the first point to close; "
+      "Enter commits an open path; Esc cancels.");
+
+  make_rect_shape_layer(window, *canvas);
+  canvas->set_tool(patchy::ui::CanvasTool::Pen);
+  // Editing the existing path (add anchor on the top edge) is not a session:
+  // no hint appears.
+  pen_click(*canvas, QPoint(200, 100));
+  CHECK(!canvas->pen_session_active());
+  CHECK(window.statusBar()->currentMessage() != hint);
+
+  // The first anchor of a new path shows the hint once.
+  pen_click(*canvas, QPoint(600, 400));
+  CHECK(canvas->pen_session_active());
+  CHECK(window.statusBar()->currentMessage() == hint);
+  pen_click(*canvas, QPoint(700, 400));
+  CHECK(window.statusBar()->currentMessage() == hint);
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
+void ui_vector_mode_combo_disables_pixels_for_vector_only_tools() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  auto* model = qobject_cast<QStandardItemModel*>(mode_combo->model());
+  CHECK(model != nullptr);
+
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  mode_combo->setCurrentIndex(2);  // Pixels, the app-wide persisted mode
+  QApplication::processEvents();
+  CHECK(canvas->vector_tool_mode() == patchy::ui::VectorToolMode::Pixels);
+
+  // The Pen never rasterizes: Pixels greys out and the combo displays the
+  // effective mode (Path) without rewriting the setting.
+  require_action(window, "toolPenAction")->trigger();
+  QApplication::processEvents();
+  CHECK(mode_combo->currentIndex() == 1);
+  CHECK(!model->item(2)->isEnabled());
+  CHECK(canvas->vector_tool_mode() == patchy::ui::VectorToolMode::Pixels);
+
+  // Pen commits land on the work path, matching the displayed mode.
+  pen_click(*canvas, QPoint(100, 100));
+  pen_click(*canvas, QPoint(300, 100));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  const auto* work = document.work_path();
+  CHECK(work != nullptr);
+  CHECK(work->path().subpaths.size() == 1);
+
+  // A raster-capable shape tool shows the real setting again.
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(mode_combo->currentIndex() == 2);
+  CHECK(model->item(2)->isEnabled());
+}
+
+void ui_layer_context_menu_offers_shape_appearance_for_shape_layers() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() > 0);
+
+  // Open the context menu on the active (shape) layer and record its actions.
+  const auto collect_menu_actions = [&](QStringList& names) {
+    bool saw_menu = false;
+    int poll_attempts = 0;
+    QTimer poller;
+    QObject::connect(&poller, &QTimer::timeout, [&] {
+      if (++poll_attempts > 500) {
+        poller.stop();
+        return;
+      }
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        auto* menu = qobject_cast<QMenu*>(widget);
+        if (menu != nullptr && menu->objectName() == QStringLiteral("layerContextMenu") &&
+            menu->isVisible()) {
+          saw_menu = true;
+          for (auto* action : menu->actions()) {
+            names << action->objectName();
+          }
+          menu->close();
+          poller.stop();
+          return;
+        }
+      }
+    });
+    poller.start(10);
+    QMetaObject::invokeMethod(
+        &window,
+        [&window, layer_list] {
+          patchy::ui::MainWindowTestAccess::show_layer_context_menu(
+              window, layer_list->visualItemRect(layer_list->item(0)).center());
+        },
+        Qt::QueuedConnection);
+    QApplication::processEvents();
+    for (int i = 0; i < 200 && !saw_menu && poll_attempts <= 500; ++i) {
+      QApplication::processEvents(QEventLoop::AllEvents, 20);
+    }
+    poller.stop();
+    return saw_menu;
+  };
+
+  QStringList shape_layer_actions;
+  CHECK(collect_menu_actions(shape_layer_actions));
+  // Edit Layer Styles... stays first; the appearance editor rides second.
+  CHECK(shape_layer_actions.indexOf(QStringLiteral("layerContextEditShapeAppearanceAction")) == 1);
+
+  // A plain pixel layer (after undoing the shape) offers no appearance entry.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  QStringList pixel_layer_actions;
+  CHECK(collect_menu_actions(pixel_layer_actions));
+  CHECK(!pixel_layer_actions.contains(QStringLiteral("layerContextEditShapeAppearanceAction")));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
@@ -1116,6 +1409,16 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_direct_select_drags_anchor_with_single_undo},
       {"ui_path_select_drags_whole_shape_group", ui_path_select_drags_whole_shape_group},
       {"ui_pen_adds_deletes_and_converts_anchors", ui_pen_adds_deletes_and_converts_anchors},
+      {"ui_pen_hover_shows_context_cursor_badges", ui_pen_hover_shows_context_cursor_badges},
+      {"ui_pen_ctrl_drag_direct_selects_committed_anchor_then_draws",
+       ui_pen_ctrl_drag_direct_selects_committed_anchor_then_draws},
+      {"ui_pen_ctrl_drag_moves_in_progress_session_anchor",
+       ui_pen_ctrl_drag_moves_in_progress_session_anchor},
+      {"ui_pen_session_start_shows_hint_message", ui_pen_session_start_shows_hint_message},
+      {"ui_vector_mode_combo_disables_pixels_for_vector_only_tools",
+       ui_vector_mode_combo_disables_pixels_for_vector_only_tools},
+      {"ui_layer_context_menu_offers_shape_appearance_for_shape_layers",
+       ui_layer_context_menu_offers_shape_appearance_for_shape_layers},
       {"ui_path_select_combine_op_edit_applies", ui_path_select_combine_op_edit_applies},
       {"ui_vector_mask_from_current_path_masks_layer", ui_vector_mask_from_current_path_masks_layer},
       {"ui_vector_mask_shift_click_disable_and_rasterize",

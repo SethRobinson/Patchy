@@ -26,6 +26,7 @@
 #include "core/palette_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/vector_shape.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -2107,6 +2108,17 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     edit_adjustment_action = menu.addAction(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)),
                                             tr("Edit Adjustment..."));
   }
+  // Shape and fill layers surface their appearance editor here too (double-
+  // click on the row is the other entry point); same gate as that site.
+  QAction* edit_shape_appearance_action = nullptr;
+  if (active_layer != nullptr && layer_is_vector_shape(*active_layer) &&
+      vector_lock_reason(*active_layer).empty()) {
+    edit_shape_appearance_action =
+        menu.addAction(simple_icon(QStringLiteral("SHP"), QColor(190, 220, 255)),
+                       tr("Edit Shape Appearance..."));
+    edit_shape_appearance_action->setObjectName(
+        QStringLiteral("layerContextEditShapeAppearanceAction"));
+  }
   QAction* warp_text_action = nullptr;
   if (active_layer != nullptr && layer_is_text(*active_layer)) {
     warp_text_action = menu.addAction(simple_icon(QStringLiteral("T"), QColor(190, 220, 255)),
@@ -2340,6 +2352,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   }
   if (chosen == edit_adjustment_action) {
     edit_active_adjustment_layer();
+  } else if (chosen == edit_shape_appearance_action && edit_shape_appearance_action != nullptr) {
+    edit_active_shape_appearance();
   } else if (chosen == warp_text_action && warp_text_action != nullptr) {
     request_warp_text_dialog();
   } else if (chosen == new_action) {

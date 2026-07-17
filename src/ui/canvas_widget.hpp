@@ -178,6 +178,16 @@ public:
     Intersect
   };
 
+  // Pen hover context: what a left click would do at the hovered point. The
+  // values are contiguous; the cursors TU indexes a per-state cache by them.
+  enum class PenHoverAction {
+    Draw = 0,
+    Add,
+    Delete,
+    Convert,
+    Close
+  };
+
   enum class MarqueeStyle {
     Normal,
     FixedRatio,
@@ -1007,8 +1017,24 @@ private:
   bool handle_pen_release(QMouseEvent* event);
   bool handle_pen_key(QKeyEvent* event);
   void draw_pen_overlay(QPainter& painter);
+  // One hover classification shared by the pen's click editor and its cursor,
+  // so what the cursor advertises and what a click does can never disagree.
+  struct PenHoverHit {
+    PenHoverAction action{PenHoverAction::Draw};
+    std::pair<int, int> anchor{-1, -1};   // valid for Delete/Convert
+    std::pair<int, int> segment{-1, -1};  // valid for Add
+    double segment_t{0.5};                // valid for Add
+  };
+  [[nodiscard]] PenHoverHit pen_hover_hit(QPointF widget_point, QPointF document_point,
+                                          Qt::KeyboardModifiers modifiers) const;
+  void apply_pen_cursor(QPointF widget_point, Qt::KeyboardModifiers modifiers);
+  bool handle_pen_ctrl_press(QMouseEvent* event, QPointF document_point);
+  [[nodiscard]] int pen_session_anchor_at(QPointF widget_point) const;
   // Path editing (canvas_widget_vector_tools.cpp).
   [[nodiscard]] bool path_edit_tool_active() const noexcept;
+  // The tool the path-edit handlers should behave as: DirectSelect while the
+  // Pen's Ctrl latch is held, the actual tool otherwise.
+  [[nodiscard]] CanvasTool path_edit_tool() const noexcept;
   [[nodiscard]] patchy::Layer* path_edit_target_layer() const;
   [[nodiscard]] patchy::Layer* vector_mask_target_layer() const;
   void apply_path_edit(patchy::VectorPath path, const QString& label,
@@ -1252,6 +1278,12 @@ private:
   bool pen_handle_dragging_{false};
   bool pen_handles_broken_{false};
   QPointF pen_hover_document_{};
+  // Ctrl held at press latches the gesture onto the path-edit handlers with
+  // DirectSelect semantics (press -> release; releasing Ctrl mid-drag keeps it).
+  bool pen_temp_direct_select_{false};
+  // Ctrl-drag of an in-progress session anchor: index into pen_anchors_, -1 idle.
+  int pen_session_drag_anchor_{-1};
+  QPointF pen_session_drag_last_document_{};
   // Path-edit session state (selection keys are (subpath, anchor) indices).
   enum class PathEditDrag { None, Anchors, HandleIn, HandleOut, Marquee };
   std::set<std::pair<int, int>> path_selected_anchors_;
@@ -1375,6 +1407,9 @@ private:
   // event's authoritative (folded) Alt state instead of the global keyboard
   // state, which may not have refreshed yet when the app-level filter runs.
   std::optional<bool> alt_color_pick_cursor_override_;
+  // Same rationale for the pen cursor's Alt/Ctrl badges: folded modifiers from
+  // the key filter, never the (possibly stale) live keyboard state.
+  std::optional<Qt::KeyboardModifiers> pen_cursor_modifier_override_;
   bool selecting_{false};
   bool lassoing_{false};
   bool quick_selecting_{false};

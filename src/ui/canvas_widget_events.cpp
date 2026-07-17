@@ -186,10 +186,13 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
       !spacebar_panning_ && !panning_) {
     auto* key_event = static_cast<QKeyEvent*>(event);
     if (!key_event->isAutoRepeat() &&
-        (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt)) {
+        (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt ||
+         (key_event->key() == Qt::Key_Control && tool_ == CanvasTool::Pen))) {
       // The event reports the modifier state before this key, so fold the
       // pressed/released key into the modifiers we evaluate.
-      const auto bit = key_event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
+      const auto bit = key_event->key() == Qt::Key_Shift   ? Qt::ShiftModifier
+                       : key_event->key() == Qt::Key_Alt   ? Qt::AltModifier
+                                                           : Qt::ControlModifier;
       const auto modifiers = event->type() == QEvent::KeyPress ? (key_event->modifiers() | bit)
                                                                : (key_event->modifiers() & ~bit);
       if (tool_ == CanvasTool::Zoom) {
@@ -201,6 +204,15 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
           } else {
             apply_zoom_cursor((modifiers & Qt::AltModifier) != 0);
           }
+        }
+      } else if (tool_ == CanvasTool::Pen) {
+        // Alt (convert badge) and Ctrl (temporary Direct Select arrow) both
+        // change the pen cursor with a stationary pointer; refresh it from the
+        // folded modifiers, skipping mid-gesture states so drags never flicker.
+        if (!pen_handle_dragging_ && !pen_temp_direct_select_ && pen_session_drag_anchor_ < 0) {
+          pen_cursor_modifier_override_ = modifiers;
+          update_tool_cursor();
+          pen_cursor_modifier_override_.reset();
         }
       } else if (key_event->key() == Qt::Key_Alt && tool_uses_alt_left_for_color_pick(tool_) &&
                  !painting_ && !drawing_shape_) {
@@ -1177,6 +1189,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::Pen) {
     handle_pen_move(event, document_position_f(event->position()));
     last_mouse_position_ = event->pos();
+    if ((event->buttons() & Qt::LeftButton) == 0) {
+      // Hover: refresh the context badge (add/delete/convert/close) from the
+      // event's authoritative position and modifiers.
+      apply_pen_cursor(event->position(), event->modifiers());
+    }
     event->accept();
     return;
   }
