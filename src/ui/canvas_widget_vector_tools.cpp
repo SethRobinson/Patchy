@@ -512,12 +512,28 @@ bool CanvasWidget::panel_path_targeted() const noexcept {
   return panel_path_targeted_;
 }
 
+void CanvasWidget::set_target_path_visible(bool visible) {
+  if (target_path_visible_ == visible) {
+    return;
+  }
+  target_path_visible_ = visible;
+  update();
+}
+
+bool CanvasWidget::target_path_visible() const noexcept {
+  return target_path_visible_;
+}
+
 void CanvasWidget::set_path_display_dismiss_callback(std::function<void()> callback) {
   path_display_dismiss_callback_ = std::move(callback);
 }
 
 void CanvasWidget::set_path_load_selection_callback(std::function<void()> callback) {
   path_load_selection_callback_ = std::move(callback);
+}
+
+void CanvasWidget::set_path_edited_callback(std::function<void()> callback) {
+  path_edited_callback_ = std::move(callback);
 }
 
 const VectorPath* CanvasWidget::path_edit_target_path() const {
@@ -578,6 +594,9 @@ void CanvasWidget::add_subpaths_to_vector_mask(std::vector<PathSubpath> subpaths
   mark_layer_vector_block_dirty(*layer);
   update_vector_mask_raster(*layer, Rect::from_size(document_->width(), document_->height()));
   document_changed();
+  if (path_edited_callback_) {
+    path_edited_callback_();
+  }
 }
 
 void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
@@ -599,6 +618,9 @@ void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
       mark_layer_vector_block_dirty(*layer);
       update_vector_mask_raster(*layer, Rect::from_size(document_->width(), document_->height()));
       document_changed();
+      if (path_edited_callback_) {
+        path_edited_callback_();
+      }
     }
     return;
   }
@@ -606,6 +628,9 @@ void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
     if (auto* target = document_->find_path(*active_document_path_); target != nullptr) {
       target->set_path(std::move(path));
       update();
+      if (path_edited_callback_) {
+        path_edited_callback_();
+      }
     }
     return;
   }
@@ -619,9 +644,15 @@ void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
     update_vector_shape_raster(*layer, Rect::from_size(document_->width(), document_->height()),
                                &document_->metadata().patterns);
     document_changed();
+    if (path_edited_callback_) {
+      path_edited_callback_();
+    }
   } else if (auto* work = document_->work_path(); work != nullptr) {
     work->set_path(std::move(path));
     update();
+    if (path_edited_callback_) {
+      path_edited_callback_();
+    }
   }
 }
 
@@ -1230,8 +1261,11 @@ void CanvasWidget::clear_path_edit_selection() {
 
 void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
   if (path_transform_active_) {
-    draw_path_transform_overlay(painter);
+    draw_path_transform_overlay(painter);  // an active session always shows its box
     return;
+  }
+  if (!target_path_visible_) {
+    return;  // View > Show > Target Path is off
   }
   // The outline draws with ANY tool while a Paths-panel row is targeted
   // (Photoshop's target-path display); anchors, handles, and the marquee are

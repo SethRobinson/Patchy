@@ -241,6 +241,7 @@ void MainWindow::refresh_paths_panel() {
   }
   if (!has_active_document()) {
     path_thumbnail_cache_.clear();
+    layer_path_thumbnail_cache_ = {};
     paths_panel_->set_rows({});
     paths_panel_->set_document_available(false);
     return;
@@ -264,8 +265,17 @@ void MainWindow::refresh_paths_panel() {
         label = tr("%1 Vector Mask").arg(QString::fromStdString(layer->name()));
       }
       if (layer_path != nullptr) {
-        rows.push_back(PathsPanel::Row{PathsPanel::RowKind::LayerPath, 0, label,
-                                       path_outline_thumbnail(*layer_path, doc.width(), doc.height())});
+        auto& cached = layer_path_thumbnail_cache_;
+        if (cached.thumbnail.isNull() || cached.layer != layer->id() ||
+            cached.content_revision != layer->content_revision() ||
+            cached.document_width != doc.width() || cached.document_height != doc.height()) {
+          cached.layer = layer->id();
+          cached.content_revision = layer->content_revision();
+          cached.document_width = doc.width();
+          cached.document_height = doc.height();
+          cached.thumbnail = path_outline_thumbnail(*layer_path, doc.width(), doc.height());
+        }
+        rows.push_back(PathsPanel::Row{PathsPanel::RowKind::LayerPath, 0, label, cached.thumbnail});
       }
     }
   }
@@ -277,7 +287,8 @@ void MainWindow::refresh_paths_panel() {
     }
     rows.push_back(PathsPanel::Row{PathsPanel::RowKind::SavedPath, path.id(),
                                    QString::fromStdString(path.name()),
-                                   cached_path_thumbnail(path, doc.width(), doc.height())});
+                                   cached_path_thumbnail(path, doc.width(), doc.height()),
+                                   path.is_clipping_path()});
   }
   if (work != nullptr) {
     rows.push_back(PathsPanel::Row{PathsPanel::RowKind::WorkPath, work->id(),
@@ -515,6 +526,33 @@ void MainWindow::new_saved_path() {
   created.mark_dirty();
   target_document_path_row(doc.add_path(std::move(created)).id());
   statusBar()->showMessage(tr("Created %1. Draw into it with the Pen tool.").arg(name));
+}
+
+void MainWindow::toggle_selected_path_clipping() {
+  if (paths_panel_ == nullptr || !has_active_document()) {
+    return;
+  }
+  const auto row = paths_panel_->selected_row();
+  if (!row.has_value() || row->kind != PathsPanel::RowKind::SavedPath) {
+    show_status_error(tr("Select a saved path to use as the clipping path"));
+    refresh_paths_panel();  // restore the action's checked state
+    return;
+  }
+  auto& doc = document();
+  auto* target = doc.find_path(row->id);
+  if (target == nullptr) {
+    return;
+  }
+  const bool make_clipping = !target->is_clipping_path();
+  push_undo_snapshot(tr("Clipping path"));
+  // At most one clipping path per document (resource 2999 names exactly one).
+  for (auto& path : doc.paths()) {
+    path.set_clipping_path(make_clipping && path.id() == row->id);
+  }
+  refresh_paths_panel();
+  statusBar()->showMessage(make_clipping
+                               ? tr("Set %1 as the clipping path.").arg(row->name)
+                               : tr("Cleared the clipping path."));
 }
 
 void MainWindow::delete_selected_path() {

@@ -37,6 +37,7 @@ public:
     DocumentPathId id{0};  // 0 for LayerPath
     QString name;
     QPixmap thumbnail;
+    bool clipping{false};  // the document's clipping path (underlined name)
   };
 
   using TargetCallback = std::function<void(RowKind, DocumentPathId)>;
@@ -52,7 +53,7 @@ public:
   void set_document_available(bool available);
   void set_actions(QAction* new_path, QAction* fill_path, QAction* stroke_path,
                    QAction* make_selection, QAction* from_selection, QAction* duplicate_path,
-                   QAction* delete_path);
+                   QAction* clipping_path, QAction* delete_path);
   void set_target_callback(TargetCallback callback);
   void set_deselect_callback(DeselectCallback callback);
   void set_rename_callback(RenameCallback callback);
@@ -72,6 +73,7 @@ protected:
 private:
   static constexpr int kKindRole = Qt::UserRole + 1;
   static constexpr int kPathIdRole = Qt::UserRole + 2;
+  static constexpr int kClippingRole = Qt::UserRole + 3;
 
   [[nodiscard]] Row row_from_item(const QListWidgetItem* item) const;
   void handle_current_item_changed(QListWidgetItem* current);
@@ -89,6 +91,7 @@ private:
   QAction* make_selection_action_{nullptr};
   QAction* from_selection_action_{nullptr};
   QAction* duplicate_path_action_{nullptr};
+  QAction* clipping_path_action_{nullptr};
   QAction* delete_path_action_{nullptr};
   TargetCallback target_callback_;
   DeselectCallback deselect_callback_;

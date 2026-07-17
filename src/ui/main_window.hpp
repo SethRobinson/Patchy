@@ -618,6 +618,7 @@ private:
   void save_work_path_as_named();
   void new_saved_path();
   void duplicate_selected_path();
+  void toggle_selected_path_clipping();
   void delete_selected_path();
   void fill_active_path();
   void stroke_active_path();
@@ -908,6 +909,17 @@ private:
     QPixmap thumbnail;
   };
   std::unordered_map<patchy::DocumentPathId, PathThumbnailCacheEntry> path_thumbnail_cache_;
+  // The transient layer-path row's thumbnail, keyed on the layer's content
+  // revision (bumps on any layer change - over-invalidation is fine, the
+  // cache exists so layer-activation refreshes stay cheap).
+  struct LayerPathThumbnailCacheEntry {
+    LayerId layer{0};
+    std::uint64_t content_revision{0};
+    std::int32_t document_width{0};
+    std::int32_t document_height{0};
+    QPixmap thumbnail;
+  };
+  LayerPathThumbnailCacheEntry layer_path_thumbnail_cache_;
   CanvasWidget* quick_mask_thumbnail_canvas_{nullptr};
   std::uint64_t quick_mask_thumbnail_revision_{0};
   QPixmap quick_mask_thumbnail_;
@@ -933,6 +945,7 @@ private:
   QAction* path_make_selection_action_{nullptr};
   QAction* path_from_selection_action_{nullptr};
   QAction* path_duplicate_action_{nullptr};
+  QAction* path_clipping_action_{nullptr};
   QAction* path_delete_action_{nullptr};
   QSlider* opacity_slider_{nullptr};
   QSpinBox* opacity_spin_{nullptr};
@@ -1216,6 +1229,9 @@ private:
   MeasurementUnit ruler_unit_{MeasurementUnit::Pixels};
   bool view_grid_visible_{false};
   bool view_guides_visible_{true};
+  // Photoshop's View > Show > Target Path (Ctrl+Shift+H). Deliberately NOT
+  // persisted: every launch starts visible, like Photoshop.
+  bool view_target_path_visible_{true};
   bool view_guides_locked_{false};
   bool view_snap_enabled_{true};
   bool view_snap_to_guides_{true};

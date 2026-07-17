@@ -969,6 +969,9 @@ void MainWindow::create_docks() {
                    [this] { make_work_path_from_selection(); });
   make_path_action(path_duplicate_action_, QT_TR_NOOP("Duplicate Path"), "pathDuplicateAction",
                    "path.duplicate", [this] { duplicate_selected_path(); });
+  make_path_action(path_clipping_action_, QT_TR_NOOP("Clipping Path"), "pathClippingAction",
+                   "path.clipping", [this] { toggle_selected_path_clipping(); });
+  path_clipping_action_->setCheckable(true);
   make_path_action(path_delete_action_, QT_TR_NOOP("Delete Path"), "pathDeleteAction", "path.delete",
                    [this] { delete_selected_path(); });
   path_new_action_->setIcon(simple_icon(QStringLiteral("new")));
@@ -980,7 +983,7 @@ void MainWindow::create_docks() {
   path_delete_action_->setIcon(simple_icon(QStringLiteral("trash")));
   paths_panel_->set_actions(path_new_action_, path_fill_action_, path_stroke_action_,
                             path_make_selection_action_, path_from_selection_action_,
-                            path_duplicate_action_, path_delete_action_);
+                            path_duplicate_action_, path_clipping_action_, path_delete_action_);
   paths_panel_->set_target_callback([this](PathsPanel::RowKind kind, DocumentPathId id) {
     handle_paths_panel_target(static_cast<int>(kind), id);
   });

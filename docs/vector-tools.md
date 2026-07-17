@@ -142,6 +142,16 @@ Photoshop both reconstruct).
 Targeting drives the canvas overlay (July 2026, Photoshop's target-path
 display): while any row is selected, the path outline draws with EVERY tool
 via CanvasWidget::panel_path_targeted_; anchors/handles stay path-tool-only.
+View > Show Target Path (Ctrl+Shift+H, view.target_path) hides the whole
+overlay without touching the targeting - deliberately NOT persisted, every
+launch starts visible - though an active path-transform session always draws
+its box. Canvas-side path mutations (direct-select edits, transforms,
+vector-mask appends) fire path_edited_callback_ so the panel rows and
+thumbnails follow live; the saved-path AND transient-layer-row thumbnails are
+revision-keyed caches, keeping those refreshes cheap. The context menu's
+checkable Clipping Path entry designates ONE saved path as the document
+clipping path (resource 2999; the row's name underlines, and designating
+another path clears the previous one).
 Drawing into the work path auto-selects its row, and activating a shape or
 vector-mask layer auto-targets the transient row. Dismissal is per layer:
 empty-space click or Escape (path tools, second stage after clearing the

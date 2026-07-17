@@ -1127,6 +1127,85 @@ void ui_new_solid_fill_layer_uses_selection_mask() {
   CHECK(document.layers().size() == initial_layers);
 }
 
+void ui_paths_panel_clipping_path_toggle() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // Two saved paths.
+  canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  mode_combo->setCurrentIndex(1);  // Path
+  window.findChild<QAction*>(QStringLiteral("pathNewAction"))->trigger();
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(100, 100), QPoint(200, 200));
+  window.findChild<QAction*>(QStringLiteral("pathNewAction"))->trigger();
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(300, 100), QPoint(400, 200));
+
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  auto* clipping = window.findChild<QAction*>(QStringLiteral("pathClippingAction"));
+  CHECK(paths_list != nullptr && clipping != nullptr);
+  CHECK(paths_list->count() == 2);
+
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
+  CHECK(clipping->isEnabled());
+  CHECK(!clipping->isChecked());
+  clipping->trigger();
+  QApplication::processEvents();
+  CHECK(document.paths()[0].is_clipping_path());
+  CHECK(paths_list->item(0)->font().underline());
+  CHECK(!paths_list->item(1)->font().underline());
+
+  // Exclusivity: designating the second path clears the first.
+  paths_list->setCurrentRow(1);
+  QApplication::processEvents();
+  CHECK(!clipping->isChecked());
+  clipping->trigger();
+  QApplication::processEvents();
+  CHECK(!document.paths()[0].is_clipping_path());
+  CHECK(document.paths()[1].is_clipping_path());
+  CHECK(clipping->isChecked());
+
+  // Toggling again clears it entirely.
+  clipping->trigger();
+  QApplication::processEvents();
+  CHECK(!document.paths()[1].is_clipping_path());
+  CHECK(!paths_list->item(1)->font().underline());
+}
+
+void ui_path_edits_refresh_panel_thumbnails() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  CHECK(paths_list->count() == 1);
+  const auto before = paths_list->item(0)->icon().pixmap(QSize(42, 30)).toImage();
+
+  // A Direct Select anchor drag mutates the path canvas-side; the panel row
+  // thumbnail must follow without any other UI action.
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(40, 60)));
+  QApplication::processEvents();
+  CHECK(paths_list->count() == 1);
+  const auto after = paths_list->item(0)->icon().pixmap(QSize(42, 30)).toImage();
+  CHECK(before != after);
+}
+
 void ui_shape_pattern_fill_uses_custom_library_pattern() {
   // Regression: choosing a CUSTOM library pattern (imported image, auto
   // generated id) in the Shape Appearance dialog rendered an empty fill.
@@ -1687,6 +1766,21 @@ void ui_paths_panel_target_shows_overlay_with_any_tool() {
   canvas->set_tool(patchy::ui::CanvasTool::Move);
   QApplication::processEvents();
   CHECK(!accent_overlay_near(*canvas, QPoint(100, 160)));
+
+  // View > Show Target Path (Ctrl+Shift+H) hides the overlay without
+  // touching the targeting, and re-shows it on toggle-back.
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
+  CHECK(accent_overlay_near(*canvas, QPoint(100, 160)));
+  auto* toggle = window.findChild<QAction*>(QStringLiteral("viewToggleTargetPathAction"));
+  CHECK(toggle != nullptr);
+  toggle->trigger();
+  QApplication::processEvents();
+  CHECK(!accent_overlay_near(*canvas, QPoint(100, 160)));
+  CHECK(canvas->panel_path_targeted());
+  toggle->trigger();
+  QApplication::processEvents();
+  CHECK(accent_overlay_near(*canvas, QPoint(100, 160)));
 }
 
 void ui_shape_layer_auto_targets_path_row_until_dismissed() {
@@ -2218,6 +2312,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_new_fill_layer_clips_to_targeted_path", ui_new_fill_layer_clips_to_targeted_path},
       {"ui_shape_pattern_fill_uses_custom_library_pattern",
        ui_shape_pattern_fill_uses_custom_library_pattern},
+      {"ui_path_edits_refresh_panel_thumbnails", ui_path_edits_refresh_panel_thumbnails},
+      {"ui_paths_panel_clipping_path_toggle", ui_paths_panel_clipping_path_toggle},
       {"ui_new_gradient_fill_layer_spans_canvas", ui_new_gradient_fill_layer_spans_canvas},
       {"ui_paths_panel_actions_follow_row_selection", ui_paths_panel_actions_follow_row_selection},
       {"ui_paths_panel_target_shows_overlay_with_any_tool",

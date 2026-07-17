@@ -96,13 +96,15 @@ PathsPanel::PathsPanel(QWidget* parent) : QWidget(parent) {
 
 void PathsPanel::set_actions(QAction* new_path, QAction* fill_path, QAction* stroke_path,
                              QAction* make_selection, QAction* from_selection,
-                             QAction* duplicate_path, QAction* delete_path) {
+                             QAction* duplicate_path, QAction* clipping_path,
+                             QAction* delete_path) {
   new_path_action_ = new_path;
   fill_path_action_ = fill_path;
   stroke_path_action_ = stroke_path;
   make_selection_action_ = make_selection;
   from_selection_action_ = from_selection;
   duplicate_path_action_ = duplicate_path;
+  clipping_path_action_ = clipping_path;
   delete_path_action_ = delete_path;
   const auto bind = [this](const QString& button_name, QAction* action) {
     auto* button = findChild<QToolButton*>(button_name);
@@ -129,13 +131,23 @@ void PathsPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) {
     auto* item = new QListWidgetItem(row.thumbnail, row.name, list_);
     item->setData(kKindRole, static_cast<int>(row.kind));
     item->setData(kPathIdRole, QVariant::fromValue<qulonglong>(row.id));
+    item->setData(kClippingRole, row.clipping);
     auto flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
     if (row.kind == RowKind::SavedPath) {
       flags |= Qt::ItemIsEditable | Qt::ItemIsDragEnabled;
-      item->setToolTip(tr("Saved path. Double-click to rename; select to edit with the pen and "
-                          "path tools.") + QLatin1Char('\n') +
-                       tr("Ctrl-click or Ctrl+Enter loads the path as a selection; drag to "
-                          "reorder."));
+      auto tooltip = tr("Saved path. Double-click to rename; select to edit with the pen and "
+                        "path tools.") + QLatin1Char('\n') +
+                     tr("Ctrl-click or Ctrl+Enter loads the path as a selection; drag to "
+                        "reorder.");
+      if (row.clipping) {
+        // The Photoshop convention: the clipping path's name renders
+        // distinctly (Patchy underlines it).
+        QFont underlined = item->font();
+        underlined.setUnderline(true);
+        item->setFont(underlined);
+        tooltip += QLatin1Char('\n') + tr("This is the document's clipping path.");
+      }
+      item->setToolTip(tooltip);
     } else if (row.kind == RowKind::WorkPath) {
       QFont italic = item->font();
       italic.setItalic(true);
@@ -250,6 +262,7 @@ PathsPanel::Row PathsPanel::row_from_item(const QListWidgetItem* item) const {
   row.kind = static_cast<RowKind>(item->data(kKindRole).toInt());
   row.id = static_cast<DocumentPathId>(item->data(kPathIdRole).toULongLong());
   row.name = item->text();
+  row.clipping = item->data(kClippingRole).toBool();
   return row;
 }
 
@@ -306,7 +319,7 @@ void PathsPanel::show_context_menu(const QPoint& position) {
   QMenu menu(this);
   for (auto* action : {new_path_action_, duplicate_path_action_, fill_path_action_,
                        stroke_path_action_, make_selection_action_, from_selection_action_,
-                       delete_path_action_}) {
+                       clipping_path_action_, delete_path_action_}) {
     if (action != nullptr) {
       menu.addAction(action);
     }
@@ -331,6 +344,14 @@ void PathsPanel::refresh_action_states() {
   }
   if (duplicate_path_action_ != nullptr) {
     duplicate_path_action_->setEnabled(document_available_ && deletable);
+  }
+  if (clipping_path_action_ != nullptr) {
+    // Saved paths only (the work path and the transient layer row have no
+    // stable identity in the file).
+    const bool saved = has_path && row->kind == RowKind::SavedPath;
+    clipping_path_action_->setEnabled(document_available_ && saved);
+    const QSignalBlocker blocker(clipping_path_action_);
+    clipping_path_action_->setChecked(saved && row->clipping);
   }
   if (delete_path_action_ != nullptr) {
     delete_path_action_->setEnabled(document_available_ && deletable);

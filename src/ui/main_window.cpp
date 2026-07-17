@@ -5683,6 +5683,12 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       load_path_as_selection(static_cast<int>(row->kind), row->id);
     }
   });
+  canvas->set_path_edited_callback([this, canvas] {
+    if (canvas != canvas_) {
+      return;
+    }
+    refresh_paths_panel();
+  });
   canvas->set_polygon_sides(
       findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")) != nullptr
           ? findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"))->value()

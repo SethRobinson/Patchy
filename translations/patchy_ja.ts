@@ -5,6 +5,7 @@
     <name>patchy::ui::PathsPanel</name>
     <message><source>Saved path. Double-click to rename; select to edit with the pen and path tools.</source><translation>保存済みパス。ダブルクリックで名前を変更、選択するとペン/パスツールで編集できます。</translation></message>
     <message><source>Ctrl-click or Ctrl+Enter loads the path as a selection; drag to reorder.</source><translation>Ctrl+クリックまたは Ctrl+Enter でパスを選択範囲として読み込み、ドラッグで並べ替えます。</translation></message>
+    <message><source>This is the document&apos;s clipping path.</source><translation>このパスはドキュメントのクリッピングパスです。</translation></message>
     <message><source>The temporary work path. Double-click to save it as a named path.</source><translation>一時的な作業用パス。ダブルクリックで名前付きパスとして保存します。</translation></message>
     <message><source>The active layer&apos;s path (shape or vector mask).</source><translation>アクティブレイヤーのパス（シェイプまたはベクトルマスク）。</translation></message>
 </context>
@@ -12800,6 +12801,11 @@ Clipped to the layer below</source>
     <message><source>Make Selection</source><translation>選択範囲を作成</translation></message>
     <message><source>Make Work Path from Selection</source><translation>選択範囲から作業用パスを作成</translation></message>
     <message><source>Duplicate Path</source><translation>パスを複製</translation></message>
+    <message><source>Clipping Path</source><translation>クリッピングパス</translation></message>
+    <message><source>Select a saved path to use as the clipping path</source><translation>クリッピングパスにする保存済みパスを選択してください</translation></message>
+    <message><source>Clipping path</source><translation>クリッピングパス</translation></message>
+    <message><source>Set %1 as the clipping path.</source><translation>%1 をクリッピングパスに設定しました。</translation></message>
+    <message><source>Cleared the clipping path.</source><translation>クリッピングパスを解除しました。</translation></message>
     <message><source>Delete Path</source><translation>パスを削除</translation></message>
     <message><source>%1 Shape Path</source><translation>%1 シェイプパス</translation></message>
     <message><source>%1 Vector Mask</source><translation>%1 ベクトルマスク</translation></message>
@@ -12825,6 +12831,7 @@ Clipped to the layer below</source>
     <message><source>Make Work Path</source><translation>作業用パスを作成</translation></message>
     <message><source>Tolerance:</source><translation>許容値:</translation></message>
     <message><source>The selection is too small to trace</source><translation>選択範囲が小さすぎてトレースできません</translation></message>
+    <message><source>Show Target &amp;Path</source><translation>ターゲットパスを表示(&amp;P)</translation></message>
     <message><source>Contents:</source><translation>内容:</translation></message>
     <message><source>Pattern</source><translation>パターン</translation></message>
     <message><source>Choose a pattern to fill with</source><translation>塗りつぶすパターンを選択してください</translation></message>

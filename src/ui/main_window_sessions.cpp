@@ -435,6 +435,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
     layer_thumbnail_cache_.clear();
     channel_thumbnail_cache_.clear();
     path_thumbnail_cache_.clear();
+    layer_path_thumbnail_cache_ = {};
     // Same restart rule: a dismissed Paths-panel layer row must not stay
     // hidden because the incoming document reuses the layer id.
     path_row_hidden_for_layer_.reset();

@@ -1162,6 +1162,7 @@ void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
   canvas->set_grid_style(view_grid_style_);
   canvas->set_grid_color(view_grid_color_);
   canvas->set_guide_color(view_guide_color_);
+  canvas->set_target_path_visible(view_target_path_visible_);
 }
 
 void MainWindow::apply_pen_input_settings(CanvasWidget* canvas) const {

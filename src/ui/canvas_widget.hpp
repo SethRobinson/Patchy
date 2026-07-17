@@ -538,6 +538,10 @@ public:
   // still require a path tool.
   void set_panel_path_targeted(bool targeted);
   [[nodiscard]] bool panel_path_targeted() const noexcept;
+  // View > Show > Target Path (Ctrl+Shift+H): false hides the whole path
+  // overlay - including under path tools - without touching the targeting.
+  void set_target_path_visible(bool visible);
+  [[nodiscard]] bool target_path_visible() const noexcept;
   // Invoked when Escape (path tools, nothing else to dismiss) asks to hide the
   // targeted path; MainWindow clears the Paths-panel selection in response.
   void set_path_display_dismiss_callback(std::function<void()> callback);
@@ -545,6 +549,10 @@ public:
   // load-path-as-selection key). Canvas-scoped rather than an app shortcut:
   // the inline text editor owns a window-scoped Ctrl+Return while it exists.
   void set_path_load_selection_callback(std::function<void()> callback);
+  // Invoked after any canvas-side path mutation (direct-select edits, path
+  // transforms, vector-mask appends) so the Paths panel rows and thumbnails
+  // never go stale; the panel's revision-keyed caches keep the refresh cheap.
+  void set_path_edited_callback(std::function<void()> callback);
   // The path the pen/path tools currently edit (panel > vector mask > shape
   // layer > work path); null when nothing is targetable.
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
@@ -1328,8 +1336,10 @@ private:
   qint64 path_nudge_last_ms_{0};
   std::optional<DocumentPathId> active_document_path_;
   bool panel_path_targeted_{false};
+  bool target_path_visible_{true};
   std::function<void()> path_display_dismiss_callback_;
   std::function<void()> path_load_selection_callback_;
+  std::function<void()> path_edited_callback_;
   // Path free-transform session state. The affine maps the original rect onto
   // the (possibly negative-extent, i.e. flipped) current rect, then rotates
   // about the current center.

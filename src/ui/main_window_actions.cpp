@@ -1535,6 +1535,7 @@ void MainWindow::create_actions() {
   auto* fit_on_screen = view_menu->addAction(tr("&Fit on Screen"));
   auto* zoom_reset = view_menu->addAction(tr("&Actual Pixels"));
   auto* selection_edges_action = view_menu->addAction(tr("Show Selection &Edges"));
+  auto* target_path_action = view_menu->addAction(tr("Show Target &Path"));
   view_menu->addSeparator();
   view_rulers_action_ = view_menu->addAction(tr("&Rulers"));
   view_grid_action_ = view_menu->addAction(tr("&Grid"));
@@ -1564,6 +1565,7 @@ void MainWindow::create_actions() {
   fit_on_screen->setObjectName(QStringLiteral("viewFitOnScreenAction"));
   zoom_reset->setObjectName(QStringLiteral("viewActualPixelsAction"));
   selection_edges_action->setObjectName(QStringLiteral("viewToggleSelectionEdgesAction"));
+  target_path_action->setObjectName(QStringLiteral("viewToggleTargetPathAction"));
   view_rulers_action_->setObjectName(QStringLiteral("viewToggleRulersAction"));
   view_grid_action_->setObjectName(QStringLiteral("viewToggleGridAction"));
   view_guides_action_->setObjectName(QStringLiteral("viewToggleGuidesAction"));
@@ -1594,6 +1596,8 @@ void MainWindow::create_actions() {
   new_guide_layout_action->setIcon(simple_icon(QStringLiteral("NGL")));
   clear_selected_guides_action->setIcon(simple_icon(QStringLiteral("CSG")));
   clear_guides_action->setIcon(simple_icon(QStringLiteral("CG")));
+  target_path_action->setCheckable(true);
+  target_path_action->setChecked(view_target_path_visible_);
   view_rulers_action_->setCheckable(true);
   view_grid_action_->setCheckable(true);
   view_guides_action_->setCheckable(true);
@@ -1623,6 +1627,8 @@ void MainWindow::create_actions() {
   register_hotkey(fit_on_screen, "view.fit_on_screen", QKeySequence(Qt::CTRL | Qt::Key_0));
   register_hotkey(zoom_reset, "view.actual_pixels", QKeySequence(Qt::CTRL | Qt::Key_1));
   register_hotkey(selection_edges_action, "view.selection_edges", QKeySequence(Qt::CTRL | Qt::Key_H));
+  register_hotkey(target_path_action, "view.target_path",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H));
   register_hotkey(view_rulers_action_, "view.rulers", QKeySequence(Qt::CTRL | Qt::Key_R));
   register_hotkey(view_grid_action_, "view.grid", QKeySequence(Qt::CTRL | Qt::Key_Apostrophe));
   register_hotkey(view_guides_action_, "view.guides", QKeySequence(Qt::CTRL | Qt::Key_Semicolon));
@@ -1639,6 +1645,15 @@ void MainWindow::create_actions() {
   connect(selection_edges_action, &QAction::triggered, this, [this] {
     if (canvas_ != nullptr) {
       canvas_->toggle_selection_edges_visible();
+    }
+  });
+  connect(target_path_action, &QAction::toggled, this, [this](bool checked) {
+    view_target_path_visible_ = checked;
+    // Deliberately not persisted: every launch starts visible (Photoshop).
+    for (const auto& active_session : sessions_) {
+      if (active_session->canvas != nullptr) {
+        active_session->canvas->set_target_path_visible(checked);
+      }
     }
   });
   const auto apply_view_settings = [this] {
@@ -4000,6 +4015,7 @@ void MainWindow::create_actions() {
       {fit_on_screen, "&Fit on Screen"},
       {zoom_reset, "&Actual Pixels"},
       {selection_edges_action, "Show Selection &Edges"},
+      {target_path_action, "Show Target &Path"},
       {view_rulers_action_, "&Rulers"},
       {view_grid_action_, "&Grid"},
       {view_guides_action_, "&Guides"},
