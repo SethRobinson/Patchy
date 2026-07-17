@@ -967,6 +967,13 @@ void MainWindow::transform_active_layer_dialog() {
   if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
     finish_active_text_editor();
   }
+  // With a path tool active and a targetable path, Ctrl+T transforms the
+  // PATH (Photoshop); the layer position lock governs pixels, not path
+  // geometry (path edits never consulted it). Kept out of
+  // begin_free_transform so its internal callers stay layer-only.
+  if (canvas_->begin_path_transform()) {
+    return;
+  }
   if (const auto active = document().active_layer_id();
       active.has_value() && layer_id_locks_position(*active)) {
     show_status_error(tr("Layer position is locked."));

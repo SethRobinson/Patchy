@@ -1728,6 +1728,79 @@ void ui_paths_panel_duplicate_and_reorder() {
   CHECK(document.paths()[1].name() == "Path 2");
 }
 
+void ui_path_free_transform_moves_scales_and_undoes() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // A rect work path, auto-targeted by the drag.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  mode_combo->setCurrentIndex(1);  // Path
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  radius_spin->setValue(0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+
+  // Ctrl+T under a path tool starts the PATH session, not the layer one.
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->path_transform_active());
+  CHECK(!canvas->free_transform_active());
+
+  // Arrows nudge the pending box; Enter commits ONE undo entry.
+  send_key(*canvas, Qt::Key_Right);
+  send_key(*canvas, Qt::Key_Right);
+  send_key(*canvas, Qt::Key_Down, Qt::ShiftModifier);  // +10
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->path_transform_active());
+  const auto* work = document.work_path();
+  CHECK(work != nullptr);
+  const auto bounds_of_work = [&document] {
+    std::array<double, 4> bounds{1e9, 1e9, -1e9, -1e9};
+    for (const auto& anchor : document.work_path()->path().subpaths[0].anchors) {
+      bounds[0] = std::min(bounds[0], anchor.anchor_x);
+      bounds[1] = std::min(bounds[1], anchor.anchor_y);
+      bounds[2] = std::max(bounds[2], anchor.anchor_x);
+      bounds[3] = std::max(bounds[3], anchor.anchor_y);
+    }
+    return bounds;
+  };
+  auto bounds = bounds_of_work();
+  CHECK(std::abs(bounds[0] - 102.0) < 1e-6);
+  CHECK(std::abs(bounds[1] - 110.0) < 1e-6);
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  bounds = bounds_of_work();
+  CHECK(std::abs(bounds[0] - 100.0) < 1e-6);
+
+  // A corner-handle drag scales; the bottom-right anchor follows the handle.
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->path_transform_active());
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(300, 220)),
+       canvas->widget_position_for_document_point(QPoint(400, 280)));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  bounds = bounds_of_work();
+  CHECK(std::abs(bounds[2] - 400.0) < 1.5);
+  CHECK(std::abs(bounds[3] - 280.0) < 1.5);
+
+  // Escape cancels a pending transform without touching the path.
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Right);
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->path_transform_active());
+  bounds = bounds_of_work();
+  CHECK(std::abs(bounds[2] - 400.0) < 1.5);
+}
+
 void ui_make_work_path_from_selection_traces_selection() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -1848,6 +1921,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_layer_row_shows_vector_badge", ui_shape_layer_row_shows_vector_badge},
       {"ui_paths_panel_ctrl_click_loads_selection", ui_paths_panel_ctrl_click_loads_selection},
       {"ui_paths_panel_duplicate_and_reorder", ui_paths_panel_duplicate_and_reorder},
+      {"ui_path_free_transform_moves_scales_and_undoes",
+       ui_path_free_transform_moves_scales_and_undoes},
       {"ui_make_work_path_from_selection_traces_selection",
        ui_make_work_path_from_selection_traces_selection},
   };

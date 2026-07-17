@@ -233,6 +233,7 @@ void CanvasWidget::set_document_for_history_restore(Document* document, bool nor
 void CanvasWidget::set_document_internal(Document* document, bool preserve_frame_for_same_size,
                                          bool normal_composite_unchanged) {
   cancel_pen_path();  // an in-flight path belongs to the outgoing document
+  cancel_path_transform();
   active_document_path_.reset();
   path_selected_anchors_.clear();
   clear_transient_read_interaction();
@@ -367,6 +368,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     pen_temp_direct_select_ = false;
     pen_session_drag_anchor_ = -1;
     cancel_magnetic_lasso();
+    commit_path_transform();  // tool switches commit, like the pen session
     finish_free_transform();
     finish_warp_transform();
     move_drag_pending_ = false;

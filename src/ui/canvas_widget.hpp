@@ -548,6 +548,14 @@ public:
   // The path the pen/path tools currently edit (panel > vector mask > shape
   // layer > work path); null when nothing is targetable.
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
+  // Path free-transform session (Ctrl+T with a path tool active): a box over
+  // the targeted path - or the Direct Select anchor subset - that moves,
+  // scales, and rotates it, committed as ONE apply_path_edit undo entry.
+  // Tool switches commit, document switches cancel (the pen-session rules).
+  [[nodiscard]] bool path_transform_active() const noexcept;
+  bool begin_path_transform();
+  void commit_path_transform();
+  void cancel_path_transform();
   // Rounded-corner radius for the rectangular marquee (0 = sharp corners).
   void set_marquee_corner_radius(int pixels) noexcept;
   [[nodiscard]] int marquee_corner_radius() const noexcept;
@@ -1066,6 +1074,13 @@ private:
   // invalidate them between events; every mutating consumer prunes first.
   void prune_path_edit_selection(const patchy::VectorPath& path);
   void delete_selected_path_anchors();
+  [[nodiscard]] QPointF path_transform_map_point(QPointF document_point) const;
+  [[nodiscard]] patchy::VectorPath path_transform_preview_path() const;
+  [[nodiscard]] TransformHandle path_transform_handle_at(QPointF widget_point) const;
+  bool handle_path_transform_press(QPointF document_point, QPointF widget_point);
+  bool handle_path_transform_move(QMouseEvent* event, QPointF document_point);
+  bool handle_path_transform_key(QKeyEvent* event);
+  void draw_path_transform_overlay(QPainter& painter);
   void draw_path_edit_overlay(QPainter& painter);
   [[nodiscard]] patchy::PathSubpath polygon_drag_subpath(QPointF center, QPointF radius_point) const;
   void commit_polygon_drag(QPointF center, QPointF radius_point);
@@ -1315,6 +1330,19 @@ private:
   bool panel_path_targeted_{false};
   std::function<void()> path_display_dismiss_callback_;
   std::function<void()> path_load_selection_callback_;
+  // Path free-transform session state. The affine maps the original rect onto
+  // the (possibly negative-extent, i.e. flipped) current rect, then rotates
+  // about the current center.
+  bool path_transform_active_{false};
+  patchy::VectorPath path_transform_original_;
+  std::set<std::pair<int, int>> path_transform_subset_;  // empty = whole path
+  QRectF path_transform_original_rect_;
+  QRectF path_transform_current_rect_;
+  double path_transform_angle_{0.0};  // radians
+  TransformHandle path_transform_drag_handle_{TransformHandle::None};
+  QRectF path_transform_drag_start_rect_;
+  QPointF path_transform_drag_start_document_;
+  double path_transform_drag_start_angle_{0.0};
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};

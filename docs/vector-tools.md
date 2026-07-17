@@ -169,6 +169,25 @@ re-applies the row rule after its blanket document-action pass (the
 channel-panel pattern; pinned by ui_paths_panel_actions_follow_row_selection).
 Saved paths round-trip through the PSD path resources from phase 8.
 
+## Path free transform
+
+Ctrl+T with Path Select or Direct Select active (and a targetable path)
+starts a PATH transform session instead of the layer one: a rotated-box
+overlay over the path - or over the Direct Select anchor subset (Photoshop's
+Free Transform Points) - with move (drag inside), scale (eight handles;
+Shift on a corner keeps proportions; negative extents flip), and rotate
+(drag outside; Shift snaps 15 degrees). Arrows nudge, Enter commits, Esc
+cancels; tool switches commit and document switches cancel (the pen-session
+rules). The commit is ONE apply_path_edit undo entry ("Transform path"), so
+it routes to whichever target is active (panel path, vector mask, shape
+layer - dropping touched groups' live annotations - or work path) and
+re-rasterizes. The session lives in canvas_widget_vector_tools.cpp
+(path_transform_*), deliberately separate from the pixel transform session;
+begin_path_transform is called ONLY from transform_active_layer_dialog so
+begin_free_transform's internal callers (options-bar numeric fields, warp
+switch, move-tool double-click) stay layer-only, and the Pen falls through
+to the layer transform (its mouse handlers would fight a session).
+
 ## Geometry operations
 
 Every document-geometry op transforms the vector data alongside the pixels

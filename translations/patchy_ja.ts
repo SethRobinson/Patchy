@@ -5835,6 +5835,22 @@ Mixed selection</source>
         <translation>サイズ: %1 px  柔らかさ: %2%</translation>
     </message>
     <message>
+        <source>Transform path: drag inside to move, handles to scale, outside to rotate. Enter commits, Esc cancels.</source>
+        <translation>パスを変形: 内側をドラッグで移動、ハンドルで拡大縮小、外側で回転。Enter で確定、Esc でキャンセルします。</translation>
+    </message>
+    <message>
+        <source>Transform path</source>
+        <translation>パスを変形</translation>
+    </message>
+    <message>
+        <source>Transformed the path</source>
+        <translation>パスを変形しました</translation>
+    </message>
+    <message>
+        <source>Cancelled the path transform</source>
+        <translation>パスの変形をキャンセルしました</translation>
+    </message>
+    <message>
         <location line="-2067"/>
         <source>%1 x %2 px</source>
         <translation>%1 x %2 px</translation>
