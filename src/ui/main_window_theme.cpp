@@ -573,6 +573,12 @@ QString photoshop_style() {
       selection-background-color: #3a414a;
       min-height: 20px;
     }
+    QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QLineEdit:disabled,
+    QTextEdit:disabled {
+      background: #242527;
+      color: #6d7075;
+      border: 1px solid #3d3f42;
+    }
     QListWidget::item {
       min-height: 48px;
       padding: 0;

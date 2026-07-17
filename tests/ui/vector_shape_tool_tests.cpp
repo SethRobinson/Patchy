@@ -2108,6 +2108,9 @@ void ui_fill_path_supports_patterns() {
     auto* contents = dialog->findChild<QComboBox*>(QStringLiteral("fillPathContentsCombo"));
     auto* pattern = dialog->findChild<QComboBox*>(QStringLiteral("fillPathPatternCombo"));
     CHECK(contents != nullptr && pattern != nullptr);
+    // The pattern row greys out unless Pattern contents are selected.
+    contents->setCurrentIndex(0);
+    CHECK(!pattern->isEnabled());
     contents->setCurrentIndex(2);  // Pattern
     CHECK(pattern->isEnabled());
     const auto index = pattern->findData(pattern_id);

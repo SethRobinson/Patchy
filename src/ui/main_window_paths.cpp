@@ -642,8 +642,12 @@ void MainWindow::fill_active_path() {
     }
   }
   opacity->setValue(std::clamp(settings.value(opacity_key, 100).toInt(), 1, 100));
-  const auto sync_pattern_enabled = [contents, pattern_combo] {
-    pattern_combo->setEnabled(contents->currentIndex() == 2);
+  const auto sync_pattern_enabled = [contents, pattern_combo, form] {
+    const bool pattern_active = contents->currentIndex() == 2;
+    pattern_combo->setEnabled(pattern_active);
+    if (auto* label = form->labelForField(pattern_combo); label != nullptr) {
+      label->setEnabled(pattern_active);  // grey the row label with the combo
+    }
   };
   sync_pattern_enabled();
   connect(contents, &QComboBox::currentIndexChanged, &dialog, sync_pattern_enabled);
