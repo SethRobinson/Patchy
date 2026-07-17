@@ -1,5 +1,7 @@
 #include "core/pattern_resource.hpp"
 
+#include "core/vector_shape.hpp"
+
 #include <algorithm>
 #include <bit>
 #include <cstdint>
@@ -38,6 +40,14 @@ void write_big_endian_double(std::uint8_t* bytes, double value) noexcept {
 
 }  // namespace
 
+bool pattern_tile_is_unrenderable(const PixelBuffer& tile) noexcept {
+  if (tile.empty()) {
+    return true;
+  }
+  return tile.width() == 1 && tile.height() == 1 && tile.format() == PixelFormat::rgba8() &&
+         tile.data()[3] == 0;
+}
+
 bool PatternStore::empty() const noexcept {
   return patterns.empty();
 }
@@ -57,10 +67,12 @@ void PatternStore::adopt(const PatternResource& resource) {
                                  return existing.id == resource.id;
                                });
   if (it != patterns.end()) {
-    // A stored entry with an EMPTY tile can never render (a poisoned adopt
-    // from an earlier failure); let a healthy same-id resource heal it.
-    // Healthy stored tiles stay untouched (the document's pixels win).
-    if (it->tile.empty() && !resource.tile.empty()) {
+    // A stored entry that can never render — an EMPTY tile (a poisoned adopt
+    // from an earlier failure) or the writer's 1x1 fully transparent
+    // dangling-reference placeholder — must not block a healthy same-id
+    // resource from healing it. Healthy stored tiles stay untouched (the
+    // document's pixels win).
+    if (pattern_tile_is_unrenderable(it->tile) && !pattern_tile_is_unrenderable(resource.tile)) {
       *it = resource;
     }
     return;
@@ -77,10 +89,25 @@ void collect_referenced_pattern_ids(const LayerStyle& style, std::vector<std::st
   }
 }
 
+void collect_referenced_pattern_ids(const Layer& layer, std::vector<std::string>& ids) {
+  collect_referenced_pattern_ids(layer.layer_style(), ids);
+  if (const auto* content = layer.vector_shape(); content != nullptr) {
+    // Only the active kind reaches the file (the fill block is SoCo/GdFl/PtFl
+    // by kind, matching Photoshop, which likewise drops switched-away
+    // pattern data).
+    if (content->fill.kind == VectorFillKind::Pattern) {
+      append_referenced_id(ids, content->fill.pattern_id);
+    }
+    if (content->stroke.content.kind == VectorFillKind::Pattern) {
+      append_referenced_id(ids, content->stroke.content.pattern_id);
+    }
+  }
+}
+
 void collect_referenced_pattern_resources(const Layer& layer, const PatternStore& store,
                                           std::vector<PatternResource>& resources) {
   std::vector<std::string> ids;
-  collect_referenced_pattern_ids(layer.layer_style(), ids);
+  collect_referenced_pattern_ids(layer, ids);
   for (const auto& id : ids) {
     if (const auto* resource = store.find(id); resource != nullptr) {
       const auto already_collected =

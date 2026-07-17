@@ -1,9 +1,11 @@
 #include "core/document.hpp"
 #include "core/layer.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/pattern_resource.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_patterns.hpp"
 #include "render/compositor.hpp"
 
 #include "core/layer_metadata.hpp"
@@ -12,12 +14,16 @@
 #include "psd_test_support.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <initializer_list>
 #include <iterator>
+#include <optional>
 #include <span>
+#include <utility>
 #include "core_test_support.hpp"
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
@@ -631,6 +637,327 @@ void psd_authored_shape_layer_writes_native_blocks() {
   CHECK(metrics.max_channel_delta == 0);
 }
 
+patchy::PixelBuffer checker_tile(std::int32_t size, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+  patchy::PixelBuffer tile(size, size, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < size; ++y) {
+    for (std::int32_t x = 0; x < size; ++x) {
+      auto* px = tile.pixel(x, y);
+      const bool on = ((x / 2) + (y / 2)) % 2 == 0;
+      px[0] = on ? r : 255;
+      px[1] = on ? g : 255;
+      px[2] = on ? b : 255;
+      px[3] = 255;
+    }
+  }
+  return tile;
+}
+
+patchy::Layer make_pattern_shape_layer(patchy::Document& document, const char* fill_pattern_id,
+                                       const char* stroke_pattern_id) {
+  patchy::Layer shape(document.allocate_layer_id(), "Pattern Shape", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  patchy::PathSubpath rect;
+  for (const auto& [x, y] : {std::pair{8.0, 8.0}, {56.0, 8.0}, {56.0, 56.0}, {8.0, 56.0}}) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+    anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+    rect.anchors.push_back(anchor);
+  }
+  content.path.subpaths.push_back(rect);
+  content.fill.kind = patchy::VectorFillKind::Pattern;
+  content.fill.pattern_id = fill_pattern_id;
+  content.fill.pattern_name = "patchy fill pattern";
+  if (stroke_pattern_id != nullptr) {
+    content.stroke.enabled = true;
+    content.stroke.width = 3.0;
+    content.stroke.content.kind = patchy::VectorFillKind::Pattern;
+    content.stroke.content.pattern_id = stroke_pattern_id;
+    content.stroke.content.pattern_name = "patchy stroke pattern";
+  }
+  shape.set_vector_shape(content);
+  shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(document.width(), document.height()),
+                                     &document.metadata().patterns);
+  return shape;
+}
+
+void psd_pattern_fill_shape_embeds_patt_block() {
+  // The bug behind "Could not open ... because of a program error" (July
+  // 2026): a shape layer's PtFl (and a vstk pattern stroke paint) referenced
+  // a pattern id, but the referenced-pattern collection only looked at layer
+  // STYLES, so no global Patt block was written. Photoshop hard-refuses any
+  // file whose pattern reference resolves neither in the file nor in its own
+  // presets.
+  constexpr const char* kFillId = "aaaaaaaa-1111-2222-3333-444444444444";
+  constexpr const char* kStrokeId = "bbbbbbbb-5555-6666-7777-888888888888";
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(64, 64, 255, 255, 255, 255));
+  patchy::PatternResource fill_pattern;
+  fill_pattern.id = kFillId;
+  fill_pattern.name = "patchy fill pattern";
+  fill_pattern.tile = checker_tile(8, 200, 30, 30);
+  document.metadata().patterns.adopt(fill_pattern);
+  patchy::PatternResource stroke_pattern;
+  stroke_pattern.id = kStrokeId;
+  stroke_pattern.name = "patchy stroke pattern";
+  stroke_pattern.tile = checker_tile(4, 30, 30, 200);
+  document.metadata().patterns.adopt(stroke_pattern);
+  document.add_layer(make_pattern_shape_layer(document, kFillId, kStrokeId));
+
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  // Photoshop acceptance probe: dump the authored bytes for a manual COM check.
+  if (const char* dump_path = std::getenv("PATCHY_DUMP_PATTERN_PSD")) {
+    std::ofstream dump(dump_path, std::ios::binary);
+    dump.write(reinterpret_cast<const char*>(written.data()),
+               static_cast<std::streamsize>(written.size()));
+  }
+  const auto patt = find_tagged_block(written, "Patt");
+  CHECK(patt.has_value());
+  const auto ids = patchy::psd::pattern_ids_in_block(*patt);
+  CHECK(std::find(ids.begin(), ids.end(), kFillId) != ids.end());
+  CHECK(std::find(ids.begin(), ids.end(), kStrokeId) != ids.end());
+
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  const auto* fill_resource = reread.metadata().patterns.find(kFillId);
+  CHECK(fill_resource != nullptr);
+  CHECK(fill_resource->tile.width() == 8);
+  const auto* stroke_resource = reread.metadata().patterns.find(kStrokeId);
+  CHECK(stroke_resource != nullptr);
+  CHECK(stroke_resource->tile.width() == 4);
+  const auto* roundtrip = reread.layers()[1].vector_shape();
+  CHECK(roundtrip != nullptr);
+  CHECK(roundtrip->fill.kind == patchy::VectorFillKind::Pattern);
+  CHECK(roundtrip->fill.pattern_id == kFillId);
+  CHECK(roundtrip->stroke.content.kind == patchy::VectorFillKind::Pattern);
+  CHECK(roundtrip->stroke.content.pattern_id == kStrokeId);
+  // The rendered pattern pixels survive the round trip exactly.
+  const auto flat_original = patchy::Compositor{}.flatten_rgb8(document);
+  const auto flat_reread = patchy::Compositor{}.flatten_rgb8(reread);
+  CHECK(rgb_diff_metrics(flat_original, flat_reread).max_channel_delta == 0);
+}
+
+void psd_pattern_fill_missing_tile_writes_placeholder() {
+  // A referenced pattern with no usable tile anywhere (poisoned store entry,
+  // or no entry at all) must never leave a dangling reference: the writer
+  // embeds a 1x1 fully transparent placeholder instead, which renders as no
+  // paint — matching Patchy's missing-pattern render — and adopt() later
+  // replaces with the real pattern (pattern_tile_is_unrenderable).
+  constexpr const char* kPoisonedId = "cccccccc-1111-2222-3333-444444444444";
+  constexpr const char* kAbsentId = "dddddddd-5555-6666-7777-888888888888";
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(64, 64, 255, 255, 255, 255));
+  patchy::PatternResource poisoned;
+  poisoned.id = kPoisonedId;
+  poisoned.name = "poisoned pattern";
+  document.metadata().patterns.adopt(poisoned);  // empty tile
+  document.add_layer(make_pattern_shape_layer(document, kPoisonedId, kAbsentId));
+
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto patt = find_tagged_block(written, "Patt");
+  CHECK(patt.has_value());
+  const auto ids = patchy::psd::pattern_ids_in_block(*patt);
+  CHECK(std::find(ids.begin(), ids.end(), kPoisonedId) != ids.end());
+  CHECK(std::find(ids.begin(), ids.end(), kAbsentId) != ids.end());
+  const auto decoded = patchy::psd::parse_patterns_block(*patt, nullptr);
+  CHECK(decoded.size() == 2);
+  for (const auto& resource : decoded) {
+    CHECK(resource.tile.width() == 1 && resource.tile.height() == 1);
+    CHECK(patchy::pattern_tile_is_unrenderable(resource.tile));
+  }
+
+  // Reopening and re-applying the real pattern heals the placeholder entry.
+  auto reread = patchy::psd::DocumentIo::read(written, {});
+  const auto* placeholder = reread.metadata().patterns.find(kPoisonedId);
+  CHECK(placeholder != nullptr);
+  CHECK(patchy::pattern_tile_is_unrenderable(placeholder->tile));
+  patchy::PatternResource healed;
+  healed.id = kPoisonedId;
+  healed.name = "healed pattern";
+  healed.tile = checker_tile(8, 10, 200, 10);
+  reread.metadata().patterns.adopt(healed);
+  const auto* after = reread.metadata().patterns.find(kPoisonedId);
+  CHECK(after != nullptr);
+  CHECK(after->tile.width() == 8);
+}
+
+void psd_partial_vogk_is_omitted_full_vogk_kept() {
+  // Photoshop refuses to OPEN a file whose vogk keyDescriptorList covers only
+  // some vmsk subpath groups (July 2026 byte bisection of a polygon + live
+  // ellipse layer). A partially-live layer writes NO vogk/vowv; a fully-live
+  // one keeps them.
+  const auto make_document = [](bool add_plain_subpath) {
+    patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("bg", patchy::test::solid_rgba(64, 64, 255, 255, 255, 255));
+    patchy::Layer shape(document.allocate_layer_id(), "Mixed Shape", patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    if (add_plain_subpath) {
+      patchy::PathSubpath triangle;
+      for (const auto& [x, y] : {std::pair{6.0, 6.0}, {30.0, 6.0}, {18.0, 26.0}}) {
+        patchy::PathAnchor anchor;
+        anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+        anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+        triangle.anchors.push_back(anchor);
+      }
+      triangle.shape_group = 0;
+      content.path.subpaths.push_back(triangle);
+    }
+    patchy::LiveShapeParams ellipse;
+    ellipse.kind = patchy::LiveShapeKind::Ellipse;
+    ellipse.left = 32;
+    ellipse.top = 32;
+    ellipse.right = 56;
+    ellipse.bottom = 52;
+    ellipse.index = add_plain_subpath ? 1 : 0;
+    for (auto& subpath : patchy::generate_live_shape_subpaths(ellipse)) {
+      content.path.subpaths.push_back(std::move(subpath));
+    }
+    content.origination = {ellipse};
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    content.fill.color = patchy::RgbColor{40, 180, 90};
+    shape.set_vector_shape(content);
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(64, 64), nullptr);
+    document.add_layer(std::move(shape));
+    return document;
+  };
+
+  const auto mixed_written = patchy::psd::DocumentIo::write_layered_rgb8(make_document(true));
+  // Photoshop acceptance probe: dump the mixed-liveness bytes for a COM check.
+  if (const char* dump_path = std::getenv("PATCHY_DUMP_MIXED_PSD")) {
+    std::ofstream dump(dump_path, std::ios::binary);
+    dump.write(reinterpret_cast<const char*>(mixed_written.data()),
+               static_cast<std::streamsize>(mixed_written.size()));
+  }
+  const auto mixed_extra = patchy::test::psd_layer_extra_data(mixed_written, 1);
+  CHECK(!find_tagged_block(mixed_extra, "vogk").has_value());
+  CHECK(!find_tagged_block(mixed_extra, "vowv").has_value());
+  CHECK(find_tagged_block(mixed_extra, "vmsk").has_value());
+  const auto mixed_reread = patchy::psd::DocumentIo::read(mixed_written, {});
+  const auto* mixed_shape = mixed_reread.layers()[1].vector_shape();
+  CHECK(mixed_shape != nullptr);
+  CHECK(mixed_shape->origination.empty());
+  CHECK(mixed_shape->path.subpaths.size() == 2);
+
+  const auto live_written = patchy::psd::DocumentIo::write_layered_rgb8(make_document(false));
+  const auto live_extra = patchy::test::psd_layer_extra_data(live_written, 1);
+  CHECK(find_tagged_block(live_extra, "vogk").has_value());
+  CHECK(find_tagged_block(live_extra, "vowv").has_value());
+  const auto live_reread = patchy::psd::DocumentIo::read(live_written, {});
+  const auto* live_shape = live_reread.layers()[1].vector_shape();
+  CHECK(live_shape != nullptr);
+  CHECK(live_shape->origination.size() == 1);
+  CHECK(live_shape->origination[0].kind == patchy::LiveShapeKind::Ellipse);
+}
+
+void psd_damaged_partial_vogk_import_heals_on_resave() {
+  // A file that already carries a partial vogk (only pre-fix Patchy could
+  // write one; Photoshop refuses to open them) must not survive a Patchy
+  // round trip: the reader keeps the raw vogk/vowv out of the preserved
+  // blocks and the writer's coverage gate keeps regeneration out too.
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(64, 64, 255, 255, 255, 255));
+  patchy::Layer shape(document.allocate_layer_id(), "Live Ellipse", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  patchy::LiveShapeParams ellipse;
+  ellipse.kind = patchy::LiveShapeKind::Ellipse;
+  ellipse.left = 10;
+  ellipse.top = 10;
+  ellipse.right = 50;
+  ellipse.bottom = 40;
+  content.path.subpaths = patchy::generate_live_shape_subpaths(ellipse);
+  content.origination = {ellipse};
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = patchy::RgbColor{90, 40, 180};
+  shape.set_vector_shape(content);
+  shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(64, 64), nullptr);
+  document.add_layer(std::move(shape));
+  auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+
+  // Byte-patch the vmsk subpath group index (0 -> 7) so the vogk entry
+  // (keyOriginIndex 0) no longer covers it — the damaged-file shape.
+  const std::array<std::uint8_t, 8> vmsk_magic{'8', 'B', 'I', 'M', 'v', 'm', 's', 'k'};
+  const auto it = std::search(written.begin(), written.end(), vmsk_magic.begin(), vmsk_magic.end());
+  CHECK(it != written.end());
+  const auto payload_at = static_cast<std::size_t>(std::distance(written.begin(), it)) + 12U;
+  // Payload: u32 version, u32 flags, then 26-byte records (sel 6, sel 8, then
+  // the length record); the group index is at record offset 12.
+  const auto length_record_at = payload_at + 8U + 2U * 26U;
+  const auto index_at = length_record_at + 12U;
+  CHECK(patchy::test::read_u32_be_at(written, index_at) == 0U);
+  written[index_at + 3U] = 7U;
+
+  const auto damaged = patchy::psd::DocumentIo::read(written, {});
+  const auto& healed_layer = damaged.layers()[1];
+  CHECK(healed_layer.vector_shape() != nullptr);
+  for (const auto& block : healed_layer.unknown_psd_blocks()) {
+    CHECK(block.key != "vogk");
+    CHECK(block.key != "vowv");
+  }
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(damaged);
+  const auto resaved_extra = patchy::test::psd_layer_extra_data(resaved, 1);
+  CHECK(!find_tagged_block(resaved_extra, "vogk").has_value());
+  CHECK(!find_tagged_block(resaved_extra, "vowv").has_value());
+  CHECK(find_tagged_block(resaved_extra, "vmsk").has_value());
+}
+
+void psd_damaged_pattern_file_resave_is_photoshop_safe_if_available() {
+  // The July 2026 user file that Photoshop refused with "program error": a
+  // polygon + custom arrow + live ellipse shape layer whose PtFl referenced a
+  // pattern with NO global Patt block, plus a partial vogk (ellipse entry
+  // only). Resaving through Patchy must produce a file with neither defect.
+  const auto path = patchy::test::local_psd_fixture_path("vectors_from_patchy.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+
+  const auto extra = patchy::test::psd_layer_extra_data(written, 1);
+  CHECK(!find_tagged_block(extra, "vogk").has_value());
+  CHECK(!find_tagged_block(extra, "vowv").has_value());
+  const auto ptfl = find_tagged_block(extra, "PtFl");
+  CHECK(ptfl.has_value());
+
+  const auto patt = find_tagged_block(written, "Patt");
+  CHECK(patt.has_value());
+  const auto ids = patchy::psd::pattern_ids_in_block(*patt);
+  CHECK(std::find(ids.begin(), ids.end(), "1076f0b5-6d90-e4f2-8896-d4f3093299f8") != ids.end());
+
+  if (const char* dump_path = std::getenv("PATCHY_DUMP_RESAVED_USER_PSD")) {
+    std::ofstream dump(dump_path, std::ios::binary);
+    dump.write(reinterpret_cast<const char*>(written.data()),
+               static_cast<std::streamsize>(written.size()));
+  }
+}
+
+void collect_referenced_pattern_resources_covers_vector_content() {
+  // Cross-document layer copies resolve their pattern resources through
+  // collect_referenced_pattern_resources; vector fill and stroke paints must
+  // ride along like style overlays always did.
+  constexpr const char* kFillId = "eeeeeeee-1111-2222-3333-444444444444";
+  constexpr const char* kStrokeId = "ffffffff-5555-6666-7777-888888888888";
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  patchy::PatternResource fill_pattern;
+  fill_pattern.id = kFillId;
+  fill_pattern.tile = checker_tile(4, 1, 2, 3);
+  document.metadata().patterns.adopt(fill_pattern);
+  patchy::PatternResource stroke_pattern;
+  stroke_pattern.id = kStrokeId;
+  stroke_pattern.tile = checker_tile(4, 4, 5, 6);
+  document.metadata().patterns.adopt(stroke_pattern);
+  const auto shape = make_pattern_shape_layer(document, kFillId, kStrokeId);
+  std::vector<patchy::PatternResource> resources;
+  patchy::collect_referenced_pattern_resources(shape, document.metadata().patterns, resources);
+  CHECK(resources.size() == 2);
+  const auto has_id = [&resources](const char* id) {
+    return std::any_of(resources.begin(), resources.end(),
+                       [id](const patchy::PatternResource& resource) { return resource.id == id; });
+  };
+  CHECK(has_id(kFillId));
+  CHECK(has_id(kStrokeId));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
@@ -655,5 +982,13 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_saved_paths_reorder_round_trips", psd_saved_paths_reorder_round_trips},
       {"psd_work_path_saved_as_named_round_trips", psd_work_path_saved_as_named_round_trips},
       {"psd_authored_shape_layer_writes_native_blocks", psd_authored_shape_layer_writes_native_blocks},
+      {"psd_pattern_fill_shape_embeds_patt_block", psd_pattern_fill_shape_embeds_patt_block},
+      {"psd_pattern_fill_missing_tile_writes_placeholder", psd_pattern_fill_missing_tile_writes_placeholder},
+      {"psd_partial_vogk_is_omitted_full_vogk_kept", psd_partial_vogk_is_omitted_full_vogk_kept},
+      {"psd_damaged_partial_vogk_import_heals_on_resave", psd_damaged_partial_vogk_import_heals_on_resave},
+      {"psd_damaged_pattern_file_resave_is_photoshop_safe_if_available",
+       psd_damaged_pattern_file_resave_is_photoshop_safe_if_available},
+      {"collect_referenced_pattern_resources_covers_vector_content",
+       collect_referenced_pattern_resources_covers_vector_content},
   };
 }

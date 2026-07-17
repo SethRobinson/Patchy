@@ -278,6 +278,32 @@ PSD writer resolve them.
   (`SoCo` solid / `GdFl` gradient / `PtFl` pattern) plus a `vmsk` vector mask
   block; live shapes add `vogk` (+ a 4-byte `vowv` = u32 2 beside it; PS wrote
   vowv for rect and line kinds but not ellipse); stroked shapes add `vstk`.
+- **Two hard open-refusal rules (July 2026, pinned by byte bisection of a
+  rejected user file with COM open tests; both produce "Could not open ...
+  because of a program error"):**
+  1. Every pattern id referenced by a `PtFl` fill or a `vstk` pattern stroke
+     paint MUST resolve to pattern data in the file's `Patt`/`Pat2`/`Pat3`
+     blocks. Photoshop falls back to its OWN loaded presets by GUID (which
+     masked this in early fixture tests - the fixture's checker lives in this
+     machine's PS presets), and hard-refuses the whole file when the id
+     resolves nowhere. The writer collects vector fill/stroke pattern ids
+     alongside style ids (`collect_referenced_pattern_ids(Layer&)`), and a
+     referenced id with no usable tile anywhere is written as a 1x1 fully
+     transparent placeholder tile (renders as no paint, matching Patchy's
+     missing-pattern render; `PatternStore::adopt` treats such tiles as
+     heal-able so re-picking the real pattern recovers).
+  2. A `vogk` whose keyDescriptorList covers only SOME of the vmsk subpath
+     groups is rejected in every index permutation (partial-list, renumbered,
+     resolution-patched variants all refused; full-coverage single-entry
+     files open). A mixed live/non-live layer (e.g. polygon + live ellipse
+     via Combine) therefore writes NO vogk/vowv at all
+     (`origination_covers_path_groups` gates the writer, and the reader keeps
+     partial raw vogk/vowv out of the preserved blocks so damaged files heal
+     on resave); the shapes open as plain paths, PS's own fallback, and only
+     live-parameter editability is lost. How PS itself encodes mixed layers
+     in a FILE was not probed (headless authoring of the mixed state was not
+     achieved); if that capture is ever made, matching it could restore
+     mixed-layer liveness round-trips.
 - Channel data is EMPTY: layer bounds (0,0,0,0) and every channel (including
   transparency id -1) is 2 bytes (just the compression marker). Readers must
   rasterize from the vector data.
@@ -506,6 +532,12 @@ the BMPs.
   path) and "Beta Path" (donut, 2 subpaths), work path from a selection;
   resources 2000/2001/1025/2999.
 - photoshop-shape.psb/photoshop-shape-psb.bmp - PSB variant of the solid shape.
+
+Untracked local fixture: `local-test-fixtures/psd/vectors_from_patchy.psd` is
+the July 2026 damaged user file (pre-fix Patchy wrote a pattern fill with no
+Patt block AND a partial vogk; Photoshop refused it). The `_if_available`
+test `psd_damaged_pattern_file_resave_is_photoshop_safe_if_available` pins
+that resaving it through current Patchy removes both defects.
 
 ## Patents and trademarks (assessed July 2026)
 

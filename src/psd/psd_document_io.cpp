@@ -517,6 +517,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     std::optional<std::vector<LiveShapeParams>> vector_origination;
     bool vector_parse_failed = false;
     bool has_legacy_vscg = false;
+    bool drop_partial_origination_blocks = false;
     for (const auto& block : record.additional_blocks) {
       if (block.key == "vmsk" || block.key == "vsms") {
         // PS 27.8 writes vmsk; vsms is the legacy alternate with the same
@@ -672,6 +673,16 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       if (vector_origination.has_value()) {
         content.origination = std::move(*vector_origination);
       }
+      if (!content.origination.empty() &&
+          !origination_covers_path_groups(content.path, content.origination)) {
+        // A keyDescriptorList covering only some subpath groups can only come
+        // from a damaged file — Photoshop refuses to open one. Keep the raw
+        // vogk/vowv out of unknown_psd_blocks below so the untouched-layer
+        // re-emission cannot write the partial vogk back out; the parsed
+        // origination stays in the model for this session's live editing,
+        // and the writer's coverage gate keeps it out of regenerated saves.
+        drop_partial_origination_blocks = true;
+      }
       layer.set_vector_shape(std::move(content));
       layer.metadata()[kLayerMetadataVectorShape] = "1";
       layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPhotoshop;
@@ -708,6 +719,9 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       }
     }
     for (auto& block : record.additional_blocks) {
+      if (drop_partial_origination_blocks && (block.key == "vogk" || block.key == "vowv")) {
+        continue;
+      }
       layer.unknown_psd_blocks().push_back(std::move(block));
     }
     if (record.placed.has_value()) {
@@ -1330,14 +1344,15 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   }
   {
     // Patchy-authored pattern tiles: embed every pattern referenced by some
-    // layer's style (enabled or not, matching Photoshop) that the preserved raw
-    // pattern blocks do not already cover. The raw-block id scan is the
-    // authority — a cross-document adoption may claim ImportedRaw provenance
-    // this document's blocks never contained. Unreferenced store entries are
-    // simply not written (orphans prune at save).
+    // layer — its style (enabled or not, matching Photoshop) plus its vector
+    // fill/stroke content — that the preserved raw pattern blocks do not
+    // already cover. The raw-block id scan is the authority — a cross-document
+    // adoption may claim ImportedRaw provenance this document's blocks never
+    // contained. Unreferenced store entries are simply not written (orphans
+    // prune at save).
     std::vector<std::string> referenced_ids;
     const auto collect_layer_ids = [&referenced_ids](const Layer& layer, const auto& recurse) -> void {
-      collect_referenced_pattern_ids(layer.layer_style(), referenced_ids);
+      collect_referenced_pattern_ids(layer, referenced_ids);
       for (const auto& child : layer.children()) {
         recurse(child, recurse);
       }
@@ -1358,9 +1373,24 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
         if (std::find(covered_ids.begin(), covered_ids.end(), id) != covered_ids.end()) {
           continue;
         }
-        if (const auto* resource = document.metadata().patterns.find(id); resource != nullptr) {
+        const auto* resource = document.metadata().patterns.find(id);
+        if (resource != nullptr && !pattern_tile_is_unrenderable(resource->tile)) {
           patterns_to_write.push_back(*resource);
+          continue;
         }
+        // No usable tile anywhere for this id (a damaged import or a poisoned
+        // store entry). Photoshop hard-refuses to open a file whose pattern
+        // reference resolves nowhere ("program error", July 2026 bisection),
+        // so the reference must never dangle: embed a 1x1 fully transparent
+        // placeholder. It renders as no paint — exactly Patchy's
+        // missing-pattern render — and PatternStore::adopt treats it as
+        // heal-able if the real pattern is ever re-applied.
+        PatternResource placeholder;
+        placeholder.id = id;
+        placeholder.name = resource != nullptr && !resource->name.empty() ? resource->name : id;
+        placeholder.tile = PixelBuffer(1, 1, PixelFormat::rgba8());
+        placeholder.provenance = PatternProvenance::Authored;
+        patterns_to_write.push_back(std::move(placeholder));
       }
       if (!patterns_to_write.empty()) {
         std::sort(patterns_to_write.begin(), patterns_to_write.end(),

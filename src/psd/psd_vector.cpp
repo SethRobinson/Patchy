@@ -923,6 +923,45 @@ std::vector<std::uint8_t> vector_origination_block_payload(std::span<const LiveS
   return descriptor_block_payload(root, 1U);
 }
 
+bool origination_covers_path_groups(const VectorPath& path,
+                                    std::span<const LiveShapeParams> origination) {
+  // Mirrors vector_origination_block_payload's per-entry emission: modeled
+  // kinds always emit; Custom emits only when its preserved raw descriptor
+  // reparses; None never emits.
+  const auto entry_emits = [](const LiveShapeParams& params) {
+    switch (params.kind) {
+      case LiveShapeKind::Rectangle:
+      case LiveShapeKind::RoundedRectangle:
+      case LiveShapeKind::Line:
+      case LiveShapeKind::Ellipse:
+        return true;
+      case LiveShapeKind::Custom: {
+        if (params.raw_descriptor.empty()) {
+          return false;
+        }
+        BigEndianReader reader(params.raw_descriptor);
+        try {
+          static_cast<void>(read_descriptor(reader));
+          return true;
+        } catch (const std::exception&) {
+          return false;
+        }
+      }
+      case LiveShapeKind::None:
+      default:
+        return false;
+    }
+  };
+  return std::all_of(path.subpaths.begin(), path.subpaths.end(),
+                     [&origination, &entry_emits](const PathSubpath& subpath) {
+                       return std::any_of(origination.begin(), origination.end(),
+                                          [&subpath, &entry_emits](const LiveShapeParams& params) {
+                                            return params.index == subpath.shape_group &&
+                                                   entry_emits(params);
+                                          });
+                     });
+}
+
 CoverageBuffer vector_mask_derived_plane(const LayerVectorMask& mask) {
   const auto hull = mask.path.bounds();
   if (!hull.has_value()) {

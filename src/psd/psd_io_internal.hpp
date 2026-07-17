@@ -528,6 +528,14 @@ std::vector<std::uint8_t> vector_stroke_block_payload(const VectorStroke& stroke
                                                       const UnknownPsdBlock* original);
 std::vector<std::uint8_t> vector_origination_block_payload(std::span<const LiveShapeParams> origination,
                                                            const UnknownPsdBlock* original);
+// True when every subpath group of `path` has an origination entry the vogk
+// serializer will actually emit. Photoshop refuses to OPEN a file whose
+// keyDescriptorList covers only some subpath groups (July 2026 byte
+// bisection: a polygon + live ellipse layer with the ellipse-only entry was
+// rejected in every index permutation), so a partial list writes no
+// vogk/vowv at all — the shapes stay plain paths, PS's own fallback.
+[[nodiscard]] bool origination_covers_path_groups(const VectorPath& path,
+                                                  std::span<const LiveShapeParams> origination);
 // The baked "derived from other data" user-mask plane Photoshop stores beside
 // non-default vector-mask density/feather: UNFEATHERED path coverage over the
 // path's pixel hull (+1 px pad), deterministic.

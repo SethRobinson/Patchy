@@ -759,7 +759,14 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
                                       false, canvas.width, canvas.height),
             large_document);
       }
-      if (!content->origination.empty()) {
+      // Photoshop refuses to OPEN a file whose vogk keyDescriptorList covers
+      // only some of the vmsk subpath groups (July 2026 bisection: a polygon
+      // + live ellipse layer failed with "program error" in every index
+      // permutation). A partially-live layer therefore writes NO vogk/vowv —
+      // the shapes open as plain paths, PS's own fallback for path-drawn
+      // subpaths; only the live parameters are lost on reopen.
+      if (!content->origination.empty() &&
+          origination_covers_path_groups(content->path, content->origination)) {
         BigEndianWriter vowv;
         vowv.write_u32(2);
         write_additional_layer_block(extra, {'v', 'o', 'w', 'v'}, vowv.bytes(), large_document);

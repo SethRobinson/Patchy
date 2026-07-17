@@ -40,9 +40,23 @@ struct PatternStore {
   void adopt(const PatternResource& resource);
 };
 
+// True for tiles that can never produce paint: an empty buffer (poisoned
+// adopt) or the PSD writer's 1x1 fully transparent placeholder (embedded so a
+// pattern reference never dangles — Photoshop refuses to open files with
+// unresolvable pattern references). adopt() lets a healthy tile replace these.
+[[nodiscard]] bool pattern_tile_is_unrenderable(const PixelBuffer& tile) noexcept;
+
 // Pattern ids referenced by a style (enabled or not — Photoshop keeps pattern
 // data for disabled effects so they can be re-enabled), deduped.
 void collect_referenced_pattern_ids(const LayerStyle& style, std::vector<std::string>& ids);
+
+// Every pattern id this layer's saved form references: the style set above
+// plus the vector shape content (a PtFl pattern fill and a vstk pattern
+// stroke paint reference tiles by id exactly like pattern overlays). Does not
+// recurse into children. A PSD must embed data for each of these ids —
+// Photoshop refuses to open a file whose fill references a pattern it cannot
+// resolve anywhere ("program error").
+void collect_referenced_pattern_ids(const Layer& layer, std::vector<std::string>& ids);
 
 // Appends the resources referenced by `layer` (and children) that resolve in
 // `store` (mirror of collect_referenced_smart_object_sources).
