@@ -754,9 +754,15 @@ void ui_print_layout_and_pdf_output_work() {
 
   const auto pdf_path = QStringLiteral("test-artifacts/ui_print_output.pdf");
   QFile::remove(pdf_path);
-  CHECK(patchy::ui::write_print_pdf(pdf_path, document, settings, page_layout));
+  CHECK(patchy::ui::write_print_pdf(pdf_path, document, settings, page_layout, QStringLiteral("photo.psd")));
   CHECK(QFileInfo(pdf_path).isFile());
   CHECK(QFileInfo(pdf_path).size() > 1000);
+
+  // Save PDF derives its suggested filename from the document title, not a fixed
+  // "Patchy Print.pdf".
+  CHECK(patchy::ui::default_print_pdf_filename(QStringLiteral("photo.psd")) == QStringLiteral("photo.pdf"));
+  CHECK(patchy::ui::default_print_pdf_filename(QStringLiteral("Untitled-2")) == QStringLiteral("Untitled-2.pdf"));
+  CHECK(patchy::ui::default_print_pdf_filename(QString()) == QObject::tr("Untitled") + QStringLiteral(".pdf"));
 }
 
 void ui_print_dialog_exposes_printer_and_visible_checkboxes() {

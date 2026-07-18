@@ -9,6 +9,7 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
@@ -153,6 +154,12 @@ void populate_printer_combo(QComboBox* printer_combo) {
 }
 
 bool paint_printer_page(QPrinter& printer, const Document& document, const PrintSettings& settings) {
+  // Full-page mode puts the painter's device origin at the physical page corner. Without
+  // it the origin sits at the printable-area corner, and mapping the full-page window
+  // onto fullRectPixels shifts the output down-right by the margins (off-center prints
+  // with the bottom clipped). Margins are still honored: render_print_page places the
+  // image inside paintRect.
+  printer.setFullPage(true);
   QPainter painter(&printer);
   if (!painter.isActive()) {
     return false;
@@ -358,15 +365,20 @@ void render_print_page(QPainter& painter, const Document& document, const PrintS
 }
 
 bool write_print_pdf(const QString& path, const Document& document, const PrintSettings& settings,
-                     const QPageLayout& page_layout) {
+                     const QPageLayout& page_layout, const QString& document_name) {
   if (path.isEmpty()) {
     return false;
   }
   QPrinter printer(QPrinter::HighResolution);
   printer.setOutputFormat(QPrinter::PdfFormat);
   printer.setOutputFileName(path);
-  configure_printer(printer, page_layout, QObject::tr("Patchy Print"));
+  configure_printer(printer, page_layout, document_name);
   return paint_printer_page(printer, document, settings);
+}
+
+QString default_print_pdf_filename(const QString& document_title) {
+  const auto title = document_title.isEmpty() ? QObject::tr("Untitled") : document_title;
+  return QFileInfo(title).completeBaseName() + QStringLiteral(".pdf");
 }
 
 void run_page_setup_dialog(QWidget* parent, QPageLayout* page_layout) {
@@ -380,8 +392,9 @@ void run_page_setup_dialog(QWidget* parent, QPageLayout* page_layout) {
   }
 }
 
-bool run_print_dialog(QWidget* parent, const Document& document, std::optional<QRect> selection_bounds,
-                      QPageLayout* page_layout) {
+bool run_print_dialog(QWidget* parent, const Document& document, const QString& document_title,
+                      std::optional<QRect> selection_bounds, QPageLayout* page_layout) {
+  const auto display_title = document_title.isEmpty() ? QObject::tr("Untitled") : document_title;
   auto settings = default_print_settings(document, selection_bounds);
   auto current_layout = valid_page_layout(page_layout != nullptr ? *page_layout : QPageLayout{});
   // Photoshop prints at actual size (100%) by default. Patchy keeps that whenever the
@@ -580,8 +593,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
   QObject::connect(page_setup, &QPushButton::clicked, &dialog, [&] {
     const auto printer_name = selected_printer_name(printer_combo);
     auto printer = create_selected_printer(printer_name);
-    configure_selected_printer(*printer, printer_name, current_layout,
-                               QObject::tr("Patchy Print"));
+    configure_selected_printer(*printer, printer_name, current_layout, display_title);
     QPageSetupDialog setup_dialog(printer.get(), &dialog);
     setup_dialog.setObjectName(QStringLiteral("printPageSetupDialog"));
     if (exec_dialog(setup_dialog) == QDialog::Accepted) {
@@ -593,7 +605,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
   QObject::connect(pdf_button, &QPushButton::clicked, &dialog, [&] {
     sync_settings();
     auto path = get_save_file_name(&dialog, QObject::tr("Save Print PDF"),
-                                   default_documents_path(QStringLiteral("Patchy Print.pdf")),
+                                   default_documents_path(default_print_pdf_filename(document_title)),
                                    QObject::tr("PDF Document (*.pdf)"), nullptr,
                                    QStringLiteral("savePrintPdfFileDialog"));
     if (path.isEmpty()) {
@@ -603,7 +615,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
       path += QStringLiteral(".pdf");
     }
     try {
-      if (!write_print_pdf(path, document, settings, current_layout)) {
+      if (!write_print_pdf(path, document, settings, current_layout, display_title)) {
         throw std::runtime_error("Could not write PDF");
       }
       if (page_layout != nullptr) {
@@ -619,8 +631,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
     sync_settings();
     const auto printer_name = selected_printer_name(printer_combo);
     auto printer = create_selected_printer(printer_name);
-    configure_selected_printer(*printer, printer_name, current_layout,
-                               QObject::tr("Patchy Print"));
+    configure_selected_printer(*printer, printer_name, current_layout, display_title);
     try {
       if (!printer->isValid()) {
         throw std::runtime_error("Selected printer is not available");

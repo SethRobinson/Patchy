@@ -1700,7 +1700,7 @@ void MainWindow::print_document() {
   if (canvas_ != nullptr) {
     selection_bounds = canvas_->selected_document_rect();
   }
-  if (run_print_dialog(this, document(), selection_bounds, &print_page_layout_)) {
+  if (run_print_dialog(this, document(), session().title, selection_bounds, &print_page_layout_)) {
     statusBar()->showMessage(tr("Print output created"));
   }
 }

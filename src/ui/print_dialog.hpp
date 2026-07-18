@@ -55,9 +55,11 @@ struct PrintPlacement {
 void render_print_page(QPainter& painter, const Document& document, const PrintSettings& settings,
                        const QPageLayout& page_layout);
 [[nodiscard]] bool write_print_pdf(const QString& path, const Document& document, const PrintSettings& settings,
-                                   const QPageLayout& page_layout);
+                                   const QPageLayout& page_layout, const QString& document_name = {});
+// "photo.psd" -> "photo.pdf"; empty title -> "Untitled.pdf".
+[[nodiscard]] QString default_print_pdf_filename(const QString& document_title);
 void run_page_setup_dialog(QWidget* parent, QPageLayout* page_layout);
-[[nodiscard]] bool run_print_dialog(QWidget* parent, const Document& document, std::optional<QRect> selection_bounds,
-                                    QPageLayout* page_layout);
+[[nodiscard]] bool run_print_dialog(QWidget* parent, const Document& document, const QString& document_title,
+                                    std::optional<QRect> selection_bounds, QPageLayout* page_layout);
 
 }  // namespace patchy::ui
