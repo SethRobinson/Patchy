@@ -64,6 +64,8 @@ namespace {
 constexpr auto kDialogPositionMemoryInstalledProperty = "patchy.dialogPositionMemoryInstalled";
 constexpr auto kDialogPositionMemoryIdProperty = "patchy.dialogPositionMemoryId";
 
+constexpr int kChevronAreaWidth = 14;
+
 QIcon dialog_close_icon() {
   QPixmap pixmap(32, 32);
   pixmap.fill(Qt::transparent);
@@ -192,8 +194,6 @@ protected:
   }
 
 private:
-  static constexpr int kChevronAreaWidth = 14;
-
   void update_chevron_geometry() {
     if (chevron_ == nullptr) {
       return;
@@ -788,17 +788,41 @@ void install_save_file_recent_dropdown(QFileDialog& dialog, const QStringList& r
 
 }  // namespace
 
+namespace {
+
+// Frame, QSS padding, line-edit text margins, and cursor slack around the value
+// text of an options-bar spin box (the stylesheet is not applied yet when the
+// bar is built, so this cannot be read from the widget).
+constexpr int kToolbarSpinboxChromeWidth = 14;
+
+int toolbar_spinbox_width(int width, const QFontMetrics& metrics, const QString& min_text,
+                          const QString& max_text) {
+  const int text_width = std::max(metrics.horizontalAdvance(min_text),
+                                  metrics.horizontalAdvance(max_text));
+  return std::max(width, text_width + kChevronAreaWidth + kToolbarSpinboxChromeWidth);
+}
+
+}  // namespace
+
 void configure_toolbar_spinbox(QSpinBox* spin, int width) {
   spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
   spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  spin->setFixedWidth(width);
+  const auto locale = spin->locale();
+  spin->setFixedWidth(toolbar_spinbox_width(
+      width, spin->fontMetrics(),
+      spin->prefix() + locale.toString(spin->minimum()) + spin->suffix(),
+      spin->prefix() + locale.toString(spin->maximum()) + spin->suffix()));
   install_numeric_popup(spin);
 }
 
 void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width) {
   spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
   spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  spin->setFixedWidth(width);
+  const auto locale = spin->locale();
+  spin->setFixedWidth(toolbar_spinbox_width(
+      width, spin->fontMetrics(),
+      spin->prefix() + locale.toString(spin->minimum(), 'f', spin->decimals()) + spin->suffix(),
+      spin->prefix() + locale.toString(spin->maximum(), 'f', spin->decimals()) + spin->suffix()));
   install_numeric_popup(spin);
 }
 

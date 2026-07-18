@@ -288,6 +288,49 @@ void ui_startup_defaults_to_round_brush() {
   CHECK(gradient_reverse->isChecked());
 }
 
+void ui_options_bar_spinboxes_fit_widest_value() {
+  // "100%" in the brush Opacity box rendered as "100": the 52px fixed width left
+  // no room for the suffix once the popup chevron claimed its 14px text margin.
+  // configure_toolbar_spinbox now treats the requested width as a minimum and
+  // grows the box to fit its widest value text; require chevron + box chrome
+  // clearance beyond the min/max text on every options-bar spin box.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* toolbar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  CHECK(toolbar != nullptr);
+  const auto require_fits = [](const QWidget* spin, const QString& text) {
+    const int required = spin->fontMetrics().horizontalAdvance(text) + 24;
+    if (spin->minimumWidth() < required) {
+      std::fprintf(stderr, "  %s: width %d < %d needed for \"%s\"\n",
+                   qPrintable(spin->objectName()), spin->minimumWidth(), required,
+                   qPrintable(text));
+    }
+    CHECK(spin->minimumWidth() >= required);
+  };
+  int checked = 0;
+  for (const auto* spin : toolbar->findChildren<QSpinBox*>()) {
+    if (!spin->property("patchy.numericPopupInstalled").toBool()) {
+      continue;
+    }
+    const auto locale = spin->locale();
+    require_fits(spin, spin->prefix() + locale.toString(spin->minimum()) + spin->suffix());
+    require_fits(spin, spin->prefix() + locale.toString(spin->maximum()) + spin->suffix());
+    ++checked;
+  }
+  for (const auto* spin : toolbar->findChildren<QDoubleSpinBox*>()) {
+    if (!spin->property("patchy.numericPopupInstalled").toBool()) {
+      continue;
+    }
+    const auto locale = spin->locale();
+    require_fits(spin, spin->prefix() + locale.toString(spin->minimum(), 'f', spin->decimals()) +
+                           spin->suffix());
+    require_fits(spin, spin->prefix() + locale.toString(spin->maximum(), 'f', spin->decimals()) +
+                           spin->suffix());
+    ++checked;
+  }
+  CHECK(checked >= 10);
+}
+
 void ui_canvas_wheel_matches_photoshop_navigation() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1685,6 +1728,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
+      {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},
       {"ui_layer_opacity_slider_defers_slow_rendering_and_undoes_once",

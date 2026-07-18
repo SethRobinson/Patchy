@@ -17,6 +17,9 @@ class QWidget;
 
 namespace patchy::ui {
 
+// `width` is a minimum: the box grows to keep its widest possible value text
+// (prefix + min/max + suffix) clear of the trailing popup chevron. Set the
+// range, decimals, prefix, and suffix BEFORE calling this.
 void configure_toolbar_spinbox(QSpinBox* spin, int width);
 void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width);
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
