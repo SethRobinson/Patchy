@@ -1443,16 +1443,18 @@ void MainWindow::export_image_sequence() {
     return;
   }
   finish_active_text_editor();
-  // One file per visible top-level layer, bottom to top (matching the sprite-sheet
-  // export's frame semantics).
-  std::vector<QString> layer_names;
+  // One file per top-level layer, bottom to top (matching the sprite-sheet export's
+  // frame semantics); the options dialog picks visible-only (default) or all layers.
+  std::vector<QString> visible_layer_names;
+  std::vector<QString> all_layer_names;
   for (const auto& layer : std::as_const(document()).layers()) {
+    all_layer_names.push_back(QString::fromStdString(layer.name()));
     if (layer.visible()) {
-      layer_names.push_back(QString::fromStdString(layer.name()));
+      visible_layer_names.push_back(all_layer_names.back());
     }
   }
-  if (layer_names.empty()) {
-    show_information_message(this, tr("Export Image Sequence"), tr("There are no visible layers to export."),
+  if (all_layer_names.empty()) {
+    show_information_message(this, tr("Export Image Sequence"), tr("There are no layers to export."),
                              QStringLiteral("imageSequenceNoLayersMessageBox"));
     return;
   }
@@ -1469,7 +1471,7 @@ void MainWindow::export_image_sequence() {
   path = path_with_default_extension(path, selected_filter);
   const QFileInfo chosen(path);
   const auto extension = extension_for_path(path);
-  const auto options = prompt_image_sequence_export_options(this, layer_names,
+  const auto options = prompt_image_sequence_export_options(this, visible_layer_names, all_layer_names,
                                                             naming_from_save_base_name(chosen.completeBaseName()),
                                                             extension);
   if (!options.has_value()) {
@@ -1481,7 +1483,8 @@ void MainWindow::export_image_sequence() {
     if (!image_options.has_value()) {
       return;
     }
-    const auto file_names = image_sequence_file_names(layer_names, *options, extension);
+    const auto& layer_names = options->visible_layers_only ? visible_layer_names : all_layer_names;
+    const auto file_names = image_sequence_file_names(layer_names, options->naming, extension);
     const auto directory = chosen.dir();
     // The save dialog confirmed overwriting only the exact name typed there; the rest
     // of the set needs its own check.
@@ -1503,7 +1506,7 @@ void MainWindow::export_image_sequence() {
     }
     int frame_index = 0;
     for (const auto& layer : std::as_const(document()).layers()) {
-      if (!layer.visible()) {
+      if (options->visible_layers_only && !layer.visible()) {
         continue;
       }
       // Each frame routes through the normal export machinery as a flat document and

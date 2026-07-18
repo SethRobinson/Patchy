@@ -203,6 +203,18 @@
         <translation>%1 個の画像 (表示中のトップレベル レイヤーごとに 1 つ)</translation>
     </message>
     <message>
+        <source>Export visible layers only</source>
+        <translation>表示中のレイヤーのみ書き出し</translation>
+    </message>
+    <message>
+        <source>Export all layers</source>
+        <translation>すべてのレイヤーを書き出し</translation>
+    </message>
+    <message>
+        <source>%1 images, one per top-level layer</source>
+        <translation>%1 個の画像 (トップレベル レイヤーごとに 1 つ)</translation>
+    </message>
+    <message>
         <source>Numbered files</source>
         <translation>連番ファイル</translation>
     </message>
@@ -6891,6 +6903,10 @@ Mixed selection</source>
     <message>
         <source>Export Image Sequence</source>
         <translation>画像シーケンスの書き出し</translation>
+    </message>
+    <message>
+        <source>There are no layers to export.</source>
+        <translation>書き出せるレイヤーがありません。</translation>
     </message>
     <message>
         <source>%1 of %2 files already exist in this folder. Overwrite them?</source>

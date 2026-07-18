@@ -3,6 +3,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/image_document_io.hpp"
 
+#include <QButtonGroup>
 #include <QCollator>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -232,26 +233,44 @@ bool prompt_image_sequence_import_options(QWidget* parent, const QStringList& or
   return exec_dialog(dialog) == QDialog::Accepted;
 }
 
-std::optional<ImageSequenceNaming> prompt_image_sequence_export_options(
-    QWidget* parent, const std::vector<QString>& layer_names, const ImageSequenceNaming& suggested,
-    const QString& extension) {
+std::optional<ImageSequenceExportOptions> prompt_image_sequence_export_options(
+    QWidget* parent, const std::vector<QString>& visible_layer_names, const std::vector<QString>& all_layer_names,
+    const ImageSequenceNaming& suggested, const QString& extension) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("imageSequenceExportDialog"));
   auto* content = create_sequence_dialog_chrome(dialog, QObject::tr("Export Image Sequence"));
-  dialog.resize(360, 220);
+  dialog.resize(360, 260);
 
   auto* form = new QFormLayout();
   form->setContentsMargins(0, 0, 0, 0);
   form->setHorizontalSpacing(10);
   form->setVerticalSpacing(8);
 
-  auto* info = new QLabel(QObject::tr("%1 images, one per visible top-level layer").arg(layer_names.size()), &dialog);
+  auto* info = new QLabel(&dialog);
+  info->setObjectName(QStringLiteral("imageSequenceInfoLabel"));
   info->setWordWrap(true);
   form->addRow(info);
 
+  // Two independent radio pairs share the dialog, so each needs its own group
+  // (same-parent QRadioButtons are otherwise one exclusive set).
+  auto* visible_only = new QRadioButton(QObject::tr("Export visible layers only"), &dialog);
+  visible_only->setObjectName(QStringLiteral("imageSequenceVisibleLayersRadio"));
+  auto* all_layers = new QRadioButton(QObject::tr("Export all layers"), &dialog);
+  all_layers->setObjectName(QStringLiteral("imageSequenceAllLayersRadio"));
+  auto* scope_group = new QButtonGroup(&dialog);
+  scope_group->addButton(visible_only);
+  scope_group->addButton(all_layers);
+  if (visible_layer_names.empty()) {
+    visible_only->setEnabled(false);
+    all_layers->setChecked(true);
+  } else {
+    visible_only->setChecked(true);
+  }
+  form->addRow(visible_only);
+  form->addRow(all_layers);
+
   auto* numbered = new QRadioButton(QObject::tr("Numbered files"), &dialog);
   numbered->setObjectName(QStringLiteral("imageSequenceNumberedRadio"));
-  numbered->setChecked(true);
   auto* start = new QSpinBox(&dialog);
   start->setObjectName(QStringLiteral("imageSequenceStartSpin"));
   start->setRange(0, 999999);
@@ -261,6 +280,10 @@ std::optional<ImageSequenceNaming> prompt_image_sequence_export_options(
 
   auto* layer_named = new QRadioButton(QObject::tr("Layer names"), &dialog);
   layer_named->setObjectName(QStringLiteral("imageSequenceLayerNamesRadio"));
+  auto* naming_group = new QButtonGroup(&dialog);
+  naming_group->addButton(numbered);
+  naming_group->addButton(layer_named);
+  numbered->setChecked(true);
   form->addRow(layer_named);
 
   auto* preview = new QLabel(&dialog);
@@ -270,15 +293,22 @@ std::optional<ImageSequenceNaming> prompt_image_sequence_export_options(
   content->addLayout(form);
   add_sequence_dialog_buttons(content, dialog);
 
-  const auto current_naming = [&]() {
-    ImageSequenceNaming naming = suggested;
-    naming.use_layer_names = layer_named->isChecked();
-    naming.start = start->value();
-    return naming;
+  const auto current_options = [&]() {
+    ImageSequenceExportOptions options;
+    options.naming = suggested;
+    options.naming.use_layer_names = layer_named->isChecked();
+    options.naming.start = start->value();
+    options.visible_layers_only = visible_only->isChecked();
+    return options;
   };
-  const auto update_preview = [=, &layer_names, &extension] {
+  const auto update_preview = [=, &visible_layer_names, &all_layer_names, &extension] {
     start->setEnabled(numbered->isChecked());
-    const auto names = image_sequence_file_names(layer_names, current_naming(), extension);
+    const auto options = current_options();
+    const auto& layer_names = options.visible_layers_only ? visible_layer_names : all_layer_names;
+    info->setText(options.visible_layers_only
+                      ? QObject::tr("%1 images, one per visible top-level layer").arg(layer_names.size())
+                      : QObject::tr("%1 images, one per top-level layer").arg(layer_names.size()));
+    const auto names = image_sequence_file_names(layer_names, options.naming, extension);
     if (names.isEmpty()) {
       preview->clear();
     } else if (names.size() == 1) {
@@ -287,6 +317,7 @@ std::optional<ImageSequenceNaming> prompt_image_sequence_export_options(
       preview->setText(QObject::tr("%1 ... %2").arg(names.first(), names.last()));
     }
   };
+  QObject::connect(visible_only, &QRadioButton::toggled, &dialog, [update_preview](bool) { update_preview(); });
   QObject::connect(numbered, &QRadioButton::toggled, &dialog, [update_preview](bool) { update_preview(); });
   QObject::connect(start, &QSpinBox::valueChanged, &dialog, [update_preview](int) { update_preview(); });
   update_preview();
@@ -294,7 +325,7 @@ std::optional<ImageSequenceNaming> prompt_image_sequence_export_options(
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  return current_naming();
+  return current_options();
 }
 
 }  // namespace patchy::ui

@@ -56,8 +56,16 @@ struct ImageSequenceNaming {
 [[nodiscard]] bool prompt_image_sequence_import_options(QWidget* parent, const QStringList& ordered_paths,
                                                         QSize canvas_size);
 
-[[nodiscard]] std::optional<ImageSequenceNaming> prompt_image_sequence_export_options(
-    QWidget* parent, const std::vector<QString>& layer_names, const ImageSequenceNaming& suggested,
-    const QString& extension);
+struct ImageSequenceExportOptions {
+  ImageSequenceNaming naming;
+  bool visible_layers_only{true};
+};
+
+// The scope radios (visible layers only / all layers) drive the frame count and name
+// preview; visible-only is the default but disabled (falling back to all) when nothing
+// is visible.
+[[nodiscard]] std::optional<ImageSequenceExportOptions> prompt_image_sequence_export_options(
+    QWidget* parent, const std::vector<QString>& visible_layer_names, const std::vector<QString>& all_layer_names,
+    const ImageSequenceNaming& suggested, const QString& extension);
 
 }  // namespace patchy::ui

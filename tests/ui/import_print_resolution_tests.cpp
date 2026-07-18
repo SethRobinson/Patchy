@@ -671,14 +671,24 @@ void ui_image_sequence_export_names_and_dialog() {
   CHECK(named == QStringList({QStringLiteral("walk.png"), QStringLiteral("Walk 2.png"),
                               QStringLiteral("a_b_c.png"), QStringLiteral("Frame 4.png")}));
 
-  // Dialog round trip: the start spin and naming radios drive the live preview.
+  // Dialog round trip: the scope radios, start spin, and naming radios drive the
+  // live count and preview.
   bool saw_dialog = false;
   QTimer::singleShot(0, [&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("imageSequenceExportDialog"));
     CHECK(dialog != nullptr);
+    auto* info = dialog->findChild<QLabel*>(QStringLiteral("imageSequenceInfoLabel"));
     auto* preview = dialog->findChild<QLabel*>(QStringLiteral("imageSequencePreviewLabel"));
+    CHECK(info != nullptr);
     CHECK(preview != nullptr);
+    // Visible-only default: two frames, shot_002-shot_003.
+    CHECK(dialog->findChild<QRadioButton*>(QStringLiteral("imageSequenceVisibleLayersRadio"))->isChecked());
+    CHECK(info->text().contains(QStringLiteral("2")));
     CHECK(preview->text().contains(QStringLiteral("shot_002.png")));
+    CHECK(preview->text().contains(QStringLiteral("shot_003.png")));
+    // All layers: the hidden layer joins in and the count/preview follow.
+    dialog->findChild<QRadioButton*>(QStringLiteral("imageSequenceAllLayersRadio"))->setChecked(true);
+    CHECK(info->text().contains(QStringLiteral("3")));
     CHECK(preview->text().contains(QStringLiteral("shot_004.png")));
     dialog->findChild<QSpinBox*>(QStringLiteral("imageSequenceStartSpin"))->setValue(5);
     CHECK(preview->text().contains(QStringLiteral("shot_005.png")));
@@ -693,11 +703,12 @@ void ui_image_sequence_export_names_and_dialog() {
   suggested.start = 2;
   suggested.padding = 3;
   const auto chosen = patchy::ui::prompt_image_sequence_export_options(
-      nullptr, {QStringLiteral("hero"), QStringLiteral("mid"), QStringLiteral("end")}, suggested,
-      QStringLiteral("png"));
+      nullptr, {QStringLiteral("hero"), QStringLiteral("end")},
+      {QStringLiteral("hero"), QStringLiteral("hidden"), QStringLiteral("end")}, suggested, QStringLiteral("png"));
   CHECK(saw_dialog);
   CHECK(chosen.has_value());
-  CHECK(chosen->use_layer_names);
+  CHECK(chosen->naming.use_layer_names);
+  CHECK(!chosen->visible_layers_only);
 }
 
 void ui_tile_preview_window_tracks_document_edits() {
