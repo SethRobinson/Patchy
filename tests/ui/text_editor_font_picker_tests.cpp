@@ -1362,6 +1362,53 @@ void ui_text_tool_drag_creates_resizable_wrapped_text_box() {
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
 }
 
+void ui_text_size_popup_slider_caps_at_200pt() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(text_size != nullptr);
+  CHECK(text_size->maximum() == 10000.0);
+
+  const auto open_popup = [&window]() -> QSlider* {
+    auto* action = window.findChild<QAction*>(QStringLiteral("textSizePopupAction"));
+    CHECK(action != nullptr);
+    action->trigger();
+    QApplication::processEvents();
+    auto* popup = window.findChild<QFrame*>(QStringLiteral("textSizePopup"));
+    auto* slider = window.findChild<QSlider*>(QStringLiteral("textSizePopupSlider"));
+    CHECK(popup != nullptr && popup->isVisible());
+    CHECK(slider != nullptr);
+    return slider;
+  };
+  const auto close_popup = [&window] {
+    auto* popup = window.findChild<QFrame*>(QStringLiteral("textSizePopup"));
+    CHECK(popup != nullptr);
+    popup->close();
+    QApplication::processEvents();
+  };
+
+  // The spin box accepts up to 10000 pt typed, but the slider caps at 200 pt
+  // (decimals=3, so slider units are thousandths of a point).
+  const double value_before = text_size->value();
+  auto* slider = open_popup();
+  CHECK(slider->maximum() == 200000);
+  CHECK(text_size->value() == value_before);
+  slider->setValue(150000);
+  CHECK(text_size->value() == 150.0);
+  close_popup();
+
+  // A typed value above the cap extends the slider to reach it instead of
+  // clamping the value down when the popup opens.
+  text_size->setValue(500.0);
+  slider = open_popup();
+  CHECK(slider->maximum() == 500000);
+  CHECK(slider->value() == 500000);
+  CHECK(text_size->value() == 500.0);
+  close_popup();
+
+  text_size->setValue(48.0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
@@ -1388,5 +1435,6 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
        ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard},
       {"ui_text_tool_drag_creates_resizable_wrapped_text_box",
        ui_text_tool_drag_creates_resizable_wrapped_text_box},
+      {"ui_text_size_popup_slider_caps_at_200pt", ui_text_size_popup_slider_caps_at_200pt},
   };
 }

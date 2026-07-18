@@ -307,9 +307,20 @@ private:
     slider->setMinimumWidth(220);
     layout->addWidget(slider);
 
+    const double slider_maximum = [this] {
+      double maximum = static_cast<double>(spin_->maximum());
+      const auto cap = spin_->property(kToolbarSpinboxSliderMaxProperty);
+      bool cap_valid = false;
+      if (const double cap_value = cap.toDouble(&cap_valid); cap_valid) {
+        maximum = std::min(maximum, cap_value);
+      }
+      return std::max(maximum, static_cast<double>(spin_->value()));
+    }();
+
     if constexpr (std::is_same_v<SpinBox, QSpinBox>) {
-      slider->setRange(spin_->minimum(), spin_->maximum());
-      slider->setPageStep(std::max(1, (spin_->maximum() - spin_->minimum()) / 20));
+      const int maximum = static_cast<int>(std::lround(slider_maximum));
+      slider->setRange(spin_->minimum(), maximum);
+      slider->setPageStep(std::max(1, (maximum - spin_->minimum()) / 20));
       slider->setValue(spin_->value());
       QObject::connect(slider, &QSlider::valueChanged, spin_,
                        &QSpinBox::setValue);
@@ -327,7 +338,7 @@ private:
             static_cast<long long>(std::numeric_limits<int>::min()),
             static_cast<long long>(std::numeric_limits<int>::max())));
       };
-      slider->setRange(scaled(spin_->minimum()), scaled(spin_->maximum()));
+      slider->setRange(scaled(spin_->minimum()), scaled(slider_maximum));
       slider->setPageStep(
           std::max(1, (slider->maximum() - slider->minimum()) / 20));
       slider->setValue(scaled(spin_->value()));

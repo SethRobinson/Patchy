@@ -3783,6 +3783,8 @@ void MainWindow::create_actions() {
   text_size_spin_->setObjectName(QStringLiteral("textSizeSpin"));
   text_size_spin_->setDecimals(3);
   text_size_spin_->setRange(0.01, 10000.0);
+  // Typing accepts up to 10000 pt, but the popup slider stays usable at 0..200.
+  text_size_spin_->setProperty(kToolbarSpinboxSliderMaxProperty, 200.0);
   text_size_spin_->setSingleStep(0.25);
   // 48 px at the default document's 72 ppi = 48 pt (startup builds the bar with
   // no document open).

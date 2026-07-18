@@ -22,6 +22,10 @@ namespace patchy::ui {
 // range, decimals, prefix, and suffix BEFORE calling this.
 void configure_toolbar_spinbox(QSpinBox* spin, int width);
 void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width);
+// Set this double property on a toolbar spin box to cap its popup SLIDER below the
+// spin box's maximum (the spin box itself keeps accepting larger typed values; the
+// slider extends to the current value when it already sits above the cap).
+inline constexpr char kToolbarSpinboxSliderMaxProperty[] = "patchy.popupSliderMax";
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
 void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
 // Large-button spin box styling (24px - / + buttons with readable glyphs; decrement left,
