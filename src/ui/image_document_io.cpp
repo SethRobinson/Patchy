@@ -1350,6 +1350,14 @@ QImage qimage_from_document_rect(const Document& document, QRect document_rect, 
   return render_document_rect(document, document_rect, preserve_alpha, nullptr);
 }
 
+QImage render_layer_isolated(const Document& document, const Layer& layer) {
+  Document scratch(document.width(), document.height(), PixelFormat::rgba8());
+  Layer copy = layer;
+  copy.set_visible(true);
+  scratch.add_layer(std::move(copy));
+  return qimage_from_document(scratch, true);
+}
+
 std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Document& document,
                                                                        const QRegion& document_region,
                                                                        bool preserve_alpha) {

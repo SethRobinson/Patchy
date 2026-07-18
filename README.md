@@ -141,7 +141,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement
 - Rich text with per-run color, font, size, and style, plus a searchable font picker and Character controls for leading, tracking, and horizontal or vertical glyph scaling
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
-- Pixel-art and game-dev extras: seamless tile preview window, sprite sheet export/import, and nearest-neighbor scaled export (2x-8x)
+- Pixel-art and game-dev extras: seamless tile preview window, sprite sheet export/import, image sequence export/import (numbered files become layers and back), and nearest-neighbor scaled export (2x-8x)
 - Reads and writes a wide range of formats: PSD/PSB, PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), Aseprite files, and SVG (opens as editable shape layers, exports with vectors preserved)
 - Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) through a 16-bit develop dialog, and HEIC/HEIF photos through platform codecs
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing

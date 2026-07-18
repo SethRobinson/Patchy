@@ -669,6 +669,8 @@ if(PATCHY_BUILD_APP)
       src/ui/start_panel.cpp
       src/ui/smart_object_render.hpp
       src/ui/smart_object_render.cpp
+      src/ui/image_sequence_dialog.hpp
+      src/ui/image_sequence_dialog.cpp
       src/ui/sprite_sheet_dialog.hpp
       src/ui/sprite_sheet_dialog.cpp
       src/ui/style_browser.hpp

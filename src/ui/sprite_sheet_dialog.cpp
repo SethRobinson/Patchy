@@ -169,13 +169,7 @@ QImage compose_sprite_sheet(const Document& document, const SpriteSheetExportOpt
   sheet.fill(options.transparent_background ? Qt::transparent : Qt::white);
   QPainter painter(&sheet);
   for (std::size_t index = 0; index < frames.size(); ++index) {
-    // Isolate the layer in a scratch document so opacity/blend/styles render exactly as
-    // the compositor draws them against an empty backdrop.
-    Document scratch(cell_w, cell_h, PixelFormat::rgba8());
-    Layer copy = *frames[index];
-    copy.set_visible(true);
-    scratch.add_layer(std::move(copy));
-    const auto frame_image = qimage_from_document(scratch, true);
+    const auto frame_image = render_layer_isolated(document, *frames[index]);
     const auto column = static_cast<int>(index) % columns;
     const auto row = static_cast<int>(index) / columns;
     painter.drawImage(pad + column * (cell_w + pad), pad + row * (cell_h + pad), frame_image);

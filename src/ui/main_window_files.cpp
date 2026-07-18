@@ -64,6 +64,7 @@
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
+#include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
@@ -1379,6 +1380,141 @@ void MainWindow::export_sprite_sheet() {
     write_flat_image_file(sheet_document, path, extension, *image_options);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported sprite sheet %1").arg(path));
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("exportFailedMessageBox"));
+  }
+}
+
+void MainWindow::import_image_sequence() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  auto paths = get_open_file_names(this, tr("Image Sequence to Layers"), last_open_directory(), open_file_filter(),
+                                   nullptr, QStringLiteral("imageSequenceImportFileDialog"));
+  if (paths.isEmpty()) {
+    return;
+  }
+  // A single numbered file stands for its whole sibling run; the confirmation dialog
+  // below shows exactly what the expansion found before anything imports.
+  paths = paths.size() == 1 ? expand_numbered_sequence(paths.front()) : sorted_sequence_paths(std::move(paths));
+
+  // Header-only size probe so the confirmation dialog can state the canvas size
+  // without decoding every frame.
+  QSize canvas_size;
+  for (const auto& path : paths) {
+    const auto size = QImageReader(path).size();
+    if (size.isValid()) {
+      canvas_size = canvas_size.isValid() ? canvas_size.expandedTo(size) : size;
+    }
+  }
+  if (!prompt_image_sequence_import_options(this, paths, canvas_size)) {
+    return;
+  }
+  QString error;
+  auto imported = document_from_image_sequence(paths, &error);
+  if (!imported.has_value()) {
+    show_critical_message(this, tr("Import failed"), error, QStringLiteral("openFailedMessageBox"));
+    return;
+  }
+  const auto frame_count = static_cast<int>(imported->layers().size());
+  if (const auto default_layer_id = default_non_group_layer_id(imported->layers()); default_layer_id.has_value()) {
+    imported->set_active_layer(*default_layer_id);
+  }
+  add_document_session(std::move(*imported), tr("Image Sequence"), QString());
+  canvas_->fit_to_view();
+  session().undo_stack.clear();
+  session().redo_stack.clear();
+  if (history_list_ != nullptr) {
+    history_list_->clear();
+  }
+  update_history(tr("Import image sequence"));
+  refresh_layer_list();
+  refresh_layer_controls();
+  update_undo_redo_actions();
+  mark_session_modified(session());
+  statusBar()->showMessage(tr("Imported %1 images as layers").arg(frame_count));
+}
+
+void MainWindow::export_image_sequence() {
+  if (!has_active_document()) {
+    show_status_error(tr("No document"));
+    return;
+  }
+  finish_active_text_editor();
+  // One file per visible top-level layer, bottom to top (matching the sprite-sheet
+  // export's frame semantics).
+  std::vector<QString> layer_names;
+  for (const auto& layer : std::as_const(document()).layers()) {
+    if (layer.visible()) {
+      layer_names.push_back(QString::fromStdString(layer.name()));
+    }
+  }
+  if (layer_names.empty()) {
+    show_information_message(this, tr("Export Image Sequence"), tr("There are no visible layers to export."),
+                             QStringLiteral("imageSequenceNoLayersMessageBox"));
+    return;
+  }
+
+  QString selected_filter;
+  const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
+  auto path = get_save_file_name(this, tr("Export Image Sequence"),
+                                 file_dialog_initial_path(QString(), base_name + QStringLiteral("_001.png")),
+                                 export_image_filter(), &selected_filter,
+                                 QStringLiteral("imageSequenceExportFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  path = path_with_default_extension(path, selected_filter);
+  const QFileInfo chosen(path);
+  const auto extension = extension_for_path(path);
+  const auto options = prompt_image_sequence_export_options(this, layer_names,
+                                                            naming_from_save_base_name(chosen.completeBaseName()),
+                                                            extension);
+  if (!options.has_value()) {
+    return;
+  }
+  try {
+    auto image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document(),
+                                                   /*for_export*/ true);
+    if (!image_options.has_value()) {
+      return;
+    }
+    const auto file_names = image_sequence_file_names(layer_names, *options, extension);
+    const auto directory = chosen.dir();
+    // The save dialog confirmed overwriting only the exact name typed there; the rest
+    // of the set needs its own check.
+    int existing = 0;
+    for (const auto& name : file_names) {
+      const auto target = directory.filePath(name);
+      if (target != path && QFileInfo::exists(target)) {
+        ++existing;
+      }
+    }
+    if (existing > 0) {
+      const auto answer = show_warning_message(
+          this, tr("Export Image Sequence"),
+          tr("%1 of %2 files already exist in this folder. Overwrite them?").arg(existing).arg(file_names.size()),
+          QMessageBox::Yes | QMessageBox::No, QMessageBox::No, QStringLiteral("imageSequenceOverwriteMessageBox"));
+      if (answer != QMessageBox::Yes) {
+        return;
+      }
+    }
+    int frame_index = 0;
+    for (const auto& layer : std::as_const(document()).layers()) {
+      if (!layer.visible()) {
+        continue;
+      }
+      // Each frame routes through the normal export machinery as a flat document and
+      // inherits the source document's print resolution (same as the sprite sheet).
+      auto frame_document = document_from_qimage(render_layer_isolated(document(), layer), "Frame");
+      frame_document.print_settings() = document().print_settings();
+      write_flat_image_file(frame_document, directory.filePath(file_names[frame_index]), extension, *image_options);
+      ++frame_index;
+    }
+    remember_save_directory_for_path(path);
+    statusBar()->showMessage(tr("Exported %1 images to %2").arg(file_names.size()).arg(directory.absolutePath()));
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),
                           QStringLiteral("exportFailedMessageBox"));

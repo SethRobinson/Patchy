@@ -62,6 +62,7 @@
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
+#include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/start_panel.hpp"
 #include "ui/tile_preview_window.hpp"

@@ -183,6 +183,46 @@
         <translation>%1 x %2 = %3 セル</translation>
     </message>
     <message>
+        <source>Image Sequence to Layers</source>
+        <translation>画像シーケンスをレイヤーへ</translation>
+    </message>
+    <message>
+        <source>%1 images will import as layers on a %2 x %3 px canvas, in this order:</source>
+        <translation>%1 個の画像を次の順序でレイヤーとして読み込みます (カンバス %2 x %3 px):</translation>
+    </message>
+    <message>
+        <source>%1 images will import as layers, in this order:</source>
+        <translation>%1 個の画像を次の順序でレイヤーとして読み込みます:</translation>
+    </message>
+    <message>
+        <source>Export Image Sequence</source>
+        <translation>画像シーケンスの書き出し</translation>
+    </message>
+    <message>
+        <source>%1 images, one per visible top-level layer</source>
+        <translation>%1 個の画像 (表示中のトップレベル レイヤーごとに 1 つ)</translation>
+    </message>
+    <message>
+        <source>Numbered files</source>
+        <translation>連番ファイル</translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation>レイヤー名</translation>
+    </message>
+    <message>
+        <source>%1 ... %2</source>
+        <translation>%1 ... %2</translation>
+    </message>
+    <message>
+        <source>Frame %1</source>
+        <translation>フレーム %1</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="+2335"/>
         <source>GIF Image</source>
         <translation>GIF 画像</translation>
@@ -6823,6 +6863,42 @@ Mixed selection</source>
         <location line="-79"/>
         <source>Frame %1</source>
         <translation>フレーム %1</translation>
+    </message>
+    <message>
+        <source>&amp;Image Sequence to Layers...</source>
+        <translation>画像シーケンスをレイヤーへ(&amp;I)...</translation>
+    </message>
+    <message>
+        <source>Export Layers as Image Se&amp;quence...</source>
+        <translation>レイヤーを画像シーケンスとして書き出し(&amp;Q)...</translation>
+    </message>
+    <message>
+        <source>Image Sequence to Layers</source>
+        <translation>画像シーケンスをレイヤーへ</translation>
+    </message>
+    <message>
+        <source>Image Sequence</source>
+        <translation>画像シーケンス</translation>
+    </message>
+    <message>
+        <source>Import image sequence</source>
+        <translation>画像シーケンスの読み込み</translation>
+    </message>
+    <message>
+        <source>Imported %1 images as layers</source>
+        <translation>%1 個の画像をレイヤーとして読み込みました</translation>
+    </message>
+    <message>
+        <source>Export Image Sequence</source>
+        <translation>画像シーケンスの書き出し</translation>
+    </message>
+    <message>
+        <source>%1 of %2 files already exist in this folder. Overwrite them?</source>
+        <translation>このフォルダーには %2 個中 %1 個のファイルが既に存在します。上書きしますか?</translation>
+    </message>
+    <message>
+        <source>Exported %1 images to %2</source>
+        <translation>%1 個の画像を %2 に書き出しました</translation>
     </message>
     <message>
         <location line="-4146"/>

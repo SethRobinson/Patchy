@@ -53,6 +53,7 @@
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/selection_outline.hpp"
+#include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/app_settings.hpp"
@@ -548,6 +549,155 @@ void ui_sprite_sheet_import_slices_cells_into_layers() {
   CHECK(chosen.has_value());
   CHECK(chosen->cell_width == 8);
   CHECK(chosen->spacing == 1);
+}
+
+void ui_image_sequence_ordering_and_numbered_expansion() {
+  // Natural ordering: numeric runs compare by value, not lexically.
+  const auto sorted = patchy::ui::sorted_sequence_paths(
+      {QStringLiteral("d:/x/crap10.bmp"), QStringLiteral("d:/x/crap1.bmp"), QStringLiteral("d:/x/crap2.bmp")});
+  CHECK(sorted == QStringList({QStringLiteral("d:/x/crap1.bmp"), QStringLiteral("d:/x/crap2.bmp"),
+                               QStringLiteral("d:/x/crap10.bmp")}));
+
+  QTemporaryDir dir;
+  CHECK(dir.isValid());
+  const auto write_png = [&dir](const QString& name) {
+    QImage image(4, 4, QImage::Format_RGBA8888);
+    image.fill(QColor(120, 40, 40));
+    CHECK(image.save(dir.filePath(name)));
+  };
+  write_png(QStringLiteral("walk_001.png"));
+  write_png(QStringLiteral("walk_002.png"));
+  write_png(QStringLiteral("walk_010.png"));
+  write_png(QStringLiteral("walk_x.png"));  // non-digit remainder: not part of the run
+  write_png(QStringLiteral("other.png"));
+
+  // One numbered file stands for the whole natural-sorted sibling run.
+  const auto run = patchy::ui::expand_numbered_sequence(dir.filePath(QStringLiteral("walk_002.png")));
+  CHECK(run.size() == 3);
+  CHECK(QFileInfo(run[0]).fileName() == QStringLiteral("walk_001.png"));
+  CHECK(QFileInfo(run[1]).fileName() == QStringLiteral("walk_002.png"));
+  CHECK(QFileInfo(run[2]).fileName() == QStringLiteral("walk_010.png"));
+
+  // A file without a trailing number expands to just itself.
+  const auto single = patchy::ui::expand_numbered_sequence(dir.filePath(QStringLiteral("other.png")));
+  CHECK(single == QStringList(dir.filePath(QStringLiteral("other.png"))));
+}
+
+void ui_image_sequence_import_builds_layers() {
+  QTemporaryDir dir;
+  CHECK(dir.isValid());
+  // Three differently sized frames: the canvas is the max in each dimension and
+  // smaller frames top-left align.
+  const auto write_png = [&dir](const QString& name, int width, int height, QColor color) {
+    QImage image(width, height, QImage::Format_RGBA8888);
+    image.fill(color);
+    CHECK(image.save(dir.filePath(name)));
+  };
+  write_png(QStringLiteral("a.png"), 8, 6, QColor(200, 30, 30));
+  write_png(QStringLiteral("b.png"), 4, 10, QColor(30, 200, 30));
+  write_png(QStringLiteral("c.png"), 6, 5, QColor(30, 30, 200));
+  const QStringList paths = {dir.filePath(QStringLiteral("a.png")), dir.filePath(QStringLiteral("b.png")),
+                             dir.filePath(QStringLiteral("c.png"))};
+
+  QString error;
+  const auto imported = patchy::ui::document_from_image_sequence(paths, &error);
+  CHECK(error.isEmpty());
+  CHECK(imported.has_value());
+  CHECK(imported->width() == 8);
+  CHECK(imported->height() == 10);
+  CHECK(imported->layers().size() == 3);
+  CHECK(imported->layers()[0].name() == "a");
+  CHECK(imported->layers()[1].name() == "b");
+  CHECK(imported->layers()[2].name() == "c");
+  CHECK(imported->layers()[0].visible());
+  CHECK(!imported->layers()[1].visible());
+  CHECK(!imported->layers()[2].visible());
+  // Frame pixels sit at the top-left; the canvas area outside each frame stays transparent.
+  CHECK(imported->layers()[0].pixels().pixel(7, 5)[0] == 200);
+  CHECK(imported->layers()[0].pixels().pixel(7, 9)[3] == 0);
+  CHECK(imported->layers()[1].pixels().pixel(0, 9)[1] == 200);
+  CHECK(imported->layers()[1].pixels().pixel(7, 0)[3] == 0);
+
+  // An unreadable file aborts the import with its name in the error.
+  const auto failed =
+      patchy::ui::document_from_image_sequence({dir.filePath(QStringLiteral("missing.png"))}, &error);
+  CHECK(!failed.has_value());
+  CHECK(error.contains(QStringLiteral("missing.png")));
+
+  // The confirmation dialog lists the ordered files and states the canvas size.
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("imageSequenceImportDialog"));
+    CHECK(dialog != nullptr);
+    auto* list = dialog->findChild<QListWidget*>(QStringLiteral("imageSequenceFileList"));
+    CHECK(list != nullptr);
+    CHECK(list->count() == 3);
+    CHECK(list->item(0)->text() == QStringLiteral("a.png"));
+    CHECK(list->item(2)->text() == QStringLiteral("c.png"));
+    auto* label = dialog->findChild<QLabel*>(QStringLiteral("imageSequenceCountLabel"));
+    CHECK(label != nullptr);
+    CHECK(label->text().contains(QStringLiteral("8 x 10")));
+    saw_dialog = true;
+    dialog->accept();
+  });
+  const auto accepted = patchy::ui::prompt_image_sequence_import_options(nullptr, paths, QSize(8, 10));
+  CHECK(saw_dialog);
+  CHECK(accepted);
+}
+
+void ui_image_sequence_export_names_and_dialog() {
+  // Numbered naming: the typed save name's trailing digits set prefix, start, padding.
+  auto naming = patchy::ui::naming_from_save_base_name(QStringLiteral("shot_07"));
+  CHECK(naming.prefix == QStringLiteral("shot_"));
+  CHECK(naming.start == 7);
+  CHECK(naming.padding == 2);
+  const auto numbered = patchy::ui::image_sequence_file_names(
+      {QStringLiteral("A"), QStringLiteral("B"), QStringLiteral("C")}, naming, QStringLiteral("png"));
+  CHECK(numbered == QStringList({QStringLiteral("shot_07.png"), QStringLiteral("shot_08.png"),
+                                 QStringLiteral("shot_09.png")}));
+
+  // No trailing digits: numbering is appended and starts at 001.
+  naming = patchy::ui::naming_from_save_base_name(QStringLiteral("photo"));
+  CHECK(naming.prefix == QStringLiteral("photo_"));
+  CHECK(naming.start == 1);
+  CHECK(naming.padding == 3);
+
+  // Layer-name mode sanitizes, fills empty names, and dedupes case-insensitively.
+  patchy::ui::ImageSequenceNaming by_name;
+  by_name.use_layer_names = true;
+  const auto named = patchy::ui::image_sequence_file_names(
+      {QStringLiteral("walk"), QStringLiteral("Walk"), QStringLiteral("a/b:c"), QString()}, by_name,
+      QStringLiteral("png"));
+  CHECK(named == QStringList({QStringLiteral("walk.png"), QStringLiteral("Walk 2.png"),
+                              QStringLiteral("a_b_c.png"), QStringLiteral("Frame 4.png")}));
+
+  // Dialog round trip: the start spin and naming radios drive the live preview.
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("imageSequenceExportDialog"));
+    CHECK(dialog != nullptr);
+    auto* preview = dialog->findChild<QLabel*>(QStringLiteral("imageSequencePreviewLabel"));
+    CHECK(preview != nullptr);
+    CHECK(preview->text().contains(QStringLiteral("shot_002.png")));
+    CHECK(preview->text().contains(QStringLiteral("shot_004.png")));
+    dialog->findChild<QSpinBox*>(QStringLiteral("imageSequenceStartSpin"))->setValue(5);
+    CHECK(preview->text().contains(QStringLiteral("shot_005.png")));
+    dialog->findChild<QRadioButton*>(QStringLiteral("imageSequenceLayerNamesRadio"))->setChecked(true);
+    CHECK(preview->text().contains(QStringLiteral("hero.png")));
+    CHECK(preview->text().contains(QStringLiteral("end.png")));
+    saw_dialog = true;
+    dialog->accept();
+  });
+  patchy::ui::ImageSequenceNaming suggested;
+  suggested.prefix = QStringLiteral("shot_");
+  suggested.start = 2;
+  suggested.padding = 3;
+  const auto chosen = patchy::ui::prompt_image_sequence_export_options(
+      nullptr, {QStringLiteral("hero"), QStringLiteral("mid"), QStringLiteral("end")}, suggested,
+      QStringLiteral("png"));
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  CHECK(chosen->use_layer_names);
 }
 
 void ui_tile_preview_window_tracks_document_edits() {
@@ -1390,6 +1540,9 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
       {"ui_png8_export_scaled_stays_indexed", ui_png8_export_scaled_stays_indexed},
       {"ui_sprite_sheet_export_grid_layout_and_padding", ui_sprite_sheet_export_grid_layout_and_padding},
       {"ui_sprite_sheet_import_slices_cells_into_layers", ui_sprite_sheet_import_slices_cells_into_layers},
+      {"ui_image_sequence_ordering_and_numbered_expansion", ui_image_sequence_ordering_and_numbered_expansion},
+      {"ui_image_sequence_import_builds_layers", ui_image_sequence_import_builds_layers},
+      {"ui_image_sequence_export_names_and_dialog", ui_image_sequence_export_names_and_dialog},
       {"ui_tile_preview_window_tracks_document_edits", ui_tile_preview_window_tracks_document_edits},
       {"ui_qimage_multiply_uses_empty_backdrop_as_transparent",
        ui_qimage_multiply_uses_empty_backdrop_as_transparent},

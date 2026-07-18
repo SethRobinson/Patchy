@@ -409,6 +409,8 @@ private:
   void finish_scanner_import(ScannerAcquireResult result, bool delete_after);
   void import_sprite_sheet();
   void export_sprite_sheet();
+  void import_image_sequence();
+  void export_image_sequence();
   void set_tile_preview_visible(bool visible, QAction* toggle_action);
   bool accept_open_file_drag(QDropEvent* event);
   bool open_dropped_files(QDropEvent* event);

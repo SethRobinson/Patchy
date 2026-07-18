@@ -65,6 +65,10 @@ void apply_imported_image_density(Document& document, std::span<const std::uint8
 bool promote_flat_alpha_to_layer_mask(Document& document);
 [[nodiscard]] PixelBuffer pixels_from_image_rgba(const QImage& image);
 [[nodiscard]] QImage qimage_from_document(const Document& document, bool preserve_alpha);
+// Renders one layer alone at the document's size, so opacity/blend/styles come out
+// exactly as the compositor draws them against an empty backdrop (sprite-sheet and
+// image-sequence exports share this).
+[[nodiscard]] QImage render_layer_isolated(const Document& document, const Layer& layer);
 [[nodiscard]] QImage qimage_from_document_rect(const Document& document, QRect document_rect, bool preserve_alpha);
 [[nodiscard]] std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Document& document,
                                                                                      const QRegion& document_region,

@@ -67,6 +67,7 @@
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
+#include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
@@ -759,6 +760,10 @@ void MainWindow::create_actions() {
   import_sprite_sheet_action->setObjectName(QStringLiteral("fileImportSpriteSheetAction"));
   register_hotkey(import_sprite_sheet_action, "file.import_sprite_sheet");
   connect(import_sprite_sheet_action, &QAction::triggered, this, [this] { import_sprite_sheet(); });
+  auto* import_image_sequence_action = import_menu->addAction(tr("&Image Sequence to Layers..."));
+  import_image_sequence_action->setObjectName(QStringLiteral("fileImportImageSequenceAction"));
+  register_hotkey(import_image_sequence_action, "file.import_image_sequence");
+  connect(import_image_sequence_action, &QAction::triggered, this, [this] { import_image_sequence(); });
   auto* place_embedded_action = file_menu->addAction(tr("Place &Embedded..."));
   place_embedded_action->setObjectName(QStringLiteral("filePlaceEmbeddedAction"));
   register_hotkey(place_embedded_action, "file.place_embedded");
@@ -771,6 +776,11 @@ void MainWindow::create_actions() {
   register_hotkey(export_sprite_sheet_action, "file.export_sprite_sheet");
   connect(export_sprite_sheet_action, &QAction::triggered, this, [this] { export_sprite_sheet(); });
   register_document_action(export_sprite_sheet_action);
+  auto* export_image_sequence_action = file_menu->addAction(tr("Export Layers as Image Se&quence..."));
+  export_image_sequence_action->setObjectName(QStringLiteral("fileExportImageSequenceAction"));
+  register_hotkey(export_image_sequence_action, "file.export_image_sequence");
+  connect(export_image_sequence_action, &QAction::triggered, this, [this] { export_image_sequence(); });
+  register_document_action(export_image_sequence_action);
   auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
   auto* print_action = file_menu->addAction(tr("&Print..."));
   file_menu->addSeparator();
