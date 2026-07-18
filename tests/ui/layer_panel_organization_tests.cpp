@@ -1655,6 +1655,61 @@ void ui_folder_visibility_preserves_layer_panel_scroll() {
   CHECK(std::abs(scroll->value() - scroll_before) <= 1);
 }
 
+void ui_layer_row_selected_highlight_paints() {
+  // Pins the painted row visuals: the selected-layer highlight silently never
+  // rendered for a long time (the plain-QWidget containers inside each row
+  // matched the theme's global QWidget rule and painted opaque #262626 over
+  // the row background), leaving selection marked only by a 1px item border
+  // leak. The rows now paint through app-stylesheet rules keyed on the
+  // layerRowSelected/layerRowGroup dynamic properties, with the inner
+  // containers forced transparent.
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Red Layer",
+                           solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(200, 40, 40)));
+  document.add_pixel_layer("Blue Layer",
+                           solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(40, 40, 200)));
+  patchy::Layer group(document.allocate_layer_id(), "Highlight Folder", patchy::LayerKind::Group);
+  auto child = patchy::Layer(document.allocate_layer_id(), "Folder Child",
+                             solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(40, 200, 40, 255)));
+  group.add_child(std::move(child));
+  document.add_layer(std::move(group));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Row Highlight"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* selected_item = require_layer_item(*layer_list, QStringLiteral("Blue Layer"));
+  layer_list->setCurrentItem(selected_item, QItemSelectionModel::ClearAndSelect);
+  QApplication::processEvents();
+  CHECK(selected_item->isSelected());
+
+  const auto row_background = [layer_list](const QString& name) {
+    auto* item = require_layer_item(*layer_list, name);
+    auto* row_widget = layer_list->itemWidget(item);
+    CHECK(row_widget != nullptr);
+    const auto image = row_widget->grab().toImage();
+    // Top-right corner of the row: inside the layout's top margin, clear of
+    // the visibility button, thumbnails, labels, and the bottom divider.
+    return image.pixelColor(image.width() - 6, 2);
+  };
+  save_widget_artifact("ui_layer_row_selected_highlight", *layer_list);
+  CHECK(row_background(QStringLiteral("Blue Layer")) == QColor(0x2d, 0x4c, 0x6d));
+  CHECK(row_background(QStringLiteral("Red Layer")) == QColor(0x24, 0x26, 0x28));
+  CHECK(row_background(QStringLiteral("Highlight Folder")) == QColor(0x29, 0x2d, 0x31));
+
+  // The selected row also gets the blue bottom edge.
+  auto* selected_row = layer_list->itemWidget(selected_item);
+  CHECK(selected_row != nullptr);
+  const auto selected_image = selected_row->grab().toImage();
+  CHECK(selected_image.pixelColor(selected_image.width() - 6, selected_image.height() - 1) ==
+        QColor(0x4f, 0x91, 0xca));
+
+  save_widget_artifact("ui_layer_row_selected_highlight", *layer_list);
+}
+
 void ui_layer_fill_opacity_control_updates_active_layer() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1718,5 +1773,6 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_folder_visibility_preserves_layer_panel_scroll", ui_folder_visibility_preserves_layer_panel_scroll},
       {"ui_layer_fill_opacity_control_updates_active_layer",
        ui_layer_fill_opacity_control_updates_active_layer},
+      {"ui_layer_row_selected_highlight_paints", ui_layer_row_selected_highlight_paints},
   };
 }

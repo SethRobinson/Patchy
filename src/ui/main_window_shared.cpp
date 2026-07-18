@@ -441,13 +441,18 @@ void restyle_layer_rows(QListWidget* list) {
       continue;
     }
     const auto is_group = item->data(kLayerIsGroupRole).toBool();
-    const auto background = item->isSelected() ? QStringLiteral("#3c4651")
-                            : is_group        ? QStringLiteral("#292d31")
-                                              : QStringLiteral("#242628");
-    const auto divider = item->isSelected() ? QStringLiteral("#4f91ca") : QStringLiteral("#303338");
-    row_widget->setStyleSheet(QStringLiteral(
-                                  "QWidget#layerRowWidget { background: %1; border-bottom: 1px solid %2; }")
-                                  .arg(background, divider));
+    // The row visuals live in app-stylesheet rules keyed on these dynamic
+    // properties (see photoshop_style). A per-widget setStyleSheet background
+    // here never showed: the row's inner containers painted the global QWidget
+    // #262626 over it (the theme now forces them transparent).
+    if (row_widget->property("layerRowSelected").toBool() != item->isSelected() ||
+        row_widget->property("layerRowGroup").toBool() != is_group) {
+      row_widget->setProperty("layerRowSelected", item->isSelected());
+      row_widget->setProperty("layerRowGroup", is_group);
+      row_widget->style()->unpolish(row_widget);
+      row_widget->style()->polish(row_widget);
+      row_widget->update();
+    }
     if (auto* name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName")); name != nullptr) {
       auto font = name->font();
       font.setBold(item == list->currentItem() || is_group);

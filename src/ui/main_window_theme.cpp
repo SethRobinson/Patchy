@@ -591,9 +591,34 @@ QString photoshop_style() {
     }
     QListWidget#layerList::item {
       color: transparent;
+      background: transparent;
+      border: 0;
     }
     QListWidget#layerList::item:selected {
       color: transparent;
+      background: transparent;
+      border: 0;
+    }
+    /* Layer rows paint through these app-level rules keyed on the
+       layerRowSelected/layerRowGroup dynamic properties (restyle_layer_rows
+       flips them). The transparent rule is load-bearing: these plain-QWidget
+       containers inside each row otherwise match the global QWidget rule, get
+       WA_StyledBackground auto-applied by the stylesheet engine, and paint
+       opaque #262626 over the row background - which is what silently hid the
+       selection highlight for months. */
+    QWidget#layerMainRow, QWidget#layerSmartFiltersRow, QWidget#layerSmartFilterEntryRow {
+      background: transparent;
+    }
+    QWidget#layerRowWidget {
+      background: #242628;
+      border-bottom: 1px solid #303338;
+    }
+    QWidget#layerRowWidget[layerRowGroup="true"] {
+      background: #292d31;
+    }
+    QWidget#layerRowWidget[layerRowSelected="true"] {
+      background: #2d4c6d;
+      border-bottom: 1px solid #4f91ca;
     }
     QListWidget::indicator {
       width: 0;

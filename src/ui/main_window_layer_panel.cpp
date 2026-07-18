@@ -999,9 +999,12 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
     QPixmap pixmap(kSize, kSize);
     pixmap.fill(background);
     QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
+    // The frame must be stroked without antialiasing: an AA 1px rect on integer
+    // coordinates leaves the left/top edges as one half-covered column but
+    // smears the right/bottom edges across two, which reads as a bevel.
     painter.setPen(QPen(QColor(150, 158, 168), 1));
     painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+    painter.setRenderHint(QPainter::Antialiasing);
     QColor text_color;
     if (const auto found = layer.metadata().find(kLayerMetadataTextColor); found != layer.metadata().end()) {
       const QColor stored(QString::fromStdString(found->second));
@@ -1084,6 +1087,8 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
       }
     }
     painter.setBrush(Qt::NoBrush);
+    // Crisp frame: see the text-thumbnail comment about AA rect strokes.
+    painter.setRenderHint(QPainter::Antialiasing, false);
     painter.setPen(QPen(QColor(150, 158, 168), 1));
     painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
     return pixmap;
@@ -1148,6 +1153,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
   row->setAttribute(Qt::WA_StyledBackground, true);
+  row->setProperty("layerRowGroup", layer.kind() == LayerKind::Group);
+  row->setProperty("layerRowSelected", false);
   row->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Preferred);
   auto* list_parent = dynamic_cast<LayerListWidget*>(parent);
   if (list_parent != nullptr) {
@@ -1235,6 +1242,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   auto* thumbnail = new QLabel(row);
   thumbnail->setObjectName(QStringLiteral("layerContentThumbnail"));
   thumbnail->setFixedSize(30, 30);
+  // Center the 28px pixmap: QLabel's default left alignment piles the slack
+  // (and the active-border clipping) onto the right/bottom edges.
+  thumbnail->setAlignment(Qt::AlignCenter);
   thumbnail->setPixmap(content_thumbnail ? content_thumbnail(layer) : layer_content_thumbnail(layer));
   thumbnail->setProperty(kLayerContentThumbnailRevisionProperty,
                          QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
@@ -1285,6 +1295,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     auto* mask_preview = new QLabel(row);
     mask_preview->setObjectName(QStringLiteral("layerMaskThumbnail"));
     mask_preview->setFixedSize(30, 30);
+    mask_preview->setAlignment(Qt::AlignCenter);
     mask_preview->setPixmap(mask_thumbnail ? mask_thumbnail(layer) : layer_mask_thumbnail(*layer.mask()));
     mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
                               QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
@@ -1303,6 +1314,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     auto* vector_mask_preview = new QLabel(row);
     vector_mask_preview->setObjectName(QStringLiteral("layerVectorMaskThumbnail"));
     vector_mask_preview->setFixedSize(30, 30);
+    vector_mask_preview->setAlignment(Qt::AlignCenter);
     vector_mask_preview->setPixmap(layer_vector_mask_thumbnail(
         *layer.vector_mask(), document_size.width(), document_size.height()));
     vector_mask_preview->setToolTip(
@@ -1567,6 +1579,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       auto* smart_filter_mask_thumbnail = new QLabel(header);
       smart_filter_mask_thumbnail->setObjectName(QStringLiteral("layerSmartFilterMaskThumbnail"));
       smart_filter_mask_thumbnail->setFixedSize(22, 22);
+      smart_filter_mask_thumbnail->setAlignment(Qt::AlignCenter);
       smart_filter_mask_thumbnail->setPixmap(mask_pixmap(smart_filters->mask));
       smart_filter_mask_thumbnail->setStyleSheet(QStringLiteral("background: transparent;"));
       smart_filter_mask_thumbnail->setToolTip(
