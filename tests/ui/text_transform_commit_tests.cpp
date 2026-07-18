@@ -1186,6 +1186,92 @@ void ui_text_character_panel_sets_leading_tracking_and_scales() {
   QApplication::processEvents();
 }
 
+void ui_text_character_panel_disables_without_session() {
+  // With no live editor session the Character panel grays out and shows its click-in-text
+  // hint, and the state tracks session boundaries LIVE while the non-modal dialog stays
+  // open: a committed session used to leave the controls enabled, silently no-oping every
+  // edit (the apply functions early-return without an editor).
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  canvas->set_primary_color(QColor(Qt::black));
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  auto* character_button = window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"));
+  CHECK(character_button != nullptr);
+  if (character_button == nullptr) {
+    return;
+  }
+  // The panel runs a nested non-modal loop; drive the whole scenario from a queued lambda.
+  bool checks_ran = false;
+  QTimer::singleShot(0, [&window, canvas, &checks_ran] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* hint = dialog->findChild<QLabel*>(QStringLiteral("textCharacterHint"));
+    auto* auto_leading = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterAutoLeading"));
+    auto* leading = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("textCharacterLeadingSpin"));
+    auto* tracking = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterTrackingSpin"));
+    auto* h_scale = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterHScaleSpin"));
+    auto* v_scale = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterVScaleSpin"));
+    CHECK(hint != nullptr && auto_leading != nullptr && leading != nullptr && tracking != nullptr &&
+          h_scale != nullptr && v_scale != nullptr);
+    if (hint == nullptr || auto_leading == nullptr || leading == nullptr || tracking == nullptr ||
+        h_scale == nullptr || v_scale == nullptr) {
+      dialog->reject();
+      return;
+    }
+    // Opened with no session: everything grayed, hint explains why.
+    CHECK(hint->isVisible());
+    CHECK(!auto_leading->isEnabled());
+    CHECK(!leading->isEnabled());
+    CHECK(!tracking->isEnabled());
+    CHECK(!h_scale->isEnabled());
+    CHECK(!v_scale->isEnabled());
+
+    // Start a session while the dialog stays open: controls come alive, hint hides.
+    // add_text_at is the exact call a Type-tool canvas click funnels into; a synthetic
+    // click sent while the dialog is the active window loses its drag state to an
+    // offscreen-platform focus bounce (canvas focusOutEvent clears dragging_text_rect_).
+    patchy::ui::MainWindowTestAccess::add_text_at(window, QPoint(60, 90));
+    QApplication::processEvents();
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    if (editor != nullptr) {
+      editor->setPlainText(QStringLiteral("Live again"));
+      QApplication::processEvents();
+      CHECK(!hint->isVisible());
+      CHECK(auto_leading->isEnabled());
+      CHECK(tracking->isEnabled());
+      CHECK(h_scale->isEnabled());
+      CHECK(v_scale->isEnabled());
+    }
+
+    // Commit the session (tool switch) with the dialog still open: back to grayed + hint.
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+    CHECK(hint->isVisible());
+    CHECK(!auto_leading->isEnabled());
+    CHECK(!leading->isEnabled());
+    CHECK(!tracking->isEnabled());
+    CHECK(!h_scale->isEnabled());
+    CHECK(!v_scale->isEnabled());
+    checks_ran = true;
+    dialog->reject();
+  });
+  character_button->click();
+  QApplication::processEvents();
+  CHECK(checks_ran);
+}
+
 void ui_point_text_commit_renders_center_alignment() {
   // Regression: point text lays out against an unconstrained width, which made Qt silently ignore
   // paragraph alignment -- a centered multi-line point-text layer committed with every line flush
@@ -2893,6 +2979,8 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests() {
       {"ui_point_text_commit_renders_center_alignment", ui_point_text_commit_renders_center_alignment},
       {"ui_text_character_panel_sets_leading_tracking_and_scales",
        ui_text_character_panel_sets_leading_tracking_and_scales},
+      {"ui_text_character_panel_disables_without_session",
+       ui_text_character_panel_disables_without_session},
       {"ui_psd_centered_point_text_keeps_center_on_commit",
        ui_psd_centered_point_text_keeps_center_on_commit},
       {"ui_psd_text_fixed_leading_commit_matches_photoshop_row_bands",

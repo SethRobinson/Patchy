@@ -7112,6 +7112,12 @@ void MainWindow::open_text_character_dialog() {
   text_character_dialog_ = dialog;
   auto* layout = new QFormLayout(dialog);
 
+  text_character_hint_label_ = new QLabel(tr("Click in text with the Type tool to edit these settings."), dialog);
+  text_character_hint_label_->setObjectName(QStringLiteral("textCharacterHint"));
+  text_character_hint_label_->setWordWrap(true);
+  text_character_hint_label_->setStyleSheet(QStringLiteral("color: #999999;"));
+  layout->addRow(text_character_hint_label_);
+
   text_character_auto_leading_ = new QCheckBox(tr("Auto leading"), dialog);
   text_character_auto_leading_->setObjectName(QStringLiteral("textCharacterAutoLeading"));
   layout->addRow(QString(), text_character_auto_leading_);
@@ -7163,6 +7169,7 @@ void MainWindow::open_text_character_dialog() {
   sync_text_character_dialog_from_editor();
   run_non_modal_dialog(*dialog);
   // WA_DeleteOnClose destroyed the dialog when the nested loop unwound.
+  text_character_hint_label_ = nullptr;
   text_character_auto_leading_ = nullptr;
   text_character_leading_spin_ = nullptr;
   text_character_tracking_spin_ = nullptr;
@@ -7173,12 +7180,14 @@ void MainWindow::open_text_character_dialog() {
 void MainWindow::sync_text_character_dialog_from_editor() {
   if (text_character_dialog_ == nullptr || text_character_auto_leading_ == nullptr ||
       text_character_leading_spin_ == nullptr || text_character_tracking_spin_ == nullptr ||
-      text_character_h_scale_spin_ == nullptr || text_character_v_scale_spin_ == nullptr) {
+      text_character_h_scale_spin_ == nullptr || text_character_v_scale_spin_ == nullptr ||
+      text_character_hint_label_ == nullptr) {
     return;
   }
   auto* editor =
       canvas_ != nullptr ? canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) : nullptr;
   const bool session_open = editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool();
+  text_character_hint_label_->setVisible(!session_open);
   text_character_auto_leading_->setEnabled(session_open);
   text_character_tracking_spin_->setEnabled(session_open);
   text_character_h_scale_spin_->setEnabled(session_open);

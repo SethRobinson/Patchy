@@ -23,5 +23,6 @@ Delete on a text layer deletes the OBJECT, never its pixels: pixel-clearing leav
 ## Character panel
 
 - Opened via options bar > Character... while the Text tool is active. It edits the LIVE editor session (leading auto/fixed, tracking, H/V glyph scales) per selection.
+- With no live session its controls gray out and a hint label (`textCharacterHint`) says to click in text; the state is kept live by `refresh_options_bar()` calling `sync_text_character_dialog_from_editor()` (every session boundary funnels through that refresh). Without that call the non-modal dialog kept stale enabled controls after a commit and edits silently no-oped (`ui_text_character_panel_disables_without_session` pins it).
 - Its dialog (`textCharacterDialog`) is exempted from the editor's focus-loss auto-commit via `is_text_option_widget`.
 - Setting fixed leading opts the layer into the Photoshop layout marker at commit (explicit leading does not render under Qt-natural layout; see [ps-compat.md](ps-compat.md)).

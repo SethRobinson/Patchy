@@ -1068,6 +1068,7 @@ private:
   // is_text_option_widget, unlike Warp which commits first.
   QPushButton* text_character_button_{nullptr};
   QPointer<QDialog> text_character_dialog_;
+  QLabel* text_character_hint_label_{nullptr};
   QCheckBox* text_character_auto_leading_{nullptr};
   QDoubleSpinBox* text_character_leading_spin_{nullptr};
   QSpinBox* text_character_tracking_spin_{nullptr};

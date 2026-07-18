@@ -50,6 +50,14 @@ public:
     window.request_warp_text_dialog();
   }
 
+  // Deterministic offscreen substitute for a Type-tool canvas click: the canvas
+  // press/release pair funnels into exactly this call, but synthetic clicks sent
+  // while another window (e.g. a non-modal dialog) is active lose the in-flight
+  // drag state to a focus bounce the offscreen platform invents.
+  static void add_text_at(MainWindow& window, QPoint document_point) {
+    window.add_text_at(document_point, QRect());
+  }
+
   static void edit_active_shape_appearance(MainWindow& window) {
     window.edit_active_shape_appearance();
   }

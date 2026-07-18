@@ -7483,6 +7483,11 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+4"/>
+        <source>Click in text with the Type tool to edit these settings.</source>
+        <translation>文字ツールでテキストをクリックすると、これらの設定を編集できます。</translation>
+    </message>
+    <message>
+        <location line="+6"/>
         <source>Auto leading</source>
         <translation>自動行送り</translation>
     </message>
