@@ -14,7 +14,7 @@ Keyboard shortcuts for QActions must be registered through `MainWindow::register
 
 If tests need files from outside the project directory, copy those files into `local-test-fixtures` first and have the tests read them from there. Do not add hardcoded external drive paths such as `C:\temp` or `D:\projects` to test code.
 
-NEVER run `git commit` (or push) unless Seth explicitly asks for it in the current request. "Commit and continue" or similar authorizes exactly one commit, not a standing policy of committing at every later checkpoint; finish the work, report the state, and wait to be told. Also never add AI attribution (Co-Authored-By Claude, "Generated with" lines) to commits or PRs.
+Commit automatically when a piece of work is finished and verified (build and tests green, release handoff done for code changes); Seth does not need to ask or approve each commit (standing policy since July 2026). Do not commit half-done or failing states, and NEVER `git push` unless Seth explicitly asks in the current request. Also never add AI attribution (Co-Authored-By Claude, "Generated with" lines) to commits or PRs.
 
 Keep git commit messages to one or two lines — a concise subject, no multi-paragraph body enumerating every change.
 
