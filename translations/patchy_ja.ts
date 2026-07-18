@@ -12667,22 +12667,6 @@ Clipped to the layer below</source>
         <translation>スマートフィルターマスクを消去しました</translation>
     </message>
     <message>
-        <source>Cancelled Smart Filter blending options</source>
-        <translation>スマートフィルターの描画オプションをキャンセルしました</translation>
-    </message>
-    <message>
-        <source>Smart Filter blending options unchanged</source>
-        <translation>スマートフィルターの描画オプションは変更されていません</translation>
-    </message>
-    <message>
-        <source>Edit Smart Filter Blending Options</source>
-        <translation>スマートフィルターの描画オプションを編集</translation>
-    </message>
-    <message>
-        <source>Updated Smart Filter blending options</source>
-        <translation>スマートフィルターの描画オプションを更新しました</translation>
-    </message>
-    <message>
         <source>Enable Smart Filter Mask</source>
         <translation>スマートフィルターマスクを有効化</translation>
     </message>
@@ -13578,8 +13562,7 @@ Clipped to the layer below</source>
     <message><source>Edit Smart Filter</source><translation>スマートフィルターを編集</translation></message>
     <message><source>Smart Filter actions</source><translation>スマートフィルターの操作</translation></message>
     <message><source>Shared Smart Filter mask. Click to edit it, Ctrl-click to load it as a selection, Alt-click to view it, or Shift-click to disable it.</source><translation>共有スマートフィルターマスク。クリックで編集、Ctrl+クリックで選択範囲として読み込み、Alt+クリックで表示、Shift+クリックで無効にします。</translation></message>
-    <message><source>Edit Blending Options...</source><translation>描画オプションを編集...</translation></message>
-    <message><source>Smart Filter Blending Options</source><translation>スマートフィルターの描画オプション</translation></message>
+    <message><source>Blending</source><translation>描画オプション</translation></message>
     <message><source>Mode:</source><translation>描画モード:</translation></message>
     <message><source>Opacity:</source><translation>不透明度:</translation></message>
     <message><source>%</source><translation>%</translation></message>

@@ -318,7 +318,8 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
 
 std::optional<FilterInvocation> request_filter_settings(
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed,
-    FilterInvocation initial, const FilterDialogPreviewSource* preview_source) {
+    FilterInvocation initial, const FilterDialogPreviewSource* preview_source,
+    SmartFilterBlendingSettings* blending) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyFilterDialog"));
   dialog.setProperty("patchy.filterIdentifier", spec.identifier);
@@ -430,12 +431,69 @@ std::optional<FilterInvocation> request_filter_settings(
       });
   layout->addWidget(panel);
 
+  // Smart-filter callers pass per-entry blending; the settings dialog is the
+  // one place that edits a Smart Filter, so Mode/Opacity live here instead of
+  // a separate blending-only dialog.
+  QComboBox* blend_mode_combo = nullptr;
+  QSlider* opacity_slider = nullptr;
+  QDoubleSpinBox* opacity_spin = nullptr;
+  const auto initial_blending =
+      blending != nullptr ? *blending : SmartFilterBlendingSettings{};
+  if (blending != nullptr) {
+    auto* blending_label = new QLabel(QObject::tr("Blending"), &dialog);
+    blending_label->setObjectName(QStringLiteral("smartFilterBlendingLabel"));
+    auto blending_font = blending_label->font();
+    blending_font.setBold(true);
+    blending_label->setFont(blending_font);
+    layout->addWidget(blending_label);
+
+    auto* blending_form = new QFormLayout();
+    layout->addLayout(blending_form);
+
+    blend_mode_combo = new QComboBox(&dialog);
+    blend_mode_combo->setObjectName(QStringLiteral("smartFilterBlendModeCombo"));
+    add_blend_mode_items(blend_mode_combo);
+    const auto blend_mode_index =
+        blend_mode_combo->findData(static_cast<int>(initial_blending.blend_mode));
+    blend_mode_combo->setCurrentIndex(
+        blend_mode_index >= 0
+            ? blend_mode_index
+            : blend_mode_combo->findData(static_cast<int>(BlendMode::Normal)));
+    blending_form->addRow(QObject::tr("Mode:"), blend_mode_combo);
+
+    auto* opacity_row = new QWidget(&dialog);
+    auto* opacity_layout = new QHBoxLayout(opacity_row);
+    opacity_layout->setContentsMargins(0, 0, 0, 0);
+    opacity_slider = new QSlider(Qt::Horizontal, opacity_row);
+    opacity_slider->setObjectName(QStringLiteral("smartFilterOpacitySlider"));
+    opacity_slider->setRange(0, 100);
+    opacity_spin = new QDoubleSpinBox(opacity_row);
+    opacity_spin->setObjectName(QStringLiteral("smartFilterOpacitySpin"));
+    opacity_spin->setRange(0.0, 100.0);
+    opacity_spin->setDecimals(0);
+    opacity_spin->setSingleStep(1.0);
+    opacity_spin->setSuffix(QObject::tr("%"));
+    configure_dialog_spinbox(opacity_spin, 90);
+    const auto initial_opacity = std::clamp(initial_blending.opacity, 0.0, 1.0);
+    opacity_spin->setValue(initial_opacity * 100.0);
+    opacity_slider->setValue(static_cast<int>(std::lround(initial_opacity * 100.0)));
+    opacity_layout->addWidget(opacity_slider, 1);
+    opacity_layout->addWidget(opacity_spin);
+    blending_form->addRow(QObject::tr("Opacity:"), opacity_row);
+  }
+
   auto build_settings = [&] {
     auto invocation = initial;
     invocation.filter_id = spec.identifier.toStdString();
     invocation.schema_version = spec.schema_version;
     panel->read_into(invocation);
-    return FilterPreviewSettings{preview->isChecked(), std::move(invocation)};
+    FilterPreviewSettings settings{preview->isChecked(), std::move(invocation)};
+    if (blend_mode_combo != nullptr && opacity_spin != nullptr) {
+      settings.blending = SmartFilterBlendingSettings{
+          static_cast<BlendMode>(blend_mode_combo->currentData().toInt()),
+          std::clamp(opacity_spin->value() / 100.0, 0.0, 1.0)};
+    }
+    return settings;
   };
 
   CoalescedPreviewEmitter<FilterPreviewSettings> preview_emitter(
@@ -449,6 +507,21 @@ std::optional<FilterInvocation> request_filter_settings(
   schedule_preview_callback = schedule_preview;
 
   QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
+  if (blend_mode_combo != nullptr && opacity_slider != nullptr && opacity_spin != nullptr) {
+    QObject::connect(opacity_slider, &QSlider::valueChanged, opacity_spin,
+                     [opacity_spin](int value) {
+                       opacity_spin->setValue(static_cast<double>(value));
+                     });
+    QObject::connect(opacity_spin, qOverload<double>(&QDoubleSpinBox::valueChanged), opacity_slider,
+                     [opacity_slider](double value) {
+                       const QSignalBlocker blocker(opacity_slider);
+                       opacity_slider->setValue(static_cast<int>(std::lround(value)));
+                     });
+    QObject::connect(opacity_spin, qOverload<double>(&QDoubleSpinBox::valueChanged), &dialog,
+                     [&schedule_preview](double) { schedule_preview(); });
+    QObject::connect(blend_mode_combo, qOverload<int>(&QComboBox::currentIndexChanged), &dialog,
+                     [&schedule_preview](int) { schedule_preview(); });
+  }
 
   std::shared_ptr<FilterProxyPreviewState> proxy_state;
   std::function<void()> refresh_dialog_overlay;
@@ -592,11 +665,26 @@ std::optional<FilterInvocation> request_filter_settings(
   if (auto* reset = buttons->button(QDialogButtonBox::Reset); reset != nullptr) {
     QObject::connect(reset, &QPushButton::clicked, &dialog, [&] {
       panel->reset_to_defaults();
+      if (blend_mode_combo != nullptr && opacity_spin != nullptr) {
+        // Reset restores the entry's stored blending, not a global default:
+        // the dialog edits one existing filter and Reset means "as opened".
+        const QSignalBlocker combo_blocker(blend_mode_combo);
+        const auto blend_mode_index = blend_mode_combo->findData(
+            static_cast<int>(initial_blending.blend_mode));
+        blend_mode_combo->setCurrentIndex(
+            blend_mode_index >= 0
+                ? blend_mode_index
+                : blend_mode_combo->findData(static_cast<int>(BlendMode::Normal)));
+        opacity_spin->setValue(std::clamp(initial_blending.opacity, 0.0, 1.0) * 100.0);
+      }
       preview->setChecked(true);
       flush_preview();
     });
   }
 
+  if (blending != nullptr) {
+    dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+  }
   QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
     if (dialog.isVisible()) {
       flush_preview();
@@ -608,100 +696,11 @@ std::optional<FilterInvocation> request_filter_settings(
     return std::nullopt;
   }
 
-  return build_settings().invocation;
-}
-
-std::optional<SmartFilterBlendingSettings> request_smart_filter_blending_settings(
-    QWidget* parent, std::function<void(bool, const SmartFilterBlendingSettings&)> preview_changed,
-    SmartFilterBlendingSettings initial) {
-  QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("smartFilterBlendingDialog"));
-  dialog.setWindowTitle(QObject::tr("Smart Filter Blending Options"));
-
-  auto* layout = new QVBoxLayout(&dialog);
-  auto* form = new QFormLayout();
-  layout->addLayout(form);
-
-  auto* blend_mode = new QComboBox(&dialog);
-  blend_mode->setObjectName(QStringLiteral("smartFilterBlendModeCombo"));
-  add_blend_mode_items(blend_mode);
-  const auto blend_mode_index = blend_mode->findData(static_cast<int>(initial.blend_mode));
-  blend_mode->setCurrentIndex(blend_mode_index >= 0 ? blend_mode_index
-                                                    : blend_mode->findData(static_cast<int>(BlendMode::Normal)));
-  form->addRow(QObject::tr("Mode:"), blend_mode);
-
-  auto* opacity_row = new QWidget(&dialog);
-  auto* opacity_layout = new QHBoxLayout(opacity_row);
-  opacity_layout->setContentsMargins(0, 0, 0, 0);
-  auto* opacity_slider = new QSlider(Qt::Horizontal, opacity_row);
-  opacity_slider->setObjectName(QStringLiteral("smartFilterOpacitySlider"));
-  opacity_slider->setRange(0, 100);
-  auto* opacity_spin = new QDoubleSpinBox(opacity_row);
-  opacity_spin->setObjectName(QStringLiteral("smartFilterOpacitySpin"));
-  opacity_spin->setRange(0.0, 100.0);
-  opacity_spin->setDecimals(0);
-  opacity_spin->setSingleStep(1.0);
-  opacity_spin->setSuffix(QObject::tr("%"));
-  configure_dialog_spinbox(opacity_spin, 90);
-  const auto initial_opacity = std::clamp(initial.opacity, 0.0, 1.0);
-  opacity_spin->setValue(initial_opacity * 100.0);
-  opacity_slider->setValue(static_cast<int>(std::lround(initial_opacity * 100.0)));
-  opacity_layout->addWidget(opacity_slider, 1);
-  opacity_layout->addWidget(opacity_spin);
-  form->addRow(QObject::tr("Opacity:"), opacity_row);
-
-  auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
-  preview->setObjectName(QStringLiteral("smartFilterBlendingPreviewCheck"));
-  preview->setChecked(true);
-  layout->addWidget(preview);
-
-  auto build_settings = [&] {
-    return SmartFilterBlendingSettings{
-        static_cast<BlendMode>(blend_mode->currentData().toInt()),
-        std::clamp(opacity_spin->value() / 100.0, 0.0, 1.0)};
-  };
-  CoalescedPreviewEmitter<AdjustmentPreviewRequest<SmartFilterBlendingSettings>> preview_emitter(
-      dialog, [&](const AdjustmentPreviewRequest<SmartFilterBlendingSettings>& request) {
-        if (preview_changed) {
-          preview_changed(request.enabled, request.settings);
-        }
-      });
-  auto preview_request = [&] {
-    return AdjustmentPreviewRequest<SmartFilterBlendingSettings>{preview->isChecked(), build_settings()};
-  };
-  auto schedule_preview = [&] { preview_emitter.schedule(preview_request()); };
-  auto flush_preview = [&] { preview_emitter.flush(preview_request()); };
-
-  QObject::connect(opacity_slider, &QSlider::valueChanged, opacity_spin, [opacity_spin](int value) {
-    opacity_spin->setValue(static_cast<double>(value));
-  });
-  QObject::connect(opacity_spin, qOverload<double>(&QDoubleSpinBox::valueChanged), opacity_slider,
-                   [opacity_slider](double value) {
-                     const QSignalBlocker blocker(opacity_slider);
-                     opacity_slider->setValue(static_cast<int>(std::lround(value)));
-                   });
-  QObject::connect(opacity_spin, qOverload<double>(&QDoubleSpinBox::valueChanged), &dialog,
-                   [&schedule_preview](double) { schedule_preview(); });
-  QObject::connect(blend_mode, qOverload<int>(&QComboBox::currentIndexChanged), &dialog,
-                   [&schedule_preview](int) { schedule_preview(); });
-  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
-
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-  buttons->setObjectName(QStringLiteral("smartFilterBlendingButtonBox"));
-  layout->addWidget(buttons);
-  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
-  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
-  QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
-    if (dialog.isVisible()) {
-      flush_preview();
-    }
-  });
-  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
-    return std::nullopt;
+  auto settings = build_settings();
+  if (blending != nullptr && settings.blending.has_value()) {
+    *blending = *settings.blending;
   }
-  return build_settings();
+  return std::move(settings.invocation);
 }
 
 // These helpers are file-private. Without the anonymous namespace they had

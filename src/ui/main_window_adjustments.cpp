@@ -1716,6 +1716,12 @@ void MainWindow::editable_smart_filter_dialog(
     }
   }
 
+  // The dialog's Blending section edits the entry's blend mode and opacity
+  // alongside its parameters (one combined dialog since July 2026).
+  auto blending_settings = SmartFilterBlendingSettings{
+      stack.entries[filter_index].blend_mode,
+      stack.entries[filter_index].opacity};
+
   const auto interpolation = canvas_->transform_interpolation();
   const auto unfiltered_preview = render_smart_object_unfiltered_layer_preview(
       std::as_const(doc), std::as_const(*layer), interpolation,
@@ -1746,14 +1752,24 @@ void MainWindow::editable_smart_filter_dialog(
                       smart_filter_stack_with_invocation(
                           stack, filter_index, settings.invocation))
                 : std::nullopt;
+        if (candidate.has_value() && settings.blending.has_value()) {
+          candidate->entries[filter_index].blend_mode =
+              settings.blending->blend_mode;
+          candidate->entries[filter_index].opacity =
+              std::clamp(settings.blending->opacity, 0.0, 1.0);
+        }
         // Unchanged settings restore the stored raster instead of re-rendering:
         // the layer's current pixels may be Photoshop's own preview of this
         // stack, and swapping in Patchy's render of identical settings would
         // visibly change the image just because the dialog opened with Preview
         // on.
         if (!candidate.has_value() ||
-            candidate->entries[filter_index].parameters ==
-                stack.entries[filter_index].parameters) {
+            (candidate->entries[filter_index].parameters ==
+                 stack.entries[filter_index].parameters &&
+             candidate->entries[filter_index].blend_mode ==
+                 stack.entries[filter_index].blend_mode &&
+             std::abs(candidate->entries[filter_index].opacity -
+                      stack.entries[filter_index].opacity) < 0.0000001)) {
           preview_state->pending.reset();
           ++preview_state->generation;
           if (auto* preview_layer = document().find_layer(layer_id);
@@ -1837,7 +1853,8 @@ void MainWindow::editable_smart_filter_dialog(
   const auto dialog_spec =
       editable_smart_filter_dialog_spec(kind, initial_invocation);
   const auto settings = request_filter_settings(
-      this, dialog_spec, preview_changed, std::move(initial_invocation));
+      this, dialog_spec, preview_changed, std::move(initial_invocation),
+      nullptr, &blending_settings);
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(layer_id);
   if (layer == nullptr) {
@@ -1869,6 +1886,9 @@ void MainWindow::editable_smart_filter_dialog(
 
   auto candidate = smart_filter_stack_with_invocation(
       std::move(stack), filter_index, *settings);
+  candidate.entries[filter_index].blend_mode = blending_settings.blend_mode;
+  candidate.entries[filter_index].opacity =
+      std::clamp(blending_settings.opacity, 0.0, 1.0);
   const auto undo_text =
       radial      ? (adding ? tr("Add Radial Blur Smart Filter")
                             : tr("Edit Radial Blur Smart Filter"))
@@ -1974,190 +1994,9 @@ void MainWindow::edit_smart_filter(LayerId layer_id,
   const auto kind = stack->entries[execution_index].kind;
   if (native_smart_filter_kind_supported(kind)) {
     editable_smart_filter_dialog(layer_id, kind, execution_index);
-  }
-}
-
-void MainWindow::edit_smart_filter_blending(
-    LayerId layer_id, std::size_t execution_index) {
-  if (!has_active_document() || canvas_ == nullptr ||
-      layer_id_locks_image_pixels(layer_id)) {
-    return;
-  }
-  auto& doc = document();
-  auto* layer = doc.find_layer(layer_id);
-  const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
-  if (layer == nullptr || current == nullptr ||
-      current->support != SmartFilterStackSupport::Supported ||
-      execution_index >= current->entries.size() ||
-      (!smart_object_lock_reason(*layer).empty() &&
-       smart_object_lock_reason(*layer) != "external")) {
+  } else {
     show_status_error(
         tr("This Smart Filter can only be preserved, not edited"));
-    return;
-  }
-
-  const auto parent_document_dir =
-      session().path.isEmpty() ? QString()
-                               : QFileInfo(session().path).absolutePath();
-  const auto interpolation = canvas_->transform_interpolation();
-  const auto unfiltered_preview = render_smart_object_unfiltered_layer_preview(
-      std::as_const(doc), std::as_const(*layer), interpolation,
-      parent_document_dir);
-  if (!unfiltered_preview.has_value()) {
-    show_status_error(tr("Could not render this Smart Object"));
-    return;
-  }
-
-  const auto original_stack = *current;
-  const auto initial = SmartFilterBlendingSettings{
-      original_stack.entries[execution_index].blend_mode,
-      original_stack.entries[execution_index].opacity};
-  auto unfiltered_pixels =
-      std::make_shared<const PixelBuffer>(unfiltered_preview->pixels);
-  const auto unfiltered_bounds = unfiltered_preview->bounds;
-  const auto filter_canvas_bounds = Rect::from_size(doc.width(), doc.height());
-  auto original_pixels =
-      std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
-  const auto original_bounds = layer->bounds();
-  auto last_preview_bounds = std::make_shared<Rect>(original_bounds);
-  using PreviewRequest =
-      AdjustmentPixelPreviewRequest<SmartFilterBlendingSettings>;
-  auto preview_state =
-      std::make_shared<AsyncPixelPreviewState<PreviewRequest>>();
-  preview_state->start =
-      [this, preview_state, layer_id, original_stack, execution_index,
-       unfiltered_pixels, unfiltered_bounds, original_pixels, original_bounds,
-       filter_canvas_bounds,
-       last_preview_bounds](const PreviewRequest& request) {
-        // Unchanged blending settings restore the stored raster instead of
-        // re-rendering: the layer's current pixels may be Photoshop's own
-        // preview of this stack, and swapping in Patchy's render of identical
-        // settings would visibly change the image just because the dialog
-        // opened with Preview on.
-        const auto& entry = original_stack.entries[execution_index];
-        const bool unchanged =
-            request.settings.blend_mode == entry.blend_mode &&
-            std::abs(request.settings.opacity - entry.opacity) < 0.0000001;
-        if (!request.enabled || unchanged) {
-          preview_state->pending.reset();
-          ++preview_state->generation;
-          if (auto* preview_layer = document().find_layer(layer_id);
-              preview_layer != nullptr) {
-            preview_layer->set_pixels(*original_pixels);
-            preview_layer->set_bounds(original_bounds);
-            if (canvas_ != nullptr) {
-              canvas_->document_changed(
-                  to_qrect(*last_preview_bounds).united(
-                      to_qrect(original_bounds)));
-            }
-            *last_preview_bounds = original_bounds;
-          }
-          return;
-        }
-
-        auto candidate = original_stack;
-        candidate.entries[execution_index].blend_mode =
-            request.settings.blend_mode;
-        candidate.entries[execution_index].opacity =
-            std::clamp(request.settings.opacity, 0.0, 1.0);
-        preview_state->in_flight = true;
-        const auto generation = ++preview_state->generation;
-        auto* app = QCoreApplication::instance();
-        auto window = QPointer<MainWindow>(this);
-        run_tracked_background_worker([app, window, preview_state, generation, layer_id,
-                     unfiltered_pixels, unfiltered_bounds, last_preview_bounds,
-                     filter_canvas_bounds, candidate = std::move(candidate)] {
-          auto result = std::make_shared<FilterRenderResult>();
-          auto error = std::make_shared<QString>();
-          try {
-            *result = render_smart_filter_stack(
-                *unfiltered_pixels, unfiltered_bounds, filter_canvas_bounds,
-                candidate);
-          } catch (const std::exception& caught) {
-            *error = QString::fromUtf8(caught.what());
-          }
-          if (app == nullptr) {
-            return;
-          }
-          QMetaObject::invokeMethod(
-              app,
-              [window, preview_state, generation, layer_id,
-               last_preview_bounds, result, error]() mutable {
-                preview_state->in_flight = false;
-                const bool has_pending = preview_state->pending.has_value();
-                if (!preview_state->closed && !has_pending &&
-                    generation == preview_state->generation &&
-                    window != nullptr) {
-                  if (error->isEmpty()) {
-                    if (auto* preview_layer =
-                            window->document().find_layer(layer_id);
-                        preview_layer != nullptr) {
-                      preview_layer->set_pixels(std::move(result->pixels));
-                      preview_layer->set_bounds(result->bounds);
-                      if (window->canvas_ != nullptr) {
-                        window->canvas_->document_changed(
-                            to_qrect(*last_preview_bounds)
-                                .united(to_qrect(result->bounds)));
-                      }
-                      *last_preview_bounds = result->bounds;
-                    }
-                  } else {
-                    window->show_status_error(
-                        window->tr("Smart Filter preview failed: %1")
-                            .arg(*error));
-                  }
-                }
-                if (!preview_state->closed &&
-                    preview_state->pending.has_value() &&
-                    preview_state->start) {
-                  auto next = *preview_state->pending;
-                  preview_state->pending.reset();
-                  preview_state->start(next);
-                }
-              },
-              Qt::QueuedConnection);
-        });
-      };
-  const auto preview_changed =
-      [preview_state](bool enabled,
-                      const SmartFilterBlendingSettings& settings) {
-        enqueue_async_pixel_preview(
-            preview_state, PreviewRequest{enabled, settings}, !enabled);
-      };
-
-  auto preview_edit_lock = lock_preview_dialog_edits();
-  const auto settings = request_smart_filter_blending_settings(
-      this, preview_changed, initial);
-  close_async_pixel_preview(preview_state);
-  layer = doc.find_layer(layer_id);
-  if (layer == nullptr) {
-    return;
-  }
-  layer->set_pixels(*original_pixels);
-  layer->set_bounds(original_bounds);
-  canvas_->document_changed(
-      to_qrect(*last_preview_bounds).united(to_qrect(original_bounds)));
-  preview_edit_lock.release();
-  if (!settings.has_value()) {
-    statusBar()->showMessage(tr("Cancelled Smart Filter blending options"));
-    return;
-  }
-  if (settings->blend_mode == initial.blend_mode &&
-      std::abs(settings->opacity - initial.opacity) < 0.0000001) {
-    statusBar()->showMessage(tr("Smart Filter blending options unchanged"));
-    return;
-  }
-
-  auto candidate = original_stack;
-  candidate.entries[execution_index].blend_mode = settings->blend_mode;
-  candidate.entries[execution_index].opacity =
-      std::clamp(settings->opacity, 0.0, 1.0);
-  if (!commit_smart_filter_stack_edit(
-          layer_id, std::move(candidate), {},
-          tr("Edit Smart Filter Blending Options"),
-          tr("Updated Smart Filter blending options"))) {
-    show_status_error(
-        tr("This Smart Filter descriptor cannot be edited safely"));
   }
 }
 

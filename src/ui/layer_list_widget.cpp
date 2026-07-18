@@ -252,6 +252,11 @@ void LayerListWidget::set_item_double_click_callback(std::function<void(QListWid
   item_double_click_callback_ = std::move(callback);
 }
 
+void LayerListWidget::set_smart_filter_double_click_callback(
+    std::function<void(QListWidgetItem*, std::size_t)> callback) {
+  smart_filter_double_click_callback_ = std::move(callback);
+}
+
 bool LayerListWidget::drop_in_progress() const noexcept {
   return drop_in_progress_;
 }
@@ -558,7 +563,7 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
     if (widget != nullptr && mouse_event->button() == Qt::LeftButton) {
       if (!layer_row_button_owns_clicks(widget->objectName())) {
         const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
-        if (handle_item_double_click(itemAt(viewport_pos))) {
+        if (handle_item_double_click(itemAt(viewport_pos), viewport_pos)) {
           event->accept();
           return true;
         }
@@ -698,7 +703,8 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     }
   } else if (event->type() == QEvent::MouseButtonDblClick) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
-    if (mouse_event->button() == Qt::LeftButton && handle_item_double_click(itemAt(mouse_event->pos()))) {
+    if (mouse_event->button() == Qt::LeftButton &&
+        handle_item_double_click(itemAt(mouse_event->pos()), mouse_event->pos())) {
       event->accept();
       return true;
     }
@@ -1347,7 +1353,7 @@ bool LayerListWidget::drag_selection_locked() const noexcept {
   return drag_anchor_layer_id_.has_value() && (row_widget_drag_candidate_ || !dragged_layer_ids_.empty());
 }
 
-bool LayerListWidget::handle_item_double_click(QListWidgetItem* item) {
+bool LayerListWidget::handle_item_double_click(QListWidgetItem* item, QPoint viewport_pos) {
   if (item == nullptr || !item_double_click_callback_) {
     return false;
   }
@@ -1357,6 +1363,26 @@ bool LayerListWidget::handle_item_double_click(QListWidgetItem* item) {
   drag_anchor_layer_id_.reset();
   if (currentItem() != item || !item->isSelected()) {
     set_current_item_preserving_scroll(item, QItemSelectionModel::ClearAndSelect);
+  }
+  // A double-click inside a Smart Filter entry row edits that filter's
+  // settings (the Photoshop behavior) instead of the layer's styles.
+  if (smart_filter_double_click_callback_) {
+    if (auto* row = itemWidget(item); row != nullptr) {
+      const auto global_pos = viewport()->mapToGlobal(viewport_pos);
+      for (auto* entry_row :
+           row->findChildren<QWidget*>(QStringLiteral("layerSmartFilterEntryRow"))) {
+        if (!entry_row->isVisible() ||
+            !entry_row->rect().contains(entry_row->mapFromGlobal(global_pos))) {
+          continue;
+        }
+        const auto execution_index = entry_row->property("smartFilterExecutionIndex");
+        if (execution_index.isValid()) {
+          smart_filter_double_click_callback_(
+              item, static_cast<std::size_t>(execution_index.toULongLong()));
+          return true;
+        }
+      }
+    }
   }
   item_double_click_callback_(item);
   return true;

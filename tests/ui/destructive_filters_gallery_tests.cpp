@@ -1103,6 +1103,136 @@ void ui_filter_gallery_stack_edits_reverse_order_and_stay_independent() {
   CHECK(filter_recipes_equal(*result.recipe, *previews.back().recipe));
 }
 
+// The applied-effects panel's Mode/Opacity controls edit the selected recipe
+// entry's blending (the recipe model always carried these; Saved Looks
+// persist them and the Smart Filter mapping copies them into native entries).
+void ui_filter_gallery_blending_controls_edit_recipe_entries() {
+  GallerySettingsRestorer gallery_settings;
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  patchy::ui::MainWindow theme_host;
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    auto* applied = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryAppliedEffectsList"));
+    auto* duplicate = dialog->findChild<QPushButton*>(
+        QStringLiteral("filterGalleryDuplicateEffectButton"));
+    auto* mode = dialog->findChild<QComboBox*>(
+        QStringLiteral("filterGalleryBlendModeCombo"));
+    auto* opacity_spin = dialog->findChild<QDoubleSpinBox*>(
+        QStringLiteral("filterGalleryOpacitySpin"));
+    auto* opacity_slider = dialog->findChild<QSlider*>(
+        QStringLiteral("filterGalleryOpacitySlider"));
+    auto* buttons = dialog->findChild<QDialogButtonBox*>(
+        QStringLiteral("filterGalleryButtonBox"));
+    CHECK(looks != nullptr && applied != nullptr && duplicate != nullptr &&
+          mode != nullptr && opacity_spin != nullptr &&
+          opacity_slider != nullptr && buttons != nullptr);
+    // Empty recipe: the blending controls are disabled.
+    CHECK(!mode->isEnabled() && !opacity_spin->isEnabled());
+
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.soft_glow")));
+    QApplication::processEvents();
+    CHECK(mode->isEnabled() && opacity_spin->isEnabled());
+    CHECK(static_cast<patchy::BlendMode>(mode->currentData().toInt()) ==
+          patchy::BlendMode::Normal);
+    CHECK(std::abs(opacity_spin->value() - 100.0) < 0.5);
+
+    const auto multiply =
+        mode->findData(static_cast<int>(patchy::BlendMode::Multiply));
+    CHECK(multiply >= 0);
+    mode->setCurrentIndex(multiply);
+    opacity_spin->setValue(40.0);
+    QApplication::processEvents();
+    CHECK(opacity_slider->value() == 40);
+    CHECK(!previews.empty() && previews.back().recipe.has_value());
+    CHECK(previews.back().recipe->entries.size() == 1);
+    CHECK(previews.back().recipe->entries[0].blend_mode ==
+          patchy::BlendMode::Multiply);
+    CHECK(std::abs(previews.back().recipe->entries[0].opacity - 0.4) <
+          0.0000001);
+
+    // Duplicate copies the blending; replacing the duplicate's filter keeps
+    // it, like the enabled state.
+    duplicate->click();
+    QApplication::processEvents();
+    CHECK(static_cast<patchy::BlendMode>(mode->currentData().toInt()) ==
+          patchy::BlendMode::Multiply);
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.noir")));
+    QApplication::processEvents();
+    CHECK(previews.back().recipe->entries[1].invocation.filter_id ==
+          "patchy.filters.noir");
+    CHECK(previews.back().recipe->entries[1].blend_mode ==
+          patchy::BlendMode::Multiply);
+    const auto normal =
+        mode->findData(static_cast<int>(patchy::BlendMode::Normal));
+    CHECK(normal >= 0);
+    mode->setCurrentIndex(normal);
+    opacity_spin->setValue(75.0);
+    QApplication::processEvents();
+    CHECK(previews.back().recipe->entries[1].blend_mode ==
+          patchy::BlendMode::Normal);
+    CHECK(std::abs(previews.back().recipe->entries[1].opacity - 0.75) <
+          0.0000001);
+
+    // Switching applied rows resyncs the controls to that entry.
+    applied->setCurrentItem(applied->item(1));
+    QApplication::processEvents();
+    CHECK(static_cast<patchy::BlendMode>(mode->currentData().toInt()) ==
+          patchy::BlendMode::Multiply);
+    CHECK(std::abs(opacity_spin->value() - 40.0) < 0.5);
+    applied->setCurrentItem(applied->item(0));
+    QApplication::processEvents();
+    CHECK(static_cast<patchy::BlendMode>(mode->currentData().toInt()) ==
+          patchy::BlendMode::Normal);
+    CHECK(std::abs(opacity_spin->value() - 75.0) < 0.5);
+
+    // Reset returns the active entry's blending to Normal/100% along with
+    // its parameters.
+    buttons->button(QDialogButtonBox::Reset)->click();
+    QApplication::processEvents();
+    CHECK(static_cast<patchy::BlendMode>(mode->currentData().toInt()) ==
+          patchy::BlendMode::Normal);
+    CHECK(std::abs(opacity_spin->value() - 100.0) < 0.5);
+    CHECK(previews.back().recipe->entries[1].blend_mode ==
+          patchy::BlendMode::Normal);
+    CHECK(std::abs(previews.back().recipe->entries[1].opacity - 1.0) <
+          0.0000001);
+
+    drove_dialog = true;
+    buttons->button(QDialogButtonBox::Ok)->click();
+  });
+
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      &theme_host, source, bounds, QRegion(), registry,
+      patchy::RgbColor{20, 40, 60}, patchy::RgbColor{240, 220, 200},
+      [&](const patchy::ui::VisualFilterGalleryPreview& preview) {
+        previews.push_back(preview);
+      });
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Filter);
+  CHECK(result.recipe.has_value());
+  CHECK(result.recipe->entries.size() == 2);
+  CHECK(result.recipe->entries[0].invocation.filter_id ==
+        "patchy.filters.soft_glow");
+  CHECK(result.recipe->entries[0].blend_mode == patchy::BlendMode::Multiply);
+  CHECK(std::abs(result.recipe->entries[0].opacity - 0.4) < 0.0000001);
+  CHECK(result.recipe->entries[1].invocation.filter_id ==
+        "patchy.filters.noir");
+  CHECK(result.recipe->entries[1].blend_mode == patchy::BlendMode::Normal);
+  CHECK(std::abs(result.recipe->entries[1].opacity - 1.0) < 0.0000001);
+}
+
 void ui_filter_gallery_drag_events_reach_stack_during_preview_lock() {
   GallerySettingsRestorer gallery_settings;
   patchy::LayerId layer_id{};
@@ -3589,6 +3719,8 @@ std::vector<patchy::test::TestCase> destructive_filters_gallery_tests() {
        ui_filter_recipe_selection_is_restored_once_after_the_full_stack},
       {"ui_filter_gallery_stack_edits_reverse_order_and_stay_independent",
        ui_filter_gallery_stack_edits_reverse_order_and_stay_independent},
+      {"ui_filter_gallery_blending_controls_edit_recipe_entries",
+       ui_filter_gallery_blending_controls_edit_recipe_entries},
       {"ui_filter_gallery_drag_events_reach_stack_during_preview_lock",
        ui_filter_gallery_drag_events_reach_stack_during_preview_lock},
       {"ui_filter_gallery_stack_spatial_overlay_tracks_active_input_bounds",

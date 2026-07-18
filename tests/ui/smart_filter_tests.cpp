@@ -1319,7 +1319,7 @@ void ui_smart_filter_mask_thumbnail_routes_edits_and_resyncs_undo() {
   CHECK(smart_filter_cache_prefix(*reopened_record) == initial_cache_prefix);
 }
 
-void ui_smart_filter_blending_more_menu_cancel_apply_is_atomic() {
+void ui_smart_filter_blending_edit_cancel_apply_is_atomic() {
   SettingsValueRestorer notes_setting(
       QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(
@@ -1371,17 +1371,17 @@ void ui_smart_filter_blending_more_menu_cancel_apply_is_atomic() {
     CHECK(row != nullptr);
     return row;
   };
-  const auto blending_action = [&]() -> QAction* {
+  const auto edit_button = [&]() -> QToolButton* {
     auto* row = active_row();
-    auto* more = row->findChild<QToolButton*>(
-        QStringLiteral("layerSmartFilterMoreButton"));
-    auto* action = row->findChild<QAction*>(
-        QStringLiteral("layerSmartFilterBlendingAction"));
-    CHECK(more != nullptr && more->menu() != nullptr);
-    CHECK(action != nullptr && action->isEnabled());
-    CHECK(more->menu()->actions().contains(action));
-    CHECK(action->property("smartFilterExecutionIndex").toULongLong() == 0U);
-    return action;
+    auto* button = row->findChild<QToolButton*>(
+        QStringLiteral("layerSmartFilterEditButton"));
+    CHECK(button != nullptr && button->isEnabled());
+    CHECK(button->property("smartFilterExecutionIndex").toULongLong() == 0U);
+    // Blending lives in the settings dialog since July 2026; the More menu
+    // deliberately carries no blending action anymore.
+    CHECK(row->findChild<QAction*>(
+              QStringLiteral("layerSmartFilterBlendingAction")) == nullptr);
+    return button;
   };
 
   CHECK(current_entry().blend_mode == patchy::BlendMode::Normal);
@@ -1395,19 +1395,20 @@ void ui_smart_filter_blending_more_menu_cancel_apply_is_atomic() {
   const auto modified_before =
       patchy::ui::MainWindowTestAccess::active_session_is_modified(window);
 
-  // The action is owned by the entry's More menu. Exercise its real signal path
-  // and let a changed live preview render before cancelling.
+  // The Edit button opens the combined settings dialog with the Blending
+  // section (July 2026 merge). Exercise its real signal path and let a
+  // changed live preview render before cancelling.
   bool cancel_dialog_opened = false;
   QTimer::singleShot(20, [&] {
     auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("smartFilterBlendingDialog")));
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     auto* mode = dialog->findChild<QComboBox*>(
         QStringLiteral("smartFilterBlendModeCombo"));
     auto* opacity = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("smartFilterOpacitySpin"));
     auto* preview = dialog->findChild<QCheckBox*>(
-        QStringLiteral("smartFilterBlendingPreviewCheck"));
+        QStringLiteral("filterPreviewCheck"));
     CHECK(mode != nullptr && opacity != nullptr && preview != nullptr);
     CHECK(preview->isChecked());
     const auto multiply =
@@ -1418,7 +1419,7 @@ void ui_smart_filter_blending_more_menu_cancel_apply_is_atomic() {
     cancel_dialog_opened = true;
     QTimer::singleShot(75, dialog, [dialog] { dialog->reject(); });
   });
-  blending_action()->trigger();
+  edit_button()->click();
   process_events_for(100);
   CHECK(cancel_dialog_opened);
   CHECK(current_entry().blend_mode == patchy::BlendMode::Normal);
@@ -1436,7 +1437,7 @@ void ui_smart_filter_blending_more_menu_cancel_apply_is_atomic() {
   bool apply_dialog_opened = false;
   QTimer::singleShot(20, [&] {
     auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("smartFilterBlendingDialog")));
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     auto* mode = dialog->findChild<QComboBox*>(
         QStringLiteral("smartFilterBlendModeCombo"));
@@ -1451,7 +1452,7 @@ void ui_smart_filter_blending_more_menu_cancel_apply_is_atomic() {
     apply_dialog_opened = true;
     dialog->accept();
   });
-  blending_action()->trigger();
+  edit_button()->click();
   CHECK(process_events_until([&] {
     return current_entry().blend_mode == patchy::BlendMode::Multiply &&
            std::abs(current_entry().opacity - 0.37) < 0.0000001;
@@ -1507,10 +1508,11 @@ void ui_smart_filter_blending_more_menu_cancel_apply_is_atomic() {
         original_cache_body);
 }
 
-// Opening the blending-options or settings dialog with Preview on and
-// unchanged values must not repaint the layer: the current raster may be
-// Photoshop's own preview of the stack, and swapping in Patchy's render of
-// identical settings visibly changed the image (July 2026 field report).
+// Opening the settings dialog (from the Edit button or the Edit Blending
+// Options action) with Preview on and unchanged values must not repaint the
+// layer: the current raster may be Photoshop's own preview of the stack, and
+// swapping in Patchy's render of identical settings visibly changed the image
+// (July 2026 field report).
 void ui_smart_filter_dialogs_with_preview_keep_unchanged_pixels() {
   SettingsValueRestorer notes_setting(
       QStringLiteral("imports/showPsdWarningsAndInfo"));
@@ -1561,12 +1563,12 @@ void ui_smart_filter_dialogs_with_preview_keep_unchanged_pixels() {
   bool blending_checked = false;
   QTimer::singleShot(20, [&] {
     auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("smartFilterBlendingDialog")));
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     auto* opacity = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("smartFilterOpacitySpin"));
     auto* preview = dialog->findChild<QCheckBox*>(
-        QStringLiteral("smartFilterBlendingPreviewCheck"));
+        QStringLiteral("filterPreviewCheck"));
     CHECK(opacity != nullptr && preview != nullptr && preview->isChecked());
     // Opening with unchanged settings keeps the stored raster.
     process_events_for(150);
@@ -1580,10 +1582,10 @@ void ui_smart_filter_dialogs_with_preview_keep_unchanged_pixels() {
     blending_checked = true;
     dialog->reject();
   });
-  auto* blending_action = active_row()->findChild<QAction*>(
-      QStringLiteral("layerSmartFilterBlendingAction"));
-  CHECK(blending_action != nullptr);
-  blending_action->trigger();
+  auto* blending_edit_button = active_row()->findChild<QToolButton*>(
+      QStringLiteral("layerSmartFilterEditButton"));
+  CHECK(blending_edit_button != nullptr);
+  blending_edit_button->click();
   process_events_for(50);
   CHECK(blending_checked);
   CHECK(pixels_are_doctored());
@@ -1606,6 +1608,82 @@ void ui_smart_filter_dialogs_with_preview_keep_unchanged_pixels() {
   process_events_for(50);
   CHECK(edit_checked);
   CHECK(pixels_are_doctored());
+}
+
+// Double-clicking a Smart Filter entry row opens that filter's settings
+// dialog (which carries the Blending section) instead of the layer styles
+// dialog; double-clicking the layer's main row keeps opening layer styles.
+void ui_smart_filter_entry_row_double_click_opens_settings() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path(
+          "photoshop-smart-filter-model.psd")
+          .wstring());
+  CHECK(QFileInfo::exists(path));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  select_named_layer(window, QStringLiteral("Gaussian radius 2.0"));
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  layers->scrollToItem(
+      require_layer_item(*layers, QStringLiteral("Gaussian radius 2.0")),
+      QAbstractItemView::PositionAtCenter);
+  QApplication::processEvents();
+
+  // Refetches the row widget per use: dialogs rebuild the layer rows.
+  const auto viewport_point_for = [&](const QString& child_name) {
+    auto* row = layers->itemWidget(
+        require_layer_item(*layers, QStringLiteral("Gaussian radius 2.0")));
+    CHECK(row != nullptr);
+    auto* child = row->findChild<QWidget*>(child_name);
+    CHECK(child != nullptr && child->isVisible());
+    return layers->viewport()->mapFromGlobal(
+        child->mapToGlobal(QPoint(child->width() / 2, child->height() / 2)));
+  };
+  const auto double_click_at = [&](QPoint viewport_pos) {
+    QMouseEvent double_click(
+        QEvent::MouseButtonDblClick, QPointF(viewport_pos),
+        layers->viewport()->mapToGlobal(viewport_pos), Qt::LeftButton,
+        Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(layers->viewport(), &double_click);
+  };
+
+  bool saw_settings_dialog = false;
+  QTimer::singleShot(20, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    CHECK(dialog->findChild<QComboBox*>(
+              QStringLiteral("smartFilterBlendModeCombo")) != nullptr);
+    CHECK(dialog->findChild<QDoubleSpinBox*>(
+              QStringLiteral("smartFilterOpacitySpin")) != nullptr);
+    saw_settings_dialog = true;
+    dialog->reject();
+  });
+  double_click_at(
+      viewport_point_for(QStringLiteral("layerSmartFilterEntryLabel")));
+  process_events_for(120);
+  CHECK(saw_settings_dialog);
+  CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) ==
+        nullptr);
+
+  bool saw_style_dialog = false;
+  QTimer::singleShot(20, [&] {
+    auto* dialog = qobject_cast<QDialog*>(
+        find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    saw_style_dialog = true;
+    dialog->reject();
+  });
+  double_click_at(viewport_point_for(QStringLiteral("layerMainRow")));
+  process_events_for(120);
+  CHECK(saw_style_dialog);
 }
 
 void ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache() {
@@ -4698,10 +4776,12 @@ std::vector<patchy::test::TestCase> smart_filter_tests() {
        ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete},
       {"ui_smart_filter_mask_thumbnail_routes_edits_and_resyncs_undo",
        ui_smart_filter_mask_thumbnail_routes_edits_and_resyncs_undo},
-      {"ui_smart_filter_blending_more_menu_cancel_apply_is_atomic",
-       ui_smart_filter_blending_more_menu_cancel_apply_is_atomic},
+      {"ui_smart_filter_blending_edit_cancel_apply_is_atomic",
+       ui_smart_filter_blending_edit_cancel_apply_is_atomic},
       {"ui_smart_filter_dialogs_with_preview_keep_unchanged_pixels",
        ui_smart_filter_dialogs_with_preview_keep_unchanged_pixels},
+      {"ui_smart_filter_entry_row_double_click_opens_settings",
+       ui_smart_filter_entry_row_double_click_opens_settings},
       {"ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache",
        ui_smart_filter_authored_psd_reopens_with_native_stack_and_cache},
       {"ui_smart_filter_multiple_gaussian_duplicate_reorder_delete_roundtrip",

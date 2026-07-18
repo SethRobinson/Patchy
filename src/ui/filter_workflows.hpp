@@ -97,9 +97,16 @@ struct FilterDialogSpec {
   std::uint32_t schema_version{1};
 };
 
+struct SmartFilterBlendingSettings {
+  BlendMode blend_mode{BlendMode::Normal};
+  double opacity{1.0};
+};
+
 struct FilterPreviewSettings {
   bool preview_enabled{true};
   FilterInvocation invocation;
+  // Filled only by the smart-filter settings dialog (its Blending section).
+  std::optional<SmartFilterBlendingSettings> blending;
 };
 
 // Optional in-dialog preview source for request_filter_settings. When
@@ -113,11 +120,6 @@ struct FilterDialogPreviewSource {
   const FilterRegistry* registry{nullptr};
 };
 
-struct SmartFilterBlendingSettings {
-  BlendMode blend_mode{BlendMode::Normal};
-  double opacity{1.0};
-};
-
 using FilterProgress = ::patchy::FilterProgress;
 using FilterCancelled = ::patchy::FilterCancelled;
 
@@ -127,13 +129,16 @@ using FilterCancelled = ::patchy::FilterCancelled;
 [[nodiscard]] QString filter_progress_stage_text(FilterProgressStage stage);
 [[nodiscard]] bool is_adjustment_only_filter(const FilterDefinition& filter);
 [[nodiscard]] FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter);
+// When `blending` is non-null the dialog appends a Blending section (blend
+// mode + opacity, the smart-filter per-entry settings): *blending seeds the
+// controls, preview requests carry the live values in
+// FilterPreviewSettings::blending, and an accepted dialog writes the chosen
+// values back through the pointer.
 [[nodiscard]] std::optional<FilterInvocation> request_filter_settings(
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed,
     FilterInvocation initial = {},
-    const FilterDialogPreviewSource* preview_source = nullptr);
-[[nodiscard]] std::optional<SmartFilterBlendingSettings> request_smart_filter_blending_settings(
-    QWidget* parent, std::function<void(bool, const SmartFilterBlendingSettings&)> preview_changed = {},
-    SmartFilterBlendingSettings initial = {});
+    const FilterDialogPreviewSource* preview_source = nullptr,
+    SmartFilterBlendingSettings* blending = nullptr);
 [[nodiscard]] std::optional<LevelsSettings> request_levels_settings(
     QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {},
     LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr);

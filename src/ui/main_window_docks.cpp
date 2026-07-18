@@ -653,6 +653,18 @@ void MainWindow::create_docks() {
     // Smart Objects menus), so double-click stays consistent for every layer.
     edit_active_layer_style();
   });
+  layer_list->set_smart_filter_double_click_callback(
+      [this](QListWidgetItem* item, std::size_t execution_index) {
+        const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+        if (layer_id == 0) {
+          return;
+        }
+        // Deferred like the entry buttons: opening the dialog rebuilds the
+        // layer list, which would delete the row mid-event otherwise.
+        QTimer::singleShot(0, this, [this, layer_id, execution_index] {
+          edit_smart_filter(layer_id, execution_index);
+        });
+      });
   connect(layer_list_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
     set_layer_visibility_from_item(item);
   });

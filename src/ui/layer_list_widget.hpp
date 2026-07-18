@@ -11,6 +11,7 @@
 #include <QPointer>
 #include <QRect>
 
+#include <cstddef>
 #include <functional>
 #include <optional>
 #include <vector>
@@ -62,6 +63,7 @@ public:
   void set_thumbnail_click_callback(
       std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> callback);
   void set_item_double_click_callback(std::function<void(QListWidgetItem*)> callback);
+  void set_smart_filter_double_click_callback(std::function<void(QListWidgetItem*, std::size_t)> callback);
   [[nodiscard]] bool drop_in_progress() const noexcept;
   [[nodiscard]] std::optional<LayerDropRequest> take_drop_request();
   void refresh_row_widths();
@@ -132,7 +134,7 @@ private:
   void set_layer_row_buttons_drag_active(bool active);
   void keep_drag_anchor_selected();
   [[nodiscard]] bool drag_selection_locked() const noexcept;
-  bool handle_item_double_click(QListWidgetItem* item);
+  bool handle_item_double_click(QListWidgetItem* item, QPoint viewport_pos);
   [[nodiscard]] QScrollBar* scroll_bar_at_global_position(QPoint global_position) const;
   bool redirect_mouse_event_to_scroll_bar(QObject* watched, QMouseEvent* event);
   void install_scroll_bar_container_event_filters();
@@ -166,6 +168,7 @@ private:
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> ctrl_click_callback_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> thumbnail_click_callback_;
   std::function<void(QListWidgetItem*)> item_double_click_callback_;
+  std::function<void(QListWidgetItem*, std::size_t)> smart_filter_double_click_callback_;
 };
 
 }  // namespace patchy::ui

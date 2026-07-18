@@ -3,6 +3,7 @@
 #include "filters/smart_filter_recipe_mapping.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/background_workers.hpp"
+#include "ui/blend_mode_ui.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/filter_gallery_controls.hpp"
 #include "ui/filter_look_library.hpp"
@@ -498,6 +499,42 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     }
   )"));
   applied_layout->addWidget(applied_list, 1);
+
+  // Per-entry blending for the selected applied effect. The recipe model has
+  // always carried blend mode and opacity (Saved Looks persist them and the
+  // Smart Filter mapping copies them into native entries); these controls
+  // finally expose them.
+  auto* blending_form = new QFormLayout();
+  blending_form->setContentsMargins(0, 0, 0, 0);
+  blending_form->setSpacing(5);
+  auto* blend_mode_combo = new QComboBox(applied_effects);
+  blend_mode_combo->setObjectName(
+      QStringLiteral("filterGalleryBlendModeCombo"));
+  add_blend_mode_items(blend_mode_combo);
+  blend_mode_combo->setEnabled(false);
+  blending_form->addRow(QObject::tr("Mode:"), blend_mode_combo);
+  auto* opacity_row = new QWidget(applied_effects);
+  auto* opacity_layout = new QHBoxLayout(opacity_row);
+  opacity_layout->setContentsMargins(0, 0, 0, 0);
+  opacity_layout->setSpacing(5);
+  auto* opacity_slider = new QSlider(Qt::Horizontal, opacity_row);
+  opacity_slider->setObjectName(QStringLiteral("filterGalleryOpacitySlider"));
+  opacity_slider->setRange(0, 100);
+  opacity_slider->setValue(100);
+  auto* opacity_spin = new QDoubleSpinBox(opacity_row);
+  opacity_spin->setObjectName(QStringLiteral("filterGalleryOpacitySpin"));
+  opacity_spin->setRange(0.0, 100.0);
+  opacity_spin->setDecimals(0);
+  opacity_spin->setSingleStep(1.0);
+  opacity_spin->setSuffix(QObject::tr("%"));
+  opacity_spin->setValue(100.0);
+  configure_dialog_spinbox(opacity_spin, 84);
+  opacity_layout->addWidget(opacity_slider, 1);
+  opacity_layout->addWidget(opacity_spin);
+  opacity_row->setEnabled(false);
+  blending_form->addRow(QObject::tr("Opacity:"), opacity_row);
+  applied_layout->addLayout(blending_form);
+
   auto* applied_actions = new QHBoxLayout();
   applied_actions->setContentsMargins(0, 0, 0, 0);
   applied_actions->setSpacing(6);
@@ -607,6 +644,25 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     return active_recipe_entry_id.has_value()
                ? find_recipe_entry(*active_recipe_entry_id)
                : nullptr;
+  };
+  const auto refresh_blending_controls = [&] {
+    const auto* entry = active_recipe_entry();
+    const auto has_entry = entry != nullptr;
+    const QSignalBlocker mode_blocker(blend_mode_combo);
+    const QSignalBlocker slider_blocker(opacity_slider);
+    const QSignalBlocker spin_blocker(opacity_spin);
+    blend_mode_combo->setEnabled(has_entry);
+    opacity_row->setEnabled(has_entry);
+    const auto mode = has_entry ? entry->value.blend_mode : BlendMode::Normal;
+    const auto mode_index = blend_mode_combo->findData(static_cast<int>(mode));
+    blend_mode_combo->setCurrentIndex(
+        mode_index >= 0
+            ? mode_index
+            : blend_mode_combo->findData(static_cast<int>(BlendMode::Normal)));
+    const auto opacity =
+        has_entry ? std::clamp(entry->value.opacity, 0.0, 1.0) : 1.0;
+    opacity_spin->setValue(opacity * 100.0);
+    opacity_slider->setValue(static_cast<int>(std::lround(opacity * 100.0)));
   };
   const auto active_filter_id = [&] {
     const auto* entry = active_recipe_entry();
@@ -767,6 +823,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     const auto has_active = active_recipe_entry() != nullptr;
     duplicate_effect->setEnabled(has_active);
     remove_effect->setEnabled(has_active);
+    refresh_blending_controls();
     rebuilding_applied_list = false;
     refresh_smart_filter_hints();
   };
@@ -1295,10 +1352,47 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                          current->data(kRecipeEntryIdRole).toULongLong();
                      sync_catalog_to_active();
                      rebuild_parameter_editor();
+                     refresh_blending_controls();
                      if (refresh_spatial_overlay) {
                        refresh_spatial_overlay();
                      }
                    });
+  const auto apply_blending_edit = [&] {
+    auto* entry = active_recipe_entry();
+    if (entry == nullptr) {
+      return;
+    }
+    const auto mode =
+        static_cast<BlendMode>(blend_mode_combo->currentData().toInt());
+    const auto opacity = std::clamp(opacity_spin->value() / 100.0, 0.0, 1.0);
+    if (entry->value.blend_mode == mode &&
+        std::abs(entry->value.opacity - opacity) < 0.0000001) {
+      return;
+    }
+    entry->value.blend_mode = mode;
+    entry->value.opacity = opacity;
+    // Opacity 0 entries stop executing, so the traced entry bounds can move.
+    invalidate_spatial_trace();
+    mark_recipe_custom();
+    refresh_smart_filter_hints();
+    schedule_render();
+    emit_canvas_preview();
+  };
+  QObject::connect(opacity_slider, &QSlider::valueChanged, opacity_spin,
+                   [opacity_spin](int value) {
+                     opacity_spin->setValue(static_cast<double>(value));
+                   });
+  QObject::connect(opacity_spin,
+                   qOverload<double>(&QDoubleSpinBox::valueChanged), &dialog,
+                   [&, opacity_slider](double value) {
+                     const QSignalBlocker blocker(opacity_slider);
+                     opacity_slider->setValue(
+                         static_cast<int>(std::lround(value)));
+                     apply_blending_edit();
+                   });
+  QObject::connect(blend_mode_combo,
+                   qOverload<int>(&QComboBox::currentIndexChanged), &dialog,
+                   [&](int) { apply_blending_edit(); });
   QObject::connect(applied_list, &QListWidget::itemChanged, &dialog,
                    [&](QListWidgetItem* item) {
                      if (rebuilding_applied_list || item == nullptr) {
@@ -1571,6 +1665,9 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         const auto id = entry->value.invocation.filter_id;
         entry->value.invocation =
             registry.default_invocation(id, foreground, background);
+        entry->value.opacity = 1.0;
+        entry->value.blend_mode = BlendMode::Normal;
+        refresh_blending_controls();
         catalog_invocations[id] = entry->value.invocation;
         if (const auto item = filter_items.find(id);
             item != filter_items.end()) {

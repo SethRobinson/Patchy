@@ -490,8 +490,6 @@ private:
       LayerId layer_id, SmartFilterKind kind,
       std::optional<std::size_t> execution_index = std::nullopt);
   void edit_smart_filter(LayerId layer_id, std::size_t execution_index);
-  void edit_smart_filter_blending(LayerId layer_id,
-                                  std::size_t execution_index);
   void set_smart_filter_stack_enabled(LayerId layer_id, bool enabled);
   void set_smart_filter_enabled(LayerId layer_id, std::size_t execution_index,
                                 bool enabled);

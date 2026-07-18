@@ -1164,7 +1164,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId, bool)> set_smart_filter_stack_enabled = {},
                                std::function<void(LayerId, std::size_t, bool)> set_smart_filter_enabled = {},
                                std::function<void(LayerId, std::size_t)> edit_smart_filter = {},
-                               std::function<void(LayerId, std::size_t)> edit_smart_filter_blending = {},
                                std::function<void(LayerId, std::size_t)> duplicate_smart_filter = {},
                                std::function<void(LayerId, std::size_t, int)> move_smart_filter = {},
                                std::function<void(LayerId, std::size_t)> delete_smart_filter = {},
@@ -1943,26 +1942,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                 static_cast<qulonglong>(execution_index)));
       };
 
-      auto* blending_action =
-          action_menu->addAction(QObject::tr("Edit Blending Options..."));
-      configure_action(blending_action,
-                       QStringLiteral("layerSmartFilterBlendingAction"));
-      blending_action->setEnabled(controls_supported && ancestors_visible);
-      QObject::connect(
-          blending_action, &QAction::triggered, row,
-          [parent, id = layer.id(), execution_index,
-           edit_smart_filter_blending] {
-            if (edit_smart_filter_blending) {
-              QTimer::singleShot(
-                  0, parent,
-                  [id, execution_index, edit_smart_filter_blending] {
-                    edit_smart_filter_blending(id, execution_index);
-                  });
-            }
-          });
-
-      action_menu->addSeparator();
-
+      // Blending (mode + opacity) lives in the entry's settings dialog, so
+      // the More menu carries only the stack-management actions.
       auto* duplicate_action =
           action_menu->addAction(QObject::tr("Duplicate Smart Filter"));
       configure_action(duplicate_action,
@@ -2490,9 +2471,6 @@ void MainWindow::refresh_layer_list() {
       },
                                       [this](LayerId layer_id, std::size_t execution_index) {
         edit_smart_filter(layer_id, execution_index);
-      },
-                                      [this](LayerId layer_id, std::size_t execution_index) {
-        edit_smart_filter_blending(layer_id, execution_index);
       },
                                       [this](LayerId layer_id, std::size_t execution_index) {
         duplicate_smart_filter(layer_id, execution_index);
