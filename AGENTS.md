@@ -32,16 +32,23 @@ Required release handoff steps:
    cmd /s /c '"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 >nul && "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset release'
    ```
 
+   Run this line from PowerShell (or a real cmd prompt), NEVER from Git Bash or another POSIX shell: the nested quoting collapses there, cmd just prints its banner and exits 0 without building anything, and the stale binaries still look fresh. Trust a build only if its log shows compile/link lines (or "ninja: no work to do"), never the exit code alone.
+
    `build\release\CMakeCache.txt` carries hand-edited flags the preset does not set: `CMAKE_CXX_FLAGS_RELEASE=/O2 /Ob2 /DNDEBUG /Zi` and `CMAKE_EXE_LINKER_FLAGS_RELEASE=/DEBUG:FULL /INCREMENTAL:NO`. They make release builds emit `patchy.pdb`, which is what symbolizes user crash dumps (WER minidumps land in `%LOCALAPPDATA%\CrashDumps`). If you reconfigure from scratch, pass them again with `-D...`; to symbolize a dump from an older build, rebuild that commit in a temp `git worktree` with the same flags (full links reproduce the binary layout) and read the dump against that PDB.
 
    A running `build\release\patchy.exe` will lock the link step (`LNK1104`); ask Seth to close it rather than force-killing it (he may have unsaved work).
 
-2. Run the release test binaries from `build\release`:
+2. Run the release test binaries from `build\release`, scoped to the size of the change (the full suites have grown expensive, so don't run them for every small edit):
 
    ```powershell
    .\patchy_core_tests.exe
    $env:QT_QPA_PLATFORM='offscreen'; .\patchy_ui_visual_tests.exe
    ```
+
+   - Both binaries accept a name-substring filter as the first argument (the UI suite also reads `PATCHY_UI_TEST_FILTER`), e.g. `.\patchy_ui_visual_tests.exe ui_layer_folder`.
+   - For a minor, localized change (one feature area; no core/shared code, no serialization or byte-pinned/canary paths, no rendering/compositing, no build-system changes), running the filtered subsets that cover the touched feature plus any new or changed tests is enough for the handoff. State in the final report which filters ran instead of the full suites.
+   - Run BOTH full suites when the change touches `src/core` or shared helpers (`main_window_shared`, `canvas_widget_shared`, `psd_io_common`), PSD or any other serialization, anything byte-pinned or canary-gated, compositing/rendering, app-wide QSS/theme or hotkeys, CMakeLists/presets, is a refactor or file move, or whenever in doubt.
+   - Full runs of both suites are always required before packaging/uploading a release (the `release-all.bat` flow): subset runs skip the cross-test state (QSettings leaks, artifact dependencies) the full ordered suite exercises.
 
 3. In the final response, explicitly report whether the release executable exists at:
 
@@ -154,7 +161,7 @@ No Photoshop SDK code or Adobe-created assets are ever allowed in this repositor
 - The offscreen platform does **not** clear `QApplication::keyboardModifiers()` after a synthetic `QKeyEvent`, and the stuck bit persists across tests in the shared `QApplication`. Assert cursor/mode changes through paths that read the event's *folded* modifiers, not `keyboardModifiers()` (see `ui_brush_alt_shows_eyedropper_cursor` for the order-independent pattern).
 - A click on a layer-row mask/content thumbnail can rebuild the layer row (the old row widget is deleted), so never reuse a cached row/thumbnail pointer across the press — use `click_layer_row_thumbnail(...)` in tests/ui/ui_test_support.cpp, which refetches the widget for press and release. Reusing the stale pointer is a use-after-free that flakes only when the heap reuses the freed block.
 - If the visual suite dies with an access violation, the log ends with a symbolized stack (a dbghelp vectored handler in `main`) — read it instead of re-running and hoping.
-- Run a subset of visual tests by passing a name substring as the first argument (or `PATCHY_UI_TEST_FILTER`): `.\patchy_ui_visual_tests.exe ui_audio_splitter`. There is no `--test` flag.
+- Run a subset of visual tests by passing a name substring as the first argument (or `PATCHY_UI_TEST_FILTER`): `.\patchy_ui_visual_tests.exe ui_audio_splitter`. There is no `--test` flag. `patchy_core_tests.exe` takes the same name-substring first argument.
 - Tests that open notice-raising files assert `statusBar()->currentMessage()`; only tests that ENABLE `imports/showPsdWarningsAndInfo` need the REPEATING QTimer dismisser — a one-shot fires during the open-progress phase and the suite hangs (see [docs/file-formats.md](docs/file-formats.md) "Import notices").
 - Some tests skip per platform by design (Windows-only chrome/plugins, font metrics); the current list with reasons is in [docs/platform.md](docs/platform.md). Local-fixture (`local-test-fixtures/`) tests `[SKIP]` on the remote machines because that directory is deliberately untracked.
 
