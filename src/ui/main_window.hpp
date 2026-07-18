@@ -689,7 +689,7 @@ private:
   void move_active_layer(int direction);
   void handle_layer_drop();
   void reorder_layers_from_list();
-  void toggle_layer_folder_expanded(LayerId id);
+  void toggle_layer_folder_expanded(LayerId id, bool include_nested = false);
   void reveal_layer_in_layer_list(LayerId id);
   void set_layer_visibility_from_item(QListWidgetItem* item);
   void show_layer_context_menu(QPoint position);

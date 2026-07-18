@@ -1548,6 +1548,78 @@ void ui_layer_folders_open_with_saved_expansion_state() {
   save_widget_artifact("ui_layer_folder_saved_state", window);
 }
 
+void ui_layer_folder_alt_click_toggles_nested_folders() {
+  patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(32, 32, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  patchy::Layer outer(document.allocate_layer_id(), "Outer Folder", patchy::LayerKind::Group);
+  patchy::Layer inner(document.allocate_layer_id(), "Inner Folder", patchy::LayerKind::Group);
+  inner.add_child(patchy::Layer(document.allocate_layer_id(), "Inner Child",
+                                solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(220, 40, 40))));
+  outer.add_child(std::move(inner));
+  outer.add_child(patchy::Layer(document.allocate_layer_id(), "Outer Leaf",
+                                solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(40, 80, 220))));
+  document.add_layer(std::move(outer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Alt Click Folder Branch"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto find_layer_item = [layer_list](const QString& text) -> QListWidgetItem* {
+    for (int row = 0; row < layer_list->count(); ++row) {
+      if (layer_list->item(row)->text() == text) {
+        return layer_list->item(row);
+      }
+    }
+    return nullptr;
+  };
+  // Rows are rebuilt on every toggle, so refetch the disclosure button per click.
+  auto click_disclosure = [layer_list](const QString& name, Qt::KeyboardModifiers modifiers) {
+    auto* item = require_layer_item(*layer_list, name);
+    auto* row_widget = layer_list->itemWidget(item);
+    CHECK(row_widget != nullptr);
+    auto* disclosure = row_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+    CHECK(disclosure != nullptr);
+    const auto center = disclosure->rect().center();
+    send_mouse(*disclosure, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*disclosure, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  };
+
+  CHECK(layer_list->count() == 5);
+
+  // Alt+click collapses the folder and every folder nested inside it.
+  click_disclosure(QStringLiteral("Outer Folder"), Qt::AltModifier);
+  CHECK(layer_list->count() == 2);
+  CHECK(find_layer_item(QStringLiteral("Inner Folder")) == nullptr);
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Folder and nested folders collapsed"));
+
+  // A plain click expands only the clicked folder; the nested one stays collapsed.
+  click_disclosure(QStringLiteral("Outer Folder"), Qt::NoModifier);
+  CHECK(layer_list->count() == 4);
+  auto* inner_item = require_layer_item(*layer_list, QStringLiteral("Inner Folder"));
+  CHECK(!inner_item->data(Qt::UserRole + 3).toBool());
+  CHECK(find_layer_item(QStringLiteral("Inner Child")) == nullptr);
+  CHECK(find_layer_item(QStringLiteral("Outer Leaf")) != nullptr);
+
+  // Alt+click on the collapsed branch expands the folder and everything nested.
+  click_disclosure(QStringLiteral("Outer Folder"), Qt::NoModifier);
+  CHECK(layer_list->count() == 2);
+  click_disclosure(QStringLiteral("Outer Folder"), Qt::AltModifier);
+  CHECK(layer_list->count() == 5);
+  inner_item = require_layer_item(*layer_list, QStringLiteral("Inner Folder"));
+  CHECK(inner_item->data(Qt::UserRole + 3).toBool());
+  CHECK(find_layer_item(QStringLiteral("Inner Child")) != nullptr);
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Folder and nested folders expanded"));
+  save_widget_artifact("ui_layer_folder_alt_click_nested", window);
+}
+
 void ui_move_auto_select_reveals_layers_in_collapsed_folders() {
   patchy::Document document(48, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -1774,5 +1846,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_fill_opacity_control_updates_active_layer",
        ui_layer_fill_opacity_control_updates_active_layer},
       {"ui_layer_row_selected_highlight_paints", ui_layer_row_selected_highlight_paints},
+      {"ui_layer_folder_alt_click_toggles_nested_folders",
+       ui_layer_folder_alt_click_toggles_nested_folders},
   };
 }

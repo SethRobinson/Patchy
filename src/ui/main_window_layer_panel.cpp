@@ -261,6 +261,25 @@ int layer_tree_indent_width(int depth) {
   return std::max(0, depth) * kLayerChildIndent;
 }
 
+constexpr const char* kLastClickModifiersProperty = "patchyLastClickModifiers";
+
+// QToolButton::clicked carries no modifiers, and QApplication::keyboardModifiers()
+// can lag the event stream, so record the folded modifiers off the button's own
+// mouse events for the clicked handler to read.
+class ClickModifierRecorder final : public QObject {
+public:
+  using QObject::QObject;
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease) {
+      watched->setProperty(kLastClickModifiersProperty,
+                           static_cast<QMouseEvent*>(event)->modifiers().toInt());
+    }
+    return QObject::eventFilter(watched, event);
+  }
+};
+
 class LayerTreeIndentWidget final : public QWidget {
 public:
   explicit LayerTreeIndentWidget(int depth, QWidget* parent = nullptr)
@@ -1133,7 +1152,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                const std::function<QPixmap(const Layer&)>& mask_thumbnail, int depth = 0,
                                bool ancestors_visible = true, bool group_expanded = true,
                                LayerLockFlags ancestor_lock_flags = kLayerLockNone,
-                               std::function<void(LayerId)> toggle_group_expanded = {},
+                               std::function<void(LayerId, bool)> toggle_group_expanded = {},
                                std::function<void(LayerId, bool)> set_mask_linked = {},
                                bool content_target_active = false, bool mask_target_active = false,
                                bool smart_filter_mask_target_active = false,
@@ -1227,11 +1246,21 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     disclosure->setEnabled(!layer.children().empty());
     disclosure->setToolTip(layer.children().empty()
                                ? QObject::tr("Folder is empty")
-                               : group_expanded ? QObject::tr("Collapse folder") : QObject::tr("Expand folder"));
+                               : group_expanded
+                                   ? QObject::tr("Collapse folder (Alt-click includes nested folders)")
+                                   : QObject::tr("Expand folder (Alt-click includes nested folders)"));
+    disclosure->installEventFilter(new ClickModifierRecorder(disclosure));
     QObject::connect(disclosure, &QToolButton::clicked, row,
-                     [parent, id = layer.id(), toggle_group_expanded = std::move(toggle_group_expanded)] {
+                     [parent, disclosure, id = layer.id(),
+                      toggle_group_expanded = std::move(toggle_group_expanded)] {
+      const auto modifiers = static_cast<Qt::KeyboardModifiers>(
+          disclosure->property(kLastClickModifiersProperty).toInt());
+      disclosure->setProperty(kLastClickModifiersProperty, {});
       if (toggle_group_expanded) {
-        QTimer::singleShot(0, parent, [id, toggle_group_expanded] { toggle_group_expanded(id); });
+        const auto include_nested = (modifiers & Qt::AltModifier) != 0;
+        QTimer::singleShot(0, parent, [id, include_nested, toggle_group_expanded] {
+          toggle_group_expanded(id, include_nested);
+        });
       }
     });
     layout->addWidget(disclosure, 0, Qt::AlignVCenter);
@@ -2203,7 +2232,7 @@ void MainWindow::reorder_layers_from_list() {
   statusBar()->showMessage(tr("Reordered layers"));
 }
 
-void MainWindow::toggle_layer_folder_expanded(LayerId id) {
+void MainWindow::toggle_layer_folder_expanded(LayerId id, bool include_nested) {
   const auto* layer = document().find_layer(id);
   if (layer == nullptr || layer->kind() != LayerKind::Group || layer->children().empty()) {
     return;
@@ -2211,14 +2240,23 @@ void MainWindow::toggle_layer_folder_expanded(LayerId id) {
 
   auto& collapsed_groups = session().collapsed_layer_groups;
   const auto was_collapsed = collapsed_groups.contains(id);
-  if (was_collapsed) {
-    collapsed_groups.erase(id);
-  } else {
-    collapsed_groups.insert(id);
+  std::set<LayerId> toggled_ids{id};
+  if (include_nested) {
+    collect_layer_group_ids(layer->children(), toggled_ids);
+  }
+  for (const auto toggled_id : toggled_ids) {
+    if (was_collapsed) {
+      collapsed_groups.erase(toggled_id);
+    } else {
+      collapsed_groups.insert(toggled_id);
+    }
   }
 
   refresh_layer_list();
-  statusBar()->showMessage(was_collapsed ? tr("Folder expanded") : tr("Folder collapsed"));
+  statusBar()->showMessage(include_nested
+                               ? (was_collapsed ? tr("Folder and nested folders expanded")
+                                                : tr("Folder and nested folders collapsed"))
+                               : (was_collapsed ? tr("Folder expanded") : tr("Folder collapsed")));
 }
 
 void MainWindow::reveal_layer_in_layer_list(LayerId id) {
@@ -2380,7 +2418,9 @@ void MainWindow::refresh_layer_list() {
                                       [this](const Layer& row_layer) { return cached_layer_content_thumbnail(row_layer); },
                                       [this](const Layer& row_layer) { return cached_layer_mask_thumbnail(row_layer); },
                                       depth, ancestors_visible, group_expanded, ancestor_lock_flags,
-                                      [this](LayerId layer_id) { toggle_layer_folder_expanded(layer_id); },
+                                      [this](LayerId layer_id, bool include_nested) {
+                                        toggle_layer_folder_expanded(layer_id, include_nested);
+                                      },
                                       [this](LayerId layer_id, bool linked) {
         if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->mask().has_value()) {
           document().set_active_layer(layer_id);
