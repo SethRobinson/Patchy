@@ -245,6 +245,19 @@ MainWindow/adjustments internals:
 
 ## Design and bug notes (lower severity, unfixed)
 
+- Linux-only full-suite segfault in `ui_pen_tool_path_mode_keys_and_handles`
+  (July 2026, discovered landing the .af importer): the remote linux UI suite
+  crashes with SIGSEGV in that test deterministically at HEAD, but the SAME
+  test passes when run filtered on the same machine at the same commit, and the
+  full suite passed at the previous commit. Windows and macOS full suites are
+  green at both commits, and nothing in the .af change touches pen/vector/
+  canvas code, so this is a latent ORDER-DEPENDENT heap bug (some earlier test
+  frees or leaks state the pen test then touches) that the .af commit's
+  code/data layout shift happened to surface, the same species as the June 2026
+  layer-row thumbnail UAF. Needs an ASAN (or valgrind) run of the full UI suite
+  on the linux box to name the real culprit; do not "fix" it by reordering
+  tests or skipping the pen test, that only re-hides it.
+
 - FIXED (July 2026): the detached async preview/render std::threads now run through
   `run_tracked_background_worker` (src/ui/background_workers.{hpp,cpp}); app main and
   the UI test runner call `wait_for_tracked_background_workers()` after the event loop
