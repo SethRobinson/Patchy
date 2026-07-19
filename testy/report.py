@@ -31,6 +31,7 @@ _PAGE = r"""<!DOCTYPE html>
   #state-pill { padding: 2px 10px; border-radius: 10px; font-size: 11px; background: var(--panel2); }
   #state-pill.running { color: var(--warn); }
   #state-pill.done { color: var(--good); }
+  #state-pill.canceled { color: var(--bad); }
   #summary { display: flex; gap: 12px; padding: 14px 22px; flex-wrap: wrap; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
           padding: 10px 14px; min-width: 168px; }

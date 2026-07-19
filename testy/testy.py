@@ -175,6 +175,9 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == "/testy-start-run":
             self._start_run()
             return
+        if parsed.path == "/testy-cancel-run":
+            self._cancel_run()
+            return
         if parsed.path != "/testy-upload":
             self.send_error(404)
             return
@@ -255,6 +258,29 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
         self._send_json({"started": True})
+
+    def _cancel_run(self) -> None:
+        global _child_run
+        if _child_run is None or _child_run.poll() is not None:
+            self._send_json({"errors": ["no run in progress to cancel"]}, status=409)
+            return
+        # Kill the whole tree: the run spawns patchy.exe, krita, headless Chrome, and
+        # possibly an Affinity instance of its own.
+        subprocess.run(["taskkill", "/PID", str(_child_run.pid), "/T", "/F"],
+                       capture_output=True, timeout=30)
+        _child_run = None
+        # Mark any still-"running" status.json as canceled so dashboards and the run
+        # index stop treating the run as live.
+        for status_path in sorted(config.RUNS_DIR.glob("2*/status.json"), reverse=True):
+            try:
+                status = json.loads(status_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if status.get("state") == "running":
+                status["state"] = "canceled"
+                status_path.write_text(json.dumps(status), encoding="utf-8")
+                break
+        self._send_json({"canceled": True})
 
 
 class _ExclusiveHTTPServer(http.server.ThreadingHTTPServer):
@@ -523,9 +549,9 @@ class Runner:
         self.push()
 
         # Only fully-scored successful cells are cached: a failure may be transient (a
-        # wedged Photoshop, a busy editor), and a cell scored without ground truth
-        # would freeze its missing metrics into later runs.
-        if cell.get("opens") != "fail" and truth is not None:
+        # wedged Photoshop, a busy editor), and a cell scored without ground truth or
+        # with failed automation legs would freeze its missing metrics into later runs.
+        if cell.get("opens") != "fail" and truth is not None and not cell.pop("uncacheable", False):
             cache_dir.mkdir(parents=True, exist_ok=True)
             for item in cell_dir.iterdir():
                 if item.is_file():
@@ -620,6 +646,8 @@ class Runner:
                 info.exe, staged.original, staged.trap, render_png, resave_psd, trap_png,
                 progress=lambda stage: (cell.__setitem__("stage", stage), self.push()),
             )
+            if result.get("notes"):
+                cell["driverNotes"] = result["notes"]
             if not result["ok"]:
                 cell.update({"state": "failed", "opens": result.get("opens", "fail"),
                              "error": result.get("error", "automation failed")})
@@ -627,6 +655,8 @@ class Runner:
             cell["opens"] = result.get("opens", "ok")
             if result.get("notes"):
                 cell["driverNotes"] = result["notes"]
+            if result.get("cacheable") is False:
+                cell["uncacheable"] = True
             return
 
         cell.update({"state": "failed", "error": f"no driver for editor '{editor_key}'"})

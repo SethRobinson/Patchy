@@ -41,11 +41,22 @@ from typing import Callable
 # may then terminate Affinity processes. A reused user instance is never touched.
 # (Tracking launcher pids is useless: the WindowsApps alias forwards and exits.)
 _we_own_instance = False
+# Affinity drops launch file arguments when relaunched too soon after the previous
+# instance closed (and forwards into a warm instance drop them too); launches are
+# reliable again after a cooldown. Empirically ~60-90s worked and ~10-20s failed.
+_last_close_time = 0.0
+LAUNCH_COOLDOWN_SECONDS = 50
 
-STEP_TIMEOUT = 35
+# Cold-launch document opens include full app init + parse: deko_test (10 MB) was
+# observed finishing just past 45s, so this stays generous while still bounded.
 DOCUMENT_TIMEOUT = 90
-DIALOG_TIMEOUT = 30
-EXPORT_TIMEOUT = 120
+DIALOG_TIMEOUT = 15
+EXPORT_TIMEOUT = 45
+# Hard wall-clock budgets per document (Seth's rule: loading/saving that takes much
+# longer than ~10s means something else is wrong - fail honestly instead of grinding
+# through stacked retries). The main budget covers launch + open + two export legs.
+FILE_BUDGET_SECONDS = 180
+TRAP_BUDGET_SECONDS = 75
 
 
 class AffinityError(RuntimeError):
@@ -118,6 +129,13 @@ def _find_dialog(pid: int, title: str) -> int | None:
     return found[0] if found else None
 
 
+def _tab_matches(title: str, tab_stem: str) -> bool:
+    """Affinity's WPF tab headers consume underscores as mnemonic markers
+    ("deko_test.psd" displays as "dekotest.psd", "__trap" as "_trap"), so compare
+    underscore-stripped forms with an exact-prefix match up to the extension dot."""
+    return title.replace("_", "").startswith(tab_stem.replace("_", "") + ".")
+
+
 def _item_label(item) -> str:
     try:
         inner = [t.window_text() for t in item.descendants(control_type="Text")]
@@ -160,6 +178,16 @@ class AffinitySession:
         self.exe = exe
         self.log = log
         self.main = None
+        self.panel = None
+        self._quick = None
+        self.deadline: float | None = None
+
+    def set_budget(self, seconds: float) -> None:
+        self.deadline = time.time() + seconds
+
+    def _check_budget(self, stage: str) -> None:
+        if self.deadline is not None and time.time() > self.deadline:
+            raise AffinityError(f"file time budget exceeded during: {stage}")
 
     # ---------- lifecycle ----------
 
@@ -168,19 +196,32 @@ class AffinitySession:
         arguments = [str(self.exe)] + ([str(file_to_open)] if file_to_open else [])
         existing = _find_main()
         if existing is not None:
+            # A pre-existing instance we do not own (the user's own Affinity): forward
+            # and hope - killing their session is off the table. Owned instances never
+            # reach this branch (export_all closes them before relaunching).
             self.main = existing
+            self.log("reusing running Affinity instance")
             if file_to_open is not None:
-                # Forward the file into the running instance (its single-instance channel).
                 subprocess.Popen(arguments)
-                self.log("forwarded file to running Affinity")
+                self.log("forwarded file to running Affinity (unreliable; close the "
+                         "running Affinity for dependable runs)")
             return
+        # Respect the relaunch cooldown, or the launch comes up without the document.
+        # The wait is dead time, not work: extend the file budget by it.
+        remaining = _last_close_time + LAUNCH_COOLDOWN_SECONDS - time.time()
+        if remaining > 0:
+            self.log(f"cooldown {int(remaining)}s before relaunch")
+            time.sleep(remaining)
+            if self.deadline is not None:
+                self.deadline += remaining
         # Launch with retries: right after an instance dies, the MSIX broker can drop
         # a launch on the floor (observed empirically), so one attempt is not enough.
-        for attempt in range(4):
+        for attempt in range(2):
+            self._check_budget("launch")
             subprocess.Popen(arguments)
             _we_own_instance = True
             self.log(f"launched Affinity (attempt {attempt + 1})")
-            deadline = time.time() + 40
+            deadline = time.time() + 30
             while time.time() < deadline:
                 self.main = _find_main()
                 if self.main is not None:
@@ -199,11 +240,12 @@ class AffinitySession:
         deadline = time.time() + DOCUMENT_TIMEOUT
         reforwarded = False
         while time.time() < deadline:
+            self._check_budget("waiting for document tab")
             try:
                 self._refresh_main()
                 for tab in self.main.descendants(control_type="TabItem"):
                     title = tab.window_text() or ""
-                    if tab_stem in title and "StudioPage" not in title:
+                    if _tab_matches(title, tab_stem) and "StudioPage" not in title:
                         return
             except Exception:
                 pass
@@ -222,18 +264,30 @@ class AffinitySession:
         self._refresh_main()
         for tab in self.main.descendants(control_type="TabItem"):
             title = tab.window_text() or ""
-            if tab_stem in title and "StudioPage" not in title:
+            if _tab_matches(title, tab_stem) and "StudioPage" not in title:
                 if not _activate_item(tab):
                     raise AffinityError(f"could not activate tab '{title}'")
                 time.sleep(1.0)
                 return
         raise AffinityError(f"document tab '{tab_stem}' not found")
 
+    def close_panel(self) -> None:
+        """Collapse the quick-export popup: an open light-dismiss popup can swallow
+        the single-instance file forward for the next document."""
+        try:
+            if self._find_panel() is not None:
+                self._quick_control().children(control_type="Button")[-1].toggle()
+                time.sleep(1.0)
+        except Exception:
+            pass
+        self.panel = None
+
     def wait_until_export_ready(self) -> None:
         """On a cold launch the toolbars populate well after the document tab shows;
         wait until the quick-export control actually has its two buttons."""
-        deadline = time.time() + 90
+        deadline = time.time() + 30
         while time.time() < deadline:
+            self._check_budget("waiting for export toolbar")
             try:
                 controls = self.main.descendants(class_name="QuickExportControl")
                 if controls and len(controls[0].children(control_type="Button")) >= 2:
@@ -247,14 +301,29 @@ class AffinitySession:
     # ---------- quick-export panel ----------
 
     def _quick_control(self):
+        # Cached: the full-tree class_name scan takes seconds and quick_text() runs
+        # once per chip probe; the wrapper survives within one app instance.
+        if self._quick is not None:
+            try:
+                if self._quick.rectangle().width() > 0:
+                    return self._quick
+            except Exception:
+                self._quick = None
         self._refresh_main()
         controls = self.main.descendants(class_name="QuickExportControl")
         if not controls:
             raise AffinityError("QuickExportControl not found")
-        return controls[0]
+        self._quick = controls[0]
+        return self._quick
 
     def quick_text(self) -> str:
-        texts = [t.window_text() for t in self._quick_control().descendants(control_type="Text")]
+        try:
+            texts = [t.window_text() for t in self._quick_control().descendants(control_type="Text")]
+        except AffinityError:
+            raise
+        except Exception:
+            self._quick = None
+            texts = [t.window_text() for t in self._quick_control().descendants(control_type="Text")]
         return texts[0] if texts else ""
 
     def _find_panel(self):
@@ -270,28 +339,42 @@ class AffinitySession:
         return None
 
     def open_panel(self):
-        deadline = time.time() + STEP_TIMEOUT
+        """Open the quick-export panel and remember it. Toggles are paced: a cold
+        instance takes several seconds per UIA scan, and re-toggling too soon just
+        closes the popup the previous toggle opened."""
+        deadline = time.time() + 35
         while time.time() < deadline:
+            self._check_budget("opening export panel")
             panel = self._find_panel()
             if panel is not None:
+                self.panel = panel
                 return panel
             try:
                 dropdown = self._quick_control().children(control_type="Button")[-1]
-                # The Toggle state can desync when an export closes the popup out from
-                # under it; read the state and force the transition to 'on' when known.
-                try:
-                    state = dropdown.get_toggle_state()
-                except Exception:
-                    state = None
                 dropdown.toggle()
-                if state == 1:  # was 'on' while the popup was actually closed: toggle again
-                    time.sleep(1.0)
-                    if self._find_panel() is None:
-                        dropdown.toggle()
             except Exception as error:
                 self.log(f"panel toggle hiccup: {type(error).__name__}")
-            time.sleep(2.5)
+                time.sleep(2.0)
+                continue
+            settle = time.time() + 8
+            while time.time() < settle:
+                time.sleep(1.0)
+                panel = self._find_panel()
+                if panel is not None:
+                    self.panel = panel
+                    return panel
         raise AffinityError("quick-export panel did not open")
+
+    def _live_panel(self):
+        """The remembered panel if still alive, else one reopen attempt."""
+        if self.panel is not None:
+            try:
+                if self.panel.rectangle().width() > 0:
+                    return self.panel
+            except Exception:
+                pass
+            self.panel = None
+        return self.open_panel()
 
     def _chips(self, panel):
         chip_lists = panel.descendants(control_type="List")
@@ -302,9 +385,10 @@ class AffinitySession:
     def select_format(self, format_name: str) -> bool:
         if self.quick_text() == f"Export {format_name}":
             return True
-        for attempt in range(3):
+        for attempt in range(2):
+            self._check_budget(f"selecting {format_name} chip")
             try:
-                panel = self.open_panel()
+                panel = self._live_panel()
                 for chip in self._chips(panel).children(control_type="ListItem"):
                     chip.select()
                     time.sleep(0.7)
@@ -314,6 +398,7 @@ class AffinitySession:
                 raise
             except Exception as error:
                 self.log(f"chip pass failed: {type(error).__name__}")
+                self.panel = None  # stale panel: refresh on the next pass
                 time.sleep(1.0)
         return False
 
@@ -321,9 +406,10 @@ class AffinitySession:
         """Toggle the format on in the '+' list so a chip for it exists."""
         if self.select_format(format_name):
             return
-        for attempt in range(3):
+        for attempt in range(2):
+            self._check_budget(f"enabling {format_name} chip")
             try:
-                panel = self.open_panel()
+                panel = self._live_panel()
                 chip_rect = self._chips(panel).rectangle()
                 plus = [b for b in panel.descendants(control_type="Button")
                         if b.rectangle().left >= chip_rect.right - 6
@@ -365,7 +451,7 @@ class AffinitySession:
 
     def export_active_document(self, out_path: Path) -> None:
         """Invoke Export and drive the shell Save As dialog, strictly targeted."""
-        panel = self.open_panel()
+        panel = self._live_panel()
         export_buttons = [b for b in panel.descendants(control_type="Button")
                           if (b.window_text() or "").startswith("Export")]
         if len(export_buttons) != 1:
@@ -376,6 +462,7 @@ class AffinitySession:
         dialog_hwnd = None
         deadline = time.time() + DIALOG_TIMEOUT
         while time.time() < deadline and dialog_hwnd is None:
+            self._check_budget("waiting for Save As dialog")
             time.sleep(1.0)
             dialog_hwnd = _find_dialog(pid, "Save As")
         if dialog_hwnd is None:
@@ -408,6 +495,7 @@ class AffinitySession:
 
         deadline = time.time() + EXPORT_TIMEOUT
         while time.time() < deadline:
+            self._check_budget("waiting for exported file")
             time.sleep(1.5)
             confirm_hwnd = _find_dialog(pid, "Confirm Save As")
             if confirm_hwnd is not None:
@@ -463,15 +551,18 @@ class AffinitySession:
 
 
 def _export_document(session: AffinitySession, input_file: Path, tab_stem: str,
-                     legs: list[tuple[str, Path]],
+                     legs: list[tuple[str, Path]], budget_seconds: float,
                      progress: Callable[[str], None]) -> dict[str, str]:
     """Open input_file (fresh tab), then run each (format, out_path) leg."""
     results: dict[str, str] = {}
+    session.set_budget(budget_seconds)
     session.ensure_running(input_file)
     progress(f"Affinity: waiting for {tab_stem}")
     session.wait_for_document(tab_stem, file_to_reforward=input_file)
     session.select_document_tab(tab_stem)
     session.wait_until_export_ready()
+    session.panel = None
+    session.open_panel()  # one cold open per document; legs reuse the live panel
     for format_name, out_path in legs:
         progress(f"Affinity: exporting {format_name}")
         try:
@@ -484,6 +575,7 @@ def _export_document(session: AffinitySession, input_file: Path, tab_stem: str,
             time.sleep(3.0)  # let the app settle before the next panel round-trip
         except AffinityError as error:
             results[format_name] = str(error)
+    session.close_panel()  # an open popup can swallow the next document's forward
     return results
 
 
@@ -506,31 +598,39 @@ def export_all(
     input_dir = cell_dir / "input"
     input_dir.mkdir(parents=True, exist_ok=True)
 
-    # Real source filename keeps tab titles unique across the run's accumulated tabs.
-    input_file = input_dir / original.name
+    # One document per app session: forwards into a running instance drop the file
+    # (as do relaunches without the cooldown), so each document gets a fresh launch
+    # carrying it as the argument, after gracefully closing the previous session.
+    if _we_own_instance:
+        cleanup()
+
+    # Name the input after the real document (staged copies are all "original.psd";
+    # the staging layout is files/<real stem>/_staged/original.psd) so tab titles are
+    # meaningful and prefix-matching stays unambiguous.
+    real_stem = original.parent.parent.name if original.stem == "original" else original.stem
+    input_file = input_dir / f"{real_stem}{original.suffix}"
     shutil.copyfile(original, input_file)
 
     try:
         legs = _export_document(
             session, input_file, input_file.stem,
-            [("PNG", render_png), ("PSD", resave_psd)], progress,
+            [("PNG", render_png), ("PSD", resave_psd)], FILE_BUDGET_SECONDS, progress,
         )
+        # No trap leg for Affinity: opening a second document needs either a forward
+        # (drops the file) or a relaunch (needs the cooldown, doubling per-file cost),
+        # and the trap adds nothing here - Affinity re-renders text/layers by design,
+        # which a baked-composite cheat could not fake at its observed accuracy.
         if trap is not None:
-            trap_input = input_dir / f"{input_file.stem}__trap{trap.suffix}"
-            shutil.copyfile(trap, trap_input)
-            try:
-                trap_legs = _export_document(
-                    session, trap_input, trap_input.stem, [("PNG", trap_png)], progress,
-                )
-                legs["trap"] = trap_legs.get("PNG", "unknown")
-            except AffinityError as error:
-                legs["trap"] = str(error)
+            legs["trap"] = "skipped (single-document driver)"
         if legs.get("PNG") != "ok":
             session.diagnostic_grab(cell_dir / "affinity_failure.png")
             return {"ok": False, "opens": "ok",
                     "error": f"PNG leg: {legs.get('PNG', 'unknown')}", "notes": log_lines}
         notes = log_lines + [f"{key}: {value}" for key, value in legs.items() if value != "ok"]
-        return {"ok": True, "opens": "ok", "notes": notes}
+        # Partial successes (a failed PSD/trap leg) are automation-transient: they must
+        # not be cached, or the missing scores freeze into every later run.
+        return {"ok": True, "opens": "ok", "notes": notes,
+                "cacheable": all(value == "ok" for value in legs.values())}
     except AffinityError as error:
         if session.main is not None:
             session.diagnostic_grab(cell_dir / "affinity_failure.png")
@@ -540,13 +640,60 @@ def export_all(
 
 
 def cleanup() -> None:
-    """Terminate Affinity only when this run launched it (never a user's instance)."""
+    """Close Affinity only when this run launched it (never a user's instance).
+
+    Graceful close first (WM_CLOSE + pattern-invoking any "Don't Save" prompt): after a
+    force-kill, the MSIX single-instance broker keeps a zombie registration, and every
+    later launch/forward silently drops its file argument until the app exits cleanly
+    once. taskkill stays as the last resort.
+    """
     global _we_own_instance
     if not _we_own_instance:
         return
+    main = _find_main()
+    if main is not None:
+        try:
+            import win32con
+            import win32gui
+
+            win32gui.PostMessage(main.handle, win32con.WM_CLOSE, 0, 0)
+            deadline = time.time() + 12
+            while time.time() < deadline and _find_main() is not None:
+                time.sleep(1.0)
+                _dismiss_dont_save_prompt()
+        except Exception:
+            pass
+    if _find_main() is not None:
+        try:
+            subprocess.run(["taskkill", "/IM", "Affinity.exe", "/F"],
+                           capture_output=True, timeout=30)
+        except Exception:
+            pass
+        deadline = time.time() + 8
+        while time.time() < deadline and _find_main() is not None:
+            time.sleep(1.0)
+    global _last_close_time
+    _last_close_time = time.time()
+    _we_own_instance = False
+
+
+def _dismiss_dont_save_prompt() -> None:
+    """Invoke a 'Don't Save' button on any Affinity prompt (WPF; pattern-friendly)."""
     try:
-        subprocess.run(["taskkill", "/IM", "Affinity.exe", "/F"],
-                       capture_output=True, timeout=30)
+        for window in _desktop().windows():
+            try:
+                if "Affinity" not in (window.class_name() or "") and \
+                        "HwndWrapper[Affinity" not in (window.class_name() or ""):
+                    continue
+                for button in window.descendants(control_type="Button"):
+                    label = (button.window_text() or "").strip()
+                    if label in ("Don't Save", "Don&apos;t Save", "No"):
+                        try:
+                            button.invoke()
+                        except Exception:
+                            _legacy(button).DoDefaultAction()
+                        return
+            except Exception:
+                continue
     except Exception:
         pass
-    _we_own_instance = False

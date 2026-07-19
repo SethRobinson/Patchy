@@ -13,7 +13,8 @@ takes any pasted .psd list instead; pick editors and options and hit Start - the
 appears at the top of the runs table (clickable while live), and the Start button stays
 disabled until it finishes. Browser-started runs reuse the panel's server
 (`--server-url` under the hood), rebuild Patchy first unless unchecked, and log to
-`testy/runs/last-child-run.log`.
+`testy/runs/last-child-run.log`. A Cancel button (shown while a run is live) kills the
+whole run process tree and marks the run "canceled".
 
 The CLI remains for scripted use:
 
@@ -115,6 +116,16 @@ full native preservation, which validates the pipeline itself.
 - Runs fail fast: the Photopea driver aborts when the host page's step log stalls for
   45s, and the orchestrator trips a per-editor circuit breaker after 3 consecutive
   failed cells (remaining cells report "skipped" instead of burning timeouts).
+- The Affinity driver runs ONE document per app session under a hard wall-clock budget
+  (180s + any relaunch cooldown; overruns abort the cell naming the stage they died
+  in). Hard-won specifics: quick relaunches drop the launch file argument entirely
+  (50s cooldown between sessions fixes it; forwards into a live instance drop files
+  too); the export panel opens once per document with paced toggles (rapid re-toggles
+  cancel each other); WPF tab headers CONSUME UNDERSCORES as mnemonic markers
+  ("deko_test.psd" displays as "dekotest.psd"), so tab matching compares
+  underscore-stripped names; and the trap leg is skipped (needs a second document,
+  and Affinity re-renders by design so the baked-composite trap proves nothing).
+  Partial cells (a failed PSD leg) are never cached.
 - Affinity (Canva unified app 3.2) has no CLI or scripting API. The driver
   (`testy/drivers/affinity.py`) automates it WITHOUT stealing focus via background UIA
   patterns: the quick-export panel opens via the dropdown's Toggle pattern (WPF
