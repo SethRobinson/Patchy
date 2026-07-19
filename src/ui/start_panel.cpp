@@ -1,5 +1,7 @@
 #include "ui/start_panel.hpp"
 
+#include "ui/splash_artwork.hpp"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QFont>
@@ -14,6 +16,11 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <initializer_list>
+
+#ifndef PATCHY_VERSION
+#define PATCHY_VERSION "0.0.0"
+#endif
 
 namespace patchy::ui {
 
@@ -99,10 +106,29 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   outer->addLayout(center_row);
   outer->addStretch(4);
 
+  // About-style header: the logo card beside the title and tagline.
+  auto* header_row = new QHBoxLayout();
+  header_row->setSpacing(18);
+  auto* artwork = new SplashArtwork(column);
+  artwork->setFixedSize(110, 141);
+  header_row->addStretch(1);
+  header_row->addWidget(artwork);
+  auto* header_text = new QVBoxLayout();
+  header_text->setSpacing(4);
   auto* title = new QLabel(QStringLiteral("Patchy"), column);
   title->setObjectName(QStringLiteral("startPanelTitle"));
-  title->setAlignment(Qt::AlignHCenter);
-  column_layout->addWidget(title);
+  auto* tagline = new QLabel(tr("Open source photo editing. Free forever, no subscriptions."), column);
+  tagline->setObjectName(QStringLiteral("startPanelTagline"));
+  tagline->setWordWrap(true);
+  tagline->setMaximumWidth(240);
+  header_text->addStretch(1);
+  header_text->addWidget(title);
+  header_text->addWidget(tagline);
+  header_text->addStretch(1);
+  header_row->addLayout(header_text);
+  header_row->addStretch(1);
+  column_layout->addLayout(header_row);
+  column_layout->addSpacing(8);
 
   auto* buttons_row = new QHBoxLayout();
   buttons_row->setSpacing(10);
@@ -140,6 +166,52 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   column_layout->addSpacing(2);
   column_layout->addWidget(hint);
 
+  // Dim footer pinned to the bottom of the panel: version, credit, links, and
+  // the startup update-check status.
+  auto* footer = new QVBoxLayout();
+  footer->setSpacing(3);
+  const auto add_footer_row = [this, footer](std::initializer_list<QWidget*> widgets) {
+    auto* row = new QHBoxLayout();
+    row->setSpacing(14);
+    row->addStretch(1);
+    for (auto* widget : widgets) {
+      row->addWidget(widget);
+    }
+    row->addStretch(1);
+    footer->addLayout(row);
+  };
+
+  auto* version = new QLabel(tr("Version %1").arg(QStringLiteral(PATCHY_VERSION)), this);
+  version->setObjectName(QStringLiteral("startPanelVersion"));
+  version->setTextFormat(Qt::PlainText);
+  auto* credit = new QLabel(tr("Created by Seth A. Robinson"), this);
+  credit->setObjectName(QStringLiteral("startPanelCredit"));
+  credit->setTextFormat(Qt::PlainText);
+  add_footer_row({version, credit});
+
+  const auto make_home_label = [this](const QString& text) {
+    auto* label = new QLabel(text, this);
+    label->setObjectName(QStringLiteral("startPanelHome"));
+    label->setTextFormat(Qt::RichText);
+    label->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    label->setOpenExternalLinks(true);
+    return label;
+  };
+  const auto github_link = QStringLiteral("<a style=\"color:#7fa8cf; text-decoration:none;\" "
+                                          "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>");
+  const auto seth_site_link = QStringLiteral("<a style=\"color:#7fa8cf; text-decoration:none;\" "
+                                             "href=\"https://rtsoft.com\">rtsoft.com</a>");
+  add_footer_row({make_home_label(tr("GitHub: %1").arg(github_link)),
+                  make_home_label(tr("Seth's site: %1").arg(seth_site_link))});
+
+  update_status_label_ = new QLabel(this);
+  update_status_label_->setObjectName(QStringLiteral("startPanelUpdateStatus"));
+  update_status_label_->setTextFormat(Qt::PlainText);
+  update_status_label_->setVisible(false);
+  add_footer_row({update_status_label_});
+
+  outer->addLayout(footer);
+
   connect(new_button, &QPushButton::clicked, this, &StartPanel::new_document_requested);
   connect(open_button, &QPushButton::clicked, this, &StartPanel::open_requested);
   connect(recent_list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
@@ -160,7 +232,21 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       color: #e9e9e9;
       font-size: 30px;
       font-weight: 700;
-      padding-bottom: 4px;
+    }
+    QLabel#startPanelTagline {
+      background: transparent;
+      color: #9fb0c0;
+      font-size: 12px;
+    }
+    QLabel#startPanelVersion, QLabel#startPanelCredit, QLabel#startPanelHome {
+      background: transparent;
+      color: #8b8b8b;
+      font-size: 11px;
+    }
+    QLabel#startPanelUpdateStatus {
+      background: transparent;
+      color: #7a8a9a;
+      font-size: 11px;
     }
     QLabel#startPanelRecentLabel {
       background: transparent;
@@ -225,6 +311,14 @@ void StartPanel::set_recent_files(const QStringList& paths) {
   // Rows + the list's own frame and padding; the scrollbars are off, so anything
   // tighter clips the last row's directory line.
   recent_list_->setFixedHeight(std::max(1, recent_list_->count()) * kRecentRowHeight + 14);
+}
+
+void StartPanel::set_update_status(const QString& text) {
+  if (update_status_label_ == nullptr) {
+    return;
+  }
+  update_status_label_->setText(text);
+  update_status_label_->setVisible(!text.isEmpty());
 }
 
 }  // namespace patchy::ui

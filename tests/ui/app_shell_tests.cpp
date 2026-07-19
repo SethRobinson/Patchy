@@ -55,6 +55,7 @@
 #include "ui/selection_outline.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/splash_dialog.hpp"
+#include "ui/start_panel.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/visual_filter_gallery_dialog.hpp"
@@ -1810,6 +1811,54 @@ void ui_start_panel_recent_files_open_on_click() {
   CHECK(info->text().contains(QStringLiteral("48 x 32 px")));
 }
 
+void ui_start_panel_shows_about_info_and_update_status() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+
+  auto* panel = window.findChild<patchy::ui::StartPanel*>(QStringLiteral("startPanel"));
+  CHECK(panel != nullptr);
+  CHECK(panel->isVisible());
+
+  // The about branding lives on the panel now: tagline, version, credit, and links.
+  auto* tagline = window.findChild<QLabel*>(QStringLiteral("startPanelTagline"));
+  CHECK(tagline != nullptr);
+  CHECK(tagline->text() == QStringLiteral("Open source photo editing. Free forever, no subscriptions."));
+  auto* version = window.findChild<QLabel*>(QStringLiteral("startPanelVersion"));
+  CHECK(version != nullptr);
+  CHECK(version->text().startsWith(QStringLiteral("Version ")));
+  auto* credit = window.findChild<QLabel*>(QStringLiteral("startPanelCredit"));
+  CHECK(credit != nullptr);
+  CHECK(credit->text() == QStringLiteral("Created by Seth A. Robinson"));
+
+  const auto link_labels = panel->findChildren<QLabel*>(QStringLiteral("startPanelHome"));
+  CHECK(link_labels.size() == 2);
+  QString combined_text;
+  for (const auto* label : link_labels) {
+    CHECK(label->textFormat() == Qt::RichText);
+    CHECK(label->textInteractionFlags().testFlag(Qt::LinksAccessibleByMouse));
+    CHECK(label->openExternalLinks());
+    combined_text += label->text();
+    combined_text += QLatin1Char('\n');
+  }
+  CHECK(combined_text.contains(QStringLiteral("href=\"https://github.com/SethRobinson/Patchy\"")));
+  CHECK(combined_text.contains(QStringLiteral(">SethRobinson/Patchy</a>")));
+  CHECK(combined_text.contains(QStringLiteral("href=\"https://rtsoft.com\"")));
+  CHECK(combined_text.contains(QStringLiteral(">rtsoft.com</a>")));
+
+  // The update-status footer line stays hidden until a status is pushed and
+  // hides again when cleared.
+  auto* status = window.findChild<QLabel*>(QStringLiteral("startPanelUpdateStatus"));
+  CHECK(status != nullptr);
+  CHECK(!status->isVisible());
+  panel->set_update_status(QStringLiteral("Patchy is up to date (9.99)."));
+  QApplication::processEvents();
+  CHECK(status->isVisible());
+  CHECK(status->text() == QStringLiteral("Patchy is up to date (9.99)."));
+  save_widget_artifact("ui_start_panel_about_info", window);
+  panel->set_update_status(QString());
+  CHECK(!status->isVisible());
+}
+
 void ui_status_bar_error_message_flashes_then_persists_until_replaced() {
   patchy::ui::ZoomStatusBar bar;
   bar.resize(600, 24);
@@ -1890,6 +1939,7 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
   return {
       {"ui_startup_opens_empty_workspace_with_start_panel", ui_startup_opens_empty_workspace_with_start_panel},
       {"ui_start_panel_recent_files_open_on_click", ui_start_panel_recent_files_open_on_click},
+      {"ui_start_panel_shows_about_info_and_update_status", ui_start_panel_shows_about_info_and_update_status},
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
       {"ui_window_force_refresh_action_rebuilds_cache", ui_window_force_refresh_action_rebuilds_cache},
       {"ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency",

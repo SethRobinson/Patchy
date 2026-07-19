@@ -681,6 +681,8 @@ if(PATCHY_BUILD_APP)
       src/ui/style_manager_dialog.cpp
       src/ui/tile_preview_window.hpp
       src/ui/tile_preview_window.cpp
+      src/ui/splash_artwork.hpp
+      src/ui/splash_artwork.cpp
       src/ui/splash_dialog.cpp
       src/ui/tool_cursors.hpp
       src/ui/tool_cursors.cpp

@@ -191,4 +191,44 @@ void request_update_check(QObject* owner, QString current_version, UpdateCheckRe
                    });
 }
 
+QString update_check_status_text(const UpdateCheckResult& result) {
+  switch (result.status) {
+    case UpdateCheckStatus::UpdateAvailable:
+      if (result.update.has_value()) {
+        return QObject::tr("Update available: Patchy %1.").arg(result.update->version);
+      }
+      return QObject::tr("Update available.");
+    case UpdateCheckStatus::NoUpdateAvailable:
+      if (!result.latest_version.isEmpty()) {
+        return QObject::tr("Patchy is up to date (%1).").arg(result.latest_version);
+      }
+      return QObject::tr("Patchy is up to date.");
+    case UpdateCheckStatus::UnsupportedPlatform:
+      return QObject::tr("Update checks are not supported on this platform.");
+    case UpdateCheckStatus::MissingPlatform:
+      if (!result.platform.isEmpty()) {
+        return QObject::tr("Update check failed: no manifest entry for %1.").arg(result.platform);
+      }
+      return QObject::tr("Update check failed: no manifest entry for this platform.");
+    case UpdateCheckStatus::InvalidManifest:
+      return QObject::tr("Update check failed: invalid update manifest.");
+    case UpdateCheckStatus::InvalidVersion:
+      return QObject::tr("Update check failed: invalid version data.");
+    case UpdateCheckStatus::InvalidDownloadUrl:
+      return QObject::tr("Update check failed: invalid download URL.");
+    case UpdateCheckStatus::NetworkError:
+      if (result.http_status > 0 && !result.detail.isEmpty()) {
+        return QObject::tr("Update check failed: HTTP %1 (%2).").arg(result.http_status).arg(result.detail);
+      }
+      if (result.http_status > 0) {
+        return QObject::tr("Update check failed: HTTP %1.").arg(result.http_status);
+      }
+      if (!result.detail.isEmpty()) {
+        return QObject::tr("Update check failed: %1.").arg(result.detail);
+      }
+      return QObject::tr("Update check failed.");
+  }
+  return QObject::tr("Update check failed.");
+}
+
 }  // namespace patchy::ui

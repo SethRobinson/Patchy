@@ -728,13 +728,6 @@ void MainWindow::resync_native_frame_geometry() {
 #endif
 }
 
-void MainWindow::refresh_native_frame_after_overlay() {
-  // Closing an owned top-level overlay (the startup splash) re-activates this window and can leave
-  // the frameless client area out of sync, re-introducing the grey edge band. Re-sync on the next
-  // event-loop turn, once the overlay window is fully gone.
-  QTimer::singleShot(0, this, [this] { resync_native_frame_geometry(); });
-}
-
 void MainWindow::position_window_chrome_controls() {
   if (window_chrome_controls_ == nullptr || menuBar() == nullptr) {
     return;

@@ -1835,12 +1835,7 @@
         <translation>設定フォルダーを開けませんでした。</translation>
     </message>
     <message>
-        <location line="+16"/>
-        <source>Starting workspace...</source>
-        <translation>ワークスペースを開始しています...</translation>
-    </message>
-    <message>
-        <location line="+1"/>
+        <location line="+17"/>
         <source>Patchy is ready.</source>
         <translation>Patchy の準備ができました。</translation>
     </message>
@@ -13491,6 +13486,26 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>
+    <message>
+        <source>Open source photo editing. Free forever, no subscriptions.</source>
+        <translation>オープンソースの写真編集。永久無料、サブスクリプション不要。</translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation>バージョン %1</translation>
+    </message>
+    <message>
+        <source>Created by Seth A. Robinson</source>
+        <translation>作成: Seth A. Robinson</translation>
+    </message>
+    <message>
+        <source>GitHub: %1</source>
+        <translation>GitHub: %1</translation>
+    </message>
+    <message>
+        <source>Seth&apos;s site: %1</source>
+        <translation>Seth のサイト: %1</translation>
+    </message>
     <message>
         <source>New Document...</source>
         <translation>新規ドキュメント...</translation>

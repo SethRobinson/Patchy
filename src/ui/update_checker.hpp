@@ -47,5 +47,7 @@ using UpdateCheckResultCallback = std::function<void(UpdateCheckResult)>;
 [[nodiscard]] std::optional<UpdateInfo> parse_update_manifest(const QByteArray& json, const QString& platform,
                                                               const QString& current_version);
 void request_update_check(QObject* owner, QString current_version, UpdateCheckResultCallback callback);
+// One-line user-facing summary of a check result ("Patchy is up to date (0.80).").
+[[nodiscard]] QString update_check_status_text(const UpdateCheckResult& result);
 
 }  // namespace patchy::ui

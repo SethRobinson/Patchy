@@ -3,7 +3,6 @@
 #include "ui/background_workers.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
-#include "ui/splash_dialog.hpp"
 #include "ui/stress_test.hpp"
 
 #include <QApplication>
@@ -19,7 +18,6 @@
 #include <QFormLayout>
 #include <QLocalServer>
 #include <QLocalSocket>
-#include <QPointer>
 #include <QProxyStyle>
 #include <QRect>
 #include <QStringList>
@@ -449,7 +447,7 @@ int main(int argc, char* argv[]) {
 
   window.show();
   if (stress_mode) {
-    // No splash/update check and no file opens: run the scripted scenario as soon
+    // No update check and no file opens: run the scripted scenario as soon
     // as the event loop starts, then exit with the report's status code.
     patchy::ui::StressTestOptions stress_options;
     stress_options.preset = *stress_preset;
@@ -460,7 +458,7 @@ int main(int argc, char* argv[]) {
     return stress_result;
   }
   if (export_mode) {
-    // Unattended convert/export: no splash or update check, prompts suppressed, open the
+    // Unattended convert/export: no update check, prompts suppressed, open the
     // files synchronously, then run the deferred export and exit with its status code.
     window.set_cli_automation_mode(true);
     window.open_command_line_files(files);
@@ -469,16 +467,9 @@ int main(int argc, char* argv[]) {
     patchy::ui::wait_for_tracked_background_workers();
     return export_result;
   }
-  // Guard the splash-closed callback: if the app quits before the splash auto-closes, the window is
-  // torn down first and the QPointer goes null, so we skip touching a destroyed window.
-  QPointer<patchy::ui::MainWindow> window_guard(&window);
-  patchy::ui::show_startup_splash(
-      &window, [&window](const auto& update) { window.show_update_available(update); },
-      [window_guard] {
-        if (window_guard != nullptr) {
-          window_guard->refresh_native_frame_after_overlay();
-        }
-      });
+  // No startup splash: the start panel carries the branding, and the update-check status
+  // lands on its footer (an available update still raises the update dialog).
+  window.begin_startup_update_check();
   // Finder opens reuse the second-launch path (raise the window, open the file); any
   // that arrived before the window existed join the command-line batch below.
   app.file_open_handler = [&window](const QString& path) {
@@ -493,7 +484,7 @@ int main(int argc, char* argv[]) {
 
   if (screenshot_mode) {
     // Solo capture launch: no instance was running, so this one captures itself once startup
-    // (splash, command-line file opens) has settled, then exits. Best-effort timing — a
+    // (command-line file opens) has settled, then exits. Best-effort timing — a
     // slow-loading file may need the running-instance flow instead.
     QTimer::singleShot(1500, &window, [&window, screenshot_path, screenshot_widget, screenshot_rect_text] {
       const bool saved = window.save_debug_screenshot(screenshot_path, screenshot_widget,

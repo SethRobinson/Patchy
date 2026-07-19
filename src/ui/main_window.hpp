@@ -126,7 +126,10 @@ public:
   bool save_debug_screenshot(const QString& file_path, const QString& widget_name = {},
                              const QRect& region = {});
   void show_update_available(const UpdateInfo& update);
-  void refresh_native_frame_after_overlay();
+  // The startup update check (honors updates/checkOnStartup). Called from src/app/main.cpp
+  // only, so tests constructing MainWindow never fire network requests; the result lands on
+  // the start panel's status line and, for an available update, show_update_available.
+  void begin_startup_update_check();
   [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }
   [[nodiscard]] BrushTipLibrary& brush_tip_library();
   [[nodiscard]] PatternLibrary& pattern_library();

@@ -1956,6 +1956,29 @@ void MainWindow::show_update_available(const UpdateInfo& update) {
   }
 }
 
+void MainWindow::begin_startup_update_check() {
+  {
+    auto settings = app_settings();
+    if (!settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool()) {
+      return;
+    }
+  }
+  if (start_panel_ != nullptr) {
+    start_panel_->set_update_status(QObject::tr("Checking for updates..."));
+  }
+  // request_update_check drops the callback if this owner is destroyed first, so `this`
+  // stays safe to capture. The status lands on the panel even while it is hidden (a file
+  // was opened at startup): it shows if the panel reappears after the last document closes.
+  request_update_check(this, QStringLiteral(PATCHY_VERSION), [this](UpdateCheckResult result) {
+    if (start_panel_ != nullptr) {
+      start_panel_->set_update_status(update_check_status_text(result));
+    }
+    if (result.update.has_value()) {
+      show_update_available(*result.update);
+    }
+  });
+}
+
 void MainWindow::load_recent_files() {
   auto settings = app_settings();
   recent_files_ = settings.value(QStringLiteral("recentFiles")).toStringList();
