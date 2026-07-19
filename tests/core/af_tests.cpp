@@ -46,44 +46,45 @@ void af_sniff_detects_magic() {
   CHECK(!patchy::af::sniff(short_buffer));
 }
 
-void af_tier0_reads_embedded_preview() {
+void af_tier1_imports_layer_at_full_resolution() {
+  // tiny-rgba8.af is a 64x48 document with one RGBA8 image layer painted
+  // r=255*x/W, g=255*y/H, b=(x^y)&255 with a 4px semi-transparent border.
   const auto bytes = read_fixture("tiny-rgba8.af");
   std::vector<std::string> notices;
   const auto document = patchy::af::DocumentIo::read(bytes, &notices);
 
+  // Tier 1: the document opens at its true canvas size with a real pixel layer,
+  // NOT the small embedded preview.
+  CHECK(document.width() == 64);
+  CHECK(document.height() == 48);
   CHECK(document.layers().size() == 1);
-  CHECK(document.layers().front().name() == "Affinity preview");
-  CHECK(document.width() >= 16);
-  CHECK(document.height() >= 12);
-  CHECK(document.width() <= 512);
-  CHECK(document.height() <= 512);
+  const auto& layer = document.layers().front();
+  CHECK(layer.name() != "Affinity preview");
+  CHECK(layer.pixels().width() == 64);
+  CHECK(layer.pixels().height() == 48);
 
-  // The preview is Affinity's own render of the document; the fixture paints
-  // r=255*x/W, g=255*y/H, b=(x^y)&255 with an opaque interior, so a loose
-  // center-pixel check proves real pixels arrived (not noise or a blank).
-  const auto& pixels = document.layers().front().pixels();
-  const std::int32_t cx = document.width() / 2;
-  const std::int32_t cy = document.height() / 2;
-  const std::uint8_t* center = pixels.pixel(cx, cy);
-  const auto close_to = [](int actual, int expected) {
-    return actual >= expected - 12 && actual <= expected + 12;
-  };
-  CHECK(close_to(center[0], 255 * cx / document.width()));
-  CHECK(close_to(center[1], 255 * cy / document.height()));
+  // Interior pixel matches the analytic pattern exactly (opaque, full res).
+  const std::uint8_t* center = layer.pixels().pixel(32, 24);
+  CHECK(static_cast<int>(center[0]) == 255 * 32 / 64);
+  CHECK(static_cast<int>(center[1]) == 255 * 24 / 48);
+  CHECK(static_cast<int>(center[2]) == ((32 ^ 24) & 255));
   CHECK(center[3] == 255);
-
-  CHECK(!notices.empty());
-  CHECK(notices.front().find("preview") != std::string::npos);
-  CHECK(notices.front().find("document format version") != std::string::npos);
 }
 
-void af_tier0_reads_16bit_document_preview() {
+void af_tier1_imports_16bit_document() {
+  // tiny-rgba16.af is the same content converted to 16-bit; tier 1 down-converts
+  // (value/257) to 8-bit RGBA and must land within rounding of the 8-bit fixture.
   const auto bytes = read_fixture("tiny-rgba16.af");
   std::vector<std::string> notices;
   const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 64);
+  CHECK(document.height() == 48);
   CHECK(document.layers().size() == 1);
-  CHECK(document.width() >= 16);
-  CHECK(!notices.empty());
+  const std::uint8_t* center = document.layers().front().pixels().pixel(32, 24);
+  const auto close_to = [](int a, int b) { return a >= b - 1 && a <= b + 1; };
+  CHECK(close_to(center[0], 255 * 32 / 64));
+  CHECK(close_to(center[1], 255 * 24 / 48));
+  CHECK(center[3] == 255);
 }
 
 void af_read_rejects_non_affinity_bytes() {
@@ -138,8 +139,8 @@ void af_read_survives_mutation_sweep() {
 std::vector<patchy::test::TestCase> af_format_tests() {
   return {
       {"af_sniff_detects_magic", af_sniff_detects_magic},
-      {"af_tier0_reads_embedded_preview", af_tier0_reads_embedded_preview},
-      {"af_tier0_reads_16bit_document_preview", af_tier0_reads_16bit_document_preview},
+      {"af_tier1_imports_layer_at_full_resolution", af_tier1_imports_layer_at_full_resolution},
+      {"af_tier1_imports_16bit_document", af_tier1_imports_16bit_document},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},
       {"af_read_survives_mutation_sweep", af_read_survives_mutation_sweep},

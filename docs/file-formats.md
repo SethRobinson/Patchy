@@ -23,7 +23,7 @@ All read AND write (camera raw below is the one read-only entry); modules in src
 - PNG/JPEG/TIFF/WebP stay on Qt.
 - **Camera raw** — read-only; see the section below.
 - **HEIF/HEIC** — read-only, platform codecs only; see the section below.
-- **.af (Affinity)** — read-only, tier-0 preview import; see the section below.
+- **.af (Affinity)** — read-only, tier-1 layer import (raster layers/groups/blend); see the section below.
 
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
 
@@ -138,7 +138,7 @@ macOS/Linux but not Windows.
   repeating-QTimer dismisser for the potential `openFailedMessageBox` (dismiss via
   `reject()` so the Store button can never fire in a test).
 
-## .af (Affinity by Canva; read-only, tier 0)
+## .af (Affinity by Canva; read-only, tier 1)
 
 `src/formats/af_document_io.{hpp,cpp}` opens Affinity's native unified format
 (the 2025 "Affinity by Canva" app; magic `00 FF 4B 41`). Registered read-only
@@ -146,16 +146,35 @@ macOS/Linux but not Windows.
 only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
 (same container family, deferred to keep the version matrix small).
 
-- **Tier 0 (current)**: walks the container and imports the embedded preview
-  PNG (Affinity's own flattened render, at most ~512 px) as one pixel layer
-  named "Affinity preview", with notices naming the document format version and
-  stating that full layers are not decoded. Tier 1 (real raster layers) builds
-  on the same walk; the full reverse-engineered format record, generated
-  corpus, and Python reference tooling live in `local-test-fixtures/af-spike/`
-  (machine-local; FINDINGS.md there is the format spec until the C++ reader
-  reaches tier 1).
+- **Tier 1 (current)**: parses the serialized document tree (`doc.dat`) and
+  builds real Patchy layers - the layer tree (groups nested), each raster
+  layer's full-resolution pixels decoded from its tiles and placed by its
+  bounds/transform, plus name, visibility, opacity, fill-opacity, and blend
+  mode. The importer builds `Layer` objects and lets Patchy's compositor do the
+  blending (it never composites itself), so the blend math stays Patchy's
+  calibrated implementation. On any structural problem the reader falls back to
+  the **tier-0** embedded-preview layer rather than failing the open (env
+  `PATCHY_AF_TRACE=1` prints why tier 1 bailed). The reverse-engineered format
+  record, generated corpus, and Python reference/verification tooling live in
+  `local-test-fixtures/af-spike/` (machine-local; FINDINGS.md there is the
+  running format spec).
+- **What imports faithfully**: untransformed and pure-translation raster layers
+  in RGBA8/16, Gray8/16, and RGBA-float32 (16-bit down-converts value/257,
+  float linearizes to sRGB); groups; visibility/opacity/blend. Verified
+  pixel-exact against Affinity's own PNG export on synthetic and real
+  multi-layer documents (a 11-layer game mockup scores ~0 RMSE).
+- **Honest degradation (notice + named empty layer)**: text (`TxtA`/`TxtF`),
+  vector/curve (`PCrv`), embedded documents, CMYK/Lab/mask raster formats, and
+  layers with a non-trivial (scale/rotate) transform. These keep their name and
+  position in the tree so the structure survives, but are not rendered.
+  Blend modes Patchy lacks (Pigment, Vivid/Linear Light, Hard Mix, ...) map to
+  Normal with a notice. Group pass-through, layer masks, clipping, and adjustment
+  layers are not yet mapped (tier-2 work).
+- **Blend enum -> Patchy `BlendMode`** and the RasterFormat ids are in
+  FINDINGS.md; the Affinity `Blnd` field's enum id is the BlendMode value
+  directly (absent = Normal).
 - **Container**: little-endian; u16 container version (verified 7..12; newer
-  versions still attempt the preview plus a warning notice), "#Inf" block
+  versions still attempt the import plus a warning notice), "#Inf" block
   (stream-table offset, thumbnail offset, timestamps), "Prot" protocol tag,
   a "#FAT"/"#FT2"/"#FT3"/"#FT4" stream-table chain naming streams (doc.dat =
   the serialized document tree, d/<hex> = 64 KiB raster tiles, edc/<n> =
@@ -166,8 +185,16 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   The preview decoder is a deliberately minimal PNG reader (8-bit gray/RGB/
   RGBA, non-interlaced - the only variants Affinity writes) so the module
   stays Qt-free and core tests exercise the whole path.
+- **Document tree** (`af_tree.{hpp,cpp}`): a schema-less parser for the tagged
+  object graph. Fields carry a leading type byte that fully determines their
+  layout (primitives, vectors, enums, strings, sized structs, nested/shared/
+  linked classes), so the whole tree parses without class semantics and the
+  importer queries fields by 4CC (`af::tag4`). Two v3 wire quirks vs the
+  2020-era afread: class-type headers carry a u16 version (afread read u32),
+  and some fields the old reader treated as mandatory are optional. Bounded
+  against hostile input (class/field/recursion/array caps).
 - **Robustness**: every offset/length is bounds-checked through
-  `LittleEndianReader`, stream sizes capped (512 MiB), table chains capped,
+  `LittleEndianReader`, stream and layer sizes capped, table/tree chains capped,
   and `af_read_survives_truncation_sweep`/`af_read_survives_mutation_sweep`
   pin no-crash behavior on hostile input. Fixtures under `test-fixtures/af/`
   are self-authored via scripted Affinity (NOTICE entry); regenerate them and

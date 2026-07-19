@@ -1,5 +1,7 @@
 #include "formats/af_document_io.hpp"
 
+#include "core/layer.hpp"
+#include "formats/af_tree.hpp"
 #include "formats/binary_le.hpp"
 #include "formats/format_file_io.hpp"
 #include "formats/miniz/miniz.h"
@@ -7,8 +9,14 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <optional>
 #include <stdexcept>
+#include <variant>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -456,29 +464,418 @@ void undo_tile_interleave(std::vector<std::uint8_t>& bytes) {
   throw std::runtime_error("Affinity document has no embedded preview");
 }
 
-// The document tree stream opens with its own tagged header; only the version is
-// read here (tier 0 does not walk the tree). Returns 0 when the stream is absent
-// or unrecognizable, which downgrades to a notice rather than a failure.
-[[nodiscard]] std::uint32_t read_document_version(std::span<const std::uint8_t> bytes,
-                                                  const Container& container,
-                                                  std::vector<std::string>* notices) {
-  const auto found = container.streams.find("doc.dat");
-  if (found == container.streams.end()) {
+// ---------------------------------------------------------------- tier 1
+
+constexpr std::int32_t kIntSentinel = -2147483647;  // Affinity's "unbounded" marker
+constexpr std::int32_t kMaxLayerSide = 300000;      // matches the PSB dimension cap
+constexpr int kTileSize = 256;
+
+// Runtime 4CC (for channel-indexed tags like "Idx1"); matches af::tag4's layout.
+[[nodiscard]] std::uint32_t tag_of(const std::string& s) {
+  if (s.size() != 4) {
     return 0;
   }
-  try {
-    const auto document_stream = extract_stream(bytes, found->second, "doc.dat", notices);
-    auto reader = LittleEndianReader(std::span<const std::uint8_t>(document_stream),
-                                     "Affinity document tree is truncated");
-    if (reader.read_u32() != kTagDoc) {
-      return 0;
+  return (static_cast<std::uint32_t>(static_cast<std::uint8_t>(s[0])) << 24U) |
+         (static_cast<std::uint32_t>(static_cast<std::uint8_t>(s[1])) << 16U) |
+         (static_cast<std::uint32_t>(static_cast<std::uint8_t>(s[2])) << 8U) |
+         static_cast<std::uint32_t>(static_cast<std::uint8_t>(s[3]));
+}
+
+// DyBm bitmap format ids (RasterFormat enum). Only the ones tier 1 decodes to
+// straight 8-bit sRGBA are listed; others become a named empty layer + notice.
+enum class RasterFormat { RGBA8, RGBA16, Gray8, Gray16, RGBAFloat, Unsupported };
+
+[[nodiscard]] RasterFormat classify_format(std::int64_t id) {
+  switch (id) {
+    case 0: return RasterFormat::RGBA8;
+    case 1: return RasterFormat::RGBA16;
+    case 2: return RasterFormat::Gray8;
+    case 3: return RasterFormat::Gray16;
+    case 9: return RasterFormat::RGBAFloat;
+    default: return RasterFormat::Unsupported;
+  }
+}
+
+[[nodiscard]] std::uint8_t linear_to_srgb8(float value) {
+  value = std::clamp(value, 0.0F, 1.0F);
+  const float srgb = value <= 0.0031308F ? value * 12.92F
+                                         : 1.055F * std::pow(value, 1.0F / 2.4F) - 0.055F;
+  return static_cast<std::uint8_t>(std::lround(std::clamp(srgb, 0.0F, 1.0F) * 255.0F));
+}
+
+// Decode one channel plane (tiles_w*256 x tiles_h*256 samples) from its tile
+// streams. Sta codes: 0/1 empty (0), 2 fill 0xFF, 4 stored tile; others empty.
+[[nodiscard]] std::vector<std::uint8_t> decode_channel_plane(
+    std::span<const std::uint8_t> bytes, const Container& container, const af::AfClass& dybm,
+    int channel, std::size_t sample_bytes, int tiles_w, int tiles_h) {
+  const auto* idx = dybm.field(tag_of("Idx" + std::to_string(channel)));
+  const auto* sta = dybm.field(tag_of("Sta" + std::to_string(channel)));
+  const std::size_t pitch = static_cast<std::size_t>(tiles_w) * kTileSize * sample_bytes;
+  std::vector<std::uint8_t> plane(pitch * static_cast<std::size_t>(tiles_h) * kTileSize, 0);
+  if (sta == nullptr) {
+    return plane;
+  }
+  const auto* codes = std::get_if<std::vector<std::int64_t>>(&sta->value);
+  const auto* blocks =
+      idx != nullptr ? std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&idx->value) : nullptr;
+  if (codes == nullptr) {
+    return plane;
+  }
+  std::size_t block_index = 0;
+  for (std::size_t t = 0; t < codes->size(); ++t) {
+    const int tx = static_cast<int>(t % static_cast<std::size_t>(tiles_w)) * kTileSize;
+    const int ty = static_cast<int>(t / static_cast<std::size_t>(tiles_w)) * kTileSize;
+    const std::int64_t code = (*codes)[t];
+    if (code == 2) {
+      for (int row = 0; row < kTileSize; ++row) {
+        const std::size_t base = (static_cast<std::size_t>(ty + row)) * pitch +
+                                 static_cast<std::size_t>(tx) * sample_bytes;
+        std::fill_n(plane.begin() + static_cast<std::ptrdiff_t>(base),
+                    static_cast<std::size_t>(kTileSize) * sample_bytes, std::uint8_t{0xFF});
+      }
+      continue;
     }
-    const std::uint16_t file_version = reader.read_u16();
-    reader.skip(4 + 2);  // root class tag + tag version
-    return file_version >= 2 ? reader.read_u32() : 0;
-  } catch (const std::exception&) {
-    return 0;
+    if (code != 4) {
+      continue;  // empty / float-fill / unknown -> transparent
+    }
+    if (blocks == nullptr || block_index >= blocks->size() || (*blocks)[block_index] == nullptr) {
+      ++block_index;
+      continue;
+    }
+    const af::AfClass& block = *(*blocks)[block_index];
+    ++block_index;
+    const auto* data_field = block.field(af::tag4("Data"));
+    if (data_field == nullptr) {
+      continue;
+    }
+    const auto* embedded = std::get_if<af::AfEmbedded>(&data_field->value);
+    if (embedded == nullptr) {
+      continue;
+    }
+    const auto stream = container.streams.find(embedded->data);
+    if (stream == container.streams.end()) {
+      continue;
+    }
+    std::vector<std::uint8_t> tile;
+    try {
+      tile = extract_stream(bytes, stream->second, embedded->data, nullptr);
+    } catch (const std::exception&) {
+      continue;
+    }
+    if (tile.size() != static_cast<std::size_t>(kTileSize) * kTileSize) {
+      continue;  // tier 1 handles full 256x256 tiles; partial-rect tiles are rare here
+    }
+    for (int row = 0; row < kTileSize; ++row) {
+      const std::size_t dst = (static_cast<std::size_t>(ty + row)) * pitch +
+                              static_cast<std::size_t>(tx) * sample_bytes;
+      const std::size_t src = static_cast<std::size_t>(row) * kTileSize;
+      std::memcpy(plane.data() + dst, tile.data() + src,
+                  static_cast<std::size_t>(kTileSize) * sample_bytes);
+    }
   }
+  return plane;
+}
+
+// Decode a DyBm bitmap to a straight-alpha RGBA8 PixelBuffer. Returns nullopt for
+// formats tier 1 does not handle (CMYK/Lab/mask/empty).
+[[nodiscard]] std::optional<PixelBuffer> decode_bitmap(std::span<const std::uint8_t> bytes,
+                                                       const Container& container,
+                                                       const af::AfClass& dybm) {
+  const auto* frmt_field = dybm.field(af::tag4("Frmt"));
+  std::int64_t format_id = -1;
+  if (frmt_field != nullptr) {
+    if (const auto* e = std::get_if<af::AfEnum>(&frmt_field->value)) {
+      format_id = e->id;
+    }
+  }
+  const RasterFormat kind = classify_format(format_id);
+  if (kind == RasterFormat::Unsupported) {
+    return std::nullopt;
+  }
+  const std::int64_t width = dybm.int_field(af::tag4("BmpW"), 0);
+  const std::int64_t height = dybm.int_field(af::tag4("BmpH"), 0);
+  if (width <= 0 || height <= 0 || width > kMaxLayerSide || height > kMaxLayerSide) {
+    return std::nullopt;
+  }
+  const bool is16 = kind == RasterFormat::RGBA16 || kind == RasterFormat::Gray16;
+  const bool is_float = kind == RasterFormat::RGBAFloat;
+  const bool is_gray = kind == RasterFormat::Gray8 || kind == RasterFormat::Gray16;
+  const std::size_t sample_bytes = is_float ? 4U : (is16 ? 2U : 1U);
+  const int channel_count = is_gray ? 2 : 4;
+
+  std::vector<std::vector<std::uint8_t>> planes;
+  std::vector<int> pitches;
+  for (int ch = 1; ch <= channel_count; ++ch) {
+    const int tiles_w = static_cast<int>(dybm.int_field(tag_of("TWi" + std::to_string(ch)), 1));
+    const int tiles_h = static_cast<int>(dybm.int_field(tag_of("THi" + std::to_string(ch)), 1));
+    if (tiles_w <= 0 || tiles_h <= 0) {
+      return std::nullopt;
+    }
+    planes.push_back(decode_channel_plane(bytes, container, dybm, ch, sample_bytes, tiles_w, tiles_h));
+    pitches.push_back(tiles_w * kTileSize);
+  }
+
+  PixelBuffer buffer(static_cast<std::int32_t>(width), static_cast<std::int32_t>(height),
+                     PixelFormat::rgba8());
+  const auto sample = [&](int ch, std::int32_t x, std::int32_t y) -> float {
+    const std::size_t stride = static_cast<std::size_t>(pitches[ch]) * sample_bytes;
+    const std::uint8_t* p = planes[ch].data() + static_cast<std::size_t>(y) * stride +
+                            static_cast<std::size_t>(x) * sample_bytes;
+    if (is_float) {
+      float v = 0.0F;
+      std::memcpy(&v, p, sizeof(v));
+      return v;
+    }
+    if (is16) {
+      const std::uint16_t v = static_cast<std::uint16_t>(p[0] | (static_cast<std::uint16_t>(p[1]) << 8U));
+      return static_cast<float>(v) / 257.0F;
+    }
+    return static_cast<float>(p[0]);
+  };
+  for (std::int32_t y = 0; y < static_cast<std::int32_t>(height); ++y) {
+    auto row = buffer.row(y);
+    for (std::int32_t x = 0; x < static_cast<std::int32_t>(width); ++x) {
+      std::uint8_t* out = row.data() + static_cast<std::size_t>(x) * 4U;
+      if (is_gray) {
+        const std::uint8_t g = static_cast<std::uint8_t>(std::lround(std::clamp(sample(0, x, y), 0.0F, 255.0F)));
+        out[0] = out[1] = out[2] = g;
+        out[3] = static_cast<std::uint8_t>(std::lround(std::clamp(sample(1, x, y), 0.0F, 255.0F)));
+      } else if (is_float) {
+        out[0] = linear_to_srgb8(sample(0, x, y));
+        out[1] = linear_to_srgb8(sample(1, x, y));
+        out[2] = linear_to_srgb8(sample(2, x, y));
+        out[3] = static_cast<std::uint8_t>(std::lround(std::clamp(sample(3, x, y) * 255.0F, 0.0F, 255.0F)));
+      } else {
+        for (int c = 0; c < 4; ++c) {
+          out[c] = static_cast<std::uint8_t>(std::lround(std::clamp(sample(c, x, y), 0.0F, 255.0F)));
+        }
+      }
+    }
+  }
+  return buffer;
+}
+
+// Affinity BlendMode enum id -> Patchy BlendMode. Unmapped modes return nullopt
+// (caller uses Normal + a notice). Passthrough is a group concept, handled apart.
+[[nodiscard]] std::optional<BlendMode> map_blend_mode(std::int64_t id) {
+  switch (id) {
+    case 0: return BlendMode::Normal;
+    case 2: return BlendMode::Darken;
+    case 4: return BlendMode::Multiply;
+    case 5: return BlendMode::ColorBurn;
+    case 6: return BlendMode::LinearBurn;
+    case 7: return BlendMode::Lighten;
+    case 9: return BlendMode::Screen;
+    case 10: return BlendMode::ColorDodge;
+    case 11: return BlendMode::LinearDodge;
+    case 12: return BlendMode::Overlay;
+    case 13: return BlendMode::SoftLight;
+    case 14: return BlendMode::HardLight;
+    case 16: return BlendMode::PinLight;
+    case 19: return BlendMode::Difference;
+    case 20: return BlendMode::Exclusion;
+    case 21: return BlendMode::Subtract;
+    case 22: return BlendMode::Divide;
+    case 23: return BlendMode::Hue;
+    case 24: return BlendMode::Saturation;
+    case 25: return BlendMode::Luminosity;
+    case 26: return BlendMode::Color;
+    default: return std::nullopt;  // Pigment, VividLight, HardMix, Average, ... -> Normal + notice
+  }
+}
+
+struct LayerBuildContext {
+  std::span<const std::uint8_t> bytes;
+  const Container& container;
+  Document& document;
+  std::vector<std::string>& notices;
+  int layer_count{0};
+  static constexpr int kMaxLayers = 20000;  // runaway guard
+};
+
+// Read the [tx, ty] integer origin for a layer from a pure-translation Xfrm, or
+// from BitI's origin when there is no transform. Returns nullopt for a
+// non-trivial affine (scale/rotate), which tier 1 does not place.
+[[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> layer_origin(const af::AfClass& node) {
+  const auto xfrm = node.vec_field(af::tag4("Xfrm"));
+  if (xfrm.size() == 6) {
+    const double a = xfrm[0];
+    const double b = xfrm[1];
+    const double c = xfrm[3];
+    const double d = xfrm[4];
+    if (std::abs(a - 1.0) < 1e-6 && std::abs(d - 1.0) < 1e-6 && std::abs(b) < 1e-6 &&
+        std::abs(c) < 1e-6) {
+      return std::pair<std::int32_t, std::int32_t>{static_cast<std::int32_t>(std::lround(xfrm[2])),
+                                                   static_cast<std::int32_t>(std::lround(xfrm[5]))};
+    }
+    return std::nullopt;
+  }
+  const auto biti = node.vec_field(af::tag4("BitI"));
+  std::int32_t ox = 0;
+  std::int32_t oy = 0;
+  if (biti.size() == 4) {
+    ox = static_cast<std::int32_t>(std::lround(biti[0]));
+    oy = static_cast<std::int32_t>(std::lround(biti[1]));
+    if (ox == kIntSentinel) {
+      ox = 0;
+    }
+    if (oy == kIntSentinel) {
+      oy = 0;
+    }
+  }
+  return std::pair<std::int32_t, std::int32_t>{ox, oy};
+}
+
+void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::AfClass>>& children,
+                  std::vector<Layer>& out);
+
+[[nodiscard]] Layer build_group(LayerBuildContext& ctx, const af::AfClass& node,
+                                const std::string& name) {
+  Layer group(ctx.document.allocate_layer_id(), name.empty() ? "Group" : name, LayerKind::Group);
+  group.set_visible(node.bool_field(af::tag4("Visi"), true));
+  group.set_opacity(static_cast<float>(std::clamp(node.double_field(af::tag4("Opac"), 1.0), 0.0, 1.0)));
+  const auto* chld = node.field(af::tag4("Chld"));
+  if (chld != nullptr) {
+    if (const auto* kids = std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&chld->value)) {
+      std::vector<Layer> child_layers;
+      build_layers(ctx, *kids, child_layers);
+      for (auto& child : child_layers) {
+        group.add_child(std::move(child));
+      }
+    }
+  }
+  return group;
+}
+
+void apply_common(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
+                  const std::string& name) {
+  layer.set_visible(node.bool_field(af::tag4("Visi"), true));
+  layer.set_opacity(static_cast<float>(std::clamp(node.double_field(af::tag4("Opac"), 1.0), 0.0, 1.0)));
+  layer.set_fill_opacity(
+      static_cast<float>(std::clamp(node.double_field(af::tag4("FOpc"), 1.0), 0.0, 1.0)));
+  const auto* blnd = node.field(af::tag4("Blnd"));
+  if (blnd != nullptr) {
+    if (const auto* e = std::get_if<af::AfEnum>(&blnd->value)) {
+      const auto mapped = map_blend_mode(e->id);
+      if (mapped) {
+        layer.set_blend_mode(*mapped);
+      } else {
+        ctx.notices.push_back("Layer '" + name +
+                              "': blend mode not supported by Patchy; shown as Normal");
+      }
+    }
+  }
+}
+
+void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::AfClass>>& children,
+                  std::vector<Layer>& out) {
+  for (const auto& child : children) {
+    if (child == nullptr) {
+      continue;
+    }
+    if (++ctx.layer_count > LayerBuildContext::kMaxLayers) {
+      throw std::runtime_error("Affinity document has an implausible number of layers");
+    }
+    const af::AfClass& node = *child;
+    const std::string name = node.string_field(af::tag4("Desc"));
+
+    // Group: nest children.
+    if (node.field(af::tag4("Chld")) != nullptr && node.child_class(af::tag4("Bitm")) == nullptr) {
+      out.push_back(build_group(ctx, node, name));
+      continue;
+    }
+
+    // Raster/image layer: decode its bitmap.
+    const af::AfClass* dybm = node.child_class(af::tag4("Bitm"));
+    if (dybm != nullptr) {
+      auto pixels = decode_bitmap(ctx.bytes, ctx.container, *dybm);
+      const auto origin = layer_origin(node);
+      if (pixels && origin) {
+        const std::int32_t w = pixels->width();
+        const std::int32_t h = pixels->height();
+        Layer layer(ctx.document.allocate_layer_id(), name.empty() ? "Layer" : name,
+                    std::move(*pixels));
+        layer.set_bounds(Rect{origin->first, origin->second, w, h});
+        apply_common(ctx, node, layer, name.empty() ? "Layer" : name);
+        out.push_back(std::move(layer));
+        continue;
+      }
+      // Undecodable (unsupported format) or unplaceable (complex transform):
+      // keep a named empty layer so the structure survives, with a notice.
+      const char* why = !pixels ? "an unsupported pixel format" : "a complex transform";
+      ctx.notices.push_back("Layer '" + (name.empty() ? std::string("Layer") : name) +
+                            "' has " + why + "; imported as an empty placeholder");
+      Layer layer(ctx.document.allocate_layer_id(), name.empty() ? "Layer" : name,
+                  LayerKind::Pixel);
+      apply_common(ctx, node, layer, name.empty() ? "Layer" : name);
+      out.push_back(std::move(layer));
+      continue;
+    }
+
+    // Text / vector / embedded / other: not rendered yet.
+    const std::uint32_t tag = node.type_tag;
+    const bool is_text = tag == af::tag4("TxtA") || tag == af::tag4("TxtF");
+    const bool is_vector = tag == af::tag4("PCrv");
+    const char* kindword = is_text ? "text" : (is_vector ? "vector" : "unsupported");
+    ctx.notices.push_back("Layer '" + (name.empty() ? std::string("Layer") : name) + "' is " +
+                          kindword + " content; imported as an empty placeholder (not rendered)");
+    Layer layer(ctx.document.allocate_layer_id(), name.empty() ? "Layer" : name, LayerKind::Pixel);
+    apply_common(ctx, node, layer, name.empty() ? "Layer" : name);
+    out.push_back(std::move(layer));
+  }
+}
+
+// Build a full tier-1 document from the parsed tree. Throws on a structurally
+// unusable tree; the caller then falls back to the tier-0 preview.
+[[nodiscard]] Document build_tier1(std::span<const std::uint8_t> bytes, const Container& container,
+                                   const af::AfDocument& tree, std::vector<std::string>& notices) {
+  if (tree.root == nullptr) {
+    throw std::runtime_error("Affinity document tree is empty");
+  }
+  // root (Pers) -> DocR field -> document node (DfSz + Chld=[spread]).
+  const af::AfClass* doc_node = tree.root->child_class(af::tag4("DocR"));
+  if (doc_node == nullptr) {
+    throw std::runtime_error("Affinity document has no document node");
+  }
+  // The document node carries DfSz [w,h]; the spread carries the layer children.
+  const auto size = doc_node->vec_field(af::tag4("DfSz"));
+  if (size.size() != 2) {
+    throw std::runtime_error("Affinity document has no canvas size");
+  }
+  const std::int32_t width = static_cast<std::int32_t>(std::lround(size[0]));
+  const std::int32_t height = static_cast<std::int32_t>(std::lround(size[1]));
+  if (width <= 0 || height <= 0 || width > kMaxLayerSide || height > kMaxLayerSide) {
+    throw std::runtime_error("Affinity document has an invalid canvas size");
+  }
+  // The document's Chld is the spread(s); each spread's Chld is the layers.
+  const auto* doc_children = doc_node->field(af::tag4("Chld"));
+  const auto* spreads =
+      doc_children != nullptr
+          ? std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&doc_children->value)
+          : nullptr;
+  if (spreads == nullptr || spreads->empty() || spreads->front() == nullptr) {
+    throw std::runtime_error("Affinity document has no spread");
+  }
+  const af::AfClass& spread = *spreads->front();
+  const auto* spread_children = spread.field(af::tag4("Chld"));
+  const auto* layers =
+      spread_children != nullptr
+          ? std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&spread_children->value)
+          : nullptr;
+
+  Document document(width, height, PixelFormat::rgba8());
+  if (layers != nullptr) {
+    LayerBuildContext ctx{bytes, container, document, notices};
+    std::vector<Layer> built;
+    build_layers(ctx, *layers, built);
+    for (auto& layer : built) {
+      document.add_layer(std::move(layer));
+    }
+  }
+  if (document.layers().empty()) {
+    throw std::runtime_error("Affinity document produced no layers");
+  }
+  return document;
 }
 
 }  // namespace
@@ -492,6 +889,27 @@ bool DocumentIo::can_read(std::span<const std::uint8_t> bytes) noexcept {
   return sniff(bytes);
 }
 
+namespace {
+
+// Tier-0 fallback: import just the embedded preview as one layer.
+[[nodiscard]] Document read_preview_only(std::span<const std::uint8_t> bytes,
+                                         const Container& container, std::uint32_t document_version,
+                                         std::vector<std::string>& notices) {
+  PixelBuffer preview = extract_preview(bytes, container);
+  Document document(preview.width(), preview.height(), PixelFormat::rgba8());
+  document.add_pixel_layer("Affinity preview", std::move(preview));
+  std::string summary = "Imported the embedded Affinity preview only (" +
+                        std::to_string(document.width()) + "x" + std::to_string(document.height()) +
+                        "; the document's layers could not be decoded)";
+  if (document_version != 0) {
+    summary += "; document format version " + std::to_string(document_version);
+  }
+  notices.push_back(std::move(summary));
+  return document;
+}
+
+}  // namespace
+
 Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::string>* notices) {
   if (!sniff(bytes)) {
     throw std::runtime_error("Not an Affinity document");
@@ -502,23 +920,35 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     pending.push_back("This file was saved by a newer Affinity (container version " +
                       std::to_string(container.version) + "; Patchy has been verified up to " +
                       std::to_string(kNewestVerifiedContainerVersion) +
-                      "); the preview import may be incomplete");
+                      "); the layer import may be incomplete");
   }
-  const std::uint32_t document_version = read_document_version(bytes, container, &pending);
 
-  PixelBuffer preview = extract_preview(bytes, container);
-  Document document(preview.width(), preview.height(), PixelFormat::rgba8());
-  document.add_pixel_layer("Affinity preview", std::move(preview));
+  Document document;
+  bool built_tier1 = false;
+  std::uint32_t document_version = 0;
+  const auto doc_stream = container.streams.find("doc.dat");
+  if (doc_stream != container.streams.end()) {
+    try {
+      const auto tree_bytes = extract_stream(bytes, doc_stream->second, "doc.dat", &pending);
+      const af::AfDocument tree = af::parse_tree(std::span<const std::uint8_t>(tree_bytes));
+      document_version = tree.document_version;
+      document = build_tier1(bytes, container, tree, pending);
+      built_tier1 = true;
+    } catch (const std::exception& error) {
+      // A structurally unusable tree (or an unforeseen shape) falls back to the
+      // preview rather than failing the open. Record why for diagnosis.
+      pending.emplace_back(std::string("Full layer import failed (") + error.what() +
+                           "); fell back to the embedded preview");
+      if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
+        std::fprintf(stderr, "[af] tier-1 import threw: %s\n", error.what());
+      }
+    }
+  }
+  if (!built_tier1) {
+    document = read_preview_only(bytes, container, document_version, pending);
+  }
 
   if (notices != nullptr) {
-    std::string summary = "Imported the embedded Affinity preview only (" +
-                          std::to_string(document.width()) + "x" +
-                          std::to_string(document.height()) +
-                          "; the document's full-resolution layers are not decoded yet)";
-    if (document_version != 0) {
-      summary += "; document format version " + std::to_string(document_version);
-    }
-    notices->push_back(std::move(summary));
     for (auto& notice : pending) {
       notices->push_back(std::move(notice));
     }

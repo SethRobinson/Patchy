@@ -289,6 +289,7 @@ patchy_configure_target(patchy_filters)
 
 add_library(patchy_formats
   src/formats/af_document_io.cpp
+  src/formats/af_tree.cpp
   src/formats/aseprite_document_io.cpp
   src/formats/bmp_document_io.cpp
   src/formats/document_flatten.cpp
