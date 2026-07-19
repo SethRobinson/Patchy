@@ -47,6 +47,16 @@
         <translation>--screenshot をキャプチャ対象ウィジェットのこの領域に限定します。</translation>
     </message>
     <message>
+        <location line="+5"/>
+        <source>Open the given file, save it to &lt;path&gt; (format follows the extension), and exit. Runs unattended: prompts are suppressed and no running instance is reused.</source>
+        <translation>指定したファイルを開いて &lt;path&gt; に保存し (形式は拡張子に従います)、終了します。無人実行のためプロンプトは表示されず、実行中のインスタンスも再利用されません。</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>With --export: append this text to every text layer, re-rendering each through Patchy&apos;s text engine, before saving.</source>
+        <translation>--export と併用: 保存前にこのテキストをすべてのテキストレイヤーに追加し、各レイヤーを Patchy のテキストエンジンで再レンダリングします。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/image_save_options_dialog.cpp" line="+267"/>
         <source>JPEG Options</source>
         <translation>JPEG オプション</translation>

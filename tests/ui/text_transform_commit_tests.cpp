@@ -2958,6 +2958,100 @@ void ui_text_options_follow_active_rich_text_span() {
 
 }  // namespace
 
+void ui_cli_append_text_rerenders_and_roundtrips() {
+  // The --append-text half of the CLI export automation (MainWindow::run_cli_export):
+  // every text layer gains the suffix through a real inline-editor session, re-renders
+  // through Patchy's text engine (raster status becomes patchy_raster), and the
+  // automation-mode saves land without any prompt. The Testy compatibility harness
+  // (testy/) depends on this contract.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-fixed-leading.psd");
+  auto document = patchy::psd::DocumentIo::read_file(path);
+
+  std::size_t text_layer_count = 0;
+  patchy::LayerId text_layer_id = 0;
+  std::function<void(const std::vector<patchy::Layer>&)> count_text_layers =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (patchy::layer_is_text(layer)) {
+            ++text_layer_count;
+            text_layer_id = layer.id();
+          }
+          count_text_layers(layer.children());
+        }
+      };
+  count_text_layers(document.layers());
+  CHECK(text_layer_count >= 1);
+  if (text_layer_count == 0) {
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  window.add_document_session(std::move(document), QStringLiteral("CLI Append Text"));
+  require_canvas(window);
+
+  const auto& live_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto* original = live_document.find_layer(text_layer_id);
+  CHECK(original != nullptr);
+  if (original == nullptr) {
+    return;
+  }
+  const auto original_pixels = original->pixels();
+  const auto original_width = original->bounds().width;
+
+  const auto suffix = QStringLiteral("~TESTY~");
+  const int mutated = patchy::ui::MainWindowTestAccess::cli_append_text_to_text_layers(window, suffix);
+  CHECK(static_cast<std::size_t>(mutated) == text_layer_count);
+
+  const auto* appended = live_document.find_layer(text_layer_id);
+  CHECK(appended != nullptr);
+  if (appended == nullptr) {
+    return;
+  }
+  const auto stored_text = QString::fromStdString(appended->metadata().at(patchy::kLayerMetadataText));
+  CHECK(stored_text.endsWith(suffix));
+  CHECK(appended->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  // The suffix lengthens the last line, so the re-rendered raster cannot equal the import.
+  const auto appended_data = appended->pixels().data();
+  const auto original_data = original_pixels.data();
+  const bool pixels_differ =
+      appended_data.size() != original_data.size() ||
+      !std::equal(appended_data.begin(), appended_data.end(), original_data.begin());
+  CHECK(appended->bounds().width > original_width || pixels_differ);
+
+  QTemporaryDir temp_dir;
+  CHECK(temp_dir.isValid());
+  const auto psd_path = temp_dir.filePath(QStringLiteral("cli_append_roundtrip.psd"));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_path,
+                                                                patchy::ui::ImageSaveOptions{}));
+  const auto png_path = temp_dir.filePath(QStringLiteral("cli_append_flat.png"));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, png_path,
+                                                                patchy::ui::ImageSaveOptions{}));
+  CHECK(QFileInfo::exists(png_path));
+  CHECK(QFileInfo(png_path).size() > 0);
+
+  // Round trip: the appended text must survive a PSD save + reopen (fresh runtime ids, so
+  // find the text layer by walking).
+  const auto reread = patchy::psd::DocumentIo::read_file(psd_path.toStdString());
+  bool roundtrip_found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> check_roundtrip =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (patchy::layer_is_text(layer)) {
+            const auto text = QString::fromStdString(layer.metadata().at(patchy::kLayerMetadataText));
+            if (text.endsWith(suffix)) {
+              roundtrip_found = true;
+            }
+          }
+          check_roundtrip(layer.children());
+        }
+      };
+  check_roundtrip(reread.layers());
+  CHECK(roundtrip_found);
+}
+
 std::vector<patchy::test::TestCase> text_transform_commit_tests() {
   return {
       {"ui_transformed_text_reedit_preserves_transform",
@@ -3004,6 +3098,7 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests() {
       {"ui_psd_sheared_point_text_edit_lands_on_glyphs",
        ui_psd_sheared_point_text_edit_lands_on_glyphs},
       {"ui_duke_psd_text_runs_survive_reedit", ui_duke_psd_text_runs_survive_reedit},
+      {"ui_cli_append_text_rerenders_and_roundtrips", ui_cli_append_text_rerenders_and_roundtrips},
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_text_options_follow_active_rich_text_span",
        ui_text_options_follow_active_rich_text_span},

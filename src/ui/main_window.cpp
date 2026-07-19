@@ -5997,7 +5997,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         editing_layer_uses_source_raster_preview =
             *editing_layer_was_visible && found->second == "psd_raster_preview";
       }
-      if (editing_layer_uses_source_raster_preview) {
+      if (editing_layer_uses_source_raster_preview && !cli_automation_mode_) {
+        // Automation (run_cli_export) substitutes silently: the whole point of its edit
+        // sessions is forcing Patchy's own render, and a prompt would block unattended runs.
         const auto missing_fonts = missing_text_families_for_psd_raster_preview(family, initial_rich_text_runs);
         if (!confirm_psd_raster_preview_font_substitution(this, missing_fonts)) {
           statusBar()->showMessage(tr("Canceled text edit"));
@@ -6869,6 +6871,64 @@ void MainWindow::finish_active_text_editor() {
     return;
   }
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+}
+
+int MainWindow::cli_append_text_to_text_layers(const QString& suffix) {
+  if (canvas_ == nullptr || !has_active_document() || suffix.isEmpty()) {
+    return 0;
+  }
+  // Collect ids up front: committing a session rewrites rasters/bounds but never ids.
+  std::vector<LayerId> text_layer_ids;
+  std::function<void(const std::vector<Layer>&)> collect = [&](const std::vector<Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (layer_is_text(layer)) {
+        text_layer_ids.push_back(layer.id());
+      }
+      collect(layer.children());
+    }
+  };
+  collect(std::as_const(document()).layers());
+
+  int mutated = 0;
+  for (const auto id : text_layer_ids) {
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer == nullptr || layer_id_locks_image_pixels(id)) {
+      continue;
+    }
+    // add_text_at targets the ACTIVE layer when the point is inside its bounds, so no
+    // hit-testing/occlusion concerns: activate, aim at the bounds center, open the session.
+    const auto bounds = layer->bounds();
+    const QPoint anchor(bounds.x + std::max(1, bounds.width) / 2, bounds.y + std::max(1, bounds.height) / 2);
+    document().set_active_layer(id);
+    add_text_at(anchor);
+    QTextEdit* editor = nullptr;
+    QElapsedTimer wait;
+    wait.start();
+    while (wait.elapsed() < 5000) {
+      editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+      if (editor != nullptr) {
+        break;
+      }
+      QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 50);
+    }
+    if (editor == nullptr) {
+      continue;
+    }
+    if (editor->property("patchy.editingLayerId").toULongLong() != static_cast<qulonglong>(id)) {
+      // Defensive: the session latched onto some other layer; leave it untouched.
+      cancel_active_text_editor();
+      continue;
+    }
+    auto cursor = editor->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    editor->setTextCursor(cursor);
+    editor->insertPlainText(suffix);
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    finish_active_text_editor();
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    ++mutated;
+  }
+  return mutated;
 }
 
 bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& warp) {

@@ -322,6 +322,20 @@ int main(int argc, char* argv[]) {
       QCoreApplication::translate("QObject", "Limit --screenshot to this region of the captured widget."),
       QStringLiteral("x,y,w,h"));
   parser.addOption(screenshot_rect_option);
+  QCommandLineOption export_option(
+      QStringLiteral("export"),
+      QCoreApplication::translate(
+          "QObject", "Open the given file, save it to <path> (format follows the extension), and exit. "
+                     "Runs unattended: prompts are suppressed and no running instance is reused."),
+      QStringLiteral("path"));
+  parser.addOption(export_option);
+  QCommandLineOption append_text_option(
+      QStringLiteral("append-text"),
+      QCoreApplication::translate(
+          "QObject", "With --export: append this text to every text layer, re-rendering each through "
+                     "Patchy's text engine, before saving."),
+      QStringLiteral("text"));
+  parser.addOption(append_text_option);
   // QCommandLineParser has no optional-value options, so let a bare
   // `--stress-test` mean the default (quick) preset.
   QStringList arguments = app.arguments();
@@ -363,11 +377,20 @@ int main(int argc, char* argv[]) {
   const QString screenshot_widget = parser.value(screenshot_widget_option);
   const QString screenshot_rect_text = parser.value(screenshot_rect_option);
 
+  const bool export_mode = parser.isSet(export_option);
+  QString export_path;
+  if (export_mode) {
+    export_path = QFileInfo(parser.value(export_option)).absoluteFilePath();
+  }
+  const QString export_append_text = parser.value(append_text_option);
+
   // Single-instance: if another Patchy is already running, hand it the files and exit so a double-click
   // reuses the existing window instead of spawning a new process. An env override keeps multi-instance
-  // launches (and tests) possible. A stress-test launch opts out entirely: forwarding would silently
-  // drop the run into the other instance, and this instance must not squat on the user's pipe either.
-  const bool single_instance_enabled = !qEnvironmentVariableIsSet("PATCHY_NO_SINGLE_INSTANCE") && !stress_mode;
+  // launches (and tests) possible. A stress-test or export launch opts out entirely: forwarding would
+  // silently drop the run into the other instance, and this instance must not squat on the user's pipe
+  // either.
+  const bool single_instance_enabled =
+      !qEnvironmentVariableIsSet("PATCHY_NO_SINGLE_INSTANCE") && !stress_mode && !export_mode;
   QStringList forward_payload = files;
   if (screenshot_mode) {
     forward_payload.append(encode_screenshot_command(screenshot_path, screenshot_widget, screenshot_rect_text));
@@ -435,6 +458,16 @@ int main(int argc, char* argv[]) {
     const int stress_result = app.exec();
     patchy::ui::wait_for_tracked_background_workers();
     return stress_result;
+  }
+  if (export_mode) {
+    // Unattended convert/export: no splash or update check, prompts suppressed, open the
+    // files synchronously, then run the deferred export and exit with its status code.
+    window.set_cli_automation_mode(true);
+    window.open_command_line_files(files);
+    window.run_cli_export(export_path, export_append_text);
+    const int export_result = app.exec();
+    patchy::ui::wait_for_tracked_background_workers();
+    return export_result;
   }
   // Guard the splash-closed callback: if the app quits before the splash auto-closes, the window is
   // torn down first and the QPointer goes null, so we skip touching a destroyed window.

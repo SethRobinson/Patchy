@@ -156,6 +156,10 @@ public:
     return window.save_document();
   }
 
+  static int cli_append_text_to_text_layers(MainWindow& window, const QString& suffix) {
+    return window.cli_append_text_to_text_layers(suffix);
+  }
+
   static bool save_document_to_path(MainWindow& window, QString path, ImageSaveOptions options) {
     return window.save_document_to_path(std::move(path), std::move(options));
   }

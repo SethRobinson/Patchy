@@ -212,6 +212,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <functional>
@@ -1005,6 +1006,33 @@ void MainWindow::open_command_line_files(const QStringList& paths) {
   }
 }
 
+void MainWindow::run_cli_export(const QString& output_path, const QString& append_text) {
+  // Deferred like start_cli_stress_test: the export runs once the event loop is up, so the
+  // opened document's canvas/session state has fully settled before any edit session starts.
+  QTimer::singleShot(0, this, [this, output_path, append_text] {
+    if (!has_active_document()) {
+      fprintf(stderr, "Export failed: no document opened\n");
+      QCoreApplication::exit(2);
+      return;
+    }
+    if (!append_text.isEmpty()) {
+      const int mutated = cli_append_text_to_text_layers(append_text);
+      fprintf(stderr, "Appended text to %d text layer(s)\n", mutated);
+    }
+    const bool saved = save_document_to_path(output_path, std::nullopt, /*flatten_confirmed=*/true);
+    if (!saved) {
+      fprintf(stderr, "Export failed: could not save %s\n", output_path.toUtf8().constData());
+    }
+    // No document may prompt during shutdown.
+    for (auto& export_session : sessions_) {
+      if (export_session != nullptr) {
+        set_session_saved(*export_session);
+      }
+    }
+    QCoreApplication::exit(saved ? 0 : 3);
+  });
+}
+
 void MainWindow::activate_for_second_instance(const QStringList& paths) {
   // Restore from a minimized/hidden state and pull the existing window in front so the user sees the
   // file they just double-clicked open in this instance rather than a new process.
@@ -1045,7 +1073,7 @@ void MainWindow::open_document_path(QString path) {
     render_pending_svg_text_layers(loaded->document);
 
     add_document_session(std::move(loaded->document), loaded->file_name, path);
-    if (is_photoshop_document_extension(loaded->extension) &&
+    if (!cli_automation_mode_ && is_photoshop_document_extension(loaded->extension) &&
         app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
       show_compatibility_report(this, document(), loaded->file_name);
     }
@@ -1058,11 +1086,17 @@ void MainWindow::open_document_path(QString path) {
     update_history(tr("Open"));
     refresh_layer_list();
     refresh_layer_controls();
-    maybe_offer_indexed_palette_adoption();
+    if (!cli_automation_mode_) {
+      // Unattended runs must not block on the adoption offer, and they should leave the
+      // user's recent-files state untouched.
+      maybe_offer_indexed_palette_adoption();
+    }
     update_undo_redo_actions();
-    add_recent_file(path);
-    remember_open_directory_for_path(path);
-    add_recent_folder(QFileInfo(path).absolutePath());
+    if (!cli_automation_mode_) {
+      add_recent_file(path);
+      remember_open_directory_for_path(path);
+      add_recent_folder(QFileInfo(path).absolutePath());
+    }
     if (loaded->import_notices.isEmpty()) {
       statusBar()->showMessage(tr("Opened %1").arg(path));
     } else {
@@ -1075,7 +1109,8 @@ void MainWindow::open_document_path(QString path) {
             tr(" (+%n more import note(s))", nullptr, static_cast<int>(loaded->import_notices.size()) - 1);
       }
       statusBar()->showMessage(tr("Opened %1. %2").arg(loaded->file_name, status_notes));
-      if (app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
+      if (!cli_automation_mode_ &&
+          app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
         QStringList bullets;
         bullets.reserve(loaded->import_notices.size());
         for (const auto& notice : loaded->import_notices) {
@@ -1088,7 +1123,11 @@ void MainWindow::open_document_path(QString path) {
       }
     }
   } catch (const std::exception& error) {
-    show_open_failed_message_box(this, QString::fromUtf8(error.what()));
+    if (cli_automation_mode_) {
+      fprintf(stderr, "Open failed: %s (%s)\n", error.what(), path.toUtf8().constData());
+    } else {
+      show_open_failed_message_box(this, QString::fromUtf8(error.what()));
+    }
   }
 }
 
@@ -1663,10 +1702,13 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
   const auto extension = extension_for_path(path);
   const bool discards_layers = !save_extension_preserves_layers(extension) &&
                                flat_save_discards_layers(std::as_const(document()));
-  if (discards_layers && !flatten_confirmed && !confirm_flatten_layers_for_save(extension)) {
+  // CLI automation saves are explicit about their target format, so flattening needs no
+  // confirmation there (and an unattended run must never block on the prompt).
+  if (discards_layers && !flatten_confirmed && !cli_automation_mode_ &&
+      !confirm_flatten_layers_for_save(extension)) {
     return false;
   }
-  if (!is_photoshop_document_extension(extension) &&
+  if (!cli_automation_mode_ && !is_photoshop_document_extension(extension) &&
       !std::as_const(document()).channels().empty()) {
     const auto answer = show_warning_message(
         this, tr("Saved Channels Will Be Discarded"),
@@ -1677,7 +1719,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       return false;
     }
   }
-  if ((extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) &&
+  if (!cli_automation_mode_ && (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) &&
       layers_have_nondefault_fill_opacity(std::as_const(document()).layers())) {
     const auto answer = show_warning_message(
         this, tr("Fill Opacity Will Be Discarded"),
@@ -1727,12 +1769,16 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       // Photoshop's save-a-copy semantics: only the flat copy lands on disk; the layered
       // document stays open, modified, and pointed at its original file, so a later Save
       // still offers PSD instead of quietly flattening again.
-      remember_save_directory_for_path(path);
-      if (image_save_options_apply_to_extension(extension)) {
-        persist_image_save_defaults(effective_image_options);
+      if (!cli_automation_mode_) {
+        remember_save_directory_for_path(path);
+        if (image_save_options_apply_to_extension(extension)) {
+          persist_image_save_defaults(effective_image_options);
+        }
       }
       update_history(tr("Save"));
-      add_recent_file(path);
+      if (!cli_automation_mode_) {
+        add_recent_file(path);
+      }
       statusBar()->showMessage((extension == QStringLiteral("svg") ? tr("Saved SVG copy %1.")
                                                                    : tr("Saved flattened copy %1"))
                                    .arg(path) +
@@ -1742,12 +1788,16 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     auto& active_session = session();
     active_session.path = path;
     active_session.title = QFileInfo(path).fileName();
-    remember_save_directory_for_path(path);
+    if (!cli_automation_mode_) {
+      remember_save_directory_for_path(path);
+    }
     if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
       active_session.image_save_options = effective_image_options;
       active_session.image_save_options_path = path;
       active_session.image_save_options_extension = extension;
-      persist_image_save_defaults(effective_image_options);
+      if (!cli_automation_mode_) {
+        persist_image_save_defaults(effective_image_options);
+      }
     } else {
       active_session.image_save_options.reset();
       active_session.image_save_options_path.clear();
@@ -1755,12 +1805,18 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     }
     set_session_saved(active_session);
     update_history(tr("Save"));
-    add_recent_file(path);
+    if (!cli_automation_mode_) {
+      add_recent_file(path);
+    }
     statusBar()->showMessage(tr("Saved %1").arg(path) + export_notes_suffix);
     return true;
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Save failed"), QString::fromUtf8(error.what()),
-                          QStringLiteral("saveFailedMessageBox"));
+    if (cli_automation_mode_) {
+      fprintf(stderr, "Save failed: %s (%s)\n", error.what(), path.toUtf8().constData());
+    } else {
+      show_critical_message(this, tr("Save failed"), QString::fromUtf8(error.what()),
+                            QStringLiteral("saveFailedMessageBox"));
+    }
   }
   return false;
 }

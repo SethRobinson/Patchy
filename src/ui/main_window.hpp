@@ -139,6 +139,18 @@ public:
   // run until the event loop starts, writes the report, and exits the application
   // with 0 (success) or 1 (failure). See main_window_stress_test.cpp.
   void start_cli_stress_test(StressTestOptions options);
+  // CLI export (`patchy <file> --export <out>`): defers until the event loop starts,
+  // optionally appends a marker string to every text layer through real inline-editor
+  // sessions (`--append-text`, re-rendering each layer's raster from its text data),
+  // saves the document to the output path, and exits the application with 0 on
+  // success or a nonzero code (2 = no document opened, 3 = save failed). See
+  // main_window_files.cpp.
+  void run_cli_export(const QString& output_path, const QString& append_text);
+  // Automation runs (run_cli_export) must never block on a dialog: this suppresses
+  // the interactive prompts on the open/edit/save paths (open-failure and import-note
+  // boxes, indexed-palette adoption offer, missing-font substitution confirm, format
+  // data-loss confirms). Set before opening files.
+  void set_cli_automation_mode(bool enabled) { cli_automation_mode_ = enabled; }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -461,6 +473,11 @@ private:
   bool commit_active_text_editor();
   bool cancel_active_text_editor();
   void finish_active_text_editor();
+  // Appends `suffix` to every text layer by driving a real inline-editor session per
+  // layer (add_text_at on the active layer -> insert at end -> commit), so each raster
+  // re-renders through the normal commit pipeline. Returns the number of layers
+  // mutated; pixel-locked text layers are skipped. CLI automation only (run_cli_export).
+  int cli_append_text_to_text_layers(const QString& suffix);
   void apply_filter(const QString& identifier);
   void liquify_dialog();
   void convert_for_smart_filters();
@@ -1332,6 +1349,9 @@ private:
   // otherwise run the inline-text-editor commit path against destroyed members. Read
   // only as an early-out guard; a bool stays trivially readable through teardown.
   bool shutting_down_{false};
+  // CLI automation (run_cli_export): suppress interactive prompts on the open/edit/save
+  // paths so an unattended run can never block on a dialog.
+  bool cli_automation_mode_{false};
 };
 
 }  // namespace patchy::ui
