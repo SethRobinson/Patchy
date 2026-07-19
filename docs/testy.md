@@ -50,8 +50,10 @@ Useful flags:
 - `--files a.psd b.psd` - explicit file list instead of the corpus.
 - `--corpus <file>` - another corpus list (one path per line, relative to the repo root).
 - `--editors photoshop,patchy,krita,photopea,affinity` - which columns to run. Affinity is
-  opt-in (see below). Aseprite was verified to have no PSD I/O at all and is not part of
-  the roster.
+  opt-in: its column needs the app's connector enabled once in Affinity's settings (it
+  serves the local MCP endpoint the scripting rides on); with it off, Affinity cells fail
+  with an actionable message and everything else runs normally. Aseprite was verified to
+  have no PSD I/O at all and is not part of the roster.
 - `--no-build` - skip the release build refresh (measures the current patchy.exe as-is).
 - `--fresh` - ignore cached ground truth / cells (cache lives in `testy/cache/`, keyed by
   file hash + editor version, and by Patchy git hash for the Patchy column).
@@ -132,33 +134,40 @@ full native preservation, which validates the pipeline itself.
 - Runs fail fast: the Photopea driver aborts when the host page's step log stalls for
   45s, and the orchestrator trips a per-editor circuit breaker after 3 consecutive
   failed cells (remaining cells report "skipped" instead of burning timeouts).
-- The Affinity driver runs ONE document per app session under a hard wall-clock budget
-  (180s + any relaunch cooldown; overruns abort the cell naming the stage they died
-  in). Hard-won specifics: quick relaunches drop the launch file argument entirely
-  (50s cooldown between sessions fixes it; forwards into a live instance drop files
-  too); the export panel opens once per document via a state-checked toggle - a
-  re-toggle while the popup is still materializing (cold instances take well over
-  8s) CANCELS it, producing a perpetual near-miss loop that burns the timeout while
-  yanking focus every few seconds, so the driver re-presses only when the dropdown's
-  ToggleState reads off or a registered press produced nothing for 20s; WPF tab
-  headers CONSUME UNDERSCORES as mnemonic markers ("deko_test.psd" displays as
-  "dekotest.psd"), so tab matching compares underscore-stripped names; and the trap
-  leg is skipped (needs a second document, and Affinity re-renders by design so the
-  baked-composite trap proves nothing). Partial cells (a failed PSD leg) are never
-  cached. Some PSDs intermittently raise a modeless "Opened document information"
-  notice on open (unknown-property warnings); it steals activation, so the driver
-  closes it from every wait loop where it can appear, and a panel-open failure logs
-  any extra top-level Affinity windows so an unrecognized dialog cannot hide.
-- Affinity (Canva unified app 3.2) has no CLI or scripting API. The driver
-  (`testy/drivers/affinity.py`) automates it WITHOUT stealing focus via background UIA
-  patterns: the quick-export panel opens via the dropdown's Toggle pattern (WPF
-  light-dismiss popups survive in background; synthetic clicks and posted messages do
-  NOT work - WPF re-reads the physical cursor), format chips select via SelectionItem
-  with the quick button's label as feedback, and the export lands through the standard
-  shell Save As dialog, which appears without focus and is driven strictly by
-  automation id (filename box 1001) and exact button titles. Cold-start toolbar
-  population is flaky, which is why the column is opt-in. The driver reuses a running
-  instance and never kills one it did not launch.
+- Affinity (Canva unified app 3.2+) is driven through its built-in JavaScript SDK,
+  not UI automation (the background-UIA quick-export driver was retired July 2026):
+  the app serves a local MCP endpoint (plain JSON-RPC over SSE on [::1]:6767, IPv6
+  loopback ONLY) while its connector is enabled in settings, and
+  `testy/affinity_js.py` speaks it directly with the standard library - no AI, no
+  tokens. One execute_script call per document runs Document.load plus doc.export
+  for both legs (PNG render, then the "PSD (preserve editability)" preset - preset
+  names resolve by enumeration with a prefix fallback in case a version renames
+  them). Typical cell: under 3s even for a 40 MB PSD, where the UIA driver needed
+  minutes (50s relaunch cooldowns, 8s+ popup materialization, shell Save As
+  automation). The "preserve editability" resave also outscores the old
+  quick-export default on native preservation by a wide margin.
+- Affinity JS constraints (verified on 3.2.3.4646): the server demands MCP protocol
+  "2025-11-25" and a per-session read of its "preamble" documentation topic before
+  execute_script works (affinity_js handles both); scripts may only touch paths
+  under the Desktop (PERMISSION_DENIED elsewhere), so inputs stage through
+  `Desktop/testy-affinity-work/` and outputs move back to the run dir; script
+  output is console.log only, so cell scripts end with an `@@RESULT {json}` line.
+  A cold-started app accepts MCP connections before it is ready and then RESETS
+  them, so connecting retries until a session survives a prime-pause-ping sequence.
+  NOT_ALLOWED errors mean the user restricted scripting/filesystem access in the
+  app's settings; a load refusal (INAPPROPRIATE_FILE_TYPE_OR_FORMAT) is Affinity's
+  own import rejecting the file and scores honestly as opens=fail
+  (vectors_overlay_stroke.psd is such a file - the UI refuses it too).
+- Affinity lifecycle: Document.close is NOT_IMPLEMENTED on Windows, so opened
+  documents pile up as tabs; an instance the driver launched restarts after 10
+  documents and is quit at cleanup() via WM_CLOSE while UIA-dismissing whatever
+  blocks it (per-document save prompts, the modeless "Opened document information"
+  notice, open-failure dialogs) - the one place pywinauto remains. A force-killed
+  MSIX instance leaves a zombie single-instance registration, so taskkill stays the
+  last resort. A pre-existing user instance is reused but never quit (its tabs stay
+  open; the driver notes it). The trap leg stays skipped: Affinity re-renders
+  layers by design, so the baked-composite trap proves nothing. Partial cells (a
+  failed PSD leg) are never cached.
 
 ## Layout
 
@@ -171,8 +180,11 @@ testy/
   analyze.py         render metrics, sentinel detection, heatmaps
   manifest.py        original-vs-resave structural diff
   report.py          status.json + live report.html + history
+  affinity_js.py     token-free MCP/JS client for the Affinity app (SSE + JSON-RPC,
+                     launch/quit lifecycle; also reused by .af format tooling)
   drivers/           photoshop (COM), patchy (CLI), krita (CLI),
-                     photopea (headless Chrome + embed API), affinity (background UIA)
+                     photopea (headless Chrome + embed API), affinity (built-in JS
+                     automation via affinity_js)
   index.html         run-index landing page (server root)
   photopea_host.html the Photopea embedding/automation page
   corpus/default.txt curated corpus
