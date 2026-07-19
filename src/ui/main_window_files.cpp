@@ -435,6 +435,13 @@ const QList<FileFormatEntry>& file_format_entries() {
                     {},
                     false,
                     false});
+    // Affinity's native .af opens as a preview-only import (tier 0) and is never
+    // written, so the entry is read-only like camera raw and HEIF.
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "Affinity Document"),
+                    {QStringLiteral("af")},
+                    {},
+                    false,
+                    false});
     // HEIF/HEIC is decode-only like camera raw (platform codecs never encode for us and
     // Patchy must not ship an HEVC encoder), so its entry is read-only too.
     QStringList heif_extensions;

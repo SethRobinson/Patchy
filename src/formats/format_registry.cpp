@@ -1,5 +1,6 @@
 #include "formats/format_registry.hpp"
 
+#include "formats/af_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/heif_document_io.hpp"
@@ -134,6 +135,19 @@ void register_builtin_formats(FormatRegistry& registry) {
                              [](std::span<const std::uint8_t> bytes) { return heif::read_heif(bytes); },
                              nullptr,
                              [](std::span<const std::uint8_t> bytes) { return heif::sniff(bytes); }});
+  // Affinity's native .af is a read-only source (write stays null): tier 0 imports the
+  // embedded document preview with notices; layer decoding lands in later tiers. The
+  // container spec record lives in docs/file-formats.md ".af (Affinity)".
+  registry.register_handler({"patchy.formats.af",
+                             "Affinity Document",
+                             {".af"},
+                             [](std::span<const std::uint8_t> bytes) {
+                               FormatReadResult result;
+                               result.document = af::DocumentIo::read(bytes, &result.notices);
+                               return result;
+                             },
+                             nullptr,
+                             [](std::span<const std::uint8_t> bytes) { return af::sniff(bytes); }});
   // Camera raws are read-only sources (write stays null). This headless path develops with
   // camera-JPEG-like defaults; the interactive develop dialog lives in the UI layer and runs
   // BEFORE load_document_from_path reaches the registry.

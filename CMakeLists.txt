@@ -288,6 +288,7 @@ target_link_libraries(patchy_filters PUBLIC patchy_core)
 patchy_configure_target(patchy_filters)
 
 add_library(patchy_formats
+  src/formats/af_document_io.cpp
   src/formats/aseprite_document_io.cpp
   src/formats/bmp_document_io.cpp
   src/formats/document_flatten.cpp
@@ -308,6 +309,7 @@ add_library(patchy_formats
   src/formats/svg_xml.cpp
   src/formats/tga_document_io.cpp
   src/formats/miniz/miniz.c
+  src/formats/zstd/zstddeclib.c
 )
 # patchy_libraw stays PRIVATE: only raw_document_io.cpp touches LibRaw types; the public
 # raw_document_io.hpp is LibRaw-free like the rest of the formats API.
@@ -821,6 +823,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/core_test_support.cpp
     tests/core/psd_test_support.cpp
     tests/core/adjustments_curves_tests.cpp
+    tests/core/af_tests.cpp
     tests/core/brush_engine_tests.cpp
     tests/core/compositor_blend_if_tests.cpp
     tests/core/compositor_layer_styles_tests.cpp

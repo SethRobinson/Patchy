@@ -285,6 +285,10 @@
         <translation>HEIF 画像</translation>
     </message>
     <message>
+        <source>Affinity Document</source>
+        <translation>Affinity ドキュメント</translation>
+    </message>
+    <message>
         <source>Open failed</source>
         <translation>開けませんでした</translation>
     </message>

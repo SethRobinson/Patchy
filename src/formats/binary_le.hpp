@@ -54,6 +54,12 @@ public:
     return static_cast<std::int32_t>(read_u32());
   }
 
+  [[nodiscard]] std::uint64_t read_u64() {
+    const auto low = read_u32();
+    const auto high = read_u32();
+    return static_cast<std::uint64_t>(low) | (static_cast<std::uint64_t>(high) << 32U);
+  }
+
   void skip(std::size_t count) {
     require(count);
     offset_ += count;

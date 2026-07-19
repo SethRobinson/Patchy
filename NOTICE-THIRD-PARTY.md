@@ -51,6 +51,16 @@ the single-source zlib/deflate implementation used by the Aseprite file format's
 compressed cels. MIT License; the license text is included at
 `src/formats/miniz/LICENSE`.
 
+## Zstandard
+
+`src/formats/zstd/` vendors the decompression half of Zstandard 1.5.7
+(https://github.com/facebook/zstd, Copyright Meta Platforms, Inc. and
+affiliates) as the project's generated single-file decoder (`zstddeclib.c`
+from `build/single_file_libs`), used to read the compressed streams inside
+Affinity .af documents. Zstandard is dual-licensed BSD-3-Clause / GPLv2;
+Patchy uses it under the BSD-3-Clause license, included at
+`src/formats/zstd/LICENSE`. No compression code is vendored.
+
 ## Little CMS
 
 `src/color/lcms2/` vendors the Little CMS 2.17 core library
@@ -142,6 +152,10 @@ not part of any release package.
   `test-fixtures/tga/pillow-*.tga`, and `test-fixtures/gif/pillow-animated.gif`:
   generated locally with the Pillow imaging library (self-authored art; no
   third-party content).
+- `test-fixtures/af/tiny-*.af` and `tiny-rgba8.png`: Affinity documents (a
+  64x48 self-authored gradient/pattern image) created by the Patchy team by
+  scripting a licensed Affinity 3.2.3 install through its built-in JavaScript
+  SDK; no third-party content. Used by the .af importer tests.
 - `test-fixtures/aseprite/*.aseprite` and
   `aseprite-blend-modes-reference.png` (Aseprite's own flattened render of the
   blend-mode fixture): authored locally with Aseprite 1.3.17 via a batch script

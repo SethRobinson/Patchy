@@ -23,6 +23,7 @@ All read AND write (camera raw below is the one read-only entry); modules in src
 - PNG/JPEG/TIFF/WebP stay on Qt.
 - **Camera raw** — read-only; see the section below.
 - **HEIF/HEIC** — read-only, platform codecs only; see the section below.
+- **.af (Affinity)** — read-only, tier-0 preview import; see the section below.
 
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
 
@@ -136,6 +137,54 @@ macOS/Linux but not Windows.
   hard-fail on anything else. `ui_heif_open_is_read_only_if_available` needs the
   repeating-QTimer dismisser for the potential `openFailedMessageBox` (dismiss via
   `reject()` so the Store button can never fire in a test).
+
+## .af (Affinity by Canva; read-only, tier 0)
+
+`src/formats/af_document_io.{hpp,cpp}` opens Affinity's native unified format
+(the 2025 "Affinity by Canva" app; magic `00 FF 4B 41`). Registered read-only
+(`patchy.formats.af`, sniff on the magic) with a read-only filter-table row;
+only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
+(same container family, deferred to keep the version matrix small).
+
+- **Tier 0 (current)**: walks the container and imports the embedded preview
+  PNG (Affinity's own flattened render, at most ~512 px) as one pixel layer
+  named "Affinity preview", with notices naming the document format version and
+  stating that full layers are not decoded. Tier 1 (real raster layers) builds
+  on the same walk; the full reverse-engineered format record, generated
+  corpus, and Python reference tooling live in `local-test-fixtures/af-spike/`
+  (machine-local; FINDINGS.md there is the format spec until the C++ reader
+  reaches tier 1).
+- **Container**: little-endian; u16 container version (verified 7..12; newer
+  versions still attempt the preview plus a warning notice), "#Inf" block
+  (stream-table offset, thumbnail offset, timestamps), "Prot" protocol tag,
+  a "#FAT"/"#FT2"/"#FT3"/"#FT4" stream-table chain naming streams (doc.dat =
+  the serialized document tree, d/<hex> = 64 KiB raster tiles, edc/<n> =
+  embedded documents), per-stream compression byte (raw/zlib/zstd + byte or
+  u16 delta predictors) and CRC32 (checked; mismatch = notice, not failure).
+  zlib inflate reuses the vendored miniz; zstd uses the vendored decode-only
+  `src/formats/zstd/zstddeclib.c` (Zstandard 1.5.7, BSD-3; NOTICE entry).
+  The preview decoder is a deliberately minimal PNG reader (8-bit gray/RGB/
+  RGBA, non-interlaced - the only variants Affinity writes) so the module
+  stays Qt-free and core tests exercise the whole path.
+- **Robustness**: every offset/length is bounds-checked through
+  `LittleEndianReader`, stream sizes capped (512 MiB), table chains capped,
+  and `af_read_survives_truncation_sweep`/`af_read_survives_mutation_sweep`
+  pin no-crash behavior on hostile input. Fixtures under `test-fixtures/af/`
+  are self-authored via scripted Affinity (NOTICE entry); regenerate them and
+  the machine-local corpus through `testy/affinity_js.py` (the token-free
+  MCP/JS client) if the app's format moves.
+- **Legal record**: the format is proprietary and undocumented; Serif/Canva
+  publish no spec or public SDK. Patchy's knowledge comes from byte-level
+  observation of documents authored with the licensed Affinity install on this
+  machine, the MIT-licensed afread project's notes on the 2020-era container,
+  and the BSD-3-licensed JSLib scripting sources that ship inside the Affinity
+  install (read as licensed source, used as the semantic map) - never from
+  disassembling Affinity binaries, mirroring the PSD "clean by method" rule.
+  The Affinity Terms (canva.com/policies/affinity-additional-terms/, section
+  12, reviewed 2026-07-20) prohibit copying/deriving the software's code with
+  express carve-outs for rights that cannot be excluded by law and for bundled
+  open-source components; file formats are not addressed. Never commit
+  Canva-authored sample files (the MSIX JSLib test documents stay local).
 
 ## Layered documents and flat formats (the Photoshop-style save guard)
 
