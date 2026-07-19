@@ -16,6 +16,12 @@ verified empirically on 3.2.3 (July 2026):
   patterns: the filename box is the classic automation-id 1001 edit (ValuePattern
   SetValue) and the Save/Yes buttons expose Invoke.
 
+PSDs with unknown properties raise a modeless "Opened document information"
+window on open. It holds activation, which light-dismisses the export popup the
+instant it opens, so the driver closes that notice in every wait loop where it
+can appear (leaving it up wedged the PSD leg into its full timeout while the
+retoggle loop kept yanking the app to the foreground).
+
 Strict-targeting policy (after an early probe once grabbed a file-LIST edit cell
 and started renaming an unrelated file): every element is matched by exact
 automation id or exact title, exactly-one matches are required where ambiguity
@@ -236,11 +242,42 @@ class AffinitySession:
         if self.main is None:
             raise AffinityError("Affinity main window lost")
 
+    def dismiss_info_dialog(self) -> None:
+        """Close the 'Opened document information' notice Affinity raises for PSDs
+        with unknown properties. It is a separate WPF window that holds activation,
+        and the quick-export popup (light-dismiss) dies the moment activation moves,
+        so while this notice is up the panel can never open: the export legs burn
+        their full timeouts while the retoggle loop yanks focus over and over."""
+        try:
+            pid = self.main.process_id() if self.main is not None else None
+        except Exception:
+            pid = None
+        try:
+            for window in _desktop().windows():
+                try:
+                    if (window.window_text() or "") != "Opened document information":
+                        continue
+                    if pid is not None and window.process_id() != pid:
+                        continue
+                    closes = [b for b in window.descendants(control_type="Button")
+                              if (b.window_text() or "").strip() == "Close"]
+                    if not closes:
+                        continue
+                    _press_button(closes[0])
+                    self.log("dismissed 'Opened document information' notice")
+                    time.sleep(0.5)
+                    return
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
     def wait_for_document(self, tab_stem: str, file_to_reforward: Path | None = None) -> None:
         deadline = time.time() + DOCUMENT_TIMEOUT
         reforwarded = False
         while time.time() < deadline:
             self._check_budget("waiting for document tab")
+            self.dismiss_info_dialog()
             try:
                 self._refresh_main()
                 for tab in self.main.descendants(control_type="TabItem"):
@@ -289,6 +326,7 @@ class AffinitySession:
         deadline = time.time() + 30
         while time.time() < deadline:
             self._check_budget("waiting for export toolbar")
+            self.dismiss_info_dialog()
             try:
                 controls = self.main.descendants(class_name="QuickExportControl")
                 if controls and len(controls[0].children(control_type="Button")) >= 2:
@@ -340,30 +378,47 @@ class AffinitySession:
         return None
 
     def open_panel(self):
-        """Open the quick-export panel and remember it. Toggles are paced: a cold
-        instance takes several seconds per UIA scan, and re-toggling too soon just
-        closes the popup the previous toggle opened."""
-        deadline = time.time() + 35
+        """Open the quick-export panel and remember it. One toggle, then a patient
+        wait: a cold instance can take well over 8s to materialize the popup, and a
+        re-toggle while it is pending CANCELS it (the old fixed 8s settle produced a
+        perpetual near-miss loop on cold launches, each retry yanking focus). The
+        dropdown's ToggleState says whether our click registered, so re-toggles only
+        happen when it reads off (or a registered toggle produced nothing for 20s,
+        the popup-state-desync case after a Save As round trip)."""
+        deadline = time.time() + 60
+        toggled_at: float | None = None
         while time.time() < deadline:
             self._check_budget("opening export panel")
+            self.dismiss_info_dialog()
             panel = self._find_panel()
             if panel is not None:
                 self.panel = panel
                 return panel
             try:
                 dropdown = self._quick_control().children(control_type="Button")[-1]
+                try:
+                    pressed = dropdown.get_toggle_state() == 1
+                except Exception:
+                    pressed = False
+                if pressed and toggled_at is not None and time.time() - toggled_at < 20:
+                    time.sleep(1.5)  # our toggle registered; the popup is on its way
+                    continue
+                # Either our toggle never registered (state off) or it is stuck
+                # on with no popup: this toggle turns it off / retries, and the
+                # next loop pass presses it again.
                 dropdown.toggle()
+                toggled_at = time.time() if not pressed else None
             except Exception as error:
                 self.log(f"panel toggle hiccup: {type(error).__name__}")
-                time.sleep(2.0)
-                continue
-            settle = time.time() + 8
-            while time.time() < settle:
-                time.sleep(1.0)
-                panel = self._find_panel()
-                if panel is not None:
-                    self.panel = panel
-                    return panel
+            time.sleep(2.0)
+        try:
+            pid = self.main.process_id()
+            extras = [repr(w.window_text() or "") for w in _desktop().windows()
+                      if w.process_id() == pid and (w.window_text() or "") != "Affinity"]
+            if extras:
+                self.log(f"extra windows at panel failure: {', '.join(extras)}")
+        except Exception:
+            pass
         raise AffinityError("quick-export panel did not open")
 
     def _live_panel(self):

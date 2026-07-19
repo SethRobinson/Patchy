@@ -130,12 +130,19 @@ full native preservation, which validates the pipeline itself.
   (180s + any relaunch cooldown; overruns abort the cell naming the stage they died
   in). Hard-won specifics: quick relaunches drop the launch file argument entirely
   (50s cooldown between sessions fixes it; forwards into a live instance drop files
-  too); the export panel opens once per document with paced toggles (rapid re-toggles
-  cancel each other); WPF tab headers CONSUME UNDERSCORES as mnemonic markers
-  ("deko_test.psd" displays as "dekotest.psd"), so tab matching compares
-  underscore-stripped names; and the trap leg is skipped (needs a second document,
-  and Affinity re-renders by design so the baked-composite trap proves nothing).
-  Partial cells (a failed PSD leg) are never cached.
+  too); the export panel opens once per document via a state-checked toggle - a
+  re-toggle while the popup is still materializing (cold instances take well over
+  8s) CANCELS it, producing a perpetual near-miss loop that burns the timeout while
+  yanking focus every few seconds, so the driver re-presses only when the dropdown's
+  ToggleState reads off or a registered press produced nothing for 20s; WPF tab
+  headers CONSUME UNDERSCORES as mnemonic markers ("deko_test.psd" displays as
+  "dekotest.psd"), so tab matching compares underscore-stripped names; and the trap
+  leg is skipped (needs a second document, and Affinity re-renders by design so the
+  baked-composite trap proves nothing). Partial cells (a failed PSD leg) are never
+  cached. Some PSDs intermittently raise a modeless "Opened document information"
+  notice on open (unknown-property warnings); it steals activation, so the driver
+  closes it from every wait loop where it can appear, and a panel-open failure logs
+  any extra top-level Affinity windows so an unrecognized dialog cannot hide.
 - Affinity (Canva unified app 3.2) has no CLI or scripting API. The driver
   (`testy/drivers/affinity.py`) automates it WITHOUT stealing focus via background UIA
   patterns: the quick-export panel opens via the dropdown's Toggle pattern (WPF
