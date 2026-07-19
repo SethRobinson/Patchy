@@ -21,20 +21,28 @@
 #include "ui/stress_test.hpp"
 
 #include "core/adjustment_layer.hpp"
+#include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/path_fit.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/smart_filter.hpp"
+#include "core/smart_object.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_shape.hpp"
 #include "core/rect_utils.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_tip_library.hpp"
+#include "ui/custom_shape_library.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/edit_conversions.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/paths_panel.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/selection_outline.hpp"
 
 #include <QApplication>
 #include <QComboBox>
@@ -78,6 +86,7 @@
 #include <cstdint>
 #include <cstring>
 #include <exception>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -104,13 +113,13 @@ namespace {
 constexpr int kSettleTimeoutMs = 30'000;
 constexpr quint32 kStressSeedBase = 0x5EED0001U;
 // Keep in sync with the scenario's step() calls; drives the progress dialog.
-constexpr int kTotalStepCount = 42;
+constexpr int kTotalStepCount = 56;
 
 // Reference step durations in ms, measured on the calibration machine at the
-// STANDARD preset in a release build. Only the rating depends on these; the
-// TXT report ends with a ready-to-paste refreshed table. Bump the tag whenever
-// the table is recalibrated.
-constexpr const char* kBaselineTag = "quick@i9-12900KS-2026-07";
+// preset named in the tag, in a release build. Only the rating depends on
+// these; the TXT report ends with a ready-to-paste refreshed table. Bump the
+// tag whenever the table is recalibrated.
+constexpr const char* kBaselineTag = "quick@i9-12900KS-2026-07-19";
 
 struct StepBaseline {
   const char* id;
@@ -118,21 +127,62 @@ struct StepBaseline {
 };
 
 constexpr StepBaseline kStepBaselines[] = {
-    {"01_create_document", 73.7},   {"02_wall_gradient", 105.3},   {"03_wall_texture", 169.4},
-    {"04_desk_surface", 241.8},     {"05_monitor_body", 217.5},    {"06_monitor_screen", 288.5},
-    {"07_c64_body", 181.0},         {"08_c64_keys", 137.3},        {"09_c64_badge", 270.3},
-    {"10_mug_steam", 563.3},        {"11_desk_props", 1449.8},     {"12_boot_text", 595.0},
-    {"13_boot_text_glow", 249.0},   {"14_game_parody_pixels", 148.9}, {"15_game_title_text", 324.1},
-    {"16_sticky_notes", 976.9},     {"17_title_text", 254.3},      {"18_text_reedit", 209.0},
-    {"19_scanlines", 259.9},        {"20_screen_glow", 525.2},     {"21_screen_mask", 393.4},
-    {"22_selection_blur", 867.6},   {"23_vignette", 295.6},        {"24_grain", 369.4},
-    {"25_adjust_levels", 540.3},    {"26_adjust_curves", 548.8},   {"27_adjust_hue_sat", 666.6},
-    {"28_adjust_color_balance", 756.5}, {"29_move_small_live", 518.6}, {"30_move_styled_outline", 2832.0},
-    {"31_move_large_outline", 6501.6}, {"32_move_multi_layer", 153.1}, {"33_move_nudges", 529.8},
-    {"34_free_transform", 724.4},   {"35_zoom_pan", 112.3},        {"36_history_build", 70.0},
-    {"37_undo_redo", 12299.2},      {"38_merge_visible", 2485.8},  {"39_psd_save", 784.0},
-    {"40_psd_reload", 1090.8},      {"41_multi_document", 436.3},  {"42_final_composite", 1089.3},
-    {"43_vector_shapes", 400.0},
+    {"01_create_document", 137.7},
+    {"02_wall_gradient", 84.0},
+    {"03_wall_texture", 173.1},
+    {"04_desk_surface", 256.1},
+    {"05_monitor_body", 230.4},
+    {"06_monitor_screen", 213.8},
+    {"07_c64_body", 171.2},
+    {"08_c64_keys", 141.6},
+    {"09_c64_badge", 256.1},
+    {"10_mug_steam", 558.3},
+    {"11_desk_props", 1092.9},
+    {"12_boot_text", 542.3},
+    {"13_boot_text_glow", 144.4},
+    {"14_game_parody_pixels", 133.0},
+    {"15_game_title_text", 331.9},
+    {"16_sticky_notes", 926.8},
+    {"17_title_text", 227.6},
+    {"18_text_reedit", 149.2},
+    {"19_scanlines", 155.8},
+    {"20_screen_glow", 436.4},
+    {"21_screen_mask", 325.4},
+    {"22_selection_blur", 142.6},
+    {"23_vignette", 251.5},
+    {"24_grain", 272.9},
+    {"25_adjust_levels", 227.5},
+    {"26_adjust_curves", 247.5},
+    {"27_adjust_hue_sat", 327.9},
+    {"28_adjust_color_balance", 350.0},
+    {"29_move_small_live", 309.9},
+    {"30_move_styled_outline", 1271.8},
+    {"31_move_large_outline", 3451.3},
+    {"32_move_multi_layer", 133.5},
+    {"33_move_nudges", 363.3},
+    {"34_free_transform", 389.3},
+    {"35_zoom_pan", 102.9},
+    {"36_history_build", 71.5},
+    {"37_undo_redo", 3605.0},
+    {"38_merge_visible", 1340.6},
+    {"39_psd_save", 579.9},
+    {"40_psd_reload", 786.7},
+    {"41_multi_document", 372.1},
+    {"44_canvas_expand", 772.9},
+    {"45_arcade_shapes", 4722.0},
+    {"46_shape_boolean", 3219.2},
+    {"47_neon_pen_glow", 670.9},
+    {"48_custom_shapes", 2633.5},
+    {"49_shape_restyle", 571.2},
+    {"50_paths_roundtrip", 114.5},
+    {"51_new_blurs", 2030.9},
+    {"52_sharpen_motion", 1289.0},
+    {"53_plastic_wrap", 816.9},
+    {"54_smart_object_filter", 1848.5},
+    {"55_warp_banner", 3937.1},
+    {"56_psd_roundtrip_full", 3456.6},
+    {"42_final_composite", 678.3},
+    {"43_vector_shapes", 4068.1},
 };
 
 double baseline_for_step(const QString& id) {
@@ -919,13 +969,146 @@ private:
     pump();
   }
 
-  // Filled shape via the real tool pipeline (one undo snapshot per drag).
+  // Filled raster shape via the real tool pipeline (one undo snapshot per
+  // drag). The shape tools gained a Shape|Path|Pixels mode whose persisted
+  // default is Shape (a vector layer styled by the options-bar fill/stroke,
+  // which may be stroke-only); the scene's props need the legacy Pixels
+  // commit, so force it for the drag and restore the mode after.
   void draw_shape(CanvasTool tool, QRect document_rect, QColor color, int corner_radius = 0) {
     w.activate_tool(tool);
+    const auto previous_mode = canvas()->vector_tool_mode();
+    canvas()->set_vector_tool_mode(VectorToolMode::Pixels);
     canvas()->set_fill_shapes(true);
     canvas()->set_shape_corner_radius(corner_radius);
     set_foreground(color);
     drag(document_rect.topLeft(), document_rect.bottomRight(), 4);
+    canvas()->set_vector_tool_mode(previous_mode);
+  }
+
+  // ---- vector shape helpers (scene 2) -------------------------------------
+
+  [[nodiscard]] static RgbColor rgb(QColor color) {
+    return RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                    static_cast<std::uint8_t>(color.blue())};
+  }
+
+  [[nodiscard]] static VectorFill solid_vector_fill(QColor color) {
+    VectorFill fill;
+    fill.kind = VectorFillKind::Solid;
+    fill.color = rgb(color);
+    return fill;
+  }
+
+  [[nodiscard]] static VectorFill no_vector_fill() {
+    VectorFill fill;
+    fill.kind = VectorFillKind::None;
+    return fill;
+  }
+
+  [[nodiscard]] static VectorFill gradient_vector_fill(QColor from, QColor to, float angle_degrees) {
+    VectorFill fill;
+    fill.kind = VectorFillKind::Gradient;
+    fill.gradient.type = LayerStyleGradientType::Linear;
+    fill.gradient.angle_degrees = angle_degrees;
+    fill.gradient.color_stops = {{0.0F, rgb(from)}, {1.0F, rgb(to)}};
+    fill.gradient.alpha_stops = {{0.0F, 1.0F}, {1.0F, 1.0F}};
+    return fill;
+  }
+
+  // The vector steps drive the real Shape-mode commit pipeline, which styles
+  // new layers from MainWindow's options-bar mirrors. Those mirrors are
+  // persisted tool settings, so save them once before the vector steps and
+  // restore them after (cancel between steps still restores: the phase
+  // function runs to completion around the skipped step bodies).
+  void begin_vector_shape_phase() {
+    saved_vector_fill_ = w.current_vector_fill_;
+    saved_vector_stroke_paint_ = w.current_vector_stroke_paint_;
+    saved_vector_stroke_enabled_ = w.current_vector_stroke_enabled_;
+    saved_vector_stroke_width_ = w.current_vector_stroke_width_;
+    saved_vector_tool_mode_ = w.current_vector_tool_mode_;
+    saved_vector_combine_index_ = w.current_vector_combine_index_;
+    saved_shape_corner_radius_ = w.current_shape_corner_radius_;
+    saved_vector_line_weight_ = w.current_vector_line_weight_;
+    saved_line_arrow_start_ = w.current_line_arrow_start_;
+    saved_line_arrow_end_ = w.current_line_arrow_end_;
+    w.current_vector_tool_mode_ = VectorToolMode::Shape;
+    w.current_vector_combine_index_ = 0;
+    if (canvas() != nullptr) {
+      canvas()->set_vector_tool_mode(VectorToolMode::Shape);
+    }
+  }
+
+  void end_vector_shape_phase() {
+    w.current_vector_fill_ = saved_vector_fill_;
+    w.current_vector_stroke_paint_ = saved_vector_stroke_paint_;
+    w.current_vector_stroke_enabled_ = saved_vector_stroke_enabled_;
+    w.current_vector_stroke_width_ = saved_vector_stroke_width_;
+    w.current_vector_tool_mode_ = saved_vector_tool_mode_;
+    w.current_vector_combine_index_ = saved_vector_combine_index_;
+    w.current_shape_corner_radius_ = saved_shape_corner_radius_;
+    w.current_vector_line_weight_ = saved_vector_line_weight_;
+    w.current_line_arrow_start_ = saved_line_arrow_start_;
+    w.current_line_arrow_end_ = saved_line_arrow_end_;
+    if (canvas() != nullptr) {
+      canvas()->set_vector_tool_mode(saved_vector_tool_mode_);
+    }
+    w.update_vector_swatch_icons();
+  }
+
+  void set_vector_appearance(const VectorFill& fill, bool stroke_enabled = false,
+                             double stroke_width = 1.0, QColor stroke_color = QColor(0, 0, 0)) {
+    w.current_vector_fill_ = fill;
+    w.current_vector_stroke_enabled_ = stroke_enabled;
+    w.current_vector_stroke_width_ = stroke_width;
+    w.current_vector_stroke_paint_ = solid_vector_fill(stroke_color);
+  }
+
+  // Vector shape through the real drag pipeline (live preview per mouse move,
+  // options-bar appearance commit, bake). Needs begin_vector_shape_phase.
+  // The appearance mirrors are set AFTER activate_tool: switching tools while
+  // a shape layer is active syncs the mirrors from that layer, which would
+  // claw back the previous shape's look over the caller's values.
+  LayerId draw_vector_shape(CanvasTool tool, QRect document_rect, const VectorFill& fill,
+                            bool stroke_enabled, double stroke_width, QColor stroke_color,
+                            const QString& name, int corner_radius = 0) {
+    w.activate_tool(tool);
+    canvas()->set_vector_tool_mode(VectorToolMode::Shape);
+    set_vector_appearance(fill, stroke_enabled, stroke_width, stroke_color);
+    w.current_shape_corner_radius_ = corner_radius;
+    drag(document_rect.topLeft(), document_rect.bottomRight(), 4);
+    if (!name.isEmpty()) {
+      rename_active_layer_to(name);
+    }
+    return doc().active_layer_id().value_or(LayerId{});
+  }
+
+  // add_layer anchors on the layer-list ROW selection first and the active
+  // layer second; scene-2 prop layers must land above the arcade backdrop
+  // regardless of what the previous step left selected (step 54 leaves a
+  // mid-stack scene-1 row selected), so hop to the top of the root stack AND
+  // drop the stale row selection.
+  void activate_top_layer() {
+    if (doc().layers().empty()) {
+      return;
+    }
+    if (w.layer_list_ != nullptr) {
+      // Unblocked, clearSelection fires the list's selection handler, which
+      // re-asserts the OLD active layer from the still-current row.
+      QSignalBlocker blocker(w.layer_list_);
+      w.layer_list_->clearSelection();
+    }
+    doc().set_active_layer(doc().layers().back().id());
+    w.refresh_layer_list();
+    pump();
+  }
+
+  // Document megapixels of the CURRENT canvas (scene 2 runs on the widened
+  // one, so canvas_megapixels() understates).
+  [[nodiscard]] double current_document_megapixels() {
+    if (!w.has_active_document()) {
+      return canvas_megapixels();
+    }
+    return static_cast<double>(doc().width()) * static_cast<double>(doc().height()) / 1'000'000.0;
   }
 
   // Direct cell writes under one undo snapshot; invalidates per rect so the
@@ -1221,6 +1404,10 @@ private:
   void phase_interact();
   void phase_history();
   void phase_io();
+  void phase_arcade_vector();
+  void phase_arcade_filters();
+  void phase_smart_and_warp();
+  void phase_vector_io();
   void phase_composite();
 
   MainWindow& w;
@@ -1256,6 +1443,24 @@ private:
   // Screen geometry shared between steps (game parody, scanlines, glow).
   QRect screen_rect_;
   QRect game_area_;
+
+  // Scene 2 (the arcade corner on the widened canvas).
+  LayerId arcade_wall_id_{};
+  LayerId cabinet_id_{};
+  LayerId cabinet_screen_id_{};
+  QRect arcade_screen_rect_;
+
+  // Saved options-bar vector mirrors (begin/end_vector_shape_phase).
+  VectorFill saved_vector_fill_{};
+  VectorFill saved_vector_stroke_paint_{};
+  bool saved_vector_stroke_enabled_{false};
+  double saved_vector_stroke_width_{3.0};
+  VectorToolMode saved_vector_tool_mode_{VectorToolMode::Shape};
+  int saved_vector_combine_index_{0};
+  int saved_shape_corner_radius_{0};
+  int saved_vector_line_weight_{4};
+  bool saved_line_arrow_start_{false};
+  bool saved_line_arrow_end_{false};
 };
 
 // ---------------------------------------------------------------------------
@@ -1968,6 +2173,415 @@ void StressTestRunner::phase_io() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Scene 2: the "C2 ARCADE" corner, built on a canvas widened by 50% with the
+// features added after the original harness - vector shape layers, booleans,
+// custom shapes, appearance edits, path roundtrips, the newer filters, smart
+// objects + smart filters, and warp. Coordinates keep using the at()/rect()
+// fractions of the PRESET edge, so scene 2 spans x = 1.0 .. 1.5. These steps
+// run after 41 and before 42/43 so the final composite captures both scenes
+// while the move matrix and history steps keep their original inputs.
+
+void StressTestRunner::phase_arcade_vector() {
+  // 44: widen the canvas (anchor Left keeps scene 1 in place) - the
+  // geometry-op path that transforms vector and path data alongside pixels,
+  // plus the first composite at the new width. Mirrors resize_canvas_dialog's
+  // commit tail without the dialog.
+  step("44_canvas_expand", "Canvas Size: widen 50% for the arcade corner", "setup", [&] {
+    auto& document_ref = doc();
+    w.push_undo_snapshot(QStringLiteral("Canvas size"));
+    resize_canvas_and_layers(document_ref, size_ * 3 / 2, size_, CanvasAnchor::Left,
+                             edit_color(QColor(24, 22, 30)));
+    canvas()->clear_selection();
+    canvas()->set_document(&document_ref);
+    w.refresh_layer_list();
+    w.refresh_layer_controls();
+    w.refresh_document_info();
+    canvas()->fit_to_view();
+    pump();
+  }, canvas_megapixels() * 1.5);
+
+  begin_vector_shape_phase();
+
+  // 45: the cabinet, drawn through the real Shape-mode drag pipeline (live
+  // vector preview per mouse move, options-bar appearance commit, bake).
+  step("45_arcade_shapes", "Vector arcade cabinet (Shape-mode drags)", "vector", [&] {
+    // Raster backdrop for the new strip first (Pixels-mode shapes).
+    arcade_wall_id_ = add_named_layer(QStringLiteral("Arcade wall"));
+    draw_shape(CanvasTool::Rectangle, rect(0.995, 0.0, 0.51, 1.0), QColor(38, 30, 52));
+    draw_shape(CanvasTool::Rectangle, rect(0.995, 0.70, 0.51, 0.30), QColor(52, 38, 40));
+
+    cabinet_id_ = draw_vector_shape(CanvasTool::Rectangle, rect(1.07, 0.25, 0.36, 0.55),
+                                    gradient_vector_fill(QColor(150, 48, 60), QColor(70, 24, 40), 90.0F),
+                                    true, std::max(2.0, static_cast<double>(at(0.003))),
+                                    QColor(30, 16, 22), QStringLiteral("Cabinet"), at(0.01));
+    (void)draw_vector_shape(CanvasTool::Rectangle, rect(1.10, 0.28, 0.30, 0.08),
+                            solid_vector_fill(QColor(34, 30, 56)), true,
+                            std::max(1.0, static_cast<double>(at(0.0015))), QColor(226, 208, 130),
+                            QStringLiteral("Marquee"), at(0.004));
+    arcade_screen_rect_ = rect(1.11, 0.385, 0.28, 0.19);
+    cabinet_screen_id_ = draw_vector_shape(CanvasTool::Rectangle, arcade_screen_rect_,
+                                           solid_vector_fill(QColor(16, 14, 24)), true,
+                                           std::max(1.0, static_cast<double>(at(0.002))),
+                                           QColor(90, 84, 110), QStringLiteral("Arcade screen"),
+                                           at(0.003));
+    (void)draw_vector_shape(CanvasTool::Rectangle, rect(1.09, 0.60, 0.32, 0.055),
+                            gradient_vector_fill(QColor(96, 92, 104), QColor(58, 54, 64), 90.0F),
+                            false, 1.0, QColor(0, 0, 0), QStringLiteral("Control deck"));
+    (void)draw_vector_shape(CanvasTool::Ellipse, rect(1.16, 0.612, 0.028, 0.028),
+                            solid_vector_fill(QColor(214, 64, 58)), true, 1.0, QColor(40, 20, 20),
+                            QString());
+    (void)draw_vector_shape(CanvasTool::Ellipse, rect(1.21, 0.612, 0.028, 0.028),
+                            solid_vector_fill(QColor(232, 202, 64)), true, 1.0, QColor(60, 48, 18),
+                            QString());
+  });
+
+  // 46: speaker grille - one shape layer, then subtract-combine drags punch
+  // the vent slots (a sequential-boolean re-rasterize per commit).
+  step("46_shape_boolean", "Speaker grille (subtract combine drags)", "vector", [&] {
+    const auto grille_fill = solid_vector_fill(QColor(24, 20, 34));
+    (void)draw_vector_shape(CanvasTool::Rectangle, rect(1.12, 0.675, 0.26, 0.05), grille_fill, true,
+                            1.0, QColor(120, 110, 140), QStringLiteral("Speaker grille"), at(0.002));
+    w.current_vector_combine_index_ = 2;  // Subtract from the active shape layer.
+    for (int i = 0; i < 4; ++i) {
+      (void)draw_vector_shape(CanvasTool::Rectangle, rect(1.135 + i * 0.06, 0.683, 0.045, 0.008),
+                              grille_fill, true, 1.0, QColor(120, 110, 140), QString());
+      (void)draw_vector_shape(CanvasTool::Rectangle, rect(1.135 + i * 0.06, 0.698, 0.045, 0.008),
+                              grille_fill, true, 1.0, QColor(120, 110, 140), QString());
+    }
+    w.current_vector_combine_index_ = 0;
+  });
+
+  // 47: neon tube - a programmatic smooth open path, stroke-only appearance,
+  // plus an outer glow style (stroker + EDT glow over a curved band).
+  step("47_neon_pen_glow", "Neon sign path + outer glow", "vector", [&] {
+    set_vector_appearance(no_vector_fill(), true, std::max(2.0, static_cast<double>(at(0.005))),
+                          QColor(96, 232, 220));
+    PathSubpath tube;
+    tube.closed = false;
+    constexpr double kLeft = 1.09;
+    constexpr double kRight = 1.41;
+    constexpr int kAnchors = 7;
+    for (int i = 0; i < kAnchors; ++i) {
+      const double t = static_cast<double>(i) / (kAnchors - 1);
+      PathAnchor anchor;
+      anchor.anchor_x = at(kLeft + (kRight - kLeft) * t);
+      anchor.anchor_y = at(0.115 + ((i % 2) == 0 ? -0.018 : 0.018));
+      const double handle = at((kRight - kLeft) / (kAnchors * 2.5));
+      anchor.in_x = anchor.anchor_x - handle;
+      anchor.in_y = anchor.anchor_y;
+      anchor.out_x = anchor.anchor_x + handle;
+      anchor.out_y = anchor.anchor_y;
+      anchor.smooth = true;
+      tube.anchors.push_back(anchor);
+    }
+    w.create_or_extend_shape_layer({tube}, std::nullopt, QStringLiteral("Neon %1"));
+    rename_active_layer_to(QStringLiteral("Neon sign"));
+    const auto neon_id = doc().active_layer_id().value_or(LayerId{});
+    LayerStyle style;
+    LayerOuterGlow glow;
+    glow.enabled = true;
+    glow.color = RgbColor{80, 220, 210};
+    glow.opacity = 0.85F;
+    glow.size = static_cast<float>(std::max(3, at(0.008)));
+    style.outer_glows.push_back(glow);
+    if (neon_id != LayerId{}) {
+      set_layer_style_direct(neon_id, style, QStringLiteral("Neon glow"));
+    }
+  });
+
+  // 48: a star polygon, library custom-shape stamps, and an arrowed line -
+  // all plain-path shape layers through the real tool drags.
+  step("48_custom_shapes", "Custom shape stamps + star + arrow", "vector", [&] {
+    // Appearance mirrors always AFTER activate_tool (the tool switch syncs
+    // them from the active shape layer).
+    w.activate_tool(CanvasTool::Polygon);
+    set_vector_appearance(solid_vector_fill(QColor(238, 216, 130)), true, 1.0, QColor(90, 70, 30));
+    canvas()->set_polygon_sides(5);
+    canvas()->set_polygon_star_inset(55);
+    // Center-out drag: the first vertex tracks the cursor.
+    drag(pt(1.045, 0.155), pt(1.045, 0.155) + QPoint(at(0.022), -at(0.022)), 4);
+    rename_active_layer_to(QStringLiteral("Star"));
+
+    const auto& entries = w.custom_shape_library().entries();
+    if (entries.empty()) {
+      report_.warnings.append(QStringLiteral("Custom shape library is empty"));
+    } else {
+      const auto* pick = &entries.front();
+      for (const auto& entry : entries) {
+        if (entry.name.contains(QStringLiteral("arrow"), Qt::CaseInsensitive)) {
+          pick = &entry;
+          break;
+        }
+      }
+      w.activate_tool(CanvasTool::CustomShape);
+      set_vector_appearance(solid_vector_fill(QColor(226, 130, 60)));
+      canvas()->set_custom_shape_path(std::make_shared<VectorPath>(pick->path));
+      const auto stamp_a = rect(1.30, 0.13, 0.05, 0.05);
+      drag(stamp_a.topLeft(), stamp_a.bottomRight(), 4);
+      set_vector_appearance(solid_vector_fill(QColor(120, 200, 120)));
+      canvas()->set_custom_shape_path(std::make_shared<VectorPath>(entries.front().path));
+      const auto stamp_b = rect(1.36, 0.13, 0.05, 0.05);
+      drag(stamp_b.topLeft(), stamp_b.bottomRight(), 4);
+    }
+
+    w.activate_tool(CanvasTool::Line);
+    canvas()->set_vector_tool_mode(VectorToolMode::Shape);
+    set_vector_appearance(solid_vector_fill(QColor(226, 208, 130)));
+    w.current_vector_line_weight_ = std::max(2, at(0.003));
+    w.current_line_arrow_end_ = true;
+    drag(pt(1.035, 0.205), pt(1.10, 0.26), 4);
+    w.current_line_arrow_end_ = false;
+    rename_active_layer_to(QStringLiteral("Arrow"));
+  });
+
+  // 49: live appearance edit on the cabinet - the options-bar apply path
+  // (model swap + full re-bake of the styled body).
+  step("49_shape_restyle", "Cabinet appearance edit (re-bake)", "vector", [&] {
+    if (cabinet_id_ == LayerId{}) {
+      return;
+    }
+    w.activate_tool(CanvasTool::Rectangle);
+    canvas()->set_vector_tool_mode(VectorToolMode::Shape);
+    doc().set_active_layer(cabinet_id_);
+    w.refresh_layer_list();
+    w.refresh_layer_controls();
+    pump();
+    // Set the mirrors AFTER the refresh: activating the shape layer syncs
+    // them from its current appearance.
+    set_vector_appearance(gradient_vector_fill(QColor(64, 96, 168), QColor(28, 34, 76), 90.0F), true,
+                          std::max(2.0, static_cast<double>(at(0.004))), QColor(16, 20, 40));
+    if (!w.apply_options_bar_appearance_to_active_shape()) {
+      report_.warnings.append(QStringLiteral("Shape appearance edit did not apply"));
+    }
+  });
+
+  // 50: selection -> work path (trace + curve fit) -> selection again (path
+  // coverage rasterize). Mirrors the two Paths-panel footer commands' commit
+  // tails without their parameter dialogs.
+  step("50_paths_roundtrip", "Selection to work path and back", "vector", [&] {
+    w.activate_tool(CanvasTool::EllipticalMarquee);
+    drag(arcade_screen_rect_.topLeft(), arcade_screen_rect_.bottomRight(), motion_steps(8));
+    if (!canvas()->has_selection()) {
+      report_.warnings.append(QStringLiteral("Paths step: selection did not commit"));
+      return;
+    }
+    const auto loops = trace_selection_outlines(canvas()->selected_document_region());
+    VectorPath fitted;
+    for (const auto& loop : loops) {
+      std::vector<FitPoint> points;
+      points.reserve(static_cast<std::size_t>(loop.points.size()));
+      for (const auto& point : loop.points) {
+        points.push_back(FitPoint{point.x(), point.y()});
+      }
+      auto subpath = fit_closed_loop(points, 2.0);
+      if (subpath.anchors.size() < 2) {
+        continue;
+      }
+      subpath.op = loop_signed_area(points) >= 0.0 ? PathCombineOp::Add : PathCombineOp::Subtract;
+      subpath.shape_group = static_cast<std::int32_t>(fitted.subpaths.size());
+      fitted.subpaths.push_back(std::move(subpath));
+    }
+    if (fitted.subpaths.empty()) {
+      report_.warnings.append(QStringLiteral("Paths step: selection trace produced no subpaths"));
+      return;
+    }
+    w.push_undo_snapshot(QStringLiteral("Make work path"));
+    auto& document_ref = doc();
+    DocumentPathId work_id = 0;
+    if (auto* work = document_ref.work_path(); work != nullptr) {
+      work->set_path(std::move(fitted));
+      work_id = work->id();
+      canvas()->clear_path_edit_selection();
+    } else {
+      DocumentPath created(document_ref.allocate_path_id(), QStringLiteral("Work Path").toStdString(),
+                           DocumentPathKind::Work, std::move(fitted));
+      created.mark_dirty();
+      work_id = document_ref.add_path(std::move(created)).id();
+    }
+    w.target_document_path_row(work_id);
+    w.load_path_as_selection(static_cast<int>(PathsPanel::RowKind::WorkPath), work_id);
+    pump();
+    canvas()->clear_selection();
+  });
+
+  end_vector_shape_phase();
+}
+
+void StressTestRunner::phase_arcade_filters() {
+  // 51: the patent design-around implementations with distinct perf profiles:
+  // surface blur (no value histogram) and median (single-pixel histogram
+  // updates), selection-restricted to a raster glass pane over the screen.
+  step("51_new_blurs", "Surface blur + median (arcade glass)", "filters", [&] {
+    activate_top_layer();
+    const auto glass_id = add_named_layer(QStringLiteral("Arcade glass"));
+    use_solid_fill_settings();
+    const auto pane = arcade_screen_rect_.adjusted(at(0.004), at(0.004), -at(0.004), -at(0.004));
+    draw_shape(CanvasTool::Rectangle, pane, QColor(120, 132, 150));
+    w.activate_tool(CanvasTool::Marquee);
+    drag(pane.topLeft(), pane.bottomRight(), 4);
+    apply_filter_direct(QStringLiteral("patchy.filters.clouds"),
+                        {{"scale", std::int64_t{std::clamp(size_ / 64, 8, 128)}},
+                         {"detail", std::int64_t{4}},
+                         {"contrast", std::int64_t{60}},
+                         {"seed", std::int64_t{51}}},
+                        QStringLiteral("Glass texture"));
+    apply_filter_direct(QStringLiteral("patchy.filters.surface_blur"),
+                        {{"radius", static_cast<double>(std::clamp(size_ / 512, 2, 12))},
+                         {"threshold", std::int64_t{24}}},
+                        QStringLiteral("Surface blur"));
+    apply_filter_direct(QStringLiteral("patchy.filters.median"),
+                        {{"radius", static_cast<double>(std::clamp(size_ / 1024, 1, 6))}},
+                        QStringLiteral("Median"));
+    canvas()->clear_selection();
+    set_layer_blend_mode(BlendMode::Screen);
+    set_layer_opacity_percent(26);
+    tighten_layer_to_opaque(glass_id);
+  }, canvas_megapixels() * 0.05);
+
+  // 52: unsharp mask over the arcade wall + motion-blurred speed lines.
+  step("52_sharpen_motion", "Unsharp mask + motion-blur speed lines", "filters", [&] {
+    if (arcade_wall_id_ != LayerId{}) {
+      doc().set_active_layer(arcade_wall_id_);
+    }
+    w.activate_tool(CanvasTool::Marquee);
+    drag(pt(1.0, 0.0), pt(1.5, 0.7), motion_steps(6));
+    apply_filter_direct(QStringLiteral("patchy.filters.unsharp_mask"),
+                        {{"amount", std::int64_t{120}},
+                         {"radius", static_cast<double>(std::clamp(size_ / 1024, 1, 8))},
+                         {"threshold", std::int64_t{4}}},
+                        QStringLiteral("Unsharp mask"));
+    canvas()->clear_selection();
+    activate_top_layer();
+    const auto lines_id = add_named_layer(QStringLiteral("Speed lines"));
+    std::vector<std::pair<QRect, QColor>> cells;
+    for (int i = 0; i < 6; ++i) {
+      cells.emplace_back(rect(1.02 + (i % 3) * 0.01, 0.77 + i * 0.025, 0.10 + (i % 2) * 0.05, 0.004),
+                         QColor(240, 236, 220));
+    }
+    paint_cells_direct(lines_id, cells, QStringLiteral("Speed lines"));
+    // Tighten BEFORE the blur so the filter runs over the lines' hull, not
+    // the full-canvas layer buffer.
+    tighten_layer_to_opaque(lines_id);
+    apply_filter_direct(QStringLiteral("patchy.filters.motion_blur"),
+                        {{"angle", std::int64_t{0}},
+                         {"distance", std::int64_t{std::clamp(size_ / 128, 6, 64)}}},
+                        QStringLiteral("Motion blur"));
+    set_layer_opacity_percent(60);
+  }, canvas_megapixels() * 0.35);
+
+  // 53: plastic wrap (the fixed local height-field relief) over a foil prop.
+  step("53_plastic_wrap", "Plastic wrap foil poster", "filters", [&] {
+    activate_top_layer();
+    const auto foil_id = add_named_layer(QStringLiteral("Foil poster"));
+    draw_shape(CanvasTool::Rectangle, rect(1.02, 0.30, 0.10, 0.16), QColor(96, 60, 130), at(0.003));
+    std::vector<std::pair<QRect, QColor>> blobs;
+    for (int i = 0; i < 12; ++i) {
+      blobs.emplace_back(rect(1.028 + (i % 3) * 0.026, 0.315 + (i / 3) * 0.035, 0.018, 0.02),
+                         (i % 2) == 0 ? QColor(150, 96, 190) : QColor(60, 36, 90));
+    }
+    paint_cells_direct(foil_id, blobs, QStringLiteral("Foil blobs"));
+    tighten_layer_to_opaque(foil_id);
+    apply_filter_direct(QStringLiteral("patchy.filters.plastic_wrap"),
+                        {{"highlight_strength", std::int64_t{12}},
+                         {"detail", std::int64_t{9}},
+                         {"smoothness", std::int64_t{5}}},
+                        QStringLiteral("Plastic wrap"));
+  }, canvas_megapixels() * 0.016);
+}
+
+void StressTestRunner::phase_smart_and_warp() {
+  // 54: smart object end to end - convert the floppy stack, apply a Gaussian
+  // smart-filter stack (SoLd descriptor regeneration + filtered rebake), then
+  // rasterize so the later document-geometry steps stay legal (geometry ops
+  // refuse while a smart object exists).
+  step("54_smart_object_filter", "Smart object + Gaussian smart filter", "smart", [&] {
+    if (floppy_id_ == LayerId{}) {
+      return;
+    }
+    select_move_targets({floppy_id_});
+    select_layer_rows({floppy_id_});
+    w.convert_to_smart_object();
+    pump();
+    const auto smart_id = doc().active_layer_id().value_or(LayerId{});
+    const auto* smart_layer = smart_id != LayerId{} ? std::as_const(doc()).find_layer(smart_id) : nullptr;
+    if (smart_layer == nullptr || !layer_is_smart_object(*smart_layer)) {
+      report_.warnings.append(QStringLiteral("Smart object conversion failed"));
+      return;
+    }
+    SmartFilterStack stack;
+    stack.support = SmartFilterStackSupport::Supported;
+    stack.mask.linked = false;
+    SmartFilterEntry entry;
+    entry.kind = SmartFilterKind::GaussianBlur;
+    entry.native_name = "Gaussian Blur...";
+    entry.native_class_id = "GsnB";
+    entry.native_filter_id = 0x47736e42U;
+    entry.parameters = GaussianBlurSmartFilter{static_cast<double>(std::clamp(size_ / 1024, 1, 6))};
+    stack.entries.push_back(std::move(entry));
+    if (!w.commit_smart_filter_stack_edit(smart_id, std::move(stack), {std::nullopt},
+                                          QStringLiteral("Smart filter"),
+                                          QStringLiteral("Applied Gaussian Blur smart filter"))) {
+      report_.warnings.append(QStringLiteral("Smart filter commit failed"));
+    }
+    settle();
+    w.rasterize_active_layers();
+  });
+
+  // 55: warp transform - flag-preset cage, one handle drag, bicubic bake -
+  // on a banner with its text baked in (warp refuses live text layers).
+  step("55_warp_banner", "Warp banner (flag preset + bake)", "interact", [&] {
+    activate_top_layer();
+    const auto banner_id = add_named_layer(QStringLiteral("Banner"));
+    draw_shape(CanvasTool::Rectangle, rect(1.115, 0.165, 0.27, 0.055), QColor(206, 74, 62), at(0.004));
+    const auto banner_text = add_text_layer(pt(1.13, 0.175), QStringLiteral("GRAND OPENING"),
+                                            at(0.016), QColor(244, 232, 200));
+    if (banner_id != LayerId{} && banner_text != LayerId{}) {
+      select_layer_rows({banner_id, banner_text});
+      w.merge_down();
+      if (w.layer_list_ != nullptr) {
+        w.layer_list_->clearSelection();
+      }
+    }
+    tighten_layer_to_opaque(banner_id);
+    select_move_targets({banner_id});
+    w.activate_tool(CanvasTool::Move);
+    if (!canvas()->begin_warp_transform()) {
+      report_.warnings.append(QStringLiteral("Warp transform did not start"));
+      return;
+    }
+    canvas()->apply_warp_style_preset(QStringLiteral("warpFlag"), 28.0);
+    pump();
+    if (canvas()->warp_handle_count() > 5) {
+      const auto handle = canvas()->warp_handle_document_position(5);
+      canvas()->set_warp_handle_document_position(5, handle + QPointF(0.0, -at(0.01)));
+      pump();
+    }
+    canvas()->finish_warp_transform();
+  });
+}
+
+void StressTestRunner::phase_vector_io() {
+  const auto psd_path = QDir(report_dir_).filePath(QStringLiteral("stress-scene.psd"));
+
+  // 56: the full two-scene document (shape layers, vstk/vogk, warp bakes)
+  // through the PSD writer and back in - and the disk artifact becomes the
+  // complete scene instead of step 39's scene-1-only capture.
+  step("56_psd_roundtrip_full", "Save + reload the full scene PSD", "io", [&] {
+    if (!w.save_document_to_path(psd_path)) {
+      report_.warnings.append(QStringLiteral("Full-scene PSD save failed: %1").arg(psd_path));
+      return;
+    }
+    w.open_document_path(psd_path);
+    pump();
+  }, current_document_megapixels());
+  if (w.document_tabs_ != nullptr && w.document_tabs_->count() > 1) {
+    w.set_session_saved(w.session());
+    (void)w.close_document_tab(w.document_tabs_->currentIndex());
+    pump();
+  }
+}
+
 void StressTestRunner::phase_composite() {
   // 42: flatten, checksum, and save the scene PNG next to the reports.
   step("42_final_composite", "Final flatten + checksum + scene PNG", "composite", [&] {
@@ -1979,12 +2593,16 @@ void StressTestRunner::phase_composite() {
     if (!scaled.save(QDir(report_dir_).filePath(QStringLiteral("stress-scene.png")))) {
       report_.warnings.append(QStringLiteral("Scene PNG save failed"));
     }
-  }, canvas_megapixels());
+  }, current_document_megapixels());
 
   // 43: vector shape layer - create a live rounded rect, run the document
   // geometry ops over it (rotate round trip + flip), then rasterize it away
-  // so the composite checksum stays comparable to earlier baselines.
+  // so the composite checksum stays comparable to earlier baselines. The
+  // appearance is pinned via the mirror save/restore so the step's cost never
+  // depends on the user's persisted fill/stroke settings.
+  begin_vector_shape_phase();
   step("43_vector_shapes", "Shape layer create + geometry ops + rasterize", "vector", [&] {
+    set_vector_appearance(solid_vector_fill(QColor(180, 100, 60)), true, 2.0, QColor(40, 30, 20));
     patchy::LiveShapeParams params;
     params.kind = patchy::LiveShapeKind::RoundedRectangle;
     params.left = size_ * 0.1;
@@ -2010,7 +2628,8 @@ void StressTestRunner::phase_composite() {
     w.undo();  // rasterize
     w.undo();  // shape layer
     settle();
-  }, canvas_megapixels());
+  }, current_document_megapixels());
+  end_vector_shape_phase();
 }
 
 StressReport StressTestRunner::run() {
@@ -2070,6 +2689,10 @@ StressReport StressTestRunner::run() {
   phase_interact();
   phase_history();
   phase_io();
+  phase_arcade_vector();
+  phase_arcade_filters();
+  phase_smart_and_warp();
+  phase_vector_io();
   phase_composite();
 
   progress_ = nullptr;
