@@ -11104,6 +11104,46 @@ To update, paste this into a terminal:
         <translation>キャンバスを反時計回りに回転しました</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_actions.cpp"/>
+        <source>Shift &amp;Seams to Center</source>
+        <translation>シームを中央へ移動(&amp;S)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_actions.cpp"/>
+        <source>Wrap the image by half its size so tiling seams land in the middle; press again to shift back</source>
+        <translation>画像を半分ずらしてタイルのシームを中央に移動します。もう一度実行すると元に戻ります</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_actions.cpp"/>
+        <source>Seamless Tiling in &amp;Window</source>
+        <translation>ウィンドウ内でシームレスタイリング(&amp;W)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_actions.cpp"/>
+        <source>Repeat the document around itself in the window so tile seams are visible while painting</source>
+        <translation>ウィンドウ内でドキュメントを周囲に繰り返し表示し、描画中にタイルのシームを確認できます</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_layer_ops.cpp"/>
+        <source>Shift seams</source>
+        <translation>シームの移動</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_layer_ops.cpp"/>
+        <source>Shifted seams to the center</source>
+        <translation>シームを中央へ移動しました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_layer_ops.cpp"/>
+        <source>Shifted seams back to the edges</source>
+        <translation>シームを端に戻しました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_layer_ops.cpp"/>
+        <source>Document too small to shift seams</source>
+        <translation>ドキュメントが小さすぎてシームを移動できません</translation>
+    </message>
+    <message>
         <location line="+209"/>
         <source>Blend mode</source>
         <translation>描画モード</translation>
@@ -13332,6 +13372,21 @@ Clipped to the layer below</source>
         <location line="-55"/>
         <source>Drag to pan. Mouse wheel zooms. Double-click to recenter.</source>
         <translation>ドラッグでパン、マウスホイールでズーム、ダブルクリックで中央に戻します。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/tile_preview_window.cpp"/>
+        <source>Shift Seams to Center</source>
+        <translation>シームを中央へ移動</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/tile_preview_window.cpp"/>
+        <source>Shift Seams Back</source>
+        <translation>シームを元に戻す</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/tile_preview_window.cpp"/>
+        <source>Wrap the image by half its size so the seams land in the middle for painting over. Press again to shift them back to the edges.</source>
+        <translation>画像を半分ずらして巻き込み、シームを中央に移動させて塗りつぶしやすくします。もう一度押すと端に戻ります。</translation>
     </message>
 </context>
 <context>

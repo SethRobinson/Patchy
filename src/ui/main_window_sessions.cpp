@@ -499,6 +499,10 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
     const QSignalBlocker blocker(quick_mask_action_);
     quick_mask_action_->setChecked(canvas_->quick_mask_active());
   }
+  if (tiling_mode_action_ != nullptr) {
+    // Per-canvas state; the handler is on triggered, so this sync cannot re-apply it.
+    tiling_mode_action_->setChecked(canvas_->tiling_preview_enabled());
+  }
   canvas_->refresh_info_display();
   update_undo_redo_actions();
   update_document_action_state();

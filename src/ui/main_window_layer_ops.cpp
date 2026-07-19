@@ -3026,4 +3026,54 @@ void MainWindow::rotate_canvas_counterclockwise() {
   statusBar()->showMessage(tr("Rotated canvas counterclockwise"));
 }
 
+void MainWindow::toggle_tile_seam_offset() {
+  if (!has_active_document()) {
+    show_status_error(tr("No document"));
+    return;
+  }
+  auto& doc = document();
+  if (document_contains_smart_objects(std::as_const(doc))) {
+    show_status_error(tr("Rasterize Smart Objects before changing document geometry"));
+    return;
+  }
+  // Parity lives in document metadata ("dx,dy" of the applied shift) so the second press
+  // applies the exact inverse even for odd dimensions, and undo/redo (which snapshot the
+  // whole Document, metadata included) can never desync the toggle state.
+  std::int32_t dx = doc.width() / 2;
+  std::int32_t dy = doc.height() / 2;
+  bool shifting_back = false;
+  auto& values = doc.metadata().values;
+  if (const auto stored = values.find(kTileSeamOffsetMetadataKey); stored != values.end()) {
+    const auto parts = QString::fromStdString(stored->second).split(QLatin1Char(','));
+    if (parts.size() == 2) {
+      dx = -parts[0].toInt();
+      dy = -parts[1].toInt();
+      shifting_back = true;
+    }
+  }
+  if (dx == 0 && dy == 0) {
+    show_status_error(tr("Document too small to shift seams"));
+    return;
+  }
+  push_undo_snapshot(tr("Shift seams"));
+  patchy::wrap_offset_document(doc, dx, dy);
+  if (shifting_back) {
+    values.erase(kTileSeamOffsetMetadataKey);
+  } else {
+    values[kTileSeamOffsetMetadataKey] = std::to_string(dx) + "," + std::to_string(dy);
+  }
+  canvas_->clear_selection();
+  const auto previous_channel_target = canvas_->layer_edit_target();
+  const auto previous_channel_id = canvas_->active_document_channel_id();
+  const auto previous_channel_display = canvas_->mask_display_mode();
+  canvas_->set_document(&doc);
+  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                              previous_channel_display);
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  statusBar()->showMessage(shifting_back ? tr("Shifted seams back to the edges")
+                                         : tr("Shifted seams to the center"));
+}
+
 }  // namespace patchy::ui

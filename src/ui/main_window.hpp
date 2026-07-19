@@ -713,6 +713,7 @@ private:
   void crop_to_selection();
   void rotate_canvas_clockwise();
   void rotate_canvas_counterclockwise();
+  void toggle_tile_seam_offset();
   [[nodiscard]] std::vector<LayerId> selected_layer_ids() const;
   [[nodiscard]] std::vector<LayerId> selected_or_active_layer_ids() const;
   void set_active_layer_from_selection();
@@ -1001,6 +1002,8 @@ private:
   QAction* selection_subtract_mode_action_{nullptr};
   QAction* selection_intersect_mode_action_{nullptr};
   QAction* quick_mask_action_{nullptr};
+  // View > Seamless Tiling in Window: per-canvas state, so the check syncs on tab switch.
+  QAction* tiling_mode_action_{nullptr};
   QPushButton* primary_color_button_{nullptr};
   QPushButton* secondary_color_button_{nullptr};
   QDialog* color_dialog_{nullptr};

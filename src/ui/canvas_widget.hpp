@@ -17,6 +17,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QImage>
+#include <QPixmap>
 #include <QPoint>
 #include <QPointF>
 #include <QPolygon>
@@ -325,6 +326,12 @@ public:
   // In/Out, Actual Pixels, the status-bar zoom box) must use this instead of
   // set_zoom, which preserves pan and can leave the canvas mostly off screen.
   void set_zoom_centered(double zoom);
+  // In-canvas seamless tiling mode (View > Seamless Tiling in Window): paints wrap
+  // copies of the committed composite around the document so tile seams are visible
+  // and update live while painting. Overlays/gizmos and session previews stay on the
+  // center tile by design. Per-canvas (per-document) state, default off.
+  void set_tiling_preview_enabled(bool enabled);
+  [[nodiscard]] bool tiling_preview_enabled() const noexcept;
   void zoom_at_widget_point(QPointF widget_position, double factor);
   void set_wheel_zooms(bool enabled) noexcept;
   [[nodiscard]] bool wheel_zooms() const noexcept;
@@ -894,6 +901,14 @@ private:
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
+  // Seamless tiling mode internals (canvas_widget_render.cpp). tiling_ghosts_visible is
+  // the cheap gate; tiling_direct_offsets returns the wrap offsets whose ghost tiles
+  // intersect widget_rect, or an EMPTY vector when there are more than the direct-draw
+  // limit (callers then use the textured-fill path / a full-widget update).
+  [[nodiscard]] bool tiling_ghosts_visible(QRect widget_rect) const;
+  [[nodiscard]] std::vector<QPoint> tiling_direct_offsets(QRect widget_rect) const;
+  void draw_tiling_preview(QPainter& painter, const QRectF& target_rect, bool pixel_aligned_view,
+                           QRect exposed_rect);
   [[nodiscard]] QPoint shape_constrained_current() const;
   void draw_shape_preview(QPainter& painter, QRect exposed_rect);
   // Shape-mode live preview with the actual fill/stroke appearance; returns
@@ -1301,6 +1316,11 @@ private:
   bool wheel_zooms_{true};
   QImage render_cache_{};
   bool render_cache_dirty_{true};
+  bool tiling_preview_enabled_{false};
+  // Cached scaled tile for the textured-fill ghost path; cleared alongside the display
+  // mips (invalidate_display_mip_cache), which run at every render_cache_ content change.
+  QPixmap tiling_tile_pixmap_{};
+  QSize tiling_tile_pixmap_size_{};
   RenderCacheDiagnostics render_cache_diagnostics_{};
   bool async_render_cache_in_flight_{false};
   bool async_render_cache_pending_{false};

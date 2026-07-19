@@ -257,6 +257,82 @@ void document_rotate_counterclockwise_changes_canvas_and_writes_artifact() {
   write_bmp_artifact("document_rotate_counterclockwise", document);
 }
 
+void document_wrap_offset_rolls_content_and_inverts_exactly() {
+  // Odd dimensions on purpose: the seam toggle applies the exact stored inverse, so
+  // (dx, dy) followed by (-dx, -dy) must restore byte-identical pixels even when
+  // width / 2 twice does not add up to width.
+  patchy::Document document(7, 5, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(7, 5, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 5; ++y) {
+    for (std::int32_t x = 0; x < 7; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(10 + x * 30);
+      px[1] = static_cast<std::uint8_t>(20 + y * 40);
+      px[2] = static_cast<std::uint8_t>(x * 5 + y);
+      px[3] = 255;
+    }
+  }
+  auto& layer = document.add_pixel_layer("Art", std::move(pixels));
+  const auto layer_id = layer.id();
+  // A positioned mask smaller than the canvas: the roll must expand it to the canvas
+  // plane (default color where it did not reach) and wrap it with the content.
+  patchy::LayerMask mask;
+  mask.bounds = patchy::Rect{1, 1, 3, 2};
+  mask.pixels = patchy::PixelBuffer(3, 2, patchy::PixelFormat::gray8());
+  mask.pixels.clear(40);
+  mask.default_color = 255;
+  layer.set_mask(mask);
+  patchy::DocumentChannel channel(1, "Extra", patchy::DocumentChannelKind::Alpha,
+                                  patchy::PixelBuffer(7, 5, patchy::PixelFormat::gray8()));
+  for (std::int32_t y = 0; y < 5; ++y) {
+    for (std::int32_t x = 0; x < 7; ++x) {
+      *channel.pixels().pixel(x, y) = static_cast<std::uint8_t>(x + y * 7);
+    }
+  }
+  document.add_channel(std::move(channel));
+
+  patchy::wrap_offset_document(document, 3, 2);
+  const auto* rolled = document.find_layer(layer_id);
+  CHECK(rolled != nullptr);
+  CHECK(rolled->bounds().x == 0 && rolled->bounds().y == 0);
+  CHECK(rolled->bounds().width == 7 && rolled->bounds().height == 5);
+  for (std::int32_t y = 0; y < 5; ++y) {
+    for (std::int32_t x = 0; x < 7; ++x) {
+      const auto* px = rolled->pixels().pixel((x + 3) % 7, (y + 2) % 5);
+      CHECK(px[0] == 10 + x * 30);
+      CHECK(px[1] == 20 + y * 40);
+      CHECK(px[2] == x * 5 + y);
+    }
+  }
+  CHECK(rolled->mask().has_value());
+  CHECK(rolled->mask()->bounds.width == 7 && rolled->mask()->bounds.height == 5);
+  // Mask value stored at (1,1)-(3,2) rolls to (+3,+2); everywhere else default 255.
+  CHECK(*rolled->mask()->pixels.pixel(4, 3) == 40);
+  CHECK(*rolled->mask()->pixels.pixel(6, 4) == 40);
+  CHECK(*rolled->mask()->pixels.pixel(0, 0) == 255);
+  CHECK(*rolled->mask()->pixels.pixel(1, 1) == 255);
+  CHECK(*document.channels().front().pixels().pixel(3, 2) == 0);
+  CHECK(*document.channels().front().pixels().pixel(2, 1) == 6 + 4 * 7);
+
+  patchy::wrap_offset_document(document, -3, -2);
+  const auto* restored = document.find_layer(layer_id);
+  for (std::int32_t y = 0; y < 5; ++y) {
+    for (std::int32_t x = 0; x < 7; ++x) {
+      const auto* px = restored->pixels().pixel(x, y);
+      CHECK(px[0] == 10 + x * 30);
+      CHECK(px[1] == 20 + y * 40);
+      CHECK(px[2] == x * 5 + y);
+      CHECK(px[3] == 255);
+    }
+  }
+  CHECK(*restored->mask()->pixels.pixel(1, 1) == 40);
+  CHECK(*restored->mask()->pixels.pixel(3, 2) == 40);
+  CHECK(*restored->mask()->pixels.pixel(0, 0) == 255);
+  CHECK(*restored->mask()->pixels.pixel(4, 1) == 255);
+  CHECK(*document.channels().front().pixels().pixel(0, 0) == 0);
+  CHECK(*document.channels().front().pixels().pixel(6, 4) == 6 + 4 * 7);
+}
+
 void tool_stroke_selection_draws_border_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -2214,6 +2290,8 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
        document_rotate_clockwise_changes_canvas_and_writes_artifact},
       {"document_rotate_counterclockwise_changes_canvas_and_writes_artifact",
        document_rotate_counterclockwise_changes_canvas_and_writes_artifact},
+      {"document_wrap_offset_rolls_content_and_inverts_exactly",
+       document_wrap_offset_rolls_content_and_inverts_exactly},
       {"tool_stroke_selection_draws_border_and_writes_artifact", tool_stroke_selection_draws_border_and_writes_artifact},
       {"layer_merge_visible_creates_flattened_artifact", layer_merge_visible_creates_flattened_artifact},
       {"filters_register_and_apply", filters_register_and_apply},

@@ -1533,7 +1533,8 @@ void MainWindow::set_tile_preview_visible(bool visible, QAction* toggle_action) 
   }
   if (tile_preview_window_ == nullptr) {
     auto* window = new TilePreviewWindow(
-        [this]() -> const Document* { return has_active_document() ? &document() : nullptr; }, this);
+        [this]() -> const Document* { return has_active_document() ? &document() : nullptr; },
+        [this] { toggle_tile_seam_offset(); }, this);
     window->setAttribute(Qt::WA_DeleteOnClose);
     connect(window, &TilePreviewWindow::preview_closed, this, [toggle_action] {
       if (toggle_action != nullptr) {

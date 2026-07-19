@@ -844,4 +844,125 @@ void rotate_document_counterclockwise(Document& document) {
                                  Rect::from_size(old_height, old_width));
 }
 
+namespace {
+
+// Wrap-rolls a buffer by (dx, dy) within its own dimensions: content pushed past one edge
+// re-enters at the opposite edge. dx/dy must already be normalized into [0, extent).
+[[nodiscard]] PixelBuffer wrap_rolled_pixels(const PixelBuffer& source, std::int32_t dx, std::int32_t dy) {
+  PixelBuffer rolled(source.width(), source.height(), source.format());
+  if (source.empty()) {
+    return rolled;
+  }
+  const auto pixel_bytes = bytes_per_pixel(source.format());
+  const auto prefix_bytes =
+      static_cast<std::ptrdiff_t>(static_cast<std::size_t>(source.width() - dx) * pixel_bytes);
+  const auto offset_bytes = static_cast<std::ptrdiff_t>(static_cast<std::size_t>(dx) * pixel_bytes);
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    const auto source_row = source.row(y);
+    auto destination_row = rolled.row((y + dy) % source.height());
+    std::copy(source_row.begin(), source_row.begin() + prefix_bytes, destination_row.begin() + offset_bytes);
+    std::copy(source_row.begin() + prefix_bytes, source_row.end(), destination_row.begin());
+  }
+  return rolled;
+}
+
+// Expands the layer mask to a canvas-sized plane (default_color everywhere the stored
+// rect does not cover), then wrap-rolls it with the content.
+void wrap_offset_layer_mask(Layer& layer, std::int32_t width, std::int32_t height, std::int32_t dx,
+                            std::int32_t dy) {
+  auto& mask = layer.mask();
+  if (!mask.has_value()) {
+    return;
+  }
+  PixelBuffer plane(width, height, PixelFormat::gray8());
+  plane.clear(mask->default_color);
+  if (!mask->pixels.empty()) {
+    const auto intersection = intersect_rect(mask->bounds, Rect{0, 0, width, height});
+    for (std::int32_t y = 0; y < intersection.height; ++y) {
+      const auto source_row =
+          mask->pixels.row(intersection.y - mask->bounds.y + y)
+              .subspan(static_cast<std::size_t>(intersection.x - mask->bounds.x),
+                       static_cast<std::size_t>(intersection.width));
+      auto destination_row = plane.row(intersection.y + y).subspan(static_cast<std::size_t>(intersection.x),
+                                                                   static_cast<std::size_t>(intersection.width));
+      std::copy(source_row.begin(), source_row.end(), destination_row.begin());
+    }
+  }
+  mask->pixels = wrap_rolled_pixels(plane, dx, dy);
+  mask->bounds = Rect{0, 0, width, height};
+}
+
+// Object-like layers (text, placed records, shape layers) cannot wrap across an edge
+// without rasterizing, so they translate whole; their masks travel with them unclipped
+// so the inverse offset restores them exactly.
+void translate_layer_and_mask(Layer& layer, std::int32_t dx, std::int32_t dy) {
+  if (auto& mask = layer.mask(); mask.has_value()) {
+    mask->bounds.x += dx;
+    mask->bounds.y += dy;
+  }
+  if (!layer.bounds().empty()) {
+    const auto bounds = layer.bounds();
+    layer.set_bounds(Rect{bounds.x + dx, bounds.y + dy, bounds.width, bounds.height});
+  }
+}
+
+// roll_dx/roll_dy are the wrap deltas normalized into [0, extent); raw_dx/raw_dy keep the
+// caller's sign so translated (non-wrappable) layers invert exactly under the opposite
+// offset instead of drifting by a full canvas span.
+void wrap_offset_layer(Layer& layer, std::int32_t width, std::int32_t height, std::int32_t roll_dx,
+                       std::int32_t roll_dy, std::int32_t raw_dx, std::int32_t raw_dy) {
+  if (layer.kind() == LayerKind::Group) {
+    for (auto& child : layer.children()) {
+      wrap_offset_layer(child, width, height, roll_dx, roll_dy, raw_dx, raw_dy);
+    }
+    wrap_offset_layer_mask(layer, width, height, roll_dx, roll_dy);
+    return;
+  }
+  if (layer.kind() == LayerKind::Adjustment) {
+    // The mask is what positions an adjustment's effect; its extent semantics stay as-is.
+    wrap_offset_layer_mask(layer, width, height, roll_dx, roll_dy);
+    return;
+  }
+  if (layer.kind() != LayerKind::Pixel || layer.vector_shape() != nullptr) {
+    // Shape layers keep their raster cache in sync via the vector pass in
+    // wrap_offset_document (the translated path re-rasters pixels and bounds).
+    translate_layer_and_mask(layer, raw_dx, raw_dy);
+    return;
+  }
+
+  wrap_offset_layer_mask(layer, width, height, roll_dx, roll_dy);
+  const auto old_bounds = layer.bounds();
+  const bool canvas_sized = old_bounds.x == 0 && old_bounds.y == 0 && old_bounds.width == width &&
+                            old_bounds.height == height && layer.pixels().width() == width &&
+                            layer.pixels().height() == height;
+  if (!canvas_sized) {
+    // Normalize to the canvas rect first (off-canvas content clips, like a crop; new area
+    // is transparent) so the roll is a pure permutation of canvas pixels.
+    resize_layer_to_canvas(layer, width, height, CanvasResizeOffset{0, 0}, EditColor{0, 0, 0, 0});
+  }
+  layer.set_pixels(wrap_rolled_pixels(layer.pixels(), roll_dx, roll_dy));
+  layer.set_bounds(Rect{0, 0, width, height});
+}
+
+}  // namespace
+
+void wrap_offset_document(Document& document, std::int32_t dx, std::int32_t dy) {
+  const auto width = document.width();
+  const auto height = document.height();
+  if (width <= 0 || height <= 0 || (dx == 0 && dy == 0)) {
+    return;
+  }
+  const auto roll_dx = ((dx % width) + width) % width;
+  const auto roll_dy = ((dy % height) + height) % height;
+  for (auto& layer : document.layers()) {
+    wrap_offset_layer(layer, width, height, roll_dx, roll_dy, dx, dy);
+  }
+  for (auto& channel : document.channels()) {
+    channel.set_pixels(wrap_rolled_pixels(std::as_const(channel).pixels(), roll_dx, roll_dy));
+  }
+  transform_document_vector_data(document,
+                                 {1.0, 0.0, 0.0, 1.0, static_cast<double>(dx), static_cast<double>(dy)},
+                                 Rect::from_size(width, height));
+}
+
 }  // namespace patchy

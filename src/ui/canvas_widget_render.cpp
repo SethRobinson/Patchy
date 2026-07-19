@@ -553,6 +553,22 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     for (const auto& rect : document_region) {
       widget_region += widget_rect_for_document_rect(rect);
     }
+    if (tiling_ghosts_visible(rect())) {
+      // Seamless tiling mode: the ghost copies of the dirty region must repaint too.
+      const auto offsets = tiling_direct_offsets(rect());
+      if (offsets.empty()) {
+        // Textured-fill territory (many small tiles): exact replicated rects would miss
+        // the rounded grid pitch, so repaint the whole widget.
+        update();
+        return;
+      }
+      for (const auto offset : offsets) {
+        const QPoint delta(offset.x() * document_->width(), offset.y() * document_->height());
+        for (const auto& rect : document_region) {
+          widget_region += widget_rect_for_document_rect(rect.translated(delta));
+        }
+      }
+    }
     update(widget_region);
   }
 }
@@ -596,6 +612,12 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     } else {
       ensure_render_cache();
     }
+  }
+
+  if (tiling_preview_enabled_) {
+    // Ghost tiles go under everything: the center tile draws over the 1 px overlap and
+    // every overlay stays center-only on top.
+    draw_tiling_preview(painter, target_rect, pixel_aligned_view, exposed_rect);
   }
 
   const bool deep_pixel_renderer = uses_deep_zoom_pixel_renderer(zoom_);
@@ -1077,6 +1099,10 @@ bool CanvasWidget::patch_render_cache_patches(const std::vector<RenderedDocument
 void CanvasWidget::invalidate_display_mip_cache() noexcept {
   display_mip_cache_.clear();
   display_mip_source_size_ = QSize();
+  // The tiling-preview tile pixmap derives from the same composite, and every
+  // render_cache_ content change funnels through this invalidation.
+  tiling_tile_pixmap_ = QPixmap();
+  tiling_tile_pixmap_size_ = QSize();
 }
 
 void CanvasWidget::refresh_curves_clipping_preview() {
@@ -1291,7 +1317,10 @@ void CanvasWidget::draw_checkerboard(QPainter& painter, const QRectF& rect, QRec
     return;
   }
   painter.save();
-  painter.setClipRect(QRectF(visible).intersected(rect));
+  // Intersect, never replace: the tiling-preview backdrop calls this under a clip that
+  // excludes the center tile (all pre-existing callers pass rects already inside any
+  // active clip, so intersecting changes nothing for them).
+  painter.setClipRect(QRectF(visible).intersected(rect), Qt::IntersectClip);
   const auto start_y = aligned.y() + ((visible.y() - aligned.y()) / square) * square;
   const auto start_x = aligned.x() + ((visible.x() - aligned.x()) / square) * square;
   for (int y = start_y; y < visible.y() + visible.height(); y += square) {
@@ -1300,6 +1329,127 @@ void CanvasWidget::draw_checkerboard(QPainter& painter, const QRectF& rect, QRec
       painter.fillRect(QRect(x, y, square, square), dark ? QColor(188, 188, 188) : QColor(236, 236, 236));
     }
   }
+  painter.restore();
+}
+
+// Above this many visible ghost tiles the paint switches from exact per-tile drawImage
+// calls to one textured fill from a cached tile pixmap (thousands of tiny blits would not
+// keep up with painting), and partial updates widen to the full widget (the textured grid
+// pitch is rounded, so exact replicated dirty rects would miss far tiles by a pixel).
+constexpr int kTilingDirectDrawLimit = 24;
+
+bool CanvasWidget::tiling_ghosts_visible(QRect widget_rect) const {
+  if (!tiling_preview_enabled_ || document_ == nullptr || document_->width() <= 0 ||
+      document_->height() <= 0 || widget_rect.isEmpty()) {
+    return false;
+  }
+  // Below ~4 widget px per tile the tiling is visual mush; the preview window's Fit view
+  // is the tool for that far out.
+  if (static_cast<double>(document_->width()) * zoom_ < 4.0 ||
+      static_cast<double>(document_->height()) * zoom_ < 4.0) {
+    return false;
+  }
+  const QRectF center(widget_position_f(QPointF(0.0, 0.0)),
+                      widget_position_f(QPointF(document_->width(), document_->height())));
+  return !center.contains(QRectF(widget_rect));
+}
+
+std::vector<QPoint> CanvasWidget::tiling_direct_offsets(QRect widget_rect) const {
+  std::vector<QPoint> offsets;
+  if (!tiling_ghosts_visible(widget_rect)) {
+    return offsets;
+  }
+  const double tile_w = static_cast<double>(document_->width()) * zoom_;
+  const double tile_h = static_cast<double>(document_->height()) * zoom_;
+  const auto min_i = static_cast<std::int64_t>(std::floor((widget_rect.left() - pan_.x()) / tile_w));
+  const auto max_i = static_cast<std::int64_t>(std::floor((widget_rect.right() - pan_.x()) / tile_w));
+  const auto min_j = static_cast<std::int64_t>(std::floor((widget_rect.top() - pan_.y()) / tile_h));
+  const auto max_j = static_cast<std::int64_t>(std::floor((widget_rect.bottom() - pan_.y()) / tile_h));
+  if ((max_i - min_i + 1) * (max_j - min_j + 1) > kTilingDirectDrawLimit + 1) {
+    return offsets;  // textured-fill territory; the +1 accounts for the center tile
+  }
+  for (auto j = min_j; j <= max_j; ++j) {
+    for (auto i = min_i; i <= max_i; ++i) {
+      if (i != 0 || j != 0) {
+        offsets.emplace_back(static_cast<int>(i), static_cast<int>(j));
+      }
+    }
+  }
+  return offsets;
+}
+
+// Ghost tiles for the in-canvas seamless tiling mode: wrap copies of the committed
+// composite (render_cache_, or its display mip when zoomed out) around the document.
+// Session previews (move patches, transform/warp/curves) deliberately stay on the center
+// tile — ghosts catch up on commit — and every overlay draws center-only on top of this.
+void CanvasWidget::draw_tiling_preview(QPainter& painter, const QRectF& target_rect,
+                                       bool pixel_aligned_view, QRect exposed_rect) {
+  if (!tiling_ghosts_visible(exposed_rect)) {
+    return;
+  }
+  const QImage& display_image = zoom_ < 1.0 ? display_image_for_zoom() : render_cache_;
+  if (display_image.isNull()) {
+    return;
+  }
+  const auto aligned_center = target_rect.toAlignedRect();
+  painter.save();
+  painter.setRenderHint(QPainter::SmoothPixmapTransform,
+                        uses_smooth_display_scaling(zoom_, uses_deep_zoom_pixel_renderer(zoom_)));
+  // Keep ghosts strictly outside the center tile (the document draw stays untouched), but
+  // let them overlap its outermost pixel: the center draws after us and covers it, and at
+  // fractional zooms that overlap fills what would otherwise be a background hairline
+  // between the aligned exclusion rect and the exact center edge.
+  QRegion ghost_clip(exposed_rect);
+  ghost_clip -= aligned_center.adjusted(1, 1, -1, -1);
+  painter.setClipRegion(ghost_clip);
+
+  const auto width = document_->width();
+  const auto height = document_->height();
+  const auto ghost_rect = [&](QPoint offset) -> QRectF {
+    // The same corner mapping the center tile uses, translated in document space, so
+    // pixel-aligned integer-zoom seams are exact.
+    if (pixel_aligned_view) {
+      const auto top_left = widget_position(QPoint(offset.x() * width, offset.y() * height));
+      const auto bottom_right =
+          widget_position(QPoint((offset.x() + 1) * width, (offset.y() + 1) * height));
+      return QRectF(QRect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y())));
+    }
+    return QRectF(widget_position_f(QPointF(offset.x() * width, offset.y() * height)),
+                  widget_position_f(QPointF((offset.x() + 1) * width, (offset.y() + 1) * height)));
+  };
+
+  if (const auto offsets = tiling_direct_offsets(exposed_rect); !offsets.empty()) {
+    for (const auto offset : offsets) {
+      const auto rect = ghost_rect(offset);
+      draw_checkerboard(painter, rect, exposed_rect);
+      painter.drawImage(rect, display_image, QRectF(display_image.rect()));
+    }
+    painter.restore();
+    return;
+  }
+
+  // Textured-fill path for grids of small tiles: one cached tile pixmap, one fillRect.
+  const QSize tile_size(std::max(1, aligned_center.width()), std::max(1, aligned_center.height()));
+  if (tiling_tile_pixmap_.isNull() || tiling_tile_pixmap_size_ != tile_size) {
+    tiling_tile_pixmap_ = QPixmap::fromImage(display_image.scaled(
+        tile_size, Qt::IgnoreAspectRatio, zoom_ < 1.0 ? Qt::SmoothTransformation : Qt::FastTransformation));
+    tiling_tile_pixmap_size_ = tile_size;
+  }
+  // Checkerboard backdrop phase-locked to the center tile's grid (period = 2 squares).
+  constexpr int kCheckerPeriod = 24;
+  const auto floor_to = [](int value, int step) {
+    return value >= 0 ? (value / step) * step : -(((-value) + step - 1) / step) * step;
+  };
+  const int backdrop_left =
+      aligned_center.left() + floor_to(exposed_rect.left() - aligned_center.left(), kCheckerPeriod);
+  const int backdrop_top =
+      aligned_center.top() + floor_to(exposed_rect.top() - aligned_center.top(), kCheckerPeriod);
+  draw_checkerboard(painter,
+                    QRectF(backdrop_left, backdrop_top, exposed_rect.right() - backdrop_left + 1,
+                           exposed_rect.bottom() - backdrop_top + 1),
+                    exposed_rect);
+  painter.setBrushOrigin(aligned_center.topLeft());
+  painter.fillRect(exposed_rect, QBrush(tiling_tile_pixmap_));
   painter.restore();
 }
 

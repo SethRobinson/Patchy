@@ -191,6 +191,11 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
 [[nodiscard]] bool crop_document(Document& document, Rect crop);
 void rotate_document_clockwise(Document& document);
 void rotate_document_counterclockwise(Document& document);
+// Shifts the whole document by (dx, dy) with wraparound at the canvas edges (the seamless
+// tile "offset" operation). Raster layer content, layer masks, and document channels roll;
+// object-like layers (text, placed records, shape layers) translate whole without wrapping,
+// so applying (-dx, -dy) afterwards restores every layer exactly.
+void wrap_offset_document(Document& document, std::int32_t dx, std::int32_t dy);
 
 // Applies an affine (a, b, c, d, tx, ty like transform_vector_path) to a
 // layer's vector shape/mask (dropping live-shape annotations unless the

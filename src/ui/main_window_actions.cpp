@@ -1373,13 +1373,22 @@ void MainWindow::create_actions() {
   register_hotkey(crop_action, "image.crop_to_selection", QKeySequence(Qt::Key_C));
   register_hotkey(rotate_cw_action, "image.rotate_cw", QKeySequence(Qt::CTRL | Qt::Key_BracketRight));
   register_hotkey(rotate_ccw_action, "image.rotate_ccw", QKeySequence(Qt::CTRL | Qt::Key_BracketLeft));
+  auto* shift_seams_action = image_menu->addAction(tr("Shift &Seams to Center"));
+  shift_seams_action->setObjectName(QStringLiteral("imageShiftSeamsAction"));
+  shift_seams_action->setStatusTip(
+      tr("Wrap the image by half its size so tiling seams land in the middle; press again to shift back"));
+  bind_translated_status_tip(
+      shift_seams_action,
+      "Wrap the image by half its size so tiling seams land in the middle; press again to shift back");
+  register_hotkey(shift_seams_action, "image.shift_seams");
   connect(image_size_action, &QAction::triggered, this, [this] { resize_image_dialog(); });
   connect(canvas_size_action, &QAction::triggered, this, [this] { resize_canvas_dialog(); });
   connect(crop_action, &QAction::triggered, this, [this] { crop_to_selection(); });
   connect(rotate_cw_action, &QAction::triggered, this, [this] { rotate_canvas_clockwise(); });
   connect(rotate_ccw_action, &QAction::triggered, this, [this] { rotate_canvas_counterclockwise(); });
+  connect(shift_seams_action, &QAction::triggered, this, [this] { toggle_tile_seam_offset(); });
   for (auto* action : {adjustments_menu->menuAction(), image_size_action, canvas_size_action, crop_action,
-                       rotate_cw_action, rotate_ccw_action}) {
+                       rotate_cw_action, rotate_ccw_action, shift_seams_action}) {
     register_document_action(action);
   }
 
@@ -1577,6 +1586,23 @@ void MainWindow::create_actions() {
   register_hotkey(tile_preview_action, "view.tile_preview");
   connect(tile_preview_action, &QAction::toggled, this,
           [this, tile_preview_action](bool checked) { set_tile_preview_visible(checked, tile_preview_action); });
+  tiling_mode_action_ = view_menu->addAction(tr("Seamless Tiling in &Window"));
+  tiling_mode_action_->setObjectName(QStringLiteral("viewTilingModeAction"));
+  tiling_mode_action_->setCheckable(true);
+  tiling_mode_action_->setStatusTip(
+      tr("Repeat the document around itself in the window so tile seams are visible while painting"));
+  bind_translated_status_tip(
+      tiling_mode_action_,
+      "Repeat the document around itself in the window so tile seams are visible while painting");
+  register_hotkey(tiling_mode_action_, "view.show_tiling");
+  // triggered (not toggled): activate_document_tab syncs the check from each canvas's
+  // per-document state with setChecked, which must not re-apply to the canvas.
+  connect(tiling_mode_action_, &QAction::triggered, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_tiling_preview_enabled(checked);
+    }
+  });
+  register_document_action(tiling_mode_action_);
   zoom_in->setObjectName(QStringLiteral("viewZoomInAction"));
   zoom_out->setObjectName(QStringLiteral("viewZoomOutAction"));
   fit_on_screen->setObjectName(QStringLiteral("viewFitOnScreenAction"));
@@ -4017,6 +4043,7 @@ void MainWindow::create_actions() {
       {crop_action, "&Crop to Selection"},
       {rotate_cw_action, "Rotate 90 &Clockwise"},
       {rotate_ccw_action, "Rotate 90 Counterclockwise"},
+      {shift_seams_action, "Shift &Seams to Center"},
       {scan_legacy_plugins_action, "&Scan Legacy Photoshop Plug-ins..."},
       {legacy_plugins_menu_->menuAction(), "Legacy Photoshop Plug-ins"},
       {zoom_in, "Zoom &In"},
@@ -4025,6 +4052,8 @@ void MainWindow::create_actions() {
       {zoom_reset, "&Actual Pixels"},
       {selection_edges_action, "Show Selection &Edges"},
       {target_path_action, "Show Target &Path"},
+      {tile_preview_action, "Seamless &Tile Preview"},
+      {tiling_mode_action_, "Seamless Tiling in &Window"},
       {view_rulers_action_, "&Rulers"},
       {view_grid_action_, "&Grid"},
       {view_guides_action_, "&Guides"},

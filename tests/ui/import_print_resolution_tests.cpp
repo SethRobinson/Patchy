@@ -55,6 +55,7 @@
 #include "ui/selection_outline.hpp"
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
+#include "ui/tile_preview_window.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/update_checker.hpp"
@@ -1537,6 +1538,263 @@ void ui_qimage_layer_bounds_override_moves_linked_masks_only() {
   }
 }
 
+void ui_tile_preview_follows_document_switches_and_large_edits() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  auto& first_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto fill_active_layer = [](patchy::Document& document, int red, int green, int blue) {
+    auto& pixels = document.layers().front().pixels();
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(red);
+        px[1] = static_cast<std::uint8_t>(green);
+        px[2] = static_cast<std::uint8_t>(blue);
+        if (pixels.format().channels >= 4) {
+          px[3] = 255;
+        }
+      }
+    }
+  };
+  fill_active_layer(first_document, 40, 90, 200);
+
+  require_action(window, "viewTilePreviewAction")->setChecked(true);
+  QApplication::processEvents();
+  auto* preview = window.findChild<QDialog*>(QStringLiteral("tilePreviewWindow"));
+  CHECK(preview != nullptr);
+  CHECK(preview->isVisible());
+  auto* view = preview->findChild<QWidget*>(QStringLiteral("tilePreviewView"));
+  auto* status = preview->findChild<QLabel*>(QStringLiteral("tilePreviewStatusLabel"));
+  CHECK(view != nullptr);
+  CHECK(status != nullptr);
+  const auto center_color = [view] {
+    const auto grab = view->grab().toImage();
+    return grab.pixelColor(grab.width() / 2, grab.height() / 2);
+  };
+  CHECK(process_events_until([&] {
+    const auto color = center_color();
+    return color.blue() > 150 && color.red() < 150;
+  }));
+
+  // A second, larger document (1100x1100 = above the immediate cap): the tab switch alone
+  // must re-render the preview (this used to leave the old document's tiles on screen).
+  // The new document's fill depends on persisted New Document settings, so only assert
+  // that the first document's blue is gone and the status shows the new dimensions.
+  accept_new_document_dialog(1100, 1100);
+  require_action(window, "fileNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+  CHECK(process_events_until([&] {
+    const auto color = center_color();
+    return !(color.blue() > 150 && color.red() < 150);
+  }));
+  CHECK(process_events_until(
+      [&] { return status->text().contains(QStringLiteral("1100")); }));
+
+  // Content edits on the >1 Mpx document auto-refresh once the edit pauses for a tick.
+  auto& second_document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(&second_document != &first_document);
+  fill_active_layer(second_document, 210, 60, 30);
+  CHECK(process_events_until([&] {
+    const auto color = center_color();
+    return color.red() > 150 && color.green() < 150 && color.blue() < 150;
+  }));
+
+  // Switching back re-renders the first document's tiles.
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(process_events_until([&] {
+    const auto color = center_color();
+    return color.blue() > 150 && color.red() < 150;
+  }));
+
+  preview->close();
+  QApplication::processEvents();
+}
+
+void ui_shift_seams_action_wraps_document_and_toggles_back() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto width = document.width();
+  const auto height = document.height();
+  {
+    // Left half green, right half magenta: shifting moves the vertical seam to the middle.
+    auto& pixels = document.layers().front().pixels();
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(x < width / 2 ? 0 : 200);
+        px[1] = static_cast<std::uint8_t>(x < width / 2 ? 200 : 0);
+        px[2] = static_cast<std::uint8_t>(x < width / 2 ? 80 : 160);
+        if (pixels.format().channels >= 4) {
+          px[3] = 255;
+        }
+      }
+    }
+  }
+
+  require_action(window, "viewTilePreviewAction")->setChecked(true);
+  QApplication::processEvents();
+  auto* preview = window.findChild<QDialog*>(QStringLiteral("tilePreviewWindow"));
+  CHECK(preview != nullptr);
+  auto* seam_button = preview->findChild<QPushButton*>(QStringLiteral("tilePreviewSeamButton"));
+  CHECK(seam_button != nullptr);
+  CHECK(seam_button->isEnabled());
+  CHECK(seam_button->text() == QStringLiteral("Shift Seams to Center"));
+
+  auto* action = require_action(window, "imageShiftSeamsAction");
+  action->trigger();
+  QApplication::processEvents();
+  {
+    const auto& shifted = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    CHECK(shifted.metadata().values.contains(patchy::ui::kTileSeamOffsetMetadataKey));
+    // Old (0,0) landed at (width/2, height/2); the old right-half start wrapped to (0,0).
+    const auto* at_center = shifted.layers().front().pixels().pixel(width / 2, height / 2);
+    CHECK(at_center[0] == 0 && at_center[1] == 200 && at_center[2] == 80);
+    const auto* at_origin = shifted.layers().front().pixels().pixel(0, 0);
+    CHECK(at_origin[0] == 200 && at_origin[1] == 0 && at_origin[2] == 160);
+  }
+  // The tile window's button label follows the document's parity on its poll tick.
+  CHECK(process_events_until(
+      [&] { return seam_button->text() == QStringLiteral("Shift Seams Back"); }));
+
+  // Second press: exact inverse, parity cleared.
+  action->trigger();
+  QApplication::processEvents();
+  {
+    const auto& restored = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    CHECK(!restored.metadata().values.contains(patchy::ui::kTileSeamOffsetMetadataKey));
+    const auto* at_origin = restored.layers().front().pixels().pixel(0, 0);
+    CHECK(at_origin[0] == 0 && at_origin[1] == 200 && at_origin[2] == 80);
+    const auto* past_seam = restored.layers().front().pixels().pixel(width / 2, 0);
+    CHECK(past_seam[0] == 200 && past_seam[1] == 0 && past_seam[2] == 160);
+  }
+  CHECK(process_events_until(
+      [&] { return seam_button->text() == QStringLiteral("Shift Seams to Center"); }));
+
+  // Undo restores both the pixels and the parity metadata.
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(patchy::ui::MainWindowTestAccess::document(window))
+            .metadata()
+            .values.contains(patchy::ui::kTileSeamOffsetMetadataKey));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  {
+    const auto& undone = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    CHECK(!undone.metadata().values.contains(patchy::ui::kTileSeamOffsetMetadataKey));
+    const auto* at_origin = undone.layers().front().pixels().pixel(0, 0);
+    CHECK(at_origin[0] == 0 && at_origin[1] == 200 && at_origin[2] == 80);
+  }
+  preview->close();
+  QApplication::processEvents();
+}
+
+void ui_canvas_tiling_mode_paints_ghost_tiles_live() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto width = document.width();
+  const auto height = document.height();
+
+  // Solid orange through the real edit path so the canvas render cache updates.
+  canvas->set_primary_color(QColor(235, 140, 30));
+  require_action_by_text(window, QStringLiteral("Fill Layer / Selection"))->trigger();
+  QApplication::processEvents();
+
+  canvas->set_zoom(0.15);
+  canvas->center_document_in_view();
+  QApplication::processEvents();
+
+  auto* action = require_action(window, "viewTilingModeAction");
+  CHECK(action->isCheckable());
+  CHECK(!action->isChecked());
+  CHECK(!canvas->tiling_preview_enabled());
+  // Sample the center of the left neighbor tile.
+  const auto ghost_point = canvas->widget_position_for_document_point(QPoint(-width / 2, height / 2));
+  CHECK(canvas->rect().contains(ghost_point));
+  {
+    const auto before = render_widget_image(*canvas);
+    CHECK(color_close(before.pixelColor(ghost_point), QColor(36, 38, 41), 10));
+  }
+
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(action->isChecked());
+  CHECK(canvas->tiling_preview_enabled());
+  {
+    const auto tiled = render_widget_image(*canvas);
+    CHECK(color_close(tiled.pixelColor(ghost_point), QColor(235, 140, 30), 24));
+    // The document's own pixels are untouched by the mode.
+    CHECK(color_close(canvas_pixel(*canvas, QPoint(4, 4)), QColor(235, 140, 30), 24));
+  }
+
+  // A full-layer edit repaints the ghosts in the same pass.
+  canvas->set_primary_color(QColor(40, 90, 200));
+  require_action_by_text(window, QStringLiteral("Fill Layer / Selection"))->trigger();
+  QApplication::processEvents();
+  {
+    const auto repainted = render_widget_image(*canvas);
+    CHECK(color_close(repainted.pixelColor(ghost_point), QColor(40, 90, 200), 24));
+  }
+  save_widget_artifact("ui_canvas_tiling_mode", window);
+
+  // Per-document state: a new tab starts with tiling off and the menu check follows.
+  accept_new_document_dialog(360, 240);
+  require_action(window, "fileNewAction")->trigger();
+  QApplication::processEvents();
+  auto* second_canvas = require_canvas(window);
+  CHECK(second_canvas != canvas);
+  CHECK(!action->isChecked());
+  CHECK(!second_canvas->tiling_preview_enabled());
+
+  // Partial brush updates must repaint the ghost copies too (the dirty-rect replication
+  // path): record the real paint regions while stroking at 100% zoom.
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(second_canvas->tiling_preview_enabled());
+  second_canvas->set_zoom(1.0);
+  second_canvas->center_document_in_view();
+  second_canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  second_canvas->set_brush_size(8);
+  second_canvas->set_primary_color(QColor(20, 220, 120));
+  QApplication::processEvents();
+  PaintRegionRecorder recorder;
+  second_canvas->installEventFilter(&recorder);
+  recorder.reset();
+  const auto stroke_center = second_canvas->widget_position_for_document_point(QPoint(180, 120));
+  drag(*second_canvas, stroke_center, stroke_center + QPoint(6, 0));
+  QApplication::processEvents();
+  const auto ghost_stroke_point =
+      second_canvas->widget_position_for_document_point(QPoint(180 + 360, 120));
+  CHECK(second_canvas->rect().contains(ghost_stroke_point));
+  CHECK(recorder.region().contains(ghost_stroke_point));
+  second_canvas->removeEventFilter(&recorder);
+  {
+    const auto stroked = render_widget_image(*second_canvas);
+    CHECK(color_close(stroked.pixelColor(ghost_stroke_point), QColor(20, 220, 120), 40));
+  }
+
+  // Back on the first tab the mode is still on; toggling off restores the backdrop.
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  tabs->setCurrentWidget(canvas);
+  QApplication::processEvents();
+  CHECK(action->isChecked());
+  CHECK(canvas->tiling_preview_enabled());
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->tiling_preview_enabled());
+  {
+    const auto cleared = render_widget_image(*canvas);
+    CHECK(color_close(cleared.pixelColor(ghost_point), QColor(36, 38, 41), 10));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> import_print_resolution_tests() {
@@ -1555,6 +1813,11 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
       {"ui_image_sequence_import_builds_layers", ui_image_sequence_import_builds_layers},
       {"ui_image_sequence_export_names_and_dialog", ui_image_sequence_export_names_and_dialog},
       {"ui_tile_preview_window_tracks_document_edits", ui_tile_preview_window_tracks_document_edits},
+      {"ui_tile_preview_follows_document_switches_and_large_edits",
+       ui_tile_preview_follows_document_switches_and_large_edits},
+      {"ui_shift_seams_action_wraps_document_and_toggles_back",
+       ui_shift_seams_action_wraps_document_and_toggles_back},
+      {"ui_canvas_tiling_mode_paints_ghost_tiles_live", ui_canvas_tiling_mode_paints_ghost_tiles_live},
       {"ui_qimage_multiply_uses_empty_backdrop_as_transparent",
        ui_qimage_multiply_uses_empty_backdrop_as_transparent},
       {"ui_print_layout_and_pdf_output_work", ui_print_layout_and_pdf_output_work},

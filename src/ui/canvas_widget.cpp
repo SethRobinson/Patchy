@@ -226,6 +226,20 @@ void CanvasWidget::set_document(Document* document) {
   set_document_internal(document, /*preserve_frame_for_same_size=*/false);
 }
 
+void CanvasWidget::set_tiling_preview_enabled(bool enabled) {
+  if (tiling_preview_enabled_ == enabled) {
+    return;
+  }
+  tiling_preview_enabled_ = enabled;
+  tiling_tile_pixmap_ = QPixmap();
+  tiling_tile_pixmap_size_ = QSize();
+  update();
+}
+
+bool CanvasWidget::tiling_preview_enabled() const noexcept {
+  return tiling_preview_enabled_;
+}
+
 void CanvasWidget::set_document_for_history_restore(Document* document, bool normal_composite_unchanged) {
   set_document_internal(document, /*preserve_frame_for_same_size=*/true, normal_composite_unchanged);
 }
