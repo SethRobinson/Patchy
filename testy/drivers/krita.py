@@ -32,9 +32,9 @@ def export(exe: Path, input_path: Path, output_path: Path) -> dict:
         exit_code, stderr = -1, f"timeout after {TIMEOUT_SECONDS}s"
     except OSError as error:
         exit_code, stderr = -1, str(error)
+    # No fabricated text here: the orchestrator interprets which PHASE failed
+    # (import vs export) and words the cell message accordingly.
     ok = exit_code == 0 and output_path.exists() and output_path.stat().st_size > 0
-    if not ok and not stderr:
-        stderr = f"export failed (exit {exit_code}, no output file)"
     return {
         "exitCode": exit_code,
         "stderr": stderr,

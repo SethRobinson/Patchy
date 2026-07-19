@@ -37,3 +37,18 @@ def export(exe: Path, input_path: Path, output_path: Path, append_text: str | No
     result = _run(exe, arguments)
     result["ok"] = result["exitCode"] == 0 and output_path.exists() and output_path.stat().st_size > 0
     return result
+
+
+def failure_text(result: dict) -> str:
+    """Human-accurate phase description from patchy.exe's documented exit codes
+    (2 = no document opened, 3 = save failed; see MainWindow::run_cli_export)."""
+    exit_code = result.get("exitCode")
+    stderr = (result.get("stderr") or "").strip()
+    suffix = f" ({stderr})" if stderr else ""
+    if exit_code == 2:
+        return f"failed to open the file (Patchy reported no document){suffix}"
+    if exit_code == 3:
+        return f"opened, but saving failed{suffix}"
+    if exit_code == -1:
+        return stderr or "timed out"
+    return f"failed (exit {exit_code}){suffix}"

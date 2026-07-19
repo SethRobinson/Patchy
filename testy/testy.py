@@ -588,28 +588,35 @@ class Runner:
         if editor_key == "patchy":
             exported = patchy_driver.export(info.exe, staged.original, render_png)
             if not exported["ok"]:
-                cell.update({"state": "failed", "opens": "fail", "error": exported["stderr"] or "export failed"})
+                cell.update({"state": "failed", "opens": "fail",
+                             "error": patchy_driver.failure_text(exported)})
                 return
             cell["opens"] = "ok"
             resaved = patchy_driver.export(info.exe, staged.original, resave_psd)
             if not resaved["ok"]:
-                cell["resaveError"] = resaved["stderr"] or "resave failed"
+                cell["resaveError"] = patchy_driver.failure_text(resaved)
             if staged.trap is not None:
                 patchy_driver.export(info.exe, staged.trap, trap_png)
             mutated = patchy_driver.export(info.exe, staged.original, mutated_png, append_text=self.suffix)
             if not mutated["ok"]:
-                cell["mutateError"] = mutated["stderr"] or "append-text export failed"
+                cell["mutateError"] = patchy_driver.failure_text(mutated)
             return
 
         if editor_key == "krita":
+            # The CLI fuses open+export, but a PNG export of an opened document does
+            # not fail in practice - so a failed render leg means the PSD IMPORT
+            # failed, and a failed resave after a good render means the PSD EXPORT did.
             exported = krita_driver.export(info.exe, staged.original, render_png)
             if not exported["ok"]:
-                cell.update({"state": "failed", "opens": "fail", "error": exported["stderr"] or "export failed"})
+                detail = exported["stderr"] or f"exit {exported['exitCode']}, no output"
+                cell.update({"state": "failed", "opens": "fail",
+                             "error": f"failed to open the PSD (Krita import error; {detail})"})
                 return
             cell["opens"] = "ok"
             resaved = krita_driver.export(info.exe, staged.original, resave_psd)
             if not resaved["ok"]:
-                cell["resaveError"] = resaved["stderr"] or "resave failed"
+                detail = resaved["stderr"] or f"exit {resaved['exitCode']}, no output"
+                cell["resaveError"] = f"opened, but Krita's PSD export failed ({detail})"
             if staged.trap is not None:
                 krita_driver.export(info.exe, staged.trap, trap_png)
             return

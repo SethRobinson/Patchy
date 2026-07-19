@@ -257,7 +257,8 @@ class AffinitySession:
                 self.log(f"re-forwarded {file_to_reforward.name}")
                 reforwarded = True
             time.sleep(2.0)
-        raise AffinityError(f"document tab '{tab_stem}' never appeared")
+        raise AffinityError(
+            f"Affinity never opened the document (no '{tab_stem}' tab within {DOCUMENT_TIMEOUT}s)")
 
     def select_document_tab(self, tab_stem: str) -> None:
         """Make the wanted document active (the quick export acts on the active tab)."""
