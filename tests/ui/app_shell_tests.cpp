@@ -1603,6 +1603,14 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(combined_text.contains(QStringLiteral("href=\"https://rtsoft.com\"")));
     CHECK(combined_text.contains(QStringLiteral(">rtsoft.com</a>")));
 
+    auto* contributors = dialog->findChild<QLabel*>(QStringLiteral("splashContributors"));
+    CHECK(contributors != nullptr);
+    CHECK(contributors->textFormat() == Qt::RichText);
+    CHECK(contributors->openExternalLinks());
+    CHECK(contributors->text().startsWith(QStringLiteral("Code contributions from ")));
+    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/mcapogna\"")));
+    CHECK(contributors->text().contains(QStringLiteral(">Michael Capogna</a>")));
+
     auto* settings_caption = dialog->findChild<QLabel*>(QStringLiteral("splashSettingsCaption"));
     CHECK(settings_caption != nullptr);
     CHECK(settings_caption->text() == QStringLiteral("Settings file:"));
@@ -1829,6 +1837,13 @@ void ui_start_panel_shows_about_info_and_update_status() {
   auto* credit = window.findChild<QLabel*>(QStringLiteral("startPanelCredit"));
   CHECK(credit != nullptr);
   CHECK(credit->text() == QStringLiteral("Created by Seth A. Robinson"));
+  auto* contributors = window.findChild<QLabel*>(QStringLiteral("startPanelContributors"));
+  CHECK(contributors != nullptr);
+  CHECK(contributors->textFormat() == Qt::RichText);
+  CHECK(contributors->openExternalLinks());
+  CHECK(contributors->text().startsWith(QStringLiteral("Code contributions from ")));
+  CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/mcapogna\"")));
+  CHECK(contributors->text().contains(QStringLiteral(">Michael Capogna</a>")));
 
   const auto link_labels = panel->findChildren<QLabel*>(QStringLiteral("startPanelHome"));
   CHECK(link_labels.size() == 2);

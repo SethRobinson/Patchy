@@ -1810,6 +1810,11 @@
         <translation>作成: Seth A. Robinson</translation>
     </message>
     <message>
+        <location line="+6"/>
+        <source>Code contributions from %1</source>
+        <translation>コード貢献者: %1</translation>
+    </message>
+    <message>
         <location line="+15"/>
         <source>GitHub: %1</source>
         <translation>GitHub: %1</translation>
@@ -13497,6 +13502,10 @@ Clipped to the layer below</source>
     <message>
         <source>Created by Seth A. Robinson</source>
         <translation>作成: Seth A. Robinson</translation>
+    </message>
+    <message>
+        <source>Code contributions from %1</source>
+        <translation>コード貢献者: %1</translation>
     </message>
     <message>
         <source>GitHub: %1</source>

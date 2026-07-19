@@ -1,5 +1,6 @@
 #include "ui/start_panel.hpp"
 
+#include "ui/app_credits.hpp"
 #include "ui/splash_artwork.hpp"
 
 #include <QDir>
@@ -189,6 +190,14 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   credit->setTextFormat(Qt::PlainText);
   add_footer_row({version, credit});
 
+  auto* contributors = new QLabel(
+      tr("Code contributions from %1").arg(code_contributors_link_html(QStringLiteral("#7fa8cf"))), this);
+  contributors->setObjectName(QStringLiteral("startPanelContributors"));
+  contributors->setTextFormat(Qt::RichText);
+  contributors->setTextInteractionFlags(Qt::TextBrowserInteraction);
+  contributors->setOpenExternalLinks(true);
+  add_footer_row({contributors});
+
   const auto make_home_label = [this](const QString& text) {
     auto* label = new QLabel(text, this);
     label->setObjectName(QStringLiteral("startPanelHome"));
@@ -238,7 +247,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       color: #9fb0c0;
       font-size: 12px;
     }
-    QLabel#startPanelVersion, QLabel#startPanelCredit, QLabel#startPanelHome {
+    QLabel#startPanelVersion, QLabel#startPanelCredit, QLabel#startPanelContributors, QLabel#startPanelHome {
       background: transparent;
       color: #8b8b8b;
       font-size: 11px;

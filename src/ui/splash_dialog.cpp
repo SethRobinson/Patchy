@@ -1,5 +1,6 @@
 #include "ui/splash_dialog.hpp"
 
+#include "ui/app_credits.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/splash_artwork.hpp"
 #include "ui/update_checker.hpp"
@@ -36,7 +37,7 @@ public:
     setObjectName(QStringLiteral("patchySplashScreen"));
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     setModal(true);
-    setFixedSize(650, 410);
+    setFixedSize(650, 435);
     setStyleSheet(QStringLiteral(R"(
       QDialog#patchySplashScreen {
         background: #171d26;
@@ -52,6 +53,10 @@ public:
         font-size: 15px;
       }
       QLabel#splashCredit {
+        color: #edf3f8;
+        font-size: 13px;
+      }
+      QLabel#splashContributors {
         color: #edf3f8;
         font-size: 13px;
       }
@@ -132,6 +137,15 @@ public:
     credit->setObjectName(QStringLiteral("splashCredit"));
     credit->setTextFormat(Qt::PlainText);
     copy->addWidget(credit);
+
+    auto* contributors = new QLabel(
+        QObject::tr("Code contributions from %1").arg(code_contributors_link_html(QStringLiteral("#9ed0ff"))),
+        this);
+    contributors->setObjectName(QStringLiteral("splashContributors"));
+    contributors->setTextFormat(Qt::RichText);
+    contributors->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    contributors->setOpenExternalLinks(true);
+    copy->addWidget(contributors);
 
     auto add_home_link = [this, copy](const QString& text) {
       auto* label = new QLabel(text, this);
