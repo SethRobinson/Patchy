@@ -71,6 +71,9 @@ _PAGE = r"""<!DOCTYPE html>
   #detail .close { position: absolute; top: 10px; right: 14px; cursor: pointer; color: var(--dim);
                    font-size: 20px; border: 0; background: none; }
   .ok-text { color: var(--good); } .bad-text { color: var(--bad); } .warn-text { color: var(--warn); }
+  .copyable { cursor: pointer; border-bottom: 1px dotted var(--dim); }
+  .copyable:hover { color: var(--accent); }
+  .copied-flash { color: var(--good); font-size: 11px; margin-left: 6px; }
   #history { margin-top: 28px; }
   #history h2 { font-size: 14px; }
   #history table { border-collapse: collapse; font-size: 12px; }
@@ -148,7 +151,8 @@ function render() {
     const gt = f.groundTruth || {};
     const gtNote = gt.state === "failed" ? '<div class="flag">ground truth failed</div>'
       : (gt.state === "running" ? '<div class="nums">ground truth: ' + esc(gt.stage || "...") + "</div>" : "");
-    return "<tr><td class='file'><b>" + esc(f.name) + "</b>" +
+    return "<tr><td class='file'><b class='copyable' title='" + esc(f.source) +
+      " (click to copy path)' onclick='copyPath(" + fi + ", this)'>" + esc(f.name) + "</b>" +
       '<div class="nums">' + (f.docSize ? f.docSize[0] + "x" + f.docSize[1] : "") +
       (f.layerCount ? " &middot; " + f.layerCount + " layers" : "") + "</div>" + gtNote + "</td>" +
       editors.map(k => "<td class='cell' onclick='openDetail(" + fi + ",\"" + k + "\")'>" +
@@ -202,7 +206,9 @@ function openDetail(fi, ek, keep) {
   selected = [fi, ek];
   const f = S.files[fi], cell = (f.cells || {})[ek] || {}, gt = f.groundTruth || {};
   const art = cell.artifacts || {}, gart = gt.artifacts || {};
-  let html = "<h2>" + esc(f.name) + " &middot; " + esc((S.editors[ek] || {}).displayName || ek) + "</h2>" +
+  let html = "<h2><span class='copyable' title='" + esc(f.source) +
+    " (click to copy path)' onclick='copyPath(" + fi + ", this)'>" + esc(f.name) + "</span>" +
+    " &middot; " + esc((S.editors[ek] || {}).displayName || ek) + "</h2>" +
     '<div class="sub">' + esc(cell.state) + (cell.stage ? " - " + esc(cell.stage) : "") +
     (cell.error ? ' - <span class="bad-text">' + esc(cell.error) + "</span>" : "") + "</div>";
   html += '<div class="imgs">' +
@@ -257,6 +263,36 @@ function openDetail(fi, ek, keep) {
   if (!keep) document.getElementById("detail").scrollTop = 0;
 }
 function closeDetail() { selected = null; document.getElementById("detail").classList.remove("open"); }
+
+function copyPath(fi, element) {
+  const path = S.files[fi].source;
+  const flash = () => {
+    const tag = document.createElement("span");
+    tag.className = "copied-flash";
+    tag.textContent = "copied";
+    element.after(tag);
+    setTimeout(() => tag.remove(), 1400);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(path).then(flash, () => fallbackCopy(path, flash));
+  } else {
+    fallbackCopy(path, flash);
+  }
+  if (window.event) window.event.stopPropagation();
+}
+
+function fallbackCopy(text, done) {
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { /* nothing more to try */ }
+  area.remove();
+  if (ok) done();
+}
 
 async function renderHistory() {
   try {

@@ -6,16 +6,27 @@ compatibility is improving and which PSDs are trouble.
 
 ## Running it
 
+Double-click `testy\start-testy.bat`: it kills any stale Testy processes, starts the
+dashboard server on port 8901, and opens the control panel in the browser. The panel's
+"New run" box is pre-filled with the default corpus (one absolute path per line) and
+takes any pasted .psd list instead; pick editors and options and hit Start - the run
+appears at the top of the runs table (clickable while live), and the Start button stays
+disabled until it finishes. Browser-started runs reuse the panel's server
+(`--server-url` under the hood), rebuild Patchy first unless unchecked, and log to
+`testy/runs/last-child-run.log`.
+
+The CLI remains for scripted use:
+
 ```powershell
 C:\Users\Seth\miniconda3\python.exe testy\testy.py
 ```
 
-That runs the curated corpus (`testy/corpus/default.txt`, ~14 real PSDs from
+That runs the curated corpus (`testy/corpus/default.txt`, real PSDs from
 `local-test-fixtures/psd/`) through Photoshop, Patchy, Krita, and Photopea, refreshes the
 Patchy release build first, serves a live dashboard (auto-opens the browser), and leaves
 the frozen report + `results.json` in `testy/runs/<timestamp>/`. The server root
-(`http://127.0.0.1:<port>/`) is a run index: newest first, live runs included, click
-through to any report.
+(`http://127.0.0.1:<port>/`) is the same control panel. In every report, clicking a
+file name (matrix or detail panel) copies its full path to the clipboard.
 
 Useful flags:
 

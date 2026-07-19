@@ -90,32 +90,47 @@ def refresh_patchy_build() -> bool:
     return built
 
 
-def resolve_corpus(args: argparse.Namespace) -> list[Path]:
+def read_corpus_file(corpus_path: Path) -> list[Path]:
     files: list[Path] = []
+    for line in corpus_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        path = Path(line)
+        if not path.is_absolute():
+            path = config.REPO_ROOT / path
+        files.append(path.resolve())
+    return files
+
+
+def resolve_corpus(args: argparse.Namespace) -> list[Path]:
     if args.files:
-        for entry in args.files:
-            files.append(Path(entry).resolve())
+        files = [Path(entry).resolve() for entry in args.files]
     else:
         corpus_path = Path(args.corpus)
         if not corpus_path.is_absolute():
             corpus_path = config.TESTY_ROOT / corpus_path
-        for line in corpus_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            path = Path(line)
-            if not path.is_absolute():
-                path = config.REPO_ROOT / path
-            files.append(path.resolve())
+        files = read_corpus_file(corpus_path)
     missing = [f for f in files if not f.exists()]
     for f in missing:
         log(f"WARNING: corpus file missing, skipped: {f}")
     return [f for f in files if f.exists()]
 
 
+# Browser-initiated runs: the serving process tracks at most one child run (spawned
+# via POST /testy-start-run) and refuses overlaps; a process that is itself running a
+# benchmark (testy.py CLI) refuses too via the in-process flag.
+_child_run: subprocess.Popen | None = None
+_in_process_run_active = False
+
+
+def _run_in_progress() -> bool:
+    return _in_process_run_active or (_child_run is not None and _child_run.poll() is None)
+
+
 class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
-    """Static serving of testy/ plus one upload endpoint the Photopea host page
-    POSTs export bytes to. Uploads are confined to the runs directory."""
+    """Static serving of testy/ plus the control-plane endpoints: the Photopea upload
+    sink (confined to runs/), corpus defaults, run state, and start-run."""
 
     def log_message(self, *args, **kwargs):  # noqa: N802 - stdlib signature
         pass
@@ -126,10 +141,40 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
 
+    def _send_json(self, payload: dict, status: int = 200) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):  # noqa: N802 - stdlib signature
+        from urllib.parse import urlparse
+
+        path = urlparse(self.path).path
+        if path == "/testy-defaults":
+            defaults = read_corpus_file(config.TESTY_ROOT / "corpus" / "default.txt")
+            self._send_json(
+                {
+                    "files": [str(f) for f in defaults if f.exists()],
+                    "editors": DEFAULT_EDITORS,
+                    "allEditors": [*DEFAULT_EDITORS, "affinity"],
+                }
+            )
+            return
+        if path == "/testy-run-state":
+            self._send_json({"running": _run_in_progress()})
+            return
+        super().do_GET()
+
     def do_POST(self):  # noqa: N802 - stdlib signature
         from urllib.parse import parse_qs, urlparse
 
         parsed = urlparse(self.path)
+        if parsed.path == "/testy-start-run":
+            self._start_run()
+            return
         if parsed.path != "/testy-upload":
             self.send_error(404)
             return
@@ -150,6 +195,66 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", "2")
         self.end_headers()
         self.wfile.write(b"ok")
+
+    def _start_run(self) -> None:
+        global _child_run
+        if _run_in_progress():
+            self._send_json({"errors": ["a run is already in progress"]}, status=409)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            request = json.loads(self.rfile.read(length)) if length else {}
+        except Exception:
+            self._send_json({"errors": ["request body is not valid JSON"]}, status=400)
+            return
+
+        raw_files = [str(f).strip().strip('"') for f in request.get("files", [])]
+        raw_files = [f for f in raw_files if f]
+        editors = [e for e in request.get("editors", DEFAULT_EDITORS) if e]
+        errors = []
+        if not raw_files:
+            errors.append("no PSD files given")
+        known_editors = {*DEFAULT_EDITORS, "affinity"}
+        for editor in editors:
+            if editor not in known_editors:
+                errors.append(f"unknown editor: {editor}")
+        if not editors:
+            errors.append("no editors selected")
+        files = []
+        for entry in raw_files:
+            path = Path(entry)
+            if path.suffix.lower() not in (".psd", ".psb"):
+                errors.append(f"not a .psd/.psb: {entry}")
+            elif not path.exists():
+                errors.append(f"file not found: {entry}")
+            else:
+                files.append(str(path.resolve()))
+        if errors:
+            self._send_json({"errors": errors}, status=400)
+            return
+
+        base_url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        command = [
+            sys.executable, str(config.TESTY_ROOT / "testy.py"),
+            "--files", *files,
+            "--editors", ",".join(editors),
+            "--no-browser", "--exit-when-done",
+            "--server-url", base_url,
+        ]
+        if request.get("skipBuild"):
+            command.append("--no-build")
+        if request.get("fresh"):
+            command.append("--fresh")
+        log_path = config.RUNS_DIR / "last-child-run.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_file = open(log_path, "w", encoding="utf-8")
+        _child_run = subprocess.Popen(
+            command,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        self._send_json({"started": True})
 
 
 class _ExclusiveHTTPServer(http.server.ThreadingHTTPServer):
@@ -200,6 +305,7 @@ class Runner:
         config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
         self.run_name = timestamp
         self.server_port: int | None = None
+        self.server_base: str | None = None  # where dashboards/uploads are served
         self.status: dict = {}
 
     # ---------- status plumbing ----------
@@ -482,12 +588,12 @@ class Runner:
         if editor_key == "photopea":
             from drivers import photopea as photopea_driver
 
-            if self.server_port is None:
+            if self.server_base is None:
                 cell.update({"state": "failed",
-                             "error": "Photopea needs the local server (drop --no-serve)"})
+                             "error": "Photopea needs a server (drop --no-serve, or pass --server-url)"})
                 return
             result = photopea_driver.export_all(
-                base_url=f"http://127.0.0.1:{self.server_port}",
+                base_url=self.server_base,
                 testy_root=config.TESTY_ROOT,
                 original=staged.original,
                 trap=staged.trap,
@@ -536,11 +642,17 @@ class Runner:
         self.init_status(corpus)
 
         server = None
-        if not self.args.no_serve:
+        if self.args.server_url:
+            # A controlling server (start-testy.bat's serve.py) already serves the testy
+            # root and the upload endpoint; reuse it instead of binding a second port.
+            self.server_base = self.args.server_url.rstrip("/")
+            log(f"dashboard: {self.server_base}/runs/{self.run_name}/report.html (parent server)")
+        elif not self.args.no_serve:
             server, port = start_server(self.args.port)
             self.server_port = port
-            url = f"http://127.0.0.1:{port}/runs/{self.run_name}/report.html"
-            log(f"dashboard: {url} (run index at http://127.0.0.1:{port}/)")
+            self.server_base = f"http://127.0.0.1:{port}"
+            url = f"{self.server_base}/runs/{self.run_name}/report.html"
+            log(f"dashboard: {url} (run index at {self.server_base}/)")
             if not self.args.no_browser:
                 webbrowser.open(url)
         report.append_run_index(config.TESTY_ROOT, self.run_name)
@@ -681,9 +793,16 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8765, help="dashboard port")
     parser.add_argument("--no-browser", action="store_true", help="do not auto-open the dashboard")
     parser.add_argument("--no-serve", action="store_true", help="write reports without the local server")
+    parser.add_argument("--server-url", default=None,
+                        help="reuse an already-running Testy server (browser-spawned runs)")
     parser.add_argument("--exit-when-done", action="store_true", help="do not wait for Enter at the end")
     args = parser.parse_args()
-    return Runner(args).run()
+    global _in_process_run_active
+    _in_process_run_active = True
+    try:
+        return Runner(args).run()
+    finally:
+        _in_process_run_active = False
 
 
 if __name__ == "__main__":

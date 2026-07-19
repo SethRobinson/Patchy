@@ -21,11 +21,38 @@
   .scores { color:var(--dim); font-size:12.5px; }
   .latest { background:var(--panel); }
   .hint { color:var(--dim); margin-top:14px; font-size:12.5px; }
+  #new-run { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+             padding:14px 18px; margin-bottom:22px; }
+  #new-run h2 { margin:0 0 8px; font-size:15px; }
+  #run-files { width:100%; min-height:180px; background:var(--bg); color:var(--text);
+               border:1px solid var(--line); border-radius:6px; padding:8px 10px;
+               font:12px Consolas, monospace; box-sizing:border-box; white-space:pre; }
+  #new-run .row { display:flex; gap:18px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  #new-run label { font-size:13px; display:flex; gap:5px; align-items:center; }
+  #start-run { background:var(--accent); border:0; color:#0d0e10; font-weight:600;
+               padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; }
+  #start-run:disabled { background:var(--line); color:var(--dim); cursor:default; }
+  #run-errors { color:#d95c4a; font-size:12.5px; margin-top:8px; white-space:pre-line; }
+  #run-note { color:var(--good); font-size:12.5px; margin-top:8px; }
 </style>
 </head>
 <body>
 <header><h1>Testy <span>PSD compatibility runs</span></h1></header>
 <main>
+  <section id="new-run">
+    <h2>New run</h2>
+    <textarea id="run-files" spellcheck="false"
+      placeholder="one absolute .psd path per line - paste your own list here"></textarea>
+    <div class="row">
+      <span id="editor-boxes"></span>
+      <label><input type="checkbox" id="opt-build" checked> rebuild Patchy first</label>
+      <label><input type="checkbox" id="opt-fresh"> ignore caches</label>
+      <button id="start-run" onclick="startRun()">Start run</button>
+      <span id="run-state-note" class="scores"></span>
+    </div>
+    <div id="run-errors"></div>
+    <div id="run-note"></div>
+  </section>
   <table><thead><tr><th>Run</th><th>Files</th><th>Patchy</th><th>Editors (render / native)</th></tr></thead>
   <tbody id="rows"><tr><td colspan="4">loading...</td></tr></tbody></table>
   <div class="hint">Newest first; the top row links to the latest run. A run without scores is
@@ -45,7 +72,64 @@ async function fetchLines(url) {
   } catch (e) { return []; }
 }
 
+async function loadDefaults() {
+  try {
+    const response = await fetch("/testy-defaults", { cache: "no-store" });
+    if (!response.ok) return;
+    const defaults = await response.json();
+    document.getElementById("run-files").value = defaults.files.join("\n");
+    document.getElementById("editor-boxes").innerHTML = defaults.allEditors.map(key =>
+      "<label><input type='checkbox' class='editor-box' value='" + esc(key) + "'" +
+      (defaults.editors.includes(key) ? " checked" : "") + "> " + esc(key) + "</label>"
+    ).join(" ");
+  } catch (e) { /* server-less viewing of a copied page */ }
+}
+
+async function refreshRunState() {
+  try {
+    const response = await fetch("/testy-run-state", { cache: "no-store" });
+    if (!response.ok) return;
+    const state = await response.json();
+    document.getElementById("start-run").disabled = state.running;
+    document.getElementById("run-state-note").textContent =
+      state.running ? "a run is in progress (watch it in the table below)" : "";
+    if (!state.running) {
+      const note = document.getElementById("run-note");
+      if (note.dataset.pending === "1") { note.textContent = ""; note.dataset.pending = ""; }
+    }
+  } catch (e) { /* no server */ }
+}
+
+function startRun() {
+  const files = document.getElementById("run-files").value
+    .split("\n").map(l => l.trim()).filter(Boolean);
+  const editors = [...document.querySelectorAll(".editor-box:checked")].map(b => b.value);
+  const errorsDiv = document.getElementById("run-errors");
+  const note = document.getElementById("run-note");
+  errorsDiv.textContent = "";
+  note.textContent = "";
+  fetch("/testy-start-run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      files, editors,
+      skipBuild: !document.getElementById("opt-build").checked,
+      fresh: document.getElementById("opt-fresh").checked,
+    }),
+  }).then(async response => {
+    const result = await response.json();
+    if (response.ok && result.started) {
+      note.textContent = "run started - it will appear at the top of the table in a few seconds";
+      note.dataset.pending = "1";
+      refreshRunState();
+    } else {
+      errorsDiv.textContent = (result.errors || ["start failed"]).join("\n");
+    }
+  }).catch(error => { errorsDiv.textContent = "start failed: " + error; });
+}
+
 async function refresh() {
+  refreshRunState();
   const started = await fetchLines("runs/index.jsonl");
   const finished = await fetchLines("runs/history.jsonl");
   const byName = new Map();
@@ -61,15 +145,19 @@ async function refresh() {
     const done = r.editors != null;
     const patchy = done && r.editors.patchy
       ? pct(r.editors.patchy.render) + " / " + pct(r.editors.patchy.native) : "";
+    // Only the newest history-less run can actually be live (runs never overlap);
+    // older ones were killed mid-flight.
     const others = done
       ? Object.keys(r.editors).filter(k => k !== "patchy").map(k =>
           esc(k) + " " + pct(r.editors[k].render) + "/" + pct(r.editors[k].native)).join(" &middot; ")
-      : '<span class="live">in progress...</span>';
+      : (index === 0 ? '<span class="live">in progress...</span>'
+                     : '<span class="scores">incomplete</span>');
     return "<tr" + (index === 0 ? " class='latest'" : "") + "><td><a href='runs/" + esc(r.run) +
       "/report.html'>" + esc(r.run) + "</a></td><td>" + (r.files ?? "") +
       "</td><td>" + patchy + "</td><td class='scores'>" + others + "</td></tr>";
   }).join("");
 }
+loadDefaults();
 refresh();
 setInterval(refresh, 5000);
 </script>
