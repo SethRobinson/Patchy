@@ -301,4 +301,6 @@ Also, note that certain features are crippled or not included due to Adobe paten
 
 Created by Seth A. Robinson - [Homepage](https://www.rtsoft.com/) | [Blog](https://www.codedojo.com/) | [Twitter](https://twitter.com/rtsoft) | [Bluesky](https://bsky.app/profile/rtsoft.com) | [Mastodon](https://mastodon.gamedev.place/@rtsoft)
 
+Code contributions from [Michael Capogna](https://github.com/mcapogna)
+
 Photo "akiko_cycling_okinawa" (seen in the screenshots) by Seth A. Robinson
