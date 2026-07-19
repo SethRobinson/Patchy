@@ -410,6 +410,9 @@ class Runner:
             self.push()
             return None
 
+        if self.status["editors"]["photoshop"].get("version") in (None, "", "unknown"):
+            self.status["editors"]["photoshop"]["version"] = self.ps.version()
+
         entry["docSize"] = [int(result["width"]), int(result["height"])]
         entry["layerCount"] = len(result["layers"])
         artifacts = {}

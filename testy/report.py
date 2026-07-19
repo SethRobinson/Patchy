@@ -65,7 +65,7 @@ _PAGE = r"""<!DOCTYPE html>
   #detail figure { margin: 0; }
   #detail figcaption { color: var(--dim); font-size: 11px; margin-top: 3px; }
   #detail img { max-width: 260px; border: 1px solid var(--line); border-radius: 4px;
-                background: #fff; image-rendering: auto; display: block; }
+                background: #fff; image-rendering: auto; display: block; cursor: zoom-in; }
   #detail table { border-collapse: collapse; margin: 6px 0 14px; width: 100%; font-size: 12px; }
   #detail th, #detail td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
   #detail th { background: var(--panel2); }
@@ -169,7 +169,7 @@ function render() {
     a.total++;
     if (c.state === "done" && c.opens !== "fail") a.opened++;
     if (c.renderMetrics) a.acc.push(c.renderMetrics.accuracy);
-    if (c.native) {
+    if (c.native && typeof c.native.nativeScore === "number") {
       a.native.push(c.native.nativeScore);
       const pc = c.native.perCategory || {};
       [["text","text"],["adjustment","adj"],["smartObject","smart"]].forEach(([src, dst]) => {
@@ -198,9 +198,12 @@ function render() {
   if (selected) openDetail(selected[0], selected[1], true);
 }
 
-function img(fig, cap) {
-  return fig ? "<figure><img src='" + fig + "?v=" + (S.run.updateCounter || 0) + "'>" +
-               "<figcaption>" + cap + "</figcaption></figure>" : "";
+function img(fig, cap, full) {
+  if (!fig) return "";
+  const target = (full || fig) + "?v=" + (S.run.updateCounter || 0);
+  return "<figure><a href='" + target + "' target='_blank' title='open full size'>" +
+         "<img src='" + fig + "?v=" + (S.run.updateCounter || 0) + "'></a>" +
+         "<figcaption>" + cap + "</figcaption></figure>";
 }
 
 function openDetail(fi, ek, keep) {
@@ -213,13 +216,13 @@ function openDetail(fi, ek, keep) {
     '<div class="sub">' + esc(cell.state) + (cell.stage ? " - " + esc(cell.stage) : "") +
     (cell.error ? ' - <span class="bad-text">' + esc(cell.error) + "</span>" : "") + "</div>";
   html += '<div class="imgs">' +
-    img(gart.renderThumb, "Photoshop ground truth") +
-    img(art.renderThumb, "Editor render") +
+    img(gart.renderThumb, "Photoshop ground truth", gart.render) +
+    img(art.renderThumb, "Editor render", art.render) +
     img(art.heatmap, "Difference heatmap") +
-    img(art.trapThumb, "Trap render (sentinel = used baked composite)") +
-    img(art.roundtripThumb, "Resave reopened in Photoshop") +
-    img(gart.mutatedThumb, "PS render, text appended") +
-    img(art.mutatedThumb, "Editor render, text appended") +
+    img(art.trapThumb, "Trap render (sentinel = used baked composite)", art.trap) +
+    img(art.roundtripThumb, "Resave reopened in Photoshop", art.roundtripRender) +
+    img(gart.mutatedThumb, "PS render, text appended", gart.mutated) +
+    img(art.mutatedThumb, "Editor render, text appended", art.mutated) +
     "</div>";
   if (cell.renderMetrics) {
     const m = cell.renderMetrics;

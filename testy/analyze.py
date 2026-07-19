@@ -96,13 +96,10 @@ def compare_renders(
     per_object.sort(key=lambda o: -o["badFraction"])
 
     if heatmap_out is not None:
-        # Amplified difference; downscaled so report thumbnails stay light.
+        # Amplified difference at full document resolution: the report shows it small,
+        # but clicking through opens it full size for close inspection.
         heat = np.clip(max_channel_diff * 4.0, 0, 255).astype(np.uint8)
-        heat_image = Image.fromarray(heat, mode="L")
-        if heat_image.width > 900:
-            scale = 900 / heat_image.width
-            heat_image = heat_image.resize((900, max(1, int(heat_image.height * scale))))
-        heat_image.save(heatmap_out)
+        Image.fromarray(heat, mode="L").save(heatmap_out)
 
     accuracy = max(0.0, 1.0 - bad_fraction)
     return {
