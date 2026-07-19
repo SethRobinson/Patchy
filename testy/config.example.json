@@ -1,0 +1,24 @@
+{
+  "//": "Copy this file to config.local.json (gitignored) and edit for your machine.",
+  "//python": "Python 3.11+ with the packages from requirements.txt; used by start-testy.bat. Omit to use 'python' from PATH.",
+  "python": "C:\\Path\\To\\python.exe",
+
+  "//port": "Dashboard port for start-testy.bat / serve.py.",
+  "port": 8901,
+
+  "//corpus": "Default PSDs for a run: either corpus_file (a text file, one .psd/.psb path per line, absolute or repo-relative, # comments allowed) or corpus_dir (every .psd/.psb directly in that directory). corpus_file wins if both are set. If neither is set, local-test-fixtures/psd in the repo is scanned when it exists.",
+  "corpus_file": "corpus/local.txt",
+  "corpus_dir": "",
+
+  "//editors": "Optional explicit editor paths; omit entries to use the built-in discovery (standard install locations).",
+  "editors": {
+    "patchy": "",
+    "krita": "",
+    "affinity": "",
+    "chrome": "",
+    "photoshop_progid": "Photoshop.Application"
+  },
+
+  "//build_command": "Shell command (run via 'cmd /s /c') that refreshes the Patchy release build before a run; omit to skip rebuilding when no command fits your setup.",
+  "build_command": ""
+}

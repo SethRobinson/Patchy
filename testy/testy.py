@@ -7,8 +7,9 @@ the editor's PSD in Photoshop), the round-trip render, and a forced text
 re-render where the editor is scriptable. A live browser dashboard shows the
 matrix filling in; results persist per run for over-time comparison.
 
-Run with the miniconda python (pywin32/Pillow/numpy/pywinauto preinstalled):
-  C:\\Users\\Seth\\miniconda3\\python.exe testy\\testy.py [options]
+Run with any Python 3.11+ that has the packages from testy/requirements.txt
+(machine settings live in testy/config.local.json; see config.example.json):
+  python testy\\testy.py [options]
 See docs/testy.md.
 """
 
@@ -46,12 +47,8 @@ DEFAULT_SUFFIX = "~TESTY~"
 # PSD I/O at all and removed from the roster entirely.)
 DEFAULT_EDITORS = ["photoshop", "patchy", "krita", "photopea"]
 
-BUILD_COMMAND = (
-    '"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\Tools\\VsDevCmd.bat"'
-    " -arch=x64 -host_arch=x64 >nul && "
-    '"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\IDE\\CommonExtensions\\'
-    'Microsoft\\CMake\\CMake\\bin\\cmake.exe" --build --preset release'
-)
+# The Patchy release-build refresh command comes from config.local.json
+# ("build_command"); without one, runs measure the existing patchy.exe as-is.
 
 
 def log(message: str) -> None:
@@ -74,10 +71,13 @@ def git_hash() -> str:
 
 
 def refresh_patchy_build() -> bool:
-    """Run the canonical release build; trust compile/link evidence, not exit codes."""
+    """Run the configured release build; trust compile/link evidence, not exit codes."""
+    if not config.BUILD_COMMAND:
+        log("no build_command configured (config.local.json); measuring patchy.exe as-is")
+        return True
     log("refreshing Patchy release build (use --no-build to skip)...")
     completed = subprocess.run(
-        ["cmd", "/s", "/c", BUILD_COMMAND], cwd=config.REPO_ROOT,
+        ["cmd", "/s", "/c", config.BUILD_COMMAND], cwd=config.REPO_ROOT,
         capture_output=True, text=True, timeout=1200,
     )
     output = (completed.stdout or "") + (completed.stderr or "")
@@ -106,11 +106,16 @@ def read_corpus_file(corpus_path: Path) -> list[Path]:
 def resolve_corpus(args: argparse.Namespace) -> list[Path]:
     if args.files:
         files = [Path(entry).resolve() for entry in args.files]
-    else:
+    elif args.corpus:
         corpus_path = Path(args.corpus)
         if not corpus_path.is_absolute():
             corpus_path = config.TESTY_ROOT / corpus_path
         files = read_corpus_file(corpus_path)
+    else:
+        files = config.default_corpus()
+        if not files:
+            log("no corpus configured: set corpus_file or corpus_dir in "
+                "testy/config.local.json (see config.example.json) or pass --files")
     missing = [f for f in files if not f.exists()]
     for f in missing:
         log(f"WARNING: corpus file missing, skipped: {f}")
@@ -154,7 +159,7 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         path = urlparse(self.path).path
         if path == "/testy-defaults":
-            defaults = read_corpus_file(config.TESTY_ROOT / "corpus" / "default.txt")
+            defaults = config.default_corpus()
             self._send_json(
                 {
                     "files": [str(f) for f in defaults if f.exists()],
@@ -824,13 +829,14 @@ class Runner:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Testy PSD compatibility benchmark")
     parser.add_argument("--files", nargs="*", help="explicit PSD paths (overrides --corpus)")
-    parser.add_argument("--corpus", default="corpus/default.txt", help="corpus list file")
+    parser.add_argument("--corpus", default=None,
+                        help="corpus list file (default: config.local.json's corpus_file/corpus_dir)")
     parser.add_argument("--editors", default=",".join(DEFAULT_EDITORS),
                         help="comma-separated editor keys to run")
     parser.add_argument("--suffix", default=DEFAULT_SUFFIX, help="text appended by the forced re-render test")
     parser.add_argument("--no-build", action="store_true", help="skip the Patchy release build refresh")
     parser.add_argument("--fresh", action="store_true", help="ignore cached ground truth / cells")
-    parser.add_argument("--port", type=int, default=8765, help="dashboard port")
+    parser.add_argument("--port", type=int, default=config.PORT, help="dashboard port")
     parser.add_argument("--no-browser", action="store_true", help="do not auto-open the dashboard")
     parser.add_argument("--no-serve", action="store_true", help="write reports without the local server")
     parser.add_argument("--server-url", default=None,

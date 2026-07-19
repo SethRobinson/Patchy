@@ -236,8 +236,10 @@ class PhotoshopDriver:
         if self._app is None:
             import win32com.client
 
+            import config
+
             # The first dispatch launches Photoshop (~30s); subsequent calls reuse it.
-            self._app = win32com.client.Dispatch("Photoshop.Application")
+            self._app = win32com.client.Dispatch(config.PHOTOSHOP_PROGID)
         return self._app
 
     def restart(self) -> None:

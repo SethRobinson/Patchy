@@ -4,30 +4,40 @@ Testy (`testy/`) measures how Patchy and other installed editors handle real PSD
 with Adobe Photoshop 2026 as ground truth. Repeated runs over time show whether Patchy's
 compatibility is improving and which PSDs are trouble.
 
+## Setup
+
+Machine-specific settings live in `testy/config.local.json` (gitignored): copy
+`testy/config.example.json` and fill in the python path (3.11+ with
+`testy/requirements.txt` installed), dashboard port, the default corpus (a
+`corpus_file` list or a `corpus_dir` to scan - keep personal file lists out of the
+repo), optional explicit editor paths (standard install locations are discovered
+automatically), and the optional `build_command` that refreshes the Patchy release
+build before runs (without one, runs measure the existing patchy.exe as-is).
+
 ## Running it
 
 Double-click `testy\start-testy.bat`: it kills any stale Testy processes, starts the
-dashboard server on port 8901, and opens the control panel in the browser. The panel's
-"New run" box is pre-filled with the default corpus (one absolute path per line) and
-takes any pasted .psd list instead; pick editors and options and hit Start - the run
-appears at the top of the runs table (clickable while live), and the Start button stays
-disabled until it finishes. Browser-started runs reuse the panel's server
-(`--server-url` under the hood), rebuild Patchy first unless unchecked, and log to
+dashboard server on the configured port, and opens the control panel in the browser.
+The panel's "New run" box is pre-filled with the configured default corpus (one
+absolute path per line) and takes any pasted .psd list instead; pick editors and
+options and hit Start - the run appears at the top of the runs table (clickable while
+live), and the Start button stays disabled until it finishes. Browser-started runs
+reuse the panel's server (`--server-url` under the hood) and log to
 `testy/runs/last-child-run.log`. A Cancel button (shown while a run is live) kills the
 whole run process tree and marks the run "canceled".
 
 The CLI remains for scripted use:
 
 ```powershell
-C:\Users\Seth\miniconda3\python.exe testy\testy.py
+python testy\testy.py [--files a.psd b.psd] [--corpus list.txt] [--editors ...]
 ```
 
-That runs the curated corpus (`testy/corpus/default.txt`, real PSDs from
-`local-test-fixtures/psd/`) through Photoshop, Patchy, Krita, and Photopea, refreshes the
-Patchy release build first, serves a live dashboard (auto-opens the browser), and leaves
-the frozen report + `results.json` in `testy/runs/<timestamp>/`. The server root
-(`http://127.0.0.1:<port>/`) is the same control panel. In every report, clicking a
-file name (matrix or detail panel) copies its full path to the clipboard.
+A default run goes through Photoshop, Patchy, Krita, and Photopea, refreshes the
+Patchy release build first (when configured), serves a live dashboard (auto-opens the
+browser), and leaves the frozen report + `results.json` in `testy/runs/<timestamp>/`.
+The server root (`http://127.0.0.1:<port>/`) is the same control panel. In every
+report, clicking a file name (matrix or detail panel) copies its full path to the
+clipboard, and clicking any thumbnail opens the full-size image.
 
 Useful flags:
 
@@ -42,8 +52,8 @@ Useful flags:
 - `--exit-when-done`, `--no-browser`, `--no-serve`, `--port N` - dashboard behavior.
 - `--suffix "~TESTY~"` - the marker string used by the forced text re-render test.
 
-The miniconda base env has all dependencies (pywin32, Pillow, numpy, pywinauto).
-Requirements if a different Python is ever used: those four packages.
+Python dependencies are listed in `testy/requirements.txt` (pywin32, Pillow, numpy,
+selenium, pywinauto).
 
 ## What each cell measures
 
@@ -110,9 +120,9 @@ full native preservation, which validates the pipeline itself.
   without ground truth are never cached, so re-runs retry them.
 - A file that fails scripted open even on a freshly restarted engine (with a passing
   control immediately before) is genuinely bad, not a wedge. The one such corpus file,
-  `akiko_cycling_okinawa_with_filters.psd`, was confirmed bad in the Photoshop UI by
-  Seth and deleted (July 2026); the `smart_objects_warp` core test that used it now
-  [SKIP]s on the missing fixture.
+  `akiko_cycling_okinawa_with_filters.psd`, was confirmed bad in the Photoshop UI and
+  deleted (July 2026); the `smart_objects_warp` core test that used it now [SKIP]s on
+  the missing fixture.
 - Runs fail fast: the Photopea driver aborts when the host page's step log stalls for
   45s, and the orchestrator trips a per-editor circuit breaker after 3 consecutive
   failed cells (remaining cells report "skipped" instead of burning timeouts).

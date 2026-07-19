@@ -2,9 +2,11 @@
 /.deps/
 /vcpkg_installed/
 
-# Testy compatibility-harness output (see docs/testy.md)
+# Testy compatibility-harness output and machine-local settings (see docs/testy.md)
 /testy/runs/
 /testy/cache/
+/testy/config.local.json
+/testy/corpus/
 __pycache__/
 
 # CMake and build output

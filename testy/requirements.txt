@@ -1,0 +1,6 @@
+# Testy's Python dependencies (any Python 3.11+).
+pywin32          # Photoshop COM driver
+Pillow           # render comparison
+numpy            # render comparison
+selenium         # Photopea driver (headless Chrome; Selenium Manager fetches chromedriver)
+pywinauto        # Affinity driver (background UI Automation)

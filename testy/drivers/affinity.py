@@ -52,7 +52,7 @@ LAUNCH_COOLDOWN_SECONDS = 50
 DOCUMENT_TIMEOUT = 90
 DIALOG_TIMEOUT = 15
 EXPORT_TIMEOUT = 45
-# Hard wall-clock budgets per document (Seth's rule: loading/saving that takes much
+# Hard wall-clock budgets per document (project rule: loading/saving that takes much
 # longer than ~10s means something else is wrong - fail honestly instead of grinding
 # through stacked retries). The main budget covers launch + open + two export legs.
 FILE_BUDGET_SECONDS = 180
