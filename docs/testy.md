@@ -87,15 +87,21 @@ full native preservation, which validates the pipeline itself.
   ArrayBuffer back to the server's `/testy-upload` endpoint (uploads are path-confined to
   `runs/`; the server also sends CORS headers). Needs internet; selenium manager fetches
   chromedriver on first use.
-- Photoshop probes retry once on failure (reconnecting COM if the app died): Photoshop
-  occasionally wedges into a state where every scripted open fails with "open options
-  are incorrect" until the app restarts. Failed cells and cells scored without ground
-  truth are never cached, so a re-run retries them. Known open issue (July 2026):
-  PS 27.8's scripted open reproducibly refuses PHOTOPEA-written PSDs and two
-  Adobe-authored corpus files (CDi_A4, AudioSplitterProject) with that same error even
-  though Patchy opens them all, so Photopea's "native preservation" column reads as
-  resave-rejected until the cause is found (akiko_..._with_filters is the separate,
-  documented FEid-family refusal from docs/ps-compat.md).
+- Photoshop self-heals from engine wedges (verified July 2026): during a long session
+  Photoshop's scripting engine wedges into a state where EVERY `app.open` returns error
+  8000 ("open options are incorrect") regardless of the file - a control file that
+  opened fine minutes earlier fails identically once wedged, and opens again after a
+  restart. So on any probe failure the driver fully restarts Photoshop (Quit + taskkill
+  + relaunch) and retries once; a wedge costs one ~35s restart rather than failing every
+  remaining file. A hang watchdog force-kills Photoshop if a single script blocks past
+  120s (a stuck modal), which unblocks the COM call. Failed cells and cells scored
+  without ground truth are never cached, so re-runs retry them.
+- Genuine per-file exception: `akiko_cycling_okinawa_with_filters.psd` fails Photoshop
+  27.8's SCRIPTED open (error 8000) even on a freshly restarted engine with a passing
+  control immediately before - it is the FEid smart-filter file documented in
+  docs/ps-compat.md, and Patchy opens it fine (more tolerant than Photoshop's own
+  scripted opener here). Its Testy row simply has no Photoshop ground truth; other
+  editors still record open/resave for it.
 - Runs fail fast: the Photopea driver aborts when the host page's step log stalls for
   45s, and the orchestrator trips a per-editor circuit breaker after 3 consecutive
   failed cells (remaining cells report "skipped" instead of burning timeouts).

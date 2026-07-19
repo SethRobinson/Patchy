@@ -10,8 +10,16 @@ fallback for files whose smart-object blocks make saveAs report a disk error.
 from __future__ import annotations
 
 import json
+import subprocess
+import threading
 import time
 from pathlib import Path
+
+# A single scripted probe (open + flatten + save PNG + resave PSD + manifest walk) can
+# legitimately take ~20-30s on a 30 MB file, so this hang watchdog is a generous safety
+# net for a genuinely stuck modal, NOT a per-op deadline. A wedged engine (the common
+# failure) returns error 8000 instantly, so it is handled fast by restart-and-retry.
+SCRIPT_WATCHDOG_SECONDS = 120
 
 # ExtendScript is ES3: no JSON object, so the probe builds its JSON by hand via q().
 _PROBE_JSX = r"""
@@ -232,6 +240,30 @@ class PhotoshopDriver:
             self._app = win32com.client.Dispatch("Photoshop.Application")
         return self._app
 
+    def restart(self) -> None:
+        """Fully restart Photoshop. Photoshop's scripting engine wedges during long
+        sessions into a state where EVERY app.open returns error 8000 ("open options
+        are incorrect") regardless of the file - the only cure is a restart, verified
+        July 2026 (a control file that opened fine minutes earlier fails identically
+        once wedged, and opens fine again after this)."""
+        try:
+            if self._app is not None:
+                self._app.Quit()
+        except Exception:
+            pass
+        try:
+            subprocess.run(["taskkill", "/IM", "Photoshop.exe", "/F"],
+                           capture_output=True, timeout=30)
+        except Exception:
+            pass
+        self._app = None
+        time.sleep(3.0)
+        # Force a fresh launch now so the wait is spent here, not mid-probe.
+        try:
+            _ = self._application().Version
+        except Exception:
+            pass
+
     def version(self) -> str:
         try:
             return str(self._application().Version)
@@ -248,21 +280,20 @@ class PhotoshopDriver:
     ) -> dict:
         """Open psd_path; return manifest + render statuses as a dict (ok=False on failure).
 
-        Photoshop occasionally wedges (opens start failing with bogus errors like
-        "open options are incorrect" until the app restarts), so a failed probe is
-        retried once, and a COM-level failure reconnects the Dispatch first.
+        On ANY failure the whole Photoshop instance is restarted and the probe retried
+        once: the dominant failure mode is a session-wide engine wedge (every open
+        fails until restart), not a bad file, so restarting cures it in one shot.
         """
         result = self._probe_once(psd_path, render_png, mutate_suffix, mutated_png, resave_psd)
         if result.get("ok"):
             return result
-        if str(result.get("error", "")).startswith("com-error"):
-            self._app = None  # the app likely died; reconnect (relaunches if needed)
-        time.sleep(3.0)
+        self.restart()
         retry = self._probe_once(psd_path, render_png, mutate_suffix, mutated_png, resave_psd)
         if retry.get("ok"):
             return retry
-        retry["error"] = (f"{retry.get('error', 'unknown')} (persisted across a retry; "
-                          "if this file opens fine manually, restart Photoshop and re-run)")
+        retry["error"] = (f"{retry.get('error', 'unknown')} "
+                          "(persisted even after a full Photoshop restart - this file "
+                          "genuinely fails Photoshop's scripted open)")
         return retry
 
     def _probe_once(
@@ -280,11 +311,31 @@ class PhotoshopDriver:
             "mutate_suffix": _js_string(mutate_suffix),
             "mutated_png": _js_string(str(mutated_png)) if mutated_png is not None else "null",
         }
+        # Hang watchdog: a stuck modal would block DoJavaScript forever. A side timer
+        # force-kills Photoshop.exe on timeout, which makes the blocked COM call raise
+        # instead. (Only trips on true hangs; see SCRIPT_WATCHDOG_SECONDS.)
+        hung = {"killed": False}
+
+        def watchdog() -> None:
+            hung["killed"] = True
+            try:
+                subprocess.run(["taskkill", "/IM", "Photoshop.exe", "/F"],
+                               capture_output=True, timeout=30)
+            except Exception:
+                pass
+
+        timer = threading.Timer(SCRIPT_WATCHDOG_SECONDS, watchdog)
+        timer.start()
         try:
             app = self._application()
             raw = app.DoJavaScript(jsx)
-        except Exception as error:  # COM-level failure (crash, busy modal, ...)
+        except Exception as error:  # COM-level failure (crash, watchdog kill, busy modal)
+            self._app = None
+            if hung["killed"]:
+                return {"ok": False, "error": f"photoshop hung >{SCRIPT_WATCHDOG_SECONDS}s; killed"}
             return {"ok": False, "error": f"com-error: {error}"}
+        finally:
+            timer.cancel()
         try:
             return json.loads(raw)
         except Exception:
