@@ -96,12 +96,11 @@ full native preservation, which validates the pipeline itself.
   remaining file. A hang watchdog force-kills Photoshop if a single script blocks past
   120s (a stuck modal), which unblocks the COM call. Failed cells and cells scored
   without ground truth are never cached, so re-runs retry them.
-- Genuine per-file exception: `akiko_cycling_okinawa_with_filters.psd` fails Photoshop
-  27.8's SCRIPTED open (error 8000) even on a freshly restarted engine with a passing
-  control immediately before - it is the FEid smart-filter file documented in
-  docs/ps-compat.md, and Patchy opens it fine (more tolerant than Photoshop's own
-  scripted opener here). Its Testy row simply has no Photoshop ground truth; other
-  editors still record open/resave for it.
+- A file that fails scripted open even on a freshly restarted engine (with a passing
+  control immediately before) is genuinely bad, not a wedge. The one such corpus file,
+  `akiko_cycling_okinawa_with_filters.psd`, was confirmed bad in the Photoshop UI by
+  Seth and deleted (July 2026); the `smart_objects_warp` core test that used it now
+  [SKIP]s on the missing fixture.
 - Runs fail fast: the Photopea driver aborts when the host page's step log stalls for
   45s, and the orchestrator trips a per-editor circuit breaker after 3 consecutive
   failed cells (remaining cells report "skipped" instead of burning timeouts).

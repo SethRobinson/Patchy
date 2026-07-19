@@ -17,7 +17,6 @@ local-test-fixtures/psd/ps2026_converted_smart_object.psd
 
 # Adjustment layers
 local-test-fixtures/psd/akiko_cycling_okinawa_with_curves.psd
-local-test-fixtures/psd/akiko_cycling_okinawa_with_filters.psd
 
 # Vector / shape layers
 local-test-fixtures/psd/vectors_overlay_stroke.psd
