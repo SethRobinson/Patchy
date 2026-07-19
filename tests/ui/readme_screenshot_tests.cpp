@@ -301,7 +301,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_soft_brush_shift_click_anchor.png",
       "ui_soft_brush_event_density.png",
       "ui_layer_mask_brush_opacity_per_stroke.png",
-      "ui_airbrush_no_same_stroke_stack.png",
+      "ui_airbrush_stationary_build_up.png",
       "ui_airbrush_event_density.png",
       "ui_airbrush_smoothed_jitter.png",
       "ui_soft_opaque_brush_l_corner.png",

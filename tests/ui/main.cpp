@@ -39,6 +39,17 @@
 #include <unistd.h>
 #endif
 
+// Under AddressSanitizer the sanitizer runtime must own SIGSEGV/SIGBUS: its report
+// (with alloc/free stacks) is strictly better than our raw backtrace, and installing
+// ours on top can suppress it.
+#if defined(__SANITIZE_ADDRESS__)
+#define PATCHY_ASAN_ACTIVE 1
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define PATCHY_ASAN_ACTIVE 1
+#endif
+#endif
+
 using patchy::test::TestCase;
 using patchy::test::visual_test_font;
 using patchy::test::ui::cleanup_after_visual_test;
@@ -122,11 +133,13 @@ int main(int argc, char* argv[]) {
 #ifdef Q_OS_WIN
   AddVectoredExceptionHandler(1, report_access_violation);
 #else
+#ifndef PATCHY_ASAN_ACTIVE
   struct sigaction crash_action {};
   crash_action.sa_sigaction = report_fatal_signal;
   crash_action.sa_flags = SA_SIGINFO;
   sigaction(SIGSEGV, &crash_action, nullptr);
   sigaction(SIGBUS, &crash_action, nullptr);
+#endif
   // An uncaught exception calls terminate at the THROW site (before unwinding, per the
   // Itanium ABI), so the backtrace here points at the actual thrower.
   std::set_terminate([] {

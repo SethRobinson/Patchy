@@ -245,18 +245,22 @@ MainWindow/adjustments internals:
 
 ## Design and bug notes (lower severity, unfixed)
 
-- Linux-only full-suite segfault in `ui_pen_tool_path_mode_keys_and_handles`
-  (July 2026, discovered landing the .af importer): the remote linux UI suite
-  crashes with SIGSEGV in that test deterministically at HEAD, but the SAME
-  test passes when run filtered on the same machine at the same commit, and the
-  full suite passed at the previous commit. Windows and macOS full suites are
-  green at both commits, and nothing in the .af change touches pen/vector/
-  canvas code, so this is a latent ORDER-DEPENDENT heap bug (some earlier test
-  frees or leaks state the pen test then touches) that the .af commit's
-  code/data layout shift happened to surface, the same species as the June 2026
-  layer-row thumbnail UAF. Needs an ASAN (or valgrind) run of the full UI suite
-  on the linux box to name the real culprit; do not "fix" it by reordering
-  tests or skipping the pen test, that only re-hides it.
+- FIXED (July 2026): the linux-only full-suite segfault in
+  `ui_pen_tool_path_mode_keys_and_handles` (surfaced by the .af importer's
+  layout shift). A full-suite ASAN run (new `linux-asan` preset; recipe in
+  docs/platform.md) named two latent use-after-frees, neither in pen code:
+  ~MainWindow destroyed `sessions_` (freeing every Document) before ~QWidget's
+  close/deactivate focus-outs reached the still-alive child canvases, whose
+  handlers walk `canvas->document_` (fix: the dtor body now detaches every
+  session canvas via `set_document(nullptr)` first, the same ordering rule
+  close_document_session enforces); and `new_smart_object_via_copy` read a
+  SmartObjectStore `find()` pointer after `add_embedded` reallocated the store
+  (fix: copy fields out before the add; the invalidation contract is now on
+  `add_embedded`). Fixing those also unmasked a stale contact-sheet expectation:
+  the Flow/Airbrush change renamed the `ui_airbrush_no_same_stroke_stack`
+  artifact to `ui_airbrush_stationary_build_up` but not the list entry, and
+  leftover PNGs in long-lived build dirs hid the mismatch everywhere except a
+  fresh build tree.
 
 - FIXED (July 2026): the detached async preview/render std::threads now run through
   `run_tracked_background_worker` (src/ui/background_workers.{hpp,cpp}); app main and

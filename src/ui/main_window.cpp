@@ -5563,6 +5563,19 @@ MainWindow::~MainWindow() {
   // destroyed MainWindow.
   set_color_picker_document_palette_editor({});
   set_color_picker_document_palette({}, false);
+  // Detach every canvas from its Document while sessions_ is still intact.
+  // Member destruction frees the session Documents BEFORE ~QWidget runs, and
+  // ~QWidget still delivers close/deactivate focus-out events to the live child
+  // canvases, whose handlers (set_tool's transform-controls rect, stroke/mask
+  // finishes) walk canvas->document_ — the same ordering rule
+  // close_document_session enforces by destroying the canvas before erasing the
+  // session. Without this, teardown walks a freed Document (heap corruption
+  // that surfaced as the linux full-suite pen-test segfault).
+  for (const auto& session : sessions_) {
+    if (session != nullptr && session->canvas != nullptr) {
+      session->canvas->set_document(nullptr);
+    }
+  }
 }
 
 void MainWindow::show_status_error(const QString& text) {

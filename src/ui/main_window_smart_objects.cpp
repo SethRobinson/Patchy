@@ -1436,9 +1436,12 @@ void MainWindow::new_smart_object_via_copy() {
   // Photoshop's via-copy semantics (E8): the element is CLONED under a fresh uuid, so
   // the copy edits independently (a plain duplicate would keep tracking the source).
   const auto fresh_uuid = generate_smart_object_uuid();
+  // add_embedded grows the store, invalidating `source`; every field it feeds must be
+  // copied out before the call (the by-value arguments are, `creator` was not).
+  const auto source_creator = source->creator;
   auto& cloned = doc.metadata().smart_objects.add_embedded(fresh_uuid, source->filename, source->filetype,
                                                            source->file_bytes);
-  cloned.creator = source->creator;
+  cloned.creator = source_creator;
 
   const auto location = find_layer_location(doc.layers(), *active);
   if (!location.has_value()) {

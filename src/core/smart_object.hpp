@@ -103,6 +103,9 @@ struct SmartObjectStore {
   [[nodiscard]] const SmartObjectSource* find(std::string_view uuid) const noexcept;
   [[nodiscard]] SmartObjectSource* find(std::string_view uuid) noexcept;
   // Adds an embedded source to the first parsed 'lnk2' block, creating one if needed.
+  // Growing the store invalidates pointers into it (earlier find() results): copy any
+  // needed fields out before calling, or re-find afterwards. The returned reference is
+  // likewise only valid until the next store mutation.
   SmartObjectSource& add_embedded(std::string uuid, std::string filename, std::string filetype,
                                   std::shared_ptr<const std::vector<std::uint8_t>> bytes);
   // Inserts a copy of `source` unless its uuid is already present (cross-document
