@@ -37,7 +37,13 @@ Patchy release build first (when configured), serves a live dashboard (auto-open
 browser), and leaves the frozen report + `results.json` in `testy/runs/<timestamp>/`.
 The server root (`http://127.0.0.1:<port>/`) is the same control panel. In every
 report, clicking a file name (matrix or detail panel) copies its full path to the
-clipboard, and clicking any thumbnail opens the full-size image.
+clipboard, and clicking any thumbnail opens the full-size image. Lost native data is
+called out prominently: matrix cells get a red "lost: 5/5 text layers, 5/5 live
+effects" line (and a warn dot), and the detail panel's native-preservation banner
+separates objects GONE from the resaved file from ones still present but converted
+to a different kind (e.g. text rasterized); attribute-only losses (effects, masks,
+blend modes stripped from surviving layers) are labeled as such. A resave Photoshop
+refuses to open shows a "resave rejected" banner instead of a broken panel.
 
 Useful flags:
 

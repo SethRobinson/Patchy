@@ -55,6 +55,12 @@ _PAGE = r"""<!DOCTYPE html>
   @keyframes pulse { 50% { opacity: .35; } }
   .nums { color: var(--dim); font-size: 11.5px; margin-top: 2px; }
   .flag { color: var(--bad); font-size: 11px; }
+  .loss-banner { border: 1px solid var(--bad); background: rgba(217,92,74,.10); border-radius: 6px;
+                 padding: 8px 12px; margin: 6px 0 12px; }
+  .loss-banner b { color: var(--bad); }
+  .keep-banner { border: 1px solid var(--good); background: rgba(79,194,107,.08); border-radius: 6px;
+                 padding: 8px 12px; margin: 6px 0 12px; }
+  .keep-banner b { color: var(--good); }
   #detail { position: fixed; right: 0; top: 0; bottom: 0; width: min(880px, 92vw);
             background: var(--panel); border-left: 1px solid var(--line); padding: 18px 22px;
             overflow: auto; transform: translateX(102%); transition: transform .18s ease; z-index: 5; }
@@ -103,6 +109,36 @@ function pct(x, digits) { return (100 * x).toFixed(digits === undefined ? 1 : di
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
+const LOSS_LABELS = [
+  ["cat", "text", "text layers"],
+  ["cat", "adjustment", "adjustment layers"],
+  ["cat", "smartObject", "smart objects"],
+  ["cat", "group", "groups"],
+  ["cat", "fill", "fill layers"],
+  ["cat", "raster", "raster layers"],
+  ["attr", "fx", "live effects"],
+  ["attr", "userMask", "layer masks"],
+  ["attr", "vectorMask", "vector masks"],
+  ["attr", "clipped", "clipping masks"],
+  ["attr", "blend", "blend modes"],
+];
+
+// Everything the resave failed to keep, as [{lost, total, label}] - categories where
+// the object kind died plus attributes stripped from surviving layers.
+function lossSummary(n) {
+  if (!n || !n.perCategory) return [];
+  const out = [];
+  LOSS_LABELS.forEach(([src, key, label]) => {
+    const v = (src === "cat" ? n.perCategory : n.attributes || {})[key];
+    if (v && v.total && v.kept < v.total) out.push({ lost: v.total - v.kept, total: v.total, label: label });
+  });
+  return out;
+}
+
+function lossText(losses) {
+  return losses.map(l => l.lost + "/" + l.total + " " + l.label).join(", ");
+}
+
 function cellSummary(cell) {
   if (!cell || cell.state === "pending") return '<div class="status-line"><span class="dot"></span>queued</div>';
   if (cell.state === "running")
@@ -118,17 +154,24 @@ function cellSummary(cell) {
            '<div class="nums">' + esc((cell.error || "").slice(0, 90)) + '</div>';
   const bits = [];
   if (cell.renderMetrics) bits.push("render " + pct(cell.renderMetrics.accuracy));
-  if (cell.native) bits.push("native " + cell.native.nativeKept + "/" + cell.native.nativeTotal);
+  if (cell.native && cell.native.perCategory)
+    bits.push("native " + cell.native.nativeKept + "/" + cell.native.nativeTotal);
   if (cell.renderMetrics && cell.renderMetrics.objectsScored)
     bits.push("objects " + cell.renderMetrics.objectsRenderedOk + "/" + cell.renderMetrics.objectsScored);
   const flags = [];
   if (cell.trapSentinelFraction > 0.05) flags.push("flat-composite cheat");
   if (cell.renderMetrics && cell.renderMetrics.sizeMismatch) flags.push("size mismatch");
   if (cell.opens === "fallback-render") flags.push("PS needed fallback render");
-  const cls = cell.opens === "fail" ? "bad" : (flags.length ? "warn" : "ok");
+  if (cell.resaveRejected) flags.push("resave rejected by Photoshop");
+  const losses = lossSummary(cell.native);
+  const lossLine = losses.length
+    ? '<div class="flag">lost: ' + lossText(losses.slice(0, 3)) +
+      (losses.length > 3 ? " +" + (losses.length - 3) + " more" : "") + "</div>"
+    : "";
+  const cls = cell.opens === "fail" ? "bad" : (flags.length || losses.length ? "warn" : "ok");
   return '<div class="status-line"><span class="dot ' + cls + '"></span>' +
          (cell.opens === "fail" ? "failed to open" : "opened") + '</div>' +
-         '<div class="nums">' + bits.join(" &middot; ") + '</div>' +
+         '<div class="nums">' + bits.join(" &middot; ") + '</div>' + lossLine +
          (flags.length ? '<div class="flag">' + flags.join(" &middot; ") + '</div>' : "");
 }
 
@@ -187,7 +230,9 @@ function render() {
     const acc = mean(a.acc); rows.push(["render", acc == null ? "-" : pct(acc)]);
     const nat = mean(a.native); rows.push(["native", nat == null ? "-" : pct(nat)]);
     [["text", "text kept"], ["adj", "adjustments"], ["smart", "smart objects"], ["fx", "live effects"]].forEach(([key, label]) => {
-      const v = a[key]; if (v[1]) rows.push([label, v[0] + "/" + v[1]]);
+      const v = a[key];
+      if (v[1]) rows.push([label, v[0] < v[1] ? '<span class="bad-text">' + v[0] + "/" + v[1] + "</span>"
+                                              : v[0] + "/" + v[1]]);
     });
     return '<div class="card"><h3>' + esc(e.displayName || k) + '</h3><div class="ver">' +
       esc(e.version || "") + "</div>" +
@@ -237,21 +282,45 @@ function openDetail(fi, ek, keep) {
                        pct(o.badFraction) + "</td></tr>").join("") + "</table>";
     }
   }
-  if (cell.native) {
+  if (cell.native && cell.native.perCategory) {
     const n = cell.native, pc = n.perCategory, at = n.attributes;
-    html += "<h3>Native preservation (via Photoshop reopen): " + n.nativeKept + "/" + n.nativeTotal + "</h3>" +
-      "<table><tr><th>Category</th><th>Kept</th></tr>" +
+    html += "<h3>Native preservation (via Photoshop reopen): " + n.nativeKept + "/" + n.nativeTotal + "</h3>";
+    const losses = lossSummary(n);
+    if (losses.length) {
+      const changed = n.changedLayers || [];
+      const gone = changed.filter(c => c.became == null).length;
+      const converted = changed.filter(c => c.became != null).length;
+      let detail;
+      if (!gone && !converted)
+        detail = "every object kept its kind; the losses are attributes stripped from surviving layers";
+      else
+        detail = (gone ? gone + " gone from the file entirely" : "") +
+                 (gone && converted ? "; " : "") +
+                 (converted ? converted + " still in the file but converted to a different kind " +
+                              "(no longer editable as what they were)" : "");
+      html += '<div class="loss-banner"><b>Lost in resave: ' + lossText(losses) + "</b>" +
+              '<div class="nums">' + detail + "</div></div>";
+    } else {
+      html += '<div class="keep-banner"><b>Everything survived: all ' + n.nativeTotal +
+              " object(s) plus effects, masks, and blend modes</b></div>";
+    }
+    html += "<table><tr><th>Category</th><th>Kept</th></tr>" +
       Object.keys(pc).filter(k => pc[k].total).map(k =>
         "<tr><td>" + k + "</td><td>" + pc[k].kept + "/" + pc[k].total + "</td></tr>").join("") +
       Object.keys(at).filter(k => at[k].total).map(k =>
         "<tr><td><i>" + k + "</i></td><td>" + at[k].kept + "/" + at[k].total + "</td></tr>").join("") +
       "</table>";
     if ((n.changedLayers || []).length) {
-      html += "<h3>Objects that died or changed</h3><table><tr><th>Layer</th><th>Was</th><th>Became</th></tr>" +
+      html += "<h3>Objects lost or converted</h3><table><tr><th>Layer</th><th>Was</th><th>Became</th></tr>" +
         n.changedLayers.slice(0, 15).map(c => "<tr><td>" + esc(c.name) + "</td><td>" + esc(c.kind) +
-          "</td><td>" + (c.became == null ? '<span class="bad-text">lost</span>' : esc(c.became)) +
+          "</td><td>" + (c.became == null ? '<span class="bad-text">gone - missing from the resaved file</span>'
+            : esc(c.became) + (c.became === "NORMAL" && c.kind !== "NORMAL" ? " (rasterized)" : "")) +
           "</td></tr>").join("") + "</table>";
     }
+  } else if (cell.native && cell.native.error) {
+    html += "<h3>Native preservation (via Photoshop reopen)</h3>" +
+      '<div class="loss-banner"><b>Resave rejected: Photoshop could not open this editor&#39;s PSD</b>' +
+      '<div class="nums">' + esc(cell.native.error) + "</div></div>";
   }
   if (cell.roundtripRender) {
     html += "<h3>Round trip back into Photoshop</h3><table><tr><th>Accuracy vs original</th><th>Pixels off</th></tr>" +
