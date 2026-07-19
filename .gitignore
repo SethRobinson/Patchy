@@ -2,6 +2,11 @@
 /.deps/
 /vcpkg_installed/
 
+# Testy compatibility-harness output (see docs/testy.md)
+/testy/runs/
+/testy/cache/
+__pycache__/
+
 # CMake and build output
 /build/
 /out/
