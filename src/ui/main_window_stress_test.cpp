@@ -113,13 +113,13 @@ namespace {
 constexpr int kSettleTimeoutMs = 30'000;
 constexpr quint32 kStressSeedBase = 0x5EED0001U;
 // Keep in sync with the scenario's step() calls; drives the progress dialog.
-constexpr int kTotalStepCount = 60;
+constexpr int kTotalStepCount = 59;
 
 // Reference step durations in ms, measured on the calibration machine at the
 // preset named in the tag, in a release build. Only the rating depends on
 // these; the TXT report ends with a ready-to-paste refreshed table. Bump the
 // tag whenever the table is recalibrated.
-constexpr const char* kBaselineTag = "quick@i9-12900KS-2026-07-19b";
+constexpr const char* kBaselineTag = "quick@i9-12900KS-2026-07-19c";
 
 struct StepBaseline {
   const char* id;
@@ -127,66 +127,65 @@ struct StepBaseline {
 };
 
 constexpr StepBaseline kStepBaselines[] = {
-    {"01_create_document", 128.1},
-    {"02_wall_gradient", 87.6},
-    {"03_wall_texture", 177.5},
-    {"04_desk_surface", 256.4},
-    {"05_monitor_body", 232.8},
-    {"06_monitor_screen", 216.8},
-    {"07_c64_body", 176.5},
-    {"08_c64_keys", 134.3},
-    {"09_c64_badge", 258.2},
-    {"10_mug_steam", 539.2},
-    {"11_desk_props", 1112.7},
-    {"12_boot_text", 548.8},
-    {"13_boot_text_glow", 143.6},
-    {"14_game_parody_pixels", 138.6},
-    {"15_game_title_text", 350.7},
-    {"16_sticky_notes", 954.3},
-    {"17_title_text", 235.1},
-    {"18_text_reedit", 163.3},
-    {"19_scanlines", 159.2},
-    {"20_screen_glow", 445.0},
-    {"21_screen_mask", 328.9},
-    {"22_selection_blur", 143.1},
-    {"23_vignette", 251.9},
-    {"24_grain", 290.8},
-    {"25_adjust_levels", 230.7},
-    {"26_adjust_curves", 248.7},
-    {"27_adjust_hue_sat", 322.9},
-    {"28_adjust_color_balance", 345.0},
-    {"29_move_small_live", 317.2},
-    {"30_move_styled_outline", 1316.0},
-    {"31_move_large_outline", 3600.4},
-    {"32_move_multi_layer", 153.0},
-    {"33_move_nudges", 374.7},
-    {"34_free_transform", 399.7},
-    {"35_zoom_pan", 110.8},
-    {"36_history_build", 84.3},
-    {"37_undo_redo", 3684.2},
-    {"38_merge_visible", 1367.4},
-    {"39_psd_save", 559.9},
-    {"40_psd_reload", 827.3},
-    {"41_multi_document", 377.1},
-    {"44_canvas_expand", 784.5},
-    {"45_arcade_shapes", 4832.9},
-    {"46_shape_boolean", 3305.3},
-    {"47_neon_pen_glow", 680.8},
-    {"48_custom_shapes", 2638.2},
-    {"49_shape_restyle", 569.1},
-    {"50_paths_roundtrip", 117.3},
-    {"51_new_blurs", 2035.3},
-    {"57_arcade_screen_game", 1515.3},
-    {"58_marquee_text", 1550.4},
-    {"52_sharpen_motion", 2001.6},
-    {"53_plastic_wrap", 901.4},
-    {"59_poster_age_coin", 1033.6},
-    {"54_smart_object_filter", 2092.6},
-    {"55_warp_banner", 3986.4},
-    {"60_layer_folders", 3333.5},
-    {"56_psd_roundtrip_full", 3477.7},
-    {"42_final_composite", 671.3},
-    {"43_vector_shapes", 4155.1},
+    {"01_create_document", 131.7},
+    {"02_wall_gradient", 102.2},
+    {"03_wall_texture", 176.1},
+    {"04_desk_surface", 269.8},
+    {"05_monitor_body", 236.2},
+    {"06_monitor_screen", 222.0},
+    {"07_c64_body", 177.8},
+    {"08_c64_keys", 141.4},
+    {"09_c64_badge", 259.6},
+    {"10_mug_steam", 655.6},
+    {"11_desk_props", 1378.0},
+    {"12_boot_text", 743.9},
+    {"13_boot_text_glow", 196.4},
+    {"14_game_parody_pixels", 216.9},
+    {"15_game_title_text", 616.8},
+    {"16_sticky_notes", 1202.1},
+    {"17_title_text", 265.0},
+    {"18_text_reedit", 193.0},
+    {"19_scanlines", 223.1},
+    {"20_screen_glow", 477.3},
+    {"21_screen_mask", 369.1},
+    {"22_selection_blur", 180.4},
+    {"23_vignette", 319.2},
+    {"24_grain", 329.3},
+    {"25_adjust_levels", 259.5},
+    {"26_adjust_curves", 264.2},
+    {"27_adjust_hue_sat", 338.1},
+    {"28_adjust_color_balance", 379.2},
+    {"29_move_small_live", 369.9},
+    {"30_move_styled_outline", 1469.3},
+    {"31_move_large_outline", 3653.8},
+    {"32_move_multi_layer", 212.3},
+    {"33_move_nudges", 473.8},
+    {"34_free_transform", 431.4},
+    {"35_zoom_pan", 139.5},
+    {"36_history_build", 103.5},
+    {"37_undo_redo", 4040.9},
+    {"38_merge_visible", 1466.3},
+    {"39_psd_save", 585.7},
+    {"40_psd_reload", 892.7},
+    {"41_multi_document", 507.7},
+    {"44_canvas_expand", 921.5},
+    {"45_arcade_shapes", 7452.2},
+    {"46_shape_boolean", 3784.1},
+    {"47_neon_pen_glow", 1353.6},
+    {"48_custom_shapes", 3051.1},
+    {"49_shape_restyle", 658.0},
+    {"50_paths_roundtrip", 149.4},
+    {"51_new_blurs", 2257.1},
+    {"57_arcade_screen_game", 2250.1},
+    {"58_marquee_text", 2735.4},
+    {"52_sharpen_motion", 1518.4},
+    {"53_plastic_wrap", 1054.8},
+    {"59_poster_age_coin", 1204.6},
+    {"54_smart_object_filter", 2349.1},
+    {"55_warp_banner", 4166.7},
+    {"56_psd_roundtrip_full", 3581.2},
+    {"42_final_composite", 697.2},
+    {"43_vector_shapes", 4519.8},
 };
 
 double baseline_for_step(const QString& id) {
@@ -1112,38 +1111,19 @@ private:
     }
   }
 
-  // Scene layers carry unique scripted names; folder membership and
-  // cross-step targets resolve by name so steps stay decoupled (ROOT layers
-  // only - everything is at root until the folder step groups it).
-  [[nodiscard]] LayerId layer_id_by_name(const QString& name) {
-    const auto target = name.toStdString();
-    for (const auto& layer : std::as_const(doc()).layers()) {
-      if (layer.name() == target) {
-        return layer.id();
-      }
-    }
-    return LayerId{};
-  }
-
-  [[nodiscard]] std::vector<LayerId> layer_ids_by_names(std::initializer_list<const char*> names) {
-    std::vector<LayerId> ids;
-    for (const auto* name : names) {
-      if (const auto id = layer_id_by_name(QLatin1String(name)); id != LayerId{}) {
-        ids.push_back(id);
-      }
-    }
-    return ids;
-  }
-
+  // Folders are created DURING scene construction (the real workflow): group
+  // the first layer(s) of an area into a named folder, then later steps
+  // insert into it by anchoring on a child via activate_layer_for_insert.
   // create_layer_folder_from_layers keeps the ids' ORDER as the folder's
   // top-to-bottom child order (list-selection callers pass visual order), so
   // sort by the members' current root stacking position first - a wrongly
   // ordered list restacks the group (an opaque backdrop passed first covered
-  // the whole folder). Leaves the new folder active for the rename.
-  void group_layers_into_folder(std::vector<LayerId> ids, const QString& folder_name) {
+  // the whole folder). Returns the new folder's id (it is left active).
+  LayerId group_layers_into_folder(std::vector<LayerId> ids, const QString& folder_name) {
+    std::erase(ids, LayerId{});
     if (ids.empty()) {
       report_.warnings.append(QStringLiteral("Folder %1 had no members").arg(folder_name));
-      return;
+      return LayerId{};
     }
     const auto& root = std::as_const(doc()).layers();
     const auto root_index = [&root](LayerId id) {
@@ -1158,6 +1138,32 @@ private:
               [&root_index](LayerId a, LayerId b) { return root_index(a) > root_index(b); });
     w.create_layer_folder_from_layers(std::move(ids));
     rename_active_layer_to(folder_name);
+    pump();
+    return doc().active_layer_id().value_or(LayerId{});
+  }
+
+  // Text layers always commit at the top of the ROOT stack, so scripted text
+  // that belongs to an area folder is tucked in right after creation (the
+  // layer-panel drag-drop equivalent; becomes the folder's top child).
+  void move_layer_into_folder(LayerId layer_id, LayerId folder_id, const QString& undo_label) {
+    if (layer_id == LayerId{} || folder_id == LayerId{}) {
+      return;
+    }
+    w.push_undo_snapshot(undo_label);
+    auto taken = take_layer_from_tree(doc().layers(), layer_id);
+    if (!taken.has_value()) {
+      return;
+    }
+    auto* folder = doc().find_layer(folder_id);
+    if (folder == nullptr || folder->kind() != LayerKind::Group) {
+      doc().add_layer(std::move(*taken));  // put it back rather than lose it
+      return;
+    }
+    folder->add_child(std::move(*taken));
+    doc().set_active_layer(layer_id);
+    w.refresh_layer_list();
+    w.refresh_layer_controls();
+    canvas()->document_changed();
     pump();
   }
 
@@ -1500,6 +1506,9 @@ private:
   LayerId bloom_id_{};
   LayerId game_title_id_{};
   LayerId game_credit_id_{};
+  LayerId desk_folder_id_{};
+  LayerId boot_folder_id_{};
+  LayerId signage_folder_id_{};
 
   // Screen geometry shared between steps (game parody, scanlines, glow).
   QRect screen_rect_;
@@ -1508,7 +1517,14 @@ private:
   // Scene 2 (the arcade corner on the widened canvas).
   LayerId arcade_wall_id_{};
   LayerId cabinet_id_{};
+  LayerId cabinet_folder_id_{};
   LayerId cabinet_screen_id_{};
+  LayerId grille_id_{};
+  LayerId neon_id_{};
+  LayerId arrow_id_{};
+  LayerId arcade_game_id_{};
+  LayerId arcade_glass_id_{};
+  LayerId arcade_poster_id_{};
   QRect arcade_screen_rect_;
 
   // Saved options-bar vector mirrors (begin/end_vector_shape_phase).
@@ -1699,10 +1715,15 @@ void StressTestRunner::phase_paint_hardware() {
     set_layer_opacity_percent(70);
     tighten_layer_to_opaque(mug_id_);
     tighten_layer_to_opaque(steam_id_);
+    // Folders are part of the workflow: the desk props collect into a folder
+    // as they are painted (step 11 inserts into it via its anchors).
+    desk_folder_id_ = group_layers_into_folder({mug_id_, steam_id_}, QStringLiteral("Desk props"));
   });
 
-  // 11: modem, floppy stack, wall poster with the RTsoft-logo tip stamp.
+  // 11: modem, floppy stack, wall poster with the RTsoft-logo tip stamp -
+  // all inserted into the Desk props folder created in step 10.
   step("11_desk_props", "Modem + floppies + RTsoft poster", "paint", [&] {
+    activate_layer_for_insert(steam_id_);
     modem_id_ = add_named_layer(QStringLiteral("Modem"));
     draw_shape(CanvasTool::Rectangle, rect(0.63, 0.617, 0.14, 0.028), QColor(88, 84, 80), at(0.005));
     std::vector<std::pair<QRect, QColor>> leds;
@@ -1741,16 +1762,19 @@ void StressTestRunner::phase_paint_hardware() {
     const auto stamp_point = doc_to_widget(pt(0.7975, 0.24));
     send_mouse(QEvent::MouseButtonPress, stamp_point, Qt::LeftButton, Qt::LeftButton);
     send_mouse(QEvent::MouseButtonRelease, stamp_point, Qt::LeftButton, Qt::NoButton);
-    (void)add_text_layer(pt(0.716, 0.360), QStringLiteral("EVERYBODY MAKES"), at(0.013),
-                         QColor(74, 66, 58));
+    const auto poster_text_id = add_text_layer(pt(0.716, 0.360), QStringLiteral("EVERYBODY MAKES"),
+                                               at(0.013), QColor(74, 66, 58));
+    move_layer_into_folder(poster_text_id, desk_folder_id_, QStringLiteral("Move poster text"));
     tighten_layer_to_opaque(poster_layer);
     tighten_layer_to_opaque(modem_id_);
   });
 }
 
 void StressTestRunner::phase_text() {
-  // 12: the boot screen text, four committed editor lifecycles.
+  // 12: the boot screen text, four committed editor lifecycles, collected
+  // into a Boot screen folder (steps 14/15/19/20 insert into it).
   step("12_boot_text", "Boot text (4 editor lifecycles)", "text", [&] {
+    activate_top_layer();  // out of the Desk props folder
     set_monospace_text_family();
     const auto text_color = QColor(150, 138, 232);
     const int line_px = at(0.0125);
@@ -1771,6 +1795,8 @@ void StressTestRunner::phase_text() {
                                        QColor(150, 138, 232)}},
                          QStringLiteral("Cursor block"));
     }
+    boot_folder_id_ = group_layers_into_folder({boot_text_ids_.begin(), boot_text_ids_.end()},
+                                               QStringLiteral("Boot screen"));
   });
 
   // 13: phosphor bloom on the boot text.
@@ -1789,8 +1815,10 @@ void StressTestRunner::phase_text() {
     }
   });
 
-  // 14: the game parody, hundreds of scattered cells.
+  // 14: the game parody, hundreds of scattered cells (into the Boot screen
+  // folder).
   step("14_game_parody_pixels", "CAFE QUEST pixel-art scene (scattered cells)", "paint", [&] {
+    activate_layer_for_insert(load_line_id_);
     game_pixels_id_ = add_named_layer(QStringLiteral("Cafe Quest"));
     const int cell = std::max(2, game_area_.width() / 46);
     const auto origin = game_area_.topLeft();
@@ -1848,10 +1876,13 @@ void StressTestRunner::phase_text() {
     if (title_id != LayerId{}) {
       set_layer_style_direct(title_id, style, QStringLiteral("Game title style"));
     }
+    move_layer_into_folder(game_credit_id_, boot_folder_id_, QStringLiteral("Move credit"));
+    move_layer_into_folder(game_title_id_, boot_folder_id_, QStringLiteral("Move title"));
   });
 
   // 16: sticky notes (one rotated via free transform).
   step("16_sticky_notes", "Sticky notes + free-transform rotate", "text", [&] {
+    activate_top_layer();  // out of the Boot screen folder
     sticky_note_id_ = add_named_layer(QStringLiteral("Sticky note"));
     draw_shape(CanvasTool::Rectangle, rect(0.588, 0.30, 0.068, 0.062), QColor(240, 222, 110), at(0.003));
     (void)add_text_layer(pt(0.593, 0.312), QStringLiteral("TODO: make\ndirty rects\nfaster ;)"),
@@ -1934,8 +1965,10 @@ void StressTestRunner::phase_text() {
 }
 
 void StressTestRunner::phase_atmosphere() {
-  // 19: scanlines, direct thin rows (many small commits probe #2).
+  // 19: scanlines, direct thin rows (many small commits probe #2), into the
+  // Boot screen folder (step 20's bloom follows it there).
   step("19_scanlines", "CRT scanlines (thin rows)", "styles", [&] {
+    activate_layer_for_insert(game_pixels_id_);
     const auto scanline_layer = add_named_layer(QStringLiteral("Scanlines"));
     std::vector<std::pair<QRect, QColor>> rows;
     const int line_count = std::max(8, 64 * size_ / 4096);
@@ -1998,8 +2031,10 @@ void StressTestRunner::phase_filters() {
     canvas()->clear_selection();
   }, canvas_megapixels() * 0.2);
 
-  // 23: vignette on its own layer.
+  // 23: vignette on its own layer (a whole-scene overlay: at root, above the
+  // area folders, not accidentally anchored inside one).
   step("23_vignette", "Vignette layer", "filters", [&] {
+    activate_top_layer();
     add_named_layer(QStringLiteral("Vignette"));
     use_solid_fill_settings();
     w.fill_active_layer_with_color(QColor(255, 255, 255), MainWindow::tr("Vignette base"));
@@ -2267,16 +2302,23 @@ void StressTestRunner::phase_arcade_vector() {
 
   // 45: the cabinet, drawn through the real Shape-mode drag pipeline (live
   // vector preview per mouse move, options-bar appearance commit, bake).
+  // Folders are built as the corner grows: the wall starts the "C2 Arcade"
+  // folder and the cabinet body starts its nested "Arcade cabinet" subfolder.
   step("45_arcade_shapes", "Vector arcade cabinet (Shape-mode drags)", "vector", [&] {
     // Raster backdrop for the new strip first (Pixels-mode shapes).
+    activate_top_layer();
     arcade_wall_id_ = add_named_layer(QStringLiteral("Arcade wall"));
     draw_shape(CanvasTool::Rectangle, rect(0.995, 0.0, 0.51, 1.0), QColor(38, 30, 52));
     draw_shape(CanvasTool::Rectangle, rect(0.995, 0.70, 0.51, 0.30), QColor(52, 38, 40));
+    (void)group_layers_into_folder({arcade_wall_id_}, QStringLiteral("C2 Arcade"));
 
+    activate_layer_for_insert(arcade_wall_id_);
     cabinet_id_ = draw_vector_shape(CanvasTool::Rectangle, rect(1.07, 0.25, 0.36, 0.55),
                                     gradient_vector_fill(QColor(150, 48, 60), QColor(70, 24, 40), 90.0F),
                                     true, std::max(2.0, static_cast<double>(at(0.003))),
                                     QColor(30, 16, 22), QStringLiteral("Cabinet"), at(0.01));
+    cabinet_folder_id_ = group_layers_into_folder({cabinet_id_}, QStringLiteral("Arcade cabinet"));
+    activate_layer_for_insert(cabinet_id_);
     (void)draw_vector_shape(CanvasTool::Rectangle, rect(1.10, 0.28, 0.30, 0.08),
                             solid_vector_fill(QColor(34, 30, 56)), true,
                             std::max(1.0, static_cast<double>(at(0.0015))), QColor(226, 208, 130),
@@ -2302,8 +2344,9 @@ void StressTestRunner::phase_arcade_vector() {
   // the vent slots (a sequential-boolean re-rasterize per commit).
   step("46_shape_boolean", "Speaker grille (subtract combine drags)", "vector", [&] {
     const auto grille_fill = solid_vector_fill(QColor(24, 20, 34));
-    (void)draw_vector_shape(CanvasTool::Rectangle, rect(1.12, 0.675, 0.26, 0.05), grille_fill, true,
-                            1.0, QColor(120, 110, 140), QStringLiteral("Speaker grille"), at(0.002));
+    grille_id_ = draw_vector_shape(CanvasTool::Rectangle, rect(1.12, 0.675, 0.26, 0.05), grille_fill,
+                                   true, 1.0, QColor(120, 110, 140), QStringLiteral("Speaker grille"),
+                                   at(0.002));
     w.current_vector_combine_index_ = 2;  // Subtract from the active shape layer.
     for (int i = 0; i < 4; ++i) {
       (void)draw_vector_shape(CanvasTool::Rectangle, rect(1.135 + i * 0.06, 0.683, 0.045, 0.008),
@@ -2315,8 +2358,10 @@ void StressTestRunner::phase_arcade_vector() {
   });
 
   // 47: neon tube - a programmatic smooth open path, stroke-only appearance,
-  // plus an outer glow style (stroker + EDT glow over a curved band).
+  // plus an outer glow style (stroker + EDT glow over a curved band). Starts
+  // the "Arcade signage" subfolder beside the cabinet one.
   step("47_neon_pen_glow", "Neon sign path + outer glow", "vector", [&] {
+    activate_layer_for_insert(cabinet_folder_id_);
     set_vector_appearance(no_vector_fill(), true, std::max(2.0, static_cast<double>(at(0.005))),
                           QColor(96, 232, 220));
     PathSubpath tube;
@@ -2339,7 +2384,8 @@ void StressTestRunner::phase_arcade_vector() {
     }
     w.create_or_extend_shape_layer({tube}, std::nullopt, QStringLiteral("Neon %1"));
     rename_active_layer_to(QStringLiteral("Neon sign"));
-    const auto neon_id = doc().active_layer_id().value_or(LayerId{});
+    neon_id_ = doc().active_layer_id().value_or(LayerId{});
+    signage_folder_id_ = group_layers_into_folder({neon_id_}, QStringLiteral("Arcade signage"));
     LayerStyle style;
     LayerOuterGlow glow;
     glow.enabled = true;
@@ -2347,14 +2393,15 @@ void StressTestRunner::phase_arcade_vector() {
     glow.opacity = 0.85F;
     glow.size = static_cast<float>(std::max(3, at(0.008)));
     style.outer_glows.push_back(glow);
-    if (neon_id != LayerId{}) {
-      set_layer_style_direct(neon_id, style, QStringLiteral("Neon glow"));
+    if (neon_id_ != LayerId{}) {
+      set_layer_style_direct(neon_id_, style, QStringLiteral("Neon glow"));
     }
   });
 
   // 48: a star polygon, library custom-shape stamps, and an arrowed line -
   // all plain-path shape layers through the real tool drags.
   step("48_custom_shapes", "Custom shape stamps + star + arrow", "vector", [&] {
+    activate_layer_for_insert(neon_id_);  // into the signage folder
     // Appearance mirrors always AFTER activate_tool (the tool switch syncs
     // them from the active shape layer).
     w.activate_tool(CanvasTool::Polygon);
@@ -2395,6 +2442,7 @@ void StressTestRunner::phase_arcade_vector() {
     drag(pt(1.035, 0.205), pt(1.10, 0.26), 4);
     w.current_line_arrow_end_ = false;
     rename_active_layer_to(QStringLiteral("Arrow"));
+    arrow_id_ = doc().active_layer_id().value_or(LayerId{});
   });
 
   // 49: live appearance edit on the cabinet - the options-bar apply path
@@ -2479,8 +2527,9 @@ void StressTestRunner::phase_arcade_filters() {
   // surface blur (no value histogram) and median (single-pixel histogram
   // updates), selection-restricted to a raster glass pane over the screen.
   step("51_new_blurs", "Surface blur + median (arcade glass)", "filters", [&] {
-    activate_top_layer();
+    activate_layer_for_insert(grille_id_);  // top of the cabinet folder
     const auto glass_id = add_named_layer(QStringLiteral("Arcade glass"));
+    arcade_glass_id_ = glass_id;
     use_solid_fill_settings();
     const auto pane = arcade_screen_rect_.adjusted(at(0.004), at(0.004), -at(0.004), -at(0.004));
     draw_shape(CanvasTool::Rectangle, pane, QColor(120, 132, 150));
@@ -2529,12 +2578,13 @@ void StressTestRunner::phase_arcade_filters() {
     append_sprite_cells(cells, kDuckSprite, 4, QPoint(14, 12), cell, origin, true);
     paint_cells_direct(game_id, cells, QStringLiteral("Arcade game"));
     tighten_layer_to_opaque(game_id);
-    (void)add_text_layer(QPoint(play.left() + at(0.004), play.top() + at(0.004)),
-                         QStringLiteral("SCORE 9999"), at(0.011), QColor(150, 138, 232));
+    arcade_game_id_ = game_id;
+    const auto score_id = add_text_layer(QPoint(play.left() + at(0.004), play.top() + at(0.004)),
+                                         QStringLiteral("SCORE 9999"), at(0.011), QColor(150, 138, 232));
+    move_layer_into_folder(score_id, cabinet_folder_id_, QStringLiteral("Move score"));
     // CRT dot mask: halftone the glass pane over the game.
-    const auto glass_id = layer_id_by_name(QStringLiteral("Arcade glass"));
-    if (glass_id != LayerId{}) {
-      activate_layer_for_insert(glass_id);
+    if (arcade_glass_id_ != LayerId{}) {
+      activate_layer_for_insert(arcade_glass_id_);
       apply_filter_direct(QStringLiteral("patchy.filters.color_halftone"),
                           {{"cell_size", std::int64_t{std::clamp(size_ / 256, 4, 16)}},
                            {"intensity", std::int64_t{70}},
@@ -2543,11 +2593,12 @@ void StressTestRunner::phase_arcade_filters() {
     }
   }, canvas_megapixels() * 0.05);
 
-  // 58: marquee + neon sign lettering with glow styles (arcade lighting).
+  // 58: marquee + neon sign lettering with glow styles (arcade lighting),
+  // each into its area's folder.
   step("58_marquee_text", "Marquee + neon sign text (glow styles)", "text", [&] {
-    activate_top_layer();
     const auto marquee_text = add_text_layer(pt(1.125, 0.295), QStringLiteral("RED CAVALIER II"),
                                              at(0.026), QColor(238, 216, 130));
+    move_layer_into_folder(marquee_text, cabinet_folder_id_, QStringLiteral("Move marquee text"));
     if (marquee_text != LayerId{}) {
       LayerStyle style;
       LayerOuterGlow glow;
@@ -2560,6 +2611,7 @@ void StressTestRunner::phase_arcade_filters() {
     }
     const auto neon_text = add_text_layer(pt(1.16, 0.052), QStringLiteral("C2 ARCADE"),
                                           at(0.024), QColor(96, 232, 220));
+    move_layer_into_folder(neon_text, signage_folder_id_, QStringLiteral("Move neon text"));
     if (neon_text != LayerId{}) {
       LayerStyle style;
       LayerOuterGlow glow;
@@ -2572,8 +2624,9 @@ void StressTestRunner::phase_arcade_filters() {
     }
   });
 
-  // 52: unsharp mask over the arcade wall + motion-blurred speed lines.
-  step("52_sharpen_motion", "Unsharp mask + motion-blur speed lines", "filters", [&] {
+  // 52: unsharp mask over the arcade wall + motion-blurred speed lines
+  // trailing the game's duck, inside the screen (under the glass).
+  step("52_sharpen_motion", "Unsharp mask + in-game motion blur", "filters", [&] {
     if (arcade_wall_id_ != LayerId{}) {
       doc().set_active_layer(arcade_wall_id_);
     }
@@ -2585,71 +2638,75 @@ void StressTestRunner::phase_arcade_filters() {
                          {"threshold", std::int64_t{4}}},
                         QStringLiteral("Unsharp mask"));
     canvas()->clear_selection();
-    activate_top_layer();
-    const auto lines_id = add_named_layer(QStringLiteral("Speed lines"));
+    activate_layer_for_insert(arcade_game_id_);
+    const auto lines_id = add_named_layer(QStringLiteral("Game speed lines"));
+    const auto play = arcade_screen_rect_.adjusted(at(0.012), at(0.012), -at(0.012), -at(0.012));
+    const int cell = std::max(2, play.width() / 40);
+    const auto origin = play.topLeft();
     std::vector<std::pair<QRect, QColor>> cells;
-    for (int i = 0; i < 6; ++i) {
-      cells.emplace_back(rect(1.02 + (i % 3) * 0.01, 0.77 + i * 0.025, 0.10 + (i % 2) * 0.05, 0.004),
-                         QColor(240, 236, 220));
+    for (int i = 0; i < 5; ++i) {
+      cells.emplace_back(QRect(origin.x() + (2 + (i % 2) * 3) * cell, origin.y() + (12 + i) * cell,
+                               (5 + (i % 3) * 2) * cell, std::max(1, cell / 2)),
+                         QColor(226, 222, 240));
     }
-    paint_cells_direct(lines_id, cells, QStringLiteral("Speed lines"));
+    paint_cells_direct(lines_id, cells, QStringLiteral("Game speed lines"));
     // Tighten BEFORE the blur so the filter runs over the lines' hull, not
     // the full-canvas layer buffer.
     tighten_layer_to_opaque(lines_id);
     apply_filter_direct(QStringLiteral("patchy.filters.motion_blur"),
                         {{"angle", std::int64_t{0}},
-                         {"distance", std::int64_t{std::clamp(size_ / 128, 6, 64)}}},
+                         {"distance", std::int64_t{std::clamp(size_ / 256, 4, 32)}}},
                         QStringLiteral("Motion blur"));
-    set_layer_opacity_percent(60);
-    // The racer the speed lines belong to: a duck sprinting for the coin
-    // (drawn after the blur so it stays crisp, on its own full-opacity layer).
-    activate_top_layer();
-    const auto racer_id = add_named_layer(QStringLiteral("Racer"));
-    std::vector<std::pair<QRect, QColor>> duck;
-    append_sprite_cells(duck, kDuckSprite, 4, QPoint(0, 0), std::max(2, at(0.009)), pt(1.185, 0.795),
-                        true);
-    paint_cells_direct(racer_id, duck, QStringLiteral("Racer"));
-    tighten_layer_to_opaque(racer_id);
+    set_layer_opacity_percent(70);
   }, canvas_megapixels() * 0.35);
 
-  // 53: plastic wrap (the fixed local height-field relief) over a foil prop
-  // on the wall strip left of the cabinet.
+  // 53: a shrink-wrapped game flyer on the wall left of the cabinet - frame,
+  // paper, title bar, duck art - with plastic wrap for the glossy sheen.
   step("53_plastic_wrap", "Plastic wrap foil poster", "filters", [&] {
-    activate_top_layer();
-    const auto foil_id = add_named_layer(QStringLiteral("Foil poster"));
-    draw_shape(CanvasTool::Rectangle, rect(1.005, 0.30, 0.06, 0.13), QColor(96, 60, 130), at(0.003));
-    std::vector<std::pair<QRect, QColor>> blobs;
-    for (int i = 0; i < 12; ++i) {
-      blobs.emplace_back(rect(1.011 + (i % 3) * 0.017, 0.312 + (i / 3) * 0.028, 0.012, 0.017),
-                         (i % 2) == 0 ? QColor(150, 96, 190) : QColor(60, 36, 90));
-    }
-    paint_cells_direct(foil_id, blobs, QStringLiteral("Foil blobs"));
-    tighten_layer_to_opaque(foil_id);
+    activate_layer_for_insert(arrow_id_);  // wall decor lives with the signage
+    arcade_poster_id_ = add_named_layer(QStringLiteral("Foil poster"));
+    draw_shape(CanvasTool::Rectangle, rect(1.002, 0.30, 0.062, 0.115), QColor(46, 34, 60), at(0.002));
+    draw_shape(CanvasTool::Rectangle, rect(1.006, 0.306, 0.054, 0.103), QColor(214, 202, 176));
+    std::vector<std::pair<QRect, QColor>> art;
+    art.emplace_back(rect(1.006, 0.306, 0.054, 0.016), QColor(196, 62, 74));
+    append_sprite_cells(art, kDuckSprite, 4, QPoint(0, 0), std::max(2, at(0.008)), pt(1.017, 0.34));
+    art.emplace_back(rect(1.012, 0.386, 0.042, 0.007), QColor(96, 66, 44));
+    paint_cells_direct(arcade_poster_id_, art, QStringLiteral("Poster art"));
+    tighten_layer_to_opaque(arcade_poster_id_);
     apply_filter_direct(QStringLiteral("patchy.filters.plastic_wrap"),
-                        {{"highlight_strength", std::int64_t{12}},
+                        {{"highlight_strength", std::int64_t{7}},
                          {"detail", std::int64_t{9}},
                          {"smoothness", std::int64_t{5}}},
                         QStringLiteral("Plastic wrap"));
   }, canvas_megapixels() * 0.016);
 
   // 59: more filter families - dust & scratches + vintage fade age the foil
-  // poster, and a radial-blur spin glint on the coin the racer is chasing.
+  // poster, and a radial-blur spin glint on a coin pickup above the game's
+  // top platform (under the glass, like everything on the screen).
   step("59_poster_age_coin", "Poster aging + radial-blur coin glint", "filters", [&] {
-    const auto foil_id = layer_id_by_name(QStringLiteral("Foil poster"));
-    if (foil_id != LayerId{}) {
-      activate_layer_for_insert(foil_id);
+    if (arcade_poster_id_ != LayerId{}) {
+      activate_layer_for_insert(arcade_poster_id_);
       apply_filter_direct(QStringLiteral("patchy.filters.dust_and_scratches"),
                           {{"radius", std::int64_t{2}}, {"threshold", std::int64_t{12}}},
                           QStringLiteral("Dust & scratches"));
       apply_filter_direct(QStringLiteral("patchy.filters.vintage_fade"),
                           {{"amount", std::int64_t{70}}}, QStringLiteral("Vintage fade"));
     }
-    activate_top_layer();
+    activate_layer_for_insert(arcade_game_id_);
     const auto coin_id = add_named_layer(QStringLiteral("Coin"));
-    draw_shape(CanvasTool::Ellipse, rect(1.255, 0.805, 0.022, 0.022), QColor(238, 200, 74));
+    const auto play = arcade_screen_rect_.adjusted(at(0.012), at(0.012), -at(0.012), -at(0.012));
+    const int cell = std::max(2, play.width() / 40);
+    const auto origin = play.topLeft();
+    draw_shape(CanvasTool::Ellipse,
+               QRect(origin.x() + 22 * cell, origin.y() + 6 * cell, 2 * cell, 2 * cell),
+               QColor(238, 200, 74));
     std::vector<std::pair<QRect, QColor>> sparkle;
-    sparkle.emplace_back(rect(1.2495, 0.8145, 0.033, 0.003), QColor(255, 244, 190));
-    sparkle.emplace_back(rect(1.2645, 0.7995, 0.003, 0.033), QColor(255, 244, 190));
+    sparkle.emplace_back(QRect(origin.x() + 21 * cell, origin.y() + 7 * cell, 4 * cell,
+                               std::max(1, cell / 2)),
+                         QColor(255, 244, 190));
+    sparkle.emplace_back(QRect(origin.x() + 23 * cell - cell / 4, origin.y() + 5 * cell,
+                               std::max(1, cell / 2), 4 * cell),
+                         QColor(255, 244, 190));
     paint_cells_direct(coin_id, sparkle, QStringLiteral("Coin sparkle"));
     tighten_layer_to_opaque(coin_id);
     apply_filter_direct(QStringLiteral("patchy.filters.radial_blur"),
@@ -2699,11 +2756,11 @@ void StressTestRunner::phase_smart_and_warp() {
   // 55: warp transform - flag-preset cage, one handle drag, bicubic bake -
   // on a banner with its text baked in (warp refuses live text layers).
   step("55_warp_banner", "Warp banner (flag preset + bake)", "interact", [&] {
-    activate_top_layer();
+    activate_layer_for_insert(arrow_id_);  // into the signage folder
     const auto banner_id = add_named_layer(QStringLiteral("Banner"));
-    draw_shape(CanvasTool::Rectangle, rect(1.115, 0.165, 0.27, 0.055), QColor(206, 74, 62), at(0.004));
-    const auto banner_text = add_text_layer(pt(1.13, 0.175), QStringLiteral("GRAND OPENING"),
-                                            at(0.016), QColor(244, 232, 200));
+    draw_shape(CanvasTool::Rectangle, rect(1.10, 0.158, 0.30, 0.064), QColor(206, 74, 62), at(0.004));
+    const auto banner_text = add_text_layer(pt(1.117, 0.171), QStringLiteral("GRAND OPENING"),
+                                            at(0.024), QColor(244, 232, 200));
     if (banner_id != LayerId{} && banner_text != LayerId{}) {
       select_layer_rows({banner_id, banner_text});
       w.merge_down();
@@ -2731,63 +2788,6 @@ void StressTestRunner::phase_smart_and_warp() {
 
 void StressTestRunner::phase_vector_io() {
   const auto psd_path = QDir(report_dir_).filePath(QStringLiteral("stress-scene.psd"));
-
-  // 60: organize the scene into nested pass-through layer folders - the
-  // folder machinery, group compositing, the layer panel with nesting, and
-  // (via step 56) the PSD lsct section round-trip. Membership resolves by the
-  // scripted layer names plus the captured scene-1 ids.
-  step("60_layer_folders", "Organize the scene into layer folders", "layers", [&] {
-    std::vector<LayerId> boot_ids;
-    for (const auto id : boot_text_ids_) {
-      if (id != LayerId{}) {
-        boot_ids.push_back(id);
-      }
-    }
-    if (game_pixels_id_ != LayerId{}) {
-      boot_ids.push_back(game_pixels_id_);
-    }
-    if (bloom_id_ != LayerId{}) {
-      boot_ids.push_back(bloom_id_);
-    }
-    // Text layer names truncate at 24 chars, so the two long titles ride on
-    // captured ids instead of name lookups.
-    for (const auto id : {game_title_id_, game_credit_id_}) {
-      if (id != LayerId{}) {
-        boot_ids.push_back(id);
-      }
-    }
-    for (const auto id : layer_ids_by_names({"Scanlines"})) {
-      boot_ids.push_back(id);
-    }
-    group_layers_into_folder(std::move(boot_ids), QStringLiteral("Boot screen"));
-
-    std::vector<LayerId> desk_ids;
-    for (const auto id : {mug_id_, steam_id_, modem_id_}) {
-      if (id != LayerId{}) {
-        desk_ids.push_back(id);
-      }
-    }
-    // The floppies id changed when step 54 wrapped them in a smart object.
-    for (const auto id : layer_ids_by_names({"Floppies", "Poster", "EVERYBODY MAKES"})) {
-      desk_ids.push_back(id);
-    }
-    group_layers_into_folder(std::move(desk_ids), QStringLiteral("Desk props"));
-
-    // The arcade corner: three subfolders nested under one parent.
-    group_layers_into_folder(
-        layer_ids_by_names({"Cabinet", "Marquee", "Arcade screen", "Arcade game", "SCORE 9999",
-                            "Control deck", "Ellipse 1", "Ellipse 2", "Speaker grille",
-                            "Arcade glass", "RED CAVALIER II"}),
-        QStringLiteral("Arcade cabinet"));
-    group_layers_into_folder(layer_ids_by_names({"Neon sign", "C2 ARCADE", "Star", "Custom Shape 1",
-                                                 "Custom Shape 2", "Arrow", "Banner"}),
-                             QStringLiteral("Arcade signage"));
-    group_layers_into_folder(layer_ids_by_names({"Foil poster", "Speed lines", "Racer", "Coin"}),
-                             QStringLiteral("Arcade props"));
-    group_layers_into_folder(layer_ids_by_names({"Arcade wall", "Arcade cabinet", "Arcade signage",
-                                                 "Arcade props"}),
-                             QStringLiteral("C2 Arcade"));
-  });
 
   // 56: the full two-scene document (shape layers, vstk/vogk, warp bakes,
   // nested folders/lsct) through the PSD writer and back in - and the disk
