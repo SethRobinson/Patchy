@@ -106,6 +106,9 @@ function cellSummary(cell) {
   if (cell.state === "unsupported")
     return '<div class="status-line"><span class="dot warn"></span>no PSD support</div>' +
            '<div class="nums">' + esc(cell.error || "") + '</div>';
+  if (cell.state === "skipped")
+    return '<div class="status-line"><span class="dot warn"></span>skipped</div>' +
+           '<div class="nums">' + esc(cell.error || "") + '</div>';
   if (cell.state === "failed")
     return '<div class="status-line"><span class="dot bad"></span>failed</div>' +
            '<div class="nums">' + esc((cell.error || "").slice(0, 90)) + '</div>';
@@ -156,7 +159,7 @@ function render() {
   editors.forEach(k => agg[k] = { opened: 0, total: 0, acc: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0] });
   S.files.forEach(f => editors.forEach(k => {
     const c = (f.cells || {})[k];
-    if (!c || c.state === "pending" || c.state === "running") return;
+    if (!c || c.state === "pending" || c.state === "running" || c.state === "skipped") return;
     const a = agg[k];
     a.total++;
     if (c.state === "done" && c.opens !== "fail") a.opened++;
@@ -303,3 +306,12 @@ def append_history(testy_root: Path, summary: dict) -> None:
     runs_dir.mkdir(parents=True, exist_ok=True)
     with open(runs_dir / "history.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(summary) + "\n")
+
+
+def append_run_index(testy_root: Path, run_name: str) -> None:
+    """One line per STARTED run (history.jsonl only lists finished ones); the landing
+    page merges both so live runs are clickable too."""
+    runs_dir = testy_root / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    with open(runs_dir / "index.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps({"run": run_name}) + "\n")

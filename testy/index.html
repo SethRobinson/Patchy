@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Testy - runs</title>
+<style>
+  :root { --bg:#14161a; --panel:#1d2026; --text:#d8dade; --dim:#8b8f98; --line:#2e323a;
+          --good:#4fc26b; --warn:#d9a13c; --accent:#5aa2e0; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:14px/1.5 "Segoe UI", system-ui, sans-serif; }
+  header { padding:16px 26px; border-bottom:1px solid var(--line); }
+  h1 { font-size:18px; margin:0; }
+  h1 span { color:var(--dim); font-weight:400; }
+  main { padding:18px 26px; max-width:1100px; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { border:1px solid var(--line); padding:8px 12px; text-align:left; }
+  th { background:var(--panel); }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  .live { color:var(--warn); }
+  .scores { color:var(--dim); font-size:12.5px; }
+  .latest { background:var(--panel); }
+  .hint { color:var(--dim); margin-top:14px; font-size:12.5px; }
+</style>
+</head>
+<body>
+<header><h1>Testy <span>PSD compatibility runs</span></h1></header>
+<main>
+  <table><thead><tr><th>Run</th><th>Files</th><th>Patchy</th><th>Editors (render / native)</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="4">loading...</td></tr></tbody></table>
+  <div class="hint">Newest first; the top row links to the latest run. A run without scores is
+  still in progress (its dashboard updates live).</div>
+</main>
+<script>
+"use strict";
+function pct(x) { return (100 * x).toFixed(0) + "%"; }
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+async function fetchLines(url) {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) return [];
+    return (await response.text()).trim().split("\n").filter(Boolean).map(l => JSON.parse(l));
+  } catch (e) { return []; }
+}
+
+async function refresh() {
+  const started = await fetchLines("runs/index.jsonl");
+  const finished = await fetchLines("runs/history.jsonl");
+  const byName = new Map();
+  started.forEach(entry => byName.set(entry.run, { run: entry.run }));
+  finished.forEach(entry => byName.set(entry.run, entry));
+  const runs = [...byName.values()].sort((a, b) => b.run.localeCompare(a.run));
+  const rows = document.getElementById("rows");
+  if (!runs.length) {
+    rows.innerHTML = "<tr><td colspan='4'>no runs yet - start one with testy.py</td></tr>";
+    return;
+  }
+  rows.innerHTML = runs.map((r, index) => {
+    const done = r.editors != null;
+    const patchy = done && r.editors.patchy
+      ? pct(r.editors.patchy.render) + " / " + pct(r.editors.patchy.native) : "";
+    const others = done
+      ? Object.keys(r.editors).filter(k => k !== "patchy").map(k =>
+          esc(k) + " " + pct(r.editors[k].render) + "/" + pct(r.editors[k].native)).join(" &middot; ")
+      : '<span class="live">in progress...</span>';
+    return "<tr" + (index === 0 ? " class='latest'" : "") + "><td><a href='runs/" + esc(r.run) +
+      "/report.html'>" + esc(r.run) + "</a></td><td>" + (r.files ?? "") +
+      "</td><td>" + patchy + "</td><td class='scores'>" + others + "</td></tr>";
+  }).join("");
+}
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

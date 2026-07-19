@@ -10,6 +10,7 @@ fallback for files whose smart-object blocks make saveAs report a disk error.
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 # ExtendScript is ES3: no JSON object, so the probe builds its JSON by hand via q().
@@ -245,8 +246,33 @@ class PhotoshopDriver:
         mutated_png: Path | None = None,
         resave_psd: Path | None = None,
     ) -> dict:
-        """Open psd_path; return manifest + render statuses as a dict (ok=False on failure)."""
-        app = self._application()
+        """Open psd_path; return manifest + render statuses as a dict (ok=False on failure).
+
+        Photoshop occasionally wedges (opens start failing with bogus errors like
+        "open options are incorrect" until the app restarts), so a failed probe is
+        retried once, and a COM-level failure reconnects the Dispatch first.
+        """
+        result = self._probe_once(psd_path, render_png, mutate_suffix, mutated_png, resave_psd)
+        if result.get("ok"):
+            return result
+        if str(result.get("error", "")).startswith("com-error"):
+            self._app = None  # the app likely died; reconnect (relaunches if needed)
+        time.sleep(3.0)
+        retry = self._probe_once(psd_path, render_png, mutate_suffix, mutated_png, resave_psd)
+        if retry.get("ok"):
+            return retry
+        retry["error"] = (f"{retry.get('error', 'unknown')} (persisted across a retry; "
+                          "if this file opens fine manually, restart Photoshop and re-run)")
+        return retry
+
+    def _probe_once(
+        self,
+        psd_path: Path,
+        render_png: Path | None,
+        mutate_suffix: str | None,
+        mutated_png: Path | None,
+        resave_psd: Path | None,
+    ) -> dict:
         jsx = _PROBE_JSX % {
             "input": _js_string(str(psd_path)),
             "render_png": _js_string(str(render_png)) if render_png is not None else "null",
@@ -255,6 +281,7 @@ class PhotoshopDriver:
             "mutated_png": _js_string(str(mutated_png)) if mutated_png is not None else "null",
         }
         try:
+            app = self._application()
             raw = app.DoJavaScript(jsx)
         except Exception as error:  # COM-level failure (crash, busy modal, ...)
             return {"ok": False, "error": f"com-error: {error}"}

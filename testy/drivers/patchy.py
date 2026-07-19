@@ -6,7 +6,7 @@ import os
 import subprocess
 from pathlib import Path
 
-TIMEOUT_SECONDS = 300
+TIMEOUT_SECONDS = 180
 
 
 def _run(exe: Path, arguments: list[str]) -> dict:

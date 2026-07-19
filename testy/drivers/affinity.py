@@ -42,10 +42,10 @@ from typing import Callable
 # (Tracking launcher pids is useless: the WindowsApps alias forwards and exits.)
 _we_own_instance = False
 
-STEP_TIMEOUT = 50
-DOCUMENT_TIMEOUT = 150
-DIALOG_TIMEOUT = 60
-EXPORT_TIMEOUT = 240
+STEP_TIMEOUT = 35
+DOCUMENT_TIMEOUT = 90
+DIALOG_TIMEOUT = 30
+EXPORT_TIMEOUT = 120
 
 
 class AffinityError(RuntimeError):

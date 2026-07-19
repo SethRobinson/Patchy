@@ -17,7 +17,10 @@ from PIL import Image
 # Per-channel difference below this is treated as AA/rounding noise.
 PIXEL_TOLERANCE = 6
 # An object region whose bad-pixel fraction stays under this renders "correctly".
-OBJECT_BAD_FRACTION = 0.02
+# Text layers legitimately differ on every glyph edge (10-20% of their bbox) even when
+# rendered correctly, so this budget is set to catch missing/misplaced/wrong objects
+# (those blow past 50%) rather than anti-aliasing jitter.
+OBJECT_BAD_FRACTION = 0.25
 # Sentinel (flat-composite cheat) detection: how close to pure magenta counts.
 SENTINEL_TOLERANCE = 12
 

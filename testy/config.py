@@ -23,13 +23,13 @@ KRITA_CANDIDATES = [
     Path(r"C:\Program Files\Krita (x64)\bin\krita.exe"),
 ]
 
-ASEPRITE_CANDIDATES = [
-    Path(r"C:\Program Files\Aseprite\Aseprite.exe"),
-    Path(r"C:\Program Files (x86)\Steam\steamapps\common\Aseprite\Aseprite.exe"),
-]
-
 AFFINITY_CANDIDATES = [
     Path(os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WindowsApps\Affinity.exe")),
+]
+
+CHROME_CANDIDATES = [
+    Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+    Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
 ]
 
 # The whole suite assumes Photoshop is COM-registered; config only records a version label.
@@ -93,12 +93,6 @@ def discover_editors(patchy_git_hash: str) -> dict[str, EditorInfo]:
         krita.version = _file_version(krita.exe.with_name("krita.exe"))
     editors["krita"] = krita
 
-    aseprite = EditorInfo("aseprite", "Aseprite", _first_existing(ASEPRITE_CANDIDATES))
-    if aseprite.exe is not None:
-        aseprite.available = True
-        aseprite.version = _file_version(aseprite.exe)
-    editors["aseprite"] = aseprite
-
     affinity = EditorInfo("affinity", "Affinity", _first_existing(AFFINITY_CANDIDATES))
     if affinity.exe is not None:
         affinity.available = True
@@ -123,5 +117,14 @@ def discover_editors(patchy_git_hash: str) -> dict[str, EditorInfo]:
     photoshop = EditorInfo("photoshop", "Photoshop", None)
     photoshop.available = True  # verified when the COM driver connects
     editors["photoshop"] = photoshop
+
+    # Photopea runs inside a headless Chrome via its embedding API; available when
+    # Chrome is installed (needs internet at run time to load photopea.com).
+    photopea = EditorInfo("photopea", "Photopea", _first_existing(CHROME_CANDIDATES))
+    if photopea.exe is not None:
+        photopea.available = True
+        photopea.version = "web (Chrome host)"
+        photopea.notes.append("loads photopea.com at run time")
+    editors["photopea"] = photopea
 
     return editors

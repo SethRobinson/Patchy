@@ -35,16 +35,16 @@ import config
 import manifest as manifest_mod
 import report
 import staging
-from drivers import aseprite as aseprite_driver
 from drivers import krita as krita_driver
 from drivers import patchy as patchy_driver
 from drivers.photoshop import PhotoshopDriver
 
 DEFAULT_SUFFIX = "~TESTY~"
-# Affinity is deliberately opt-in (--editors photoshop,patchy,krita,aseprite,affinity):
+# Affinity is deliberately opt-in (--editors photoshop,patchy,krita,photopea,affinity):
 # its driver is background-UIA best-effort and the app's cold-start timing is flaky,
-# so default runs stay fast and reliable without it.
-DEFAULT_EDITORS = ["photoshop", "patchy", "krita", "aseprite"]
+# so default runs stay fast and reliable without it. (Aseprite was verified to have no
+# PSD I/O at all and removed from the roster entirely.)
+DEFAULT_EDITORS = ["photoshop", "patchy", "krita", "photopea"]
 
 BUILD_COMMAND = (
     '"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\Tools\\VsDevCmd.bat"'
@@ -113,14 +113,58 @@ def resolve_corpus(args: argparse.Namespace) -> list[Path]:
     return [f for f in files if f.exists()]
 
 
+class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
+    """Static serving of testy/ plus one upload endpoint the Photopea host page
+    POSTs export bytes to. Uploads are confined to the runs directory."""
+
+    def log_message(self, *args, **kwargs):  # noqa: N802 - stdlib signature
+        pass
+
+    def end_headers(self):  # noqa: N802 - stdlib signature
+        # Photopea (an https origin) fetches staged PSDs from this server; without
+        # CORS the embedded editor silently never loads the document.
+        self.send_header("Access-Control-Allow-Origin", "*")
+        super().end_headers()
+
+    def do_POST(self):  # noqa: N802 - stdlib signature
+        from urllib.parse import parse_qs, urlparse
+
+        parsed = urlparse(self.path)
+        if parsed.path != "/testy-upload":
+            self.send_error(404)
+            return
+        name = parse_qs(parsed.query).get("name", [""])[0]
+        runs_root = (config.TESTY_ROOT / "runs").resolve()
+        target = (config.TESTY_ROOT / name).resolve()
+        if not str(target).startswith(str(runs_root)):
+            self.send_error(403)
+            return
+        length = int(self.headers.get("Content-Length", "0"))
+        if length <= 0 or length > 1 << 30:
+            self.send_error(400)
+            return
+        body = self.rfile.read(length)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(body)
+        self.send_response(200)
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+
+class _ExclusiveHTTPServer(http.server.ThreadingHTTPServer):
+    # On Windows, SO_REUSEADDR lets a second server "bind" a port another process
+    # already owns and the two then split incoming connections (uploads once hit a
+    # stale server with no POST handler). Exclusive binding makes the conflict a
+    # clean OSError so the port scan moves on.
+    allow_reuse_address = False
+
+
 def start_server(port: int) -> tuple[http.server.ThreadingHTTPServer, int]:
-    handler = functools.partial(
-        http.server.SimpleHTTPRequestHandler, directory=str(config.TESTY_ROOT)
-    )
-    handler.log_message = lambda *a, **k: None  # type: ignore[attr-defined]
+    handler = functools.partial(TestyRequestHandler, directory=str(config.TESTY_ROOT))
     for candidate in range(port, port + 20):
         try:
-            server = http.server.ThreadingHTTPServer(("127.0.0.1", candidate), handler)
+            server = _ExclusiveHTTPServer(("127.0.0.1", candidate), handler)
         except OSError:
             continue
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -155,6 +199,7 @@ class Runner:
         self.files_dir.mkdir(parents=True, exist_ok=True)
         config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
         self.run_name = timestamp
+        self.server_port: int | None = None
         self.status: dict = {}
 
     # ---------- status plumbing ----------
@@ -371,11 +416,16 @@ class Runner:
         cell.pop("stage", None)
         self.push()
 
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        for item in cell_dir.iterdir():
-            shutil.copyfile(item, cache_dir / item.name)
-        cacheable = {k: v for k, v in cell.items() if k != "cached"}
-        (cache_dir / "cell.json").write_text(json.dumps(cacheable), encoding="utf-8")
+        # Only fully-scored successful cells are cached: a failure may be transient (a
+        # wedged Photoshop, a busy editor), and a cell scored without ground truth
+        # would freeze its missing metrics into later runs.
+        if cell.get("opens") != "fail" and truth is not None:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            for item in cell_dir.iterdir():
+                if item.is_file():
+                    shutil.copyfile(item, cache_dir / item.name)
+            cacheable = {k: v for k, v in cell.items() if k != "cached"}
+            (cache_dir / "cell.json").write_text(json.dumps(cacheable), encoding="utf-8")
 
     def _drive_editor(
         self,
@@ -429,19 +479,32 @@ class Runner:
                 krita_driver.export(info.exe, staged.trap, trap_png)
             return
 
-        if editor_key == "aseprite":
-            exported = aseprite_driver.export(info.exe, staged.original, render_png)
-            if exported.get("unsupported"):
-                cell.update({"state": "unsupported", "opens": "fail",
-                             "error": "Aseprite has no PSD import (verified this run)"})
+        if editor_key == "photopea":
+            from drivers import photopea as photopea_driver
+
+            if self.server_port is None:
+                cell.update({"state": "failed",
+                             "error": "Photopea needs the local server (drop --no-serve)"})
                 return
-            if not exported["ok"]:
-                cell.update({"state": "failed", "opens": "fail", "error": exported["stderr"] or "export failed"})
+            result = photopea_driver.export_all(
+                base_url=f"http://127.0.0.1:{self.server_port}",
+                testy_root=config.TESTY_ROOT,
+                original=staged.original,
+                trap=staged.trap,
+                render_png=render_png,
+                resave_psd=resave_psd,
+                trap_png=trap_png,
+                mutated_png=mutated_png,
+                suffix=self.suffix,
+                progress=lambda stage: (cell.__setitem__("stage", stage), self.push()),
+            )
+            if not result["ok"]:
+                cell.update({"state": "failed", "opens": result.get("opens", "fail"),
+                             "error": result.get("error", "photopea failed")})
                 return
-            cell["opens"] = "ok"
-            aseprite_driver.export(info.exe, staged.original, resave_psd)
-            if staged.trap is not None:
-                aseprite_driver.export(info.exe, staged.trap, trap_png)
+            cell["opens"] = result.get("opens", "ok")
+            if result.get("notes"):
+                cell["driverNotes"] = result["notes"]
             return
 
         if editor_key == "affinity":
@@ -475,10 +538,12 @@ class Runner:
         server = None
         if not self.args.no_serve:
             server, port = start_server(self.args.port)
+            self.server_port = port
             url = f"http://127.0.0.1:{port}/runs/{self.run_name}/report.html"
-            log(f"dashboard: {url}")
+            log(f"dashboard: {url} (run index at http://127.0.0.1:{port}/)")
             if not self.args.no_browser:
                 webbrowser.open(url)
+        report.append_run_index(config.TESTY_ROOT, self.run_name)
 
         if not self.args.no_build and "patchy" in self.editor_order:
             refresh_patchy_build()
@@ -494,6 +559,11 @@ class Runner:
 
         source_hashes = {str(path): staging.sha1_of_file(path) for path in corpus}
 
+        # Circuit breaker: an editor that fails several files in a row is broken for
+        # this run (a dead app, a dead website); skip its remaining cells fast and
+        # honestly instead of grinding through every timeout.
+        consecutive_failures = {key: 0 for key in self.editor_order}
+        BREAKER_LIMIT = 3
         for index, source in enumerate(corpus):
             entry = self.file_entry(index)
             log(f"[{index + 1}/{len(corpus)}] {source.name}")
@@ -503,8 +573,21 @@ class Runner:
                 entry["trapError"] = staged.trap_error
             truth = self.ground_truth(index, staged)
             for editor_key in self.editor_order:
+                cell = entry["cells"][editor_key]
+                if consecutive_failures[editor_key] >= BREAKER_LIMIT:
+                    cell.update({"state": "skipped",
+                                 "error": f"editor skipped after {BREAKER_LIMIT} consecutive failures"})
+                    self.push()
+                    continue
                 log(f"    {editor_key}...")
                 self.run_cell(index, editor_key, staged, truth)
+                if cell.get("state") == "failed":
+                    consecutive_failures[editor_key] += 1
+                    if consecutive_failures[editor_key] >= BREAKER_LIMIT:
+                        log(f"    {editor_key} hit {BREAKER_LIMIT} consecutive failures - "
+                            "skipping it for the rest of the run")
+                else:
+                    consecutive_failures[editor_key] = 0
 
         # Prove the corpus originals were never touched.
         corruption = [
@@ -518,6 +601,10 @@ class Runner:
             from drivers import affinity as affinity_driver
 
             affinity_driver.cleanup()
+        if "photopea" in self.editor_order:
+            from drivers import photopea as photopea_driver
+
+            photopea_driver.cleanup()
 
         self.status["state"] = "done"
         self.status["run"]["finishedAt"] = _dt.datetime.now().isoformat(timespec="seconds")
@@ -542,7 +629,7 @@ class Runner:
             native_scores: list[float] = []
             for entry in self.status["files"]:
                 cell = entry["cells"].get(editor_key)
-                if not cell or cell.get("state") in ("pending", "running"):
+                if not cell or cell.get("state") in ("pending", "running", "skipped"):
                     continue
                 total += 1
                 if cell.get("state") == "done" and cell.get("opens") != "fail":

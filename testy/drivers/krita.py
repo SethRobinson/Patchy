@@ -11,7 +11,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-TIMEOUT_SECONDS = 300
+TIMEOUT_SECONDS = 180
 
 
 def export(exe: Path, input_path: Path, output_path: Path) -> dict:
