@@ -7,7 +7,11 @@
 // scripts and tears down timer/window-driven ones. Saving a bundled script
 // writes the user-folder shadow copy (script_folders.hpp) so the shipped file
 // stays pristine (Revert to Bundled deletes the copy), and Set Icon from
-// Current Window captures a script's icon PNG the same shadow way.
+// Current Window captures a script's icon PNG the same shadow way. The C:\
+// toolbar button (and the script context menu) shows a copyable command-line
+// example for the selected script (script_cli_example_command; the @cli
+// header directive supplies the argument tokens), and Help opens the bundled
+// scripting guide through MainWindow::open_scripting_guide.
 
 #include "ui/script_editor_dialog.hpp"
 
@@ -18,11 +22,14 @@
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
 
+#include <QClipboard>
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QImage>
@@ -460,6 +467,14 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   auto* refresh_button = new QPushButton(tr("Refresh"), this);
   refresh_button->setObjectName(QStringLiteral("scriptEditorRefreshButton"));
   refresh_button->setToolTip(tr("Rescan the script folders"));
+  cli_button_ = new QPushButton(this);
+  cli_button_->setObjectName(QStringLiteral("scriptEditorCliButton"));
+  cli_button_->setIcon(script_cli_icon());
+  cli_button_->setIconSize(QSize(18, 18));
+  cli_button_->setToolTip(tr("Show how to run this script from the command line"));
+  auto* help_button = new QPushButton(tr("Help"), this);
+  help_button->setObjectName(QStringLiteral("scriptEditorHelpButton"));
+  help_button->setToolTip(tr("Open the scripting guide"));
   file_label_ = new QLabel(tr("untitled.js"), this);
   file_label_->setObjectName(QStringLiteral("scriptEditorFileLabel"));
   toolbar->addWidget(run_button_);
@@ -473,6 +488,9 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   toolbar->addWidget(save_as_button);
   toolbar->addWidget(reload_button);
   toolbar->addWidget(refresh_button);
+  toolbar->addSpacing(12);
+  toolbar->addWidget(cli_button_);
+  toolbar->addWidget(help_button);
   toolbar->addStretch(1);
   toolbar->addWidget(file_label_);
   root->addLayout(toolbar);
@@ -517,6 +535,10 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
 
   connect(run_button_, &QPushButton::clicked, this, [this] { run_current(); });
   connect(stop_button_, &QPushButton::clicked, this, [this] { stop_running(); });
+  connect(cli_button_, &QPushButton::clicked, this, [this] { show_cli_example(); });
+  connect(help_button, &QPushButton::clicked, this, [this] { window_.open_scripting_guide(); });
+  connect(script_tree_, &QTreeWidget::currentItemChanged, this,
+          [this](QTreeWidgetItem*, QTreeWidgetItem*) { update_cli_button_enabled(); });
   connect(new_button, &QPushButton::clicked, this, [this] { new_script(); });
   connect(save_button, &QPushButton::clicked, this, [this] { (void)save_script(); });
   connect(save_as_button, &QPushButton::clicked, this, [this] { (void)save_script_as(); });
@@ -545,6 +567,7 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
 
   refresh_script_tree();
   update_run_state();
+  update_cli_button_enabled();
 }
 
 bool ScriptEditorDialog::eventFilter(QObject* watched, QEvent* event) {
@@ -747,6 +770,7 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
   menu.setObjectName(QStringLiteral("scriptEditorTreeMenu"));
   auto* run_action = menu.addAction(tr("Run"));
   auto* reveal_action = menu.addAction(tr("Show in Folder"));
+  auto* cli_action = menu.addAction(tr("Command Line Example..."));
   auto* set_icon_action = menu.addAction(tr("Set Icon from Current Window"));
   set_icon_action->setToolTip(
       tr("Captures the running script's window (or the active image) as this script's icon."));
@@ -768,6 +792,8 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
     (void)host_.run_file(path);
   } else if (chosen == reveal_action) {
     QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
+  } else if (chosen == cli_action) {
+    show_cli_example_for(path);
   } else if (chosen == set_icon_action) {
     set_script_icon_from_window(item);
   } else if (chosen == revert_action) {
@@ -839,6 +865,7 @@ void ScriptEditorDialog::load_script(const QString& path) {
 void ScriptEditorDialog::set_current_path(const QString& path) {
   current_path_ = path;
   update_file_label();
+  update_cli_button_enabled();
 }
 
 void ScriptEditorDialog::update_file_label() {
@@ -862,6 +889,87 @@ void ScriptEditorDialog::run_current() {
 }
 
 void ScriptEditorDialog::stop_running() { host_.stop_active_run(); }
+
+QString ScriptEditorDialog::cli_example_target_path() const {
+  // The selected tree script is what the user is pointing at; fall back to
+  // the file loaded in the editor.
+  if (auto* item = script_tree_->currentItem()) {
+    const auto path = item->data(0, kScriptPathRole).toString();
+    if (!path.isEmpty()) {
+      return path;
+    }
+  }
+  return current_path_;
+}
+
+void ScriptEditorDialog::update_cli_button_enabled() {
+  if (cli_button_ != nullptr) {
+    cli_button_->setEnabled(!cli_example_target_path().isEmpty());
+  }
+}
+
+void ScriptEditorDialog::show_cli_example() { show_cli_example_for(cli_example_target_path()); }
+
+void ScriptEditorDialog::show_cli_example_for(const QString& script_path) {
+  if (script_path.isEmpty()) {
+    return;
+  }
+  // Metadata is re-read from disk here (never cached): the @cli directive may
+  // have just been edited, and an unreadable file simply yields the default
+  // fallback command.
+  const auto meta = read_script_metadata(script_path);
+  const auto command = script_cli_example_command(QCoreApplication::applicationFilePath(),
+                                                  script_path, meta);
+  const auto display_name =
+      meta.name.isEmpty() ? QFileInfo(script_path).fileName() : meta.name;
+
+  auto* dialog = new QDialog(this);
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->setObjectName(QStringLiteral("scriptEditorCliDialog"));
+  dialog->setWindowTitle(tr("Command Line Example"));
+  dialog->setMinimumWidth(560);
+  auto* layout = new QVBoxLayout(dialog);
+  auto* heading =
+      new QLabel(tr("Run %1 from a terminal, batch file, or another program:").arg(display_name),
+                 dialog);
+  heading->setWordWrap(true);
+  layout->addWidget(heading);
+  auto* command_box = new QPlainTextEdit(command, dialog);
+  command_box->setObjectName(QStringLiteral("scriptEditorCliCommand"));
+  command_box->setReadOnly(true);
+  command_box->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+  command_box->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+  command_box->setFixedHeight(command_box->fontMetrics().height() * 5 + 16);
+  command_box->selectAll();  // ready for a manual Ctrl+C too
+  layout->addWidget(command_box);
+  auto* notes = new QLabel(
+      tr("Replace the example paths with your own. Add --script-arg key=value to override a "
+         "script option (repeatable), and --script-output result.txt to write the console "
+         "output to a file when the run completes. In PowerShell, put & before the quoted "
+         "program path."),
+      dialog);
+  notes->setWordWrap(true);
+  layout->addWidget(notes);
+  auto* buttons = new QHBoxLayout();
+  auto* copy_button = new QPushButton(tr("Copy"), dialog);
+  copy_button->setObjectName(QStringLiteral("scriptEditorCliCopyButton"));
+  auto* close_button = new QPushButton(tr("Close"), dialog);
+  close_button->setObjectName(QStringLiteral("scriptEditorCliCloseButton"));
+  close_button->setDefault(true);
+  buttons->addStretch(1);
+  buttons->addWidget(copy_button);
+  buttons->addWidget(close_button);
+  layout->addLayout(buttons);
+  connect(copy_button, &QPushButton::clicked, dialog, [command_box, copy_button] {
+    QGuiApplication::clipboard()->setText(command_box->toPlainText());
+    copy_button->setText(tr("Copied"));
+    QTimer::singleShot(1200, copy_button, [copy_button] { copy_button->setText(tr("Copy")); });
+  });
+  connect(close_button, &QPushButton::clicked, dialog, &QDialog::close);
+  // open(), never exec(): window-modal without a nested event loop, so tests
+  // (and a running script's timers) keep flowing.
+  dialog->open();
+}
 
 void ScriptEditorDialog::new_script() {
   if (!confirm_discard_changes()) {

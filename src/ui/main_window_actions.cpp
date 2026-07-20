@@ -1876,6 +1876,11 @@ void MainWindow::create_actions() {
   });
   register_document_action(force_refresh_action);
 
+  auto* scripting_guide_action = help_menu->addAction(tr("&Scripting Guide"));
+  scripting_guide_action->setObjectName(QStringLiteral("helpScriptingGuideAction"));
+  register_hotkey(scripting_guide_action, "help.scripting_guide");
+  connect(scripting_guide_action, &QAction::triggered, this, [this] { open_scripting_guide(); });
+
   auto* about_action = help_menu->addAction(tr("&About Patchy"));
   about_action->setMenuRole(QAction::AboutRole);
   connect(about_action, &QAction::triggered, this, [this] { show_about(); });
@@ -4093,6 +4098,7 @@ void MainWindow::create_actions() {
       {screen_size_menu->menuAction(), "Set Screen Size"},
       {force_refresh_action, "Force Refresh"},
       {language_english_action_, "&English"},
+      {scripting_guide_action, "&Scripting Guide"},
       {about_action, "&About Patchy"},
       {default_colors_action, "Default Colors"},
       {swap_colors_action, "Swap Colors"},

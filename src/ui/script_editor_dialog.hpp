@@ -48,7 +48,10 @@ private:
 // spinner). Saving a bundled script writes the user-folder shadow copy
 // instead of touching the shipped file; Revert to Bundled (context menu)
 // deletes the copy, and Set Icon from Current Window writes the script's icon
-// PNG through the same shadow rule. Non-modal; opened through
+// PNG through the same shadow rule. The C:\ toolbar button (and the script
+// context menu) pops a copyable command-line example for the selected script
+// (script_cli_example_command), and Help opens the bundled scripting guide
+// (MainWindow::open_scripting_guide). Non-modal; opened through
 // run_non_modal_dialog by MainWindow::open_script_editor. Object names and the
 // hotkey command id keep the historical scriptEditor/file.scripts.editor
 // spelling (persisted identifiers; only the display text says Manager).
@@ -63,6 +66,7 @@ private slots:
   // be exercised offscreen).
   void set_script_icon_from_window(QTreeWidgetItem* item);
   void show_script_hover_card(QTreeWidgetItem* item);
+  void show_cli_example_for(const QString& script_path);
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -77,6 +81,9 @@ private:
   [[nodiscard]] bool confirm_discard_changes();
   void run_current();
   void stop_running();
+  void show_cli_example();
+  [[nodiscard]] QString cli_example_target_path() const;
+  void update_cli_button_enabled();
   void new_script();
   bool save_script();
   bool save_script_as();
@@ -95,6 +102,7 @@ private:
   QPlainTextEdit* console_{nullptr};
   QPushButton* run_button_{nullptr};
   QPushButton* stop_button_{nullptr};
+  QPushButton* cli_button_{nullptr};
   QLabel* status_label_{nullptr};
   QWidget* run_spinner_{nullptr};  // RunSpinner (cpp-local type)
   QTimer* status_timer_{nullptr};

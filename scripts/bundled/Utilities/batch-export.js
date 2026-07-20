@@ -3,6 +3,8 @@
 // @description pattern, optionally scales each to fit a maximum size, and
 // @description exports them into another folder in the chosen format.
 // @author Seth A. Robinson
+// @cli --script-output result.txt --script-arg folder=C:\photos
+// @cli --script-arg out=C:\photos\converted --script-arg format=jpg
 //
 // Unattended runs (patchy --run-script) pass the options as --script-arg
 // folder=... --script-arg out=... [pattern=*.png] [format=jpg] [maxSize=1024].

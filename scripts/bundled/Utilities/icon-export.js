@@ -3,6 +3,7 @@
 // @description the standard sizes (app icons, favicons, store art), each
 // @description resampled from the full-resolution master so they stay sharp.
 // @author Seth A. Robinson
+// @cli --script-arg out=C:\icons example.png
 //
 // Each size is resampled from the master in one step, never chained.
 // Unattended runs pass --script-arg out=... (plus any other option keys).

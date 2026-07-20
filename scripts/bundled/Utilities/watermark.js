@@ -2,6 +2,7 @@
 // @description Stamps a semi-transparent text watermark over the active
 // @description document: pick the text, corner, size, color, and opacity.
 // @author Seth A. Robinson
+// @cli --script-arg "text=(c) My Studio" --script-arg opacity=60 example.png
 //
 // The watermark is its own text layer, so it stays editable and deletable.
 

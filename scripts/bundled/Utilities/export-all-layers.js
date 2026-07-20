@@ -3,6 +3,7 @@
 // @description image file: pick the folder, format, an optional filename
 // @description prefix, and numbered ordering.
 // @author Seth A. Robinson
+// @cli --script-arg folder=C:\layers example.psd
 
 // ---------------------------------------------------------------------------
 // Options - defaults for this script. The options dialog (GUI runs) and

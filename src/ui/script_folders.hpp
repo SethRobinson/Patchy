@@ -22,6 +22,7 @@ struct ScriptFolderEntry {
   QString display_name;   // "@name" header directive; falls back to `name`
   QString description;    // "@description" header directive (may span lines)
   QString author;         // "@author" header directive
+  QString cli_example;    // "@cli" header directive (example command-line tokens)
   QString icon_path;      // sidecar icon PNG (user copy wins); empty = none
   bool is_folder{false};
   bool is_override{false};
@@ -32,16 +33,28 @@ struct ScriptFolderEntry {
 // Directives read from the comment block at the top of a script (docs/
 // scripting.md): "// @name Breakout" sets the display name, "// @description
 // ..." the hover-card blurb (repeated lines join with a space), "// @author
-// ..." the credit line, and "// @window" declares that the script creates its
-// own window or document. Parsing stops at the first non-comment line
-// (30 lines max).
+// ..." the credit line, "// @window" declares that the script creates its
+// own window or document, and "// @cli ..." holds the extra tokens of the
+// script's command-line example (repeated lines join with a space). Parsing
+// stops at the first non-comment line (30 lines max).
 struct ScriptMetadata {
   QString name;
   QString description;
   QString author;
+  QString cli_example;
   bool opens_window{false};
 };
 [[nodiscard]] ScriptMetadata read_script_metadata(const QString& path);
+
+// The copyable "run this script from a terminal" example the Script Manager
+// shows: quoted exe path, --run-script with the quoted script path, then the
+// script's @cli tokens verbatim. Without @cli, active-document scripts (no
+// @window) get an "example.png" positional placeholder; @window scripts get
+// the bare command. Empty inputs simply produce a shorter command - never an
+// error (metadata may be missing entirely).
+[[nodiscard]] QString script_cli_example_command(const QString& exe_path,
+                                                 const QString& script_path,
+                                                 const ScriptMetadata& meta);
 
 // Recursively scans one scripts root: *.js files plus subfolders, folders
 // first (by name), then files sorted by display name case-insensitively.
@@ -89,5 +102,8 @@ bool write_script_icon(const QImage& image, const QString& target);
 // The red octagon stop sign (the Script Manager's Stop button and the
 // running-script stop panel).
 [[nodiscard]] QIcon script_stop_icon();
+// The "C:\_" terminal window (the Script Manager's command-line example
+// button).
+[[nodiscard]] QIcon script_cli_icon();
 
 }  // namespace patchy::ui

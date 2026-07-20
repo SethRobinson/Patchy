@@ -176,6 +176,10 @@ public:
   // live under the per-user app-data folder (created on first use).
   [[nodiscard]] static QString bundled_scripts_directory();
   [[nodiscard]] static QString user_scripts_directory();
+  // Opens the bundled scripting guide (scripting-guide.md, shipped with the
+  // scripts) in the markdown viewer; public so the Script Manager's Help
+  // button shares the Help-menu instance.
+  void open_scripting_guide();
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -1242,6 +1246,7 @@ private:
   // lazily); the editor dialog is non-modal and window-owned.
   ScriptEngineHost* script_engine_host_{nullptr};
   QPointer<QDialog> script_editor_dialog_;
+  QPointer<QDialog> scripting_guide_dialog_;
   QMenu* scripts_menu_{nullptr};
   FilterRegistry filters_;
   PluginHost plugin_host_;

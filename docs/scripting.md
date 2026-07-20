@@ -6,8 +6,11 @@ Editor" in July 2026; the `file.scripts.editor` command id and `scriptEditor*` o
 names keep the historical spelling - persisted identifiers are never renamed), bundled
 example scripts, and a CLI entry point that lets external tools and AI agents drive a
 running Patchy. This doc is the authoritative record of the design rules; the
-user-facing API reference is `scripts/patchy.d.ts` (TypeScript definitions, shipped
-next to the bundled scripts).
+user-facing docs are `scripts/bundled/scripting-guide.md` (the human-readable guide -
+README links it, and it renders in-app via the markdown viewer from Help > Scripting
+Guide and the Script Manager's Help button) and `scripts/bundled/patchy.d.ts`
+(TypeScript definitions). BOTH must track every API change - keeping the guide current
+is part of the same rule that keeps patchy.d.ts current.
 
 ## Where things live
 
@@ -24,14 +27,24 @@ next to the bundled scripts).
   Script Manager UI (folder tree, shadow-override saves, context menu, and the run
   status area: a spinner + "Running... 13s" elapsed readout with a stop-sign button
   while a run is active, "Ready" otherwise; the elapsed clock is dialog-local and
-  restarts when run_state_changed reports a run became active).
+  restarts when run_state_changed reports a run became active). The C:\ toolbar button
+  and the "Command Line Example..." context entry pop the copyable-command dialog
+  (below), and the Help button opens the scripting guide.
+- `src/ui/markdown_viewer_dialog.{hpp,cpp}`: the reusable read-only Markdown viewer
+  (QTextBrowser's native Markdown rendering via setSource; relative images resolve
+  against the .md file, anchors are repainted in the accent blue because the importer
+  uses the palette's unreadable-on-dark default). `MainWindow::open_scripting_guide()`
+  (main_window_scripting.cpp) owns the single instance, shared by Help > Scripting
+  Guide (`help.scripting_guide`) and the Script Manager's Help button, and loads
+  `scripting-guide.md` from the bundled scripts folder.
 - `src/ui/script_folders.{hpp,cpp}`: the script browser model - recursive bundled/user
   folder scans and the shadow-override merge, shared by the File > Scripts menu and the
   editor tree.
 - `src/ui/main_window_scripting.cpp`: the File > Scripts menu (subfolders become
   submenus), the editor entry, and the CLI flows (`run_script_command`, `run_cli_script`).
-- `scripts/bundled/` (repo): bundled scripts + `patchy.d.ts`, staged next to the binaries
-  by the `patchy_bundled_scripts` copy-once target (macOS: `Contents/Resources/scripts`,
+- `scripts/bundled/` (repo): bundled scripts + `patchy.d.ts` + `scripting-guide.md`,
+  staged next to the binaries by the `patchy_bundled_scripts` copy-once target (macOS:
+  `Contents/Resources/scripts`,
   Linux install: `share/patchy/scripts`). ONLY `scripts/bundled` ships - the rest of
   `scripts/` is dev tooling and must never be staged (the copy step cleans the staged
   folder first, so renames/removals propagate to existing build trees). Bundled scripts
@@ -61,6 +74,16 @@ Header directives live in the `//` comment block at the top of a script and are 
 - `// @window` - the script creates its own window or document. Rendered as a small
   window badge; scripts without it work on the active document. Set on the three Games
   plus contact-sheet.js (it builds a new document).
+- `// @cli ...` - the argument part of the script's command-line example: everything
+  after `--run-script <script>`, verbatim (repeated lines join with a space, like
+  `@description`). Consumed by `script_cli_example_command` (script_folders.cpp), which
+  builds the copyable command the Script Manager's C:\ toolbar button and "Command Line
+  Example..." context entry show: quoted exe path + `--run-script` + quoted script path
+  + the `@cli` tokens. Without `@cli` the fallback appends an ` example.png` positional
+  placeholder for active-document scripts and nothing for `@window` scripts, so every
+  script gets a working example even with no metadata at all. The Utilities scripts
+  that take `--script-arg` options carry `@cli` lines; simple active-document effects
+  rely on the fallback.
 
 A 128x128 PNG next to the script with the same base name (`Games/breakout.js` ->
 `Games/breakout.png`) is its icon (big enough for the hover card; the tree scales it to
@@ -263,8 +286,17 @@ newlines. The bundled `Utilities/batch-export.js` is the reference consumer.
   so automation scripts should not open windows.
 
 An AI agent drives Patchy by writing a .js file, invoking `--run-script`, and polling the
-output file. `scripts/patchy.d.ts` is the machine-readable API description; point the
-agent at it.
+output file. `scripts/patchy.d.ts` is the machine-readable API description and
+`scripts/bundled/scripting-guide.md` the prose guide; point the agent at both.
+
+The Script Manager's C:\ button surfaces this whole flow to users: it shows a copyable,
+really-runnable command for the selected script (tree selection first, else the loaded
+file), built by `script_cli_example_command` from the live application path and the
+script's `@cli` directive. The metadata is re-read from disk on every click (never
+cached), the dialog is opened with `open()` (window-modal, no nested event loop), and
+its notes cover `--script-arg`/`--script-output` and PowerShell's leading `&` for
+quoted program paths (the command itself is written for cmd, the common case for
+copy-paste automation).
 
 ## Trust model
 
@@ -286,7 +318,9 @@ pipe is per-user, so `--run-script` adds no cross-user surface.
 - `tests/ui/scripting_tests.cpp` (`.\patchy_ui_visual_tests.exe ui_script`): mutations +
   single undo entry, stale-wrapper errors, pixel roundtrip + palette snap, timers,
   watchdog (via `PATCHY_SCRIPT_TIMEOUT_MS`), console/error line numbers, the CLI output
-  file, the editor dialog, the canvas window, and the Scripts menu scan.
+  file, the editor dialog, the canvas window, the Scripts menu scan, the `@cli`
+  directive + example-command builder + C:\ dialog (clipboard included), and the
+  scripting-guide viewer (both Help entry points, single shared instance).
 - The engine works offscreen; `ScriptEngineHost::message_backlog()` is the easiest
   assertion surface (fresh per MainWindow).
 - Manual smoke: the bundled scripts all run from File > Scripts; `game-of-life.js`

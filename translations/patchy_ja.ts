@@ -8250,6 +8250,18 @@ Mixed selection</source>
         <translation>英語(&amp;E)</translation>
     </message>
     <message>
+        <source>&amp;Scripting Guide</source>
+        <translation>スクリプティングガイド(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Scripting Guide</source>
+        <translation>スクリプティングガイド</translation>
+    </message>
+    <message>
+        <source>The scripting guide (scripting-guide.md) is missing from the bundled scripts folder.</source>
+        <translation>スクリプティングガイド (scripting-guide.md) が同梱スクリプトフォルダーに見つかりません。</translation>
+    </message>
+    <message>
         <location line="+96"/>
         <source>&amp;About Patchy</source>
         <translation>Patchy について(&amp;A)</translation>
@@ -13973,6 +13985,16 @@ Clipped to the layer below</source>
     <message><source>Could not write %1</source><translation>%1 に書き込めませんでした</translation></message>
     <message><source>Save Script</source><translation>スクリプトを保存</translation></message>
     <message><source>JavaScript files (*.js)</source><translation>JavaScript ファイル (*.js)</translation></message>
+    <message><source>Show how to run this script from the command line</source><translation>このスクリプトをコマンドラインから実行する方法を表示</translation></message>
+    <message><source>Help</source><translation>ヘルプ</translation></message>
+    <message><source>Open the scripting guide</source><translation>スクリプティングガイドを開く</translation></message>
+    <message><source>Command Line Example...</source><translation>コマンドライン例...</translation></message>
+    <message><source>Command Line Example</source><translation>コマンドライン例</translation></message>
+    <message><source>Run %1 from a terminal, batch file, or another program:</source><translation>ターミナル、バッチファイル、または他のプログラムから %1 を実行するには:</translation></message>
+    <message><source>Replace the example paths with your own. Add --script-arg key=value to override a script option (repeatable), and --script-output result.txt to write the console output to a file when the run completes. In PowerShell, put &amp; before the quoted program path.</source><translation>例のパスは自分のものに置き換えてください。--script-arg key=value でスクリプトのオプションを上書きでき (複数指定可)、--script-output result.txt で実行完了時にコンソール出力をファイルへ書き出せます。PowerShell では引用符付きプログラムパスの前に &amp; を付けてください。</translation></message>
+    <message><source>Copy</source><translation>コピー</translation></message>
+    <message><source>Copied</source><translation>コピーしました</translation></message>
+    <message><source>Close</source><translation>閉じる</translation></message>
 </context>
 <context>
     <name>ScriptFolders</name>

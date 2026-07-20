@@ -3,6 +3,7 @@
 // @description or suffix, find & replace text in names, or renumber everything
 // @description into a clean sequence like "Frame 01", "Frame 02", ...
 // @author Seth A. Robinson
+// @cli --script-arg "mode=Add prefix" --script-arg text=BG_ example.psd
 
 // ---------------------------------------------------------------------------
 // Options - defaults for this script. The options dialog (GUI runs) and

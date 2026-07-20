@@ -643,6 +643,8 @@ if(PATCHY_BUILD_APP)
       src/ui/liquify_dialog.hpp
       src/ui/liquify_dialog.cpp
       src/ui/localization.cpp
+      src/ui/markdown_viewer_dialog.hpp
+      src/ui/markdown_viewer_dialog.cpp
       src/ui/main_window.hpp
       src/ui/main_window.cpp
       src/ui/main_window_actions.cpp

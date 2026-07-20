@@ -3,7 +3,8 @@
 // of crashing), pixel access round-trips and honors the palette-mode snap,
 // timers keep a run alive, the watchdog interrupts runaway loops, console
 // output and error line numbers reach the sink, the CLI output-file contract
-// holds, and the editor dialog / script canvas window render.
+// holds, the editor dialog / script canvas window render, and the @cli
+// command-line example and scripting-guide viewer surfaces work.
 
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
@@ -18,14 +19,17 @@
 #include "ui/ui_test_access.hpp"
 #include "ui_test_support.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QGuiApplication>
 #include <QImage>
 #include <QLabel>
 #include <QMenu>
@@ -35,6 +39,8 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTextBrowser>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 
@@ -1166,6 +1172,161 @@ void ui_script_busy_panel_yields_to_script_dialogs() {
   qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
 }
 
+// The @cli header directive and the command builder behind the Script
+// Manager's C:\ button: tokens append verbatim (repeated lines join), the
+// fallback covers scripts with no metadata at all, and paths stay quoted.
+void ui_script_cli_directive_and_example_command() {
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const QDir root(temp.path());
+  auto write_file = [](const QString& path, const QByteArray& content) {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    file.write(content);
+  };
+  const auto args_path = root.absoluteFilePath(QStringLiteral("args.js"));
+  write_file(args_path,
+             "// @name Args Demo\n"
+             "// @cli --script-arg folder=C:\\photos\n"
+             "// @cli --script-arg out=C:\\photos\\web example.png\n"
+             "var x = 1;\n");
+  const auto meta = patchy::ui::read_script_metadata(args_path);
+  CHECK(meta.cli_example ==
+        QStringLiteral(
+            "--script-arg folder=C:\\photos --script-arg out=C:\\photos\\web example.png"));
+
+  const auto command = patchy::ui::script_cli_example_command(
+      QStringLiteral("C:/Program Files/Patchy/patchy.exe"), args_path, meta);
+  CHECK(command.startsWith(QLatin1Char('"')));
+  CHECK(command.contains(QStringLiteral("patchy.exe\" --run-script \"")));
+  CHECK(command.contains(QStringLiteral("--script-arg folder=C:\\photos")));
+  CHECK(command.endsWith(QStringLiteral("example.png")));
+
+  // No @cli: active-document scripts get the example.png placeholder, @window
+  // scripts the bare command, and empty metadata never throws.
+  const patchy::ui::ScriptMetadata plain;
+  const auto fallback = patchy::ui::script_cli_example_command(
+      QStringLiteral("patchy.exe"), root.absoluteFilePath(QStringLiteral("plain.js")), plain);
+  CHECK(fallback.endsWith(QStringLiteral(" example.png")));
+  patchy::ui::ScriptMetadata windowed;
+  windowed.opens_window = true;
+  const auto bare = patchy::ui::script_cli_example_command(
+      QStringLiteral("patchy.exe"), root.absoluteFilePath(QStringLiteral("game.js")), windowed);
+  CHECK(bare.endsWith(QStringLiteral(".js\"")));
+
+  // The scan carries the directive to the tree/menu consumers.
+  const auto entries = patchy::ui::scan_script_folder(root.absolutePath());
+  CHECK(entries.size() == 1);
+  CHECK(entries[0].cli_example == meta.cli_example);
+}
+
+// The C:\ toolbar button: disabled until a script is selected, then pops the
+// example dialog whose command comes from the script's @cli directive, and
+// Copy puts the exact command on the clipboard.
+void ui_script_manager_cli_example_dialog() {
+  const StandardPathsTestMode test_paths;
+  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("scriptEditorTree"));
+  auto* cli_button = dialog.findChild<QPushButton*>(QStringLiteral("scriptEditorCliButton"));
+  CHECK(tree != nullptr && cli_button != nullptr);
+  CHECK(!cli_button->isEnabled());
+
+  QTreeWidgetItem* bundled_root = nullptr;
+  for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+    if (tree->topLevelItem(i)->text(0) == QStringLiteral("Bundled")) {
+      bundled_root = tree->topLevelItem(i);
+    }
+  }
+  CHECK(bundled_root != nullptr);
+  auto* utilities = find_child_item(bundled_root, QStringLiteral("Utilities"));
+  CHECK(utilities != nullptr);
+  auto* batch_export = find_child_item(utilities, QStringLiteral("Batch Export"));
+  CHECK(batch_export != nullptr);
+  tree->setCurrentItem(batch_export);
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  CHECK(cli_button->isEnabled());
+
+  cli_button->click();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  auto* example = dialog.findChild<QDialog*>(QStringLiteral("scriptEditorCliDialog"));
+  CHECK(example != nullptr);
+  CHECK(example->isVisible());
+  auto* command_box =
+      example->findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorCliCommand"));
+  CHECK(command_box != nullptr);
+  const auto command = command_box->toPlainText();
+  CHECK(command.contains(QStringLiteral("--run-script")));
+  CHECK(command.contains(QStringLiteral("batch-export.js")));
+  CHECK(command.contains(QStringLiteral("--script-output result.txt")));
+  CHECK(command.contains(QStringLiteral("--script-arg folder=C:\\photos")));
+  save_widget_artifact("script_cli_example_dialog", *example);
+  auto* copy_button =
+      example->findChild<QPushButton*>(QStringLiteral("scriptEditorCliCopyButton"));
+  CHECK(copy_button != nullptr);
+  copy_button->click();
+  CHECK(QGuiApplication::clipboard()->text() == command);
+  example->close();
+}
+
+// Help opens the bundled scripting guide in the markdown viewer (the same
+// file README links), and the Help > Scripting Guide menu action reuses the
+// one instance. The first open parks in run_non_modal_dialog's nested loop,
+// so a timer inspects and closes it from inside.
+void ui_script_scripting_guide_opens_from_help() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto guide_path = patchy::ui::MainWindow::bundled_scripts_directory() +
+                          QStringLiteral("/scripting-guide.md");
+  CHECK(QFile::exists(guide_path));
+
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  auto* help_button = dialog.findChild<QPushButton*>(QStringLiteral("scriptEditorHelpButton"));
+  CHECK(help_button != nullptr);
+  bool saw_guide = false;
+  QString guide_text;
+  auto* dismisser = new QTimer(&window);
+  QObject::connect(dismisser, &QTimer::timeout, &window, [&] {
+    auto* viewer = window.findChild<QDialog*>(QStringLiteral("markdownViewerDialog"));
+    if (viewer == nullptr || !viewer->isVisible()) {
+      return;
+    }
+    if (auto* browser =
+            viewer->findChild<QTextBrowser*>(QStringLiteral("markdownViewerBrowser"))) {
+      guide_text = browser->document()->toPlainText();
+    }
+    if (!saw_guide) {
+      save_widget_artifact("scripting_guide_viewer", *viewer);
+    }
+    saw_guide = true;
+    viewer->close();
+  });
+  dismisser->start(30);
+  help_button->click();
+  dismisser->stop();
+  CHECK(saw_guide);
+  CHECK(guide_text.contains(QStringLiteral("Patchy Scripting Guide")));
+  CHECK(guide_text.contains(QStringLiteral("--run-script")));
+  CHECK(guide_text.contains(QStringLiteral("@cli")));
+
+  // Reopening (here via the Help menu action) reuses the single hidden
+  // instance and returns immediately - no second nested loop.
+  auto* action = window.findChild<QAction*>(QStringLiteral("helpScriptingGuideAction"));
+  CHECK(action != nullptr);
+  action->trigger();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  const auto viewers = window.findChildren<QDialog*>(QStringLiteral("markdownViewerDialog"));
+  CHECK(viewers.size() == 1);
+  CHECK(viewers[0]->isVisible());
+  viewers[0]->close();
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
@@ -1203,5 +1364,9 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_dialog_pickers_listfiles_args_cli_defaults",
        ui_script_dialog_pickers_listfiles_args_cli_defaults},
       {"ui_script_run_command_triggers_actions", ui_script_run_command_triggers_actions},
+      {"ui_script_cli_directive_and_example_command",
+       ui_script_cli_directive_and_example_command},
+      {"ui_script_manager_cli_example_dialog", ui_script_manager_cli_example_dialog},
+      {"ui_script_scripting_guide_opens_from_help", ui_script_scripting_guide_opens_from_help},
   };
 }

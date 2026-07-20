@@ -61,6 +61,7 @@ void scan_into(const QDir& dir, const QString& prefix, std::vector<ScriptFolderE
     entry.display_name = meta.name.isEmpty() ? entry.name : meta.name;
     entry.description = meta.description;
     entry.author = meta.author;
+    entry.cli_example = meta.cli_example;
     entry.opens_window = meta.opens_window;
     const auto icon = dir.absoluteFilePath(file.completeBaseName() + QStringLiteral(".png"));
     if (QFileInfo::exists(icon)) {
@@ -97,6 +98,7 @@ void apply_overrides(std::vector<ScriptFolderEntry>& bundled, const QString& use
       entry.display_name = meta.name.isEmpty() ? entry.name : meta.name;
       entry.description = meta.description;
       entry.author = meta.author;
+      entry.cli_example = meta.cli_example;
       entry.opens_window = meta.opens_window;
     }
     // A user icon shadows the bundled one on its own ("Set Icon..." writes
@@ -153,11 +155,34 @@ ScriptMetadata read_script_metadata(const QString& path) {
           meta.description.isEmpty() ? text : meta.description + QLatin1Char(' ') + text;
     } else if (body.startsWith(QLatin1String("@author "))) {
       meta.author = body.mid(8).trimmed().toString();
+    } else if (body.startsWith(QLatin1String("@cli "))) {
+      // Repeated @cli lines continue the token list.
+      const auto text = body.mid(5).trimmed().toString();
+      meta.cli_example =
+          meta.cli_example.isEmpty() ? text : meta.cli_example + QLatin1Char(' ') + text;
     } else if (body == QLatin1String("@window")) {
       meta.opens_window = true;
     }
   }
   return meta;
+}
+
+QString script_cli_example_command(const QString& exe_path, const QString& script_path,
+                                   const ScriptMetadata& meta) {
+  // Always quoted (paths under Program Files have spaces); cmd.exe accepts a
+  // quoted program path directly, and the dialog notes cover PowerShell's
+  // leading "&".
+  const auto quoted = [](const QString& path) {
+    return QLatin1Char('"') + QDir::toNativeSeparators(path) + QLatin1Char('"');
+  };
+  auto command = quoted(exe_path) + QStringLiteral(" --run-script ") + quoted(script_path);
+  if (!meta.cli_example.isEmpty()) {
+    command += QLatin1Char(' ') + meta.cli_example;
+  } else if (!meta.opens_window) {
+    // Active-document scripts need a document; a positional file opens first.
+    command += QStringLiteral(" example.png");
+  }
+  return command;
 }
 
 std::vector<ScriptFolderEntry> scan_script_folder(const QString& root) {
@@ -343,6 +368,38 @@ QIcon script_stop_icon() {
       painter.setPen(Qt::NoPen);
       painter.setBrush(Qt::white);
       painter.drawRect(QRectF(10.5, 10.5, 11.0, 11.0));
+    }
+    return QIcon(pixmap);
+  }();
+  return icon;
+}
+
+QIcon script_cli_icon() {
+  // A dark terminal window with a "C:\_" prompt, matching the code-drawn
+  // icon family above. The glyphs are drawn big and bright so they still read
+  // at the 18px toolbar-button size.
+  static const QIcon icon = [] {
+    QPixmap pixmap(32, 32);
+    pixmap.fill(Qt::transparent);
+    {
+      QPainter painter(&pixmap);
+      painter.setRenderHint(QPainter::Antialiasing);
+      const QRectF frame(1.5, 3.5, 29.0, 25.0);
+      painter.setPen(QPen(QColor(0x7a, 0x82, 0x8c), 1.6));
+      painter.setBrush(QColor(0x0e, 0x11, 0x16));
+      painter.drawRoundedRect(frame, 3, 3);
+      // Prompt text.
+      QFont font(QStringLiteral("Consolas"));
+      font.setPixelSize(14);
+      font.setBold(true);
+      painter.setFont(font);
+      painter.setPen(QColor(0xf2, 0xf5, 0xf8));
+      painter.drawText(QRectF(frame.left() + 3.5, frame.top() + 2.0, frame.width() - 5.0, 15.0),
+                       Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("C:\\"));
+      // Blinking-cursor underscore in the accent blue.
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(QColor(0x6f, 0xb1, 0xe8));
+      painter.drawRect(QRectF(frame.left() + 4.5, frame.bottom() - 7.0, 9.0, 3.0));
     }
     return QIcon(pixmap);
   }();

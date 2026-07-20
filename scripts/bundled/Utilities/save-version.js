@@ -3,6 +3,7 @@
 // @description becomes mydoc_v001.psd, then mydoc_v002.psd - the next free
 // @description number is found automatically. You keep working in the same file.
 // @author Seth A. Robinson
+// @cli --script-arg folder=C:\versions example.psd
 //
 // Runs instantly when the document has a file; unsaved documents get a small
 // dialog asking where the snapshots should live.

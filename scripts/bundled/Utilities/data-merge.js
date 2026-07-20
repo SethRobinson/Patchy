@@ -3,6 +3,7 @@
 // @description from a CSV file and exports one image per data row - name
 // @description badges, cards, certificates.
 // @author Seth A. Robinson
+// @cli --script-arg csv=C:\data\people.csv --script-arg out=C:\data\output template.psd
 //
 // The CSV's header row names the text layers to fill; each following row
 // becomes one exported file. The template document is restored afterwards.

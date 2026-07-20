@@ -3,7 +3,8 @@
 // Reference for editors (VS Code autocomplete) and for AI agents driving
 // Patchy through `patchy --run-script`. Scripts are plain JavaScript run by
 // Patchy's embedded engine (ES6-level); this file is documentation, it is
-// never executed.
+// never executed. The human-readable companion is scripting-guide.md next to
+// this file (Help in the Script Manager opens it).
 //
 // Script header directives (read by the Script Manager and File > Scripts
 // menu from the comment block at the top of a .js file; parsing stops at the
@@ -14,6 +15,12 @@
 //   // @window               the script creates its own window or document
 //                            (shown as a window badge; scripts without it
 //                            work on the active document)
+//   // @cli ...              the argument part of the script's command-line
+//                            example, everything after "--run-script <script>"
+//                            (repeat the line to continue it). Shown by the
+//                            Script Manager's C:\ button; without it the
+//                            example falls back to an "example.png"
+//                            placeholder for active-document scripts.
 // A 128x128 PNG next to the script with the same base name (breakout.js ->
 // breakout.png) becomes its icon; right-click a script in the Script Manager
 // for "Set Icon from Current Window".

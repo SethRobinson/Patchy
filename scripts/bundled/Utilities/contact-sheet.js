@@ -3,6 +3,7 @@
 // @description grid, each on its own layer, with optional filename captions.
 // @author Seth A. Robinson
 // @window
+// @cli --script-arg folder=C:\photos --script-arg columns=4
 //
 // Unattended runs pass --script-arg folder=... (plus any other option keys).
 

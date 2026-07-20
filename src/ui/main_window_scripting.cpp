@@ -62,6 +62,7 @@
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/style_library.hpp"
 #include "ui/print_dialog.hpp"
+#include "ui/markdown_viewer_dialog.hpp"
 #include "ui/script_editor_dialog.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
@@ -267,6 +268,30 @@ void MainWindow::run_script_from_menu(const QString& path) {
 
 void MainWindow::browse_user_scripts_folder() {
   QDesktopServices::openUrl(QUrl::fromLocalFile(user_scripts_directory()));
+}
+
+void MainWindow::open_scripting_guide() {
+  if (scripting_guide_dialog_ != nullptr) {
+    scripting_guide_dialog_->show();
+    scripting_guide_dialog_->raise();
+    scripting_guide_dialog_->activateWindow();
+    return;
+  }
+  const auto bundled = bundled_scripts_directory();
+  const auto path =
+      bundled.isEmpty() ? QString() : bundled + QStringLiteral("/scripting-guide.md");
+  auto* dialog = new MarkdownViewerDialog(this);
+  dialog->setWindowTitle(tr("Scripting Guide"));
+  if (!dialog->load_file(path)) {
+    delete dialog;
+    show_status_error(tr("The scripting guide (scripting-guide.md) is missing from the bundled "
+                         "scripts folder."));
+    return;
+  }
+  // Parented to the main window (not the Script Manager) so the guide
+  // survives closing the manager and both Help entries share one instance.
+  scripting_guide_dialog_ = dialog;
+  run_non_modal_dialog(*dialog);
 }
 
 void MainWindow::open_script_editor() {
