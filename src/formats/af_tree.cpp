@@ -272,6 +272,16 @@ private:
       }
       return values;
     }
+    // Small arrays flatten into one double vector (gradient stop positions,
+    // Posn = float2 pairs, ride here); implausibly large ones stay skipped.
+    const std::uint64_t total = static_cast<std::uint64_t>(count) * static_cast<std::uint64_t>(components);
+    if (total <= 4096) {
+      std::vector<double> values(static_cast<std::size_t>(total));
+      for (auto& value : values) {
+        value = element_size == 4 ? static_cast<double>(read_float<float>()) : read_float<double>();
+      }
+      return values;
+    }
     for (std::uint32_t i = 0; i < count; ++i) {
       for (int c = 0; c < components; ++c) {
         if (element_size == 4) {

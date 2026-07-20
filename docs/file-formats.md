@@ -221,18 +221,44 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
 - **Multi-page/artboard documents** import the first spread with a notice
   naming the total count.
 - **Text (`TxtA` artistic / `TxtF` frame)** imports as real Patchy text
-  layers: the reader extracts each story (text with U+2029/U+2028 breaks,
-  first-run font/size/weight/italic, brush-fill color, paragraph alignment,
-  the `TxtH` frame box, transform scale folded into the size) into the
-  standard `patchy.text.*` metadata plus `patchy.af.*` placement markers, and
-  `MainWindow::render_pending_af_text_layers` renders post-open through the
-  internal text pipeline (the SVG import pattern; same three call sites).
-  Frame text wraps via the box flow with its cap at the frame top (pinned
-  against Affinity's render); centre/right alignment rides a minimal
-  rich-text body. Approximations (notice where user-visible): mixed run
-  styles simplify to the first run, rotation/shear renders axis-aligned, and
-  Affinity's paragraph space-before/after is not imported yet, so multi-
-  paragraph blocks pack tighter than Affinity's layout.
+  layers with **per-run styles**: the reader extracts each story (text with
+  U+2029/U+2028 breaks, per-run font/size/weight/italic and brush-fill color
+  from the `GlAS` glyph runs, paragraph alignment from the `PaAS` runs, the
+  `TxtH` frame box, transform scale folded into every run's size) into the
+  standard `patchy.text.*` metadata - mixed styles emit `patchy.text.runs` +
+  `patchy.text.html` through the shared PSD serializers (public header
+  `psd/psd_text_runs.hpp`), so imported text is fully editable in the
+  Character panel and round-trips through the PSD writer - plus `patchy.af.*`
+  placement markers; `MainWindow::render_pending_af_text_layers` renders
+  post-open through the internal text pipeline (the SVG import pattern; same
+  three call sites), anchoring the first line on the tallest run's ascent.
+  Run boundaries: `GlAR.Indx` is the run's END (exclusive) counted in Unicode
+  CODEPOINTS of the block text including its trailing NUL (pinned by the
+  emoji fixture tiny-text-runs.af); sparse run items inherit the previous
+  run's unset fields. Frame text wraps via the box flow with its cap at the
+  frame top (pinned against Affinity's render). Approximations (notice where
+  user-visible): rotation/shear renders axis-aligned, Affinity's paragraph
+  space-before/after is not imported yet (multi-paragraph blocks pack
+  tighter), and the All Caps glyph attribute is not applied.
+- **Layer effects (`FiEf`)** import into `Layer::layer_style()` for the kinds
+  Patchy models: outer/inner shadow (`Shad`/`InnS`; wire `Angl` is the
+  direction the shadow FALLS, screen-clockwise from +x, so the PS light angle
+  is 180 - deg), outline (`Strk`; `Alig` 0 outside / 1 centre / 2 inside;
+  `Ftyp` 2 = gradient fill via the `GrFl` descriptor), colour overlay
+  (`ColO`), gradient overlay (`GrdO`; stops decode, placement handles do not
+  yet - renders with default placement), outer/inner glow (`OutG`/`InnG`;
+  `Cntr` = centre source), Bevel/Emboss (`BevE`; `Beve` 0 inner / 1 outer /
+  2 emboss / 3 pillow, `Azim`/`Elev` radians in the PS light convention,
+  `Dept` px maps to PS depth as Dept/Radi; notice-approximate) and the 3D
+  Phong bevel (`PhgB`; notice-approximated as a smooth inner bevel lit by its
+  first `PLig` light). The effect `BlnM` enum is its OWN space (NOT the layer
+  `Blnd` enum): base ids 0..21 with LATER-ADDED modes reusing ids under an
+  enum-version bump (LinearBurn 5/v3, LinearLight 15/v1, Divide 21/v4) -
+  table in `map_effect_blend_mode`. Gaussian blur and unknown kinds skip with
+  a notice; group effects import but do not render (same caveat as PSD).
+  Semantics pinned by the authored one-toggle docs in af-spike/corpus/fx-*
+  (`author_fx_text.py`); outlines/shadows/overlays score RMSE ~0-2 against
+  Affinity's own renders, bevels/glows are approximate by design.
 - **Adjustment layers**: the eight kinds Patchy models import as real
   adjustment layers with their mask planes - Curves (spline control points;
   a corpus photo doc with heavy Curves renders pixel-identical, RMSE 0.00),
@@ -261,6 +287,12 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   the serialized document tree, d/<hex> = 64 KiB raster tiles, edc/<n> =
   embedded documents), per-stream compression byte (raw/zlib/zstd + byte or
   u16 delta predictors) and CRC32 (checked; mismatch = notice, not failure).
+  The #Inf offset points at the NEWEST chain link and next_offset walks to
+  OLDER save revisions, so stream resolution is two-phase with the head link
+  winning per stream (regression 2026-07-20: a one-pass walk imported an
+  incrementally-saved document's OLDEST doc.dat - stale text styles, missing
+  effects; `af_head_fat_revision_wins` pins the fix on a spliced two-link
+  fixture built by af-spike/make_incremental_fixture.py).
   zlib inflate reuses the vendored miniz; zstd uses the vendored decode-only
   `src/formats/zstd/zstddeclib.c` (Zstandard 1.5.7, BSD-3; NOTICE entry).
   The preview decoder is a deliberately minimal PNG reader (8-bit gray/RGB/

@@ -17,6 +17,7 @@
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_smart_objects.hpp"
+#include "psd/psd_text_runs.hpp"
 
 #include <algorithm>
 #include <array>
@@ -245,38 +246,9 @@ struct ParsedCompositeChannelResources {
   std::vector<std::vector<std::uint8_t>> display_records;
 };
 
-struct PsdTextStyleRun {
-  int start{0};
-  int length{0};
-  std::string family{"Arial"};
-  double size{36.0};
-  RgbColor color{0, 0, 0};
-  bool bold{false};
-  bool italic{false};
-  // Fixed leading in engine units (document pixels through the TySh transform). Unset when the
-  // run uses Photoshop auto leading (auto_leading), which is paragraph AutoLeading fraction x size.
-  std::optional<double> leading;
-  bool auto_leading{false};
-  // Photoshop tracking: 1/1000 em added after every inter-glyph gap.
-  double tracking{0.0};
-  // Character-panel glyph scales: width x horizontal_scale, height x vertical_scale. Leading
-  // stays FontSize-based (COM-calibrated: VerticalScale does not change auto leading).
-  double horizontal_scale{1.0};
-  double vertical_scale{1.0};
-};
-
-struct PsdTextParagraphRun {
-  int start{0};
-  int length{0};
-  int justification{0};
-  double first_line_indent{0.0};
-  double start_indent{0.0};
-  double end_indent{0.0};
-  double space_before{0.0};
-  double space_after{0.0};
-  // Auto-leading fraction (Photoshop default 1.2): auto leading = fraction x font size.
-  double auto_leading_fraction{1.2};
-};
+// PsdTextStyleRun / PsdTextParagraphRun and the runs/html serializers moved to
+// the public psd/psd_text_runs.hpp (included above) so the .af importer can
+// emit the same editable-text metadata.
 
 // Defaults from the engine data's ResourceDict "normal" style/paragraph sheets. Style runs omit
 // every property that matches these document defaults, so run parsing must fall back here (the
@@ -592,10 +564,6 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
 std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(std::span<const std::uint8_t> payload,
                                                                               std::string_view text);
 std::string serialize_paragraph_metric(double value);
-std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs);
-std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun> runs);
-std::string html_from_text_runs(std::string_view text, std::span<const PsdTextStyleRun> runs,
-                                std::span<const PsdTextParagraphRun> paragraph_runs = {});
 PixelBuffer render_placeholder_text(std::string_view text, std::int32_t width, std::int32_t height);
 bool has_visible_alpha(const PixelBuffer& pixels);
 std::optional<Rect> visible_pixel_local_bounds(const PixelBuffer& pixels);

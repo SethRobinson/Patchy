@@ -7573,6 +7573,38 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
         font.setBold(inputs->settings.bold);
         font.setItalic(inputs->settings.italic);
         metrics = QFontMetricsF(font);
+        // Mixed-style imports carry patchy.text.runs; the frame-top / baseline
+        // anchor tracks the tallest run intersecting the FIRST line (Affinity
+        // anchors on the line's max ascent), not the layer-level first style.
+        if (!inputs->rich_text_runs.trimmed().isEmpty()) {
+          const auto newline = inputs->settings.text.indexOf(QLatin1Char('\n'));
+          const auto first_line_end =
+              newline < 0 ? inputs->settings.text.size() : static_cast<qsizetype>(newline);
+          for (const auto& raw_line : inputs->rich_text_runs.split(QLatin1Char('\n'))) {
+            const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+            if (fields.size() < 7) {
+              continue;  // version header / malformed line
+            }
+            bool start_ok = false;
+            bool length_ok = false;
+            bool size_ok = false;
+            const int start = fields[0].toInt(&start_ok);
+            const int length = fields[1].toInt(&length_ok);
+            const double size = fields[2].toDouble(&size_ok);
+            if (!start_ok || !length_ok || !size_ok || length <= 0 ||
+                static_cast<qsizetype>(start) >= first_line_end) {
+              continue;
+            }
+            QFont run_font(QString::fromUtf8(QByteArray::fromPercentEncoding(fields[6].toLatin1())));
+            run_font.setPixelSize(std::max(1, static_cast<int>(std::lround(size))));
+            run_font.setBold(fields[3].toInt() != 0);
+            run_font.setItalic(fields[4].toInt() != 0);
+            const QFontMetricsF run_metrics(run_font);
+            if (run_metrics.ascent() > metrics.ascent()) {
+              metrics = run_metrics;
+            }
+          }
+        }
       }
       if (affinity_ascent > 0.0) {
         top = frame[1] + affinity_ascent - metrics.ascent();

@@ -29,6 +29,8 @@ enum class TestFontRole {
   Candara,         // restaurant-menu fixture description face (Candara-BoldItalic)
   JapaneseGothic,  // a Japanese-writing-system family (font picker preview tests)
   Wingdings,       // a symbol-writing-system family (font picker preview tests)
+  TimesNewRoman,   // .af mixed-run text fixture face
+  CourierNew,      // .af mixed-run text fixture face
 };
 
 inline QStringList test_font_candidates(TestFontRole role) {
@@ -130,6 +132,28 @@ inline QStringList test_font_candidates(TestFontRole role) {
       return {QStringLiteral("/System/Library/Fonts/Supplemental/Wingdings.ttf")};
 #else
       return {};
+#endif
+    case TestFontRole::TimesNewRoman:
+#if defined(Q_OS_WIN)
+      return {
+          QStringLiteral("C:/Windows/Fonts/times.ttf"),
+          QStringLiteral("C:/Windows/Fonts/timesbd.ttf"),
+      };
+#elif defined(Q_OS_MACOS)
+      return {QStringLiteral("/System/Library/Fonts/Supplemental/Times New Roman.ttf")};
+#else
+      return {};  // Liberation Serif registers under its own family name
+#endif
+    case TestFontRole::CourierNew:
+#if defined(Q_OS_WIN)
+      return {
+          QStringLiteral("C:/Windows/Fonts/cour.ttf"),
+          QStringLiteral("C:/Windows/Fonts/courbd.ttf"),
+      };
+#elif defined(Q_OS_MACOS)
+      return {QStringLiteral("/System/Library/Fonts/Supplemental/Courier New.ttf")};
+#else
+      return {};  // Liberation Mono registers under its own family name
 #endif
   }
   return {};

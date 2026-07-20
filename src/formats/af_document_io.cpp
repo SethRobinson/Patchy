@@ -5,6 +5,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "psd/psd_smart_objects.hpp"
+#include "psd/psd_text_runs.hpp"
 #include "color/color_management.hpp"
 #include "formats/af_tree.hpp"
 #include "formats/binary_le.hpp"
@@ -119,9 +120,20 @@ struct Container {
     container.protocol = reader.read_u32();
   }
 
-  // Stream-table chain. Entries repeat across links (save revisions); walking
-  // oldest-to-newest with later links overwriting matches head-revision picks.
+  // Stream-table chain. The #Inf offset points at the NEWEST link and each
+  // link's next_offset leads to an OLDER save revision, so the head link's
+  // records are the live ones. A stream's name may be declared (flag 0) only
+  // in an older link than its newest data record (flag 1), so resolution is
+  // two-phase: walk the chain collecting every link, then apply the links
+  // oldest-to-newest with newer records overwriting. One pass that overwrote
+  // in walk order imported an incrementally-saved document's OLDEST doc.dat
+  // (stale text styling, missing effects).
   std::unordered_map<std::uint32_t, std::string> names_by_id;
+  struct PendingStream {
+    std::uint32_t id{};
+    StreamRecord record;
+  };
+  std::vector<std::vector<PendingStream>> chain_links;
   std::uint64_t next_offset = fat_offset;
   std::size_t chain_length = 0;
   while (next_offset != 0) {
@@ -147,6 +159,8 @@ struct Container {
     if (files_count > kMaxStreamsPerFat) {
       throw std::runtime_error("Affinity document stream table is implausible");
     }
+    chain_links.emplace_back();
+    auto& link = chain_links.back();
     for (std::uint32_t i = 0; i < files_count; ++i) {
       const std::uint32_t id = reader.read_u32();
       const std::uint8_t flag = reader.read_u8();
@@ -186,13 +200,12 @@ struct Container {
         for (std::uint16_t c = 0; c < name_length; ++c) {
           name[c] = static_cast<char>(reader.read_u8());
         }
-        names_by_id[id] = name;
+        // First-seen wins: the walk goes newest-to-oldest, so a rename in a
+        // newer revision keeps the newer name.
+        names_by_id.try_emplace(id, std::move(name));
       }
       if (flag == 0 || flag == 1) {
-        auto found = names_by_id.find(id);
-        if (found != names_by_id.end()) {
-          container.streams[found->second] = record;
-        }
+        link.push_back(PendingStream{id, record});
       }
     }
     for (std::uint16_t d = 0; d < dirs_count; ++d) {
@@ -203,6 +216,16 @@ struct Container {
         throw std::runtime_error("Affinity document directory name is implausible");
       }
       reader.skip(name_length);
+    }
+  }
+  // Apply oldest link first so newer revisions overwrite: the head (newest)
+  // revision of every stream wins.
+  for (auto link = chain_links.rbegin(); link != chain_links.rend(); ++link) {
+    for (const auto& pending : *link) {
+      const auto found = names_by_id.find(pending.id);
+      if (found != names_by_id.end()) {
+        container.streams[found->second] = pending.record;
+      }
     }
   }
   return container;
@@ -1531,6 +1554,9 @@ void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer&
   }
 }
 
+void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
+                         const std::string& name);
+
 [[nodiscard]] Layer build_group(LayerBuildContext& ctx, const af::AfClass& node,
                                 const std::string& name) {
   Layer group(ctx.document.allocate_layer_id(), name.empty() ? "Group" : name, LayerKind::Group);
@@ -1556,6 +1582,11 @@ void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer&
     }
   }
   apply_mask_children(ctx, node, group, name.empty() ? "Group" : name);
+  apply_layer_effects(ctx, node, group, name.empty() ? "Group" : name);
+  if (!group.layer_style().empty()) {
+    ctx.notices.push_back("Layer '" + (name.empty() ? std::string("Group") : name) +
+                          "': group layer effects are not rendered");
+  }
   return group;
 }
 
@@ -1616,9 +1647,388 @@ void apply_common(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
       }
     }
   }
+  apply_layer_effects(ctx, node, layer, name);
 }
 
 [[nodiscard]] std::optional<std::array<float, 4>> read_rgba_color(const af::AfClass* color_class);
+
+// ---- Layer effects (the node's FiEf list of FilE-derived classes) ----
+//
+// Shared header on every effect: Enab (only enabled ones import), BlnM (an
+// enum space of its own, DIFFERENT from the layer Blnd enum), Opac 0..1, SclO
+// scale-with-object. Radii/offsets are document pixels; angles are radians.
+// Colors are the same RGBA class shape as elsewhere (possibly shared-class
+// refs; the tree parser resolves those). All mappings below are pinned by the
+// authored one-toggle docs in local-test-fixtures/af-spike/corpus/fx-*.af
+// (blend sweep, alignment/bevel-type sweeps, angle-direction renders).
+
+// Effect-blend wire (id, enum_version) -> BlendMode. The base table is the
+// version-0 dropdown order; modes added later REUSE ids under a version bump
+// (LinearBurn = 5/v3 vs Screen = 5/v0, LinearLight = 15/v1 vs Exclusion =
+// 15/v0, Divide = 21/v4), so the version participates in the lookup.
+[[nodiscard]] std::optional<BlendMode> map_effect_blend_mode(const af::AfEnum& value) {
+  if (value.version != 0) {
+    if (value.id == 5 && value.version == 3) {
+      return BlendMode::LinearBurn;
+    }
+    if (value.id == 15 && value.version == 1) {
+      return BlendMode::LinearLight;
+    }
+    if (value.id == 21) {
+      return BlendMode::Divide;
+    }
+    return std::nullopt;
+  }
+  switch (value.id) {
+    case 0: return BlendMode::Normal;
+    case 1: return BlendMode::Darken;
+    case 2: return BlendMode::Multiply;
+    case 3: return BlendMode::ColorBurn;
+    case 4: return BlendMode::Lighten;
+    case 5: return BlendMode::Screen;
+    case 6: return BlendMode::ColorDodge;
+    case 7: return BlendMode::LinearDodge;
+    case 8: return BlendMode::Overlay;
+    case 9: return BlendMode::SoftLight;
+    case 10: return BlendMode::HardLight;
+    case 11: return BlendMode::VividLight;
+    case 12: return BlendMode::PinLight;
+    case 13: return BlendMode::HardMix;
+    case 14: return BlendMode::Difference;
+    case 15: return BlendMode::Exclusion;
+    case 16: return BlendMode::Subtract;
+    case 17: return BlendMode::Hue;
+    case 18: return BlendMode::Saturation;
+    case 19: return BlendMode::Luminosity;
+    case 20: return BlendMode::Color;
+    case 21: return BlendMode::Divide;
+    default: return std::nullopt;
+  }
+}
+
+[[nodiscard]] double degrees_from_radians(double radians) {
+  double degrees = radians * 180.0 / 3.14159265358979323846;
+  degrees = std::fmod(degrees, 360.0);
+  return degrees < 0.0 ? degrees + 360.0 : degrees;
+}
+
+[[nodiscard]] std::int64_t enum_field_id(const af::AfClass& cls, std::uint32_t tag,
+                                         std::int64_t fallback) {
+  const auto* f = cls.field(tag);
+  if (f != nullptr) {
+    if (const auto* e = std::get_if<af::AfEnum>(&f->value)) {
+      return e->id;
+    }
+  }
+  return fallback;
+}
+
+// Effect color + alpha (alpha folds into the effect opacity).
+struct EffectColor {
+  RgbColor color{0, 0, 0};
+  float alpha{1.0F};
+};
+
+[[nodiscard]] std::optional<EffectColor> effect_color(const af::AfClass& effect, std::uint32_t tag) {
+  const auto stored = read_rgba_color(effect.child_class(tag));
+  if (!stored.has_value()) {
+    return std::nullopt;
+  }
+  const auto to_channel = [](float value) {
+    return static_cast<std::uint8_t>(std::lround(std::clamp(value, 0.0F, 1.0F) * 255.0F));
+  };
+  return EffectColor{RgbColor{to_channel((*stored)[0]), to_channel((*stored)[1]), to_channel((*stored)[2])},
+                     std::clamp((*stored)[3], 0.0F, 1.0F)};
+}
+
+// GrFl -> FDsc -> FDeF (FilG/Fill) -> Grad: Posn = [position, midpoint] float2
+// pairs and Cols = the RGBA stop colors. Placement (angle/scale handles) is
+// not decoded yet; overlays render with the Patchy defaults.
+[[nodiscard]] std::optional<LayerStyleGradient> style_gradient_from_fill(const af::AfClass* descriptor) {
+  if (descriptor == nullptr) {
+    return std::nullopt;
+  }
+  const af::AfClass* fill = descriptor->child_class(af::tag4("FDeF"));
+  if (fill == nullptr) {
+    return std::nullopt;
+  }
+  const af::AfClass* gradient = fill->child_class(af::tag4("Grad"));
+  if (gradient == nullptr) {
+    return std::nullopt;
+  }
+  const auto positions = gradient->vec_field(af::tag4("Posn"));
+  const auto* colors = class_list(*gradient, af::tag4("Cols"));
+  if (colors == nullptr || positions.size() != colors->size() * 2 || colors->size() < 2) {
+    return std::nullopt;
+  }
+  LayerStyleGradient result;
+  result.color_stops.reserve(colors->size());
+  result.alpha_stops.reserve(colors->size());
+  for (std::size_t i = 0; i < colors->size(); ++i) {
+    const auto stored = read_rgba_color((*colors)[i].get());
+    if (!stored.has_value()) {
+      return std::nullopt;
+    }
+    const auto to_channel = [](float value) {
+      return static_cast<std::uint8_t>(std::lround(std::clamp(value, 0.0F, 1.0F) * 255.0F));
+    };
+    const auto location = static_cast<float>(std::clamp(positions[i * 2], 0.0, 1.0));
+    // The wire midpoint rides with the DEPARTING stop; Patchy stores it on the
+    // destination stop, so stop i+1 takes stop i's midpoint.
+    const auto midpoint =
+        i == 0 ? 0.5F : static_cast<float>(std::clamp(positions[(i - 1) * 2 + 1], 0.05, 0.95));
+    result.color_stops.push_back(GradientColorStop{
+        location,
+        RgbColor{to_channel((*stored)[0]), to_channel((*stored)[1]), to_channel((*stored)[2])},
+        midpoint});
+    result.alpha_stops.push_back(GradientAlphaStop{location, std::clamp((*stored)[3], 0.0F, 1.0F), midpoint});
+  }
+  return result;
+}
+
+[[nodiscard]] std::string effect_tag_text(std::uint32_t tag) {
+  std::string text(4, '?');
+  for (int i = 0; i < 4; ++i) {
+    const auto byte = static_cast<char>((tag >> (24 - i * 8)) & 0xFFU);
+    text[static_cast<std::size_t>(i)] = (byte >= 0x20 && byte < 0x7F) ? byte : '?';
+  }
+  return text;
+}
+
+// Map the node's FiEf effects onto layer_style(). Kinds Patchy has no model
+// for (Gaussian blur, ...) skip with a notice; the Phong 3D bevel (PhgB)
+// notice-approximates as a smooth inner Bevel/Emboss. Angle conventions and
+// the enum ids below are pinned by the authored one-toggle fixture docs.
+void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
+                         const std::string& name) {
+  const auto* effects = class_list(node, af::tag4("FiEf"));
+  if (effects == nullptr || effects->empty()) {
+    return;
+  }
+  auto& style = layer.layer_style();
+  for (const auto& entry : *effects) {
+    if (entry == nullptr || !entry->bool_field(af::tag4("Enab"), false)) {
+      continue;
+    }
+    const af::AfClass& effect = *entry;
+    const float opacity =
+        static_cast<float>(std::clamp(effect.double_field(af::tag4("Opac"), 1.0), 0.0, 1.0));
+    const auto blend = [&](BlendMode fallback) {
+      const auto* field = effect.field(af::tag4("BlnM"));
+      if (field != nullptr) {
+        if (const auto* e = std::get_if<af::AfEnum>(&field->value)) {
+          if (const auto mapped = map_effect_blend_mode(*e)) {
+            return *mapped;
+          }
+          ctx.notices.push_back("Layer '" + name + "': effect blend mode approximated");
+        }
+      }
+      return fallback;
+    };
+    const std::uint32_t kind = effect.type_tag;
+
+    // Shadow Angl is the direction the shadow FALLS, screen-clockwise from +x
+    // (0 = right, pi/2 = down; pinned by the fx-shadow-a0/a90 renders).
+    // Patchy stores the Photoshop LIGHT angle (CCW from +x, y up): 180 - deg.
+    const auto shadow_angle = [&] {
+      return static_cast<float>(
+          std::fmod(540.0 - degrees_from_radians(effect.double_field(af::tag4("Angl"), 0.0)),
+                    360.0));
+    };
+
+    if (kind == af::tag4("Shad")) {  // outer shadow
+      LayerDropShadow shadow;
+      shadow.enabled = true;
+      shadow.blend_mode = blend(BlendMode::Multiply);
+      shadow.opacity = opacity;
+      if (const auto color = effect_color(effect, af::tag4("Colr"))) {
+        shadow.color = color->color;
+        shadow.opacity *= color->alpha;
+      }
+      shadow.size = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Radi"), 5.0)));
+      shadow.distance = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Offs"), 0.0)));
+      shadow.angle_degrees = shadow_angle();
+      if (!effect.bool_field(af::tag4("Knck"), true)) {
+        ctx.notices.push_back("Layer '" + name +
+                              "': shadow drawn behind the layer ('fill knocks out shadow' off is not supported)");
+      }
+      style.drop_shadows.push_back(shadow);
+    } else if (kind == af::tag4("InnS")) {  // inner shadow
+      LayerInnerShadow shadow;
+      shadow.enabled = true;
+      shadow.blend_mode = blend(BlendMode::Multiply);
+      shadow.opacity = opacity;
+      if (const auto color = effect_color(effect, af::tag4("Colr"))) {
+        shadow.color = color->color;
+        shadow.opacity *= color->alpha;
+      }
+      shadow.size = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Radi"), 5.0)));
+      shadow.distance = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Offs"), 0.0)));
+      shadow.angle_degrees = shadow_angle();
+      style.inner_shadows.push_back(shadow);
+    } else if (kind == af::tag4("Strk")) {  // outline
+      LayerStroke stroke;
+      stroke.enabled = true;
+      stroke.blend_mode = blend(BlendMode::Normal);
+      stroke.opacity = opacity;
+      stroke.size = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Radi"), 0.0)));
+      // Wire Alig: 0 outside (the UI default), 1 centre, 2 inside (pinned by
+      // the fx-outline-* alignment sweep).
+      switch (enum_field_id(effect, af::tag4("Alig"), 0)) {
+        case 1: stroke.position = LayerStrokePosition::Center; break;
+        case 2: stroke.position = LayerStrokePosition::Inside; break;
+        default: stroke.position = LayerStrokePosition::Outside; break;
+      }
+      if (const auto color = effect_color(effect, af::tag4("Colr"))) {
+        stroke.color = color->color;
+        stroke.opacity *= color->alpha;
+      }
+      // Wire Ftyp (StrokeFillType): 0 solid, 1 contour, 2 gradient.
+      const auto fill_type = enum_field_id(effect, af::tag4("Ftyp"), 0);
+      if (fill_type == 2) {
+        if (auto gradient = style_gradient_from_fill(effect.child_class(af::tag4("GrFl")))) {
+          stroke.uses_gradient = true;
+          stroke.gradient = std::move(*gradient);
+        } else {
+          ctx.notices.push_back("Layer '" + name + "': stroke effect fill approximated as solid");
+        }
+      } else if (fill_type != 0) {
+        ctx.notices.push_back("Layer '" + name + "': stroke effect fill approximated as solid");
+      }
+      if (stroke.size <= 0.0F) {
+        continue;  // zero-width outline draws nothing in Affinity either
+      }
+      style.strokes.push_back(stroke);
+    } else if (kind == af::tag4("GrdO")) {  // gradient overlay
+      LayerGradientFill overlay;
+      overlay.enabled = true;
+      overlay.blend_mode = blend(BlendMode::Normal);
+      overlay.opacity = opacity;
+      if (auto gradient = style_gradient_from_fill(effect.child_class(af::tag4("GrFl")))) {
+        overlay.gradient = std::move(*gradient);
+        style.gradient_fills.push_back(overlay);
+      } else {
+        ctx.notices.push_back("Layer '" + name + "': gradient overlay effect not decoded; skipped");
+      }
+    } else if (kind == af::tag4("ColO")) {  // colour overlay
+      LayerColorOverlay overlay;
+      overlay.enabled = true;
+      overlay.blend_mode = blend(BlendMode::Normal);
+      overlay.opacity = opacity;
+      if (const auto color = effect_color(effect, af::tag4("Colr"))) {
+        overlay.color = color->color;
+        overlay.opacity *= color->alpha;
+      }
+      style.color_overlays.push_back(overlay);
+    } else if (kind == af::tag4("OutG")) {  // outer glow
+      LayerOuterGlow glow;
+      glow.enabled = true;
+      glow.blend_mode = blend(BlendMode::Screen);
+      glow.opacity = opacity;
+      if (const auto color = effect_color(effect, af::tag4("Colr"))) {
+        glow.color = color->color;
+        glow.opacity *= color->alpha;
+      }
+      glow.size = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Radi"), 5.0)));
+      style.outer_glows.push_back(glow);
+    } else if (kind == af::tag4("InnG")) {  // inner glow
+      LayerInnerGlow glow;
+      glow.enabled = true;
+      glow.blend_mode = blend(BlendMode::Screen);
+      glow.opacity = opacity;
+      if (const auto color = effect_color(effect, af::tag4("Colr"))) {
+        glow.color = color->color;
+        glow.opacity *= color->alpha;
+      }
+      glow.size = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Radi"), 5.0)));
+      glow.source = effect.bool_field(af::tag4("Cntr"), false) ? LayerInnerGlowSource::Center
+                                                               : LayerInnerGlowSource::Edge;
+      style.inner_glows.push_back(glow);
+    } else if (kind == af::tag4("BevE")) {  // bevel/emboss
+      LayerBevelEmboss bevel;
+      bevel.enabled = true;
+      bevel.highlight_blend_mode = blend(BlendMode::Screen);
+      bevel.highlight_opacity = opacity;
+      bevel.shadow_opacity =
+          static_cast<float>(std::clamp(effect.double_field(af::tag4("ShOp"), 0.75), 0.0, 1.0));
+      const auto* shadow_blend = effect.field(af::tag4("ShBM"));
+      if (shadow_blend != nullptr) {
+        if (const auto* e = std::get_if<af::AfEnum>(&shadow_blend->value)) {
+          if (const auto mapped = map_effect_blend_mode(*e)) {
+            bevel.shadow_blend_mode = *mapped;
+          }
+        }
+      }
+      if (const auto color = effect_color(effect, af::tag4("HiCl"))) {
+        bevel.highlight_color = color->color;
+        bevel.highlight_opacity *= color->alpha;
+      }
+      if (const auto color = effect_color(effect, af::tag4("ShCl"))) {
+        bevel.shadow_color = color->color;
+        bevel.shadow_opacity *= color->alpha;
+      }
+      bevel.size = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Radi"), 5.0)));
+      bevel.soften = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Sftn"), 0.0)));
+      // Wire Dept is the bump height in px (defaults 5.0 alongside Radi 5.0);
+      // Photoshop depth is a percentage of the size, so the ratio maps it.
+      bevel.depth = static_cast<float>(std::clamp(
+          effect.double_field(af::tag4("Dept"), 5.0) /
+              std::max(1.0, effect.double_field(af::tag4("Radi"), 5.0)),
+          0.05, 10.0));
+      // Azim/Elev are radians in the Photoshop light convention (135deg
+      // default lights from the upper-left; pinned by the fx-bevel renders).
+      bevel.angle_degrees =
+          static_cast<float>(degrees_from_radians(effect.double_field(af::tag4("Azim"), 2.356194490192345)));
+      bevel.altitude_degrees =
+          static_cast<float>(std::clamp(degrees_from_radians(effect.double_field(af::tag4("Elev"), 0.7853981633974483)), 0.0, 90.0));
+      bevel.direction_up = !effect.bool_field(af::tag4("Invt"), false);
+      // Wire Beve: 0 inner, 1 outer, 2 emboss, 3 pillow (the JS enum 1:1).
+      switch (enum_field_id(effect, af::tag4("Beve"), 0)) {
+        case 1: bevel.style = BevelEmbossStyleKind::OuterBevel; break;
+        case 2: bevel.style = BevelEmbossStyleKind::Emboss; break;
+        case 3: bevel.style = BevelEmbossStyleKind::PillowEmboss; break;
+        default: bevel.style = BevelEmbossStyleKind::InnerBevel; break;
+      }
+      style.bevels.push_back(bevel);
+      ctx.notices.push_back("Layer '" + name +
+                            "': bevel/emboss effect approximated (engine rendering differs)");
+    } else if (kind == af::tag4("PhgB")) {  // 3D (Phong) bevel -> approximate
+      LayerBevelEmboss bevel;
+      bevel.enabled = true;
+      bevel.highlight_blend_mode = BlendMode::Screen;
+      bevel.shadow_blend_mode = BlendMode::Multiply;
+      bevel.highlight_opacity = opacity;
+      bevel.shadow_opacity = opacity * 0.75F;
+      bevel.size = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Radi"), 5.0)));
+      bevel.soften = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Sftn"), 0.0)));
+      bevel.depth = 1.0F;
+      // Lighting: the first PLig light's Alph (azimuth) / Beta (elevation).
+      double azimuth = 0.7853981633974483;
+      double elevation = 0.7853981633974483;
+      if (const af::AfClass* lights = effect.child_class(af::tag4("Lits"))) {
+        if (const auto* list = class_list(*lights, af::tag4("PLis"));
+            list != nullptr && !list->empty() && list->front() != nullptr) {
+          azimuth = list->front()->double_field(af::tag4("Alph"), azimuth);
+          elevation = list->front()->double_field(af::tag4("Beta"), elevation);
+        }
+      }
+      bevel.angle_degrees = static_cast<float>(degrees_from_radians(azimuth));
+      bevel.altitude_degrees =
+          static_cast<float>(std::clamp(degrees_from_radians(elevation), 0.0, 90.0));
+      bevel.style = BevelEmbossStyleKind::InnerBevel;
+      style.bevels.push_back(bevel);
+      ctx.notices.push_back("Layer '" + name +
+                            "': 3D effect approximated as Bevel/Emboss");
+    } else {
+      ctx.notices.push_back("Layer '" + name + "': effect '" + effect_tag_text(kind) +
+                            "' is not supported; skipped");
+    }
+    if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
+      std::fprintf(stderr, "[af] effect '%s' on '%s'\n", effect_tag_text(kind).c_str(),
+                   name.c_str());
+    }
+  }
+}
 
 // Read a curves Spln class into Patchy control points. `Vals` carries the xs,
 // then the ys, then per-point tangent data; `Cnt ` (trailing space) is the
@@ -1858,11 +2268,94 @@ void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
 // placement markers; MainWindow renders it post-open through the internal
 // text pipeline (the SVG import pattern). Wire shape (pinned by the corpus
 // text docs): StSt -> Stry -> Blok[] (StBl) with Glyp/GStr/Utf8 = the text
-// (NUL-terminated per block), GAtt/GlAS/Runs[].Item = glyph style runs
-// (DFnt font, Doub[0] size, Objs[0] = brush FDsc -> FDeF -> Colr RGBA),
-// PAtt/PaAS/Runs[].Item.Ints[0] = alignment, TxtH -> ArFr|CoFr -> FrmB =
-// the layout box ([x0,y0,x1,y1]; ArtV = artistic ascent). Returns nullopt
+// (NUL-terminated per block), GAtt/GlAS/Runs[] (GlAR) = glyph style runs
+// whose Indx is the run's END boundary (exclusive, Unicode CODEPOINTS of the
+// block text including the NUL - pinned by the emoji fixture; the runs
+// partition it) and whose Item (possibly a shared-class ref, possibly sparse
+// - unset fields inherit the previous run) carries DFnt font, Doub[0] size,
+// Objs[0] = brush FDsc -> FDeF -> Colr RGBA; PAtt/PaAS/Runs[] the same
+// END-boundary shape for paragraphs
+// (Item.Ints[0] = alignment), TxtH -> ArFr|CoFr -> FrmB = the layout box
+// ([x0,y0,x1,y1]; ArtV = artistic ascent). Mixed run styles become
+// patchy.text.runs/html through the shared PSD serializers. Returns nullopt
 // when the story shape is missing (caller keeps the placeholder path).
+
+// Decode one UTF-8 codepoint at `index` of `text`; lenient (malformed bytes
+// decode one byte as U+003F, matching the PSD reader's tolerance).
+[[nodiscard]] std::uint32_t decode_utf8_at(const std::string& text, std::size_t index,
+                                           std::size_t& consumed) {
+  const auto lead = static_cast<unsigned char>(text[index]);
+  consumed = 1;
+  if (lead < 0x80U) {
+    return lead;
+  }
+  if ((lead & 0xE0U) == 0xC0U && index + 1 < text.size()) {
+    consumed = 2;
+    return ((lead & 0x1FU) << 6U) | (static_cast<unsigned char>(text[index + 1]) & 0x3FU);
+  }
+  if ((lead & 0xF0U) == 0xE0U && index + 2 < text.size()) {
+    consumed = 3;
+    return ((lead & 0x0FU) << 12U) |
+           ((static_cast<unsigned char>(text[index + 1]) & 0x3FU) << 6U) |
+           (static_cast<unsigned char>(text[index + 2]) & 0x3FU);
+  }
+  if ((lead & 0xF8U) == 0xF0U && index + 3 < text.size()) {
+    consumed = 4;
+    return ((lead & 0x07U) << 18U) |
+           ((static_cast<unsigned char>(text[index + 1]) & 0x3FU) << 12U) |
+           ((static_cast<unsigned char>(text[index + 2]) & 0x3FU) << 6U) |
+           (static_cast<unsigned char>(text[index + 3]) & 0x3FU);
+  }
+  return 0x3FU;
+}
+
+// Apply a glyph-run Item's style fields onto `run` (fields the item omits keep
+// the carried-in values, so sparse items inherit from the previous run).
+void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float& alpha) {
+  if (const af::AfClass* font = item.child_class(af::tag4("DFnt"))) {
+    const std::string stored = font->string_field(af::tag4("Famy"));
+    if (!stored.empty()) {
+      run.family = stored;
+    }
+    run.bold = font->int_field(af::tag4("Wegt"), 400) >= 600;
+    run.italic = font->bool_field(af::tag4("Ital"), false);
+  }
+  const auto doubles = item.vec_field(af::tag4("Doub"));
+  if (!doubles.empty() && doubles[0] > 0.0) {
+    run.size = doubles[0];
+  }
+  if (const auto* fills = class_list(item, af::tag4("Objs"));
+      fills != nullptr && !fills->empty() && fills->front() != nullptr) {
+    if (const af::AfClass* fill = fills->front()->child_class(af::tag4("FDeF"))) {
+      if (const auto stored = read_rgba_color(fill->child_class(af::tag4("Colr")))) {
+        const auto to_channel = [](float value) {
+          return static_cast<std::uint8_t>(
+              std::lround(std::clamp(value, 0.0F, 1.0F) * 255.0F));
+        };
+        run.color = RgbColor{to_channel((*stored)[0]), to_channel((*stored)[1]),
+                             to_channel((*stored)[2])};
+        alpha = std::clamp((*stored)[3], 0.0F, 1.0F);
+      }
+    }
+  }
+}
+
+// Affinity ParagraphAlignXType (0 left, 1 centre, 2 right, 3 justify) -> the
+// PSD justification ids the paragraph-runs serializer expects (1 right,
+// 2 center, 3 justify).
+[[nodiscard]] int psd_justification_from_af_alignment(std::int64_t align) {
+  switch (align) {
+    case 1:
+      return 2;
+    case 2:
+      return 1;
+    case 3:
+      return 3;
+    default:
+      return 0;
+  }
+}
+
 [[nodiscard]] std::optional<Layer> build_text_layer(LayerBuildContext& ctx, const af::AfClass& node,
                                                     const std::string& display) {
   const af::AfClass* story = node.child_class(af::tag4("StSt"));
@@ -1875,110 +2368,169 @@ void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
   }
 
   std::string text;
-  const af::AfClass* first_item = nullptr;
-  bool simplified = false;
+  std::vector<psd::PsdTextStyleRun> style_runs;
+  std::vector<psd::PsdTextParagraphRun> paragraph_runs;
+  bool has_style = false;
+  float first_alpha = 1.0F;
   std::int64_t align = -1;
+  // Carried style: runs inherit unset fields from the previous run; the
+  // pre-first-run default matches the old single-style fallbacks.
+  psd::PsdTextStyleRun carry;
+  carry.family = "Arial";
+  carry.size = 12.0;
+  carry.color = RgbColor{0, 0, 0};
+  int base_units = 0;  // output UTF-16 units emitted before the current block
+
   for (const auto& block : *blocks) {
     if (block == nullptr) {
       continue;
     }
-    std::string part;
+    std::string raw;
     if (const af::AfClass* glyphs = block->child_class(af::tag4("Glyp"))) {
-      part = glyphs->string_field(af::tag4("Utf8"));
-    }
-    while (!part.empty() && part.back() == '\0') {
-      part.pop_back();
-    }
-    // Paragraph breaks ride inside the block as U+2029 (and soft line breaks
-    // as U+2028); both become plain newlines.
-    for (const char* separator : {"\xE2\x80\xA9", "\xE2\x80\xA8"}) {
-      std::size_t at = 0;
-      while ((at = part.find(separator, at)) != std::string::npos) {
-        part.replace(at, 3, "\n");
-        at += 1;
-      }
+      raw = glyphs->string_field(af::tag4("Utf8"));
     }
     if (!text.empty()) {
       text += '\n';
+      base_units += 1;
     }
-    text += part;
 
-    if (const af::AfClass* glyph_atts = block->child_class(af::tag4("GAtt"))) {
-      if (const auto* runs = class_list(*glyph_atts, af::tag4("Runs"))) {
+    // Walk the block text once: paragraph breaks (U+2029) and soft line
+    // breaks (U+2028) become '\n', NULs drop, and out_at maps every wire
+    // CODEPOINT boundary (run Indx values count codepoints of the original
+    // block text INCLUDING the trailing NUL) to its output UTF-16 offset
+    // (the patchy.text.runs contract).
+    std::string out;
+    std::vector<int> out_at{0};
+    int local_out = 0;
+    std::size_t at = 0;
+    while (at < raw.size()) {
+      std::size_t consumed = 1;
+      const std::uint32_t cp = decode_utf8_at(raw, at, consumed);
+      if (cp == 0x2029U || cp == 0x2028U) {
+        out += '\n';
+        local_out += 1;
+      } else if (cp != 0U) {
+        out.append(raw, at, consumed);
+        local_out += cp > 0xFFFFU ? 2 : 1;
+      }
+      out_at.push_back(local_out);
+      at += consumed;
+    }
+    text += out;
+    const int block_units = static_cast<int>(out_at.size()) - 1;
+
+    const auto run_range = [&](int from, int to) {
+      from = std::clamp(from, 0, block_units);
+      to = std::clamp(to, from, block_units);
+      return std::pair<int, int>{base_units + out_at[static_cast<std::size_t>(from)],
+                                 base_units + out_at[static_cast<std::size_t>(to)]};
+    };
+
+    // Glyph style runs. A block without runs extends the carried style.
+    const auto* glyph_runs = [&]() -> const std::vector<std::shared_ptr<af::AfClass>>* {
+      const af::AfClass* glyph_atts = block->child_class(af::tag4("GAtt"));
+      return glyph_atts != nullptr ? class_list(*glyph_atts, af::tag4("Runs")) : nullptr;
+    }();
+    const auto push_style_run = [&](const psd::PsdTextStyleRun& run) {
+      if (run.length <= 0) {
+        return;
+      }
+      if (!style_runs.empty()) {
+        auto& last = style_runs.back();
+        // The '\n' joining blocks belongs to no wire run; extend the previous
+        // run over it so the runs fully cover the text (html emission drops
+        // uncovered characters).
+        if (last.start + last.length < run.start) {
+          last.length = run.start - last.start;
+        }
+        if (last.family == run.family && last.size == run.size && last.color == run.color &&
+            last.bold == run.bold && last.italic == run.italic) {
+          last.length = run.start + run.length - last.start;
+          return;
+        }
+      }
+      style_runs.push_back(run);
+    };
+    int prev = 0;
+    if (glyph_runs != nullptr) {
+      for (const auto& run : *glyph_runs) {
+        if (run == nullptr) {
+          continue;
+        }
+        const int end = static_cast<int>(run->int_field(af::tag4("Indx"), block_units));
+        psd::PsdTextStyleRun styled = carry;
+        if (const af::AfClass* item = run->child_class(af::tag4("Item"))) {
+          float alpha = 1.0F;
+          apply_af_run_item(*item, styled, alpha);
+          if (!has_style) {
+            first_alpha = alpha;
+          }
+          has_style = true;
+        }
+        const auto [start_out, end_out] = run_range(prev, end);
+        styled.start = start_out;
+        styled.length = end_out - start_out;
+        push_style_run(styled);
+        carry = styled;
+        prev = std::max(prev, end);
+      }
+    }
+    if (prev < block_units) {
+      // Tail not covered by any run keeps the carried style.
+      psd::PsdTextStyleRun styled = carry;
+      const auto [start_out, end_out] = run_range(prev, block_units);
+      styled.start = start_out;
+      styled.length = end_out - start_out;
+      push_style_run(styled);
+    }
+
+    // Paragraph runs (alignment; same END-boundary Indx shape).
+    if (const af::AfClass* paragraph_atts = block->child_class(af::tag4("PAtt"))) {
+      if (const auto* runs = class_list(*paragraph_atts, af::tag4("Runs"))) {
+        int para_prev = 0;
         for (const auto& run : *runs) {
           if (run == nullptr) {
             continue;
           }
-          const af::AfClass* item = run->child_class(af::tag4("Item"));
-          if (item == nullptr) {
-            continue;
-          }
-          if (first_item == nullptr) {
-            first_item = item;
-            continue;
-          }
-          // A later run with a different size or font simplifies to the first
-          // run's style (v1: one style per text layer).
-          const auto size_of = [](const af::AfClass& style_item) {
-            const auto doubles = style_item.vec_field(af::tag4("Doub"));
-            return doubles.empty() ? 0.0 : doubles[0];
-          };
-          const auto family_of = [](const af::AfClass& style_item) -> std::string {
-            const af::AfClass* font = style_item.child_class(af::tag4("DFnt"));
-            return font != nullptr ? font->string_field(af::tag4("Famy")) : std::string();
-          };
-          if (size_of(*item) != size_of(*first_item) ||
-              family_of(*item) != family_of(*first_item)) {
-            simplified = true;
-          }
-        }
-      }
-    }
-    if (align < 0) {
-      if (const af::AfClass* paragraph_atts = block->child_class(af::tag4("PAtt"))) {
-        if (const auto* runs = class_list(*paragraph_atts, af::tag4("Runs"))) {
-          if (!runs->empty() && runs->front() != nullptr) {
-            if (const af::AfClass* item = runs->front()->child_class(af::tag4("Item"))) {
-              const auto ints = item->vec_field(af::tag4("Ints"));
-              if (!ints.empty()) {
-                align = static_cast<std::int64_t>(ints[0]);
-              }
+          const int end = static_cast<int>(run->int_field(af::tag4("Indx"), block_units));
+          std::int64_t run_align = 0;
+          if (const af::AfClass* item = run->child_class(af::tag4("Item"))) {
+            const auto ints = item->vec_field(af::tag4("Ints"));
+            if (!ints.empty()) {
+              run_align = static_cast<std::int64_t>(ints[0]);
             }
           }
+          if (align < 0) {
+            align = run_align;
+          }
+          const auto [start_out, end_out] = run_range(para_prev, end);
+          psd::PsdTextParagraphRun paragraph;
+          paragraph.start = start_out;
+          paragraph.length = end_out - start_out;
+          paragraph.justification = psd_justification_from_af_alignment(run_align);
+          if (paragraph.length > 0) {
+            paragraph_runs.push_back(paragraph);
+          }
+          para_prev = std::max(para_prev, end);
         }
       }
     }
+
+    base_units += local_out;
   }
   const bool only_whitespace =
       text.find_first_not_of(" \t\r\n") == std::string::npos;
-  if (only_whitespace || first_item == nullptr) {
+  if (only_whitespace || !has_style || style_runs.empty()) {
     return std::nullopt;
   }
 
-  // First-run style: font, size, weight/italic, brush fill color.
-  std::string family = "Arial";
-  bool bold = false;
-  bool italic = false;
-  if (const af::AfClass* font = first_item->child_class(af::tag4("DFnt"))) {
-    const std::string stored = font->string_field(af::tag4("Famy"));
-    if (!stored.empty()) {
-      family = stored;
-    }
-    bold = font->int_field(af::tag4("Wegt"), 400) >= 600;
-    italic = font->bool_field(af::tag4("Ital"), false);
-  }
-  const auto doubles = first_item->vec_field(af::tag4("Doub"));
-  const int size = std::clamp(
-      static_cast<int>(std::lround(doubles.empty() ? 12.0 : doubles[0])), 1, 4000);
-  std::array<float, 4> color{0.0F, 0.0F, 0.0F, 1.0F};
-  if (const auto* fills = class_list(*first_item, af::tag4("Objs"));
-      fills != nullptr && !fills->empty() && fills->front() != nullptr) {
-    if (const af::AfClass* fill = fills->front()->child_class(af::tag4("FDeF"))) {
-      if (const auto stored = read_rgba_color(fill->child_class(af::tag4("Colr")))) {
-        color = *stored;
-      }
-    }
-  }
+  // Layer-level style (options-bar defaults, single-style render path): the
+  // first run, exactly like the PSD reader.
+  const std::string family = style_runs.front().family;
+  const bool bold = style_runs.front().bold;
+  const bool italic = style_runs.front().italic;
+  const int size = std::clamp(static_cast<int>(std::lround(style_runs.front().size)), 1, 4000);
+  const RgbColor first_color = style_runs.front().color;
 
   // Placement: the TxtH frame box (node-local; Xfrm positions it). Fold the
   // transform's scale into the font size and map the box through the affine;
@@ -1993,6 +2545,7 @@ void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
   }
   double ascent = frame->double_field(af::tag4("ArtV"), 0.0);
   double effective_size = static_cast<double>(size);
+  double size_scale = 1.0;
   bool transform_approximated = false;
   if (const auto xfrm = node.vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
     const double a = xfrm[0];
@@ -2027,6 +2580,7 @@ void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
     }
     box = {min_x, min_y, max_x, max_y};
     effective_size *= scale;
+    size_scale = scale;
     ascent *= scale_y;
     const double rotation = std::atan2(c_term, a);
     if (std::abs(rotation) > 0.03 || std::abs(scale_x - scale_y) > 0.05 * scale) {
@@ -2035,6 +2589,14 @@ void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
   }
   const int stored_size =
       std::clamp(static_cast<int>(std::lround(effective_size)), 1, 4000);
+  // Fold the transform scale into every run. Rounding the wire size before
+  // scaling matches the historical single-style fold (stored_size above), and
+  // integral sizes keep the runs serialization at the v1 shape Patchy's own
+  // text tool writes.
+  for (auto& run : style_runs) {
+    run.size = static_cast<double>(std::clamp(
+        std::lround(static_cast<double>(std::lround(run.size)) * size_scale), 1L, 4000L));
+  }
 
   Layer layer(ctx.document.allocate_layer_id(), display, LayerKind::Pixel);
   auto& metadata = layer.metadata();
@@ -2043,18 +2605,12 @@ void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
   metadata[kLayerMetadataTextSize] = std::to_string(stored_size);
   constexpr char kHex[] = "0123456789abcdef";
   std::string hex = "#......";
-  const auto to_channel = [](float value) {
-    return static_cast<int>(std::lround(std::clamp(value, 0.0F, 1.0F) * 255.0F));
-  };
-  const int red = to_channel(color[0]);
-  const int green = to_channel(color[1]);
-  const int blue = to_channel(color[2]);
-  hex[1] = kHex[red >> 4];
-  hex[2] = kHex[red & 15];
-  hex[3] = kHex[green >> 4];
-  hex[4] = kHex[green & 15];
-  hex[5] = kHex[blue >> 4];
-  hex[6] = kHex[blue & 15];
+  hex[1] = kHex[first_color.red >> 4];
+  hex[2] = kHex[first_color.red & 15];
+  hex[3] = kHex[first_color.green >> 4];
+  hex[4] = kHex[first_color.green & 15];
+  hex[5] = kHex[first_color.blue >> 4];
+  hex[6] = kHex[first_color.blue & 15];
   metadata[kLayerMetadataTextColor] = hex;
   metadata[kLayerMetadataTextBold] = bold ? "true" : "false";
   metadata[kLayerMetadataTextItalic] = italic ? "true" : "false";
@@ -2067,48 +2623,24 @@ void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
     metadata[kLayerMetadataTextBoxHeight] = std::to_string(
         std::max(1, static_cast<int>(std::lround(box[3] - box[1]))));
   }
-  if (align > 0) {
-    // Centre/right alignment rides a minimal single-style rich-text body (the
-    // plain-text render path is always left-aligned).
-    std::string escaped;
-    escaped.reserve(text.size());
-    for (const char ch : text) {
-      switch (ch) {
-        case '&': escaped += "&amp;"; break;
-        case '<': escaped += "&lt;"; break;
-        case '>': escaped += "&gt;"; break;
-        case '\n': escaped += "<br />"; break;
-        default: escaped.push_back(ch); break;
-      }
-    }
-    std::string escaped_family;
-    for (const char ch : family) {
-      if (ch == '\'' || ch == '\\') {
-        escaped_family.push_back('\\');
-      }
-      escaped_family.push_back(ch);
-    }
-    std::string html =
-        "<!DOCTYPE HTML><html><head><meta name=\"qrichtext\" content=\"1\" /></head>"
-        "<body style=\"margin:0px;\"><p style=\"margin:0px; text-align:";
-    html += align == 1 ? "center" : "right";
-    html += ";\"><span style=\" font-family:'";
-    html += escaped_family;
-    html += "'; font-size:";
-    html += std::to_string(stored_size);
-    html += "px;";
-    if (bold) {
-      html += " font-weight:700;";
-    }
-    if (italic) {
-      html += " font-style:italic;";
-    }
-    html += " color:";
-    html += hex;
-    html += ";\">";
-    html += escaped;
-    html += "</span></p></body></html>";
-    metadata[kLayerMetadataTextHtml] = html;
+  // Mixed run styles and non-left alignment ride the standard PSD-shaped
+  // rich-text metadata (runs + Qt html body); a single left-aligned style
+  // keeps the plain single-style metadata exactly as before.
+  const bool multi_style = style_runs.size() > 1;
+  const bool any_aligned = std::any_of(paragraph_runs.begin(), paragraph_runs.end(),
+                                       [](const psd::PsdTextParagraphRun& run) {
+                                         return run.justification != 0;
+                                       });
+  if (multi_style) {
+    metadata[kLayerMetadataTextRuns] = psd::serialize_patchy_text_runs(style_runs);
+  }
+  if (any_aligned) {
+    metadata[kLayerMetadataTextParagraphRuns] =
+        psd::serialize_patchy_paragraph_runs(paragraph_runs);
+  }
+  if (multi_style || align > 0) {
+    metadata[kLayerMetadataTextHtml] =
+        psd::html_from_text_runs(text, style_runs, paragraph_runs);
   }
   metadata[kLayerMetadataAfPendingText] = "1";
   {
@@ -2129,8 +2661,8 @@ void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
   }
 
   apply_common(ctx, node, layer, display);
-  if (color[3] < 1.0F) {
-    layer.set_opacity(layer.opacity() * std::clamp(color[3], 0.0F, 1.0F));
+  if (first_alpha < 1.0F) {
+    layer.set_opacity(layer.opacity() * first_alpha);
   }
   // Rough placement until the post-open pass renders real glyphs.
   layer.set_bounds(Rect{static_cast<std::int32_t>(std::lround(box[0])),
@@ -2139,9 +2671,15 @@ void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
     ctx.notices.push_back("Layer '" + display +
                           "': text rotation/shear is approximated (rendered axis-aligned)");
   }
-  if (simplified) {
-    ctx.notices.push_back("Layer '" + display +
-                          "': mixed text styles simplified to the first run's style");
+  if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
+    std::fprintf(stderr, "[af] text '%s': %zu style runs, %zu paragraph runs, align %lld\n",
+                 display.c_str(), style_runs.size(), paragraph_runs.size(),
+                 static_cast<long long>(align));
+    for (const auto& run : style_runs) {
+      std::fprintf(stderr, "[af]   run %d+%d '%s' %.1f%s%s #%02x%02x%02x\n", run.start,
+                   run.length, run.family.c_str(), run.size, run.bold ? " bold" : "",
+                   run.italic ? " italic" : "", run.color.red, run.color.green, run.color.blue);
+    }
   }
   return layer;
 }

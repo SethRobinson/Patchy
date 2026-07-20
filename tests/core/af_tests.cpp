@@ -15,6 +15,7 @@
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -386,6 +387,143 @@ void af_imports_text_layers_as_pending_text() {
   }
 }
 
+void af_imports_mixed_text_style_runs() {
+  // tiny-text-runs.af: frame text "AB" (Arial 24 red) + "cd" (Times New Roman
+  // 32 blue) + "É😀X" (Courier New 18 green). Wire GlAR Indx boundaries count
+  // CODEPOINTS (the emoji is one codepoint but two UTF-16 units), so the
+  // serialized patchy.text.runs offsets - UTF-16 units - end at 8, not 7.
+  const auto bytes = read_fixture("tiny-text-runs.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  const auto& layer = document.layers().back();
+  const auto& metadata = layer.metadata();
+  const auto value = [&](const char* key) {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? std::string() : found->second;
+  };
+  CHECK(value("patchy.text") == "ABcd\xC3\x89\xF0\x9F\x98\x80X");
+  CHECK(value("patchy.text.font") == "Arial");
+  CHECK(value("patchy.text.size") == "24");
+  CHECK(value("patchy.text.color") == "#dc0000");
+  CHECK(value("patchy.text.runs") ==
+        "v1\n"
+        "0\t2\t24\t0\t0\t#dc0000\tArial\n"
+        "2\t2\t32\t0\t0\t#0000dc\tTimes%20New%20Roman\n"
+        "4\t4\t18\t0\t0\t#00a000\tCourier%20New");
+  const auto html = value("patchy.text.html");
+  CHECK(html.find("font-size:32px") != std::string::npos);
+  CHECK(html.find("#0000dc") != std::string::npos);
+  CHECK(html.find("Times New Roman") != std::string::npos);
+  CHECK(metadata.contains("patchy.af.pending_text_render"));
+  // No "simplified" downgrade notice anymore: the runs import fully.
+  for (const auto& notice : notices) {
+    CHECK(notice.find("simplified") == std::string::npos);
+  }
+}
+
+void af_imports_layer_effects() {
+  // tiny-fx.af: five 24x16 rasters, each with one effect (authored via the
+  // JSLib layer-effects API; wire semantics pinned by the fx-* corpus docs).
+  const auto bytes = read_fixture("tiny-fx.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  const auto find = [&](const char* name) -> const patchy::Layer& {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        return layer;
+      }
+    }
+    throw std::runtime_error(std::string("layer not found: ") + name);
+  };
+
+  {
+    // Outer shadow: offset 10 at wire angle pi/2 (shadow falls DOWN), radius
+    // 2, blue. Patchy stores the Photoshop light angle: 180 - 90 = 90.
+    const auto& style = find("shadowed").layer_style();
+    CHECK(style.drop_shadows.size() == 1);
+    const auto& shadow = style.drop_shadows.front();
+    CHECK(shadow.enabled);
+    CHECK(shadow.blend_mode == patchy::BlendMode::Multiply);
+    CHECK(shadow.color == (patchy::RgbColor{0, 0, 220}));
+    CHECK(std::abs(shadow.angle_degrees - 90.0F) < 0.01F);
+    CHECK(std::abs(shadow.distance - 10.0F) < 0.01F);
+    CHECK(std::abs(shadow.size - 2.0F) < 0.01F);
+    CHECK(std::abs(shadow.opacity - 0.5F) < 0.01F);
+  }
+  {
+    // Outline: width 5, Inside (wire Alig e2), yellow.
+    const auto& style = find("outlined").layer_style();
+    CHECK(style.strokes.size() == 1);
+    const auto& stroke = style.strokes.front();
+    CHECK(stroke.enabled);
+    CHECK(stroke.position == patchy::LayerStrokePosition::Inside);
+    CHECK(std::abs(stroke.size - 5.0F) < 0.01F);
+    CHECK(stroke.color == (patchy::RgbColor{220, 220, 30}));
+    CHECK(!stroke.uses_gradient);
+  }
+  {
+    // Colour overlay: half-alpha green, Multiply (wire BlnM id 2 / v0).
+    const auto& style = find("overlaid").layer_style();
+    CHECK(style.color_overlays.size() == 1);
+    const auto& overlay = style.color_overlays.front();
+    CHECK(overlay.blend_mode == patchy::BlendMode::Multiply);
+    CHECK(overlay.color == (patchy::RgbColor{30, 200, 30}));
+    CHECK(std::abs(overlay.opacity - 128.0F / 255.0F) < 0.01F);
+  }
+  {
+    // Outer glow: radius 7, magenta, Screen default.
+    const auto& style = find("glowing").layer_style();
+    CHECK(style.outer_glows.size() == 1);
+    const auto& glow = style.outer_glows.front();
+    CHECK(glow.blend_mode == patchy::BlendMode::Screen);
+    CHECK(glow.color == (patchy::RgbColor{220, 30, 220}));
+    CHECK(std::abs(glow.size - 7.0F) < 0.01F);
+  }
+  {
+    // Bevel: radius 4, Outer type (wire Beve e1), default lighting 135/45,
+    // wire Dept 5 px -> depth ratio 5/4.
+    const auto& style = find("beveled").layer_style();
+    CHECK(style.bevels.size() == 1);
+    const auto& bevel = style.bevels.front();
+    CHECK(bevel.style == patchy::BevelEmbossStyleKind::OuterBevel);
+    CHECK(std::abs(bevel.size - 4.0F) < 0.01F);
+    CHECK(std::abs(bevel.angle_degrees - 135.0F) < 0.01F);
+    CHECK(std::abs(bevel.altitude_degrees - 45.0F) < 0.01F);
+    CHECK(std::abs(bevel.depth - 1.25F) < 0.01F);
+    CHECK(bevel.highlight_blend_mode == patchy::BlendMode::Screen);
+    CHECK(bevel.shadow_blend_mode == patchy::BlendMode::Multiply);
+  }
+  bool bevel_notice = false;
+  for (const auto& notice : notices) {
+    bevel_notice = bevel_notice || notice.find("bevel/emboss effect approximated") != std::string::npos;
+  }
+  CHECK(bevel_notice);
+}
+
+void af_head_fat_revision_wins() {
+  // tiny-incremental-chain.af carries a TWO-link stream-table chain (the
+  // incremental-save layout): the head revision's doc.dat has a colour
+  // overlay + outline on the subject, the older link's doc.dat has neither.
+  // The importer must resolve doc.dat from the HEAD link (regression: the
+  // one-pass walk imported the OLDEST revision - stale text styles and
+  // missing effects on incrementally-saved documents).
+  const auto bytes = read_fixture("tiny-incremental-chain.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  const patchy::Layer* subject = nullptr;
+  for (const auto& layer : document.layers()) {
+    if (layer.name() == "subject") {
+      subject = &layer;
+    }
+  }
+  CHECK(subject != nullptr);
+  const auto& style = subject->layer_style();
+  CHECK(style.color_overlays.size() == 1);
+  CHECK(style.color_overlays.front().color == (patchy::RgbColor{30, 200, 30}));
+  CHECK(style.strokes.size() == 1);
+  CHECK(std::abs(style.strokes.front().size - 3.0F) < 0.01F);
+}
+
 void af_imports_adjustment_layers() {
   // tiny-adjust-curves.af: a gradient raster under a Curves adjustment whose
   // master spline was authored with points (0,0), (0.4,0.65), (1,1). The
@@ -488,6 +626,9 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_reads_document_resolution", af_reads_document_resolution},
       {"af_tier2_imports_lab_document", af_tier2_imports_lab_document},
       {"af_imports_text_layers_as_pending_text", af_imports_text_layers_as_pending_text},
+      {"af_imports_mixed_text_style_runs", af_imports_mixed_text_style_runs},
+      {"af_imports_layer_effects", af_imports_layer_effects},
+      {"af_head_fat_revision_wins", af_head_fat_revision_wins},
       {"af_imports_adjustment_layers", af_imports_adjustment_layers},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},

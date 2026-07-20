@@ -12,6 +12,7 @@
 #include "ui/smart_object_render.hpp"
 
 #include "local_psd_fixtures.hpp"
+#include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "ui/ui_test_access.hpp"
 #include "ui_test_support.hpp"
@@ -351,6 +352,49 @@ void ui_af_text_import_renders_post_open() {
   CHECK(found_red);
 }
 
+// Mixed-run .af text renders per-run styles through the runs metadata: three
+// runs (Arial 24 red, Times New Roman 32 blue, Courier New 18 green - the
+// last with an emoji, pinning the codepoint run-boundary decode end to end).
+void ui_af_mixed_text_runs_render() {
+  if (patchy::test::ui::skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::TimesNewRoman);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::CourierNew);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("af", "tiny-text-runs.af").wstring());
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto& layer = document.layers().back();
+  CHECK(patchy::layer_is_text(layer));
+  CHECK(!std::as_const(layer).pixels().empty());
+  CHECK(!layer.metadata().contains(patchy::kLayerMetadataAfPendingText));
+  // Per-run fill colors survive into the render regardless of which faces the
+  // platform resolves: red glyphs (run 1), blue (run 2), green (run 3).
+  const auto& pixels = std::as_const(layer).pixels();
+  bool found_red = false;
+  bool found_blue = false;
+  bool found_green = false;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const std::uint8_t* p = pixels.pixel(x, y);
+      if (p[3] < 200) {
+        continue;
+      }
+      found_red = found_red || (p[0] > 150 && p[1] < 90 && p[2] < 90);
+      found_blue = found_blue || (p[2] > 150 && p[0] < 90 && p[1] < 90);
+      found_green = found_green || (p[1] > 110 && p[0] < 90 && p[2] < 90);
+    }
+  }
+  CHECK(found_red);
+  CHECK(found_blue);
+  CHECK(found_green);
+  patchy::test::ui::save_widget_artifact("af_mixed_text_runs", window);
+}
+
 // A pristine .af placed image imports as an embedded smart object; the UI can
 // re-render it from its source and reproduce the baked pixels.
 void ui_af_placed_image_imports_as_smart_object() {
@@ -382,6 +426,7 @@ void ui_af_placed_image_imports_as_smart_object() {
 std::vector<patchy::test::TestCase> svg_ui_tests() {
   return {
       {"ui_af_text_import_renders_post_open", ui_af_text_import_renders_post_open},
+      {"ui_af_mixed_text_runs_render", ui_af_mixed_text_runs_render},
       {"ui_af_placed_image_imports_as_smart_object", ui_af_placed_image_imports_as_smart_object},
       {"ui_svg_open_creates_editable_shape_layers", ui_svg_open_creates_editable_shape_layers},
       {"ui_svg_import_render_matches_qsvg", ui_svg_import_render_matches_qsvg},
