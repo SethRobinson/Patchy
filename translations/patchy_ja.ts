@@ -13110,7 +13110,7 @@ Clipped to the layer below</source>
     <message><source>Could not save the custom shape</source><translation>カスタムシェイプを保存できませんでした</translation></message>
     <message><source>Defined %1 from the path.</source><translation>パスから %1 を定義しました。</translation></message>
     <message><source>Scrip&amp;ts</source><translation>スクリプト(&amp;T)</translation></message>
-    <message><source>Script &amp;Editor...</source><translation>スクリプトエディター(&amp;E)...</translation></message>
+    <message><source>Script &amp;Manager...</source><translation>スクリプトマネージャー(&amp;M)...</translation></message>
     <message><source>&amp;Browse Scripts Folder...</source><translation>スクリプトフォルダーを開く(&amp;B)...</translation></message>
     <message><source>A script is already running: %1</source><translation>スクリプトは既に実行中です: %1</translation></message>
     <message><source>Running script %1...</source><translation>スクリプト %1 を実行中...</translation></message>
@@ -13908,7 +13908,7 @@ Clipped to the layer below</source>
     <message><source>fillRect needs a positive size.</source><translation>fillRect には正のサイズが必要です。</translation></message>
     <message><source>fillRect needs a pixel layer, not a group.</source><translation>fillRect にはグループではなくピクセルレイヤーが必要です。</translation></message>
     <message><source>fillRect supports 8-bit RGBA layers only.</source><translation>fillRect は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
-    <message><source>getPixels supports 8-bit RGBA layers only.</source><translation>getPixels は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
+    <message><source>getPixels supports 8-bit RGB and RGBA layers only.</source><translation>getPixels は 8 ビット RGB / RGBA レイヤーのみ対応です。</translation></message>
     <message><source>setPixels needs a {width, height, data} object.</source><translation>setPixels には {width, height, data} オブジェクトが必要です。</translation></message>
     <message><source>setPixels: data must hold width * height * 4 RGBA bytes.</source><translation>setPixels: data は width * height * 4 バイトの RGBA データが必要です。</translation></message>
     <message><source>setPixels needs a pixel layer, not a group.</source><translation>setPixels にはグループではなくピクセルレイヤーが必要です。</translation></message>
@@ -13929,9 +13929,12 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>
-    <message><source>Script Editor</source><translation>スクリプトエディター</translation></message>
+    <message><source>Script Manager</source><translation>スクリプトマネージャー</translation></message>
     <message><source>Run</source><translation>実行</translation></message>
-    <message><source>Stop</source><translation>停止</translation></message>
+    <message><source>Stop the running script</source><translation>実行中のスクリプトを停止</translation></message>
+    <message><source>Ready</source><translation>待機中</translation></message>
+    <message><source>Running... %1s</source><translation>実行中... %1秒</translation></message>
+    <message><source>Running... %1m %2s</source><translation>実行中... %1分%2秒</translation></message>
     <message><source>New</source><translation>新規</translation></message>
     <message><source>Save</source><translation>保存</translation></message>
     <message><source>Save As...</source><translation>名前を付けて保存...</translation></message>

@@ -498,9 +498,13 @@ QJSValue ScriptLayerObject::getPixels() {
     return QJSValue();
   }
   const auto& pixels = layer->pixels();
-  if (!pixels.empty() &&
-      (pixels.format().channels != 4 || pixels.format().bit_depth != BitDepth::UInt8)) {
-    host_.throw_js_error(ScriptEngineHost::tr("getPixels supports 8-bit RGBA layers only."));
+  const bool is_rgba8 =
+      pixels.format().channels == 4 && pixels.format().bit_depth == BitDepth::UInt8;
+  const bool is_rgb8 =
+      pixels.format().channels == 3 && pixels.format().bit_depth == BitDepth::UInt8;
+  if (!pixels.empty() && !is_rgba8 && !is_rgb8) {
+    host_.throw_js_error(
+        ScriptEngineHost::tr("getPixels supports 8-bit RGB and RGBA layers only."));
     return QJSValue();
   }
   const auto bounds = layer->bounds();
@@ -512,8 +516,25 @@ QJSValue ScriptLayerObject::getPixels() {
   QByteArray data;
   if (!pixels.empty()) {
     const auto span = pixels.data();
-    data = QByteArray(reinterpret_cast<const char*>(span.data()),
-                      static_cast<qsizetype>(span.size()));
+    if (is_rgba8) {
+      data = QByteArray(reinterpret_cast<const char*>(span.data()),
+                        static_cast<qsizetype>(span.size()));
+    } else {
+      // Opaque images (JPEG and friends) open as 3-channel RGB layers; scripts
+      // always see RGBA (alpha 255). A later setPixels writes the layer back
+      // as RGBA8, the format every script write path produces.
+      const auto pixel_count =
+          static_cast<qsizetype>(pixels.width()) * pixels.height();
+      data.resize(pixel_count * 4);
+      const auto* source = span.data();
+      auto* target = reinterpret_cast<std::uint8_t*>(data.data());
+      for (qsizetype i = 0; i < pixel_count; ++i) {
+        target[i * 4] = source[i * 3];
+        target[i * 4 + 1] = source[i * 3 + 1];
+        target[i * 4 + 2] = source[i * 3 + 2];
+        target[i * 4 + 3] = 255;
+      }
+    }
   }
   result.setProperty(QStringLiteral("data"), host_.engine()->toScriptValue(data));
   return result;

@@ -789,11 +789,13 @@ void MainWindow::create_actions() {
   scripts_menu_ = file_menu->addMenu(tr("Scrip&ts"));
   scripts_menu_->setObjectName(QStringLiteral("fileScriptsMenu"));
   bind_action_text(scripts_menu_->menuAction(), "Scrip&ts");
-  auto* script_editor_action = scripts_menu_->addAction(tr("Script &Editor..."));
+  // Display text says Manager; the command id and object name keep the
+  // historical "editor" spelling (persisted identifiers, never renamed).
+  auto* script_editor_action = scripts_menu_->addAction(tr("Script &Manager..."));
   script_editor_action->setObjectName(QStringLiteral("fileScriptEditorAction"));
   register_hotkey(script_editor_action, "file.scripts.editor");
   connect(script_editor_action, &QAction::triggered, this, [this] { open_script_editor(); });
-  bind_action_text(script_editor_action, "Script &Editor...");
+  bind_action_text(script_editor_action, "Script &Manager...");
   auto* browse_scripts_action = scripts_menu_->addAction(tr("&Browse Scripts Folder..."));
   browse_scripts_action->setObjectName(QStringLiteral("fileBrowseScriptsFolderAction"));
   register_hotkey(browse_scripts_action, "file.scripts.browse_folder");

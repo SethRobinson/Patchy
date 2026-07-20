@@ -1,10 +1,13 @@
 # JavaScript scripting
 
 Patchy embeds a JavaScript engine (Qt's QJSEngine, from the Qt6Qml module) with its own
-document automation API, a Script Editor dialog, bundled example scripts, and a CLI entry
-point that lets external tools and AI agents drive a running Patchy. This doc is the
-authoritative record of the design rules; the user-facing API reference is
-`scripts/patchy.d.ts` (TypeScript definitions, shipped next to the bundled scripts).
+document automation API, a Script Manager dialog (window title renamed from "Script
+Editor" in July 2026; the `file.scripts.editor` command id and `scriptEditor*` object
+names keep the historical spelling - persisted identifiers are never renamed), bundled
+example scripts, and a CLI entry point that lets external tools and AI agents drive a
+running Patchy. This doc is the authoritative record of the design rules; the
+user-facing API reference is `scripts/patchy.d.ts` (TypeScript definitions, shipped
+next to the bundled scripts).
 
 ## Where things live
 
@@ -18,7 +21,10 @@ authoritative record of the design rules; the user-facing API reference is
   selection, `patchy.io`, `patchy.ui`).
 - `src/ui/script_canvas_window.{hpp,cpp}`: interactive script windows (games/demos).
 - `src/ui/script_editor_dialog.{hpp,cpp}` + `src/ui/js_syntax_highlighter.{hpp,cpp}`: the
-  editor UI (folder tree, shadow-override saves, context menu).
+  Script Manager UI (folder tree, shadow-override saves, context menu, and the run
+  status area: a spinner + "Running... 13s" elapsed readout with a stop-sign button
+  while a run is active, "Ready" otherwise; the elapsed clock is dialog-local and
+  restarts when run_state_changed reports a run became active).
 - `src/ui/script_folders.{hpp,cpp}`: the script browser model - recursive bundled/user
   folder scans and the shadow-override merge, shared by the File > Scripts menu and the
   editor tree.
@@ -33,7 +39,11 @@ authoritative record of the design rules; the user-facing API reference is
   through `script_folder_display_name` for localization). Bundled-script convention:
   only `Games/` scripts create their own document or window; every other bundled script
   works on the ACTIVE document and alerts "Open a document first." when none is open
-  (mixing the two confuses users about where a script's output went). User scripts live
+  (mixing the two confuses users about where a script's output went). One carve-out: a
+  Utilities script may create a document when that document IS its stated output
+  (`contact-sheet.js` builds the sheet it is named after). Every bundled script must
+  also finish cleanly unattended under `--run-script` (cancelled pickers return "",
+  showDialog answers its defaults). User scripts live
   in the per-user app-data folder under `scripts/` (`MainWindow::user_scripts_directory()`).
 - Tests: `tests/ui/scripting_tests.cpp`.
 
@@ -91,7 +101,9 @@ everywhere a bundled script is resolved.
 - **`app.apiVersion` is 1.** Bump it only for breaking API changes, and record what
   changed here. July 2026 additions (all additive, still 1): `include()` search roots,
   `patchy.isMainScript()`, `patchy.args`, `patchy.ui.showDialog`, `patchy.io.listFiles`,
-  `app.chooseFolder/chooseOpenFile/chooseSaveFile`, `app.runCommand/commandIds`.
+  `app.chooseFolder/chooseOpenFile/chooseSaveFile`, `app.runCommand/commandIds`, and
+  `getPixels` reading 8-bit RGB layers (opaque opened photos) expanded to RGBA with
+  alpha 255 (it previously threw; `setPixels` still always writes RGBA8 back).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included
@@ -165,8 +177,11 @@ pipe is per-user, so `--run-script` adds no cross-user surface.
   assertion surface (fresh per MainWindow).
 - Manual smoke: the bundled scripts all run from File > Scripts; `game-of-life.js`
   completes fully under `--run-script` unattended, and the active-document scripts
-  (`letter-physics.js`, `generative-art.js`, `fancy-background.js`) run unattended
-  against a positional file (with no document they alert-and-finish clean).
+  (`letter-physics.js`, `generative-art.js`, `fancy-background.js`, the Effects and
+  the document-based Utilities) run unattended against a positional file (with no
+  document they alert-and-finish clean; picker-driven scripts like `batch-export.js`,
+  `contact-sheet.js`, and `data-merge.js` take their folders/files via `--script-arg`
+  and cancel cleanly without them).
 
 ## Future work (ranked by community research, July 2026)
 
@@ -175,19 +190,20 @@ A two-agent sweep of the Photoshop/Affinity/Krita/Aseprite/GIMP scripting commun
 economy, Krita Artists) ranked what artists actually use scripting for. Already covered:
 batch folder processing (pickers + listFiles + batch-export.js), export-layers options,
 form dialogs, CLI args, one-undo-per-run (Krita users beg for this), modern JS, typed API
-docs. Deliberately NOT built yet, in rough demand order:
+docs, and (July 2026) the ten-script batch: data merge (CSV + text layers - was item 3
+of this list), contact sheets, icon export, versioned saves, batch layer rename, grid
+overlays, duotone/glitch/photo-frame effects, and a form-dialog showcase demo.
+Deliberately NOT built yet, in rough demand order:
 
 1. Events/hooks (document changed, before/after save/command) - on-save auto-export is
    the killer use. Needs a reentrancy design against the one-run-at-a-time rule.
 2. Per-script keyboard shortcuts (Krita ships "Ten Scripts" purely for this). Would key
    HotkeyRegistry ids off the script's relative path; ids persist, so pick a stable
    scheme before shipping.
-3. Data-merge/template-fill bundled script (CSV/JSON + text layers): already possible
-   with today's API, just needs writing.
-4. Persistent per-script storage (Aseprite `plugin.preferences`).
-5. Tool-stroke API (draw as-if-by-hand with the real brush engine).
-6. Macro-record-to-script (Photoshop's ScriptListener is how non-programmers start).
-7. Non-blocking long batches (yield/progress helper), script packaging/sharing format,
+3. Persistent per-script storage (Aseprite `plugin.preferences`).
+4. Tool-stroke API (draw as-if-by-hand with the real brush engine).
+5. Macro-record-to-script (Photoshop's ScriptListener is how non-programmers start).
+6. Non-blocking long batches (yield/progress helper), script packaging/sharing format,
    editor REPL mode.
 
 Anti-goals from the same research: never freeze or fork the API surface (ExtendScript/UXP

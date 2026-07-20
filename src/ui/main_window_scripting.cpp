@@ -1,6 +1,6 @@
 // MainWindow's scripting surface, split out of main_window.cpp: the lazy
 // ScriptEngineHost accessor, the File > Scripts submenu (bundled + user script
-// scan), the Script Editor dialog entry, and the CLI `--run-script` flows
+// scan), the Script Manager dialog entry, and the CLI `--run-script` flows
 // (run_script_command for forwarded requests, run_cli_script for unattended
 // launches). The engine itself lives in script_engine.cpp; see
 // docs/scripting.md.

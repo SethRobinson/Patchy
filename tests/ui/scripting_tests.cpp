@@ -23,6 +23,7 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QLabel>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -166,6 +167,37 @@ void ui_script_pixels_roundtrip_and_palette_snap() {
   // 250,40,40 snaps to the red entry; alpha 200 hardens to 255.
   CHECK(backlog_contains(window, QStringLiteral("snapped=255,0,0,255")));
   document.palette_editing().reset();
+}
+
+void ui_script_get_pixels_reads_rgb_layers() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // Opaque opened photos (JPEG and friends) store 3-channel RGB layers;
+  // getPixels hands scripts RGBA with alpha 255 and setPixels writes RGBA8.
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::PixelBuffer rgb(document.width(), document.height(), patchy::PixelFormat::rgb8());
+  const auto span = rgb.data();
+  for (std::size_t i = 0; i < span.size(); i += 3) {
+    span[i] = 200;
+    span[i + 1] = 100;
+    span[i + 2] = 50;
+  }
+  document.add_pixel_layer("RgbPhoto", std::move(rgb));
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var layer = app.activeDocument.findLayer('RgbPhoto');
+    var img = layer.getPixels();
+    var view = new Uint8Array(img.data);
+    console.log('rgb=' + img.width + 'x' + img.height + ',' +
+                view[0] + ',' + view[1] + ',' + view[2] + ',' + view[3]);
+    view[0] = 10;
+    layer.setPixels(img);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("rgb=1024x768,200,100,50,255")));
+  const auto* layer = layer_named(patchy::ui::MainWindowTestAccess::document(window), "RgbPhoto");
+  CHECK(layer != nullptr);
+  CHECK(layer->pixels().format().channels == 4);
+  const auto* pixel = layer->pixels().pixel(0, 0);
+  CHECK(pixel[0] == 10 && pixel[1] == 100 && pixel[2] == 50 && pixel[3] == 255);
 }
 
 void ui_script_fill_rect_partial_updates() {
@@ -345,6 +377,36 @@ void ui_script_editor_dialog_runs_and_shows_console() {
   wait_for_run_end(window.script_engine_host());
   CHECK(console_pane->toPlainText().contains(QStringLiteral("hello from editor")));
   save_widget_artifact("script_editor_dialog", dialog);
+  dialog.close();
+}
+
+void ui_script_editor_status_shows_running_and_ready() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  auto* code = dialog.findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorCode"));
+  auto* run_button = dialog.findChild<QPushButton*>(QStringLiteral("scriptEditorRunButton"));
+  auto* stop_button = dialog.findChild<QPushButton*>(QStringLiteral("scriptEditorStopButton"));
+  auto* status = dialog.findChild<QLabel*>(QStringLiteral("scriptEditorStatusLabel"));
+  CHECK(code != nullptr && run_button != nullptr && stop_button != nullptr && status != nullptr);
+  CHECK(status->text() == QStringLiteral("Ready"));
+  CHECK(!stop_button->isEnabled());
+  // A long timer keeps the run alive after the synchronous phase, so the
+  // running state is observable; the stop-sign button ends it.
+  code->setPlainText(QStringLiteral("setTimeout(function () {}, 60000);"));
+  run_button->click();
+  CHECK(window.script_engine_host().run_active());
+  CHECK(status->text().startsWith(QStringLiteral("Running")));
+  CHECK(stop_button->isEnabled());
+  CHECK(!run_button->isEnabled());
+  save_widget_artifact("script_editor_running_status", dialog);
+  stop_button->click();
+  wait_for_run_end(window.script_engine_host());
+  CHECK(status->text() == QStringLiteral("Ready"));
+  CHECK(!stop_button->isEnabled());
+  CHECK(run_button->isEnabled());
   dialog.close();
 }
 
@@ -613,6 +675,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
       {"ui_script_stale_layer_wrapper_throws", ui_script_stale_layer_wrapper_throws},
       {"ui_script_pixels_roundtrip_and_palette_snap", ui_script_pixels_roundtrip_and_palette_snap},
+      {"ui_script_get_pixels_reads_rgb_layers", ui_script_get_pixels_reads_rgb_layers},
       {"ui_script_fill_rect_partial_updates", ui_script_fill_rect_partial_updates},
       {"ui_script_canvas_window_receives_space_key", ui_script_canvas_window_receives_space_key},
       {"ui_script_undo_disable_skips_history", ui_script_undo_disable_skips_history},
@@ -622,6 +685,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_filters_and_text_layers", ui_script_filters_and_text_layers},
       {"ui_script_run_command_writes_output_file", ui_script_run_command_writes_output_file},
       {"ui_script_editor_dialog_runs_and_shows_console", ui_script_editor_dialog_runs_and_shows_console},
+      {"ui_script_editor_status_shows_running_and_ready", ui_script_editor_status_shows_running_and_ready},
       {"ui_script_canvas_window_renders_frames", ui_script_canvas_window_renders_frames},
       {"ui_scripts_menu_lists_bundled_scripts", ui_scripts_menu_lists_bundled_scripts},
       {"ui_script_editor_tree_shadow_override", ui_script_editor_tree_shadow_override},

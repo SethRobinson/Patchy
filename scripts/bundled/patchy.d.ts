@@ -68,7 +68,11 @@ interface PatchyLayer {
    * parameters throw.
    */
   applyFilter(filterId: string, params?: Record<string, number | boolean | string>): void;
-  /** A copy of the layer's pixels (empty layers report width/height 0). */
+  /**
+   * A copy of the layer's pixels (empty layers report width/height 0). Layers
+   * that store opaque 8-bit RGB (photos opened from JPEG and similar) are
+   * returned expanded to RGBA with alpha 255.
+   */
   getPixels(): PatchyImageData;
   /**
    * Replaces the layer's pixels. data must hold width * height * 4 RGBA
@@ -277,7 +281,7 @@ declare function requestAnimationFrame(callback: (dt: number) => void): number;
  * paths are searched in order: next to the running script, then the user
  * scripts folder, then the bundled scripts folder - so
  * include("Effects/fancy-background.js") works from anywhere. A user copy
- * saved over a bundled script (the Script Editor's Save) is used in its place.
+ * saved over a bundled script (the Script Manager's Save) is used in its place.
  */
 declare function include(path: string): void;
 

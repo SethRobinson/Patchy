@@ -7,7 +7,7 @@
 namespace patchy::ui {
 
 // One node of the script browser model shared by the File > Scripts menu and
-// the Script Editor tree (docs/scripting.md). Folders carry children; files
+// the Script Manager tree (docs/scripting.md). Folders carry children; files
 // carry the absolute path to load/run. A bundled script shadowed by a user
 // copy at the same relative path reports the USER copy as `path` (is_override
 // set) and keeps the original in `bundled_path` so Revert to Bundled works.

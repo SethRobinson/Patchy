@@ -1,6 +1,6 @@
 // The script browser model (docs/scripting.md): recursive bundled/user folder
 // scans and the shadow-override merge consumed by both the File > Scripts menu
-// (main_window_scripting.cpp) and the Script Editor tree
+// (main_window_scripting.cpp) and the Script Manager tree
 // (script_editor_dialog.cpp).
 
 #include "ui/script_folders.hpp"

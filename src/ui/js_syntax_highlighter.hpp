@@ -8,7 +8,7 @@
 
 namespace patchy::ui {
 
-// JavaScript highlighting for the Script Editor: keywords, literals, numbers,
+// JavaScript highlighting for the Script Manager: keywords, literals, numbers,
 // strings, and comments (multi-line via block state 1), tuned for the dark
 // theme. Purely lexical; good enough for an embedded editor pane.
 class JsSyntaxHighlighter : public QSyntaxHighlighter {

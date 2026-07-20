@@ -484,7 +484,7 @@ private:
   void load_view_settings();
   void save_view_settings() const;
   // Scripting (main_window_scripting.cpp): the File > Scripts submenu, the
-  // Script Editor dialog, and the folder scan feeding both.
+  // Script Manager dialog, and the folder scan feeding both.
   void open_script_editor();
   void rebuild_scripts_menu();
   void run_script_from_menu(const QString& path);

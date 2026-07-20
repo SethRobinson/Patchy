@@ -1,11 +1,13 @@
 #pragma once
 
 #include <QDialog>
+#include <QElapsedTimer>
 #include <QPlainTextEdit>
 #include <QString>
 
 class QLabel;
 class QPushButton;
+class QTimer;
 class QTreeWidget;
 class QTreeWidgetItem;
 
@@ -37,14 +39,17 @@ private:
   QWidget* line_number_area_{nullptr};
 };
 
-// The Script Editor (File > Scripts > Script Editor...): a folder tree over
+// The Script Manager (File > Scripts > Script Manager...): a folder tree over
 // the bundled and user script roots (script_folders.hpp; "Bundled" expands the
 // shipped folders, user shadow copies replace bundled entries in place tagged
 // "(modified)"), a code editor with JS highlighting, a console pane wired to
-// the engine host's output, and Run/Stop. Saving a bundled script writes the
+// the engine host's output, Run/Stop, and a live run status ("Ready" /
+// "Running... 13s" with a spinner). Saving a bundled script writes the
 // user-folder shadow copy instead of touching the shipped file; Revert to
 // Bundled (context menu) deletes the copy. Non-modal; opened through
-// run_non_modal_dialog by MainWindow::open_script_editor.
+// run_non_modal_dialog by MainWindow::open_script_editor. Object names and the
+// hotkey command id keep the historical scriptEditor/file.scripts.editor
+// spelling (persisted identifiers; only the display text says Manager).
 class ScriptEditorDialog : public QDialog {
   Q_OBJECT
 
@@ -66,6 +71,7 @@ private:
   void reload_script();
   void append_console(int kind, const QString& text);
   void update_run_state();
+  void update_status_text();
   void set_current_path(const QString& path);
   void update_file_label();
   [[nodiscard]] bool editor_modified() const;
@@ -77,6 +83,10 @@ private:
   QPlainTextEdit* console_{nullptr};
   QPushButton* run_button_{nullptr};
   QPushButton* stop_button_{nullptr};
+  QLabel* status_label_{nullptr};
+  QWidget* run_spinner_{nullptr};  // RunSpinner (cpp-local type)
+  QTimer* status_timer_{nullptr};
+  QElapsedTimer run_elapsed_;
   QLabel* file_label_{nullptr};
   QString current_path_;
 };
