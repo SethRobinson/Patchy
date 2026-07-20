@@ -1202,6 +1202,23 @@ void ui_script_cli_directive_and_example_command() {
   CHECK(command.contains(QStringLiteral("--script-arg folder=C:\\photos")));
   CHECK(command.endsWith(QStringLiteral("example.png")));
 
+  // A spaced exe path forces quotes, and the shells then genuinely differ:
+  // the PowerShell flavor puts the call operator in front.
+  const auto powershell = patchy::ui::script_cli_example_command(
+      QStringLiteral("C:/Program Files/Patchy/patchy.exe"), args_path, meta,
+      patchy::ui::CliShell::PowerShell);
+  CHECK(powershell == QStringLiteral("& ") + command);
+
+  // A plain exe path stays unquoted - the one form Command Prompt,
+  // PowerShell, and batch files all run as pasted - so both flavors match.
+  const auto universal = patchy::ui::script_cli_example_command(
+      QStringLiteral("D:/tools/patchy.exe"), args_path, meta);
+  CHECK(!universal.startsWith(QLatin1Char('"')));
+  CHECK(universal.contains(QStringLiteral("patchy.exe --run-script \"")));
+  CHECK(universal ==
+        patchy::ui::script_cli_example_command(QStringLiteral("D:/tools/patchy.exe"), args_path,
+                                               meta, patchy::ui::CliShell::PowerShell));
+
   // No @cli: active-document scripts get the example.png placeholder, @window
   // scripts the bare command, and empty metadata never throws.
   const patchy::ui::ScriptMetadata plain;
@@ -1264,6 +1281,11 @@ void ui_script_manager_cli_example_dialog() {
   CHECK(command.contains(QStringLiteral("batch-export.js")));
   CHECK(command.contains(QStringLiteral("--script-output result.txt")));
   CHECK(command.contains(QStringLiteral("--script-arg folder=C:\\photos")));
+  // The test binary's path has no spaces, so one universal line serves every
+  // shell: unquoted exe token, no separate PowerShell box.
+  CHECK(!command.startsWith(QLatin1Char('"')));
+  CHECK(example->findChild<QPlainTextEdit*>(
+            QStringLiteral("scriptEditorCliCommandPowerShell")) == nullptr);
   save_widget_artifact("script_cli_example_dialog", *example);
   auto* copy_button =
       example->findChild<QPushButton*>(QStringLiteral("scriptEditorCliCopyButton"));

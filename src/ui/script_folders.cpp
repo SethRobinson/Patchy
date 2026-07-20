@@ -16,6 +16,7 @@
 #include <QPen>
 #include <QPixmap>
 #include <QPolygonF>
+#include <QRegularExpression>
 #include <QTextStream>
 
 #include <algorithm>
@@ -168,14 +169,27 @@ ScriptMetadata read_script_metadata(const QString& path) {
 }
 
 QString script_cli_example_command(const QString& exe_path, const QString& script_path,
-                                   const ScriptMetadata& meta) {
-  // Always quoted (paths under Program Files have spaces); cmd.exe accepts a
-  // quoted program path directly, and the dialog notes cover PowerShell's
-  // leading "&".
-  const auto quoted = [](const QString& path) {
-    return QLatin1Char('"') + QDir::toNativeSeparators(path) + QLatin1Char('"');
-  };
-  auto command = quoted(exe_path) + QStringLiteral(" --run-script ") + quoted(script_path);
+                                   const ScriptMetadata& meta, CliShell shell) {
+  // The exe token stays unquoted when the path is plain: that one form runs
+  // as pasted in Command Prompt, PowerShell, and batch files, while quoting
+  // it flips PowerShell into expression mode. Quotes only when needed, plus
+  // PowerShell's call operator in that case (see the header comment).
+  const auto native_exe = QDir::toNativeSeparators(exe_path);
+  static const QRegularExpression plain_token(
+      QStringLiteral("^[A-Za-z0-9_.:/\\\\~+-]+$"));
+  QString command;
+  if (plain_token.match(native_exe).hasMatch()) {
+    command = native_exe;
+  } else {
+    if (shell == CliShell::PowerShell) {
+      command = QStringLiteral("& ");
+    }
+    command += QLatin1Char('"') + native_exe + QLatin1Char('"');
+  }
+  // Arguments may always be quoted - both shells parse quoted argument
+  // tokens the same way once the command token is a command.
+  command += QStringLiteral(" --run-script \"") + QDir::toNativeSeparators(script_path) +
+             QLatin1Char('"');
   if (!meta.cli_example.isEmpty()) {
     command += QLatin1Char(' ') + meta.cli_example;
   } else if (!meta.opens_window) {

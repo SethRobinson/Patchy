@@ -918,8 +918,15 @@ void ScriptEditorDialog::show_cli_example_for(const QString& script_path) {
   // have just been edited, and an unreadable file simply yields the default
   // fallback command.
   const auto meta = read_script_metadata(script_path);
-  const auto command = script_cli_example_command(QCoreApplication::applicationFilePath(),
-                                                  script_path, meta);
+  const auto exe_path = QCoreApplication::applicationFilePath();
+  const auto command = script_cli_example_command(exe_path, script_path, meta);
+  const auto powershell_command =
+      script_cli_example_command(exe_path, script_path, meta, CliShell::PowerShell);
+  // A plain (unquoted) program path runs as pasted in every shell; a quoted
+  // one genuinely diverges (PowerShell needs "& ", cmd rejects it), and then
+  // one line labeled with a footnote is not enough - people paste without
+  // reading notes, so each shell gets its own copyable line.
+  const bool split_shells = powershell_command != command;
   const auto display_name =
       meta.name.isEmpty() ? QFileInfo(script_path).fileName() : meta.name;
 
@@ -934,37 +941,71 @@ void ScriptEditorDialog::show_cli_example_for(const QString& script_path) {
                  dialog);
   heading->setWordWrap(true);
   layout->addWidget(heading);
-  auto* command_box = new QPlainTextEdit(command, dialog);
-  command_box->setObjectName(QStringLiteral("scriptEditorCliCommand"));
-  command_box->setReadOnly(true);
-  command_box->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-  command_box->setLineWrapMode(QPlainTextEdit::WidgetWidth);
-  command_box->setFixedHeight(command_box->fontMetrics().height() * 5 + 16);
-  command_box->selectAll();  // ready for a manual Ctrl+C too
-  layout->addWidget(command_box);
-  auto* notes = new QLabel(
+  const auto make_command_box = [dialog](const QString& text, const QString& name, int lines) {
+    auto* box = new QPlainTextEdit(text, dialog);
+    box->setObjectName(name);
+    box->setReadOnly(true);
+    box->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    box->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    box->setFixedHeight(box->fontMetrics().height() * lines + 16);
+    return box;
+  };
+  const auto make_copy_button = [this, dialog](QPlainTextEdit* box, const QString& name) {
+    auto* button = new QPushButton(tr("Copy"), dialog);
+    button->setObjectName(name);
+    connect(button, &QPushButton::clicked, dialog, [box, button] {
+      QGuiApplication::clipboard()->setText(box->toPlainText());
+      button->setText(tr("Copied"));
+      QTimer::singleShot(1200, button, [button] { button->setText(tr("Copy")); });
+    });
+    return button;
+  };
+  auto* command_box =
+      make_command_box(command, QStringLiteral("scriptEditorCliCommand"), split_shells ? 4 : 5);
+  QPushButton* copy_button = nullptr;  // single-form: lives in the bottom row
+  if (split_shells) {
+    auto* cmd_row = new QHBoxLayout();
+    cmd_row->addWidget(new QLabel(tr("Command Prompt or a batch file:"), dialog));
+    cmd_row->addStretch(1);
+    cmd_row->addWidget(
+        make_copy_button(command_box, QStringLiteral("scriptEditorCliCopyButton")));
+    layout->addLayout(cmd_row);
+    layout->addWidget(command_box);
+    auto* powershell_box = make_command_box(
+        powershell_command, QStringLiteral("scriptEditorCliCommandPowerShell"), 4);
+    auto* powershell_row = new QHBoxLayout();
+    powershell_row->addWidget(new QLabel(tr("PowerShell:"), dialog));
+    powershell_row->addStretch(1);
+    powershell_row->addWidget(make_copy_button(
+        powershell_box, QStringLiteral("scriptEditorCliCopyPowerShellButton")));
+    layout->addLayout(powershell_row);
+    layout->addWidget(powershell_box);
+  } else {
+    command_box->selectAll();  // ready for a manual Ctrl+C too
+    layout->addWidget(command_box);
+    copy_button = make_copy_button(command_box, QStringLiteral("scriptEditorCliCopyButton"));
+  }
+  auto notes_text =
       tr("Replace the example paths with your own. Add --script-arg key=value to override a "
          "script option (repeatable), and --script-output result.txt to write the console "
-         "output to a file when the run completes. In PowerShell, put & before the quoted "
-         "program path."),
-      dialog);
+         "output to a file when the run completes.");
+  if (!split_shells) {
+    notes_text = tr("This line works as-is in Command Prompt, PowerShell, and batch files.") +
+                 QLatin1Char(' ') + notes_text;
+  }
+  auto* notes = new QLabel(notes_text, dialog);
   notes->setWordWrap(true);
   layout->addWidget(notes);
   auto* buttons = new QHBoxLayout();
-  auto* copy_button = new QPushButton(tr("Copy"), dialog);
-  copy_button->setObjectName(QStringLiteral("scriptEditorCliCopyButton"));
   auto* close_button = new QPushButton(tr("Close"), dialog);
   close_button->setObjectName(QStringLiteral("scriptEditorCliCloseButton"));
   close_button->setDefault(true);
   buttons->addStretch(1);
-  buttons->addWidget(copy_button);
+  if (copy_button != nullptr) {
+    buttons->addWidget(copy_button);
+  }
   buttons->addWidget(close_button);
   layout->addLayout(buttons);
-  connect(copy_button, &QPushButton::clicked, dialog, [command_box, copy_button] {
-    QGuiApplication::clipboard()->setText(command_box->toPlainText());
-    copy_button->setText(tr("Copied"));
-    QTimer::singleShot(1200, copy_button, [copy_button] { copy_button->setText(tr("Copy")); });
-  });
   connect(close_button, &QPushButton::clicked, dialog, &QDialog::close);
   // open(), never exec(): window-modal without a nested event loop, so tests
   // (and a running script's timers) keep flowing.

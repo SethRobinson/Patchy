@@ -293,10 +293,14 @@ The Script Manager's C:\ button surfaces this whole flow to users: it shows a co
 really-runnable command for the selected script (tree selection first, else the loaded
 file), built by `script_cli_example_command` from the live application path and the
 script's `@cli` directive. The metadata is re-read from disk on every click (never
-cached), the dialog is opened with `open()` (window-modal, no nested event loop), and
-its notes cover `--script-arg`/`--script-output` and PowerShell's leading `&` for
-quoted program paths (the command itself is written for cmd, the common case for
-copy-paste automation).
+cached), and the dialog is opened with `open()` (window-modal, no nested event loop).
+Shell rule (learned the hard way - a pasted command MUST run, footnotes are not read):
+the exe token stays unquoted whenever the path is plain, because that one form runs
+as pasted in Command Prompt, PowerShell, and batch files, while quoting the first
+token flips PowerShell into expression mode ("Unexpected token" on `--run-script`).
+When the path forces quotes (spaces - Program Files installs), the shells genuinely
+diverge (PowerShell needs the `& ` call operator, cmd rejects it), so the dialog shows
+TWO labeled copyable lines, one per shell, each with its own Copy button.
 
 ## Trust model
 

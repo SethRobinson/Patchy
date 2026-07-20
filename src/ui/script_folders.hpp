@@ -47,14 +47,24 @@ struct ScriptMetadata {
 [[nodiscard]] ScriptMetadata read_script_metadata(const QString& path);
 
 // The copyable "run this script from a terminal" example the Script Manager
-// shows: quoted exe path, --run-script with the quoted script path, then the
+// shows: exe path, --run-script with the quoted script path, then the
 // script's @cli tokens verbatim. Without @cli, active-document scripts (no
 // @window) get an "example.png" positional placeholder; @window scripts get
 // the bare command. Empty inputs simply produce a shorter command - never an
 // error (metadata may be missing entirely).
+//
+// The exe token is quoted only when the path actually needs it: an unquoted
+// program path is the one form that runs as pasted in Command Prompt,
+// PowerShell, AND batch files, while a quoted first token flips PowerShell
+// into expression mode ("Unexpected token" errors). When quoting is
+// unavoidable (spaces - think Program Files), the two shells genuinely
+// diverge: PowerShell needs the call operator ("& ") in front and cmd
+// rejects it, so ask for each flavor and show both when they differ.
+enum class CliShell { CommandPrompt, PowerShell };
 [[nodiscard]] QString script_cli_example_command(const QString& exe_path,
                                                  const QString& script_path,
-                                                 const ScriptMetadata& meta);
+                                                 const ScriptMetadata& meta,
+                                                 CliShell shell = CliShell::CommandPrompt);
 
 // Recursively scans one scripts root: *.js files plus subfolders, folders
 // first (by name), then files sorted by display name case-insensitively.
