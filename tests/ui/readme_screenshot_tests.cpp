@@ -1423,14 +1423,16 @@ void shot_readme_tile_preview() {
   canvas->center_document_in_view();
   QApplication::processEvents();
 
-  // A hard black stroke entering the left edge and leaving the right edge at
-  // the same height: the tiled view joins the ends into one continuous line
-  // wrapping through every copy.
+  // A hard black dash covering only part of the tile, painted as two strokes:
+  // one leaves the right edge and the other re-enters the left edge at the same
+  // height (the manual wrap a texture artist paints). The tiled view joins them
+  // across every seam, and the mid-tile gap makes each repeated copy read as
+  // the single painted piece it is.
   canvas->set_brush_size(5);
   canvas->set_brush_softness(0);
   canvas->set_primary_color(Qt::black);
-  paint_readme_polyline(*canvas, {QPointF(0.0, 96.0), QPointF(34.0, 108.0), QPointF(66.0, 90.0),
-                                  QPointF(98.0, 112.0), QPointF(128.0, 96.0)});
+  paint_readme_polyline(*canvas, {QPointF(78.0, 106.0), QPointF(104.0, 92.0), QPointF(128.0, 100.0)});
+  paint_readme_polyline(*canvas, {QPointF(0.0, 100.0), QPointF(24.0, 110.0), QPointF(46.0, 98.0)});
   QApplication::processEvents();
 
   reset_readme_status_bar(window);
