@@ -53,6 +53,16 @@ QString blend_mode_name(BlendMode mode) {
       return QObject::tr("Subtract");
     case BlendMode::Divide:
       return QObject::tr("Divide");
+    case BlendMode::VividLight:
+      return QObject::tr("Vivid Light");
+    case BlendMode::LinearLight:
+      return QObject::tr("Linear Light");
+    case BlendMode::HardMix:
+      return QObject::tr("Hard Mix");
+    case BlendMode::DarkerColor:
+      return QObject::tr("Darker Color");
+    case BlendMode::LighterColor:
+      return QObject::tr("Lighter Color");
   }
   return QObject::tr("Normal");
 }
@@ -63,11 +73,14 @@ void add_blend_mode_items(QComboBox* combo) {
   // free to differ from enum order.
   constexpr std::array kBlendModes = {
       BlendMode::Normal,
-      BlendMode::Darken,     BlendMode::Multiply,   BlendMode::ColorBurn,  BlendMode::LinearBurn,
-      BlendMode::Lighten,    BlendMode::Screen,     BlendMode::ColorDodge, BlendMode::LinearDodge,
-      BlendMode::Overlay,    BlendMode::SoftLight,  BlendMode::HardLight,  BlendMode::PinLight,
-      BlendMode::Difference, BlendMode::Exclusion,  BlendMode::Subtract,   BlendMode::Divide,
-      BlendMode::Hue,        BlendMode::Saturation, BlendMode::Color,      BlendMode::Luminosity,
+      BlendMode::Darken,     BlendMode::Multiply,    BlendMode::ColorBurn,
+      BlendMode::LinearBurn, BlendMode::DarkerColor,
+      BlendMode::Lighten,    BlendMode::Screen,      BlendMode::ColorDodge,
+      BlendMode::LinearDodge, BlendMode::LighterColor,
+      BlendMode::Overlay,    BlendMode::SoftLight,   BlendMode::HardLight,
+      BlendMode::VividLight, BlendMode::LinearLight, BlendMode::PinLight,   BlendMode::HardMix,
+      BlendMode::Difference, BlendMode::Exclusion,   BlendMode::Subtract,   BlendMode::Divide,
+      BlendMode::Hue,        BlendMode::Saturation,  BlendMode::Color,      BlendMode::Luminosity,
   };
   for (const auto mode : kBlendModes) {
     combo->addItem(blend_mode_name(mode), static_cast<int>(mode));

@@ -639,8 +639,85 @@ void compositor_fill_opacity_matches_photoshop_modes() {
 
 }  // namespace
 
+// The July 2026 blend modes (Vivid/Linear Light, Hard Mix, Darker/Lighter
+// Color), pinned against full 256x256 Photoshop 2026 flatten captures of
+// crossed gray gradients (source = row value, destination = column value). The
+// triples below sample that ground truth across both kernel halves and every
+// clamp edge; blend_math.cpp documents the calibrated rounding.
+void blend_math_new_modes_match_photoshop_captures() {
+  struct Triple {
+    int source;
+    int destination;
+    int expected;
+  };
+  static constexpr Triple kVividLight[] = {
+      {0, 0, 0}, {0, 255, 0}, {1, 200, 0}, {1, 254, 127}, {1, 255, 255},
+      {2, 254, 191}, {2, 255, 255}, {37, 200, 65}, {37, 254, 252},
+      {64, 128, 2}, {64, 200, 145}, {64, 254, 253},
+      {65, 128, 4}, {65, 200, 146}, {65, 254, 253},
+      {100, 63, 9}, {100, 126, 90}, {100, 128, 92}, {100, 200, 185},
+      {127, 63, 61}, {127, 126, 125}, {127, 128, 127}, {127, 200, 200},
+      {128, 1, 1}, {128, 63, 63}, {128, 128, 128}, {128, 254, 254},
+      {129, 126, 127}, {129, 128, 129}, {129, 200, 202}, {129, 254, 255},
+      {170, 63, 94}, {170, 126, 188}, {170, 128, 191}, {170, 200, 255},
+      {192, 1, 2}, {192, 63, 128}, {192, 126, 255},
+      {254, 0, 0}, {254, 1, 128}, {254, 63, 255},
+      {255, 0, 255}, {255, 255, 255},
+  };
+  static constexpr Triple kLinearLight[] = {
+      {0, 255, 0}, {1, 254, 0}, {1, 255, 1}, {2, 254, 2}, {2, 255, 3},
+      {37, 200, 18}, {64, 200, 72}, {64, 254, 126},
+      {65, 128, 2}, {65, 254, 128}, {100, 126, 70}, {100, 200, 144},
+      {127, 63, 61}, {127, 200, 198}, {127, 255, 253},
+      {128, 0, 0}, {128, 128, 128}, {128, 255, 255},
+      {129, 0, 2}, {129, 126, 128}, {170, 0, 84}, {170, 128, 212},
+      {192, 0, 128}, {192, 126, 254}, {254, 0, 252}, {255, 0, 254}, {255, 1, 255},
+  };
+  static constexpr Triple kHardMix[] = {
+      {0, 254, 0}, {0, 255, 255}, {1, 254, 255}, {37, 200, 0}, {37, 254, 255},
+      {64, 128, 0}, {64, 200, 255}, {127, 126, 0}, {127, 128, 255},
+      {128, 126, 0}, {128, 128, 255}, {170, 63, 0}, {170, 126, 255},
+      {254, 1, 0}, {254, 63, 255}, {255, 0, 0}, {255, 1, 255},
+  };
+  const auto gray = [](int value) {
+    return std::array<std::uint8_t, 3>{static_cast<std::uint8_t>(value),
+                                       static_cast<std::uint8_t>(value),
+                                       static_cast<std::uint8_t>(value)};
+  };
+  for (const auto& t : kVividLight) {
+    CHECK(patchy::blend_rgb(gray(t.source), gray(t.destination),
+                            patchy::BlendMode::VividLight)[0] == t.expected);
+  }
+  for (const auto& t : kLinearLight) {
+    CHECK(patchy::blend_rgb(gray(t.source), gray(t.destination),
+                            patchy::BlendMode::LinearLight)[0] == t.expected);
+  }
+  for (const auto& t : kHardMix) {
+    CHECK(patchy::blend_rgb(gray(t.source), gray(t.destination),
+                            patchy::BlendMode::HardMix)[0] == t.expected);
+  }
+
+  // Darker/Lighter Color pick whole colors by rounded 0.3/0.59/0.11 luma
+  // (gray inputs = plain min/max; ties keep the destination).
+  const std::array<std::uint8_t, 3> reddish{200, 60, 40};    // luma 97
+  const std::array<std::uint8_t, 3> greenish{40, 160, 40};   // luma 111
+  CHECK(patchy::blend_rgb(reddish, greenish, patchy::BlendMode::DarkerColor) == reddish);
+  CHECK(patchy::blend_rgb(reddish, greenish, patchy::BlendMode::LighterColor) == greenish);
+  CHECK(patchy::blend_rgb(gray(90), gray(64), patchy::BlendMode::DarkerColor) == gray(64));
+  CHECK(patchy::blend_rgb(gray(90), gray(64), patchy::BlendMode::LighterColor) == gray(90));
+  // Equal rounded luma (100 both): the destination wins either way.
+  const std::array<std::uint8_t, 3> tie_source{100, 100, 100};
+  const std::array<std::uint8_t, 3> tie_destination{150, 84, 50};  // 30*150+59*84+11*50 = 10006
+  CHECK(patchy::blend_rgb(tie_source, tie_destination, patchy::BlendMode::DarkerColor) ==
+        tie_destination);
+  CHECK(patchy::blend_rgb(tie_source, tie_destination, patchy::BlendMode::LighterColor) ==
+        tie_destination);
+}
+
 std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
   return {
+      {"blend_math_new_modes_match_photoshop_captures",
+       blend_math_new_modes_match_photoshop_captures},
       {"compositor_flattens_visible_layers", compositor_flattens_visible_layers},
       {"compositor_multiply_uses_empty_backdrop_as_transparent",
        compositor_multiply_uses_empty_backdrop_as_transparent},

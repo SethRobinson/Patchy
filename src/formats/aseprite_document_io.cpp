@@ -126,6 +126,11 @@ constexpr std::uint8_t kAlphaThreshold = 128;
       return 18;
     case BlendMode::LinearBurn:
     case BlendMode::PinLight:
+    case BlendMode::VividLight:
+    case BlendMode::LinearLight:
+    case BlendMode::HardMix:
+    case BlendMode::DarkerColor:
+    case BlendMode::LighterColor:
       if (lossy != nullptr) {
         *lossy = true;
       }

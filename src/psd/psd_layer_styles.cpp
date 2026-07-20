@@ -1110,6 +1110,16 @@ std::string_view blend_mode_descriptor_value(BlendMode mode) {
       return "blendSubtraction";
     case BlendMode::Divide:
       return "blendDivide";
+    case BlendMode::VividLight:
+      return "vividLight";
+    case BlendMode::LinearLight:
+      return "linearLight";
+    case BlendMode::HardMix:
+      return "hardMix";
+    case BlendMode::DarkerColor:
+      return "darkerColor";
+    case BlendMode::LighterColor:
+      return "lighterColor";
     case BlendMode::PassThrough:
     case BlendMode::Normal:
       return "normal";

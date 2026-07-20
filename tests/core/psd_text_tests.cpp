@@ -724,7 +724,9 @@ void psd_extended_blend_modes_round_trip() {
       patchy::BlendMode::HardLight,  patchy::BlendMode::SoftLight,
       patchy::BlendMode::Difference, patchy::BlendMode::LinearBurn,
       patchy::BlendMode::PinLight,   patchy::BlendMode::Saturation,
-      patchy::BlendMode::Luminosity,
+      patchy::BlendMode::Luminosity, patchy::BlendMode::VividLight,
+      patchy::BlendMode::LinearLight, patchy::BlendMode::HardMix,
+      patchy::BlendMode::DarkerColor, patchy::BlendMode::LighterColor,
   };
 
   for (const auto mode : modes) {

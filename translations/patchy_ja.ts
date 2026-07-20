@@ -691,6 +691,26 @@
         <translation>除算</translation>
     </message>
     <message>
+        <source>Vivid Light</source>
+        <translation>ビビッドライト</translation>
+    </message>
+    <message>
+        <source>Linear Light</source>
+        <translation>リニアライト</translation>
+    </message>
+    <message>
+        <source>Hard Mix</source>
+        <translation>ハードミックス</translation>
+    </message>
+    <message>
+        <source>Darker Color</source>
+        <translation>カラー比較 (暗)</translation>
+    </message>
+    <message>
+        <source>Lighter Color</source>
+        <translation>カラー比較 (明)</translation>
+    </message>
+    <message>
         <location line="-14"/>
         <location filename="../src/ui/filter_workflows.cpp" line="+3419"/>
         <location line="+6"/>

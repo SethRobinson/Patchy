@@ -64,7 +64,14 @@ enum class BlendMode {
   Color,
   LinearDodge,  // Photoshop "Linear Dodge (Add)" / Aseprite "Addition"
   Subtract,
-  Divide
+  Divide,
+  // July 2026 additions, calibrated bit-exact against Photoshop 2026 captures
+  // (see blend_math.cpp). Not representable in Aseprite files (export is lossy).
+  VividLight,
+  LinearLight,
+  HardMix,
+  DarkerColor,
+  LighterColor
 };
 
 enum class LayerKind {

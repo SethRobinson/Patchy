@@ -24,6 +24,65 @@ std::uint8_t soft_light_channel(std::uint8_t src, std::uint8_t dst) {
   return clamp_byte(blended * 255.0F);
 }
 
+// Round-to-nearest of a/b for non-negative ints; half rounds up / down.
+int nearest_half_up(int a, int b) {
+  return (2 * a + b) / (2 * b);
+}
+int nearest_half_down(int a, int b) {
+  return (2 * a + b - 1) / (2 * b);
+}
+
+// Photoshop's Vivid Light kernel, pinned bit-exact against a full 256x256
+// Photoshop 2026 capture (July 2026): the burn half's doubled source is
+// round(s*255/128) with the ramp rounding half DOWN; the dodge half doubles as
+// round((s-128)*255/127) with the ramp rounding half UP. The naive
+// 2s-burn/2s-255-dodge textbook form differs from Photoshop on a third of the
+// table.
+std::uint8_t vivid_light_channel(std::uint8_t src, std::uint8_t dst) {
+  const int s = src;
+  const int d = dst;
+  if (s == 0) {
+    return 0;
+  }
+  if (s == 255) {
+    return 255;
+  }
+  if (s < 128) {
+    const int doubled = nearest_half_up(s * 255, 128);
+    const int numerator = d + doubled - 255;
+    if (numerator <= 0) {
+      return 0;
+    }
+    return static_cast<std::uint8_t>(std::min(255, nearest_half_down(numerator * 255, doubled)));
+  }
+  const int divisor = 255 - nearest_half_up((s - 128) * 255, 127);
+  if (divisor <= 0) {
+    return 255;
+  }
+  return static_cast<std::uint8_t>(std::min(255, nearest_half_up(d * 255, divisor)));
+}
+
+// Photoshop's Hard Mix thresholds the TEXTBOOK vivid light (floor-rounded,
+// plain 2s doubling), not its own vivid light kernel; this exact form matches
+// the full Photoshop capture with zero mismatches.
+std::uint8_t hard_mix_channel(std::uint8_t src, std::uint8_t dst) {
+  const int s = src;
+  const int d = dst;
+  int vivid = 0;
+  if (s < 128) {
+    const int doubled = 2 * s;
+    if (doubled == 0) {
+      vivid = d < 255 ? 0 : 255;
+    } else {
+      vivid = std::max(0, 255 - std::min(255, ((255 - d) * 255) / doubled));
+    }
+  } else {
+    const int doubled = 2 * (s - 128);
+    vivid = std::min(255, (d * 255) / (255 - doubled));
+  }
+  return vivid > 127 ? 255 : 0;
+}
+
 std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
   switch (mode) {
     case BlendMode::PassThrough:
@@ -82,10 +141,21 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
       return src == 0 ? 255
                       : static_cast<std::uint8_t>(std::min(
                             255, (static_cast<int>(dst) * 255 + static_cast<int>(src) / 2) / static_cast<int>(src)));
+    case BlendMode::VividLight:
+      return vivid_light_channel(src, dst);
+    case BlendMode::LinearLight:
+      // Photoshop's kernel is d + 2s - 256 (not the textbook -255); pinned
+      // bit-exact against the full capture.
+      return static_cast<std::uint8_t>(
+          std::clamp(static_cast<int>(dst) + 2 * static_cast<int>(src) - 256, 0, 255));
+    case BlendMode::HardMix:
+      return hard_mix_channel(src, dst);
     case BlendMode::Saturation:
     case BlendMode::Luminosity:
     case BlendMode::Hue:
     case BlendMode::Color:
+    case BlendMode::DarkerColor:
+    case BlendMode::LighterColor:
       return src;
   }
   return src;
@@ -378,6 +448,22 @@ std::uint8_t blend_if_underlying_alpha_byte(const LayerBlendIf& settings, RgbCol
 
 std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> source,
                                       std::array<std::uint8_t, 3> destination, BlendMode mode) {
+  // Darker/Lighter Colour pick one whole input color by comparing rounded
+  // 0.3/0.59/0.11 luma (integer half-up rounding; ties keep the destination).
+  // Calibrated against Photoshop 2026: exact on gray inputs; on color inputs a
+  // handful of exact half-luma boundary pixels differ (Photoshop's float
+  // evaluation splits those halves inconsistently).
+  if (mode == BlendMode::DarkerColor || mode == BlendMode::LighterColor) {
+    const auto luma = [](const std::array<std::uint8_t, 3>& c) {
+      const int weighted = 30 * c[0] + 59 * c[1] + 11 * c[2];
+      return (2 * weighted + 100) / 200;
+    };
+    const int source_luma = luma(source);
+    const int destination_luma = luma(destination);
+    const bool pick_source = mode == BlendMode::DarkerColor ? source_luma < destination_luma
+                                                            : source_luma > destination_luma;
+    return pick_source ? source : destination;
+  }
   // The four non-separable modes use the PDF-spec luma-based algorithm shared
   // by Photoshop and Aseprite (July 2026: this replaced an HSL-lightness
   // approximation for Saturation/Luminosity; the compositor blend table was

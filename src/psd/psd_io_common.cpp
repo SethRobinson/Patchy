@@ -298,6 +298,16 @@ std::array<char, 4> blend_mode_key(BlendMode mode) {
       return {'f', 's', 'u', 'b'};
     case BlendMode::Divide:
       return {'f', 'd', 'i', 'v'};
+    case BlendMode::VividLight:
+      return {'v', 'L', 'i', 't'};
+    case BlendMode::LinearLight:
+      return {'l', 'L', 'i', 't'};
+    case BlendMode::HardMix:
+      return {'h', 'M', 'i', 'x'};
+    case BlendMode::DarkerColor:
+      return {'d', 'k', 'C', 'l'};
+    case BlendMode::LighterColor:
+      return {'l', 'g', 'C', 'l'};
   }
   return {'n', 'o', 'r', 'm'};
 }
@@ -384,6 +394,21 @@ BlendMode blend_mode_from_key(const std::array<char, 4>& key) {
   if (key == std::array<char, 4>{'f', 'd', 'i', 'v'}) {
     return BlendMode::Divide;
   }
+  if (key == std::array<char, 4>{'v', 'L', 'i', 't'}) {
+    return BlendMode::VividLight;
+  }
+  if (key == std::array<char, 4>{'l', 'L', 'i', 't'}) {
+    return BlendMode::LinearLight;
+  }
+  if (key == std::array<char, 4>{'h', 'M', 'i', 'x'}) {
+    return BlendMode::HardMix;
+  }
+  if (key == std::array<char, 4>{'d', 'k', 'C', 'l'}) {
+    return BlendMode::DarkerColor;
+  }
+  if (key == std::array<char, 4>{'l', 'g', 'C', 'l'}) {
+    return BlendMode::LighterColor;
+  }
   return BlendMode::Normal;
 }
 
@@ -457,6 +482,21 @@ BlendMode blend_mode_from_descriptor_enum(std::string_view value, const std::arr
   }
   if (value == "blendDivide") {
     return BlendMode::Divide;
+  }
+  if (value == "vividLight") {
+    return BlendMode::VividLight;
+  }
+  if (value == "linearLight") {
+    return BlendMode::LinearLight;
+  }
+  if (value == "hardMix") {
+    return BlendMode::HardMix;
+  }
+  if (value == "darkerColor") {
+    return BlendMode::DarkerColor;
+  }
+  if (value == "lighterColor") {
+    return BlendMode::LighterColor;
   }
   return blend_mode_from_key(block_key_from_string(value).value_or(fallback_key));
 }
