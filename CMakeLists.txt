@@ -333,7 +333,7 @@ target_link_libraries(patchy_color PUBLIC patchy_core PRIVATE patchy_lcms2)
 patchy_configure_target(patchy_color)
 
 if(PATCHY_BUILD_APP)
-  find_package(Qt6 QUIET COMPONENTS Widgets Svg PrintSupport Network LinguistTools Test)
+  find_package(Qt6 QUIET COMPONENTS Widgets Svg PrintSupport Network Qml LinguistTools Test)
   if(Qt6_FOUND)
     if(APPLE AND TARGET WrapOpenGL::WrapOpenGL)
       # Qt 6.8's FindWrapOpenGL.cmake links the long-dead AGL framework: the OS still
@@ -461,6 +461,7 @@ if(PATCHY_BUILD_APP)
                 $<TARGET_FILE:Qt6::Svg>
                 $<TARGET_FILE:Qt6::PrintSupport>
                 $<TARGET_FILE:Qt6::Network>
+                $<TARGET_FILE:Qt6::Qml>
                 $<TARGET_FILE:Qt6::Test>
                 "${CMAKE_BINARY_DIR}"
         COMMAND ${CMAKE_COMMAND} -E make_directory
@@ -492,6 +493,7 @@ if(PATCHY_BUILD_APP)
           $<TARGET_FILE:Qt6::Svg>
           $<TARGET_FILE:Qt6::PrintSupport>
           $<TARGET_FILE:Qt6::Network>
+          $<TARGET_FILE:Qt6::Qml>
           $<TARGET_FILE:Qt6::Test>
           "${PATCHY_QT_PLUGIN_DIR}/platforms/qwindows$<$<CONFIG:Debug>:d>.dll"
           "${PATCHY_QT_PLUGIN_DIR}/platforms/qoffscreen$<$<CONFIG:Debug>:d>.dll"
@@ -525,6 +527,30 @@ if(PATCHY_BUILD_APP)
     function(patchy_copy_bundled_fonts target)
       if(TARGET patchy_bundled_fonts)
         add_dependencies(${target} patchy_bundled_fonts)
+      endif()
+    endfunction()
+    # Bundled example/utility scripts for the JS scripting system (plus patchy.d.ts, the
+    # typed API reference). Same shared copy-once shape as the fonts: per-target POST_BUILD
+    # copies into the shared output directory race under parallel Ninja.
+    set(PATCHY_BUNDLED_SCRIPTS_DIR "${PROJECT_SOURCE_DIR}/scripts")
+    if(EXISTS "${PATCHY_BUNDLED_SCRIPTS_DIR}")
+      file(GLOB PATCHY_BUNDLED_SCRIPT_FILES CONFIGURE_DEPENDS
+        "${PATCHY_BUNDLED_SCRIPTS_DIR}/*")
+      set(PATCHY_SCRIPTS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_bundled_scripts.stamp")
+      add_custom_command(
+        OUTPUT "${PATCHY_SCRIPTS_STAMP}"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${PATCHY_BUNDLED_SCRIPTS_DIR}"
+                "${CMAKE_BINARY_DIR}/scripts"
+        COMMAND ${CMAKE_COMMAND} -E touch "${PATCHY_SCRIPTS_STAMP}"
+        DEPENDS ${PATCHY_BUNDLED_SCRIPT_FILES}
+        COMMENT "Copying bundled scripts into the build directory"
+      )
+      add_custom_target(patchy_bundled_scripts DEPENDS "${PATCHY_SCRIPTS_STAMP}")
+    endif()
+    function(patchy_copy_bundled_scripts target)
+      if(TARGET patchy_bundled_scripts)
+        add_dependencies(${target} patchy_bundled_scripts)
       endif()
     endfunction()
     add_library(patchy_ui
@@ -628,6 +654,7 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window_palette.cpp
       src/ui/main_window_plugins.cpp
       src/ui/main_window_preferences.cpp
+      src/ui/main_window_scripting.cpp
       src/ui/main_window_sessions.cpp
       src/ui/main_window_shared.hpp
       src/ui/main_window_shared.cpp
@@ -667,6 +694,16 @@ if(PATCHY_BUILD_APP)
       src/ui/raw_develop_dialog.hpp
       src/ui/raw_develop_dialog.cpp
       src/ui/scanner_import.hpp
+      src/ui/js_syntax_highlighter.hpp
+      src/ui/js_syntax_highlighter.cpp
+      src/ui/script_api.hpp
+      src/ui/script_api.cpp
+      src/ui/script_canvas_window.hpp
+      src/ui/script_canvas_window.cpp
+      src/ui/script_editor_dialog.hpp
+      src/ui/script_editor_dialog.cpp
+      src/ui/script_engine.hpp
+      src/ui/script_engine.cpp
       src/ui/selection_outline.hpp
       src/ui/selection_outline.cpp
       src/ui/start_panel.hpp
@@ -706,6 +743,7 @@ if(PATCHY_BUILD_APP)
       Qt6::Svg
       Qt6::PrintSupport
       Qt6::Network
+      Qt6::Qml
       patchy_core
       patchy_render
       patchy_psd
@@ -749,6 +787,7 @@ if(PATCHY_BUILD_APP)
     patchy_copy_translations(patchy)
     patchy_copy_qt_runtime(patchy)
     patchy_copy_bundled_fonts(patchy)
+    patchy_copy_bundled_scripts(patchy)
     if(WIN32)
       target_sources(patchy PRIVATE src/app/patchy.rc)
     endif()
@@ -778,7 +817,10 @@ if(PATCHY_BUILD_APP)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_BINARY_DIR}/translations"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/translations"
-        COMMENT "Staging fonts and translations into the Patchy app bundle"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_BINARY_DIR}/scripts"
+                "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/scripts"
+        COMMENT "Staging fonts, translations, and scripts into the Patchy app bundle"
       )
     endif()
     add_custom_command(TARGET patchy POST_BUILD
@@ -797,6 +839,10 @@ if(PATCHY_BUILD_APP)
       # and the freedesktop integration files under share/.
       install(DIRECTORY "${PATCHY_BUNDLED_FONTS_DIR}/"
               DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/fonts")
+      if(EXISTS "${PATCHY_BUNDLED_SCRIPTS_DIR}")
+        install(DIRECTORY "${PATCHY_BUNDLED_SCRIPTS_DIR}/"
+                DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/scripts")
+      endif()
       install(FILES ${PATCHY_QM_FILES}
               DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/translations")
       if(TARGET patchy_qt_base_translations)
@@ -908,6 +954,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/float_window_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
       tests/ui/svg_ui_tests.cpp
+      tests/ui/scripting_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
     )
     # The split TUs live in tests/ui/ but repeat the historical monolith include
@@ -922,6 +969,7 @@ if(PATCHY_BUILD_TESTS)
     patchy_copy_translations(patchy_ui_visual_tests)
     patchy_copy_qt_runtime(patchy_ui_visual_tests)
     patchy_copy_bundled_fonts(patchy_ui_visual_tests)
+    patchy_copy_bundled_scripts(patchy_ui_visual_tests)
     add_test(NAME patchy_ui_visual_tests COMMAND patchy_ui_visual_tests)
     set_tests_properties(patchy_ui_visual_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 

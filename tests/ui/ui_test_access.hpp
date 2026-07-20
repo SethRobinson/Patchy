@@ -228,6 +228,10 @@ public:
     return window.session().undo_stack.size();
   }
 
+  static void undo(MainWindow& window) {
+    window.undo();
+  }
+
   static bool active_session_is_modified(MainWindow& window) {
     return window.session_is_modified(window.session());
   }

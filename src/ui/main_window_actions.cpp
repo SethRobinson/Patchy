@@ -784,6 +784,24 @@ void MainWindow::create_actions() {
   auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
   auto* print_action = file_menu->addAction(tr("&Print..."));
   file_menu->addSeparator();
+  // File > Scripts: static entries here (hotkeys register once); the script
+  // entries themselves rescan on every open (main_window_scripting.cpp).
+  scripts_menu_ = file_menu->addMenu(tr("Scrip&ts"));
+  scripts_menu_->setObjectName(QStringLiteral("fileScriptsMenu"));
+  bind_action_text(scripts_menu_->menuAction(), "Scrip&ts");
+  auto* script_editor_action = scripts_menu_->addAction(tr("Script &Editor..."));
+  script_editor_action->setObjectName(QStringLiteral("fileScriptEditorAction"));
+  register_hotkey(script_editor_action, "file.scripts.editor");
+  connect(script_editor_action, &QAction::triggered, this, [this] { open_script_editor(); });
+  bind_action_text(script_editor_action, "Script &Editor...");
+  auto* browse_scripts_action = scripts_menu_->addAction(tr("&Browse Scripts Folder..."));
+  browse_scripts_action->setObjectName(QStringLiteral("fileBrowseScriptsFolderAction"));
+  register_hotkey(browse_scripts_action, "file.scripts.browse_folder");
+  connect(browse_scripts_action, &QAction::triggered, this, [this] { browse_user_scripts_folder(); });
+  bind_action_text(browse_scripts_action, "&Browse Scripts Folder...");
+  scripts_menu_->addSeparator();
+  connect(scripts_menu_, &QMenu::aboutToShow, this, [this] { rebuild_scripts_menu(); });
+  file_menu->addSeparator();
   auto* close_action = file_menu->addAction(tr("&Close"));
   auto* close_all_action = file_menu->addAction(tr("Close &All"));
   file_menu->addSeparator();

@@ -94,6 +94,8 @@ class PathsPanel;
 class StartPanel;
 class PatternLibrary;
 class GradientLibrary;
+class ScriptEngineHost;
+class ScriptEditorDialog;
 class StyleLibrary;
 class ZoomPercentEdit;
 class ZoomStatusBar;
@@ -154,6 +156,23 @@ public:
   // boxes, indexed-palette adoption offer, missing-font substitution confirm, format
   // data-loss confirms). Set before opening files.
   void set_cli_automation_mode(bool enabled) { cli_automation_mode_ = enabled; }
+  // The JS scripting engine (lazily created; see main_window_scripting.cpp and
+  // docs/scripting.md).
+  [[nodiscard]] ScriptEngineHost& script_engine_host();
+  // Runs a script in THIS instance and appends console output, errors, and a
+  // final "[done]"/"[failed]" line to output_path when the run fully completes
+  // (a forwarded `--run-script` from a second launch lands here, like
+  // save_debug_screenshot does for --screenshot). Empty output_path = no file.
+  void run_script_command(const QString& script_path, const QString& output_path);
+  // CLI `--run-script` in a fresh unattended instance (`--export` pattern):
+  // defers until the event loop starts, runs the script, writes the output
+  // file, and exits 0 on success or 4 on script failure.
+  void run_cli_script(const QString& script_path, const QString& output_path);
+  // Script folders (main_window_scripting.cpp): bundled scripts ship next to
+  // the binary (Resources/ on macOS, share/patchy/ on Linux); user scripts
+  // live under the per-user app-data folder (created on first use).
+  [[nodiscard]] static QString bundled_scripts_directory();
+  [[nodiscard]] static QString user_scripts_directory();
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -255,6 +274,10 @@ private:
   // Drives the profiling stress test through MainWindow's private API
   // (main_window_stress_test.cpp).
   friend class StressTestRunner;
+  // The scripting engine reaches sessions, undo, and the text pipeline through
+  // MainWindow's private API (script_engine.cpp); the JS wrapper objects go
+  // through ScriptEngineHost services, never through MainWindow directly.
+  friend class ScriptEngineHost;
   // Hosts a floated document's canvas; forwards close/activate/drag events back
   // into the private session machinery (document_float_window.cpp).
   friend class DocumentFloatWindow;
@@ -457,6 +480,12 @@ private:
   void handle_pen_button_action(PenButtonAction action);
   void load_view_settings();
   void save_view_settings() const;
+  // Scripting (main_window_scripting.cpp): the File > Scripts submenu, the
+  // Script Editor dialog, and the folder scan feeding both.
+  void open_script_editor();
+  void rebuild_scripts_menu();
+  void run_script_from_menu(const QString& path);
+  void browse_user_scripts_folder();
   void scan_legacy_plugins();
   void load_bundled_legacy_plugins();
   bool register_legacy_plugin_path(const QString& path, QStringList* report = nullptr);
@@ -1206,6 +1235,11 @@ private:
   QMenu* legacy_plugins_menu_{nullptr};
   QMenu* recent_files_menu_{nullptr};
   QMenu* recent_folders_menu_{nullptr};
+  // Scripting: the engine host is a QObject child of this window (created
+  // lazily); the editor dialog is non-modal and window-owned.
+  ScriptEngineHost* script_engine_host_{nullptr};
+  QPointer<QDialog> script_editor_dialog_;
+  QMenu* scripts_menu_{nullptr};
   FilterRegistry filters_;
   PluginHost plugin_host_;
   QPageLayout print_page_layout_;

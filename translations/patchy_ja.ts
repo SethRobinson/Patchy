@@ -5460,6 +5460,8 @@ Mixed selection</source>
     <message><source>Dodge</source><translation>覆い焼き</translation></message>
     <message><source>Burn</source><translation>焼き込み</translation></message>
     <message><source>Pattern Stamp</source><translation>パターンスタンプ</translation></message>
+    <message><source>Run the JavaScript file. With a running instance this forwards the request and exits; otherwise a new unattended instance opens the given files, runs the script, and exits (0 = ok, 4 = script error).</source><translation>JavaScript ファイルを実行します。実行中のインスタンスがあればリクエストを転送して終了し、なければ新しい無人インスタンスが指定ファイルを開いてスクリプトを実行し終了します (0 = 成功、4 = スクリプトエラー)。</translation></message>
+    <message><source>With --run-script: write console output, errors, and a final [done]/[failed] line to this file when the script completes.</source><translation>--run-script と併用: スクリプト完了時にコンソール出力・エラー・最終行 [done]/[failed] をこのファイルに書き込みます。</translation></message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13106,6 +13108,11 @@ Clipped to the layer below</source>
     <message><source>The path is too small to define a shape</source><translation>パスが小さすぎてシェイプを定義できません</translation></message>
     <message><source>Could not save the custom shape</source><translation>カスタムシェイプを保存できませんでした</translation></message>
     <message><source>Defined %1 from the path.</source><translation>パスから %1 を定義しました。</translation></message>
+    <message><source>Scrip&amp;ts</source><translation>スクリプト(&amp;T)</translation></message>
+    <message><source>Script &amp;Editor...</source><translation>スクリプトエディター(&amp;E)...</translation></message>
+    <message><source>&amp;Browse Scripts Folder...</source><translation>スクリプトフォルダーを開く(&amp;B)...</translation></message>
+    <message><source>A script is already running: %1</source><translation>スクリプトは既に実行中です: %1</translation></message>
+    <message><source>Running script %1...</source><translation>スクリプト %1 を実行中...</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -13860,5 +13867,68 @@ Clipped to the layer below</source>
         <source>Drag horizontally to change phase and vertically to change amplitude. Use the mouse wheel to change wavelength.</source>
         <translation>横にドラッグすると位相、縦にドラッグすると振幅が変わります。マウスホイールで波長を変更できます。</translation>
     </message>
+</context>
+<context>
+    <name>patchy::ui::ScriptEngineHost</name>
+    <message><source>Could not read script file: %1</source><translation>スクリプトファイルを読み込めませんでした: %1</translation></message>
+    <message><source>A script is already running: %1</source><translation>スクリプトは既に実行中です: %1</translation></message>
+    <message><source>Untitled Script</source><translation>無題のスクリプト</translation></message>
+    <message><source>Script stopped.</source><translation>スクリプトを停止しました。</translation></message>
+    <message><source>Script stopped: it exceeded the time limit.</source><translation>スクリプトを停止しました: 制限時間を超えました。</translation></message>
+    <message><source>Script stopped: a callback exceeded the time limit.</source><translation>スクリプトを停止しました: コールバックが制限時間を超えました。</translation></message>
+    <message><source>setTimeout/setInterval needs a function.</source><translation>setTimeout/setInterval には関数が必要です。</translation></message>
+    <message><source>include: could not read %1</source><translation>include: %1 を読み込めませんでした</translation></message>
+    <message><source>Background</source><translation>背景</translation></message>
+    <message><source>Untitled</source><translation>無題</translation></message>
+    <message><source>Script: %1</source><translation>スクリプト: %1</translation></message>
+    <message><source>Script</source><translation>スクリプト</translation></message>
+    <message><source>[alert] %1</source><translation>[alert] %1</translation></message>
+    <message><source>The document is no longer open.</source><translation>ドキュメントは既に閉じられています。</translation></message>
+    <message><source>Unknown filter id: %1</source><translation>不明なフィルター ID: %1</translation></message>
+    <message><source>Filter %1 has no parameter named %2</source><translation>フィルター %1 に %2 という名前のパラメーターはありません</translation></message>
+    <message><source>Filter %1 rejected those parameters.</source><translation>フィルター %1 はそのパラメーターを受け付けませんでした。</translation></message>
+    <message><source>The layer no longer exists.</source><translation>レイヤーは既に存在しません。</translation></message>
+    <message><source>applyFilter needs a pixel layer.</source><translation>applyFilter にはピクセルレイヤーが必要です。</translation></message>
+    <message><source>Invalid color: %1 (use &quot;#rrggbb&quot; or a named color)</source><translation>無効な色です: %1 (&quot;#rrggbb&quot; または色名を使用してください)</translation></message>
+    <message><source>This layer is not a text layer.</source><translation>このレイヤーはテキストレイヤーではありません。</translation></message>
+    <message><source>Could not edit the text layer.</source><translation>テキストレイヤーを編集できませんでした。</translation></message>
+    <message><source>fill needs a pixel layer, not a group.</source><translation>fill にはグループではなくピクセルレイヤーが必要です。</translation></message>
+    <message><source>fill supports 8-bit RGBA layers only.</source><translation>fill は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
+    <message><source>getPixels supports 8-bit RGBA layers only.</source><translation>getPixels は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
+    <message><source>setPixels needs a {width, height, data} object.</source><translation>setPixels には {width, height, data} オブジェクトが必要です。</translation></message>
+    <message><source>setPixels: data must hold width * height * 4 RGBA bytes.</source><translation>setPixels: data は width * height * 4 バイトの RGBA データが必要です。</translation></message>
+    <message><source>setPixels needs a pixel layer, not a group.</source><translation>setPixels にはグループではなくピクセルレイヤーが必要です。</translation></message>
+    <message><source>activeLayer needs a layer of this document.</source><translation>activeLayer にはこのドキュメントのレイヤーが必要です。</translation></message>
+    <message><source>Layer</source><translation>レイヤー</translation></message>
+    <message><source>Could not create the text layer.</source><translation>テキストレイヤーを作成できませんでした。</translation></message>
+    <message><source>resizeImage needs a size between 1 and 30000.</source><translation>resizeImage のサイズは 1 から 30000 の範囲で指定してください。</translation></message>
+    <message><source>resizeCanvas needs a size between 1 and 30000.</source><translation>resizeCanvas のサイズは 1 から 30000 の範囲で指定してください。</translation></message>
+    <message><source>crop needs a positive size.</source><translation>crop には正のサイズが必要です。</translation></message>
+    <message><source>crop rectangle is outside the canvas.</source><translation>crop の矩形がキャンバスの外にあります。</translation></message>
+    <message><source>newDocument needs a size between 1 and 30000.</source><translation>newDocument のサイズは 1 から 30000 の範囲で指定してください。</translation></message>
+    <message><source>Could not open %1</source><translation>%1 を開けませんでした</translation></message>
+    <message><source>Could not read %1</source><translation>%1 を読み込めませんでした</translation></message>
+    <message><source>Could not write %1</source><translation>%1 に書き込めませんでした</translation></message>
+    <message><source>selectRect needs a positive size.</source><translation>selectRect には正のサイズが必要です。</translation></message>
+    <message><source>selectEllipse needs a positive size.</source><translation>selectEllipse には正のサイズが必要です。</translation></message>
+    <message><source>Script Window</source><translation>スクリプトウィンドウ</translation></message>
+</context>
+<context>
+    <name>patchy::ui::ScriptEditorDialog</name>
+    <message><source>Script Editor</source><translation>スクリプトエディター</translation></message>
+    <message><source>Run</source><translation>実行</translation></message>
+    <message><source>Stop</source><translation>停止</translation></message>
+    <message><source>New</source><translation>新規</translation></message>
+    <message><source>Save</source><translation>保存</translation></message>
+    <message><source>Save As...</source><translation>名前を付けて保存...</translation></message>
+    <message><source>Reload</source><translation>再読み込み</translation></message>
+    <message><source>untitled.js</source><translation>untitled.js</translation></message>
+    <message><source>Bundled</source><translation>同梱スクリプト</translation></message>
+    <message><source>My Scripts</source><translation>マイスクリプト</translation></message>
+    <message><source>Discard unsaved changes to %1?</source><translation>%1 の未保存の変更を破棄しますか?</translation></message>
+    <message><source>Could not read %1</source><translation>%1 を読み込めませんでした</translation></message>
+    <message><source>Could not write %1</source><translation>%1 に書き込めませんでした</translation></message>
+    <message><source>Save Script</source><translation>スクリプトを保存</translation></message>
+    <message><source>JavaScript files (*.js)</source><translation>JavaScript ファイル (*.js)</translation></message>
 </context>
 </TS>

@@ -147,6 +147,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) through a 16-bit develop dialog, and HEIC/HEIF photos through platform codecs
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
 - Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), legacy .8bf plugins, and command line options
+- JavaScript scripting: a built-in Script Editor (File > Scripts) with a documented API covering documents, layers, text, selections, pixels, and filters, bundled examples ranging from batch layer export to letter-drop physics and a playable Pong, interactive script windows for games and demos, and a --run-script command line flag so external tools and AI agents can drive Patchy
 - Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak) builds
 - Built with C++ and Qt for a native desktop experience. No GPU used, should run on a potato
 - Privacy: YES! Absolutely no telemetry, no tracking, no data collection (if update checks are enabled, it contacts GitHub only to check for a newer version). Settings live in a plain local file, and the installer doesn't screw with your file extension preferences

@@ -113,6 +113,17 @@ QString encode_screenshot_command(const QString& output_path, const QString& wid
   return kScreenshotCommandPrefix + output_path + QLatin1Char('\n') + widget_name + QLatin1Char('\n') + region;
 }
 
+// Script-run requests use the same reserved-entry scheme. Fields are
+// newline-separated: prefix, script path, output path (may be empty). The
+// running instance executes the script and writes console output plus a final
+// [done]/[failed] line to the output path when the run completes; the invoking
+// process exits immediately and the caller polls for the file.
+const QString kRunScriptCommandPrefix = QStringLiteral("patchy-cmd:run-script\n");
+
+QString encode_run_script_command(const QString& script_path, const QString& output_path) {
+  return kRunScriptCommandPrefix + script_path + QLatin1Char('\n') + output_path;
+}
+
 // Parses "x,y,w,h" (as taken by --screenshot-rect); anything else yields an invalid rect,
 // which save_debug_screenshot treats as "the whole widget".
 QRect parse_screenshot_rect(const QString& text) {
@@ -334,6 +345,21 @@ int main(int argc, char* argv[]) {
                      "Patchy's text engine, before saving."),
       QStringLiteral("text"));
   parser.addOption(append_text_option);
+  QCommandLineOption run_script_option(
+      QStringLiteral("run-script"),
+      QCoreApplication::translate(
+          "QObject", "Run the JavaScript file. With a running instance this forwards the request and "
+                     "exits; otherwise a new unattended instance opens the given files, runs the "
+                     "script, and exits (0 = ok, 4 = script error)."),
+      QStringLiteral("path"));
+  parser.addOption(run_script_option);
+  QCommandLineOption script_output_option(
+      QStringLiteral("script-output"),
+      QCoreApplication::translate(
+          "QObject", "With --run-script: write console output, errors, and a final [done]/[failed] "
+                     "line to this file when the script completes."),
+      QStringLiteral("path"));
+  parser.addOption(script_output_option);
   // QCommandLineParser has no optional-value options, so let a bare
   // `--stress-test` mean the default (quick) preset.
   QStringList arguments = app.arguments();
@@ -382,6 +408,18 @@ int main(int argc, char* argv[]) {
   }
   const QString export_append_text = parser.value(append_text_option);
 
+  // A script-run request travels like a screenshot: forwarded to a running
+  // instance when one exists, otherwise this instance runs it unattended.
+  const bool run_script_mode = parser.isSet(run_script_option);
+  QString run_script_path;
+  if (run_script_mode) {
+    run_script_path = QFileInfo(parser.value(run_script_option)).absoluteFilePath();
+  }
+  QString script_output_path;
+  if (parser.isSet(script_output_option)) {
+    script_output_path = QFileInfo(parser.value(script_output_option)).absoluteFilePath();
+  }
+
   // Single-instance: if another Patchy is already running, hand it the files and exit so a double-click
   // reuses the existing window instead of spawning a new process. An env override keeps multi-instance
   // launches (and tests) possible. A stress-test or export launch opts out entirely: forwarding would
@@ -392,6 +430,9 @@ int main(int argc, char* argv[]) {
   QStringList forward_payload = files;
   if (screenshot_mode) {
     forward_payload.append(encode_screenshot_command(screenshot_path, screenshot_widget, screenshot_rect_text));
+  }
+  if (run_script_mode) {
+    forward_payload.append(encode_run_script_command(run_script_path, script_output_path));
   }
   if (single_instance_enabled && forward_to_running_instance(forward_payload)) {
     return 0;
@@ -424,19 +465,25 @@ int main(int argc, char* argv[]) {
           // window (that would perturb the very state being captured), so a pure-screenshot
           // request skips activation; a bare relaunch (no files, no commands) still activates.
           QStringList forwarded_files;
-          bool handled_screenshot = false;
+          bool handled_command = false;
           for (const auto& entry : forwarded) {
             if (entry.startsWith(kScreenshotCommandPrefix)) {
               const auto parts = entry.split(QLatin1Char('\n'));
               if (parts.size() == 4) {
                 (void)window.save_debug_screenshot(parts[1], parts[2], parse_screenshot_rect(parts[3]));
               }
-              handled_screenshot = true;
+              handled_command = true;
+            } else if (entry.startsWith(kRunScriptCommandPrefix)) {
+              const auto parts = entry.split(QLatin1Char('\n'));
+              if (parts.size() == 3) {
+                window.run_script_command(parts[1], parts[2]);
+              }
+              handled_command = true;
             } else {
               forwarded_files.append(entry);
             }
           }
-          if (!forwarded_files.isEmpty() || !handled_screenshot) {
+          if (!forwarded_files.isEmpty() || !handled_command) {
             window.activate_for_second_instance(forwarded_files);
           }
           client->deleteLater();
@@ -466,6 +513,16 @@ int main(int argc, char* argv[]) {
     const int export_result = app.exec();
     patchy::ui::wait_for_tracked_background_workers();
     return export_result;
+  }
+  if (run_script_mode) {
+    // No instance was running (a forwarded request already returned above):
+    // run the script unattended in this instance and exit with its status.
+    window.set_cli_automation_mode(true);
+    window.open_command_line_files(files);
+    window.run_cli_script(run_script_path, script_output_path);
+    const int script_result = app.exec();
+    patchy::ui::wait_for_tracked_background_workers();
+    return script_result;
   }
   // No startup splash: the start panel carries the branding, and the update-check status
   // lands on its footer (an available update still raises the update dialog).

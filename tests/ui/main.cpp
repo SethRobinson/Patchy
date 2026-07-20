@@ -214,6 +214,7 @@ int main(int argc, char* argv[]) {
            float_window_tests,
            vector_shape_tool_tests,
            svg_ui_tests,
+           scripting_tests,
            readme_screenshot_tests,
        }) {
     auto group = registration();
