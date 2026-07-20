@@ -50,6 +50,32 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
+// Converts CIELAB (D50) pixels to sRGB through lcms2's built-in profiles. Input is the
+// ICC v4 Lab16 PCS encoding (L: 0..65535 = 0..100; a/b: 0..65535 with 0x8080 = 0, i.e.
+// value/257 - 128) - the encoding Affinity .af LABA16 documents store on the wire, fed
+// to lcms as TYPE_Lab_16 triples. Relative colorimetric + black point compensation like
+// the CMYK transform; built without the one-pixel cache so instances are thread-safe.
+class LabToRgbTransform {
+public:
+  // Returns nullopt only when lcms cannot build the built-in profiles (out of memory).
+  [[nodiscard]] static std::optional<LabToRgbTransform> create();
+
+  LabToRgbTransform(LabToRgbTransform&&) noexcept;
+  LabToRgbTransform& operator=(LabToRgbTransform&&) noexcept;
+  LabToRgbTransform(const LabToRgbTransform&) = delete;
+  LabToRgbTransform& operator=(const LabToRgbTransform&) = delete;
+  ~LabToRgbTransform();
+
+  // Interleaved ICC-encoded L,a,b u16 triples to packed sRGB (3 bytes each).
+  void convert(const std::uint16_t* lab_encoded, std::uint8_t* rgb_out,
+               std::size_t pixel_count) const;
+
+private:
+  struct Impl;
+  explicit LabToRgbTransform(std::unique_ptr<Impl> impl);
+  std::unique_ptr<Impl> impl_;
+};
+
 class ColorManager {
 public:
   void assign_icc_profile(Document& document, std::vector<std::uint8_t> icc_profile) const;

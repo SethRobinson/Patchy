@@ -205,12 +205,18 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   .af channels are straight ink, not PSD-inverted. Blend modes Patchy lacks
   (Pigment, Average, Negation, Reflect, Glow, Erase, ...) map to Normal with
   a notice.
+- **Lab documents (LABA16, format 5)** decode natively: the wire is the ICC
+  v4 Lab16 PCS encoding (L 0..65535 = 0..100, a/b with 0x8080 = 0), converted
+  through lcms2's built-in D50 Lab profile (`LabToRgbTransform`,
+  src/color/color_management). Pinned July 2026 against a saturated
+  calibration doc at RMSE ~0.5 vs Affinity's own render; the earlier
+  "compressed a/b scale" mystery was a desaturated probe document.
+- **Multi-page/artboard documents** import the first spread with a notice
+  naming the total count.
 - **Honest degradation (notice + named empty layer)**: text (`TxtA`/`TxtF`),
-  vector/curve (`PCrv`), adjustment and live-filter nodes (their bitmap is a
-  mask plane, not content - the adjustment is not applied), and Lab documents
-  (the a/b channel scale is not the ICC encoding and is not pinned yet; a
-  wrong decode would desaturate, so it refuses instead). These keep their
-  name and position in the tree so the structure survives, but are not
+  vector/curve (`PCrv`), and adjustment and live-filter nodes (their bitmap
+  is a mask plane, not content - the adjustment is not applied). These keep
+  their name and position in the tree so the structure survives, but are not
   rendered. If NOTHING in a document decodes to pixels, the importer prefers
   the tier-0 embedded preview over an all-placeholder blank canvas.
 - **Blend enum -> Patchy `BlendMode`** and the RasterFormat ids are in

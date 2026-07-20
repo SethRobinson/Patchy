@@ -487,17 +487,18 @@ constexpr int kTileSize = 256;
 }
 
 // DyBm bitmap format ids (the app's RasterFormat enum). M8/M16 are the
-// single-channel mask planes; CMYK converts approximately (no ICC bytes are
-// stored in the file, profiles are referenced by name only). Lab (5) is left
-// Unsupported for now: its a/b channels use a compressed scale not yet
-// reverse-engineered, so decoding it would desaturate the image (tier-3 work
-// needs a known-color calibration document to pin the a/b encoding).
+// single-channel mask planes; CMYK converts through the embedded ICC profile
+// when the bitmap carries one, else approximately. LabA16 stores the ICC v4
+// Lab16 PCS encoding on the wire (pinned July 2026 against a saturated
+// calibration doc; the old "compressed a/b scale" mystery was a desaturated
+// probe document) and converts through lcms2's built-in Lab profile.
 enum class RasterFormat {
   RGBA8,
   RGBA16,
   Gray8,
   Gray16,
   CMYKA8,
+  LabA16,
   Mask8,
   Mask16,
   RGBAFloat,
@@ -511,10 +512,11 @@ enum class RasterFormat {
     case 2: return RasterFormat::Gray8;
     case 3: return RasterFormat::Gray16;
     case 4: return RasterFormat::CMYKA8;
+    case 5: return RasterFormat::LabA16;
     case 6: return RasterFormat::Mask8;
     case 7: return RasterFormat::Mask16;
     case 9: return RasterFormat::RGBAFloat;
-    default: return RasterFormat::Unsupported;  // Lab (5) and anything unknown
+    default: return RasterFormat::Unsupported;
   }
 }
 
@@ -975,7 +977,7 @@ struct DecodedBitmap {
     return std::nullopt;
   }
   const bool is16 = kind == RasterFormat::RGBA16 || kind == RasterFormat::Gray16 ||
-                    kind == RasterFormat::Mask16;
+                    kind == RasterFormat::LabA16 || kind == RasterFormat::Mask16;
   const bool is_float = kind == RasterFormat::RGBAFloat;
   const std::size_t sample_bytes = is_float ? 4U : (is16 ? 2U : 1U);
   int channel_count = 4;
@@ -1100,6 +1102,40 @@ struct DecodedBitmap {
 
   PixelBuffer buffer(static_cast<std::int32_t>(width), static_cast<std::int32_t>(height),
                      PixelFormat::rgba8());
+  if (kind == RasterFormat::LabA16) {
+    // The wire is the ICC v4 Lab16 PCS encoding; feed lcms TYPE_Lab_16 rows.
+    const auto lab_transform = LabToRgbTransform::create();
+    if (!lab_transform) {
+      set_reason("could not build the Lab color transform");
+      return std::nullopt;
+    }
+    const auto raw_u16 = [&](int channel, std::int32_t x, std::int32_t y) {
+      const ChannelPlane& plane = planes[static_cast<std::size_t>(channel)];
+      const std::uint8_t* p = plane.bytes.data() +
+                              static_cast<std::size_t>(y) * plane.width_bytes +
+                              static_cast<std::size_t>(x) * 2U;
+      return static_cast<std::uint16_t>(p[0] | (static_cast<std::uint16_t>(p[1]) << 8U));
+    };
+    std::vector<std::uint16_t> lab(static_cast<std::size_t>(width) * 3U);
+    std::vector<std::uint8_t> rgb(static_cast<std::size_t>(width) * 3U);
+    for (std::int32_t y = 0; y < static_cast<std::int32_t>(height); ++y) {
+      for (std::int32_t x = 0; x < static_cast<std::int32_t>(width); ++x) {
+        for (int channel = 0; channel < 3; ++channel) {
+          lab[static_cast<std::size_t>(x) * 3U + static_cast<std::size_t>(channel)] =
+              raw_u16(channel, x, y);
+        }
+      }
+      lab_transform->convert(lab.data(), rgb.data(), static_cast<std::size_t>(width));
+      auto row = buffer.row(y);
+      for (std::int32_t x = 0; x < static_cast<std::int32_t>(width); ++x) {
+        std::uint8_t* out = row.data() + static_cast<std::size_t>(x) * 4U;
+        std::memcpy(out, rgb.data() + static_cast<std::size_t>(x) * 3U, 3U);
+        out[3] = to_byte(sample(3, x, y));
+      }
+    }
+    decoded.rgba = std::move(buffer);
+    return decoded;
+  }
   if (cmyk_transform) {
     std::vector<std::uint8_t> inverted(static_cast<std::size_t>(width) * 4U);
     std::vector<std::uint8_t> rgb(static_cast<std::size_t>(width) * 3U);
@@ -1724,6 +1760,10 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
           : nullptr;
   if (spreads == nullptr || spreads->empty() || spreads->front() == nullptr) {
     throw std::runtime_error("Affinity document has no spread");
+  }
+  if (spreads->size() > 1) {
+    notices.push_back("This document has " + std::to_string(spreads->size()) +
+                      " pages/artboards; only the first was imported");
   }
   const af::AfClass& spread = *spreads->front();
   const auto* spread_children = spread.field(af::tag4("Chld"));

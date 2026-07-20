@@ -265,6 +265,49 @@ void af_reads_document_resolution() {
   CHECK(document.print_settings().vertical_ppi == 300.0);
 }
 
+void af_tier2_imports_lab_document() {
+  // tiny-lab.af is a 256x96 LABA16 document: eight 32px saturated patches
+  // (red, green, blue, yellow, magenta, cyan, orange, purple) over rows 0..63
+  // and an RGB ramp below, authored in RGBA8 and converted with
+  // doc.format = LABA16. The wire is the ICC v4 Lab16 PCS encoding; the
+  // importer converts through lcms2's built-in Lab profile, so the patches
+  // must come back close to their source colors (Lab round-trip tolerance).
+  const auto bytes = read_fixture("tiny-lab.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 256);
+  CHECK(document.height() == 96);
+  CHECK(document.layers().size() == 2);  // white Background + the content layer
+  const auto& pixels = document.layers().back().pixels();
+  CHECK(pixels.width() == 256);
+
+  // Expected values are Affinity's OWN sRGB render of the Lab document (the
+  // Lab round trip legitimately moves some channels, e.g. pure blue picks up
+  // red ~23); Patchy matches it within +-1, the tolerance covers both.
+  const auto close_to = [](int a, int b) { return a >= b - 6 && a <= b + 6; };
+  const struct {
+    int x;
+    int red;
+    int green;
+    int blue;
+  } patches[] = {
+      {16, 252, 7, 4},    {48, 10, 255, 14},  {80, 23, 6, 253},   {112, 253, 254, 11},
+      {144, 252, 10, 253}, {176, 33, 255, 253}, {208, 252, 128, 9}, {240, 128, 64, 200},
+  };
+  for (const auto& patch : patches) {
+    const std::uint8_t* p = pixels.pixel(patch.x, 32);
+    CHECK(close_to(p[0], patch.red));
+    CHECK(close_to(p[1], patch.green));
+    CHECK(close_to(p[2], patch.blue));
+    CHECK(p[3] == 255);
+  }
+
+  // Lab documents must no longer degrade to placeholders.
+  for (const auto& notice : notices) {
+    CHECK(notice.find("placeholder") == std::string::npos);
+  }
+}
+
 void af_read_rejects_non_affinity_bytes() {
   const std::vector<std::uint8_t> garbage = {'n', 'o', 't', ' ', 'a', 'f', 0, 1, 2, 3};
   bool threw = false;
@@ -326,6 +369,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_embedded_original_survives_hostile_bytes", af_embedded_original_survives_hostile_bytes},
       {"af_tier2_imports_transformed_layer", af_tier2_imports_transformed_layer},
       {"af_reads_document_resolution", af_reads_document_resolution},
+      {"af_tier2_imports_lab_document", af_tier2_imports_lab_document},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},

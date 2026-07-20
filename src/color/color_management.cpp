@@ -102,6 +102,58 @@ const std::string& CmykToRgbTransform::profile_description() const {
   return impl_->description;
 }
 
+struct LabToRgbTransform::Impl {
+  cmsContext context{nullptr};
+  cmsHTRANSFORM transform{nullptr};
+
+  ~Impl() {
+    if (transform != nullptr) {
+      cmsDeleteTransform(transform);
+    }
+    if (context != nullptr) {
+      cmsDeleteContext(context);
+    }
+  }
+};
+
+std::optional<LabToRgbTransform> LabToRgbTransform::create() {
+  auto impl = std::make_unique<Impl>();
+  impl->context = cmsCreateContext(nullptr, nullptr);
+  if (impl->context == nullptr) {
+    return std::nullopt;
+  }
+  cmsSetLogErrorHandlerTHR(impl->context, ignore_lcms_error);
+
+  cmsHPROFILE lab_profile = cmsCreateLab4ProfileTHR(impl->context, nullptr);  // D50
+  cmsHPROFILE srgb_profile = cmsCreate_sRGBProfileTHR(impl->context);
+  if (lab_profile != nullptr && srgb_profile != nullptr) {
+    impl->transform = cmsCreateTransformTHR(impl->context, lab_profile, TYPE_Lab_16, srgb_profile,
+                                            TYPE_RGB_8, INTENT_RELATIVE_COLORIMETRIC,
+                                            cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_NOCACHE);
+  }
+  if (lab_profile != nullptr) {
+    cmsCloseProfile(lab_profile);
+  }
+  if (srgb_profile != nullptr) {
+    cmsCloseProfile(srgb_profile);
+  }
+  if (impl->transform == nullptr) {
+    return std::nullopt;
+  }
+  return LabToRgbTransform(std::move(impl));
+}
+
+LabToRgbTransform::LabToRgbTransform(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
+LabToRgbTransform::LabToRgbTransform(LabToRgbTransform&&) noexcept = default;
+LabToRgbTransform& LabToRgbTransform::operator=(LabToRgbTransform&&) noexcept = default;
+LabToRgbTransform::~LabToRgbTransform() = default;
+
+void LabToRgbTransform::convert(const std::uint16_t* lab_encoded, std::uint8_t* rgb_out,
+                                std::size_t pixel_count) const {
+  cmsDoTransform(impl_->transform, lab_encoded, rgb_out,
+                 static_cast<cmsUInt32Number>(pixel_count));
+}
+
 void ColorManager::assign_icc_profile(Document& document, std::vector<std::uint8_t> icc_profile) const {
   document.color_state().embedded_icc_profile = std::move(icc_profile);
 }
