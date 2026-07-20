@@ -148,32 +148,53 @@ everywhere a bundled script is resolved.
   event-loop turn repaints the canvas (region or full) and refreshes panels for the
   active session only. Structure changes (add/remove/reorder/rename) rebuild the layer
   panel; pixel-only changes refresh thumbnails.
-- **The watchdog is the only defense against `while(true)`.** A helper thread arms
-  around every evaluate and callback and calls `QJSEngine::setInterrupted` after the
-  timeout (default 30 s; `PATCHY_SCRIPT_TIMEOUT_MS` overrides it, which the tests use).
-  Never remove the arm/disarm pairing around a new entry point into script code; route
-  new callback invocations through `call_script_callback`.
+- **The watchdog measures INACTIVITY, never total runtime.** Legitimate scripts run for
+  hours (contact sheets, batch converts); a blanket runtime limit is wrong by design.
+  A helper thread arms around every evaluate and callback, and every hot service call
+  feeds it (a lock-free atomic in `pump_progress_indicator`); it calls
+  `QJSEngine::setInterrupted` only when a script made NO API call - no pixel write,
+  file operation, or console output - for the whole window (default 2 minutes;
+  `PATCHY_SCRIPT_TIMEOUT_MS` overrides the window, which the tests use). That is the
+  only possible defense against `while (true) {}`: a frozen UI thread cannot show any
+  prompt. Pure-JS computation that goes silent longer than the window still dies -
+  the documented convention is to log or write progress periodically (every heavy
+  bundled script does; the same calls drive the busy overlay). Never remove the
+  arm/disarm pairing around a new entry point into script code; route new callback
+  invocations through `call_script_callback`.
 - **Reentrancy: never destroy the engine from inside script code.** Timer slots and
   window event filters run callbacks; a failing callback schedules a deferred finish
   (`schedule_completion_check` / the deferred `finish_run` path) instead of tearing down
   from inside itself. Stop during evaluation only interrupts; the evaluate caller
   finishes the run.
-- **The automatic busy indicator pumps events mid-evaluation - keep both guards.**
+- **The automatic busy indicator pumps events mid-evaluation - keep the guards.**
   `pump_progress_indicator()` (called at the hot service entry points: prepare_mutation,
   note_*_changed, open/create/save/close session, apply_filter, add_text_layer,
-  consoleEmit) shows the active canvas's processing overlay once the CURRENT synchronous
-  burst - the main evaluate or one callback, measured by `burst_clock`, restarted per
-  burst so a game of short frames never trips it - exceeds 500 ms
-  (`PATCHY_SCRIPT_BUSY_DELAY_MS` overrides; skipped for unattended runs), then ticks it,
-  which runs `processEvents(ExcludeUserInputEvents)`. TWO invariants make that safe:
-  the script timer slot defers when `sync_running || in_callback` (single-shots re-arm
-  via `start(0)`) because QJSEngine is not reentrant, and `end_progress_indicator()`
-  closes the overlay when the burst, the session (close_session), or the run ends.
-  Side effect: the pump runs the coalesced refresh flush, so scripts that push pixels
-  repeatedly (generative-art batches, fancy-background chunks) paint progressively.
-  A pure-JS loop with no API calls cannot pump - heavy bundled scripts write their
-  buffer to the layer a few times mid-computation for exactly this reason (setPixels
-  REPLACES the layer's pixels, so they re-send the whole buffer, never partial strips).
+  consoleEmit; it also feeds the watchdog, unconditionally) engages once the CURRENT
+  synchronous burst - the main evaluate or one callback, measured by `burst_clock`,
+  restarted per burst so a game of short frames never trips it - exceeds 500 ms
+  (`PATCHY_SCRIPT_BUSY_DELAY_MS` overrides; skipped for unattended runs): the active
+  canvas's processing overlay (when a canvas exists) PLUS the application-modal
+  `ScriptStopPanel` (script name + elapsed + its last console line, refreshed per
+  pump), then pumps `processEvents(AllEvents)` - the modality gate means the panel's
+  Stop button is the only reachable control while the script owns the UI thread.
+  Stop opens a NON-BLOCKING confirm ("Stop 'name'?" with an "Undo the changes it made"
+  checkbox, shown only when the run pushed undo snapshots) - the job keeps working
+  while the user decides (never exec a nested loop from the panel's handler: a
+  timer-driven click could not be answered from its own nested loop, and an hours-long
+  batch should not sit paused under a question). Cancel just dismisses it; confirming
+  interrupts the run and `finish_run` undoes the snapshot in every touched session,
+  closing the confirm automatically when the run ends on its own first.
+  The invariants that make the pumping safe: the script timer slot defers when
+  `sync_running || in_callback` (single-shots re-arm via `start(0)`) because QJSEngine
+  is not reentrant; `end_progress_indicator()` closes overlay+panel when the burst,
+  the session (close_session), or the run ends; and `ModalWatchdogPause` ends the
+  indicator on entry (the panel must not fight the script's own dialogs) and restarts
+  the burst clock on exit. Side effect: the pump runs the coalesced refresh flush, so
+  scripts that push pixels repeatedly (generative-art batches, fancy-background
+  chunks) paint progressively. A pure-JS loop with no API calls cannot pump - heavy
+  bundled scripts write their buffer to the layer a few times mid-computation for
+  exactly this reason (setPixels REPLACES the layer's pixels, so they re-send the
+  whole buffer, never partial strips).
 - **Palette mode**: `setPixels` and `fill` are tool-like writes and snap to the document
   palette (`apply_palette_to_pixels`, dither None, the editing alpha threshold);
   `applyFilter` deliberately stays advisory, matching interactive filters.

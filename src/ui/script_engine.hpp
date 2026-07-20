@@ -16,6 +16,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -28,6 +29,7 @@
 #include <thread>
 #include <vector>
 
+class QDialog;
 class QJSEngine;
 class QTimer;
 
@@ -37,10 +39,13 @@ class CanvasWidget;
 class MainWindow;
 class ScriptCanvasWindow;
 
-// Interrupts a runaway script from a helper thread: the UI thread arms a deadline
-// around every evaluate()/callback invocation, and when it passes the callback
-// (QJSEngine::setInterrupted, documented thread-safe) aborts the evaluation.
-// Timer-driven scripts stay responsive because each individual callback is short.
+// Interrupts a STUCK script from a helper thread: the UI thread arms an
+// inactivity window around every evaluate()/callback invocation, and every
+// host API call the script makes feeds the watchdog (lock-free). The timeout
+// callback (QJSEngine::setInterrupted, documented thread-safe) fires only when
+// a script has shown NO sign of life - no pixel write, file operation, or
+// console output - for the whole window, so an hours-long batch that keeps
+// working never trips it while `while (true) {}` still dies.
 class ScriptWatchdog {
 public:
   explicit ScriptWatchdog(std::function<void()> on_timeout);
@@ -48,12 +53,26 @@ public:
 
   void arm(std::chrono::milliseconds timeout);
   void disarm();
+  // Proof of life: called from every hot service entry point. A relaxed
+  // atomic store only - the watchdog thread reads it when its deadline
+  // passes and keeps sleeping instead of firing.
+  void feed() noexcept {
+    last_activity_ms_.store(steady_now_ms(), std::memory_order_relaxed);
+  }
 
 private:
+  [[nodiscard]] static std::int64_t steady_now_ms() noexcept {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  }
+
   std::function<void()> on_timeout_;
   std::mutex mutex_;
   std::condition_variable cv_;
   std::chrono::steady_clock::time_point deadline_{};
+  std::chrono::milliseconds timeout_{};
+  std::atomic<std::int64_t> last_activity_ms_{0};
   bool armed_{false};
   bool quit_{false};
   std::thread thread_;
@@ -253,9 +272,13 @@ private:
     // synchronous execution burst (the main evaluate or one callback), so a
     // long-running game of short frame callbacks never trips it.
     QElapsedTimer burst_clock;
+    // Whole-run wall clock (the stop panel's elapsed display).
+    QElapsedTimer run_clock;
     qint64 last_pump_ms{0};
     bool busy_active{false};
     QPointer<CanvasWidget> busy_canvas;
+    // Stop-panel confirm: undo the run's snapshots after it finishes.
+    bool undo_after_stop{false};
   };
 
   struct PendingRefresh {
@@ -289,12 +312,18 @@ private:
   // True when interactive helpers must answer without UI: app-wide CLI
   // automation, or this run arrived via --run-script (forwarded included).
   [[nodiscard]] bool unattended_run() const;
-  // Automatic busy indicator: called from the hot service entry points; once
-  // the current synchronous burst exceeds the 0.5 s threshold it shows the
-  // active canvas's animated processing overlay and pumps paint events
-  // (throttled). end_progress_indicator() closes it when the burst ends.
+  // Automatic busy indicator: called from the hot service entry points. It
+  // feeds the inactivity watchdog unconditionally; for GUI-interactive runs,
+  // once the current synchronous burst exceeds the 0.5 s threshold it shows
+  // the active canvas's animated processing overlay plus the app-modal stop
+  // panel and pumps events (throttled; the modality gate means only the
+  // panel's Stop button takes input). end_progress_indicator() closes both
+  // when the burst ends.
   void pump_progress_indicator();
   void end_progress_indicator();
+  // The stop panel's Stop button: confirmation popup ("Stop 'name'?" with an
+  // optional undo-the-changes checkbox), then interrupt.
+  void confirm_stop_from_panel();
   // Deferred completion check: a run may complete from inside a JS callback, and
   // the engine cannot be destroyed while it is executing.
   void schedule_completion_check();
@@ -312,6 +341,8 @@ private:
   std::unique_ptr<QJSEngine> engine_;
   std::unique_ptr<ScriptRun> run_;
   std::unique_ptr<ScriptWatchdog> watchdog_;
+  QPointer<QDialog> stop_panel_;    // ScriptStopPanel (cpp-local type)
+  QPointer<QDialog> stop_confirm_;  // non-blocking "Stop 'name'?" question
   std::map<std::int64_t, PendingRefresh> pending_refresh_;
   QStringList message_backlog_;
   bool last_run_had_error_{false};

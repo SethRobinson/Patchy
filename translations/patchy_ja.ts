@@ -13876,8 +13876,16 @@ Clipped to the layer below</source>
     <message><source>A script is already running: %1</source><translation>スクリプトは既に実行中です: %1</translation></message>
     <message><source>Untitled Script</source><translation>無題のスクリプト</translation></message>
     <message><source>Script stopped.</source><translation>スクリプトを停止しました。</translation></message>
-    <message><source>Script stopped: it exceeded the time limit.</source><translation>スクリプトを停止しました: 制限時間を超えました。</translation></message>
-    <message><source>Script stopped: a callback exceeded the time limit.</source><translation>スクリプトを停止しました: コールバックが制限時間を超えました。</translation></message>
+    <message><source>Script stopped: no activity for %1 seconds (a stuck loop?).</source><translation>スクリプトを停止しました: %1 秒間応答がありません (ループの可能性があります)。</translation></message>
+    <message><source>Script stopped: a callback showed no activity for %1 seconds (a stuck loop?).</source><translation>スクリプトを停止しました: コールバックが %1 秒間応答しませんでした (ループの可能性があります)。</translation></message>
+    <message><source>Running Script</source><translation>スクリプト実行中</translation></message>
+    <message><source>Stop...</source><translation>停止...</translation></message>
+    <message><source>Stop Script</source><translation>スクリプトを停止</translation></message>
+    <message><source>Stop &quot;%1&quot;?</source><translation>&quot;%1&quot; を停止しますか?</translation></message>
+    <message><source>Undo the changes it made</source><translation>加えられた変更を元に戻す</translation></message>
+    <message><source>Running script: %1 - %2</source><translation>スクリプトを実行中: %1 - %2</translation></message>
+    <message><source>%1s</source><translation>%1秒</translation></message>
+    <message><source>%1m %2s</source><translation>%1分%2秒</translation></message>
     <message><source>setTimeout/setInterval needs a function.</source><translation>setTimeout/setInterval には関数が必要です。</translation></message>
     <message><source>include: could not read %1</source><translation>include: %1 を読み込めませんでした</translation></message>
     <message><source>Choose Folder</source><translation>フォルダーを選択</translation></message>

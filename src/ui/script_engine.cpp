@@ -19,6 +19,7 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QCloseEvent>
 #include <QColor>
 #include <QColorDialog>
 #include <QComboBox>
@@ -60,7 +61,11 @@ namespace patchy::ui {
 
 namespace {
 
-constexpr int kDefaultWatchdogTimeoutMs = 30000;
+// Inactivity window, not a runtime limit: a script may run for hours as long
+// as it keeps making API calls; this is how long one may go completely silent
+// (no pixel write, file operation, or console output) before it is treated as
+// a stuck loop and interrupted.
+constexpr int kDefaultWatchdogTimeoutMs = 120000;
 
 // Defines console/timers/include and the `patchy` namespace on the global
 // object, backed by the hidden host bridge objects. Runs non-strict so the
@@ -124,9 +129,20 @@ ScriptWatchdog::ScriptWatchdog(std::function<void()> on_timeout)
         }
         continue;  // disarmed in time
       }
+      // Deadline passed with the guard still armed. Activity (feed) extends
+      // the window: keep sleeping until a full timeout elapsed with no sign
+      // of life from the script.
+      const auto fed_until =
+          std::chrono::steady_clock::time_point(std::chrono::milliseconds(
+              last_activity_ms_.load(std::memory_order_relaxed))) +
+          timeout_;
+      if (fed_until > deadline_) {
+        deadline_ = fed_until;
+        continue;
+      }
       armed_ = false;
-      // Deadline passed with the guard still armed: interrupt the engine. The
-      // callback only flips an atomic inside QJSEngine, safe from this thread.
+      // A genuinely stuck script: interrupt the engine. The callback only
+      // flips an atomic inside QJSEngine, safe from this thread.
       on_timeout_();
     }
   });
@@ -142,9 +158,11 @@ ScriptWatchdog::~ScriptWatchdog() {
 }
 
 void ScriptWatchdog::arm(std::chrono::milliseconds timeout) {
+  feed();
   {
     const std::lock_guard<std::mutex> lock(mutex_);
     deadline_ = std::chrono::steady_clock::now() + timeout;
+    timeout_ = timeout;
     armed_ = true;
   }
   cv_.notify_all();
@@ -250,6 +268,7 @@ bool ScriptEngineHost::run_source(const QString& source, RunOptions options) {
 
   run_->sync_running = true;
   run_->burst_clock.start();
+  run_->run_clock.start();
   engine_->setInterrupted(false);
   watchdog_->arm(watchdog_timeout());
   const auto file_name = options.path.isEmpty() ? run_->name : options.path;
@@ -260,9 +279,11 @@ bool ScriptEngineHost::run_source(const QString& source, RunOptions options) {
   if (engine_->isInterrupted()) {
     run_->had_error = true;
     engine_->setInterrupted(false);
-    emit_message(MessageKind::Error, run_->stop_requested
-                                         ? tr("Script stopped.")
-                                         : tr("Script stopped: it exceeded the time limit."));
+    emit_message(MessageKind::Error,
+                 run_->stop_requested
+                     ? tr("Script stopped.")
+                     : tr("Script stopped: no activity for %1 seconds (a stuck loop?).")
+                           .arg(watchdog_timeout().count() / 1000));
   } else if (result.isError()) {
     run_->had_error = true;
     report_error(result);
@@ -347,9 +368,12 @@ bool ScriptEngineHost::call_script_callback(QJSValue callback, const QJSValueLis
   if (engine_ != nullptr && engine_->isInterrupted()) {
     run_->had_error = true;
     engine_->setInterrupted(false);
-    emit_message(MessageKind::Error, run_->stop_requested
-                                         ? tr("Script stopped.")
-                                         : tr("Script stopped: a callback exceeded the time limit."));
+    emit_message(MessageKind::Error,
+                 run_->stop_requested
+                     ? tr("Script stopped.")
+                     : tr("Script stopped: a callback showed no activity for %1 seconds "
+                          "(a stuck loop?).")
+                           .arg(watchdog_timeout().count() / 1000));
     failed = true;
   } else if (result.isError()) {
     run_->had_error = true;
@@ -397,6 +421,13 @@ void ScriptEngineHost::finish_run() {
   }
   run_->finishing = true;
   last_run_had_error_ = run_->had_error;
+  if (stop_confirm_ != nullptr) {
+    stop_confirm_->close();  // the question is moot once the run ends
+  }
+  // The stop-panel confirm's undo option: roll back the run's "Script: name"
+  // snapshot in every session it touched, once the run is fully gone.
+  const auto undo_sessions =
+      run_->undo_after_stop ? run_->snapshotted_sessions : std::set<std::int64_t>{};
   teardown_run_resources();
   flush_pending_refresh();
   run_.reset();
@@ -404,6 +435,12 @@ void ScriptEngineHost::finish_run() {
   // theirs in teardown and the run owned the rest.
   engine_.reset();
   emit run_state_changed();
+  for (const auto session_id : undo_sessions) {
+    if (window_.session_with_id(session_id) != nullptr) {
+      activate_session(session_id);
+      window_.undo();
+    }
+  }
 }
 
 void ScriptEngineHost::teardown_run_resources() {
@@ -436,10 +473,77 @@ int script_busy_delay_ms() noexcept {
   return ok ? std::max(0, value) : 500;
 }
 
+QString elapsed_text(qint64 elapsed_ms) {
+  const auto seconds = elapsed_ms / 1000;
+  return seconds < 60 ? ScriptEngineHost::tr("%1s").arg(seconds)
+                      : ScriptEngineHost::tr("%1m %2s")
+                            .arg(seconds / 60)
+                            .arg(seconds % 60, 2, 10, QLatin1Char('0'));
+}
+
+// The app-modal "a script owns the UI" panel: script name + elapsed, its most
+// recent console line, and the one control that stays clickable while a long
+// burst blocks everything else - Stop. Esc and the close box are deliberately
+// ignored so a stray keypress cannot kill an hours-long job; only the Stop
+// button (which confirms first) ends the run. Non-Q_OBJECT, cpp-local.
+class ScriptStopPanel : public QDialog {
+public:
+  ScriptStopPanel(QWidget* parent, std::function<void()> on_stop) : QDialog(parent) {
+    setObjectName(QStringLiteral("scriptStopPanel"));
+    setWindowTitle(ScriptEngineHost::tr("Running Script"));
+    setWindowModality(Qt::ApplicationModal);
+    setWindowFlag(Qt::WindowCloseButtonHint, false);
+    setWindowFlag(Qt::WindowContextHelpButtonHint, false);
+    auto* layout = new QHBoxLayout(this);
+    auto* stop = new QPushButton(ScriptEngineHost::tr("Stop..."), this);
+    stop->setObjectName(QStringLiteral("scriptStopPanelButton"));
+    stop->setIcon(script_stop_icon());
+    stop->setIconSize(QSize(18, 18));
+    QObject::connect(stop, &QPushButton::clicked, this, [on_stop = std::move(on_stop)] {
+      on_stop();
+    });
+    auto* text_column = new QVBoxLayout();
+    title_label_ = new QLabel(this);
+    title_label_->setObjectName(QStringLiteral("scriptStopPanelTitle"));
+    detail_label_ = new QLabel(this);
+    detail_label_->setObjectName(QStringLiteral("scriptStopPanelDetail"));
+    detail_label_->setStyleSheet(QStringLiteral("color: #8a939f;"));
+    text_column->addWidget(title_label_);
+    text_column->addWidget(detail_label_);
+    layout->addLayout(text_column, 1);
+    layout->addSpacing(12);
+    layout->addWidget(stop);
+    setMinimumWidth(380);
+  }
+
+  void set_status(const QString& title, const QString& detail) {
+    title_label_->setText(title);
+    const auto metrics = detail_label_->fontMetrics();
+    detail_label_->setText(metrics.elidedText(detail, Qt::ElideRight, 340));
+  }
+
+  void reject() override {}  // Esc must not stop an hours-long run
+
+protected:
+  void closeEvent(QCloseEvent* event) override { event->ignore(); }
+
+private:
+  QLabel* title_label_{nullptr};
+  QLabel* detail_label_{nullptr};
+};
+
 }  // namespace
 
 void ScriptEngineHost::pump_progress_indicator() {
-  if (run_ == nullptr || unattended_run() || !run_->burst_clock.isValid()) {
+  if (run_ == nullptr) {
+    return;
+  }
+  // Every service call is proof of life for the inactivity watchdog -
+  // unconditionally, CLI runs included.
+  if (watchdog_ != nullptr) {
+    watchdog_->feed();
+  }
+  if (unattended_run() || !run_->burst_clock.isValid()) {
     return;
   }
   if (!run_->sync_running && !run_->in_callback) {
@@ -454,21 +558,32 @@ void ScriptEngineHost::pump_progress_indicator() {
   }
   run_->last_pump_ms = now;
   if (!run_->busy_active) {
-    auto* canvas = session_canvas(active_session_id());
-    if (canvas == nullptr) {
-      return;  // no document yet; a later pump may find one
-    }
-    run_->busy_canvas = canvas;
-    // Delay 0: this pump already waited out the 0.5 s threshold.
-    canvas->begin_processing_operation(tr("Running script: %1...").arg(run_->name),
-                                       /*delay_ms=*/0);
     run_->busy_active = true;
+    // The canvas overlay when a document is open (a headless-ish run still
+    // gets the stop panel, which is the cancel surface).
+    auto* canvas = session_canvas(active_session_id());
+    if (canvas != nullptr) {
+      run_->busy_canvas = canvas;
+      // Delay 0: this pump already waited out the 0.5 s threshold.
+      canvas->begin_processing_operation(tr("Running script: %1...").arg(run_->name),
+                                         /*delay_ms=*/0);
+      canvas->tick_processing_operation();  // shows the overlay now
+    }
+    if (stop_panel_ == nullptr) {
+      stop_panel_ = new ScriptStopPanel(&window_, [this] { confirm_stop_from_panel(); });
+    }
+    stop_panel_->show();
   }
-  if (run_->busy_canvas != nullptr) {
-    // Shows the overlay (first call) and pumps paint + posted events, so the
-    // coalesced refresh flush repaints strip writes progressively.
-    run_->busy_canvas->tick_processing_operation();
+  if (stop_panel_ != nullptr && stop_panel_->isVisible()) {
+    static_cast<ScriptStopPanel*>(stop_panel_.data())
+        ->set_status(tr("Running script: %1 - %2")
+                         .arg(run_->name, elapsed_text(run_->run_clock.elapsed())),
+                     message_backlog_.isEmpty() ? QString() : message_backlog_.last());
   }
+  // Pump with input allowed: the app-modal panel swallows everything except
+  // its own Stop button, and the posted-event dispatch runs the coalesced
+  // refresh flush so progressive pixel writes repaint as they land.
+  QApplication::processEvents(QEventLoop::AllEvents, 16);
 }
 
 void ScriptEngineHost::end_progress_indicator() {
@@ -478,9 +593,58 @@ void ScriptEngineHost::end_progress_indicator() {
   if (run_->busy_active && run_->busy_canvas != nullptr) {
     run_->busy_canvas->end_processing_operation();
   }
+  if (stop_panel_ != nullptr) {
+    stop_panel_->hide();
+  }
   run_->busy_active = false;
   run_->busy_canvas.clear();
   run_->last_pump_ms = 0;
+}
+
+void ScriptEngineHost::confirm_stop_from_panel() {
+  if (run_ == nullptr || run_->finishing) {
+    return;
+  }
+  if (stop_confirm_ != nullptr) {
+    stop_confirm_->raise();
+    return;
+  }
+  // Deliberately NON-BLOCKING (show, not exec): the job keeps working while
+  // the user decides - an hours-long batch should not sit paused under a
+  // question - and no nested event loop runs inside the panel button's
+  // handler (a timer-driven click could never be answered from its own
+  // nested loop; QEventDispatcherWin32 never re-enters a timer handler).
+  auto* confirm = new QDialog(&window_);
+  confirm->setObjectName(QStringLiteral("scriptStopConfirmDialog"));
+  confirm->setWindowTitle(tr("Stop Script"));
+  confirm->setAttribute(Qt::WA_DeleteOnClose);
+  confirm->setWindowModality(Qt::ApplicationModal);
+  auto* layout = new QVBoxLayout(confirm);
+  auto* question = new QLabel(tr("Stop \"%1\"?").arg(run_->name), confirm);
+  question->setWordWrap(true);
+  layout->addWidget(question);
+  auto* undo_box = new QCheckBox(tr("Undo the changes it made"), confirm);
+  undo_box->setObjectName(QStringLiteral("scriptStopUndoCheckBox"));
+  undo_box->setVisible(run_->undo_enabled && !run_->snapshotted_sessions.empty());
+  layout->addWidget(undo_box);
+  auto* buttons = new QDialogButtonBox(confirm);
+  auto* stop_button = buttons->addButton(tr("Stop Script"), QDialogButtonBox::AcceptRole);
+  stop_button->setObjectName(QStringLiteral("scriptStopConfirmButton"));
+  buttons->addButton(QDialogButtonBox::Cancel);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, confirm, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, confirm, &QDialog::reject);
+  layout->addWidget(buttons);
+  QObject::connect(confirm, &QDialog::accepted, this, [this, undo_box] {
+    if (run_ == nullptr || run_->finishing) {
+      return;  // the run ended while the question was up
+    }
+    // Recomputed at answer time: the run kept working under the confirm.
+    run_->undo_after_stop = undo_box->isChecked() && run_->undo_enabled &&
+                            !run_->snapshotted_sessions.empty();
+    stop_active_run();
+  });
+  stop_confirm_ = confirm;
+  confirm->show();
 }
 
 // ---------------------------------------------------------------------------
@@ -1159,12 +1323,18 @@ ScriptEngineHost::ModalWatchdogPause::ModalWatchdogPause(ScriptEngineHost& host)
            (host_.run_->sync_running || host_.run_->in_callback);
   if (rearm_) {
     host_.watchdog_->disarm();
+    // The busy overlay/stop panel must not sit over (or behind) the script's
+    // own modal dialog; the burst is parked at it, not busy.
+    host_.end_progress_indicator();
   }
 }
 
 ScriptEngineHost::ModalWatchdogPause::~ModalWatchdogPause() {
   if (rearm_ && host_.run_ != nullptr && host_.watchdog_ != nullptr) {
+    // Fresh window (arm feeds) and a fresh busy-indicator threshold: time
+    // spent thinking at the dialog counts as neither inactivity nor busyness.
     host_.watchdog_->arm(host_.watchdog_timeout());
+    host_.run_->burst_clock.restart();
   }
 }
 

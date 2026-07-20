@@ -15,9 +15,11 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QPixmap>
+#include <QPolygonF>
 #include <QTextStream>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 #include <set>
 
@@ -313,6 +315,34 @@ QIcon script_folder_icon() {
       painter.drawPath(back.simplified());
       painter.setBrush(QColor(0xa9, 0xbc, 0xd4));
       painter.drawRoundedRect(QRectF(6, 22, 52, 32), 4, 4);
+    }
+    return QIcon(pixmap);
+  }();
+  return icon;
+}
+
+QIcon script_stop_icon() {
+  static const QIcon icon = [] {
+    QPixmap pixmap(32, 32);
+    pixmap.fill(Qt::transparent);
+    {
+      QPainter painter(&pixmap);
+      painter.setRenderHint(QPainter::Antialiasing);
+      QPolygonF octagon;
+      constexpr double kPi = 3.14159265358979323846;
+      const double center = 16.0;
+      const double radius = 14.0;
+      for (int i = 0; i < 8; ++i) {
+        const double angle = (static_cast<double>(i) * 45.0 + 22.5) * kPi / 180.0;
+        octagon << QPointF(center + radius * std::cos(angle),
+                           center + radius * std::sin(angle));
+      }
+      painter.setPen(QPen(QColor(0xff, 0xff, 0xff, 0xb0), 1.5));
+      painter.setBrush(QColor(0xc8, 0x32, 0x28));
+      painter.drawPolygon(octagon);
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(Qt::white);
+      painter.drawRect(QRectF(10.5, 10.5, 11.0, 11.0));
     }
     return QIcon(pixmap);
   }();

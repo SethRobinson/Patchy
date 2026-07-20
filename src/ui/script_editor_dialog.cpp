@@ -347,33 +347,6 @@ private:
   QRect description_rect_;
 };
 
-// The Stop button's red octagon stop-sign, painted in code like the rest of
-// the app's icons (action_icons.cpp style).
-QIcon stop_sign_icon() {
-  QPixmap pixmap(32, 32);
-  pixmap.fill(Qt::transparent);
-  {
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    QPolygonF octagon;
-    constexpr double kPi = 3.14159265358979323846;
-    const double center = 16.0;
-    const double radius = 14.0;
-    for (int i = 0; i < 8; ++i) {
-      const double angle = (static_cast<double>(i) * 45.0 + 22.5) * kPi / 180.0;
-      octagon << QPointF(center + radius * std::cos(angle),
-                         center + radius * std::sin(angle));
-    }
-    painter.setPen(QPen(QColor(0xff, 0xff, 0xff, 0xb0), 1.5));
-    painter.setBrush(QColor(0xc8, 0x32, 0x28));
-    painter.drawPolygon(octagon);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(Qt::white);
-    painter.drawRect(QRectF(10.5, 10.5, 11.0, 11.0));
-  }
-  return QIcon(pixmap);
-}
-
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -467,7 +440,7 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
       status_label_->fontMetrics().horizontalAdvance(tr("Running... %1s").arg(888)) + 4);
   stop_button_ = new QPushButton(this);
   stop_button_->setObjectName(QStringLiteral("scriptEditorStopButton"));
-  stop_button_->setIcon(stop_sign_icon());
+  stop_button_->setIcon(script_stop_icon());
   stop_button_->setIconSize(QSize(18, 18));
   stop_button_->setToolTip(tr("Stop the running script"));
   status_timer_ = new QTimer(this);

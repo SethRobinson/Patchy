@@ -22,6 +22,12 @@
 // the script and pass them through patchy.ui.showOptions, which handles the
 // options dialog, --script-arg overrides, and unattended runs in one call.
 //
+// Long-running scripts: there is NO runtime limit - a batch job may run for
+// hours. The watchdog only stops a script that shows no sign of life (no
+// pixel write, file operation, or console output) for 2 minutes, so log
+// progress periodically inside heavy pure-JS computations. GUI runs longer
+// than half a second show a busy overlay and a Stop panel automatically.
+//
 // Colors are CSS-style strings: "#rrggbb", "#aarrggbb", or named ("red").
 // Blend mode ids: "pass-through", "normal", "multiply", "screen", "overlay",
 // "darken", "lighten", "color-dodge", "color-burn", "hard-light",

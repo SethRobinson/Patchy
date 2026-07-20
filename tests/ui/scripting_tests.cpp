@@ -19,7 +19,9 @@
 #include "ui_test_support.hpp"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -27,6 +29,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStandardPaths>
@@ -301,7 +304,32 @@ void ui_script_watchdog_interrupts_infinite_loop() {
     wait_for_run_end(host);
     CHECK(!host.run_active());
     CHECK(host.last_run_had_error());
-    CHECK(backlog_contains(window, QStringLiteral("time limit")));
+    CHECK(backlog_contains(window, QStringLiteral("no activity")));
+  }
+  qunsetenv("PATCHY_SCRIPT_TIMEOUT_MS");
+}
+
+// The watchdog measures INACTIVITY, not runtime: a script that keeps making
+// API calls outlives any number of windows (a contact sheet may run for
+// hours), while total silence still dies (the test above).
+void ui_script_watchdog_allows_busy_scripts() {
+  qputenv("PATCHY_SCRIPT_TIMEOUT_MS", QByteArray("300"));
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    // ~1.2 s of wall-clock work (four windows deep) with a console ping every
+    // ~50 ms; each ping feeds the watchdog, so the run must complete.
+    CHECK(run_script(window, QStringLiteral(R"JS(
+      var start = Date.now();
+      var pings = 0;
+      while (Date.now() - start < 1200) {
+        var t = Date.now();
+        while (Date.now() - t < 50) {}
+        console.log('ping ' + (++pings));
+      }
+      console.log('busy-done');
+    )JS")));
+    CHECK(backlog_contains(window, QStringLiteral("busy-done")));
   }
   qunsetenv("PATCHY_SCRIPT_TIMEOUT_MS");
 }
@@ -974,6 +1002,144 @@ void ui_script_manager_hover_card_shows_details() {
   dialog.close();
 }
 
+// The running-script stop panel: appears once a burst crosses the
+// (env-zeroed) threshold; Stop opens the NON-BLOCKING confirm (the script
+// keeps working underneath) - Cancel just dismisses it, Stop Script with the
+// undo box checked interrupts the run and rolls the document back to its
+// pre-script state.
+void ui_script_stop_panel_confirm_and_undo() {
+  qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto& host = window.script_engine_host();
+
+    // Driven from a repeating timer: the pump's processEvents runs it while
+    // the script blocks the UI thread. One panel click and one confirm answer
+    // per run.
+    bool click_panel = false;
+    bool confirm_with_undo = false;
+    bool panel_clicked = false;
+    bool confirm_answered = false;
+    bool artifact_saved = false;
+    auto* driver = new QTimer(&window);
+    QObject::connect(driver, &QTimer::timeout, &window, [&] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        auto* dialog = qobject_cast<QDialog*>(widget);
+        if (dialog == nullptr || !dialog->isVisible()) {
+          continue;
+        }
+        if (dialog->objectName() == QStringLiteral("scriptStopConfirmDialog") &&
+            !confirm_answered) {
+          confirm_answered = true;
+          if (confirm_with_undo) {
+            auto* undo_box =
+                dialog->findChild<QCheckBox*>(QStringLiteral("scriptStopUndoCheckBox"));
+            CHECK(undo_box != nullptr && undo_box->isVisible());
+            undo_box->setChecked(true);
+            dialog->findChild<QPushButton*>(QStringLiteral("scriptStopConfirmButton"))->click();
+          } else {
+            dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Cancel)->click();
+          }
+        } else if (dialog->objectName() == QStringLiteral("scriptStopPanel") && click_panel &&
+                   !panel_clicked) {
+          panel_clicked = true;
+          if (!artifact_saved) {
+            artifact_saved = true;
+            save_widget_artifact("script_stop_panel", *dialog);
+          }
+          dialog->findChild<QPushButton*>(QStringLiteral("scriptStopPanelButton"))->click();
+        }
+      }
+    });
+    driver->start(30);
+
+    const auto busy_script = QStringLiteral(R"JS(
+      var doc = app.activeDocument;
+      var layer = doc.addLayer('%1');
+      var start = Date.now();
+      while (Date.now() - start < 700) {
+        layer.fillRect(0, 0, 2, 2, '#ff0000');
+      }
+      console.log('survived');
+    )JS");
+
+    // Pass 1: Cancel at the confirm - the script must finish normally.
+    click_panel = true;
+    CHECK(run_script(window, busy_script.arg(QStringLiteral("stop-cancel-layer"))));
+    CHECK(panel_clicked);
+    CHECK(confirm_answered);
+    CHECK(backlog_contains(window, QStringLiteral("survived")));
+    CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window),
+                      "stop-cancel-layer") != nullptr);
+
+    // Pass 2: Stop Script with undo checked - the run dies stopped and the
+    // layer it added is rolled back (pass 1's layer stays, proving only the
+    // stopped run's snapshot was undone).
+    panel_clicked = false;
+    confirm_answered = false;
+    confirm_with_undo = true;
+    patchy::ui::ScriptEngineHost::RunOptions options;
+    options.name = QStringLiteral("stoppable");
+    (void)host.run_source(busy_script.arg(QStringLiteral("stop-undo-layer")), std::move(options));
+    wait_for_run_end(host);
+    driver->stop();
+    CHECK(panel_clicked);
+    CHECK(confirm_answered);
+    CHECK(host.last_run_had_error());
+    CHECK(backlog_contains(window, QStringLiteral("Script stopped.")));
+    CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window),
+                      "stop-undo-layer") == nullptr);
+    CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window),
+                      "stop-cancel-layer") != nullptr);
+    auto* panel = window.findChild<QDialog*>(QStringLiteral("scriptStopPanel"));
+    CHECK(panel != nullptr && !panel->isVisible());
+  }
+  qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
+}
+
+// The busy overlay and stop panel step aside while the script shows its own
+// modal (alert here): ModalWatchdogPause ends the indicator on entry.
+void ui_script_busy_panel_yields_to_script_dialogs() {
+  qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    bool alert_seen = false;
+    bool panel_visible_during_alert = false;
+    auto* dismisser = new QTimer(&window);
+    QObject::connect(dismisser, &QTimer::timeout, &window, [&] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        auto* box = qobject_cast<QMessageBox*>(widget);
+        if (box != nullptr && box->isVisible() &&
+            box->objectName() == QStringLiteral("scriptAlertMessageBox")) {
+          alert_seen = true;
+          auto* panel = window.findChild<QDialog*>(QStringLiteral("scriptStopPanel"));
+          panel_visible_during_alert =
+              panel_visible_during_alert || (panel != nullptr && panel->isVisible());
+          box->accept();
+        }
+      }
+    });
+    dismisser->start(30);
+    CHECK(run_script(window, QStringLiteral(R"JS(
+      var doc = app.activeDocument;
+      var layer = doc.addLayer('yield-test');
+      var start = Date.now();
+      while (Date.now() - start < 150) {
+        layer.fillRect(0, 0, 2, 2, '#00ff00');
+      }
+      app.alert('paused at a dialog');
+      console.log('after-alert');
+    )JS")));
+    dismisser->stop();
+    CHECK(alert_seen);
+    CHECK(!panel_visible_during_alert);
+    CHECK(backlog_contains(window, QStringLiteral("after-alert")));
+  }
+  qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
@@ -985,6 +1151,10 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_undo_disable_skips_history", ui_script_undo_disable_skips_history},
       {"ui_script_timer_keeps_run_alive", ui_script_timer_keeps_run_alive},
       {"ui_script_watchdog_interrupts_infinite_loop", ui_script_watchdog_interrupts_infinite_loop},
+      {"ui_script_watchdog_allows_busy_scripts", ui_script_watchdog_allows_busy_scripts},
+      {"ui_script_stop_panel_confirm_and_undo", ui_script_stop_panel_confirm_and_undo},
+      {"ui_script_busy_panel_yields_to_script_dialogs",
+       ui_script_busy_panel_yields_to_script_dialogs},
       {"ui_script_console_and_error_line_numbers", ui_script_console_and_error_line_numbers},
       {"ui_script_filters_and_text_layers", ui_script_filters_and_text_layers},
       {"ui_script_run_command_writes_output_file", ui_script_run_command_writes_output_file},

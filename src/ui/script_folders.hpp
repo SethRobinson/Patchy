@@ -86,5 +86,8 @@ bool write_script_icon(const QImage& image, const QString& target);
 [[nodiscard]] QIcon script_generic_icon();
 // Code-drawn folder icon for the tree's folder and root rows.
 [[nodiscard]] QIcon script_folder_icon();
+// The red octagon stop sign (the Script Manager's Stop button and the
+// running-script stop panel).
+[[nodiscard]] QIcon script_stop_icon();
 
 }  // namespace patchy::ui
