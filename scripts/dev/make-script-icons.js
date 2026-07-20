@@ -528,6 +528,16 @@ ICONS["Utilities/grid-maker"] = function (s) {
   }
 };
 
+ICONS["Utilities/play-button-overlay"] = function (s) {
+  background(s);
+  s.rrect(7, 13, 50, 38, 3, hex("#2e3c58"));             // video thumbnail
+  s.rect(9, 45, 46, 2.5, hex("#1c2435"));                // progress track
+  s.rect(9, 45, 17, 2.5, BLUE);                          // watched part
+  s.circle(26, 46.2, 2.2, WHITE);                        // scrubber
+  s.rrect(21, 21, 22, 15.4, 3.7, hex("#0c0f16"), 0.92);  // dark badge
+  s.tri(28.5, 24.5, 28.5, 33.3, 37.5, 28.9, WHITE);      // play triangle
+};
+
 // ---------------------------------------------------------------------------
 // Export.
 
