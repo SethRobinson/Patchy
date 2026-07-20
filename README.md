@@ -43,8 +43,8 @@ Click a thumbnail for the full-size image.
       <br><sub>Warp Text with live preview: all 15 Photoshop warp styles on editable rich text</sub>
     </td>
     <td align="center" valign="top" width="33%">
-      <a href="docs/images/screenshots/tile_preview.png"><img src="docs/images/screenshots/tile_preview.png" width="270" alt="Pixel-art grass and path tile on the canvas with the Seamless Tile Preview window showing it tiled"></a>
-      <br><sub>Seamless Tile Preview for game textures: the tiled view updates live as you paint</sub>
+      <a href="docs/images/screenshots/tile_preview.png"><img src="docs/images/screenshots/tile_preview.png" width="270" alt="Pixel-art grass and path tile repeating across the whole canvas in seamless tiling mode, with a painted black line wrapping across every tile edge"></a>
+      <br><sub>Seamless tiling mode for game textures: paint on the canvas and strokes wrap live across every tile</sub>
     </td>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/smart_objects.png"><img src="docs/images/screenshots/smart_objects.png" width="270" alt="Game title art with a smart object mid warp transform showing the Bezier cage, and its embedded contents open in a second tab"></a>

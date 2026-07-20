@@ -1395,10 +1395,10 @@ QImage readme_seamless_tile() {
   return tile;
 }
 
-// Seamless Tile Preview: the pixel-art tile on the canvas at 400% with the
-// live tiled preview window floating beside it, proving the edges wrap.
+// Seamless tiling mode: the pixel-art tile repeating across the whole canvas as
+// live ghost tiles, with a just-painted black line that wraps over the tile
+// edges, proving strokes tile seamlessly as you paint.
 void shot_readme_tile_preview() {
-  SettingsValueRestorer tile_window_size_restorer(QStringLiteral("ui/tilePreviewWindowSize"));
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
   window.add_document_session(patchy::ui::document_from_qimage(readme_seamless_tile(), "Tile"),
@@ -1410,34 +1410,32 @@ void shot_readme_tile_preview() {
   if (!rulers_action->isChecked()) {
     rulers_action->trigger();
   }
-  // Fit upscales small documents, so the 128px tile fills the viewport with
-  // crisp nearest-neighbor pixels (the pixel-art working view).
-  require_action(window, "viewFitOnScreenAction")->trigger();
+  auto* canvas = require_canvas(window);
+  auto* tiling_action = require_action(window, "viewTilingModeAction");
+  CHECK(!tiling_action->isChecked());
+  tiling_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tiling_preview_enabled());
+
+  // 200% keeps the pixels crisp while leaving room for a full field of ghost
+  // copies around the center tile.
+  canvas->set_zoom(2.0);
+  canvas->center_document_in_view();
   QApplication::processEvents();
 
-  auto* preview_action = window.findChild<QAction*>(QStringLiteral("viewTilePreviewAction"));
-  CHECK(preview_action != nullptr);
-  preview_action->setChecked(true);
-  QApplication::processEvents();
-  auto* preview = window.findChild<QDialog*>(QStringLiteral("tilePreviewWindow"));
-  CHECK(preview != nullptr);
-  CHECK(preview->isVisible());
-  preview->resize(500, 640);
-  auto* zoom_combo = preview->findChild<QComboBox*>(QStringLiteral("tilePreviewZoomCombo"));
-  CHECK(zoom_combo != nullptr);
-  const auto full_zoom_row = zoom_combo->findData(100);
-  CHECK(full_zoom_row >= 0);
-  zoom_combo->setCurrentIndex(full_zoom_row);
-  process_events_for(600);  // let the live-refresh timer land the composite
-  const QPoint preview_offset(1060, 190);
-  preview->move(window.geometry().topLeft() + preview_offset);
+  // A hard black stroke entering the left edge and leaving the right edge at
+  // the same height: the tiled view joins the ends into one continuous line
+  // wrapping through every copy.
+  canvas->set_brush_size(5);
+  canvas->set_brush_softness(0);
+  canvas->set_primary_color(Qt::black);
+  paint_readme_polyline(*canvas, {QPointF(0.0, 96.0), QPointF(34.0, 108.0), QPointF(66.0, 90.0),
+                                  QPointF(98.0, 112.0), QPointF(128.0, 96.0)});
   QApplication::processEvents();
 
   reset_readme_status_bar(window);
-  auto base = window.grab().toImage();
-  draw_readme_overlay(base, preview->grab().toImage(), preview_offset);
-  save_readme_shot("shot_readme_tile_preview", base);
-  preview_action->setChecked(false);
+  save_readme_shot("shot_readme_tile_preview", window.grab().toImage());
+  tiling_action->trigger();
   QApplication::processEvents();
 
   // Rulers persist to view settings on window teardown; restore the clean state.
