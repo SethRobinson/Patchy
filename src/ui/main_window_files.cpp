@@ -474,28 +474,33 @@ QString format_filter_entry(const FileFormatEntry& entry, const QStringList& ext
 
 QString open_file_filter() {
   QStringList all_extensions;
-  QStringList image_extensions;
   for (const auto& entry : file_format_entries()) {
     for (const auto& extension : entry.open_extensions) {
       all_extensions.push_back(extension);
-      if (!is_photoshop_document_extension(extension)) {
-        image_extensions.push_back(extension);
-      }
     }
   }
-  // The two all-formats entries carry a short pattern hint INSIDE the display name
-  // ("Supported Files (*.psd *.png *.jpg and more)") followed by the real pattern list.
-  // The open dialogs run with HideNameFilterDetails, which truncates the name at the
-  // LAST "(" for display, so the hint survives while the full list still filters. The
-  // hint is not decoration: the Windows 11 file dialog appends the full semicolon-joined
-  // pattern spec to any filter name containing no "*." token (verified empirically,
-  // July 2026), which would un-hide the ~50-pattern list and run it off screen again.
+  // One dropdown row per format so every supported filetype is readable in the dialog.
+  // The open dialogs run with HideNameFilterDetails: Qt displays only the text left of
+  // the LAST "(" and filters with the parenthesized list after it, so each row is
+  // written as "Name (patterns) (patterns)". The duplication is deliberate: the first
+  // copy is the visible name, the second is the machine-read pattern spec. A "*."
+  // token must stay in the visible name because the Windows 11 dialog re-appends the
+  // whole semicolon-joined spec to any filter name without one (verified empirically,
+  // July 2026); that is also why the all-formats row shows a short hint instead of its
+  // ~50 patterns, which would run off screen.
   const auto supported_name =
       QObject::tr("Supported Files (%1 and more)").arg(QStringLiteral("*.psd *.png *.jpg"));
-  const auto images_name = QObject::tr("Images (%1 and more)").arg(QStringLiteral("*.png *.jpg *.bmp"));
-  return QStringLiteral("%1 (%2);;%3 (*.psd *.psb);;%4 (%5);;%6")
-      .arg(supported_name, extension_patterns(all_extensions), QObject::tr("Photoshop Documents"),
-           images_name, extension_patterns(image_extensions), QObject::tr("All Files (*.*)"));
+  QStringList filters;
+  filters.push_back(QStringLiteral("%1 (%2)").arg(supported_name, extension_patterns(all_extensions)));
+  for (const auto& entry : file_format_entries()) {
+    if (entry.open_extensions.isEmpty()) {
+      continue;
+    }
+    filters.push_back(QStringLiteral("%1 (%2) (%2)").arg(
+        QCoreApplication::translate("QObject", entry.display_name), extension_patterns(entry.open_extensions)));
+  }
+  filters.push_back(QStringLiteral("%1 (*.*)").arg(QObject::tr("All Files (*.*)")));
+  return filters.join(QStringLiteral(";;"));
 }
 
 QString save_file_filter() {

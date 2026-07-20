@@ -3467,17 +3467,7 @@ Flow: %6
         <translation>サポートされるファイル (%1 など)</translation>
     </message>
     <message>
-        <location line="+0"/>
-        <source>Photoshop Documents</source>
-        <translation>Photoshop ドキュメント</translation>
-    </message>
-    <message>
         <location line="+1"/>
-        <source>Images (%1 and more)</source>
-        <translation>画像 (%1 など)</translation>
-    </message>
-    <message>
-        <location line="+0"/>
         <source>Images</source>
         <translation>画像</translation>
     </message>

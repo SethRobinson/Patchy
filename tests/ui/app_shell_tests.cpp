@@ -985,12 +985,11 @@ void ui_open_dialog_hides_name_filter_details() {
   patchy::ui::MainWindow window;
   show_window(window);
 
-  // The all-formats open filter carries dozens of patterns, so the Open dialog hides
-  // the pattern list from the displayed filter names (the full string overflows the
-  // native dropdown). The patterns must still be present in nameFilters(): they are
-  // what filters. The DISPLAYED name must keep a short "*." hint: the Windows 11
-  // dialog appends the whole pattern spec to any filter name without a "*." token,
-  // which would put the ~50-pattern list right back on screen.
+  // The Open dialog lists one row per format so every supported filetype is readable;
+  // the all-formats row alone summarizes (its ~50 patterns overflow the native
+  // dropdown). The dialog runs with HideNameFilterDetails and each row embeds its
+  // visible patterns in the display name ("TIFF Image (*.tif *.tiff)"): a "*." token
+  // must survive stripping or the Windows 11 dialog re-appends the full pattern spec.
   bool saw_open_dialog = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
@@ -1002,9 +1001,17 @@ void ui_open_dialog_hides_name_filter_details() {
     CHECK(filters.first().contains(QStringLiteral("*.tif")));
     auto* type_combo = dialog->findChild<QComboBox*>(QStringLiteral("fileTypeCombo"));
     CHECK(type_combo != nullptr);
-    const auto displayed = type_combo->itemText(0);
-    CHECK(displayed.contains(QStringLiteral("*.psd")));
-    CHECK(!displayed.contains(QStringLiteral("*.tif")));
+    QStringList displayed;
+    for (int i = 0; i < type_combo->count(); ++i) {
+      displayed.push_back(type_combo->itemText(i));
+    }
+    CHECK(displayed.size() > 10);
+    CHECK(displayed.first().contains(QStringLiteral("*.psd")));
+    CHECK(!displayed.first().contains(QStringLiteral("*.tif")));
+    CHECK(displayed.contains(QStringLiteral("Photoshop Document (*.psd *.psb)")));
+    CHECK(displayed.contains(QStringLiteral("TIFF Image (*.tif *.tiff)")));
+    CHECK(displayed.contains(QStringLiteral("Affinity Document (*.af)")));
+    CHECK(displayed.last() == QStringLiteral("All Files (*.*)"));
     saw_open_dialog = true;
     dialog->reject();
   });
