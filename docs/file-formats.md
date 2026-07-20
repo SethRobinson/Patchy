@@ -195,6 +195,13 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   a 16-bit channel spans width*2 bytes), 5 from-original; unknown codes make
   the bitmap honestly undecodable, never silent black. Stored `Blck` entries
   may carry a `Rect` sub-rect for partial tiles.
+- **Pristine placed images become embedded smart objects**: when a
+  lazy-layout raster has no hand-painted base tile (every base code is
+  5/fill), the untouched original file additionally becomes a Patchy embedded
+  smart-object source (uuid + `SoLd` authored like the convert flow, placed
+  quad from the node transform, JPEG/png filetypes sniffed) so Edit/Replace
+  Contents work and PSD saves embed the original. The decoded pixels stay
+  the layer raster, so rendering is identical either way.
 - **Embedded ICC profiles**: lazy-layout bitmaps carry a `Prof` -> `ICCP`
   class with real profile bytes per space (RGBP/CMYP/LABP/...). When a CMYK
   bitmap has `CMYP` bytes it converts through the PSD path's lcms2 transform

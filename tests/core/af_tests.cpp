@@ -11,6 +11,8 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
+#include "core/smart_object.hpp"
+#include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 
 #include <cstdint>
@@ -165,6 +167,32 @@ void af_tier2_imports_embedded_jpeg_original() {
   for (const auto& notice : notices) {
     CHECK(notice.find("half resolution") == std::string::npos);
   }
+
+  // A pristine placed image (no hand-painted base tile) also becomes an
+  // embedded Patchy smart object whose source is the untouched JPEG.
+  CHECK(patchy::layer_is_smart_object(layer));
+  const auto source_uuid = patchy::smart_object_source_uuid(layer);
+  const auto* source = document.metadata().smart_objects.find(source_uuid);
+  CHECK(source != nullptr);
+  CHECK(source->kind == patchy::SmartObjectSourceKind::Embedded);
+  CHECK(source->filetype == "JPEG");
+  CHECK(source->file_bytes != nullptr && source->file_bytes->size() > 2);
+  CHECK((*source->file_bytes)[0] == 0xFF && (*source->file_bytes)[1] == 0xD8);
+  const auto placement = patchy::smart_object_placement_from_layer(layer);
+  CHECK(placement.has_value());
+  CHECK(placement->width == 400.0);
+  CHECK(placement->height == 300.0);
+
+  // The wrapper survives a PSD round trip (the embedded source rides along).
+  const auto psd_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(psd_bytes);
+  const auto& reread_layer = reread.layers().back();
+  CHECK(patchy::layer_is_smart_object(reread_layer));
+  const auto* reread_source =
+      reread.metadata().smart_objects.find(patchy::smart_object_source_uuid(reread_layer));
+  CHECK(reread_source != nullptr);
+  CHECK(reread_source->file_bytes != nullptr &&
+        *reread_source->file_bytes == *source->file_bytes);
 }
 
 void af_embedded_original_survives_hostile_bytes() {

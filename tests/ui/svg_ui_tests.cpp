@@ -9,6 +9,7 @@
 #include "render/compositor.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
+#include "ui/smart_object_render.hpp"
 
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
@@ -28,8 +29,10 @@
 #include <QTemporaryDir>
 #include <QTimer>
 
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -348,11 +351,38 @@ void ui_af_text_import_renders_post_open() {
   CHECK(found_red);
 }
 
+// A pristine .af placed image imports as an embedded smart object; the UI can
+// re-render it from its source and reproduce the baked pixels.
+void ui_af_placed_image_imports_as_smart_object() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("af", "tiny-embedded-jpeg.af").wstring());
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer = &document.layers().back();
+  CHECK(patchy::layer_is_smart_object(*layer));
+
+  std::array<std::uint8_t, 3> before{};
+  std::memcpy(before.data(), std::as_const(*layer).pixels().pixel(200, 150), 3);
+  CHECK(patchy::ui::refresh_smart_object_layer_preview(
+      document, *layer, patchy::ui::CanvasWidget::TransformInterpolation::Bilinear));
+  CHECK(std::as_const(*layer).pixels().width() == 400);
+  CHECK(std::as_const(*layer).pixels().height() == 300);
+  const std::uint8_t* after = std::as_const(*layer).pixels().pixel(200, 150);
+  for (int channel = 0; channel < 3; ++channel) {
+    const int delta = std::abs(static_cast<int>(after[channel]) - before[channel]);
+    CHECK(delta <= 3);  // identity placement re-decode of the same JPEG
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> svg_ui_tests() {
   return {
       {"ui_af_text_import_renders_post_open", ui_af_text_import_renders_post_open},
+      {"ui_af_placed_image_imports_as_smart_object", ui_af_placed_image_imports_as_smart_object},
       {"ui_svg_open_creates_editable_shape_layers", ui_svg_open_creates_editable_shape_layers},
       {"ui_svg_import_render_matches_qsvg", ui_svg_import_render_matches_qsvg},
       {"ui_svg_text_import_positions_baseline", ui_svg_text_import_positions_baseline},

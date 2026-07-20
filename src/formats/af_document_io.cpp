@@ -3,6 +3,8 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
+#include "psd/psd_smart_objects.hpp"
 #include "color/color_management.hpp"
 #include "formats/af_tree.hpp"
 #include "formats/binary_le.hpp"
@@ -807,7 +809,13 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
   return pixels;
 }
 
-[[nodiscard]] std::optional<PixelBuffer> decode_embedded_original(
+struct EmbeddedOriginal {
+  PixelBuffer pixels;  // decoded, orientation-applied
+  std::shared_ptr<const std::vector<std::uint8_t>> bytes;  // the untouched file
+  std::string name;                                        // source path basename
+};
+
+[[nodiscard]] std::optional<EmbeddedOriginal> decode_embedded_original(
     std::span<const std::uint8_t> bytes, const Container& container, const af::AfClass& dybm) {
   const auto* field = dybm.field(af::tag4("Bckg"));
   if (field == nullptr) {
@@ -835,7 +843,20 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
       return std::nullopt;
     }
     const int orientation = static_cast<int>(block.root->int_field(af::tag4("TifO"), 1));
-    return decode_original_file_bytes(*data, orientation);
+    auto pixels = decode_original_file_bytes(*data, orientation);
+    if (!pixels) {
+      return std::nullopt;
+    }
+    EmbeddedOriginal original;
+    original.pixels = std::move(*pixels);
+    original.bytes = std::make_shared<const std::vector<std::uint8_t>>(*data);
+    std::string path;
+    if (const af::AfClass* source = block.root->child_class(af::tag4("DSrc"))) {
+      path = source->string_field(af::tag4("Filn"));
+    }
+    const auto separator = path.find_last_of("/\\");
+    original.name = separator == std::string::npos ? path : path.substr(separator + 1);
+    return original;
   } catch (const std::exception&) {
     return std::nullopt;
   }
@@ -946,6 +967,11 @@ struct DecodedBitmap {
   PixelBuffer rgba;          // straight-alpha RGBA8 (empty for mask formats)
   PixelBuffer mask;          // gray8 plane (mask formats only)
   bool approximate_color{false};  // CMYK/Lab converted without an ICC profile
+  // Set when the base plane came ENTIRELY from the embedded placed original
+  // (every base tile code 5/fill, none hand-painted): the untouched file and
+  // its source filename, for the smart-object wrapper.
+  std::shared_ptr<const std::vector<std::uint8_t>> original_bytes;
+  std::string original_name;
 };
 
 // Decode a DyBm bitmap. RGBA/gray/float/CMYK produce `rgba`; the mask formats
@@ -1011,6 +1037,8 @@ struct DecodedBitmap {
       return std::nullopt;
     }
   }
+  std::shared_ptr<const std::vector<std::uint8_t>> pristine_original_bytes;
+  std::string pristine_original_name;
   if (needs_original) {
     std::vector<ChannelPlane> sources;
     bool have_sources = false;
@@ -1018,14 +1046,35 @@ struct DecodedBitmap {
                            kind == RasterFormat::RGBAFloat;
     if (rgba_kind) {
       if (const auto original = decode_embedded_original(bytes, container, dybm);
-          original && original->width() == static_cast<std::int32_t>(width) &&
-          original->height() == static_cast<std::int32_t>(height)) {
+          original && original->pixels.width() == static_cast<std::int32_t>(width) &&
+          original->pixels.height() == static_cast<std::int32_t>(height)) {
         for (int channel = 1; channel <= channel_count; ++channel) {
           sources.push_back(source_plane_from_original(
-              *original, planes[static_cast<std::size_t>(channel - 1)], channel, sample_bytes,
-              is_float));
+              original->pixels, planes[static_cast<std::size_t>(channel - 1)], channel,
+              sample_bytes, is_float));
         }
         have_sources = true;
+        // Pristine when no base tile was hand-painted (no code-4 anywhere):
+        // the layer IS the placed original, eligible for a smart-object wrap.
+        bool any_stored = false;
+        for (int channel = 1; channel <= channel_count && !any_stored; ++channel) {
+          const auto* status = dybm.field(base_plane_tags(channel).status);
+          const auto* codes = status != nullptr
+                                  ? std::get_if<std::vector<std::int64_t>>(&status->value)
+                                  : nullptr;
+          if (codes != nullptr) {
+            for (const auto code : *codes) {
+              if (code == kTileStored) {
+                any_stored = true;
+                break;
+              }
+            }
+          }
+        }
+        if (!any_stored) {
+          pristine_original_bytes = original->bytes;
+          pristine_original_name = original->name;
+        }
       }
     }
     if (!have_sources) {
@@ -1089,6 +1138,8 @@ struct DecodedBitmap {
   }
 
   DecodedBitmap decoded;
+  decoded.original_bytes = std::move(pristine_original_bytes);
+  decoded.original_name = std::move(pristine_original_name);
   if (kind == RasterFormat::Mask8 || kind == RasterFormat::Mask16) {
     PixelBuffer mask(static_cast<std::int32_t>(width), static_cast<std::int32_t>(height),
                      PixelFormat::gray8());
@@ -1761,6 +1812,47 @@ void apply_common(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
   return layer;
 }
 
+// Wrap a pristine placed image as an embedded Patchy smart object: the
+// untouched original file becomes the source (Edit/Replace Contents work,
+// PSD saves embed it) while the decoded pixels stay the layer raster. Mirrors
+// the convert-to-smart-object authoring flow (main_window_smart_objects.cpp).
+void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
+                                std::shared_ptr<const std::vector<std::uint8_t>> file_bytes,
+                                const std::string& source_name, std::int32_t source_w,
+                                std::int32_t source_h, const std::array<double, 8>& quad) {
+  if (file_bytes == nullptr || file_bytes->empty() || source_w <= 0 || source_h <= 0) {
+    return;
+  }
+  const auto& head = *file_bytes;
+  std::string filetype = "    ";
+  std::string fallback_extension;
+  if (head.size() >= 3 && head[0] == 0xFF && head[1] == 0xD8) {
+    filetype = "JPEG";
+    fallback_extension = ".jpg";
+  } else if (head.size() >= 4 && head[0] == 0x89 && head[1] == 'P') {
+    filetype = "png ";
+    fallback_extension = ".png";
+  }
+  const std::string filename =
+      source_name.empty() ? "Placed" + fallback_extension : source_name;
+  const auto uuid = generate_smart_object_uuid();
+  ctx.document.metadata().smart_objects.add_embedded(uuid, filename, filetype,
+                                                     std::move(file_bytes));
+  SmartObjectPlacement placement;
+  placement.uuid = uuid;
+  placement.transform = quad;
+  placement.width = source_w;
+  placement.height = source_h;
+  placement.resolution = ctx.document.print_settings().horizontal_ppi;
+  const auto placed_instance = generate_smart_object_uuid();
+  set_layer_smart_object_metadata(layer, placement, placed_instance, "SoLd", "",
+                                  kSmartObjectRasterStatusPatchy);
+  // The authored SoLd rides the normal preserve-unless-edited machinery on
+  // PSD save, exactly like a Patchy-converted smart object.
+  layer.unknown_psd_blocks().push_back(
+      UnknownPsdBlock{"SoLd", psd::author_placed_layer_sold_payload(placement, placed_instance)});
+}
+
 // Text nodes (TxtA artistic / TxtF frame): extract the story into a Patchy
 // text layer carrying the standard patchy.text.* metadata plus the .af
 // placement markers; MainWindow renders it post-open through the internal
@@ -2118,6 +2210,8 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       std::optional<PixelBuffer> pixels;
       bool approximate_color = false;
       std::string fail_reason;
+      std::shared_ptr<const std::vector<std::uint8_t>> original_bytes;
+      std::string original_name;
       if (bitmap_class->type_tag == af::tag4("EmbR")) {
         pixels = flatten_embedded(ctx, *bitmap_class, display);
       } else {
@@ -2126,6 +2220,33 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         if (decoded && !decoded->rgba.empty()) {
           approximate_color = decoded->approximate_color;
           pixels = std::move(decoded->rgba);
+          original_bytes = std::move(decoded->original_bytes);
+          original_name = std::move(decoded->original_name);
+        }
+      }
+      // The placed quad (source rect corners through the node transform), for
+      // the smart-object wrapper when the layer is a pristine placed image.
+      std::array<double, 8> quad{};
+      std::int32_t source_w = 0;
+      std::int32_t source_h = 0;
+      if (pixels) {
+        source_w = pixels->width();
+        source_h = pixels->height();
+        const double xs[4] = {0.0, static_cast<double>(source_w), static_cast<double>(source_w),
+                              0.0};
+        const double ys[4] = {0.0, 0.0, static_cast<double>(source_h),
+                              static_cast<double>(source_h)};
+        const auto xfrm = node.vec_field(af::tag4("Xfrm"));
+        for (int corner = 0; corner < 4; ++corner) {
+          if (xfrm.size() == 6) {
+            quad[static_cast<std::size_t>(corner) * 2U] =
+                xfrm[0] * xs[corner] + xfrm[1] * ys[corner] + xfrm[2];
+            quad[static_cast<std::size_t>(corner) * 2U + 1U] =
+                xfrm[3] * xs[corner] + xfrm[4] * ys[corner] + xfrm[5];
+          } else {
+            quad[static_cast<std::size_t>(corner) * 2U] = xs[corner];
+            quad[static_cast<std::size_t>(corner) * 2U + 1U] = ys[corner];
+          }
         }
       }
       const auto origin = layer_origin(node);
@@ -2147,6 +2268,10 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         Layer layer(ctx.document.allocate_layer_id(), display, std::move(placed->pixels));
         layer.set_bounds(Rect{placed->x, placed->y, w, h});
         apply_common(ctx, node, layer, display);
+        if (original_bytes != nullptr) {
+          attach_placed_smart_object(ctx, layer, std::move(original_bytes), original_name,
+                                     source_w, source_h, quad);
+        }
         apply_mask_children(ctx, node, layer, display);
         out.push_back(std::move(layer));
         emit_clipped_children(out.size() - 1);
@@ -2273,6 +2398,15 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
           : nullptr;
 
   Document document(width, height, PixelFormat::rgba8());
+  // Document resolution first (the root's units block stores pixels-per-inch):
+  // placed smart objects record it in their placement.
+  if (const af::AfClass* units = tree.root->child_class(af::tag4("UVCn"))) {
+    const double ppi = units->double_field(af::tag4("UPPI"), 0.0);
+    if (ppi >= 1.0 && ppi <= 10000.0) {
+      document.print_settings().horizontal_ppi = ppi;
+      document.print_settings().vertical_ppi = ppi;
+    }
+  }
   std::vector<Layer> built;
   if (layers != nullptr) {
     LayerBuildContext ctx{bytes, container, document, notices, embed_depth};
@@ -2311,15 +2445,6 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
   }
   if (document.layers().empty()) {
     throw std::runtime_error("Affinity document produced no layers");
-  }
-
-  // Document resolution: the root's units block stores pixels-per-inch.
-  if (const af::AfClass* units = tree.root->child_class(af::tag4("UVCn"))) {
-    const double ppi = units->double_field(af::tag4("UPPI"), 0.0);
-    if (ppi >= 1.0 && ppi <= 10000.0) {
-      document.print_settings().horizontal_ppi = ppi;
-      document.print_settings().vertical_ppi = ppi;
-    }
   }
   return document;
 }
