@@ -5,7 +5,9 @@
 #include "formats/binary_le.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/format_file_io.hpp"
+#include "formats/heif_document_io.hpp"
 #include "formats/miniz/miniz.h"
+#include "formats/stb/stb_image.h"
 #include "formats/zstd/zstd.h"
 
 #include <algorithm>
@@ -521,77 +523,385 @@ enum class RasterFormat {
   return static_cast<std::uint8_t>(std::lround(std::clamp(srgb, 0.0F, 1.0F) * 255.0F));
 }
 
-// Decode one channel plane (tiles_w*256 x tiles_h*256 samples) from its tile
-// streams. Sta codes: 0/1 empty (0), 2 fill 0xFF, 4 stored tile; others empty.
-[[nodiscard]] std::vector<std::uint8_t> decode_channel_plane(
-    std::span<const std::uint8_t> bytes, const Container& container, const af::AfClass& dybm,
-    int channel, std::size_t sample_bytes, int tiles_w, int tiles_h) {
-  const auto* idx = dybm.field(tag_of("Idx" + std::to_string(channel)));
-  const auto* sta = dybm.field(tag_of("Sta" + std::to_string(channel)));
-  const std::size_t pitch = static_cast<std::size_t>(tiles_w) * kTileSize * sample_bytes;
-  std::vector<std::uint8_t> plane(pitch * static_cast<std::size_t>(tiles_h) * kTileSize, 0);
+[[nodiscard]] float srgb_to_linear(float value) {
+  value = std::clamp(value, 0.0F, 1.0F);
+  return value <= 0.04045F ? value / 12.92F : std::pow((value + 0.055F) / 1.055F, 2.4F);
+}
+
+// ------------------------------------------------------------- channel planes
+
+// One decoded channel plane. Tiles are always 256 bytes wide by 256 rows
+// regardless of sample depth, so the tile-grid width fields count 256-BYTE
+// columns (a 16-bit channel's row spans width*2 bytes) while the height fields
+// count plain 256-row bands; the plane's horizontal axis is bytes, not samples.
+struct ChannelPlane {
+  std::vector<std::uint8_t> bytes;
+  std::size_t width_bytes{0};
+  std::size_t rows{0};
+};
+
+// Sta tile codes: 0/1 empty, 2 fill max, 3 fill float 1.0, 4 stored tile,
+// 5 base pixels come from the layer's placed-original image (the Bckg stream).
+constexpr std::int64_t kTileFillMax = 2;
+constexpr std::int64_t kTileFillFloatOne = 3;
+constexpr std::int64_t kTileStored = 4;
+constexpr std::int64_t kTileFromOriginal = 5;
+
+// Per-channel tile-grid field tags. The base level uses TWi<n>/THi<n>/Idx<n>/
+// Sta<n>; mip levels 1..7 use 'M','W'|'H'|'I'|'T',<raw level byte>,<digit>.
+struct PlaneTags {
+  std::uint32_t tiles_w{0};
+  std::uint32_t tiles_h{0};
+  std::uint32_t index{0};
+  std::uint32_t status{0};
+};
+
+[[nodiscard]] PlaneTags base_plane_tags(int channel) {
+  return {tag_of("TWi" + std::to_string(channel)), tag_of("THi" + std::to_string(channel)),
+          tag_of("Idx" + std::to_string(channel)), tag_of("Sta" + std::to_string(channel))};
+}
+
+[[nodiscard]] std::uint32_t mip_tag(char kind, int level, int channel) {
+  return (static_cast<std::uint32_t>('M') << 24U) |
+         (static_cast<std::uint32_t>(static_cast<std::uint8_t>(kind)) << 16U) |
+         (static_cast<std::uint32_t>(static_cast<std::uint8_t>(level)) << 8U) |
+         static_cast<std::uint32_t>(static_cast<std::uint8_t>('0' + channel));
+}
+
+[[nodiscard]] PlaneTags mip_plane_tags(int level, int channel) {
+  return {mip_tag('W', level, channel), mip_tag('H', level, channel),
+          mip_tag('I', level, channel), mip_tag('T', level, channel)};
+}
+
+// Fill a run of samples with the format's "full" value: 0xFF bytes for the
+// integer formats (255 / 65535), 1.0f for float planes (0xFF bytes would be NaN).
+void fill_full_samples(std::uint8_t* dst, std::size_t sample_count, std::size_t sample_bytes,
+                       bool is_float) {
+  if (!is_float) {
+    std::memset(dst, 0xFF, sample_count * sample_bytes);
+    return;
+  }
+  const float one = 1.0F;
+  for (std::size_t i = 0; i < sample_count; ++i) {
+    std::memcpy(dst + i * 4U, &one, sizeof(one));
+  }
+}
+
+enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
+
+// Decode one channel plane from its tile streams. `source` (same plane layout)
+// supplies the pixels of code-5 tiles; without one a code-5 plane reports
+// NeedsOriginal so the caller can build a source (original image or mip
+// fallback) and decode again. `out` keeps its layout dimensions either way.
+[[nodiscard]] PlaneStatus decode_channel_plane(std::span<const std::uint8_t> bytes,
+                                               const Container& container, const af::AfClass& dybm,
+                                               const PlaneTags& tags, std::size_t sample_bytes,
+                                               bool is_float, const ChannelPlane* source,
+                                               ChannelPlane& out) {
+  const std::int64_t tiles_w = dybm.int_field(tags.tiles_w, 1);
+  const std::int64_t tiles_h = dybm.int_field(tags.tiles_h, 1);
+  if (tiles_w <= 0 || tiles_h <= 0 || tiles_w > 8192 || tiles_h > 8192 ||
+      tiles_w * tiles_h > (1LL << 20U)) {
+    return PlaneStatus::Invalid;
+  }
+  out.width_bytes = static_cast<std::size_t>(tiles_w) * kTileSize;
+  out.rows = static_cast<std::size_t>(tiles_h) * kTileSize;
+  out.bytes.assign(out.width_bytes * out.rows, 0);
+
+  const auto* sta = dybm.field(tags.status);
   if (sta == nullptr) {
-    return plane;
+    return PlaneStatus::Ok;
   }
   const auto* codes = std::get_if<std::vector<std::int64_t>>(&sta->value);
+  if (codes == nullptr) {
+    return PlaneStatus::Ok;
+  }
+  const auto* idx = dybm.field(tags.index);
   const auto* blocks =
       idx != nullptr ? std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&idx->value) : nullptr;
-  if (codes == nullptr) {
-    return plane;
-  }
   std::size_t block_index = 0;
   for (std::size_t t = 0; t < codes->size(); ++t) {
-    const int tx = static_cast<int>(t % static_cast<std::size_t>(tiles_w)) * kTileSize;
-    const int ty = static_cast<int>(t / static_cast<std::size_t>(tiles_w)) * kTileSize;
+    const std::size_t tx = (t % static_cast<std::size_t>(tiles_w)) * kTileSize;
+    const std::size_t ty = (t / static_cast<std::size_t>(tiles_w)) * kTileSize;
+    if (ty >= out.rows) {
+      break;  // more status codes than grid slots; ignore the excess
+    }
     const std::int64_t code = (*codes)[t];
-    if (code == 2) {
-      for (int row = 0; row < kTileSize; ++row) {
-        const std::size_t base = (static_cast<std::size_t>(ty + row)) * pitch +
-                                 static_cast<std::size_t>(tx) * sample_bytes;
-        std::fill_n(plane.begin() + static_cast<std::ptrdiff_t>(base),
-                    static_cast<std::size_t>(kTileSize) * sample_bytes, std::uint8_t{0xFF});
+    switch (code) {
+      case 0:
+      case 1:
+        break;
+      case kTileFillMax:
+      case kTileFillFloatOne:
+        for (std::size_t row = 0; row < static_cast<std::size_t>(kTileSize); ++row) {
+          fill_full_samples(out.bytes.data() + (ty + row) * out.width_bytes + tx,
+                            static_cast<std::size_t>(kTileSize) / sample_bytes, sample_bytes,
+                            is_float);
+        }
+        break;
+      case kTileFromOriginal: {
+        if (source == nullptr) {
+          return PlaneStatus::NeedsOriginal;
+        }
+        if (source->width_bytes != out.width_bytes || source->rows != out.rows) {
+          return PlaneStatus::Invalid;
+        }
+        for (std::size_t row = 0; row < static_cast<std::size_t>(kTileSize); ++row) {
+          const std::size_t at = (ty + row) * out.width_bytes + tx;
+          std::memcpy(out.bytes.data() + at, source->bytes.data() + at,
+                      static_cast<std::size_t>(kTileSize));
+        }
+        break;
       }
-      continue;
+      case kTileStored: {
+        if (blocks == nullptr || block_index >= blocks->size() ||
+            (*blocks)[block_index] == nullptr) {
+          ++block_index;
+          break;
+        }
+        const af::AfClass& block = *(*blocks)[block_index];
+        ++block_index;
+        const auto* data_field = block.field(af::tag4("Data"));
+        if (data_field == nullptr) {
+          break;
+        }
+        const auto* embedded = std::get_if<af::AfEmbedded>(&data_field->value);
+        if (embedded == nullptr) {
+          break;
+        }
+        const auto stream = container.streams.find(embedded->data);
+        if (stream == container.streams.end()) {
+          break;
+        }
+        std::vector<std::uint8_t> tile;
+        try {
+          tile = extract_stream(bytes, stream->second, embedded->data, nullptr);
+        } catch (const std::exception&) {
+          break;
+        }
+        if (tile.size() != static_cast<std::size_t>(kTileSize) * kTileSize) {
+          break;  // full 256x256-byte tiles only; partial-rect tiles are rare here
+        }
+        for (std::size_t row = 0; row < static_cast<std::size_t>(kTileSize); ++row) {
+          std::memcpy(out.bytes.data() + (ty + row) * out.width_bytes + tx,
+                      tile.data() + row * static_cast<std::size_t>(kTileSize),
+                      static_cast<std::size_t>(kTileSize));
+        }
+        break;
+      }
+      default:
+        return PlaneStatus::UnknownCode;
     }
-    if (code != 4) {
-      continue;  // empty / float-fill / unknown -> transparent
+  }
+  return PlaneStatus::Ok;
+}
+
+// Sample scale matches the compose step below: 8/16-bit samples map onto the
+// 0..255 range (value/257 for 16-bit), float planes return their raw
+// linear-light value.
+[[nodiscard]] float sample_plane(const ChannelPlane& plane, std::size_t sample_bytes, bool is_float,
+                                 std::int32_t x, std::int32_t y) {
+  const std::uint8_t* p = plane.bytes.data() + static_cast<std::size_t>(y) * plane.width_bytes +
+                          static_cast<std::size_t>(x) * sample_bytes;
+  if (is_float) {
+    float v = 0.0F;
+    std::memcpy(&v, p, sizeof(v));
+    return v;
+  }
+  if (sample_bytes == 2) {
+    const std::uint16_t v =
+        static_cast<std::uint16_t>(p[0] | (static_cast<std::uint16_t>(p[1]) << 8U));
+    return static_cast<float>(v) / 257.0F;
+  }
+  return static_cast<float>(p[0]);
+}
+
+// ---------------------------------------------------- placed-original sources
+
+// A DyBm whose base tiles carry code 5 stores its full-resolution pixels as the
+// untouched original image file in the c/<n> stream named by its `Bckg` field:
+// a serialized Blck tree (same wire grammar as doc.dat) with Data = the file
+// bytes, TifO = the EXIF orientation, DSrc/Filn = the source path. The vendored
+// stb_image decodes the JPEG/PNG originals; other embedded formats fall back to
+// the stored mip pyramid at half resolution.
+[[nodiscard]] std::optional<PixelBuffer> decode_original_file_bytes(
+    const std::vector<std::uint8_t>& file, int orientation) {
+  if (file.empty() || file.size() > kMaxStreamBytes) {
+    return std::nullopt;
+  }
+  int width = 0;
+  int height = 0;
+  int components = 0;
+  if (stbi_info_from_memory(file.data(), static_cast<int>(file.size()), &width, &height,
+                            &components) == 0) {
+    return std::nullopt;
+  }
+  if (width <= 0 || height <= 0 || width > kMaxLayerSide || height > kMaxLayerSide ||
+      static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height) > (1ULL << 28U)) {
+    return std::nullopt;  // keep decoded RGBA under 1 GiB
+  }
+  stbi_uc* decoded = stbi_load_from_memory(file.data(), static_cast<int>(file.size()), &width,
+                                           &height, &components, 4);
+  if (decoded == nullptr) {
+    return std::nullopt;
+  }
+  const std::span<const std::uint8_t> rgba(
+      decoded, static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U);
+  PixelBuffer pixels;
+  if (orientation >= 2 && orientation <= 8) {
+    const heif::OrientedImage oriented =
+        heif::apply_exif_orientation(rgba, width, height, orientation);
+    pixels = PixelBuffer(oriented.width, oriented.height, PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < oriented.height; ++y) {
+      std::memcpy(pixels.row(y).data(),
+                  oriented.rgba.data() + static_cast<std::size_t>(y) * oriented.width * 4U,
+                  static_cast<std::size_t>(oriented.width) * 4U);
     }
-    if (blocks == nullptr || block_index >= blocks->size() || (*blocks)[block_index] == nullptr) {
-      ++block_index;
-      continue;
+  } else {
+    pixels = PixelBuffer(width, height, PixelFormat::rgba8());
+    for (int y = 0; y < height; ++y) {
+      std::memcpy(pixels.row(y).data(),
+                  rgba.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width) * 4U,
+                  static_cast<std::size_t>(width) * 4U);
     }
-    const af::AfClass& block = *(*blocks)[block_index];
-    ++block_index;
-    const auto* data_field = block.field(af::tag4("Data"));
-    if (data_field == nullptr) {
-      continue;
+  }
+  stbi_image_free(decoded);
+  return pixels;
+}
+
+[[nodiscard]] std::optional<PixelBuffer> decode_embedded_original(
+    std::span<const std::uint8_t> bytes, const Container& container, const af::AfClass& dybm) {
+  const auto* field = dybm.field(af::tag4("Bckg"));
+  if (field == nullptr) {
+    return std::nullopt;
+  }
+  const auto* embedded = std::get_if<af::AfEmbedded>(&field->value);
+  if (embedded == nullptr || embedded->data.empty()) {
+    return std::nullopt;
+  }
+  const auto stream = container.streams.find(embedded->data);
+  if (stream == container.streams.end()) {
+    return std::nullopt;
+  }
+  try {
+    const auto blob = extract_stream(bytes, stream->second, embedded->data, nullptr);
+    const af::AfDocument block = af::parse_tree(std::span<const std::uint8_t>(blob));
+    if (block.root == nullptr) {
+      return std::nullopt;
     }
-    const auto* embedded = std::get_if<af::AfEmbedded>(&data_field->value);
-    if (embedded == nullptr) {
-      continue;
+    const auto* data_field = block.root->field(af::tag4("Data"));
+    const auto* data = data_field != nullptr
+                           ? std::get_if<std::vector<std::uint8_t>>(&data_field->value)
+                           : nullptr;
+    if (data == nullptr) {
+      return std::nullopt;
     }
-    const auto stream = container.streams.find(embedded->data);
-    if (stream == container.streams.end()) {
-      continue;
-    }
-    std::vector<std::uint8_t> tile;
-    try {
-      tile = extract_stream(bytes, stream->second, embedded->data, nullptr);
-    } catch (const std::exception&) {
-      continue;
-    }
-    if (tile.size() != static_cast<std::size_t>(kTileSize) * kTileSize) {
-      continue;  // tier 1 handles full 256x256 tiles; partial-rect tiles are rare here
-    }
-    for (int row = 0; row < kTileSize; ++row) {
-      const std::size_t dst = (static_cast<std::size_t>(ty + row)) * pitch +
-                              static_cast<std::size_t>(tx) * sample_bytes;
-      const std::size_t src = static_cast<std::size_t>(row) * kTileSize;
-      std::memcpy(plane.data() + dst, tile.data() + src,
-                  static_cast<std::size_t>(kTileSize) * sample_bytes);
+    const int orientation = static_cast<int>(block.root->int_field(af::tag4("TifO"), 1));
+    return decode_original_file_bytes(*data, orientation);
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+// Build the code-5 source plane for one channel in `layout`'s byte layout.
+// Channels 1..4 map onto R,G,B,A of the decoded original; deep formats
+// re-encode per sample (16-bit value*257, float linear light).
+[[nodiscard]] ChannelPlane source_plane_from_original(const PixelBuffer& original,
+                                                      const ChannelPlane& layout, int channel,
+                                                      std::size_t sample_bytes, bool is_float) {
+  ChannelPlane plane;
+  plane.width_bytes = layout.width_bytes;
+  plane.rows = layout.rows;
+  plane.bytes.assign(plane.width_bytes * plane.rows, 0);
+  const int component = std::clamp(channel - 1, 0, 3);
+  for (std::int32_t y = 0; y < original.height() && static_cast<std::size_t>(y) < plane.rows; ++y) {
+    std::uint8_t* dst_row = plane.bytes.data() + static_cast<std::size_t>(y) * plane.width_bytes;
+    for (std::int32_t x = 0; x < original.width(); ++x) {
+      const std::size_t at = static_cast<std::size_t>(x) * sample_bytes;
+      if (at + sample_bytes > plane.width_bytes) {
+        break;
+      }
+      const std::uint8_t value = original.pixel(x, y)[component];
+      if (is_float) {
+        const float f = component < 3 ? srgb_to_linear(static_cast<float>(value) / 255.0F)
+                                      : static_cast<float>(value) / 255.0F;
+        std::memcpy(dst_row + at, &f, sizeof(f));
+      } else if (sample_bytes == 2) {
+        const std::uint16_t wide = static_cast<std::uint16_t>(value * 257U);
+        dst_row[at] = static_cast<std::uint8_t>(wide & 0xFFU);
+        dst_row[at + 1] = static_cast<std::uint8_t>(wide >> 8U);
+      } else {
+        dst_row[at] = value;
+      }
     }
   }
   return plane;
+}
+
+// Half-resolution fallback: decode each channel's mip level-1 plane (stored as
+// plain tiles) and upsample it 2x into the base layouts with bilinear
+// filtering. Deterministic plain-float math (cross-toolchain rule).
+[[nodiscard]] bool mip_source_planes(std::span<const std::uint8_t> bytes, const Container& container,
+                                     const af::AfClass& dybm, int channel_count,
+                                     std::size_t sample_bytes, bool is_float, std::int64_t width,
+                                     std::int64_t height, const std::vector<ChannelPlane>& layouts,
+                                     std::vector<ChannelPlane>& out) {
+  const std::int64_t mip_width = (width + 1) / 2;
+  const std::int64_t mip_height = (height + 1) / 2;
+  for (int channel = 1; channel <= channel_count; ++channel) {
+    ChannelPlane mip;
+    const PlaneStatus status = decode_channel_plane(
+        bytes, container, dybm, mip_plane_tags(1, channel), sample_bytes, is_float, nullptr, mip);
+    if (status != PlaneStatus::Ok ||
+        static_cast<std::size_t>(mip_width) * sample_bytes > mip.width_bytes ||
+        static_cast<std::size_t>(mip_height) > mip.rows) {
+      return false;
+    }
+    const ChannelPlane& layout = layouts[static_cast<std::size_t>(channel - 1)];
+    ChannelPlane scaled;
+    scaled.width_bytes = layout.width_bytes;
+    scaled.rows = layout.rows;
+    scaled.bytes.assign(scaled.width_bytes * scaled.rows, 0);
+    for (std::int64_t y = 0; y < height && static_cast<std::size_t>(y) < scaled.rows; ++y) {
+      for (std::int64_t x = 0; x < width; ++x) {
+        const std::size_t at = static_cast<std::size_t>(x) * sample_bytes;
+        if (at + sample_bytes > scaled.width_bytes) {
+          break;
+        }
+        const float sx = std::clamp((static_cast<float>(x) + 0.5F) * 0.5F - 0.5F, 0.0F,
+                                    static_cast<float>(mip_width - 1));
+        const float sy = std::clamp((static_cast<float>(y) + 0.5F) * 0.5F - 0.5F, 0.0F,
+                                    static_cast<float>(mip_height - 1));
+        const auto x0 = static_cast<std::int32_t>(sx);
+        const auto y0 = static_cast<std::int32_t>(sy);
+        const std::int32_t x1 =
+            std::min<std::int32_t>(x0 + 1, static_cast<std::int32_t>(mip_width - 1));
+        const std::int32_t y1 =
+            std::min<std::int32_t>(y0 + 1, static_cast<std::int32_t>(mip_height - 1));
+        const float fx = sx - static_cast<float>(x0);
+        const float fy = sy - static_cast<float>(y0);
+        const float top = sample_plane(mip, sample_bytes, is_float, x0, y0) * (1.0F - fx) +
+                          sample_plane(mip, sample_bytes, is_float, x1, y0) * fx;
+        const float bottom = sample_plane(mip, sample_bytes, is_float, x0, y1) * (1.0F - fx) +
+                             sample_plane(mip, sample_bytes, is_float, x1, y1) * fx;
+        const float value = top * (1.0F - fy) + bottom * fy;
+        std::uint8_t* dst =
+            scaled.bytes.data() + static_cast<std::size_t>(y) * scaled.width_bytes + at;
+        if (is_float) {
+          std::memcpy(dst, &value, sizeof(value));
+        } else if (sample_bytes == 2) {
+          const auto wide = static_cast<std::uint16_t>(
+              std::lround(std::clamp(value, 0.0F, 255.0F) * 257.0F));
+          dst[0] = static_cast<std::uint8_t>(wide & 0xFFU);
+          dst[1] = static_cast<std::uint8_t>(wide >> 8U);
+        } else {
+          dst[0] = static_cast<std::uint8_t>(std::lround(std::clamp(value, 0.0F, 255.0F)));
+        }
+      }
+    }
+    out.push_back(std::move(scaled));
+  }
+  return true;
 }
 
 struct DecodedBitmap {
@@ -600,11 +910,20 @@ struct DecodedBitmap {
   bool approximate_color{false};  // CMYK/Lab converted without an ICC profile
 };
 
-// Decode a DyBm bitmap. RGBA/gray/float/CMYK/Lab produce `rgba`; the mask
-// formats (M8/M16) produce `mask`. Returns nullopt for empty/unknown formats.
+// Decode a DyBm bitmap. RGBA/gray/float/CMYK produce `rgba`; the mask formats
+// (M8/M16) produce `mask`. Returns nullopt for empty/unknown/undecodable
+// bitmaps, with a notice-ready reason in `fail_reason` when one is known.
 [[nodiscard]] std::optional<DecodedBitmap> decode_bitmap(std::span<const std::uint8_t> bytes,
                                                          const Container& container,
-                                                         const af::AfClass& dybm) {
+                                                         const af::AfClass& dybm,
+                                                         const std::string& layer_name,
+                                                         std::vector<std::string>* notices,
+                                                         std::string* fail_reason) {
+  const auto set_reason = [&](const char* reason) {
+    if (fail_reason != nullptr) {
+      *fail_reason = reason;
+    }
+  };
   const auto* frmt_field = dybm.field(af::tag4("Frmt"));
   std::int64_t format_id = -1;
   if (frmt_field != nullptr) {
@@ -635,32 +954,79 @@ struct DecodedBitmap {
     default: break;
   }
 
-  std::vector<std::vector<std::uint8_t>> planes;
-  std::vector<int> pitches;
-  for (int ch = 1; ch <= channel_count; ++ch) {
-    const int tiles_w = static_cast<int>(dybm.int_field(tag_of("TWi" + std::to_string(ch)), 1));
-    const int tiles_h = static_cast<int>(dybm.int_field(tag_of("THi" + std::to_string(ch)), 1));
-    if (tiles_w <= 0 || tiles_h <= 0) {
+  // First pass without a code-5 source; when some plane needs the placed
+  // original, build per-channel sources (original image, else mip fallback)
+  // and decode those planes again.
+  std::vector<ChannelPlane> planes(static_cast<std::size_t>(channel_count));
+  bool needs_original = false;
+  for (int channel = 1; channel <= channel_count; ++channel) {
+    const PlaneStatus status =
+        decode_channel_plane(bytes, container, dybm, base_plane_tags(channel), sample_bytes,
+                             is_float, nullptr, planes[static_cast<std::size_t>(channel - 1)]);
+    if (status == PlaneStatus::NeedsOriginal) {
+      needs_original = true;
+      continue;
+    }
+    if (status != PlaneStatus::Ok) {
+      set_reason(status == PlaneStatus::UnknownCode ? "uses an unknown tile encoding"
+                                                    : "has an invalid tile layout");
       return std::nullopt;
     }
-    planes.push_back(decode_channel_plane(bytes, container, dybm, ch, sample_bytes, tiles_w, tiles_h));
-    pitches.push_back(tiles_w * kTileSize);
+  }
+  if (needs_original) {
+    std::vector<ChannelPlane> sources;
+    bool have_sources = false;
+    const bool rgba_kind = kind == RasterFormat::RGBA8 || kind == RasterFormat::RGBA16 ||
+                           kind == RasterFormat::RGBAFloat;
+    if (rgba_kind) {
+      if (const auto original = decode_embedded_original(bytes, container, dybm);
+          original && original->width() == static_cast<std::int32_t>(width) &&
+          original->height() == static_cast<std::int32_t>(height)) {
+        for (int channel = 1; channel <= channel_count; ++channel) {
+          sources.push_back(source_plane_from_original(
+              *original, planes[static_cast<std::size_t>(channel - 1)], channel, sample_bytes,
+              is_float));
+        }
+        have_sources = true;
+      }
+    }
+    if (!have_sources) {
+      sources.clear();
+      if (mip_source_planes(bytes, container, dybm, channel_count, sample_bytes, is_float, width,
+                            height, planes, sources)) {
+        have_sources = true;
+        if (notices != nullptr) {
+          notices->push_back("Layer '" + layer_name +
+                             "': its placed original image could not be decoded; imported at "
+                             "half resolution from the stored preview");
+        }
+      }
+    }
+    if (!have_sources) {
+      set_reason("references a placed original image that could not be decoded");
+      return std::nullopt;
+    }
+    for (int channel = 1; channel <= channel_count; ++channel) {
+      const PlaneStatus status = decode_channel_plane(
+          bytes, container, dybm, base_plane_tags(channel), sample_bytes, is_float,
+          &sources[static_cast<std::size_t>(channel - 1)],
+          planes[static_cast<std::size_t>(channel - 1)]);
+      if (status != PlaneStatus::Ok) {
+        set_reason("has an invalid tile layout");
+        return std::nullopt;
+      }
+    }
+  }
+  for (const auto& plane : planes) {
+    if (static_cast<std::size_t>(width) * sample_bytes > plane.width_bytes ||
+        static_cast<std::size_t>(height) > plane.rows) {
+      set_reason("has an invalid tile layout");
+      return std::nullopt;
+    }
   }
 
   const auto sample = [&](int ch, std::int32_t x, std::int32_t y) -> float {
-    const std::size_t stride = static_cast<std::size_t>(pitches[ch]) * sample_bytes;
-    const std::uint8_t* p = planes[ch].data() + static_cast<std::size_t>(y) * stride +
-                            static_cast<std::size_t>(x) * sample_bytes;
-    if (is_float) {
-      float v = 0.0F;
-      std::memcpy(&v, p, sizeof(v));
-      return v;
-    }
-    if (is16) {
-      const std::uint16_t v = static_cast<std::uint16_t>(p[0] | (static_cast<std::uint16_t>(p[1]) << 8U));
-      return static_cast<float>(v) / 257.0F;
-    }
-    return static_cast<float>(p[0]);
+    return sample_plane(planes[static_cast<std::size_t>(ch)], sample_bytes, is_float, x, y);
   };
   const auto to_byte = [](float v) {
     return static_cast<std::uint8_t>(std::lround(std::clamp(v, 0.0F, 255.0F)));
@@ -840,7 +1206,7 @@ void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer&
     if (dybm == nullptr) {
       continue;
     }
-    auto decoded = decode_bitmap(ctx.bytes, ctx.container, *dybm);
+    auto decoded = decode_bitmap(ctx.bytes, ctx.container, *dybm, name, &ctx.notices, nullptr);
     if (!decoded || decoded->mask.empty()) {
       ctx.notices.push_back("Layer '" + name + "': a mask could not be decoded and was dropped");
       continue;
@@ -1018,10 +1384,12 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     if (bitmap_class != nullptr) {
       std::optional<PixelBuffer> pixels;
       bool approximate_color = false;
+      std::string fail_reason;
       if (bitmap_class->type_tag == af::tag4("EmbR")) {
         pixels = flatten_embedded(ctx, *bitmap_class, display);
       } else {
-        auto decoded = decode_bitmap(ctx.bytes, ctx.container, *bitmap_class);
+        auto decoded = decode_bitmap(ctx.bytes, ctx.container, *bitmap_class, display,
+                                     &ctx.notices, &fail_reason);
         if (decoded && !decoded->rgba.empty()) {
           approximate_color = decoded->approximate_color;
           pixels = std::move(decoded->rgba);
@@ -1043,7 +1411,9 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         emit_clipped_children(out.size() - 1);
         continue;
       }
-      emit_placeholder(!pixels ? "has an unsupported pixel format" : "has a complex transform");
+      emit_placeholder(!pixels ? (fail_reason.empty() ? "has an unsupported pixel format"
+                                                      : fail_reason)
+                               : "has a complex transform");
       emit_clipped_children(out.size() - 1);
       continue;
     }
@@ -1054,6 +1424,22 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     emit_placeholder(is_text ? "is text content" : (is_vector ? "is vector content"
                                                               : "is unsupported content"));
   }
+}
+
+// True when at least one layer in the tree carries decoded pixels. An import
+// where every node degraded to an empty placeholder renders as a blank canvas,
+// which is worse than the tier-0 embedded preview; read_container checks this
+// and prefers the preview for such documents.
+[[nodiscard]] bool any_layer_has_pixels(const std::vector<Layer>& layers) {
+  for (const auto& layer : layers) {
+    if (layer.kind() == LayerKind::Pixel && !layer.pixels().empty()) {
+      return true;
+    }
+    if (any_layer_has_pixels(layer.children())) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Build a full tier-1 document from the parsed tree. Throws on a structurally
@@ -1162,7 +1548,17 @@ namespace {
       const auto tree_bytes = extract_stream(bytes, doc_stream->second, "doc.dat", &notices);
       const af::AfDocument tree = af::parse_tree(std::span<const std::uint8_t>(tree_bytes));
       document_version = tree.document_version;
-      return build_tier1(bytes, container, tree, notices, embed_depth);
+      Document document = build_tier1(bytes, container, tree, notices, embed_depth);
+      if (!any_layer_has_pixels(document.layers())) {
+        // Nothing decoded to pixels (all placeholders); the flat preview shows
+        // the user their document, the structural import would show a blank
+        // canvas. Keep the structural result only when no preview exists.
+        try {
+          return read_preview_only(bytes, container, document_version, notices);
+        } catch (const std::exception&) {
+        }
+      }
+      return document;
     } catch (const std::exception& error) {
       // A structurally unusable tree (or an unforeseen shape) falls back to the
       // preview rather than failing the open. Record why for diagnosis.

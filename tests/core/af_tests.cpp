@@ -1,8 +1,11 @@
-// Affinity .af tier-0 importer: container walk + embedded-preview decode. The
-// committed fixtures were authored by the Patchy team through scripted Affinity
-// 3.2.3 (a 64x48 gradient/pattern document; tiny-rgba16.af is the same document
-// converted to 16-bit before saving), so their provenance is ours - see
-// NOTICE-THIRD-PARTY.md. Adversarial cases are byte mutations of the fixture.
+// Affinity .af importer: container walk, document-tree layer import, and the
+// embedded-preview fallback. The committed fixtures were authored by the
+// Patchy team through scripted Affinity 3.2.3 (a 64x48 gradient/pattern
+// document; tiny-rgba16.af is the same document converted to 16-bit before
+// saving; tiny-embedded-jpeg.af is a self-authored 400x300 JPEG opened and
+// saved, which stores the untouched JPEG plus mips instead of base tiles), so
+// their provenance is ours - see NOTICE-THIRD-PARTY.md. Adversarial cases are
+// byte mutations of the fixtures.
 
 #include "formats/af_document_io.hpp"
 
@@ -16,6 +19,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "test_groups.hpp"
@@ -120,6 +124,64 @@ void af_tier2_imports_group_hierarchy() {
   CHECK(found_inner);
 }
 
+void af_tier2_imports_embedded_jpeg_original() {
+  // tiny-embedded-jpeg.af was authored by opening a 400x300 self-authored JPEG
+  // (r=255*x/W, g=255*y/H, b=64) in Affinity and saving. That save path stores
+  // NO base-level tiles: the base Sta codes are all 5 ("pixels come from the
+  // placed original"), the untouched JPEG rides in a c/<n> stream named by the
+  // DyBm's Bckg field, and only the mip pyramid is materialized. The importer
+  // must decode the embedded JPEG, not produce a black/empty layer.
+  const auto bytes = read_fixture("tiny-embedded-jpeg.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 400);
+  CHECK(document.height() == 300);
+  CHECK(document.layers().size() == 1);
+  const auto& layer = document.layers().front();
+  CHECK(layer.name() != "Affinity preview");
+  CHECK(layer.pixels().width() == 400);
+  CHECK(layer.pixels().height() == 300);
+
+  // Pixels match the authored pattern within JPEG-lossy tolerance.
+  const auto close_to = [](int a, int b) { return a >= b - 8 && a <= b + 8; };
+  for (const auto& [x, y] : {std::pair<int, int>{200, 150}, {40, 40}, {360, 260}}) {
+    const std::uint8_t* p = layer.pixels().pixel(x, y);
+    CHECK(close_to(p[0], 255 * x / 400));
+    CHECK(close_to(p[1], 255 * y / 300));
+    CHECK(close_to(p[2], 64));
+    CHECK(p[3] == 255);
+  }
+
+  // The full-resolution original decoded, so the half-resolution mip fallback
+  // notice must not appear.
+  for (const auto& notice : notices) {
+    CHECK(notice.find("half resolution") == std::string::npos);
+  }
+}
+
+void af_embedded_original_survives_hostile_bytes() {
+  // Coarse truncation + mutation sweeps over the embedded-original fixture:
+  // they walk the Bckg/c-stream parse and the stb_image JPEG decode against
+  // damaged input. Strides are coarse because the fixture is ~560 KB.
+  const auto original = read_fixture("tiny-embedded-jpeg.af");
+  for (std::size_t cut = 0; cut < original.size(); cut += original.size() / 64 + 1) {
+    const std::span<const std::uint8_t> prefix(original.data(), cut);
+    try {
+      (void)patchy::af::DocumentIo::read(prefix);
+    } catch (const std::runtime_error&) {
+    }
+  }
+  for (std::size_t at = 4; at < original.size(); at += 4099) {
+    auto mutated = original;
+    mutated[at] ^= 0x5A;
+    try {
+      std::vector<std::string> notices;
+      (void)patchy::af::DocumentIo::read(mutated, &notices);
+    } catch (const std::runtime_error&) {
+    }
+  }
+}
+
 void af_tier2_imports_cmyk_with_notice() {
   // tiny-cmyk.af is the tiny gradient converted to CMYK/8. Tier 2 decodes it
   // (approximate, no ICC in the file) and says so in a notice.
@@ -204,6 +266,8 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_tier1_imports_layer_at_full_resolution", af_tier1_imports_layer_at_full_resolution},
       {"af_tier1_imports_16bit_document", af_tier1_imports_16bit_document},
       {"af_tier2_imports_group_hierarchy", af_tier2_imports_group_hierarchy},
+      {"af_tier2_imports_embedded_jpeg_original", af_tier2_imports_embedded_jpeg_original},
+      {"af_embedded_original_survives_hostile_bytes", af_embedded_original_survives_hostile_bytes},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},

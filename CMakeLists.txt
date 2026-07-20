@@ -310,6 +310,7 @@ add_library(patchy_formats
   src/formats/svg_xml.cpp
   src/formats/tga_document_io.cpp
   src/formats/miniz/miniz.c
+  src/formats/stb/stb_image_impl.c
   src/formats/zstd/zstddeclib.c
 )
 # patchy_libraw stays PRIVATE: only raw_document_io.cpp touches LibRaw types; the public

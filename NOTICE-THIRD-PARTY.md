@@ -51,6 +51,15 @@ the single-source zlib/deflate implementation used by the Aseprite file format's
 compressed cels. MIT License; the license text is included at
 `src/formats/miniz/LICENSE`.
 
+## stb_image
+
+`src/formats/stb/` vendors stb_image 2.30 (https://github.com/nothings/stb),
+compiled decode-only and restricted to JPEG and PNG. It decodes the original
+image files that Affinity .af documents embed for placed/opened pictures (the
+document stores only a mip pyramid plus the untouched original). stb_image is
+dual-licensed MIT / public domain; Patchy uses it under the MIT license,
+included at `src/formats/stb/LICENSE`.
+
 ## Zstandard
 
 `src/formats/zstd/` vendors the decompression half of Zstandard 1.5.7
