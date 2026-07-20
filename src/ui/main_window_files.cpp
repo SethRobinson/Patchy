@@ -483,9 +483,19 @@ QString open_file_filter() {
       }
     }
   }
+  // The two all-formats entries carry a short pattern hint INSIDE the display name
+  // ("Supported Files (*.psd *.png *.jpg and more)") followed by the real pattern list.
+  // The open dialogs run with HideNameFilterDetails, which truncates the name at the
+  // LAST "(" for display, so the hint survives while the full list still filters. The
+  // hint is not decoration: the Windows 11 file dialog appends the full semicolon-joined
+  // pattern spec to any filter name containing no "*." token (verified empirically,
+  // July 2026), which would un-hide the ~50-pattern list and run it off screen again.
+  const auto supported_name =
+      QObject::tr("Supported Files (%1 and more)").arg(QStringLiteral("*.psd *.png *.jpg"));
+  const auto images_name = QObject::tr("Images (%1 and more)").arg(QStringLiteral("*.png *.jpg *.bmp"));
   return QStringLiteral("%1 (%2);;%3 (*.psd *.psb);;%4 (%5);;%6")
-      .arg(QObject::tr("Supported Files"), extension_patterns(all_extensions), QObject::tr("Photoshop Documents"),
-           QObject::tr("Images"), extension_patterns(image_extensions), QObject::tr("All Files (*.*)"));
+      .arg(supported_name, extension_patterns(all_extensions), QObject::tr("Photoshop Documents"),
+           images_name, extension_patterns(image_extensions), QObject::tr("All Files (*.*)"));
 }
 
 QString save_file_filter() {

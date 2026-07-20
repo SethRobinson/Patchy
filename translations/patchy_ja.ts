@@ -3463,8 +3463,8 @@ Flow: %6
     </message>
     <message>
         <location line="+70"/>
-        <source>Supported Files</source>
-        <translation>サポートされるファイル</translation>
+        <source>Supported Files (%1 and more)</source>
+        <translation>サポートされるファイル (%1 など)</translation>
     </message>
     <message>
         <location line="+0"/>
@@ -3473,6 +3473,11 @@ Flow: %6
     </message>
     <message>
         <location line="+1"/>
+        <source>Images (%1 and more)</source>
+        <translation>画像 (%1 など)</translation>
+    </message>
+    <message>
+        <location line="+0"/>
         <source>Images</source>
         <translation>画像</translation>
     </message>

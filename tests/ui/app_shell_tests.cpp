@@ -985,9 +985,12 @@ void ui_open_dialog_hides_name_filter_details() {
   patchy::ui::MainWindow window;
   show_window(window);
 
-  // The all-formats open filter carries dozens of patterns, so the Open dialog shows
-  // description-only filter names (the full string overflows the native dropdown).
-  // The patterns must still be present in nameFilters(): they are what filters.
+  // The all-formats open filter carries dozens of patterns, so the Open dialog hides
+  // the pattern list from the displayed filter names (the full string overflows the
+  // native dropdown). The patterns must still be present in nameFilters(): they are
+  // what filters. The DISPLAYED name must keep a short "*." hint: the Windows 11
+  // dialog appends the whole pattern spec to any filter name without a "*." token,
+  // which would put the ~50-pattern list right back on screen.
   bool saw_open_dialog = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
@@ -996,7 +999,12 @@ void ui_open_dialog_hides_name_filter_details() {
     const auto filters = dialog->nameFilters();
     CHECK(!filters.isEmpty());
     CHECK(filters.first().contains(QStringLiteral("*.psd")));
-    CHECK(filters.first().contains(QStringLiteral("*.png")));
+    CHECK(filters.first().contains(QStringLiteral("*.tif")));
+    auto* type_combo = dialog->findChild<QComboBox*>(QStringLiteral("fileTypeCombo"));
+    CHECK(type_combo != nullptr);
+    const auto displayed = type_combo->itemText(0);
+    CHECK(displayed.contains(QStringLiteral("*.psd")));
+    CHECK(!displayed.contains(QStringLiteral("*.tif")));
     saw_open_dialog = true;
     dialog->reject();
   });
