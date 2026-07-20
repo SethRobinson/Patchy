@@ -920,13 +920,20 @@ void ScriptEditorDialog::show_cli_example_for(const QString& script_path) {
   const auto meta = read_script_metadata(script_path);
   const auto exe_path = QCoreApplication::applicationFilePath();
   const auto command = script_cli_example_command(exe_path, script_path, meta);
-  const auto powershell_command =
-      script_cli_example_command(exe_path, script_path, meta, CliShell::PowerShell);
+#ifdef Q_OS_WIN
   // A plain (unquoted) program path runs as pasted in every shell; a quoted
   // one genuinely diverges (PowerShell needs "& ", cmd rejects it), and then
   // one line labeled with a footnote is not enough - people paste without
   // reading notes, so each shell gets its own copyable line.
+  const auto powershell_command =
+      script_cli_example_command(exe_path, script_path, meta, CliShell::PowerShell);
   const bool split_shells = powershell_command != command;
+#else
+  // POSIX shells parse a quoted first token as a command, so the one line
+  // runs as pasted whether or not the path forced quotes.
+  const QString powershell_command;
+  const bool split_shells = false;
+#endif
   const auto display_name =
       meta.name.isEmpty() ? QFileInfo(script_path).fileName() : meta.name;
 
@@ -990,8 +997,13 @@ void ScriptEditorDialog::show_cli_example_for(const QString& script_path) {
          "script option (repeatable), and --script-output result.txt to write the console "
          "output to a file when the run completes.");
   if (!split_shells) {
+#ifdef Q_OS_WIN
     notes_text = tr("This line works as-is in Command Prompt, PowerShell, and batch files.") +
                  QLatin1Char(' ') + notes_text;
+#else
+    notes_text =
+        tr("This line works as-is in your terminal.") + QLatin1Char(' ') + notes_text;
+#endif
   }
   auto* notes = new QLabel(notes_text, dialog);
   notes->setWordWrap(true);

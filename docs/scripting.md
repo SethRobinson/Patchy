@@ -47,7 +47,10 @@ is part of the same rule that keeps patchy.d.ts current.
   `Contents/Resources/scripts`,
   Linux install: `share/patchy/scripts`). ONLY `scripts/bundled` ships - the rest of
   `scripts/` is dev tooling and must never be staged (the copy step cleans the staged
-  folder first, so renames/removals propagate to existing build trees). Bundled scripts
+  folder first, so renames/removals propagate to existing build trees; the macOS bundle
+  POST_BUILD does the same rm-rf-then-copy into Resources/fonts, /translations, and
+  /scripts - before July 2026 it only copy_directory'd, so a long-lived mac build tree
+  shipped pre-reorg scripts and scripts/remote dev tooling inside the dmg). Bundled scripts
   are organized into `Games/`, `Demos/`, `Effects/`, `Utilities/` (display names go
   through `script_folder_display_name` for localization). Bundled-script convention:
   only `Games/` scripts create their own document or window; every other bundled script
@@ -300,7 +303,9 @@ as pasted in Command Prompt, PowerShell, and batch files, while quoting the firs
 token flips PowerShell into expression mode ("Unexpected token" on `--run-script`).
 When the path forces quotes (spaces - Program Files installs), the shells genuinely
 diverge (PowerShell needs the `& ` call operator, cmd rejects it), so the dialog shows
-TWO labeled copyable lines, one per shell, each with its own Copy button.
+TWO labeled copyable lines, one per shell, each with its own Copy button. The split is
+Windows-only: POSIX shells parse a quoted first token as a command, so on macOS/Linux
+one line always works as pasted and the dialog never shows the PowerShell flavor.
 
 ## Trust model
 

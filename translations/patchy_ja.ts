@@ -13993,6 +13993,7 @@ Clipped to the layer below</source>
     <message><source>Run %1 from a terminal, batch file, or another program:</source><translation>ターミナル、バッチファイル、または他のプログラムから %1 を実行するには:</translation></message>
     <message><source>Replace the example paths with your own. Add --script-arg key=value to override a script option (repeatable), and --script-output result.txt to write the console output to a file when the run completes.</source><translation>例のパスは自分のものに置き換えてください。--script-arg key=value でスクリプトのオプションを上書きでき (複数指定可)、--script-output result.txt で実行完了時にコンソール出力をファイルへ書き出せます。</translation></message>
     <message><source>This line works as-is in Command Prompt, PowerShell, and batch files.</source><translation>この行はコマンドプロンプト、PowerShell、バッチファイルのいずれでもそのまま動作します。</translation></message>
+    <message><source>This line works as-is in your terminal.</source><translation>この行はターミナルでそのまま動作します。</translation></message>
     <message><source>Command Prompt or a batch file:</source><translation>コマンドプロンプトまたはバッチファイル:</translation></message>
     <message><source>PowerShell:</source><translation>PowerShell:</translation></message>
     <message><source>Copy</source><translation>コピー</translation></message>

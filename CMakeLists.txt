@@ -818,7 +818,15 @@ if(PATCHY_BUILD_APP)
       # Contents/MacOS; fonts/translations are loaded from Contents/Resources). This is a
       # per-target POST_BUILD, not a shared copy-once target, because the bundle directory
       # belongs to the patchy target alone -- no other executable writes here.
+      # Clean the destinations first: copy_directory never deletes, so renamed or
+      # removed files linger in the long-lived bundle forever and ship in the dmg
+      # (pre-reorg loose scripts and even scripts/remote dev tooling really
+      # accumulated in Resources/scripts this way).
       add_custom_command(TARGET patchy POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rm -rf
+                "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/fonts"
+                "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/translations"
+                "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/scripts"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_BINARY_DIR}/fonts"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/fonts"
