@@ -235,18 +235,28 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   Run boundaries: `GlAR.Indx` is the run's END (exclusive) counted in Unicode
   CODEPOINTS of the block text including its trailing NUL (pinned by the
   emoji fixture tiny-text-runs.af); sparse run items inherit the previous
-  run's unset fields. Frame text wraps via the box flow with its cap at the
-  frame top (pinned against Affinity's render). Approximations (notice where
-  user-visible): rotation/shear renders axis-aligned, Affinity's paragraph
-  space-before/after is not imported yet (multi-paragraph blocks pack
-  tighter), and the All Caps glyph attribute is not applied.
+  run's unset fields. Paragraph space-before/after (`PAtt` `Doub[5]`/`[6]`,
+  document px) imports as paragraph-run v2 metrics (the leading paragraph
+  keeps only its space-after). The All Caps attribute (the private
+  `'CAP\x01'` OpenType feature setting in the item's `OtAt.Setn`) uppercases
+  the imported text (ASCII + Latin-1); the small/petite-caps family
+  (smcp/c2sc/pcap/c2pc/titl/unic) renders as typed with a notice. Frame text
+  wraps via the box flow with its cap at the frame top (pinned against
+  Affinity's render). Approximations (notice where user-visible):
+  rotation/shear renders axis-aligned, and Affinity's default 1.33x
+  auto-leading is not modeled (multi-line blocks pack slightly tighter;
+  adopting the Photoshop-leading layout path would need the frame anchoring
+  re-pinned).
 - **Layer effects (`FiEf`)** import into `Layer::layer_style()` for the kinds
   Patchy models: outer/inner shadow (`Shad`/`InnS`; wire `Angl` is the
   direction the shadow FALLS, screen-clockwise from +x, so the PS light angle
   is 180 - deg), outline (`Strk`; `Alig` 0 outside / 1 centre / 2 inside;
   `Ftyp` 2 = gradient fill via the `GrFl` descriptor), colour overlay
-  (`ColO`), gradient overlay (`GrdO`; stops decode, placement handles do not
-  yet - renders with default placement), outer/inner glow (`OutG`/`InnG`;
+  (`ColO`), gradient overlay (`GrdO`; stops, type - FilG Type 0 linear /
+  1-2 radial / 3 conical -> Angle - and placement from the descriptor's
+  `FDeX` [a,b,tx,c,d,ty] transform: the base gradient runs left->right, so
+  the PS angle is atan2(-c, a) and hypot(a, c) the span scale), outer/inner
+  glow (`OutG`/`InnG`;
   `Cntr` = centre source), Bevel/Emboss (`BevE`; `Beve` 0 inner / 1 outer /
   2 emboss / 3 pillow, `Azim`/`Elev` radians in the PS light convention,
   `Dept` px maps to PS depth as Dept/Radi; notice-approximate) and the 3D

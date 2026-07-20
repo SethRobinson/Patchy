@@ -1742,8 +1742,12 @@ struct EffectColor {
 }
 
 // GrFl -> FDsc -> FDeF (FilG/Fill) -> Grad: Posn = [position, midpoint] float2
-// pairs and Cols = the RGBA stop colors. Placement (angle/scale handles) is
-// not decoded yet; overlays render with the Patchy defaults.
+// pairs and Cols = the RGBA stop colors. FilG Type (GradientFillType): 0
+// linear, 1 elliptical, 2 radial, 3 conical. The BASE gradient runs along +x
+// (left -> right; pinned by the default-overlay render), and the descriptor's
+// optional FDeX [a,b,tx,c,d,ty] transform rotates/scales it: the direction
+// vector is (a, c) in screen (y-down) space, so the PS light-convention angle
+// is atan2(-c, a); hypot(a, c) is the span scale.
 [[nodiscard]] std::optional<LayerStyleGradient> style_gradient_from_fill(const af::AfClass* descriptor) {
   if (descriptor == nullptr) {
     return std::nullopt;
@@ -1762,6 +1766,22 @@ struct EffectColor {
     return std::nullopt;
   }
   LayerStyleGradient result;
+  switch (enum_field_id(*fill, af::tag4("Type"), 0)) {
+    case 1:
+    case 2: result.type = LayerStyleGradientType::Radial; break;
+    case 3: result.type = LayerStyleGradientType::Angle; break;
+    default: result.type = LayerStyleGradientType::Linear; break;
+  }
+  result.angle_degrees = 0.0F;  // the wire base direction is left -> right
+  if (const auto xfrm = descriptor->vec_field(af::tag4("FDeX")); xfrm.size() == 6) {
+    const double a = xfrm[0];
+    const double c = xfrm[3];
+    const double span = std::hypot(a, c);
+    if (span > 0.01) {
+      result.angle_degrees = static_cast<float>(degrees_from_radians(std::atan2(-c, a)));
+      result.scale = static_cast<float>(std::clamp(span, 0.1, 1.5));
+    }
+  }
   result.color_stops.reserve(colors->size());
   result.alpha_stops.reserve(colors->size());
   for (std::size_t i = 0; i < colors->size(); ++i) {
@@ -2311,6 +2331,69 @@ void attach_placed_smart_object(LayerBuildContext& ctx, Layer& layer,
 
 // Apply a glyph-run Item's style fields onto `run` (fields the item omits keep
 // the carried-in values, so sparse items inherit from the previous run).
+// Caps state of a glyph-run item, from the OtAt OpenType-feature settings in
+// the item's Objs (Setn[] OTFS {Feat 4CC, Valu}): the private 'CAP\x01' tag is
+// All Caps (Patchy uppercases the covered text); smcp/c2sc/pcap/c2pc/titl/unic
+// are the small-caps family (unsupported; notice). An item WITHOUT an OtAt is
+// sparse and inherits the previous run's caps; OtAt with an empty Setn resets.
+enum class AfRunCaps { Inherit, None, AllCaps, Unsupported };
+
+[[nodiscard]] AfRunCaps af_run_caps(const af::AfClass& item) {
+  const auto* objects = class_list(item, af::tag4("Objs"));
+  if (objects == nullptr) {
+    return AfRunCaps::Inherit;
+  }
+  for (const auto& object : *objects) {
+    if (object == nullptr || object->type_tag != af::tag4("OtAt")) {
+      continue;
+    }
+    AfRunCaps result = AfRunCaps::None;
+    if (const auto* settings = class_list(*object, af::tag4("Setn"))) {
+      for (const auto& setting : *settings) {
+        if (setting == nullptr || setting->int_field(af::tag4("Valu"), 0) == 0) {
+          continue;
+        }
+        const auto feature =
+            static_cast<std::uint32_t>(setting->int_field(af::tag4("Feat"), 0));
+        if (feature == af::tag4("CAP\x01")) {
+          return AfRunCaps::AllCaps;
+        }
+        if (feature == af::tag4("smcp") || feature == af::tag4("c2sc") ||
+            feature == af::tag4("pcap") || feature == af::tag4("c2pc") ||
+            feature == af::tag4("titl") || feature == af::tag4("unic")) {
+          result = AfRunCaps::Unsupported;
+        }
+      }
+    }
+    return result;
+  }
+  return AfRunCaps::Inherit;
+}
+
+// Uppercase a UTF-8 byte range in place, byte-length-preserving: ASCII a-z and
+// the Latin-1 letters (except ss, whose uppercase would grow). Enough for the
+// All Caps import; anything outside stays as authored.
+void uppercase_utf8_range(std::string& text, std::size_t from, std::size_t to) {
+  to = std::min(to, text.size());
+  for (std::size_t i = from; i < to; ++i) {
+    const auto byte = static_cast<unsigned char>(text[i]);
+    if (byte >= 'a' && byte <= 'z') {
+      text[i] = static_cast<char>(byte - 0x20);
+    } else if (byte == 0xC3U && i + 1 < to) {
+      const auto low = static_cast<unsigned char>(text[i + 1]);
+      // U+00E0..U+00FE lowercase (0xC3 0xA0..0xBE) -> U+00C0..U+00DE
+      // (0xC3 0x80..0x9E); skip the division sign U+00F7.
+      if (low >= 0xA0U && low <= 0xBEU && low != 0xB7U) {
+        text[i + 1] = static_cast<char>(low - 0x20);
+      }
+      ++i;
+    } else if (byte >= 0xC2U) {
+      // Skip over the rest of any other multi-byte sequence.
+      i += byte >= 0xF0U ? 3 : (byte >= 0xE0U ? 2 : 1);
+    }
+  }
+}
+
 void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float& alpha) {
   if (const af::AfClass* font = item.child_class(af::tag4("DFnt"))) {
     const std::string stored = font->string_field(af::tag4("Famy"));
@@ -2379,6 +2462,8 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
   carry.family = "Arial";
   carry.size = 12.0;
   carry.color = RgbColor{0, 0, 0};
+  AfRunCaps carry_caps = AfRunCaps::None;
+  bool unsupported_caps = false;
   int base_units = 0;  // output UTF-16 units emitted before the current block
 
   for (const auto& block : *blocks) {
@@ -2401,6 +2486,7 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
     // (the patchy.text.runs contract).
     std::string out;
     std::vector<int> out_at{0};
+    std::vector<std::size_t> out_byte_at{0};  // codepoint boundary -> byte offset in out
     int local_out = 0;
     std::size_t at = 0;
     while (at < raw.size()) {
@@ -2414,8 +2500,10 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
         local_out += cp > 0xFFFFU ? 2 : 1;
       }
       out_at.push_back(local_out);
+      out_byte_at.push_back(out.size());
       at += consumed;
     }
+    const std::size_t block_text_base = text.size();
     text += out;
     const int block_units = static_cast<int>(out_at.size()) - 1;
 
@@ -2466,6 +2554,17 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
             first_alpha = alpha;
           }
           has_style = true;
+          if (const auto caps = af_run_caps(*item); caps != AfRunCaps::Inherit) {
+            carry_caps = caps;
+          }
+        }
+        if (carry_caps == AfRunCaps::AllCaps) {
+          const auto from = static_cast<std::size_t>(std::clamp(prev, 0, block_units));
+          const auto to = static_cast<std::size_t>(std::clamp(end, prev, block_units));
+          uppercase_utf8_range(text, block_text_base + out_byte_at[from],
+                               block_text_base + out_byte_at[to]);
+        } else if (carry_caps == AfRunCaps::Unsupported) {
+          unsupported_caps = true;
         }
         const auto [start_out, end_out] = run_range(prev, end);
         styled.start = start_out;
@@ -2477,6 +2576,11 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
     }
     if (prev < block_units) {
       // Tail not covered by any run keeps the carried style.
+      if (carry_caps == AfRunCaps::AllCaps) {
+        const auto from = static_cast<std::size_t>(std::clamp(prev, 0, block_units));
+        uppercase_utf8_range(text, block_text_base + out_byte_at[from],
+                             block_text_base + out_byte_at[static_cast<std::size_t>(block_units)]);
+      }
       psd::PsdTextStyleRun styled = carry;
       const auto [start_out, end_out] = run_range(prev, block_units);
       styled.start = start_out;
@@ -2494,10 +2598,19 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
           }
           const int end = static_cast<int>(run->int_field(af::tag4("Indx"), block_units));
           std::int64_t run_align = 0;
+          double space_before = 0.0;
+          double space_after = 0.0;
           if (const af::AfClass* item = run->child_class(af::tag4("Item"))) {
             const auto ints = item->vec_field(af::tag4("Ints"));
             if (!ints.empty()) {
               run_align = static_cast<std::int64_t>(ints[0]);
+            }
+            // Doub[5]/[6] = paragraph space before/after in document px
+            // (pinned by the 9/17 spacing probe doc).
+            const auto doubles = item->vec_field(af::tag4("Doub"));
+            if (doubles.size() > 6) {
+              space_before = std::clamp(doubles[5], 0.0, 10000.0);
+              space_after = std::clamp(doubles[6], 0.0, 10000.0);
             }
           }
           if (align < 0) {
@@ -2508,6 +2621,11 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
           paragraph.start = start_out;
           paragraph.length = end_out - start_out;
           paragraph.justification = psd_justification_from_af_alignment(run_align);
+          // Affinity does not push the first paragraph down by its
+          // space-before (Qt's top margin would), so the leading paragraph
+          // keeps only its space-after.
+          paragraph.space_before = paragraph.start == 0 ? 0.0 : space_before;
+          paragraph.space_after = space_after;
           if (paragraph.length > 0) {
             paragraph_runs.push_back(paragraph);
           }
@@ -2597,6 +2715,10 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
     run.size = static_cast<double>(std::clamp(
         std::lround(static_cast<double>(std::lround(run.size)) * size_scale), 1L, 4000L));
   }
+  for (auto& paragraph : paragraph_runs) {
+    paragraph.space_before *= size_scale;
+    paragraph.space_after *= size_scale;
+  }
 
   Layer layer(ctx.document.allocate_layer_id(), display, LayerKind::Pixel);
   auto& metadata = layer.metadata();
@@ -2627,14 +2749,15 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
   // rich-text metadata (runs + Qt html body); a single left-aligned style
   // keeps the plain single-style metadata exactly as before.
   const bool multi_style = style_runs.size() > 1;
-  const bool any_aligned = std::any_of(paragraph_runs.begin(), paragraph_runs.end(),
-                                       [](const psd::PsdTextParagraphRun& run) {
-                                         return run.justification != 0;
-                                       });
+  bool any_paragraph_layout = false;
+  for (const auto& run : paragraph_runs) {
+    any_paragraph_layout =
+        any_paragraph_layout || run.justification != 0 || run.space_before > 0.0 || run.space_after > 0.0;
+  }
   if (multi_style) {
     metadata[kLayerMetadataTextRuns] = psd::serialize_patchy_text_runs(style_runs);
   }
-  if (any_aligned) {
+  if (any_paragraph_layout) {
     metadata[kLayerMetadataTextParagraphRuns] =
         psd::serialize_patchy_paragraph_runs(paragraph_runs);
   }
@@ -2670,6 +2793,10 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
   if (transform_approximated) {
     ctx.notices.push_back("Layer '" + display +
                           "': text rotation/shear is approximated (rendered axis-aligned)");
+  }
+  if (unsupported_caps) {
+    ctx.notices.push_back("Layer '" + display +
+                          "': small/petite caps text style is not supported; rendered as typed");
   }
   if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
     std::fprintf(stderr, "[af] text '%s': %zu style runs, %zu paragraph runs, align %lld\n",

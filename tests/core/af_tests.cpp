@@ -421,6 +421,33 @@ void af_imports_mixed_text_style_runs() {
   }
 }
 
+void af_imports_all_caps_text() {
+  // tiny-text-caps.af: artistic "Mixed Caseé" with All Caps (wire: the private
+  // 'CAP\x01' OpenType feature setting in OtAt.Setn) and "Small Caps" with
+  // SmallCaps (smcp). All Caps uppercases the imported text (ASCII+Latin-1);
+  // the small-caps family renders as typed with a notice.
+  const auto bytes = read_fixture("tiny-text-caps.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  bool found_upper = false;
+  bool found_small = false;
+  for (const auto& layer : document.layers()) {
+    const auto found = layer.metadata().find("patchy.text");
+    if (found == layer.metadata().end()) {
+      continue;
+    }
+    found_upper = found_upper || found->second == "MIXED CASE\xC3\x89";
+    found_small = found_small || found->second == "Small Caps";
+  }
+  CHECK(found_upper);
+  CHECK(found_small);
+  bool caps_notice = false;
+  for (const auto& notice : notices) {
+    caps_notice = caps_notice || notice.find("caps text style is not supported") != std::string::npos;
+  }
+  CHECK(caps_notice);
+}
+
 void af_imports_layer_effects() {
   // tiny-fx.af: five 24x16 rasters, each with one effect (authored via the
   // JSLib layer-effects API; wire semantics pinned by the fx-* corpus docs).
@@ -498,6 +525,54 @@ void af_imports_layer_effects() {
     bevel_notice = bevel_notice || notice.find("bevel/emboss effect approximated") != std::string::npos;
   }
   CHECK(bevel_notice);
+}
+
+void af_imports_paragraph_spacing() {
+  // tiny-text-para-spacing.af: frame text "One"/"Two"/"Three" with paragraph
+  // space-before 9 / space-after 17 (wire PAtt Doub[5]/[6]). One paragraph
+  // run covers the whole story; it starts at 0, so its space-before is
+  // dropped (Affinity does not push the first paragraph down) and the
+  // serialized v2 paragraph run carries only the space-after.
+  const auto bytes = read_fixture("tiny-text-para-spacing.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  const auto& layer = document.layers().back();
+  const auto found = layer.metadata().find("patchy.text.paragraph_runs");
+  CHECK(found != layer.metadata().end());
+  CHECK(found->second == "v2\n0\t13\tleft\t0\t0\t0\t0\t17");
+}
+
+void af_imports_gradient_overlay_placement() {
+  // tiny-fx-gradient.af: three rasters with gradient overlays - the default
+  // (linear, base direction left->right = PS angle 0), one under a rotate(45)
+  // FDeX descriptor transform (direction down-right = PS angle 315), and one
+  // elliptical (-> Radial).
+  const auto bytes = read_fixture("tiny-fx-gradient.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  const auto overlay = [&](const char* name) -> const patchy::LayerGradientFill& {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        CHECK(layer.layer_style().gradient_fills.size() == 1);
+        return layer.layer_style().gradient_fills.front();
+      }
+    }
+    throw std::runtime_error(std::string("layer not found: ") + name);
+  };
+  {
+    const auto& fill = overlay("plain");
+    CHECK(fill.gradient.type == patchy::LayerStyleGradientType::Linear);
+    CHECK(std::abs(fill.gradient.angle_degrees - 0.0F) < 0.01F);
+    CHECK(fill.gradient.color_stops.size() == 2);
+    CHECK(fill.gradient.color_stops.front().color == (patchy::RgbColor{0, 0, 0}));
+    CHECK(fill.gradient.color_stops.back().color == (patchy::RgbColor{255, 255, 255}));
+  }
+  {
+    const auto& fill = overlay("rotated");
+    CHECK(fill.gradient.type == patchy::LayerStyleGradientType::Linear);
+    CHECK(std::abs(fill.gradient.angle_degrees - 315.0F) < 0.1F);
+  }
+  CHECK(overlay("radial").gradient.type == patchy::LayerStyleGradientType::Radial);
 }
 
 void af_head_fat_revision_wins() {
@@ -627,7 +702,10 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_tier2_imports_lab_document", af_tier2_imports_lab_document},
       {"af_imports_text_layers_as_pending_text", af_imports_text_layers_as_pending_text},
       {"af_imports_mixed_text_style_runs", af_imports_mixed_text_style_runs},
+      {"af_imports_all_caps_text", af_imports_all_caps_text},
       {"af_imports_layer_effects", af_imports_layer_effects},
+      {"af_imports_gradient_overlay_placement", af_imports_gradient_overlay_placement},
+      {"af_imports_paragraph_spacing", af_imports_paragraph_spacing},
       {"af_head_fat_revision_wins", af_head_fat_revision_wins},
       {"af_imports_adjustment_layers", af_imports_adjustment_layers},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
