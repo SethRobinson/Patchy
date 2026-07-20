@@ -30,8 +30,11 @@ authoritative record of the design rules; the user-facing API reference is
   `scripts/` is dev tooling and must never be staged (the copy step cleans the staged
   folder first, so renames/removals propagate to existing build trees). Bundled scripts
   are organized into `Games/`, `Demos/`, `Effects/`, `Utilities/` (display names go
-  through `script_folder_display_name` for localization). User scripts live in the
-  per-user app-data folder under `scripts/` (`MainWindow::user_scripts_directory()`).
+  through `script_folder_display_name` for localization). Bundled-script convention:
+  only `Games/` scripts create their own document or window; every other bundled script
+  works on the ACTIVE document and alerts "Open a document first." when none is open
+  (mixing the two confuses users about where a script's output went). User scripts live
+  in the per-user app-data folder under `scripts/` (`MainWindow::user_scripts_directory()`).
 - Tests: `tests/ui/scripting_tests.cpp`.
 
 ## Shadow overrides (saving over a bundled script)
@@ -160,9 +163,10 @@ pipe is per-user, so `--run-script` adds no cross-user surface.
   file, the editor dialog, the canvas window, and the Scripts menu scan.
 - The engine works offscreen; `ScriptEngineHost::message_backlog()` is the easiest
   assertion surface (fresh per MainWindow).
-- Manual smoke: the bundled scripts all run from File > Scripts; `letter-physics.js`,
-  `game-of-life.js`, `generative-art.js`, and `fancy-background.js` also complete under
-  `--run-script` unattended.
+- Manual smoke: the bundled scripts all run from File > Scripts; `game-of-life.js`
+  completes fully under `--run-script` unattended, and the active-document scripts
+  (`letter-physics.js`, `generative-art.js`, `fancy-background.js`) run unattended
+  against a positional file (with no document they alert-and-finish clean).
 
 ## Future work (ranked by community research, July 2026)
 

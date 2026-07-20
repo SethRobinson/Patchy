@@ -40,6 +40,7 @@ namespace {
 
 constexpr int kScriptPathRole = Qt::UserRole;
 constexpr int kScriptBundledPathRole = Qt::UserRole + 1;  // overrides: the shipped original
+constexpr int kScriptFolderPathRole = Qt::UserRole + 2;   // folder rows (incl. the two roots)
 
 // The gutter widget; forwards painting back to the editor (Qt code-editor
 // example structure, non-Q_OBJECT).
@@ -228,14 +229,17 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
 void ScriptEditorDialog::refresh_script_tree(const QString& select_path) {
   script_tree_->clear();
   QTreeWidgetItem* to_select = nullptr;
-  const std::function<void(QTreeWidgetItem*, const std::vector<ScriptFolderEntry>&)> add_entries =
-      [&](QTreeWidgetItem* parent, const std::vector<ScriptFolderEntry>& entries) {
+  const std::function<void(QTreeWidgetItem*, const std::vector<ScriptFolderEntry>&, const QString&)>
+      add_entries = [&](QTreeWidgetItem* parent, const std::vector<ScriptFolderEntry>& entries,
+                        const QString& root_dir) {
         for (const auto& entry : entries) {
           auto* item = new QTreeWidgetItem(parent);
           if (entry.is_folder) {
             item->setText(0, script_folder_display_name(entry.name));
             item->setFlags(Qt::ItemIsEnabled);
-            add_entries(item, entry.children);
+            item->setData(0, kScriptFolderPathRole,
+                          QDir(root_dir).absoluteFilePath(entry.relative_path));
+            add_entries(item, entry.children, root_dir);
             continue;
           }
           item->setText(0, entry.is_override ? tr("%1 (modified)").arg(entry.name) : entry.name);
@@ -248,18 +252,21 @@ void ScriptEditorDialog::refresh_script_tree(const QString& select_path) {
           }
         }
       };
-  const auto scan = scan_scripts(MainWindow::bundled_scripts_directory(),
-                                 MainWindow::user_scripts_directory());
+  const auto bundled_dir = MainWindow::bundled_scripts_directory();
+  const auto user_dir = MainWindow::user_scripts_directory();
+  const auto scan = scan_scripts(bundled_dir, user_dir);
   if (!scan.bundled.empty()) {
     auto* bundled_root = new QTreeWidgetItem(script_tree_);
     bundled_root->setText(0, tr("Bundled"));
     bundled_root->setFlags(Qt::ItemIsEnabled);
-    add_entries(bundled_root, scan.bundled);
+    bundled_root->setData(0, kScriptFolderPathRole, bundled_dir);
+    add_entries(bundled_root, scan.bundled, bundled_dir);
   }
   auto* user_root = new QTreeWidgetItem(script_tree_);
   user_root->setText(0, tr("My Scripts"));
   user_root->setFlags(Qt::ItemIsEnabled);
-  add_entries(user_root, scan.user);
+  user_root->setData(0, kScriptFolderPathRole, user_dir);
+  add_entries(user_root, scan.user, user_dir);
   script_tree_->expandAll();
   if (to_select != nullptr) {
     script_tree_->setCurrentItem(to_select);
@@ -302,6 +309,18 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
   }
   const auto path = item->data(0, kScriptPathRole).toString();
   if (path.isEmpty()) {
+    // Folder rows (including the Bundled / My Scripts roots) offer opening the
+    // folder itself.
+    const auto folder_path = item->data(0, kScriptFolderPathRole).toString();
+    if (folder_path.isEmpty()) {
+      return;
+    }
+    QMenu folder_menu(this);
+    folder_menu.setObjectName(QStringLiteral("scriptEditorTreeMenu"));
+    auto* open_folder_action = folder_menu.addAction(tr("Show in Folder"));
+    if (folder_menu.exec(script_tree_->viewport()->mapToGlobal(position)) == open_folder_action) {
+      QDesktopServices::openUrl(QUrl::fromLocalFile(folder_path));
+    }
     return;
   }
   const auto bundled_path = item->data(0, kScriptBundledPathRole).toString();

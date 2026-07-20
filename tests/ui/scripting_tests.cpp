@@ -456,6 +456,13 @@ void ui_script_editor_tree_shadow_override() {
   auto* breakout_item = find_child_item(games_folder, QStringLiteral("breakout"));
   CHECK(breakout_item != nullptr);
 
+  // Folder rows (roots included) carry their on-disk path for the context
+  // menu's Show in Folder.
+  constexpr int kFolderPathRole = Qt::UserRole + 2;
+  CHECK(bundled_root->data(0, kFolderPathRole).toString() ==
+        patchy::ui::MainWindow::bundled_scripts_directory());
+  CHECK(games_folder->data(0, kFolderPathRole).toString().endsWith(QStringLiteral("/Games")));
+
   // Activating a script loads it. Emit itemActivated directly rather than
   // synthesizing a key/click: the gesture that raises it is platform-styled
   // (Return does not fire it on the mac offscreen platform).

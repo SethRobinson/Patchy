@@ -8,7 +8,8 @@
 //   drawFancyBackground(doc.layers[0], doc.width, doc.height, {seed: 7});
 // (Breakout does exactly that for its playfield.) Run directly from the menu
 // or editor, it renders onto a new "Fancy Background" layer of the active
-// document; patchy.isMainScript() is what tells the two modes apart.
+// document (like every non-game bundled script, it works on the open image);
+// patchy.isMainScript() is what tells the two modes apart.
 //
 // Options (all optional):
 //   top, bottom  gradient colors, "#rrggbb" (default deep blue-gray ramp)
@@ -102,8 +103,12 @@ function drawFancyBackground(layer, width, height, options) {
 }
 
 if (patchy.isMainScript()) {
-  var doc = app.activeDocument || app.newDocument(800, 600);
-  var layer = doc.addLayer("Fancy Background");
-  drawFancyBackground(layer, doc.width, doc.height, {});
-  console.log("Fancy background rendered onto the \"Fancy Background\" layer.");
+  var doc = app.activeDocument;
+  if (!doc) {
+    app.alert("Open a document first.");
+  } else {
+    var layer = doc.addLayer("Fancy Background");
+    drawFancyBackground(layer, doc.width, doc.height, {});
+    console.log("Fancy background rendered onto the \"Fancy Background\" layer.");
+  }
 }
