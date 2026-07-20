@@ -20,6 +20,8 @@ struct ScriptFolderEntry {
   QString path;           // absolute path to load/run; empty for folders
   QString bundled_path;   // overridden bundled original; empty otherwise
   QString display_name;   // "@name" header directive; falls back to `name`
+  QString description;    // "@description" header directive (may span lines)
+  QString author;         // "@author" header directive
   QString icon_path;      // sidecar icon PNG (user copy wins); empty = none
   bool is_folder{false};
   bool is_override{false};
@@ -28,11 +30,15 @@ struct ScriptFolderEntry {
 };
 
 // Directives read from the comment block at the top of a script (docs/
-// scripting.md): "// @name Breakout" sets the display name, "// @window"
-// declares that the script creates its own window or document. Parsing stops
-// at the first non-comment line (30 lines max).
+// scripting.md): "// @name Breakout" sets the display name, "// @description
+// ..." the hover-card blurb (repeated lines join with a space), "// @author
+// ..." the credit line, and "// @window" declares that the script creates its
+// own window or document. Parsing stops at the first non-comment line
+// (30 lines max).
 struct ScriptMetadata {
   QString name;
+  QString description;
+  QString author;
   bool opens_window{false};
 };
 [[nodiscard]] ScriptMetadata read_script_metadata(const QString& path);
@@ -69,9 +75,9 @@ struct ScriptScan {
 [[nodiscard]] QString script_icon_write_target(const QString& user_root,
                                                const QString& relative_path);
 
-// Center-crops `image` to a square, smooth-scales it to 64x64, and writes it
-// to `target` (creating parent folders). False when the image is null or the
-// write fails.
+// Center-crops `image` to a square, smooth-scales it to 128x128 (large enough
+// for the hover card; the tree scales down), and writes it to `target`
+// (creating parent folders). False when the image is null or the write fails.
 bool write_script_icon(const QImage& image, const QString& target);
 
 // The icon shown for a script entry: its sidecar PNG when present and

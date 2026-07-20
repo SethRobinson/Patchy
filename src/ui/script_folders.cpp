@@ -57,6 +57,8 @@ void scan_into(const QDir& dir, const QString& prefix, std::vector<ScriptFolderE
     entry.path = file.absoluteFilePath();
     const auto meta = read_script_metadata(entry.path);
     entry.display_name = meta.name.isEmpty() ? entry.name : meta.name;
+    entry.description = meta.description;
+    entry.author = meta.author;
     entry.opens_window = meta.opens_window;
     const auto icon = dir.absoluteFilePath(file.completeBaseName() + QStringLiteral(".png"));
     if (QFileInfo::exists(icon)) {
@@ -91,6 +93,8 @@ void apply_overrides(std::vector<ScriptFolderEntry>& bundled, const QString& use
       // Metadata follows the file that runs.
       const auto meta = read_script_metadata(entry.path);
       entry.display_name = meta.name.isEmpty() ? entry.name : meta.name;
+      entry.description = meta.description;
+      entry.author = meta.author;
       entry.opens_window = meta.opens_window;
     }
     // A user icon shadows the bundled one on its own ("Set Icon..." writes
@@ -140,6 +144,13 @@ ScriptMetadata read_script_metadata(const QString& path) {
     const auto body = QStringView(line).mid(2).trimmed();
     if (body.startsWith(QLatin1String("@name "))) {
       meta.name = body.mid(6).trimmed().toString();
+    } else if (body.startsWith(QLatin1String("@description "))) {
+      // Repeated @description lines continue the text.
+      const auto text = body.mid(13).trimmed().toString();
+      meta.description =
+          meta.description.isEmpty() ? text : meta.description + QLatin1Char(' ') + text;
+    } else if (body.startsWith(QLatin1String("@author "))) {
+      meta.author = body.mid(8).trimmed().toString();
     } else if (body == QLatin1String("@window")) {
       meta.opens_window = true;
     }
@@ -215,11 +226,12 @@ bool write_script_icon(const QImage& image, const QString& target) {
   if (image.isNull() || target.isEmpty()) {
     return false;
   }
+  // 128x128 so the hover card can show it large; the tree scales it to 32.
   const int side = std::min(image.width(), image.height());
   const QImage square = image.copy((image.width() - side) / 2, (image.height() - side) / 2,
                                    side, side);
   const QImage scaled =
-      square.scaled(64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+      square.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation);
   if (!QDir().mkpath(QFileInfo(target).absolutePath())) {
     return false;
   }

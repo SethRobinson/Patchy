@@ -1,25 +1,38 @@
 // @name Pong
+// @description A playable Pong game in a script window. Move with the Up/Down
+// @description arrows or W/S; first to 5 wins. Close the window to quit.
+// @author Seth A. Robinson
 // @window
-// A playable Pong game in a script window. Move with the Up/Down arrows (or
-// W/S); first to 5 wins. Close the window to quit.
 
-var W = 640;
-var H = 400;
+// ---------------------------------------------------------------------------
+// Options - tweak the game here (no dialog before a game: it just starts).
+var OPTIONS = {
+  width: 640,        // window size
+  height: 400,
+  winningScore: 5,
+  paddleHeight: 70,
+  ballSpeed: 5,      // serve speed; rallies speed up on paddle hits
+  rivalSpeed: 4.4    // AI paddle speed cap - raise for a harder opponent
+};
+// ---------------------------------------------------------------------------
+
+var W = OPTIONS.width;
+var H = OPTIONS.height;
 var win = patchy.ui.createCanvas({ width: W, height: H, title: "Patchy Pong" });
 
-var paddleH = 70;
+var paddleH = OPTIONS.paddleHeight;
 var paddleW = 10;
 var player = { y: (H - paddleH) / 2, score: 0 };
 var rival = { y: (H - paddleH) / 2, score: 0 };
 var ball = {};
-var message = "First to 5 points!";
+var message = "First to " + OPTIONS.winningScore + " points!";
 var messageTimer = 1500;
 
 function resetBall(towardPlayer) {
   ball.x = W / 2;
   ball.y = H / 2;
   var angle = (Math.random() - 0.5) * 1.2;
-  var speed = 5;
+  var speed = OPTIONS.ballSpeed;
   ball.vx = Math.cos(angle) * speed * (towardPlayer ? -1 : 1);
   ball.vy = Math.sin(angle) * speed;
 }
@@ -36,7 +49,7 @@ win.onFrame = function (dt) {
 
   // Rival AI follows the ball with a speed cap.
   var target = ball.y - paddleH / 2;
-  var rivalSpeed = 4.4 * step;
+  var rivalSpeed = OPTIONS.rivalSpeed * step;
   if (rival.y < target) { rival.y = Math.min(rival.y + rivalSpeed, target); }
   if (rival.y > target) { rival.y = Math.max(rival.y - rivalSpeed, target); }
   rival.y = Math.max(0, Math.min(H - paddleH, rival.y));
@@ -57,17 +70,19 @@ win.onFrame = function (dt) {
   }
   if (ball.x < 0) {
     rival.score++;
-    message = rival.score >= 5 ? "Patchy wins! Close the window." : "Patchy scores!";
+    message = rival.score >= OPTIONS.winningScore ? "Patchy wins! Close the window."
+                                                  : "Patchy scores!";
     messageTimer = 1200;
     resetBall(true);
   }
   if (ball.x > W) {
     player.score++;
-    message = player.score >= 5 ? "You win! Close the window." : "You score!";
+    message = player.score >= OPTIONS.winningScore ? "You win! Close the window."
+                                                   : "You score!";
     messageTimer = 1200;
     resetBall(false);
   }
-  var gameOver = player.score >= 5 || rival.score >= 5;
+  var gameOver = player.score >= OPTIONS.winningScore || rival.score >= OPTIONS.winningScore;
 
   // Draw.
   var g = win.graphics;

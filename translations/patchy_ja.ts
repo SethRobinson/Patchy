@@ -13887,7 +13887,9 @@ Clipped to the layer below</source>
     <message><source>Choose Color</source><translation>色を選択</translation></message>
     <message><source>showDialog: spec.fields must be an array</source><translation>showDialog: spec.fields は配列である必要があります</translation></message>
     <message><source>showDialog: every field needs a non-empty &quot;key&quot;</source><translation>showDialog: すべてのフィールドに空でない &quot;key&quot; が必要です</translation></message>
-    <message><source>showDialog: unknown field type &quot;%1&quot; (use number, slider, checkbox, choice, text, or color)</source><translation>showDialog: 不明なフィールドタイプ &quot;%1&quot; です (number、slider、checkbox、choice、text、color のいずれかを使用してください)</translation></message>
+    <message><source>showDialog: unknown field type &quot;%1&quot; (use number, slider, checkbox, choice, text, color, folder, or file)</source><translation>showDialog: 不明なフィールドタイプ &quot;%1&quot; です (number、slider、checkbox、choice、text、color、folder、file のいずれかを使用してください)</translation></message>
+    <message><source>Browse...</source><translation>参照...</translation></message>
+    <message><source>Running script: %1...</source><translation>スクリプトを実行中: %1...</translation></message>
     <message><source>listFiles: no such folder: %1</source><translation>listFiles: フォルダーが見つかりません: %1</translation></message>
     <message><source>Background</source><translation>背景</translation></message>
     <message><source>Untitled</source><translation>無題</translation></message>
@@ -13945,8 +13947,9 @@ Clipped to the layer below</source>
     <message><source>Bundled</source><translation>同梱スクリプト</translation></message>
     <message><source>My Scripts</source><translation>マイスクリプト</translation></message>
     <message><source>modified</source><translation>変更済み</translation></message>
-    <message><source>Creates its own window or document.</source><translation>独自のウィンドウまたはドキュメントを作成します。</translation></message>
-    <message><source>Your edited copy overrides the bundled script.</source><translation>編集したコピーが同梱スクリプトの代わりに使われます。</translation></message>
+    <message><source>by %1</source><translation>作者: %1</translation></message>
+    <message><source>Creates its own window or document</source><translation>独自のウィンドウまたはドキュメントを作成します</translation></message>
+    <message><source>Modified copy overrides the bundled script</source><translation>変更済みコピーが同梱スクリプトの代わりに使われます</translation></message>
     <message><source>Show in Folder</source><translation>フォルダーで表示</translation></message>
     <message><source>Set Icon from Current Window</source><translation>現在のウィンドウからアイコンを設定</translation></message>
     <message><source>Captures the running script's window (or the active image) as this script's icon.</source><translation>実行中のスクリプトのウィンドウ (またはアクティブな画像) をこのスクリプトのアイコンとして取り込みます。</translation></message>

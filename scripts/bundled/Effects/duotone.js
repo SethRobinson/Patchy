@@ -1,7 +1,20 @@
 // @name Duotone
-// Remaps the active layer to a two-color gradient: dark areas take the shadow
-// color, bright areas the highlight color (the classic poster / album-cover
-// look). Alpha is preserved; one undo restores the original.
+// @description Remaps the active layer to a two-color gradient: dark areas
+// @description take the shadow color, bright areas the highlight color. The
+// @description classic poster / album-cover look.
+// @author Seth A. Robinson
+//
+// Alpha is preserved; one undo restores the original.
+
+// ---------------------------------------------------------------------------
+// Options - defaults for this script. The options dialog (GUI runs) and
+// --script-arg key=value (command line) override them.
+var OPTIONS = {
+  shadow: "#1c2b5a",     // color the dark areas become
+  highlight: "#f2b544",  // color the bright areas become
+  contrast: 0            // -50..50 push before the remap
+};
+// ---------------------------------------------------------------------------
 
 var doc = app.activeDocument;
 var layer = doc ? doc.activeLayer : undefined;
@@ -14,12 +27,16 @@ if (!doc) {
   if (image.width === 0 || image.height === 0) {
     app.alert("The active layer has no pixels.");
   } else {
-    var options = patchy.ui.showDialog({
+    var options = patchy.ui.showOptions({
       title: "Duotone",
+      description: "Remaps the active layer (\"" + layer.name + "\") to a two-color gradient: " +
+                   "dark areas take the shadow color, bright areas the highlight color. " +
+                   "One undo restores the original.",
       fields: [
-        { key: "shadow", label: "Shadow color", type: "color", value: "#1c2b5a" },
-        { key: "highlight", label: "Highlight color", type: "color", value: "#f2b544" },
-        { key: "contrast", label: "Contrast", type: "slider", value: 0, min: -50, max: 50 }
+        { key: "shadow", label: "Shadow color", type: "color", value: OPTIONS.shadow },
+        { key: "highlight", label: "Highlight color", type: "color", value: OPTIONS.highlight },
+        { key: "contrast", label: "Contrast", type: "slider", value: OPTIONS.contrast,
+          min: -50, max: 50 }
       ]
     });
     if (options) {

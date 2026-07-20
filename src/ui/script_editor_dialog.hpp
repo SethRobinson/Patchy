@@ -59,11 +59,16 @@ public:
   ScriptEditorDialog(MainWindow& window, ScriptEngineHost& host);
 
 private slots:
-  // A slot so tests can drive it (the context menu that triggers it cannot be
-  // exercised offscreen).
+  // Slots so tests can drive them (context menus and real hover timing cannot
+  // be exercised offscreen).
   void set_script_icon_from_window(QTreeWidgetItem* item);
+  void show_script_hover_card(QTreeWidgetItem* item);
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+  void hide_script_hover_card();
   void refresh_script_tree(const QString& select_path = QString());
   void load_script(const QString& path);
   void handle_tree_activated(QTreeWidgetItem* item);
@@ -96,6 +101,9 @@ private:
   QElapsedTimer run_elapsed_;
   QLabel* file_label_{nullptr};
   QString current_path_;
+  QWidget* hover_card_{nullptr};  // ScriptHoverCard (cpp-local type)
+  QTimer* hover_timer_{nullptr};
+  QTreeWidgetItem* hover_item_{nullptr};  // cleared on every tree refresh
 };
 
 }  // namespace patchy::ui

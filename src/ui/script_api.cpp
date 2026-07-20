@@ -993,4 +993,8 @@ QJSValue ScriptUiObject::createCanvas(const QJSValue& options) {
 
 QJSValue ScriptUiObject::showDialog(const QJSValue& spec) { return host_.show_form_dialog(spec); }
 
+QJSValue ScriptUiObject::showOptions(const QJSValue& spec) {
+  return host_.show_options_dialog(spec);
+}
+
 }  // namespace patchy::ui

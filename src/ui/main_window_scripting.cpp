@@ -153,7 +153,9 @@ void run_script_writing_output(ScriptEngineHost& host, const QString& script_pat
                                               finalize(!host.last_run_had_error());
                                             }
                                           }));
-  const bool started_clean = host.run_file(script_path, script_args);
+  // CLI-originated (forwarded or unattended launch): interactive helpers must
+  // answer with defaults even when a GUI instance executes the script.
+  const bool started_clean = host.run_file(script_path, script_args, /*unattended=*/true);
   if (!host.run_active()) {
     // The run never started (unreadable file, or another script owns the
     // engine) or already finished synchronously before the completion signal

@@ -1,14 +1,40 @@
 // @name Letter Physics
-// Turns a word into one text layer per letter, then drops the letters onto the
-// bottom of the active document with gravity, bounce, and spin-free tumble.
-// The layers are real text layers and stay editable when the simulation
-// settles; undo removes the whole run in one step.
+// @description Turns a word into one text layer per letter and drops them onto
+// @description the bottom of the document with gravity and bounce. The letters
+// @description stay editable text layers after they settle.
+// @author Seth A. Robinson
+//
+// Undo removes the whole run in one step.
+
+// ---------------------------------------------------------------------------
+// Options - defaults for this script. The options dialog (GUI runs) and
+// --script-arg key=value (command line) override them.
+var OPTIONS = {
+  word: "PATCHY",
+  gravity: 60,   // 10..100 - how hard the letters fall
+  bounce: 55     // 0..90 - how much energy a bounce keeps
+};
+// ---------------------------------------------------------------------------
 
 var doc = app.activeDocument;
 if (!doc) {
   app.alert("Open a document first.");
 } else {
-  var word = app.prompt("Word to drop:", "PATCHY") || "PATCHY";
+  var choice = patchy.ui.showOptions({
+    title: "Letter Physics",
+    description: "Drops your word onto the bottom of this document, one bouncing letter at a " +
+                 "time. Each letter is a real text layer, so after the dust settles you can " +
+                 "still edit, restyle, or rearrange them. Undo removes the whole drop.",
+    fields: [
+      { key: "word", label: "Word to drop", type: "text", value: OPTIONS.word },
+      { key: "gravity", label: "Gravity", type: "slider", value: OPTIONS.gravity,
+        min: 10, max: 100 },
+      { key: "bounce", label: "Bounciness", type: "slider", value: OPTIONS.bounce,
+        min: 0, max: 90 }
+    ]
+  });
+  var word = choice ? (choice.word || "PATCHY") : "";
+  if (word) {
 
   var size = Math.max(24, Math.round(doc.width / (word.length + 2)));
   var letters = [];
@@ -42,8 +68,8 @@ if (!doc) {
     console.log("Nothing to drop.");
   } else {
     console.log("Dropping " + letters.length + " letters...");
-    var gravity = 0.6;
-    var bounce = 0.55;
+    var gravity = choice.gravity / 100;
+    var bounce = choice.bounce / 100;
     var floor = doc.height;
     var elapsed = 0;
     var timer = setInterval(function (dt) {
@@ -77,5 +103,6 @@ if (!doc) {
         console.log("Letters settled after " + Math.round(elapsed / 1000) + "s. Undo removes the drop in one step.");
       }
     }, 16);
+  }
   }
 }

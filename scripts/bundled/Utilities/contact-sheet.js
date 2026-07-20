@@ -1,8 +1,23 @@
 // @name Contact Sheet
+// @description Builds a contact sheet from a folder of images: thumbnails in a
+// @description grid, each on its own layer, with optional filename captions.
+// @author Seth A. Robinson
 // @window
-// Builds a contact sheet document from a folder of images: thumbnails in a
-// grid, each on its own layer (so you can still rearrange them), with optional
-// filename captions. Unattended runs pass --script-arg folder=...
+//
+// Unattended runs pass --script-arg folder=... (plus any other option keys).
+
+// ---------------------------------------------------------------------------
+// Options - defaults for this script. The options dialog (GUI runs) and
+// --script-arg key=value (command line) override them.
+var OPTIONS = {
+  folder: "",          // image folder; empty = pick in the dialog
+  columns: 4,
+  cell: 256,           // thumbnail size in pixels
+  padding: 16,
+  labels: true,        // filename captions under each thumbnail
+  background: "#26282c"
+};
+// ---------------------------------------------------------------------------
 
 var IMAGE_EXTENSION = /\.(png|jpe?g|bmp|gif|tiff?|webp|tga|psd)$/i;
 var MAX_IMAGES = 200;
@@ -14,10 +29,31 @@ function luminance(hexColor) {
           parseInt(match[3], 16) * 0.0722) / 255;
 }
 
-var folder = patchy.args.folder || app.chooseFolder("Choose the folder of images");
-if (!folder) {
-  app.alert("Contact sheet cancelled: no folder chosen.");
-} else {
+var options = patchy.ui.showOptions({
+  title: "Contact Sheet",
+  description: "Builds a new document showing every image in a folder as a grid of " +
+               "thumbnails - handy for browsing a shoot or cataloging sprites.\n\n" +
+               "1. Pick the folder of images (PNG, JPEG, PSD, and the other usual formats).\n" +
+               "2. Choose the grid: columns, thumbnail size, and padding.\n" +
+               "3. OK builds the sheet as its own document; each thumbnail lands on its own " +
+               "layer so you can still rearrange them afterwards.",
+  fields: [
+    { key: "folder", label: "Image folder", type: "folder", value: OPTIONS.folder },
+    { key: "columns", label: "Columns", type: "number", value: OPTIONS.columns,
+      min: 1, max: 20 },
+    { key: "cell", label: "Thumbnail size (px)", type: "number", value: OPTIONS.cell,
+      min: 32, max: 1024 },
+    { key: "padding", label: "Padding (px)", type: "number", value: OPTIONS.padding,
+      min: 0, max: 200 },
+    { key: "labels", label: "Filename captions", type: "checkbox", value: OPTIONS.labels },
+    { key: "background", label: "Background", type: "color", value: OPTIONS.background }
+  ]
+});
+if (options && !options.folder) {
+  app.alert("Contact sheet cancelled: no folder chosen.\n\nRe-run it and use Browse to pick " +
+            "the folder of images.");
+} else if (options) {
+  var folder = options.folder;
   var all = patchy.io.listFiles(folder);
   var files = [];
   for (var i = 0; i < all.length; i++) {
@@ -30,17 +66,7 @@ if (!folder) {
       console.warn(files.length + " images found; using the first " + MAX_IMAGES + ".");
       files = files.slice(0, MAX_IMAGES);
     }
-    var options = patchy.ui.showDialog({
-      title: "Contact Sheet",
-      fields: [
-        { key: "columns", label: "Columns", type: "number", value: 4, min: 1, max: 20 },
-        { key: "cell", label: "Thumbnail size (px)", type: "number", value: 256, min: 32, max: 1024 },
-        { key: "padding", label: "Padding (px)", type: "number", value: 16, min: 0, max: 200 },
-        { key: "labels", label: "Filename captions", type: "checkbox", value: true },
-        { key: "background", label: "Background", type: "color", value: "#26282c" }
-      ]
-    });
-    if (options) {
+    {
       var columns = Math.min(options.columns, files.length);
       var rows = Math.ceil(files.length / columns);
       var labelHeight = options.labels ? 18 : 0;

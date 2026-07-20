@@ -1,8 +1,20 @@
 // @name Save Version
-// Saves a numbered snapshot of the active document next to its file:
-// mydoc.psd becomes mydoc_v001.psd, then mydoc_v002.psd, and so on (the next
-// free number is found automatically). The document keeps its own path, so
-// you keep working in the same file.
+// @description Saves a numbered snapshot next to the document's file: mydoc.psd
+// @description becomes mydoc_v001.psd, then mydoc_v002.psd - the next free
+// @description number is found automatically. You keep working in the same file.
+// @author Seth A. Robinson
+//
+// Runs instantly when the document has a file; unsaved documents get a small
+// dialog asking where the snapshots should live.
+
+// ---------------------------------------------------------------------------
+// Options - defaults for UNSAVED documents (saved ones version next to their
+// own file). The dialog and --script-arg key=value override them.
+var OPTIONS = {
+  folder: "",  // where the snapshots go; empty = pick in the dialog
+  base: ""     // snapshot base name; empty = derived from the document name
+};
+// ---------------------------------------------------------------------------
 
 var doc = app.activeDocument;
 if (!doc) {
@@ -14,10 +26,21 @@ if (!doc) {
     folder = doc.path.replace(/[\\\/][^\\\/]*$/, "");
     base = doc.path.replace(/^.*[\\\/]/, "").replace(/\.[^.]+$/, "");
   } else {
-    folder = app.chooseFolder("Folder to keep the version snapshots in");
-    if (folder) {
-      var suggested = (doc.name || "untitled").replace(/[^A-Za-z0-9_-]+/g, "_") || "untitled";
-      base = app.prompt("Base name for the versions:", suggested) || "";
+    var suggested = OPTIONS.base ||
+        (doc.name || "untitled").replace(/[^A-Za-z0-9_-]+/g, "_") || "untitled";
+    var setup = patchy.ui.showOptions({
+      title: "Save Version",
+      description: "This document has not been saved anywhere yet, so pick where its numbered " +
+                   "version snapshots should live. Once you save the document normally, " +
+                   "future versions land next to its file automatically.",
+      fields: [
+        { key: "folder", label: "Snapshot folder", type: "folder", value: OPTIONS.folder },
+        { key: "base", label: "Base name", type: "text", value: suggested }
+      ]
+    });
+    if (setup) {
+      folder = setup.folder;
+      base = setup.base;
     }
   }
   if (!folder || !base) {

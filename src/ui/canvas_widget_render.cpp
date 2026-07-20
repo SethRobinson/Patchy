@@ -244,10 +244,11 @@ bool CanvasWidget::processing_operation_active() const noexcept {
   return processing_operation_depth_ > 0;
 }
 
-void CanvasWidget::begin_processing_operation(QString message) {
+void CanvasWidget::begin_processing_operation(QString message, int delay_ms_override) {
   if (processing_operation_depth_ == 0) {
     processing_operation_started_ = std::chrono::steady_clock::now();
     processing_operation_owns_overlay_ = false;
+    processing_operation_delay_ms_ = delay_ms_override;
     processing_overlay_message_ = message.isEmpty() ? tr("Processing...") : std::move(message);
   }
   ++processing_operation_depth_;
@@ -261,7 +262,9 @@ void CanvasWidget::tick_processing_operation() {
     const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                 std::chrono::steady_clock::now() - processing_operation_started_)
                                 .count();
-    if (elapsed_ms >= processing_overlay_delay_ms()) {
+    const auto delay_ms = processing_operation_delay_ms_ >= 0 ? processing_operation_delay_ms_
+                                                              : processing_overlay_delay_ms();
+    if (elapsed_ms >= delay_ms) {
       show_processing_overlay(processing_overlay_message_);
       processing_operation_owns_overlay_ = true;
     }

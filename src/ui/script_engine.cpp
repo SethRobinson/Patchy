@@ -32,9 +32,11 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QDir>
+#include <QHBoxLayout>
 #include <QInputDialog>
 #include <QJSEngine>
 #include <QJSValueIterator>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QQmlEngine>
@@ -200,7 +202,7 @@ void ScriptEngineHost::report_error(const QJSValue& error) {
   emit_message(MessageKind::Error, text);
 }
 
-bool ScriptEngineHost::run_file(const QString& path, QStringList args) {
+bool ScriptEngineHost::run_file(const QString& path, QStringList args, bool unattended) {
   QFile file(path);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
     emit_message(MessageKind::Error,
@@ -211,6 +213,7 @@ bool ScriptEngineHost::run_file(const QString& path, QStringList args) {
   options.name = QFileInfo(path).fileName();
   options.path = path;
   options.args = std::move(args);
+  options.unattended = unattended;
   return run_source(QString::fromUtf8(file.readAll()), std::move(options));
 }
 
@@ -228,6 +231,16 @@ bool ScriptEngineHost::run_source(const QString& source, RunOptions options) {
   }
   run_ = std::make_unique<ScriptRun>();
   run_->name = options.name.isEmpty() ? tr("Untitled Script") : options.name;
+  run_->unattended = options.unattended;
+  // Parse "key=value" tokens once; install_bindings surfaces them as
+  // patchy.args and show_options_dialog merges them over field defaults.
+  for (const auto& token : options.args) {
+    const auto separator = token.indexOf(QLatin1Char('='));
+    const auto key = separator < 0 ? token : token.left(separator);
+    if (!key.isEmpty()) {
+      run_->args[key] = separator < 0 ? QString() : token.mid(separator + 1);
+    }
+  }
   if (!options.path.isEmpty()) {
     run_->include_dir_stack.push_back(QFileInfo(options.path).absolutePath());
   }
@@ -236,12 +249,14 @@ bool ScriptEngineHost::run_source(const QString& source, RunOptions options) {
   emit run_state_changed();
 
   run_->sync_running = true;
+  run_->burst_clock.start();
   engine_->setInterrupted(false);
   watchdog_->arm(watchdog_timeout());
   const auto file_name = options.path.isEmpty() ? run_->name : options.path;
   const QJSValue result = engine_->evaluate(source, file_name, 1);
   watchdog_->disarm();
   run_->sync_running = false;
+  end_progress_indicator();
   if (engine_->isInterrupted()) {
     run_->had_error = true;
     engine_->setInterrupted(false);
@@ -261,15 +276,12 @@ void ScriptEngineHost::install_bindings(const RunOptions& options) {
   auto global = engine.globalObject();
 
   // patchy.args: the CLI --script-arg key=value tokens (empty object
-  // otherwise). Tokens without '=' become keys with an empty-string value.
+  // otherwise; parsed in run_source). Tokens without '=' become keys with an
+  // empty-string value.
+  Q_UNUSED(options);
   auto args_object = engine.newObject();
-  for (const auto& token : options.args) {
-    const auto separator = token.indexOf(QLatin1Char('='));
-    const auto key = separator < 0 ? token : token.left(separator);
-    const auto value = separator < 0 ? QString() : token.mid(separator + 1);
-    if (!key.isEmpty()) {
-      args_object.setProperty(key, value);
-    }
+  for (const auto& [key, value] : run_->args) {
+    args_object.setProperty(key, value);
   }
   global.setProperty(QStringLiteral("__patchy_args"), args_object);
 
@@ -320,6 +332,7 @@ bool ScriptEngineHost::call_script_callback(QJSValue callback, const QJSValueLis
     return false;
   }
   run_->in_callback = true;
+  run_->burst_clock.restart();  // busy indicator measures this burst alone
   engine_->setInterrupted(false);
   watchdog_->arm(watchdog_timeout());
   const QJSValue result = callback.call(args);
@@ -329,6 +342,7 @@ bool ScriptEngineHost::call_script_callback(QJSValue callback, const QJSValueLis
     return false;
   }
   run_->in_callback = false;
+  end_progress_indicator();
   bool failed = false;
   if (engine_ != nullptr && engine_->isInterrupted()) {
     run_->had_error = true;
@@ -393,6 +407,7 @@ void ScriptEngineHost::finish_run() {
 }
 
 void ScriptEngineHost::teardown_run_resources() {
+  end_progress_indicator();
   for (auto& [id, timer] : run_->timers) {
     timer->stop();
     delete timer;
@@ -405,6 +420,67 @@ void ScriptEngineHost::teardown_run_resources() {
     }
   }
   run_->windows.clear();
+}
+
+bool ScriptEngineHost::unattended_run() const {
+  return window_.cli_automation_mode_ || (run_ != nullptr && run_->unattended);
+}
+
+namespace {
+
+// How long a synchronous script burst may block the GUI before the busy
+// overlay appears (Seth's 0.5 s rule); env override for tests.
+int script_busy_delay_ms() noexcept {
+  bool ok = false;
+  const auto value = qEnvironmentVariableIntValue("PATCHY_SCRIPT_BUSY_DELAY_MS", &ok);
+  return ok ? std::max(0, value) : 500;
+}
+
+}  // namespace
+
+void ScriptEngineHost::pump_progress_indicator() {
+  if (run_ == nullptr || unattended_run() || !run_->burst_clock.isValid()) {
+    return;
+  }
+  if (!run_->sync_running && !run_->in_callback) {
+    return;  // between bursts (idle timers/windows keep the run alive)
+  }
+  const qint64 now = run_->burst_clock.elapsed();
+  if (now < script_busy_delay_ms()) {
+    return;
+  }
+  if (run_->busy_active && now - run_->last_pump_ms < 50) {
+    return;  // throttle only once the overlay is up; never delay first show
+  }
+  run_->last_pump_ms = now;
+  if (!run_->busy_active) {
+    auto* canvas = session_canvas(active_session_id());
+    if (canvas == nullptr) {
+      return;  // no document yet; a later pump may find one
+    }
+    run_->busy_canvas = canvas;
+    // Delay 0: this pump already waited out the 0.5 s threshold.
+    canvas->begin_processing_operation(tr("Running script: %1...").arg(run_->name),
+                                       /*delay_ms=*/0);
+    run_->busy_active = true;
+  }
+  if (run_->busy_canvas != nullptr) {
+    // Shows the overlay (first call) and pumps paint + posted events, so the
+    // coalesced refresh flush repaints strip writes progressively.
+    run_->busy_canvas->tick_processing_operation();
+  }
+}
+
+void ScriptEngineHost::end_progress_indicator() {
+  if (run_ == nullptr) {
+    return;
+  }
+  if (run_->busy_active && run_->busy_canvas != nullptr) {
+    run_->busy_canvas->end_processing_operation();
+  }
+  run_->busy_active = false;
+  run_->busy_canvas.clear();
+  run_->last_pump_ms = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -426,6 +502,19 @@ int ScriptEngineHost::scriptSetTimer(const QJSValue& callback, int interval_ms, 
   elapsed.start();
   connect(timer, &QTimer::timeout, this, [this, id, repeat, callback, elapsed]() mutable {
     if (run_ == nullptr || run_->finishing) {
+      return;
+    }
+    if (run_->sync_running || run_->in_callback) {
+      // Script code is already executing (the busy-indicator pump processes
+      // events mid-evaluation); the engine is not reentrant. Skip this tick -
+      // repeating timers fire again on schedule, single-shots re-arm to fire
+      // on the next real event-loop turn.
+      if (!repeat) {
+        const auto found = run_->timers.find(id);
+        if (found != run_->timers.end()) {
+          found->second->start(0);
+        }
+      }
       return;
     }
     if (!repeat) {
@@ -458,6 +547,7 @@ void ScriptEngineHost::scriptClearTimer(int timer_id) {
 }
 
 void ScriptEngineHost::consoleEmit(int kind, const QString& text) {
+  pump_progress_indicator();
   switch (kind) {
     case 1:
       emit_message(MessageKind::Warn, text);
@@ -593,6 +683,7 @@ QString ScriptEngineHost::session_file_path(std::int64_t session_id) const {
 }
 
 std::int64_t ScriptEngineHost::open_document_file(const QString& path) {
+  pump_progress_indicator();
   std::set<std::int64_t> before;
   for (const auto id : session_ids()) {
     before.insert(id);
@@ -607,6 +698,7 @@ std::int64_t ScriptEngineHost::open_document_file(const QString& path) {
 }
 
 std::int64_t ScriptEngineHost::create_document(int width, int height) {
+  pump_progress_indicator();
   if (width < 1 || height < 1 || width > 30000 || height > 30000) {
     return 0;
   }
@@ -620,6 +712,7 @@ std::int64_t ScriptEngineHost::create_document(int width, int height) {
 }
 
 bool ScriptEngineHost::save_session_to_path(std::int64_t session_id, const QString& path) {
+  pump_progress_indicator();
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr) {
     return false;
@@ -629,6 +722,11 @@ bool ScriptEngineHost::save_session_to_path(std::int64_t session_id, const QStri
 }
 
 bool ScriptEngineHost::close_session(std::int64_t session_id) {
+  // The busy overlay may sit on the canvas being closed: drop it first.
+  if (run_ != nullptr && run_->busy_active && run_->busy_canvas != nullptr &&
+      run_->busy_canvas == session_canvas(session_id)) {
+    end_progress_indicator();
+  }
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr) {
     return false;
@@ -647,6 +745,7 @@ void ScriptEngineHost::activate_session(std::int64_t session_id) {
 }
 
 bool ScriptEngineHost::prepare_mutation(std::int64_t session_id) {
+  pump_progress_indicator();
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr) {
     return false;
@@ -681,6 +780,7 @@ void ScriptEngineHost::set_undo_enabled(bool enabled) noexcept {
 }
 
 void ScriptEngineHost::note_pixels_changed(std::int64_t session_id, const QRect& dirty_document_rect) {
+  pump_progress_indicator();
   auto& pending = pending_refresh_[session_id];
   if (dirty_document_rect.isEmpty()) {
     pending.full_canvas = true;
@@ -691,6 +791,7 @@ void ScriptEngineHost::note_pixels_changed(std::int64_t session_id, const QRect&
 }
 
 void ScriptEngineHost::note_structure_changed(std::int64_t session_id) {
+  pump_progress_indicator();
   auto& pending = pending_refresh_[session_id];
   pending.structure = true;
   pending.full_canvas = true;
@@ -853,6 +954,7 @@ void collect_layer_ids(const std::vector<Layer>& layers, std::set<LayerId>& out)
 
 std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
                                                         const TextLayerParams& params) {
+  pump_progress_indicator();
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr || session->canvas == nullptr) {
     return std::nullopt;
@@ -911,6 +1013,7 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
 
 bool ScriptEngineHost::set_text_layer_text(std::int64_t session_id, LayerId layer_id,
                                            const QString& text) {
+  pump_progress_indicator();
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr || session->canvas == nullptr) {
     return false;
@@ -974,6 +1077,7 @@ bool ScriptEngineHost::layer_is_text_layer(std::int64_t session_id, LayerId laye
 
 bool ScriptEngineHost::apply_filter_to_layer(std::int64_t session_id, LayerId layer_id,
                                              const QString& filter_id, const QJSValue& params) {
+  pump_progress_indicator();
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr) {
     throw_js_error(tr("The document is no longer open."));
@@ -1065,7 +1169,7 @@ ScriptEngineHost::ModalWatchdogPause::~ModalWatchdogPause() {
 }
 
 void ScriptEngineHost::show_alert(const QString& text) {
-  if (window_.cli_automation_mode_) {
+  if (unattended_run()) {
     emit_message(MessageKind::Log, tr("[alert] %1").arg(text));
     return;
   }
@@ -1075,7 +1179,7 @@ void ScriptEngineHost::show_alert(const QString& text) {
 
 QString ScriptEngineHost::show_prompt(const QString& text, const QString& default_value,
                                       bool* accepted) {
-  if (window_.cli_automation_mode_) {
+  if (unattended_run()) {
     if (accepted != nullptr) {
       *accepted = true;
     }
@@ -1092,7 +1196,7 @@ QString ScriptEngineHost::show_prompt(const QString& text, const QString& defaul
 }
 
 QString ScriptEngineHost::choose_folder(const QString& title) {
-  if (window_.cli_automation_mode_) {
+  if (unattended_run()) {
     return {};
   }
   const ModalWatchdogPause pause(*this);
@@ -1101,7 +1205,7 @@ QString ScriptEngineHost::choose_folder(const QString& title) {
 }
 
 QString ScriptEngineHost::choose_open_file(const QString& title, const QString& filter) {
-  if (window_.cli_automation_mode_) {
+  if (unattended_run()) {
     return {};
   }
   const ModalWatchdogPause pause(*this);
@@ -1111,7 +1215,7 @@ QString ScriptEngineHost::choose_open_file(const QString& title, const QString& 
 }
 
 QString ScriptEngineHost::choose_save_file(const QString& title, const QString& filter) {
-  if (window_.cli_automation_mode_) {
+  if (unattended_run()) {
     return {};
   }
   const ModalWatchdogPause pause(*this);
@@ -1121,6 +1225,14 @@ QString ScriptEngineHost::choose_save_file(const QString& title, const QString& 
 }
 
 QJSValue ScriptEngineHost::show_form_dialog(const QJSValue& spec) {
+  return run_form_dialog(spec, /*merge_args=*/false);
+}
+
+QJSValue ScriptEngineHost::show_options_dialog(const QJSValue& spec) {
+  return run_form_dialog(spec, /*merge_args=*/true);
+}
+
+QJSValue ScriptEngineHost::run_form_dialog(const QJSValue& spec, bool merge_args) {
   if (engine_ == nullptr) {
     return QJSValue(QJSValue::NullValue);
   }
@@ -1152,18 +1264,46 @@ QJSValue ScriptEngineHost::show_form_dialog(const QJSValue& spec) {
     }
     static const QStringList kKnownTypes = {
         QStringLiteral("number"), QStringLiteral("slider"), QStringLiteral("checkbox"),
-        QStringLiteral("choice"), QStringLiteral("text"),   QStringLiteral("color")};
+        QStringLiteral("choice"), QStringLiteral("text"),   QStringLiteral("color"),
+        QStringLiteral("folder"), QStringLiteral("file")};
     if (!kKnownTypes.contains(entry.type)) {
       throw_js_error(tr("showDialog: unknown field type \"%1\" (use number, slider, checkbox, "
-                        "choice, text, or color)")
+                        "choice, text, color, folder, or file)")
                          .arg(entry.type));
       return QJSValue(QJSValue::UndefinedValue);
     }
     parsed.push_back(std::move(entry));
   }
 
-  // Unattended runs answer with the defaults, the app.prompt rule.
-  if (window_.cli_automation_mode_) {
+  // showOptions: matching --script-arg values override the field defaults,
+  // coerced by field type (the "defaults unless overridden" contract).
+  if (merge_args && run_ != nullptr) {
+    for (auto& entry : parsed) {
+      const auto found = run_->args.find(entry.key);
+      if (found == run_->args.end()) {
+        continue;
+      }
+      const QString& raw = found->second;
+      if (entry.type == QLatin1String("number") || entry.type == QLatin1String("slider")) {
+        bool ok = false;
+        const double value = raw.toDouble(&ok);
+        if (ok) {
+          entry.value = QJSValue(value);
+        }
+      } else if (entry.type == QLatin1String("checkbox")) {
+        const auto lower = raw.trimmed().toLower();
+        // A bare "--script-arg flag" token (empty value) means "turn it on".
+        entry.value = QJSValue(lower.isEmpty() || lower == QLatin1String("1") ||
+                               lower == QLatin1String("true") || lower == QLatin1String("yes") ||
+                               lower == QLatin1String("on"));
+      } else {
+        entry.value = QJSValue(raw);
+      }
+    }
+  }
+
+  // Unattended runs answer with the effective values, the app.prompt rule.
+  if (unattended_run()) {
     auto result = engine_->newObject();
     for (std::size_t i = 0; i < parsed.size(); ++i) {
       result.setProperty(parsed[i].key, parsed[i].value);
@@ -1174,9 +1314,21 @@ QJSValue ScriptEngineHost::show_form_dialog(const QJSValue& spec) {
   const ModalWatchdogPause pause(*this);
   QDialog dialog(&window_);
   dialog.setObjectName(QStringLiteral("scriptFormDialog"));
-  const auto title = spec.property(QStringLiteral("title")).toString();
+  const auto title_value = spec.property(QStringLiteral("title"));
+  const auto title = title_value.isString() ? title_value.toString() : QString();
   dialog.setWindowTitle(title.isEmpty() ? tr("Script") : title);
   auto* root = new QVBoxLayout(&dialog);
+  // Optional spec.description: friendly instructions above the form.
+  const auto description_value = spec.property(QStringLiteral("description"));
+  if (description_value.isString() && !description_value.toString().isEmpty()) {
+    auto* blurb = new QLabel(description_value.toString(), &dialog);
+    blurb->setObjectName(QStringLiteral("scriptFormDescription"));
+    blurb->setWordWrap(true);
+    blurb->setMaximumWidth(440);
+    blurb->setTextFormat(Qt::PlainText);
+    root->addWidget(blurb);
+    root->addSpacing(8);
+  }
   auto* form = new QFormLayout();
   root->addLayout(form);
 
@@ -1276,6 +1428,43 @@ QJSValue ScriptEngineHost::show_form_dialog(const QJSValue& spec) {
       getters.emplace_back([color] {
         return QJSValue(color->alpha() < 255 ? color->name(QColor::HexArgb)
                                              : color->name(QColor::HexRgb));
+      });
+    } else if (entry.type == QLatin1String("folder") || entry.type == QLatin1String("file")) {
+      auto* row = new QWidget(&dialog);
+      auto* row_layout = new QHBoxLayout(row);
+      row_layout->setContentsMargins(0, 0, 0, 0);
+      auto* line = new QLineEdit(
+          entry.value.isString() ? QDir::toNativeSeparators(entry.value.toString()) : QString(),
+          row);
+      line->setObjectName(object_name);
+      line->setMinimumWidth(220);
+      auto* browse = new QPushButton(tr("Browse..."), row);
+      browse->setObjectName(object_name + QStringLiteral("Browse"));
+      const bool wants_folder = entry.type == QLatin1String("folder");
+      const auto filter_value = field.property(QStringLiteral("filter"));
+      const auto filter = filter_value.isString() ? filter_value.toString() : QString();
+      const auto label = entry.label;
+      QObject::connect(browse, &QPushButton::clicked, &dialog,
+                       [&dialog, line, wants_folder, filter, label] {
+                         const auto start = QDir::fromNativeSeparators(line->text());
+                         const auto picked =
+                             wants_folder
+                                 ? QFileDialog::getExistingDirectory(&dialog, label, start)
+                                 : get_open_file_name(&dialog, label, start,
+                                                      filter.isEmpty() ? tr("All files (*)")
+                                                                       : filter,
+                                                      nullptr,
+                                                      QStringLiteral("scriptFormBrowseDialog"));
+                         if (!picked.isEmpty()) {
+                           line->setText(QDir::toNativeSeparators(picked));
+                         }
+                       });
+      row_layout->addWidget(line, 1);
+      row_layout->addWidget(browse);
+      form->addRow(entry.label, row);
+      // Scripts speak "/" paths (patchy.io, include, open).
+      getters.emplace_back([line] {
+        return QJSValue(QDir::fromNativeSeparators(line->text().trimmed()));
       });
     } else {  // "text"
       auto* line = new QLineEdit(entry.value.isUndefined() ? QString() : entry.value.toString(),

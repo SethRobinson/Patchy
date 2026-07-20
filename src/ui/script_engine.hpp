@@ -4,6 +4,7 @@
 #include "core/layer.hpp"
 
 #include <QColor>
+#include <QElapsedTimer>
 #include <QFont>
 #include <QImage>
 #include <QJSValue>
@@ -81,12 +82,16 @@ public:
     QString path;
     // Raw "key=value" tokens (CLI --script-arg), surfaced as patchy.args.
     QStringList args;
+    // CLI-originated run (forwarded or unattended): interactive helpers use
+    // their automation behavior (alert logs, dialogs answer with defaults)
+    // even when a GUI instance executes the script.
+    bool unattended{false};
   };
 
   // Starts a run (false when one is already active). Errors and console output
   // go to message_sink; completion is announced through run_state_changed.
   bool run_source(const QString& source, RunOptions options);
-  bool run_file(const QString& path, QStringList args = {});
+  bool run_file(const QString& path, QStringList args = {}, bool unattended = false);
   // User stop: interrupts a stuck synchronous phase and tears down timers and
   // script windows. Safe to call when no run is active.
   void stop_active_run();
@@ -174,9 +179,10 @@ public:
   bool apply_filter_to_layer(std::int64_t session_id, LayerId layer_id, const QString& filter_id,
                              const QJSValue& params);
 
-  // Interactive helpers (suppressed under CLI automation: alert logs instead,
-  // prompt returns its default, pickers return empty, showDialog returns the
-  // field defaults). Each pauses the watchdog while its dialog is up.
+  // Interactive helpers (suppressed for unattended runs - CLI automation mode
+  // or a forwarded --run-script: alert logs instead, prompt returns its
+  // default, pickers return empty, showDialog/showOptions answer with the
+  // effective defaults). Each pauses the watchdog while its dialog is up.
   void show_alert(const QString& text);
   [[nodiscard]] QString show_prompt(const QString& text, const QString& default_value, bool* accepted);
   [[nodiscard]] QString choose_folder(const QString& title);
@@ -185,6 +191,11 @@ public:
   // Declarative form dialog (patchy.ui.showDialog): builds widgets from the
   // spec's field list, returns a values object, or null when cancelled.
   [[nodiscard]] QJSValue show_form_dialog(const QJSValue& spec);
+  // patchy.ui.showOptions: showDialog plus the standard options behavior -
+  // field defaults are overridden by matching patchy.args values (coerced by
+  // field type), and unattended runs skip the dialog entirely, returning the
+  // effective values (docs/scripting.md "Script options").
+  [[nodiscard]] QJSValue show_options_dialog(const QJSValue& spec);
 
   // app.runCommand / app.commandIds: registered app actions by their stable
   // HotkeyRegistry command id. run_app_command returns false for unknown or
@@ -234,6 +245,17 @@ private:
     bool stop_requested{false};
     bool finishing{false};
     bool had_error{false};
+    // CLI-originated run (RunOptions.unattended).
+    bool unattended{false};
+    // patchy.args parsed to key -> value (showOptions override merge).
+    std::map<QString, QString> args;
+    // Busy indicator (pump_progress_indicator): measures the CURRENT
+    // synchronous execution burst (the main evaluate or one callback), so a
+    // long-running game of short frame callbacks never trips it.
+    QElapsedTimer burst_clock;
+    qint64 last_pump_ms{0};
+    bool busy_active{false};
+    QPointer<CanvasWidget> busy_canvas;
   };
 
   struct PendingRefresh {
@@ -257,9 +279,22 @@ private:
   };
 
   void install_bindings(const RunOptions& options);
+  // Shared showDialog/showOptions body: parse fields, optionally merge
+  // patchy.args over the defaults, answer with the effective values when
+  // unattended, else build and exec the form dialog.
+  [[nodiscard]] QJSValue run_form_dialog(const QJSValue& spec, bool merge_args);
   void report_error(const QJSValue& error);
   void emit_message(MessageKind kind, const QString& text);
   [[nodiscard]] std::chrono::milliseconds watchdog_timeout() const;
+  // True when interactive helpers must answer without UI: app-wide CLI
+  // automation, or this run arrived via --run-script (forwarded included).
+  [[nodiscard]] bool unattended_run() const;
+  // Automatic busy indicator: called from the hot service entry points; once
+  // the current synchronous burst exceeds the 0.5 s threshold it shows the
+  // active canvas's animated processing overlay and pumps paint events
+  // (throttled). end_progress_indicator() closes it when the burst ends.
+  void pump_progress_indicator();
+  void end_progress_indicator();
   // Deferred completion check: a run may complete from inside a JS callback, and
   // the engine cannot be destroyed while it is executing.
   void schedule_completion_check();

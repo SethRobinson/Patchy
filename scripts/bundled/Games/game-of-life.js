@@ -1,14 +1,27 @@
 // @name Game of Life
+// @description Runs Conway's Game of Life inside a real layer of a new
+// @description document: watch every generation live on the canvas. When it
+// @description stops, the final state is an ordinary layer.
+// @author Seth A. Robinson
 // @window
-// Runs Conway's Game of Life directly inside a real layer of a real document:
-// every generation is written into the layer's pixels with setPixels. Watch it
-// live on the canvas; when it stops, the final state is an ordinary layer and
-// one undo removes the whole run.
+//
+// One undo removes the whole run.
 
-var CELL = 4;      // pixels per cell
-var COLS = 96;
-var ROWS = 64;
-var GENERATIONS = 200;
+// ---------------------------------------------------------------------------
+// Options - tweak the simulation here (it starts immediately, no dialog).
+var OPTIONS = {
+  cell: 4,           // pixels per cell
+  cols: 96,
+  rows: 64,
+  generations: 200,
+  fillChance: 0.28   // 0..1 - how much of the first generation starts alive
+};
+// ---------------------------------------------------------------------------
+
+var CELL = OPTIONS.cell;
+var COLS = OPTIONS.cols;
+var ROWS = OPTIONS.rows;
+var GENERATIONS = OPTIONS.generations;
 
 var doc = app.newDocument(COLS * CELL, ROWS * CELL);
 var layer = doc.addLayer("Game of Life");
@@ -16,7 +29,7 @@ var layer = doc.addLayer("Game of Life");
 var grid = new Array(COLS * ROWS);
 var next = new Array(COLS * ROWS);
 for (var i = 0; i < grid.length; i++) {
-  grid[i] = Math.random() < 0.28 ? 1 : 0;
+  grid[i] = Math.random() < OPTIONS.fillChance ? 1 : 0;
 }
 
 var pixels = new Uint8Array(COLS * CELL * ROWS * CELL * 4);

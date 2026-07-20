@@ -1,22 +1,42 @@
 // @name Grid Maker
-// Draws a grid overlay on its own layer: pick the cell size, line width,
-// color, and optional subdivisions (lighter lines splitting each cell).
-// Handy for layout guides, pixel-art tile boundaries, and comic panels;
-// delete or hide the "Grid" layer when you are done with it.
+// @description Draws a grid overlay on its own layer: pick the cell size, line
+// @description width, color, and optional subdivisions. Handy for layout
+// @description guides, pixel-art tiles, and comic panels.
+// @author Seth A. Robinson
+//
+// Delete or hide the "Grid" layer when you are done with it.
+
+// ---------------------------------------------------------------------------
+// Options - defaults for this script. The options dialog (GUI runs) and
+// --script-arg key=value (command line) override them.
+var OPTIONS = {
+  cell: 64,          // cell size in pixels
+  lineWidth: 1,
+  subdivisions: 0,   // lighter lines splitting each cell; 0 = none
+  color: "#40a0ff",
+  opacity: 60        // grid layer opacity
+};
+// ---------------------------------------------------------------------------
 
 var doc = app.activeDocument;
 if (!doc) {
   app.alert("Open a document first.");
 } else {
-  var options = patchy.ui.showDialog({
+  var options = patchy.ui.showOptions({
     title: "Grid Maker",
+    description: "Draws a grid over the whole document on its own \"Grid\" layer - layout " +
+                 "guides, pixel-art tile boundaries, comic panels. Subdivisions add lighter " +
+                 "lines splitting each cell. Hide or delete the layer when you are done.",
     fields: [
-      { key: "cell", label: "Cell size (px)", type: "number", value: 64, min: 2, max: 4096 },
-      { key: "lineWidth", label: "Line width (px)", type: "number", value: 1, min: 1, max: 64 },
+      { key: "cell", label: "Cell size (px)", type: "number", value: OPTIONS.cell,
+        min: 2, max: 4096 },
+      { key: "lineWidth", label: "Line width (px)", type: "number", value: OPTIONS.lineWidth,
+        min: 1, max: 64 },
       { key: "subdivisions", label: "Subdivisions per cell (0 = none)", type: "number",
-        value: 0, min: 0, max: 16 },
-      { key: "color", label: "Line color", type: "color", value: "#40a0ff" },
-      { key: "opacity", label: "Layer opacity", type: "slider", value: 60, min: 5, max: 100 }
+        value: OPTIONS.subdivisions, min: 0, max: 16 },
+      { key: "color", label: "Line color", type: "color", value: OPTIONS.color },
+      { key: "opacity", label: "Layer opacity", type: "slider", value: OPTIONS.opacity,
+        min: 5, max: 100 }
     ]
   });
   if (options) {

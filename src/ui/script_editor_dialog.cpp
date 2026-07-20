@@ -28,10 +28,12 @@
 #include <QImage>
 #include <QLabel>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QScreen>
 #include <QShortcut>
 #include <QSplitter>
 #include <QStyledItemDelegate>
@@ -42,6 +44,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <utility>
@@ -57,6 +60,8 @@ constexpr int kScriptFolderPathRole = Qt::UserRole + 2;   // folder rows (incl. 
 constexpr int kScriptFileNameRole = Qt::UserRole + 3;      // "breakout.js"
 constexpr int kScriptRelativePathRole = Qt::UserRole + 4;  // below its root ("Games/breakout.js")
 constexpr int kScriptWindowRole = Qt::UserRole + 5;        // @window: creates its own window
+constexpr int kScriptDescriptionRole = Qt::UserRole + 6;   // @description (hover card)
+constexpr int kScriptAuthorRole = Qt::UserRole + 7;        // @author (hover card)
 
 // Two-line script rows (32px icon, display name over the filename with an
 // amber "modified" tag, a window badge for @window scripts) and single-line
@@ -210,6 +215,136 @@ protected:
 
 private:
   int angle_{0};
+};
+
+// The hover card shown beside a script row: big icon, display name, author,
+// wrapped description, and a filename/badges footer. A Qt::ToolTip window
+// painted by hand to match the delegate (non-Q_OBJECT).
+class ScriptHoverCard : public QWidget {
+public:
+  explicit ScriptHoverCard(QWidget* parent)
+      : QWidget(parent, Qt::ToolTip | Qt::FramelessWindowHint) {
+    setAttribute(Qt::WA_ShowWithoutActivating);
+    setAttribute(Qt::WA_TranslucentBackground);
+    setObjectName(QStringLiteral("scriptHoverCard"));
+  }
+
+  struct Content {
+    QIcon icon;
+    QString name;
+    QString author;       // shown as "by <author>" when present
+    QString description;
+    QString file_name;
+    QString window_note;  // translated, empty when not a @window script
+    QString modified_note;
+  };
+
+  void set_content(Content content) {
+    content_ = std::move(content);
+    name_font_ = font();
+    name_font_.setBold(true);
+    name_font_.setPointSizeF(name_font_.pointSizeF() * 1.25);
+    small_font_ = font();
+    small_font_.setPointSizeF(small_font_.pointSizeF() * 0.88);
+    // Header block (name + author) sits right of the icon; description and
+    // footer span the full content width.
+    const int content_width = kWidth - 2 * kPad;
+    const int text_width = content_width - kIconSize - kGap;
+    const QFontMetrics name_metrics(name_font_);
+    const QFontMetrics body_metrics(font());
+    const QFontMetrics small_metrics(small_font_);
+    int header_height = name_metrics
+                            .boundingRect(QRect(0, 0, text_width, 1000),
+                                          Qt::TextWordWrap, content_.name)
+                            .height();
+    if (!content_.author.isEmpty()) {
+      header_height += 4 + small_metrics.height();
+    }
+    if (!content_.window_note.isEmpty()) {
+      header_height += 4 + small_metrics.height();
+    }
+    if (!content_.modified_note.isEmpty()) {
+      header_height += 4 + small_metrics.height();
+    }
+    int height = kPad + qMax(kIconSize, header_height);
+    if (!content_.description.isEmpty()) {
+      description_rect_ = QRect(kPad, height + kGap, content_width,
+                                body_metrics
+                                    .boundingRect(QRect(0, 0, content_width, 2000),
+                                                  Qt::TextWordWrap, content_.description)
+                                    .height());
+      height = description_rect_.bottom() + 1;
+    } else {
+      description_rect_ = QRect();
+    }
+    height += kGap + small_metrics.height() + kPad;
+    resize(kWidth, height);
+    update();
+  }
+
+protected:
+  void paintEvent(QPaintEvent*) override {
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(QColor(0x62, 0x68, 0x72), 1.0));
+    painter.setBrush(QColor(0x24, 0x27, 0x2d));
+    painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8, 8);
+    content_.icon.paint(&painter, QRect(kPad, kPad, kIconSize, kIconSize));
+    const int text_left = kPad + kIconSize + kGap;
+    const int text_width = width() - text_left - kPad;
+    painter.setFont(name_font_);
+    painter.setPen(QColor(0xf2, 0xf4, 0xf6));
+    const QRect name_bounds = painter.boundingRect(QRect(text_left, kPad, text_width, 1000),
+                                                   Qt::TextWordWrap, content_.name);
+    painter.drawText(name_bounds, Qt::TextWordWrap, content_.name);
+    int y = name_bounds.bottom() + 4;
+    painter.setFont(small_font_);
+    const QFontMetrics small_metrics(small_font_);
+    if (!content_.author.isEmpty()) {
+      painter.setPen(QColor(0x9a, 0xa3, 0xaf));
+      painter.drawText(QRect(text_left, y, text_width, small_metrics.height()),
+                       Qt::TextSingleLine,
+                       small_metrics.elidedText(content_.author, Qt::ElideRight, text_width));
+      y += small_metrics.height() + 4;
+    }
+    if (!content_.window_note.isEmpty()) {
+      painter.setPen(QColor(0x6f, 0xb1, 0xe8));
+      painter.drawText(QRect(text_left, y, text_width, small_metrics.height()),
+                       Qt::TextSingleLine,
+                       small_metrics.elidedText(content_.window_note, Qt::ElideRight, text_width));
+      y += small_metrics.height() + 4;
+    }
+    if (!content_.modified_note.isEmpty()) {
+      painter.setPen(QColor(0xe0, 0xa0, 0x30));
+      painter.drawText(QRect(text_left, y, text_width, small_metrics.height()),
+                       Qt::TextSingleLine,
+                       small_metrics.elidedText(content_.modified_note, Qt::ElideRight,
+                                                text_width));
+    }
+    if (!description_rect_.isNull()) {
+      painter.setFont(font());
+      painter.setPen(QColor(0xd0, 0xd4, 0xda));
+      painter.drawText(description_rect_, Qt::TextWordWrap, content_.description);
+    }
+    painter.setFont(small_font_);
+    painter.setPen(QColor(0x8a, 0x93, 0x9f));
+    painter.drawText(QRect(kPad, height() - kPad - small_metrics.height(), width() - 2 * kPad,
+                           small_metrics.height()),
+                     Qt::TextSingleLine,
+                     small_metrics.elidedText(content_.file_name, Qt::ElideMiddle,
+                                              width() - 2 * kPad));
+  }
+
+private:
+  static constexpr int kWidth = 340;
+  static constexpr int kPad = 14;
+  static constexpr int kGap = 12;
+  static constexpr int kIconSize = 96;
+
+  Content content_;
+  QFont name_font_;
+  QFont small_font_;
+  QRect description_rect_;
 };
 
 // The Stop button's red octagon stop-sign, painted in code like the rest of
@@ -376,8 +511,15 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   script_tree_->setColumnCount(1);
   script_tree_->setContextMenuPolicy(Qt::CustomContextMenu);
   script_tree_->setItemDelegate(new ScriptTreeDelegate(tr("modified"), script_tree_));
-  script_tree_->setMouseTracking(true);  // the delegate's hover highlight
+  script_tree_->setMouseTracking(true);  // delegate hover highlight + hover card
   script_tree_->setIndentation(16);
+  // Hover card: resting on a script row for a beat pops the details card.
+  hover_timer_ = new QTimer(this);
+  hover_timer_->setSingleShot(true);
+  hover_timer_->setInterval(350);
+  connect(hover_timer_, &QTimer::timeout, this,
+          [this] { show_script_hover_card(hover_item_); });
+  script_tree_->viewport()->installEventFilter(this);
   auto* right = new QSplitter(Qt::Vertical, horizontal);
   editor_ = new ScriptCodeEditor(right);
   editor_->setObjectName(QStringLiteral("scriptEditorCode"));
@@ -432,7 +574,95 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   update_run_state();
 }
 
+bool ScriptEditorDialog::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == script_tree_->viewport()) {
+    switch (event->type()) {
+      case QEvent::MouseMove: {
+        auto* item = script_tree_->itemAt(static_cast<QMouseEvent*>(event)->position().toPoint());
+        if (item != hover_item_) {
+          hover_item_ = item;
+          hide_script_hover_card();
+          const bool is_script =
+              item != nullptr && !item->data(0, kScriptPathRole).toString().isEmpty();
+          if (is_script) {
+            hover_timer_->start();
+          } else {
+            hover_timer_->stop();
+          }
+        }
+        break;
+      }
+      case QEvent::Leave:
+      case QEvent::Wheel:
+      case QEvent::MouseButtonPress:
+      case QEvent::Hide:
+        hover_item_ = nullptr;
+        hover_timer_->stop();
+        hide_script_hover_card();
+        break;
+      default:
+        break;
+    }
+  }
+  return QDialog::eventFilter(watched, event);
+}
+
+void ScriptEditorDialog::show_script_hover_card(QTreeWidgetItem* item) {
+  if (item == nullptr || item->data(0, kScriptPathRole).toString().isEmpty()) {
+    return;
+  }
+  if (hover_card_ == nullptr) {
+    hover_card_ = new ScriptHoverCard(this);
+  }
+  auto* card = static_cast<ScriptHoverCard*>(hover_card_);
+  ScriptHoverCard::Content content;
+  content.icon = item->icon(0);
+  content.name = item->text(0);
+  const auto author = item->data(0, kScriptAuthorRole).toString();
+  if (!author.isEmpty()) {
+    content.author = tr("by %1").arg(author);
+  }
+  content.description = item->data(0, kScriptDescriptionRole).toString();
+  content.file_name = item->data(0, kScriptFileNameRole).toString();
+  if (item->data(0, kScriptWindowRole).toBool()) {
+    content.window_note = tr("Creates its own window or document");
+  }
+  if (!item->data(0, kScriptBundledPathRole).toString().isEmpty()) {
+    content.modified_note = tr("Modified copy overrides the bundled script");
+  }
+  card->set_content(std::move(content));
+  // Beside the row: to the right of the tree, flipped left when the screen
+  // runs out, clamped vertically.
+  const auto row_rect = script_tree_->visualItemRect(item);
+  auto* viewport = script_tree_->viewport();
+  QPoint position =
+      viewport->mapToGlobal(QPoint(viewport->width() + 6, row_rect.top() - 8));
+  const auto* screen = this->screen();
+  if (screen != nullptr) {
+    const auto available = screen->availableGeometry();
+    if (position.x() + card->width() > available.right()) {
+      position.setX(viewport->mapToGlobal(QPoint(0, 0)).x() - card->width() - 6);
+    }
+    position.setY(std::clamp(position.y(), available.top(),
+                             available.bottom() - card->height()));
+  }
+  card->move(position);
+  card->show();
+}
+
+void ScriptEditorDialog::hide_script_hover_card() {
+  if (hover_card_ != nullptr) {
+    hover_card_->hide();
+  }
+}
+
 void ScriptEditorDialog::refresh_script_tree(const QString& select_path) {
+  // The card and hover pointer reference items about to be deleted.
+  hover_item_ = nullptr;
+  if (hover_timer_ != nullptr) {
+    hover_timer_->stop();
+  }
+  hide_script_hover_card();
   script_tree_->clear();
   QTreeWidgetItem* to_select = nullptr;
   const std::function<void(QTreeWidgetItem*, const std::vector<ScriptFolderEntry>&, const QString&)>
@@ -455,17 +685,12 @@ void ScriptEditorDialog::refresh_script_tree(const QString& select_path) {
           item->setData(0, kScriptFileNameRole, entry.file_name);
           item->setData(0, kScriptRelativePathRole, entry.relative_path);
           item->setData(0, kScriptWindowRole, entry.opens_window);
+          item->setData(0, kScriptDescriptionRole, entry.description);
+          item->setData(0, kScriptAuthorRole, entry.author);
           if (entry.is_override) {
             item->setData(0, kScriptBundledPathRole, entry.bundled_path);
           }
-          auto tip = QDir::toNativeSeparators(entry.path);
-          if (entry.opens_window) {
-            tip += QLatin1Char('\n') + tr("Creates its own window or document.");
-          }
-          if (entry.is_override) {
-            tip += QLatin1Char('\n') + tr("Your edited copy overrides the bundled script.");
-          }
-          item->setToolTip(0, tip);
+          // No plain tooltip: the hover card is the detail surface.
           if (!select_path.isEmpty() && entry.path == select_path) {
             to_select = item;
           }

@@ -1,6 +1,17 @@
 // @name Trim to Content
-// Crops the active document to the smallest rectangle that still contains
-// every visible pixel (alpha above 0) of every layer.
+// @description Crops the document to the smallest rectangle that still
+// @description contains every visible pixel of every layer.
+// @author Seth A. Robinson
+//
+// Runs instantly (no dialog) - it needs no choices beyond the options below.
+
+// ---------------------------------------------------------------------------
+// Options - tweak here, or override with --script-arg padding=8.
+var OPTIONS = {
+  padding: 0  // extra transparent pixels to keep around the content
+};
+// ---------------------------------------------------------------------------
+var PADDING = Math.max(0, Number(patchy.args.padding || OPTIONS.padding) || 0);
 
 var doc = app.activeDocument;
 if (!doc) {
@@ -50,10 +61,10 @@ if (!doc) {
   if (maxX < 0) {
     app.alert("No visible pixels found; nothing to trim.");
   } else {
-    minX = Math.max(0, minX);
-    minY = Math.max(0, minY);
-    maxX = Math.min(doc.width - 1, maxX);
-    maxY = Math.min(doc.height - 1, maxY);
+    minX = Math.max(0, minX - PADDING);
+    minY = Math.max(0, minY - PADDING);
+    maxX = Math.min(doc.width - 1, maxX + PADDING);
+    maxY = Math.min(doc.height - 1, maxY + PADDING);
     var w = maxX - minX + 1;
     var h = maxY - minY + 1;
     if (w === doc.width && h === doc.height && minX === 0 && minY === 0) {

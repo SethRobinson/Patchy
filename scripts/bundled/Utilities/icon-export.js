@@ -1,35 +1,58 @@
 // @name Icon Export
-// Exports the active document as a set of square PNG icons in the standard
-// sizes (app icons, favicons, store art). Each size is resampled from a
-// full-resolution master in one step, never chained, so small sizes stay
-// sharp. Unattended runs pass --script-arg out=...
+// @description Exports the active document as a set of square PNG icons in
+// @description the standard sizes (app icons, favicons, store art), each
+// @description resampled from the full-resolution master so they stay sharp.
+// @author Seth A. Robinson
+//
+// Each size is resampled from the master in one step, never chained.
+// Unattended runs pass --script-arg out=... (plus any other option keys).
+
+// ---------------------------------------------------------------------------
+// Options - defaults for this script. The options dialog (GUI runs) and
+// --script-arg key=value (command line) override them.
+var OPTIONS = {
+  out: "",       // output folder; empty = pick in the dialog
+  base: "",      // base filename; empty = derived from the document name
+  s16: true, s32: true, s48: true, s64: true,
+  s128: true, s256: true, s512: false, s1024: false,
+  pad: true      // pad non-square images to square before scaling
+};
+// ---------------------------------------------------------------------------
 
 var doc = app.activeDocument;
 if (!doc) {
   app.alert("Open a document first.");
 } else {
-  var outFolder = patchy.args.out || app.chooseFolder("Choose the folder for the icon files");
-  if (!outFolder) {
-    app.alert("Icon export cancelled: no output folder chosen.");
-  } else {
-    var defaultBase = (doc.name || "icon").replace(/\.[^.]+$/, "")
-        .replace(/[^A-Za-z0-9_-]+/g, "_") || "icon";
-    var options = patchy.ui.showDialog({
-      title: "Icon Export",
-      fields: [
-        { key: "base", label: "Base filename", type: "text", value: defaultBase },
-        { key: "s16", label: "16 px", type: "checkbox", value: true },
-        { key: "s32", label: "32 px", type: "checkbox", value: true },
-        { key: "s48", label: "48 px", type: "checkbox", value: true },
-        { key: "s64", label: "64 px", type: "checkbox", value: true },
-        { key: "s128", label: "128 px", type: "checkbox", value: true },
-        { key: "s256", label: "256 px", type: "checkbox", value: true },
-        { key: "s512", label: "512 px", type: "checkbox", value: false },
-        { key: "s1024", label: "1024 px", type: "checkbox", value: false },
-        { key: "pad", label: "Pad non-square images to square", type: "checkbox", value: true }
-      ]
-    });
-    if (options) {
+  var defaultBase = OPTIONS.base || (doc.name || "icon").replace(/\.[^.]+$/, "")
+      .replace(/[^A-Za-z0-9_-]+/g, "_") || "icon";
+  var options = patchy.ui.showOptions({
+    title: "Icon Export",
+    description: "Exports this document as a set of square PNG icons - the sizes app stores, " +
+                 "favicons, and installers ask for.\n\n" +
+                 "Pick the output folder and tick the sizes you need. Every size is scaled " +
+                 "straight from the full-resolution image (never from another icon), so even " +
+                 "16 px stays as sharp as possible.",
+    fields: [
+      { key: "out", label: "Output folder", type: "folder", value: OPTIONS.out },
+      { key: "base", label: "Base filename", type: "text", value: defaultBase },
+      { key: "s16", label: "16 px", type: "checkbox", value: OPTIONS.s16 },
+      { key: "s32", label: "32 px", type: "checkbox", value: OPTIONS.s32 },
+      { key: "s48", label: "48 px", type: "checkbox", value: OPTIONS.s48 },
+      { key: "s64", label: "64 px", type: "checkbox", value: OPTIONS.s64 },
+      { key: "s128", label: "128 px", type: "checkbox", value: OPTIONS.s128 },
+      { key: "s256", label: "256 px", type: "checkbox", value: OPTIONS.s256 },
+      { key: "s512", label: "512 px", type: "checkbox", value: OPTIONS.s512 },
+      { key: "s1024", label: "1024 px", type: "checkbox", value: OPTIONS.s1024 },
+      { key: "pad", label: "Pad non-square images to square", type: "checkbox",
+        value: OPTIONS.pad }
+    ]
+  });
+  if (options && !options.out) {
+    app.alert("Icon export cancelled: no output folder chosen.\n\nRe-run it and use Browse " +
+              "to pick where the icons should go.");
+  } else if (options) {
+    var outFolder = options.out;
+    {
       var sizes = [];
       var candidates = [16, 32, 48, 64, 128, 256, 512, 1024];
       for (var i = 0; i < candidates.length; i++) {

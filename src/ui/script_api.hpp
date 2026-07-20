@@ -223,6 +223,11 @@ public:
   // returns the values object, or null when cancelled. Unattended CLI runs
   // return the defaults.
   Q_INVOKABLE QJSValue showDialog(const QJSValue& spec);
+  // showDialog plus the standard options behavior: --script-arg values
+  // override the field defaults, and unattended runs (CLI) skip the dialog,
+  // returning the effective values. The recommended front door for scripts
+  // with options (docs/scripting.md "Script options").
+  Q_INVOKABLE QJSValue showOptions(const QJSValue& spec);
 
 private:
   ScriptEngineHost& host_;

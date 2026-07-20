@@ -1,7 +1,21 @@
 // @name Glitch
-// Corrupted-signal look for the active layer: horizontal slices tear sideways,
-// the color channels drift apart, and optional scanlines darken every third
-// row. Every run is different (random slices); one undo restores the original.
+// @description Corrupted-signal look for the active layer: horizontal slices
+// @description tear sideways, color channels drift apart, and scanlines darken
+// @description every third row. Every run tears differently.
+// @author Seth A. Robinson
+//
+// One undo restores the original.
+
+// ---------------------------------------------------------------------------
+// Options - defaults for this script. The options dialog (GUI runs) and
+// --script-arg key=value (command line) override them.
+var OPTIONS = {
+  intensity: 40,       // 1..100 - how far the slices tear
+  slices: 12,          // 1..64 random horizontal slices
+  channelShift: true,  // drift the red/blue channels apart
+  scanlines: true      // darken every third row
+};
+// ---------------------------------------------------------------------------
 
 var doc = app.activeDocument;
 var layer = doc ? doc.activeLayer : undefined;
@@ -14,13 +28,19 @@ if (!doc) {
   if (image.width === 0 || image.height === 0) {
     app.alert("The active layer has no pixels.");
   } else {
-    var options = patchy.ui.showDialog({
+    var options = patchy.ui.showOptions({
       title: "Glitch",
+      description: "Gives the active layer (\"" + layer.name + "\") a corrupted-signal look: " +
+                   "random horizontal slices tear sideways, with optional color-channel drift " +
+                   "and scanlines. Every run tears differently; one undo restores the original.",
       fields: [
-        { key: "intensity", label: "Intensity", type: "slider", value: 40, min: 1, max: 100 },
-        { key: "slices", label: "Slices", type: "number", value: 12, min: 1, max: 64 },
-        { key: "channelShift", label: "Color channel drift", type: "checkbox", value: true },
-        { key: "scanlines", label: "Scanlines", type: "checkbox", value: true }
+        { key: "intensity", label: "Intensity", type: "slider", value: OPTIONS.intensity,
+          min: 1, max: 100 },
+        { key: "slices", label: "Slices", type: "number", value: OPTIONS.slices,
+          min: 1, max: 64 },
+        { key: "channelShift", label: "Color channel drift", type: "checkbox",
+          value: OPTIONS.channelShift },
+        { key: "scanlines", label: "Scanlines", type: "checkbox", value: OPTIONS.scanlines }
       ]
     });
     if (options) {

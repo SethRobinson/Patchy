@@ -643,7 +643,10 @@ public:
   void set_document_for_history_restore(Document* document, bool normal_composite_unchanged = false);
   [[nodiscard]] bool processing_overlay_visible() const noexcept;
   [[nodiscard]] bool processing_operation_active() const noexcept;
-  void begin_processing_operation(QString message = {});
+  // delay_ms_override < 0 uses the standard delay (processing_overlay_delay_ms,
+  // default 1000 ms); callers that already waited out their own threshold pass
+  // 0 so the first tick shows the overlay (the script busy indicator).
+  void begin_processing_operation(QString message = {}, int delay_ms_override = -1);
   void tick_processing_operation();
   void end_processing_operation();
   bool wait_for_processing_operation(std::function<bool()> operation_ready, bool allow_overlay = true);
@@ -1606,6 +1609,7 @@ private:
   bool processing_overlay_visible_{false};
   bool processing_render_wait_active_{false};
   int processing_operation_depth_{0};
+  int processing_operation_delay_ms_{-1};  // <0 = processing_overlay_delay_ms()
   std::chrono::steady_clock::time_point processing_operation_started_{};
   bool processing_operation_owns_overlay_{false};
   QString processing_overlay_message_{};

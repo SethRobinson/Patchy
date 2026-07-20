@@ -1,22 +1,42 @@
 // @name Rename Layers
-// Batch-renames the layers of the active document: add a prefix or suffix,
-// find & replace text in names, or renumber everything into a clean sequence
-// ("Frame 01", "Frame 02", ...). Works on all layers or just the top level.
+// @description Batch-renames the layers of the active document: add a prefix
+// @description or suffix, find & replace text in names, or renumber everything
+// @description into a clean sequence like "Frame 01", "Frame 02", ...
+// @author Seth A. Robinson
+
+// ---------------------------------------------------------------------------
+// Options - defaults for this script. The options dialog (GUI runs) and
+// --script-arg key=value (command line) override them.
+var OPTIONS = {
+  mode: "Add prefix",     // Add prefix, Add suffix, Find & replace, Number sequence
+  text: "",               // the prefix/suffix, or the text to find
+  replacement: "Layer",   // replacement text, or the sequence base name
+  scope: "All layers",    // All layers, Top-level only
+  includeGroups: true
+};
+// ---------------------------------------------------------------------------
 
 var doc = app.activeDocument;
 if (!doc) {
   app.alert("Open a document first.");
 } else {
-  var options = patchy.ui.showDialog({
+  var options = patchy.ui.showOptions({
     title: "Rename Layers",
+    description: "Batch-renames this document's layers in one undoable step.\n\n" +
+                 "Add prefix/suffix put the text before or after every name; Find & replace " +
+                 "swaps text inside names; Number sequence renames everything to the base " +
+                 "name plus a counter (\"Frame 01\", \"Frame 02\", ... in layer-stack order).",
     fields: [
-      { key: "mode", label: "Mode", type: "choice", value: "Add prefix",
+      { key: "mode", label: "Mode", type: "choice", value: OPTIONS.mode,
         choices: ["Add prefix", "Add suffix", "Find & replace", "Number sequence"] },
-      { key: "text", label: "Prefix / suffix / text to find", type: "text", value: "" },
-      { key: "replacement", label: "Replacement / sequence base name", type: "text", value: "Layer" },
-      { key: "scope", label: "Apply to", type: "choice", value: "All layers",
+      { key: "text", label: "Prefix / suffix / text to find", type: "text",
+        value: OPTIONS.text },
+      { key: "replacement", label: "Replacement / sequence base name", type: "text",
+        value: OPTIONS.replacement },
+      { key: "scope", label: "Apply to", type: "choice", value: OPTIONS.scope,
         choices: ["All layers", "Top-level only"] },
-      { key: "includeGroups", label: "Rename group layers too", type: "checkbox", value: true }
+      { key: "includeGroups", label: "Rename group layers too", type: "checkbox",
+        value: OPTIONS.includeGroups }
     ]
   });
   if (options) {

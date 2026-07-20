@@ -8,13 +8,19 @@
 // Script header directives (read by the Script Manager and File > Scripts
 // menu from the comment block at the top of a .js file; parsing stops at the
 // first non-comment line):
-//   // @name Breakout     display name shown instead of the file name
-//   // @window            the script creates its own window or document
-//                         (shown as a window badge; scripts without it work
-//                         on the active document)
-// A 64x64 PNG next to the script with the same base name (breakout.js ->
+//   // @name Breakout        display name shown instead of the file name
+//   // @description ...      hover-card blurb (repeat the line to continue it)
+//   // @author Jane Doe      hover-card credit line
+//   // @window               the script creates its own window or document
+//                            (shown as a window badge; scripts without it
+//                            work on the active document)
+// A 128x128 PNG next to the script with the same base name (breakout.js ->
 // breakout.png) becomes its icon; right-click a script in the Script Manager
 // for "Set Icon from Current Window".
+//
+// Convention: keep the tweakable defaults in an OPTIONS object at the top of
+// the script and pass them through patchy.ui.showOptions, which handles the
+// options dialog, --script-arg overrides, and unattended runs in one call.
 //
 // Colors are CSS-style strings: "#rrggbb", "#aarrggbb", or named ("red").
 // Blend mode ids: "pass-through", "normal", "multiply", "screen", "overlay",
@@ -180,13 +186,14 @@ interface PatchyApp {
   commandIds(): string[];
 }
 
-/** One field of a patchy.ui.showDialog form. */
+/** One field of a patchy.ui.showDialog / showOptions form. */
 interface PatchyDialogField {
   /** Property name of this field's value in the returned object. */
   key: string;
   /** Row label; defaults to key. */
   label?: string;
-  type: "number" | "slider" | "checkbox" | "choice" | "text" | "color";
+  /** folder/file rows are a path line edit plus a Browse button. */
+  type: "number" | "slider" | "checkbox" | "choice" | "text" | "color" | "folder" | "file";
   /** Initial value (number, boolean, or string depending on type). */
   value?: number | boolean | string;
   /** number/slider only. */
@@ -197,6 +204,8 @@ interface PatchyDialogField {
   decimals?: number;
   /** choice only: the dropdown entries. */
   choices?: string[];
+  /** file only: the Browse dialog's name filter ("CSV files (*.csv)"). */
+  filter?: string;
 }
 
 interface PatchyGraphics {
@@ -236,14 +245,26 @@ interface PatchyUi {
   createCanvas(options?: { width?: number; height?: number; title?: string }): PatchyCanvasWindow;
   /**
    * Modal form built from a declarative field list; returns an object with one
-   * property per field key, or null when cancelled. Unattended CLI runs return
-   * the field defaults. Example:
+   * property per field key, or null when cancelled. An optional description
+   * renders as instructions above the form. Unattended runs (CLI) return the
+   * field defaults. Example:
    *   var r = patchy.ui.showDialog({title: "Halftone", fields: [
    *     {key: "size", label: "Dot size", type: "slider", value: 4, min: 1, max: 32},
    *     {key: "invert", label: "Invert", type: "checkbox", value: false}]});
    *   if (r) { apply(r.size, r.invert); }
    */
-  showDialog(spec: { title?: string; fields: PatchyDialogField[] }):
+  showDialog(spec: { title?: string; description?: string; fields: PatchyDialogField[] }):
+      Record<string, number | boolean | string> | null;
+  /**
+   * The standard way for a script to ask for options: showDialog plus the
+   * "defaults unless overridden" contract. Matching --script-arg key=value
+   * tokens override the field defaults (coerced by field type; a bare
+   * "--script-arg flag" turns a checkbox on), and unattended runs (patchy
+   * --run-script, forwarded or not) skip the dialog entirely and return the
+   * effective values. GUI runs show the dialog seeded with them; null still
+   * means the user cancelled. Every bundled script with options uses this.
+   */
+  showOptions(spec: { title?: string; description?: string; fields: PatchyDialogField[] }):
       Record<string, number | boolean | string> | null;
 }
 

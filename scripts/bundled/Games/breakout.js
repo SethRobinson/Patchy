@@ -1,19 +1,32 @@
 // @name Breakout
+// @description Breakout played on a real Patchy document: the bricks, paddle,
+// @description and ball are live layers on a real canvas. A small controller
+// @description window takes the keys (Left/Right or A/D, Space to launch).
+// @author Seth A. Robinson
 // @window
-// Plays on a REAL Patchy document, drawn incrementally: the bricks render once
-// into their own layer and a destroyed brick is just cleared with a transparent
-// fillRect, while the ball and paddle live on their own tiny layers that move
-// via layer.x/y each frame. No full-canvas upload ever happens, so the
-// compositor only recomposites the few pixels that changed. A small controller
-// window takes the keyboard (Left/Right or A/D, Space to launch) and shows the
-// score; close it to quit. Undo is disabled for speed with app.undoEnabled.
+//
+// Drawn incrementally: the bricks render once into their own layer and a
+// destroyed brick is just cleared with a transparent fillRect, while the ball
+// and paddle live on their own tiny layers that move via layer.x/y each frame.
+// No full-canvas upload ever happens, so the compositor only recomposites the
+// few pixels that changed. Undo is disabled for speed with app.undoEnabled.
 // The playfield backdrop comes from the bundled Fancy Background script - one
 // script calling another via include().
 
+// ---------------------------------------------------------------------------
+// Options - tweak the game here (it starts immediately, no dialog).
+var OPTIONS = {
+  width: 480,      // playfield document size
+  height: 360,
+  lives: 3,
+  paddleSpeed: 7
+};
+// ---------------------------------------------------------------------------
+
 app.undoEnabled = false;
 
-var W = 480;
-var H = 360;
+var W = OPTIONS.width;
+var H = OPTIONS.height;
 var doc = app.newDocument(W, H);
 // The Background layer becomes the playfield; keep it dark and subtle so the
 // bricks and ball stay readable.
@@ -61,7 +74,7 @@ ballLayer.fillRect(0, 0, BALL, BALL, "#ffffff");
 var paddleX = (W - PADDLE_W) / 2;
 var ball = { x: 0, y: 0, vx: 0, vy: 0, stuck: true };
 var score = 0;
-var lives = 3;
+var lives = OPTIONS.lives;
 var state = "play";  // play | won | lost
 
 var pad = patchy.ui.createCanvas({ width: 260, height: 96, title: "Breakout Controls" });
@@ -70,7 +83,7 @@ pad.onFrame = function (dt) {
   var step = Math.min(dt, 50) / 16.0;
 
   if (state === "play") {
-    var speed = 7 * step;
+    var speed = OPTIONS.paddleSpeed * step;
     if (pad.isKeyDown("Left") || pad.isKeyDown("A")) { paddleX -= speed; }
     if (pad.isKeyDown("Right") || pad.isKeyDown("D")) { paddleX += speed; }
     paddleX = Math.max(0, Math.min(W - PADDLE_W, paddleX));

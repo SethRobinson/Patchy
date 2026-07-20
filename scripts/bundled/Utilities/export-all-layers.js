@@ -1,29 +1,49 @@
 // @name Export All Layers
-// Saves every top-level layer of the active document as its own image file,
-// next to the document (or in a folder you pick when the document is unsaved).
-// A small options form chooses the format, an optional filename prefix, and
-// whether files get a numbered order prefix.
+// @description Saves every top-level layer of the active document as its own
+// @description image file: pick the folder, format, an optional filename
+// @description prefix, and numbered ordering.
+// @author Seth A. Robinson
+
+// ---------------------------------------------------------------------------
+// Options - defaults for this script. The options dialog (GUI runs) and
+// --script-arg key=value (command line) override them.
+var OPTIONS = {
+  folder: "",       // output folder; empty = next to the document (or Browse)
+  format: "png",    // png, jpg, bmp, tif
+  prefix: "",       // text in front of every filename
+  numbered: true    // 01_, 02_, ... in layer order
+};
+// ---------------------------------------------------------------------------
 
 var doc = app.activeDocument;
 if (!doc) {
   app.alert("Open a document first.");
 } else {
-  var folder = "";
-  if (doc.path) {
-    folder = doc.path.replace(/[\\\/][^\\\/]*$/, "");
-  } else {
-    folder = app.chooseFolder("Folder to export the layer images into");
+  // Default the output next to the document when it has been saved somewhere.
+  var defaultFolder = OPTIONS.folder;
+  if (!defaultFolder && doc.path) {
+    defaultFolder = doc.path.replace(/[\\\/][^\\\/]*$/, "");
   }
-  var options = folder ? patchy.ui.showDialog({
+  var options = patchy.ui.showOptions({
     title: "Export All Layers",
+    description: "Saves every top-level layer of this document as its own image file - each " +
+                 "layer is shown alone and exported, then everything is restored.\n\n" +
+                 "Files are named prefix + number + layer name; the numbered order matches " +
+                 "the layer stack, which keeps animation frames in sequence.",
     fields: [
-      { key: "format", label: "Format", type: "choice", value: "png",
+      { key: "folder", label: "Output folder", type: "folder", value: defaultFolder },
+      { key: "format", label: "Format", type: "choice", value: OPTIONS.format,
         choices: ["png", "jpg", "bmp", "tif"] },
-      { key: "prefix", label: "Filename prefix", type: "text", value: "" },
-      { key: "numbered", label: "Number files by layer order", type: "checkbox", value: true }
+      { key: "prefix", label: "Filename prefix", type: "text", value: OPTIONS.prefix },
+      { key: "numbered", label: "Number files by layer order", type: "checkbox",
+        value: OPTIONS.numbered }
     ]
-  }) : null;
-  if (options) {
+  });
+  if (options && !options.folder) {
+    app.alert("Export cancelled: no output folder chosen.\n\nRe-run it and use Browse to " +
+              "pick where the layer images should go.");
+  } else if (options) {
+    var folder = options.folder;
     var layers = doc.layers;
     var hidden = [];
     var i;

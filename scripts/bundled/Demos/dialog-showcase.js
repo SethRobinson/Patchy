@@ -1,9 +1,13 @@
 // @name Dialog Showcase
-// A tour of every form-dialog field type a script can ask for - number,
-// slider, checkbox, choice, text, and color - plus app.prompt and the file
-// pickers. Whatever you answer is rendered as a name badge in the active
-// document, so you can see exactly how the values come back to the script.
-// (See patchy.d.ts for the full patchy.ui.showDialog reference.)
+// @description A tour of every form-dialog field type a script can ask for,
+// @description plus app.prompt and the file pickers. Your answers are rendered
+// @description as a name badge so you can see how values come back to scripts.
+// @author Seth A. Robinson
+//
+// This demo deliberately uses raw patchy.ui.showDialog (not showOptions) so it
+// also demonstrates cancellation; see patchy.d.ts for both APIs. Scripts with
+// real options should prefer patchy.ui.showOptions, which merges --script-arg
+// overrides and skips the dialog on unattended runs.
 
 var doc = app.activeDocument;
 if (!doc) {

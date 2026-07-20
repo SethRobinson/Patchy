@@ -1,21 +1,38 @@
 // @name Photo Frame
-// Puts a frame around the whole image: grows the canvas and adds a frame
-// layer in your choice of style - a solid border, a double matte with an
-// accent line, or a polaroid with a wide bottom and an optional caption.
-// The picture itself is untouched (the frame is its own layer on top).
+// @description Puts a frame around the whole image: a solid border, a double
+// @description matte with an accent line, or a polaroid with a wide bottom and
+// @description an optional caption. The picture itself is untouched.
+// @author Seth A. Robinson
+//
+// Grows the canvas and adds the frame as its own layer on top.
+
+// ---------------------------------------------------------------------------
+// Options - defaults for this script. The options dialog (GUI runs) and
+// --script-arg key=value (command line) override them.
+var OPTIONS = {
+  style: "Solid",     // Solid, Double matte, Polaroid
+  size: 40,           // frame width in pixels
+  color: "#f4f1e8",   // frame color
+  caption: ""         // Polaroid only: text under the photo
+};
+// ---------------------------------------------------------------------------
 
 var doc = app.activeDocument;
 if (!doc) {
   app.alert("Open a document first.");
 } else {
-  var options = patchy.ui.showDialog({
+  var options = patchy.ui.showOptions({
     title: "Photo Frame",
+    description: "Frames the whole image: the canvas grows by the frame width and the frame " +
+                 "lands on its own layer, so the picture underneath is untouched.\n\n" +
+                 "Polaroid style gets a wide bottom; give it a caption to write there.",
     fields: [
-      { key: "style", label: "Style", type: "choice", value: "Solid",
+      { key: "style", label: "Style", type: "choice", value: OPTIONS.style,
         choices: ["Solid", "Double matte", "Polaroid"] },
-      { key: "size", label: "Frame width (px)", type: "number", value: 40, min: 4, max: 500 },
-      { key: "color", label: "Frame color", type: "color", value: "#f4f1e8" },
-      { key: "caption", label: "Caption (Polaroid)", type: "text", value: "" }
+      { key: "size", label: "Frame width (px)", type: "number", value: OPTIONS.size,
+        min: 4, max: 500 },
+      { key: "color", label: "Frame color", type: "color", value: OPTIONS.color },
+      { key: "caption", label: "Caption (Polaroid)", type: "text", value: OPTIONS.caption }
     ]
   });
   if (options) {

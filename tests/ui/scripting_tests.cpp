@@ -624,7 +624,9 @@ void ui_script_fancy_background_runs_standalone() {
   auto& host = window.script_engine_host();
   const auto path = QDir(patchy::ui::MainWindow::bundled_scripts_directory())
                         .absoluteFilePath(QStringLiteral("Effects/fancy-background.js"));
-  CHECK(host.run_file(path));
+  // Unattended (the forwarded-CLI contract): showOptions answers with its
+  // defaults instead of blocking on the options dialog.
+  CHECK(host.run_file(path, {}, /*unattended=*/true));
   wait_for_run_end(host);
   CHECK(!host.last_run_had_error());
   CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window), "Fancy Background") !=
@@ -721,7 +723,7 @@ void ui_script_manager_set_icon_from_document() {
                              .absoluteFilePath(QStringLiteral("Games/breakout.png"));
   CHECK(QFile::exists(icon_path));
   const QImage written(icon_path);
-  CHECK(written.width() == 64 && written.height() == 64);
+  CHECK(written.width() == 128 && written.height() == 128);
   CHECK(console->toPlainText().contains(QStringLiteral("Saved icon to")));
   // The refreshed tree resolves the user icon for the (unmodified) bundled
   // script.
@@ -758,17 +760,23 @@ void ui_script_metadata_icons_and_write_target() {
     file.write(content);
   };
   write_file(root.absoluteFilePath(QStringLiteral("bundled/Games/zap.js")),
-             "// @name Aardvark Attack\n// @window\nvar x = 1;\n");
+             "// @name Aardvark Attack\n"
+             "// @description Aardvarks attack the\n"
+             "// @description whole canvas.\n"
+             "// @author Seth A. Robinson\n"
+             "// @window\nvar x = 1;\n");
   write_file(root.absoluteFilePath(QStringLiteral("bundled/Games/alpha.js")),
              "var y = 2;\n");
   QImage red(32, 16, QImage::Format_RGBA8888);
   red.fill(Qt::red);
 
-  // Header parsing: @name and @window; directives stop at the first
-  // non-comment line.
+  // Header parsing: @name/@description (repeated lines join)/@author/@window;
+  // directives stop at the first non-comment line.
   const auto meta =
       patchy::ui::read_script_metadata(root.absoluteFilePath(QStringLiteral("bundled/Games/zap.js")));
   CHECK(meta.name == QStringLiteral("Aardvark Attack"));
+  CHECK(meta.description == QStringLiteral("Aardvarks attack the whole canvas."));
+  CHECK(meta.author == QStringLiteral("Seth A. Robinson"));
   CHECK(meta.opens_window);
   write_file(root.absoluteFilePath(QStringLiteral("bundled/Games/late.js")),
              "var z = 3;\n// @name Too Late\n// @window\n");
@@ -800,7 +808,7 @@ void ui_script_metadata_icons_and_write_target() {
   CHECK(target == QDir(user_root).absoluteFilePath(QStringLiteral("Games/alpha.png")));
   CHECK(patchy::ui::write_script_icon(red, target));
   const QImage written(target);
-  CHECK(written.width() == 64 && written.height() == 64);
+  CHECK(written.width() == 128 && written.height() == 128);
   scan = patchy::ui::scan_scripts(bundled_root, user_root);
   const auto& games_after = scan.bundled[0].children;
   CHECK(games_after[1].display_name == QStringLiteral("alpha"));
@@ -809,6 +817,161 @@ void ui_script_metadata_icons_and_write_target() {
   // The unreadable bundled "png" falls back to the generic painted icon; the
   // real user icon is used as-is.
   CHECK(!patchy::ui::script_entry_icon(games_after[1]).isNull());
+}
+
+// showOptions: --script-arg values override the field defaults (coerced by
+// type; a bare flag token turns a checkbox on) and an unattended run answers
+// without any dialog - app.alert logs instead of showing, the forwarded-CLI
+// contract.
+void ui_script_show_options_unattended_merges_args() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("options-test");
+  options.unattended = true;
+  options.args = QStringList{QStringLiteral("scale=7.5"), QStringLiteral("on=false"),
+                             QStringLiteral("mode=jpg"), QStringLiteral("out=C:/tmp/x"),
+                             QStringLiteral("flag")};
+  const auto source = QStringLiteral(R"JS(
+    var r = patchy.ui.showOptions({title: 'T', description: 'unused when unattended',
+      fields: [
+        {key: 'scale', type: 'number', value: 42, min: 0, max: 100},
+        {key: 'on', type: 'checkbox', value: true},
+        {key: 'flag', type: 'checkbox', value: false},
+        {key: 'mode', type: 'choice', value: 'png', choices: ['png', 'jpg']},
+        {key: 'out', type: 'folder', value: ''},
+        {key: 'label', type: 'text', value: 'hi'}]});
+    console.log('opt=' + r.scale + ',' + r.on + ',' + r.flag + ',' + r.mode + ',' +
+                r.out + ',' + r.label);
+    app.alert('quiet');
+  )JS");
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host);
+  CHECK(!host.last_run_had_error());
+  CHECK(backlog_contains(window, QStringLiteral("opt=7.5,false,true,jpg,C:/tmp/x,hi")));
+  CHECK(backlog_contains(window, QStringLiteral("[alert] quiet")));
+}
+
+// The GUI path of showOptions: the dialog carries the description label and a
+// folder row with its Browse button, args still pre-fill the fields, and OK
+// returns the values.
+void ui_script_show_options_dialog_description_and_folder() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& host = window.script_engine_host();
+  bool accepted = false;
+  bool saw_description = false;
+  bool saw_browse = false;
+  // Repeating dismisser (the import-notices pattern): accept the form dialog
+  // once it appears inside the script's nested exec loop.
+  auto* dismisser = new QTimer(&window);
+  QObject::connect(dismisser, &QTimer::timeout, &window,
+                   [&accepted, &saw_description, &saw_browse] {
+                     for (auto* widget : QApplication::topLevelWidgets()) {
+                       auto* dialog = qobject_cast<QDialog*>(widget);
+                       if (dialog != nullptr && dialog->isVisible() &&
+                           dialog->objectName() == QStringLiteral("scriptFormDialog")) {
+                         saw_description =
+                             dialog->findChild<QLabel*>(QStringLiteral("scriptFormDescription")) !=
+                             nullptr;
+                         saw_browse = dialog->findChild<QPushButton*>(QStringLiteral(
+                                          "scriptFormField_outBrowse")) != nullptr;
+                         if (!accepted) {
+                           save_widget_artifact("script_options_dialog", *dialog);
+                         }
+                         accepted = true;
+                         dialog->accept();
+                       }
+                     }
+                   });
+  dismisser->start(50);
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("options-gui");
+  options.args = QStringList{QStringLiteral("out=D:/pictures")};
+  (void)host.run_source(QStringLiteral(R"JS(
+    var r = patchy.ui.showOptions({title: 'T', description: 'Pick things.', fields: [
+      {key: 'out', type: 'folder', value: ''},
+      {key: 'n', type: 'number', value: 3, min: 0, max: 9}]});
+    console.log('gui=' + (r ? r.out + ',' + r.n : 'null'));
+  )JS"),
+                         std::move(options));
+  wait_for_run_end(host);
+  dismisser->stop();
+  dismisser->deleteLater();
+  CHECK(accepted);
+  CHECK(saw_description);
+  CHECK(saw_browse);
+  CHECK(backlog_contains(window, QStringLiteral("gui=D:/pictures,3")));
+}
+
+// A synchronous burst blocking the GUI past the (env-shortened) threshold
+// shows the canvas processing overlay automatically and drops it when the
+// burst ends; script timers defer instead of re-entering the mid-evaluation
+// engine while the pump processes events.
+void ui_script_busy_overlay_and_timer_guard() {
+  qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = window.findChild<patchy::ui::CanvasWidget*>();
+    CHECK(canvas != nullptr);
+    const auto overlays_before = canvas->render_cache_diagnostics().processing_overlays_shown;
+    CHECK(run_script(window, QStringLiteral(R"JS(
+      var doc = app.activeDocument;
+      var layer = doc.addLayer('busy');
+      var ticks = 0;
+      setTimeout(function () { ticks++; console.log('tick=' + ticks); }, 0);
+      var start = Date.now();
+      while (Date.now() - start < 200) {
+        layer.fillRect(0, 0, 2, 2, '#00ff00');
+      }
+      console.log('sync-done ticks=' + ticks);
+    )JS")));
+    // The 0ms timer must NOT have fired inside the synchronous burst (the
+    // pump processes events mid-evaluation; the guard defers it)...
+    CHECK(backlog_contains(window, QStringLiteral("sync-done ticks=0")));
+    // ...but it still fires right afterwards.
+    CHECK(backlog_contains(window, QStringLiteral("tick=1")));
+    CHECK(canvas->render_cache_diagnostics().processing_overlays_shown > overlays_before);
+    CHECK(!canvas->processing_overlay_visible());
+  }
+  qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
+}
+
+// The hover card (driven directly; real hover timing needs a live pointer):
+// shows beside a script row with the metadata details painted in.
+void ui_script_manager_hover_card_shows_details() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("scriptEditorTree"));
+  CHECK(tree != nullptr);
+  QTreeWidgetItem* bundled_root = nullptr;
+  for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+    if (tree->topLevelItem(i)->text(0) == QStringLiteral("Bundled")) {
+      bundled_root = tree->topLevelItem(i);
+    }
+  }
+  CHECK(bundled_root != nullptr);
+  auto* games_folder = find_child_item(bundled_root, QStringLiteral("Games"));
+  CHECK(games_folder != nullptr);
+  auto* breakout_item = find_child_item(games_folder, QStringLiteral("Breakout"));
+  CHECK(breakout_item != nullptr);
+  // Breakout ships @description and @author, so the card has real content.
+  CHECK(!breakout_item->data(0, Qt::UserRole + 6).toString().isEmpty());
+  CHECK(breakout_item->data(0, Qt::UserRole + 7).toString() ==
+        QStringLiteral("Seth A. Robinson"));
+  QMetaObject::invokeMethod(&dialog, "show_script_hover_card", Qt::DirectConnection,
+                            Q_ARG(QTreeWidgetItem*, breakout_item));
+  auto* card = dialog.findChild<QWidget*>(QStringLiteral("scriptHoverCard"));
+  CHECK(card != nullptr);
+  CHECK(card->isVisible());
+  CHECK(card->height() > 120);  // icon + name + author + description + footer
+  save_widget_artifact("script_hover_card", *card);
+  dialog.close();
 }
 
 std::vector<patchy::test::TestCase> scripting_tests() {
@@ -832,6 +995,12 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_editor_tree_shadow_override", ui_script_editor_tree_shadow_override},
       {"ui_script_metadata_icons_and_write_target", ui_script_metadata_icons_and_write_target},
       {"ui_script_manager_set_icon_from_document", ui_script_manager_set_icon_from_document},
+      {"ui_script_show_options_unattended_merges_args",
+       ui_script_show_options_unattended_merges_args},
+      {"ui_script_show_options_dialog_description_and_folder",
+       ui_script_show_options_dialog_description_and_folder},
+      {"ui_script_busy_overlay_and_timer_guard", ui_script_busy_overlay_and_timer_guard},
+      {"ui_script_manager_hover_card_shows_details", ui_script_manager_hover_card_shows_details},
       {"ui_script_include_bundled_root_and_is_main", ui_script_include_bundled_root_and_is_main},
       {"ui_script_fancy_background_runs_standalone", ui_script_fancy_background_runs_standalone},
       {"ui_script_dialog_pickers_listfiles_args_cli_defaults",

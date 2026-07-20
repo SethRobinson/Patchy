@@ -1,5 +1,5 @@
 // @name Make Script Icons
-// Dev tool (not bundled): regenerates the 64x64 icon PNGs that sit next to
+// Dev tool (not bundled): regenerates the 128x128 icon PNGs that sit next to
 // every bundled script (docs/scripting.md "Script icons"). Each icon is
 // deliberate procedural mini-artwork drawn with the scripting API itself and
 // exported with doc.exportAs, so the set is code-generated (the repo rule:
@@ -19,10 +19,13 @@ if (!OUT) {
 } else {
 
 // ---------------------------------------------------------------------------
-// Painting kit: a 64x64 RGBA surface with anti-aliased primitives.
+// Painting kit: the icons are DESIGNED in a 64-unit space (every primitive
+// scales its geometry by SCALE internally) but RENDERED at 128x128, so the
+// Script Manager's hover card can show them big while the tree scales down.
 
-var SIZE = 64;
-var CORNER = 9;  // shared rounded-corner radius so the set reads as one family
+var SIZE = 128;
+var SCALE = SIZE / 64;
+var CORNER = 9 * SCALE;  // shared rounded-corner radius so the set reads as one family
 
 function hex(s) {
   var n = parseInt(s.slice(1), 16);
@@ -47,9 +50,11 @@ Surface.prototype.blend = function (x, y, rgb, a) {
   this.d[i + 3] = Math.round(outA * 255);
 };
 
-// Axis-aligned rect with fractional-edge coverage.
+// Axis-aligned rect with fractional-edge coverage. Like every primitive
+// below, coordinates are in 64-unit design space.
 Surface.prototype.rect = function (x, y, w, h, rgb, a) {
   if (a === undefined) { a = 1; }
+  x *= SCALE; y *= SCALE; w *= SCALE; h *= SCALE;
   var x1 = x + w;
   var y1 = y + h;
   for (var py = Math.floor(y); py < y1; py++) {
@@ -79,6 +84,7 @@ Surface.prototype.fill = function (rgb) { this.vGradient(rgb, rgb); };
 
 Surface.prototype.circle = function (cx, cy, radius, rgb, a) {
   if (a === undefined) { a = 1; }
+  cx *= SCALE; cy *= SCALE; radius *= SCALE;
   var r1 = radius + 1;
   for (var y = Math.floor(cy - r1); y <= cy + r1; y++) {
     for (var x = Math.floor(cx - r1); x <= cx + r1; x++) {
@@ -92,6 +98,7 @@ Surface.prototype.circle = function (cx, cy, radius, rgb, a) {
 // Ring (circle outline); a0/a1 (radians) limit it to an arc when given.
 Surface.prototype.ring = function (cx, cy, radius, thickness, rgb, a, a0, a1) {
   if (a === undefined) { a = 1; }
+  cx *= SCALE; cy *= SCALE; radius *= SCALE; thickness *= SCALE;
   var r1 = radius + thickness;
   for (var y = Math.floor(cy - r1); y <= cy + r1; y++) {
     for (var x = Math.floor(cx - r1); x <= cx + r1; x++) {
@@ -113,6 +120,7 @@ Surface.prototype.ring = function (cx, cy, radius, thickness, rgb, a, a0, a1) {
 // Thick anti-aliased line segment.
 Surface.prototype.line = function (x0, y0, x1, y1, thickness, rgb, a) {
   if (a === undefined) { a = 1; }
+  x0 *= SCALE; y0 *= SCALE; x1 *= SCALE; y1 *= SCALE; thickness *= SCALE;
   var half = thickness / 2;
   var minX = Math.floor(Math.min(x0, x1) - half - 1);
   var maxX = Math.ceil(Math.max(x0, x1) + half + 1);
@@ -138,6 +146,7 @@ Surface.prototype.line = function (x0, y0, x1, y1, thickness, rgb, a) {
 // Rounded rect with AA (signed-distance coverage).
 Surface.prototype.rrect = function (x, y, w, h, radius, rgb, a) {
   if (a === undefined) { a = 1; }
+  x *= SCALE; y *= SCALE; w *= SCALE; h *= SCALE; radius *= SCALE;
   var cx0 = x + radius;
   var cy0 = y + radius;
   var cx1 = x + w - radius;
@@ -158,6 +167,7 @@ Surface.prototype.rrect = function (x, y, w, h, radius, rgb, a) {
 // Filled triangle, 2x2 supersampled.
 Surface.prototype.tri = function (x0, y0, x1, y1, x2, y2, rgb, a) {
   if (a === undefined) { a = 1; }
+  x0 *= SCALE; y0 *= SCALE; x1 *= SCALE; y1 *= SCALE; x2 *= SCALE; y2 *= SCALE;
   function side(px, py, ax, ay, bx, by) { return (bx - ax) * (py - ay) - (by - ay) * (px - ax); }
   var minX = Math.floor(Math.min(x0, x1, x2));
   var maxX = Math.ceil(Math.max(x0, x1, x2));
@@ -267,8 +277,8 @@ ICONS["Games/game-of-life"] = function (s) {
   s.fill(hex("#10141c"));
   var grid = hex("#202839");
   for (var i = 0; i <= 8; i++) {
-    s.rect(i * 8 - 0.5, 0, 1, SIZE, grid, 0.9);
-    s.rect(0, i * 8 - 0.5, SIZE, 1, grid, 0.9);
+    s.rect(i * 8 - 0.5, 0, 1, 64, grid, 0.9);
+    s.rect(0, i * 8 - 0.5, 64, 1, grid, 0.9);
   }
   function cell(cx, cy, rgb, a) { s.rrect(cx * 8 + 1, cy * 8 + 1, 6, 6, 1, rgb, a); }
   // The glider.
