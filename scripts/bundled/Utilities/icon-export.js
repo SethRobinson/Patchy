@@ -1,4 +1,4 @@
-// Icon Export
+// @name Icon Export
 // Exports the active document as a set of square PNG icons in the standard
 // sizes (app icons, favicons, store art). Each size is resampled from a
 // full-resolution master in one step, never chained, so small sizes stay

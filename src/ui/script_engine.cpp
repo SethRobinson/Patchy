@@ -1350,4 +1350,16 @@ void ScriptEngineHost::canvas_window_closed(ScriptCanvasWindow* window) {
   schedule_completion_check();
 }
 
+QImage ScriptEngineHost::active_canvas_window_image() const {
+  if (run_ == nullptr) {
+    return {};
+  }
+  for (auto it = run_->windows.rbegin(); it != run_->windows.rend(); ++it) {
+    if (*it != nullptr && (*it)->is_open()) {
+      return (*it)->surface();
+    }
+  }
+  return {};
+}
+
 }  // namespace patchy::ui

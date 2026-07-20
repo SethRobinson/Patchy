@@ -1,4 +1,4 @@
-// Duotone
+// @name Duotone
 // Remaps the active layer to a two-color gradient: dark areas take the shadow
 // color, bright areas the highlight color (the classic poster / album-cover
 // look). Alpha is preserved; one undo restores the original.

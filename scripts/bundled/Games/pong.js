@@ -1,4 +1,5 @@
-// Pong
+// @name Pong
+// @window
 // A playable Pong game in a script window. Move with the Up/Down arrows (or
 // W/S); first to 5 wins. Close the window to quit.
 

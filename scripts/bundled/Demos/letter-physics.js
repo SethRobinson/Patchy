@@ -1,4 +1,4 @@
-// Letter Physics
+// @name Letter Physics
 // Turns a word into one text layer per letter, then drops the letters onto the
 // bottom of the active document with gravity, bounce, and spin-free tumble.
 // The layers are real text layers and stay editable when the simulation

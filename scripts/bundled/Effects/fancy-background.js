@@ -1,4 +1,4 @@
-// Fancy Background
+// @name Fancy Background
 // Library AND standalone script: defines drawFancyBackground(layer, width,
 // height, options), which fills a layer with a subtle two-tone vertical
 // gradient, a couple of soft color glows, a gentle corner vignette, and sparse

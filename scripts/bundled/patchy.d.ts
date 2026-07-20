@@ -5,6 +5,17 @@
 // Patchy's embedded engine (ES6-level); this file is documentation, it is
 // never executed.
 //
+// Script header directives (read by the Script Manager and File > Scripts
+// menu from the comment block at the top of a .js file; parsing stops at the
+// first non-comment line):
+//   // @name Breakout     display name shown instead of the file name
+//   // @window            the script creates its own window or document
+//                         (shown as a window badge; scripts without it work
+//                         on the active document)
+// A 64x64 PNG next to the script with the same base name (breakout.js ->
+// breakout.png) becomes its icon; right-click a script in the Script Manager
+// for "Set Icon from Current Window".
+//
 // Colors are CSS-style strings: "#rrggbb", "#aarrggbb", or named ("red").
 // Blend mode ids: "pass-through", "normal", "multiply", "screen", "overlay",
 // "darken", "lighten", "color-dodge", "color-burn", "hard-light",

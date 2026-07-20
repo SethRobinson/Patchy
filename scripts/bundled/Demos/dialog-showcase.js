@@ -1,4 +1,4 @@
-// Dialog Showcase
+// @name Dialog Showcase
 // A tour of every form-dialog field type a script can ask for - number,
 // slider, checkbox, choice, text, and color - plus app.prompt and the file
 // pickers. Whatever you answer is rendered as a name badge in the active

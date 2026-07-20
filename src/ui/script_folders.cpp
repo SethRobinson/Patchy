@@ -1,13 +1,21 @@
 // The script browser model (docs/scripting.md): recursive bundled/user folder
-// scans and the shadow-override merge consumed by both the File > Scripts menu
-// (main_window_scripting.cpp) and the Script Manager tree
+// scans with header metadata (@name / @window) and sidecar icon PNGs, the
+// shadow-override merge, and the icon write helpers, consumed by both the
+// File > Scripts menu (main_window_scripting.cpp) and the Script Manager tree
 // (script_editor_dialog.cpp).
 
 #include "ui/script_folders.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QFont>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPen>
+#include <QPixmap>
+#include <QTextStream>
 
 #include <algorithm>
 #include <functional>
@@ -16,6 +24,13 @@
 namespace patchy::ui {
 
 namespace {
+
+// The sidecar icon convention: "Games/breakout.js" -> "Games/breakout.png".
+QString icon_relative_path(const QString& script_relative_path) {
+  const int dot = script_relative_path.lastIndexOf(QLatin1Char('.'));
+  const auto base = dot > 0 ? script_relative_path.left(dot) : script_relative_path;
+  return base + QStringLiteral(".png");
+}
 
 void scan_into(const QDir& dir, const QString& prefix, std::vector<ScriptFolderEntry>& out) {
   const auto folders =
@@ -31,6 +46,7 @@ void scan_into(const QDir& dir, const QString& prefix, std::vector<ScriptFolderE
       out.push_back(std::move(entry));
     }
   }
+  const auto files_begin = out.size();
   const auto files = dir.entryInfoList({QStringLiteral("*.js")}, QDir::Files | QDir::Readable,
                                        QDir::Name | QDir::IgnoreCase);
   for (const auto& file : files) {
@@ -39,12 +55,26 @@ void scan_into(const QDir& dir, const QString& prefix, std::vector<ScriptFolderE
     entry.file_name = file.fileName();
     entry.relative_path = prefix + file.fileName();
     entry.path = file.absoluteFilePath();
+    const auto meta = read_script_metadata(entry.path);
+    entry.display_name = meta.name.isEmpty() ? entry.name : meta.name;
+    entry.opens_window = meta.opens_window;
+    const auto icon = dir.absoluteFilePath(file.completeBaseName() + QStringLiteral(".png"));
+    if (QFileInfo::exists(icon)) {
+      entry.icon_path = icon;
+    }
     out.push_back(std::move(entry));
   }
+  std::sort(out.begin() + static_cast<std::ptrdiff_t>(files_begin), out.end(),
+            [](const ScriptFolderEntry& a, const ScriptFolderEntry& b) {
+              const int by_display = QString::compare(a.display_name, b.display_name,
+                                                      Qt::CaseInsensitive);
+              return by_display != 0 ? by_display < 0
+                                     : QString::compare(a.name, b.name, Qt::CaseInsensitive) < 0;
+            });
 }
 
-// Applies user shadow copies onto the bundled tree and collects the relative
-// paths that were consumed as overrides.
+// Applies user shadow copies (and user icon overrides) onto the bundled tree
+// and collects the relative paths consumed as script overrides.
 void apply_overrides(std::vector<ScriptFolderEntry>& bundled, const QString& user_root,
                      std::set<QString>& overridden) {
   for (auto& entry : bundled) {
@@ -58,6 +88,17 @@ void apply_overrides(std::vector<ScriptFolderEntry>& bundled, const QString& use
       entry.path = QFileInfo(candidate).absoluteFilePath();
       entry.is_override = true;
       overridden.insert(entry.relative_path);
+      // Metadata follows the file that runs.
+      const auto meta = read_script_metadata(entry.path);
+      entry.display_name = meta.name.isEmpty() ? entry.name : meta.name;
+      entry.opens_window = meta.opens_window;
+    }
+    // A user icon shadows the bundled one on its own ("Set Icon..." writes
+    // here so shipped files stay pristine).
+    const QString icon_candidate =
+        user_root + QLatin1Char('/') + icon_relative_path(entry.relative_path);
+    if (QFileInfo::exists(icon_candidate)) {
+      entry.icon_path = QFileInfo(icon_candidate).absoluteFilePath();
     }
   }
 }
@@ -80,6 +121,31 @@ void prune_overrides(std::vector<ScriptFolderEntry>& entries, const std::set<QSt
 }
 
 }  // namespace
+
+ScriptMetadata read_script_metadata(const QString& path) {
+  ScriptMetadata meta;
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    return meta;
+  }
+  QTextStream stream(&file);
+  for (int line_number = 0; line_number < 30 && !stream.atEnd(); ++line_number) {
+    const auto line = stream.readLine(512).trimmed();
+    if (line.isEmpty()) {
+      continue;
+    }
+    if (!line.startsWith(QLatin1String("//"))) {
+      break;  // directives live in the top comment block only
+    }
+    const auto body = QStringView(line).mid(2).trimmed();
+    if (body.startsWith(QLatin1String("@name "))) {
+      meta.name = body.mid(6).trimmed().toString();
+    } else if (body == QLatin1String("@window")) {
+      meta.opens_window = true;
+    }
+  }
+  return meta;
+}
 
 std::vector<ScriptFolderEntry> scan_script_folder(const QString& root) {
   std::vector<ScriptFolderEntry> out;
@@ -136,6 +202,109 @@ QString script_folder_display_name(const QString& folder_name) {
     return QCoreApplication::translate("ScriptFolders", "Utilities");
   }
   return folder_name;
+}
+
+QString script_icon_write_target(const QString& user_root, const QString& relative_path) {
+  if (user_root.isEmpty() || relative_path.isEmpty()) {
+    return {};
+  }
+  return QDir(user_root).absoluteFilePath(icon_relative_path(relative_path));
+}
+
+bool write_script_icon(const QImage& image, const QString& target) {
+  if (image.isNull() || target.isEmpty()) {
+    return false;
+  }
+  const int side = std::min(image.width(), image.height());
+  const QImage square = image.copy((image.width() - side) / 2, (image.height() - side) / 2,
+                                   side, side);
+  const QImage scaled =
+      square.scaled(64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+  if (!QDir().mkpath(QFileInfo(target).absolutePath())) {
+    return false;
+  }
+  return scaled.save(target, "PNG");
+}
+
+QIcon script_entry_icon(const ScriptFolderEntry& entry) {
+  if (!entry.icon_path.isEmpty()) {
+    const QPixmap pixmap(entry.icon_path);
+    if (!pixmap.isNull()) {
+      return QIcon(pixmap);
+    }
+  }
+  return script_generic_icon();
+}
+
+QIcon script_generic_icon() {
+  // A code page with a folded corner and a JS tag, painted in code like the
+  // rest of the app's icons (action_icons.cpp style).
+  static const QIcon icon = [] {
+    QPixmap pixmap(64, 64);
+    pixmap.fill(Qt::transparent);
+    {
+      QPainter painter(&pixmap);
+      painter.setRenderHint(QPainter::Antialiasing);
+      constexpr double left = 14.0;
+      constexpr double top = 5.0;
+      constexpr double right = 50.0;
+      constexpr double bottom = 57.0;
+      constexpr double fold = 12.0;
+      QPainterPath page;
+      page.moveTo(left, top);
+      page.lineTo(right - fold, top);
+      page.lineTo(right, top + fold);
+      page.lineTo(right, bottom);
+      page.lineTo(left, bottom);
+      page.closeSubpath();
+      painter.setPen(QPen(QColor(0x1c, 0x1f, 0x24), 2.0));
+      painter.setBrush(QColor(0xdd, 0xe2, 0xe8));
+      painter.drawPath(page);
+      QPainterPath corner;
+      corner.moveTo(right - fold, top);
+      corner.lineTo(right - fold, top + fold);
+      corner.lineTo(right, top + fold);
+      corner.closeSubpath();
+      painter.setBrush(QColor(0xa8, 0xb0, 0xba));
+      painter.drawPath(corner);
+      painter.setPen(QPen(QColor(0x6b, 0x74, 0x80), 3.0, Qt::SolidLine, Qt::RoundCap));
+      painter.drawLine(QPointF(20, 24), QPointF(40, 24));
+      painter.drawLine(QPointF(20, 31), QPointF(34, 31));
+      painter.drawLine(QPointF(24, 38), QPointF(42, 38));
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(QColor(0xe8, 0xc8, 0x3c));
+      painter.drawRoundedRect(QRectF(28, 42, 26, 16), 3, 3);
+      painter.setPen(QColor(0x26, 0x22, 0x10));
+      QFont font = painter.font();
+      font.setPixelSize(12);
+      font.setBold(true);
+      painter.setFont(font);
+      painter.drawText(QRectF(28, 42, 26, 16), Qt::AlignCenter, QStringLiteral("JS"));
+    }
+    return QIcon(pixmap);
+  }();
+  return icon;
+}
+
+QIcon script_folder_icon() {
+  static const QIcon icon = [] {
+    QPixmap pixmap(64, 64);
+    pixmap.fill(Qt::transparent);
+    {
+      QPainter painter(&pixmap);
+      painter.setRenderHint(QPainter::Antialiasing);
+      painter.setPen(QPen(QColor(0x2a, 0x2f, 0x36), 2.0));
+      QPainterPath back;
+      back.addRoundedRect(QRectF(6, 14, 52, 40), 4, 4);
+      back.addRoundedRect(QRectF(8, 8, 22, 12), 3, 3);
+      painter.setBrush(QColor(0x8f, 0xa3, 0xbd));
+      painter.drawPath(back.simplified());
+      painter.setBrush(QColor(0xa9, 0xbc, 0xd4));
+      painter.drawRoundedRect(QRectF(6, 22, 52, 32), 4, 4);
+    }
+    return QIcon(pixmap);
+  }();
+  return icon;
 }
 
 }  // namespace patchy::ui

@@ -1,14 +1,18 @@
 // The Script Manager dialog (docs/scripting.md): a folder tree over the
-// bundled and user script roots, a JS editor pane, a console wired to the
-// engine host, and a live run status (spinner + "Running... 13s", "Ready" when
-// idle). Runs are one-at-a-time (the host enforces it); the stop-sign button
-// interrupts stuck scripts and tears down timer/window-driven ones. Saving a
-// bundled script writes the user-folder shadow copy (script_folders.hpp) so
-// the shipped file stays pristine; Revert to Bundled deletes the copy.
+// bundled and user script roots (two-line rows: sidecar icon, @name display
+// name, filename with the amber "modified" tag, a window badge for @window
+// scripts), a JS editor pane, a console wired to the engine host, and a live
+// run status (spinner + "Running... 13s", "Ready" when idle). Runs are
+// one-at-a-time (the host enforces it); the stop-sign button interrupts stuck
+// scripts and tears down timer/window-driven ones. Saving a bundled script
+// writes the user-folder shadow copy (script_folders.hpp) so the shipped file
+// stays pristine (Revert to Bundled deletes the copy), and Set Icon from
+// Current Window captures a script's icon PNG the same shadow way.
 
 #include "ui/script_editor_dialog.hpp"
 
 #include "ui/dialog_utils.hpp"
+#include "ui/image_document_io.hpp"
 #include "ui/js_syntax_highlighter.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
@@ -21,6 +25,7 @@
 #include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QImage>
 #include <QLabel>
 #include <QMenu>
 #include <QPainter>
@@ -29,6 +34,7 @@
 #include <QPushButton>
 #include <QShortcut>
 #include <QSplitter>
+#include <QStyledItemDelegate>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTimer>
@@ -38,6 +44,7 @@
 
 #include <cmath>
 #include <functional>
+#include <utility>
 #include <vector>
 
 namespace patchy::ui {
@@ -47,6 +54,121 @@ namespace {
 constexpr int kScriptPathRole = Qt::UserRole;
 constexpr int kScriptBundledPathRole = Qt::UserRole + 1;  // overrides: the shipped original
 constexpr int kScriptFolderPathRole = Qt::UserRole + 2;   // folder rows (incl. the two roots)
+constexpr int kScriptFileNameRole = Qt::UserRole + 3;      // "breakout.js"
+constexpr int kScriptRelativePathRole = Qt::UserRole + 4;  // below its root ("Games/breakout.js")
+constexpr int kScriptWindowRole = Qt::UserRole + 5;        // @window: creates its own window
+
+// Two-line script rows (32px icon, display name over the filename with an
+// amber "modified" tag, a window badge for @window scripts) and single-line
+// folder rows (folder glyph, bold roots). Painted by hand so selection/hover
+// match the dark theme; colors follow FontListDelegate (font_picker.cpp).
+class ScriptTreeDelegate : public QStyledItemDelegate {
+public:
+  ScriptTreeDelegate(QString modified_tag, QObject* parent)
+      : QStyledItemDelegate(parent), modified_tag_(std::move(modified_tag)) {}
+
+  void paint(QPainter* painter, const QStyleOptionViewItem& option,
+             const QModelIndex& index) const override {
+    painter->save();
+    const QRect rect = option.rect;
+    const bool selected = (option.state & QStyle::State_Selected) != 0;
+    if (selected) {
+      painter->fillRect(rect, QColor(0x3a, 0x41, 0x4a));
+      painter->setPen(QColor(0x67, 0x71, 0x7d));
+      painter->drawRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5));
+    } else if ((option.state & QStyle::State_MouseOver) != 0) {
+      painter->fillRect(rect, QColor(0x33, 0x37, 0x3d));
+    }
+    const auto icon = index.data(Qt::DecorationRole).value<QIcon>();
+    const auto text_color = selected ? QColor(0xf4, 0xf6, 0xf8) : QColor(0xe6, 0xe6, 0xe6);
+    if (index.data(kScriptPathRole).toString().isEmpty()) {
+      // Folder row (including the Bundled / My Scripts roots, drawn bold).
+      constexpr int kGlyph = 18;
+      const QRect icon_rect(rect.left() + 4, rect.top() + (rect.height() - kGlyph) / 2, kGlyph,
+                            kGlyph);
+      icon.paint(painter, icon_rect);
+      QFont font = option.font;
+      font.setBold(!index.parent().isValid());
+      painter->setFont(font);
+      painter->setPen(text_color);
+      const QRect text_rect(icon_rect.right() + 8, rect.top(),
+                            rect.right() - icon_rect.right() - 12, rect.height());
+      painter->drawText(text_rect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                        QFontMetrics(font).elidedText(index.data(Qt::DisplayRole).toString(),
+                                                      Qt::ElideRight, text_rect.width()));
+      painter->restore();
+      return;
+    }
+    constexpr int kIconSize = 32;
+    const QRect icon_rect(rect.left() + 4, rect.top() + (rect.height() - kIconSize) / 2,
+                          kIconSize, kIconSize);
+    icon.paint(painter, icon_rect);
+    int right_edge = rect.right() - 6;
+    if (index.data(kScriptWindowRole).toBool()) {
+      constexpr int kBadge = 14;
+      const QRect badge_rect(rect.right() - kBadge - 6, rect.top() + (rect.height() - kBadge) / 2,
+                             kBadge, kBadge);
+      draw_window_badge(*painter, badge_rect);
+      right_edge = badge_rect.left() - 6;
+    }
+    const int text_left = icon_rect.right() + 9;
+    const int text_width = right_edge - text_left;
+    const int mid = rect.top() + rect.height() / 2;
+    painter->setFont(option.font);
+    painter->setPen(text_color);
+    painter->drawText(QRect(text_left, rect.top() + 2, text_width, mid - rect.top() - 2),
+                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                      option.fontMetrics.elidedText(index.data(Qt::DisplayRole).toString(),
+                                                    Qt::ElideRight, text_width));
+    QFont small = option.font;
+    small.setPointSizeF(small.pointSizeF() * 0.85);
+    painter->setFont(small);
+    const QFontMetrics small_metrics(small);
+    const QRect file_rect(text_left, mid, text_width, rect.bottom() - mid - 2);
+    const auto file_text = small_metrics.elidedText(
+        index.data(kScriptFileNameRole).toString(), Qt::ElideRight, text_width);
+    painter->setPen(QColor(0x8a, 0x93, 0x9f));
+    painter->drawText(file_rect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, file_text);
+    if (!index.data(kScriptBundledPathRole).toString().isEmpty()) {
+      const int used = small_metrics.horizontalAdvance(file_text) + 8;
+      if (used < text_width) {
+        painter->setPen(QColor(0xe0, 0xa0, 0x30));
+        painter->drawText(QRect(text_left + used, file_rect.top(), text_width - used,
+                                file_rect.height()),
+                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                          small_metrics.elidedText(modified_tag_, Qt::ElideRight,
+                                                   text_width - used));
+      }
+    }
+    painter->restore();
+  }
+
+  QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    if (index.data(kScriptPathRole).toString().isEmpty()) {
+      return QSize(180, qMax(24, option.fontMetrics.height() + 8));
+    }
+    QFont small = option.font;
+    small.setPointSizeF(small.pointSizeF() * 0.85);
+    const int text_height = option.fontMetrics.height() + QFontMetrics(small).height();
+    return QSize(220, qMax(40, text_height + 8));
+  }
+
+private:
+  // Small window glyph (frame + title bar) in the run-spinner blue.
+  static void draw_window_badge(QPainter& painter, const QRect& rect) {
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing);
+    const QRectF frame = QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5);
+    painter.setPen(QPen(QColor(0x6f, 0xb1, 0xe8), 1.4));
+    painter.setBrush(QColor(0x6f, 0xb1, 0xe8, 0x30));
+    painter.drawRoundedRect(frame, 2, 2);
+    const double bar_y = frame.top() + frame.height() * 0.32;
+    painter.drawLine(QPointF(frame.left(), bar_y), QPointF(frame.right(), bar_y));
+    painter.restore();
+  }
+
+  QString modified_tag_;
+};
 
 // The gutter widget; forwards painting back to the editor (Qt code-editor
 // example structure, non-Q_OBJECT).
@@ -253,6 +375,9 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   script_tree_->setHeaderHidden(true);
   script_tree_->setColumnCount(1);
   script_tree_->setContextMenuPolicy(Qt::CustomContextMenu);
+  script_tree_->setItemDelegate(new ScriptTreeDelegate(tr("modified"), script_tree_));
+  script_tree_->setMouseTracking(true);  // the delegate's hover highlight
+  script_tree_->setIndentation(16);
   auto* right = new QSplitter(Qt::Vertical, horizontal);
   editor_ = new ScriptCodeEditor(right);
   editor_->setObjectName(QStringLiteral("scriptEditorCode"));
@@ -270,6 +395,9 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   horizontal->addWidget(right);
   horizontal->setStretchFactor(0, 1);
   horizontal->setStretchFactor(1, 4);
+  // Two-line rows want more than the stretch-factor default (~180px) so
+  // display names survive without eliding.
+  horizontal->setSizes({240, 660});
   root->addWidget(horizontal, 1);
 
   connect(run_button_, &QPushButton::clicked, this, [this] { run_current(); });
@@ -314,17 +442,30 @@ void ScriptEditorDialog::refresh_script_tree(const QString& select_path) {
           auto* item = new QTreeWidgetItem(parent);
           if (entry.is_folder) {
             item->setText(0, script_folder_display_name(entry.name));
+            item->setIcon(0, script_folder_icon());
             item->setFlags(Qt::ItemIsEnabled);
             item->setData(0, kScriptFolderPathRole,
                           QDir(root_dir).absoluteFilePath(entry.relative_path));
             add_entries(item, entry.children, root_dir);
             continue;
           }
-          item->setText(0, entry.is_override ? tr("%1 (modified)").arg(entry.name) : entry.name);
+          item->setText(0, entry.display_name);
+          item->setIcon(0, script_entry_icon(entry));
           item->setData(0, kScriptPathRole, entry.path);
+          item->setData(0, kScriptFileNameRole, entry.file_name);
+          item->setData(0, kScriptRelativePathRole, entry.relative_path);
+          item->setData(0, kScriptWindowRole, entry.opens_window);
           if (entry.is_override) {
             item->setData(0, kScriptBundledPathRole, entry.bundled_path);
           }
+          auto tip = QDir::toNativeSeparators(entry.path);
+          if (entry.opens_window) {
+            tip += QLatin1Char('\n') + tr("Creates its own window or document.");
+          }
+          if (entry.is_override) {
+            tip += QLatin1Char('\n') + tr("Your edited copy overrides the bundled script.");
+          }
+          item->setToolTip(0, tip);
           if (!select_path.isEmpty() && entry.path == select_path) {
             to_select = item;
           }
@@ -336,12 +477,14 @@ void ScriptEditorDialog::refresh_script_tree(const QString& select_path) {
   if (!scan.bundled.empty()) {
     auto* bundled_root = new QTreeWidgetItem(script_tree_);
     bundled_root->setText(0, tr("Bundled"));
+    bundled_root->setIcon(0, script_folder_icon());
     bundled_root->setFlags(Qt::ItemIsEnabled);
     bundled_root->setData(0, kScriptFolderPathRole, bundled_dir);
     add_entries(bundled_root, scan.bundled, bundled_dir);
   }
   auto* user_root = new QTreeWidgetItem(script_tree_);
   user_root->setText(0, tr("My Scripts"));
+  user_root->setIcon(0, script_folder_icon());
   user_root->setFlags(Qt::ItemIsEnabled);
   user_root->setData(0, kScriptFolderPathRole, user_dir);
   add_entries(user_root, scan.user, user_dir);
@@ -406,6 +549,9 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
   menu.setObjectName(QStringLiteral("scriptEditorTreeMenu"));
   auto* run_action = menu.addAction(tr("Run"));
   auto* reveal_action = menu.addAction(tr("Show in Folder"));
+  auto* set_icon_action = menu.addAction(tr("Set Icon from Current Window"));
+  set_icon_action->setToolTip(
+      tr("Captures the running script's window (or the active image) as this script's icon."));
   QAction* revert_action = nullptr;
   if (!bundled_path.isEmpty()) {
     menu.addSeparator();
@@ -424,9 +570,40 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
     (void)host_.run_file(path);
   } else if (chosen == reveal_action) {
     QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
+  } else if (chosen == set_icon_action) {
+    set_script_icon_from_window(item);
   } else if (chosen == revert_action) {
     revert_override_to_bundled(path, bundled_path);
   }
+}
+
+void ScriptEditorDialog::set_script_icon_from_window(QTreeWidgetItem* item) {
+  const auto relative = item->data(0, kScriptRelativePathRole).toString();
+  if (relative.isEmpty()) {
+    return;
+  }
+  // Prefer a live script canvas window (a running game's frame beats the
+  // document behind it); otherwise the active document's composite.
+  QImage source = host_.active_canvas_window_image();
+  if (source.isNull()) {
+    if (const auto* doc = host_.session_document_const(host_.active_session_id())) {
+      source = qimage_from_document(*doc, true);
+    }
+  }
+  if (source.isNull()) {
+    append_console(2, tr("Open a document or a script window first, then set the icon from it."));
+    return;
+  }
+  // Always lands under the user scripts root: a bundled script's shipped
+  // files stay pristine (the icon shadows them, like a Save does), and a user
+  // script's relative path puts the PNG right beside its .js.
+  const auto target = script_icon_write_target(MainWindow::user_scripts_directory(), relative);
+  if (!write_script_icon(source, target)) {
+    append_console(2, tr("Could not write %1").arg(QDir::toNativeSeparators(target)));
+    return;
+  }
+  append_console(0, tr("Saved icon to %1").arg(QDir::toNativeSeparators(target)));
+  refresh_script_tree(item->data(0, kScriptPathRole).toString());
 }
 
 void ScriptEditorDialog::revert_override_to_bundled(const QString& user_copy_path,

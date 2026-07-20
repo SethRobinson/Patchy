@@ -1,4 +1,4 @@
-// Export All Layers
+// @name Export All Layers
 // Saves every top-level layer of the active document as its own image file,
 // next to the document (or in a folder you pick when the document is unsaved).
 // A small options form chooses the format, an optional filename prefix, and

@@ -1,4 +1,4 @@
-// Watermark
+// @name Watermark
 // Stamps a semi-transparent text watermark in the bottom-right corner of the
 // active document.
 

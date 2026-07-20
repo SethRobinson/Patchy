@@ -13944,8 +13944,14 @@ Clipped to the layer below</source>
     <message><source>untitled.js</source><translation>untitled.js</translation></message>
     <message><source>Bundled</source><translation>同梱スクリプト</translation></message>
     <message><source>My Scripts</source><translation>マイスクリプト</translation></message>
-    <message><source>%1 (modified)</source><translation>%1 (変更済み)</translation></message>
+    <message><source>modified</source><translation>変更済み</translation></message>
+    <message><source>Creates its own window or document.</source><translation>独自のウィンドウまたはドキュメントを作成します。</translation></message>
+    <message><source>Your edited copy overrides the bundled script.</source><translation>編集したコピーが同梱スクリプトの代わりに使われます。</translation></message>
     <message><source>Show in Folder</source><translation>フォルダーで表示</translation></message>
+    <message><source>Set Icon from Current Window</source><translation>現在のウィンドウからアイコンを設定</translation></message>
+    <message><source>Captures the running script's window (or the active image) as this script's icon.</source><translation>実行中のスクリプトのウィンドウ (またはアクティブな画像) をこのスクリプトのアイコンとして取り込みます。</translation></message>
+    <message><source>Open a document or a script window first, then set the icon from it.</source><translation>先にドキュメントかスクリプトウィンドウを開いてから、アイコンを設定してください。</translation></message>
+    <message><source>Saved icon to %1</source><translation>アイコンを %1 に保存しました</translation></message>
     <message><source>Revert to Bundled</source><translation>同梱版に戻す</translation></message>
     <message><source>Delete your modified copy of %1 and restore the bundled script?</source><translation>%1 の変更済みコピーを削除して同梱スクリプトを復元しますか?</translation></message>
     <message><source>Could not delete %1</source><translation>%1 を削除できませんでした</translation></message>

@@ -1,4 +1,4 @@
-// Save Version
+// @name Save Version
 // Saves a numbered snapshot of the active document next to its file:
 // mydoc.psd becomes mydoc_v001.psd, then mydoc_v002.psd, and so on (the next
 // free number is found automatically). The document keeps its own path, so

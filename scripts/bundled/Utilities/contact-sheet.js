@@ -1,4 +1,5 @@
-// Contact Sheet
+// @name Contact Sheet
+// @window
 // Builds a contact sheet document from a folder of images: thumbnails in a
 // grid, each on its own layer (so you can still rearrange them), with optional
 // filename captions. Unattended runs pass --script-arg folder=...

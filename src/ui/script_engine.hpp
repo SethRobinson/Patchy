@@ -5,6 +5,7 @@
 
 #include <QColor>
 #include <QFont>
+#include <QImage>
 #include <QJSValue>
 #include <QObject>
 #include <QPoint>
@@ -195,6 +196,9 @@ public:
   // window is open, and stopping the run closes them.
   void adopt_canvas_window(ScriptCanvasWindow* window);
   void canvas_window_closed(ScriptCanvasWindow* window);
+  // The surface of the most recently opened still-open script canvas window
+  // (the Script Manager's Set Icon capture source); null when none is open.
+  [[nodiscard]] QImage active_canvas_window_image() const;
 
   // JS bridge (bound behind the bootstrap prelude; not for direct script use).
   Q_INVOKABLE int scriptSetTimer(const QJSValue& callback, int interval_ms, bool repeat);

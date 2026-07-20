@@ -1,4 +1,4 @@
-// Trim to Content
+// @name Trim to Content
 // Crops the active document to the smallest rectangle that still contains
 // every visible pixel (alpha above 0) of every layer.
 

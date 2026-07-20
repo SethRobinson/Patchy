@@ -1,4 +1,4 @@
-// Batch Export
+// @name Batch Export
 // Converts a whole folder of images: opens every file matching the pattern,
 // optionally scales each one down to fit a maximum size, and exports it into
 // the output folder in the chosen format. Interactive runs pick the folders

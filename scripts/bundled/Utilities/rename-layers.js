@@ -1,4 +1,4 @@
-// Rename Layers
+// @name Rename Layers
 // Batch-renames the layers of the active document: add a prefix or suffix,
 // find & replace text in names, or renumber everything into a clean sequence
 // ("Frame 01", "Frame 02", ...). Works on all layers or just the top level.

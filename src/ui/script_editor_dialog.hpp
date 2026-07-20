@@ -40,13 +40,15 @@ private:
 };
 
 // The Script Manager (File > Scripts > Script Manager...): a folder tree over
-// the bundled and user script roots (script_folders.hpp; "Bundled" expands the
-// shipped folders, user shadow copies replace bundled entries in place tagged
-// "(modified)"), a code editor with JS highlighting, a console pane wired to
-// the engine host's output, Run/Stop, and a live run status ("Ready" /
-// "Running... 13s" with a spinner). Saving a bundled script writes the
-// user-folder shadow copy instead of touching the shipped file; Revert to
-// Bundled (context menu) deletes the copy. Non-modal; opened through
+// the bundled and user script roots (script_folders.hpp; two-line rows with
+// per-script icons, @name display names, and @window badges; user shadow
+// copies replace bundled entries in place with an amber "modified" tag), a
+// code editor with JS highlighting, a console pane wired to the engine host's
+// output, Run/Stop, and a live run status ("Ready" / "Running... 13s" with a
+// spinner). Saving a bundled script writes the user-folder shadow copy
+// instead of touching the shipped file; Revert to Bundled (context menu)
+// deletes the copy, and Set Icon from Current Window writes the script's icon
+// PNG through the same shadow rule. Non-modal; opened through
 // run_non_modal_dialog by MainWindow::open_script_editor. Object names and the
 // hotkey command id keep the historical scriptEditor/file.scripts.editor
 // spelling (persisted identifiers; only the display text says Manager).
@@ -55,6 +57,11 @@ class ScriptEditorDialog : public QDialog {
 
 public:
   ScriptEditorDialog(MainWindow& window, ScriptEngineHost& host);
+
+private slots:
+  // A slot so tests can drive it (the context menu that triggers it cannot be
+  // exercised offscreen).
+  void set_script_icon_from_window(QTreeWidgetItem* item);
 
 private:
   void refresh_script_tree(const QString& select_path = QString());

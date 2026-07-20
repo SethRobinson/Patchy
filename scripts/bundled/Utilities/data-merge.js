@@ -1,4 +1,4 @@
-// Data Merge
+// @name Data Merge
 // Mail-merge for images: fills the active document's text layers from a CSV
 // file and exports one image per data row (name badges, cards, certificates).
 // The CSV's header row names the text layers to fill; each following row

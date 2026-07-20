@@ -220,7 +220,9 @@ void MainWindow::rebuild_scripts_menu() {
     }
   }
   // Folders become submenus; a user shadow copy replaces the bundled entry in
-  // place, tagged "(modified)" (script_folders.hpp).
+  // place, tagged "(modified)" (script_folders.hpp). Entries show their @name
+  // display name and sidecar icon (script_entry_icon falls back to the
+  // generic JS-page icon).
   const std::function<void(QMenu*, const std::vector<ScriptFolderEntry>&, bool)> add_entries =
       [this, &add_entries](QMenu* menu, const std::vector<ScriptFolderEntry>& entries, bool mark) {
         for (const auto& entry : entries) {
@@ -232,9 +234,9 @@ void MainWindow::rebuild_scripts_menu() {
             add_entries(submenu, entry.children, false);
             continue;
           }
-          const auto text =
-              entry.is_override ? tr("%1 (modified)").arg(entry.name) : entry.name;
-          auto* action = menu->addAction(text);
+          const auto text = entry.is_override ? tr("%1 (modified)").arg(entry.display_name)
+                                              : entry.display_name;
+          auto* action = menu->addAction(script_entry_icon(entry), text);
           if (mark) {
             action->setProperty(kDynamicScriptActionProperty, true);
           }

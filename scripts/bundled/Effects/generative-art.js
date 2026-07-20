@@ -1,4 +1,4 @@
-// Generative Art
+// @name Generative Art
 // Paints a flow-field artwork into a new layer of the active document:
 // thousands of particles wander through a smooth sine-based vector field,
 // leaving glowing additive trails. Every run is different. A nice starting

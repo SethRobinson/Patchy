@@ -1,4 +1,4 @@
-// Glitch
+// @name Glitch
 // Corrupted-signal look for the active layer: horizontal slices tear sideways,
 // the color channels drift apart, and optional scanlines darken every third
 // row. Every run is different (random slices); one undo restores the original.

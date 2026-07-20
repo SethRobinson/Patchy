@@ -1,4 +1,4 @@
-// Photo Frame
+// @name Photo Frame
 // Puts a frame around the whole image: grows the canvas and adds a frame
 // layer in your choice of style - a solid border, a double matte with an
 // accent line, or a polaroid with a wide bottom and an optional caption.

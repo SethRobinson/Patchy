@@ -1,4 +1,5 @@
-// Breakout
+// @name Breakout
+// @window
 // Plays on a REAL Patchy document, drawn incrementally: the bricks render once
 // into their own layer and a destroyed brick is just cleared with a transparent
 // fillRect, while the ball and paddle live on their own tiny layers that move

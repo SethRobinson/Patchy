@@ -1,4 +1,4 @@
-// Grid Maker
+// @name Grid Maker
 // Draws a grid overlay on its own layer: pick the cell size, line width,
 // color, and optional subdivisions (lighter lines splitting each cell).
 // Handy for layout guides, pixel-art tile boundaries, and comic panels;

@@ -12,6 +12,7 @@
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/script_folders.hpp"
 
 #include "test_harness.hpp"
 #include "ui/ui_test_access.hpp"
@@ -23,6 +24,7 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QImage>
 #include <QLabel>
 #include <QMenu>
 #include <QPlainTextEdit>
@@ -460,12 +462,14 @@ void ui_scripts_menu_lists_bundled_scripts() {
   }
   CHECK(editor_entry);
   // The bundled scripts are staged next to the test binary by CMake; folders
-  // (Games/Demos/Effects/Utilities) become submenus.
+  // (Games/Demos/Effects/Utilities) become submenus. Entries show their @name
+  // display name and carry an icon (the sidecar PNG or the generic fallback).
   CHECK(games_menu != nullptr);
   bool pong_entry = false;
   for (const auto* action : games_menu->actions()) {
-    if (action->text() == QStringLiteral("pong")) {
+    if (action->text() == QStringLiteral("Pong")) {
       pong_entry = true;
+      CHECK(!action->icon().isNull());
     }
   }
   menu->close();
@@ -515,8 +519,15 @@ void ui_script_editor_tree_shadow_override() {
   CHECK(bundled_root->isExpanded());
   auto* games_folder = find_child_item(bundled_root, QStringLiteral("Games"));
   CHECK(games_folder != nullptr);
-  auto* breakout_item = find_child_item(games_folder, QStringLiteral("breakout"));
+  // Scripts show their "@name" display name, sidecar icon, and @window flag.
+  auto* breakout_item = find_child_item(games_folder, QStringLiteral("Breakout"));
   CHECK(breakout_item != nullptr);
+  CHECK(!breakout_item->icon(0).isNull());
+  constexpr int kFileNameRole = Qt::UserRole + 3;
+  constexpr int kWindowRole = Qt::UserRole + 5;
+  CHECK(breakout_item->data(0, kFileNameRole).toString() == QStringLiteral("breakout.js"));
+  CHECK(breakout_item->data(0, kWindowRole).toBool());
+  save_widget_artifact("script_manager_tree", *tree);
 
   // Folder rows (roots included) carry their on-disk path for the context
   // menu's Show in Folder.
@@ -534,8 +545,9 @@ void ui_script_editor_tree_shadow_override() {
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
   CHECK(code->toPlainText().contains(QStringLiteral("Breakout")));
 
-  // Save writes the user-folder shadow copy, and the tree shows it in place of
-  // the bundled entry, tagged "(modified)".
+  // Save writes the user-folder shadow copy, and the tree keeps the entry in
+  // place, now carrying the bundled-original path (what the delegate renders
+  // as the amber "modified" tag).
   save_button->click();
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
   const auto override_path = QDir(patchy::ui::MainWindow::user_scripts_directory())
@@ -550,7 +562,12 @@ void ui_script_editor_tree_shadow_override() {
   CHECK(bundled_root != nullptr);
   games_folder = find_child_item(bundled_root, QStringLiteral("Games"));
   CHECK(games_folder != nullptr);
-  CHECK(find_child_item(games_folder, QStringLiteral("breakout (modified)")) != nullptr);
+  constexpr int kPathRole = Qt::UserRole;
+  constexpr int kBundledPathRole = Qt::UserRole + 1;
+  auto* override_item = find_child_item(games_folder, QStringLiteral("Breakout"));
+  CHECK(override_item != nullptr);
+  CHECK(override_item->data(0, kPathRole).toString() == override_path);
+  CHECK(!override_item->data(0, kBundledPathRole).toString().isEmpty());
   // The override does NOT show under My Scripts (it replaces the bundled row).
   QTreeWidgetItem* user_root = nullptr;
   for (int i = 0; i < tree->topLevelItemCount(); ++i) {
@@ -574,7 +591,9 @@ void ui_script_editor_tree_shadow_override() {
   CHECK(bundled_root != nullptr);
   games_folder = find_child_item(bundled_root, QStringLiteral("Games"));
   CHECK(games_folder != nullptr);
-  CHECK(find_child_item(games_folder, QStringLiteral("breakout")) != nullptr);
+  auto* restored_item = find_child_item(games_folder, QStringLiteral("Breakout"));
+  CHECK(restored_item != nullptr);
+  CHECK(restored_item->data(0, kBundledPathRole).toString().isEmpty());
   dialog.close();
   QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
 }
@@ -670,6 +689,128 @@ void ui_script_run_command_triggers_actions() {
 
 }  // namespace
 
+// Set Icon from Current Window, end to end minus the literal right-click: the
+// handler captures the active document's composite and writes the 64x64
+// user-folder icon PNG that then overrides the bundled one.
+void ui_script_manager_set_icon_from_document() {
+  const StandardPathsTestMode test_paths;
+  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+  patchy::ui::MainWindow window;
+  show_window(window);  // opens the historical startup document
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("scriptEditorTree"));
+  auto* console = dialog.findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorConsole"));
+  CHECK(tree != nullptr && console != nullptr);
+  QTreeWidgetItem* bundled_root = nullptr;
+  for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+    if (tree->topLevelItem(i)->text(0) == QStringLiteral("Bundled")) {
+      bundled_root = tree->topLevelItem(i);
+    }
+  }
+  CHECK(bundled_root != nullptr);
+  auto* games_folder = find_child_item(bundled_root, QStringLiteral("Games"));
+  CHECK(games_folder != nullptr);
+  auto* breakout_item = find_child_item(games_folder, QStringLiteral("Breakout"));
+  CHECK(breakout_item != nullptr);
+  QMetaObject::invokeMethod(&dialog, "set_script_icon_from_window", Qt::DirectConnection,
+                            Q_ARG(QTreeWidgetItem*, breakout_item));
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  const auto icon_path = QDir(patchy::ui::MainWindow::user_scripts_directory())
+                             .absoluteFilePath(QStringLiteral("Games/breakout.png"));
+  CHECK(QFile::exists(icon_path));
+  const QImage written(icon_path);
+  CHECK(written.width() == 64 && written.height() == 64);
+  CHECK(console->toPlainText().contains(QStringLiteral("Saved icon to")));
+  // The refreshed tree resolves the user icon for the (unmodified) bundled
+  // script.
+  bundled_root = nullptr;
+  for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+    if (tree->topLevelItem(i)->text(0) == QStringLiteral("Bundled")) {
+      bundled_root = tree->topLevelItem(i);
+    }
+  }
+  CHECK(bundled_root != nullptr);
+  games_folder = find_child_item(bundled_root, QStringLiteral("Games"));
+  CHECK(games_folder != nullptr);
+  breakout_item = find_child_item(games_folder, QStringLiteral("Breakout"));
+  CHECK(breakout_item != nullptr);
+  CHECK(breakout_item->data(0, Qt::UserRole + 1).toString().isEmpty());  // still not "modified"
+  dialog.close();
+  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+}
+
+// The script browser model: @name/@window header parsing, sidecar icon
+// resolution with the user-over-bundled override, display-name sorting, and
+// the Set Icon write helpers (script_folders.hpp).
+void ui_script_metadata_icons_and_write_target() {
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const QDir root(temp.path());
+  CHECK(root.mkpath(QStringLiteral("bundled/Games")));
+  CHECK(root.mkpath(QStringLiteral("user/Games")));
+  const auto bundled_root = root.absoluteFilePath(QStringLiteral("bundled"));
+  const auto user_root = root.absoluteFilePath(QStringLiteral("user"));
+  auto write_file = [](const QString& path, const QByteArray& content) {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    file.write(content);
+  };
+  write_file(root.absoluteFilePath(QStringLiteral("bundled/Games/zap.js")),
+             "// @name Aardvark Attack\n// @window\nvar x = 1;\n");
+  write_file(root.absoluteFilePath(QStringLiteral("bundled/Games/alpha.js")),
+             "var y = 2;\n");
+  QImage red(32, 16, QImage::Format_RGBA8888);
+  red.fill(Qt::red);
+
+  // Header parsing: @name and @window; directives stop at the first
+  // non-comment line.
+  const auto meta =
+      patchy::ui::read_script_metadata(root.absoluteFilePath(QStringLiteral("bundled/Games/zap.js")));
+  CHECK(meta.name == QStringLiteral("Aardvark Attack"));
+  CHECK(meta.opens_window);
+  write_file(root.absoluteFilePath(QStringLiteral("bundled/Games/late.js")),
+             "var z = 3;\n// @name Too Late\n// @window\n");
+  const auto late =
+      patchy::ui::read_script_metadata(root.absoluteFilePath(QStringLiteral("bundled/Games/late.js")));
+  CHECK(late.name.isEmpty());
+  CHECK(!late.opens_window);
+
+  // Scan: display-name fallback, display-name sort ("Aardvark Attack" sorts
+  // before the fallback-named "alpha" despite zap.js > alpha.js), and the
+  // bundled sidecar icon.
+  write_file(root.absoluteFilePath(QStringLiteral("bundled/Games/alpha.png")), "not-a-real-png");
+  auto scan = patchy::ui::scan_scripts(bundled_root, user_root);
+  CHECK(scan.bundled.size() == 1);
+  const auto& games = scan.bundled[0].children;
+  CHECK(games.size() == 3);
+  CHECK(games[0].display_name == QStringLiteral("Aardvark Attack"));
+  CHECK(games[0].opens_window);
+  CHECK(games[0].icon_path.isEmpty());
+  CHECK(games[1].display_name == QStringLiteral("alpha"));
+  CHECK(!games[1].opens_window);
+  CHECK(games[1].icon_path ==
+        QDir(bundled_root).absoluteFilePath(QStringLiteral("Games/alpha.png")));
+
+  // A user icon at the same relative path overrides the bundled one WITHOUT
+  // the .js being overridden (what Set Icon writes).
+  const auto target = patchy::ui::script_icon_write_target(
+      user_root, QStringLiteral("Games/alpha.js"));
+  CHECK(target == QDir(user_root).absoluteFilePath(QStringLiteral("Games/alpha.png")));
+  CHECK(patchy::ui::write_script_icon(red, target));
+  const QImage written(target);
+  CHECK(written.width() == 64 && written.height() == 64);
+  scan = patchy::ui::scan_scripts(bundled_root, user_root);
+  const auto& games_after = scan.bundled[0].children;
+  CHECK(games_after[1].display_name == QStringLiteral("alpha"));
+  CHECK(!games_after[1].is_override);
+  CHECK(games_after[1].icon_path == target);
+  // The unreadable bundled "png" falls back to the generic painted icon; the
+  // real user icon is used as-is.
+  CHECK(!patchy::ui::script_entry_icon(games_after[1]).isNull());
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
@@ -689,6 +830,8 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_canvas_window_renders_frames", ui_script_canvas_window_renders_frames},
       {"ui_scripts_menu_lists_bundled_scripts", ui_scripts_menu_lists_bundled_scripts},
       {"ui_script_editor_tree_shadow_override", ui_script_editor_tree_shadow_override},
+      {"ui_script_metadata_icons_and_write_target", ui_script_metadata_icons_and_write_target},
+      {"ui_script_manager_set_icon_from_document", ui_script_manager_set_icon_from_document},
       {"ui_script_include_bundled_root_and_is_main", ui_script_include_bundled_root_and_is_main},
       {"ui_script_fancy_background_runs_standalone", ui_script_fancy_background_runs_standalone},
       {"ui_script_dialog_pickers_listfiles_args_cli_defaults",

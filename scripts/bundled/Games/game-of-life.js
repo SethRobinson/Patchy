@@ -1,4 +1,5 @@
-// Game of Life
+// @name Game of Life
+// @window
 // Runs Conway's Game of Life directly inside a real layer of a real document:
 // every generation is written into the layer's pixels with setPixels. Watch it
 // live on the canvas; when it stops, the final state is an ordinary layer and
