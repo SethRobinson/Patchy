@@ -417,6 +417,7 @@ private:
   // positions them from their baseline point + text-anchor. Defined in
   // main_window.cpp (it needs the text render machinery there).
   void render_pending_svg_text_layers(Document& target);
+  void render_pending_af_text_layers(Document& target);
   // Reloads the session's file from disk in place (tab position, float window,
   // and session identity survive; undo history and unsaved changes do not).
   void reopen_document_session(DocumentSession& target_session);

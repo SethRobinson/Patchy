@@ -7525,6 +7525,79 @@ void MainWindow::render_pending_svg_text_layers(Document& target) {
   process(process, target.layers());
 }
 
+void MainWindow::render_pending_af_text_layers(Document& target) {
+  const auto process = [&](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (!layer.children().empty()) {
+        self(self, layer.children());
+      }
+      auto& metadata = layer.metadata();
+      if (!metadata.contains(kLayerMetadataAfPendingText)) {
+        continue;
+      }
+      std::array<double, 4> frame{0.0, 0.0, 0.0, 0.0};
+      if (const auto found = metadata.find(kLayerMetadataAfTextFrame); found != metadata.end()) {
+        const QStringList parts = QString::fromStdString(found->second).split(' ');
+        for (int i = 0; i < 4 && i < parts.size(); ++i) {
+          frame[static_cast<std::size_t>(i)] = parts[i].toDouble();
+        }
+      }
+      const double affinity_ascent = [&] {
+        const auto found = metadata.find(kLayerMetadataAfTextAscent);
+        return found == metadata.end() ? 0.0 : QString::fromStdString(found->second).toDouble();
+      }();
+      const int align = [&] {
+        const auto found = metadata.find(kLayerMetadataAfTextAlign);
+        return found == metadata.end() ? 0 : QString::fromStdString(found->second).toInt();
+      }();
+      metadata.erase(kLayerMetadataAfPendingText);
+      metadata.erase(kLayerMetadataAfTextFrame);
+      metadata.erase(kLayerMetadataAfTextAscent);
+      metadata.erase(kLayerMetadataAfTextAlign);
+
+      auto pixels = render_text_layer_pixels_from_metadata(layer);
+      if (!pixels.has_value() || pixels->empty()) {
+        continue;  // stays an empty text layer; the text tool can still edit it
+      }
+      // Artistic text anchors its baseline at frame-top + Affinity's ascent;
+      // re-anchor with Patchy's own ascent so the baseline stays put. Frame
+      // text puts the first line's CAP at the frame top (pinned against
+      // Affinity's render), so back out Patchy's ascent-above-cap leading.
+      // Alignment is horizontal within the frame box.
+      double top = frame[1];
+      const auto inputs = text_render_inputs_from_layer(layer);
+      QFontMetricsF metrics{QFont{}};
+      if (inputs.has_value()) {
+        QFont font(inputs->settings.family);
+        font.setPixelSize(std::max(1, inputs->settings.size));
+        font.setBold(inputs->settings.bold);
+        font.setItalic(inputs->settings.italic);
+        metrics = QFontMetricsF(font);
+      }
+      if (affinity_ascent > 0.0) {
+        top = frame[1] + affinity_ascent - metrics.ascent();
+      } else {
+        top = frame[1] - (metrics.ascent() - metrics.capHeight());
+      }
+      double left = frame[0];
+      const double frame_width = frame[2] - frame[0];
+      if (align > 0 && frame_width > 0.0) {
+        const double slack = frame_width - pixels->width();
+        left = frame[0] + (align == 1 ? slack / 2.0 : slack);
+      }
+      const Rect placed{static_cast<std::int32_t>(std::lround(left)),
+                        static_cast<std::int32_t>(std::lround(top)), pixels->width(),
+                        pixels->height()};
+      // set_pixels resets bounds to the buffer at the origin, so the bounds
+      // must follow it (the text-commit ordering convention).
+      layer.set_pixels(std::move(*pixels));
+      layer.set_bounds(placed);
+      metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
+    }
+  };
+  process(process, target.layers());
+}
+
 void MainWindow::rasterize_active_layers() {
   finish_active_text_editor();
   const auto ids = selected_or_active_layer_ids();

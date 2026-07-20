@@ -310,10 +310,49 @@ void ui_svg_place_creates_smart_object() {
   CHECK(!std::as_const(placed).pixels().empty());
 }
 
+// Affinity .af text uses the same main-thread post-open render pass as SVG;
+// this lives here beside the SVG text test on purpose.
+void ui_af_text_import_renders_post_open() {
+  if (patchy::test::ui::skip_without_arial_for_psd_text_preview()) {
+    return;  // the committed fixture's face is Arial
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("af", "tiny-text-artistic.af").wstring());
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.layers().size() == 2);  // white Background + the text layer
+
+  const auto& layer = document.layers().back();
+  CHECK(patchy::layer_is_text(layer));
+  CHECK(!std::as_const(layer).pixels().empty());
+  CHECK(!layer.metadata().contains(patchy::kLayerMetadataAfPendingText));
+  // Authored: 36px red "Color" anchored at baseline (20, 60). The rendered
+  // block's left edge sits at the frame x; the top sits one ascent above the
+  // baseline (loose bands: font metrics differ slightly across machines).
+  CHECK(layer.bounds().x >= 14 && layer.bounds().x <= 26);
+  CHECK(layer.bounds().y >= 18 && layer.bounds().y <= 42);
+  // The fill is red.
+  const auto& pixels = std::as_const(layer).pixels();
+  bool found_red = false;
+  for (std::int32_t y = 0; y < pixels.height() && !found_red; ++y) {
+    for (std::int32_t x = 0; x < pixels.width() && !found_red; ++x) {
+      const std::uint8_t* p = pixels.pixel(x, y);
+      if (p[3] > 200 && p[0] > 150 && p[1] < 100 && p[2] < 100) {
+        found_red = true;
+      }
+    }
+  }
+  CHECK(found_red);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> svg_ui_tests() {
   return {
+      {"ui_af_text_import_renders_post_open", ui_af_text_import_renders_post_open},
       {"ui_svg_open_creates_editable_shape_layers", ui_svg_open_creates_editable_shape_layers},
       {"ui_svg_import_render_matches_qsvg", ui_svg_import_render_matches_qsvg},
       {"ui_svg_text_import_positions_baseline", ui_svg_text_import_positions_baseline},

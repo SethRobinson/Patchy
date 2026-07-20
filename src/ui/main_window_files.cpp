@@ -1093,6 +1093,7 @@ void MainWindow::open_document_path(QString path) {
       return;
     }
     render_pending_svg_text_layers(loaded->document);
+    render_pending_af_text_layers(loaded->document);
 
     add_document_session(std::move(loaded->document), loaded->file_name, path);
     if (!cli_automation_mode_ && is_photoshop_document_extension(loaded->extension) &&
@@ -1187,6 +1188,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
       return;
     }
     render_pending_svg_text_layers(loaded->document);
+    render_pending_af_text_layers(loaded->document);
 
     // Replace the document in place: tab position, float window, and session
     // identity survive (smart-object child tabs reference session ids). An open

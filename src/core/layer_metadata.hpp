@@ -56,6 +56,17 @@ inline constexpr const char* kLayerMetadataSvgTextAnchor = "patchy.svg.text_anch
 inline constexpr const char* kLayerMetadataSvgTextBaselineX = "patchy.svg.text_baseline_x";
 inline constexpr const char* kLayerMetadataSvgTextBaselineY = "patchy.svg.text_baseline_y";
 
+// Affinity .af text import handoff (same pattern as SVG): the Qt-free reader
+// stores the story under the standard patchy.text.* keys plus these placement
+// markers; MainWindow::render_pending_af_text_layers renders post-open and
+// drops them. frame = "x0 y0 x1 y1" (the node's TxtH FrmB layout box); ascent
+// is present for artistic text (Affinity's baseline sits at y0 + ascent);
+// align is 0 left / 1 centre / 2 right within the frame box.
+inline constexpr const char* kLayerMetadataAfPendingText = "patchy.af.pending_text_render";
+inline constexpr const char* kLayerMetadataAfTextFrame = "patchy.af.text_frame";
+inline constexpr const char* kLayerMetadataAfTextAscent = "patchy.af.text_ascent";
+inline constexpr const char* kLayerMetadataAfTextAlign = "patchy.af.text_align";
+
 using LayerAffineTransform = std::array<double, 6>;
 
 [[nodiscard]] bool layer_locks_transparent_pixels(const Layer& layer);

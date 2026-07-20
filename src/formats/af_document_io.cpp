@@ -1,6 +1,7 @@
 #include "formats/af_document_io.hpp"
 
 #include "core/layer.hpp"
+#include "core/layer_metadata.hpp"
 #include "color/color_management.hpp"
 #include "formats/af_tree.hpp"
 #include "formats/binary_le.hpp"
@@ -1575,6 +1576,301 @@ void apply_common(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
   }
 }
 
+[[nodiscard]] std::optional<std::array<float, 4>> read_rgba_color(const af::AfClass* color_class);
+
+// Text nodes (TxtA artistic / TxtF frame): extract the story into a Patchy
+// text layer carrying the standard patchy.text.* metadata plus the .af
+// placement markers; MainWindow renders it post-open through the internal
+// text pipeline (the SVG import pattern). Wire shape (pinned by the corpus
+// text docs): StSt -> Stry -> Blok[] (StBl) with Glyp/GStr/Utf8 = the text
+// (NUL-terminated per block), GAtt/GlAS/Runs[].Item = glyph style runs
+// (DFnt font, Doub[0] size, Objs[0] = brush FDsc -> FDeF -> Colr RGBA),
+// PAtt/PaAS/Runs[].Item.Ints[0] = alignment, TxtH -> ArFr|CoFr -> FrmB =
+// the layout box ([x0,y0,x1,y1]; ArtV = artistic ascent). Returns nullopt
+// when the story shape is missing (caller keeps the placeholder path).
+[[nodiscard]] std::optional<Layer> build_text_layer(LayerBuildContext& ctx, const af::AfClass& node,
+                                                    const std::string& display) {
+  const af::AfClass* story = node.child_class(af::tag4("StSt"));
+  if (story == nullptr) {
+    return std::nullopt;
+  }
+  const auto* blocks = class_list(*story, af::tag4("Blok"));
+  if (blocks == nullptr || blocks->empty()) {
+    return std::nullopt;
+  }
+
+  std::string text;
+  const af::AfClass* first_item = nullptr;
+  bool simplified = false;
+  std::int64_t align = -1;
+  for (const auto& block : *blocks) {
+    if (block == nullptr) {
+      continue;
+    }
+    std::string part;
+    if (const af::AfClass* glyphs = block->child_class(af::tag4("Glyp"))) {
+      part = glyphs->string_field(af::tag4("Utf8"));
+    }
+    while (!part.empty() && part.back() == '\0') {
+      part.pop_back();
+    }
+    // Paragraph breaks ride inside the block as U+2029 (and soft line breaks
+    // as U+2028); both become plain newlines.
+    for (const char* separator : {"\xE2\x80\xA9", "\xE2\x80\xA8"}) {
+      std::size_t at = 0;
+      while ((at = part.find(separator, at)) != std::string::npos) {
+        part.replace(at, 3, "\n");
+        at += 1;
+      }
+    }
+    if (!text.empty()) {
+      text += '\n';
+    }
+    text += part;
+
+    if (const af::AfClass* glyph_atts = block->child_class(af::tag4("GAtt"))) {
+      if (const auto* runs = class_list(*glyph_atts, af::tag4("Runs"))) {
+        for (const auto& run : *runs) {
+          if (run == nullptr) {
+            continue;
+          }
+          const af::AfClass* item = run->child_class(af::tag4("Item"));
+          if (item == nullptr) {
+            continue;
+          }
+          if (first_item == nullptr) {
+            first_item = item;
+            continue;
+          }
+          // A later run with a different size or font simplifies to the first
+          // run's style (v1: one style per text layer).
+          const auto size_of = [](const af::AfClass& style_item) {
+            const auto doubles = style_item.vec_field(af::tag4("Doub"));
+            return doubles.empty() ? 0.0 : doubles[0];
+          };
+          const auto family_of = [](const af::AfClass& style_item) -> std::string {
+            const af::AfClass* font = style_item.child_class(af::tag4("DFnt"));
+            return font != nullptr ? font->string_field(af::tag4("Famy")) : std::string();
+          };
+          if (size_of(*item) != size_of(*first_item) ||
+              family_of(*item) != family_of(*first_item)) {
+            simplified = true;
+          }
+        }
+      }
+    }
+    if (align < 0) {
+      if (const af::AfClass* paragraph_atts = block->child_class(af::tag4("PAtt"))) {
+        if (const auto* runs = class_list(*paragraph_atts, af::tag4("Runs"))) {
+          if (!runs->empty() && runs->front() != nullptr) {
+            if (const af::AfClass* item = runs->front()->child_class(af::tag4("Item"))) {
+              const auto ints = item->vec_field(af::tag4("Ints"));
+              if (!ints.empty()) {
+                align = static_cast<std::int64_t>(ints[0]);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  const bool only_whitespace =
+      text.find_first_not_of(" \t\r\n") == std::string::npos;
+  if (only_whitespace || first_item == nullptr) {
+    return std::nullopt;
+  }
+
+  // First-run style: font, size, weight/italic, brush fill color.
+  std::string family = "Arial";
+  bool bold = false;
+  bool italic = false;
+  if (const af::AfClass* font = first_item->child_class(af::tag4("DFnt"))) {
+    const std::string stored = font->string_field(af::tag4("Famy"));
+    if (!stored.empty()) {
+      family = stored;
+    }
+    bold = font->int_field(af::tag4("Wegt"), 400) >= 600;
+    italic = font->bool_field(af::tag4("Ital"), false);
+  }
+  const auto doubles = first_item->vec_field(af::tag4("Doub"));
+  const int size = std::clamp(
+      static_cast<int>(std::lround(doubles.empty() ? 12.0 : doubles[0])), 1, 4000);
+  std::array<float, 4> color{0.0F, 0.0F, 0.0F, 1.0F};
+  if (const auto* fills = class_list(*first_item, af::tag4("Objs"));
+      fills != nullptr && !fills->empty() && fills->front() != nullptr) {
+    if (const af::AfClass* fill = fills->front()->child_class(af::tag4("FDeF"))) {
+      if (const auto stored = read_rgba_color(fill->child_class(af::tag4("Colr")))) {
+        color = *stored;
+      }
+    }
+  }
+
+  // Placement: the TxtH frame box (node-local; Xfrm positions it). Fold the
+  // transform's scale into the font size and map the box through the affine;
+  // rotation/shear only approximates (axis-aligned box + notice).
+  const af::AfClass* frame = node.child_class(af::tag4("TxtH"));
+  if (frame == nullptr) {
+    return std::nullopt;
+  }
+  auto box = frame->vec_field(af::tag4("FrmB"));
+  if (box.size() != 4) {
+    return std::nullopt;
+  }
+  double ascent = frame->double_field(af::tag4("ArtV"), 0.0);
+  double effective_size = static_cast<double>(size);
+  bool transform_approximated = false;
+  if (const auto xfrm = node.vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
+    const double a = xfrm[0];
+    const double b_term = xfrm[1];
+    const double tx = xfrm[2];
+    const double c_term = xfrm[3];
+    const double d = xfrm[4];
+    const double ty = xfrm[5];
+    const double scale_x = std::hypot(a, c_term);
+    const double scale_y = std::hypot(b_term, d);
+    const double scale = (scale_x + scale_y) * 0.5;
+    if (scale < 0.01) {
+      return std::nullopt;
+    }
+    // Map the four box corners through the affine; keep the axis-aligned box.
+    double min_x = 0.0;
+    double min_y = 0.0;
+    double max_x = 0.0;
+    double max_y = 0.0;
+    bool first_corner = true;
+    for (const auto [sx, sy] : {std::pair<double, double>{box[0], box[1]},
+                                {box[2], box[1]},
+                                {box[0], box[3]},
+                                {box[2], box[3]}}) {
+      const double px = a * sx + b_term * sy + tx;
+      const double py = c_term * sx + d * sy + ty;
+      min_x = first_corner ? px : std::min(min_x, px);
+      max_x = first_corner ? px : std::max(max_x, px);
+      min_y = first_corner ? py : std::min(min_y, py);
+      max_y = first_corner ? py : std::max(max_y, py);
+      first_corner = false;
+    }
+    box = {min_x, min_y, max_x, max_y};
+    effective_size *= scale;
+    ascent *= scale_y;
+    const double rotation = std::atan2(c_term, a);
+    if (std::abs(rotation) > 0.03 || std::abs(scale_x - scale_y) > 0.05 * scale) {
+      transform_approximated = true;
+    }
+  }
+  const int stored_size =
+      std::clamp(static_cast<int>(std::lround(effective_size)), 1, 4000);
+
+  Layer layer(ctx.document.allocate_layer_id(), display, LayerKind::Pixel);
+  auto& metadata = layer.metadata();
+  metadata[kLayerMetadataText] = text;
+  metadata[kLayerMetadataTextFont] = family;
+  metadata[kLayerMetadataTextSize] = std::to_string(stored_size);
+  constexpr char kHex[] = "0123456789abcdef";
+  std::string hex = "#......";
+  const auto to_channel = [](float value) {
+    return static_cast<int>(std::lround(std::clamp(value, 0.0F, 1.0F) * 255.0F));
+  };
+  const int red = to_channel(color[0]);
+  const int green = to_channel(color[1]);
+  const int blue = to_channel(color[2]);
+  hex[1] = kHex[red >> 4];
+  hex[2] = kHex[red & 15];
+  hex[3] = kHex[green >> 4];
+  hex[4] = kHex[green & 15];
+  hex[5] = kHex[blue >> 4];
+  hex[6] = kHex[blue & 15];
+  metadata[kLayerMetadataTextColor] = hex;
+  metadata[kLayerMetadataTextBold] = bold ? "true" : "false";
+  metadata[kLayerMetadataTextItalic] = italic ? "true" : "false";
+  const bool is_frame = node.type_tag == af::tag4("TxtF");
+  if (is_frame) {
+    // Frame text wraps within its box (the internal pipeline's box flow).
+    metadata[kLayerMetadataTextFlow] = "box";
+    metadata[kLayerMetadataTextBoxWidth] = std::to_string(
+        std::max(1, static_cast<int>(std::lround(box[2] - box[0]))));
+    metadata[kLayerMetadataTextBoxHeight] = std::to_string(
+        std::max(1, static_cast<int>(std::lround(box[3] - box[1]))));
+  }
+  if (align > 0) {
+    // Centre/right alignment rides a minimal single-style rich-text body (the
+    // plain-text render path is always left-aligned).
+    std::string escaped;
+    escaped.reserve(text.size());
+    for (const char ch : text) {
+      switch (ch) {
+        case '&': escaped += "&amp;"; break;
+        case '<': escaped += "&lt;"; break;
+        case '>': escaped += "&gt;"; break;
+        case '\n': escaped += "<br />"; break;
+        default: escaped.push_back(ch); break;
+      }
+    }
+    std::string escaped_family;
+    for (const char ch : family) {
+      if (ch == '\'' || ch == '\\') {
+        escaped_family.push_back('\\');
+      }
+      escaped_family.push_back(ch);
+    }
+    std::string html =
+        "<!DOCTYPE HTML><html><head><meta name=\"qrichtext\" content=\"1\" /></head>"
+        "<body style=\"margin:0px;\"><p style=\"margin:0px; text-align:";
+    html += align == 1 ? "center" : "right";
+    html += ";\"><span style=\" font-family:'";
+    html += escaped_family;
+    html += "'; font-size:";
+    html += std::to_string(stored_size);
+    html += "px;";
+    if (bold) {
+      html += " font-weight:700;";
+    }
+    if (italic) {
+      html += " font-style:italic;";
+    }
+    html += " color:";
+    html += hex;
+    html += ";\">";
+    html += escaped;
+    html += "</span></p></body></html>";
+    metadata[kLayerMetadataTextHtml] = html;
+  }
+  metadata[kLayerMetadataAfPendingText] = "1";
+  {
+    std::string box_text;
+    for (int i = 0; i < 4; ++i) {
+      if (i != 0) {
+        box_text += ' ';
+      }
+      box_text += std::to_string(box[static_cast<std::size_t>(i)]);
+    }
+    metadata[kLayerMetadataAfTextFrame] = box_text;
+  }
+  if (node.type_tag == af::tag4("TxtA") && ascent > 0.0) {
+    metadata[kLayerMetadataAfTextAscent] = std::to_string(ascent);
+  }
+  if (align > 0) {
+    metadata[kLayerMetadataAfTextAlign] = std::to_string(align);
+  }
+
+  apply_common(ctx, node, layer, display);
+  if (color[3] < 1.0F) {
+    layer.set_opacity(layer.opacity() * std::clamp(color[3], 0.0F, 1.0F));
+  }
+  // Rough placement until the post-open pass renders real glyphs.
+  layer.set_bounds(Rect{static_cast<std::int32_t>(std::lround(box[0])),
+                        static_cast<std::int32_t>(std::lround(box[1])), 1, 1});
+  if (transform_approximated) {
+    ctx.notices.push_back("Layer '" + display +
+                          "': text rotation/shear is approximated (rendered axis-aligned)");
+  }
+  if (simplified) {
+    ctx.notices.push_back("Layer '" + display +
+                          "': mixed text styles simplified to the first run's style");
+  }
+  return layer;
+}
+
 // Emit `node` (and, for content layers, its clipped Chld children after it) into
 // `out`. Affinity nests clipped layers INSIDE their base layer's child list;
 // Patchy models the same thing as clipped siblings above the base.
@@ -1674,8 +1970,19 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       continue;
     }
 
-    // Text / vector / other leaves: named placeholders.
+    // Text: extract the story into a pending text layer (rendered post-open).
     const bool is_text = tag == af::tag4("TxtA") || tag == af::tag4("TxtF");
+    if (is_text) {
+      if (auto text_layer = build_text_layer(ctx, node, display)) {
+        apply_mask_children(ctx, node, *text_layer, display);
+        out.push_back(std::move(*text_layer));
+        emit_clipped_children(out.size() - 1);
+        continue;
+      }
+    }
+
+    // Vector / other leaves (and text whose story shape is missing): named
+    // placeholders.
     const bool is_vector = tag == af::tag4("PCrv");
     emit_placeholder(is_text ? "is text content" : (is_vector ? "is vector content"
                                                               : "is unsupported content"));
@@ -1713,13 +2020,17 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
   return color;
 }
 
-// True when at least one layer in the tree carries decoded pixels. An import
-// where every node degraded to an empty placeholder renders as a blank canvas,
-// which is worse than the tier-0 embedded preview; read_container checks this
-// and prefers the preview for such documents.
+// True when at least one layer in the tree carries decoded pixels or a pending
+// text render (real content once the post-open pass runs). An import where
+// every node degraded to an empty placeholder renders as a blank canvas, which
+// is worse than the tier-0 embedded preview; read_container checks this and
+// prefers the preview for such documents.
 [[nodiscard]] bool any_layer_has_pixels(const std::vector<Layer>& layers) {
   for (const auto& layer : layers) {
     if (layer.kind() == LayerKind::Pixel && !layer.pixels().empty()) {
+      return true;
+    }
+    if (layer.metadata().contains(kLayerMetadataAfPendingText)) {
       return true;
     }
     if (any_layer_has_pixels(layer.children())) {

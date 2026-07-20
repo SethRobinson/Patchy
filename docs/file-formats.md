@@ -213,12 +213,26 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   "compressed a/b scale" mystery was a desaturated probe document.
 - **Multi-page/artboard documents** import the first spread with a notice
   naming the total count.
-- **Honest degradation (notice + named empty layer)**: text (`TxtA`/`TxtF`),
-  vector/curve (`PCrv`), and adjustment and live-filter nodes (their bitmap
-  is a mask plane, not content - the adjustment is not applied). These keep
-  their name and position in the tree so the structure survives, but are not
-  rendered. If NOTHING in a document decodes to pixels, the importer prefers
-  the tier-0 embedded preview over an all-placeholder blank canvas.
+- **Text (`TxtA` artistic / `TxtF` frame)** imports as real Patchy text
+  layers: the reader extracts each story (text with U+2029/U+2028 breaks,
+  first-run font/size/weight/italic, brush-fill color, paragraph alignment,
+  the `TxtH` frame box, transform scale folded into the size) into the
+  standard `patchy.text.*` metadata plus `patchy.af.*` placement markers, and
+  `MainWindow::render_pending_af_text_layers` renders post-open through the
+  internal text pipeline (the SVG import pattern; same three call sites).
+  Frame text wraps via the box flow with its cap at the frame top (pinned
+  against Affinity's render); centre/right alignment rides a minimal
+  rich-text body. Approximations (notice where user-visible): mixed run
+  styles simplify to the first run, rotation/shear renders axis-aligned, and
+  Affinity's paragraph space-before/after is not imported yet, so multi-
+  paragraph blocks pack tighter than Affinity's layout.
+- **Honest degradation (notice + named empty layer)**: vector/curve
+  (`PCrv`), adjustment and live-filter nodes (their bitmap is a mask plane,
+  not content - the adjustment is not applied), and text whose story shape is
+  missing. These keep their name and position in the tree so the structure
+  survives, but are not rendered. If NOTHING in a document decodes to pixels
+  or pending text, the importer prefers the tier-0 embedded preview over an
+  all-placeholder blank canvas.
 - **Blend enum -> Patchy `BlendMode`** and the RasterFormat ids are in
   FINDINGS.md; the Affinity `Blnd` field's enum id is the BlendMode value
   directly (absent = Normal).

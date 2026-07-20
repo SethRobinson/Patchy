@@ -308,6 +308,55 @@ void af_tier2_imports_lab_document() {
   }
 }
 
+void af_imports_text_layers_as_pending_text() {
+  // tiny-text-artistic.af: red 36px Arial artistic text "Color" anchored at
+  // baseline (20, 60). The importer stores the story as standard patchy.text.*
+  // metadata plus the .af pending-render markers (MainWindow renders it
+  // post-open); no placeholder notice.
+  {
+    const auto bytes = read_fixture("tiny-text-artistic.af");
+    std::vector<std::string> notices;
+    const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+    CHECK(document.layers().size() == 2);  // white Background + the text layer
+    const auto& layer = document.layers().back();
+    const auto& metadata = layer.metadata();
+    const auto value = [&](const char* key) {
+      const auto found = metadata.find(key);
+      return found == metadata.end() ? std::string() : found->second;
+    };
+    CHECK(value("patchy.text") == "Color");
+    CHECK(value("patchy.text.font") == "Arial");
+    CHECK(value("patchy.text.size") == "36");
+    CHECK(value("patchy.text.color") == "#ff0000");
+    CHECK(value("patchy.text.bold") == "false");
+    CHECK(metadata.contains("patchy.af.pending_text_render"));
+    CHECK(metadata.contains("patchy.af.text_frame"));
+    CHECK(metadata.contains("patchy.af.text_ascent"));
+    for (const auto& notice : notices) {
+      CHECK(notice.find("placeholder") == std::string::npos);
+    }
+  }
+
+  // tiny-text-frame.af: centre-aligned 24px frame text "One" / "Two two" in a
+  // frame at (10, 10, 220x120); paragraphs join with newlines.
+  {
+    const auto bytes = read_fixture("tiny-text-frame.af");
+    std::vector<std::string> notices;
+    const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+    const auto& layer = document.layers().back();
+    const auto& metadata = layer.metadata();
+    const auto value = [&](const char* key) {
+      const auto found = metadata.find(key);
+      return found == metadata.end() ? std::string() : found->second;
+    };
+    CHECK(value("patchy.text") == "One\nTwo two");
+    CHECK(value("patchy.text.size") == "24");
+    CHECK(value("patchy.af.text_align") == "1");
+    CHECK(value("patchy.af.text_frame").substr(0, 2) == "10");
+    CHECK(!metadata.contains("patchy.af.text_ascent"));  // frame text
+  }
+}
+
 void af_read_rejects_non_affinity_bytes() {
   const std::vector<std::uint8_t> garbage = {'n', 'o', 't', ' ', 'a', 'f', 0, 1, 2, 3};
   bool threw = false;
@@ -370,6 +419,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_tier2_imports_transformed_layer", af_tier2_imports_transformed_layer},
       {"af_reads_document_resolution", af_reads_document_resolution},
       {"af_tier2_imports_lab_document", af_tier2_imports_lab_document},
+      {"af_imports_text_layers_as_pending_text", af_imports_text_layers_as_pending_text},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},
