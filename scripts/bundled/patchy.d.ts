@@ -147,6 +147,41 @@ interface PatchyApp {
    * Unattended CLI runs return defaultValue.
    */
   prompt(text: string, defaultValue?: string): string | null;
+  /** Folder picker. Empty string when cancelled or in unattended CLI runs. */
+  chooseFolder(title?: string): string;
+  /**
+   * File pickers. filter uses Qt syntax, e.g. "Images (*.png *.jpg)". Empty
+   * string when cancelled or in unattended CLI runs.
+   */
+  chooseOpenFile(title?: string, filter?: string): string;
+  chooseSaveFile(title?: string, filter?: string): string;
+  /**
+   * Triggers a registered application command (menu items, tools) by its
+   * stable hotkey command id, e.g. runCommand("file.scripts.editor"). Returns
+   * false when the id is unknown or the command is currently disabled.
+   */
+  runCommand(commandId: string): boolean;
+  /** Every registered command id, sorted. */
+  commandIds(): string[];
+}
+
+/** One field of a patchy.ui.showDialog form. */
+interface PatchyDialogField {
+  /** Property name of this field's value in the returned object. */
+  key: string;
+  /** Row label; defaults to key. */
+  label?: string;
+  type: "number" | "slider" | "checkbox" | "choice" | "text" | "color";
+  /** Initial value (number, boolean, or string depending on type). */
+  value?: number | boolean | string;
+  /** number/slider only. */
+  min?: number;
+  max?: number;
+  /** number only. */
+  step?: number;
+  decimals?: number;
+  /** choice only: the dropdown entries. */
+  choices?: string[];
 }
 
 interface PatchyGraphics {
@@ -184,6 +219,17 @@ interface PatchyCanvasWindow {
 
 interface PatchyUi {
   createCanvas(options?: { width?: number; height?: number; title?: string }): PatchyCanvasWindow;
+  /**
+   * Modal form built from a declarative field list; returns an object with one
+   * property per field key, or null when cancelled. Unattended CLI runs return
+   * the field defaults. Example:
+   *   var r = patchy.ui.showDialog({title: "Halftone", fields: [
+   *     {key: "size", label: "Dot size", type: "slider", value: 4, min: 1, max: 32},
+   *     {key: "invert", label: "Invert", type: "checkbox", value: false}]});
+   *   if (r) { apply(r.size, r.invert); }
+   */
+  showDialog(spec: { title?: string; fields: PatchyDialogField[] }):
+      Record<string, number | boolean | string> | null;
 }
 
 interface PatchyIo {
@@ -191,6 +237,11 @@ interface PatchyIo {
   readTextFile(path: string): string;
   /** Throws when the file cannot be written. */
   writeTextFile(path: string, text: string): void;
+  /**
+   * Names (not full paths) of the files in dir matching pattern ("*.png";
+   * default all files), sorted. Throws when the folder does not exist.
+   */
+  listFiles(dir: string, pattern?: string): string[];
 }
 
 interface PatchyNamespace {
@@ -199,6 +250,18 @@ interface PatchyNamespace {
   readonly ui: PatchyUi;
   readonly apiVersion: number;
   readonly version: string;
+  /**
+   * CLI parameters: each `--script-arg key=value` becomes args.key = "value"
+   * (all values are strings; an empty object otherwise).
+   */
+  readonly args: Record<string, string>;
+  /**
+   * True in the script the user ran, false while an include()d file's
+   * top-level code executes - so one file can both define functions as a
+   * library and do something useful when run directly:
+   *   if (patchy.isMainScript()) { ... }
+   */
+  isMainScript(): boolean;
 }
 
 declare const app: PatchyApp;
@@ -209,7 +272,13 @@ declare function setInterval(callback: (dt: number) => void, ms: number): number
 declare function clearTimeout(id: number): void;
 declare function clearInterval(id: number): void;
 declare function requestAnimationFrame(callback: (dt: number) => void): number;
-/** Evaluates another script file, resolved relative to the running script. */
+/**
+ * Evaluates another script file in the running script's global scope. Relative
+ * paths are searched in order: next to the running script, then the user
+ * scripts folder, then the bundled scripts folder - so
+ * include("Effects/fancy-background.js") works from anywhere. A user copy
+ * saved over a bundled script (the Script Editor's Save) is used in its place.
+ */
 declare function include(path: string): void;
 
 declare const console: {

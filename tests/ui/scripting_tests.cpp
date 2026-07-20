@@ -26,8 +26,11 @@
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 
 #include <cstdint>
 #include <string>
@@ -384,19 +387,216 @@ void ui_scripts_menu_lists_bundled_scripts() {
   menu->popup(QPoint(0, 0));
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
   bool editor_entry = false;
-  bool pong_entry = false;
-  for (const auto* action : menu->actions()) {
+  QMenu* games_menu = nullptr;
+  for (auto* action : menu->actions()) {
     if (action->objectName() == QStringLiteral("fileScriptEditorAction")) {
       editor_entry = true;
     }
+    if (action->menu() != nullptr && action->text() == QStringLiteral("Games")) {
+      games_menu = action->menu();
+    }
+  }
+  CHECK(editor_entry);
+  // The bundled scripts are staged next to the test binary by CMake; folders
+  // (Games/Demos/Effects/Utilities) become submenus.
+  CHECK(games_menu != nullptr);
+  bool pong_entry = false;
+  for (const auto* action : games_menu->actions()) {
     if (action->text() == QStringLiteral("pong")) {
       pong_entry = true;
     }
   }
   menu->close();
-  CHECK(editor_entry);
-  // The bundled scripts are staged next to the test binary by CMake.
   CHECK(pong_entry);
+}
+
+// Redirects QStandardPaths writable locations (the user scripts folder) into
+// the per-user qttest sandbox so shadow-override saves never touch the real
+// profile; exception-safe so a failing CHECK cannot leave test mode on.
+struct StandardPathsTestMode {
+  StandardPathsTestMode() { QStandardPaths::setTestModeEnabled(true); }
+  ~StandardPathsTestMode() { QStandardPaths::setTestModeEnabled(false); }
+};
+
+QTreeWidgetItem* find_child_item(QTreeWidgetItem* parent, const QString& text) {
+  for (int i = 0; i < parent->childCount(); ++i) {
+    if (parent->child(i)->text(0) == text) {
+      return parent->child(i);
+    }
+  }
+  return nullptr;
+}
+
+void ui_script_editor_tree_shadow_override() {
+  const StandardPathsTestMode test_paths;
+  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("scriptEditorTree"));
+  auto* code = dialog.findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorCode"));
+  auto* save_button = dialog.findChild<QPushButton*>(QStringLiteral("scriptEditorSaveButton"));
+  auto* refresh_button =
+      dialog.findChild<QPushButton*>(QStringLiteral("scriptEditorRefreshButton"));
+  CHECK(tree != nullptr && code != nullptr && save_button != nullptr && refresh_button != nullptr);
+
+  // The Bundled root is expanded by default and mirrors the folder structure.
+  QTreeWidgetItem* bundled_root = nullptr;
+  for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+    if (tree->topLevelItem(i)->text(0) == QStringLiteral("Bundled")) {
+      bundled_root = tree->topLevelItem(i);
+    }
+  }
+  CHECK(bundled_root != nullptr);
+  CHECK(bundled_root->isExpanded());
+  auto* games_folder = find_child_item(bundled_root, QStringLiteral("Games"));
+  CHECK(games_folder != nullptr);
+  auto* breakout_item = find_child_item(games_folder, QStringLiteral("breakout"));
+  CHECK(breakout_item != nullptr);
+
+  // Activating a script loads it. Emit itemActivated directly rather than
+  // synthesizing a key/click: the gesture that raises it is platform-styled
+  // (Return does not fire it on the mac offscreen platform).
+  tree->setCurrentItem(breakout_item);
+  QMetaObject::invokeMethod(tree, "itemActivated", Qt::DirectConnection,
+                            Q_ARG(QTreeWidgetItem*, breakout_item), Q_ARG(int, 0));
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  CHECK(code->toPlainText().contains(QStringLiteral("Breakout")));
+
+  // Save writes the user-folder shadow copy, and the tree shows it in place of
+  // the bundled entry, tagged "(modified)".
+  save_button->click();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  const auto override_path = QDir(patchy::ui::MainWindow::user_scripts_directory())
+                                 .absoluteFilePath(QStringLiteral("Games/breakout.js"));
+  CHECK(QFile::exists(override_path));
+  bundled_root = nullptr;
+  for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+    if (tree->topLevelItem(i)->text(0) == QStringLiteral("Bundled")) {
+      bundled_root = tree->topLevelItem(i);
+    }
+  }
+  CHECK(bundled_root != nullptr);
+  games_folder = find_child_item(bundled_root, QStringLiteral("Games"));
+  CHECK(games_folder != nullptr);
+  CHECK(find_child_item(games_folder, QStringLiteral("breakout (modified)")) != nullptr);
+  // The override does NOT show under My Scripts (it replaces the bundled row).
+  QTreeWidgetItem* user_root = nullptr;
+  for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+    if (tree->topLevelItem(i)->text(0) == QStringLiteral("My Scripts")) {
+      user_root = tree->topLevelItem(i);
+    }
+  }
+  CHECK(user_root != nullptr);
+  CHECK(find_child_item(user_root, QStringLiteral("Games")) == nullptr);
+
+  // Removing the copy (what Revert to Bundled does) restores the plain entry.
+  CHECK(QFile::remove(override_path));
+  refresh_button->click();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  bundled_root = nullptr;
+  for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+    if (tree->topLevelItem(i)->text(0) == QStringLiteral("Bundled")) {
+      bundled_root = tree->topLevelItem(i);
+    }
+  }
+  CHECK(bundled_root != nullptr);
+  games_folder = find_child_item(bundled_root, QStringLiteral("Games"));
+  CHECK(games_folder != nullptr);
+  CHECK(find_child_item(games_folder, QStringLiteral("breakout")) != nullptr);
+  dialog.close();
+  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+}
+
+void ui_script_include_bundled_root_and_is_main() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // No script path (editor-style run): the include resolves through the
+  // bundled scripts root. The included file defines its function but must not
+  // run its standalone branch (patchy.isMainScript() is false inside it).
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    console.log('main=' + patchy.isMainScript());
+    include('Effects/fancy-background.js');
+    console.log('have-fn=' + (typeof drawFancyBackground === 'function'));
+    var stray = app.activeDocument.findLayer('Fancy Background');
+    console.log('ran-standalone=' + (stray !== undefined));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("main=true")));
+  CHECK(backlog_contains(window, QStringLiteral("have-fn=true")));
+  CHECK(backlog_contains(window, QStringLiteral("ran-standalone=false")));
+}
+
+void ui_script_fancy_background_runs_standalone() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // Small document first so the pixel loop stays fast.
+  CHECK(run_script(window, QStringLiteral("app.newDocument(96, 64);")));
+  auto& host = window.script_engine_host();
+  const auto path = QDir(patchy::ui::MainWindow::bundled_scripts_directory())
+                        .absoluteFilePath(QStringLiteral("Effects/fancy-background.js"));
+  CHECK(host.run_file(path));
+  wait_for_run_end(host);
+  CHECK(!host.last_run_had_error());
+  CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window), "Fancy Background") !=
+        nullptr);
+}
+
+void ui_script_dialog_pickers_listfiles_args_cli_defaults() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  for (const auto* name : {"a.png", "b.png", "c.txt"}) {
+    QFile file(temp.filePath(QString::fromLatin1(name)));
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write("x");
+  }
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("cli-defaults");
+  options.args = QStringList{QStringLiteral("name=World"), QStringLiteral("flag")};
+  const auto source = QStringLiteral(R"JS(
+    var r = patchy.ui.showDialog({title: 'T', fields: [
+      {key: 'scale', type: 'number', value: 42, min: 0, max: 100},
+      {key: 'on', type: 'checkbox', value: true},
+      {key: 'mode', type: 'choice', value: 'jpg', choices: ['png', 'jpg']},
+      {key: 'label', type: 'text', value: 'hi'}]});
+    console.log('dlg=' + r.scale + ',' + r.on + ',' + r.mode + ',' + r.label);
+    console.log('folder=[' + app.chooseFolder('pick') + ']');
+    var files = patchy.io.listFiles('%1', '*.png');
+    console.log('files=' + files.join(','));
+    console.log('args=' + patchy.args.name + ',' + ('flag' in patchy.args));
+  )JS")
+                          .arg(QDir(temp.path()).absolutePath());
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host);
+  CHECK(!host.last_run_had_error());
+  CHECK(backlog_contains(window, QStringLiteral("dlg=42,true,jpg,hi")));
+  CHECK(backlog_contains(window, QStringLiteral("folder=[]")));
+  CHECK(backlog_contains(window, QStringLiteral("files=a.png,b.png")));
+  CHECK(backlog_contains(window, QStringLiteral("args=World,true")));
+}
+
+void ui_script_run_command_triggers_actions() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    console.log('ids=' + (app.commandIds().indexOf('select.all') >= 0));
+    console.log('unknown=' + app.runCommand('no.such.command'));
+    console.log('ran=' + app.runCommand('select.all'));
+    console.log('sel=' + doc.selection.exists);
+    app.runCommand('select.deselect');
+    console.log('sel-after=' + doc.selection.exists);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("ids=true")));
+  CHECK(backlog_contains(window, QStringLiteral("unknown=false")));
+  CHECK(backlog_contains(window, QStringLiteral("ran=true")));
+  CHECK(backlog_contains(window, QStringLiteral("sel=true")));
+  CHECK(backlog_contains(window, QStringLiteral("sel-after=false")));
 }
 
 }  // namespace
@@ -417,5 +617,11 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_editor_dialog_runs_and_shows_console", ui_script_editor_dialog_runs_and_shows_console},
       {"ui_script_canvas_window_renders_frames", ui_script_canvas_window_renders_frames},
       {"ui_scripts_menu_lists_bundled_scripts", ui_scripts_menu_lists_bundled_scripts},
+      {"ui_script_editor_tree_shadow_override", ui_script_editor_tree_shadow_override},
+      {"ui_script_include_bundled_root_and_is_main", ui_script_include_bundled_root_and_is_main},
+      {"ui_script_fancy_background_runs_standalone", ui_script_fancy_background_runs_standalone},
+      {"ui_script_dialog_pickers_listfiles_args_cli_defaults",
+       ui_script_dialog_pickers_listfiles_args_cli_defaults},
+      {"ui_script_run_command_triggers_actions", ui_script_run_command_triggers_actions},
   };
 }

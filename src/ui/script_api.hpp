@@ -181,6 +181,15 @@ public:
   Q_INVOKABLE QJSValue newDocument(int width, int height);
   Q_INVOKABLE void alert(const QString& text);
   Q_INVOKABLE QJSValue prompt(const QString& text, const QString& defaultValue = QString());
+  // Modal folder/file pickers; empty string when cancelled or unattended (CLI).
+  Q_INVOKABLE QString chooseFolder(const QString& title = QString());
+  Q_INVOKABLE QString chooseOpenFile(const QString& title = QString(),
+                                     const QString& filter = QString());
+  Q_INVOKABLE QString chooseSaveFile(const QString& title = QString(),
+                                     const QString& filter = QString());
+  // Registered app commands by stable hotkey command id (docs/scripting.md).
+  Q_INVOKABLE bool runCommand(const QString& commandId);
+  Q_INVOKABLE QStringList commandIds();
 
 private:
   ScriptEngineHost& host_;
@@ -194,6 +203,9 @@ public:
 
   Q_INVOKABLE QString readTextFile(const QString& path);
   Q_INVOKABLE void writeTextFile(const QString& path, const QString& text);
+  // Names of the files in `dir` matching `pattern` ("*.png"; default all
+  // files), sorted case-insensitively. Names only, not full paths.
+  Q_INVOKABLE QStringList listFiles(const QString& dir, const QString& pattern = QString());
 
 private:
   ScriptEngineHost& host_;
@@ -207,6 +219,10 @@ public:
 
   // Options object: {width, height, title}. Returns a ScriptCanvasWindow.
   Q_INVOKABLE QJSValue createCanvas(const QJSValue& options = QJSValue());
+  // Declarative modal form ({title, fields: [{key, label, type, value, ...}]});
+  // returns the values object, or null when cancelled. Unattended CLI runs
+  // return the defaults.
+  Q_INVOKABLE QJSValue showDialog(const QJSValue& spec);
 
 private:
   ScriptEngineHost& host_;

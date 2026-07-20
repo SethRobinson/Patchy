@@ -15,28 +15,44 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/script_api.hpp"
 #include "ui/script_canvas_window.hpp"
+#include "ui/script_folders.hpp"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QColor>
+#include <QColorDialog>
+#include <QComboBox>
 #include <QCoreApplication>
+#include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
+#include <QFormLayout>
 #include <QDir>
 #include <QInputDialog>
 #include <QJSEngine>
 #include <QJSValueIterator>
+#include <QLineEdit>
+#include <QPushButton>
 #include <QQmlEngine>
+#include <QSpinBox>
 #include <QStatusBar>
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTextStream>
 #include <QTimer>
+#include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
+#include <functional>
+#include <memory>
 #include <utility>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -79,7 +95,9 @@ constexpr const char* kBootstrapSource = R"JS(
     io: g.__patchy_io,
     ui: g.__patchy_ui,
     apiVersion: g.app.apiVersion,
-    version: g.app.version
+    version: g.app.version,
+    args: g.__patchy_args,
+    isMainScript: function() { return !host.scriptIsIncluded(); }
   };
 })();
 )JS";
@@ -182,7 +200,7 @@ void ScriptEngineHost::report_error(const QJSValue& error) {
   emit_message(MessageKind::Error, text);
 }
 
-bool ScriptEngineHost::run_file(const QString& path) {
+bool ScriptEngineHost::run_file(const QString& path, QStringList args) {
   QFile file(path);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
     emit_message(MessageKind::Error,
@@ -192,6 +210,7 @@ bool ScriptEngineHost::run_file(const QString& path) {
   RunOptions options;
   options.name = QFileInfo(path).fileName();
   options.path = path;
+  options.args = std::move(args);
   return run_source(QString::fromUtf8(file.readAll()), std::move(options));
 }
 
@@ -238,9 +257,21 @@ bool ScriptEngineHost::run_source(const QString& source, RunOptions options) {
 }
 
 void ScriptEngineHost::install_bindings(const RunOptions& options) {
-  Q_UNUSED(options);
   auto& engine = *engine_;
   auto global = engine.globalObject();
+
+  // patchy.args: the CLI --script-arg key=value tokens (empty object
+  // otherwise). Tokens without '=' become keys with an empty-string value.
+  auto args_object = engine.newObject();
+  for (const auto& token : options.args) {
+    const auto separator = token.indexOf(QLatin1Char('='));
+    const auto key = separator < 0 ? token : token.left(separator);
+    const auto value = separator < 0 ? QString() : token.mid(separator + 1);
+    if (!key.isEmpty()) {
+      args_object.setProperty(key, value);
+    }
+  }
+  global.setProperty(QStringLiteral("__patchy_args"), args_object);
 
   // The bridge objects stay C++-owned: `this` is parented to the window, and
   // the singleton wrappers are parented to `this`, so the JS GC never deletes
@@ -440,11 +471,50 @@ void ScriptEngineHost::consoleEmit(int kind, const QString& text) {
   }
 }
 
+namespace {
+
+// A resolved include that lands inside the bundled scripts folder is mapped
+// through the shadow-override store: a user copy at the same relative path
+// wins, matching what the Scripts menu and editor run (script_folders.hpp).
+QString apply_user_script_override(const QString& resolved) {
+  const auto relative =
+      relative_path_under(MainWindow::bundled_scripts_directory(), resolved);
+  if (relative.isEmpty()) {
+    return resolved;  // not a bundled script
+  }
+  const auto candidate = QDir(MainWindow::user_scripts_directory()).absoluteFilePath(relative);
+  return QFileInfo::exists(candidate) ? candidate : resolved;
+}
+
+}  // namespace
+
 QString ScriptEngineHost::resolve_include_path(const QString& path) const {
   const QFileInfo info(path);
   if (info.isAbsolute()) {
     return info.absoluteFilePath();
   }
+  // Search order: relative to the including script, then the user scripts
+  // root, then the bundled scripts root - so include("Effects/foo.js") works
+  // from any script, and a user copy shadows the bundled one.
+  if (run_ != nullptr && !run_->include_dir_stack.isEmpty()) {
+    const QFileInfo relative(QDir(run_->include_dir_stack.last()).absoluteFilePath(path));
+    if (relative.exists()) {
+      return relative.absoluteFilePath();
+    }
+  }
+  const QFileInfo in_user(QDir(MainWindow::user_scripts_directory()).absoluteFilePath(path));
+  if (in_user.exists()) {
+    return in_user.absoluteFilePath();
+  }
+  const auto bundled_root = MainWindow::bundled_scripts_directory();
+  if (!bundled_root.isEmpty()) {
+    const QFileInfo in_bundled(QDir(bundled_root).absoluteFilePath(path));
+    if (in_bundled.exists()) {
+      return in_bundled.absoluteFilePath();
+    }
+  }
+  // Nothing exists; keep the historical script-relative shape so the error
+  // message names the most likely intended location.
   if (run_ != nullptr && !run_->include_dir_stack.isEmpty()) {
     return QDir(run_->include_dir_stack.last()).absoluteFilePath(path);
   }
@@ -455,20 +525,26 @@ void ScriptEngineHost::includeScript(const QString& path) {
   if (run_ == nullptr || engine_ == nullptr) {
     return;
   }
-  const auto resolved = resolve_include_path(path);
+  const auto resolved = apply_user_script_override(resolve_include_path(path));
   QFile file(resolved);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
     throw_js_error(tr("include: could not read %1").arg(QDir::toNativeSeparators(resolved)));
     return;
   }
   run_->include_dir_stack.push_back(QFileInfo(resolved).absolutePath());
+  ++run_->include_depth;
   const QJSValue result =
       engine_->evaluate(QString::fromUtf8(file.readAll()), resolved, 1);
+  --run_->include_depth;
   run_->include_dir_stack.pop_back();
   if (result.isError()) {
     // Re-throw so the includer's call site fails with the nested error.
     engine_->throwError(result);
   }
+}
+
+bool ScriptEngineHost::scriptIsIncluded() const {
+  return run_ != nullptr && run_->include_depth > 0;
 }
 
 void ScriptEngineHost::throw_js_error(const QString& message) {
@@ -974,11 +1050,26 @@ bool ScriptEngineHost::apply_filter_to_layer(std::int64_t session_id, LayerId la
 // ---------------------------------------------------------------------------
 // Interactive helpers
 
+ScriptEngineHost::ModalWatchdogPause::ModalWatchdogPause(ScriptEngineHost& host) : host_(host) {
+  rearm_ = host_.run_ != nullptr && host_.watchdog_ != nullptr &&
+           (host_.run_->sync_running || host_.run_->in_callback);
+  if (rearm_) {
+    host_.watchdog_->disarm();
+  }
+}
+
+ScriptEngineHost::ModalWatchdogPause::~ModalWatchdogPause() {
+  if (rearm_ && host_.run_ != nullptr && host_.watchdog_ != nullptr) {
+    host_.watchdog_->arm(host_.watchdog_timeout());
+  }
+}
+
 void ScriptEngineHost::show_alert(const QString& text) {
   if (window_.cli_automation_mode_) {
     emit_message(MessageKind::Log, tr("[alert] %1").arg(text));
     return;
   }
+  const ModalWatchdogPause pause(*this);
   show_information_message(&window_, tr("Script"), text, QStringLiteral("scriptAlertMessageBox"));
 }
 
@@ -990,6 +1081,7 @@ QString ScriptEngineHost::show_prompt(const QString& text, const QString& defaul
     }
     return default_value;
   }
+  const ModalWatchdogPause pause(*this);
   bool ok = false;
   const auto result =
       QInputDialog::getText(&window_, tr("Script"), text, QLineEdit::Normal, default_value, &ok);
@@ -997,6 +1089,248 @@ QString ScriptEngineHost::show_prompt(const QString& text, const QString& defaul
     *accepted = ok;
   }
   return ok ? result : QString();
+}
+
+QString ScriptEngineHost::choose_folder(const QString& title) {
+  if (window_.cli_automation_mode_) {
+    return {};
+  }
+  const ModalWatchdogPause pause(*this);
+  return QFileDialog::getExistingDirectory(&window_,
+                                           title.isEmpty() ? tr("Choose Folder") : title);
+}
+
+QString ScriptEngineHost::choose_open_file(const QString& title, const QString& filter) {
+  if (window_.cli_automation_mode_) {
+    return {};
+  }
+  const ModalWatchdogPause pause(*this);
+  return get_open_file_name(&window_, title.isEmpty() ? tr("Choose File") : title, QString(),
+                            filter.isEmpty() ? tr("All files (*)") : filter, nullptr,
+                            QStringLiteral("scriptChooseOpenFileDialog"));
+}
+
+QString ScriptEngineHost::choose_save_file(const QString& title, const QString& filter) {
+  if (window_.cli_automation_mode_) {
+    return {};
+  }
+  const ModalWatchdogPause pause(*this);
+  return get_save_file_name(&window_, title.isEmpty() ? tr("Save File") : title, QString(),
+                            filter.isEmpty() ? tr("All files (*)") : filter, nullptr,
+                            QStringLiteral("scriptChooseSaveFileDialog"));
+}
+
+QJSValue ScriptEngineHost::show_form_dialog(const QJSValue& spec) {
+  if (engine_ == nullptr) {
+    return QJSValue(QJSValue::NullValue);
+  }
+  const auto fields = spec.property(QStringLiteral("fields"));
+  if (!fields.isArray()) {
+    throw_js_error(tr("showDialog: spec.fields must be an array"));
+    return QJSValue(QJSValue::UndefinedValue);
+  }
+  struct FieldSpec {
+    QString key;
+    QString label;
+    QString type;
+    QJSValue value;
+  };
+  std::vector<FieldSpec> parsed;
+  const int count = fields.property(QStringLiteral("length")).toInt();
+  for (int i = 0; i < count; ++i) {
+    const auto field = fields.property(static_cast<quint32>(i));
+    FieldSpec entry;
+    entry.key = field.property(QStringLiteral("key")).toString();
+    entry.type = field.property(QStringLiteral("type")).toString();
+    entry.label = field.property(QStringLiteral("label")).isUndefined()
+                      ? entry.key
+                      : field.property(QStringLiteral("label")).toString();
+    entry.value = field.property(QStringLiteral("value"));
+    if (entry.key.isEmpty()) {
+      throw_js_error(tr("showDialog: every field needs a non-empty \"key\""));
+      return QJSValue(QJSValue::UndefinedValue);
+    }
+    static const QStringList kKnownTypes = {
+        QStringLiteral("number"), QStringLiteral("slider"), QStringLiteral("checkbox"),
+        QStringLiteral("choice"), QStringLiteral("text"),   QStringLiteral("color")};
+    if (!kKnownTypes.contains(entry.type)) {
+      throw_js_error(tr("showDialog: unknown field type \"%1\" (use number, slider, checkbox, "
+                        "choice, text, or color)")
+                         .arg(entry.type));
+      return QJSValue(QJSValue::UndefinedValue);
+    }
+    parsed.push_back(std::move(entry));
+  }
+
+  // Unattended runs answer with the defaults, the app.prompt rule.
+  if (window_.cli_automation_mode_) {
+    auto result = engine_->newObject();
+    for (std::size_t i = 0; i < parsed.size(); ++i) {
+      result.setProperty(parsed[i].key, parsed[i].value);
+    }
+    return result;
+  }
+
+  const ModalWatchdogPause pause(*this);
+  QDialog dialog(&window_);
+  dialog.setObjectName(QStringLiteral("scriptFormDialog"));
+  const auto title = spec.property(QStringLiteral("title")).toString();
+  dialog.setWindowTitle(title.isEmpty() ? tr("Script") : title);
+  auto* root = new QVBoxLayout(&dialog);
+  auto* form = new QFormLayout();
+  root->addLayout(form);
+
+  // One getter per field reads its widget back into a JS value on accept.
+  std::vector<std::function<QJSValue()>> getters;
+  const auto fields_array = fields;
+  for (std::size_t i = 0; i < parsed.size(); ++i) {
+    const auto& entry = parsed[i];
+    const auto field = fields_array.property(static_cast<quint32>(i));
+    const auto object_name = QStringLiteral("scriptFormField_") + entry.key;
+    if (entry.type == QLatin1String("number")) {
+      auto* spin = new QDoubleSpinBox(&dialog);
+      spin->setObjectName(object_name);
+      const double minimum = field.property(QStringLiteral("min")).isNumber()
+                                 ? field.property(QStringLiteral("min")).toNumber()
+                                 : -1000000000.0;
+      const double maximum = field.property(QStringLiteral("max")).isNumber()
+                                 ? field.property(QStringLiteral("max")).toNumber()
+                                 : 1000000000.0;
+      const double step = field.property(QStringLiteral("step")).isNumber()
+                              ? field.property(QStringLiteral("step")).toNumber()
+                              : 1.0;
+      const double value = entry.value.isNumber() ? entry.value.toNumber() : 0.0;
+      const bool integral = qFuzzyCompare(minimum, std::floor(minimum)) &&
+                            qFuzzyCompare(maximum, std::floor(maximum)) &&
+                            qFuzzyCompare(step, std::floor(step)) &&
+                            qFuzzyCompare(value, std::floor(value));
+      const int decimals = field.property(QStringLiteral("decimals")).isNumber()
+                               ? field.property(QStringLiteral("decimals")).toInt()
+                               : (integral ? 0 : 2);
+      spin->setDecimals(decimals);
+      spin->setRange(minimum, maximum);
+      spin->setSingleStep(step);
+      spin->setValue(value);
+      configure_dialog_spinbox(spin);
+      form->addRow(entry.label, spin);
+      getters.emplace_back([spin] { return QJSValue(spin->value()); });
+    } else if (entry.type == QLatin1String("slider")) {
+      const int minimum = field.property(QStringLiteral("min")).isNumber()
+                              ? field.property(QStringLiteral("min")).toInt()
+                              : 0;
+      const int maximum = field.property(QStringLiteral("max")).isNumber()
+                              ? field.property(QStringLiteral("max")).toInt()
+                              : 100;
+      const int value = entry.value.isNumber() ? entry.value.toInt() : minimum;
+      auto* spin = add_dialog_slider_spin_row(form, &dialog, entry.label,
+                                              object_name + QStringLiteral("Slider"), object_name,
+                                              minimum, maximum, value);
+      getters.emplace_back([spin] { return QJSValue(spin->value()); });
+    } else if (entry.type == QLatin1String("checkbox")) {
+      auto* box = new QCheckBox(entry.label, &dialog);
+      box->setObjectName(object_name);
+      box->setChecked(entry.value.toBool());
+      form->addRow(QString(), box);
+      getters.emplace_back([box] { return QJSValue(box->isChecked()); });
+    } else if (entry.type == QLatin1String("choice")) {
+      auto* combo = new QComboBox(&dialog);
+      combo->setObjectName(object_name);
+      const auto choices = field.property(QStringLiteral("choices"));
+      const int choice_count =
+          choices.isArray() ? choices.property(QStringLiteral("length")).toInt() : 0;
+      for (int c = 0; c < choice_count; ++c) {
+        combo->addItem(choices.property(static_cast<quint32>(c)).toString());
+      }
+      if (entry.value.isNumber()) {
+        combo->setCurrentIndex(entry.value.toInt());
+      } else if (!entry.value.isUndefined()) {
+        combo->setCurrentText(entry.value.toString());
+      }
+      form->addRow(entry.label, combo);
+      getters.emplace_back([combo] { return QJSValue(combo->currentText()); });
+    } else if (entry.type == QLatin1String("color")) {
+      auto* button = new QPushButton(&dialog);
+      button->setObjectName(object_name);
+      auto color = std::make_shared<QColor>(entry.value.toString());
+      if (!color->isValid()) {
+        *color = QColor(Qt::white);
+      }
+      const auto refresh_swatch = [button, color] {
+        button->setText(color->alpha() < 255 ? color->name(QColor::HexArgb)
+                                             : color->name(QColor::HexRgb));
+        button->setStyleSheet(QStringLiteral("background-color: %1; color: %2;")
+                                  .arg(color->name(QColor::HexRgb),
+                                       color->lightness() < 128 ? QStringLiteral("#e8e8e8")
+                                                                : QStringLiteral("#202020")));
+      };
+      refresh_swatch();
+      QObject::connect(button, &QPushButton::clicked, &dialog, [&dialog, color, refresh_swatch] {
+        const auto picked = QColorDialog::getColor(*color, &dialog, tr("Choose Color"),
+                                                   QColorDialog::ShowAlphaChannel);
+        if (picked.isValid()) {
+          *color = picked;
+          refresh_swatch();
+        }
+      });
+      form->addRow(entry.label, button);
+      getters.emplace_back([color] {
+        return QJSValue(color->alpha() < 255 ? color->name(QColor::HexArgb)
+                                             : color->name(QColor::HexRgb));
+      });
+    } else {  // "text"
+      auto* line = new QLineEdit(entry.value.isUndefined() ? QString() : entry.value.toString(),
+                                 &dialog);
+      line->setObjectName(object_name);
+      form->addRow(entry.label, line);
+      getters.emplace_back([line] { return QJSValue(line->text()); });
+    }
+  }
+
+  auto* buttons =
+      new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  root->addWidget(buttons);
+  // Spin-box button styling must land AFTER all children exist (QSS
+  // sub-control gotcha, dialog_utils.hpp).
+  dialog.setStyleSheet(dialog_spinbox_button_style());
+
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return QJSValue(QJSValue::NullValue);
+  }
+  auto result = engine_->newObject();
+  for (std::size_t i = 0; i < parsed.size(); ++i) {
+    result.setProperty(parsed[i].key, getters[i]());
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// App commands
+
+bool ScriptEngineHost::run_app_command(const QString& command_id) {
+  const auto* command = window_.hotkey_registry().find_command(command_id);
+  if (command == nullptr || command->action.isNull()) {
+    return false;
+  }
+  QAction* action = command->action.data();
+  if (!action->isEnabled()) {
+    return false;
+  }
+  // The command may open a modal dialog (and many do); the user's time in it
+  // must not count against the script.
+  const ModalWatchdogPause pause(*this);
+  action->trigger();
+  return true;
+}
+
+QStringList ScriptEngineHost::app_command_ids() const {
+  QStringList ids;
+  for (const auto& command : window_.hotkey_registry().commands()) {
+    ids.append(command.id);
+  }
+  ids.sort();
+  return ids;
 }
 
 // ---------------------------------------------------------------------------

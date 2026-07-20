@@ -163,11 +163,14 @@ public:
   // final "[done]"/"[failed]" line to output_path when the run fully completes
   // (a forwarded `--run-script` from a second launch lands here, like
   // save_debug_screenshot does for --screenshot). Empty output_path = no file.
-  void run_script_command(const QString& script_path, const QString& output_path);
+  // script_args holds raw --script-arg "key=value" tokens (patchy.args).
+  void run_script_command(const QString& script_path, const QString& output_path,
+                          const QStringList& script_args = {});
   // CLI `--run-script` in a fresh unattended instance (`--export` pattern):
   // defers until the event loop starts, runs the script, writes the output
   // file, and exits 0 on success or 4 on script failure.
-  void run_cli_script(const QString& script_path, const QString& output_path);
+  void run_cli_script(const QString& script_path, const QString& output_path,
+                      const QStringList& script_args = {});
   // Script folders (main_window_scripting.cpp): bundled scripts ship next to
   // the binary (Resources/ on macOS, share/patchy/ on Linux); user scripts
   // live under the per-user app-data folder (created on first use).

@@ -531,14 +531,18 @@ if(PATCHY_BUILD_APP)
     endfunction()
     # Bundled example/utility scripts for the JS scripting system (plus patchy.d.ts, the
     # typed API reference). Same shared copy-once shape as the fonts: per-target POST_BUILD
-    # copies into the shared output directory race under parallel Ninja.
-    set(PATCHY_BUNDLED_SCRIPTS_DIR "${PROJECT_SOURCE_DIR}/scripts")
+    # copies into the shared output directory race under parallel Ninja. Only scripts/bundled
+    # ships; the rest of scripts/ is dev tooling and must never be staged next to the binary.
+    set(PATCHY_BUNDLED_SCRIPTS_DIR "${PROJECT_SOURCE_DIR}/scripts/bundled")
     if(EXISTS "${PATCHY_BUNDLED_SCRIPTS_DIR}")
-      file(GLOB PATCHY_BUNDLED_SCRIPT_FILES CONFIGURE_DEPENDS
+      file(GLOB_RECURSE PATCHY_BUNDLED_SCRIPT_FILES CONFIGURE_DEPENDS
         "${PATCHY_BUNDLED_SCRIPTS_DIR}/*")
       set(PATCHY_SCRIPTS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_bundled_scripts.stamp")
       add_custom_command(
         OUTPUT "${PATCHY_SCRIPTS_STAMP}"
+        # Clean first: copy_directory never deletes, so renamed/removed bundled
+        # scripts would otherwise linger in existing build trees forever.
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_BINARY_DIR}/scripts"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${PATCHY_BUNDLED_SCRIPTS_DIR}"
                 "${CMAKE_BINARY_DIR}/scripts"
@@ -704,6 +708,8 @@ if(PATCHY_BUILD_APP)
       src/ui/script_editor_dialog.cpp
       src/ui/script_engine.hpp
       src/ui/script_engine.cpp
+      src/ui/script_folders.hpp
+      src/ui/script_folders.cpp
       src/ui/selection_outline.hpp
       src/ui/selection_outline.cpp
       src/ui/start_panel.hpp

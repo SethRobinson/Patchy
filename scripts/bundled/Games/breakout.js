@@ -6,13 +6,19 @@
 // compositor only recomposites the few pixels that changed. A small controller
 // window takes the keyboard (Left/Right or A/D, Space to launch) and shows the
 // score; close it to quit. Undo is disabled for speed with app.undoEnabled.
+// The playfield backdrop comes from the bundled Fancy Background script - one
+// script calling another via include().
 
 app.undoEnabled = false;
 
 var W = 480;
 var H = 360;
 var doc = app.newDocument(W, H);
-doc.layers[0].fill("#0e101a");  // the Background layer becomes the playfield
+// The Background layer becomes the playfield; keep it dark and subtle so the
+// bricks and ball stay readable.
+include("Effects/fancy-background.js");
+drawFancyBackground(doc.layers[0], W, H,
+                    { top: "#141b2e", bottom: "#0a0e17", vignette: 0.4, noise: 0.035, seed: 7 });
 
 // Bricks: 10 x 5 grid, one color per row, drawn ONCE into the bricks layer.
 var COLS = 10;

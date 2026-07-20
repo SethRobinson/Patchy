@@ -1,7 +1,9 @@
-// The Script Editor dialog (docs/scripting.md): script browser over the bundled
-// and user script folders, a JS editor pane, and a console wired to the engine
+// The Script Editor dialog (docs/scripting.md): a folder tree over the bundled
+// and user script roots, a JS editor pane, and a console wired to the engine
 // host. Runs are one-at-a-time (the host enforces it); Stop interrupts stuck
-// scripts and tears down timer/window-driven ones.
+// scripts and tears down timer/window-driven ones. Saving a bundled script
+// writes the user-folder shadow copy (script_folders.hpp) so the shipped file
+// stays pristine; Revert to Bundled deletes the copy.
 
 #include "ui/script_editor_dialog.hpp"
 
@@ -9,26 +11,35 @@
 #include "ui/js_syntax_highlighter.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/script_folders.hpp"
 
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QListWidget>
+#include <QMenu>
 #include <QPainter>
 #include <QPushButton>
 #include <QShortcut>
 #include <QSplitter>
 #include <QTextBlock>
+#include <QTextDocument>
+#include <QTreeWidget>
+#include <QUrl>
 #include <QVBoxLayout>
+
+#include <functional>
+#include <vector>
 
 namespace patchy::ui {
 
 namespace {
 
 constexpr int kScriptPathRole = Qt::UserRole;
+constexpr int kScriptBundledPathRole = Qt::UserRole + 1;  // overrides: the shipped original
 
 // The gutter widget; forwards painting back to the editor (Qt code-editor
 // example structure, non-Q_OBJECT).
@@ -140,6 +151,9 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   save_as_button->setObjectName(QStringLiteral("scriptEditorSaveAsButton"));
   auto* reload_button = new QPushButton(tr("Reload"), this);
   reload_button->setObjectName(QStringLiteral("scriptEditorReloadButton"));
+  auto* refresh_button = new QPushButton(tr("Refresh"), this);
+  refresh_button->setObjectName(QStringLiteral("scriptEditorRefreshButton"));
+  refresh_button->setToolTip(tr("Rescan the script folders"));
   file_label_ = new QLabel(tr("untitled.js"), this);
   file_label_->setObjectName(QStringLiteral("scriptEditorFileLabel"));
   toolbar->addWidget(run_button_);
@@ -149,13 +163,17 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   toolbar->addWidget(save_button);
   toolbar->addWidget(save_as_button);
   toolbar->addWidget(reload_button);
+  toolbar->addWidget(refresh_button);
   toolbar->addStretch(1);
   toolbar->addWidget(file_label_);
   root->addLayout(toolbar);
 
   auto* horizontal = new QSplitter(Qt::Horizontal, this);
-  script_list_ = new QListWidget(horizontal);
-  script_list_->setObjectName(QStringLiteral("scriptEditorList"));
+  script_tree_ = new QTreeWidget(horizontal);
+  script_tree_->setObjectName(QStringLiteral("scriptEditorTree"));
+  script_tree_->setHeaderHidden(true);
+  script_tree_->setColumnCount(1);
+  script_tree_->setContextMenuPolicy(Qt::CustomContextMenu);
   auto* right = new QSplitter(Qt::Vertical, horizontal);
   editor_ = new ScriptCodeEditor(right);
   editor_->setObjectName(QStringLiteral("scriptEditorCode"));
@@ -169,7 +187,7 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   right->addWidget(console_);
   right->setStretchFactor(0, 3);
   right->setStretchFactor(1, 1);
-  horizontal->addWidget(script_list_);
+  horizontal->addWidget(script_tree_);
   horizontal->addWidget(right);
   horizontal->setStretchFactor(0, 1);
   horizontal->setStretchFactor(1, 4);
@@ -181,10 +199,18 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   connect(save_button, &QPushButton::clicked, this, [this] { (void)save_script(); });
   connect(save_as_button, &QPushButton::clicked, this, [this] { (void)save_script_as(); });
   connect(reload_button, &QPushButton::clicked, this, [this] { reload_script(); });
-  connect(script_list_, &QListWidget::itemActivated, this,
-          [this](QListWidgetItem* item) { handle_list_activated(item); });
+  connect(refresh_button, &QPushButton::clicked, this,
+          [this] { refresh_script_tree(current_path_); });
+  connect(script_tree_, &QTreeWidget::itemActivated, this,
+          [this](QTreeWidgetItem* item, int) { handle_tree_activated(item); });
+  connect(script_tree_, &QTreeWidget::customContextMenuRequested, this,
+          [this](const QPoint& position) { show_tree_context_menu(position); });
   auto* run_shortcut = new QShortcut(QKeySequence(Qt::Key_F5), this);
   connect(run_shortcut, &QShortcut::activated, this, [this] { run_current(); });
+  auto* save_shortcut = new QShortcut(QKeySequence::Save, this);
+  connect(save_shortcut, &QShortcut::activated, this, [this] { (void)save_script(); });
+  connect(editor_->document(), &QTextDocument::modificationChanged, this,
+          [this](bool) { update_file_label(); });
 
   connect(&host_, &ScriptEngineHost::message_emitted, this,
           [this](int kind, const QString& text) { append_console(kind, text); });
@@ -195,30 +221,49 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
     console_->appendPlainText(line);
   }
 
-  refresh_script_list();
+  refresh_script_tree();
   update_run_state();
 }
 
-void ScriptEditorDialog::refresh_script_list() {
-  script_list_->clear();
-  const auto add_directory = [this](const QString& directory, const QString& header) {
-    if (directory.isEmpty() || !QDir(directory).exists()) {
-      return;
-    }
-    const auto entries = QDir(directory).entryInfoList({QStringLiteral("*.js")},
-                                                       QDir::Files | QDir::Readable, QDir::Name);
-    if (entries.isEmpty()) {
-      return;
-    }
-    auto* header_item = new QListWidgetItem(header, script_list_);
-    header_item->setFlags(Qt::NoItemFlags);
-    for (const auto& entry : entries) {
-      auto* item = new QListWidgetItem(entry.fileName(), script_list_);
-      item->setData(kScriptPathRole, entry.absoluteFilePath());
-    }
-  };
-  add_directory(MainWindow::bundled_scripts_directory(), tr("Bundled"));
-  add_directory(MainWindow::user_scripts_directory(), tr("My Scripts"));
+void ScriptEditorDialog::refresh_script_tree(const QString& select_path) {
+  script_tree_->clear();
+  QTreeWidgetItem* to_select = nullptr;
+  const std::function<void(QTreeWidgetItem*, const std::vector<ScriptFolderEntry>&)> add_entries =
+      [&](QTreeWidgetItem* parent, const std::vector<ScriptFolderEntry>& entries) {
+        for (const auto& entry : entries) {
+          auto* item = new QTreeWidgetItem(parent);
+          if (entry.is_folder) {
+            item->setText(0, script_folder_display_name(entry.name));
+            item->setFlags(Qt::ItemIsEnabled);
+            add_entries(item, entry.children);
+            continue;
+          }
+          item->setText(0, entry.is_override ? tr("%1 (modified)").arg(entry.name) : entry.name);
+          item->setData(0, kScriptPathRole, entry.path);
+          if (entry.is_override) {
+            item->setData(0, kScriptBundledPathRole, entry.bundled_path);
+          }
+          if (!select_path.isEmpty() && entry.path == select_path) {
+            to_select = item;
+          }
+        }
+      };
+  const auto scan = scan_scripts(MainWindow::bundled_scripts_directory(),
+                                 MainWindow::user_scripts_directory());
+  if (!scan.bundled.empty()) {
+    auto* bundled_root = new QTreeWidgetItem(script_tree_);
+    bundled_root->setText(0, tr("Bundled"));
+    bundled_root->setFlags(Qt::ItemIsEnabled);
+    add_entries(bundled_root, scan.bundled);
+  }
+  auto* user_root = new QTreeWidgetItem(script_tree_);
+  user_root->setText(0, tr("My Scripts"));
+  user_root->setFlags(Qt::ItemIsEnabled);
+  add_entries(user_root, scan.user);
+  script_tree_->expandAll();
+  if (to_select != nullptr) {
+    script_tree_->setCurrentItem(to_select);
+  }
 }
 
 bool ScriptEditorDialog::editor_modified() const { return editor_->document()->isModified(); }
@@ -227,25 +272,85 @@ bool ScriptEditorDialog::confirm_discard_changes() {
   if (!editor_modified()) {
     return true;
   }
+  const auto name =
+      current_path_.isEmpty() ? tr("untitled.js") : QFileInfo(current_path_).fileName();
   const auto answer = show_warning_message(
-      this, tr("Script Editor"), tr("Discard unsaved changes to %1?").arg(file_label_->text()),
+      this, tr("Script Editor"), tr("Discard unsaved changes to %1?").arg(name),
       QMessageBox::Yes | QMessageBox::No, QMessageBox::No,
       QStringLiteral("scriptEditorDiscardMessageBox"));
   return answer == QMessageBox::Yes;
 }
 
-void ScriptEditorDialog::handle_list_activated(QListWidgetItem* item) {
+void ScriptEditorDialog::handle_tree_activated(QTreeWidgetItem* item) {
   if (item == nullptr) {
     return;
   }
-  const auto path = item->data(kScriptPathRole).toString();
+  const auto path = item->data(0, kScriptPathRole).toString();
   if (path.isEmpty()) {
-    return;
+    return;  // folder / root rows
   }
   if (!confirm_discard_changes()) {
     return;
   }
   load_script(path);
+}
+
+void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
+  auto* item = script_tree_->itemAt(position);
+  if (item == nullptr) {
+    return;
+  }
+  const auto path = item->data(0, kScriptPathRole).toString();
+  if (path.isEmpty()) {
+    return;
+  }
+  const auto bundled_path = item->data(0, kScriptBundledPathRole).toString();
+  QMenu menu(this);
+  menu.setObjectName(QStringLiteral("scriptEditorTreeMenu"));
+  auto* run_action = menu.addAction(tr("Run"));
+  auto* reveal_action = menu.addAction(tr("Show in Folder"));
+  QAction* revert_action = nullptr;
+  if (!bundled_path.isEmpty()) {
+    menu.addSeparator();
+    revert_action = menu.addAction(tr("Revert to Bundled"));
+  }
+  auto* chosen = menu.exec(script_tree_->viewport()->mapToGlobal(position));
+  if (chosen == nullptr) {
+    return;
+  }
+  if (chosen == run_action) {
+    if (host_.run_active()) {
+      append_console(2, tr("A script is already running: %1").arg(host_.active_run_name()));
+      return;
+    }
+    console_->appendPlainText(QStringLiteral("--- %1 ---").arg(QFileInfo(path).fileName()));
+    (void)host_.run_file(path);
+  } else if (chosen == reveal_action) {
+    QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
+  } else if (chosen == revert_action) {
+    revert_override_to_bundled(path, bundled_path);
+  }
+}
+
+void ScriptEditorDialog::revert_override_to_bundled(const QString& user_copy_path,
+                                                    const QString& bundled_path) {
+  const auto answer = show_warning_message(
+      this, tr("Script Editor"),
+      tr("Delete your modified copy of %1 and restore the bundled script?")
+          .arg(QFileInfo(bundled_path).fileName()),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No,
+      QStringLiteral("scriptEditorRevertMessageBox"));
+  if (answer != QMessageBox::Yes) {
+    return;
+  }
+  if (!QFile::remove(user_copy_path)) {
+    append_console(2, tr("Could not delete %1").arg(QDir::toNativeSeparators(user_copy_path)));
+    return;
+  }
+  if (current_path_ == user_copy_path) {
+    load_script(bundled_path);
+  }
+  refresh_script_tree(current_path_);
 }
 
 void ScriptEditorDialog::load_script(const QString& path) {
@@ -261,7 +366,15 @@ void ScriptEditorDialog::load_script(const QString& path) {
 
 void ScriptEditorDialog::set_current_path(const QString& path) {
   current_path_ = path;
-  file_label_->setText(path.isEmpty() ? tr("untitled.js") : QFileInfo(path).fileName());
+  update_file_label();
+}
+
+void ScriptEditorDialog::update_file_label() {
+  auto name = current_path_.isEmpty() ? tr("untitled.js") : QFileInfo(current_path_).fileName();
+  if (editor_modified()) {
+    name += QStringLiteral(" *");
+  }
+  file_label_->setText(name);
 }
 
 void ScriptEditorDialog::run_current() {
@@ -270,7 +383,8 @@ void ScriptEditorDialog::run_current() {
   }
   console_->appendPlainText(QStringLiteral("--- %1 ---").arg(file_label_->text()));
   ScriptEngineHost::RunOptions options;
-  options.name = file_label_->text();
+  options.name =
+      current_path_.isEmpty() ? tr("untitled.js") : QFileInfo(current_path_).fileName();
   options.path = current_path_;
   (void)host_.run_source(editor_->toPlainText(), std::move(options));
 }
@@ -287,21 +401,36 @@ void ScriptEditorDialog::new_script() {
 }
 
 bool ScriptEditorDialog::save_script() {
-  const auto bundled_dir = MainWindow::bundled_scripts_directory();
-  const bool bundled = !current_path_.isEmpty() && !bundled_dir.isEmpty() &&
-                       QFileInfo(current_path_).absolutePath() == bundled_dir;
-  if (current_path_.isEmpty() || bundled) {
-    // Bundled scripts live next to the binary (possibly read-only); edits go to
-    // the user's scripts folder instead.
+  if (current_path_.isEmpty()) {
     return save_script_as();
   }
-  QFile file(current_path_);
+  auto target = current_path_;
+  const auto bundled_relative =
+      relative_path_under(MainWindow::bundled_scripts_directory(), current_path_);
+  if (!bundled_relative.isEmpty()) {
+    // Bundled script: Save writes the user-folder shadow copy that overrides
+    // it (the shipped file stays pristine, so app updates never clobber the
+    // edit; Revert to Bundled deletes the copy).
+    target = QDir(MainWindow::user_scripts_directory()).absoluteFilePath(bundled_relative);
+    QDir().mkpath(QFileInfo(target).absolutePath());
+  }
+  QFile file(target);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-    append_console(2, tr("Could not write %1").arg(QDir::toNativeSeparators(current_path_)));
+    append_console(2, tr("Could not write %1").arg(QDir::toNativeSeparators(target)));
     return false;
   }
   file.write(editor_->toPlainText().toUtf8());
+  file.close();
   editor_->document()->setModified(false);
+  if (target != current_path_) {
+    append_console(0, tr("Saved your copy to %1; it now runs instead of the bundled script "
+                         "(right-click it for Revert to Bundled).")
+                          .arg(QDir::toNativeSeparators(target)));
+    set_current_path(target);
+  } else {
+    update_file_label();
+  }
+  refresh_script_tree(target);
   return true;
 }
 
@@ -322,9 +451,10 @@ bool ScriptEditorDialog::save_script_as() {
     return false;
   }
   file.write(editor_->toPlainText().toUtf8());
+  file.close();
   editor_->document()->setModified(false);
   set_current_path(path);
-  refresh_script_list();
+  refresh_script_tree(path);
   return true;
 }
 

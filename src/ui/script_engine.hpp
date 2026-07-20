@@ -78,12 +78,14 @@ public:
     // Source file path; empty for editor-buffer runs. include() resolves
     // relative paths against the running script's directory.
     QString path;
+    // Raw "key=value" tokens (CLI --script-arg), surfaced as patchy.args.
+    QStringList args;
   };
 
   // Starts a run (false when one is already active). Errors and console output
   // go to message_sink; completion is announced through run_state_changed.
   bool run_source(const QString& source, RunOptions options);
-  bool run_file(const QString& path);
+  bool run_file(const QString& path, QStringList args = {});
   // User stop: interrupts a stuck synchronous phase and tears down timers and
   // script windows. Safe to call when no run is active.
   void stop_active_run();
@@ -172,9 +174,22 @@ public:
                              const QJSValue& params);
 
   // Interactive helpers (suppressed under CLI automation: alert logs instead,
-  // prompt returns its default).
+  // prompt returns its default, pickers return empty, showDialog returns the
+  // field defaults). Each pauses the watchdog while its dialog is up.
   void show_alert(const QString& text);
   [[nodiscard]] QString show_prompt(const QString& text, const QString& default_value, bool* accepted);
+  [[nodiscard]] QString choose_folder(const QString& title);
+  [[nodiscard]] QString choose_open_file(const QString& title, const QString& filter);
+  [[nodiscard]] QString choose_save_file(const QString& title, const QString& filter);
+  // Declarative form dialog (patchy.ui.showDialog): builds widgets from the
+  // spec's field list, returns a values object, or null when cancelled.
+  [[nodiscard]] QJSValue show_form_dialog(const QJSValue& spec);
+
+  // app.runCommand / app.commandIds: registered app actions by their stable
+  // HotkeyRegistry command id. run_app_command returns false for unknown or
+  // currently disabled commands.
+  bool run_app_command(const QString& command_id);
+  [[nodiscard]] QStringList app_command_ids() const;
 
   // Script canvas windows join the run lifecycle: the run stays live while any
   // window is open, and stopping the run closes them.
@@ -186,6 +201,9 @@ public:
   Q_INVOKABLE void scriptClearTimer(int timer_id);
   Q_INVOKABLE void consoleEmit(int kind, const QString& text);
   Q_INVOKABLE void includeScript(const QString& path);
+  // True while an include()d file's top-level code runs (patchy.isMainScript
+  // is its negation - the `if __name__ == "__main__"` pattern).
+  Q_INVOKABLE bool scriptIsIncluded() const;
 
   // Runs a stored JS callback under the watchdog with error trapping. Used by
   // the timer registry and the canvas windows so every entry into script code
@@ -197,6 +215,8 @@ private:
   struct ScriptRun {
     QString name;
     QStringList include_dir_stack;
+    // Depth of nested include() evaluations (0 = top-level script code).
+    int include_depth{0};
     std::set<std::int64_t> snapshotted_sessions;
     bool undo_enabled{true};
     std::map<int, QTimer*> timers;
@@ -216,6 +236,20 @@ private:
     QRegion dirty;
     bool full_canvas{false};
     bool structure{false};
+  };
+
+  // RAII: disarms the watchdog while a modal interactive helper (alert,
+  // prompt, pickers, showDialog, runCommand) blocks in a nested event loop,
+  // and re-arms it with a FRESH timeout on exit. Without this, a user who
+  // thinks at a dialog for longer than the timeout gets the script
+  // interrupted the moment it resumes.
+  struct ModalWatchdogPause {
+    explicit ModalWatchdogPause(ScriptEngineHost& host);
+    ~ModalWatchdogPause();
+    ModalWatchdogPause(const ModalWatchdogPause&) = delete;
+    ModalWatchdogPause& operator=(const ModalWatchdogPause&) = delete;
+    ScriptEngineHost& host_;
+    bool rearm_{false};
   };
 
   void install_bindings(const RunOptions& options);

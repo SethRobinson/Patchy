@@ -64,6 +64,7 @@
 #include "ui/print_dialog.hpp"
 #include "ui/script_editor_dialog.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/script_folders.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/image_sequence_dialog.hpp"
@@ -103,29 +104,12 @@ namespace {
 // Marks menu entries the folder rescan rebuilds (the static entries stay).
 constexpr char kDynamicScriptActionProperty[] = "patchy.scriptMenuEntry";
 
-QStringList script_files_in(const QString& directory) {
-  if (directory.isEmpty()) {
-    return {};
-  }
-  QDir dir(directory);
-  if (!dir.exists()) {
-    return {};
-  }
-  QStringList paths;
-  const auto entries =
-      dir.entryInfoList({QStringLiteral("*.js")}, QDir::Files | QDir::Readable, QDir::Name);
-  for (const auto& entry : entries) {
-    paths.append(entry.absoluteFilePath());
-  }
-  return paths;
-}
-
 // Runs `script_path`, captures console output and errors, and writes them (plus
 // a final "[done]"/"[failed]" line) to output_path when the run fully
 // completes. The output file is the CLI contract AI agents poll (the invoking
 // `patchy --run-script` process exits immediately in the forwarded flow).
 void run_script_writing_output(ScriptEngineHost& host, const QString& script_path,
-                               const QString& output_path,
+                               const QString& output_path, const QStringList& script_args,
                                std::function<void(bool ok)> on_finished) {
   auto capture = std::make_shared<QStringList>();
   auto connections = std::make_shared<std::vector<QMetaObject::Connection>>();
@@ -169,7 +153,7 @@ void run_script_writing_output(ScriptEngineHost& host, const QString& script_pat
                                               finalize(!host.last_run_had_error());
                                             }
                                           }));
-  const bool started_clean = host.run_file(script_path);
+  const bool started_clean = host.run_file(script_path, script_args);
   if (!host.run_active()) {
     // The run never started (unreadable file, or another script owns the
     // engine) or already finished synchronously before the completion signal
@@ -228,25 +212,42 @@ void MainWindow::rebuild_scripts_menu() {
   for (auto* action : actions) {
     if (action->property(kDynamicScriptActionProperty).toBool()) {
       scripts_menu_->removeAction(action);
-      action->deleteLater();
+      if (auto* submenu = action->menu()) {
+        submenu->deleteLater();  // owns its menuAction
+      } else {
+        action->deleteLater();
+      }
     }
   }
-  const auto add_script_entries = [this](const QStringList& files) {
-    for (const auto& path : files) {
-      auto* action = scripts_menu_->addAction(QFileInfo(path).completeBaseName());
-      action->setProperty(kDynamicScriptActionProperty, true);
-      connect(action, &QAction::triggered, this, [this, path] { run_script_from_menu(path); });
-    }
-  };
-  const auto bundled = script_files_in(bundled_scripts_directory());
-  const auto user = script_files_in(user_scripts_directory());
-  if (!bundled.isEmpty()) {
-    add_script_entries(bundled);
-  }
-  if (!user.isEmpty()) {
+  // Folders become submenus; a user shadow copy replaces the bundled entry in
+  // place, tagged "(modified)" (script_folders.hpp).
+  const std::function<void(QMenu*, const std::vector<ScriptFolderEntry>&, bool)> add_entries =
+      [this, &add_entries](QMenu* menu, const std::vector<ScriptFolderEntry>& entries, bool mark) {
+        for (const auto& entry : entries) {
+          if (entry.is_folder) {
+            auto* submenu = menu->addMenu(script_folder_display_name(entry.name));
+            if (mark) {
+              submenu->menuAction()->setProperty(kDynamicScriptActionProperty, true);
+            }
+            add_entries(submenu, entry.children, false);
+            continue;
+          }
+          const auto text =
+              entry.is_override ? tr("%1 (modified)").arg(entry.name) : entry.name;
+          auto* action = menu->addAction(text);
+          if (mark) {
+            action->setProperty(kDynamicScriptActionProperty, true);
+          }
+          const auto path = entry.path;
+          connect(action, &QAction::triggered, this, [this, path] { run_script_from_menu(path); });
+        }
+      };
+  const auto scan = scan_scripts(bundled_scripts_directory(), user_scripts_directory());
+  add_entries(scripts_menu_, scan.bundled, true);
+  if (!scan.user.empty()) {
     auto* separator = scripts_menu_->addSeparator();
     separator->setProperty(kDynamicScriptActionProperty, true);
-    add_script_entries(user);
+    add_entries(scripts_menu_, scan.user, true);
   }
 }
 
@@ -276,7 +277,8 @@ void MainWindow::open_script_editor() {
   run_non_modal_dialog(*dialog);
 }
 
-void MainWindow::run_script_command(const QString& script_path, const QString& output_path) {
+void MainWindow::run_script_command(const QString& script_path, const QString& output_path,
+                                    const QStringList& script_args) {
   auto& host = script_engine_host();
   if (host.run_active()) {
     if (!output_path.isEmpty()) {
@@ -287,15 +289,16 @@ void MainWindow::run_script_command(const QString& script_path, const QString& o
     }
     return;
   }
-  run_script_writing_output(host, script_path, output_path, {});
+  run_script_writing_output(host, script_path, output_path, script_args, {});
 }
 
-void MainWindow::run_cli_script(const QString& script_path, const QString& output_path) {
+void MainWindow::run_cli_script(const QString& script_path, const QString& output_path,
+                                const QStringList& script_args) {
   // Deferred like run_cli_export: the run starts once the event loop is up, so
   // command-line file opens have fully settled into sessions first.
-  QTimer::singleShot(0, this, [this, script_path, output_path] {
+  QTimer::singleShot(0, this, [this, script_path, output_path, script_args] {
     auto& host = script_engine_host();
-    run_script_writing_output(host, script_path, output_path, [this](bool ok) {
+    run_script_writing_output(host, script_path, output_path, script_args, [this](bool ok) {
       // No document may prompt during shutdown.
       for (auto& session : sessions_) {
         if (session != nullptr) {

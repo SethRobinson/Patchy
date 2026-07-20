@@ -114,14 +114,21 @@ QString encode_screenshot_command(const QString& output_path, const QString& wid
 }
 
 // Script-run requests use the same reserved-entry scheme. Fields are
-// newline-separated: prefix, script path, output path (may be empty). The
-// running instance executes the script and writes console output plus a final
-// [done]/[failed] line to the output path when the run completes; the invoking
-// process exits immediately and the caller polls for the file.
+// newline-separated: prefix, script path, output path (may be empty), then one
+// field per --script-arg "key=value" token (keys/values must not contain
+// newlines). The running instance executes the script and writes console
+// output plus a final [done]/[failed] line to the output path when the run
+// completes; the invoking process exits immediately and the caller polls for
+// the file.
 const QString kRunScriptCommandPrefix = QStringLiteral("patchy-cmd:run-script\n");
 
-QString encode_run_script_command(const QString& script_path, const QString& output_path) {
-  return kRunScriptCommandPrefix + script_path + QLatin1Char('\n') + output_path;
+QString encode_run_script_command(const QString& script_path, const QString& output_path,
+                                  const QStringList& script_args) {
+  auto command = kRunScriptCommandPrefix + script_path + QLatin1Char('\n') + output_path;
+  for (const auto& arg : script_args) {
+    command += QLatin1Char('\n') + arg;
+  }
+  return command;
 }
 
 // Parses "x,y,w,h" (as taken by --screenshot-rect); anything else yields an invalid rect,
@@ -360,6 +367,13 @@ int main(int argc, char* argv[]) {
                      "line to this file when the script completes."),
       QStringLiteral("path"));
   parser.addOption(script_output_option);
+  QCommandLineOption script_arg_option(
+      QStringLiteral("script-arg"),
+      QCoreApplication::translate(
+          "QObject", "With --run-script: pass key=value to the script as patchy.args.key "
+                     "(repeatable)."),
+      QStringLiteral("key=value"));
+  parser.addOption(script_arg_option);
   // QCommandLineParser has no optional-value options, so let a bare
   // `--stress-test` mean the default (quick) preset.
   QStringList arguments = app.arguments();
@@ -419,6 +433,7 @@ int main(int argc, char* argv[]) {
   if (parser.isSet(script_output_option)) {
     script_output_path = QFileInfo(parser.value(script_output_option)).absoluteFilePath();
   }
+  const QStringList script_args = parser.values(script_arg_option);
 
   // Single-instance: if another Patchy is already running, hand it the files and exit so a double-click
   // reuses the existing window instead of spawning a new process. An env override keeps multi-instance
@@ -432,7 +447,8 @@ int main(int argc, char* argv[]) {
     forward_payload.append(encode_screenshot_command(screenshot_path, screenshot_widget, screenshot_rect_text));
   }
   if (run_script_mode) {
-    forward_payload.append(encode_run_script_command(run_script_path, script_output_path));
+    forward_payload.append(
+        encode_run_script_command(run_script_path, script_output_path, script_args));
   }
   if (single_instance_enabled && forward_to_running_instance(forward_payload)) {
     return 0;
@@ -475,8 +491,9 @@ int main(int argc, char* argv[]) {
               handled_command = true;
             } else if (entry.startsWith(kRunScriptCommandPrefix)) {
               const auto parts = entry.split(QLatin1Char('\n'));
-              if (parts.size() == 3) {
-                window.run_script_command(parts[1], parts[2]);
+              if (parts.size() >= 3) {
+                // Fields past the output path are --script-arg tokens.
+                window.run_script_command(parts[1], parts[2], parts.mid(3));
               }
               handled_command = true;
             } else {
@@ -519,7 +536,7 @@ int main(int argc, char* argv[]) {
     // run the script unattended in this instance and exit with its status.
     window.set_cli_automation_mode(true);
     window.open_command_line_files(files);
-    window.run_cli_script(run_script_path, script_output_path);
+    window.run_cli_script(run_script_path, script_output_path, script_args);
     const int script_result = app.exec();
     patchy::ui::wait_for_tracked_background_workers();
     return script_result;

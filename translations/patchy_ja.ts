@@ -5462,6 +5462,7 @@ Mixed selection</source>
     <message><source>Pattern Stamp</source><translation>パターンスタンプ</translation></message>
     <message><source>Run the JavaScript file. With a running instance this forwards the request and exits; otherwise a new unattended instance opens the given files, runs the script, and exits (0 = ok, 4 = script error).</source><translation>JavaScript ファイルを実行します。実行中のインスタンスがあればリクエストを転送して終了し、なければ新しい無人インスタンスが指定ファイルを開いてスクリプトを実行し終了します (0 = 成功、4 = スクリプトエラー)。</translation></message>
     <message><source>With --run-script: write console output, errors, and a final [done]/[failed] line to this file when the script completes.</source><translation>--run-script と併用: スクリプト完了時にコンソール出力・エラー・最終行 [done]/[failed] をこのファイルに書き込みます。</translation></message>
+    <message><source>With --run-script: pass key=value to the script as patchy.args.key (repeatable).</source><translation>--run-script と併用: key=value を patchy.args.key としてスクリプトに渡します (複数指定可)。</translation></message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13113,6 +13114,7 @@ Clipped to the layer below</source>
     <message><source>&amp;Browse Scripts Folder...</source><translation>スクリプトフォルダーを開く(&amp;B)...</translation></message>
     <message><source>A script is already running: %1</source><translation>スクリプトは既に実行中です: %1</translation></message>
     <message><source>Running script %1...</source><translation>スクリプト %1 を実行中...</translation></message>
+    <message><source>%1 (modified)</source><translation>%1 (変更済み)</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -13878,6 +13880,15 @@ Clipped to the layer below</source>
     <message><source>Script stopped: a callback exceeded the time limit.</source><translation>スクリプトを停止しました: コールバックが制限時間を超えました。</translation></message>
     <message><source>setTimeout/setInterval needs a function.</source><translation>setTimeout/setInterval には関数が必要です。</translation></message>
     <message><source>include: could not read %1</source><translation>include: %1 を読み込めませんでした</translation></message>
+    <message><source>Choose Folder</source><translation>フォルダーを選択</translation></message>
+    <message><source>Choose File</source><translation>ファイルを選択</translation></message>
+    <message><source>Save File</source><translation>ファイルを保存</translation></message>
+    <message><source>All files (*)</source><translation>すべてのファイル (*)</translation></message>
+    <message><source>Choose Color</source><translation>色を選択</translation></message>
+    <message><source>showDialog: spec.fields must be an array</source><translation>showDialog: spec.fields は配列である必要があります</translation></message>
+    <message><source>showDialog: every field needs a non-empty &quot;key&quot;</source><translation>showDialog: すべてのフィールドに空でない &quot;key&quot; が必要です</translation></message>
+    <message><source>showDialog: unknown field type &quot;%1&quot; (use number, slider, checkbox, choice, text, or color)</source><translation>showDialog: 不明なフィールドタイプ &quot;%1&quot; です (number、slider、checkbox、choice、text、color のいずれかを使用してください)</translation></message>
+    <message><source>listFiles: no such folder: %1</source><translation>listFiles: フォルダーが見つかりません: %1</translation></message>
     <message><source>Background</source><translation>背景</translation></message>
     <message><source>Untitled</source><translation>無題</translation></message>
     <message><source>Script: %1</source><translation>スクリプト: %1</translation></message>
@@ -13925,13 +13936,29 @@ Clipped to the layer below</source>
     <message><source>Save</source><translation>保存</translation></message>
     <message><source>Save As...</source><translation>名前を付けて保存...</translation></message>
     <message><source>Reload</source><translation>再読み込み</translation></message>
+    <message><source>Refresh</source><translation>更新</translation></message>
+    <message><source>Rescan the script folders</source><translation>スクリプトフォルダーを再スキャンします</translation></message>
     <message><source>untitled.js</source><translation>untitled.js</translation></message>
     <message><source>Bundled</source><translation>同梱スクリプト</translation></message>
     <message><source>My Scripts</source><translation>マイスクリプト</translation></message>
+    <message><source>%1 (modified)</source><translation>%1 (変更済み)</translation></message>
+    <message><source>Show in Folder</source><translation>フォルダーで表示</translation></message>
+    <message><source>Revert to Bundled</source><translation>同梱版に戻す</translation></message>
+    <message><source>Delete your modified copy of %1 and restore the bundled script?</source><translation>%1 の変更済みコピーを削除して同梱スクリプトを復元しますか?</translation></message>
+    <message><source>Could not delete %1</source><translation>%1 を削除できませんでした</translation></message>
+    <message><source>Saved your copy to %1; it now runs instead of the bundled script (right-click it for Revert to Bundled).</source><translation>コピーを %1 に保存しました。今後は同梱スクリプトの代わりにこちらが実行されます (右クリックで「同梱版に戻す」)。</translation></message>
+    <message><source>A script is already running: %1</source><translation>スクリプトは既に実行中です: %1</translation></message>
     <message><source>Discard unsaved changes to %1?</source><translation>%1 の未保存の変更を破棄しますか?</translation></message>
     <message><source>Could not read %1</source><translation>%1 を読み込めませんでした</translation></message>
     <message><source>Could not write %1</source><translation>%1 に書き込めませんでした</translation></message>
     <message><source>Save Script</source><translation>スクリプトを保存</translation></message>
     <message><source>JavaScript files (*.js)</source><translation>JavaScript ファイル (*.js)</translation></message>
+</context>
+<context>
+    <name>ScriptFolders</name>
+    <message><source>Games</source><translation>ゲーム</translation></message>
+    <message><source>Demos</source><translation>デモ</translation></message>
+    <message><source>Effects</source><translation>エフェクト</translation></message>
+    <message><source>Utilities</source><translation>ユーティリティ</translation></message>
 </context>
 </TS>

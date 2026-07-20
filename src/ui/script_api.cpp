@@ -884,6 +884,22 @@ QJSValue ScriptAppObject::prompt(const QString& text, const QString& defaultValu
   return accepted ? QJSValue(result) : QJSValue(QJSValue::NullValue);
 }
 
+QString ScriptAppObject::chooseFolder(const QString& title) { return host_.choose_folder(title); }
+
+QString ScriptAppObject::chooseOpenFile(const QString& title, const QString& filter) {
+  return host_.choose_open_file(title, filter);
+}
+
+QString ScriptAppObject::chooseSaveFile(const QString& title, const QString& filter) {
+  return host_.choose_save_file(title, filter);
+}
+
+bool ScriptAppObject::runCommand(const QString& commandId) {
+  return host_.run_app_command(commandId);
+}
+
+QStringList ScriptAppObject::commandIds() { return host_.app_command_ids(); }
+
 // ---------------------------------------------------------------------------
 // ScriptIoObject
 
@@ -907,6 +923,21 @@ void ScriptIoObject::writeTextFile(const QString& path, const QString& text) {
     return;
   }
   file.write(text.toUtf8());
+}
+
+QStringList ScriptIoObject::listFiles(const QString& dir, const QString& pattern) {
+  const QDir directory(dir);
+  if (!directory.exists()) {
+    host_.throw_js_error(
+        ScriptEngineHost::tr("listFiles: no such folder: %1").arg(QDir::toNativeSeparators(dir)));
+    return {};
+  }
+  QStringList filters;
+  if (!pattern.isEmpty()) {
+    filters.append(pattern);
+  }
+  return directory.entryList(filters, QDir::Files | QDir::Readable,
+                             QDir::Name | QDir::IgnoreCase);
 }
 
 // ---------------------------------------------------------------------------
@@ -938,5 +969,7 @@ QJSValue ScriptUiObject::createCanvas(const QJSValue& options) {
   host_.adopt_canvas_window(window);
   return host_.engine()->newQObject(window);
 }
+
+QJSValue ScriptUiObject::showDialog(const QJSValue& spec) { return host_.show_form_dialog(spec); }
 
 }  // namespace patchy::ui

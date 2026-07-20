@@ -1,6 +1,8 @@
 // Export All Layers
-// Saves every top-level layer of the active document as its own PNG, next to
-// the document file (or in a folder you type in when the document is unsaved).
+// Saves every top-level layer of the active document as its own image file,
+// next to the document (or in a folder you pick when the document is unsaved).
+// A small options form chooses the format, an optional filename prefix, and
+// whether files get a numbered order prefix.
 
 var doc = app.activeDocument;
 if (!doc) {
@@ -10,9 +12,18 @@ if (!doc) {
   if (doc.path) {
     folder = doc.path.replace(/[\\\/][^\\\/]*$/, "");
   } else {
-    folder = app.prompt("Folder to export the layer PNGs into:", "");
+    folder = app.chooseFolder("Folder to export the layer images into");
   }
-  if (folder) {
+  var options = folder ? patchy.ui.showDialog({
+    title: "Export All Layers",
+    fields: [
+      { key: "format", label: "Format", type: "choice", value: "png",
+        choices: ["png", "jpg", "bmp", "tif"] },
+      { key: "prefix", label: "Filename prefix", type: "text", value: "" },
+      { key: "numbered", label: "Number files by layer order", type: "checkbox", value: true }
+    ]
+  }) : null;
+  if (options) {
     var layers = doc.layers;
     var hidden = [];
     var i;
@@ -25,7 +36,8 @@ if (!doc) {
     for (i = 0; i < layers.length; i++) {
       layers[i].visible = true;
       var safe = layers[i].name.replace(/[^A-Za-z0-9_-]+/g, "_");
-      var target = folder + "/" + ("00" + (i + 1)).slice(-2) + "_" + safe + ".png";
+      var number = options.numbered ? ("00" + (i + 1)).slice(-2) + "_" : "";
+      var target = folder + "/" + options.prefix + number + safe + "." + options.format;
       if (doc.exportAs(target)) {
         console.log("Exported " + target);
         exported++;
