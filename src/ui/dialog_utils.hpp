@@ -87,12 +87,20 @@ void show_information_message(QWidget* parent, const QString& title, const QStri
                               const QString& object_name = QString());
 void show_critical_message(QWidget* parent, const QString& title, const QString& text,
                            const QString& object_name = QString());
+// Hidden shows only the filter descriptions in the file-type dropdown ("Supported
+// Files" instead of "Supported Files (*.psd *.psb ... )"); the parenthesized patterns
+// still filter, and nameFilters()/selectNameFilter() keep using the full strings. Use
+// it for filters whose pattern list is too long for the dropdown (the all-formats open
+// filter); short per-format filters stay Shown so users can see the expected extension.
+enum class FilterNameDetails { Shown, Hidden };
 [[nodiscard]] QString get_open_file_name(QWidget* parent, const QString& caption, const QString& dir,
                                           const QString& filter, QString* selected_filter = nullptr,
-                                          const QString& object_name = QString());
+                                          const QString& object_name = QString(),
+                                          FilterNameDetails filter_details = FilterNameDetails::Shown);
 [[nodiscard]] QStringList get_open_file_names(QWidget* parent, const QString& caption, const QString& dir,
                                               const QString& filter, QString* selected_filter = nullptr,
-                                              const QString& object_name = QString());
+                                              const QString& object_name = QString(),
+                                              FilterNameDetails filter_details = FilterNameDetails::Shown);
 [[nodiscard]] QString get_save_file_name(QWidget* parent, const QString& caption, const QString& dir,
                                           const QString& filter, QString* selected_filter = nullptr,
                                           const QString& object_name = QString(),

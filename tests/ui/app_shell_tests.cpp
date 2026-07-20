@@ -981,6 +981,41 @@ void ui_open_remembers_last_directory_and_lists_recent_folders() {
   }
 }
 
+void ui_open_dialog_hides_name_filter_details() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // The all-formats open filter carries dozens of patterns, so the Open dialog shows
+  // description-only filter names (the full string overflows the native dropdown).
+  // The patterns must still be present in nameFilters(): they are what filters.
+  bool saw_open_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
+    CHECK(dialog != nullptr);
+    CHECK(dialog->testOption(QFileDialog::HideNameFilterDetails));
+    const auto filters = dialog->nameFilters();
+    CHECK(!filters.isEmpty());
+    CHECK(filters.first().contains(QStringLiteral("*.psd")));
+    CHECK(filters.first().contains(QStringLiteral("*.png")));
+    saw_open_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "fileOpenAction")->trigger();
+  CHECK(saw_open_dialog);
+
+  // Save As filters are one short entry per format; their extension details stay visible.
+  bool saw_save_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    CHECK(dialog != nullptr);
+    CHECK(!dialog->testOption(QFileDialog::HideNameFilterDetails));
+    saw_save_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "fileSaveAsAction")->trigger();
+  CHECK(saw_save_dialog);
+}
+
 QStringList top_level_menu_texts(QMenuBar& menu_bar) {
   QStringList texts;
   for (auto* action : menu_bar.actions()) {
@@ -1972,6 +2007,7 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
        ui_save_as_remembers_last_save_directory_between_windows},
       {"ui_open_remembers_last_directory_and_lists_recent_folders",
        ui_open_remembers_last_directory_and_lists_recent_folders},
+      {"ui_open_dialog_hides_name_filter_details", ui_open_dialog_hides_name_filter_details},
       {"update_manifest_parser_handles_supported_cases", update_manifest_parser_handles_supported_cases},
       {"ui_update_available_dialog_warns_to_close_patchy_before_installing",
        ui_update_available_dialog_warns_to_close_patchy_before_installing},

@@ -1201,9 +1201,12 @@ void show_critical_message(QWidget* parent, const QString& title, const QString&
 }
 
 QString get_open_file_name(QWidget* parent, const QString& caption, const QString& dir, const QString& filter,
-                           QString* selected_filter, const QString& object_name) {
+                           QString* selected_filter, const QString& object_name, FilterNameDetails filter_details) {
   QFileDialog dialog(parent, caption, QString(), filter);
   configure_file_dialog(dialog, object_name, dir, QFileDialog::AcceptOpen, QFileDialog::ExistingFile, selected_filter);
+  if (filter_details == FilterNameDetails::Hidden) {
+    dialog.setOption(QFileDialog::HideNameFilterDetails, true);
+  }
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return {};
   }
@@ -1215,9 +1218,12 @@ QString get_open_file_name(QWidget* parent, const QString& caption, const QStrin
 }
 
 QStringList get_open_file_names(QWidget* parent, const QString& caption, const QString& dir, const QString& filter,
-                                QString* selected_filter, const QString& object_name) {
+                                QString* selected_filter, const QString& object_name, FilterNameDetails filter_details) {
   QFileDialog dialog(parent, caption, QString(), filter);
   configure_file_dialog(dialog, object_name, dir, QFileDialog::AcceptOpen, QFileDialog::ExistingFiles, selected_filter);
+  if (filter_details == FilterNameDetails::Hidden) {
+    dialog.setOption(QFileDialog::HideNameFilterDetails, true);
+  }
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return {};
   }

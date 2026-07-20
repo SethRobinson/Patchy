@@ -941,7 +941,7 @@ void MainWindow::open_document() {
     return;
   }
   const auto path = get_open_file_name(this, tr("Open"), last_open_directory(), open_file_filter(), nullptr,
-                                       QStringLiteral("openFileDialog"));
+                                       QStringLiteral("openFileDialog"), FilterNameDetails::Hidden);
   if (path.isEmpty()) {
     return;
   }
@@ -1328,7 +1328,8 @@ void MainWindow::import_sprite_sheet() {
     return;
   }
   const auto path = get_open_file_name(this, tr("Sprite Sheet to Layers"), last_open_directory(), open_file_filter(),
-                                       nullptr, QStringLiteral("spriteSheetImportFileDialog"));
+                                       nullptr, QStringLiteral("spriteSheetImportFileDialog"),
+                                       FilterNameDetails::Hidden);
   if (path.isEmpty()) {
     return;
   }
@@ -1438,7 +1439,8 @@ void MainWindow::import_image_sequence() {
     return;
   }
   auto paths = get_open_file_names(this, tr("Image Sequence to Layers"), last_open_directory(), open_file_filter(),
-                                   nullptr, QStringLiteral("imageSequenceImportFileDialog"));
+                                   nullptr, QStringLiteral("imageSequenceImportFileDialog"),
+                                   FilterNameDetails::Hidden);
   if (paths.isEmpty()) {
     return;
   }
@@ -2115,7 +2117,7 @@ void MainWindow::rebuild_recent_folders_menu() {
       }
       const auto start_dir = QFileInfo(dir).isDir() ? dir : last_open_directory();
       const auto path = get_open_file_name(this, tr("Open"), start_dir, open_file_filter(), nullptr,
-                                           QStringLiteral("openFileDialog"));
+                                           QStringLiteral("openFileDialog"), FilterNameDetails::Hidden);
       if (!path.isEmpty()) {
         open_document_path(path);
       }
