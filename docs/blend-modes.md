@@ -21,8 +21,9 @@ Adding a blend mode means updating ALL of:
 
 Calibrated against full 256x256 Photoshop 2026 flatten captures (crossed gray
 gradients per mode, COM-scripted; `blend_math_new_modes_match_photoshop_captures`
-pins sampled triples in-suite). The pinned kernels, all bit-exact on the capture
-except where noted:
+pins sampled triples in-suite). The capture tables and the COM script that
+regenerates them live machine-local in `local-test-fixtures/ps-blend-captures/`.
+The pinned kernels, all bit-exact on the capture except where noted:
 
 - **Vivid Light** is NOT the textbook burn(2s)/dodge(2s-255): the burn half
   doubles the source as round(s*255/128) and rounds its ramp half DOWN; the
