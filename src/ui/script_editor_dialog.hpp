@@ -45,7 +45,10 @@ private:
 // copies replace bundled entries in place with an amber "modified" tag), a
 // code editor with JS highlighting, a console pane wired to the engine host's
 // output, Run/Stop, and a live run status ("Ready" / "Running... 13s" with a
-// spinner). Saving a bundled script writes the user-folder shadow copy
+// spinner). A single click (or arrow-key step) on a script loads its code;
+// while the editor holds unsaved edits, selection alone never clobbers them -
+// switching then takes double-click/Enter, which prompts to discard. Saving a
+// bundled script writes the user-folder shadow copy
 // instead of touching the shipped file; Revert to Bundled (context menu)
 // deletes the copy, and Set Icon from Current Window writes the script's icon
 // PNG through the same shadow rule. The C:\ toolbar button (and the script
@@ -75,6 +78,7 @@ private:
   void hide_script_hover_card();
   void refresh_script_tree(const QString& select_path = QString());
   void load_script(const QString& path);
+  void handle_tree_selection(QTreeWidgetItem* item);
   void handle_tree_activated(QTreeWidgetItem* item);
   void show_tree_context_menu(const QPoint& position);
   void revert_override_to_bundled(const QString& user_copy_path, const QString& bundled_path);

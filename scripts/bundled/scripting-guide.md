@@ -9,7 +9,7 @@ For exact type signatures, see `patchy.d.ts` in the same folder as this guide. I
 There are three ways to run a script:
 
 1. **The File > Scripts menu.** Every bundled script and every script in your user scripts folder shows up here, organized by folder.
-2. **The Script Manager** (File > Scripts > Script Manager). A folder tree, a code editor with syntax highlighting, a console, and Run/Stop buttons. Press **F5** to run what is in the editor. This is the best place to write and test scripts.
+2. **The Script Manager** (File > Scripts > Script Manager). A folder tree, a code editor with syntax highlighting, a console, and Run/Stop buttons. Click a script in the tree to see its code (unsaved edits stay put until you save or confirm switching away), and press **F5** to run what is in the editor. This is the best place to write and test scripts.
 3. **The command line.** `patchy --run-script myscript.js` runs a script unattended, for batch jobs and external tools. See the Command line section below. The Script Manager's **C:\\** toolbar button shows a ready-made command line for any script.
 
 A script run is **one undo entry**: no matter how many edits a script makes, one Ctrl+Z puts the document back the way it was.

@@ -596,9 +596,11 @@ void ui_script_editor_tree_shadow_override() {
         patchy::ui::MainWindow::bundled_scripts_directory());
   CHECK(games_folder->data(0, kFolderPathRole).toString().endsWith(QStringLiteral("/Games")));
 
-  // Activating a script loads it. Emit itemActivated directly rather than
-  // synthesizing a key/click: the gesture that raises it is platform-styled
-  // (Return does not fire it on the mac offscreen platform).
+  // Selecting a script loads it (single click); the itemActivated emit also
+  // exercises the explicit activation path, which stays for switching away
+  // from a dirty editor. Emitted directly rather than synthesizing a
+  // key/click: the gesture that raises it is platform-styled (Return does not
+  // fire it on the mac offscreen platform).
   tree->setCurrentItem(breakout_item);
   QMetaObject::invokeMethod(tree, "itemActivated", Qt::DirectConnection,
                             Q_ARG(QTreeWidgetItem*, breakout_item), Q_ARG(int, 0));
@@ -656,6 +658,56 @@ void ui_script_editor_tree_shadow_override() {
   CHECK(restored_item->data(0, kBundledPathRole).toString().isEmpty());
   dialog.close();
   QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+}
+
+// A single click (tree selection) loads the clicked script into the editor;
+// once the editor holds unsaved edits, selection changes leave them alone (no
+// load, no prompt) - only activation switches, behind the discard prompt.
+void ui_script_manager_single_click_loads_and_preserves_edits() {
+  const StandardPathsTestMode test_paths;
+  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("scriptEditorTree"));
+  auto* code = dialog.findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorCode"));
+  auto* file_label = dialog.findChild<QLabel*>(QStringLiteral("scriptEditorFileLabel"));
+  CHECK(tree != nullptr && code != nullptr && file_label != nullptr);
+  QTreeWidgetItem* bundled_root = nullptr;
+  for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+    if (tree->topLevelItem(i)->text(0) == QStringLiteral("Bundled")) {
+      bundled_root = tree->topLevelItem(i);
+    }
+  }
+  CHECK(bundled_root != nullptr);
+  auto* games_folder = find_child_item(bundled_root, QStringLiteral("Games"));
+  CHECK(games_folder != nullptr);
+  auto* breakout_item = find_child_item(games_folder, QStringLiteral("Breakout"));
+  CHECK(breakout_item != nullptr);
+  auto* utilities_folder = find_child_item(bundled_root, QStringLiteral("Utilities"));
+  CHECK(utilities_folder != nullptr);
+  auto* batch_export_item = find_child_item(utilities_folder, QStringLiteral("Batch Export"));
+  CHECK(batch_export_item != nullptr);
+
+  // Selection alone (what a single click or an arrow-key step raises) loads
+  // the script; no itemActivated needed.
+  tree->setCurrentItem(breakout_item);
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  CHECK(code->toPlainText().contains(QStringLiteral("Breakout")));
+  CHECK(file_label->text() == QStringLiteral("breakout.js"));
+
+  // Unsaved edits pin the editor: selecting another script neither loads it
+  // nor prompts (the discard prompt lives on the activation path only).
+  code->textCursor().insertText(QStringLiteral("// dirty-edit-marker\n"));
+  CHECK(code->document()->isModified());
+  tree->setCurrentItem(batch_export_item);
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  CHECK(code->toPlainText().contains(QStringLiteral("dirty-edit-marker")));
+  CHECK(code->toPlainText().contains(QStringLiteral("Breakout")));
+  CHECK(file_label->text() == QStringLiteral("breakout.js *"));
+  dialog.close();
 }
 
 void ui_script_include_bundled_root_and_is_main() {
@@ -1373,6 +1425,8 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_canvas_window_renders_frames", ui_script_canvas_window_renders_frames},
       {"ui_scripts_menu_lists_bundled_scripts", ui_scripts_menu_lists_bundled_scripts},
       {"ui_script_editor_tree_shadow_override", ui_script_editor_tree_shadow_override},
+      {"ui_script_manager_single_click_loads_and_preserves_edits",
+       ui_script_manager_single_click_loads_and_preserves_edits},
       {"ui_script_metadata_icons_and_write_target", ui_script_metadata_icons_and_write_target},
       {"ui_script_manager_set_icon_from_document", ui_script_manager_set_icon_from_document},
       {"ui_script_show_options_unattended_merges_args",

@@ -2,7 +2,9 @@
 // bundled and user script roots (two-line rows: sidecar icon, @name display
 // name, filename with the amber "modified" tag, a window badge for @window
 // scripts), a JS editor pane, a console wired to the engine host, and a live
-// run status (spinner + "Running... 13s", "Ready" when idle). Runs are
+// run status (spinner + "Running... 13s", "Ready" when idle). A single click
+// on a script loads it into the editor unless the editor holds unsaved edits
+// (then only activation switches, behind the discard prompt). Runs are
 // one-at-a-time (the host enforces it); the stop-sign button interrupts stuck
 // scripts and tears down timer/window-driven ones. Saving a bundled script
 // writes the user-folder shadow copy (script_folders.hpp) so the shipped file
@@ -538,7 +540,14 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   connect(cli_button_, &QPushButton::clicked, this, [this] { show_cli_example(); });
   connect(help_button, &QPushButton::clicked, this, [this] { window_.open_scripting_guide(); });
   connect(script_tree_, &QTreeWidget::currentItemChanged, this,
-          [this](QTreeWidgetItem*, QTreeWidgetItem*) { update_cli_button_enabled(); });
+          [this](QTreeWidgetItem* current, QTreeWidgetItem*) {
+            update_cli_button_enabled();
+            handle_tree_selection(current);
+          });
+  // itemClicked too: re-clicking the already-current row (after New emptied
+  // the editor) raises no currentItemChanged.
+  connect(script_tree_, &QTreeWidget::itemClicked, this,
+          [this](QTreeWidgetItem* item, int) { handle_tree_selection(item); });
   connect(new_button, &QPushButton::clicked, this, [this] { new_script(); });
   connect(save_button, &QPushButton::clicked, this, [this] { (void)save_script(); });
   connect(save_as_button, &QPushButton::clicked, this, [this] { (void)save_script_as(); });
@@ -728,6 +737,22 @@ bool ScriptEditorDialog::confirm_discard_changes() {
       QMessageBox::Yes | QMessageBox::No, QMessageBox::No,
       QStringLiteral("scriptEditorDiscardMessageBox"));
   return answer == QMessageBox::Yes;
+}
+
+void ScriptEditorDialog::handle_tree_selection(QTreeWidgetItem* item) {
+  if (item == nullptr) {
+    return;
+  }
+  const auto path = item->data(0, kScriptPathRole).toString();
+  if (path.isEmpty() || path == current_path_) {
+    return;  // folder / root rows, or the refresh re-select of the loaded file
+  }
+  if (editor_modified()) {
+    // Browsing must never clobber unsaved edits or nag per click; switching
+    // away from a dirty editor stays on the activation path (discard prompt).
+    return;
+  }
+  load_script(path);
 }
 
 void ScriptEditorDialog::handle_tree_activated(QTreeWidgetItem* item) {

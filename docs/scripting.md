@@ -29,7 +29,10 @@ is part of the same rule that keeps patchy.d.ts current.
   while a run is active, "Ready" otherwise; the elapsed clock is dialog-local and
   restarts when run_state_changed reports a run became active). The C:\ toolbar button
   and the "Command Line Example..." context entry pop the copyable-command dialog
-  (below), and the Help button opens the scripting guide.
+  (below), and the Help button opens the scripting guide. A single click (or arrow-key
+  step) on a tree script loads it into the editor; while the editor holds unsaved
+  edits, selection changes never load or prompt (edits stay put) - switching then goes
+  through activation (double-click/Enter), which asks to discard.
 - `src/ui/markdown_viewer_dialog.{hpp,cpp}`: the reusable read-only Markdown viewer
   (QTextBrowser's native Markdown rendering via setSource; relative images resolve
   against the .md file, anchors are repainted in the accent blue because the importer
