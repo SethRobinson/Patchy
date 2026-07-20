@@ -27,6 +27,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
+#include <QTest>
 
 #include <cstdint>
 #include <string>
@@ -162,6 +163,51 @@ void ui_script_pixels_roundtrip_and_palette_snap() {
   // 250,40,40 snaps to the red entry; alpha 200 hardens to 255.
   CHECK(backlog_contains(window, QStringLiteral("snapped=255,0,0,255")));
   document.palette_editing().reset();
+}
+
+void ui_script_fill_rect_partial_updates() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var layer = doc.addLayer('Sprite');
+    // Empty layer + fillRect allocates a buffer covering exactly the rect.
+    layer.fillRect(20, 30, 8, 4, '#ff0000');
+    var b = layer.bounds;
+    console.log('alloc=' + b.x + ',' + b.y + ',' + b.width + 'x' + b.height);
+    // Partial overwrite, then a transparent clear of the same sub-rect.
+    layer.fillRect(22, 30, 2, 2, '#00ff00');
+    var v1 = new Uint8Array(layer.getPixels().data);
+    layer.fillRect(22, 30, 2, 2, '#00000000');
+    var v2 = new Uint8Array(layer.getPixels().data);
+    // Buffer-local pixel (2,0) = document (22,30); (0,0) stays red throughout.
+    console.log('painted=' + v1[2 * 4 + 1] + ' cleared=' + v2[2 * 4 + 3] +
+                ' kept=' + v2[0] + ',' + v2[3]);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("alloc=20,30,8x4")));
+  CHECK(backlog_contains(window, QStringLiteral("painted=255 cleared=0 kept=255,255")));
+}
+
+void ui_script_canvas_window_receives_space_key() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& host = start_script(window, QStringLiteral(R"JS(
+    var win = patchy.ui.createCanvas({width: 120, height: 90, title: 'Keys'});
+    win.onKeyDown = function (key) { console.log('key=' + key); };
+    win.onFrame = function () {};
+  )JS"));
+  CHECK(host.run_active());
+  auto* dialog = window.findChild<QDialog*>(QStringLiteral("scriptCanvasWindowDialog"));
+  CHECK(dialog != nullptr);
+  auto* surface = dialog->findChild<QWidget*>(QStringLiteral("scriptCanvasSurface"));
+  CHECK(surface != nullptr);
+  // Space must reach the game window instead of being swallowed by the
+  // application-level spacebar canvas pan filter.
+  QTest::keyClick(surface, Qt::Key_Space);
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 50);
+  CHECK(backlog_contains(window, QStringLiteral("key=Space")));
+  host.stop_active_run();
+  wait_for_run_end(host);
 }
 
 void ui_script_undo_disable_skips_history() {
@@ -360,6 +406,8 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
       {"ui_script_stale_layer_wrapper_throws", ui_script_stale_layer_wrapper_throws},
       {"ui_script_pixels_roundtrip_and_palette_snap", ui_script_pixels_roundtrip_and_palette_snap},
+      {"ui_script_fill_rect_partial_updates", ui_script_fill_rect_partial_updates},
+      {"ui_script_canvas_window_receives_space_key", ui_script_canvas_window_receives_space_key},
       {"ui_script_undo_disable_skips_history", ui_script_undo_disable_skips_history},
       {"ui_script_timer_keeps_run_alive", ui_script_timer_keeps_run_alive},
       {"ui_script_watchdog_interrupts_infinite_loop", ui_script_watchdog_interrupts_infinite_loop},

@@ -13894,6 +13894,9 @@ Clipped to the layer below</source>
     <message><source>Could not edit the text layer.</source><translation>テキストレイヤーを編集できませんでした。</translation></message>
     <message><source>fill needs a pixel layer, not a group.</source><translation>fill にはグループではなくピクセルレイヤーが必要です。</translation></message>
     <message><source>fill supports 8-bit RGBA layers only.</source><translation>fill は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
+    <message><source>fillRect needs a positive size.</source><translation>fillRect には正のサイズが必要です。</translation></message>
+    <message><source>fillRect needs a pixel layer, not a group.</source><translation>fillRect にはグループではなくピクセルレイヤーが必要です。</translation></message>
+    <message><source>fillRect supports 8-bit RGBA layers only.</source><translation>fillRect は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
     <message><source>getPixels supports 8-bit RGBA layers only.</source><translation>getPixels は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
     <message><source>setPixels needs a {width, height, data} object.</source><translation>setPixels には {width, height, data} オブジェクトが必要です。</translation></message>
     <message><source>setPixels: data must hold width * height * 4 RGBA bytes.</source><translation>setPixels: data は width * height * 4 バイトの RGBA データが必要です。</translation></message>

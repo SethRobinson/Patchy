@@ -433,6 +433,61 @@ void ScriptLayerObject::fill(const QString& color) {
   host_.note_pixels_changed(session_id_, target.boundingRect());
 }
 
+// Partial in-place write: overwrites RGBA (a transparent color clears) inside
+// the given document-space rect, clipped to the layer's buffer. An empty layer
+// allocates a buffer covering exactly the rect, so tiny sprite layers can be
+// created with one call and then animated via x/y (much cheaper per frame than
+// re-uploading pixels). Palette mode snaps like every tool write.
+void ScriptLayerObject::fillRect(int x, int y, int width, int height, const QString& color) {
+  if (width < 1 || height < 1) {
+    host_.throw_js_error(ScriptEngineHost::tr("fillRect needs a positive size."));
+    return;
+  }
+  QColor parsed;
+  if (!parse_color(host_, color, &parsed)) {
+    return;
+  }
+  auto* layer = write_layer();
+  if (layer == nullptr) {
+    return;
+  }
+  if (layer->kind() == LayerKind::Group) {
+    host_.throw_js_error(ScriptEngineHost::tr("fillRect needs a pixel layer, not a group."));
+    return;
+  }
+  parsed = host_.palette_snap_color(session_id_, parsed);
+  if (std::as_const(*layer).pixels().empty()) {
+    PixelBuffer fresh(width, height, PixelFormat::rgba8());
+    layer->set_pixels(std::move(fresh));
+    layer->set_bounds(Rect{x, y, width, height});
+  }
+  const auto bounds = std::as_const(*layer).bounds();
+  auto& pixels = layer->pixels();
+  if (pixels.format().channels != 4 || pixels.format().bit_depth != BitDepth::UInt8) {
+    host_.throw_js_error(ScriptEngineHost::tr("fillRect supports 8-bit RGBA layers only."));
+    return;
+  }
+  const QRect target = QRect(x, y, width, height)
+                           .intersected(QRect(bounds.x, bounds.y, pixels.width(), pixels.height()));
+  if (target.isEmpty()) {
+    return;
+  }
+  const std::array<std::uint8_t, 4> rgba{static_cast<std::uint8_t>(parsed.red()),
+                                         static_cast<std::uint8_t>(parsed.green()),
+                                         static_cast<std::uint8_t>(parsed.blue()),
+                                         static_cast<std::uint8_t>(parsed.alpha())};
+  for (int py = target.top(); py <= target.bottom(); ++py) {
+    for (int px = target.left(); px <= target.right(); ++px) {
+      auto* pixel = pixels.pixel(px - bounds.x, py - bounds.y);
+      pixel[0] = rgba[0];
+      pixel[1] = rgba[1];
+      pixel[2] = rgba[2];
+      pixel[3] = rgba[3];
+    }
+  }
+  host_.note_pixels_changed(session_id_, target);
+}
+
 void ScriptLayerObject::applyFilter(const QString& filterId, const QJSValue& params) {
   host_.apply_filter_to_layer(session_id_, layer_id_, filterId, params);
 }

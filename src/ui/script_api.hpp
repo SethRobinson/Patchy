@@ -74,6 +74,7 @@ public:
   Q_INVOKABLE QJSValue duplicate();
   Q_INVOKABLE void remove();
   Q_INVOKABLE void fill(const QString& color);
+  Q_INVOKABLE void fillRect(int x, int y, int width, int height, const QString& color);
   Q_INVOKABLE void applyFilter(const QString& filterId, const QJSValue& params = QJSValue());
   Q_INVOKABLE QJSValue getPixels();
   Q_INVOKABLE void setPixels(const QJSValue& imageData);

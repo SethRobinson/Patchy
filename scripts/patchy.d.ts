@@ -56,6 +56,13 @@ interface PatchyLayer {
   /** Fills the selection (or the whole canvas on an empty layer) with a color. */
   fill(color: string): void;
   /**
+   * Overwrites one document-space rect of the layer's pixels (clipped to its
+   * buffer); a transparent color like "#00000000" clears. On an empty layer
+   * this allocates a buffer covering exactly the rect, so small sprite layers
+   * can be created with one call and then animated cheaply via x/y.
+   */
+  fillRect(x: number, y: number, width: number, height: number, color: string): void;
+  /**
    * Applies a filter to this layer's pixels by registry id, e.g.
    * applyFilter("patchy.filters.gaussian_blur", {radius: 8}). Unknown ids or
    * parameters throw.

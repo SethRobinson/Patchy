@@ -4950,6 +4950,13 @@ bool MainWindow::spacebar_canvas_pan_target_in_window(QWidget* widget) const noe
   if (widget == nullptr) {
     return false;
   }
+  // Script canvas windows own their keyboard completely: games poll held keys
+  // (Space is a common action button), so the spacebar pan must never engage or
+  // swallow key events while one has focus.
+  if (widget->window() != nullptr &&
+      widget->window()->objectName() == QLatin1String("scriptCanvasWindowDialog")) {
+    return false;
+  }
   if (widget == this || isAncestorOf(widget) || widget->window() == this) {
     return true;
   }
