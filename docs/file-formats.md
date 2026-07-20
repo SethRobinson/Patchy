@@ -226,13 +226,24 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   styles simplify to the first run, rotation/shear renders axis-aligned, and
   Affinity's paragraph space-before/after is not imported yet, so multi-
   paragraph blocks pack tighter than Affinity's layout.
+- **Adjustment layers**: the eight kinds Patchy models import as real
+  adjustment layers with their mask planes - Curves (spline control points;
+  a corpus photo doc with heavy Curves renders pixel-identical, RMSE 0.00),
+  Levels (master + per-channel), Invert, Threshold, Posterize,
+  Hue/Saturation (wire `HueA` is turns, 1:1 with the visual shift),
+  Brightness/Contrast and Colour Balance (both notice-approximate: the
+  engines' math differs; Affinity's colour-balance full-scale maps to about
+  a tenth of the PS range). Other adjustment kinds and live filters keep the
+  placeholder path. Placement note: `BitI` is the bitmap's used/dirty
+  sub-rect, NEVER a placement source - untransformed layers sit at the
+  origin, translated/transformed ones go through `Xfrm`.
 - **Honest degradation (notice + named empty layer)**: vector/curve
-  (`PCrv`), adjustment and live-filter nodes (their bitmap is a mask plane,
-  not content - the adjustment is not applied), and text whose story shape is
-  missing. These keep their name and position in the tree so the structure
-  survives, but are not rendered. If NOTHING in a document decodes to pixels
-  or pending text, the importer prefers the tier-0 embedded preview over an
-  all-placeholder blank canvas.
+  (`PCrv`), unmapped adjustment kinds and live-filter nodes (their bitmap is
+  a mask plane, not content), and text whose story shape is missing. These
+  keep their name and position in the tree so the structure survives, but are
+  not rendered. If NOTHING in a document decodes to pixels or pending text,
+  the importer prefers the tier-0 embedded preview over an all-placeholder
+  blank canvas.
 - **Blend enum -> Patchy `BlendMode`** and the RasterFormat ids are in
   FINDINGS.md; the Affinity `Blnd` field's enum id is the BlendMode value
   directly (absent = Normal).

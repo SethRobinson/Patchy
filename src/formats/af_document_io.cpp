@@ -1,5 +1,6 @@
 #include "formats/af_document_io.hpp"
 
+#include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "color/color_management.hpp"
@@ -1257,9 +1258,12 @@ struct LayerBuildContext {
   return suffix == (static_cast<std::uint32_t>('R') << 8U | 'A');
 }
 
-// Read the [tx, ty] integer origin for a layer from a pure-translation Xfrm, or
-// from BitI's origin when there is no transform. Returns nullopt for a
-// non-trivial affine (scale/rotate), which tier 1 does not place.
+// Read the [tx, ty] integer origin for a layer from a pure-translation Xfrm;
+// untransformed nodes sit at the document origin. Returns nullopt for a
+// non-trivial affine (scale/rotate), which rasterizes through resample_affine.
+// BitI is deliberately NOT a placement source: it is the bitmap's used/dirty
+// sub-rect (akiko's full-canvas photo carries BitI y0=635 yet belongs at 0,0;
+// every corpus doc that placed correctly did so through Xfrm or at origin).
 [[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> layer_origin(const af::AfClass& node) {
   const auto xfrm = node.vec_field(af::tag4("Xfrm"));
   if (xfrm.size() == 6) {
@@ -1274,20 +1278,7 @@ struct LayerBuildContext {
     }
     return std::nullopt;
   }
-  const auto biti = node.vec_field(af::tag4("BitI"));
-  std::int32_t ox = 0;
-  std::int32_t oy = 0;
-  if (biti.size() == 4) {
-    ox = static_cast<std::int32_t>(std::lround(biti[0]));
-    oy = static_cast<std::int32_t>(std::lround(biti[1]));
-    if (ox == kIntSentinel) {
-      ox = 0;
-    }
-    if (oy == kIntSentinel) {
-      oy = 0;
-    }
-  }
-  return std::pair<std::int32_t, std::int32_t>{ox, oy};
+  return std::pair<std::int32_t, std::int32_t>{0, 0};
 }
 
 struct PlacedRaster {
@@ -1577,6 +1568,198 @@ void apply_common(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
 }
 
 [[nodiscard]] std::optional<std::array<float, 4>> read_rgba_color(const af::AfClass* color_class);
+
+// Read a curves Spln class into Patchy control points. `Vals` carries the xs,
+// then the ys, then per-point tangent data; `Cnt ` (trailing space) is the
+// point count. Interpolation differs slightly (both are smooth splines through
+// the points), which the tolerance-based fixtures accept.
+[[nodiscard]] CurveControlPoints curve_points_from_spline(const af::AfClass* spline) {
+  if (spline == nullptr) {
+    return {};
+  }
+  const auto count = static_cast<std::size_t>(spline->int_field(af::tag4("Cnt "), 0));
+  const auto values = spline->vec_field(af::tag4("Vals"));
+  if (count < 2 || values.size() < count * 2) {
+    return {};
+  }
+  CurveControlPoints points;
+  points.reserve(count);
+  for (std::size_t i = 0; i < count; ++i) {
+    const double x = std::clamp(values[i], 0.0, 1.0);
+    const double y = std::clamp(values[count + i], 0.0, 1.0);
+    points.push_back({static_cast<int>(std::lround(x * 255.0)),
+                      static_cast<int>(std::lround(y * 255.0))});
+  }
+  return points;
+}
+
+[[nodiscard]] bool curve_points_are_identity(const CurveControlPoints& points) {
+  return points.size() == 2 && points.front() == CurveControlPoint{0, 0} &&
+         points.back() == CurveControlPoint{255, 255};
+}
+
+// Adjustment nodes: map the kinds Patchy models onto real adjustment layers
+// (wire semantics pinned by the adjust-* corpus docs; FINDINGS.md records the
+// field tables). Unknown kinds and live filters keep the placeholder path.
+// The node's own Bitm is its MASK plane; an all-empty plane means no mask.
+[[nodiscard]] std::optional<Layer> build_adjustment_layer(LayerBuildContext& ctx,
+                                                          const af::AfClass& node,
+                                                          const std::string& display) {
+  const std::uint32_t tag = node.type_tag;
+  const af::AfClass* params = node.child_class(af::tag4("AdjP"));
+  const auto to_255 = [](double value) {
+    return static_cast<int>(std::lround(std::clamp(value, 0.0, 1.0) * 255.0));
+  };
+  const auto to_percent = [](double value) {
+    return static_cast<int>(std::lround(std::clamp(value, -1.0, 1.0) * 100.0));
+  };
+
+  AdjustmentSettings settings;
+  bool approximate = false;
+  if (tag == af::tag4("InRA")) {
+    settings.kind = AdjustmentKind::Invert;
+  } else if (params == nullptr) {
+    return std::nullopt;
+  } else if (tag == af::tag4("LeRA")) {
+    settings.kind = AdjustmentKind::Levels;
+    settings.levels.black_input = to_255(params->double_field(af::tag4("Blac"), 0.0));
+    settings.levels.white_input = to_255(params->double_field(af::tag4("Whit"), 1.0));
+    settings.levels.gamma_percent = std::clamp(
+        static_cast<int>(std::lround(params->double_field(af::tag4("Gamm"), 1.0) * 100.0)), 10,
+        1000);
+    settings.levels.black_output = to_255(params->double_field(af::tag4("OutB"), 0.0));
+    settings.levels.white_output = to_255(params->double_field(af::tag4("OutW"), 1.0));
+    const auto blacks = params->vec_field(af::tag4("BlkC"));
+    const auto whites = params->vec_field(af::tag4("WhtC"));
+    const auto gammas = params->vec_field(af::tag4("GamC"));
+    const auto out_blacks = params->vec_field(af::tag4("OBlC"));
+    const auto out_whites = params->vec_field(af::tag4("OWhC"));
+    LevelsRecord* records[3] = {&settings.levels.red, &settings.levels.green,
+                               &settings.levels.blue};
+    for (std::size_t channel = 0; channel < 3; ++channel) {
+      LevelsRecord& record = *records[channel];
+      if (blacks.size() > channel) {
+        record.black_input = to_255(blacks[channel]);
+      }
+      if (whites.size() > channel) {
+        record.white_input = to_255(whites[channel]);
+      }
+      if (gammas.size() > channel) {
+        record.gamma_percent = std::clamp(
+            static_cast<int>(std::lround(gammas[channel] * 100.0)), 10, 1000);
+      }
+      if (out_blacks.size() > channel) {
+        record.black_output = to_255(out_blacks[channel]);
+      }
+      if (out_whites.size() > channel) {
+        record.white_output = to_255(out_whites[channel]);
+      }
+    }
+  } else if (tag == af::tag4("CrRA")) {
+    settings.kind = AdjustmentKind::Curves;
+    auto master = curve_points_from_spline(params->child_class(af::tag4("Mast")));
+    if (master.size() < 2) {
+      return std::nullopt;
+    }
+    settings.curves.rgb = std::move(master);
+    CurveControlPoints* channels[3] = {&settings.curves.red, &settings.curves.green,
+                                      &settings.curves.blue};
+    const std::uint32_t spline_tags[3] = {af::tag4("C1Sp"), af::tag4("C2Sp"), af::tag4("C3Sp")};
+    for (std::size_t channel = 0; channel < 3; ++channel) {
+      auto points = curve_points_from_spline(params->child_class(spline_tags[channel]));
+      if (points.size() >= 2 && !curve_points_are_identity(points)) {
+        *channels[channel] = std::move(points);
+      }
+    }
+  } else if (tag == af::tag4("BCRA")) {
+    // Affinity's own brightness/contrast math differs from Patchy's
+    // PS-legacy-calibrated formula; the value mapping is best-effort.
+    settings.kind = AdjustmentKind::BrightnessContrast;
+    settings.brightness_contrast.brightness =
+        to_percent(params->double_field(af::tag4("Brig"), 0.0));
+    settings.brightness_contrast.contrast =
+        to_percent(params->double_field(af::tag4("Ctrs"), 1.0) - 1.0);
+    approximate = true;
+  } else if (tag == af::tag4("PoRA")) {
+    settings.kind = AdjustmentKind::Posterize;
+    settings.posterize.levels = std::clamp(
+        static_cast<int>(params->int_field(af::tag4("Post"), 4)), 2, 255);
+  } else if (tag == af::tag4("ThRA")) {
+    settings.kind = AdjustmentKind::Threshold;
+    settings.threshold.level =
+        std::clamp(to_255(params->double_field(af::tag4("Thre"), 0.5)), 1, 255);
+  } else if (tag == af::tag4("CBRA")) {
+    // Patchy's Color Balance models one midtones triple; nonzero shadow or
+    // highlight axes fold away (approximate). Affinity's full-scale effect is
+    // roughly a tenth of Photoshop's -100..100 (pinned against the
+    // adjust-colourbalance render at three probes), hence the 10x mapping.
+    settings.kind = AdjustmentKind::ColorBalance;
+    const auto to_balance = [](double value) {
+      return static_cast<int>(std::lround(std::clamp(value, -1.0, 1.0) * 10.0));
+    };
+    settings.color_balance.cyan_red = to_balance(params->double_field(af::tag4("MiCR"), 0.0));
+    settings.color_balance.magenta_green =
+        to_balance(params->double_field(af::tag4("MiMG"), 0.0));
+    settings.color_balance.yellow_blue =
+        to_balance(params->double_field(af::tag4("MiYB"), 0.0));
+    approximate = true;
+    for (const char* axis : {"ShCR", "ShMG", "ShYB", "HiCR", "HiMG", "HiYB"}) {
+      if (std::abs(params->double_field(tag_of(axis), 0.0)) > 0.005) {
+        approximate = true;
+      }
+    }
+  } else if (tag == af::tag4("HsRA")) {
+    // HueA is in turns and maps 1:1 onto the visual shift (pinned against the
+    // adjust-hsl render; the JS setter's sign is inverted relative to this,
+    // which briefly suggested a negation - it is not one).
+    settings.kind = AdjustmentKind::HueSaturation;
+    settings.hue_saturation.hue_shift = std::clamp(
+        static_cast<int>(std::lround(params->double_field(af::tag4("HueA"), 0.0) * 360.0)),
+        -180, 180);
+    settings.hue_saturation.saturation_delta =
+        to_percent(params->double_field(af::tag4("SatA"), 0.0));
+    settings.hue_saturation.lightness_delta =
+        to_percent(params->double_field(af::tag4("LumA"), 0.0));
+  } else {
+    return std::nullopt;
+  }
+
+  Layer layer(ctx.document.allocate_layer_id(), display, LayerKind::Adjustment);
+  configure_adjustment_layer(layer, settings);
+  apply_common(ctx, node, layer, display);
+
+  // The node's own bitmap (an M8/M16 plane) is the adjustment's mask; an
+  // all-zero plane means "no mask painted".
+  if (const af::AfClass* bitmap = node.child_class(af::tag4("Bitm"))) {
+    if (auto decoded = decode_bitmap(ctx.bytes, ctx.container, *bitmap, display, &ctx.notices,
+                                     nullptr);
+        decoded && !decoded->mask.empty()) {
+      bool any_nonzero = false;
+      for (std::int32_t y = 0; y < decoded->mask.height() && !any_nonzero; ++y) {
+        for (std::int32_t x = 0; x < decoded->mask.width(); ++x) {
+          if (decoded->mask.pixel(x, y)[0] != 0) {
+            any_nonzero = true;
+            break;
+          }
+        }
+      }
+      if (any_nonzero) {
+        const auto origin = layer_origin(node);
+        LayerMask mask;
+        mask.bounds = Rect{origin ? origin->first : 0, origin ? origin->second : 0,
+                           decoded->mask.width(), decoded->mask.height()};
+        mask.pixels = std::move(decoded->mask);
+        mask.default_color = 255;
+        layer.set_mask(std::move(mask));
+      }
+    }
+  }
+  if (approximate) {
+    ctx.notices.push_back("Layer '" + display +
+                          "': adjustment converted approximately (the engines' math differs)");
+  }
+  return layer;
+}
 
 // Text nodes (TxtA artistic / TxtF frame): extract the story into a Patchy
 // text layer carrying the standard patchy.text.* metadata plus the .af
@@ -1911,8 +2094,14 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       out.push_back(std::move(layer));
     };
 
-    // Adjustment / live-filter nodes: their bitmap is a mask plane, not content.
+    // Adjustment nodes: the kinds Patchy models become real adjustment layers
+    // (with their Bitm mask plane); the rest stay placeholders.
     if (is_adjustment_or_filter(tag)) {
+      if (auto adjustment = build_adjustment_layer(ctx, node, display)) {
+        out.push_back(std::move(*adjustment));
+        emit_clipped_children(out.size() - 1);
+        continue;
+      }
       emit_placeholder("is an Affinity adjustment or live filter (not applied yet)");
       continue;
     }

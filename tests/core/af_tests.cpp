@@ -9,6 +9,7 @@
 
 #include "formats/af_document_io.hpp"
 
+#include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
 #include "test_harness.hpp"
 
@@ -357,6 +358,45 @@ void af_imports_text_layers_as_pending_text() {
   }
 }
 
+void af_imports_adjustment_layers() {
+  // tiny-adjust-curves.af: a gradient raster under a Curves adjustment whose
+  // master spline was authored with points (0,0), (0.4,0.65), (1,1). The
+  // importer maps it onto a real Patchy Curves adjustment layer (Patchy's
+  // full-document render of this fixture scores RMSE 0.34 vs Affinity's).
+  {
+    const auto bytes = read_fixture("tiny-adjust-curves.af");
+    std::vector<std::string> notices;
+    const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+    const auto& layer = document.layers().back();
+    CHECK(layer.kind() == patchy::LayerKind::Adjustment);
+    const auto settings = patchy::adjustment_settings_from_layer(layer);
+    CHECK(settings.has_value());
+    CHECK(settings->kind == patchy::AdjustmentKind::Curves);
+    CHECK(settings->curves.rgb.size() == 3);
+    CHECK(settings->curves.rgb[1].input == 102);   // 0.4 * 255
+    CHECK(settings->curves.rgb[1].output == 166);  // 0.65 * 255
+    for (const auto& notice : notices) {
+      CHECK(notice.find("placeholder") == std::string::npos);
+    }
+  }
+
+  // tiny-adjust-hsl.af: HSL shift authored as visually -40deg hue, +0.3
+  // saturation, -0.1 luminosity (wire HueA is turns, 1:1 with the visual
+  // shift).
+  {
+    const auto bytes = read_fixture("tiny-adjust-hsl.af");
+    const auto document = patchy::af::DocumentIo::read(bytes);
+    const auto& layer = document.layers().back();
+    CHECK(layer.kind() == patchy::LayerKind::Adjustment);
+    const auto settings = patchy::adjustment_settings_from_layer(layer);
+    CHECK(settings.has_value());
+    CHECK(settings->kind == patchy::AdjustmentKind::HueSaturation);
+    CHECK(settings->hue_saturation.hue_shift == -40);
+    CHECK(settings->hue_saturation.saturation_delta == 30);
+    CHECK(settings->hue_saturation.lightness_delta == -10);
+  }
+}
+
 void af_read_rejects_non_affinity_bytes() {
   const std::vector<std::uint8_t> garbage = {'n', 'o', 't', ' ', 'a', 'f', 0, 1, 2, 3};
   bool threw = false;
@@ -420,6 +460,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_reads_document_resolution", af_reads_document_resolution},
       {"af_tier2_imports_lab_document", af_tier2_imports_lab_document},
       {"af_imports_text_layers_as_pending_text", af_imports_text_layers_as_pending_text},
+      {"af_imports_adjustment_layers", af_imports_adjustment_layers},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},
