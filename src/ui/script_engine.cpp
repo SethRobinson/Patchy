@@ -1142,8 +1142,12 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
   if (!params.family.isEmpty()) {
     font.setFamily(params.family);
   }
-  if (params.size_pt > 0.0) {
-    font.setPointSizeF(params.size_pt);
+  if (params.size_px > 0.0) {
+    // The inline editor's font lives in editor pixels (document px * zoom, see
+    // the interactive path in main_window.cpp). A point-sized font here would
+    // commit at a size that depends on the current canvas zoom.
+    const double zoom = std::max(0.01, session->canvas->zoom());
+    font.setPixelSize(std::max(1, static_cast<int>(std::lround(params.size_px * zoom))));
   }
   font.setBold(params.bold);
   font.setItalic(params.italic);

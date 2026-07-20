@@ -364,6 +364,32 @@ void ui_script_filters_and_text_layers() {
   CHECK(backlog_contains(window, QStringLiteral("bad-mode-threw=true")));
 }
 
+// addTextLayer's size is document pixels: the committed raster must not depend
+// on the canvas zoom (the July 2026 dialog-showcase overlap bug: the script
+// path set a point-sized font on the zoom-scaled inline editor).
+void ui_script_text_size_is_zoom_independent() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var a = doc.addTextLayer('Zoom probe', {size: 24, x: 10, y: 40});
+    app.runCommand('view.zoom_out');
+    app.runCommand('view.zoom_out');
+    var b = doc.addTextLayer('Zoom probe', {size: 24, x: 10, y: 200});
+    console.log('a=' + a.bounds.width + 'x' + a.bounds.height +
+                ' b=' + b.bounds.width + 'x' + b.bounds.height);
+    // The editor font rounds to whole editor pixels, so fractional zooms may
+    // drift the committed size by a pixel or two; the bug this guards against
+    // committed ~2x bigger, so a proportional tolerance is enough.
+    function close(u, v) {
+      return Math.abs(u - v) <= Math.max(3, Math.round(0.12 * Math.max(u, v)));
+    }
+    console.log('match=' + (close(a.bounds.width, b.bounds.width) &&
+                            close(a.bounds.height, b.bounds.height)));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("match=true")));
+}
+
 void ui_script_run_command_writes_output_file() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1157,6 +1183,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
        ui_script_busy_panel_yields_to_script_dialogs},
       {"ui_script_console_and_error_line_numbers", ui_script_console_and_error_line_numbers},
       {"ui_script_filters_and_text_layers", ui_script_filters_and_text_layers},
+      {"ui_script_text_size_is_zoom_independent", ui_script_text_size_is_zoom_independent},
       {"ui_script_run_command_writes_output_file", ui_script_run_command_writes_output_file},
       {"ui_script_editor_dialog_runs_and_shows_console", ui_script_editor_dialog_runs_and_shows_console},
       {"ui_script_editor_status_shows_running_and_ready", ui_script_editor_status_shows_running_and_ready},

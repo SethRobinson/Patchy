@@ -183,7 +183,10 @@ public:
   struct TextLayerParams {
     QString text;
     QString family;      // empty = current default
-    double size_pt{0.0};  // <= 0 = current default
+    // Text height in DOCUMENT pixels (<= 0 = current default). The editor
+    // font must be set in editor pixels (document px * canvas zoom); a
+    // point-sized font here commits at a zoom-dependent size.
+    double size_px{0.0};
     bool bold{false};
     bool italic{false};
     QColor color;        // invalid = current default

@@ -133,6 +133,8 @@ interface PatchyDocument {
   /**
    * Adds a text layer rendered through Patchy's text engine. Options:
    * {font, size, x, y, color, bold, italic}; x/y is the text anchor point.
+   * size is the text height in DOCUMENT PIXELS, independent of the canvas
+   * zoom and the document PPI (the Character panel shows the pt equivalent).
    */
   addTextLayer(text: string, options?: {
     font?: string; size?: number; x?: number; y?: number;

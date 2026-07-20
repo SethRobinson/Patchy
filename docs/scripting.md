@@ -201,7 +201,11 @@ everywhere a bundled script is resolved.
 - **Text layers go through the real pipeline.** `addTextLayer` and the `text` setter
   drive actual inline-editor sessions (the `cli_append_text_to_text_layers` technique),
   so rasters render through the normal commit path. `addTextLayer` clears the active
-  layer first so `add_text_at` cannot latch onto an existing text layer.
+  layer first so `add_text_at` cannot latch onto an existing text layer. Its `size` is
+  the text height in DOCUMENT PIXELS: the inline editor's font lives in editor pixels
+  (document px * canvas zoom), so the script path must set `setPixelSize(size * zoom)` -
+  a point-sized font commits at a zoom-dependent size (the July 2026 dialog-showcase
+  overlap bug; pinned by `ui_script_text_size_is_zoom_independent`).
 - **Blend mode ids** (`script_blend_mode_id`) are a compatibility contract: scripts in
   the wild hard-code them. Append-only, aligned with the BlendMode enum, never rename.
 - **`app.apiVersion` is 1.** Bump it only for breaking API changes, and record what
@@ -211,7 +215,8 @@ everywhere a bundled script is resolved.
   `getPixels` reading 8-bit RGB layers (opaque opened photos) expanded to RGBA with
   alpha 255 (it previously threw; `setPixels` still always writes RGBA8 back),
   `patchy.ui.showOptions`, the `folder`/`file` form field types, and the form dialogs'
-  `description` header.
+  `description` header. Behavioral fix (still 1): `addTextLayer`'s `size` is defined as
+  document pixels; it previously committed at a canvas-zoom-dependent size.
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included

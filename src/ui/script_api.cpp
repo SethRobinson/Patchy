@@ -727,7 +727,7 @@ QJSValue ScriptDocumentObject::addTextLayer(const QString& text, const QJSValue&
     }
     const auto size = options.property(QStringLiteral("size"));
     if (size.isNumber()) {
-      params.size_pt = size.toNumber();
+      params.size_px = size.toNumber();
     }
     params.bold = options.property(QStringLiteral("bold")).toBool();
     params.italic = options.property(QStringLiteral("italic")).toBool();

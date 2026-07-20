@@ -42,39 +42,61 @@ if (!doc) {
     }
 
     // Render the answers as a badge card in the document's top-left corner.
+    // The lines stack from their rendered bounds (not fixed offsets), so the
+    // card wraps its content whatever font the text falls back to.
     var x = 24;
     var y = 24;
-    var width = options.badgeWidth;
-    var height = 120;
+    var pad = 16;
+    var indent = 24;  // text left edge relative to the card (spine + gap)
     var cardColor = options.darkCard ? "#262a30" : "#f2f2f0";
     var inkColor = options.darkCard ? "#eceff2" : "#24282e";
     var subColor = options.darkCard ? "#9aa4ae" : "#5c646d";
 
+    // Created first so it sits beneath the text, but PAINTED after the text
+    // is measured: the first fillRect on an empty layer allocates exactly
+    // that rect, so the card can be sized to wrap the content.
     var card = doc.addLayer("Badge card");
-    card.fillRect(x, y, width, height, options.accent);
-    card.fillRect(x + 3, y + 3, width - 6, height - 6, cardColor);
-    card.fillRect(x, y, 8, height, options.accent);  // spine
 
+    var lines = [];
     var name = doc.addTextLayer(options.name, {
-      size: 22, bold: true, x: x + 24, y: y + 16, color: inkColor
+      size: 22, bold: true, color: inkColor
     });
     name.name = "Badge name";
+    lines.push({ layer: name, gap: 8 });
     var title = doc.addTextLayer(options.title, {
-      size: 13, x: x + 24, y: y + 48, color: subColor
+      size: 13, color: subColor
     });
     title.name = "Badge title";
+    lines.push({ layer: title, gap: 6 });
     if (tagline) {
       var motto = doc.addTextLayer("\"" + tagline + "\"", {
-        size: 12, italic: true, x: x + 24, y: y + 70, color: subColor
+        size: 12, italic: true, color: subColor
       });
       motto.name = "Badge tagline";
+      lines.push({ layer: motto, gap: 6 });
     }
     var starText = "";
     for (var s = 0; s < 5; s++) { starText += s < options.stars ? "★" : "☆"; }
     var stars = doc.addTextLayer(starText, {
-      size: 16, x: x + 24, y: y + 92, color: options.accent
+      size: 16, color: options.accent
     });
     stars.name = "Badge stars";
+    lines.push({ layer: stars, gap: 0 });
+
+    var cursor = y + pad;
+    var widest = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].layer;
+      line.x = x + indent;
+      line.y = cursor;
+      cursor += line.bounds.height + lines[i].gap;
+      widest = Math.max(widest, line.bounds.width);
+    }
+    var cardWidth = Math.max(options.badgeWidth, indent + widest + pad);
+    var cardHeight = cursor + pad - y;
+    card.fillRect(x, y, cardWidth, cardHeight, options.accent);
+    card.fillRect(x + 3, y + 3, cardWidth - 6, cardHeight - 6, cardColor);
+    card.fillRect(x, y, 8, cardHeight, options.accent);  // spine
 
     console.log("Badge rendered. One undo removes the whole thing.");
   }
