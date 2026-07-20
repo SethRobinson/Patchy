@@ -242,11 +242,14 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   the imported text (ASCII + Latin-1); the small/petite-caps family
   (smcp/c2sc/pcap/c2pc/titl/unic) renders as typed with a notice. Frame text
   wraps via the box flow with its cap at the frame top (pinned against
-  Affinity's render). Approximations (notice where user-visible):
-  rotation/shear renders axis-aligned, and Affinity's default 1.33x
-  auto-leading is not modeled (multi-line blocks pack slightly tighter;
-  adopting the Photoshop-leading layout path would need the frame anchoring
-  re-pinned).
+  Affinity's render). Affinity's default line pitch measures as the natural
+  font leading plus COLLAPSED paragraph margins (max of space-after/next
+  space-before) - exactly Qt's model, so no leading translation is needed
+  (the once-suspected `PAtt Doub[10]` = 1.33 is NOT a line-pitch multiple).
+  Runs metadata also emits for single-style text that carries paragraph
+  layout: block alignment/spacing only apply on the rich-runs render path
+  (the html body is a single <p> with <br/> breaks). Approximations (notice
+  where user-visible): rotation/shear renders axis-aligned.
 - **Layer effects (`FiEf`)** import into `Layer::layer_style()` for the kinds
   Patchy models: outer/inner shadow (`Shad`/`InnS`; wire `Angl` is the
   direction the shadow FALLS, screen-clockwise from +x, so the PS light angle

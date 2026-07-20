@@ -2754,7 +2754,12 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
     any_paragraph_layout =
         any_paragraph_layout || run.justification != 0 || run.space_before > 0.0 || run.space_after > 0.0;
   }
-  if (multi_style) {
+  // Runs also emit for single-style text that carries paragraph layout: the
+  // rich-text-runs render path builds REAL paragraph blocks from the plain
+  // text, while the html body is a single <p> with <br/> breaks, so block
+  // alignment and spacing only apply on the runs path (Affinity's centred
+  // multi-paragraph text lost its paragraph spacing through html).
+  if (multi_style || any_paragraph_layout) {
     metadata[kLayerMetadataTextRuns] = psd::serialize_patchy_text_runs(style_runs);
   }
   if (any_paragraph_layout) {
