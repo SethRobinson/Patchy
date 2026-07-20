@@ -152,10 +152,11 @@ not part of any release package.
   `test-fixtures/tga/pillow-*.tga`, and `test-fixtures/gif/pillow-animated.gif`:
   generated locally with the Pillow imaging library (self-authored art; no
   third-party content).
-- `test-fixtures/af/tiny-*.af` and `tiny-rgba8.png`: Affinity documents (a
-  64x48 self-authored gradient/pattern image) created by the Patchy team by
-  scripting a licensed Affinity 3.2.3 install through its built-in JavaScript
-  SDK; no third-party content. Used by the .af importer tests.
+- `test-fixtures/af/tiny-*.af` and `tiny-rgba8.png`: Affinity documents
+  (self-authored gradient/pattern images, a nested-group document, and a CMYK
+  conversion) created by the Patchy team by scripting a licensed Affinity 3.2.3
+  install through its built-in JavaScript SDK; no third-party content. Used by
+  the .af importer tests.
 - `test-fixtures/aseprite/*.aseprite` and
   `aseprite-blend-modes-reference.png` (Aseprite's own flattened render of the
   blend-mode fixture): authored locally with Aseprite 1.3.17 via a batch script

@@ -23,7 +23,7 @@ All read AND write (camera raw below is the one read-only entry); modules in src
 - PNG/JPEG/TIFF/WebP stay on Qt.
 - **Camera raw** — read-only; see the section below.
 - **HEIF/HEIC** — read-only, platform codecs only; see the section below.
-- **.af (Affinity)** — read-only, tier-1 layer import (raster layers/groups/blend); see the section below.
+- **.af (Affinity)** — read-only, tier-2 layer import (raster layers/groups/masks/clipping/CMYK-Lab/embedded docs); see the section below.
 
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
 
@@ -138,7 +138,7 @@ macOS/Linux but not Windows.
   repeating-QTimer dismisser for the potential `openFailedMessageBox` (dismiss via
   `reject()` so the Store button can never fire in a test).
 
-## .af (Affinity by Canva; read-only, tier 1)
+## .af (Affinity by Canva; read-only, tier 2)
 
 `src/formats/af_document_io.{hpp,cpp}` opens Affinity's native unified format
 (the 2025 "Affinity by Canva" app; magic `00 FF 4B 41`). Registered read-only
@@ -146,30 +146,42 @@ macOS/Linux but not Windows.
 only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
 (same container family, deferred to keep the version matrix small).
 
-- **Tier 1 (current)**: parses the serialized document tree (`doc.dat`) and
-  builds real Patchy layers - the layer tree (groups nested), each raster
-  layer's full-resolution pixels decoded from its tiles and placed by its
-  bounds/transform, plus name, visibility, opacity, fill-opacity, and blend
-  mode. The importer builds `Layer` objects and lets Patchy's compositor do the
-  blending (it never composites itself), so the blend math stays Patchy's
-  calibrated implementation. On any structural problem the reader falls back to
-  the **tier-0** embedded-preview layer rather than failing the open (env
-  `PATCHY_AF_TRACE=1` prints why tier 1 bailed). The reverse-engineered format
-  record, generated corpus, and Python reference/verification tooling live in
-  `local-test-fixtures/af-spike/` (machine-local; FINDINGS.md there is the
-  running format spec).
+- **Tier 2 (current)**: parses the serialized document tree (`doc.dat`) and
+  builds real Patchy layers - the layer tree (groups nested with pass-through
+  by default), each raster layer's full-resolution pixels decoded from its
+  tiles and placed by its bounds/transform, plus name, visibility, opacity,
+  fill-opacity, and blend mode. The importer builds `Layer` objects and lets
+  Patchy's compositor do the blending (it never composites itself), so the
+  blend math stays Patchy's calibrated implementation. On any structural
+  problem the reader falls back to the **tier-0** embedded-preview layer rather
+  than failing the open (env `PATCHY_AF_TRACE=1` prints why the tree walk
+  bailed). The reverse-engineered format record, generated corpus, and Python
+  reference/verification tooling live in `local-test-fixtures/af-spike/`
+  (machine-local; FINDINGS.md there is the running format spec).
 - **What imports faithfully**: untransformed and pure-translation raster layers
   in RGBA8/16, Gray8/16, and RGBA-float32 (16-bit down-converts value/257,
-  float linearizes to sRGB); groups; visibility/opacity/blend. Verified
-  pixel-exact against Affinity's own PNG export on synthetic and real
-  multi-layer documents (a 11-layer game mockup scores ~0 RMSE).
+  float linearizes to sRGB); groups (nested, pass-through by default); layer
+  masks (the M8/M16 mask plane in a node's `AdCh` enclosure becomes a
+  `LayerMask`); clipping (Affinity nests clipped layers inside their base's
+  child list; Patchy models them as clipped siblings above the base); embedded
+  documents (the `EmbR`/`EmbC` reference to an `edc/<n>` nested container is
+  parsed recursively and flattened); visibility/opacity/fill-opacity/blend.
+  Verified pixel-exact against Affinity's own PNG export on synthetic and real
+  multi-layer documents (an 11-layer game mockup scores ~0 RMSE; a CMYK
+  restaurant menu with embedded icon images and masks renders correctly).
+- **Approximate (notice, but rendered)**: CMYK raster layers convert without a
+  color profile (the file references profiles by name only, storing no ICC
+  bytes) through the naive ink mix - the PSD reader's profile-less fallback;
+  .af channels are straight ink, not PSD-inverted. Blend modes Patchy lacks
+  (Pigment, Vivid/Linear Light, Hard Mix, Darker/Lighter Colour, ...) map to
+  Normal with a notice.
 - **Honest degradation (notice + named empty layer)**: text (`TxtA`/`TxtF`),
-  vector/curve (`PCrv`), embedded documents, CMYK/Lab/mask raster formats, and
-  layers with a non-trivial (scale/rotate) transform. These keep their name and
-  position in the tree so the structure survives, but are not rendered.
-  Blend modes Patchy lacks (Pigment, Vivid/Linear Light, Hard Mix, ...) map to
-  Normal with a notice. Group pass-through, layer masks, clipping, and adjustment
-  layers are not yet mapped (tier-2 work).
+  vector/curve (`PCrv`), adjustment and live-filter nodes (their bitmap is a
+  mask plane, not content - the adjustment is not applied), Lab documents
+  (the a/b channel scale is not the ICC encoding and is not pinned yet; a
+  wrong decode would desaturate, so it refuses instead), and layers with a
+  non-trivial (scale/rotate) transform. These keep their name and position in
+  the tree so the structure survives, but are not rendered.
 - **Blend enum -> Patchy `BlendMode`** and the RasterFormat ids are in
   FINDINGS.md; the Affinity `Blnd` field's enum id is the BlendMode value
   directly (absent = Normal).

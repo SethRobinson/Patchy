@@ -87,6 +87,66 @@ void af_tier1_imports_16bit_document() {
   CHECK(center[3] == 255);
 }
 
+void af_tier2_imports_group_hierarchy() {
+  // tiny-group.af nests three RGBA rasters (inner-a/inner-b/sibling) inside a
+  // container; tier 2 imports it as a Group layer with pixel-layer children.
+  const auto bytes = read_fixture("tiny-group.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 48);
+  CHECK(document.height() == 32);
+
+  const patchy::Layer* group = nullptr;
+  for (const auto& layer : document.layers()) {
+    if (layer.kind() == patchy::LayerKind::Group) {
+      group = &layer;
+      break;
+    }
+  }
+  CHECK(group != nullptr);
+  CHECK(group->children().size() == 3);
+  // Children keep their names and real pixels.
+  bool found_inner = false;
+  for (const auto& child : group->children()) {
+    CHECK(child.kind() == patchy::LayerKind::Pixel);
+    if (child.name() == "inner-a") {
+      found_inner = true;
+      CHECK(child.pixels().width() == 20);
+      const std::uint8_t* p = child.pixels().pixel(10, 10);
+      CHECK(static_cast<int>(p[0]) > 150);  // painted (220,40,40)
+      CHECK(static_cast<int>(p[2]) < 100);
+    }
+  }
+  CHECK(found_inner);
+}
+
+void af_tier2_imports_cmyk_with_notice() {
+  // tiny-cmyk.af is the tiny gradient converted to CMYK/8. Tier 2 decodes it
+  // (approximate, no ICC in the file) and says so in a notice.
+  const auto bytes = read_fixture("tiny-cmyk.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 64);
+  CHECK(document.height() == 48);
+  CHECK(document.layers().size() == 1);
+  CHECK(document.layers().front().pixels().width() == 64);
+
+  bool has_approx_notice = false;
+  for (const auto& notice : notices) {
+    if (notice.find("CMYK") != std::string::npos && notice.find("approximate") != std::string::npos) {
+      has_approx_notice = true;
+    }
+  }
+  CHECK(has_approx_notice);
+
+  // The gradient's red channel rises left-to-right; a coarse monotonic check
+  // proves real color (not a flat fill or an inverted decode).
+  const auto& pixels = document.layers().front().pixels();
+  const int left = pixels.pixel(6, 24)[0];
+  const int right = pixels.pixel(58, 24)[0];
+  CHECK(right > left);
+}
+
 void af_read_rejects_non_affinity_bytes() {
   const std::vector<std::uint8_t> garbage = {'n', 'o', 't', ' ', 'a', 'f', 0, 1, 2, 3};
   bool threw = false;
@@ -119,7 +179,9 @@ void af_read_survives_truncation_sweep() {
 }
 
 void af_read_survives_mutation_sweep() {
-  const auto original = read_fixture("tiny-rgba8.af");
+  // The group fixture exercises the richest tree (nested container, three
+  // rasters), so mutating it hits the most tier-1/2 code paths.
+  const auto original = read_fixture("tiny-group.af");
   // Flip a byte at positions spread across the whole file (header, stream
   // table, compressed payloads, thumbnail): reads must throw or succeed with
   // notices, never crash or hang. 0x5A flips both nibbles and the sign bit.
@@ -141,6 +203,8 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_sniff_detects_magic", af_sniff_detects_magic},
       {"af_tier1_imports_layer_at_full_resolution", af_tier1_imports_layer_at_full_resolution},
       {"af_tier1_imports_16bit_document", af_tier1_imports_16bit_document},
+      {"af_tier2_imports_group_hierarchy", af_tier2_imports_group_hierarchy},
+      {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},
       {"af_read_survives_mutation_sweep", af_read_survives_mutation_sweep},
