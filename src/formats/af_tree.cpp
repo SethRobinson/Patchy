@@ -196,6 +196,18 @@ private:
   AfValue read_curve(bool array) {
     const std::uint32_t count = array ? read_count() : 1;
     const std::uint16_t size = reader_.read_u16();
+    const std::uint64_t total = static_cast<std::uint64_t>(count) * size;
+    // Preserve plausible payloads (vector path points); implausibly large
+    // ones stay consumed-but-skipped (hostile-input bound).
+    if (total > 0 && total <= (1U << 22U)) {
+      AfCurveArray value;
+      value.record_size = size;
+      value.bytes.resize(static_cast<std::size_t>(total));
+      for (auto& byte : value.bytes) {
+        byte = reader_.read_u8();
+      }
+      return value;
+    }
     for (std::uint32_t i = 0; i < count; ++i) {
       reader_.skip(size);
     }

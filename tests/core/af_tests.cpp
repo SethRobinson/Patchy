@@ -12,6 +12,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
 #include "core/smart_object.hpp"
+#include "core/vector_shape.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 
@@ -575,6 +576,71 @@ void af_imports_gradient_overlay_placement() {
   CHECK(overlay("radial").gradient.type == patchy::LayerStyleGradientType::Radial);
 }
 
+void af_imports_vector_curves_as_shape_layers() {
+  // tiny-vector.af: four PCrv nodes - a red rect, a green ellipse with a blue
+  // 3px stroke, an orange stroke-only open line, and a purple two-subpath
+  // donut (even-odd hole). Each imports as a real shape layer with vector
+  // content and baked pixels.
+  const auto bytes = read_fixture("tiny-vector.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  const auto shape = [&](const char* name) -> const patchy::Layer& {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        CHECK(patchy::layer_is_vector_shape(layer));
+        CHECK(!std::as_const(layer).pixels().empty());
+        return layer;
+      }
+    }
+    throw std::runtime_error(std::string("layer not found: ") + name);
+  };
+  {
+    const auto& layer = shape("rect");
+    const auto* content = layer.vector_shape();
+    CHECK(content->fill.kind == patchy::VectorFillKind::Solid);
+    CHECK(content->fill.color == (patchy::RgbColor{220, 30, 30}));
+    CHECK(!content->stroke.enabled);
+    CHECK(content->path.subpaths.size() == 1);
+    CHECK(content->path.subpaths.front().anchors.size() == 4);
+    CHECK(content->path.subpaths.front().closed);
+    CHECK(layer.bounds().x == 10 && layer.bounds().y == 10);
+    CHECK(layer.bounds().width == 40 && layer.bounds().height == 25);
+  }
+  {
+    const auto& layer = shape("ellipse-stroked");
+    const auto* content = layer.vector_shape();
+    CHECK(content->fill.color == (patchy::RgbColor{30, 180, 30}));
+    CHECK(content->stroke.enabled);
+    CHECK(std::abs(content->stroke.width - 3.0) < 0.001);
+    CHECK(content->stroke.content.color == (patchy::RgbColor{30, 30, 220}));
+    // Ellipse anchors are smooth with real bezier handles.
+    const auto& anchor = content->path.subpaths.front().anchors.front();
+    CHECK(anchor.smooth);
+    CHECK(std::abs(anchor.out_x - anchor.anchor_x) > 1.0);
+  }
+  {
+    const auto& layer = shape("line");
+    const auto* content = layer.vector_shape();
+    CHECK(content->fill.kind == patchy::VectorFillKind::None);
+    CHECK(content->stroke.enabled);
+    CHECK(!content->path.subpaths.front().closed);
+  }
+  {
+    const auto& layer = shape("donut");
+    const auto* content = layer.vector_shape();
+    CHECK(content->path.subpaths.size() == 2);
+    // Even-odd within one shape group: the inner subpath cuts a hole.
+    CHECK(content->path.subpaths[0].shape_group == content->path.subpaths[1].shape_group);
+    const auto& pixels = std::as_const(layer).pixels();
+    const auto local_x = 40 - layer.bounds().x;   // document (40, 82) = hole centre
+    const auto local_y = 82 - layer.bounds().y;
+    CHECK(pixels.pixel(local_x, local_y)[3] == 0);
+  }
+  for (const auto& notice : notices) {
+    CHECK(notice.find("vector content") == std::string::npos);  // no placeholders
+  }
+}
+
 void af_head_fat_revision_wins() {
   // tiny-incremental-chain.af carries a TWO-link stream-table chain (the
   // incremental-save layout): the head revision's doc.dat has a colour
@@ -706,6 +772,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_imports_layer_effects", af_imports_layer_effects},
       {"af_imports_gradient_overlay_placement", af_imports_gradient_overlay_placement},
       {"af_imports_paragraph_spacing", af_imports_paragraph_spacing},
+      {"af_imports_vector_curves_as_shape_layers", af_imports_vector_curves_as_shape_layers},
       {"af_head_fat_revision_wins", af_head_fat_revision_wins},
       {"af_imports_adjustment_layers", af_imports_adjustment_layers},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},

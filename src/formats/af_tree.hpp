@@ -32,10 +32,17 @@ struct AfEmbedded {
   std::string data;  // ASCII payload (stream names like "d/1f")
 };
 
+// A "curve" field (type 0x2C): fixed-size records (vector path points ride
+// here as 18-byte x/y/flags triples). bytes holds count * record_size.
+struct AfCurveArray {
+  std::uint16_t record_size{0};
+  std::vector<std::uint8_t> bytes;
+};
+
 struct AfSkipped {};  // a value that parsed and was consumed but is not modeled
 
 using AfValue = std::variant<AfSkipped, bool, std::int64_t, double, std::string,
-                             AfEnum, AfEmbedded, std::vector<double>,
+                             AfEnum, AfEmbedded, AfCurveArray, std::vector<double>,
                              std::vector<std::int64_t>, std::vector<std::uint8_t>,
                              std::shared_ptr<AfClass>,
                              std::vector<std::shared_ptr<AfClass>>>;

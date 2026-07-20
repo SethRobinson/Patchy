@@ -4,6 +4,8 @@
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
+#include "core/vector_raster.hpp"
+#include "core/vector_shape.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "psd/psd_text_runs.hpp"
 #include "color/color_management.hpp"
@@ -2816,6 +2818,234 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
   return layer;
 }
 
+// ---- Vector curve nodes (PCrv) -> Patchy shape layers ----
+
+// A vector fill from an FDsc descriptor: FDeF is FilS (solid Colr), FilG
+// (gradient - the same shape style_gradient_from_fill decodes, including the
+// FDeX placement transform), or FilN (none). Patchy's VectorFill carries no
+// alpha, so the color's alpha comes back separately.
+struct AfVectorFill {
+  VectorFill fill;
+  float alpha{1.0F};
+};
+
+// A node's descriptor field is a single class in some documents and a
+// one-element class list in others (BFFl/LIFl mirror LILn's list shape).
+[[nodiscard]] const af::AfClass* first_class_of(const af::AfClass& node, std::uint32_t tag) {
+  if (const af::AfClass* single = node.child_class(tag)) {
+    return single;
+  }
+  if (const auto* list = class_list(node, tag); list != nullptr && !list->empty()) {
+    return list->front().get();
+  }
+  return nullptr;
+}
+
+[[nodiscard]] std::optional<AfVectorFill> vector_fill_from_descriptor(const af::AfClass* descriptor) {
+  if (descriptor == nullptr) {
+    return std::nullopt;
+  }
+  const af::AfClass* fill = descriptor->child_class(af::tag4("FDeF"));
+  if (fill == nullptr) {
+    return std::nullopt;
+  }
+  AfVectorFill result;
+  if (fill->type_tag == af::tag4("FilN")) {
+    result.fill.kind = VectorFillKind::None;
+    return result;
+  }
+  if (fill->type_tag == af::tag4("FilG")) {
+    if (auto gradient = style_gradient_from_fill(descriptor)) {
+      result.fill.kind = VectorFillKind::Gradient;
+      result.fill.gradient = std::move(*gradient);
+      return result;
+    }
+    return std::nullopt;
+  }
+  if (const auto stored = read_rgba_color(fill->child_class(af::tag4("Colr")))) {
+    const auto to_channel = [](float value) {
+      return static_cast<std::uint8_t>(std::lround(std::clamp(value, 0.0F, 1.0F) * 255.0F));
+    };
+    result.fill.kind = VectorFillKind::Solid;
+    result.fill.color =
+        RgbColor{to_channel((*stored)[0]), to_channel((*stored)[1]), to_channel((*stored)[2])};
+    result.alpha = std::clamp((*stored)[3], 0.0F, 1.0F);
+    return result;
+  }
+  return std::nullopt;
+}
+
+// The node's path: Crvs -> PCvD -> Data, an UNTAGGED inline class laid out as
+// [u8 version][u32 subpath count] then per subpath [bool closed][point
+// curve-array]. Each 18-byte point record is x f64 LE, y f64 LE, u16 flags:
+// 0x0001 corner anchor, 0x0002 smooth anchor, 0x0100 = the previous anchor's
+// control-out, 0x0200 = the NEXT anchor's control-in. Closed subpaths repeat
+// the first anchor at the end (folded away below). All subpaths share shape
+// group 0: Affinity fills a poly-curve even-odd (the two same-winding nested
+// rectangles of the donut probe render a hole), which is exactly Patchy's
+// within-group rule.
+[[nodiscard]] std::optional<VectorPath> vector_path_from_node(const af::AfClass& node) {
+  const af::AfClass* curves = node.child_class(af::tag4("Crvs"));
+  if (curves == nullptr) {
+    return std::nullopt;
+  }
+  const af::AfClass* data = curves->child_class(af::tag4("Data"));
+  if (data == nullptr) {
+    return std::nullopt;
+  }
+  const auto read_f64 = [](const std::uint8_t* bytes) {
+    std::uint64_t bits = 0;
+    for (int i = 7; i >= 0; --i) {
+      bits = (bits << 8U) | bytes[i];
+    }
+    double value = 0.0;
+    std::memcpy(&value, &bits, sizeof(value));
+    return value;
+  };
+  VectorPath path;
+  bool closed = true;
+  for (const auto& field : data->fields) {
+    if (const auto* flag = std::get_if<bool>(&field.value)) {
+      closed = *flag;
+      continue;
+    }
+    const auto* records = std::get_if<af::AfCurveArray>(&field.value);
+    if (records == nullptr || records->record_size < 18) {
+      continue;
+    }
+    PathSubpath subpath;
+    subpath.closed = closed;
+    subpath.op = PathCombineOp::Add;
+    subpath.shape_group = 0;
+    bool pending_in = false;
+    double in_x = 0.0;
+    double in_y = 0.0;
+    const std::size_t stride = records->record_size;
+    for (std::size_t at = 0; at + stride <= records->bytes.size(); at += stride) {
+      const std::uint8_t* bytes = records->bytes.data() + at;
+      const double x = read_f64(bytes);
+      const double y = read_f64(bytes + 8);
+      if (!std::isfinite(x) || !std::isfinite(y)) {
+        continue;
+      }
+      const std::uint16_t flags =
+          static_cast<std::uint16_t>(bytes[16] | (static_cast<std::uint16_t>(bytes[17]) << 8U));
+      if ((flags & 0x0003U) != 0) {
+        PathAnchor anchor{x, y, x, y, x, y, (flags & 0x0002U) != 0};
+        if (pending_in) {
+          anchor.in_x = in_x;
+          anchor.in_y = in_y;
+          pending_in = false;
+        }
+        subpath.anchors.push_back(anchor);
+      } else if ((flags & 0x0100U) != 0) {
+        if (!subpath.anchors.empty()) {
+          subpath.anchors.back().out_x = x;
+          subpath.anchors.back().out_y = y;
+        }
+      } else if ((flags & 0x0200U) != 0) {
+        pending_in = true;
+        in_x = x;
+        in_y = y;
+      }
+    }
+    // The closing record repeats anchor 0; fold its incoming handle there.
+    if (subpath.closed && subpath.anchors.size() >= 2) {
+      const auto& first = subpath.anchors.front();
+      const auto& last = subpath.anchors.back();
+      if (std::abs(first.anchor_x - last.anchor_x) < 0.0001 &&
+          std::abs(first.anchor_y - last.anchor_y) < 0.0001) {
+        subpath.anchors.front().in_x = last.in_x;
+        subpath.anchors.front().in_y = last.in_y;
+        subpath.anchors.pop_back();
+      }
+    }
+    if (subpath.anchors.size() >= 2) {
+      path.subpaths.push_back(std::move(subpath));
+    }
+    closed = true;
+  }
+  if (path.subpaths.empty()) {
+    return std::nullopt;
+  }
+  return path;
+}
+
+// PCrv -> a real Patchy shape layer (the SVG import pattern: vector content +
+// a baked raster; kLayerMetadataVectorShape + block-dirty so saves regenerate
+// the PSD vector blocks). Fill = BFFl, stroke paint = LIFl with the width from
+// LILn's line style; cap/join/alignment keep Patchy defaults (approximate).
+// Returns nullopt when the path is missing/undecodable (placeholder path).
+[[nodiscard]] std::optional<Layer> build_vector_layer(LayerBuildContext& ctx, const af::AfClass& node,
+                                                      const std::string& display) {
+  auto path = vector_path_from_node(node);
+  if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
+    std::fprintf(stderr, "[af] vector '%s': path=%d subpaths=%zu crvs=%d data=%d\n",
+                 display.c_str(), path.has_value(),
+                 path.has_value() ? path->subpaths.size() : 0U,
+                 node.child_class(af::tag4("Crvs")) != nullptr,
+                 node.child_class(af::tag4("Crvs")) != nullptr &&
+                     node.child_class(af::tag4("Crvs"))->child_class(af::tag4("Data")) != nullptr);
+  }
+  if (!path.has_value()) {
+    return std::nullopt;
+  }
+  // The node transform maps local path coordinates into document space (full
+  // affine - vectors need no axis-aligned approximation).
+  if (const auto xfrm = node.vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
+    transform_vector_path(*path, {xfrm[0], xfrm[3], xfrm[1], xfrm[4], xfrm[2], xfrm[5]});
+  }
+  VectorShapeContent content;
+  content.path = std::move(*path);
+  float fill_alpha = 1.0F;
+  if (auto fill = vector_fill_from_descriptor(first_class_of(node, af::tag4("BFFl")))) {
+    content.fill = std::move(fill->fill);
+    fill_alpha = fill->alpha;
+  } else {
+    content.fill.kind = VectorFillKind::None;
+  }
+  // LILn[0] (LDsc) -> LDeL: the field's value IS the LSty class.
+  double weight = 0.0;
+  if (const af::AfClass* line_descriptor = first_class_of(node, af::tag4("LILn"))) {
+    if (const af::AfClass* style = line_descriptor->child_class(af::tag4("LDeL"))) {
+      weight = style->double_field(af::tag4("Wght"), 0.0);
+    }
+  }
+  if (weight > 0.0) {
+    if (auto stroke_fill = vector_fill_from_descriptor(first_class_of(node, af::tag4("LIFl")));
+        stroke_fill.has_value() && stroke_fill->fill.kind != VectorFillKind::None) {
+      content.stroke.enabled = true;
+      content.stroke.width = weight;
+      content.stroke.alignment = VectorStrokeAlignment::Center;
+      content.stroke.content = std::move(stroke_fill->fill);
+      content.stroke.opacity = std::clamp(static_cast<double>(stroke_fill->alpha), 0.0, 1.0);
+    }
+  }
+  if (content.fill.kind == VectorFillKind::None && !content.stroke.enabled) {
+    return std::nullopt;  // nothing visible; the honest placeholder says so
+  }
+
+  Layer layer(ctx.document.allocate_layer_id(), display, LayerKind::Pixel);
+  layer.metadata()[kLayerMetadataVectorShape] = "1";
+  mark_layer_vector_block_dirty(layer);  // no preserved PSD blocks: regenerate on save
+  layer.set_vector_shape(std::move(content));
+  apply_common(ctx, node, layer, display);
+  if (fill_alpha < 1.0F) {
+    layer.set_fill_opacity(layer.fill_opacity() * fill_alpha);
+  }
+  apply_mask_children(ctx, node, layer, display);
+  update_vector_shape_raster(layer, Rect{0, 0, ctx.document.width(), ctx.document.height()},
+                             nullptr);
+  if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
+    std::fprintf(stderr, "[af] vector '%s': baked %dx%d at %d,%d fill=%d stroke=%d\n",
+                 display.c_str(), std::as_const(layer).pixels().width(),
+                 std::as_const(layer).pixels().height(), layer.bounds().x, layer.bounds().y,
+                 static_cast<int>(layer.vector_shape()->fill.kind),
+                 layer.vector_shape()->stroke.enabled);
+  }
+  return layer;
+}
+
 // Emit `node` (and, for content layers, its clipped Chld children after it) into
 // `out`. Affinity nests clipped layers INSIDE their base layer's child list;
 // Patchy models the same thing as clipped siblings above the base.
@@ -2965,9 +3195,18 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       }
     }
 
-    // Vector / other leaves (and text whose story shape is missing): named
-    // placeholders.
+    // Vector curves: real shape layers with baked pixels.
     const bool is_vector = tag == af::tag4("PCrv");
+    if (is_vector) {
+      if (auto vector_layer = build_vector_layer(ctx, node, display)) {
+        out.push_back(std::move(*vector_layer));
+        emit_clipped_children(out.size() - 1);
+        continue;
+      }
+    }
+
+    // Undecodable vector leaves and text whose story shape is missing: named
+    // placeholders.
     emit_placeholder(is_text ? "is text content" : (is_vector ? "is vector content"
                                                               : "is unsupported content"));
   }

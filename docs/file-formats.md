@@ -283,8 +283,25 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   placeholder path. Placement note: `BitI` is the bitmap's used/dirty
   sub-rect, NEVER a placement source - untransformed layers sit at the
   origin, translated/transformed ones go through `Xfrm`.
-- **Honest degradation (notice + named empty layer)**: vector/curve
-  (`PCrv`), unmapped adjustment kinds and live-filter nodes (their bitmap is
+- **Vector curves (`PCrv`)** import as real Patchy shape layers (the SVG
+  pattern: `VectorShapeContent` + baked pixels via `update_vector_shape_raster`,
+  block-dirty so PSD saves regenerate). Wire: `Crvs` -> `PCvD` -> `Data` (an
+  untagged inline class) = [u8 version][u32 subpath count] then per subpath
+  [bool closed][point curve-array]; each 18-byte record is x f64 LE, y f64
+  LE, u16 flags (0x0001 corner anchor, 0x0002 smooth anchor, 0x0100 the
+  previous anchor's control-out, 0x0200 the next anchor's control-in; closed
+  subpaths repeat anchor 0 at the end). All subpaths share one shape group:
+  Affinity fills a poly-curve even-odd (nested same-winding rects cut a
+  hole), exactly Patchy's within-group rule. Fill = `BFFl` FDsc (solid/
+  gradient/none, single class or one-element list), stroke paint = `LIFl`
+  with width from `LILn -> LDeL` (the field's value IS the `LSty` class,
+  `Wght`); cap/join/alignment keep Patchy defaults (approximate) and the
+  node `Xfrm` applies as a full affine (no axis-aligned approximation).
+  Probe scores: rect/donut 0.00 RMSE, ellipse 1.6, stroked rect 3.5; the
+  all-vector snes corpus doc dropped 196 -> 46 (the rest is rotated text).
+  Compound-shape (`Comp`) booleans still import as groups of their children.
+- **Honest degradation (notice + named empty layer)**: undecodable vector
+  curves, unmapped adjustment kinds and live-filter nodes (their bitmap is
   a mask plane, not content), and text whose story shape is missing. These
   keep their name and position in the tree so the structure survives, but are
   not rendered. If NOTHING in a document decodes to pixels or pending text,
