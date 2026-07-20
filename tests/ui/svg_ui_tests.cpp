@@ -395,6 +395,30 @@ void ui_af_mixed_text_runs_render() {
   patchy::test::ui::save_widget_artifact("af_mixed_text_runs", window);
 }
 
+// Rotated .af artistic text renders THROUGH its node affine: the post-open
+// pass composes the local anchor with the stored Xfrm, so a -90deg text lands
+// portrait, and the layer keeps the standard transformed-text metadata.
+void ui_af_rotated_text_renders_through_transform() {
+  if (patchy::test::ui::skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("af", "tiny-text-rotated.af").wstring());
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto& layer = document.layers().back();
+  CHECK(patchy::layer_is_text(layer));
+  CHECK(!std::as_const(layer).pixels().empty());
+  CHECK(!layer.metadata().contains(patchy::kLayerMetadataAfTextXfrm));
+  CHECK(layer.metadata().contains(patchy::kLayerMetadataTextTransform));
+  // "Rotated" at -90deg: the ink is portrait (taller than wide).
+  CHECK(layer.bounds().height > layer.bounds().width * 2);
+  patchy::test::ui::save_widget_artifact("af_rotated_text", window);
+}
+
 // A pristine .af placed image imports as an embedded smart object; the UI can
 // re-render it from its source and reproduce the baked pixels.
 void ui_af_placed_image_imports_as_smart_object() {
@@ -427,6 +451,7 @@ std::vector<patchy::test::TestCase> svg_ui_tests() {
   return {
       {"ui_af_text_import_renders_post_open", ui_af_text_import_renders_post_open},
       {"ui_af_mixed_text_runs_render", ui_af_mixed_text_runs_render},
+      {"ui_af_rotated_text_renders_through_transform", ui_af_rotated_text_renders_through_transform},
       {"ui_af_placed_image_imports_as_smart_object", ui_af_placed_image_imports_as_smart_object},
       {"ui_svg_open_creates_editable_shape_layers", ui_svg_open_creates_editable_shape_layers},
       {"ui_svg_import_render_matches_qsvg", ui_svg_import_render_matches_qsvg},

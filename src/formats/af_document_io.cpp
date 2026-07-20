@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <tuple>
 #include <cstdio>
@@ -2402,6 +2403,29 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
     if (!stored.empty()) {
       run.family = stored;
     }
+    // Non-normal width classes (Widh 5 = normal) can lose the face through
+    // the wire family alone ("Arial" + Widh 3 is Arial Narrow); the
+    // PostScript name resolves the display family ("ArialNarrow" -> "Arial
+    // Narrow"). Upgrade ONLY when the resolved name extends the wire family
+    // with a qualifier - face-specific wire families ("Futura MdCn BT") are
+    // already the installed name and a humanized PostScript would miss.
+    if (font->int_field(af::tag4("Widh"), 5) != 5) {
+      const std::string postscript = font->string_field(af::tag4("Post"));
+      if (!postscript.empty()) {
+        auto resolved = psd::heuristic_resolved_photoshop_font(postscript);
+        const auto ci_equal = [](char a, char b) {
+          return std::tolower(static_cast<unsigned char>(a)) ==
+                 std::tolower(static_cast<unsigned char>(b));
+        };
+        const bool extends_family =
+            resolved.family.size() > run.family.size() + 1 &&
+            resolved.family[run.family.size()] == ' ' &&
+            std::equal(run.family.begin(), run.family.end(), resolved.family.begin(), ci_equal);
+        if (extends_family) {
+          run.family = std::move(resolved.family);
+        }
+      }
+    }
     run.bold = font->int_field(af::tag4("Wegt"), 400) >= 600;
     run.italic = font->bool_field(af::tag4("Ital"), false);
   }
@@ -2652,9 +2676,13 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
   const int size = std::clamp(static_cast<int>(std::lround(style_runs.front().size)), 1, 4000);
   const RgbColor first_color = style_runs.front().color;
 
-  // Placement: the TxtH frame box (node-local; Xfrm positions it). Fold the
-  // transform's scale into the font size and map the box through the affine;
-  // rotation/shear only approximates (axis-aligned box + notice).
+  // Placement: the TxtH frame box (node-local; Xfrm positions it). For an
+  // axis-aligned transform, fold the scale into the font size and map the box
+  // through the affine. Rotated/sheared ARTISTIC text instead keeps the raw
+  // node-local box and unscaled sizes and carries the full Xfrm in a marker:
+  // the post-open pass renders the glyphs THROUGH the affine (crisp, exact)
+  // and stamps the standard patchy.text.transform. Rotated FRAME text still
+  // approximates axis-aligned (the box-flow renderer has no transform path).
   const af::AfClass* frame = node.child_class(af::tag4("TxtH"));
   if (frame == nullptr) {
     return std::nullopt;
@@ -2667,6 +2695,7 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
   double effective_size = static_cast<double>(size);
   double size_scale = 1.0;
   bool transform_approximated = false;
+  std::string transform_marker;
   if (const auto xfrm = node.vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
     const double a = xfrm[0];
     const double b_term = xfrm[1];
@@ -2680,31 +2709,42 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
     if (scale < 0.01) {
       return std::nullopt;
     }
-    // Map the four box corners through the affine; keep the axis-aligned box.
-    double min_x = 0.0;
-    double min_y = 0.0;
-    double max_x = 0.0;
-    double max_y = 0.0;
-    bool first_corner = true;
-    for (const auto [sx, sy] : {std::pair<double, double>{box[0], box[1]},
-                                {box[2], box[1]},
-                                {box[0], box[3]},
-                                {box[2], box[3]}}) {
-      const double px = a * sx + b_term * sy + tx;
-      const double py = c_term * sx + d * sy + ty;
-      min_x = first_corner ? px : std::min(min_x, px);
-      max_x = first_corner ? px : std::max(max_x, px);
-      min_y = first_corner ? py : std::min(min_y, py);
-      max_y = first_corner ? py : std::max(max_y, py);
-      first_corner = false;
-    }
-    box = {min_x, min_y, max_x, max_y};
-    effective_size *= scale;
-    size_scale = scale;
-    ascent *= scale_y;
     const double rotation = std::atan2(c_term, a);
-    if (std::abs(rotation) > 0.03 || std::abs(scale_x - scale_y) > 0.05 * scale) {
-      transform_approximated = true;
+    const bool non_axis_aligned =
+        std::abs(rotation) > 0.03 || std::abs(scale_x - scale_y) > 0.05 * scale;
+    if (non_axis_aligned && node.type_tag == af::tag4("TxtA")) {
+      // Full-affine path: raw box, wire-unit sizes, the whole Xfrm rides the
+      // marker ("a b tx c d ty", the wire order).
+      for (int i = 0; i < 6; ++i) {
+        if (i != 0) {
+          transform_marker += ' ';
+        }
+        transform_marker += std::to_string(xfrm[static_cast<std::size_t>(i)]);
+      }
+    } else {
+      // Map the four box corners through the affine; keep the axis-aligned box.
+      double min_x = 0.0;
+      double min_y = 0.0;
+      double max_x = 0.0;
+      double max_y = 0.0;
+      bool first_corner = true;
+      for (const auto [sx, sy] : {std::pair<double, double>{box[0], box[1]},
+                                  {box[2], box[1]},
+                                  {box[0], box[3]},
+                                  {box[2], box[3]}}) {
+        const double px = a * sx + b_term * sy + tx;
+        const double py = c_term * sx + d * sy + ty;
+        min_x = first_corner ? px : std::min(min_x, px);
+        max_x = first_corner ? px : std::max(max_x, px);
+        min_y = first_corner ? py : std::min(min_y, py);
+        max_y = first_corner ? py : std::max(max_y, py);
+        first_corner = false;
+      }
+      box = {min_x, min_y, max_x, max_y};
+      effective_size *= scale;
+      size_scale = scale;
+      ascent *= scale_y;
+      transform_approximated = non_axis_aligned;
     }
   }
   const int stored_size =
@@ -2788,6 +2828,9 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
   }
   if (align > 0) {
     metadata[kLayerMetadataAfTextAlign] = std::to_string(align);
+  }
+  if (!transform_marker.empty()) {
+    metadata[kLayerMetadataAfTextXfrm] = transform_marker;
   }
 
   apply_common(ctx, node, layer, display);

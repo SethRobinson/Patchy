@@ -248,8 +248,17 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   (the once-suspected `PAtt Doub[10]` = 1.33 is NOT a line-pitch multiple).
   Runs metadata also emits for single-style text that carries paragraph
   layout: block alignment/spacing only apply on the rich-runs render path
-  (the html body is a single <p> with <br/> breaks). Approximations (notice
-  where user-visible): rotation/shear renders axis-aligned.
+  (the html body is a single <p> with <br/> breaks). Rotated/sheared
+  ARTISTIC text renders exactly: the importer keeps the raw box and wire
+  sizes and carries the full node Xfrm in `patchy.af.text_xfrm`; the
+  post-open pass composes the local anchor with the affine, renders through
+  `render_text_layer_pixels_through_transform`, and stamps the standard
+  `patchy.text.transform` so later edits stay transform-aware. Non-normal
+  font width classes (`DFnt Widh` != 5) resolve the display family from the
+  PostScript name when it extends the wire family ("Arial" + Widh 3 ->
+  "Arial Narrow"); face-specific wire families pass through untouched.
+  Approximations (notice where user-visible): rotated/sheared FRAME text
+  still renders axis-aligned (the box-flow renderer has no transform path).
 - **Layer effects (`FiEf`)** import into `Layer::layer_style()` for the kinds
   Patchy models: outer/inner shadow (`Shad`/`InnS`; wire `Angl` is the
   direction the shadow FALLS, screen-clockwise from +x, so the PS light angle

@@ -658,11 +658,8 @@ std::vector<std::string> extract_engine_font_names(std::span<const std::uint8_t>
   return fonts;
 }
 
-struct ResolvedPhotoshopFont {
-  std::string family{"Arial"};
-  bool bold{false};
-  bool italic{false};
-};
+// ResolvedPhotoshopFont moved to the public psd/psd_text_runs.hpp (the .af
+// importer shares the heuristic resolver).
 
 std::string compact_font_key(std::string_view value) {
   std::string compact;
@@ -738,6 +735,10 @@ std::string humanized_postscript_family_name(std::string value) {
   return humanized;
 }
 
+}  // namespace
+
+// Public (psd_text_runs.hpp): suffix-strip + humanize a PostScript name. The
+// anonymous-namespace helpers above stay file-local.
 ResolvedPhotoshopFont heuristic_resolved_photoshop_font(std::string_view font_name) {
   ResolvedPhotoshopFont resolved;
   resolved.family = font_name.empty() ? std::string("Arial") : std::string(font_name);
@@ -800,8 +801,6 @@ ResolvedPhotoshopFont heuristic_resolved_photoshop_font(std::string_view font_na
   }
   return resolved;
 }
-
-}  // namespace
 
 #ifdef _WIN32
 

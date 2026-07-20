@@ -66,6 +66,10 @@ inline constexpr const char* kLayerMetadataAfPendingText = "patchy.af.pending_te
 inline constexpr const char* kLayerMetadataAfTextFrame = "patchy.af.text_frame";
 inline constexpr const char* kLayerMetadataAfTextAscent = "patchy.af.text_ascent";
 inline constexpr const char* kLayerMetadataAfTextAlign = "patchy.af.text_align";
+// Rotated/sheared artistic text: the node's full Xfrm ("a b tx c d ty", wire
+// order); the post-open pass renders the glyphs through the affine and stamps
+// the standard patchy.text.transform. Frame/box text never carries this.
+inline constexpr const char* kLayerMetadataAfTextXfrm = "patchy.af.text_xfrm";
 
 using LayerAffineTransform = std::array<double, 6>;
 

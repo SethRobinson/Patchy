@@ -54,4 +54,17 @@ std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun>
 std::string html_from_text_runs(std::string_view text, std::span<const PsdTextStyleRun> runs,
                                 std::span<const PsdTextParagraphRun> paragraph_runs = {});
 
+// Display family + style flags derived from a PostScript font name by suffix
+// stripping and camel-case humanizing ("ArialNarrow" -> "Arial Narrow",
+// "TimesNewRomanPS-BoldMT" -> "Times New Roman" bold). The PSD reader's
+// fallback resolver; the .af importer uses it for non-normal width classes
+// whose wire family alone loses the face.
+struct ResolvedPhotoshopFont {
+  std::string family{"Arial"};
+  bool bold{false};
+  bool italic{false};
+};
+
+ResolvedPhotoshopFont heuristic_resolved_photoshop_font(std::string_view font_name);
+
 }  // namespace patchy::psd

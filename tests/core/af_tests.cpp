@@ -16,6 +16,7 @@
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -403,12 +404,14 @@ void af_imports_mixed_text_style_runs() {
     return found == metadata.end() ? std::string() : found->second;
   };
   CHECK(value("patchy.text") == "ABcd\xC3\x89\xF0\x9F\x98\x80X");
-  CHECK(value("patchy.text.font") == "Arial");
+  // The fixture's first run is the Arial family's NARROW face (wire Famy
+  // "Arial" + Widh 3); the PostScript name resolves the display family.
+  CHECK(value("patchy.text.font") == "Arial Narrow");
   CHECK(value("patchy.text.size") == "24");
   CHECK(value("patchy.text.color") == "#dc0000");
   CHECK(value("patchy.text.runs") ==
         "v1\n"
-        "0\t2\t24\t0\t0\t#dc0000\tArial\n"
+        "0\t2\t24\t0\t0\t#dc0000\tArial%20Narrow\n"
         "2\t2\t32\t0\t0\t#0000dc\tTimes%20New%20Roman\n"
         "4\t4\t18\t0\t0\t#00a000\tCourier%20New");
   const auto html = value("patchy.text.html");
@@ -574,6 +577,32 @@ void af_imports_gradient_overlay_placement() {
     CHECK(std::abs(fill.gradient.angle_degrees - 315.0F) < 0.1F);
   }
   CHECK(overlay("radial").gradient.type == patchy::LayerStyleGradientType::Radial);
+}
+
+void af_imports_rotated_artistic_text_with_transform_marker() {
+  // tiny-text-rotated.af: artistic "Rotated" (24px, red, the Arial family's
+  // NARROW face - wire Famy "Arial" + Widh 3, resolved via the PostScript
+  // name) under a -90deg node Xfrm. The importer keeps the raw box and wire
+  // sizes and carries the full affine in patchy.af.text_xfrm; no
+  // "approximated" notice (the post-open pass renders through the affine).
+  const auto bytes = read_fixture("tiny-text-rotated.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  const auto& layer = document.layers().back();
+  const auto& metadata = layer.metadata();
+  const auto value = [&](const char* key) {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? std::string() : found->second;
+  };
+  CHECK(value("patchy.text") == "Rotated");
+  CHECK(value("patchy.text.font") == "Arial Narrow");
+  CHECK(value("patchy.text.size") == "24");
+  const auto transform = value("patchy.af.text_xfrm");
+  CHECK(!transform.empty());
+  CHECK(std::count(transform.begin(), transform.end(), ' ') == 5);
+  for (const auto& notice : notices) {
+    CHECK(notice.find("approximated") == std::string::npos);
+  }
 }
 
 void af_imports_vector_curves_as_shape_layers() {
@@ -772,6 +801,8 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_imports_layer_effects", af_imports_layer_effects},
       {"af_imports_gradient_overlay_placement", af_imports_gradient_overlay_placement},
       {"af_imports_paragraph_spacing", af_imports_paragraph_spacing},
+      {"af_imports_rotated_artistic_text_with_transform_marker",
+       af_imports_rotated_artistic_text_with_transform_marker},
       {"af_imports_vector_curves_as_shape_layers", af_imports_vector_curves_as_shape_layers},
       {"af_head_fat_revision_wins", af_head_fat_revision_wins},
       {"af_imports_adjustment_layers", af_imports_adjustment_layers},

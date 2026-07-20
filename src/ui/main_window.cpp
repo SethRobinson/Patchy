@@ -156,6 +156,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QSet>
 #include <QShortcut>
 #include <QScopeGuard>
 #include <QSettings>
@@ -532,6 +533,55 @@ QStringList render_text_families_for_display_family(const QString& family) {
   return QStringList{display_family};
 }
 
+// A font registered with Windows can still be missing from Qt's database
+// (this machine's Arial Narrow: present in the CurrentVersion\Fonts key and
+// in C:\Windows\Fonts, absent from both the family list and Arial's style
+// list). Load every registry entry whose display name starts with the
+// requested family as an application font so the face resolves; each family
+// is attempted once per run. Never removed afterwards (removeApplicationFont
+// can crash live font users - the testing notes' standing rule).
+bool try_register_missing_system_font_family(const QString& family) {
+#ifdef Q_OS_WIN
+  // The offscreen platform (the visual test suite) deliberately sees NO
+  // system fonts - tests register exactly what they need. Pulling registry
+  // fonts there would make test layouts machine-dependent.
+  if (QGuiApplication::platformName() == QLatin1String("offscreen")) {
+    return false;
+  }
+  static QSet<QString> attempted;
+  const auto requested = family.trimmed();
+  const auto key = requested.toLower();
+  if (requested.isEmpty() || attempted.contains(key)) {
+    return false;
+  }
+  attempted.insert(key);
+  const QSettings fonts(
+      QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"),
+      QSettings::NativeFormat);
+  const QDir fonts_dir(QDir(QString::fromLocal8Bit(qgetenv("WINDIR"))).filePath(QStringLiteral("Fonts")));
+  bool added = false;
+  for (const auto& name : fonts.allKeys()) {
+    if (!name.startsWith(requested, Qt::CaseInsensitive)) {
+      continue;
+    }
+    auto file = fonts.value(name).toString();
+    if (file.isEmpty()) {
+      continue;
+    }
+    if (!QFileInfo(file).isAbsolute()) {
+      file = fonts_dir.filePath(file);
+    }
+    if (QFileInfo::exists(file) && QFontDatabase::addApplicationFont(file) >= 0) {
+      added = true;
+    }
+  }
+  return added;
+#else
+  (void)family;
+  return false;
+#endif
+}
+
 QFont render_text_font_for_display_family(const QString& family, int pixel_size, bool bold, bool italic,
                                           int anti_alias) {
   QFont font;
@@ -543,7 +593,17 @@ QFont render_text_font_for_display_family(const QString& family, int pixel_size,
   // "Arial Black" -> "Arial"/"Black") so the proper face renders instead of a regular-weight
   // substitute.  The style name is set last: it takes precedence over the bold flag in matching.
   if (!available_text_family_match(family).has_value()) {
-    if (const auto match = available_text_family_style_match(family); match.has_value()) {
+    auto match = available_text_family_style_match(family);
+    if (!match.has_value() && try_register_missing_system_font_family(family)) {
+      // Registration may surface the face as its own family or as a style of
+      // an existing one, depending on the platform database's naming.
+      if (const auto direct = available_text_family_match(family); direct.has_value()) {
+        font.setFamilies(QStringList{*direct});
+      } else {
+        match = available_text_family_style_match(family);
+      }
+    }
+    if (match.has_value()) {
       font.setFamilies(QStringList{match->family});
       font.setStyleName(match->style);
     }
@@ -7550,32 +7610,45 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
         const auto found = metadata.find(kLayerMetadataAfTextAlign);
         return found == metadata.end() ? 0 : QString::fromStdString(found->second).toInt();
       }();
+      const auto af_transform = [&]() -> std::optional<LayerAffineTransform> {
+        const auto found = metadata.find(kLayerMetadataAfTextXfrm);
+        if (found == metadata.end()) {
+          return std::nullopt;
+        }
+        const QStringList parts = QString::fromStdString(found->second).split(' ');
+        if (parts.size() != 6) {
+          return std::nullopt;
+        }
+        LayerAffineTransform values{};
+        for (int i = 0; i < 6; ++i) {
+          values[static_cast<std::size_t>(i)] = parts[i].toDouble();
+        }
+        return values;
+      }();
       metadata.erase(kLayerMetadataAfPendingText);
       metadata.erase(kLayerMetadataAfTextFrame);
       metadata.erase(kLayerMetadataAfTextAscent);
       metadata.erase(kLayerMetadataAfTextAlign);
+      metadata.erase(kLayerMetadataAfTextXfrm);
 
-      auto pixels = render_text_layer_pixels_from_metadata(layer);
-      if (!pixels.has_value() || pixels->empty()) {
-        continue;  // stays an empty text layer; the text tool can still edit it
-      }
       // Artistic text anchors its baseline at frame-top + Affinity's ascent;
       // re-anchor with Patchy's own ascent so the baseline stays put. Frame
       // text puts the first line's CAP at the frame top (pinned against
       // Affinity's render), so back out Patchy's ascent-above-cap leading.
-      // Alignment is horizontal within the frame box.
-      double top = frame[1];
+      // Mixed-style imports carry patchy.text.runs; the anchor tracks the
+      // tallest run intersecting the FIRST line (Affinity anchors on the
+      // line's max ascent), not the layer-level first style.
       const auto inputs = text_render_inputs_from_layer(layer);
-      QFontMetricsF metrics{QFont{}};
-      if (inputs.has_value()) {
+      const QFontMetricsF metrics = [&] {
+        QFontMetricsF result{QFont{}};
+        if (!inputs.has_value()) {
+          return result;
+        }
         QFont font(inputs->settings.family);
         font.setPixelSize(std::max(1, inputs->settings.size));
         font.setBold(inputs->settings.bold);
         font.setItalic(inputs->settings.italic);
-        metrics = QFontMetricsF(font);
-        // Mixed-style imports carry patchy.text.runs; the frame-top / baseline
-        // anchor tracks the tallest run intersecting the FIRST line (Affinity
-        // anchors on the line's max ascent), not the layer-level first style.
+        result = QFontMetricsF(font);
         if (!inputs->rich_text_runs.trimmed().isEmpty()) {
           const auto newline = inputs->settings.text.indexOf(QLatin1Char('\n'));
           const auto first_line_end =
@@ -7600,17 +7673,42 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
             run_font.setBold(fields[3].toInt() != 0);
             run_font.setItalic(fields[4].toInt() != 0);
             const QFontMetricsF run_metrics(run_font);
-            if (run_metrics.ascent() > metrics.ascent()) {
-              metrics = run_metrics;
+            if (run_metrics.ascent() > result.ascent()) {
+              result = run_metrics;
             }
           }
         }
+        return result;
+      }();
+      const double anchored_top = affinity_ascent > 0.0
+                                      ? frame[1] + affinity_ascent - metrics.ascent()
+                                      : frame[1] - (metrics.ascent() - metrics.capHeight());
+
+      // Rotated/sheared artistic text: anchor in NODE-LOCAL space, then render
+      // the glyphs through the node affine (crisp, exact) and stamp the
+      // standard transformed-text metadata so edits keep re-rendering through
+      // it. The wire marker order is a b tx c d ty; QTransform wants
+      // (m11, m12, m21, m22, dx, dy) with x' = m11 x + m21 y + dx.
+      if (af_transform.has_value() && inputs.has_value() && !inputs->settings.boxed) {
+        const auto& t = *af_transform;
+        const QTransform affine(t[0], t[3], t[1], t[4], t[2], t[5]);
+        const QTransform combined = QTransform::fromTranslate(frame[0], anchored_top) * affine;
+        if (auto rendered = render_text_layer_pixels_through_transform(layer, combined)) {
+          layer.set_pixels(std::move(rendered->pixels));
+          layer.set_bounds(rendered->bounds);
+          metadata[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
+              {combined.m11(), combined.m12(), combined.m21(), combined.m22(), combined.dx(),
+               combined.dy()});
+          metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
+          continue;
+        }
       }
-      if (affinity_ascent > 0.0) {
-        top = frame[1] + affinity_ascent - metrics.ascent();
-      } else {
-        top = frame[1] - (metrics.ascent() - metrics.capHeight());
+
+      auto pixels = render_text_layer_pixels_from_metadata(layer);
+      if (!pixels.has_value() || pixels->empty()) {
+        continue;  // stays an empty text layer; the text tool can still edit it
       }
+      double top = anchored_top;
       double left = frame[0];
       const double frame_width = frame[2] - frame[0];
       if (align > 0 && frame_width > 0.0) {

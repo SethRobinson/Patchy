@@ -20,6 +20,19 @@ Delete on a text layer deletes the OBJECT, never its pixels: pixel-clearing leav
 - Any new UI that must coexist with an open text session needs the same `is_text_option_widget` exemption from the focus-loss auto-commit.
 - The inline editor claims the standard Bold and Italic shortcuts in `ShortcutOverride` before the app-level Ctrl+B Color Balance and Ctrl+I Invert actions can consume them. The key press toggles the same options-bar buttons so selection and typing-format behavior stay on one path.
 
+## Font resolution
+
+- `render_text_font_for_display_family` resolves a display name first as a
+  family, then as family + style ("Arial Black" -> "Arial"/"Black"). If BOTH
+  fail on Windows, `try_register_missing_system_font_family` loads every
+  CurrentVersion\Fonts registry entry whose name starts with the requested
+  family as an application font and retries: Qt's Windows database can miss
+  registered fonts entirely (this machine's Arial Narrow was in the registry
+  and on disk yet absent from the family list AND Arial's style list, so
+  imported text silently fell to Tahoma). Attempted families are cached per
+  run; application fonts are never removed (removeApplicationFont can crash
+  live font users).
+
 ## Character panel
 
 - Opened via options bar > Character... while the Text tool is active. It edits the LIVE editor session (leading auto/fixed, tracking, H/V glyph scales) per selection.
