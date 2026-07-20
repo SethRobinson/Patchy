@@ -1,6 +1,7 @@
 #include "formats/af_document_io.hpp"
 
 #include "core/layer.hpp"
+#include "color/color_management.hpp"
 #include "formats/af_tree.hpp"
 #include "formats/binary_le.hpp"
 #include "formats/document_flatten.hpp"
@@ -13,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <tuple>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -679,13 +681,45 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
         } catch (const std::exception&) {
           break;
         }
-        if (tile.size() != static_cast<std::size_t>(kTileSize) * kTileSize) {
-          break;  // full 256x256-byte tiles only; partial-rect tiles are rare here
+        if (tile.size() == static_cast<std::size_t>(kTileSize) * kTileSize) {
+          for (std::size_t row = 0; row < static_cast<std::size_t>(kTileSize); ++row) {
+            std::memcpy(out.bytes.data() + (ty + row) * out.width_bytes + tx,
+                        tile.data() + row * static_cast<std::size_t>(kTileSize),
+                        static_cast<std::size_t>(kTileSize));
+          }
+          break;
         }
-        for (std::size_t row = 0; row < static_cast<std::size_t>(kTileSize); ++row) {
-          std::memcpy(out.bytes.data() + (ty + row) * out.width_bytes + tx,
-                      tile.data() + row * static_cast<std::size_t>(kTileSize),
-                      static_cast<std::size_t>(kTileSize));
+        // Short stream: a partial tile carrying only a sub-rect, described by
+        // the block's optional Rect (byte-pitch x like the tile grid). Accept
+        // either [x, y, w, h] or [x0, y0, x1, y1], validated by the stream
+        // size; anything that does not line up stays skipped (transparent).
+        {
+          const auto rect = block.vec_field(af::tag4("Rect"));
+          if (rect.size() != 4) {
+            break;
+          }
+          const auto rx = static_cast<std::int64_t>(rect[0]);
+          const auto ry = static_cast<std::int64_t>(rect[1]);
+          std::int64_t rw = static_cast<std::int64_t>(rect[2]);
+          std::int64_t rh = static_cast<std::int64_t>(rect[3]);
+          if (rw > rx && rh > ry &&
+              static_cast<std::uint64_t>(rw - rx) * static_cast<std::uint64_t>(rh - ry) ==
+                  tile.size()) {
+            rw -= rx;  // [x0, y0, x1, y1]
+            rh -= ry;
+          }
+          if (rx < 0 || ry < 0 || rw <= 0 || rh <= 0 || rx + rw > kTileSize ||
+              ry + rh > kTileSize ||
+              static_cast<std::uint64_t>(rw) * static_cast<std::uint64_t>(rh) != tile.size()) {
+            break;
+          }
+          for (std::int64_t row = 0; row < rh; ++row) {
+            std::memcpy(out.bytes.data() +
+                            (ty + static_cast<std::size_t>(ry + row)) * out.width_bytes + tx +
+                            static_cast<std::size_t>(rx),
+                        tile.data() + static_cast<std::size_t>(row * rw),
+                        static_cast<std::size_t>(rw));
+          }
         }
         break;
       }
@@ -1032,6 +1066,24 @@ struct DecodedBitmap {
     return static_cast<std::uint8_t>(std::lround(std::clamp(v, 0.0F, 255.0F)));
   };
 
+  // New-format bitmaps can embed real ICC profile bytes (Prof -> ICCP with a
+  // per-space child; CMYP is the CMYK space). When present, convert CMYK
+  // through it (the PSD path's lcms2 transform; inputs there are INVERTED ink,
+  // .af stores straight ink, so invert on the way in).
+  std::optional<CmykToRgbTransform> cmyk_transform;
+  if (kind == RasterFormat::CMYKA8) {
+    if (const af::AfClass* profiles = dybm.child_class(af::tag4("Prof"))) {
+      if (const af::AfClass* cmyk_profile = profiles->child_class(af::tag4("CMYP"))) {
+        if (const auto* data_field = cmyk_profile->field(af::tag4("Data"))) {
+          if (const auto* data = std::get_if<std::vector<std::uint8_t>>(&data_field->value)) {
+            cmyk_transform =
+                CmykToRgbTransform::from_icc_profile(std::span<const std::uint8_t>(*data));
+          }
+        }
+      }
+    }
+  }
+
   DecodedBitmap decoded;
   if (kind == RasterFormat::Mask8 || kind == RasterFormat::Mask16) {
     PixelBuffer mask(static_cast<std::int32_t>(width), static_cast<std::int32_t>(height),
@@ -1048,6 +1100,27 @@ struct DecodedBitmap {
 
   PixelBuffer buffer(static_cast<std::int32_t>(width), static_cast<std::int32_t>(height),
                      PixelFormat::rgba8());
+  if (cmyk_transform) {
+    std::vector<std::uint8_t> inverted(static_cast<std::size_t>(width) * 4U);
+    std::vector<std::uint8_t> rgb(static_cast<std::size_t>(width) * 3U);
+    for (std::int32_t y = 0; y < static_cast<std::int32_t>(height); ++y) {
+      for (std::int32_t x = 0; x < static_cast<std::int32_t>(width); ++x) {
+        for (int channel = 0; channel < 4; ++channel) {
+          inverted[static_cast<std::size_t>(x) * 4U + static_cast<std::size_t>(channel)] =
+              static_cast<std::uint8_t>(255 - to_byte(sample(channel, x, y)));
+        }
+      }
+      cmyk_transform->convert(inverted.data(), rgb.data(), static_cast<std::size_t>(width));
+      auto row = buffer.row(y);
+      for (std::int32_t x = 0; x < static_cast<std::int32_t>(width); ++x) {
+        std::uint8_t* out = row.data() + static_cast<std::size_t>(x) * 4U;
+        std::memcpy(out, rgb.data() + static_cast<std::size_t>(x) * 3U, 3U);
+        out[3] = to_byte(sample(4, x, y));
+      }
+    }
+    decoded.rgba = std::move(buffer);
+    return decoded;
+  }
   for (std::int32_t y = 0; y < static_cast<std::int32_t>(height); ++y) {
     auto row = buffer.row(y);
     for (std::int32_t x = 0; x < static_cast<std::int32_t>(width); ++x) {
@@ -1098,17 +1171,22 @@ struct DecodedBitmap {
   switch (id) {
     case 0: return BlendMode::Normal;
     case 2: return BlendMode::Darken;
+    case 3: return BlendMode::DarkerColor;
     case 4: return BlendMode::Multiply;
     case 5: return BlendMode::ColorBurn;
     case 6: return BlendMode::LinearBurn;
     case 7: return BlendMode::Lighten;
+    case 8: return BlendMode::LighterColor;
     case 9: return BlendMode::Screen;
     case 10: return BlendMode::ColorDodge;
     case 11: return BlendMode::LinearDodge;
     case 12: return BlendMode::Overlay;
     case 13: return BlendMode::SoftLight;
     case 14: return BlendMode::HardLight;
+    case 15: return BlendMode::VividLight;
     case 16: return BlendMode::PinLight;
+    case 17: return BlendMode::LinearLight;
+    case 18: return BlendMode::HardMix;
     case 19: return BlendMode::Difference;
     case 20: return BlendMode::Exclusion;
     case 21: return BlendMode::Subtract;
@@ -1117,7 +1195,7 @@ struct DecodedBitmap {
     case 24: return BlendMode::Saturation;
     case 25: return BlendMode::Luminosity;
     case 26: return BlendMode::Color;
-    default: return std::nullopt;  // Pigment, VividLight, HardMix, Average, ... -> Normal + notice
+    default: return std::nullopt;  // Pigment, Average, Negation, ... -> Normal + notice
   }
 }
 
@@ -1175,6 +1253,132 @@ struct LayerBuildContext {
   return std::pair<std::int32_t, std::int32_t>{ox, oy};
 }
 
+struct PlacedRaster {
+  PixelBuffer pixels;
+  std::int32_t x{0};
+  std::int32_t y{0};
+};
+
+// Rasterize `source` through the affine Xfrm [a, b, tx, c, d, ty]
+// (dest = [a b; c d] * src + [tx, ty]; the convention and the bilinear
+// premultiplied-accumulation edges are pinned against Affinity's own PNG
+// export of a rotated+scaled raster, RMSE 0.01) into an axis-aligned buffer
+// at the returned origin. `gray_mask` sources sample edge-clamped single-byte
+// planes (layer masks). Returns nullopt for degenerate or implausible results.
+[[nodiscard]] std::optional<PlacedRaster> resample_affine(const PixelBuffer& source,
+                                                          const std::vector<double>& xfrm,
+                                                          bool gray_mask) {
+  if (xfrm.size() != 6 || source.width() <= 0 || source.height() <= 0) {
+    return std::nullopt;
+  }
+  const double a = xfrm[0];
+  const double b = xfrm[1];
+  const double tx = xfrm[2];
+  const double c = xfrm[3];
+  const double d = xfrm[4];
+  const double ty = xfrm[5];
+  const double det = a * d - b * c;
+  if (!std::isfinite(det) || std::abs(det) < 1e-9) {
+    return std::nullopt;
+  }
+  const auto source_w = static_cast<double>(source.width());
+  const auto source_h = static_cast<double>(source.height());
+  double min_x = tx;
+  double max_x = tx;
+  double min_y = ty;
+  double max_y = ty;
+  const std::array<std::pair<double, double>, 3> corners = {
+      std::pair<double, double>{source_w, 0.0}, {0.0, source_h}, {source_w, source_h}};
+  for (const auto& [sx, sy] : corners) {
+    const double px = a * sx + b * sy + tx;
+    const double py = c * sx + d * sy + ty;
+    min_x = std::min(min_x, px);
+    max_x = std::max(max_x, px);
+    min_y = std::min(min_y, py);
+    max_y = std::max(max_y, py);
+  }
+  if (!std::isfinite(min_x) || !std::isfinite(max_x) || !std::isfinite(min_y) ||
+      !std::isfinite(max_y)) {
+    return std::nullopt;
+  }
+  const double origin_x = std::floor(min_x);
+  const double origin_y = std::floor(min_y);
+  const double extent_w = std::ceil(max_x) - origin_x;
+  const double extent_h = std::ceil(max_y) - origin_y;
+  if (extent_w < 1.0 || extent_h < 1.0 || extent_w > kMaxLayerSide || extent_h > kMaxLayerSide ||
+      extent_w * extent_h > 268435456.0) {  // cap the buffer at 1 GiB of RGBA
+    return std::nullopt;
+  }
+  const auto out_w = static_cast<std::int32_t>(extent_w);
+  const auto out_h = static_cast<std::int32_t>(extent_h);
+  const double inv_a = d / det;
+  const double inv_b = -b / det;
+  const double inv_c = -c / det;
+  const double inv_d = a / det;
+
+  PlacedRaster placed;
+  placed.x = static_cast<std::int32_t>(origin_x);
+  placed.y = static_cast<std::int32_t>(origin_y);
+  placed.pixels = PixelBuffer(out_w, out_h, gray_mask ? PixelFormat::gray8() : PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < out_h; ++y) {
+    auto row = placed.pixels.row(y);
+    for (std::int32_t x = 0; x < out_w; ++x) {
+      const double rel_x = origin_x + x + 0.5 - tx;
+      const double rel_y = origin_y + y + 0.5 - ty;
+      const double sx = inv_a * rel_x + inv_b * rel_y - 0.5;
+      const double sy = inv_c * rel_x + inv_d * rel_y - 0.5;
+      const double fx0 = std::floor(sx);
+      const double fy0 = std::floor(sy);
+      const auto x0 = static_cast<std::int32_t>(fx0);
+      const auto y0 = static_cast<std::int32_t>(fy0);
+      const double fx = sx - fx0;
+      const double fy = sy - fy0;
+      const std::array<std::tuple<std::int32_t, std::int32_t, double>, 4> taps = {
+          std::tuple<std::int32_t, std::int32_t, double>{x0, y0, (1.0 - fx) * (1.0 - fy)},
+          {x0 + 1, y0, fx * (1.0 - fy)},
+          {x0, y0 + 1, (1.0 - fx) * fy},
+          {x0 + 1, y0 + 1, fx * fy}};
+      if (gray_mask) {
+        double accumulated = 0.0;
+        for (const auto& [nx, ny, weight] : taps) {
+          const std::int32_t cx = std::clamp(nx, 0, source.width() - 1);
+          const std::int32_t cy = std::clamp(ny, 0, source.height() - 1);
+          accumulated += static_cast<double>(source.pixel(cx, cy)[0]) * weight;
+        }
+        row[static_cast<std::size_t>(x)] =
+            static_cast<std::uint8_t>(std::lround(std::clamp(accumulated, 0.0, 255.0)));
+        continue;
+      }
+      double acc_r = 0.0;
+      double acc_g = 0.0;
+      double acc_b = 0.0;
+      double acc_a = 0.0;
+      for (const auto& [nx, ny, weight] : taps) {
+        if (nx < 0 || ny < 0 || nx >= source.width() || ny >= source.height()) {
+          continue;  // outside the source: transparent
+        }
+        const std::uint8_t* p = source.pixel(nx, ny);
+        const double alpha_weight = static_cast<double>(p[3]) / 255.0 * weight;
+        acc_r += static_cast<double>(p[0]) * alpha_weight;
+        acc_g += static_cast<double>(p[1]) * alpha_weight;
+        acc_b += static_cast<double>(p[2]) * alpha_weight;
+        acc_a += static_cast<double>(p[3]) * weight;
+      }
+      std::uint8_t* out = row.data() + static_cast<std::size_t>(x) * 4U;
+      if (acc_a > 0.5) {
+        const double scale = 255.0 / acc_a;
+        out[0] = static_cast<std::uint8_t>(std::clamp<long>(std::lround(acc_r * scale), 0, 255));
+        out[1] = static_cast<std::uint8_t>(std::clamp<long>(std::lround(acc_g * scale), 0, 255));
+        out[2] = static_cast<std::uint8_t>(std::clamp<long>(std::lround(acc_b * scale), 0, 255));
+        out[3] = static_cast<std::uint8_t>(std::lround(std::min(255.0, acc_a)));
+      } else {
+        out[0] = out[1] = out[2] = out[3] = 0;
+      }
+    }
+  }
+  return placed;
+}
+
 void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::AfClass>>& children,
                   std::vector<Layer>& out);
 [[nodiscard]] Document read_container(std::span<const std::uint8_t> bytes,
@@ -1223,12 +1427,20 @@ void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer&
       mask_x = origin->first;
       mask_y = origin->second;
     } else {
-      ctx.notices.push_back("Layer '" + name +
-                            "': mask has a complex transform; its position is approximate");
-      const auto xfrm = adjunct->vec_field(af::tag4("Xfrm"));
-      if (xfrm.size() == 6) {
-        mask_x = static_cast<std::int32_t>(std::lround(xfrm[2]));
-        mask_y = static_cast<std::int32_t>(std::lround(xfrm[5]));
+      // Scale/rotate transform: rasterize the mask plane through the affine.
+      auto placed = resample_affine(decoded->mask, adjunct->vec_field(af::tag4("Xfrm")), true);
+      if (placed) {
+        decoded->mask = std::move(placed->pixels);
+        mask_x = placed->x;
+        mask_y = placed->y;
+      } else {
+        ctx.notices.push_back("Layer '" + name +
+                              "': mask has a degenerate transform; its position is approximate");
+        const auto xfrm = adjunct->vec_field(af::tag4("Xfrm"));
+        if (xfrm.size() == 6) {
+          mask_x = static_cast<std::int32_t>(std::lround(xfrm[2]));
+          mask_y = static_cast<std::int32_t>(std::lround(xfrm[5]));
+        }
       }
     }
     LayerMask mask;
@@ -1396,15 +1608,23 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         }
       }
       const auto origin = layer_origin(node);
+      std::optional<PlacedRaster> placed;
       if (pixels && origin) {
+        placed = PlacedRaster{std::move(*pixels), origin->first, origin->second};
+      } else if (pixels) {
+        // Scale/rotate transform: rasterize through the affine into an
+        // axis-aligned layer (bilinear, pinned against Affinity's render).
+        placed = resample_affine(*pixels, node.vec_field(af::tag4("Xfrm")), false);
+      }
+      if (placed) {
         if (approximate_color) {
           ctx.notices.push_back("Layer '" + display +
                                 "': CMYK converted without a color profile (approximate)");
         }
-        const std::int32_t w = pixels->width();
-        const std::int32_t h = pixels->height();
-        Layer layer(ctx.document.allocate_layer_id(), display, std::move(*pixels));
-        layer.set_bounds(Rect{origin->first, origin->second, w, h});
+        const std::int32_t w = placed->pixels.width();
+        const std::int32_t h = placed->pixels.height();
+        Layer layer(ctx.document.allocate_layer_id(), display, std::move(placed->pixels));
+        layer.set_bounds(Rect{placed->x, placed->y, w, h});
         apply_common(ctx, node, layer, display);
         apply_mask_children(ctx, node, layer, display);
         out.push_back(std::move(layer));
@@ -1413,7 +1633,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       }
       emit_placeholder(!pixels ? (fail_reason.empty() ? "has an unsupported pixel format"
                                                       : fail_reason)
-                               : "has a complex transform");
+                               : "has a degenerate transform");
       emit_clipped_children(out.size() - 1);
       continue;
     }
@@ -1424,6 +1644,37 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     emit_placeholder(is_text ? "is text content" : (is_vector ? "is vector content"
                                                               : "is unsupported content"));
   }
+}
+
+// Read an Affinity RGBA color class: its `_col` field is a sized struct of
+// four little-endian float32 components in 0..1 (sRGB-encoded, like the UI).
+[[nodiscard]] std::optional<std::array<float, 4>> read_rgba_color(const af::AfClass* color_class) {
+  if (color_class == nullptr) {
+    return std::nullopt;
+  }
+  const auto* field = color_class->field(af::tag4("_col"));
+  if (field == nullptr) {
+    return std::nullopt;
+  }
+  const auto* data = std::get_if<std::vector<std::uint8_t>>(&field->value);
+  if (data == nullptr || data->size() < 16) {
+    return std::nullopt;
+  }
+  std::array<float, 4> color{};
+  for (int i = 0; i < 4; ++i) {
+    const std::uint32_t bits =
+        static_cast<std::uint32_t>((*data)[static_cast<std::size_t>(i) * 4U]) |
+        (static_cast<std::uint32_t>((*data)[static_cast<std::size_t>(i) * 4U + 1]) << 8U) |
+        (static_cast<std::uint32_t>((*data)[static_cast<std::size_t>(i) * 4U + 2]) << 16U) |
+        (static_cast<std::uint32_t>((*data)[static_cast<std::size_t>(i) * 4U + 3]) << 24U);
+    float value = 0.0F;
+    std::memcpy(&value, &bits, sizeof(value));
+    if (!(value >= 0.0F)) {
+      value = 0.0F;  // also catches NaN
+    }
+    color[i] = std::min(value, 1.0F);
+  }
+  return color;
 }
 
 // True when at least one layer in the tree carries decoded pixels. An import
@@ -1446,7 +1697,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
 // unusable tree; the caller then falls back to the tier-0 preview.
 [[nodiscard]] Document build_tier1(std::span<const std::uint8_t> bytes, const Container& container,
                                    const af::AfDocument& tree, std::vector<std::string>& notices,
-                                   int embed_depth) {
+                                   int embed_depth, bool* placeholders_only = nullptr) {
   if (tree.root == nullptr) {
     throw std::runtime_error("Affinity document tree is empty");
   }
@@ -1482,16 +1733,53 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
           : nullptr;
 
   Document document(width, height, PixelFormat::rgba8());
+  std::vector<Layer> built;
   if (layers != nullptr) {
     LayerBuildContext ctx{bytes, container, document, notices, embed_depth};
-    std::vector<Layer> built;
     build_layers(ctx, *layers, built);
-    for (auto& layer : built) {
-      document.add_layer(std::move(layer));
+  }
+  if (placeholders_only != nullptr) {
+    *placeholders_only = !any_layer_has_pixels(built);
+  }
+
+  // Spread background: unless the spread is transparent (SprT), Affinity
+  // paints its background color (BgrC, default white) behind every layer and
+  // composites it into its own exports; mirror that with a bottom fill layer.
+  if (!spread.bool_field(af::tag4("SprT"), false)) {
+    std::array<float, 4> color{1.0F, 1.0F, 1.0F, 1.0F};
+    if (const auto stored = read_rgba_color(spread.child_class(af::tag4("BgrC")))) {
+      color = *stored;
     }
+    if (color[3] > 0.0F) {
+      PixelBuffer fill(width, height, PixelFormat::rgba8());
+      std::array<std::uint8_t, 4> rgba{};
+      for (int i = 0; i < 4; ++i) {
+        rgba[static_cast<std::size_t>(i)] =
+            static_cast<std::uint8_t>(std::lround(color[static_cast<std::size_t>(i)] * 255.0F));
+      }
+      for (std::int32_t y = 0; y < height; ++y) {
+        auto row = fill.row(y);
+        for (std::int32_t x = 0; x < width; ++x) {
+          std::memcpy(row.data() + static_cast<std::size_t>(x) * 4U, rgba.data(), 4U);
+        }
+      }
+      document.add_pixel_layer("Background", std::move(fill));
+    }
+  }
+  for (auto& layer : built) {
+    document.add_layer(std::move(layer));
   }
   if (document.layers().empty()) {
     throw std::runtime_error("Affinity document produced no layers");
+  }
+
+  // Document resolution: the root's units block stores pixels-per-inch.
+  if (const af::AfClass* units = tree.root->child_class(af::tag4("UVCn"))) {
+    const double ppi = units->double_field(af::tag4("UPPI"), 0.0);
+    if (ppi >= 1.0 && ppi <= 10000.0) {
+      document.print_settings().horizontal_ppi = ppi;
+      document.print_settings().vertical_ppi = ppi;
+    }
   }
   return document;
 }
@@ -1548,8 +1836,10 @@ namespace {
       const auto tree_bytes = extract_stream(bytes, doc_stream->second, "doc.dat", &notices);
       const af::AfDocument tree = af::parse_tree(std::span<const std::uint8_t>(tree_bytes));
       document_version = tree.document_version;
-      Document document = build_tier1(bytes, container, tree, notices, embed_depth);
-      if (!any_layer_has_pixels(document.layers())) {
+      bool placeholders_only = false;
+      Document document = build_tier1(bytes, container, tree, notices, embed_depth,
+                                      &placeholders_only);
+      if (placeholders_only) {
         // Nothing decoded to pixels (all placeholders); the flat preview shows
         // the user their document, the structural import would show a blank
         // canvas. Keep the structural result only when no preview exists.

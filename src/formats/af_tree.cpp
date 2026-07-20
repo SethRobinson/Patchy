@@ -285,6 +285,16 @@ private:
   }
 
   AfValue read_sized_struct(std::size_t size, bool array) {
+    if (!array && size >= 8 && size <= 64) {
+      // Preserve the payload of small scalar structs (colors like the spread
+      // background's RGBA float quad live here); the importer decodes the
+      // bytes it understands. Arrays and outliers stay consumed-but-skipped.
+      std::vector<std::uint8_t> data(size);
+      for (std::size_t i = 0; i < size; ++i) {
+        data[i] = reader_.read_u8();
+      }
+      return data;
+    }
     const std::uint32_t count = array ? read_count() : 1;
     for (std::uint32_t i = 0; i < count; ++i) {
       reader_.skip(size);

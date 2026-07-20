@@ -158,30 +158,61 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   bailed). The reverse-engineered format record, generated corpus, and Python
   reference/verification tooling live in `local-test-fixtures/af-spike/`
   (machine-local; FINDINGS.md there is the running format spec).
-- **What imports faithfully**: untransformed and pure-translation raster layers
-  in RGBA8/16, Gray8/16, and RGBA-float32 (16-bit down-converts value/257,
-  float linearizes to sRGB); groups (nested, pass-through by default); layer
-  masks (the M8/M16 mask plane in a node's `AdCh` enclosure becomes a
-  `LayerMask`); clipping (Affinity nests clipped layers inside their base's
-  child list; Patchy models them as clipped siblings above the base); embedded
-  documents (the `EmbR`/`EmbC` reference to an `edc/<n>` nested container is
-  parsed recursively and flattened); visibility/opacity/fill-opacity/blend.
-  Verified pixel-exact against Affinity's own PNG export on synthetic and real
-  multi-layer documents (an 11-layer game mockup scores ~0 RMSE; a CMYK
-  restaurant menu with embedded icon images and masks renders correctly).
-- **Approximate (notice, but rendered)**: CMYK raster layers convert without a
-  color profile (the file references profiles by name only, storing no ICC
-  bytes) through the naive ink mix - the PSD reader's profile-less fallback;
+- **What imports faithfully**: raster layers in RGBA8/16, Gray8/16, and
+  RGBA-float32 (16-bit down-converts value/257, float linearizes to sRGB),
+  whether untransformed, translated, or under a full scale/rotate affine
+  (`Xfrm` = `[a,b,tx,c,d,ty]`, dest = A*src + t; the importer rasterizes
+  through the affine with bilinear premultiplied accumulation, pinned RMSE
+  0.003 against Affinity's own render of a rotated+scaled raster); groups
+  (nested, pass-through by default); layer masks (the M8/M16 mask plane in a
+  node's `AdCh` enclosure becomes a `LayerMask`; transformed masks resample
+  through their affine too); clipping (Affinity nests clipped layers inside
+  their base's child list; Patchy models them as clipped siblings above the
+  base); embedded documents (the `EmbR`/`EmbC` reference to an `edc/<n>`
+  nested container is parsed recursively and flattened); placed/opened images
+  stored in the lazy layout (below); the spread background (`SprT` false ->
+  a bottom "Background" fill layer of the `BgrC` color, matching Affinity's
+  own composite); document DPI (root `UVCn`/`UPPI` -> print settings);
+  visibility/opacity/fill-opacity/blend (all Photoshop-shared blend modes map
+  natively as of July 2026, including Vivid/Linear Light, Hard Mix,
+  Darker/Lighter Colour). Verified pixel-exact against Affinity's own PNG
+  export on synthetic and real multi-layer documents (an 11-layer game mockup
+  scores ~0 RMSE; a CMYK restaurant menu with embedded icon images and masks
+  renders correctly).
+- **The lazy/mip DyBm layout (placed and opened images)**: interactive
+  Affinity does NOT materialize base tiles for placed/opened pictures. The
+  base `Sta` codes are 5 ("pixels come from the placed original"), the
+  untouched original file rides in a `c/<n>` stream named by the DyBm's
+  `Bckg` field (a serialized `Blck` tree: `Data` = the file bytes, `TifO` =
+  EXIF orientation, `DSrc`/`Filn` = source path), and a mip pyramid is stored
+  under per-level tags `'M','W'|'H'|'I'|'T',<raw level byte>,<channel digit>`
+  (level 1 = half resolution). The importer decodes the embedded original
+  with the vendored stb_image (JPEG+PNG, decode-only; NOTICE entry) plus
+  `heif::apply_exif_orientation`, falls back to a bilinear 2x upscale of mip
+  level 1 for other embedded formats (notice), and degrades to a placeholder
+  if neither works. Full Sta code set: 0/1 empty, 2 fill max, 3 fill float
+  1.0, 4 stored 256-byte x 256-row tile (the grid is BYTE-pitch horizontally:
+  a 16-bit channel spans width*2 bytes), 5 from-original; unknown codes make
+  the bitmap honestly undecodable, never silent black. Stored `Blck` entries
+  may carry a `Rect` sub-rect for partial tiles.
+- **Embedded ICC profiles**: lazy-layout bitmaps carry a `Prof` -> `ICCP`
+  class with real profile bytes per space (RGBP/CMYP/LABP/...). When a CMYK
+  bitmap has `CMYP` bytes it converts through the PSD path's lcms2 transform
+  (.af ink is straight, so channels invert into the transform's PSD-inverted
+  convention). Script-materialized bitmaps still store no profile.
+- **Approximate (notice, but rendered)**: profile-less CMYK raster layers
+  convert through the naive ink mix - the PSD reader's profile-less fallback;
   .af channels are straight ink, not PSD-inverted. Blend modes Patchy lacks
-  (Pigment, Vivid/Linear Light, Hard Mix, Darker/Lighter Colour, ...) map to
-  Normal with a notice.
+  (Pigment, Average, Negation, Reflect, Glow, Erase, ...) map to Normal with
+  a notice.
 - **Honest degradation (notice + named empty layer)**: text (`TxtA`/`TxtF`),
   vector/curve (`PCrv`), adjustment and live-filter nodes (their bitmap is a
-  mask plane, not content - the adjustment is not applied), Lab documents
+  mask plane, not content - the adjustment is not applied), and Lab documents
   (the a/b channel scale is not the ICC encoding and is not pinned yet; a
-  wrong decode would desaturate, so it refuses instead), and layers with a
-  non-trivial (scale/rotate) transform. These keep their name and position in
-  the tree so the structure survives, but are not rendered.
+  wrong decode would desaturate, so it refuses instead). These keep their
+  name and position in the tree so the structure survives, but are not
+  rendered. If NOTHING in a document decodes to pixels, the importer prefers
+  the tier-0 embedded preview over an all-placeholder blank canvas.
 - **Blend enum -> Patchy `BlendMode`** and the RasterFormat ids are in
   FINDINGS.md; the Affinity `Blnd` field's enum id is the BlendMode value
   directly (absent = Normal).

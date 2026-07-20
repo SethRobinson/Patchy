@@ -52,7 +52,9 @@ void af_sniff_detects_magic() {
 
 void af_tier1_imports_layer_at_full_resolution() {
   // tiny-rgba8.af is a 64x48 document with one RGBA8 image layer painted
-  // r=255*x/W, g=255*y/H, b=(x^y)&255 with a 4px semi-transparent border.
+  // r=255*x/W, g=255*y/H, b=(x^y)&255 with a 4px semi-transparent border. The
+  // spread is not transparent (SprT false), so a white "Background" fill layer
+  // imports below the content, matching Affinity's own composite.
   const auto bytes = read_fixture("tiny-rgba8.af");
   std::vector<std::string> notices;
   const auto document = patchy::af::DocumentIo::read(bytes, &notices);
@@ -61,8 +63,13 @@ void af_tier1_imports_layer_at_full_resolution() {
   // NOT the small embedded preview.
   CHECK(document.width() == 64);
   CHECK(document.height() == 48);
-  CHECK(document.layers().size() == 1);
-  const auto& layer = document.layers().front();
+  CHECK(document.layers().size() == 2);
+  const auto& background = document.layers().front();
+  CHECK(background.name() == "Background");
+  const std::uint8_t* backdrop = background.pixels().pixel(2, 2);
+  CHECK(backdrop[0] == 255);
+  CHECK(backdrop[3] == 255);
+  const auto& layer = document.layers().back();
   CHECK(layer.name() != "Affinity preview");
   CHECK(layer.pixels().width() == 64);
   CHECK(layer.pixels().height() == 48);
@@ -83,8 +90,8 @@ void af_tier1_imports_16bit_document() {
   const auto document = patchy::af::DocumentIo::read(bytes, &notices);
   CHECK(document.width() == 64);
   CHECK(document.height() == 48);
-  CHECK(document.layers().size() == 1);
-  const std::uint8_t* center = document.layers().front().pixels().pixel(32, 24);
+  CHECK(document.layers().size() == 2);  // white Background + the content layer
+  const std::uint8_t* center = document.layers().back().pixels().pixel(32, 24);
   const auto close_to = [](int a, int b) { return a >= b - 1 && a <= b + 1; };
   CHECK(close_to(center[0], 255 * 32 / 64));
   CHECK(close_to(center[1], 255 * 24 / 48));
@@ -190,8 +197,8 @@ void af_tier2_imports_cmyk_with_notice() {
   const auto document = patchy::af::DocumentIo::read(bytes, &notices);
   CHECK(document.width() == 64);
   CHECK(document.height() == 48);
-  CHECK(document.layers().size() == 1);
-  CHECK(document.layers().front().pixels().width() == 64);
+  CHECK(document.layers().size() == 2);  // white Background + the content layer
+  CHECK(document.layers().back().pixels().width() == 64);
 
   bool has_approx_notice = false;
   for (const auto& notice : notices) {
@@ -203,10 +210,59 @@ void af_tier2_imports_cmyk_with_notice() {
 
   // The gradient's red channel rises left-to-right; a coarse monotonic check
   // proves real color (not a flat fill or an inverted decode).
-  const auto& pixels = document.layers().front().pixels();
+  const auto& pixels = document.layers().back().pixels();
   const int left = pixels.pixel(6, 24)[0];
   const int right = pixels.pixel(58, 24)[0];
   CHECK(right > left);
+}
+
+void af_tier2_imports_transformed_layer() {
+  // tiny-transform.af places an 80x60 raster (r=255*x/W, g=255*y/H, b=32 with
+  // a blue 12x12 top-left marker) through rotate(0.35rad) * scale(1.25) *
+  // translate(60,40) in a 220x160 document. The importer rasterizes through
+  // the affine; the convention was pinned against Affinity's own PNG export.
+  const auto bytes = read_fixture("tiny-transform.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 220);
+  CHECK(document.height() == 160);
+  CHECK(document.layers().size() == 2);  // white Background + the placed image
+  for (const auto& notice : notices) {
+    CHECK(notice.find("placeholder") == std::string::npos);
+  }
+
+  const auto& layer = document.layers().back();
+  // Axis-aligned bounds of the transformed corners: x [34, 154), y [40, 145).
+  CHECK(layer.bounds().x == 34);
+  CHECK(layer.bounds().y == 40);
+  CHECK(layer.bounds().width == 120);
+  CHECK(layer.bounds().height == 105);
+
+  // The source center (40, 30) lands at document (94.1, 92.4) = layer-local
+  // (60, 52) and keeps its color; bilinear + JPEG-free source, so tight bounds.
+  const auto close_to = [](int a, int b) { return a >= b - 4 && a <= b + 4; };
+  const std::uint8_t* center = layer.pixels().pixel(60, 52);
+  CHECK(close_to(center[0], 127));
+  CHECK(close_to(center[1], 127));
+  CHECK(close_to(center[2], 32));
+  CHECK(center[3] == 255);
+
+  // The bounds corner outside the rotated quad stays transparent.
+  CHECK(layer.pixels().pixel(2, 2)[3] == 0);
+
+  // The document was authored at 72 PPI (Patchy's default is 300, so this
+  // proves the UVCn/UPPI read).
+  CHECK(document.print_settings().horizontal_ppi == 72.0);
+}
+
+void af_reads_document_resolution() {
+  // tiny-dpi300.af is a 40x30 document authored at 300 DPI.
+  const auto bytes = read_fixture("tiny-dpi300.af");
+  const auto document = patchy::af::DocumentIo::read(bytes);
+  CHECK(document.width() == 40);
+  CHECK(document.height() == 30);
+  CHECK(document.print_settings().horizontal_ppi == 300.0);
+  CHECK(document.print_settings().vertical_ppi == 300.0);
 }
 
 void af_read_rejects_non_affinity_bytes() {
@@ -268,6 +324,8 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_tier2_imports_group_hierarchy", af_tier2_imports_group_hierarchy},
       {"af_tier2_imports_embedded_jpeg_original", af_tier2_imports_embedded_jpeg_original},
       {"af_embedded_original_survives_hostile_bytes", af_embedded_original_survives_hostile_bytes},
+      {"af_tier2_imports_transformed_layer", af_tier2_imports_transformed_layer},
+      {"af_reads_document_resolution", af_reads_document_resolution},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},
