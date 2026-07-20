@@ -164,6 +164,32 @@ void ui_script_pixels_roundtrip_and_palette_snap() {
   document.palette_editing().reset();
 }
 
+void ui_script_undo_disable_skips_history() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    app.undoEnabled = false;
+    var doc = app.activeDocument;
+    doc.addLayer('NoUndo').fill('#123456');
+    console.log('undo-flag=' + app.undoEnabled);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("undo-flag=false")));
+  CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window), "NoUndo") != nullptr);
+  // No history entry, but the session still counts as modified work.
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == 0);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // Re-enabling mid-run snapshots from that point on (and resets per run).
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    app.undoEnabled = false;
+    doc.addLayer('StillNoUndo');
+    app.undoEnabled = true;
+    doc.addLayer('UndoAgain');
+  )JS")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == 1);
+}
+
 void ui_script_timer_keeps_run_alive() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -334,6 +360,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
       {"ui_script_stale_layer_wrapper_throws", ui_script_stale_layer_wrapper_throws},
       {"ui_script_pixels_roundtrip_and_palette_snap", ui_script_pixels_roundtrip_and_palette_snap},
+      {"ui_script_undo_disable_skips_history", ui_script_undo_disable_skips_history},
       {"ui_script_timer_keeps_run_alive", ui_script_timer_keeps_run_alive},
       {"ui_script_watchdog_interrupts_infinite_loop", ui_script_watchdog_interrupts_infinite_loop},
       {"ui_script_console_and_error_line_numbers", ui_script_console_and_error_line_numbers},

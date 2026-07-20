@@ -797,6 +797,10 @@ QJSValue ScriptAppObject::active_document() const {
   return id != 0 ? make_document_value(host_, id) : QJSValue();
 }
 
+bool ScriptAppObject::undo_enabled() const { return host_.undo_enabled(); }
+
+void ScriptAppObject::set_undo_enabled(bool enabled) { host_.set_undo_enabled(enabled); }
+
 QJSValue ScriptAppObject::open(const QString& path) {
   const auto id = host_.open_document_file(path);
   if (id == 0) {

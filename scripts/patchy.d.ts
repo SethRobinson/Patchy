@@ -125,6 +125,12 @@ interface PatchyApp {
   readonly apiVersion: number;
   readonly documents: PatchyDocument[];
   readonly activeDocument: PatchyDocument | undefined;
+  /**
+   * Normally a script run is one undo entry. Set false (ideally before the
+   * first edit) to skip the undo snapshot for speed, e.g. games or huge batch
+   * jobs; edits made while false cannot be undone. Resets to true each run.
+   */
+  undoEnabled: boolean;
   open(path: string): PatchyDocument;
   newDocument(width: number, height: number): PatchyDocument;
   /** Message box; logs to the console instead in unattended CLI runs. */

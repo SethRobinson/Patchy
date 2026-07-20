@@ -127,6 +127,11 @@ public:
   // "Script: <name>" snapshot; later mutations in the same run ride it, so the
   // whole run undoes in one step. Returns false when the session is gone.
   bool prepare_mutation(std::int64_t session_id);
+  // Scripts can opt out of the undo snapshot for speed (app.undoEnabled = false;
+  // per-run state, default on). Off = mutations from that point cannot be
+  // undone; sessions are still marked modified so closing protects the work.
+  [[nodiscard]] bool undo_enabled() const noexcept;
+  void set_undo_enabled(bool enabled) noexcept;
   // Coalesced refresh (flushed once per event-loop turn): pixel changes mark the
   // canvas dirty (empty rect = whole canvas); structure changes also rebuild the
   // layer panel and action states.
@@ -193,6 +198,7 @@ private:
     QString name;
     QStringList include_dir_stack;
     std::set<std::int64_t> snapshotted_sessions;
+    bool undo_enabled{true};
     std::map<int, QTimer*> timers;
     int next_timer_id{1};
     std::vector<QPointer<ScriptCanvasWindow>> windows;

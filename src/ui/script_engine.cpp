@@ -576,6 +576,12 @@ bool ScriptEngineHost::prepare_mutation(std::int64_t session_id) {
     return false;
   }
   if (run_ != nullptr) {
+    if (!run_->undo_enabled) {
+      // Undo opted out (app.undoEnabled = false): skip the snapshot, but the
+      // session is still modified work that closing must protect.
+      window_.mark_session_modified(*session);
+      return true;
+    }
     if (run_->snapshotted_sessions.count(session_id) == 0) {
       window_.push_undo_snapshot(*session, tr("Script: %1").arg(run_->name));
       run_->snapshotted_sessions.insert(session_id);
@@ -586,6 +592,16 @@ bool ScriptEngineHost::prepare_mutation(std::int64_t session_id) {
     window_.push_undo_snapshot(*session, tr("Script"));
   }
   return true;
+}
+
+bool ScriptEngineHost::undo_enabled() const noexcept {
+  return run_ == nullptr || run_->undo_enabled;
+}
+
+void ScriptEngineHost::set_undo_enabled(bool enabled) noexcept {
+  if (run_ != nullptr) {
+    run_->undo_enabled = enabled;
+  }
 }
 
 void ScriptEngineHost::note_pixels_changed(std::int64_t session_id, const QRect& dirty_document_rect) {

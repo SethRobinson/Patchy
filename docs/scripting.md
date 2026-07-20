@@ -34,7 +34,10 @@ authoritative record of the design rules; the user-facing API reference is
   QJSValues die with their engine (canvas windows drop theirs in teardown first).
 - **One undo entry per run and session.** The first mutation a run makes to a session
   pushes one "Script: name" snapshot (`prepare_mutation`); everything after rides it, so
-  a 60fps animation undoes to its pre-script state in one step.
+  a 60fps animation undoes to its pre-script state in one step. Scripts can opt out for
+  speed with `app.undoEnabled = false` (per-run state, resets to true each run): the
+  snapshot is skipped and those edits cannot be undone, but sessions are still marked
+  modified so closing protects the work (`breakout.js` uses this).
 - **Wrappers hold ids, never pointers.** Layer wrappers keep session id + LayerId and
   re-resolve on every access, throwing a JS error when the target is gone. The layers
   vector reallocates and sessions close; a stored `Layer*` is the historical

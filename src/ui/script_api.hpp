@@ -164,6 +164,7 @@ class ScriptAppObject : public QObject {
   Q_PROPERTY(int apiVersion READ api_version CONSTANT)
   Q_PROPERTY(QJSValue documents READ documents)
   Q_PROPERTY(QJSValue activeDocument READ active_document)
+  Q_PROPERTY(bool undoEnabled READ undo_enabled WRITE set_undo_enabled)
 
 public:
   explicit ScriptAppObject(ScriptEngineHost& host);
@@ -172,6 +173,8 @@ public:
   [[nodiscard]] int api_version() const noexcept { return 1; }
   [[nodiscard]] QJSValue documents() const;
   [[nodiscard]] QJSValue active_document() const;
+  [[nodiscard]] bool undo_enabled() const;
+  void set_undo_enabled(bool enabled);
 
   Q_INVOKABLE QJSValue open(const QString& path);
   Q_INVOKABLE QJSValue newDocument(int width, int height);
