@@ -141,8 +141,9 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement
 - Rich text with per-run color, font, size, and style, plus a searchable font picker and Character controls for leading, tracking, and horizontal or vertical glyph scaling
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
-- Pixel-art and game-dev extras: seamless tile preview window, sprite sheet export/import, image sequence export/import (numbered files become layers and back), and nearest-neighbor scaled export (2x-8x)
+- Pixel-art and game-dev extras: seamless texture authoring (live tile preview window, in-canvas tiling mode, seam shifting), sprite sheet export/import, image sequence export/import (numbered files become layers and back), and nearest-neighbor scaled export (2x-8x)
 - Reads and writes a wide range of formats: PSD/PSB, PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), Aseprite files, and SVG (opens as editable shape layers, exports with vectors preserved)
+- Imports Affinity Photo and Designer .af documents as layered files: rasters, groups, masks, clipping, blend modes, editable text layers, vector shapes, adjustment layers, layer effects, and placed images (which become embedded Smart Objects)
 - Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) through a 16-bit develop dialog, and HEIC/HEIF photos through platform codecs
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
 - Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), legacy .8bf plugins, and command line options
@@ -152,6 +153,19 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Localized in English and Japanese (change language in File->Preferences)
 
 ## What's New
+
+### 0.81 - July 20, 2026
+
+- Affinity Photo and Designer .af files now open as layered documents: raster layers (8-bit, 16-bit, grayscale, and float), groups, layer masks, clipping, opacity and blend modes, CMYK and Lab color through ICC conversion, document DPI, and the canvas background all come through, with scaled and rotated layers rendered through their transforms. Anything Patchy can't model becomes a named placeholder layer with a notice instead of failing the open
+- Affinity text imports as real editable text layers with per-run fonts, sizes, and colors, alignment, paragraph spacing, All Caps, frame-box wrapping, and rotated artistic text, and Affinity layer effects (shadows, glows, strokes, color and gradient overlays, bevels) map onto Patchy layer styles
+- Affinity vector curves import as shape layers with their fills and strokes, placed images become embedded Smart Objects (so Edit Contents and Replace Contents work on them), and Curves, Levels, HSL, Color Balance, Invert, Posterize, Threshold, and Brightness/Contrast adjustment layers import natively with their masks
+- Five new blend modes: Vivid Light, Linear Light, Hard Mix, Darker Color, and Lighter Color, all calibrated bit-exact against Photoshop 2026, and Color Burn and Color Dodge rounding now matches Photoshop exactly
+- File > Import > Image Sequence to Layers and File > Export Layers as Image Sequence: files order naturally (frame2 before frame10), picking one numbered file pulls in its whole run, and export covers visible or all layers with numbered or layer-name file names
+- Seamless texture tools: the tile preview now follows the active document and refreshes live, Image > Shift Seams to Center wraps the image so the seams sit in the middle for retouching (running it again shifts back exactly), and View > Seamless Tiling in Window surrounds the canvas with live ghost tiles
+- Smart Filter rows open their settings on double-click with blend mode and opacity merged into the same dialog, and Filter Gallery entries gain per-effect blend and opacity controls
+- The Open dialog now lists one row per file format, Photoshop style, so every supported type is visible in the dropdown
+- The Character panel grays out with a hint when no text is being edited, Alt+click on a folder's arrow expands or collapses the whole branch, the layer panel's selection highlight and thumbnails render correctly, and options-bar number fields no longer clip wide values
+- The startup splash is gone: Patchy opens straight into the start panel, which now carries the version, links, and update check. Save PDF suggests the document's name, and patchy.exe gains an unattended --export flag for converting files from the command line
 
 ### 0.80 - July 18, 2026
 
@@ -165,27 +179,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Four new adjustment layers: Brightness/Contrast, Invert, Posterize, and Threshold, all reading and writing native Photoshop PSD data. Color Balance adjustment layers now save natively too, so Photoshop no longer opens them as flat white layers
 - Redesigned New Document dialog with a preset card grid, and Patchy now starts with a clean workspace instead of an empty untitled document
 - The tool palette is reorganized into clusters with new Stamp and Gradient/Fill flyouts, options-bar number fields gained slider popups with common values, and document tabs offer Reopen, Reveal in Explorer/Finder, and Copy File Path
-
-### 0.20 - July 15, 2026
-
-- New classic Healing Brush transfers detail from an Alt-clicked source while adapting it to the destination tone. Aligned sampling, adjustable Diffusion, selections, palette mode, and ordinary PSD/PSB pixel round-trips are supported
-- New Dodge, Burn, Sponge, Blur, and Sharpen brushes provide local tone, color, and detail corrections. They share Size, Softness, and Strength controls, include tonal-range and vibrance options, respect selections and palette mode, and save as ordinary Photoshop-compatible layer pixels
-- Unsharp Mask and Motion Blur now work as editable native Smart Filters, with Photoshop-compatible settings, PSD descriptors, shared masks, blending, and stack controls. Their destructive Filter menu versions use the same calibrated renderers
-- Brush painting now has separate Opacity and Flow controls plus timed Airbrush buildup while the pointer is held still. Flow uses fixed spatial dabs, respects the per-stroke opacity ceiling, works on grayscale mask targets, and saves as ordinary PSD/PSB pixels
-- New Plastic Wrap filter adds adjustable highlight strength, detail, and smoothness. It is available destructively, in the Filter Gallery's Artistic category, and as an editable Photoshop-compatible Smart Filter in PSD files
-- New Filter Gallery with 29 effects across photo looks, blur, sharpen, distort, noise, pixelate, stylize, render, and artistic categories. Search and favorites make effects easy to find, while full-resolution live preview, reorderable effect stacks, per-effect opacity and blending, and reusable Saved Looks support more involved recipes
-- Smart Filters now use Photoshop-compatible native PSD data. Smart Objects can carry editable stacks of Gaussian Blur, High Pass, Median, Dust & Scratches, Surface Blur, Unsharp Mask, Motion Blur, and Plastic Wrap, with per-filter visibility and blending plus one shared paintable mask. Supported stacks survive PSD round-trips and rebuild from the original Smart Object contents after edits and transforms
-- Camera raw support opens CR2, CR3, NEF, ARW, RAF, DNG, and more through a 16-bit develop dialog with white balance, exposure, highlight recovery, contrast, highlights, shadows, saturation, vibrance, demosaic, and noise-reduction controls
-- HEIC and HEIF photos now open read-only through platform codecs, including orientation and color-profile handling. Windows offers Store links when a required codec is missing, while Linux explains how to install its optional Flatpak codec extension
-- Layer styles gained Pattern Overlay, Satin, gradient midpoints, expanded Bevel & Emboss controls, and Photoshop-compatible pattern data. A new Styles page and Style Manager add 39 built-in presets plus .asl import/export
-- Pattern and gradient libraries now support Photoshop .pat and .grd files. The Pattern Manager can also import ordinary images, while 20 bundled CC0 photo textures and 13 matching material styles provide ready-to-use wood, stone, metal, fabric, and ground surfaces
-- The Filter Gallery collection adds High Pass, Median, Dust & Scratches, Surface Blur, and Tilt-Shift Blur. Tilt-Shift includes a draggable on-image focus control, while the supported classic blur and sharpen filters can be added directly to native Smart Filter stacks
-- Text editing gained a searchable font picker with live type specimens and a Character panel for leading, tracking, and horizontal or vertical glyph scaling. Imported PSD text now follows Photoshop's leading, tracking, scaling, transform, and first-baseline behavior more closely
-- Curves has a new point editor and .acv preset support, CMYK PSD files now use their embedded ICC profiles for pixels, text, and effect colors, and gradients gained Classic, Perceptual, and Linear interpolation with Photoshop-compatible alignment
-- New Quick Mask mode lets brushes and other paint tools edit a selection through a red overlay before converting it back to marching ants
-- Resolution and measurement handling now matches Photoshop more closely: image resolution is independent metadata, rulers can use pixels, inches, centimeters, millimeters, points, or percent, and Image Size, New Document, Smart Object placement, and printing share the same PPI model
-- Photoshop Fill Opacity now reads, renders, edits, and writes through PSD files, including the special Fill behavior used by Color Burn, Linear Burn, Color Dodge, Linear Dodge, and Difference
-- Fixed Stroke styles on masked layers, filter-stack reordering, Smart Filter conversion state, macOS scanner flow, text Bold/Italic shortcuts, gradient alignment, Blend If controls, and several session-close and revision-cache bugs
 
 [Older releases](RELEASE-HISTORY.md)
 
