@@ -579,8 +579,10 @@ void compositor_applies_extended_blend_modes() {
   const std::vector<ExpectedBlend> expected = {
       {patchy::BlendMode::Darken, 100, 60, 100},
       {patchy::BlendMode::Lighten, 200, 120, 140},
-      {patchy::BlendMode::ColorDodge, 255, 156, 230},
-      {patchy::BlendMode::ColorBurn, 58, 0, 0},
+      // ColorDodge/ColorBurn re-pinned July 2026 when their kernels moved from floor to
+      // Photoshop's nearest rounding (see blend_math_color_burn_dodge_match_photoshop_captures).
+      {patchy::BlendMode::ColorDodge, 255, 157, 230},
+      {patchy::BlendMode::ColorBurn, 57, 0, 0},
       {patchy::BlendMode::HardLight, 189, 56, 109},
       {patchy::BlendMode::SoftLight, 134, 86, 126},
       {patchy::BlendMode::Difference, 100, 60, 40},
@@ -714,10 +716,51 @@ void blend_math_new_modes_match_photoshop_captures() {
         tie_destination);
 }
 
+// Color Burn and Color Dodge, re-calibrated July 2026 against the same full
+// 256x256 Photoshop 2026 flatten captures: the quotient rounds to NEAREST
+// (half up) and the 0/0 corner follows the destination (Burn: d=255 -> 255
+// even at s=0; Dodge: d=0 -> 0 even at s=255). The triples sample corners,
+// clamp edges, an exact-half case, and entries where the old floor kernels
+// were off by one.
+void blend_math_color_burn_dodge_match_photoshop_captures() {
+  struct Triple {
+    int source;
+    int destination;
+    int expected;
+  };
+  static constexpr Triple kColorBurn[] = {
+      {0, 0, 0}, {0, 254, 0}, {0, 255, 255}, {1, 255, 255},
+      {255, 0, 0}, {255, 1, 1}, {254, 0, 0}, {255, 255, 255},
+      {1, 254, 0}, {37, 200, 0}, {64, 128, 0}, {128, 128, 2},
+      {128, 254, 253}, {200, 100, 57}, {254, 254, 254},
+  };
+  static constexpr Triple kColorDodge[] = {
+      {0, 0, 0}, {0, 254, 254}, {0, 255, 255}, {255, 0, 0},
+      {255, 1, 255}, {254, 0, 0}, {1, 1, 1}, {1, 254, 255},
+      {37, 200, 234}, {64, 128, 171}, {100, 63, 104}, {60, 120, 157},
+      {100, 140, 230}, {128, 128, 255}, {254, 254, 255},
+  };
+  const auto gray = [](int value) {
+    return std::array<std::uint8_t, 3>{static_cast<std::uint8_t>(value),
+                                       static_cast<std::uint8_t>(value),
+                                       static_cast<std::uint8_t>(value)};
+  };
+  for (const auto& t : kColorBurn) {
+    CHECK(patchy::blend_rgb(gray(t.source), gray(t.destination),
+                            patchy::BlendMode::ColorBurn)[0] == t.expected);
+  }
+  for (const auto& t : kColorDodge) {
+    CHECK(patchy::blend_rgb(gray(t.source), gray(t.destination),
+                            patchy::BlendMode::ColorDodge)[0] == t.expected);
+  }
+}
+
 std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
   return {
       {"blend_math_new_modes_match_photoshop_captures",
        blend_math_new_modes_match_photoshop_captures},
+      {"blend_math_color_burn_dodge_match_photoshop_captures",
+       blend_math_color_burn_dodge_match_photoshop_captures},
       {"compositor_flattens_visible_layers", compositor_flattens_visible_layers},
       {"compositor_multiply_uses_empty_backdrop_as_transparent",
        compositor_multiply_uses_empty_backdrop_as_transparent},

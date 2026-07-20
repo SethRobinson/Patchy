@@ -101,14 +101,23 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
       return std::min(src, dst);
     case BlendMode::Lighten:
       return std::max(src, dst);
+    // Dodge and Burn round their quotient to NEAREST (half up), and the 0/0
+    // corner follows the destination (Dodge: d=0 stays 0 even at s=255; Burn:
+    // d=255 stays 255 even at s=0) — same rule as Aseprite's DIV_UN8. Pinned
+    // bit-exact against full 256x256 Photoshop 2026 captures (July 2026).
     case BlendMode::ColorDodge:
-      return src == 255 ? 255
-                        : static_cast<std::uint8_t>(
-                              std::min(255, (static_cast<int>(dst) * 255) / (255 - static_cast<int>(src))));
+      return dst == 0 ? 0
+             : src == 255
+                 ? 255
+                 : static_cast<std::uint8_t>(std::min(
+                       255, nearest_half_up(static_cast<int>(dst) * 255, 255 - static_cast<int>(src))));
     case BlendMode::ColorBurn:
-      return src == 0 ? 0
-                      : static_cast<std::uint8_t>(
-                            255 - std::min(255, ((255 - static_cast<int>(dst)) * 255) / static_cast<int>(src)));
+      return dst == 255 ? 255
+             : src == 0
+                 ? 0
+                 : static_cast<std::uint8_t>(
+                       255 - std::min(255, nearest_half_up((255 - static_cast<int>(dst)) * 255,
+                                                           static_cast<int>(src))));
     case BlendMode::HardLight:
       if (src < 128) {
         return static_cast<std::uint8_t>((2 * static_cast<int>(src) * static_cast<int>(dst)) / 255);

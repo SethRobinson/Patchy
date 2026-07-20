@@ -15,6 +15,16 @@ Adding a blend mode means updating ALL of:
 
 - Non-separable modes (Hue/Saturation/Color/Luminosity) use the PDF-spec set_lum/set_sat algorithm.
 - Exclusion rounds the s*d/255 product BEFORE doubling; Divide rounds to nearest. Both verified against Photoshop and Aseprite.
+- Color Burn and Color Dodge round their quotient to NEAREST half-up (the
+  `(2a+b)/(2b)` form, same as Aseprite's DIV_UN8), and the 0/0 division corner
+  follows the destination: Burn returns 255 at d=255 even when s=0, Dodge
+  returns 0 at d=0 even when s=255 (the special-case ORDER matters — checking
+  s first was the one residual mismatch). Calibrated July 2026, bit-exact on
+  the full 256x256 Photoshop 2026 captures (they used to floor, off by one on
+  ~16k entries each); pinned by
+  `blend_math_color_burn_dodge_match_photoshop_captures`. The special-Fill
+  256-scale Burn/Dodge kernels in `composite_special_fill_rgb` are calibrated
+  separately and were deliberately left unchanged.
 - `aseprite_blend_modes_match_aseprite_render` pins the Aseprite-parity set in-suite.
 
 ## July 2026 modes (Vivid/Linear Light, Hard Mix, Darker/Lighter Color)
@@ -42,7 +52,3 @@ The pinned kernels, all bit-exact on the capture except where noted:
   modes (its "eight special modes"); Patchy's `blend_mode_has_special_fill`
   deliberately does not include them yet, so fill-opacity behavior below 100%
   is uncalibrated for the three light modes.
-- Recorded deviation found during this calibration: Photoshop's Color Burn and
-  Color Dodge round to NEAREST, while Patchy's long-standing kernels floor
-  (~16k of 65536 entries differ by one). Changing them would move byte-pinned
-  compositor goldens, so they stay as-is until a deliberate re-pin.
