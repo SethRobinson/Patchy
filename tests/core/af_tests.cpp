@@ -546,6 +546,31 @@ void af_imports_paragraph_spacing() {
   CHECK(found->second == "v2\n0\t13\tleft\t0\t0\t0\t0\t17");
 }
 
+void af_imports_paragraph_indents() {
+  // tiny-text-indent.af: two frame-text layers from the text-indent probe
+  // recipe. Affinity's left indent (wire PAtt Doub[2]) positions
+  // CONTINUATION lines only and the first-line indent (Doub[4]) is absolute
+  // from the column edge, so "hanging" (left indent 40 alone) serializes as
+  // the PS/Qt hanging pair (first-line -40 relative to start 40) and
+  // "firstline" (first-line indent 25) keeps a plain +25. Both carry the
+  // story's default space-after 12.
+  const auto bytes = read_fixture("tiny-text-indent.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  const auto runs_for = [&](const char* name) -> std::string {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        const auto found = layer.metadata().find("patchy.text.paragraph_runs");
+        CHECK(found != layer.metadata().end());
+        return found->second;
+      }
+    }
+    throw std::runtime_error(std::string("layer not found: ") + name);
+  };
+  CHECK(runs_for("hanging") == "v2\n0\t52\tleft\t-40\t40\t0\t0\t12");
+  CHECK(runs_for("firstline") == "v2\n0\t52\tleft\t25\t0\t0\t0\t12");
+}
+
 void af_imports_gradient_overlay_placement() {
   // tiny-fx-gradient.af: three rasters with gradient overlays - the default
   // (linear, base direction left->right = PS angle 0), one under a rotate(45)
@@ -801,6 +826,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_imports_layer_effects", af_imports_layer_effects},
       {"af_imports_gradient_overlay_placement", af_imports_gradient_overlay_placement},
       {"af_imports_paragraph_spacing", af_imports_paragraph_spacing},
+      {"af_imports_paragraph_indents", af_imports_paragraph_indents},
       {"af_imports_rotated_artistic_text_with_transform_marker",
        af_imports_rotated_artistic_text_with_transform_marker},
       {"af_imports_vector_curves_as_shape_layers", af_imports_vector_curves_as_shape_layers},

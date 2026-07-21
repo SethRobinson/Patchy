@@ -243,7 +243,18 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   emoji fixture tiny-text-runs.af); sparse run items inherit the previous
   run's unset fields. Paragraph space-before/after (`PAtt` `Doub[5]`/`[6]`,
   document px) imports as paragraph-run v2 metrics (the leading paragraph
-  keeps only its space-after). The All Caps attribute (the private
+  keeps only its space-after). Paragraph indents (pinned July 2026 by the
+  text-indent probe doc) ride the same array and import as the v2 indent
+  metrics: `Doub[2]` = left indent, which positions CONTINUATION lines only,
+  `Doub[3]` = right indent, `Doub[4]` = first-line indent, absolute from the
+  column edge with negatives clamped to 0 at render. A left indent alone is
+  therefore a hanging indent (tips.af's numbered lists; Affinity's PSD
+  conversion turns PS StartIndent 24 / FirstLineIndent -24 into wire 24 / 0),
+  and the importer re-expresses the first line in the PS/Qt relative
+  convention (`first_line_indent = clamp0(Doub[4]) - Doub[2]`). Identified in
+  the same array but not imported: `Doub[0]` relative-leading fraction,
+  `Doub[7]` default tab stops (36), `Doub[8..10]` word-spacing
+  min/desired/max (0.8/1.0/1.33). The All Caps attribute (the private
   `'CAP\x01'` OpenType feature setting in the item's `OtAt.Setn`) uppercases
   the imported text (ASCII + Latin-1); the small/petite-caps family
   (smcp/c2sc/pcap/c2pc/titl/unic) renders as typed with a notice. Frame text
@@ -253,7 +264,8 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   tips.af's last line was cut mid-glyph until July 2026). Affinity's default line pitch measures as the natural
   font leading plus COLLAPSED paragraph margins (max of space-after/next
   space-before) - exactly Qt's model, so no leading translation is needed
-  (the once-suspected `PAtt Doub[10]` = 1.33 is NOT a line-pitch multiple).
+  (the once-suspected `PAtt Doub[10]` = 1.33 is the max word-spacing bound,
+  not a line-pitch multiple).
   Runs metadata also emits for single-style text that carries paragraph
   layout: block alignment/spacing only apply on the rich-runs render path
   (the html body is a single <p> with <br/> breaks). Rotated/sheared

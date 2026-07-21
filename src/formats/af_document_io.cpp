@@ -2629,17 +2629,32 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
           std::int64_t run_align = 0;
           double space_before = 0.0;
           double space_after = 0.0;
+          double first_line_indent = 0.0;
+          double left_indent = 0.0;
+          double right_indent = 0.0;
           if (const af::AfClass* item = run->child_class(af::tag4("Item"))) {
             const auto ints = item->vec_field(af::tag4("Ints"));
             if (!ints.empty()) {
               run_align = static_cast<std::int64_t>(ints[0]);
             }
             // Doub[5]/[6] = paragraph space before/after in document px
-            // (pinned by the 9/17 spacing probe doc).
+            // (pinned by the 9/17 spacing probe doc). Doub[2]/[3]/[4] =
+            // left/right/first-line indents (the text-indent probe doc):
+            // Affinity's left indent positions CONTINUATION lines only, and
+            // the first-line indent is ABSOLUTE from the column edge with
+            // negatives clamped to 0 at render (tips.psd's PS hanging indent
+            // StartIndent 24 / FirstLineIndent -24 converts to wire 24 / 0).
             const auto doubles = item->vec_field(af::tag4("Doub"));
             if (doubles.size() > 6) {
               space_before = std::clamp(doubles[5], 0.0, 10000.0);
               space_after = std::clamp(doubles[6], 0.0, 10000.0);
+            }
+            if (doubles.size() > 3) {
+              left_indent = std::clamp(doubles[2], 0.0, 10000.0);
+              right_indent = std::clamp(doubles[3], 0.0, 10000.0);
+            }
+            if (doubles.size() > 4) {
+              first_line_indent = std::clamp(doubles[4], 0.0, 10000.0);
             }
           }
           if (align < 0) {
@@ -2655,6 +2670,11 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
           // keeps only its space-after.
           paragraph.space_before = paragraph.start == 0 ? 0.0 : space_before;
           paragraph.space_after = space_after;
+          // Serialized in the PS/Qt convention: first-line relative to the
+          // left indent, so a wire hanging indent goes negative.
+          paragraph.first_line_indent = first_line_indent - left_indent;
+          paragraph.start_indent = left_indent;
+          paragraph.end_indent = right_indent;
           if (paragraph.length > 0) {
             paragraph_runs.push_back(paragraph);
           }
@@ -2763,6 +2783,9 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
   for (auto& paragraph : paragraph_runs) {
     paragraph.space_before *= size_scale;
     paragraph.space_after *= size_scale;
+    paragraph.first_line_indent *= size_scale;
+    paragraph.start_indent *= size_scale;
+    paragraph.end_indent *= size_scale;
   }
 
   Layer layer(ctx.document.allocate_layer_id(), display, LayerKind::Pixel);
@@ -2796,8 +2819,10 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
   const bool multi_style = style_runs.size() > 1;
   bool any_paragraph_layout = false;
   for (const auto& run : paragraph_runs) {
-    any_paragraph_layout =
-        any_paragraph_layout || run.justification != 0 || run.space_before > 0.0 || run.space_after > 0.0;
+    any_paragraph_layout = any_paragraph_layout || run.justification != 0 ||
+                           run.space_before > 0.0 || run.space_after > 0.0 ||
+                           run.first_line_indent != 0.0 || run.start_indent > 0.0 ||
+                           run.end_indent > 0.0;
   }
   // Runs also emit for single-style text that carries paragraph layout: the
   // rich-text-runs render path builds REAL paragraph blocks from the plain
