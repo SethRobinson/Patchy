@@ -1,8 +1,8 @@
 #pragma once
 
 // Helpers shared by the main_window_*.cpp translation units. MainWindow's
-// implementation is split across several files (see AGENTS.md "MainWindow's
-// implementation is split across main_window_*.cpp"); helpers used by more than one of
+// implementation is split across several files (see docs/code-organization.md);
+// helpers used by more than one of
 // those files are promoted out of the per-file anonymous namespaces into this
 // header. Internal to the MainWindow implementation - do not include this from
 // outside the main_window_*.cpp family.

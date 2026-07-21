@@ -1,6 +1,6 @@
 # Performance: the stress test and the rendering-performance rules
 
-Deep reference for performance work. The two cross-cutting rules (reads must not bump layer revisions; nothing O(layer pixels) per repaint) and the debug env vars also appear in AGENTS.md; read this before optimizing rendering or touching the stress-test harness.
+Deep reference for performance work. `AGENTS.md` keeps only the universal revision-access and repaint-cost warnings; this document owns their implementation details and the stress-test workflow. Read it before optimizing rendering or touching the stress harness.
 
 ## Profiling stress test (PATCHY 64 scene)
 

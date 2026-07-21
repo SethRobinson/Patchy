@@ -13,7 +13,7 @@ namespace patchy::heif {
 // HEIF/HEIC still images (iPhone .heic, Sony/Fujifilm .hif). Decode-only, and the decoder
 // always comes from platform codecs -- Patchy must never ship an HEVC decoder (libheif/
 // libde265/x265 are off-limits; HEVC patent licensing rides with the OS codec vendor, see
-// AGENTS.md "Legal constraints"). Per platform:
+// docs/legal-constraints.md). Per platform:
 //   - Windows: read_heif() decodes through WIC (heif_document_io_win.cpp). The codecs are
 //     the Microsoft Store "HEIF Image Extensions" + "HEVC Video Extensions" packages,
 //     in-box on Windows 11 22H2+; missing-codec errors carry the marker prefixes below so

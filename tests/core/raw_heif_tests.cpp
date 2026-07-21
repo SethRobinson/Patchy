@@ -98,7 +98,7 @@ using patchy::test::read_binary_file;
 // exercised on every platform with no committed camera files. Assertions are statistical
 // (dimensions, channel means, monotonic responses) — LibRaw's float pipeline is NOT
 // byte-stable across toolchains, so exact-hash pinning is deliberately avoided (AGENTS.md
-// determinism rules).
+// universal invariants).
 
 using patchy::test::synthetic_bayer_dng;
 

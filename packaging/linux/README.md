@@ -27,7 +27,7 @@ automatically from Flathub.
   freedesktop integration, installed by CMake's `UNIX AND NOT APPLE` install rules
   (binary in `bin/`, fonts/translations under `share/patchy/`). The icons were
   extracted from the native layers of `src/app/patchy.ico`. Bump the metainfo
-  `<release>` tag with each version (see the AGENTS.md release checklist).
+  `<release>` tag with each version (see `docs/release-process.md`).
 - `make-flatpak.sh` — builds the bundle on a machine with `flatpak-builder`
   (glados.local): `bash packaging/linux/make-flatpak.sh`. One-time setup is in the
   script header. `scripts/remote/release-linux.ps1` drives it from Windows.

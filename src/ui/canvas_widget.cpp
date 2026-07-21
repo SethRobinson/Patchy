@@ -1146,8 +1146,8 @@ bool CanvasWidget::editing_layer_mask() const noexcept {
   }
   // Const walk on purpose: this predicate runs from read-only paths (color
   // setters, cursor updates, begin_edit preconditions) and the non-const
-  // mask() accessor bumps revisions on ACCESS (AGENTS.md "Reads must not bump
-  // layer revisions") — merely picking a color while a mask was targeted
+  // mask() accessor bumps revisions on ACCESS (see docs/performance.md) — merely
+  // picking a color while a mask was targeted
   // invalidated the layer's thumbnail and style-mask caches. Writers keep
   // going through active_layer_mask(), whose bump is load-bearing.
   const auto* layer = std::as_const(*document_).find_layer(*document_->active_layer_id());

@@ -7,8 +7,8 @@
 // magnetic close, cancel, and its width/contrast/frequency options). The
 // Quick Select patent-constraint comments (Adobe US 8050498: the stroke is
 // classified ONCE on mouse-release, never live during the drag) moved here
-// verbatim and remain binding - see AGENTS.md "Legal constraints (patents and
-// licensing)" and docs/selection-tools.md before changing anything here. Pure
+// verbatim and remain binding - see docs/legal-constraints.md and
+// docs/selection-tools.md before changing anything here. Pure
 // function moves from canvas_widget.cpp; behavior must stay identical.
 
 #include "ui/canvas_widget.hpp"

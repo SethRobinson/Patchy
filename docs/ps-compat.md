@@ -1,6 +1,6 @@
 # Photoshop compatibility: COM techniques and per-effect calibration
 
-Deep reference for PSD-compatibility work. The basics (the COM one-liner, the byte-diff method, the two silent-corruption write rules) also appear in AGENTS.md's "Photoshop compatibility verification" section; read this before touching layer-style rendering or PSD descriptor I/O.
+Deep reference and canonical workflow for Photoshop compatibility, COM observation, PSD corruption rules, and per-effect calibration. Read this before touching layer-style rendering or PSD descriptor I/O.
 
 ## COM scripting techniques
 

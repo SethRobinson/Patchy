@@ -279,9 +279,9 @@ Just give it the link to this repo and say "Add .tiff support" and in about 10 m
 
 I mean, that's kind of the power of open source.
 
-Whatever AI you use, tell it (or more likely, it's reading this right now) to read AGENTS.md first at all times before doing anything else - that's where the build commands, conventions, and project knowledge live. 
+Whatever AI you use, tell it (or more likely, it is reading this right now) to read AGENTS.md before doing anything else. It contains the build and repository-wide rules, then routes feature work to the relevant document under `docs/`.
 
-Notice that there are 1000+ regression and benchmarking tests, AGENTS.md will teach your AI how to use these to insure it doesn't screw stuff up.\
+There are 1000+ regression and benchmarking tests. AGENTS.md links agents to the testing guide that explains how to select and run them.\
 \
 If you have a bug fix or feature you think should be in this repo, please look at the actual code and fully TEST IT YOURSELF before submitting the PR.  If you're using AI, use a good one (Fable+ class), we don't want barely working slop.\
 \

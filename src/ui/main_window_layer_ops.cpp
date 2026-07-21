@@ -2136,8 +2136,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   const auto has_layer = !ids.empty();
   const auto active_id = document().active_layer_id();
   // Const on purpose: the menu only reads the layer, and the non-const
-  // mask()/smart_filter_stack() accessors bump revisions on access (AGENTS.md
-  // "Reads must not bump layer revisions") — a plain right-click was
+  // mask()/smart_filter_stack() accessors bump revisions on access (see
+  // docs/performance.md) — a plain right-click was
   // invalidating the layer's thumbnail and style-mask cache entries.
   const auto* active_layer = active_id.has_value() ? std::as_const(document()).find_layer(*active_id) : nullptr;
   const auto has_rasterizable_layer = std::any_of(ids.begin(), ids.end(), [this](LayerId id) {

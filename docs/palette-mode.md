@@ -1,6 +1,6 @@
 # Palette / indexed-color editing mode (constrained RGBA, never indexed storage)
 
-Deep reference for palette mode. The cross-cutting rules (never index-per-pixel storage, `palette_revision` bumping, the write-site snap requirement, preset-id rename ban) also appear in AGENTS.md; read this before working on palette mode, the Palette panel, or the color picker's swatch column.
+Deep reference and canonical rules for palette mode. Read this before working on palette-mode storage, the Palette panel, pixel-writing paths, or the color picker's swatch column.
 
 Palette mode (Image > Mode > Indexed (Palette)) gives pixel artists a low-color workflow WITHOUT changing pixel storage: pixels stay RGBA everywhere and the mode is a per-document write constraint. Do not "upgrade" this to true index-per-pixel storage; that would ripple through the compositor, brush engine, styles, and PSD I/O (the reason Photoshop's own indexed mode flattens and disables features).
 

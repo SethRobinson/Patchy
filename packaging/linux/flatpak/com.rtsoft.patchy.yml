@@ -24,7 +24,7 @@ finish-args:
 # /app/lib/ffmpeg/libheif -- but the HEVC decoder itself (libheif-libde265.so) lives in
 # the ffmpeg-full extension for patent reasons. Declaring the extension point makes
 # flatpak auto-install it with the app; Patchy bundles no HEVC code (deliberate, see
-# AGENTS.md "Legal constraints"). If the runtime ever moves to org.kde.Platform 6.10+
+# docs/legal-constraints.md). If the runtime ever moves to org.kde.Platform 6.10+
 # (freedesktop 25.08 base), DROP this block: codecs-extra is inherited automatically
 # there and 25.08's libheif no longer searches /app/lib/ffmpeg.
 add-extensions:

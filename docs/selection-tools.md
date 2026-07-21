@@ -1,6 +1,6 @@
 # Selection tools: Quick Select, Magnetic Lasso, marching ants
 
-Deep reference for the selection-tool engines. THE LEGAL CONSTRAINTS ARE BINDING and are duplicated in AGENTS.md's "Legal constraints (patents)" section — read them before touching Quick Select or Magnetic Lasso behavior.
+Deep reference for the selection-tool engines. The summary in [legal-constraints.md](legal-constraints.md) is binding; read it before touching Quick Select or Magnetic Lasso behavior.
 
 ## Quick Mask: temporary selection-alpha editing
 

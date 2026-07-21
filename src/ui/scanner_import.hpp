@@ -9,7 +9,7 @@ namespace patchy::ui {
 
 // Native scanner acquisition. Windows uses WIA and also exposes cameras; macOS uses
 // ImageKit/ImageCaptureCore and exposes scanners only. Implemented in per-OS translation
-// units following the AGENTS.md platform convention.
+// units following the docs/platform.md convention.
 enum class ScannerAcquireStatus {
   Acquired,   // file_path holds the scanned image (caller deletes it after import)
   Cancelled,  // the user closed the native acquisition UI; stay silent

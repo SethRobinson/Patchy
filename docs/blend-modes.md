@@ -1,6 +1,6 @@
 # Blend modes
 
-Everything a new blend mode touches, and the calibrated rounding rules. `BlendMode` (core/layer.hpp) is append-only: the enum rides combo item data, casts, and file maps keyed on the existing order — only append (see AGENTS.md gotchas).
+Everything a new blend mode touches, and the calibrated rounding rules. `BlendMode` (core/layer.hpp) is append-only: the enum rides combo item data, casts, and file maps keyed on the existing order - only append (see the universal invariants in `AGENTS.md`).
 
 ## Adding a mode: the full checklist
 

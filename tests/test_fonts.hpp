@@ -1,6 +1,6 @@
 #pragma once
 
-// Cross-platform test font registration (see AGENTS.md "Platform portability").
+// Cross-platform test font registration (see docs/platform.md and docs/testing.md).
 //
 // The offscreen platform does not enumerate installed system fonts on any OS, so tests
 // register the font FILES they need with QFontDatabase::addApplicationFont. All such
@@ -11,7 +11,7 @@
 // their substitution path) exactly as they already do when a font file is absent.
 //
 // Never call QFontDatabase::removeApplicationFont to clean up: invalidating an in-use
-// font cache can hard-crash the suite (see AGENTS.md Testing notes).
+// font cache can hard-crash the suite (see docs/testing.md).
 
 #include <QFileInfo>
 #include <QFont>

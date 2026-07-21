@@ -1651,7 +1651,7 @@ void ui_shape_tool_alt_draws_from_center() {
     send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(130, 100)),
                Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
     // Balance the synthetic Alt press so no modifier state leaks into later tests
-    // (see the offscreen keyboardModifiers() note in AGENTS.md).
+    // (see the offscreen keyboardModifiers() note in docs/testing.md).
     send_key_release(*canvas, Qt::Key_Alt, Qt::NoModifier);
     QApplication::processEvents();
     const auto bounds = dark_document_bounds(*canvas, document_rect);

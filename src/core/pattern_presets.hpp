@@ -30,7 +30,7 @@ struct PatternPreset {
 [[nodiscard]] PatternResource builtin_pattern_resource(std::string_view id);
 
 // A built-in pattern backed by a bundled photo texture (real photographs under
-// CC0, never AI-generated — see the AGENTS.md sourcing rule and the
+// CC0, never AI-generated — see docs/legal-constraints.md and the
 // NOTICE-THIRD-PARTY.md provenance table). This core table carries the metadata
 // only; the pixels live in the UI layer's Qt resources
 // (":/patchy/textures/<resource_alias>", loaded by

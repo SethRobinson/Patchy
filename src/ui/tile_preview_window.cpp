@@ -295,7 +295,7 @@ std::uint64_t TilePreviewWindow::document_probe(const Document* document) const 
     return 0;
   }
   // Const reads only: Layer's MUTABLE accessors bump revisions on access, which would make
-  // this probe invalidate every revision-keyed cache (see AGENTS.md).
+  // this probe invalidate every revision-keyed cache (see docs/performance.md).
   std::uint64_t hash = 0x811c9dc5ULL;
   hash = hash_combine(hash, reinterpret_cast<std::uintptr_t>(document));
   hash = hash_combine(hash, static_cast<std::uint64_t>(document->width()));

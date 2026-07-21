@@ -8,7 +8,7 @@ namespace patchy::raw {
 // Conversions between photographer-facing white balance (correlated color temperature in
 // kelvin + green/magenta tint) and the camera-space channel multipliers LibRaw consumes.
 // All math is plain double arithmetic with fixed constants so results are stable across
-// toolchains (do not byte-pin outputs regardless; see AGENTS.md determinism notes).
+// toolchains (do not byte-pin outputs regardless; see the AGENTS.md universal invariants).
 
 struct WhiteBalance {
   double temperature_k{5500.0};

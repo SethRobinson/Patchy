@@ -287,7 +287,7 @@ MainWindow/adjustments internals:
   std::function single-listener callbacks re-implement signals for exactly one listener;
   the CanvasWidget-nested enums (SelectionMode, LayerEditTarget, ...) force
   main_window.hpp and others to include the whole canvas header (want ui/tool_types.hpp);
-  the current_* options-bar mirror convention (AGENTS.md) is a missing ToolOptionsModel;
+  the `current_*` options-bar mirror convention ([ui-conventions.md](ui-conventions.md)) is a missing ToolOptionsModel;
   image_document_io.hpp's 8-overload qimage_from_document_rect* family wants a request
   struct, and RenderedDocumentPatch its own small header; bool-flag params
   (save_document_to_path's flatten_confirmed, pixel_tools' trailing `bool erase` x8).

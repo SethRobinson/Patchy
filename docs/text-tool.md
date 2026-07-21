@@ -1,6 +1,6 @@
 # Text tool and Character panel
 
-The inline text editor's session machinery, commit/cancel semantics, and the Character panel. The Photoshop text LAYOUT model (imported type layers, leading rules, runs metadata v3) lives in [ps-compat.md](ps-compat.md) "Photoshop text model"; Warp Text lives in [warp.md](warp.md); offscreen-test font registration gotchas are in AGENTS.md "Testing notes".
+The inline text editor's session machinery, commit/cancel semantics, and the Character panel. The Photoshop text layout model lives in [ps-compat.md](ps-compat.md), Warp Text lives in [warp.md](warp.md), and offscreen font registration rules live in [testing.md](testing.md).
 
 Do NOT attempt to split the text code out of main_window.cpp as a pure file move: the text render pipeline is shared between too many members; it is really a "design a text_render module with its own header" job, not a file split (tried and backed out).
 

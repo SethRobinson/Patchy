@@ -100,8 +100,8 @@ The 20 photo-based pattern presets under the "Textures" folder (embedded as
 are downscaled diffuse maps from Poly Haven (https://polyhaven.com), published
 under CC0 ("You can use our assets for any purpose, including commercial work.
 You do not need to give credit or attribution"). All are real photo-scanned
-surfaces created by named human artists (no AI generation, per the AGENTS.md
-sourcing rule); the 1K PNG masters were fetched from dl.polyhaven.org on
+surfaces created by named human artists (no AI generation, per
+docs/legal-constraints.md); the 1K PNG masters were fetched from dl.polyhaven.org on
 2026-07-12 and downscaled losslessly (no JPEG step) with a seam-preserving
 3x3-tile filter.
 

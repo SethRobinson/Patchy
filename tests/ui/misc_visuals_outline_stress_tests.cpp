@@ -893,8 +893,7 @@ void ui_marching_ants_deep_zoom_follows_feathered_display_region() {
 // pinning the machinery (scenario completes, reports land and parse, scene
 // builds). Offscreen timing numbers are NOT comparable to real-screen runs;
 // nothing here asserts durations. All CHECKs sit after run() returns, so no
-// failure can unwind past a live inline text editor (see the testing notes in
-// AGENTS.md).
+// failure can unwind past a live inline text editor (see docs/testing.md).
 void ui_stress_test_smoke_preset_writes_report() {
   patchy::ui::MainWindow window;
   window.resize(1000, 700);

@@ -3,7 +3,7 @@
 // Little-endian binary reader/writer shared by the flat image formats (BMP, ICO, TGA, PCX,
 // Aseprite). PSD and IFF/ILBM are big-endian and use psd_binary.hpp instead. Keeping all
 // serialization explicit fixed-width like this is what makes the file formats byte-identical
-// across platforms (see AGENTS.md).
+// across platforms (see docs/platform.md).
 
 #include <cstdint>
 #include <span>

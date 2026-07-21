@@ -2,8 +2,8 @@
 
 // Helpers shared by the canvas_widget_*.cpp translation units. CanvasWidget's
 // implementation is being split across several files following the same rules
-// as the MainWindow split (see AGENTS.md "MainWindow's implementation is split
-// across main_window_*.cpp"); helpers used by more than one of those files are
+// as the MainWindow split (see docs/code-organization.md); helpers used by more
+// than one of those files are
 // promoted out of the per-file anonymous namespaces into this header. Internal
 // to the CanvasWidget implementation - do not include this from outside the
 // canvas_widget_*.cpp family.

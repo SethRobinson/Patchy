@@ -9,7 +9,7 @@ Small tool/command behaviors that don't have their own doc. Selection tools live
 - Alt = draw-from-center, so Rectangle/Ellipse are exempt from the Alt temporary-eyedropper (the two meanings fight).
 - ALL constraint math lives in `CanvasWidget::shape_drag_rect()` — it intentionally duplicates `marquee_selection_rect()` (selection-only concerns, separately pinned). Do not merge them.
 - The Fill command has its OWN persisted Opacity/Soft (`tools/fillOpacity`/`tools/fillSoftness`, default 100/0); tests laying down setup color call `use_solid_fill_settings(canvas)`.
-- Coverage: `ui_shape_fill_and_corner_radius_apply_to_new_documents` also pins the `current_*` mirror pattern (see AGENTS.md gotchas).
+- Coverage: `ui_shape_fill_and_corner_radius_apply_to_new_documents` also pins the `current_*` mirror pattern from [ui-conventions.md](ui-conventions.md).
 
 ## Merge Down
 

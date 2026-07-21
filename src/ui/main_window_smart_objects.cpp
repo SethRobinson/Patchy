@@ -558,8 +558,8 @@ bool MainWindow::refresh_smart_object_layers_for_source(
   const double new_width = rendered_image.width();
   const double new_height = rendered_image.height();
   // Const walk on purpose: the non-const children() accessor bumps every
-  // visited layer's revisions on access (AGENTS.md "Reads must not bump layer
-  // revisions"), so the old mutable traversal invalidated every thumbnail and
+  // visited layer's revisions on access (see docs/performance.md), so the old
+  // mutable traversal invalidated every thumbnail and
   // style-mask cache in the document even when no smart object matched.
   // Matched layers are cast back to mutable below; their bumps are real edits.
   std::function<bool(const std::vector<Layer>&)> refresh_layers =

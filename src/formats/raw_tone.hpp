@@ -10,7 +10,7 @@ namespace patchy::raw {
 // bake (LibRaw's own pipeline has no contrast/shadows/highlights/saturation parameters).
 // Everything operates on gamma-encoded sRGB values in [0, 65535] with plain double math —
 // deterministic in behavior, but like the rest of the raw pipeline never byte-pinned in
-// tests (see AGENTS.md determinism notes).
+// tests (see the AGENTS.md universal invariants).
 
 struct ToneParams {
   // All -100..100, 0 = neutral. Shadows lifts (or deepens) a band pivoting around ~0.15

@@ -1,12 +1,18 @@
 # File formats: registry, per-format quirks, PSB, document alpha
 
-Deep reference for file-format work. The cross-cutting rules (how to add a format, the filter table, import-notice behavior, byte-stable serialization) also appear in AGENTS.md; read this before touching a reader/writer, PSD/PSB internals, or alpha/mask import.
+Deep reference for file-format work. Read this before touching a reader/writer, open/save filters, PSD/PSB internals, import notices, or alpha/mask import.
 
 ## Registry and dispatch
 
 - **FormatRegistry**: `builtin_format_registry()` (format_registry.cpp, function-local static) is the single instance; `load_document_from_path` (main_window.cpp) consults it BEFORE the QImageReader fallback (a registry read that throws still falls back to Qt where a Qt plugin exists, but the REGISTRY error is reported when Qt fails too: it names the real problem). Handlers may be read-only (`write == nullptr`) and may carry a `sniff` content check (used to disambiguate `.ase`: Aseprite magic 0xA5E0@4 vs Adobe `ASEF` swatches: the Aseprite reader throws a message pointing at the Palette panel for swatch files).
-- **One filter table**: `file_format_entries()` in main_window.cpp generates open/save/export filters, `is_supported_image_extension`, `save_file_filter_for_path`, and `path_with_default_extension`. Display names sit in `QT_TRANSLATE_NOOP("QObject", ...)`; update patchy_ja.ts when adding one.
+- **One filter table**: `file_format_entries()` in `main_window_files.cpp` generates open/save/export filters, `is_supported_image_extension`, `save_file_filter_for_path`, and `path_with_default_extension`. Display names sit in `QT_TRANSLATE_NOOP("QObject", ...)`; update patchy_ja.ts when adding one.
 - New formats slot in with one table row + one registry row + one writer branch.
+
+## Open-dialog filter contract
+
+Open, sprite-sheet, and image-sequence dialogs pass `FilterNameDetails::Hidden` through `get_open_file_name`. Qt shows only the text left of the last `(` and uses the final parenthesized list as the machine filter. `open_file_filter()` therefore writes each row as `Name (patterns) (patterns)`; the duplication is deliberate and supplies both the visible name and machine-readable specification.
+
+The visible portion must retain a `*.` token. The Windows 11 native dialog appends the complete semicolon-joined specification to any filter name without one, so the all-formats row uses the short `(*.psd *.png *.jpg and more)` hint instead of exposing roughly 50 patterns. `ui_open_dialog_hides_name_filter_details` pins this shape.
 
 ## Per-format catalogue
 
@@ -90,7 +96,7 @@ on different threads), and lossy-/deflate-compressed DNG variants fail with a cl
 
 Read-only, decoded by PLATFORM codecs only. **Never vendor an HEVC decoder or encoder
 (libheif/libde265/x265): the whole design exists so Microsoft/Apple/the Flatpak codec
-extension carry the HEVC patent licenses** (AGENTS.md "Legal constraints" has the rule;
+extension carry the HEVC patent licenses** ([legal-constraints.md](legal-constraints.md) has the binding rule;
 the GIMP/Krita bundle-libde265 posture was researched and deliberately rejected, July
 2026, decision by Seth). HEVC is heavily patent-encumbered: the Access Advance and
 Via LA pools plus bilateral holders like Nokia, who also hold HEIF container patents

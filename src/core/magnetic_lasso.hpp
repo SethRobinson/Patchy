@@ -12,8 +12,8 @@ namespace patchy {
 // Image Analysis 1997). The technique is public 1995-1997 prior art and the one covering
 // patent, US 5,995,115 (Avid), expired 2017-04-04. The live overlay this engine feeds is a
 // snapped *path polyline* only; the selection REGION is built once when the user closes the
-// path (see the Quick Select posture in AGENTS.md - never region classify-and-display while
-// input is still being received).
+// path (see docs/legal-constraints.md - never region classify-and-display while input is
+// still being received).
 struct MagneticLassoParams {
   int width{10};            // edge search diameter around the cursor, document px (1-256)
   int edge_contrast{10};    // percent 1-100: minimum gradient magnitude that counts as an edge
