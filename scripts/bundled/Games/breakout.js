@@ -19,11 +19,16 @@ var OPTIONS = {
   width: 480,      // playfield document size
   height: 360,
   lives: 3,
-  paddleSpeed: 7
+  paddleSpeed: 7,
+  sound: true      // retro blips (patchy.ui.playTone)
 };
 // ---------------------------------------------------------------------------
 
 app.undoEnabled = false;
+
+function sfx(freq, ms, vol) {
+  if (OPTIONS.sound) { patchy.ui.playTone(freq, ms, vol, "square"); }
+}
 
 var W = OPTIONS.width;
 var H = OPTIONS.height;
@@ -54,7 +59,7 @@ var bricks = [];
 for (var by = 0; by < ROWS; by++) {
   for (var bx = 0; bx < COLS; bx++) {
     var brick = { x: BRICK_LEFT + bx * (BRICK_W + BRICK_GAP),
-                  y: BRICK_TOP + by * (BRICK_H + BRICK_GAP), alive: true };
+                  y: BRICK_TOP + by * (BRICK_H + BRICK_GAP), row: by, alive: true };
     bricksLayer.fillRect(brick.x, brick.y, BRICK_W, BRICK_H, rowColors[by]);
     bricks.push(brick);
   }
@@ -74,6 +79,10 @@ ballLayer.fillRect(0, 0, BALL, BALL, "#ffffff");
 // Leave the Bricks layer active in the Layers panel (addLayer activated the
 // ball): painting on the brick field mid-game is half the fun.
 doc.activeLayer = bricksLayer;
+
+// Zoom in on the playfield: Fit on Screen scales the small document up to the
+// window and centers it (at 100% it would sit tiny in a corner of the view).
+app.runCommand("view.fit_on_screen");
 
 var paddleX = (W - PADDLE_W) / 2;
 var ball = { x: 0, y: 0, vx: 0, vy: 0, stuck: true };
@@ -100,13 +109,14 @@ pad.onFrame = function (dt) {
         var lean = (Math.random() - 0.5) * 2;
         ball.vx = 3 * (lean < 0 ? -1 : 1) * (0.6 + Math.abs(lean));
         ball.vy = -4.2;
+        sfx(440, 80, 0.35);
       }
     } else {
       ball.x += ball.vx * step;
       ball.y += ball.vy * step;
-      if (ball.x < 0) { ball.x = 0; ball.vx = Math.abs(ball.vx); }
-      if (ball.x > W - BALL) { ball.x = W - BALL; ball.vx = -Math.abs(ball.vx); }
-      if (ball.y < 0) { ball.y = 0; ball.vy = Math.abs(ball.vy); }
+      if (ball.x < 0) { ball.x = 0; ball.vx = Math.abs(ball.vx); sfx(330, 50, 0.3); }
+      if (ball.x > W - BALL) { ball.x = W - BALL; ball.vx = -Math.abs(ball.vx); sfx(330, 50, 0.3); }
+      if (ball.y < 0) { ball.y = 0; ball.vy = Math.abs(ball.vy); sfx(330, 50, 0.3); }
 
       // Paddle bounce steers by hit position.
       if (ball.vy > 0 && ball.y + BALL >= PADDLE_Y && ball.y + BALL <= PADDLE_Y + PADDLE_H + 4 &&
@@ -114,6 +124,7 @@ pad.onFrame = function (dt) {
         ball.vy = -Math.abs(ball.vy);
         var hit = (ball.x + BALL / 2 - (paddleX + PADDLE_W / 2)) / (PADDLE_W / 2);
         ball.vx = hit * 5;
+        sfx(880, 60, 0.4);
       }
 
       // Brick collisions: clearing the hit brick is one transparent fillRect.
@@ -126,19 +137,27 @@ pad.onFrame = function (dt) {
           bricksLeft--;
           score += 10;
           bricksLayer.fillRect(b.x, b.y, BRICK_W, BRICK_H, "#00000000");
+          // Higher rows ring higher, like the arcade original.
+          sfx(460 + (ROWS - 1 - b.row) * 70, 60, 0.4);
           var overlapX = Math.min(ball.x + BALL - b.x, b.x + BRICK_W - ball.x);
           var overlapY = Math.min(ball.y + BALL - b.y, b.y + BRICK_H - ball.y);
           if (overlapX < overlapY) { ball.vx = -ball.vx; } else { ball.vy = -ball.vy; }
           break;
         }
       }
-      if (bricksLeft === 0) { state = "won"; }
+      if (bricksLeft === 0) {
+        state = "won";
+        sfx(523, 250, 0.45);
+        setTimeout(function () { sfx(784, 400, 0.45); }, 260);
+      }
 
       if (ball.y > H) {
         lives--;
+        sfx(150, 300, 0.5);
         if (lives <= 0) {
           state = "lost";
           ballLayer.visible = false;
+          setTimeout(function () { sfx(110, 500, 0.5); }, 320);
         } else {
           ball.stuck = true;
         }
