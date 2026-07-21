@@ -8,6 +8,8 @@ The core suite is one binary split across `tests/core/*_tests.cpp`, one TU per t
 
 The UI suite follows the same design in `tests/ui/*_tests.cpp`. Registrations are declared in `tests/ui/ui_test_groups.hpp` and concatenated by `tests/ui/main.cpp` in a load-bearing order: contact-sheet and README tests consume artifacts written earlier, and QSettings state intentionally crosses tests. Shared helpers live in `tests/ui/ui_test_support.{hpp,cpp}` under `namespace patchy::test::ui`. `MainWindowTestAccess` in `tests/ui/ui_test_access.hpp` is befriended by its qualified name in `main_window.hpp`.
 
+Groups that outgrew ~3,000 lines are split into part files (`<group>_tests_<theme>.cpp`, each exporting `<group>_tests_partN()`); the original `<group>_tests.cpp` stays as a small aggregator whose exported function concatenates the parts in the original registration order, so the suite order is unchanged. Add a new test to the correct part file's registration vector, keeping the group's overall order intact. Helpers shared by two or more parts of one group live in that group's `<group>_test_support.{hpp,cpp}` (moved, never copied); helpers used by one part stay in that part's anonymous namespace. `patchy_core_tests` has no `/bigobj`, so core part files must stay under ~3,000 lines.
+
 Local-fixture tests skip on remote machines because `local-test-fixtures` is deliberately untracked. The repository-wide fixture sourcing rule lives in `AGENTS.md`.
 
 ## Running and filtering

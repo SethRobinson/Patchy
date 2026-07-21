@@ -914,6 +914,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/main.cpp
     tests/core/core_test_support.cpp
     tests/core/psd_test_support.cpp
+    tests/core/smart_filter_descriptors_test_support.cpp
     tests/core/adjustments_curves_tests.cpp
     tests/core/af_tests.cpp
     tests/core/brush_engine_tests.cpp
@@ -937,6 +938,8 @@ if(PATCHY_BUILD_TESTS)
     tests/core/psd_writer_stability_tests.cpp
     tests/core/raw_heif_tests.cpp
     tests/core/smart_filter_descriptors_tests.cpp
+    tests/core/smart_filter_descriptors_tests_canonical.cpp
+    tests/core/smart_filter_descriptors_tests_fixtures.cpp
     tests/core/smart_filter_pixels_tests.cpp
     tests/core/smart_objects_warp_tests.cpp
     tests/core/stroke_mask_effects_tests.cpp
@@ -967,17 +970,28 @@ if(PATCHY_BUILD_TESTS)
     add_executable(patchy_ui_visual_tests
       tests/ui/main.cpp
       tests/ui/ui_test_support.cpp
+      tests/ui/brush_pattern_palette_test_support.cpp
+      tests/ui/destructive_filters_gallery_test_support.cpp
+      tests/ui/smart_filter_test_support.cpp
       tests/ui/app_shell_tests.cpp
       tests/ui/filter_catalog_dialog_tests.cpp
       tests/ui/layer_style_gradient_tests.cpp
+      tests/ui/layer_style_gradient_tests_effects.cpp
+      tests/ui/layer_style_gradient_tests_presets.cpp
       tests/ui/destructive_filters_gallery_tests.cpp
+      tests/ui/destructive_filters_gallery_tests_dialogs_recipes.cpp
+      tests/ui/destructive_filters_gallery_tests_browse_controls.cpp
       tests/ui/pickers_notices_hotkeys_tests.cpp
       tests/ui/canvas_view_tools_tests.cpp
       tests/ui/layer_context_lifecycle_tests.cpp
       tests/ui/brush_pattern_palette_tests.cpp
+      tests/ui/brush_pattern_palette_tests_patterns_palette.cpp
+      tests/ui/brush_pattern_palette_tests_brush_dynamics.cpp
       tests/ui/layer_panel_organization_tests.cpp
       tests/ui/move_tool_processing_overlay_tests.cpp
       tests/ui/selection_marquee_lasso_tests.cpp
+      tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp
+      tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp
       tests/ui/clipboard_free_transform_tests.cpp
       tests/ui/channels_panel_tests.cpp
       tests/ui/camera_raw_heif_tests.cpp
@@ -987,8 +1001,13 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/text_editor_font_picker_tests.cpp
       tests/ui/psd_text_import_tests.cpp
       tests/ui/text_transform_commit_tests.cpp
+      tests/ui/text_transform_commit_tests_transform.cpp
+      tests/ui/text_transform_commit_tests_psd_commit.cpp
       tests/ui/flat_image_format_tests.cpp
       tests/ui/smart_filter_tests.cpp
+      tests/ui/smart_filter_tests_flows.cpp
+      tests/ui/smart_filter_tests_guards.cpp
+      tests/ui/smart_filter_tests_kinds.cpp
       tests/ui/smart_object_tests.cpp
       tests/ui/warp_tests.cpp
       tests/ui/import_print_resolution_tests.cpp

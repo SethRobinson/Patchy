@@ -302,4 +302,4 @@ Keep separate regression coverage for:
 - selection, expanding bounds, Cancel, and one-step Undo/Redo;
 - the all-filter visual contact sheet.
 
-Never re-pin an output canary as part of a structural refactor. First establish that the refactored path reproduces the old focused outputs and the pre-refactor contact-sheet SHA-256 (`FFDC09594B81EE9EE3F31773E79CE8F59E9D46C421FAD976E9135C89E19743A3`).
+Never re-pin an output canary as part of a structural refactor. First capture the contact-sheet SHA-256 from a full pre-refactor suite run of the same tree, then establish that the refactored path reproduces the old focused outputs and that captured SHA. Do not compare against a SHA recorded in an older commit: the sheet legitimately changes whenever filters are added, so a hardcoded value goes stale (an earlier revision of this note pinned the July 2026 value, which no longer matches).

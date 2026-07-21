@@ -57,7 +57,17 @@ scripts/make-readme-screenshots.ps1 (runtime "shot_readme" substring filter).
 Harness niceties still open: a PATCHY_TEST(fn) macro would kill the name/function
 double-entry; the four hand-rolled runner loops (tests/core/main.cpp,
 tests/ui/main.cpp, perf_tests, curves_clipping_preview_tests) could share one.
-(The core suite's /bigobj C1128 risk is gone now that no core test TU exceeds ~3k lines.)
+
+DONE (July 2026): the seven group TUs that had grown past ~3k lines
+(ui smart_filter x3-way, core smart_filter_descriptors, destructive_filters_gallery,
+brush_pattern_palette, text_transform_commit, selection_marquee_lasso,
+layer_style_gradient) are re-split into part files; each original
+`<group>_tests.cpp` is now a small aggregator concatenating
+`<group>_tests_partN()` vectors in the original registration order (suite order
+verified byte-identical before/after; canaries green, no re-pin). Group-shared
+helpers moved (never copied) into per-group `<group>_test_support.{hpp,cpp}`.
+patchy_core_tests still has no /bigobj, so core part files must stay under ~3k
+lines; the UI target keeps /bigobj.
 DONE (July 2026): the UI suite's crash handlers (dbghelp AV stack walker + the POSIX
 signal/terminate reporters) are ported verbatim to tests/core/main.cpp;
 curves_clipping_preview_tests now includes test_harness.hpp instead of re-defining CHECK.
