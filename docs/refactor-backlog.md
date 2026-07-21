@@ -170,10 +170,17 @@ MainWindow/adjustments internals:
   (~7k lines, needs the designed text_render module, not a file split), input plumbing,
   and the text-pipeline-dependent rasterize/merge_down. Duplication items below still
   exist; several now live in the new TUs (flip pair, fill/clear ladder -> main_window_layer_ops.cpp).
-- main_window_adjustments.cpp: the async preview worker lambda x4 (~200 lines), the
-  destructive-dialog guard/apply/restore phases x4 (~250 lines), the smart-filter
-  command guard preamble x6 (~100 lines), progress-dialog boilerplate x4 (two sites
-  bypass the existing progress_dialog_filter_progress helper).
+- DONE (July 2026): main_window_adjustments.cpp split three ways (adjustment layers
+  stay; Smart Filters/apply_filter/Liquify/gallery -> main_window_filters.cpp; the
+  four destructive dialogs -> main_window_destructive_adjustments.cpp), and the four
+  copied async preview worker lambdas now share
+  make_destructive_adjustment_preview_state in main_window_shared (Curves' whole-Layer
+  identity restore parameterized; the smart-filter/apply_filter FilterPreviewSettings
+  previews and the gallery's cancellable machine deliberately kept their own bodies).
+  progress_dialog_filter_progress was promoted to main_window_shared. Still open from
+  this entry: the destructive-dialog guard/apply/restore phases x4 (~250 lines), the
+  smart-filter command guard preamble x6 (~100 lines), and the two progress-dialog
+  sites that bypass progress_dialog_filter_progress.
 - The "busy progress dialog" pattern is copied across main_window.cpp x2 and
   main_window_palette.cpp (cross-TU — promote to main_window_shared per the split rule).
 - undo()/redo() are ~45-line mirror images; flip_active_layer_horizontal/vertical

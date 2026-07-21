@@ -8,7 +8,9 @@ Read this before moving functions, adding members to the large UI classes, split
 
 - `main_window_chrome.cpp` - frameless-window machinery, `configure_window_chrome()`, and `use_custom_window_chrome()`.
 - `main_window_palette.cpp` - palette-mode mutations, palette file I/O, panel/chip refresh, and compliance scanning.
-- `main_window_adjustments.cpp` - Filter-menu apply flow, adjustment dialogs and layers, and asynchronous pixel previews.
+- `main_window_adjustments.cpp` - adjustment-layer creation, editing, previews, and the destructive posterize/threshold/brightness-contrast appliers. The four `apply_levels/curves/hue_saturation/color_balance_adjustment` members live here because their primary callers are the `new_*_adjustment_layer` flows; the destructive dialogs call across TUs through `main_window.hpp`.
+- `main_window_filters.cpp` - Smart Filter creation/editing/stack operations, the destructive Filter-menu `apply_filter` flow, Liquify, and the Filter Gallery, including the gallery's cancellable preview state machine.
+- `main_window_destructive_adjustments.cpp` - the destructive Levels, Curves, Hue/Saturation, and Color Balance dialog flows, driven by the shared async pixel-preview launcher in `main_window_shared`.
 - `main_window_actions.cpp` - `create_actions()`, menus, the tool palette, options bar, and retranslation machinery.
 - `main_window_layer_ops.cpp` - clipboard operations, transform/warp dialogs, layer/folder operations, masks, layer styles and context menu, delete/move, merge-visible, fill/clear/stroke, selection geometry, flips, crop-to-selection, and canvas rotation. `rasterize_active_layers`, `rasterize_active_layer_styles`, and `merge_down` stay in `main_window.cpp` because they render text through the internal text pipeline.
 - `main_window_tool_options.cpp` - preset-library accessors, brush-tip import/define, per-layer controls, colors and gradients, tool activation/settings, transform-session controls, options-bar registration, selection-mode buttons, and brush-control synchronization. `current_text_color` and `sync_text_options_from_active_editor` stay in `main_window.cpp` because they use internal text helpers.
@@ -22,7 +24,12 @@ Read this before moving functions, adding members to the large UI classes, split
 - `main_window_document_dialogs.cpp` - Image Size/Canvas Size and resize/reset members. The New Document dialog lives in `src/ui/new_document_dialog.cpp`; its preset ids and `newDocument/` keys are persisted and append-only. Screen presets and `reset_document` default to 72 PPI; print presets use 300 PPI.
 - `main_window_docks.cpp` - dock creation and right-dock resize handles.
 - `main_window_history.cpp` - undo/redo, snapshots, selection history, and history-panel refresh.
-- `main_window_shared.{hpp,cpp}` - helpers used by more than one MainWindow TU.
+- `main_window_vector.cpp` - shape/fill layers, vector masks, work-path operations, and the shape-appearance preview.
+- `main_window_channels.cpp` - document channels, alpha channels, Quick Mask, and channel-panel refresh.
+- `main_window_paths.cpp` - the Paths panel, path thumbnails, and path/selection conversions.
+- `main_window_scripting.cpp` - the Scripts menu, script editor, and CLI script execution.
+- `main_window_stress_test.cpp` - the stress-test runner and its CLI entry points.
+- `main_window_shared.{hpp,cpp}` - helpers used by more than one MainWindow TU, including the async pixel-preview state/launcher and the progress-dialog filter-progress adapter.
 
 Per-file helpers stay in an anonymous namespace. When a second TU needs one, move it to `main_window_shared`, declare it in the header, and remove the old definition. A duplicated helper with a static local forks its state; an extern declaration beside a same-name anonymous-namespace definition makes calls ambiguous. The split TUs deliberately repeat `main_window.cpp`'s complete include block.
 

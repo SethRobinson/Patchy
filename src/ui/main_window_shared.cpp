@@ -6,6 +6,7 @@
 #include "psd/psd_filter_effects.hpp"
 #include "support/string_utils.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/brush_presets.hpp"
 #include "ui/dialog_utils.hpp"
@@ -13,6 +14,7 @@
 
 #include <QAbstractButton>
 #include <QAction>
+#include <QApplication>
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -29,8 +31,10 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QMetaObject>
 #include <QObject>
 #include <QPoint>
+#include <QProgressDialog>
 #include <QRegion>
 #include <QSignalBlocker>
 #include <QSpinBox>
@@ -44,11 +48,13 @@
 #include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <exception>
 #include <iostream>
 #include <limits>
 #include <optional>
 #include <set>
 #include <string_view>
+#include <utility>
 
 namespace patchy::ui {
 
@@ -110,6 +116,115 @@ QString localized_adjustment_display_name(AdjustmentKind kind) {
       return QObject::tr("Brightness/Contrast");
   }
   return QObject::tr("Adjustment");
+}
+
+LevelsAdjustment sanitized_levels_adjustment(LevelsSettings settings) {
+  const auto master = levels_master_record(settings);
+  return LevelsAdjustment{master.black_input, master.white_input, master.gamma_percent, master.black_output,
+                          master.white_output, settings.channel, clamp_levels_record(settings.red),
+                          clamp_levels_record(settings.green), clamp_levels_record(settings.blue)};
+}
+
+CurvesDialogHooks curves_canvas_hooks(CanvasWidget* canvas,
+                                      std::function<QColor(QPoint)> sample_input_color) {
+  CurvesDialogHooks hooks;
+  if (canvas == nullptr || !sample_input_color) {
+    return hooks;
+  }
+  hooks.set_canvas_mode = [canvas, sample_input_color = std::move(sample_input_color)](
+                              CurvesCanvasMode mode,
+                              std::function<void(const CurvesCanvasSample&)> sample_changed) {
+    canvas->clear_transient_read_interaction();
+    if (mode == CurvesCanvasMode::None || !sample_changed) {
+      return;
+    }
+    canvas->set_transient_read_interaction(
+        [sample_input_color, sample_changed = std::move(sample_changed)](const CanvasReadGesture& gesture) {
+          auto color = gesture.phase == CanvasReadPhase::Press
+                           ? sample_input_color(gesture.document_position)
+                           : QColor{};
+          sample_changed(CurvesCanvasSample{color, gesture});
+        },
+        Qt::CrossCursor);
+  };
+  hooks.clear_canvas_mode = [canvas] { canvas->clear_transient_read_interaction(); };
+  hooks.clipping_changed = [canvas](std::optional<CurvesClippingMode> mode, CurvesChannel channel) {
+    canvas->set_curves_clipping_preview(mode, channel);
+  };
+  return hooks;
+}
+
+FilterProgress progress_dialog_filter_progress(QProgressDialog& progress,
+                                               std::function<QString(const QString&)> label_text,
+                                               QEventLoop::ProcessEventsFlags event_flags,
+                                               std::function<void()> tick_processing) {
+  auto last_progress_value = std::make_shared<int>(-1);
+  return FilterProgress{[&progress, label_text = std::move(label_text), event_flags,
+                         tick_processing = std::move(tick_processing),
+                         last_progress_value](int completed, int total, FilterProgressStage stage) {
+    const auto value = total <= 0 ? 100 : std::clamp((completed * 100) / total, 0, 100);
+    if (value != *last_progress_value) {
+      progress.setValue(value);
+      progress.setLabelText(label_text(filter_progress_stage_text(stage)));
+      *last_progress_value = value;
+      QApplication::processEvents(event_flags);
+    }
+    if (tick_processing) {
+      tick_processing();
+    }
+    return !progress.wasCanceled();
+  }};
+}
+
+std::shared_ptr<AsyncPixelPreviewState<DestructiveAdjustmentPreviewRequest>>
+make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hooks) {
+  auto preview_state =
+      std::make_shared<AsyncPixelPreviewState<DestructiveAdjustmentPreviewRequest>>();
+  // The start closure holds the state (and the state holds the closure); the
+  // cycle is broken when the dialog calls close_async_pixel_preview, exactly
+  // like the per-dialog workers this replaces.
+  preview_state->start = [preview_state, hooks = std::move(hooks)](
+                             const DestructiveAdjustmentPreviewRequest& request) {
+    if (request.identity) {
+      preview_state->pending.reset();
+      ++preview_state->generation;
+      hooks.restore_identity();
+      return;
+    }
+
+    preview_state->in_flight = true;
+    const auto generation = ++preview_state->generation;
+    auto* app = QCoreApplication::instance();
+    run_tracked_background_worker([app, preview_state, generation, hooks, request] {
+      auto result = std::make_shared<PixelBuffer>(*hooks.original_pixels);
+      try {
+        request.render(*result);
+      } catch (const std::exception&) {
+        result.reset();
+      }
+      if (app == nullptr) {
+        return;
+      }
+      QMetaObject::invokeMethod(
+          app,
+          [preview_state, hooks, generation, result]() mutable {
+            preview_state->in_flight = false;
+            const auto has_pending = preview_state->pending.has_value();
+            if (!preview_state->closed && !has_pending &&
+                generation == preview_state->generation && result != nullptr) {
+              hooks.apply_result(std::move(*result));
+            }
+            if (!preview_state->closed && preview_state->pending.has_value() &&
+                preview_state->start) {
+              auto next = *preview_state->pending;
+              preview_state->pending.reset();
+              preview_state->start(next);
+            }
+          },
+          Qt::QueuedConnection);
+    });
+  };
+  return preview_state;
 }
 
 void clear_layer_psd_style_source(Layer& layer) {
