@@ -747,16 +747,22 @@ void ui_script_include_bundled_root_and_is_main() {
   show_window(window);
   // No script path (editor-style run): the include resolves through the
   // bundled scripts root. The included file defines its function but must not
-  // run its standalone branch (patchy.isMainScript() is false inside it).
+  // run its standalone branch (patchy.isMainScript() is false inside it), and
+  // its own top-level OPTIONS block must not clobber the includer's OPTIONS
+  // (the Breakout frozen-paddle bug: fancy-background's OPTIONS replaced
+  // paddleSpeed/lives with undefined).
   CHECK(run_script(window, QStringLiteral(R"JS(
+    var OPTIONS = { marker: 42 };
     console.log('main=' + patchy.isMainScript());
     include('Effects/fancy-background.js');
     console.log('have-fn=' + (typeof drawFancyBackground === 'function'));
+    console.log('options-marker=' + OPTIONS.marker);
     var stray = app.activeDocument.findLayer('Fancy Background');
     console.log('ran-standalone=' + (stray !== undefined));
   )JS")));
   CHECK(backlog_contains(window, QStringLiteral("main=true")));
   CHECK(backlog_contains(window, QStringLiteral("have-fn=true")));
+  CHECK(backlog_contains(window, QStringLiteral("options-marker=42")));
   CHECK(backlog_contains(window, QStringLiteral("ran-standalone=false")));
 }
 

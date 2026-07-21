@@ -98,7 +98,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `patchy` | The namespace: `patchy.ui`, `patchy.io`, `patchy.args`, `patchy.isMainScript()`, `patchy.version`, `patchy.apiVersion`. |
 | `console` | `log`, `info`, `warn`, `error`; output goes to the Script Manager console and to `--script-output`. |
 | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` / `requestAnimationFrame` | Timers, like in a browser. The run stays alive while timers are pending. |
-| `include(path)` | Runs another script file in the same scope. Relative paths resolve against the running script, then your user scripts folder, then the bundled scripts, so `include("Effects/fancy-background.js")` works from anywhere. |
+| `include(path)` | Runs another script file in the same scope. Relative paths resolve against the running script, then your user scripts folder, then the bundled scripts, so `include("Effects/fancy-background.js")` works from anywhere. Your script's `OPTIONS` object is protected: an included file's own OPTIONS block does not replace it. |
 
 ### app
 

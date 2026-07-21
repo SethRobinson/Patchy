@@ -254,6 +254,11 @@ everywhere a bundled script is resolved.
   through the shadow-override store. `patchy.isMainScript()` is false during an included
   file's top-level code (include-depth counter), so a script can be both a library and
   runnable (`Effects/fancy-background.js` is the model; Breakout include()s it).
+  include() preserves the including script's global `OPTIONS` binding across the nested
+  evaluation (saved before, restored after): every bundled script carries a top-level
+  OPTIONS block, and without this an include overwrote the includer's options with the
+  library's (the July 2026 Breakout frozen-paddle bug - paddleSpeed/lives read undefined
+  after including fancy-background).
 - **Modal helpers pause the watchdog.** Every interactive helper that blocks in a modal
   (alert, prompt, the pickers, `showDialog`, `runCommand`) wraps itself in
   `ModalWatchdogPause`, which disarms the watchdog and re-arms it with a FRESH timeout on

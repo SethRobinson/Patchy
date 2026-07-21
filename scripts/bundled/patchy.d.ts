@@ -329,6 +329,8 @@ declare function requestAnimationFrame(callback: (dt: number) => void): number;
  * scripts folder, then the bundled scripts folder - so
  * include("Effects/fancy-background.js") works from anywhere. A user copy
  * saved over a bundled script (the Script Manager's Save) is used in its place.
+ * The including script's global OPTIONS is preserved across the include: an
+ * included file's own top-level OPTIONS block never replaces it.
  */
 declare function include(path: string): void;
 

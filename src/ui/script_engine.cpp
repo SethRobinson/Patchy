@@ -787,8 +787,17 @@ void ScriptEngineHost::includeScript(const QString& path) {
   }
   run_->include_dir_stack.push_back(QFileInfo(resolved).absolutePath());
   ++run_->include_depth;
+  // include() evaluates in the shared global scope, and every bundled script
+  // carries a top-level `var OPTIONS = {...}` block - so including a library
+  // would overwrite the including script's OPTIONS with the library's
+  // (Breakout's paddleSpeed/lives went undefined when fancy-background's
+  // OPTIONS replaced them). The included file still sees its own OPTIONS while
+  // its top-level code runs; the includer's binding is restored afterwards.
+  const QJSValue saved_options =
+      engine_->globalObject().property(QStringLiteral("OPTIONS"));
   const QJSValue result =
       engine_->evaluate(QString::fromUtf8(file.readAll()), resolved, 1);
+  engine_->globalObject().setProperty(QStringLiteral("OPTIONS"), saved_options);
   --run_->include_depth;
   run_->include_dir_stack.pop_back();
   if (result.isError()) {
