@@ -535,7 +535,11 @@ if(PATCHY_BUILD_APP)
     # copies into the shared output directory race under parallel Ninja. Only scripts/bundled
     # ships; the rest of scripts/ is dev tooling and must never be staged next to the binary.
     set(PATCHY_BUNDLED_SCRIPTS_DIR "${PROJECT_SOURCE_DIR}/scripts/bundled")
-    if(EXISTS "${PATCHY_BUNDLED_SCRIPTS_DIR}")
+    # In-source builds (the Flatpak's cmake-ninja module configures in /run/build/patchy)
+    # must skip this target: there CMAKE_BINARY_DIR/scripts IS the source scripts/ tree,
+    # so the clean step would delete scripts/bundled out from under its own copy.
+    # Installed layouts get the scripts through install(DIRECTORY ...) below instead.
+    if(EXISTS "${PATCHY_BUNDLED_SCRIPTS_DIR}" AND NOT CMAKE_BINARY_DIR STREQUAL PROJECT_SOURCE_DIR)
       file(GLOB_RECURSE PATCHY_BUNDLED_SCRIPT_FILES CONFIGURE_DEPENDS
         "${PATCHY_BUNDLED_SCRIPTS_DIR}/*")
       set(PATCHY_SCRIPTS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_bundled_scripts.stamp")
