@@ -84,6 +84,8 @@ using ThresholdSettings = ThresholdAdjustment;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 struct ScannerAcquireResult;
 struct UpdateInfo;
+// create_actions() build-phase context (main_window_actions_internal.hpp).
+struct ActionBuildContext;
 class BrushDynamicsButton;
 class BrushTipLibrary;
 class BrushTipPicker;
@@ -296,6 +298,16 @@ private:
   [[nodiscard]] StressReport run_stress_test_scenario(const StressTestOptions& options);
 
   void create_actions();
+  // create_actions() build phases, called in the historical construction order
+  // (menu bar, tool palette, Options bar, translation binding). The shared
+  // ActionBuildContext is defined in main_window_actions_internal.hpp; the
+  // builders live in main_window_actions_menus.cpp,
+  // main_window_actions_tool_palette.cpp and main_window_actions_options_bar.cpp,
+  // while bind_action_translations stays in main_window_actions.cpp.
+  void build_menu_bar_actions(ActionBuildContext& ctx);
+  void build_tool_palette(ActionBuildContext& ctx);
+  void build_options_bar(ActionBuildContext& ctx);
+  void bind_action_translations(ActionBuildContext& ctx);
   void configure_window_chrome();
   void position_window_chrome_controls();
   void ensure_native_resizable_frame();

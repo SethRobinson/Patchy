@@ -649,6 +649,10 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window.hpp
       src/ui/main_window.cpp
       src/ui/main_window_actions.cpp
+      src/ui/main_window_actions_internal.hpp
+      src/ui/main_window_actions_menus.cpp
+      src/ui/main_window_actions_options_bar.cpp
+      src/ui/main_window_actions_tool_palette.cpp
       src/ui/main_window_adjustments.cpp
       src/ui/main_window_channels.cpp
       src/ui/main_window_chrome.cpp

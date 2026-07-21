@@ -244,6 +244,14 @@ MainWindow/adjustments internals:
   both-sides helpers (clamp_levels_settings, AdjustmentPreviewRequest) are declared
   in ui/filter_workflows_internal.hpp (never include it outside those two TUs).
 
+- formats/af_document_io.cpp (~3.5k lines): the Affinity importer is one TU covering
+  container parsing, object decoding, and document assembly; subdivide along those
+  seams when it next needs real work. Deliberately deferred from the July 2026
+  refactor pass.
+- ui/main_window_stress_test.cpp (~3.1k lines): the stress runner's scenario table,
+  step execution, and reporting could split, but stress-test step ids are persisted
+  identifiers and the runner is cohesive; deferred from the July 2026 pass.
+
 ## Megafunction dialogs (defer until the next feature forces them open)
 
 - layer_style_dialog.cpp: request_layer_style_settings is ONE ~3,500-line function
