@@ -452,7 +452,7 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
     : QDialog(&window), window_(window), host_(host) {
   setObjectName(QStringLiteral("scriptEditorDialog"));
   setWindowTitle(tr("Script Manager"));
-  resize(900, 620);
+  resize(960, 620);
 
   auto* root = new QVBoxLayout(this);
 
@@ -552,7 +552,9 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   horizontal->setStretchFactor(1, 4);
   // Two-line rows want more than the stretch-factor default (~180px) so
   // display names survive without eliding.
-  horizontal->setSizes({240, 660});
+  // Wide enough that the two-line rows (name over filename, plus the modified
+  // tag and window badge) show typical bundled-script names without eliding.
+  horizontal->setSizes({310, 650});
   root->addWidget(horizontal, 1);
 
   connect(run_button_, &QPushButton::clicked, this, [this] { run_current(); });
