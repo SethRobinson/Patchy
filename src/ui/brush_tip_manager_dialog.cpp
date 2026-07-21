@@ -6,6 +6,8 @@
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/preset_manager_scaffold.hpp"
+#include "ui/preset_tree_widget.hpp"
 
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -18,23 +20,17 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPushButton>
-#include <QSet>
-#include <QShortcut>
 #include <QSpinBox>
 #include <QTimer>
-#include <QTreeWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <cmath>
-#include <map>
 #include <memory>
 
 namespace patchy::ui {
 
 namespace {
-
-constexpr int kFolderMarkerRole = Qt::UserRole + 1;
 
 // Paints an S-curve stroke with the actual stamping engine into a scratch document, so the
 // preview shows exactly what the canvas will produce (spacing, antialiasing, build-up cap off).
@@ -152,40 +148,42 @@ private:
   QImage stroke_;
 };
 
-[[nodiscard]] QString tree_item_tip_id(const QTreeWidgetItem* item) {
-  return item != nullptr && !item->data(0, kFolderMarkerRole).toBool()
-             ? item->data(0, Qt::UserRole).toString()
-             : QString();
-}
-
 }  // namespace
 
 void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const QString& initial_tip_id,
                                const std::function<QImage()>& capture_define_source,
                                const std::function<void(const QString&)>& activate_tip) {
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("brushTipManagerDialog"));
-  dialog.setWindowTitle(QObject::tr("Brush Tips"));
-  dialog.setModal(true);
+  PresetManagerScaffold scaffold(dialog, QStringLiteral("brushTipManagerDialog"),
+                                 QObject::tr("Brush Tips"));
 
-  auto* main_layout = new QHBoxLayout(&dialog);
-
-  auto* tree = new QTreeWidget(&dialog);
+  auto* tree = new PresetTreeWidget(&dialog);
   tree->setObjectName(QStringLiteral("brushTipManagerTree"));
-  tree->setHeaderHidden(true);
-  tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
   tree->setIconSize(QSize(40, 40));
-  tree->setIndentation(14);
   // No uniform row heights: Qt would size every row from the first one (a short folder row),
   // squashing the 40px thumbnails into overlapping slivers.
-  tree->setMinimumWidth(320);
-  main_layout->addWidget(tree, 1);
-
-  auto* right = new QVBoxLayout();
-  main_layout->addLayout(right, 2);
+  tree->set_entry_row_height(46);  // room for the 40px thumbnail
+  tree->set_reload_fallback(PresetTreeWidget::ReloadFallback::first_entry_when_expanded);
+  tree->set_folder_label_callback([](const QString& folder, int count) {
+    return QObject::tr("%1 (%2)").arg(folder).arg(count);
+  });
+  tree->set_entries_callback([&library] {
+    std::vector<PresetTreeEntry> rows;
+    for (const auto& entry : library.entries()) {
+      auto tooltip =
+          QObject::tr("%1 (%2×%3)").arg(entry.name).arg(entry.size.width()).arg(entry.size.height());
+      if (brush_tip_entry_has_dynamics(entry)) {
+        tooltip += QObject::tr(" • dynamics");
+      }
+      rows.push_back(
+          {entry.id, entry.name, QIcon(brush_tip_thumbnail_with_badge(entry)), tooltip, entry.folder});
+    }
+    return rows;
+  });
+  scaffold.add_tree(tree, 320);
 
   auto* preview = new BrushStrokePreview(&dialog);
-  right->addWidget(preview);
+  scaffold.right()->addWidget(preview);
 
   auto* form = new QFormLayout();
   auto* name_edit = new QLineEdit(&dialog);
@@ -213,9 +211,8 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
   auto* size_label = new QLabel(&dialog);
   size_label->setObjectName(QStringLiteral("brushTipSizeLabel"));
   form->addRow(QObject::tr("Size:"), size_label);
-  right->addLayout(form);
+  scaffold.right()->addLayout(form);
 
-  auto* action_row = new QHBoxLayout();
   auto* import_button = new QPushButton(QObject::tr("Import .abr…"), &dialog);
   import_button->setObjectName(QStringLiteral("brushTipManagerImportButton"));
   auto* define_button = new QPushButton(QObject::tr("Define from Selection"), &dialog);
@@ -228,104 +225,27 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
   auto* delete_button = new QPushButton(QObject::tr("Delete"), &dialog);
   delete_button->setObjectName(QStringLiteral("brushTipManagerDeleteButton"));
   delete_button->setToolTip(QObject::tr("Delete the selected brush tips or folders (Del)"));
-  action_row->addWidget(import_button);
-  action_row->addWidget(define_button);
-  action_row->addStretch(1);
-  action_row->addWidget(duplicate_button);
-  action_row->addWidget(delete_button);
-  right->addLayout(action_row);
+  scaffold.add_action_row({import_button, define_button}, {duplicate_button, delete_button});
   auto* restore_row = new QHBoxLayout();
   auto* restore_button = new QPushButton(QObject::tr("Restore Default Brushes"), &dialog);
   restore_button->setObjectName(QStringLiteral("brushTipManagerRestoreButton"));
   restore_button->setToolTip(QObject::tr("Bring back any deleted built-in brush tips"));
   restore_row->addWidget(restore_button);
   restore_row->addStretch(1);
-  right->addLayout(restore_row);
-  right->addStretch(1);
+  scaffold.right()->addLayout(restore_row);
+  scaffold.right()->addStretch(1);
 
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-  auto* use_button = buttons->addButton(QObject::tr("Use Brush"), QDialogButtonBox::AcceptRole);
-  use_button->setObjectName(QStringLiteral("brushTipManagerUseButton"));
-  right->addWidget(buttons);
-
-  QSet<QString> collapsed_folders;
-
-  // Every selected tip id; a selected folder row stands for all of its children.
-  const auto collect_selected_tip_ids = [&]() -> QStringList {
-    QStringList ids;
-    const auto add_unique = [&ids](const QString& id) {
-      if (!id.isEmpty() && !ids.contains(id)) {
-        ids.append(id);
-      }
-    };
-    for (const auto* item : tree->selectedItems()) {
-      if (item->data(0, kFolderMarkerRole).toBool()) {
-        for (int child = 0; child < item->childCount(); ++child) {
-          add_unique(tree_item_tip_id(item->child(child)));
+  auto* use_button = scaffold.add_dialog_buttons(
+      QObject::tr("Use Brush"), QStringLiteral("brushTipManagerUseButton"), [&] {
+        const auto ids = tree->selected_ids();
+        if (ids.size() == 1 && activate_tip) {
+          activate_tip(ids.front());
         }
-      } else {
-        add_unique(tree_item_tip_id(item));
-      }
-    }
-    return ids;
-  };
-
-  const auto reload_tree = [&](const QString& select_id) {
-    const QSignalBlocker blocker(tree);
-    tree->clear();
-    QTreeWidgetItem* select_item = nullptr;
-    std::map<QString, QTreeWidgetItem*> folder_items;
-    for (const auto& entry : library.entries()) {
-      QTreeWidgetItem* parent_item = nullptr;
-      if (!entry.folder.isEmpty()) {
-        auto found = folder_items.find(entry.folder);
-        if (found == folder_items.end()) {
-          auto* folder_item = new QTreeWidgetItem(tree);
-          folder_item->setData(0, kFolderMarkerRole, true);
-          folder_item->setData(0, Qt::UserRole, entry.folder);
-          auto font = folder_item->font(0);
-          font.setBold(true);
-          folder_item->setFont(0, font);
-          found = folder_items.emplace(entry.folder, folder_item).first;
-        }
-        parent_item = found->second;
-      }
-      auto* item = parent_item != nullptr ? new QTreeWidgetItem(parent_item) : new QTreeWidgetItem(tree);
-      item->setText(0, entry.name);
-      item->setIcon(0, QIcon(brush_tip_thumbnail_with_badge(entry)));
-      item->setSizeHint(0, QSize(0, 46));  // room for the 40px thumbnail
-      item->setData(0, Qt::UserRole, entry.id);
-      auto tooltip = QObject::tr("%1 (%2×%3)").arg(entry.name).arg(entry.size.width()).arg(entry.size.height());
-      if (brush_tip_entry_has_dynamics(entry)) {
-        tooltip += QObject::tr(" • dynamics");
-      }
-      item->setToolTip(0, tooltip);
-      if (entry.id == select_id) {
-        select_item = item;
-      }
-    }
-    for (const auto& [folder, item] : folder_items) {
-      item->setText(0, QObject::tr("%1 (%2)").arg(folder).arg(item->childCount()));
-      item->setExpanded(!collapsed_folders.contains(folder));
-    }
-    if (select_item != nullptr) {
-      if (select_item->parent() != nullptr) {
-        select_item->parent()->setExpanded(true);
-      }
-      tree->setCurrentItem(select_item);
-      tree->scrollToItem(select_item);
-    } else if (tree->topLevelItemCount() > 0) {
-      auto* first = tree->topLevelItem(0);
-      if (first->data(0, kFolderMarkerRole).toBool() && first->childCount() > 0 && first->isExpanded()) {
-        tree->setCurrentItem(first->child(0));
-      } else {
-        tree->setCurrentItem(first);
-      }
-    }
-  };
+        dialog.accept();
+      });
 
   const auto refresh_details = [&] {
-    const auto ids = collect_selected_tip_ids();
+    const auto ids = tree->selected_ids();
     const auto* entry = ids.size() == 1 ? library.find_entry(ids.front()) : nullptr;
     const auto single = entry != nullptr;
     const auto any = !ids.isEmpty();
@@ -382,18 +302,8 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     }
   };
 
-  const auto remember_collapse_state = [&] {
-    collapsed_folders.clear();
-    for (int index = 0; index < tree->topLevelItemCount(); ++index) {
-      const auto* item = tree->topLevelItem(index);
-      if (item->data(0, kFolderMarkerRole).toBool() && !item->isExpanded()) {
-        collapsed_folders.insert(item->data(0, Qt::UserRole).toString());
-      }
-    }
-  };
-
   const auto delete_selected = [&] {
-    const auto ids = collect_selected_tip_ids();
+    const auto ids = tree->selected_ids();
     if (ids.isEmpty()) {
       return;
     }
@@ -408,38 +318,34 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     if (answer != QMessageBox::Yes) {
       return;
     }
-    remember_collapse_state();
+    tree->remember_collapsed_folders();
     library.remove_tips(ids);
-    reload_tree(QString());
+    tree->reload(QString());
     refresh_details();
   };
 
-  QObject::connect(tree, &QTreeWidget::itemSelectionChanged, &dialog, [&] { refresh_details(); });
-  QObject::connect(tree, &QTreeWidget::itemDoubleClicked, &dialog, [&](QTreeWidgetItem* item, int) {
-    const auto id = tree_item_tip_id(item);
-    if (!id.isEmpty() && activate_tip) {
+  scaffold.connect_selection_changed([&] { refresh_details(); });
+  tree->set_entry_double_clicked_callback([&](const QString& id) {
+    if (activate_tip) {
       activate_tip(id);
       dialog.accept();
     }
   });
-  auto* delete_shortcut = new QShortcut(QKeySequence::Delete, tree);
-  delete_shortcut->setContext(Qt::WidgetWithChildrenShortcut);
-  QObject::connect(delete_shortcut, &QShortcut::activated, &dialog, [&] { delete_selected(); });
-  QObject::connect(delete_button, &QPushButton::clicked, &dialog, [&] { delete_selected(); });
+  scaffold.add_delete_plumbing(delete_button, [&] { delete_selected(); });
 
   QObject::connect(name_edit, &QLineEdit::editingFinished, &dialog, [&] {
-    const auto ids = collect_selected_tip_ids();
+    const auto ids = tree->selected_ids();
     if (ids.size() != 1 || name_edit->text().trimmed().isEmpty()) {
       return;
     }
     if (library.find_entry(ids.front()) != nullptr && library.rename_tip(ids.front(), name_edit->text())) {
-      remember_collapse_state();
-      reload_tree(ids.front());
+      tree->remember_collapsed_folders();
+      tree->reload(ids.front());
       refresh_details();
     }
   });
   QObject::connect(folder_edit, &QLineEdit::editingFinished, &dialog, [&] {
-    const auto ids = collect_selected_tip_ids();
+    const auto ids = tree->selected_ids();
     if (ids.isEmpty()) {
       return;
     }
@@ -449,13 +355,13 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
       moved = library.set_tip_folder(id, folder) || moved;
     }
     if (moved) {
-      remember_collapse_state();
-      reload_tree(ids.front());
+      tree->remember_collapsed_folders();
+      tree->reload(ids.front());
       refresh_details();
     }
   });
   QObject::connect(spacing_spin, &QSpinBox::valueChanged, &dialog, [&](int value) {
-    const auto ids = collect_selected_tip_ids();
+    const auto ids = tree->selected_ids();
     for (const auto& id : ids) {
       library.set_tip_spacing(id, static_cast<double>(value) / 100.0);
     }
@@ -464,7 +370,7 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     }
   });
   QObject::connect(dynamics_button, &QPushButton::clicked, &dialog, [&] {
-    const auto ids = collect_selected_tip_ids();
+    const auto ids = tree->selected_ids();
     if (ids.size() != 1) {
       return;
     }
@@ -502,8 +408,8 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
       apply_timer->stop();
       apply();  // flush an edit still inside the debounce window
     }
-    remember_collapse_state();
-    reload_tree(tip_id);  // refresh the dynamics badge
+    tree->remember_collapsed_folders();
+    tree->reload(tip_id);  // refresh the dynamics badge
     refresh_details();
   });
   QObject::connect(import_button, &QPushButton::clicked, &dialog, [&] {
@@ -520,8 +426,8 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
       QMessageBox::warning(&dialog, QObject::tr("Import Brushes"), error);
       return;
     }
-    remember_collapse_state();
-    reload_tree(first_id);
+    tree->remember_collapsed_folders();
+    tree->reload(first_id);
     refresh_details();
     if (!warnings.isEmpty()) {
       const auto imported = static_cast<int>(library.entries().size() - before);
@@ -554,8 +460,8 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
                            QObject::tr("The selection is empty or too large to use as a brush tip."));
       return;
     }
-    remember_collapse_state();
-    reload_tree(id);
+    tree->remember_collapsed_folders();
+    tree->reload(id);
     refresh_details();
   });
   QObject::connect(restore_button, &QPushButton::clicked, &dialog, [&] {
@@ -563,9 +469,9 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     // Also un-mess customized defaults: spacing, tip shape, and dynamics go back to factory.
     const auto reset = library.reset_default_tips_to_factory();
     if (restored > 0 || reset > 0) {
-      remember_collapse_state();
-      const auto selected = collect_selected_tip_ids();
-      reload_tree(selected.isEmpty() ? QString() : selected.front());
+      tree->remember_collapsed_folders();
+      const auto selected = tree->selected_ids();
+      tree->reload(selected.isEmpty() ? QString() : selected.front());
       refresh_details();
       QStringList parts;
       if (restored > 0) {
@@ -582,7 +488,7 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     }
   });
   QObject::connect(duplicate_button, &QPushButton::clicked, &dialog, [&] {
-    const auto ids = collect_selected_tip_ids();
+    const auto ids = tree->selected_ids();
     const auto* entry = ids.size() == 1 ? library.find_entry(ids.front()) : nullptr;
     if (entry == nullptr) {
       return;
@@ -594,22 +500,14 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     const auto new_id = library.add_tip(QObject::tr("%1 Copy").arg(entry->name),
                                         coverage_image_from_brush_tip(*tip), entry->spacing, entry->folder);
     if (!new_id.isEmpty()) {
-      remember_collapse_state();
-      reload_tree(new_id);
+      tree->remember_collapsed_folders();
+      tree->reload(new_id);
       refresh_details();
     }
   });
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&] {
-    const auto ids = collect_selected_tip_ids();
-    if (ids.size() == 1 && activate_tip) {
-      activate_tip(ids.front());
-    }
-    dialog.accept();
-  });
 
   define_button->setEnabled(static_cast<bool>(capture_define_source));
-  reload_tree(initial_tip_id);
+  tree->reload(initial_tip_id);
   refresh_details();
   // Applied after every child exists; unprefixed sub-control selectors (see dialog_utils note).
   dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());

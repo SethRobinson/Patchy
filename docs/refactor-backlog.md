@@ -92,12 +92,17 @@ Preset libraries and managers (~1,900 lines total, the biggest win):
   pattern_tiles_equal (that file is its own backlog entry). Verified byte-identical
   sidecar/payload output across add/rename/set-folder/restore/reset on all five
   libraries before and after the extraction.
-- Four *_manager_dialog.cpp files are structural quadruplets (tree + details form +
-  Import/Export/Duplicate/Delete/Restore + Close/Use); use_selected is diff-identical
-  between style and pattern managers. Suggested: a scaffold builder taking library
-  callbacks + objectName prefix (objectNames are load-bearing for UI tests). Pattern
-  and brush managers also hand-roll reload_tree ~95% identical to StyleBrowserWidget::reload
-  — generalize StyleBrowserWidget into a PresetTreeWidget.
+- DONE (July 2026): the manager-dialog quadruplets now share
+  ui/preset_manager_scaffold.{hpp,cpp} (dialog shell, action rows, Del plumbing, the
+  diff-identical use_selected) and ui/preset_tree_widget.{hpp,cpp} (the generalized
+  StyleBrowserWidget reload/selection/collapse tree; StyleBrowserWidget remains as a
+  thin adapter with its exact API/signals for layer_style_dialog). Every objectName,
+  translation context, and per-dialog delta was preserved verbatim: pattern AND brush
+  managers keep their explicit remember-collapse-before-mutation (both had it, not
+  just pattern), the style browser keeps remember-at-reload, and the gradient manager
+  keeps its structurally different local tree (non-modal, nested slash-path folders,
+  expanded-set semantics) sharing only the scaffold's button_row. Suite-verified
+  against the pre-refactor baseline; net +~100 lines traded for single-sourcing.
 - Small: the brush "paper chip" thumbnail drawn twice with mutual "keep in sync"
   comments. (Done July 2026: the popup screen-edge clamping trio now shares
   dialog_utils position_popup_below, which also fixed the previously unclamped

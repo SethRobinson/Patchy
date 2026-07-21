@@ -1,8 +1,9 @@
 #pragma once
 
+#include "ui/preset_tree_widget.hpp"
+
 #include <QString>
 #include <QStringList>
-#include <QTreeWidget>
 
 namespace patchy::ui {
 
@@ -13,8 +14,9 @@ class StyleLibrary;
 // thumbnails, collapse-state preservation across reloads, and a context menu
 // whose "Export to .asl..." exports the selection (a folder row exports its
 // contents; the default filename comes from the folder). The widget reloads
-// itself on StyleLibrary::changed().
-class StyleBrowserWidget : public QTreeWidget {
+// itself on StyleLibrary::changed(). A thin adapter over PresetTreeWidget:
+// the tree mechanics live there, the style strings/signals/export menu here.
+class StyleBrowserWidget : public PresetTreeWidget {
   Q_OBJECT
 
 public:
@@ -23,7 +25,6 @@ public:
   void set_icon_extent(int extent);
   // Shows a "No Style" first row (the dialog page's clear-all-effects entry).
   void set_show_no_style_entry(bool show);
-  void reload(const QString& select_storage_id = {});
 
   // Storage id of the current row; empty for folder rows and No Style.
   [[nodiscard]] QString current_storage_id() const;
@@ -51,7 +52,6 @@ private:
   StyleLibrary* library_{nullptr};
   int icon_extent_{48};
   bool show_no_style_entry_{false};
-  QStringList collapsed_folders_;
 };
 
 }  // namespace patchy::ui

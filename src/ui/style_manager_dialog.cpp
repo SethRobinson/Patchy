@@ -1,45 +1,40 @@
 #include "ui/style_manager_dialog.hpp"
 
+#include "ui/preset_manager_scaffold.hpp"
 #include "ui/style_browser.hpp"
 #include "ui/style_library.hpp"
 
 #include <QDialog>
-#include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QShortcut>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace patchy::ui {
 
 QString request_style_manager(QWidget* parent, StyleLibrary& library,
                               const QString& initial_style_id) {
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("styleManagerDialog"));
-  dialog.setWindowTitle(QObject::tr("Styles"));
-  dialog.setModal(true);
+  PresetManagerScaffold scaffold(dialog, QStringLiteral("styleManagerDialog"),
+                                 QObject::tr("Styles"));
 
-  auto* main_layout = new QHBoxLayout(&dialog);
   auto* tree = new StyleBrowserWidget(&library, &dialog);
   tree->setObjectName(QStringLiteral("styleManagerTree"));
   tree->set_icon_extent(40);
-  tree->setMinimumWidth(300);
-  main_layout->addWidget(tree, 1);
+  scaffold.add_tree(tree, 300);
 
-  auto* right = new QVBoxLayout();
-  main_layout->addLayout(right, 2);
   auto* preview = new QLabel(&dialog);
   preview->setObjectName(QStringLiteral("styleManagerPreview"));
   preview->setMinimumSize(220, 200);
   preview->setAlignment(Qt::AlignCenter);
-  right->addWidget(preview, 1);
+  scaffold.right()->addWidget(preview, 1);
 
   auto* form = new QFormLayout();
   auto* name_edit = new QLineEdit(&dialog);
@@ -55,9 +50,8 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
   effects_label->setObjectName(QStringLiteral("styleManagerEffectsLabel"));
   effects_label->setWordWrap(true);
   form->addRow(QObject::tr("Contains:"), effects_label);
-  right->addLayout(form);
+  scaffold.right()->addLayout(form);
 
-  auto* action_row = new QHBoxLayout();
   auto* import_button = new QPushButton(QObject::tr("Import .asl…"), &dialog);
   import_button->setObjectName(QStringLiteral("styleManagerImportButton"));
   auto* export_button = new QPushButton(QObject::tr("Export…"), &dialog);
@@ -68,25 +62,21 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
   auto* delete_button = new QPushButton(QObject::tr("Delete"), &dialog);
   delete_button->setObjectName(QStringLiteral("styleManagerDeleteButton"));
   delete_button->setToolTip(QObject::tr("Delete the selected styles or folders (Del)"));
-  action_row->addWidget(import_button);
-  action_row->addWidget(export_button);
-  action_row->addStretch(1);
-  action_row->addWidget(duplicate_button);
-  action_row->addWidget(delete_button);
-  right->addLayout(action_row);
+  scaffold.add_action_row({import_button, export_button}, {duplicate_button, delete_button});
 
   auto* restore_button = new QPushButton(QObject::tr("Restore Default Styles"), &dialog);
   restore_button->setObjectName(QStringLiteral("styleManagerRestoreButton"));
   restore_button->setToolTip(
       QObject::tr("Bring back deleted built-in styles and reset changed defaults"));
-  right->addWidget(restore_button, 0, Qt::AlignLeft);
-
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-  auto* use_button = buttons->addButton(QObject::tr("Use Style"), QDialogButtonBox::AcceptRole);
-  use_button->setObjectName(QStringLiteral("styleManagerUseButton"));
-  right->addWidget(buttons);
+  scaffold.add_restore_button_left(restore_button);
 
   QString selected_storage_id;
+  const auto use_selected = scaffold.single_selection_accept(
+      [tree] { return tree->selected_storage_ids(); },
+      [&library](const QString& id) { return library.find_entry(id) != nullptr; },
+      selected_storage_id);
+  auto* use_button = scaffold.add_dialog_buttons(
+      QObject::tr("Use Style"), QStringLiteral("styleManagerUseButton"), use_selected);
 
   const auto show_update_failure = [&] {
     QMessageBox::warning(
@@ -167,16 +157,6 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
     }
   };
 
-  const auto use_selected = [&] {
-    const auto ids = tree->selected_storage_ids();
-    const auto* entry = ids.size() == 1 ? library.find_entry(ids.front()) : nullptr;
-    if (entry == nullptr) {
-      return;
-    }
-    selected_storage_id = entry->storage_id;
-    dialog.accept();
-  };
-
   const auto delete_selected = [&] {
     const auto ids = tree->selected_storage_ids();
     if (ids.isEmpty()) {
@@ -204,13 +184,10 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
     }
   };
 
-  QObject::connect(tree, &QTreeWidget::itemSelectionChanged, &dialog, refresh_details);
+  scaffold.connect_selection_changed(refresh_details);
   QObject::connect(tree, &StyleBrowserWidget::style_double_clicked, &dialog,
                    [&](const QString&) { use_selected(); });
-  auto* delete_shortcut = new QShortcut(QKeySequence::Delete, tree);
-  delete_shortcut->setContext(Qt::WidgetWithChildrenShortcut);
-  QObject::connect(delete_shortcut, &QShortcut::activated, &dialog, delete_selected);
-  QObject::connect(delete_button, &QPushButton::clicked, &dialog, delete_selected);
+  scaffold.add_delete_plumbing(delete_button, delete_selected);
   QObject::connect(export_button, &QPushButton::clicked, &dialog,
                    [tree] { tree->export_selection(); });
 
@@ -310,8 +287,6 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
                                parts.join(QLatin1Char('\n')));
     }
   });
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, use_selected);
 
   QString initial_storage_id;
   if (const auto* entry = library.find_entry_by_style_id(initial_style_id); entry != nullptr) {

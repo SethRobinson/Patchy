@@ -1,12 +1,12 @@
 #include "ui/pattern_manager_dialog.hpp"
 
 #include "ui/pattern_library.hpp"
+#include "ui/preset_manager_scaffold.hpp"
+#include "ui/preset_tree_widget.hpp"
 
 #include <QDialog>
-#include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFormLayout>
-#include <QHBoxLayout>
 #include <QImage>
 #include <QImageReader>
 #include <QLabel>
@@ -17,23 +17,18 @@
 #include <QPixmap>
 #include <QPushButton>
 #include <QSet>
-#include <QShortcut>
 #include <QSignalBlocker>
 #include <QSizePolicy>
-#include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
 #include <algorithm>
 #include <cmath>
-#include <map>
 #include <utility>
 
 namespace patchy::ui {
 
 namespace {
-
-constexpr int kFolderMarkerRole = Qt::UserRole + 1;
 
 // Tiles the pattern centered on the widget, outlining the tile under the viewport
 // center exactly like the Seamless Tile Preview so wrap boundaries stay findable.
@@ -252,36 +247,40 @@ private:
   Qt::MouseButton drag_button_{Qt::NoButton};
 };
 
-[[nodiscard]] QString tree_item_storage_id(const QTreeWidgetItem* item) {
-  return item != nullptr && !item->data(0, kFolderMarkerRole).toBool()
-             ? item->data(0, Qt::UserRole).toString()
-             : QString();
-}
-
 }  // namespace
 
 QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
                                 const QString& initial_pattern_id,
                                 std::function<void(const QString& name, const PixelBuffer& tile)> open_as_image) {
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("patternManagerDialog"));
-  dialog.setWindowTitle(QObject::tr("Patterns"));
-  dialog.setModal(true);
+  PresetManagerScaffold scaffold(dialog, QStringLiteral("patternManagerDialog"),
+                                 QObject::tr("Patterns"));
 
-  auto* main_layout = new QHBoxLayout(&dialog);
-  auto* tree = new QTreeWidget(&dialog);
+  auto* tree = new PresetTreeWidget(&dialog);
   tree->setObjectName(QStringLiteral("patternManagerTree"));
-  tree->setHeaderHidden(true);
-  tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
   tree->setIconSize(QSize(40, 40));
-  tree->setIndentation(14);
-  tree->setMinimumWidth(300);
-  main_layout->addWidget(tree, 1);
+  tree->set_entry_row_height(46);
+  tree->set_reload_fallback(PresetTreeWidget::ReloadFallback::first_entry_expanding);
+  tree->set_folder_label_callback([](const QString& folder, int count) {
+    return QObject::tr("%1 (%2)").arg(folder).arg(count);
+  });
+  tree->set_entries_callback([&library] {
+    std::vector<PresetTreeEntry> rows;
+    for (const auto& entry : library.entries()) {
+      rows.push_back({entry.storage_id, pattern_library_entry_display_name(entry),
+                      QIcon(entry.thumbnail),
+                      QObject::tr("%1 (%2×%3)")
+                          .arg(pattern_library_entry_display_name(entry))
+                          .arg(entry.size.width())
+                          .arg(entry.size.height()),
+                      entry.folder});
+    }
+    return rows;
+  });
+  scaffold.add_tree(tree, 300);
 
-  auto* right = new QVBoxLayout();
-  main_layout->addLayout(right, 2);
   auto* preview = new PatternPreview(&dialog);
-  right->addWidget(preview, 1);
+  scaffold.right()->addWidget(preview, 1);
 
   auto* form = new QFormLayout();
   auto* name_edit = new QLineEdit(&dialog);
@@ -296,9 +295,8 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
   auto* size_label = new QLabel(&dialog);
   size_label->setObjectName(QStringLiteral("patternManagerSizeLabel"));
   form->addRow(QObject::tr("Size:"), size_label);
-  right->addLayout(form);
+  scaffold.right()->addLayout(form);
 
-  auto* action_row = new QHBoxLayout();
   auto* import_button = new QPushButton(QObject::tr("Import…"), &dialog);
   import_button->setObjectName(QStringLiteral("patternManagerImportButton"));
   import_button->setToolTip(QObject::tr("Import Photoshop .pat pattern files or images"));
@@ -311,26 +309,21 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
   auto* delete_button = new QPushButton(QObject::tr("Delete"), &dialog);
   delete_button->setObjectName(QStringLiteral("patternManagerDeleteButton"));
   delete_button->setToolTip(QObject::tr("Delete the selected patterns or folders (Del)"));
-  action_row->addWidget(import_button);
-  action_row->addWidget(open_image_button);
-  action_row->addStretch(1);
-  action_row->addWidget(duplicate_button);
-  action_row->addWidget(delete_button);
-  right->addLayout(action_row);
+  scaffold.add_action_row({import_button, open_image_button}, {duplicate_button, delete_button});
 
   auto* restore_button = new QPushButton(QObject::tr("Restore Default Patterns"), &dialog);
   restore_button->setObjectName(QStringLiteral("patternManagerRestoreButton"));
   restore_button->setToolTip(QObject::tr("Bring back deleted built-in patterns and reset changed defaults"));
-  right->addWidget(restore_button, 0, Qt::AlignLeft);
+  scaffold.add_restore_button_left(restore_button);
 
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-  auto* use_button = buttons->addButton(QObject::tr("Use Pattern"), QDialogButtonBox::AcceptRole);
-  use_button->setObjectName(QStringLiteral("patternManagerUseButton"));
-  right->addWidget(buttons);
-
-  QSet<QString> collapsed_folders;
   QSet<QString> requested_open_ids;  // one queued document per pattern per dialog run
   QString selected_storage_id;
+  const auto use_selected = scaffold.single_selection_accept(
+      [tree] { return tree->selected_ids(); },
+      [&library](const QString& id) { return library.find_entry(id) != nullptr; },
+      selected_storage_id);
+  auto* use_button = scaffold.add_dialog_buttons(
+      QObject::tr("Use Pattern"), QStringLiteral("patternManagerUseButton"), use_selected);
 
   const auto show_update_failure = [&] {
     QMessageBox::warning(
@@ -338,92 +331,8 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
         QObject::tr("Could not update the selected pattern. Check that the pattern library folder is writable."));
   };
 
-  const auto collect_selected_storage_ids = [&]() {
-    QStringList ids;
-    const auto add_unique = [&ids](const QString& id) {
-      if (!id.isEmpty() && !ids.contains(id)) {
-        ids.append(id);
-      }
-    };
-    for (const auto* item : tree->selectedItems()) {
-      if (item->data(0, kFolderMarkerRole).toBool()) {
-        for (int child = 0; child < item->childCount(); ++child) {
-          add_unique(tree_item_storage_id(item->child(child)));
-        }
-      } else {
-        add_unique(tree_item_storage_id(item));
-      }
-    }
-    return ids;
-  };
-
-  const auto remember_collapse_state = [&] {
-    collapsed_folders.clear();
-    for (int index = 0; index < tree->topLevelItemCount(); ++index) {
-      const auto* item = tree->topLevelItem(index);
-      if (item->data(0, kFolderMarkerRole).toBool() && !item->isExpanded()) {
-        collapsed_folders.insert(item->data(0, Qt::UserRole).toString());
-      }
-    }
-  };
-
-  const auto reload_tree = [&](const QString& select_storage_id) {
-    const QSignalBlocker blocker(tree);
-    tree->clear();
-    QTreeWidgetItem* select_item = nullptr;
-    std::map<QString, QTreeWidgetItem*> folder_items;
-    for (const auto& entry : library.entries()) {
-      QTreeWidgetItem* parent_item = nullptr;
-      if (!entry.folder.isEmpty()) {
-        auto found = folder_items.find(entry.folder);
-        if (found == folder_items.end()) {
-          auto* folder_item = new QTreeWidgetItem(tree);
-          folder_item->setData(0, kFolderMarkerRole, true);
-          folder_item->setData(0, Qt::UserRole, entry.folder);
-          auto font = folder_item->font(0);
-          font.setBold(true);
-          folder_item->setFont(0, font);
-          found = folder_items.emplace(entry.folder, folder_item).first;
-        }
-        parent_item = found->second;
-      }
-      auto* item = parent_item != nullptr ? new QTreeWidgetItem(parent_item)
-                                         : new QTreeWidgetItem(tree);
-      item->setText(0, pattern_library_entry_display_name(entry));
-      item->setIcon(0, QIcon(entry.thumbnail));
-      item->setSizeHint(0, QSize(0, 46));
-      item->setData(0, Qt::UserRole, entry.storage_id);
-      item->setToolTip(0, QObject::tr("%1 (%2×%3)")
-                              .arg(pattern_library_entry_display_name(entry))
-                              .arg(entry.size.width())
-                              .arg(entry.size.height()));
-      if (entry.storage_id == select_storage_id) {
-        select_item = item;
-      }
-    }
-    for (const auto& [folder, item] : folder_items) {
-      item->setText(0, QObject::tr("%1 (%2)").arg(folder).arg(item->childCount()));
-      item->setExpanded(!collapsed_folders.contains(folder));
-    }
-    if (select_item != nullptr) {
-      if (select_item->parent() != nullptr) {
-        select_item->parent()->setExpanded(true);
-      }
-      tree->setCurrentItem(select_item);
-      tree->scrollToItem(select_item);
-    } else if (tree->topLevelItemCount() > 0) {
-      auto* first = tree->topLevelItem(0);
-      if (first->data(0, kFolderMarkerRole).toBool() && first->childCount() > 0) {
-        first->setExpanded(true);
-        tree->setCurrentItem(first->child(0));
-      } else {
-        tree->setCurrentItem(first);
-      }
-    }
-  };
-
   const auto refresh_details = [&] {
-    const auto ids = collect_selected_storage_ids();
+    const auto ids = tree->selected_ids();
     const auto* entry = ids.size() == 1 ? library.find_entry(ids.front()) : nullptr;
     const auto single = entry != nullptr;
     const auto any = !ids.isEmpty();
@@ -464,18 +373,8 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
     preview->set_pattern(resource.has_value() ? &*resource : nullptr);
   };
 
-  const auto use_selected = [&] {
-    const auto ids = collect_selected_storage_ids();
-    const auto* entry = ids.size() == 1 ? library.find_entry(ids.front()) : nullptr;
-    if (entry == nullptr) {
-      return;
-    }
-    selected_storage_id = entry->storage_id;
-    dialog.accept();
-  };
-
   const auto delete_selected = [&] {
-    const auto ids = collect_selected_storage_ids();
+    const auto ids = tree->selected_ids();
     if (ids.isEmpty()) {
       return;
     }
@@ -490,9 +389,9 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
         QMessageBox::Yes) {
       return;
     }
-    remember_collapse_state();
+    tree->remember_collapsed_folders();
     const auto removed = library.remove_patterns(ids);
-    reload_tree({});
+    tree->reload({});
     refresh_details();
     const auto failed = static_cast<int>(ids.size()) - removed;
     if (failed > 0) {
@@ -503,20 +402,12 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
     }
   };
 
-  QObject::connect(tree, &QTreeWidget::itemSelectionChanged, &dialog, refresh_details);
-  QObject::connect(tree, &QTreeWidget::itemDoubleClicked, &dialog,
-                   [&](QTreeWidgetItem* item, int) {
-                     if (!tree_item_storage_id(item).isEmpty()) {
-                       use_selected();
-                     }
-                   });
-  auto* delete_shortcut = new QShortcut(QKeySequence::Delete, tree);
-  delete_shortcut->setContext(Qt::WidgetWithChildrenShortcut);
-  QObject::connect(delete_shortcut, &QShortcut::activated, &dialog, delete_selected);
-  QObject::connect(delete_button, &QPushButton::clicked, &dialog, delete_selected);
+  scaffold.connect_selection_changed(refresh_details);
+  tree->set_entry_double_clicked_callback([use_selected](const QString&) { use_selected(); });
+  scaffold.add_delete_plumbing(delete_button, delete_selected);
 
   QObject::connect(open_image_button, &QPushButton::clicked, &dialog, [&] {
-    const auto ids = collect_selected_storage_ids();
+    const auto ids = tree->selected_ids();
     const auto* entry = ids.size() == 1 ? library.find_entry(ids.front()) : nullptr;
     if (entry == nullptr || open_as_image == nullptr ||
         requested_open_ids.contains(entry->storage_id)) {
@@ -536,20 +427,20 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
   });
 
   QObject::connect(name_edit, &QLineEdit::editingFinished, &dialog, [&] {
-    const auto ids = collect_selected_storage_ids();
+    const auto ids = tree->selected_ids();
     if (ids.size() != 1 || name_edit->text().trimmed().isEmpty()) {
       return;
     }
     if (library.rename_pattern(ids.front(), name_edit->text())) {
-      remember_collapse_state();
-      reload_tree(ids.front());
+      tree->remember_collapsed_folders();
+      tree->reload(ids.front());
       refresh_details();
     } else {
       show_update_failure();
     }
   });
   QObject::connect(folder_edit, &QLineEdit::editingFinished, &dialog, [&] {
-    const auto ids = collect_selected_storage_ids();
+    const auto ids = tree->selected_ids();
     if (ids.isEmpty()) {
       return;
     }
@@ -561,8 +452,8 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
       failed = !updated || failed;
     }
     if (moved) {
-      remember_collapse_state();
-      reload_tree(ids.front());
+      tree->remember_collapsed_folders();
+      tree->reload(ids.front());
       refresh_details();
     }
     if (failed) {
@@ -610,8 +501,8 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
                                               : problems.join(QLatin1Char('\n')));
       return;
     }
-    remember_collapse_state();
-    reload_tree(first_storage_id);
+    tree->remember_collapsed_folders();
+    tree->reload(first_storage_id);
     refresh_details();
     if (!problems.isEmpty()) {
       const auto imported = static_cast<int>(library.entries().size() - before);
@@ -623,14 +514,14 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
     }
   });
   QObject::connect(duplicate_button, &QPushButton::clicked, &dialog, [&] {
-    const auto ids = collect_selected_storage_ids();
+    const auto ids = tree->selected_ids();
     if (ids.size() != 1) {
       return;
     }
     const auto duplicate = library.duplicate_pattern(ids.front());
     if (!duplicate.isEmpty()) {
-      remember_collapse_state();
-      reload_tree(duplicate);
+      tree->remember_collapsed_folders();
+      tree->reload(duplicate);
       refresh_details();
     } else {
       show_update_failure();
@@ -652,8 +543,8 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
       }
       return;
     }
-    remember_collapse_state();
-    reload_tree({});
+    tree->remember_collapsed_folders();
+    tree->reload({});
     refresh_details();
     QStringList parts;
     if (restored > 0) {
@@ -671,14 +562,11 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
                                parts.join(QLatin1Char('\n')));
     }
   });
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, use_selected);
-
   QString initial_storage_id;
   if (const auto* entry = library.find_entry_by_pattern_id(initial_pattern_id); entry != nullptr) {
     initial_storage_id = entry->storage_id;
   }
-  reload_tree(initial_storage_id);
+  tree->reload(initial_storage_id);
   refresh_details();
   dialog.resize(800, 520);
   dialog.exec();

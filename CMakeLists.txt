@@ -696,6 +696,10 @@ if(PATCHY_BUILD_APP)
       src/ui/photo_pattern_presets.cpp
       src/ui/preset_library.hpp
       src/ui/preset_library.cpp
+      src/ui/preset_manager_scaffold.hpp
+      src/ui/preset_manager_scaffold.cpp
+      src/ui/preset_tree_widget.hpp
+      src/ui/preset_tree_widget.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
       src/ui/raw_develop_dialog.hpp

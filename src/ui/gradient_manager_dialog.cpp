@@ -2,6 +2,7 @@
 
 #include "ui/dialog_utils.hpp"
 #include "ui/gradient_library.hpp"
+#include "ui/preset_manager_scaffold.hpp"
 
 #include <QDialog>
 #include <QFileDialog>
@@ -58,8 +59,6 @@ QString request_gradient_manager(QWidget *parent, GradientLibrary &library,
   form->addRow(QObject::tr("Folder"), folder);
   body->addWidget(details);
 
-  auto *actions = new QHBoxLayout();
-  root->addLayout(actions);
   auto *new_current = new QPushButton(QObject::tr("New from Current"), &dialog);
   new_current->setObjectName(QStringLiteral("gradientManagerNewButton"));
   new_current->setEnabled(current.has_value());
@@ -76,11 +75,9 @@ QString request_gradient_manager(QWidget *parent, GradientLibrary &library,
   restore->setObjectName(QStringLiteral("gradientManagerRestoreButton"));
   auto *use = new QPushButton(QObject::tr("Use Gradient"), &dialog);
   use->setObjectName(QStringLiteral("gradientManagerUseButton"));
-  for (auto *button :
-       {new_current, import_button, export_button, duplicate, remove, restore})
-    actions->addWidget(button);
-  actions->addStretch(1);
-  actions->addWidget(use);
+  root->addLayout(PresetManagerScaffold::button_row(
+      {new_current, import_button, export_button, duplicate, remove, restore},
+      {use}));
 
   QSet<QString> expanded;
   auto selected_id = [&]() {
