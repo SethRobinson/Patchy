@@ -821,14 +821,32 @@ if(PATCHY_BUILD_APP)
           PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
       endif()
       # Stage runtime resources inside the bundle (the executable lives in
-      # Contents/MacOS; fonts/translations are loaded from Contents/Resources). This is a
-      # per-target POST_BUILD, not a shared copy-once target, because the bundle directory
-      # belongs to the patchy target alone -- no other executable writes here.
+      # Contents/MacOS; fonts/translations are loaded from Contents/Resources).
+      # Stamp-driven, NOT a POST_BUILD on the patchy target: POST_BUILD only
+      # fires when the executable relinks, so a scripts/fonts/translations-only
+      # change left the bundle stale on incremental builds (Breakout kept
+      # shipping without its sound/zoom update while the build dir was fresh).
+      # The bundle Resources still has exactly one writer (this command), so
+      # the no-shared-POST_BUILD race rule is preserved.
       # Clean the destinations first: copy_directory never deletes, so renamed or
       # removed files linger in the long-lived bundle forever and ship in the dmg
       # (pre-reorg loose scripts and even scripts/remote dev tooling really
       # accumulated in Resources/scripts this way).
-      add_custom_command(TARGET patchy POST_BUILD
+      set(PATCHY_BUNDLE_RESOURCES_STAMP
+          "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_bundle_resources.stamp")
+      set(PATCHY_BUNDLE_RESOURCE_DEPS patchy ${PATCHY_QM_FILES})
+      if(TARGET patchy_qt_base_translations)
+        list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS
+             "${CMAKE_BINARY_DIR}/translations/qtbase_ja.qm")
+      endif()
+      if(DEFINED PATCHY_FONTS_STAMP)
+        list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS "${PATCHY_FONTS_STAMP}")
+      endif()
+      if(DEFINED PATCHY_SCRIPTS_STAMP)
+        list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS "${PATCHY_SCRIPTS_STAMP}")
+      endif()
+      add_custom_command(
+        OUTPUT "${PATCHY_BUNDLE_RESOURCES_STAMP}"
         COMMAND ${CMAKE_COMMAND} -E rm -rf
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/fonts"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/translations"
@@ -842,8 +860,12 @@ if(PATCHY_BUILD_APP)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_BINARY_DIR}/scripts"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/scripts"
+        COMMAND ${CMAKE_COMMAND} -E touch "${PATCHY_BUNDLE_RESOURCES_STAMP}"
+        DEPENDS ${PATCHY_BUNDLE_RESOURCE_DEPS}
         COMMENT "Staging fonts, translations, and scripts into the Patchy app bundle"
       )
+      add_custom_target(patchy_bundle_resources ALL
+                        DEPENDS "${PATCHY_BUNDLE_RESOURCES_STAMP}")
     endif()
     add_custom_command(TARGET patchy POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
