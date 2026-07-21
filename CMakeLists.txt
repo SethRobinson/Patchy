@@ -85,6 +85,7 @@ patchy_configure_target(patchy_core)
 
 add_library(patchy_render
   src/render/compositor.cpp
+  src/render/layer_style_mask_ops.cpp
   src/render/tile_cache.cpp
 )
 # flatten_rgb8 composites large documents in parallel strips (std::async).

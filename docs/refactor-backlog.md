@@ -214,14 +214,18 @@ MainWindow/adjustments internals:
   both-halves helpers stay defined in pixel_tools.cpp, declared in
   core/pixel_tools_internal.hpp (never include it outside src/core).
   tool_write_paths_digest_baseline still gates both files.
-- render/layer_compositor.hpp (2.5k-line header): ~1,000 lines are non-template mask
-  machinery (EDT, dilate/blur, PatternTileSampler) movable to a .cpp behind a small
-  header; the composite_* templates STAY (type-erasing Target would put a virtual call
-  in the reference compositor's per-pixel path). Pinned compositor tests gate it.
-  Related: formats/ui code calls render_detail:: directly, bypassing the Compositor
-  facade — promote the real API (composite_layers, CompositeSample, LayerBoundsOverride,
-  StyleMaskProvider) or widen the facade; composite_layers' four trailing defaulted
-  parameters want a CompositeOptions struct.
+- DONE (July 2026): render/layer_compositor.hpp shed ~700 lines of non-template mask
+  machinery (max_filter_row through bevel_technique_height_mask plus the Satin
+  preparation types/functions) into render/layer_style_mask_ops.{hpp,cpp}; the
+  composite_* templates STAY (type-erasing Target would put a virtual call in the
+  reference compositor's per-pixel path), and layer_compositor.hpp re-exports the ops
+  header so consumers are unchanged. Compositor canaries verified green, no re-pin.
+  Still open from the same entry: the two stroke_alpha_mask overloads stay in the
+  header (each sits beside the template family that uses it); formats/ui code calls
+  render_detail:: directly, bypassing the Compositor facade — promote the real API
+  (composite_layers, CompositeSample, LayerBoundsOverride, StyleMaskProvider) or widen
+  the facade; composite_layers' four trailing defaulted parameters want a
+  CompositeOptions struct.
 - ui/filter_workflows.cpp: DONE (July 2026) — the Levels widgets + the four
   request_*_settings adjustment dialogs moved verbatim to ui/adjustment_dialogs.cpp;
   filter_workflows.hpp stays the shared header for both halves, and the two
