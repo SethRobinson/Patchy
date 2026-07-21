@@ -635,8 +635,12 @@ std::vector<float> bevel_technique_height_mask(const std::vector<float>& alpha_m
   std::vector<float> height_mask(alpha_mask.size(), 0.0F);
   const auto size = std::max(0.01F, bevel.size);
   if (bevel.technique == BevelTechnique::Smooth) {
+    // Smooth's height field is Satin's exact tent blur of the matte, the same
+    // engine the shadow/glow falloffs use (COM-probed July 2026: the recovered
+    // slope profile of PS's smooth inner bevel is exactly the tent's linear
+    // ramp; the old triple-box spread the shading wider with dimmer slopes).
     height_mask = alpha_mask;
-    blur_layer_style_mask_in_place(height_mask, width, height, size);
+    blur_satin_tent_mask_in_place(height_mask, width, height, size);
   } else {
     const auto distance_to_painted = stroke_distance_field(alpha_mask, width, height, true);
     const auto distance_to_clear = stroke_distance_field(alpha_mask, width, height, false);

@@ -683,7 +683,19 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
   const auto light_x = -std::cos(angle) * horizontal;
   const auto light_y = -std::sin(angle) * horizontal;
   const auto light_z = std::sin(altitude);
-  const auto normal_scale = std::clamp(bevel.depth, 0.01F, 10.0F) * std::max(1.0F, bevel.size);
+  // COM-calibrated smooth-bevel surface (July 2026, photoshop-bevel-smooth
+  // fixtures): the normalized height field is `size` pixels deep, so the
+  // per-axis central difference (a 2px span) scales by size/2 x Depth. A
+  // LINEAR Contour sub-option at Range r multiplies the slope by 100/r — the
+  // recovered slope profiles at Range 50 are exactly twice the Range-100 ones,
+  // interior included, refuting any height-domain windowing for the linear
+  // curve (non-linear curves keep the height remap below).
+  auto slope_gain = 1.0F;
+  if (bevel.contour.enabled && style_contour_is_linear(bevel.contour.contour)) {
+    slope_gain = 1.0F / std::clamp(bevel.contour.range, 0.01F, 1.0F);
+  }
+  const auto normal_scale =
+      0.5F * std::clamp(bevel.depth, 0.01F, 10.0F) * std::max(1.0F, bevel.size) * slope_gain;
   const auto direction = bevel.direction_up ? 1.0F : -1.0F;
   const auto full_domain = outset_rect(bounds, sample_padding);
   const auto legacy_mask_bounds = clipped_mask_bounds(full_domain, draw_rect, sample_padding);
@@ -770,8 +782,10 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
             // height field before normals. PS calibration (checker probes):
             // DARK texels are raised by default (Invert flips), and the bump
             // plane is smoothed so texel plateaus become domes/pits whose
-            // slopes shade the whole cell, not just its edges.
-            constexpr float kTextureAmplitude = 3.0F;
+            // slopes shade the whole cell, not just its edges. The amplitude
+            // doubled when the July 2026 Lambert calibration halved
+            // normal_scale, keeping the bump's height gradients unchanged.
+            constexpr float kTextureAmplitude = 6.0F;
             const PatternTileSampler sampler(resource->tile, layer, bevel.texture.scale, 0.0F,
                                              bevel.texture.link_with_layer, bevel.texture.phase_x,
                                              bevel.texture.phase_y);
@@ -869,17 +883,23 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
       const auto right = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x + 1, local_y);
       const auto top = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x, local_y - 1);
       const auto bottom = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x, local_y + 1);
-      auto normal_x = (left - right) * normal_scale * direction;
-      auto normal_y = (top - bottom) * normal_scale * direction;
-      const auto length = std::sqrt(normal_x * normal_x + normal_y * normal_y + 1.0F);
-      normal_x /= std::max(0.0001F, length);
-      normal_y /= std::max(0.0001F, length);
-      const auto normal_z = 1.0F / std::max(0.0001F, length);
-      // Full 3D light: the (nz - 1) * lz term subtracts the flat-face ambient so
-      // level surfaces stay untouched while every slope loses altitude light.
-      // This is what shades slopes running PARALLEL to the light (PS darkens the
-      // left/right miters under a 90-degree light; a pure 2D dot product cannot).
-      auto lighting = normal_x * light_x + normal_y * light_y + (normal_z - 1.0F) * light_z;
+      const auto gradient_x = (left - right) * normal_scale * direction;
+      const auto gradient_y = (top - bottom) * normal_scale * direction;
+      const auto length = std::sqrt(gradient_x * gradient_x + gradient_y * gradient_y + 1.0F);
+      // COM-calibrated Lambert shading (July 2026, photoshop-bevel-smooth
+      // fixtures): the surface lighting L = N dot Light with a properly
+      // normalized normal, then the HIGHLIGHT is the excess over the flat-face
+      // value normalized to the headroom, (L - sin(alt)) / (1 - sin(alt)), and
+      // the SHADOW is the deficit normalized to the floor,
+      // (sin(alt) - L) / sin(alt). This reproduces both the full-strength
+      // shadow edge under a low light and the non-monotone highlight band under
+      // a high light (slopes steeper than 90 - altitude tip past the light),
+      // within ~0.4/255 on the altitude 30 and 60 probes.
+      const auto surface_light =
+          (gradient_x * light_x + gradient_y * light_y + light_z) / std::max(0.0001F, length);
+      auto lighting = surface_light >= light_z
+                          ? (surface_light - light_z) / std::max(0.01F, 1.0F - light_z)
+                          : -((light_z - surface_light) / std::max(0.01F, light_z));
       if (!gloss_is_linear) {
         // Gloss Contour remaps the signed lighting scalar before the
         // highlight/shadow split; Linear short-circuits so plain bevels stay

@@ -806,6 +806,35 @@ void psd_photoshop_outer_glow_fixtures_match_render() {
   CHECK(static_cast<double>(over_aa_tolerance) / extreme_pixels <= 0.08);
 }
 
+// Photoshop 2026 authored photoshop-bevel-smooth.psd via COM (July 2026): mid-tone
+// rectangles and a thin bar on white with smooth inner bevels at sizes 5/10,
+// altitudes 30/60, and the Contour sub-option off / Linear-Range-50 /
+// Linear-Range-100, saved alongside Photoshop's own flatten. It pins the
+// calibrated Lambert bevel: tent height field `size` pixels deep, highlight
+// (L - sin(alt)) / (1 - sin(alt)), shadow (sin(alt) - L) / sin(alt), and the
+// linear-contour Range slope gain of 100/range (Range 100 identical to
+// contour-off).
+void psd_photoshop_bevel_smooth_fixture_matches_render() {
+  const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-bevel-smooth.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-bevel-smooth.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto* contoured = find_layer_named(document.layers(), "s10c50");
+  CHECK(contoured != nullptr);
+  CHECK(contoured->layer_style().bevels.size() == 1);
+  const auto& bevel = contoured->layer_style().bevels.front();
+  CHECK(bevel.enabled);
+  CHECK(bevel.contour.enabled);
+  CHECK(close_float(bevel.contour.range, 0.5F));
+  const auto reference =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference, flat);
+  CHECK(metrics.max_channel_delta <= 6);
+  CHECK(metrics.mean_abs_channel_delta <= 0.10);
+}
+
 // The PS 5.x 'dsdw' record stores blur/intensity/angle/distance as 16.16 fixed
 // point and opacity as a 0-255 byte. The pre-July-2026 parser read the fixed
 // fields as raw integers one slot early, so a legacy shadow could carry a
@@ -1164,6 +1193,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_arrows_imports_photoshop_inner_effects},
       {"psd_photoshop_outer_glow_fixtures_match_render",
        psd_photoshop_outer_glow_fixtures_match_render},
+      {"psd_photoshop_bevel_smooth_fixture_matches_render",
+       psd_photoshop_bevel_smooth_fixture_matches_render},
       {"psd_lrfx_legacy_drop_shadow_parses_fixed_point",
        psd_lrfx_legacy_drop_shadow_parses_fixed_point},
       {"psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available",

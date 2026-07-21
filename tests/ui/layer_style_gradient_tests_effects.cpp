@@ -1423,6 +1423,38 @@ void ui_layer_style_pattern_warning_follows_resolvability() {
   CHECK(checked_missing);
 }
 
+// Photoshop presents a bevel Texture sub-option whose pattern cannot be
+// resolved as UNCHECKED and renders without it (pinned on tips.psd, July 2026:
+// useTexture=true in lfx2 with a pattern in neither the document nor the
+// presets shows as texture-off, with no warning banner). Patchy mirrors that;
+// re-checking the row surfaces the live missing-pattern warning.
+void ui_layer_style_bevel_texture_missing_pattern_presents_unchecked() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Textured Bevel",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  bevel.texture.enabled = true;
+  bevel.texture.pattern_id = "00000000-dead-beef-0000-000000000001";
+  bevel.texture.pattern_name = "EVGREEN2.JPG";
+  layer.layer_style().bevels.push_back(bevel);
+
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* texture_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelTextureCategoryCheck"));
+    CHECK(texture_check != nullptr);
+    CHECK(!texture_check->isChecked());
+    CHECK(dialog->findChild<QLabel*>(QStringLiteral("layerStyleMissingPatternWarning")) == nullptr);
+    checked = true;
+    dialog->reject();
+  });
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(!settings.has_value());
+  CHECK(checked);
+}
+
 void ui_layer_style_pattern_overlay_controls_map_to_settings() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Patterned",
@@ -1517,6 +1549,8 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
        ui_layer_style_outer_glow_technique_and_range_map_to_settings},
       {"ui_layer_style_pattern_warning_follows_resolvability",
        ui_layer_style_pattern_warning_follows_resolvability},
+      {"ui_layer_style_bevel_texture_missing_pattern_presents_unchecked",
+       ui_layer_style_bevel_texture_missing_pattern_presents_unchecked},
       {"ui_layer_style_pattern_overlay_controls_map_to_settings",
        ui_layer_style_pattern_overlay_controls_map_to_settings},
   };

@@ -984,10 +984,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   for (const auto& effect : style.pattern_overlays) {
     note_missing_pattern(effect.pattern_id, effect.pattern_name, effect.enabled);
   }
-  for (const auto& effect : style.bevels) {
-    note_missing_pattern(effect.texture.pattern_id, effect.texture.pattern_name,
-                         effect.enabled && effect.texture.enabled);
-  }
+  // Bevel textures with unresolvable patterns are presented unchecked (the
+  // Photoshop semantics), so they raise no banner here; re-checking the row
+  // surfaces the live missing-pattern warning below.
   QLabel* missing_pattern_warning = nullptr;
   if (!missing_pattern_names.empty()) {
     QStringList names;
@@ -3632,8 +3631,14 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
             LayerStyleEffectKind::BevelEmboss, 0, !style.bevels.empty() && style.bevels.front().enabled, true);
     add_row(QObject::tr("Contour"), LayerStyleCategoryPage::BevelContour, LayerStyleEffectKind::BevelContour, 0,
             !style.bevels.empty() && style.bevels.front().contour.enabled, true, true);
+    // Photoshop presents a Texture sub-option whose pattern cannot be resolved
+    // as UNCHECKED (pinned on tips.psd, July 2026: useTexture=true in lfx2 with
+    // a pattern in neither the document nor the presets shows and renders as
+    // texture-off), so mirror that instead of a checked-but-unrenderable row.
     add_row(QObject::tr("Texture"), LayerStyleCategoryPage::BevelTexture, LayerStyleEffectKind::BevelTexture, 0,
-            !style.bevels.empty() && style.bevels.front().texture.enabled, true, true);
+            !style.bevels.empty() && style.bevels.front().texture.enabled &&
+                pattern_reference_resolves(style.bevels.front().texture.pattern_id),
+            true, true);
 
     auto add_vector_rows = [&](const QString& text, LayerStyleCategoryPage page, LayerStyleEffectKind kind,
                                const auto& vector) {
