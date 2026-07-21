@@ -3,6 +3,19 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.80 - July 18, 2026
+
+- Vector tools are here: the Rectangle, Ellipse, Line, Polygon, and Custom Shape tools draw editable shape layers, the Pen builds bezier paths point by point with cursor badges that show what each click will do, and the Path Select and Direct Select tools move whole shapes or individual anchors with live re-rendering. Shape layers, vector masks, and saved paths round-trip through PSD and PSB files that open correctly in Photoshop
+- Shapes carry a full appearance: no fill, solid color, gradient, or pattern fills and strokes, with stroke width, inside/center/outside alignment, caps, joins, and dashes. Edit them from the options bar's new Fill and Stroke paint pickers or the Shape Appearance dialog, where live rectangles, ellipses, and lines can also be re-edited numerically (bounds, per-corner radii, endpoints, weight). Layer > New Fill Layer creates solid, gradient, and pattern fill layers that can clip to a path
+- A Photoshop-style Paths panel manages saved paths and the work path: fill a path with color or a pattern, stroke it through the real brush engine with an optional pressure taper, convert paths to selections and selections to work paths, free-transform a path or just its selected anchors with Ctrl+T, drag rows to reorder, and mark a saved path as the print clipping path
+- SVG files open as editable shape layers: live shapes, groups as folders, gradients, stylesheet classes, clip paths, simple patterns, embedded images, and basic text all survive (files past the supported subset fall back to a flattened raster import, and .svgz works too). Save As and Export write SVG back out with shape layers kept as real vectors. You can also paste SVG from the clipboard as shapes, place an SVG as an embedded smart object, and turn an SVG file into a stampable custom shape
+- New Liquify workspace (Filter > Liquify) with Warp, Reconstruct, Smooth, Twirl, Pucker, Bloat, Freeze, and Thaw brushes over a live preview
+- New Lens Blur (aperture blade count, curvature, and rotation) and Iris Blur (elliptical focus region) filters, plus Add Noise with uniform or Gaussian distribution, bringing the Filter Gallery to 32 effects
+- Emboss, Box Blur, Radial Blur, Add Noise, and Mosaic now work as editable native Smart Filters, bringing the roster to 13 filter types. The Filter Gallery marks which effects can apply as Smart Filters on the current layer, and Photoshop now opens Patchy-authored Smart Filter files correctly
+- Four new adjustment layers: Brightness/Contrast, Invert, Posterize, and Threshold, all reading and writing native Photoshop PSD data. Color Balance adjustment layers now save natively too, so Photoshop no longer opens them as flat white layers
+- Redesigned New Document dialog with a preset card grid, and Patchy now starts with a clean workspace instead of an empty untitled document
+- The tool palette is reorganized into clusters with new Stamp and Gradient/Fill flyouts, options-bar number fields gained slider popups with common values, and document tabs offer Reopen, Reveal in Explorer/Finder, and Copy File Path
+
 ## 0.20 - July 15, 2026
 
 - New classic Healing Brush transfers detail from an Alt-clicked source while adapting it to the destination tone. Aligned sampling, adjustable Diffusion, selections, palette mode, and ordinary PSD/PSB pixel round-trips are supported

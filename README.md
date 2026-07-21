@@ -169,6 +169,15 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.82 - July 21, 2026
+
+- JavaScript scripting is here: scripts drive documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing through a documented API (patchy.d.ts for machines, a scripting guide under Help for humans), with one undo entry per run no matter how much a script changes
+- The new Script Manager (File > Scripts) puts a folder tree over the bundled and user scripts with per-script icons, names, and hover cards, plus a code editor with syntax highlighting and live run status: spinner, elapsed time, and a stop button. Editing a bundled script saves your own copy, which overrides the original and can be reverted, and New seeds a runnable starter template
+- 20 bundled scripts to use or learn from: CSV data merge, contact sheets, icon export, batch export, versioned saves, layer rename, grid overlays, watermark, play-button overlay, trim to content, duotone, glitch, photo frame, generative art, letter physics, a form-dialog showcase, and playable Breakout, Pong, and Game of Life on real canvases. Scripts can call other scripts with include()
+- Scripts ask for input through patchy.ui.showOptions: a real options dialog with instructions and folder/file pickers in GUI runs, --script-arg overrides from the command line, and the same defaults applied without a dialog when run unattended
+- Scripts can play sound with patchy.ui.playTone and playSound (Breakout and Pong picked up retro blips), a long busy script shows a stop panel with live progress and optional undo of its changes, and the script watchdog measures inactivity rather than total runtime so hour-long batches survive
+- patchy --run-script file.js runs a script against a new or running instance and writes console output to a file, so external tools and AI agents can drive Patchy; the Script Manager's C:\ button shows a copyable command line for any script
+
 ### 0.81 - July 20, 2026
 
 - Affinity Photo and Designer .af files now open as layered documents: raster layers (8-bit, 16-bit, grayscale, and float), groups, layer masks, clipping, opacity and blend modes, CMYK and Lab color through ICC conversion, document DPI, and the canvas background all come through, with scaled and rotated layers rendered through their transforms. Anything Patchy can't model becomes a named placeholder layer with a notice instead of failing the open
@@ -181,19 +190,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - The Open dialog now lists one row per file format, Photoshop style, so every supported type is visible in the dropdown
 - The Character panel grays out with a hint when no text is being edited, Alt+click on a folder's arrow expands or collapses the whole branch, the layer panel's selection highlight and thumbnails render correctly, and options-bar number fields no longer clip wide values
 - The startup splash is gone: Patchy opens straight into the start panel, which now carries the version, links, and update check. Save PDF suggests the document's name, and patchy.exe gains an unattended --export flag for converting files from the command line
-
-### 0.80 - July 18, 2026
-
-- Vector tools are here: the Rectangle, Ellipse, Line, Polygon, and Custom Shape tools draw editable shape layers, the Pen builds bezier paths point by point with cursor badges that show what each click will do, and the Path Select and Direct Select tools move whole shapes or individual anchors with live re-rendering. Shape layers, vector masks, and saved paths round-trip through PSD and PSB files that open correctly in Photoshop
-- Shapes carry a full appearance: no fill, solid color, gradient, or pattern fills and strokes, with stroke width, inside/center/outside alignment, caps, joins, and dashes. Edit them from the options bar's new Fill and Stroke paint pickers or the Shape Appearance dialog, where live rectangles, ellipses, and lines can also be re-edited numerically (bounds, per-corner radii, endpoints, weight). Layer > New Fill Layer creates solid, gradient, and pattern fill layers that can clip to a path
-- A Photoshop-style Paths panel manages saved paths and the work path: fill a path with color or a pattern, stroke it through the real brush engine with an optional pressure taper, convert paths to selections and selections to work paths, free-transform a path or just its selected anchors with Ctrl+T, drag rows to reorder, and mark a saved path as the print clipping path
-- SVG files open as editable shape layers: live shapes, groups as folders, gradients, stylesheet classes, clip paths, simple patterns, embedded images, and basic text all survive (files past the supported subset fall back to a flattened raster import, and .svgz works too). Save As and Export write SVG back out with shape layers kept as real vectors. You can also paste SVG from the clipboard as shapes, place an SVG as an embedded smart object, and turn an SVG file into a stampable custom shape
-- New Liquify workspace (Filter > Liquify) with Warp, Reconstruct, Smooth, Twirl, Pucker, Bloat, Freeze, and Thaw brushes over a live preview
-- New Lens Blur (aperture blade count, curvature, and rotation) and Iris Blur (elliptical focus region) filters, plus Add Noise with uniform or Gaussian distribution, bringing the Filter Gallery to 32 effects
-- Emboss, Box Blur, Radial Blur, Add Noise, and Mosaic now work as editable native Smart Filters, bringing the roster to 13 filter types. The Filter Gallery marks which effects can apply as Smart Filters on the current layer, and Photoshop now opens Patchy-authored Smart Filter files correctly
-- Four new adjustment layers: Brightness/Contrast, Invert, Posterize, and Threshold, all reading and writing native Photoshop PSD data. Color Balance adjustment layers now save natively too, so Photoshop no longer opens them as flat white layers
-- Redesigned New Document dialog with a preset card grid, and Patchy now starts with a clean workspace instead of an empty untitled document
-- The tool palette is reorganized into clusters with new Stamp and Gradient/Fill flyouts, options-bar number fields gained slider popups with common values, and document tabs offer Reopen, Reveal in Explorer/Finder, and Copy File Path
 
 [Older releases](RELEASE-HISTORY.md)
 
@@ -265,7 +261,7 @@ Important Photoshop features that are not supported yet, or are only partially s
 - Full Photoshop adjustment-layer compatibility beyond Patchy's current adjustment support
 - CMYK/Lab editing and export, editable spot separations and RGB component channels, multi-channel overlays, 16/32-bit editing, HDR/EXR, and full color-management parity (Patchy converts CMYK/Lab to RGB on open, but does not edit or save in those color modes)
 - Layer comps, timeline/video/animation workflows, content-aware tools, and generative tools
-- Actions, batch processing, scripting, UXP/JSX panels, and other automation workflows
+- Photoshop's own automation surfaces: Actions (.atn), UXP/JSX panels, and scripts written for Photoshop (Patchy has its own JavaScript scripting and batch processing instead, see above)
 - High-fidelity PSD/PSB edge cases, including layered PSB writing and byte-perfect preservation of every Photoshop-only metadata block
 - Not tested much yet; expect bugs
 - Patchy is slower than Photoshop, especially on large documents and it doesn't support GPU acceleration at all.  However, being CPU only helps with porting and stability so kind of a trade-off that makes sense, for now.  That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.
