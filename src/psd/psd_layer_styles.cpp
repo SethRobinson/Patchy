@@ -303,6 +303,9 @@ std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect,
   glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   glow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  glow.technique = descriptor_enum(effect, "GlwT", "SfBL") == "PrBL" ? LayerGlowTechnique::Precise
+                                                                     : LayerGlowTechnique::Softer;
+  glow.range = std::clamp(static_cast<float>(descriptor_number(effect, "Inpr", 50.0)), 1.0F, 100.0F);
   return glow;
 }
 
@@ -787,20 +790,29 @@ LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload) {
       if (key != std::array<char, 4>{'d', 's', 'd', 'w'}) {
         continue;
       }
+      // PS 5.x 'dsdw' record: u32 record size, u32 version, then blur /
+      // intensity / angle / distance as 16.16 FIXED point, a 10-byte color,
+      // blend signature + key, enabled, use-global-angle, and a 0-255 opacity
+      // byte (28% stores 71). The pre-July-2026 parser read the fixed fields as
+      // raw integers one slot early, so a merged legacy shadow could carry a
+      // ~7.8-million-pixel distance and abort the flatten on allocation.
       BigEndianReader effect_reader(effect_payload);
-      (void)effect_reader.read_u32();
+      (void)effect_reader.read_u32();  // record size
+      (void)effect_reader.read_u32();  // version
+      const auto read_fixed = [&effect_reader]() {
+        return static_cast<float>(static_cast<std::int32_t>(effect_reader.read_u32())) / 65536.0F;
+      };
       LayerDropShadow shadow;
-      shadow.enabled = true;
-      shadow.size = static_cast<float>(effect_reader.read_u32());
-      (void)effect_reader.read_u32();
-      shadow.angle_degrees = static_cast<float>(effect_reader.read_u32());
-      shadow.distance = static_cast<float>(effect_reader.read_u32());
+      shadow.size = std::clamp(read_fixed(), 0.0F, 250.0F);
+      (void)effect_reader.read_u32();  // intensity
+      shadow.angle_degrees = std::clamp(read_fixed(), -180.0F, 180.0F);
+      shadow.distance = std::clamp(read_fixed(), 0.0F, 30000.0F);
       shadow.color = read_legacy_effect_color(effect_reader);
       (void)read_signature(effect_reader);
       shadow.blend_mode = blend_mode_from_key(read_signature(effect_reader));
       shadow.enabled = effect_reader.read_u8() != 0;
-      (void)effect_reader.read_u8();
-      shadow.opacity = percent_to_unit(effect_reader.read_u8());
+      shadow.use_global_light = effect_reader.read_u8() != 0;
+      shadow.opacity = static_cast<float>(effect_reader.read_u8()) / 255.0F;
       if (shadow.enabled) {
         style.drop_shadows.push_back(shadow);
       }
@@ -1397,17 +1409,20 @@ void write_inner_shadow_descriptor(BigEndianWriter& writer, const LayerInnerShad
 }
 
 void write_outer_glow_descriptor(BigEndianWriter& writer, const LayerOuterGlow& glow) {
-  write_descriptor_object_header(writer, "", "OrGl", 10);
+  write_descriptor_object_header(writer, "", "OrGl", 11);
   write_descriptor_bool_item(writer, "enab", glow.enabled);
   write_blend_mode_descriptor_item(writer, "Md  ", glow.blend_mode);
   write_rgb_color_descriptor_item(writer, "Clr ", glow.color);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, glow.opacity * 100.0);
+  // GlwT sits between Opct and Ckmt in Photoshop's native OrGl layout.
+  write_descriptor_enum_item(writer, "GlwT", "BETE",
+                             glow.technique == LayerGlowTechnique::Precise ? "PrBL" : "SfBL");
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, glow.spread);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, glow.size);
   write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
   write_descriptor_unit_float_item(writer, "ShdN", {'#', 'P', 'r', 'c'}, 0.0);
   write_descriptor_bool_item(writer, "AntA", false);
-  write_descriptor_unit_float_item(writer, "Inpr", {'#', 'P', 'r', 'c'}, 50.0);
+  write_descriptor_unit_float_item(writer, "Inpr", {'#', 'P', 'r', 'c'}, glow.range);
 }
 
 void write_inner_glow_descriptor(BigEndianWriter& writer, const LayerInnerGlow& glow) {

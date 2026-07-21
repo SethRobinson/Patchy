@@ -752,21 +752,14 @@ void configure_text_font_smoothing(QFont& font, int anti_alias) {
     return;
   }
 
+  // Photoshop never runs TrueType hinting: every antialiased mode (Sharp,
+  // Crisp, Strong, Smooth) filters unhinted outlines with ideal metrics.
+  // Mapping Sharp/Crisp to Qt's full hinting regularized stems (old
+  // small-print fonts like Bitstream Futura fatten visibly at text sizes) and
+  // shifted advances enough to collide adjacent glyphs, so imported text
+  // re-rendered bolder and tighter than Photoshop's raster of the same layer.
   font.setStyleStrategy(QFont::PreferAntialias);
-  switch (anti_alias) {
-    case 1:
-    case 4:
-    case 5:
-      font.setHintingPreference(QFont::PreferFullHinting);
-      break;
-    case 2:
-    case 6:
-      font.setHintingPreference(QFont::PreferVerticalHinting);
-      break;
-    default:
-      font.setHintingPreference(QFont::PreferNoHinting);
-      break;
-  }
+  font.setHintingPreference(QFont::PreferNoHinting);
 }
 
 QTextCharFormat text_format_with_smoothing(QTextCharFormat format, int anti_alias) {

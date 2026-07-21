@@ -676,10 +676,19 @@ void compositor_outer_glow_antialias_strength_does_not_create_streaks() {
   layer.layer_style().outer_glows.push_back(glow);
 
   const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // Grayscale-dilation spread (the COM-calibrated Softer model): the alpha-64
+  // strip projects its own strength times the default Range-50 doubling
+  // (~0.5), not the component's full strength, and the band stays streak-free
+  // along the strip. The solid block still projects at full strength.
   const auto* projected_edge_alpha = flattened.pixel(18, 14);
-  CHECK(projected_edge_alpha[0] > 220);
-  CHECK(projected_edge_alpha[1] > 220);
-  CHECK(projected_edge_alpha[2] > 220);
+  CHECK(projected_edge_alpha[0] > 100);
+  CHECK(projected_edge_alpha[0] < 170);
+  const auto* projected_along_strip = flattened.pixel(18, 16);
+  CHECK(std::abs(static_cast<int>(projected_edge_alpha[0]) - static_cast<int>(projected_along_strip[0])) <= 2);
+  const auto* projected_block_alpha = flattened.pixel(26, 15);
+  CHECK(projected_block_alpha[0] > 220);
+  CHECK(projected_block_alpha[1] > 220);
+  CHECK(projected_block_alpha[2] > 220);
 }
 
 void compositor_large_text_style_spread_keeps_rounded_silhouette() {

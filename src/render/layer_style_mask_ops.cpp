@@ -301,28 +301,111 @@ void downsample_layer_style_mask(const std::vector<float>& scaled, std::vector<f
   }
 }
 
-// Photoshop's drop-shadow Spread expands the matte geometrically before blurring
-// (probed via COM renders, July 2026): the shadow stays solid out to spread% x size
-// with rounded Euclidean corners and only the remaining (1 - spread%) x size is
-// blurred. Do not reimplement spread as a post-blur gain: saturating the box blur's
-// tail exposes the kernel's rectangular support (per-glyph boxes jutting out of
-// qual_rca_pinout.psd's spread-100 label plates) and turns float dust into pixels.
-void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, int height, float size, float spread) {
-  const auto spread_radius = std::max(0.0F, size) * clamp_unit(spread / 100.0F);
-  const auto blur_size = std::max(0.0F, size) - spread_radius;
-  const auto scale = layer_style_mask_supersample_scale(width, height, size);
-  if (scale > 1) {
-    const auto scaled_width = width * scale;
-    const auto scaled_height = height * scale;
-    auto scaled = supersampled_layer_style_mask(mask, width, height, scale);
-    expand_layer_style_mask_in_place(scaled, scaled_width, scaled_height, spread_radius, static_cast<float>(scale));
-    blur_layer_style_mask_in_place(scaled, scaled_width, scaled_height, blur_size * static_cast<float>(scale));
-    downsample_layer_style_mask(scaled, mask, width, height, scale);
-    return;
-  }
+namespace {
 
-  expand_layer_style_mask_in_place(mask, width, height, spread_radius, 1.0F);
-  blur_layer_style_mask_in_place(mask, width, height, blur_size);
+// The shared Photoshop soft-effect falloff (COM-calibrated July 2026 for BOTH
+// the drop shadow and the outer glow; the two probe suites matched this one
+// pipeline byte-for-byte on straight edges):
+// 1. Spread expands the matte by the INTEGER radius lround(spread% x size) as a
+//    GRAYSCALE dilation: max of alpha x area-sampled-disc coverage with exact
+//    Euclidean distances. On binary mattes this is the familiar hard band; a
+//    binarizing component-strength band overshoots antialiased text by ~20%.
+// 2. The remaining size blurs with Satin's exact separable tent kernel,
+//    N = max(2, lround(size)) - spread radius; spread 100 or size 0 means no
+//    blur at all, while sizes 1-2 still blur with the N=2 tent.
+// Do not reimplement spread as a post-blur gain: saturating a blur's tail
+// exposes the kernel's support (per-glyph boxes jutting out of
+// qual_rca_pinout.psd's spread-100 label plates) and turns float dust into
+// pixels.
+void prepare_photoshop_soft_effect_mask(std::vector<float>& mask, int width, int height, float size,
+                                        float spread) {
+  const auto rounded_size = std::lround(std::max(0.0F, size));
+  const auto spread_radius =
+      static_cast<int>(std::lround(std::max(0.0F, size) * clamp_unit(spread / 100.0F)));
+  if (spread_radius > 0 && width > 0 && height > 0 && !mask.empty()) {
+    // Bounded exact grayscale dilation. Beyond the limit (rare: spread over
+    // ~30% of a large size) the chamfer band keeps the historical behavior;
+    // its binarization error is proportionally small at such radii.
+    constexpr int kExactDilationRadiusLimit = 8;
+    if (spread_radius <= kExactDilationRadiusLimit) {
+      const int reach = spread_radius + 1;
+      std::vector<float> weights;
+      std::vector<int> offsets_x;
+      std::vector<int> offsets_y;
+      for (int dy = -reach; dy <= reach; ++dy) {
+        for (int dx = -reach; dx <= reach; ++dx) {
+          if (dx == 0 && dy == 0) {
+            continue;
+          }
+          const auto distance = std::sqrt(static_cast<double>(dx) * dx + static_cast<double>(dy) * dy);
+          const auto coverage = std::clamp(static_cast<double>(spread_radius) + 1.0 - distance, 0.0, 1.0);
+          if (coverage > 0.0) {
+            weights.push_back(static_cast<float>(coverage));
+            offsets_x.push_back(dx);
+            offsets_y.push_back(dy);
+          }
+        }
+      }
+      std::vector<float> dilated(mask);
+      for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+          const auto index =
+              static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
+          auto value = dilated[index];
+          for (std::size_t tap = 0; tap < weights.size(); ++tap) {
+            const auto sx = x + offsets_x[tap];
+            const auto sy = y + offsets_y[tap];
+            if (sx < 0 || sy < 0 || sx >= width || sy >= height) {
+              continue;
+            }
+            const auto candidate =
+                mask[static_cast<std::size_t>(sy) * static_cast<std::size_t>(width) + static_cast<std::size_t>(sx)] *
+                weights[tap];
+            value = std::max(value, candidate);
+          }
+          dilated[index] = value;
+        }
+      }
+      mask.swap(dilated);
+    } else {
+      expand_layer_style_mask_in_place(mask, width, height, static_cast<float>(spread_radius), 1.0F);
+    }
+  }
+  if (rounded_size > 0) {
+    const auto tent_peak = std::max<long>(2, rounded_size) - spread_radius;
+    if (tent_peak >= 2) {
+      blur_satin_tent_mask_in_place(mask, width, height, static_cast<float>(tent_peak));
+    }
+  }
+}
+
+}  // namespace
+
+// Photoshop's drop-shadow falloff is the shared spread-expand + tent pipeline
+// above (re-calibrated July 2026: 'dsdw' probes at sizes 5/10/12/17 and
+// spreads 0/8/18 matched the tent byte-for-byte where the historical
+// triple-box blur was visibly hotter near the contour on thin shapes).
+void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, int height, float size, float spread) {
+  prepare_photoshop_soft_effect_mask(mask, width, height, size, spread);
+}
+
+// Photoshop's outer-glow "Softer" technique (COM-probed July 2026 with square,
+// bar, dot, and band renders at sizes 1-40, spreads 0-100, and Range 25-100):
+// the shared spread-expand + tent pipeline above, then the Quality > Range
+// ('Inpr') gain: mask = min(1, blur x 100/range), the Linear-contour case.
+// PS's UI default is 50, so typical files double the raw blur; the Range 25
+// probe pinned the x4 saturation and Range 100 the identity. Straight-edge
+// probes matched within 1.4/255; a hard spread-100 band's corner arc differs
+// by up to ~1px of arc (chamfer-vs-area-sampling convention).
+void prepare_outer_glow_softer_mask(std::vector<float>& mask, int width, int height, float size, float spread,
+                                    float range) {
+  prepare_photoshop_soft_effect_mask(mask, width, height, size, spread);
+  const auto gain = 100.0F / std::clamp(range, 1.0F, 100.0F);
+  if (gain > 1.0F) {
+    for (auto& value : mask) {
+      value = std::min(1.0F, value * gain);
+    }
+  }
 }
 
 // The interior effects' historical blur: 3 box passes of half the size each.

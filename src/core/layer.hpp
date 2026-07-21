@@ -269,6 +269,14 @@ struct LayerInnerShadow {
   bool use_global_light{false};
 };
 
+// Photoshop's outer-glow Technique ('GlwT' BETE enum): Softer blurs the
+// spread-expanded matte (the drop-shadow pipeline), Precise falls off along the
+// Euclidean distance field from the contour.
+enum class LayerGlowTechnique {
+  Softer,
+  Precise
+};
+
 struct LayerOuterGlow {
   bool enabled{false};
   BlendMode blend_mode{BlendMode::Normal};
@@ -276,6 +284,11 @@ struct LayerOuterGlow {
   float opacity{0.75F};
   float spread{0.0F};
   float size{5.0F};
+  LayerGlowTechnique technique{LayerGlowTechnique::Softer};
+  // Photoshop's Quality > Range ('Inpr', percent). The Softer falloff is the
+  // blurred matte scaled by 100/range and clamped; PS's UI default is 50, so
+  // real files render twice as hot as the raw blur.
+  float range{50.0F};
 };
 
 enum class LayerInnerGlowSource {

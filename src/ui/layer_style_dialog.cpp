@@ -2802,6 +2802,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   add_blend_mode_items(outer_glow_blend);
   outer_glow_blend->setCurrentIndex(std::max(0, outer_glow_blend->findData(static_cast<int>(outer_glow.blend_mode))));
   outer_glow_form->addRow(QObject::tr("Blend Mode"), outer_glow_blend);
+  auto* outer_glow_technique = new QComboBox(outer_glow_group);
+  outer_glow_technique->setObjectName(QStringLiteral("layerStyleOuterGlowTechniqueCombo"));
+  outer_glow_technique->addItem(QObject::tr("Softer"), static_cast<int>(LayerGlowTechnique::Softer));
+  outer_glow_technique->addItem(QObject::tr("Precise"), static_cast<int>(LayerGlowTechnique::Precise));
+  outer_glow_technique->setCurrentIndex(
+      std::max(0, outer_glow_technique->findData(static_cast<int>(outer_glow.technique))));
+  outer_glow_form->addRow(QObject::tr("Technique"), outer_glow_technique);
   auto* outer_glow_opacity =
       add_slider_spin_row(outer_glow_form, outer_glow_group, QObject::tr("Opacity"),
                           QStringLiteral("layerStyleOuterGlowOpacitySpin"), 0, 100,
@@ -2813,6 +2820,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                                 QStringLiteral("layerStyleOuterGlowSpreadSpin"), 0, 100,
                                                 static_cast<int>(std::round(outer_glow.spread)),
                                                 QStringLiteral("%"));
+  auto* outer_glow_range = add_slider_spin_row(outer_glow_form, outer_glow_group, QObject::tr("Range"),
+                                               QStringLiteral("layerStyleOuterGlowRangeSpin"), 1, 100,
+                                               static_cast<int>(std::round(outer_glow.range)),
+                                               QStringLiteral("%"));
   const auto outer_glow_rows = make_color_rows(outer_glow_form, outer_glow_group,
                                                QStringLiteral("layerStyleOuterGlow"), outer_glow.color);
   auto* outer_glow_red = outer_glow_rows.red;
@@ -3143,9 +3154,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         auto& target = ensure_effect(result.outer_glows, index, default_outer_glow);
         target.enabled = enabled;
         target.blend_mode = static_cast<BlendMode>(outer_glow_blend->currentData().toInt());
+        target.technique = static_cast<LayerGlowTechnique>(outer_glow_technique->currentData().toInt());
         target.opacity = static_cast<float>(outer_glow_opacity->value()) / 100.0F;
         target.size = static_cast<float>(outer_glow_size->value());
         target.spread = static_cast<float>(outer_glow_spread->value());
+        target.range = static_cast<float>(outer_glow_range->value());
         target.color = RgbColor{static_cast<std::uint8_t>(outer_glow_red->value()),
                                 static_cast<std::uint8_t>(outer_glow_green->value()),
                                 static_cast<std::uint8_t>(outer_glow_blue->value())};
@@ -3361,9 +3374,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
             style.outer_glows.size() > static_cast<std::size_t>(index) ? style.outer_glows[static_cast<std::size_t>(index)]
                                                                        : default_outer_glow();
         set_combo_data(outer_glow_blend, static_cast<int>(value.blend_mode));
+        set_combo_data(outer_glow_technique, static_cast<int>(value.technique));
         outer_glow_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
         outer_glow_size->setValue(static_cast<int>(std::round(value.size)));
         outer_glow_spread->setValue(static_cast<int>(std::round(value.spread)));
+        outer_glow_range->setValue(std::clamp(static_cast<int>(std::round(value.range)), 1, 100));
         outer_glow_red->setValue(value.color.red);
         outer_glow_green->setValue(value.color.green);
         outer_glow_blue->setValue(value.color.blue);
@@ -3789,7 +3804,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                      pattern_overlay_opacity, pattern_overlay_angle, pattern_overlay_scale,
                      stroke_size, stroke_opacity, stroke_red, stroke_green, stroke_blue,
                      color_overlay_opacity, color_overlay_red, color_overlay_green, color_overlay_blue,
-                     gradient_opacity, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_red,
+                     gradient_opacity, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range,
+                     outer_glow_red,
                      outer_glow_green, outer_glow_blue, inner_glow_opacity, inner_glow_size, inner_glow_choke,
                      inner_glow_red, inner_glow_green, inner_glow_blue, satin_opacity, satin_angle, satin_distance,
                      satin_size, satin_red, satin_green, satin_blue, shadow_opacity, shadow_angle, shadow_distance,
@@ -4095,6 +4111,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(color_overlay_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(outer_glow_blend, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(outer_glow_technique, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(inner_glow_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });

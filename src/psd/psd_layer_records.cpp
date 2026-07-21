@@ -309,6 +309,8 @@ EncodedLayer encode_group(const Layer& layer) {
 LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
                               const CmykColorConverter& cmyk) {
   LayerRecord record;
+  bool saw_lfx2_block = false;
+  std::optional<std::size_t> lrfx_block_index;
   const auto top = static_cast<std::int32_t>(reader.read_u32());
   const auto left = static_cast<std::int32_t>(reader.read_u32());
   const auto bottom = static_cast<std::int32_t>(reader.read_u32());
@@ -478,14 +480,17 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         record.layer_style = parse_lfx2_layer_style(record.additional_blocks.back().payload, cmyk);
         record.layer_style_from_lmfx = true;
       } else if (key == "lfx2") {
+        saw_lfx2_block = true;
         if (!record.layer_style_from_lmfx) {
           merge_missing_layer_style_effects(record.layer_style,
                                             parse_lfx2_layer_style(record.additional_blocks.back().payload, cmyk));
         }
       } else if (key == "lrFX") {
-        if (!record.layer_style_from_lmfx) {
-          merge_missing_layer_style_effects(record.layer_style, parse_lrfx_layer_style(record.additional_blocks.back().payload));
-        }
+        // Defer: lrFX is Photoshop's PS 5.x compatibility mirror and is IGNORED
+        // by Photoshop whenever lfx2/lmfx exists — merging it would resurrect
+        // effects the descriptor block deliberately disables (an lfx2 drop
+        // shadow with enab=false parses to nothing, which looks "missing").
+        lrfx_block_index = record.additional_blocks.size() - 1U;
       } else if (key == "plFX") {
         if (auto patchy_style = parse_patchy_layer_style(record.additional_blocks.back().payload);
             patchy_style.has_value()) {
@@ -536,6 +541,12 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
   }
   if (reader.position() < extra_end) {
     reader.skip(extra_end - reader.position());
+  }
+  // The legacy lrFX block only speaks for layers that carry no descriptor
+  // effects block at all (true PS 5.x-era files).
+  if (lrfx_block_index.has_value() && !saw_lfx2_block && !record.layer_style_from_lmfx) {
+    merge_missing_layer_style_effects(
+        record.layer_style, parse_lrfx_layer_style(record.additional_blocks[*lrfx_block_index].payload));
   }
   if (record.name.empty()) {
     record.name = "Layer";

@@ -290,6 +290,30 @@ inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Lay
                                             Rect mask_bounds, float size, LayerStrokePosition position,
                                             std::optional<Rect> layer_mask_bounds, bool mask_shapes_source);
 
+// Photoshop composites layer-effect planes with the effect's alpha FOLDED into
+// the source color toward white for the burn modes, then blends at full
+// coverage (COM-probed July 2026 over a gray backdrop: a 50%-opacity black
+// linearBurn shadow subtracts an absolute 255 x alpha from every channel and
+// colorBurn matches the folded curve exactly, both refuting the plain
+// lerp(b, blend(b, color), alpha) model; Normal, Multiply, and Darken keep the
+// plain model, and the affine modes — Multiply, Screen, LinearDodge — are
+// algebraically identical either way). Every effect draw goes through here;
+// layer PIXEL compositing keeps the standard model.
+template <typename Target>
+inline void composite_effect_color(Target& destination, std::int32_t x, std::int32_t y, RgbColor color,
+                                   float alpha, BlendMode mode) {
+  if (mode == BlendMode::LinearBurn || mode == BlendMode::ColorBurn) {
+    const auto fold = [alpha](std::uint8_t channel) {
+      return static_cast<std::uint8_t>(
+          std::clamp<long>(std::lround(255.0F - (255.0F - static_cast<float>(channel)) * alpha), 0L, 255L));
+    };
+    destination.composite_color(x, y, RgbColor{fold(color.red), fold(color.green), fold(color.blue)},
+                                alpha > 0.0F ? 1.0F : 0.0F, mode);
+    return;
+  }
+  destination.composite_color(x, y, color, alpha, mode);
+}
+
 template <typename Target>
 void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                         const LayerDropShadow& shadow, std::optional<Rect> layer_mask_bounds,
@@ -337,7 +361,7 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
       if (clip_to_mask) {
         alpha *= layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
       }
-      destination.composite_color(x, y, shadow.color, alpha, shadow.blend_mode);
+      composite_effect_color(destination, x, y, shadow.color, alpha, shadow.blend_mode);
     }
   }
 }
@@ -360,13 +384,23 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
     return;
   }
 
-  const auto legacy_mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, radius + 1);
+  // Softer (Photoshop's default technique) expands by the integer spread radius
+  // and blurs with Satin's exact tent kernel (COM-calibrated; see
+  // prepare_outer_glow_softer_mask), so a thin stroke's glow peaks well below
+  // full opacity. Precise keeps the distance-field falloff.
+  const auto softer = glow.technique == LayerGlowTechnique::Softer;
+  const auto legacy_mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, radius + (softer ? 2 : 1));
   const auto [entry, mask_bounds] = style_mask_for_render(
       masks, layer, StyleMaskKind::OuterGlow, effect_index, effect_bounds, effect_bounds, legacy_mask_bounds,
       bounds, layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
         auto base = layer_alpha_mask(source, layer, bounds, domain, 0, 0, layer_mask_bounds);
-        computed.primary = distance_falloff_mask(base, domain.width, domain.height, glow.size, glow.spread);
+        if (softer) {
+          prepare_outer_glow_softer_mask(base, domain.width, domain.height, glow.size, glow.spread, glow.range);
+          computed.primary = std::move(base);
+        } else {
+          computed.primary = distance_falloff_mask(base, domain.width, domain.height, glow.size, glow.spread);
+        }
         return computed;
       });
   const auto width = mask_bounds.width;
@@ -384,7 +418,7 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
       if (clip_to_mask) {
         glow_alpha *= layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
       }
-      destination.composite_color(x, y, glow.color, glow_alpha, glow.blend_mode);
+      composite_effect_color(destination, x, y, glow.color, glow_alpha, glow.blend_mode);
     }
   }
 }
@@ -440,7 +474,7 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
       const auto falloff_alpha =
           shifted_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
       const auto shadow_alpha = source_alpha * falloff_alpha * shadow.opacity * layer.opacity();
-      destination.composite_color(x, y, shadow.color, shadow_alpha, shadow.blend_mode);
+      composite_effect_color(destination, x, y, shadow.color, shadow_alpha, shadow.blend_mode);
     }
   }
 }
@@ -504,7 +538,7 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
       const auto source_factor =
           falloff_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
       const auto glow_alpha = source_alpha * source_factor * glow.opacity * layer.opacity();
-      destination.composite_color(x, y, glow.color, glow_alpha, glow.blend_mode);
+      composite_effect_color(destination, x, y, glow.color, glow_alpha, glow.blend_mode);
     }
   }
 }
@@ -528,8 +562,8 @@ void render_color_overlay(Target& destination, const Layer& layer, const PixelBu
       if (source_alpha <= 0.0F) {
         continue;
       }
-      destination.composite_color(x, y, overlay.color, source_alpha * overlay.opacity * layer.opacity(),
-                                  overlay.blend_mode);
+      composite_effect_color(destination, x, y, overlay.color, source_alpha * overlay.opacity * layer.opacity(),
+                             overlay.blend_mode);
     }
   }
 }
@@ -558,8 +592,8 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
       }
       const auto position = gradient_position(fill.gradient, gradient_bounds, x, y);
       const auto alpha = source_alpha * fill.opacity * layer.opacity() * gradient_stop_opacity(fill.gradient, position);
-      destination.composite_color(x, y, gradient_color_dithered(fill.gradient, position, x, y), alpha,
-                                  fill.blend_mode);
+      composite_effect_color(destination, x, y, gradient_color_dithered(fill.gradient, position, x, y), alpha,
+                             fill.blend_mode);
     }
   }
 }
@@ -600,7 +634,7 @@ void render_pattern_overlay(Target& destination, const Layer& layer, const Pixel
       if (alpha <= 0.0F) {
         continue;
       }
-      destination.composite_color(x, y, sample.color, alpha, overlay.blend_mode);
+      composite_effect_color(destination, x, y, sample.color, alpha, overlay.blend_mode);
     }
   }
 }
@@ -858,13 +892,13 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
         effect_alpha *= layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
       }
       if (lighting > 0.0F) {
-        destination.composite_color(x, y, bevel.highlight_color,
-                                    clamp_unit(lighting) * effect_alpha * bevel.highlight_opacity * layer.opacity(),
-                                    bevel.highlight_blend_mode);
+        composite_effect_color(destination, x, y, bevel.highlight_color,
+                               clamp_unit(lighting) * effect_alpha * bevel.highlight_opacity * layer.opacity(),
+                               bevel.highlight_blend_mode);
       } else if (lighting < 0.0F) {
-        destination.composite_color(x, y, bevel.shadow_color,
-                                    clamp_unit(-lighting) * effect_alpha * bevel.shadow_opacity * layer.opacity(),
-                                    bevel.shadow_blend_mode);
+        composite_effect_color(destination, x, y, bevel.shadow_color,
+                               clamp_unit(-lighting) * effect_alpha * bevel.shadow_opacity * layer.opacity(),
+                               bevel.shadow_blend_mode);
       }
     }
   }
@@ -1007,7 +1041,7 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
         color = gradient_color_dithered(stroke.gradient, position, x, y);
         alpha *= gradient_stop_opacity(stroke.gradient, position);
       }
-      destination.composite_color(x, y, color, alpha, stroke.blend_mode);
+      composite_effect_color(destination, x, y, color, alpha, stroke.blend_mode);
     }
   }
 }
@@ -1264,7 +1298,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             const auto alpha =
                 source_alpha * prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
             if (alpha > 0.0F) {
-              destination.composite_color(x, y, prepared.effect->color, alpha, prepared.effect->blend_mode);
+              composite_effect_color(destination, x, y, prepared.effect->color, alpha, prepared.effect->blend_mode);
             }
           }
         }

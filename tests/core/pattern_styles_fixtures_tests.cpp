@@ -40,6 +40,7 @@
 #include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_io_internal.hpp"
 #include "core/contour_presets.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/palette.hpp"
@@ -713,6 +714,176 @@ void psd_arrows_imports_photoshop_inner_effects() {
   CHECK(first_enabled_inner_glow(*round_tripped_layer) != nullptr);
 }
 
+const patchy::LayerOuterGlow* first_enabled_outer_glow(const patchy::Layer& layer) {
+  const auto& glows = layer.layer_style().outer_glows;
+  const auto found = std::find_if(glows.begin(), glows.end(), [](const patchy::LayerOuterGlow& glow) {
+    return glow.enabled;
+  });
+  return found == glows.end() ? nullptr : &*found;
+}
+
+// Photoshop 2026 authored both fixtures via COM (July 2026): white shapes on black with
+// Screen-mode Softer outer glows, saved alongside Photoshop's own flatten as BMP.
+// photoshop-outer-glow-range.psd sweeps Quality > Range (25/50/80/100) plus small sizes
+// (1..5) and a fractional spread; every straight-edge profile pinned the tent kernel,
+// the integer spread radius, and the 100/range gain, and the flatten comparison holds
+// within 3/255. photoshop-outer-glow.psd carries Range-100 shapes including a spread-50
+// size-40 dot (whose radius-20 expansion exercises the chamfer fallback) and a hard
+// spread-100 band whose corner arcs differ from the area-sampled disc by design, so its
+// bounds are looser.
+void psd_photoshop_outer_glow_fixtures_match_render() {
+  const auto range_path = patchy::test::committed_psd_fixture_path("photoshop-outer-glow-range.psd");
+  const auto range_bmp = range_path.parent_path() / "photoshop-outer-glow-range.bmp";
+  CHECK(std::filesystem::exists(range_path));
+  CHECK(std::filesystem::exists(range_bmp));
+
+  const auto document = patchy::psd::DocumentIo::read_file(range_path);
+  const auto* bar50 = find_layer_named(document.layers(), "bar50");
+  CHECK(bar50 != nullptr);
+  const auto* bar50_glow = first_enabled_outer_glow(*bar50);
+  CHECK(bar50_glow != nullptr);
+  CHECK(bar50_glow->technique == patchy::LayerGlowTechnique::Softer);
+  CHECK(bar50_glow->blend_mode == patchy::BlendMode::Screen);
+  CHECK(close_float(bar50_glow->size, 17.0F));
+  CHECK(close_float(bar50_glow->spread, 8.0F));
+  CHECK(close_float(bar50_glow->opacity, 0.35F));
+  CHECK(close_float(bar50_glow->range, 50.0F));
+  const auto* sq25 = find_layer_named(document.layers(), "sq25");
+  CHECK(sq25 != nullptr);
+  const auto* sq25_glow = first_enabled_outer_glow(*sq25);
+  CHECK(sq25_glow != nullptr);
+  CHECK(close_float(sq25_glow->range, 25.0F));
+  const auto* bar100 = find_layer_named(document.layers(), "bar100");
+  CHECK(bar100 != nullptr);
+  const auto* bar100_glow = first_enabled_outer_glow(*bar100);
+  CHECK(bar100_glow != nullptr);
+  CHECK(close_float(bar100_glow->range, 100.0F));
+
+  const auto photoshop_render = patchy::bmp::DocumentIo::read_file(range_bmp);
+  const auto reference_flat = patchy::Compositor{}.flatten_rgb8(photoshop_render);
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  CHECK(metrics.max_channel_delta <= 3);
+  CHECK(metrics.mean_abs_channel_delta <= 0.10);
+
+  // GlwT and Inpr survive a Patchy re-save.
+  const auto round_tripped =
+      patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* round_tripped_sq25 = find_layer_named(round_tripped.layers(), "sq25");
+  CHECK(round_tripped_sq25 != nullptr);
+  const auto* round_tripped_glow = first_enabled_outer_glow(*round_tripped_sq25);
+  CHECK(round_tripped_glow != nullptr);
+  CHECK(round_tripped_glow->technique == patchy::LayerGlowTechnique::Softer);
+  CHECK(close_float(round_tripped_glow->range, 25.0F));
+
+  const auto extreme_path = patchy::test::committed_psd_fixture_path("photoshop-outer-glow.psd");
+  const auto extreme_bmp = extreme_path.parent_path() / "photoshop-outer-glow.bmp";
+  CHECK(std::filesystem::exists(extreme_path));
+  CHECK(std::filesystem::exists(extreme_bmp));
+  const auto extreme_document = patchy::psd::DocumentIo::read_file(extreme_path);
+  const auto extreme_reference =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(extreme_bmp));
+  const auto extreme_flat = patchy::Compositor{}.flatten_rgb8(extreme_document);
+  const auto extreme_metrics = rgb_diff_metrics(extreme_reference, extreme_flat);
+  CHECK(extreme_metrics.mean_abs_channel_delta <= 1.2);
+  std::uint64_t over_aa_tolerance = 0;
+  for (std::int32_t y = 0; y < extreme_reference.height(); ++y) {
+    for (std::int32_t x = 0; x < extreme_reference.width(); ++x) {
+      const auto* a = extreme_reference.pixel(x, y);
+      const auto* b = extreme_flat.pixel(x, y);
+      int max_delta = 0;
+      for (int channel = 0; channel < 3; ++channel) {
+        max_delta = std::max(max_delta,
+                             std::abs(static_cast<int>(a[channel]) - static_cast<int>(b[channel])));
+      }
+      if (max_delta > 6) {
+        ++over_aa_tolerance;
+      }
+    }
+  }
+  const auto extreme_pixels = static_cast<double>(extreme_reference.width()) *
+                              static_cast<double>(extreme_reference.height());
+  CHECK(static_cast<double>(over_aa_tolerance) / extreme_pixels <= 0.08);
+}
+
+// The PS 5.x 'dsdw' record stores blur/intensity/angle/distance as 16.16 fixed
+// point and opacity as a 0-255 byte. The pre-July-2026 parser read the fixed
+// fields as raw integers one slot early, so a legacy shadow could carry a
+// ~7.8-million-pixel distance and abort the whole flatten on allocation.
+void psd_lrfx_legacy_drop_shadow_parses_fixed_point() {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u16(0);  // effects version
+  writer.write_u16(1);  // effect count
+  writer.write_bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>("8BIMdsdw"), 8));
+  patchy::psd::BigEndianWriter effect;
+  effect.write_u32(51);  // record size
+  effect.write_u32(2);   // version
+  effect.write_u32(12U << 16U);   // blur (size), fixed
+  effect.write_u32(0);            // intensity
+  effect.write_u32(120U << 16U);  // angle, fixed
+  effect.write_u32(5U << 16U);    // distance, fixed
+  effect.write_u16(0);  // color space
+  effect.write_u16(0xFFFF);
+  effect.write_u16(0);
+  effect.write_u16(0);
+  effect.write_u16(0);
+  effect.write_bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>("8BIMlbrn"), 8));
+  effect.write_u8(1);   // enabled
+  effect.write_u8(1);   // use global angle
+  effect.write_u8(71);  // opacity byte (28%)
+  const auto& effect_bytes = effect.bytes();
+  writer.write_u32(static_cast<std::uint32_t>(effect_bytes.size()));
+  writer.write_bytes(effect_bytes);
+
+  const auto style = patchy::psd::parse_lrfx_layer_style(writer.bytes());
+  CHECK(style.drop_shadows.size() == 1U);
+  const auto& shadow = style.drop_shadows.front();
+  CHECK(shadow.enabled);
+  CHECK(shadow.size == 12.0F);
+  CHECK(shadow.angle_degrees == 120.0F);
+  CHECK(shadow.distance == 5.0F);
+  CHECK(shadow.use_global_light);
+  CHECK(shadow.blend_mode == patchy::BlendMode::LinearBurn);
+  CHECK(shadow.color.red == 255 && shadow.color.green == 0 && shadow.color.blue == 0);
+  CHECK(close_float(shadow.opacity, 71.0F / 255.0F));
+}
+
+// Photoshop ignores the legacy lrFX compatibility mirror whenever lfx2 exists;
+// merging it resurrected effects the lfx2 deliberately disables (and the
+// misparsed legacy values then aborted the flatten). Reproduced by disabling
+// the tips.psd title's lfx2 drop shadow in memory: the layer also carries an
+// lrFX block whose legacy shadow must NOT leak back in.
+void psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("tips.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local tips.psd fixture missing: " << path.string() << '\n';
+    return;
+  }
+  std::ifstream stream(path, std::ios::binary);
+  std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+  const std::vector<std::uint8_t> lfx2_marker{'8', 'B', 'I', 'M', 'l', 'f', 'x', '2'};
+  const auto lfx2_at = std::search(bytes.rbegin(), bytes.rend(), lfx2_marker.rbegin(), lfx2_marker.rend());
+  CHECK(lfx2_at != bytes.rend());
+  const auto lfx2_offset = static_cast<std::size_t>(bytes.rend() - lfx2_at) - lfx2_marker.size();
+  const std::vector<std::uint8_t> shadow_key{'D', 'r', 'S', 'h'};
+  auto search_begin = bytes.begin() + static_cast<std::ptrdiff_t>(lfx2_offset);
+  const auto shadow_at = std::search(search_begin, bytes.end(), shadow_key.begin(), shadow_key.end());
+  CHECK(shadow_at != bytes.end());
+  const std::vector<std::uint8_t> enab_marker{'e', 'n', 'a', 'b', 'b', 'o', 'o', 'l'};
+  const auto enab_at = std::search(shadow_at, bytes.end(), enab_marker.begin(), enab_marker.end());
+  CHECK(enab_at != bytes.end());
+  CHECK(*(enab_at + 8) == 1U);
+  *(enab_at + static_cast<std::ptrdiff_t>(enab_marker.size())) = 0U;
+
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  const auto* title = find_layer_named(document.layers(), "Quick Tips");
+  CHECK(title != nullptr);
+  CHECK(layer_has_psd_block(*title, "lrFX"));
+  CHECK(first_enabled_drop_shadow(*title) == nullptr);
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flat.width() == 800 && flat.height() == 512);
+}
+
 // CMYK-mode documents store lfx2 effect colors as 'CMYC' descriptors (ink percentages) and
 // text engine fill colors as /Type 2 values; both convert to sRGB through the document's
 // embedded ICC profile, with the SAME transform as the pixel decode. The fixture is a
@@ -991,6 +1162,12 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates},
       {"psd_arrows_imports_photoshop_inner_effects",
        psd_arrows_imports_photoshop_inner_effects},
+      {"psd_photoshop_outer_glow_fixtures_match_render",
+       psd_photoshop_outer_glow_fixtures_match_render},
+      {"psd_lrfx_legacy_drop_shadow_parses_fixed_point",
+       psd_lrfx_legacy_drop_shadow_parses_fixed_point},
+      {"psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available",
+       psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available},
       {"psd_cmyk_document_converts_style_and_text_colors", psd_cmyk_document_converts_style_and_text_colors},
       {"color_cmyk_transform_rejects_garbage_profile", color_cmyk_transform_rejects_garbage_profile},
       {"color_cmyk_transform_matches_pinned_swop_values", color_cmyk_transform_matches_pinned_swop_values},

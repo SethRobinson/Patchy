@@ -2303,6 +2303,14 @@
         <translation>テクニック</translation>
     </message>
     <message>
+        <source>Softer</source>
+        <translation>さらにソフトに</translation>
+    </message>
+    <message>
+        <source>Precise</source>
+        <translation>精細</translation>
+    </message>
+    <message>
         <source>Chisel Hard</source>
         <translation>シゼルハード</translation>
     </message>
