@@ -16,6 +16,7 @@
 #include "ui/script_api.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_folders.hpp"
+#include "ui/sound_effects.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -808,6 +809,40 @@ void ScriptEngineHost::includeScript(const QString& path) {
 
 bool ScriptEngineHost::scriptIsIncluded() const {
   return run_ != nullptr && run_->include_depth > 0;
+}
+
+void ScriptEngineHost::play_tone(double frequency_hz, int duration_ms, double volume,
+                                 const QString& wave) {
+  pump_progress_indicator();
+  const auto shape = wave.compare(QStringLiteral("square"), Qt::CaseInsensitive) == 0
+                         ? ToneWave::Square
+                         : ToneWave::Sine;
+  play_wav_bytes(build_tone_wav(frequency_hz, duration_ms, volume, shape));
+}
+
+void ScriptEngineHost::play_sound_file(const QString& path) {
+  pump_progress_indicator();
+  // Same search as include(): beside the running script, then the user
+  // scripts folder, then bundled - so playSound("Games/hit.wav") works from
+  // anywhere, with a user copy shadowing a bundled one.
+  const auto resolved = apply_user_script_override(resolve_include_path(path));
+  QFile file(resolved);
+  if (!file.open(QIODevice::ReadOnly)) {
+    throw_js_error(tr("playSound: could not read %1").arg(QDir::toNativeSeparators(resolved)));
+    return;
+  }
+  constexpr qint64 kMaxWavBytes = 10 * 1024 * 1024;
+  if (file.size() > kMaxWavBytes) {
+    throw_js_error(tr("playSound: %1 is larger than 10 MB").arg(QDir::toNativeSeparators(resolved)));
+    return;
+  }
+  auto bytes = file.readAll();
+  if (bytes.size() < 12 || !bytes.startsWith("RIFF") ||
+      bytes.mid(8, 4) != QByteArrayLiteral("WAVE")) {
+    throw_js_error(tr("playSound: %1 is not a .wav file").arg(QDir::toNativeSeparators(resolved)));
+    return;
+  }
+  play_wav_bytes(std::move(bytes));
 }
 
 void ScriptEngineHost::throw_js_error(const QString& message) {

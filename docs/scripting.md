@@ -246,9 +246,10 @@ everywhere a bundled script is resolved.
   `app.chooseFolder/chooseOpenFile/chooseSaveFile`, `app.runCommand/commandIds`,
   `getPixels` reading 8-bit RGB layers (opaque opened photos) expanded to RGBA with
   alpha 255 (it previously threw; `setPixels` still always writes RGBA8 back),
-  `patchy.ui.showOptions`, the `folder`/`file` form field types, and the form dialogs'
-  `description` header. Behavioral fix (still 1): `addTextLayer`'s `size` is defined as
-  document pixels; it previously committed at a canvas-zoom-dependent size.
+  `patchy.ui.showOptions`, the `folder`/`file` form field types, the form dialogs'
+  `description` header, and `patchy.ui.playTone`/`patchy.ui.playSound`. Behavioral fix
+  (still 1): `addTextLayer`'s `size` is defined as document pixels; it previously
+  committed at a canvas-zoom-dependent size.
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included
@@ -259,6 +260,17 @@ everywhere a bundled script is resolved.
   OPTIONS block, and without this an include overwrote the includer's options with the
   library's (the July 2026 Breakout frozen-paddle bug - paddleSpeed/lives read undefined
   after including fancy-background).
+- **Sound effects (`patchy.ui.playTone`/`playSound`)** play through
+  `src/ui/sound_effects.{hpp,cpp}` + `sound_effects_mac.mm`: a deterministic 44100 Hz
+  16-bit mono tone synth (clamps: 20..20000 Hz, 1..4000 ms, volume 0..1; volume baked
+  into the amplitude) and per-OS fire-and-forget playback - winmm `PlaySound`
+  (SND_MEMORY, static buffer keeps bytes alive, a new sound cancels the previous) on
+  Windows, retained `NSSound`s on macOS, a detached `paplay`/`pw-play`/`aplay` process
+  on Linux (none installed = silent no-op). Deliberately NOT Qt Multimedia: absent from
+  the vendored Qt, and adding it would grow provisioning/packaging on all three
+  platforms. `playSound` resolves relative paths the include() way, requires RIFF/WAVE,
+  caps at 10 MB, and throws for missing/invalid files. `PATCHY_NO_SOUND=1` validates
+  but skips the OS call (how the offscreen tests stay silent).
 - **Modal helpers pause the watchdog.** Every interactive helper that blocks in a modal
   (alert, prompt, the pickers, `showDialog`, `runCommand`) wraps itself in
   `ModalWatchdogPause`, which disarms the watchdog and re-arms it with a FRESH timeout on

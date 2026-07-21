@@ -14,6 +14,7 @@
 #include "ui/script_editor_dialog.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
+#include "ui/sound_effects.hpp"
 
 #include "test_harness.hpp"
 #include "ui/ui_test_access.hpp"
@@ -44,7 +45,9 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 
+#include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 #include <utility>
 #include <vector>
@@ -766,6 +769,97 @@ void ui_script_include_bundled_root_and_is_main() {
   CHECK(backlog_contains(window, QStringLiteral("ran-standalone=false")));
 }
 
+// The tone synth's WAV container: canonical 44-byte RIFF/WAVE header for
+// 44100 Hz 16-bit mono PCM, sample count from the duration, amplitude scaling
+// from the volume, and clamped extremes still produce a bounded valid file.
+void ui_sound_build_tone_wav_shape() {
+  const auto u16 = [](const QByteArray& wav, int offset) {
+    return static_cast<int>(static_cast<unsigned char>(wav[offset])) |
+           (static_cast<int>(static_cast<unsigned char>(wav[offset + 1])) << 8);
+  };
+  const auto u32 = [&u16](const QByteArray& wav, int offset) {
+    return static_cast<quint32>(u16(wav, offset)) |
+           (static_cast<quint32>(u16(wav, offset + 2)) << 16);
+  };
+  const auto peak = [](const QByteArray& wav) {
+    int max = 0;
+    for (int i = 44; i + 1 < wav.size(); i += 2) {
+      const auto sample = static_cast<qint16>(
+          static_cast<unsigned char>(wav[i]) |
+          (static_cast<unsigned char>(wav[i + 1]) << 8));
+      max = std::max(max, std::abs(static_cast<int>(sample)));
+    }
+    return max;
+  };
+
+  const auto wav = patchy::ui::build_tone_wav(440.0, 100, 0.5, patchy::ui::ToneWave::Sine);
+  CHECK(wav.startsWith("RIFF"));
+  CHECK(wav.mid(8, 4) == QByteArrayLiteral("WAVE"));
+  CHECK(wav.mid(12, 4) == QByteArrayLiteral("fmt "));
+  CHECK(u16(wav, 20) == 1);       // PCM
+  CHECK(u16(wav, 22) == 1);       // mono
+  CHECK(u32(wav, 24) == 44100u);  // sample rate
+  CHECK(u16(wav, 34) == 16);      // bits per sample
+  CHECK(wav.mid(36, 4) == QByteArrayLiteral("data"));
+  CHECK(u32(wav, 40) == 44100u / 10 * 2);  // 100 ms of 16-bit samples
+  CHECK(wav.size() == 44 + 44100 / 10 * 2);
+
+  const auto loud = patchy::ui::build_tone_wav(440.0, 100, 1.0, patchy::ui::ToneWave::Sine);
+  CHECK(peak(loud) > peak(wav) * 3 / 2);  // volume scales amplitude
+  const auto silent = patchy::ui::build_tone_wav(440.0, 100, 0.0, patchy::ui::ToneWave::Sine);
+  CHECK(peak(silent) == 0);
+  const auto square = patchy::ui::build_tone_wav(440.0, 100, 0.5, patchy::ui::ToneWave::Square);
+  CHECK(square.mid(44) != wav.mid(44));
+
+  const auto clamped =
+      patchy::ui::build_tone_wav(999999.0, 999999, 9.0, patchy::ui::ToneWave::Square);
+  CHECK(clamped.size() == 44 + 44100 * 4 * 2);  // duration caps at 4 s
+}
+
+// patchy.ui.playTone/playSound through the script API: PATCHY_NO_SOUND keeps
+// the suite silent while the full path (clamps, include-style resolution, WAV
+// validation, error text naming the file) still runs.
+void ui_script_play_tone_and_sound_offscreen() {
+  qputenv("PATCHY_NO_SOUND", "1");
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto wav_path = temp.filePath(QStringLiteral("blip.wav"));
+  {
+    QFile file(wav_path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(patchy::ui::build_tone_wav(880.0, 30, 0.4, patchy::ui::ToneWave::Square));
+  }
+  const auto not_wav_path = temp.filePath(QStringLiteral("not-a-wav.wav"));
+  {
+    QFile file(not_wav_path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write("plain text");
+  }
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    patchy.ui.playTone(880);
+    patchy.ui.playTone(60, 40, 0.2, "square");
+    patchy.ui.playTone(-500, 999999, 42);  // clamped, still fine
+    patchy.ui.playSound('%1');
+    var missing = '';
+    try { patchy.ui.playSound('no-such-file.wav'); } catch (e) { missing = String(e); }
+    var invalid = '';
+    try { patchy.ui.playSound('%2'); } catch (e) { invalid = String(e); }
+    console.log('missing-error=' + missing);
+    console.log('invalid-error=' + invalid);
+    console.log('sound-ok');
+  )JS")
+                             .arg(QString(wav_path).replace(QLatin1Char('\\'), QLatin1Char('/')))
+                             .arg(QString(not_wav_path)
+                                      .replace(QLatin1Char('\\'), QLatin1Char('/')))));
+  CHECK(backlog_contains(window, QStringLiteral("sound-ok")));
+  CHECK(backlog_contains(window, QStringLiteral("missing-error=Error: playSound")));
+  CHECK(backlog_contains(window, QStringLiteral("no-such-file.wav")));
+  CHECK(backlog_contains(window, QStringLiteral("not a .wav file")));
+  qunsetenv("PATCHY_NO_SOUND");
+}
+
 void ui_script_fancy_background_runs_standalone() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1476,6 +1570,8 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_busy_overlay_and_timer_guard", ui_script_busy_overlay_and_timer_guard},
       {"ui_script_manager_hover_card_shows_details", ui_script_manager_hover_card_shows_details},
       {"ui_script_include_bundled_root_and_is_main", ui_script_include_bundled_root_and_is_main},
+      {"ui_sound_build_tone_wav_shape", ui_sound_build_tone_wav_shape},
+      {"ui_script_play_tone_and_sound_offscreen", ui_script_play_tone_and_sound_offscreen},
       {"ui_script_fancy_background_runs_standalone", ui_script_fancy_background_runs_standalone},
       {"ui_script_dialog_pickers_listfiles_args_cli_defaults",
        ui_script_dialog_pickers_listfiles_args_cli_defaults},

@@ -219,6 +219,13 @@ public:
   // effective values (docs/scripting.md "Script options").
   [[nodiscard]] QJSValue show_options_dialog(const QJSValue& spec);
 
+  // patchy.ui.playTone / patchy.ui.playSound: synthesized blips and .wav
+  // playback through sound_effects (per-OS fire-and-forget backends,
+  // PATCHY_NO_SOUND=1 opt-out). play_sound_file resolves relative paths the
+  // include() way and throws a JS error for missing/oversized/non-WAV files.
+  void play_tone(double frequency_hz, int duration_ms, double volume, const QString& wave);
+  void play_sound_file(const QString& path);
+
   // app.runCommand / app.commandIds: registered app actions by their stable
   // HotkeyRegistry command id. run_app_command returns false for unknown or
   // currently disabled commands.

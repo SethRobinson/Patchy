@@ -13900,6 +13900,9 @@ Clipped to the layer below</source>
     <message><source>%1m %2s</source><translation>%1分%2秒</translation></message>
     <message><source>setTimeout/setInterval needs a function.</source><translation>setTimeout/setInterval には関数が必要です。</translation></message>
     <message><source>include: could not read %1</source><translation>include: %1 を読み込めませんでした</translation></message>
+    <message><source>playSound: could not read %1</source><translation>playSound: %1 を読み込めませんでした</translation></message>
+    <message><source>playSound: %1 is larger than 10 MB</source><translation>playSound: %1 は 10 MB を超えています</translation></message>
+    <message><source>playSound: %1 is not a .wav file</source><translation>playSound: %1 は .wav ファイルではありません</translation></message>
     <message><source>Choose Folder</source><translation>フォルダーを選択</translation></message>
     <message><source>Choose File</source><translation>ファイルを選択</translation></message>
     <message><source>Save File</source><translation>ファイルを保存</translation></message>

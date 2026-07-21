@@ -12,13 +12,18 @@ var OPTIONS = {
   winningScore: 5,
   paddleHeight: 70,
   ballSpeed: 5,      // serve speed; rallies speed up on paddle hits
-  rivalSpeed: 4.4    // AI paddle speed cap - raise for a harder opponent
+  rivalSpeed: 4.4,   // AI paddle speed cap - raise for a harder opponent
+  sound: true        // retro blips (patchy.ui.playTone)
 };
 // ---------------------------------------------------------------------------
 
 var W = OPTIONS.width;
 var H = OPTIONS.height;
 var win = patchy.ui.createCanvas({ width: W, height: H, title: "Patchy Pong" });
+
+function sfx(freq, ms, vol) {
+  if (OPTIONS.sound) { patchy.ui.playTone(freq, ms, vol, "square"); }
+}
 
 var paddleH = OPTIONS.paddleHeight;
 var paddleW = 10;
@@ -57,28 +62,34 @@ win.onFrame = function (dt) {
   // Ball.
   ball.x += ball.vx * step;
   ball.y += ball.vy * step;
-  if (ball.y < 5) { ball.y = 5; ball.vy = Math.abs(ball.vy); }
-  if (ball.y > H - 5) { ball.y = H - 5; ball.vy = -Math.abs(ball.vy); }
+  if (ball.y < 5) { ball.y = 5; ball.vy = Math.abs(ball.vy); sfx(330, 50, 0.3); }
+  if (ball.y > H - 5) { ball.y = H - 5; ball.vy = -Math.abs(ball.vy); sfx(330, 50, 0.3); }
   // Player paddle at x = 20; rival at x = W - 30.
   if (ball.x < 30 && ball.x > 20 && ball.y > player.y - 5 && ball.y < player.y + paddleH + 5 && ball.vx < 0) {
     ball.vx = -ball.vx * 1.05;
     ball.vy += ((ball.y - (player.y + paddleH / 2)) / paddleH) * 6;
+    sfx(880, 60, 0.4);
   }
   if (ball.x > W - 40 && ball.x < W - 30 && ball.y > rival.y - 5 && ball.y < rival.y + paddleH + 5 && ball.vx > 0) {
     ball.vx = -ball.vx * 1.05;
     ball.vy += ((ball.y - (rival.y + paddleH / 2)) / paddleH) * 6;
+    sfx(660, 60, 0.4);
   }
   if (ball.x < 0) {
     rival.score++;
-    message = rival.score >= OPTIONS.winningScore ? "Patchy wins! Close the window."
-                                                  : "Patchy scores!";
+    var lost = rival.score >= OPTIONS.winningScore;
+    message = lost ? "Patchy wins! Close the window." : "Patchy scores!";
+    sfx(160, lost ? 400 : 250, 0.5);
+    if (lost) { setTimeout(function () { sfx(120, 500, 0.5); }, 420); }
     messageTimer = 1200;
     resetBall(true);
   }
   if (ball.x > W) {
     player.score++;
-    message = player.score >= OPTIONS.winningScore ? "You win! Close the window."
-                                                   : "You score!";
+    var won = player.score >= OPTIONS.winningScore;
+    message = won ? "You win! Close the window." : "You score!";
+    sfx(523, won ? 300 : 200, 0.45);
+    if (won) { setTimeout(function () { sfx(784, 450, 0.45); }, 320); }
     messageTimer = 1200;
     resetBall(false);
   }

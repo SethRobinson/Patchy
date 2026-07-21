@@ -706,6 +706,8 @@ if(PATCHY_BUILD_APP)
       src/ui/script_api.cpp
       src/ui/script_canvas_window.hpp
       src/ui/script_canvas_window.cpp
+      src/ui/sound_effects.hpp
+      src/ui/sound_effects.cpp
       src/ui/script_editor_dialog.hpp
       src/ui/script_editor_dialog.cpp
       src/ui/script_engine.hpp
@@ -768,11 +770,14 @@ if(PATCHY_BUILD_APP)
       target_sources(patchy_ui PRIVATE
         src/ui/dialog_utils_mac.mm
         src/ui/scanner_import_mac.mm
+        src/ui/sound_effects_mac.mm
       )
       # The scanner controller uses weak delegates and an asynchronous AppKit sheet;
       # keep its Objective-C object lifetime explicit through ARC without changing the
-      # existing dialog utility translation unit.
+      # existing dialog utility translation unit. The sound backend retains live
+      # NSSounds the same ARC way.
       set_source_files_properties(src/ui/scanner_import_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+      set_source_files_properties(src/ui/sound_effects_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
       target_link_libraries(patchy_ui PUBLIC
         "-framework AppKit"
         "-framework Quartz"
@@ -782,7 +787,8 @@ if(PATCHY_BUILD_APP)
     if(WIN32)
       # WIA scanner/camera acquisition (File > Import > From Scanner or Camera...).
       target_sources(patchy_ui PRIVATE src/ui/scanner_import_win.cpp)
-      target_link_libraries(patchy_ui PUBLIC wiaguid)
+      # winmm: PlaySound for the script sound effects (sound_effects.cpp).
+      target_link_libraries(patchy_ui PUBLIC wiaguid winmm)
     endif()
     patchy_configure_target(patchy_ui)
 

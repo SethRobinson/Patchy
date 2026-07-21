@@ -281,6 +281,25 @@ interface PatchyUi {
    */
   showOptions(spec: { title?: string; description?: string; fields: PatchyDialogField[] }):
       Record<string, number | boolean | string> | null;
+  /**
+   * Plays a short synthesized tone, fire-and-forget (the call returns
+   * immediately; a new sound may cut off the previous one). Values are
+   * clamped: frequency 20..20000 Hz (default 880), duration 1..4000 ms
+   * (default 120), volume 0..1 (default 0.5); wave is "sine" (default) or
+   * "square" (retro game blips). Playback is best-effort per platform (on
+   * Linux it needs paplay, pw-play, or aplay on PATH) and PATCHY_NO_SOUND=1
+   * silences it.
+   */
+  playTone(frequency?: number, durationMs?: number, volume?: number,
+           wave?: "sine" | "square"): void;
+  /**
+   * Plays a .wav file (16/8-bit PCM is safest; 10 MB max), fire-and-forget.
+   * Relative paths resolve like include(): beside the running script, then
+   * the user scripts folder, then the bundled scripts. Throws when the file
+   * is missing, oversized, or not a RIFF/WAVE file. Same per-platform
+   * best-effort playback as playTone.
+   */
+  playSound(path: string): void;
 }
 
 interface PatchyIo {

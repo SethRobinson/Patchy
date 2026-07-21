@@ -228,6 +228,17 @@ public:
   // returning the effective values. The recommended front door for scripts
   // with options (docs/scripting.md "Script options").
   Q_INVOKABLE QJSValue showOptions(const QJSValue& spec);
+  // Fire-and-forget synthesized blip: frequency 20..20000 Hz, duration
+  // 1..4000 ms, volume 0..1, wave "sine" (default) or "square". QJSValue
+  // parameters so omitted JS arguments get these defaults (missing args
+  // arrive as undefined, never as C++ default values).
+  Q_INVOKABLE void playTone(const QJSValue& frequency = QJSValue(),
+                            const QJSValue& durationMs = QJSValue(),
+                            const QJSValue& volume = QJSValue(),
+                            const QJSValue& wave = QJSValue());
+  // Plays a .wav file (up to 10 MB). Relative paths resolve like include():
+  // beside the running script, then the user scripts folder, then bundled.
+  Q_INVOKABLE void playSound(const QString& path);
 
 private:
   ScriptEngineHost& host_;

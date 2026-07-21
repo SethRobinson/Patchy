@@ -997,4 +997,14 @@ QJSValue ScriptUiObject::showOptions(const QJSValue& spec) {
   return host_.show_options_dialog(spec);
 }
 
+void ScriptUiObject::playTone(const QJSValue& frequency, const QJSValue& durationMs,
+                              const QJSValue& volume, const QJSValue& wave) {
+  host_.play_tone(frequency.isNumber() ? frequency.toNumber() : 880.0,
+                  durationMs.isNumber() ? static_cast<int>(durationMs.toNumber()) : 120,
+                  volume.isNumber() ? volume.toNumber() : 0.5,
+                  wave.isString() ? wave.toString() : QStringLiteral("sine"));
+}
+
+void ScriptUiObject::playSound(const QString& path) { host_.play_sound_file(path); }
+
 }  // namespace patchy::ui
