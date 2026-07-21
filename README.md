@@ -93,6 +93,20 @@ Click a thumbnail for the full-size image.
       <br><sub>SVG files open as editable shape layers: groups become folders, paths stay live vectors</sub>
     </td>
   </tr>
+  <tr>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/script_manager.png"><img src="docs/images/screenshots/script_manager.png" width="270" alt="Script Manager running the bundled Breakout script, with breakout.js code, live run status, and stop button beside the game playing on a real document canvas with brick, paddle, and ball layers"></a>
+      <br><sub>Script Manager running the bundled Breakout: the game plays on a real canvas, with live run status and one-click stop</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/script_options.png"><img src="docs/images/screenshots/script_options.png" width="270" alt="Duotone script options dialog with instructions, shadow and highlight color fields, and a contrast slider over a photo already remapped to navy and amber"></a>
+      <br><sub>Scripts ask with real options dialogs; the same script runs unattended from the command line with the same defaults</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/affinity_import.png"><img src="docs/images/screenshots/affinity_import.png" width="270" alt="Affinity Photo document open in Patchy as a layered file, the Layers panel showing groups, text layers with effect badges, and raster layers"></a>
+      <br><sub>Affinity Photo and Designer files open as layered documents: groups, editable text, effects, and rasters come through</sub>
+    </td>
+  </tr>
 </table>
 
 ## Video

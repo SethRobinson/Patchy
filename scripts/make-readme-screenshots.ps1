@@ -14,7 +14,8 @@
 # local-test-fixtures/raw/fujifilm_xt1.raf, a CC0 sample from raw.pixls.us. The
 # Tilt-Shift scene uses the committed CC0 San Francisco photograph and the SVG
 # import scene the committed CC0 hot-air-balloon clip art, both documented in
-# NOTICE-THIRD-PARTY.md.
+# NOTICE-THIRD-PARTY.md. The Affinity import scene uses the local
+# local-test-fixtures/af-spike/corpus/tips.af document.
 param(
     [switch]$SkipBuild,
     [string]$Scene = 'shot_readme'
@@ -47,6 +48,7 @@ if (Test-Path $artifactDir) {
 Push-Location $buildDir
 try {
     $env:QT_QPA_PLATFORM = 'offscreen'
+    $env:PATCHY_NO_SOUND = '1'
     & $exe $filter
     if ($LASTEXITCODE -ne 0) { throw "screenshot scenes failed (exit $LASTEXITCODE)" }
 } finally {

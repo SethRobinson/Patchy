@@ -984,6 +984,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/brush_pattern_palette_test_support.cpp
       tests/ui/destructive_filters_gallery_test_support.cpp
       tests/ui/smart_filter_test_support.cpp
+      tests/ui/readme_screenshot_test_support.cpp
       tests/ui/app_shell_tests.cpp
       tests/ui/filter_catalog_dialog_tests.cpp
       tests/ui/layer_style_gradient_tests.cpp
@@ -1030,6 +1031,8 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/svg_ui_tests.cpp
       tests/ui/scripting_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
+      tests/ui/readme_screenshot_tests_classic.cpp
+      tests/ui/readme_screenshot_tests_scripting.cpp
     )
     # The split TUs live in tests/ui/ but repeat the historical monolith include
     # block ("test_harness.hpp" etc.), so tests/ must be on the include path.
