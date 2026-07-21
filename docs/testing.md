@@ -35,6 +35,27 @@ Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key
 - Tests that enable `imports/showPsdWarningsAndInfo` need a repeating QTimer notice dismisser. A one-shot can fire during open progress and leave the suite hung; see [file-formats.md](file-formats.md) under Import notices.
 - Platform-specific skips and their reasons are maintained in [platform.md](platform.md).
 
+## README screenshots
+
+`scripts\make-readme-screenshots.ps1` regenerates `docs/images/screenshots/`. Two pipelines:
+
+- **Script-driven scenes** (`scripts/dev/readme-shots/*.js`, listed in the driver's
+  `$jsScenes` table): a fresh unattended `patchy.exe --run-script` run stages the UI with the
+  `patchy.ui` staging APIs (setWindowSize/setSidePanelWidth/captureWindow/setStatusMessage,
+  plus the activeLayer panel reveal) on the REAL windows platform, so every installed font
+  renders. Offscreen enumerates no installed fonts, which is why any scene whose document
+  needs non-stock faces (the Affinity tips.af scene's Futura BT and FZ Script families) must
+  live in this pipeline. The driver pins DPI (`QT_ENABLE_HIGHDPI_SCALING=0`, `QT_FONT_DPI=96`),
+  sets `PATCHY_NO_SINGLE_INSTANCE=1`, and isolates settings with `PATCHY_SETTINGS_DIR` (an
+  app-level env hook in src/app/main.cpp that redirects the ini-backed `app_settings()` store)
+  so a run never touches the user's real Patchy state. The app window appears on screen for a
+  few seconds per scene.
+- **Offscreen test scenes** (everything not yet migrated): the `shot_readme_*` scenes in
+  `patchy_ui_visual_tests` run offscreen and their artifacts are copied out. New scenes should
+  be authored as scripts in the first pipeline; the remaining test scenes migrate over time and
+  stay in the suite as regression smoke tests either way (the driver skips copying a test
+  artifact whose scene has a script-driven owner).
+
 ## Native visual QA and app-driving commands
 
 Never use Computer Use, desktop automation, or input injection for native QA without Seth's explicit authorization in the current request. Use Patchy's command-line control surfaces and inspect their outputs directly.
@@ -53,6 +74,7 @@ Useful diagnostic variables:
 - `PATCHY_RENDER_SINGLE_THREADED=1` forces byte-stable sequential rendering.
 - `PATCHY_PROCESSING_OVERLAY_MIN_PIXELS` overrides the processing-overlay threshold.
 - `PATCHY_NO_SOUND=1` suppresses script audio; offscreen suites rely on it.
+- `PATCHY_SETTINGS_DIR=<dir>` redirects the app's ini settings store (automation isolation).
 - `PATCHY_UI_TEST_FILTER` selects a UI test substring.
 
 Composite checksums from stress reports or large renders are comparable only on the same machine: text antialiasing varies by system and the parallel strip renderer varies with thread count.

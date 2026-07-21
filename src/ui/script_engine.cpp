@@ -8,6 +8,7 @@
 
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/layer_tree.hpp"
 #include "core/palette.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/dialog_utils.hpp"
@@ -1738,6 +1739,56 @@ QStringList ScriptEngineHost::app_command_ids() const {
   }
   ids.sort();
   return ids;
+}
+
+// ---------------------------------------------------------------------------
+// UI staging (patchy.ui.setWindowSize / setSidePanelWidth / captureWindow)
+
+void ScriptEngineHost::set_window_size(int width, int height) {
+  pump_progress_indicator();
+  if (window_.isMaximized() || window_.isFullScreen()) {
+    window_.showNormal();
+  }
+  window_.resize(std::clamp(width, 320, 8192), std::clamp(height, 240, 8192));
+}
+
+void ScriptEngineHost::set_side_panel_width(int width) {
+  pump_progress_indicator();
+  window_.set_right_dock_stack_width(std::clamp(width, 120, 2000));
+}
+
+void ScriptEngineHost::set_status_message(const QString& message) {
+  pump_progress_indicator();
+  window_.statusBar()->showMessage(message);
+}
+
+bool ScriptEngineHost::capture_window_to_file(const QString& path) {
+  pump_progress_indicator();
+  // grab() renders synchronously but does not run POSTED layout events, so a
+  // resize earlier in this same burst would capture stale geometry. Settle
+  // them first; user input stays excluded so the capture state cannot shift.
+  QCoreApplication::sendPostedEvents();
+  QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  return window_.save_debug_screenshot(path);
+}
+
+void ScriptEngineHost::reveal_layer_row(std::int64_t session_id, LayerId layer_id) {
+  if (session_id == active_session_id()) {
+    window_.reveal_layer_in_layer_list(layer_id);
+    return;
+  }
+  // Non-active session: expand the stored collapsed ancestors so the row is
+  // visible when the session activates (its panel is not on screen to scroll).
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr) {
+    return;
+  }
+  std::vector<LayerId> ancestors;
+  if (collect_layer_ancestor_groups(session->document.layers(), layer_id, ancestors)) {
+    for (const auto ancestor_id : ancestors) {
+      session->collapsed_layer_groups.erase(ancestor_id);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

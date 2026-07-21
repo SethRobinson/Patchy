@@ -27,6 +27,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QDockWidget>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
@@ -38,6 +39,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTextBrowser>
@@ -1533,6 +1535,75 @@ void ui_script_scripting_guide_opens_from_help() {
   viewers[0]->close();
 }
 
+void ui_script_ui_staging_apis() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto capture_path = QStringLiteral("test-artifacts/ui_script_capture_window.png");
+  QFile::remove(capture_path);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    patchy.ui.setWindowSize(1200, 800);
+    patchy.ui.setSidePanelWidth(300);
+    patchy.ui.setStatusMessage('Staged by script');
+    if (!patchy.ui.captureWindow('test-artifacts/ui_script_capture_window.png')) {
+      throw new Error('captureWindow returned false');
+    }
+  )JS")));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Staged by script"));
+  CHECK(window.width() == 1200);
+  CHECK(window.height() == 800);
+  auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
+  CHECK(layers_dock != nullptr);
+  CHECK(layers_dock->width() == 300);
+  const QImage captured(capture_path);
+  CHECK(!captured.isNull());
+  CHECK(captured.width() == 1200);
+  CHECK(captured.height() == 800);
+  // An empty path throws instead of writing nowhere.
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.captureWindow('');")));
+}
+
+void ui_script_active_layer_setter_reveals_row() {
+  patchy::Document document(48, 36, patchy::PixelFormat::rgba8());
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Base", patchy::PixelBuffer{}));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Nested", patchy::PixelBuffer{}));
+  document.add_layer(std::move(folder));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Reveal"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  // Collapse the folder through its disclosure button (the user path).
+  auto* folder_item = patchy::test::ui::require_layer_item(*layer_list, QStringLiteral("Folder"));
+  auto* folder_widget = layer_list->itemWidget(folder_item);
+  CHECK(folder_widget != nullptr);
+  auto* disclosure = folder_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+  CHECK(disclosure != nullptr);
+  CHECK(disclosure->isChecked());
+  disclosure->click();
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(patchy::test::ui::find_layer_item(*layer_list, QStringLiteral("Nested")) == nullptr);
+
+  // The activeLayer setter reveals the row like a user's click would: the
+  // collapsed ancestor expands and the row becomes the current selection.
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    doc.activeLayer = doc.findLayer('Nested');
+  )JS")));
+  auto* nested_item = patchy::test::ui::find_layer_item(*layer_list, QStringLiteral("Nested"));
+  CHECK(nested_item != nullptr);
+  CHECK(layer_list->currentItem() == nested_item);
+  const auto& active_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* nested_layer = std::as_const(active_document).layers().back().children().empty()
+                                 ? nullptr
+                                 : &std::as_const(active_document).layers().back().children().front();
+  CHECK(nested_layer != nullptr);
+  CHECK(active_document.active_layer_id() == nested_layer->id());
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
@@ -1580,5 +1651,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
        ui_script_cli_directive_and_example_command},
       {"ui_script_manager_cli_example_dialog", ui_script_manager_cli_example_dialog},
       {"ui_script_scripting_guide_opens_from_help", ui_script_scripting_guide_opens_from_help},
+      {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
+      {"ui_script_active_layer_setter_reveals_row", ui_script_active_layer_setter_reveals_row},
   };
 }

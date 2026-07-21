@@ -132,6 +132,10 @@ interface PatchyDocument {
   readonly resolution: number;
   /** Top-level layers, bottom to top; groups expose .children. */
   readonly layers: PatchyLayer[];
+  /**
+   * Setting it also reveals the layer's row in the Layers panel (collapsed
+   * ancestor folders expand and the row scrolls into view), like a click.
+   */
   activeLayer: PatchyLayer | undefined;
   readonly selection: PatchySelection;
 
@@ -300,6 +304,20 @@ interface PatchyUi {
    * best-effort playback as playTone.
    */
   playSound(path: string): void;
+  /**
+   * Resizes the main window (clamped to 320x240..8192x8192). Staging for
+   * automation that captures the app; a maximized window is restored first.
+   */
+  setWindowSize(width: number, height: number): void;
+  /** Sets the width of the right panel stack (Layers/Channels/Paths). */
+  setSidePanelWidth(width: number): void;
+  /**
+   * Saves a PNG capture of the main window (never raises or focuses it).
+   * Returns false when the file cannot be written; throws on an empty path.
+   */
+  captureWindow(path: string): boolean;
+  /** Shows a message in the main window's status bar (progress readouts). */
+  setStatusMessage(message: string): void;
 }
 
 interface PatchyIo {

@@ -232,6 +232,21 @@ public:
   bool run_app_command(const QString& command_id);
   [[nodiscard]] QStringList app_command_ids() const;
 
+  // UI staging (patchy.ui.setWindowSize/setSidePanelWidth/captureWindow):
+  // resize the main window, set the right dock stack width, and save a PNG of
+  // the main window through the --screenshot machinery. Built for automation
+  // that captures the app (the README shot scripts); captures never raise or
+  // focus the window.
+  void set_window_size(int width, int height);
+  void set_side_panel_width(int width);
+  bool capture_window_to_file(const QString& path);
+  // patchy.ui.setStatusMessage: the status bar line (progress readouts, and
+  // staging a clean "Ready" before a capture).
+  void set_status_message(const QString& message);
+  // The activeLayer setter's reveal: expand collapsed ancestor folders and
+  // (when the session is the active one) select + scroll the row into view.
+  void reveal_layer_row(std::int64_t session_id, LayerId layer_id);
+
   // Script canvas windows join the run lifecycle: the run stays live while any
   // window is open, and stopping the run closes them.
   void adopt_canvas_window(ScriptCanvasWindow* window);

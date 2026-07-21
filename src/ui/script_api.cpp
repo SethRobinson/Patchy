@@ -695,6 +695,9 @@ void ScriptDocumentObject::set_active_layer(const QJSValue& layer) {
     return;
   }
   document->set_active_layer(wrapper->layer_id());
+  // Reveal the row: expand collapsed ancestor folders and scroll it into view,
+  // so a script's selection is visible exactly like a user's click would be.
+  host_.reveal_layer_row(session_id_, wrapper->layer_id());
   host_.note_structure_changed(session_id_);
 }
 
@@ -1006,5 +1009,19 @@ void ScriptUiObject::playTone(const QJSValue& frequency, const QJSValue& duratio
 }
 
 void ScriptUiObject::playSound(const QString& path) { host_.play_sound_file(path); }
+
+void ScriptUiObject::setWindowSize(int width, int height) { host_.set_window_size(width, height); }
+
+void ScriptUiObject::setSidePanelWidth(int width) { host_.set_side_panel_width(width); }
+
+void ScriptUiObject::setStatusMessage(const QString& message) { host_.set_status_message(message); }
+
+bool ScriptUiObject::captureWindow(const QString& path) {
+  if (path.trimmed().isEmpty()) {
+    host_.throw_js_error(ScriptEngineHost::tr("captureWindow needs an output file path."));
+    return false;
+  }
+  return host_.capture_window_to_file(path);
+}
 
 }  // namespace patchy::ui

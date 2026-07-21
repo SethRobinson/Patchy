@@ -20,6 +20,7 @@
 #include <QLocalSocket>
 #include <QProxyStyle>
 #include <QRect>
+#include <QSettings>
 #include <QStringList>
 #include <QTimer>
 
@@ -283,6 +284,12 @@ QFont application_font() {
 
 int main(int argc, char* argv[]) {
   apply_gui_scale_factor();
+  // Automation hook (the README shot driver and similar tooling): redirect the
+  // ini-backed app_settings() store so a driven run never reads or writes the
+  // user's real Patchy settings (recent files, saved window geometry, panels).
+  if (const auto settings_dir = qEnvironmentVariable("PATCHY_SETTINGS_DIR"); !settings_dir.isEmpty()) {
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings_dir);
+  }
   PatchyApplication app(argc, argv);
 #ifdef Q_OS_LINUX
   // Lets Wayland compositors match the window to its .desktop entry (taskbar icon,

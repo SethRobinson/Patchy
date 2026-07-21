@@ -239,6 +239,13 @@ public:
   // Plays a .wav file (up to 10 MB). Relative paths resolve like include():
   // beside the running script, then the user scripts folder, then bundled.
   Q_INVOKABLE void playSound(const QString& path);
+  // UI staging for automation (README shots, demos): resize the main window,
+  // set the right panel stack width, save a PNG capture of the main window.
+  Q_INVOKABLE void setWindowSize(int width, int height);
+  Q_INVOKABLE void setSidePanelWidth(int width);
+  Q_INVOKABLE bool captureWindow(const QString& path);
+  // Shows a message in the main window's status bar (progress readouts).
+  Q_INVOKABLE void setStatusMessage(const QString& message);
 
 private:
   ScriptEngineHost& host_;

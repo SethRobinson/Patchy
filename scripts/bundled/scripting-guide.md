@@ -168,6 +168,10 @@ Colors everywhere are CSS-style strings: `"#rrggbb"`, `"#aarrggbb"`, or named co
 | `patchy.ui.createCanvas(options)` | Opens an interactive window with a `graphics` surface plus `onFrame`, key, and mouse callbacks. This is how the bundled games work; see `Games/pong.js` for a compact example. The run stays alive until the window closes. |
 | `patchy.ui.playTone(freq, ms, volume, wave)` | Plays a short synthesized blip (defaults 880 Hz, 120 ms, 0.5; wave `"sine"` or `"square"`). Fire-and-forget; great for game feedback - Pong uses it for paddle hits and scores. |
 | `patchy.ui.playSound(path)` | Plays a `.wav` file (10 MB max). Relative paths resolve like `include()`. Throws if the file is missing or not a WAV. |
+| `patchy.ui.setWindowSize(w, h)` | Resizes the main window. Meant for automation that captures the app at a known size. |
+| `patchy.ui.setSidePanelWidth(px)` | Sets the width of the right panel stack (Layers/Channels/Paths). |
+| `patchy.ui.captureWindow(path)` | Saves a PNG screenshot of the main window without raising or focusing it. Returns false if the file could not be written. |
+| `patchy.ui.setStatusMessage(text)` | Shows a message in the status bar. Handy for progress readouts in long batches. |
 
 Sound is best-effort per platform: Windows and macOS play through the OS directly, Linux needs `paplay`, `pw-play`, or `aplay` on the PATH (most desktops have one). No sound device just means silence, never an error, and setting the environment variable `PATCHY_NO_SOUND=1` mutes scripts entirely.
 

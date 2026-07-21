@@ -247,9 +247,14 @@ everywhere a bundled script is resolved.
   `getPixels` reading 8-bit RGB layers (opaque opened photos) expanded to RGBA with
   alpha 255 (it previously threw; `setPixels` still always writes RGBA8 back),
   `patchy.ui.showOptions`, the `folder`/`file` form field types, the form dialogs'
-  `description` header, and `patchy.ui.playTone`/`patchy.ui.playSound`. Behavioral fix
-  (still 1): `addTextLayer`'s `size` is defined as document pixels; it previously
-  committed at a canvas-zoom-dependent size.
+  `description` header, `patchy.ui.playTone`/`patchy.ui.playSound`, and the UI staging
+  quartet `patchy.ui.setWindowSize`/`setSidePanelWidth`/`captureWindow`/
+  `setStatusMessage` (built for the README screenshot scripts in
+  `scripts/dev/readme-shots/`; captureWindow rides the `--screenshot` grab machinery
+  and never raises the window; setStatusMessage doubles as a progress readout). Behavioral fixes
+  (still 1): `addTextLayer`'s `size` is defined as document pixels (it previously
+  committed at a canvas-zoom-dependent size), and setting `activeLayer` reveals the
+  row in the Layers panel (ancestor folders expand, the row scrolls into view).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included
