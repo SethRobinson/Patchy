@@ -16,7 +16,7 @@ A script run is **one undo entry**: no matter how many edits a script makes, one
 
 ## Your first script
 
-Open the Script Manager, paste this into the editor, and press F5 with a document open:
+Open the Script Manager, paste this into the editor, and press F5 with a document open (the **New** button, also offered when you right-click a folder like My Scripts, starts you with a similar ready-to-run template):
 
 ```js
 var doc = app.activeDocument;

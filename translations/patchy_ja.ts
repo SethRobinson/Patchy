@@ -13971,6 +13971,7 @@ Clipped to the layer below</source>
     <message><source>Creates its own window or document</source><translation>独自のウィンドウまたはドキュメントを作成します</translation></message>
     <message><source>Modified copy overrides the bundled script</source><translation>変更済みコピーが同梱スクリプトの代わりに使われます</translation></message>
     <message><source>Show in Folder</source><translation>フォルダーで表示</translation></message>
+    <message><source>New Script</source><translation>新規スクリプト</translation></message>
     <message><source>Set Icon from Current Window</source><translation>現在のウィンドウからアイコンを設定</translation></message>
     <message><source>Captures the running script's window (or the active image) as this script's icon.</source><translation>実行中のスクリプトのウィンドウ (またはアクティブな画像) をこのスクリプトのアイコンとして取り込みます。</translation></message>
     <message><source>Open a document or a script window first, then set the icon from it.</source><translation>先にドキュメントかスクリプトウィンドウを開いてから、アイコンを設定してください。</translation></message>

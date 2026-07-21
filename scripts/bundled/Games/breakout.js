@@ -71,6 +71,10 @@ var BALL = 6;
 var ballLayer = doc.addLayer("Ball");
 ballLayer.fillRect(0, 0, BALL, BALL, "#ffffff");
 
+// Leave the Bricks layer active in the Layers panel (addLayer activated the
+// ball): painting on the brick field mid-game is half the fun.
+doc.activeLayer = bricksLayer;
+
 var paddleX = (W - PADDLE_W) / 2;
 var ball = { x: 0, y: 0, vx: 0, vy: 0, stuck: true };
 var score = 0;

@@ -710,6 +710,38 @@ void ui_script_manager_single_click_loads_and_preserves_edits() {
   dialog.close();
 }
 
+// The New button (the folder context menu's New Script entry calls the same
+// path) seeds the editor with the starter template - header directives plus a
+// hello console.log - left unmodified so browsing away never prompts. The
+// template must actually run: Run executes it against the startup document.
+void ui_script_manager_new_button_inserts_template() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  auto* code = dialog.findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorCode"));
+  auto* console_pane = dialog.findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorConsole"));
+  auto* new_button = dialog.findChild<QPushButton*>(QStringLiteral("scriptEditorNewButton"));
+  auto* run_button = dialog.findChild<QPushButton*>(QStringLiteral("scriptEditorRunButton"));
+  auto* file_label = dialog.findChild<QLabel*>(QStringLiteral("scriptEditorFileLabel"));
+  CHECK(code != nullptr && console_pane != nullptr && new_button != nullptr &&
+        run_button != nullptr && file_label != nullptr);
+  new_button->click();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  CHECK(code->toPlainText().contains(QStringLiteral("// @name ")));
+  CHECK(code->toPlainText().contains(QStringLiteral("// @description ")));
+  CHECK(code->toPlainText().contains(QStringLiteral("// @author ")));
+  CHECK(code->toPlainText().contains(QStringLiteral("console.log")));
+  CHECK(!code->document()->isModified());
+  CHECK(file_label->text() == QStringLiteral("untitled.js"));
+  run_button->click();
+  wait_for_run_end(window.script_engine_host());
+  CHECK(console_pane->toPlainText().contains(QStringLiteral("Hi!")));
+  CHECK(console_pane->toPlainText().contains(QStringLiteral("1024x768")));
+  dialog.close();
+}
+
 void ui_script_include_bundled_root_and_is_main() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1427,6 +1459,8 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_editor_tree_shadow_override", ui_script_editor_tree_shadow_override},
       {"ui_script_manager_single_click_loads_and_preserves_edits",
        ui_script_manager_single_click_loads_and_preserves_edits},
+      {"ui_script_manager_new_button_inserts_template",
+       ui_script_manager_new_button_inserts_template},
       {"ui_script_metadata_icons_and_write_target", ui_script_metadata_icons_and_write_target},
       {"ui_script_manager_set_icon_from_document", ui_script_manager_set_icon_from_document},
       {"ui_script_show_options_unattended_merges_args",

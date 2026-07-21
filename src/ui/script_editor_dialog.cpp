@@ -356,6 +356,26 @@ private:
   QRect description_rect_;
 };
 
+// The New starter: a tiny working script with the header directives as
+// editable placeholders. Plain English source like the bundled scripts -
+// script code is not localized.
+QString new_script_template() {
+  return QStringLiteral(
+      "// @name My Script\n"
+      "// @description Says hi. Replace this with what your script does\n"
+      "// @description (repeated @description lines continue the text).\n"
+      "// @author Your Name\n"
+      "\n"
+      "console.log(\"Hi! Press F5 or the Run button to run this script.\");\n"
+      "\n"
+      "var doc = app.activeDocument;\n"
+      "if (doc) {\n"
+      "  console.log(\"Active document: \" + doc.width + \"x\" + doc.height + \" pixels.\");\n"
+      "} else {\n"
+      "  console.log(\"No document is open - File > New, then run me again.\");\n"
+      "}\n");
+}
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -776,16 +796,20 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
   }
   const auto path = item->data(0, kScriptPathRole).toString();
   if (path.isEmpty()) {
-    // Folder rows (including the Bundled / My Scripts roots) offer opening the
-    // folder itself.
+    // Folder rows (including the Bundled / My Scripts roots) offer starting a
+    // new script and opening the folder itself.
     const auto folder_path = item->data(0, kScriptFolderPathRole).toString();
     if (folder_path.isEmpty()) {
       return;
     }
     QMenu folder_menu(this);
     folder_menu.setObjectName(QStringLiteral("scriptEditorTreeMenu"));
+    auto* new_script_action = folder_menu.addAction(tr("New Script"));
     auto* open_folder_action = folder_menu.addAction(tr("Show in Folder"));
-    if (folder_menu.exec(script_tree_->viewport()->mapToGlobal(position)) == open_folder_action) {
+    auto* chosen_folder = folder_menu.exec(script_tree_->viewport()->mapToGlobal(position));
+    if (chosen_folder == new_script_action) {
+      new_script();
+    } else if (chosen_folder == open_folder_action) {
       QDesktopServices::openUrl(QUrl::fromLocalFile(folder_path));
     }
     return;
@@ -1053,7 +1077,8 @@ void ScriptEditorDialog::new_script() {
   if (!confirm_discard_changes()) {
     return;
   }
-  editor_->clear();
+  // Unmodified: the untouched template never guards clicks or prompts.
+  editor_->setPlainText(new_script_template());
   editor_->document()->setModified(false);
   set_current_path(QString());
 }
