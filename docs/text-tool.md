@@ -20,6 +20,18 @@ Delete on a text layer deletes the OBJECT, never its pixels: pixel-clearing leav
 - Any new UI that must coexist with an open text session needs the same `is_text_option_widget` exemption from the focus-loss auto-commit.
 - The inline editor claims the standard Bold and Italic shortcuts in `ShortcutOverride` before the app-level Ctrl+B Color Balance and Ctrl+I Invert actions can consume them. The key press toggles the same options-bar buttons so selection and typing-format behavior stay on one path.
 
+## Boxed-text render clipping
+
+Every boxed render path gates whole LINES against the frame, never raster rows: a line
+straddling the frame bottom draws completely (its clip band extends below the frame by the
+font's descent bleed) and lines wholly past the frame stay hidden. The editor,
+Photoshop-layout, and metadata re-render paths (reopened documents, the Affinity post-open
+pass) all share this rule in `render_text_pixels_with_local_rect`; the metadata path
+historically skipped the line plan and cut the straddling line mid-glyph at the buffer edge
+(the tips.af regression, July 2026 — Affinity and Photoshop both draw the straddler whole).
+The metadata path keeps the buffer origin and width at the frame's and grows only the
+bottom, because pixels-only callers place the buffer at the frame corner.
+
 ## Font resolution
 
 - `render_text_font_for_display_family` resolves a display name first as a

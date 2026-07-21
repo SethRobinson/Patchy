@@ -3074,6 +3074,15 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
       auto plan = boxed_text_render_plan(document, font, local_rect, requested_local_rect);
       local_rect = plan.local_rect;
       line_render_items = std::move(plan.lines);
+    } else {
+      // Metadata re-renders (Affinity import, reopened documents) must gate lines the same
+      // way as the editor and Photoshop-layout paths: a line straddling the frame bottom
+      // draws whole (Affinity and Photoshop both do), never a mid-glyph raster cut. Callers
+      // of the pixels-only wrapper place the buffer at the frame corner, so the origin and
+      // width stay the frame's; only the bottom may grow to hold the straddler's bleed.
+      auto plan = boxed_text_render_plan(document, font, local_rect, std::nullopt);
+      line_render_items = std::move(plan.lines);
+      local_rect.setBottom(std::max(local_rect.bottom(), plan.local_rect.bottom()));
     }
   } else if (photoshop_plan.valid) {
     // Point text under the Photoshop leading model: width still comes from the document's

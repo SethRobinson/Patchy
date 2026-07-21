@@ -248,7 +248,9 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   the imported text (ASCII + Latin-1); the small/petite-caps family
   (smcp/c2sc/pcap/c2pc/titl/unic) renders as typed with a notice. Frame text
   wraps via the box flow with its cap at the frame top (pinned against
-  Affinity's render). Affinity's default line pitch measures as the natural
+  Affinity's render); a line straddling the frame bottom draws whole, matching
+  Affinity (the shared boxed-clip rule in [text-tool.md](text-tool.md) —
+  tips.af's last line was cut mid-glyph until July 2026). Affinity's default line pitch measures as the natural
   font leading plus COLLAPSED paragraph margins (max of space-after/next
   space-before) - exactly Qt's model, so no leading translation is needed
   (the once-suspected `PAtt Doub[10]` = 1.33 is NOT a line-pitch multiple).

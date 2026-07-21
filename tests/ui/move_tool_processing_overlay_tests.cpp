@@ -2202,8 +2202,11 @@ void ui_text_reedit_preserves_rich_text_spacing() {
   editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
   process_events_for(80);
-  CHECK(!editor->property("patchy.previewPaintsText").toBool());
-  CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
+  // The committed raster keeps the straddling last line's glyph bottoms (the boxed-clip
+  // rule in docs/text-tool.md), so its ink extends past the frame and the re-edit arms
+  // the line-aware extended-box preview instead of plain editor painting.
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.extendedBoxPreview").toBool());
   const auto first_reedit_tops = editor_block_tops(*editor);
   if (!block_tops_close(initial_block_tops, first_reedit_tops)) {
     send_key(*editor, Qt::Key_Escape);
@@ -2237,8 +2240,8 @@ void ui_text_reedit_preserves_rich_text_spacing() {
   editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
   process_events_for(80);
-  CHECK(!editor->property("patchy.previewPaintsText").toBool());
-  CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.extendedBoxPreview").toBool());
   const auto second_reedit_tops = editor_block_tops(*editor);
   if (!block_tops_close(initial_block_tops, second_reedit_tops)) {
     send_key(*editor, Qt::Key_Escape);
