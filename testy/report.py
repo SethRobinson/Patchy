@@ -39,6 +39,9 @@ _PAGE = r"""<!DOCTYPE html>
   #run-controls button:hover:enabled { border-color: var(--accent); }
   #run-controls button:disabled { color: var(--dim); cursor: default; }
   #run-controls .ctl-note { color: var(--dim); font-size: 11.5px; margin-left: 8px; }
+  #back-link { color: var(--dim); text-decoration: none; font-size: 12px; padding: 2px 10px;
+               border: 1px solid var(--line); border-radius: 6px; }
+  #back-link:hover { color: var(--accent); border-color: var(--accent); }
   #summary { display: flex; gap: 12px; padding: 14px 22px; flex-wrap: wrap; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
           padding: 10px 14px; min-width: 168px; }
@@ -97,6 +100,7 @@ _PAGE = r"""<!DOCTYPE html>
 </head>
 <body>
 <header>
+  <a id="back-link" href="/" title="back to the Testy control panel" style="display:none">&larr; Back</a>
   <h1>Testy <span style="color:var(--dim)">PSD compatibility</span></h1>
   <span id="state-pill">loading</span>
   <span class="meta" id="run-meta"></span>
@@ -117,6 +121,10 @@ let selected = null;
 // served by something other than testy.py), which hides every control.
 const RUN_ID = (location.pathname.match(/\/runs\/([^/]+)\//) || [])[1] || null;
 let runState = null;
+// The Back link only makes sense while the Testy server is serving this page; a
+// frozen report.html opened from disk has no control panel at "/" to go back to.
+if (location.protocol === "http:" || location.protocol === "https:")
+  document.getElementById("back-link").style.display = "";
 
 function pct(x, digits) { return (100 * x).toFixed(digits === undefined ? 1 : digits) + "%"; }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g,

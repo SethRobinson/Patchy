@@ -60,7 +60,9 @@ Patchy release build first (when configured), serves a live dashboard (auto-open
 browser), and leaves the frozen report + `results.json` in `testy/runs/<timestamp>/`.
 The server root (`http://127.0.0.1:<port>/`) is the same control panel. In every
 report, clicking a file name (matrix or detail panel) copies its full path to the
-clipboard, and clicking any thumbnail opens the full-size image. Lost native data is
+clipboard, and clicking any thumbnail opens the full-size image; a Back link in the
+header returns to the control panel (shown only when the page is served, since a
+frozen report opened from disk has no panel to go back to). Lost native data is
 called out prominently: matrix cells get a red "lost: 5/5 text layers, 5/5 live
 effects" line (and a warn dot), and the detail panel's native-preservation banner
 separates objects GONE from the resaved file from ones still present but converted
