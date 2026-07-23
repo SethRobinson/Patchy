@@ -76,8 +76,11 @@ def refresh_patchy_build() -> bool:
         log("no build_command configured (config.local.json); measuring patchy.exe as-is")
         return True
     log("refreshing Patchy release build (use --no-build to skip)...")
+    # One pre-quoted string, not an argv list: list2cmdline would escape the
+    # command's inner quotes as \" which cmd.exe does not understand. With /s,
+    # cmd strips exactly the outer quote pair added here.
     completed = subprocess.run(
-        ["cmd", "/s", "/c", config.BUILD_COMMAND], cwd=config.REPO_ROOT,
+        'cmd /s /c "' + config.BUILD_COMMAND + '"', cwd=config.REPO_ROOT,
         capture_output=True, text=True, timeout=1200,
     )
     output = (completed.stdout or "") + (completed.stderr or "")
