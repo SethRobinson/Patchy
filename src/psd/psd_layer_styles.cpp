@@ -111,6 +111,9 @@ LayerStyleGradientType gradient_type_from_descriptor(std::string_view value) {
   if (value == "Dmnd") {
     return LayerStyleGradientType::Diamond;
   }
+  if (value == "shapeburst") {
+    return LayerStyleGradientType::ShapeBurst;
+  }
   return LayerStyleGradientType::Linear;
 }
 
@@ -1190,6 +1193,9 @@ std::string_view gradient_type_descriptor_value(LayerStyleGradientType type) {
       return "Rflc";
     case LayerStyleGradientType::Diamond:
       return "Dmnd";
+    case LayerStyleGradientType::ShapeBurst:
+      // Photoshop 2026's own spelling (stringID, pinned via COM readback).
+      return "shapeburst";
     case LayerStyleGradientType::Linear:
       return "Lnr ";
   }

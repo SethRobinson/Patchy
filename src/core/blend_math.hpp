@@ -40,12 +40,17 @@ struct FillCompositeResult {
 // endpoint_smoothing applies the Classic catmull-rom ease to a 2-stop
 // gradient's single segment (duplicated virtual endpoints), matching the
 // GdFl fill-layer renderer measured on Photoshop 27.8 (probe5c). Layer-style
-// overlays keep the historical linear 2-stop ramp (their pinned calibration).
+// overlays keep the historical linear 2-stop ramp (their pinned calibration);
+// Shape Burst strokes DO ease (photoshop-stroke-shapeburst probes).
 [[nodiscard]] RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
                                       bool endpoint_smoothing = false);
 [[nodiscard]] RgbColor
 gradient_color_dithered(const LayerStyleGradient &gradient, float position,
                         std::int32_t x, std::int32_t y, bool endpoint_smoothing = false);
+// The dither adjustment alone, for callers that build the color from several
+// gradient samples (the Shape Burst tent) before dithering.
+[[nodiscard]] RgbColor apply_gradient_dither(const LayerStyleGradient& gradient, RgbColor color,
+                                             std::int32_t x, std::int32_t y);
 // How Linear/Reflected gradients map the bounds onto the ramp. Layer-style
 // overlays span the corner-to-corner projection (w|cos| + h|sin|, calibrated
 // separately); GdFl fill layers span the CENTER CHORD through the bounds

@@ -758,10 +758,8 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
   return stops.back().color;
 }
 
-RgbColor gradient_color_dithered(const LayerStyleGradient& gradient,
-                                 float position, std::int32_t x,
-                                 std::int32_t y, bool endpoint_smoothing) {
-  auto color = gradient_color(gradient, position, endpoint_smoothing);
+RgbColor apply_gradient_dither(const LayerStyleGradient& gradient, RgbColor color,
+                               std::int32_t x, std::int32_t y) {
   if (!gradient.dither) {
     return color;
   }
@@ -777,6 +775,12 @@ RgbColor gradient_color_dithered(const LayerStyleGradient& gradient,
   color.green = adjust(color.green);
   color.blue = adjust(color.blue);
   return color;
+}
+
+RgbColor gradient_color_dithered(const LayerStyleGradient& gradient,
+                                 float position, std::int32_t x,
+                                 std::int32_t y, bool endpoint_smoothing) {
+  return apply_gradient_dither(gradient, gradient_color(gradient, position, endpoint_smoothing), x, y);
 }
 
 float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::int32_t x,
@@ -834,6 +838,10 @@ float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::in
       position = std::max(dx, dy);
       break;
     }
+    case LayerStyleGradientType::ShapeBurst:
+      // Shape Burst is defined by the stroke band's distance field, not by a
+      // point mapping; the stroke renderer computes it from the band and never
+      // calls this. Anything else falls back to the Linear ramp.
     case LayerStyleGradientType::Linear:
       position = 0.5F + local_x / projected_span;
       break;

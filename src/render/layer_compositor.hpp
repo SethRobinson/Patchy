@@ -288,7 +288,57 @@ inline void profile_compositor_step(Target& destination, const Layer& layer, con
 
 inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds,
                                             Rect mask_bounds, float size, LayerStrokePosition position,
-                                            std::optional<Rect> layer_mask_bounds, bool mask_shapes_source);
+                                            std::optional<Rect> layer_mask_bounds, bool mask_shapes_source,
+                                            std::vector<float>* shape_burst_positions = nullptr);
+
+// A Shape Burst stroke gradient's per-pixel band position (from
+// stroke_alpha_mask) with the gradient's Reverse applied. Photoshop ignores
+// the angle, scale, offset, and alignment controls for this style (COM
+// probes, July 2026, photoshop-stroke-shapeburst fixtures).
+inline float shape_burst_gradient_position(const LayerStyleGradient& gradient, float band_position) {
+  return clamp_unit(gradient.reverse ? 1.0F - band_position : band_position);
+}
+
+// The ramp's full span in pixels: size plus the same +1 px reach as the
+// coverage band on each side that is a band limit rather than the contour.
+inline float shape_burst_ramp_span(float size, LayerStrokePosition position) {
+  return position == LayerStrokePosition::Center ? size + 2.0F * kStrokeContourOffset
+                                                 : size + kStrokeContourOffset;
+}
+
+// Photoshop supersamples the Shape Burst ramp across each pixel's footprint:
+// a 1-2-1 tent of the sharp per-center colors reproduces both the title.psd
+// silver band's reduced amplitude and the probe fixtures' clamped tail bytes
+// (a symmetric filter is invisible on the probes' interior linear ramp, which
+// is why the sharp model also matched them mid-band).
+inline RgbColor shape_burst_stroke_color(const LayerStyleGradient& gradient, float band_position,
+                                         float ramp_span, std::int32_t x, std::int32_t y) {
+  const auto step = 1.0F / std::max(1.0F, ramp_span);
+  const auto sample = [&](float band) {
+    return gradient_color(gradient, shape_burst_gradient_position(gradient, band), true);
+  };
+  const auto below = sample(band_position - step);
+  const auto center = sample(band_position);
+  const auto above = sample(band_position + step);
+  const auto tent = [](std::uint8_t low, std::uint8_t mid, std::uint8_t high) {
+    return static_cast<std::uint8_t>(
+        (static_cast<unsigned>(low) + 2U * mid + high + 2U) / 4U);
+  };
+  const auto color = RgbColor{tent(below.red, center.red, above.red),
+                              tent(below.green, center.green, above.green),
+                              tent(below.blue, center.blue, above.blue)};
+  return apply_gradient_dither(gradient, color, x, y);
+}
+
+inline float shape_burst_stroke_opacity(const LayerStyleGradient& gradient, float band_position,
+                                        float ramp_span) {
+  const auto step = 1.0F / std::max(1.0F, ramp_span);
+  const auto sample = [&](float band) {
+    return gradient_stop_opacity(gradient, shape_burst_gradient_position(gradient, band), true);
+  };
+  return 0.25F * (sample(band_position - step) + 2.0F * sample(band_position) +
+                  sample(band_position + step));
+}
 
 // Photoshop composites layer-effect planes with the effect's alpha FOLDED into
 // the source color toward white for the burn modes, then blends at full
@@ -723,8 +773,12 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
             if (!stroke.enabled || stroke.opacity <= 0.0F || stroke.size <= 0.0F) {
               continue;
             }
+            const auto stroke_shape_burst =
+                stroke.uses_gradient && stroke.gradient.type == LayerStyleGradientType::ShapeBurst;
+            std::vector<float> stroke_band_positions;
             const auto stroke_mask = stroke_alpha_mask(source, layer, bounds, domain, stroke.size, stroke.position,
-                                                       layer_mask_bounds, mask_shapes_source);
+                                                       layer_mask_bounds, mask_shapes_source,
+                                                       stroke_shape_burst ? &stroke_band_positions : nullptr);
             const auto stroke_radius = std::max(1, static_cast<int>(std::ceil(stroke.size)));
             const auto stroke_effect_bounds = stroke.position == LayerStrokePosition::Inside
                                                   ? bounds
@@ -737,9 +791,15 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
                 const auto index = static_cast<std::size_t>(local_y) * domain.width + local_x;
                 auto alpha = stroke_mask[index] * clamp_unit(stroke.opacity);
                 if (alpha > 0.0F && stroke.uses_gradient) {
-                  const auto position = gradient_position(stroke.gradient, stroke_gradient_bounds,
-                                                          domain.x + local_x, domain.y + local_y);
-                  alpha *= gradient_stop_opacity(stroke.gradient, position);
+                  if (stroke_shape_burst) {
+                    alpha *= shape_burst_stroke_opacity(
+                        stroke.gradient, stroke_band_positions[index],
+                        shape_burst_ramp_span(stroke.size, stroke.position));
+                  } else {
+                    alpha *= gradient_stop_opacity(
+                        stroke.gradient, gradient_position(stroke.gradient, stroke_gradient_bounds,
+                                                           domain.x + local_x, domain.y + local_y));
+                  }
                 }
                 if (alpha > 0.0F && clip_to_mask) {
                   // "Layer Mask Hides Effects": hide the embossed stroke where it
@@ -926,7 +986,8 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
 
 inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds,
                                             Rect mask_bounds, float size, LayerStrokePosition position,
-                                            std::optional<Rect> layer_mask_bounds, bool mask_shapes_source) {
+                                            std::optional<Rect> layer_mask_bounds, bool mask_shapes_source,
+                                            std::vector<float>* shape_burst_positions) {
   // Photoshop derives the stroke from the layer's pixel coverage, treating any painted
   // pixel as inside the shape: the stroke fills the (dilated) binary shape and the
   // layer's own pixels cover it according to their alpha, so semi-transparent fills let
@@ -992,13 +1053,48 @@ inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Lay
   const auto band_in = position == LayerStrokePosition::Outside  ? 0.0F
                        : position == LayerStrokePosition::Center ? size * 0.5F
                                                                  : size;
+  // Photoshop vectorizes the matte's coverage boundary at subpixel precision
+  // rather than dilating from every alpha>0 pixel: an anti-aliased fringe
+  // stays OUTSIDE the contour (on AA text the alpha>0 shape is one fringe
+  // fatter per side, landing the band ~1 px outward and closing narrow
+  // inter-glyph gaps Photoshop leaves clean — title.psd probes, July 2026),
+  // while flat low-alpha regions are stroked in full (the pinned
+  // photoshop-stroke-partial-alpha fixture's 25% strip). Approximate that
+  // with the half-covered-or-more pixels plus any painted pixel farther than
+  // 2 px from every such solid pixel: an AA fringe always hugs its solid
+  // core, a flat wash does not. Binary mattes are identical under all these
+  // conventions, so the pinned COM band calibration is unaffected.
+  std::vector<float> contour(base.size(), 0.0F);
+  auto has_solid_pixel = false;
+  auto has_faint_pixel = false;
+  for (std::size_t index = 0; index < base.size(); ++index) {
+    if (base[index] >= 0.5F) {
+      contour[index] = 1.0F;
+      has_solid_pixel = true;
+    } else if (base[index] > 0.0F) {
+      has_faint_pixel = true;
+    }
+  }
+  if (!has_solid_pixel) {
+    for (std::size_t index = 0; index < base.size(); ++index) {
+      contour[index] = base[index] > 0.0F ? 1.0F : 0.0F;
+    }
+  } else if (has_faint_pixel) {
+    constexpr float kAaFringeReach = 2.0F;
+    const auto solid_distance = stroke_distance_field(contour, width, height, true);
+    for (std::size_t index = 0; index < base.size(); ++index) {
+      if (base[index] > 0.0F && contour[index] == 0.0F && solid_distance[index] > kAaFringeReach) {
+        contour[index] = 1.0F;
+      }
+    }
+  }
   std::vector<float> outside_distance;
   std::vector<float> inside_distance;
   if (band_out > 0.0F) {
-    outside_distance = stroke_distance_field(base, width, height, true);
+    outside_distance = stroke_distance_field(contour, width, height, true);
   }
   if (band_in > 0.0F) {
-    inside_distance = stroke_distance_field(base, width, height, false);
+    inside_distance = stroke_distance_field(contour, width, height, false);
   }
 
   std::vector<float> mask(base.size(), 0.0F);
@@ -1009,6 +1105,31 @@ inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Lay
     const auto inside_coverage =
         inside_distance.empty() ? 0.0F : stroke_band_coverage(inside_distance[index], band_in);
     mask[index] = clamp_unit(center_alpha * inside_coverage + (1.0F - center_alpha) * outside_coverage);
+  }
+
+  if (shape_burst_positions != nullptr) {
+    // Photoshop's Shape Burst gradient ramp is LINEAR in the same anchored
+    // distance field: position 0 at the band's outer limit, 1 at its inner
+    // limit, one continuous span across both halves of a Center stroke. Each
+    // side that is a band limit (not the contour itself) extends by the same
+    // +1 px the coverage reaches (kStrokeContourOffset), so an Outside or
+    // Inside stroke spans size+1 and a Center stroke spans size+2. Pinned by
+    // the photoshop-stroke-shapeburst fixtures within +/-1/255 (COM probes,
+    // July 2026).
+    auto& positions = *shape_burst_positions;
+    positions.assign(base.size(), 0.0F);
+    const auto outer_reach = band_out > 0.0F ? band_out + kStrokeContourOffset : 0.0F;
+    const auto inner_reach = band_in > 0.0F ? band_in + kStrokeContourOffset : 0.0F;
+    const auto span = std::max(1.0F, outer_reach + inner_reach);
+    for (std::size_t index = 0; index < base.size(); ++index) {
+      float along;
+      if (contour[index] > 0.0F) {
+        along = inside_distance.empty() ? span : band_out + inside_distance[index];
+      } else {
+        along = outside_distance.empty() ? 0.0F : outer_reach - outside_distance[index];
+      }
+      positions[index] = clamp_unit(along / span);
+    }
   }
   return mask;
 }
@@ -1029,12 +1150,15 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
   }
   const auto legacy_mask_bounds = clipped_mask_bounds(full_mask_bounds, draw_rect, radius + 1);
   const auto mask_shapes_source = !layer.layer_style().layer_mask_hides_effects;
+  const auto shape_burst =
+      stroke.uses_gradient && stroke.gradient.type == LayerStyleGradientType::ShapeBurst;
   const auto [entry, mask_bounds] = style_mask_for_render(
       masks, layer, StyleMaskKind::Stroke, effect_index, full_mask_bounds, full_mask_bounds, legacy_mask_bounds,
       bounds, layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
         computed.primary = stroke_alpha_mask(source, layer, bounds, domain, stroke.size, stroke.position,
-                                             layer_mask_bounds, mask_shapes_source);
+                                             layer_mask_bounds, mask_shapes_source,
+                                             shape_burst ? &computed.secondary : nullptr);
         return computed;
       });
   const auto& mask = entry->primary;
@@ -1045,7 +1169,8 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
                                    : effect_bounds;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-      auto mask_alpha = mask[static_cast<std::size_t>((y - mask_bounds.y) * mask_width + (x - mask_bounds.x))];
+      const auto mask_index = static_cast<std::size_t>((y - mask_bounds.y) * mask_width + (x - mask_bounds.x));
+      auto mask_alpha = mask[mask_index];
       if (clip_to_mask && mask_alpha > 0.0F) {
         // "Layer Mask Hides Effects": the mask hides the stroke where it lands
         // instead of reshaping its contour.
@@ -1057,9 +1182,19 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
       auto color = stroke.color;
       auto alpha = mask_alpha * stroke.opacity * layer.opacity();
       if (stroke.uses_gradient) {
-        const auto position = gradient_position(stroke.gradient, gradient_bounds, x, y);
-        color = gradient_color_dithered(stroke.gradient, position, x, y);
-        alpha *= gradient_stop_opacity(stroke.gradient, position);
+        // Shape Burst samples with endpoint smoothing (the probes show the
+        // Intr ease applied even to a two-stop ramp, unlike the pinned linear
+        // 2-stop overlays) and tent-averages across the pixel footprint.
+        if (shape_burst) {
+          const auto band = entry->secondary[mask_index];
+          const auto span = shape_burst_ramp_span(stroke.size, stroke.position);
+          color = shape_burst_stroke_color(stroke.gradient, band, span, x, y);
+          alpha *= shape_burst_stroke_opacity(stroke.gradient, band, span);
+        } else {
+          const auto position = gradient_position(stroke.gradient, gradient_bounds, x, y);
+          color = gradient_color_dithered(stroke.gradient, position, x, y);
+          alpha *= gradient_stop_opacity(stroke.gradient, position);
+        }
       }
       composite_effect_color(destination, x, y, color, alpha, stroke.blend_mode);
     }

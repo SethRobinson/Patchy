@@ -548,6 +548,8 @@ const char* gradient_type_enum_value(LayerStyleGradientType type) {
       return "Rflc";
     case LayerStyleGradientType::Diamond:
       return "Dmnd";
+    case LayerStyleGradientType::ShapeBurst:
+      // Stroke-effect only; vector fill/stroke paints have no shape burst.
     case LayerStyleGradientType::Linear:
       break;
   }

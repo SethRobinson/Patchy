@@ -667,6 +667,28 @@ void psd_generated_stroke_descriptors_match_photoshop_shape() {
   check_key_order(*offset, {{"Hrzn", false}, {"Vrtc", false}});
   CHECK(require_value(*offset, "Hrzn").unit == "#Prc");
   CHECK(require_value(*offset, "Vrtc").unit == "#Prc");
+
+  // Shape Burst is Stroke-only and its enum value is the stringID
+  // "shapeburst" (Photoshop 2026's own spelling, pinned via COM readback —
+  // an earlier calibration note wrongly claimed PS normalizes it to Linear).
+  patchy::LayerStroke shape_burst = gradient;
+  shape_burst.gradient.type = patchy::LayerStyleGradientType::ShapeBurst;
+  const auto shape_burst_frame = generated_stroke_descriptor(shape_burst);
+  const auto& shape_burst_type = require_value(shape_burst_frame, "Type");
+  CHECK(shape_burst_type.type == DescriptorType::Enum);
+  CHECK(shape_burst_type.enum_type == "GrdT");
+  CHECK(shape_burst_type.enum_value == "shapeburst");
+
+  patchy::Document shape_burst_document(3, 3, patchy::PixelFormat::rgb8());
+  shape_burst_document.add_pixel_layer("Stroke", solid_rgba(3, 3, 40, 80, 120, 255))
+      .layer_style()
+      .strokes.push_back(shape_burst);
+  const auto round_tripped =
+      patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(shape_burst_document));
+  CHECK(round_tripped.layers().size() == 1);
+  CHECK(round_tripped.layers().front().layer_style().strokes.size() == 1);
+  CHECK(round_tripped.layers().front().layer_style().strokes.front().gradient.type ==
+        patchy::LayerStyleGradientType::ShapeBurst);
 }
 
 void psd_gradient_midpoints_write_mdpn_and_round_trip() {

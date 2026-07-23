@@ -835,6 +835,64 @@ void psd_photoshop_bevel_smooth_fixture_matches_render() {
   CHECK(metrics.mean_abs_channel_delta <= 0.10);
 }
 
+// Photoshop 2026 authored photoshop-stroke-shapeburst.psd via COM (July 2026):
+// three L-shaped mattes carrying Shape Burst gradient strokes — Outside 10 px,
+// Center 12 px with Reverse, and Inside 10 px at Scale 50 — saved alongside
+// Photoshop's own flatten. It pins the calibrated mapping (docs/ps-compat.md):
+// the ramp is linear in the band's Euclidean distance field with position 0 at
+// the outer band limit, Center strokes ramp continuously across the contour,
+// Reverse flips the ramp, Scale is ignored, and the two-stop colors ease
+// through the full Intr smoothing.
+void psd_photoshop_stroke_shapeburst_fixture_matches_render() {
+  const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-stroke-shapeburst.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-stroke-shapeburst.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto* outside = find_layer_named(document.layers(), "out10");
+  const auto* center = find_layer_named(document.layers(), "ctr12rev");
+  const auto* inside = find_layer_named(document.layers(), "in10s50");
+  CHECK(outside != nullptr);
+  CHECK(center != nullptr);
+  CHECK(inside != nullptr);
+  for (const auto* layer : {outside, center, inside}) {
+    CHECK(layer->layer_style().strokes.size() == 1);
+    CHECK(layer->layer_style().strokes.front().uses_gradient);
+    CHECK(layer->layer_style().strokes.front().gradient.type ==
+          patchy::LayerStyleGradientType::ShapeBurst);
+  }
+  CHECK(center->layer_style().strokes.front().gradient.reverse);
+  CHECK(close_float(inside->layer_style().strokes.front().gradient.scale, 0.5F));
+  const auto reference =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference, flat);
+  // Straight band runs match within +/-1; the only pixels past the 6/255 AA
+  // tolerance (0.09% of the canvas at capture time) are band-edge arcs at
+  // shape corners, where the shared stroke coverage ramp (linear in center
+  // distance) overfills slightly against Photoshop's rounder arc coverage —
+  // a solid-stroke coverage property, not part of the Shape Burst mapping.
+  CHECK(metrics.mean_abs_channel_delta <= 0.10);
+  std::uint64_t over_aa_tolerance = 0;
+  for (std::int32_t y = 0; y < reference.height(); ++y) {
+    for (std::int32_t x = 0; x < reference.width(); ++x) {
+      const auto* a = reference.pixel(x, y);
+      const auto* b = flat.pixel(x, y);
+      int max_delta = 0;
+      for (int channel = 0; channel < 3; ++channel) {
+        max_delta = std::max(max_delta,
+                             std::abs(static_cast<int>(a[channel]) - static_cast<int>(b[channel])));
+      }
+      if (max_delta > 6) {
+        ++over_aa_tolerance;
+      }
+    }
+  }
+  const auto total_pixels =
+      static_cast<double>(reference.width()) * static_cast<double>(reference.height());
+  CHECK(static_cast<double>(over_aa_tolerance) / total_pixels <= 0.002);
+}
+
 // The PS 5.x 'dsdw' record stores blur/intensity/angle/distance as 16.16 fixed
 // point and opacity as a 0-255 byte. The pre-July-2026 parser read the fixed
 // fields as raw integers one slot early, so a legacy shadow could carry a
@@ -1195,6 +1253,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_outer_glow_fixtures_match_render},
       {"psd_photoshop_bevel_smooth_fixture_matches_render",
        psd_photoshop_bevel_smooth_fixture_matches_render},
+      {"psd_photoshop_stroke_shapeburst_fixture_matches_render",
+       psd_photoshop_stroke_shapeburst_fixture_matches_render},
       {"psd_lrfx_legacy_drop_shadow_parses_fixed_point",
        psd_lrfx_legacy_drop_shadow_parses_fixed_point},
       {"psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available",

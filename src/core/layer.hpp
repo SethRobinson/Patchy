@@ -194,7 +194,10 @@ enum class LayerStyleGradientType {
   Radial,
   Angle,
   Reflected,
-  Diamond
+  Diamond,
+  // Stroke-effect only (descriptor stringID "shapeburst"): the gradient wraps
+  // the contour, linear in the stroke band's Euclidean distance field.
+  ShapeBurst
 };
 
 enum class GradientDefinitionForm { Solid, Noise };

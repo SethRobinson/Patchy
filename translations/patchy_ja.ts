@@ -2828,6 +2828,10 @@
         <translation>菱形</translation>
     </message>
     <message>
+        <source>Shape Burst</source>
+        <translation>シェイプバースト</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="-177"/>
         <source>Edit Gradient Stops</source>
         <translation>グラデーションストップを編集</translation>

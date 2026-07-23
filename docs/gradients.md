@@ -2,7 +2,7 @@
 
 Patchy uses `GradientDefinition` for reusable gradient content and `LayerStyleGradient` for placement. A definition contains the name, Solid or Noise form, Photoshop smoothness (`Intr`, 0-4096), independent color and opacity stops, destination-stop midpoints, and dynamic foreground/background roles. Noise definitions keep the Photoshop seed, roughness, transparency and color-restriction switches, RGB/HSB/Lab model, and four minimum/maximum channel ranges.
 
-Layer-style placement adds Linear, Radial, Angle, Reflected, and Diamond geometry, angle, scale, reverse, dither, interpolation method, Align with Layer, and X/Y percentage offsets. Preset selection replaces only the definition. It must not overwrite any placement field. Dynamic foreground/background stops stay live in the Gradient tool; layer-style preset selection resolves them from the current Patchy colors before the style is stored in the document.
+Layer-style placement adds Linear, Radial, Angle, Reflected, and Diamond geometry, angle, scale, reverse, dither, interpolation method, Align with Layer, and X/Y percentage offsets. The Stroke effect alone adds Shape Burst (descriptor stringID `shapeburst`), which follows the stroke band's distance field and ignores angle, scale, offsets, and alignment; see docs/ps-compat.md for the calibrated mapping. Preset selection replaces only the definition. It must not overwrite any placement field. Dynamic foreground/background stops stay live in the Gradient tool; layer-style preset selection resolves them from the current Patchy colors before the style is stored in the document.
 
 ## Rendering
 
@@ -11,7 +11,7 @@ Layer-style placement adds Linear, Radial, Angle, Reflected, and Diamond geometr
 - Linear interpolates in linear-light RGB.
 - Noise and dither use fixed integer hashing. Do not replace this with a standard-library random distribution because output must remain identical across toolchains.
 
-`gradient_position` is the shared five-style geometry function. Linear and Reflected spans use the layer rectangle projected onto the selected angle, so 90-degree gradients span the layer height rather than its width. For `Align with Layer`, Gradient Overlay and gradient Stroke use the source's nonzero-alpha bounds; PSD channel padding must not compress the visible range. The local alpha bounds are cached by the layer's globally unique pixel revision because finding them is an O(width * height) scan. Transient render pixel overrides bypass that cache. `gradient_color`, `gradient_stop_opacity`, and `gradient_color_dithered` are shared by layer effects and preset thumbnails.
+`gradient_position` is the shared point-mapped-style geometry function; Shape Burst does not go through it (the stroke renderer derives its position from the band's Euclidean distance field, `stroke_alpha_mask`'s optional plane). Linear and Reflected spans use the layer rectangle projected onto the selected angle, so 90-degree gradients span the layer height rather than its width. For `Align with Layer`, Gradient Overlay and gradient Stroke use the source's nonzero-alpha bounds; PSD channel padding must not compress the visible range. The local alpha bounds are cached by the layer's globally unique pixel revision because finding them is an O(width * height) scan. Transient render pixel overrides bypass that cache. `gradient_color`, `gradient_stop_opacity`, and `gradient_color_dithered` are shared by layer effects and preset thumbnails.
 
 ## GRD files
 

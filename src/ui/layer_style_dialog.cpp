@@ -1204,7 +1204,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   };
   auto make_gradient_controls = [&](QFormLayout* form, QWidget* parent_widget, const QString& object_prefix,
                                     const LayerStyleGradient& initial_gradient,
-                                    const QString& color_picker_title) {
+                                    const QString& color_picker_title, bool offer_shape_burst = false) {
     auto controls_state = std::make_unique<LayerStyleGradientControls>();
     auto* state = controls_state.get();
 
@@ -1435,6 +1435,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     state->style_combo->addItem(
         QObject::tr("Diamond"),
         static_cast<int>(LayerStyleGradientType::Diamond));
+    if (offer_shape_burst) {
+      // Photoshop offers Shape Burst for the Stroke effect only.
+      state->style_combo->addItem(
+          QObject::tr("Shape Burst"),
+          static_cast<int>(LayerStyleGradientType::ShapeBurst));
+    }
     form->addRow(QObject::tr("Style"), state->style_combo);
     state->angle = add_slider_spin_row(
         form, parent_widget, QObject::tr("Angle"),
@@ -2582,7 +2588,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto stroke_gradient_controls =
       make_gradient_controls(stroke_gradient_form, stroke_gradient_group,
                              QStringLiteral("layerStyleStrokeGradient"), stroke.gradient,
-                             QObject::tr("Choose Gradient Stop Color"));
+                             QObject::tr("Choose Gradient Stop Color"), /*offer_shape_burst=*/true);
   stroke_form->addRow(stroke_gradient_group);
   auto update_stroke_fill_visibility = [&] {
     const bool uses_gradient = stroke_fill->currentData().toBool();
