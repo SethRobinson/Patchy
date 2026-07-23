@@ -744,8 +744,16 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
   if (bevel.contour.enabled && style_contour_is_linear(bevel.contour.contour)) {
     slope_gain = 1.0F / std::clamp(bevel.contour.range, 0.01F, 1.0F);
   }
+  const auto pillow = bevel.style == BevelEmbossStyleKind::PillowEmboss;
+  // Pillow calibration (COM depth sweep, photoshop-pillow-emboss fixtures,
+  // July 2026): the slope factor is 0.5 x Depth x the HALF-size tent peak,
+  // and Depth is FLOORED at 25% — depths 1 through 25 all render identically
+  // in Photoshop (title.psd stores 1% and still shades at quarter strength).
+  // The existing 10x ceiling matched the depth-1000 probe as-is.
   const auto normal_scale =
-      0.5F * std::clamp(bevel.depth, 0.01F, 10.0F) * std::max(1.0F, bevel.size) * slope_gain;
+      pillow ? 0.5F * std::clamp(bevel.depth, 0.25F, 10.0F) *
+                   static_cast<float>(satin_tent_peak(bevel.size * 0.5F)) * slope_gain
+             : 0.5F * std::clamp(bevel.depth, 0.01F, 10.0F) * std::max(1.0F, bevel.size) * slope_gain;
   const auto direction = bevel.direction_up ? 1.0F : -1.0F;
   const auto full_domain = outset_rect(bounds, sample_padding);
   const auto legacy_mask_bounds = clipped_mask_bounds(full_domain, draw_rect, sample_padding);
@@ -814,13 +822,18 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
         } else {
           computed.secondary = layer_alpha_mask(source, layer, bounds, domain, 0, 0, layer_mask_bounds);
         }
-        computed.primary =
-            bevel_technique_height_mask(computed.secondary, domain.width, domain.height, bevel);
+        // Pillow Emboss lights the smooth HALF-size ramp directly and flips
+        // the interior lighting at composite time. The old |2h-1| fold
+        // creased the field at the contour, cancelling the central difference
+        // exactly where Photoshop's shading peaks, and spread the bands twice
+        // as wide as PS's (photoshop-pillow-emboss probes: shading reach is
+        // size/2 per side, profile peaks at the contour-adjacent pixels).
+        auto height_bevel = bevel;
         if (bevel.style == BevelEmbossStyleKind::PillowEmboss) {
-          for (auto& value : computed.primary) {
-            value = std::abs(value * 2.0F - 1.0F);
-          }
+          height_bevel.size = bevel.size * 0.5F;
         }
+        computed.primary =
+            bevel_technique_height_mask(computed.secondary, domain.width, domain.height, height_bevel);
         if (bevel.contour.enabled && !style_contour_is_linear(bevel.contour.contour)) {
           // The Contour sub-option reshapes the bevel's cross-section: the
           // normalized edge profile (0 at the contour, 1 on the interior
@@ -943,8 +956,16 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
       const auto right = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x + 1, local_y);
       const auto top = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x, local_y - 1);
       const auto bottom = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x, local_y + 1);
-      const auto gradient_x = (left - right) * normal_scale * direction;
-      const auto gradient_y = (top - bottom) * normal_scale * direction;
+      auto orientation = direction;
+      if (pillow) {
+        // The valley mirrors the rim: interior lighting flips, with the matte
+        // binarized at 0.5 like the stroke contour anchor. Direction Down
+        // ("Out ", title.psd and the probes) is the calibrated orientation;
+        // Direction Up mirrors it.
+        orientation = (bevel.direction_up ? -1.0F : 1.0F) * (matte_alpha >= 0.5F ? -1.0F : 1.0F);
+      }
+      const auto gradient_x = (left - right) * normal_scale * orientation;
+      const auto gradient_y = (top - bottom) * normal_scale * orientation;
       const auto length = std::sqrt(gradient_x * gradient_x + gradient_y * gradient_y + 1.0F);
       // COM-calibrated Lambert shading (July 2026, photoshop-bevel-smooth
       // fixtures): the surface lighting L = N dot Light with a properly
@@ -955,11 +976,19 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
       // shadow edge under a low light and the non-monotone highlight band under
       // a high light (slopes steeper than 90 - altitude tip past the light),
       // within ~0.4/255 on the altitude 30 and 60 probes.
-      const auto surface_light =
-          (gradient_x * light_x + gradient_y * light_y + light_z) / std::max(0.0001F, length);
+      const auto raw_light = gradient_x * light_x + gradient_y * light_y + light_z;
+      const auto surface_light = raw_light / std::max(0.0001F, length);
       auto lighting = surface_light >= light_z
                           ? (surface_light - light_z) / std::max(0.01F, 1.0F - light_z)
                           : -((light_z - surface_light) / std::max(0.01F, light_z));
+      if (pillow && raw_light < light_z) {
+        // Pillow shadows follow the UNNORMALIZED lighting deficit — linear in
+        // slope, saturating early. The COM probes pin the shadow gain to the
+        // highlight's small-signal gain at every depth, and the shadow side
+        // clamps long before the normalized Lambert would; the lit side's
+        // tip-past regime stays on the normalized value (depth-1000 probe).
+        lighting = -((light_z - raw_light) / std::max(0.01F, light_z));
+      }
       if (!gloss_is_linear) {
         // Gloss Contour remaps the signed lighting scalar before the
         // highlight/shadow split; Linear short-circuits so plain bevels stay
@@ -1565,6 +1594,16 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
         }
       });
     }
+    for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
+      const auto& stroke = style.strokes[index];
+      profile_compositor_step(destination, layer, "stroke", clip, [&] {
+        render_stroke(destination, layer, source, clip, bounds, stroke, layer_mask_bounds, masks, index);
+      });
+    }
+    // Bevel shading derives from the layer matte but composites OVER the
+    // Stroke effect's band: the pillow probes show identical shading alphas
+    // painted on top of the band with and without a stroke (July 2026,
+    // photoshop-pillow-emboss fixtures), so strokes render first.
     for (std::uint32_t index = 0; index < style.bevels.size(); ++index) {
       const auto& bevel = style.bevels[index];
       if (bevel.style == BevelEmbossStyleKind::StrokeEmboss) {
@@ -1573,12 +1612,6 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       profile_compositor_step(destination, layer, "bevel_emboss", clip, [&] {
         render_bevel_emboss(destination, layer, source, clip, bounds, bevel, layer_mask_bounds, masks, index,
                             patterns, &style.strokes);
-      });
-    }
-    for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
-      const auto& stroke = style.strokes[index];
-      profile_compositor_step(destination, layer, "stroke", clip, [&] {
-        render_stroke(destination, layer, source, clip, bounds, stroke, layer_mask_bounds, masks, index);
       });
     }
     // Stroke Emboss shades the rendered Stroke effect itself, so it must paint

@@ -835,6 +835,57 @@ void psd_photoshop_bevel_smooth_fixture_matches_render() {
   CHECK(metrics.mean_abs_channel_delta <= 0.10);
 }
 
+// Photoshop 2026 authored photoshop-pillow-emboss.psd/.bmp and
+// photoshop-pillow-emboss2.psd/.bmp via COM (July 2026): squares on a gray-128
+// backdrop carrying Smooth Pillow Emboss at depth 1/5/10/25/50/100/200/500/1000,
+// sizes 7 and 12, altitude 30 (plus altitude-60 controls and two solid-stroke
+// interplay squares). They pin the calibrated pillow model: half-size smooth
+// ramp lit directly with the interior flipped, slope factor
+// 0.5 x max(depth, 25%) x tent peak, normalized-Lambert highlights,
+// UNNORMALIZED linear shadows, and bevel shading composited over the stroke
+// band. Known residuals stay bounded by the ratio check: corner arcs at
+// saturated depths and the altitude-60 mid-depth highlight tail
+// (docs/ps-compat.md).
+void psd_photoshop_pillow_emboss_fixtures_match_render() {
+  for (const auto* stem : {"photoshop-pillow-emboss", "photoshop-pillow-emboss2"}) {
+    const auto psd_path = patchy::test::committed_psd_fixture_path(std::string(stem) + ".psd");
+    const auto bmp_path = psd_path.parent_path() / (std::string(stem) + ".bmp");
+    CHECK(std::filesystem::exists(psd_path));
+    CHECK(std::filesystem::exists(bmp_path));
+    const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+    const auto reference =
+        patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+    const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+    const auto metrics = rgb_diff_metrics(reference, flat);
+    CHECK(metrics.mean_abs_channel_delta <= 0.15);
+    std::uint64_t over_aa_tolerance = 0;
+    for (std::int32_t y = 0; y < reference.height(); ++y) {
+      for (std::int32_t x = 0; x < reference.width(); ++x) {
+        const auto* a = reference.pixel(x, y);
+        const auto* b = flat.pixel(x, y);
+        int max_delta = 0;
+        for (int channel = 0; channel < 3; ++channel) {
+          max_delta = std::max(max_delta,
+                               std::abs(static_cast<int>(a[channel]) - static_cast<int>(b[channel])));
+        }
+        if (max_delta > 6) {
+          ++over_aa_tolerance;
+        }
+      }
+    }
+    const auto total_pixels =
+        static_cast<double>(reference.width()) * static_cast<double>(reference.height());
+    CHECK(static_cast<double>(over_aa_tolerance) / total_pixels <= 0.01);
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-pillow-emboss.psd"));
+  const auto* low_depth = find_layer_named(document.layers(), "p7d1");
+  CHECK(low_depth != nullptr);
+  CHECK(low_depth->layer_style().bevels.size() == 1);
+  CHECK(low_depth->layer_style().bevels.front().style == patchy::BevelEmbossStyleKind::PillowEmboss);
+  CHECK(close_float(low_depth->layer_style().bevels.front().depth, 0.01F));
+}
+
 // Photoshop 2026 authored photoshop-stroke-shapeburst.psd via COM (July 2026):
 // three L-shaped mattes carrying Shape Burst gradient strokes — Outside 10 px,
 // Center 12 px with Reverse, and Inside 10 px at Scale 50 — saved alongside
@@ -1253,6 +1304,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_outer_glow_fixtures_match_render},
       {"psd_photoshop_bevel_smooth_fixture_matches_render",
        psd_photoshop_bevel_smooth_fixture_matches_render},
+      {"psd_photoshop_pillow_emboss_fixtures_match_render",
+       psd_photoshop_pillow_emboss_fixtures_match_render},
       {"psd_photoshop_stroke_shapeburst_fixture_matches_render",
        psd_photoshop_stroke_shapeburst_fixture_matches_render},
       {"psd_lrfx_legacy_drop_shadow_parses_fixed_point",
