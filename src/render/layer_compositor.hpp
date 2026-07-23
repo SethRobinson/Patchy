@@ -1117,13 +1117,35 @@ inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Lay
       }
     }
   }
+  // Anchor matte for the band distances: augmented flat-wash (and no-solid
+  // fallback) pixels stroke as a fully solid shape, while true AA fringes
+  // keep their raw alpha so the subpixel path can place the contour at the
+  // matte's real half-coverage crossing instead of a whole-pixel staircase.
+  // A fully binary matte skips the supersampled path entirely and stays
+  // bit-identical to the pinned pixel-center calibration.
+  auto has_subpixel_fringe = false;
+  std::vector<float> anchor_matte(base.size(), 0.0F);
+  for (std::size_t index = 0; index < base.size(); ++index) {
+    const auto anchored = contour[index] > 0.0F
+                              ? (base[index] >= 0.5F ? base[index] : 1.0F)
+                              : base[index];
+    anchor_matte[index] = anchored;
+    if (anchored > 0.0F && anchored < 1.0F) {
+      has_subpixel_fringe = true;
+    }
+  }
   std::vector<float> outside_distance;
   std::vector<float> inside_distance;
-  if (band_out > 0.0F) {
-    outside_distance = stroke_distance_field(contour, width, height, true);
-  }
-  if (band_in > 0.0F) {
-    inside_distance = stroke_distance_field(contour, width, height, false);
+  if (has_subpixel_fringe) {
+    stroke_subpixel_distance_fields(anchor_matte, width, height, band_out > 0.0F, band_in > 0.0F,
+                                    outside_distance, inside_distance);
+  } else {
+    if (band_out > 0.0F) {
+      outside_distance = stroke_distance_field(contour, width, height, true);
+    }
+    if (band_in > 0.0F) {
+      inside_distance = stroke_distance_field(contour, width, height, false);
+    }
   }
 
   std::vector<float> mask(base.size(), 0.0F);

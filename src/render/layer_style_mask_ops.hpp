@@ -40,6 +40,21 @@ void exact_squared_distance_transform(std::vector<float>& field, int width, int 
 std::vector<float> stroke_distance_field(const std::vector<float>& base, int width, int height,
                                          bool sources_are_painted);
 
+// Stroke distance fields anchored at the matte's SUBPIXEL half-coverage
+// crossing instead of a binarized pixel-center set: the matte is supersampled
+// 3x (bilinear; the odd scale keeps every coarse pixel center exactly on a
+// fine center), thresholded at 0.5 in the fine grid, EDT'd exactly, and read
+// back at the coarse centers with a +1/3 px compensation chosen so a BINARY
+// matte reproduces the calibrated pixel-center convention exactly on straight
+// edges. Anti-aliased edges gain a continuous contour anchor (quantized at
+// 1/3 px) instead of the whole-pixel staircase a 0.5 threshold produces.
+// Painted-side pixels (matte >= 0.5 at the coarse center) read 0 in `outside`
+// and vice versa, like the binary fields. Pinned by the
+// photoshop-stroke-aa-matte fixtures (July 2026).
+void stroke_subpixel_distance_fields(const std::vector<float>& matte, int width, int height,
+                                     bool need_outside, bool need_inside,
+                                     std::vector<float>& outside, std::vector<float>& inside);
+
 // The binary contour sits half a pixel past the last source pixel center, and the
 // 1px anti-aliasing ramp is centered on the band edge, so a band reaching `band`
 // pixels from the contour fully covers center distances d <= band and fades out by

@@ -141,6 +141,57 @@ float stroke_band_coverage(float distance, float band) noexcept {
   return band <= 0.0F ? 0.0F : clamp_unit(band + kStrokeContourOffset - distance);
 }
 
+void stroke_subpixel_distance_fields(const std::vector<float>& matte, int width, int height,
+                                     bool need_outside, bool need_inside,
+                                     std::vector<float>& outside, std::vector<float>& inside) {
+  constexpr int kScale = 3;
+  const auto fine_width = width * kScale;
+  const auto fine_height = height * kScale;
+  std::vector<float> fine(static_cast<std::size_t>(fine_width) * static_cast<std::size_t>(fine_height),
+                          0.0F);
+  for (int fine_y = 0; fine_y < fine_height; ++fine_y) {
+    // Coarse pixel-center coordinates; fine centers land at -1/3, 0, +1/3
+    // around each coarse center, so fy = 3y+1 samples the coarse value
+    // exactly (bilinear at a sample point).
+    const auto cy = (static_cast<float>(fine_y) + 0.5F) / kScale - 0.5F;
+    const auto y0 = std::clamp(static_cast<int>(std::floor(cy)), 0, height - 1);
+    const auto y1 = std::min(y0 + 1, height - 1);
+    const auto ty = std::clamp(cy - static_cast<float>(y0), 0.0F, 1.0F);
+    auto* row = fine.data() + static_cast<std::size_t>(fine_y) * fine_width;
+    const auto* row0 = matte.data() + static_cast<std::size_t>(y0) * width;
+    const auto* row1 = matte.data() + static_cast<std::size_t>(y1) * width;
+    for (int fine_x = 0; fine_x < fine_width; ++fine_x) {
+      const auto cx = (static_cast<float>(fine_x) + 0.5F) / kScale - 0.5F;
+      const auto x0 = std::clamp(static_cast<int>(std::floor(cx)), 0, width - 1);
+      const auto x1 = std::min(x0 + 1, width - 1);
+      const auto tx = std::clamp(cx - static_cast<float>(x0), 0.0F, 1.0F);
+      const auto top = row0[x0] + (row0[x1] - row0[x0]) * tx;
+      const auto bottom = row1[x0] + (row1[x1] - row1[x0]) * tx;
+      const auto alpha = top + (bottom - top) * ty;
+      row[fine_x] = alpha >= 0.5F ? 1.0F : 0.0F;
+    }
+  }
+  constexpr float kCenterCompensation = 0.5F - 0.5F / kScale;
+  const auto read_back = [&](const std::vector<float>& fine_distance, std::vector<float>& out) {
+    out.assign(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0.0F);
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const auto fine_index =
+            static_cast<std::size_t>(y * kScale + 1) * fine_width + static_cast<std::size_t>(x * kScale + 1);
+        const auto distance = fine_distance[fine_index];
+        out[static_cast<std::size_t>(y) * width + x] =
+            distance <= 0.0F ? 0.0F : distance / kScale + kCenterCompensation;
+      }
+    }
+  };
+  if (need_outside) {
+    read_back(stroke_distance_field(fine, fine_width, fine_height, true), outside);
+  }
+  if (need_inside) {
+    read_back(stroke_distance_field(fine, fine_width, fine_height, false), inside);
+  }
+}
+
 void box_blur_mask_into(const std::vector<float>& input, std::vector<float>& horizontal,
                                std::vector<float>& output, int width, int height, int radius) {
   for (int y = 0; y < height; ++y) {

@@ -835,6 +835,57 @@ void psd_photoshop_bevel_smooth_fixture_matches_render() {
   CHECK(metrics.mean_abs_channel_delta <= 0.10);
 }
 
+// Photoshop 2026 authored photoshop-stroke-aa-matte.psd/.bmp via COM (July
+// 2026): an anti-aliased ellipse and a rotated square with solid 10 px
+// outside strokes, plus an AA ellipse with a Shape Burst gradient stroke.
+// They pin the SUBPIXEL stroke contour anchor (stroke_subpixel_distance_fields):
+// the band and the Shape Burst ramp anchor at the matte's bilinear
+// half-coverage crossing (3x supersampled EDT with the +1/3 px binary
+// compensation), which removes the whole-pixel staircase a 0.5 threshold
+// produces on curved edges. Straight runs match byte-for-byte; the remaining
+// over-tolerance pixels are the band-limit arc AA of the shared coverage
+// ramp (documented divergence, docs/ps-compat.md).
+void psd_photoshop_stroke_aa_matte_fixture_matches_render() {
+  const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-stroke-aa-matte.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-stroke-aa-matte.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto* ellipse = find_layer_named(document.layers(), "ellipse");
+  const auto* shape_burst = find_layer_named(document.layers(), "sbellipse");
+  CHECK(ellipse != nullptr);
+  CHECK(shape_burst != nullptr);
+  CHECK(ellipse->layer_style().strokes.size() == 1);
+  CHECK(!ellipse->layer_style().strokes.front().uses_gradient);
+  CHECK(shape_burst->layer_style().strokes.size() == 1);
+  CHECK(shape_burst->layer_style().strokes.front().gradient.type ==
+        patchy::LayerStyleGradientType::ShapeBurst);
+  const auto reference =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference, flat);
+  CHECK(metrics.mean_abs_channel_delta <= 1.0);
+  std::uint64_t over_aa_tolerance = 0;
+  for (std::int32_t y = 0; y < reference.height(); ++y) {
+    for (std::int32_t x = 0; x < reference.width(); ++x) {
+      const auto* a = reference.pixel(x, y);
+      const auto* b = flat.pixel(x, y);
+      int max_delta = 0;
+      for (int channel = 0; channel < 3; ++channel) {
+        max_delta = std::max(max_delta,
+                             std::abs(static_cast<int>(a[channel]) - static_cast<int>(b[channel])));
+      }
+      if (max_delta > 6) {
+        ++over_aa_tolerance;
+      }
+    }
+  }
+  const auto total_pixels =
+      static_cast<double>(reference.width()) * static_cast<double>(reference.height());
+  // 2.13% at capture time (the pre-subpixel threshold anchor measured 3.50%).
+  CHECK(static_cast<double>(over_aa_tolerance) / total_pixels <= 0.03);
+}
+
 // Photoshop 2026 authored photoshop-pillow-emboss.psd/.bmp and
 // photoshop-pillow-emboss2.psd/.bmp via COM (July 2026): squares on a gray-128
 // backdrop carrying Smooth Pillow Emboss at depth 1/5/10/25/50/100/200/500/1000,
@@ -1304,6 +1355,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_outer_glow_fixtures_match_render},
       {"psd_photoshop_bevel_smooth_fixture_matches_render",
        psd_photoshop_bevel_smooth_fixture_matches_render},
+      {"psd_photoshop_stroke_aa_matte_fixture_matches_render",
+       psd_photoshop_stroke_aa_matte_fixture_matches_render},
       {"psd_photoshop_pillow_emboss_fixtures_match_render",
        psd_photoshop_pillow_emboss_fixtures_match_render},
       {"psd_photoshop_stroke_shapeburst_fixture_matches_render",
