@@ -125,15 +125,89 @@ def resolve_corpus(args: argparse.Namespace) -> list[Path]:
     return [f for f in files if f.exists()]
 
 
+# The pause request channel: the server (or anything else) drops this file into a
+# live run's directory and the orchestrator checkpoints and exits at its next
+# file/cell boundary - a cell mid-flight always finishes first, never interrupted.
+PAUSE_FLAG = "pause.flag"
+
 # Browser-initiated runs: the serving process tracks at most one child run (spawned
-# via POST /testy-start-run) and refuses overlaps; a process that is itself running a
-# benchmark (testy.py CLI) refuses too via the in-process flag.
+# via POST /testy-start-run or /testy-resume-run) and refuses overlaps; a process that
+# is itself running a benchmark (testy.py CLI) refuses too via the in-process flag.
 _child_run: subprocess.Popen | None = None
+_child_run_started: _dt.datetime | None = None
+_child_run_dir: Path | None = None  # known for resumes, discovered for fresh starts
 _in_process_run_active = False
+_in_process_run_dir: Path | None = None
+_spawn_lock = threading.Lock()
+_status_cache: tuple[Path, float, dict] | None = None
 
 
 def _run_in_progress() -> bool:
     return _in_process_run_active or (_child_run is not None and _child_run.poll() is None)
+
+
+def _read_status(status_path: Path) -> dict | None:
+    """Parse a run's status.json, reusing the last parse while the file is unchanged
+    (the run-state endpoint re-reads the same newest file every few seconds)."""
+    global _status_cache
+    try:
+        mtime = status_path.stat().st_mtime
+        if _status_cache and _status_cache[0] == status_path and _status_cache[1] == mtime:
+            return _status_cache[2]
+        status = json.loads(status_path.read_text(encoding="utf-8"))
+        _status_cache = (status_path, mtime, status)
+        return status
+    except Exception:
+        return None
+
+
+def _iter_statuses():
+    """(path, parsed status) for every run, newest first, skipping unreadable ones."""
+    for status_path in sorted(config.RUNS_DIR.glob("2*/status.json"), reverse=True):
+        status = _read_status(status_path)
+        if status is not None:
+            yield status_path, status
+
+
+def _live_run_dir() -> Path | None:
+    """The live run's directory, or None while it has not written status.json yet."""
+    global _child_run_dir
+    if _in_process_run_active and _in_process_run_dir is not None:
+        return _in_process_run_dir
+    if _child_run is None or _child_run.poll() is not None:
+        return None
+    if _child_run_dir is not None and (_child_run_dir / "status.json").exists():
+        return _child_run_dir
+    for status_path, status in _iter_statuses():
+        if status.get("state") != "running":
+            continue
+        # A crashed run can leave a stale "running" status behind; the live child's
+        # directory is never older than the moment it was spawned.
+        try:
+            stamp = _dt.datetime.strptime(status_path.parent.name, "%Y%m%d-%H%M%S")
+        except ValueError:
+            continue
+        if _child_run_started is not None and stamp < _child_run_started - _dt.timedelta(seconds=5):
+            continue
+        _child_run_dir = status_path.parent
+        return _child_run_dir
+    return None
+
+
+def _resumable() -> dict | None:
+    """The newest run, if it is waiting to be continued: paused, or left "running" by
+    a process that died (crash, reboot, taskkill). Canceled runs are deliberate stops
+    and are only resumed explicitly from their own report page."""
+    if _run_in_progress():
+        return None
+    for status_path, status in _iter_statuses():
+        state = status.get("state")
+        if state == "paused":
+            return {"run": status_path.parent.name, "state": "paused"}
+        if state == "running":
+            return {"run": status_path.parent.name, "state": "interrupted"}
+        return None
+    return None
 
 
 class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -172,7 +246,13 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             )
             return
         if path == "/testy-run-state":
-            self._send_json({"running": _run_in_progress()})
+            live = _live_run_dir() if _run_in_progress() else None
+            self._send_json({
+                "running": _run_in_progress(),
+                "run": live.name if live is not None else None,
+                "pausePending": bool(live is not None and (live / PAUSE_FLAG).exists()),
+                "resumable": _resumable(),
+            })
             return
         super().do_GET()
 
@@ -185,6 +265,12 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
         if parsed.path == "/testy-cancel-run":
             self._cancel_run()
+            return
+        if parsed.path == "/testy-pause-run":
+            self._pause_run()
+            return
+        if parsed.path == "/testy-resume-run":
+            self._resume_run()
             return
         if parsed.path != "/testy-upload":
             self.send_error(404)
@@ -207,16 +293,37 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"ok")
 
-    def _start_run(self) -> None:
-        global _child_run
-        if _run_in_progress():
-            self._send_json({"errors": ["a run is already in progress"]}, status=409)
-            return
+    def _read_json_body(self) -> dict | None:
+        """The request's JSON body ({} when empty); None (after a 400) if unparsable."""
         try:
             length = int(self.headers.get("Content-Length", "0"))
             request = json.loads(self.rfile.read(length)) if length else {}
         except Exception:
             self._send_json({"errors": ["request body is not valid JSON"]}, status=400)
+            return None
+        return request if isinstance(request, dict) else {}
+
+    def _spawn_child(self, command: list[str], run_dir: Path | None = None) -> None:
+        """Launch a run child process, logging to runs/last-child-run.log."""
+        global _child_run, _child_run_started, _child_run_dir
+        log_path = config.RUNS_DIR / "last-child-run.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_file = open(log_path, "w", encoding="utf-8")
+        _child_run_started = _dt.datetime.now()
+        _child_run_dir = run_dir
+        _child_run = subprocess.Popen(
+            command,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+
+    def _start_run(self) -> None:
+        if _run_in_progress():
+            self._send_json({"errors": ["a run is already in progress"]}, status=409)
+            return
+        request = self._read_json_body()
+        if request is None:
             return
 
         raw_files = [str(f).strip().strip('"') for f in request.get("files", [])]
@@ -266,39 +373,122 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             command.append("--fresh")
         if scan_threshold is not None:
             command.extend(["--scan", str(scan_threshold)])
-        log_path = config.RUNS_DIR / "last-child-run.log"
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_file = open(log_path, "w", encoding="utf-8")
-        _child_run = subprocess.Popen(
-            command,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
+        with _spawn_lock:
+            if _run_in_progress():
+                self._send_json({"errors": ["a run is already in progress"]}, status=409)
+                return
+            self._spawn_child(command)
         self._send_json({"started": True})
+
+    def _pause_run(self) -> None:
+        request = self._read_json_body()
+        if request is None:
+            return
+        with _spawn_lock:
+            if not _run_in_progress():
+                self._send_json({"errors": ["no run in progress to pause"]}, status=409)
+                return
+            run_dir = _live_run_dir()
+            if run_dir is None:
+                self._send_json(
+                    {"errors": ["the run is still starting; try again in a moment"]}, status=409)
+                return
+            wanted = str(request.get("run") or "")
+            if wanted and wanted != run_dir.name:
+                self._send_json({"errors": [f"run {wanted} is not the live run"]}, status=409)
+                return
+            status = _read_status(run_dir / "status.json")
+            if status is not None and status.get("state") != "running":
+                self._send_json(
+                    {"errors": [f"run {run_dir.name} is not running ({status.get('state')})"]},
+                    status=409)
+                return
+            (run_dir / PAUSE_FLAG).write_text(
+                _dt.datetime.now().isoformat(timespec="seconds"), encoding="utf-8")
+        self._send_json({"pausing": True, "run": run_dir.name})
+
+    def _resume_run(self) -> None:
+        request = self._read_json_body()
+        if request is None:
+            return
+        with _spawn_lock:
+            if _run_in_progress():
+                self._send_json({"errors": ["a run is already in progress"]}, status=409)
+                return
+            name = str(request.get("run") or (_resumable() or {}).get("run") or "")
+            if not name:
+                self._send_json({"errors": ["nothing to resume"]}, status=409)
+                return
+            target = (config.RUNS_DIR / name).resolve()
+            status_path = target / "status.json"
+            if target.parent != config.RUNS_DIR.resolve() or not status_path.exists():
+                self._send_json({"errors": [f"no run named {name}"]}, status=404)
+                return
+            state = (_read_status(status_path) or {}).get("state")
+            if state == "done":
+                self._send_json({"errors": [f"run {name} already completed"]}, status=400)
+                return
+            if state not in ("paused", "canceled", "running"):
+                self._send_json({"errors": [f"run {name} is not resumable ({state})"]}, status=400)
+                return
+            # A pause requested just before the old process died must not instantly
+            # re-pause the fresh child.
+            (target / PAUSE_FLAG).unlink(missing_ok=True)
+            base_url = f"http://127.0.0.1:{self.server.server_address[1]}"
+            command = [
+                sys.executable, str(config.TESTY_ROOT / "testy.py"),
+                "--resume", str(target),
+                "--no-browser", "--exit-when-done",
+                "--server-url", base_url,
+            ]
+            self._spawn_child(command, run_dir=target)
+        self._send_json({"resumed": True, "run": target.name})
 
     def _cancel_run(self) -> None:
         global _child_run
-        if _child_run is None or _child_run.poll() is not None:
-            self._send_json({"errors": ["no run in progress to cancel"]}, status=409)
+        request = self._read_json_body()
+        if request is None:
             return
-        # Kill the whole tree: the run spawns patchy.exe, krita, headless Chrome, and
-        # possibly an Affinity instance of its own.
-        subprocess.run(["taskkill", "/PID", str(_child_run.pid), "/T", "/F"],
-                       capture_output=True, timeout=30)
-        _child_run = None
-        # Mark any still-"running" status.json as canceled so dashboards and the run
-        # index stop treating the run as live.
-        for status_path in sorted(config.RUNS_DIR.glob("2*/status.json"), reverse=True):
-            try:
-                status = json.loads(status_path.read_text(encoding="utf-8"))
-            except Exception:
+        wanted = str(request.get("run") or "")
+        if _child_run is not None and _child_run.poll() is None:
+            live = _live_run_dir()
+            if wanted and live is not None and wanted != live.name:
+                self._send_json({"errors": [f"run {wanted} is not the live run"]}, status=409)
+                return
+            # Kill the whole tree: the run spawns patchy.exe, krita, headless Chrome,
+            # and possibly an Affinity instance of its own.
+            subprocess.run(["taskkill", "/PID", str(_child_run.pid), "/T", "/F"],
+                           capture_output=True, timeout=30)
+            _child_run = None
+            # Mark any still-"running" status.json as canceled so dashboards and the
+            # run index stop treating the run as live.
+            for status_path, status in _iter_statuses():
+                if status.get("state") == "running":
+                    status["state"] = "canceled"
+                    status_path.write_text(json.dumps(status), encoding="utf-8")
+                    (status_path.parent / PAUSE_FLAG).unlink(missing_ok=True)
+                    break
+            self._send_json({"canceled": True})
+            return
+        if _run_in_progress():
+            # An in-process CLI run cannot tree-kill itself from its own handler.
+            self._send_json({"errors": ["this run was started from the command line; "
+                                        "stop it with Ctrl+C in its console"]}, status=409)
+            return
+        # No live process: canceling a paused or crash-interrupted run marks it
+        # canceled so the control panel stops offering it for resume (its own report
+        # page can still resume it explicitly).
+        for status_path, status in _iter_statuses():
+            if wanted and status_path.parent.name != wanted:
                 continue
-            if status.get("state") == "running":
+            if status.get("state") in ("paused", "running"):
                 status["state"] = "canceled"
                 status_path.write_text(json.dumps(status), encoding="utf-8")
-                break
-        self._send_json({"canceled": True})
+                (status_path.parent / PAUSE_FLAG).unlink(missing_ok=True)
+                self._send_json({"canceled": True})
+                return
+            break
+        self._send_json({"errors": ["no run in progress to cancel"]}, status=409)
 
 
 class _ExclusiveHTTPServer(http.server.ThreadingHTTPServer):
@@ -336,6 +526,7 @@ def _version_slug(text: str) -> str:
 
 class Runner:
     def __init__(self, args: argparse.Namespace) -> None:
+        global _in_process_run_dir
         self.args = args
         self.suffix = args.suffix
         # Scan mode: files whose render stays within this bad-pixel fraction of the
@@ -346,19 +537,46 @@ class Runner:
         # files do not pile renders/resaves into testy/cache: {index: [(cell_dir,
         # cache_dir, cell), ...]}.
         self._deferred_cell_caches: dict[int, list[tuple[Path, Path, dict]]] = {}
+        self.resume = args.resume is not None
+        self.status: dict = {}
+        if self.resume:
+            self.run_dir = self._locate_resume_dir(args.resume)
+            self.status = json.loads((self.run_dir / "status.json").read_text(encoding="utf-8"))
+            if self.status.get("state") == "done":
+                raise SystemExit(f"run {self.run_dir.name} already completed; nothing to resume")
+            # Corpus, editors, and options come from the run's own status.json: the
+            # paused session's caches must stay valid and a mid-run rebuild would
+            # change what the remaining cells measure, so --fresh and the build
+            # refresh are forced off.
+            log(f"resuming {self.run_dir.name}; corpus/editors/options come from its status.json")
+            self.suffix = self.status["run"]["suffix"]
+            scan = self.status["run"].get("scan")
+            self.scan_threshold = scan["thresholdPct"] / 100.0 if scan else None
+            self.args.fresh = False
+            self.args.no_build = True
+        else:
+            self.run_dir = config.RUNS_DIR / _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
         self.patchy_hash = git_hash()
         self.editors = config.discover_editors(self.patchy_hash)
-        self.editor_order = [e for e in args.editors.split(",") if e in self.editors]
+        if self.resume:
+            self.editor_order = [e for e in self.status["run"]["editorOrder"] if e in self.editors]
+        else:
+            self.editor_order = [e for e in args.editors.split(",") if e in self.editors]
         self.ps = PhotoshopDriver()
-        timestamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.run_dir = config.RUNS_DIR / timestamp
         self.files_dir = self.run_dir / "files"
         self.files_dir.mkdir(parents=True, exist_ok=True)
         config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        self.run_name = timestamp
+        self.run_name = self.run_dir.name
         self.server_port: int | None = None
         self.server_base: str | None = None  # where dashboards/uploads are served
-        self.status: dict = {}
+        _in_process_run_dir = self.run_dir
+
+    @staticmethod
+    def _locate_resume_dir(spec: str) -> Path:
+        for candidate in (Path(spec), config.RUNS_DIR / spec):
+            if (candidate / "status.json").exists():
+                return candidate.resolve()
+        raise SystemExit(f"--resume: no run (status.json) found at {spec}")
 
     # ---------- status plumbing ----------
 
@@ -829,15 +1047,86 @@ class Runner:
             lines.append("# (none - every file passed)")
         (self.run_dir / "flagged.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+    # ---------- pause / resume ----------
+
+    # A cell in one of these states is finished business for this run; resume never
+    # retries them (a fresh run, which still hits the caches, re-measures failures).
+    TERMINAL_CELL_STATES = ("done", "failed", "skipped", "unsupported")
+
+    def _pause_requested(self) -> bool:
+        return (self.run_dir / PAUSE_FLAG).exists()
+
+    def _graceful_pause_exit(self) -> int:
+        """Checkpoint between cells: everything finished so far is already flushed to
+        status.json, so recording the state and exiting IS the checkpoint."""
+        log("pause requested - checkpointing at the cell boundary")
+        self._cleanup_drivers()
+        self.status["state"] = "paused"
+        self.status["run"]["pausedAt"] = _dt.datetime.now().isoformat(timespec="seconds")
+        self.push()
+        (self.run_dir / PAUSE_FLAG).unlink(missing_ok=True)
+        log(f'paused - resume with the dashboard\'s Resume button or: '
+            f'python testy\\testy.py --resume "{self.run_dir}"')
+        return 3
+
+    def _load_resumed_status(self) -> None:
+        """Mark the loaded run live again; anything a dead session left mid-flight
+        ("running") becomes pending work, everything terminal is kept as-is."""
+        now = _dt.datetime.now().isoformat(timespec="seconds")
+        self.status["state"] = "running"
+        self.status["run"].pop("pausedAt", None)
+        self.status["run"].setdefault("resumedAt", []).append(now)
+        old_hash = self.status["run"].get("patchyGit")
+        if old_hash != self.patchy_hash:
+            note = (f"resumed at {now} with patchy git {self.patchy_hash}; "
+                    f"cells finished earlier measured {old_hash}")
+            log(f"WARNING: {note}")
+            self.status["run"].setdefault("notes", []).append(note)
+            self.status["run"]["patchyGit"] = self.patchy_hash
+        for entry in self.status["files"]:
+            if entry.get("groundTruth", {}).get("state") == "running":
+                entry["groundTruth"] = {"state": "pending"}
+            for cell in entry.get("cells", {}).values():
+                if cell.get("state") == "running":
+                    cell.clear()
+                    cell["state"] = "pending"
+        self.push()
+
+    def _file_complete(self, entry: dict) -> bool:
+        if entry.get("groundTruth", {}).get("state") not in ("done", "failed"):
+            return False
+        for editor_key in self.editor_order:
+            if entry["cells"].get(editor_key, {}).get("state") not in self.TERMINAL_CELL_STATES:
+                return False
+        return self.scan_threshold is None or "scan" in entry
+
+    def _cleanup_drivers(self) -> None:
+        if "affinity" in self.editor_order:
+            from drivers import affinity as affinity_driver
+
+            affinity_driver.cleanup()
+        if "photopea" in self.editor_order:
+            from drivers import photopea as photopea_driver
+
+            photopea_driver.cleanup()
+
     # ---------- top level ----------
 
     def run(self) -> int:
-        corpus = resolve_corpus(self.args)
+        if self.resume:
+            # files[] order IS the corpus order; resolve_corpus would drop missing
+            # files and shift every index out from under the loaded status.
+            corpus = [Path(entry["source"]) for entry in self.status["files"]]
+        else:
+            corpus = resolve_corpus(self.args)
         if not corpus:
             log("no corpus files found; nothing to do")
             return 2
         report.write_report_page(self.run_dir)
-        self.init_status(corpus)
+        if self.resume:
+            self._load_resumed_status()
+        else:
+            self.init_status(corpus)
 
         server = None
         if self.args.server_url:
@@ -853,7 +1142,8 @@ class Runner:
             log(f"dashboard: {url} (run index at {self.server_base}/)")
             if not self.args.no_browser:
                 webbrowser.open(url)
-        report.append_run_index(config.TESTY_ROOT, self.run_name)
+        if not self.resume:  # a resumed run was indexed when it first started
+            report.append_run_index(config.TESTY_ROOT, self.run_name)
 
         if not self.args.no_build and "patchy" in self.editor_order:
             refresh_patchy_build()
@@ -867,7 +1157,17 @@ class Runner:
             self.status["run"]["patchyGit"] = self.patchy_hash
             self.push()
 
-        source_hashes = {str(path): staging.sha1_of_file(path) for path in corpus}
+        # Baselines for the end-of-run corruption check. A resumed run reuses the
+        # sha1 recorded when each file was first staged, so an edit made while the
+        # run sat paused is caught too; a source already missing at resume time has
+        # no baseline (its remaining work is failed inside the loop instead).
+        source_hashes: dict[str, str] = {}
+        for index, path in enumerate(corpus):
+            recorded = self.file_entry(index).get("sha1") if self.resume else None
+            if recorded:
+                source_hashes[str(path)] = recorded
+            elif path.exists():
+                source_hashes[str(path)] = staging.sha1_of_file(path)
 
         # Circuit breaker: an editor that fails several files in a row is broken for
         # this run (a dead app, a dead website); skip its remaining cells fast and
@@ -876,7 +1176,25 @@ class Runner:
         BREAKER_LIMIT = 3
         for index, source in enumerate(corpus):
             entry = self.file_entry(index)
+            if self.resume and self._file_complete(entry):
+                log(f"[{index + 1}/{len(corpus)}] {source.name} - already complete, skipped")
+                continue
+            if self._pause_requested():
+                return self._graceful_pause_exit()
             log(f"[{index + 1}/{len(corpus)}] {source.name}")
+            if self.resume and not source.exists():
+                log("    source file is gone; failing its remaining work")
+                if entry.get("groundTruth", {}).get("state") != "done":
+                    entry["groundTruth"] = {"state": "failed",
+                                            "error": "source file missing at resume"}
+                for cell in entry["cells"].values():
+                    if cell.get("state") not in self.TERMINAL_CELL_STATES:
+                        cell.update({"state": "failed",
+                                     "error": "source file missing at resume"})
+                self.push()
+                if self.scan_threshold is not None and "scan" not in entry:
+                    self._apply_scan_policy(index)
+                continue
             staged = staging.stage_psd(source, self.files_dir / source.stem / "_staged")
             entry["sha1"] = staged.sha1
             if staged.trap_error:
@@ -884,6 +1202,10 @@ class Runner:
             truth = self.ground_truth(index, staged)
             for editor_key in self.editor_order:
                 cell = entry["cells"][editor_key]
+                if cell.get("state") in self.TERMINAL_CELL_STATES:
+                    continue  # finished before a pause; the resume keeps it as-is
+                if self._pause_requested():
+                    return self._graceful_pause_exit()
                 if consecutive_failures[editor_key] >= BREAKER_LIMIT:
                     cell.update({"state": "skipped",
                                  "error": f"editor skipped after {BREAKER_LIMIT} consecutive failures"})
@@ -898,29 +1220,30 @@ class Runner:
                             "skipping it for the rest of the run")
                 else:
                     consecutive_failures[editor_key] = 0
-            if self.scan_threshold is not None:
+            if self.scan_threshold is not None and "scan" not in entry:
                 self._apply_scan_policy(index)
 
-        # Prove the corpus originals were never touched.
-        corruption = [
-            path for path in corpus if staging.sha1_of_file(path) != source_hashes[str(path)]
-        ]
+        # Prove the corpus originals were never touched (for a resumed run: not since
+        # they were first staged, so the paused stretch is covered too).
+        corruption = []
+        for path in corpus:
+            baseline = source_hashes.get(str(path))
+            if baseline is None:
+                continue
+            if not path.exists() or staging.sha1_of_file(path) != baseline:
+                corruption.append(path)
         if corruption:
             log(f"ERROR: source files changed during the run: {corruption}")
         self.status["run"]["sourcesUntouched"] = not corruption
 
-        if "affinity" in self.editor_order:
-            from drivers import affinity as affinity_driver
-
-            affinity_driver.cleanup()
-        if "photopea" in self.editor_order:
-            from drivers import photopea as photopea_driver
-
-            photopea_driver.cleanup()
+        self._cleanup_drivers()
 
         if self.scan_threshold is not None:
             self._write_flagged_list()
 
+        # A pause that lands during the very last cell loses the race on purpose: the
+        # run is finished, so the request is void and must not leak into a later run.
+        (self.run_dir / PAUSE_FLAG).unlink(missing_ok=True)
         self.status["state"] = "done"
         self.status["run"]["finishedAt"] = _dt.datetime.now().isoformat(timespec="seconds")
         self.push()
@@ -1006,6 +1329,10 @@ def main() -> int:
                              "stay small (metrics are kept for every file)")
     parser.add_argument("--no-build", action="store_true", help="skip the Patchy release build refresh")
     parser.add_argument("--fresh", action="store_true", help="ignore cached ground truth / cells")
+    parser.add_argument("--resume", default=None, metavar="RUN_DIR",
+                        help="continue a paused/canceled/interrupted run directory "
+                             "(runs\\<timestamp>), skipping completed work; corpus, "
+                             "editors, and options come from its status.json")
     parser.add_argument("--port", type=int, default=config.PORT, help="dashboard port")
     parser.add_argument("--no-browser", action="store_true", help="do not auto-open the dashboard")
     parser.add_argument("--no-serve", action="store_true", help="write reports without the local server")

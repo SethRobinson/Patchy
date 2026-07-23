@@ -31,7 +31,14 @@ _PAGE = r"""<!DOCTYPE html>
   #state-pill { padding: 2px 10px; border-radius: 10px; font-size: 11px; background: var(--panel2); }
   #state-pill.running { color: var(--warn); }
   #state-pill.done { color: var(--good); }
-  #state-pill.canceled { color: var(--bad); }
+  #state-pill.canceled, #state-pill.interrupted { color: var(--bad); }
+  #state-pill.paused { color: var(--accent); }
+  #run-controls button { background: var(--panel2); color: var(--text); font-size: 12px;
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 12px; margin-left: 6px;
+    cursor: pointer; }
+  #run-controls button:hover:enabled { border-color: var(--accent); }
+  #run-controls button:disabled { color: var(--dim); cursor: default; }
+  #run-controls .ctl-note { color: var(--dim); font-size: 11.5px; margin-left: 8px; }
   #summary { display: flex; gap: 12px; padding: 14px 22px; flex-wrap: wrap; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
           padding: 10px 14px; min-width: 168px; }
@@ -93,6 +100,7 @@ _PAGE = r"""<!DOCTYPE html>
   <h1>Testy <span style="color:var(--dim)">PSD compatibility</span></h1>
   <span id="state-pill">loading</span>
   <span class="meta" id="run-meta"></span>
+  <span id="run-controls"></span>
 </header>
 <div id="summary"></div>
 <main>
@@ -104,6 +112,11 @@ _PAGE = r"""<!DOCTYPE html>
 "use strict";
 let S = null;
 let selected = null;
+// This run's identity plus the server's live-run view, for the pause/resume/cancel
+// controls. runState stays null when the page is a frozen file opened from disk (or
+// served by something other than testy.py), which hides every control.
+const RUN_ID = (location.pathname.match(/\/runs\/([^/]+)\//) || [])[1] || null;
+let runState = null;
 
 function pct(x, digits) { return (100 * x).toFixed(digits === undefined ? 1 : digits) + "%"; }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g,
@@ -175,11 +188,55 @@ function cellSummary(cell) {
          (flags.length ? '<div class="flag">' + flags.join(" &middot; ") + '</div>' : "");
 }
 
+function renderControls() {
+  const holder = document.getElementById("run-controls");
+  if (!runState || !RUN_ID || !S) { holder.innerHTML = ""; return; }
+  const liveHere = runState.running && runState.run === RUN_ID;
+  let html = "";
+  if (liveHere) {
+    html = (runState.pausePending
+      ? "<button disabled>Pausing...</button>"
+      : "<button onclick=\"controlRun('pause')\">Pause</button>") +
+      "<button onclick=\"controlRun('cancel')\">Cancel</button>";
+    if (runState.pausePending)
+      html += '<span class="ctl-note">stops after the current step; everything done so far is kept</span>';
+  } else if (!runState.running && S.state !== "done") {
+    // paused, canceled, or interrupted (a "running" status whose process is gone)
+    html = "<button onclick=\"controlRun('resume')\">Resume</button>";
+    if (S.state === "paused" || S.state === "running")
+      html += "<button onclick=\"controlRun('cancel')\">Discard</button>";
+  } else if (runState.running && S.state !== "done") {
+    html = '<span class="ctl-note">another run is live; this one can be resumed after it</span>';
+  }
+  holder.innerHTML = html;
+}
+
+function controlRun(action) {
+  fetch("/testy-" + action + "-run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ run: RUN_ID }),
+  }).then(async response => {
+    const result = await response.json();
+    if (!response.ok) {
+      document.getElementById("run-controls").innerHTML =
+        '<span class="ctl-note">' + esc((result.errors || [action + " failed"]).join("; ")) + "</span>";
+      setTimeout(pollSoon, 1500);
+      return;
+    }
+    pollSoon();
+  }).catch(e => { /* server gone mid-click; the next poll reconciles */ });
+}
+
 function render() {
   if (!S) return;
   const pill = document.getElementById("state-pill");
-  pill.textContent = S.state;
-  pill.className = S.state;
+  // A "running" status whose run process is gone (crash, reboot, kill) is shown as
+  // interrupted; resuming it turns it genuinely live again.
+  const interrupted = S.state === "running" && runState && !runState.running;
+  pill.textContent = interrupted ? "interrupted" : S.state;
+  pill.className = interrupted ? "interrupted" : S.state;
+  renderControls();
   document.getElementById("run-meta").textContent =
     S.run.startedAt + "  -  " + S.files.length + " file(s)  -  Patchy " + (S.run.patchyVersion || "?") +
     (S.run.scan ? "  -  scan mode: flag over " + S.run.scan.thresholdPct + "% render difference" : "");
@@ -408,13 +465,24 @@ async function renderHistory() {
   } catch (e) { /* history is optional */ }
 }
 
+let tickTimer = null;
+
 async function tick() {
   try {
     const response = await fetch("status.json", { cache: "no-store" });
-    if (response.ok) { S = await response.json(); render(); }
+    if (response.ok) { S = await response.json(); }
   } catch (e) { /* server restarting between polls is fine */ }
-  setTimeout(tick, S && S.state === "done" ? 5000 : 1200);
+  if (RUN_ID) {
+    try {
+      const response = await fetch("/testy-run-state", { cache: "no-store" });
+      runState = response.ok ? await response.json() : null;
+    } catch (e) { runState = null; /* frozen page opened from disk */ }
+  }
+  if (S) render();
+  tickTimer = setTimeout(tick, S && S.state !== "running" ? 5000 : 1200);
 }
+
+function pollSoon() { clearTimeout(tickTimer); tick(); }
 tick();
 </script>
 </body>

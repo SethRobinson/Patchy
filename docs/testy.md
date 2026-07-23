@@ -26,6 +26,29 @@ reuse the panel's server (`--server-url` under the hood) and log to
 `testy/runs/last-child-run.log`. A Cancel button (shown while a run is live) kills the
 whole run process tree and marks the run "canceled".
 
+A Pause button (panel and live report) checkpoints big runs instead of killing them:
+the orchestrator finishes the current file/editor cell (a slow Photoshop probe can take
+a couple of minutes; interrupting mid-cell would trip the drivers' watchdogs), records
+`state: "paused"` in status.json, and the run process exits. Everything finished so far
+is kept; nothing is re-measured on resume. The paused state lives entirely in the run
+directory, so it survives server restarts and reboots and frees Photoshop/RAM while
+paused. Resume (panel, or the run's report page) spawns
+`python testy\testy.py --resume runs\<ts>`, which reconstructs the corpus, editors, and
+options from the run's own status.json, skips complete files, re-runs only
+pending/interrupted cells (a cell the process died inside is reset to pending), and
+finishes normally (results.json, history line, flagged.txt). Resume never rebuilds
+Patchy mid-run; a changed git hash is logged into `run.notes`, not blocked. The
+end-of-run source-integrity check compares against the sha1 recorded at first staging,
+so corpus edits made while the run sat paused are still caught. Crash/kill-interrupted
+runs (status stuck "running" with no process) are offered for resume the same way;
+canceled runs can be resumed too, but only from their own report page's Resume button.
+Failures are terminal: resume never retries a failed or breaker-skipped cell (start a
+fresh run for that; caches make it cheap). Pausing a CLI-started run works via the same
+mechanism, but since that process owns the dashboard, the dashboard exits with it; the
+resume command is printed on the way out. The Pause request itself is just a
+`pause.flag` file dropped in the run directory, so scripts can pause a run the same
+way.
+
 The CLI remains for scripted use:
 
 ```powershell
@@ -57,6 +80,8 @@ Useful flags:
 - `--no-build` - skip the release build refresh (measures the current patchy.exe as-is).
 - `--fresh` - ignore cached ground truth / cells (cache lives in `testy/cache/`, keyed by
   file hash + editor version, and by Patchy git hash for the Patchy column).
+- `--resume runs\<ts>` - continue a paused/canceled/interrupted run directory, skipping
+  completed work (see above; implies `--no-build`, ignores `--files/--corpus/--editors`).
 - `--scan [PCT]` - scan mode; see below.
 - `--exit-when-done`, `--no-browser`, `--no-serve`, `--port N` - dashboard behavior.
 - `--suffix "~TESTY~"` - the marker string used by the forced text re-render test.
@@ -83,6 +108,12 @@ Photoshop ground-truth results (including renders) are still cached in `testy/ca
 for every file, flagged or not: they are keyed by file hash + Photoshop version, so a
 re-scan after a Patchy fix skips the slow Photoshop leg entirely. Clear `testy/cache/`
 if that space ever matters more than re-scan speed.
+
+A paused scan resumes normally: files already given their verdict are not re-scrubbed
+or re-flagged, and `flagged.txt` is written once at true completion. The one loss is
+benign: cells of a partially-finished file that completed just before the pause are
+kept in the report but not cell-cached (their deferred cache entries died with the
+process).
 
 Python dependencies are listed in `testy/requirements.txt` (pywin32, Pillow, numpy,
 selenium, pywinauto).

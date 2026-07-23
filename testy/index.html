@@ -31,9 +31,10 @@
   #new-run label { font-size:13px; display:flex; gap:5px; align-items:center; }
   #new-run input[type=number] { width:56px; background:var(--bg); color:var(--text);
                border:1px solid var(--line); border-radius:4px; padding:3px 6px; }
-  #start-run, #cancel-run { background:var(--accent); border:0; color:#0d0e10; font-weight:600;
-               padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; }
-  #start-run:disabled { background:var(--line); color:var(--dim); cursor:default; }
+  #start-run, #cancel-run, #pause-run, #resume-run { background:var(--accent); border:0;
+               color:#0d0e10; font-weight:600; padding:7px 18px; border-radius:6px;
+               cursor:pointer; font-size:13px; }
+  #start-run:disabled, #pause-run:disabled { background:var(--line); color:var(--dim); cursor:default; }
   #run-errors { color:#d95c4a; font-size:12.5px; margin-top:8px; white-space:pre-line; }
   #run-note { color:var(--good); font-size:12.5px; margin-top:8px; }
 </style>
@@ -52,7 +53,9 @@
       <label title="keep images only for files that fail or differ from Photoshop by more than the threshold"><input type="checkbox" id="opt-scan"> scan: keep only flagged, over
         <input type="number" id="opt-scan-threshold" value="10" min="0" max="100" step="1"> % diff</label>
       <button id="start-run" onclick="startRun()">Start run</button>
+      <button id="pause-run" onclick="pauseRun()" style="display:none; background:var(--warn);">Pause run</button>
       <button id="cancel-run" onclick="cancelRun()" style="display:none; background:#d95c4a;">Cancel run</button>
+      <button id="resume-run" onclick="resumeRun()" style="display:none; background:var(--good);">Resume</button>
       <span id="run-state-note" class="scores"></span>
     </div>
     <div id="run-errors"></div>
@@ -61,7 +64,9 @@
   <table><thead><tr><th>Run</th><th>Files</th><th>Patchy</th><th>Editors (render / native)</th></tr></thead>
   <tbody id="rows"><tr><td colspan="4">loading...</td></tr></tbody></table>
   <div class="hint">Newest first; the top row links to the latest run. A run without scores is
-  still in progress (its dashboard updates live).</div>
+  still in progress (its dashboard updates live). Pause stops a run at the next checkpoint and
+  keeps everything finished so far; Resume continues it (it survives restarts and reboots, and
+  works for interrupted runs too).</div>
 </main>
 <script>
 "use strict";
@@ -91,22 +96,76 @@ async function loadDefaults() {
 }
 
 let runInProgress = false;
+let runState = null;
 
 async function refreshRunState() {
   try {
     const response = await fetch("/testy-run-state", { cache: "no-store" });
     if (!response.ok) return;
     const state = await response.json();
+    runState = state;
     runInProgress = state.running;
     document.getElementById("start-run").disabled = state.running;
     document.getElementById("cancel-run").style.display = state.running ? "" : "none";
+    const pauseButton = document.getElementById("pause-run");
+    pauseButton.style.display = state.running ? "" : "none";
+    pauseButton.disabled = !!state.pausePending;
+    pauseButton.textContent = state.pausePending ? "Pausing..." : "Pause run";
+    const resumable = !state.running && state.resumable;
+    const resumeButton = document.getElementById("resume-run");
+    resumeButton.style.display = resumable ? "" : "none";
+    if (resumable) resumeButton.textContent = "Resume " + state.resumable.run;
     document.getElementById("run-state-note").textContent =
-      state.running ? "a run is in progress (watch it in the table below)" : "";
+      state.running
+        ? (state.pausePending
+            ? "pausing - the run stops after the current step (everything done so far is kept)"
+            : "a run is in progress (watch it in the table below)")
+        : (resumable
+            ? "run " + state.resumable.run + " is " + state.resumable.state +
+              " and can be resumed where it left off"
+            : "");
     if (!state.running) {
       const note = document.getElementById("run-note");
       if (note.dataset.pending === "1") { note.textContent = ""; note.dataset.pending = ""; }
     }
   } catch (e) { /* no server */ }
+}
+
+function pauseRun() {
+  const button = document.getElementById("pause-run");
+  button.disabled = true;
+  button.textContent = "Pausing...";
+  fetch("/testy-pause-run", { method: "POST" }).then(async response => {
+    const result = await response.json();
+    if (!response.ok)
+      document.getElementById("run-errors").textContent =
+        (result.errors || ["pause failed"]).join("\n");
+    refreshRunState();
+  }).catch(error => {
+    document.getElementById("run-errors").textContent = "pause failed: " + error;
+  });
+}
+
+function resumeRun() {
+  const errorsDiv = document.getElementById("run-errors");
+  errorsDiv.textContent = "";
+  const body = runState && runState.resumable ? { run: runState.resumable.run } : {};
+  fetch("/testy-resume-run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(async response => {
+    const result = await response.json();
+    if (response.ok && result.resumed) {
+      const note = document.getElementById("run-note");
+      note.textContent = "resuming " + result.run + " - it continues where it left off";
+      note.dataset.pending = "1";
+      refreshRunState();
+      refresh();
+    } else {
+      errorsDiv.textContent = (result.errors || ["resume failed"]).join("\n");
+    }
+  }).catch(error => { errorsDiv.textContent = "resume failed: " + error; });
 }
 
 function cancelRun() {
@@ -174,8 +233,11 @@ async function refresh() {
     const others = done
       ? Object.keys(r.editors).filter(k => k !== "patchy").map(k =>
           esc(k) + " " + pct(r.editors[k].render) + "/" + pct(r.editors[k].native)).join(" &middot; ")
-      : (index === 0 && runInProgress ? '<span class="live">in progress...</span>'
-                                      : '<span class="scores">incomplete</span>');
+      : (index === 0 && runInProgress
+          ? '<span class="live">' + (runState && runState.pausePending ? "pausing..." : "in progress...") + '</span>'
+          : (runState && runState.resumable && runState.resumable.run === r.run
+              ? '<span class="live">' + esc(runState.resumable.state) + " - resumable</span>"
+              : '<span class="scores">incomplete</span>'));
     return "<tr" + (index === 0 ? " class='latest'" : "") + "><td><a href='runs/" + esc(r.run) +
       "/report.html'>" + esc(r.run) + "</a></td><td>" + (r.files ?? "") +
       "</td><td>" + patchy + "</td><td class='scores'>" + others + "</td></tr>";
