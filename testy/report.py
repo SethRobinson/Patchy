@@ -181,7 +181,8 @@ function render() {
   pill.textContent = S.state;
   pill.className = S.state;
   document.getElementById("run-meta").textContent =
-    S.run.startedAt + "  -  " + S.files.length + " file(s)  -  Patchy " + (S.run.patchyVersion || "?");
+    S.run.startedAt + "  -  " + S.files.length + " file(s)  -  Patchy " + (S.run.patchyVersion || "?") +
+    (S.run.scan ? "  -  scan mode: flag over " + S.run.scan.thresholdPct + "% render difference" : "");
 
   const editors = S.run.editorOrder;
   document.getElementById("matrix-head").innerHTML =
@@ -195,10 +196,14 @@ function render() {
     const gt = f.groundTruth || {};
     const gtNote = gt.state === "failed" ? '<div class="flag">ground truth failed</div>'
       : (gt.state === "running" ? '<div class="nums">ground truth: ' + esc(gt.stage || "...") + "</div>" : "");
+    const scanNote = !f.scan ? "" : (f.scan.flagged
+      ? '<div class="flag">FLAGGED: ' + esc(f.scan.reasons[0] || "") +
+        (f.scan.reasons.length > 1 ? " (+" + (f.scan.reasons.length - 1) + " more)" : "") + "</div>"
+      : '<div class="nums ok-text">scan: passed (images discarded)</div>');
     return "<tr><td class='file'><b class='copyable' title='" + esc(f.source) +
       " (click to copy path)' onclick='copyPath(" + fi + ", this)'>" + esc(f.name) + "</b>" +
       '<div class="nums">' + (f.docSize ? f.docSize[0] + "x" + f.docSize[1] : "") +
-      (f.layerCount ? " &middot; " + f.layerCount + " layers" : "") + "</div>" + gtNote + "</td>" +
+      (f.layerCount ? " &middot; " + f.layerCount + " layers" : "") + "</div>" + gtNote + scanNote + "</td>" +
       editors.map(k => "<td class='cell' onclick='openDetail(" + fi + ",\"" + k + "\")'>" +
                        cellSummary((f.cells || {})[k]) + "</td>").join("") + "</tr>";
   }).join("");
@@ -223,7 +228,18 @@ function render() {
     }
   }));
   const mean = xs => xs.length ? xs.reduce((p, c) => p + c, 0) / xs.length : null;
-  document.getElementById("summary").innerHTML = editors.map(k => {
+  let scanCard = "";
+  if (S.run.scan) {
+    const decided = S.files.filter(f => f.scan).length;
+    const flagged = S.files.filter(f => f.scan && f.scan.flagged).length;
+    scanCard = '<div class="card"><h3>Scan</h3><div class="ver">flag over ' +
+      S.run.scan.thresholdPct + "% render difference or any failure</div>" +
+      '<div class="row"><span>scanned</span><b>' + decided + "/" + S.files.length + "</b></div>" +
+      '<div class="row"><span>flagged</span><b class="' + (flagged ? "bad-text" : "ok-text") + '">' +
+      flagged + "</b></div>" +
+      '<div class="row"><span>passed</span><b>' + (decided - flagged) + "</b></div></div>";
+  }
+  document.getElementById("summary").innerHTML = scanCard + editors.map(k => {
     const e = S.editors[k] || {}, a = agg[k];
     const rows = [];
     rows.push(["opened", a.total ? a.opened + "/" + a.total : "-"]);
@@ -260,6 +276,14 @@ function openDetail(fi, ek, keep) {
     " &middot; " + esc((S.editors[ek] || {}).displayName || ek) + "</h2>" +
     '<div class="sub">' + esc(cell.state) + (cell.stage ? " - " + esc(cell.stage) : "") +
     (cell.error ? ' - <span class="bad-text">' + esc(cell.error) + "</span>" : "") + "</div>";
+  if (f.scan) {
+    html += f.scan.flagged
+      ? '<div class="loss-banner"><b>Flagged by the scan</b><div class="nums">' +
+        f.scan.reasons.map(esc).join("<br>") + "</div></div>"
+      : '<div class="keep-banner"><b>Passed the scan</b><div class="nums">every editor stayed ' +
+        "within the threshold, so this file's images and resaves were discarded; the numbers " +
+        "below are kept</div></div>";
+  }
   html += '<div class="imgs">' +
     img(gart.renderThumb, "Photoshop ground truth", gart.render) +
     img(art.renderThumb, "Editor render", art.render) +

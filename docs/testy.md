@@ -57,8 +57,32 @@ Useful flags:
 - `--no-build` - skip the release build refresh (measures the current patchy.exe as-is).
 - `--fresh` - ignore cached ground truth / cells (cache lives in `testy/cache/`, keyed by
   file hash + editor version, and by Patchy git hash for the Patchy column).
+- `--scan [PCT]` - scan mode; see below.
 - `--exit-when-done`, `--no-browser`, `--no-serve`, `--port N` - dashboard behavior.
 - `--suffix "~TESTY~"` - the marker string used by the forced text re-render test.
+
+## Scan mode
+
+`--scan` (or the control panel's "scan: keep only flagged" checkbox) turns a run into a
+triage pass over a big file list: each file is FLAGGED if anything failed (ground truth,
+open, resave, trap, text mutation, a skipped/broken editor, a resave Photoshop rejects,
+a trap sentinel hit) or if any editor's render differs from Photoshop's on more than the
+threshold fraction of pixels (`renderMetrics.badFraction`; default 10%, `--scan 25` for
+25%). Flagged files keep all artifacts as usual. Files that pass keep their metrics in
+the report and `results.json`, but their images, resaves, and staged copies are deleted
+from the run directory so large scans do not fill the disk, and their cells stay out of
+`testy/cache/`. Deletion is deliberately conservative: only the exact artifact file
+names Testy itself writes are removed, one by one, and directories are removed with
+plain `rmdir`, so anything unexpected in a run directory survives and is logged instead.
+
+The run directory also gets `flagged.txt`: one absolute path per flagged file with the
+reasons as `#` comments. It is a valid corpus list, so a follow-up deep run is
+`python testy\testy.py --corpus testy\runs\<ts>\flagged.txt`.
+
+Photoshop ground-truth results (including renders) are still cached in `testy/cache/`
+for every file, flagged or not: they are keyed by file hash + Photoshop version, so a
+re-scan after a Patchy fix skips the slow Photoshop leg entirely. Clear `testy/cache/`
+if that space ever matters more than re-scan speed.
 
 Python dependencies are listed in `testy/requirements.txt` (pywin32, Pillow, numpy,
 selenium, pywinauto).

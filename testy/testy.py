@@ -240,6 +240,14 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
                 errors.append(f"file not found: {entry}")
             else:
                 files.append(str(path.resolve()))
+        scan_threshold: float | None = None
+        if request.get("scan"):
+            try:
+                scan_threshold = float(request.get("scanThreshold", 10.0))
+            except (TypeError, ValueError):
+                scan_threshold = -1.0
+            if not 0.0 <= scan_threshold <= 100.0:
+                errors.append("scan threshold must be a percentage between 0 and 100")
         if errors:
             self._send_json({"errors": errors}, status=400)
             return
@@ -256,6 +264,8 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             command.append("--no-build")
         if request.get("fresh"):
             command.append("--fresh")
+        if scan_threshold is not None:
+            command.extend(["--scan", str(scan_threshold)])
         log_path = config.RUNS_DIR / "last-child-run.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_file = open(log_path, "w", encoding="utf-8")
@@ -328,6 +338,14 @@ class Runner:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
         self.suffix = args.suffix
+        # Scan mode: files whose render stays within this bad-pixel fraction of the
+        # Photoshop ground truth (and hit no failure of any kind) are "passed" and
+        # their run artifacts are discarded. None = normal run, keep everything.
+        self.scan_threshold: float | None = None if args.scan is None else args.scan / 100.0
+        # In scan mode cell-cache writes wait for the per-file verdict so passing
+        # files do not pile renders/resaves into testy/cache: {index: [(cell_dir,
+        # cache_dir, cell), ...]}.
+        self._deferred_cell_caches: dict[int, list[tuple[Path, Path, dict]]] = {}
         self.patchy_hash = git_hash()
         self.editors = config.discover_editors(self.patchy_hash)
         self.editor_order = [e for e in args.editors.split(",") if e in self.editors]
@@ -374,6 +392,8 @@ class Runner:
                 for path in corpus
             ],
         }
+        if self.scan_threshold is not None:
+            self.status["run"]["scan"] = {"thresholdPct": self.scan_threshold * 100.0}
         self.push()
 
     def push(self) -> None:
@@ -562,13 +582,22 @@ class Runner:
         # Only fully-scored successful cells are cached: a failure may be transient (a
         # wedged Photoshop, a busy editor), and a cell scored without ground truth or
         # with failed automation legs would freeze its missing metrics into later runs.
+        # Scan mode defers the write to the per-file verdict (passing files stay out
+        # of the cache too, or a big scan doubles its wasted space there).
         if cell.get("opens") != "fail" and truth is not None and not cell.pop("uncacheable", False):
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            for item in cell_dir.iterdir():
-                if item.is_file():
-                    shutil.copyfile(item, cache_dir / item.name)
-            cacheable = {k: v for k, v in cell.items() if k != "cached"}
-            (cache_dir / "cell.json").write_text(json.dumps(cacheable), encoding="utf-8")
+            if self.scan_threshold is None:
+                self._write_cell_cache(cell_dir, cache_dir, cell)
+            else:
+                self._deferred_cell_caches.setdefault(index, []).append((cell_dir, cache_dir, cell))
+
+    @staticmethod
+    def _write_cell_cache(cell_dir: Path, cache_dir: Path, cell: dict) -> None:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        for item in cell_dir.iterdir():
+            if item.is_file():
+                shutil.copyfile(item, cache_dir / item.name)
+        cacheable = {k: v for k, v in cell.items() if k != "cached"}
+        (cache_dir / "cell.json").write_text(json.dumps(cacheable), encoding="utf-8")
 
     def _drive_editor(
         self,
@@ -679,6 +708,127 @@ class Runner:
 
         cell.update({"state": "failed", "error": f"no driver for editor '{editor_key}'"})
 
+    # ---------- scan mode ----------
+
+    # Exactly the artifact names a run writes into each per-file directory. Scan-mode
+    # cleanup deletes ONLY these names, one by one, and removes directories with
+    # rmdir (which refuses non-empty ones) - never a wildcard, glob, or recursive
+    # delete - so anything unexpected inside a run directory survives and is logged.
+    SCRUB_STAGED = ("original.psd", "original.psb", "trap.psd", "trap.psb")
+    SCRUB_TRUTH = ("render.png", "render_thumb.png", "mutated.png", "mutated_thumb.png",
+                   "manifest.json")
+    SCRUB_CELL = ("render.png", "render_thumb.png", "resave.psd", "trap.png",
+                  "trap_thumb.png", "mutated.png", "mutated_thumb.png", "heatmap.png",
+                  "roundtrip.png", "roundtrip_thumb.png", "roundtrip_manifest.json")
+
+    def _apply_scan_policy(self, index: int) -> None:
+        """After every cell of a file finished: flag it, or scrub a passing file."""
+        entry = self.file_entry(index)
+        reasons = self._scan_flag_reasons(entry)
+        entry["scan"] = {"flagged": bool(reasons), "reasons": reasons}
+        deferred = self._deferred_cell_caches.pop(index, [])
+        if reasons:
+            more = f" (+{len(reasons) - 1} more)" if len(reasons) > 1 else ""
+            log(f"    scan: FLAGGED - {reasons[0]}{more}")
+            for cell_dir, cache_dir, cell in deferred:
+                self._write_cell_cache(cell_dir, cache_dir, cell)
+        else:
+            log("    scan: passed - discarding this file's saved images and resaves")
+            entry["scan"]["artifactsScrubbed"] = True
+            self._scrub_passed_file(entry)
+        self.push()
+
+    def _scan_flag_reasons(self, entry: dict) -> list[str]:
+        """Why this file needs a look. Empty = passed. Conservative on purpose: any
+        state that is not a complete, clean, in-budget measurement flags the file."""
+        assert self.scan_threshold is not None
+        reasons: list[str] = []
+        truth = entry.get("groundTruth", {})
+        if truth.get("state") != "done":
+            reasons.append(f"Photoshop ground truth failed: {truth.get('error', 'unknown')}")
+        for editor_key in self.editor_order:
+            cell = entry["cells"].get(editor_key, {})
+            name = self.editors[editor_key].display_name
+            state = cell.get("state")
+            if state != "done":
+                detail = cell.get("error", "no detail")
+                reasons.append(f"{name}: {state} ({detail})")
+                continue
+            if cell.get("opens") == "fail":
+                reasons.append(f"{name}: failed to open the PSD")
+            metrics = cell.get("renderMetrics")
+            if metrics is None:
+                if truth.get("state") == "done":
+                    reasons.append(f"{name}: no render comparison was produced")
+            elif metrics.get("badFraction", 1.0) > self.scan_threshold:
+                reasons.append(
+                    f"{name}: render differs on {metrics['badFraction'] * 100:.1f}% of pixels "
+                    f"(over {self.scan_threshold * 100:g}%)"
+                )
+            if cell.get("trapSentinelFraction", 0.0) > 0.05:
+                reasons.append(f"{name}: trap render shows the baked-composite sentinel")
+            for key, label in (
+                ("resaveError", "resave failed"),
+                ("mutateError", "text mutation failed"),
+                ("trapError", "trap render failed"),
+            ):
+                if cell.get(key):
+                    reasons.append(f"{name}: {label} ({cell[key]})")
+            if cell.get("resaveRejected"):
+                reasons.append(f"{name}: resave rejected by Photoshop")
+        return reasons
+
+    def _scrub_passed_file(self, entry: dict) -> None:
+        """Delete a passing file's artifacts by exact name; keep its metrics."""
+        files_root = self.files_dir.resolve()
+        stem = Path(entry["name"]).stem
+        file_dir = (self.files_dir / stem).resolve()
+        if not stem or file_dir.parent != files_root or file_dir == files_root:
+            log(f"scan: refusing to scrub unexpected path: {file_dir}")
+            return
+        directories = [
+            (file_dir / "_staged", self.SCRUB_STAGED),
+            (file_dir / "_truth", self.SCRUB_TRUTH),
+        ] + [(file_dir / editor_key, self.SCRUB_CELL) for editor_key in self.editor_order]
+        for directory, names in directories:
+            if not directory.is_dir():
+                continue
+            for name in names:
+                try:
+                    (directory / name).unlink(missing_ok=True)
+                except OSError as error:
+                    log(f"scan: could not delete {directory / name}: {error}")
+            try:
+                directory.rmdir()
+            except OSError:
+                leftovers = ", ".join(sorted(p.name for p in directory.iterdir()))
+                log(f"scan: left {directory} in place (unexpected contents: {leftovers})")
+        try:
+            file_dir.rmdir()
+        except OSError:
+            log(f"scan: left {file_dir} in place (not empty)")
+        # Drop artifact references so the report never shows broken images.
+        entry.get("groundTruth", {}).pop("artifacts", None)
+        for cell in entry["cells"].values():
+            cell.pop("artifacts", None)
+
+    def _write_flagged_list(self) -> None:
+        threshold_pct = self.status["run"]["scan"]["thresholdPct"]
+        lines = [
+            f"# Testy scan: files flagged for review (render differs from Photoshop on more "
+            f"than {threshold_pct:g}% of pixels, or something failed).",
+            "# Reusable as a corpus: python testy\\testy.py --corpus <this file>",
+        ]
+        flagged = [e for e in self.status["files"] if e.get("scan", {}).get("flagged")]
+        for entry in flagged:
+            lines.append("")
+            for reason in entry["scan"]["reasons"]:
+                lines.append(f"# {reason}")
+            lines.append(entry["source"])
+        if not flagged:
+            lines.append("# (none - every file passed)")
+        (self.run_dir / "flagged.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
     # ---------- top level ----------
 
     def run(self) -> int:
@@ -748,6 +898,8 @@ class Runner:
                             "skipping it for the rest of the run")
                 else:
                     consecutive_failures[editor_key] = 0
+            if self.scan_threshold is not None:
+                self._apply_scan_policy(index)
 
         # Prove the corpus originals were never touched.
         corruption = [
@@ -765,6 +917,9 @@ class Runner:
             from drivers import photopea as photopea_driver
 
             photopea_driver.cleanup()
+
+        if self.scan_threshold is not None:
+            self._write_flagged_list()
 
         self.status["state"] = "done"
         self.status["run"]["finishedAt"] = _dt.datetime.now().isoformat(timespec="seconds")
@@ -826,6 +981,13 @@ class Runner:
                 f"render {a['render'] * 100:5.1f}%   native {a['native'] * 100:5.1f}%   "
                 f"opened {a['opened']}/{a['total']}"
             )
+        if self.scan_threshold is not None:
+            flagged = [e for e in self.status["files"] if e.get("scan", {}).get("flagged")]
+            log(f"scan: {len(flagged)}/{len(self.status['files'])} file(s) flagged "
+                f"(threshold {self.scan_threshold * 100:g}%); passed files' artifacts discarded")
+            for entry in flagged:
+                log(f"  FLAGGED {entry['name']}: {entry['scan']['reasons'][0]}")
+            log(f"flagged list (reusable as a corpus): {self.run_dir / 'flagged.txt'}")
         log(f"report: {self.run_dir / 'report.html'}")
 
 
@@ -837,6 +999,11 @@ def main() -> int:
     parser.add_argument("--editors", default=",".join(DEFAULT_EDITORS),
                         help="comma-separated editor keys to run")
     parser.add_argument("--suffix", default=DEFAULT_SUFFIX, help="text appended by the forced re-render test")
+    parser.add_argument("--scan", nargs="?", const=10.0, type=float, default=None, metavar="PCT",
+                        help="scan mode: flag files whose render differs from Photoshop on more "
+                             "than PCT%% of pixels (default 10) or that fail anything, and "
+                             "discard the saved images/resaves of files that pass so big scans "
+                             "stay small (metrics are kept for every file)")
     parser.add_argument("--no-build", action="store_true", help="skip the Patchy release build refresh")
     parser.add_argument("--fresh", action="store_true", help="ignore cached ground truth / cells")
     parser.add_argument("--port", type=int, default=config.PORT, help="dashboard port")
@@ -846,6 +1013,8 @@ def main() -> int:
                         help="reuse an already-running Testy server (browser-spawned runs)")
     parser.add_argument("--exit-when-done", action="store_true", help="do not wait for Enter at the end")
     args = parser.parse_args()
+    if args.scan is not None and not 0.0 <= args.scan <= 100.0:
+        parser.error("--scan threshold must be a percentage between 0 and 100")
     global _in_process_run_active
     _in_process_run_active = True
     try:
