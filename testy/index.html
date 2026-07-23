@@ -106,6 +106,37 @@ async function loadDefaults() {
   } catch (e) { /* server-less viewing of a copied page */ }
 }
 
+// The New run box remembers what the last started run used (file list and options),
+// so tweak-and-rerun does not mean re-pasting; the configured defaults only fill a
+// form no run was started from yet.
+function saveRunForm() {
+  try {
+    localStorage.setItem("testyNewRun", JSON.stringify({
+      files: document.getElementById("run-files").value,
+      editors: [...document.querySelectorAll(".editor-box:checked")].map(b => b.value),
+      build: document.getElementById("opt-build").checked,
+      fresh: document.getElementById("opt-fresh").checked,
+      scan: document.getElementById("opt-scan").checked,
+      scanThreshold: document.getElementById("opt-scan-threshold").value,
+    }));
+  } catch (e) { /* storage unavailable; defaults still work */ }
+}
+
+function restoreRunForm() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("testyNewRun")); } catch (e) {}
+  if (!saved) return;
+  if (saved.files) document.getElementById("run-files").value = saved.files;
+  if (Array.isArray(saved.editors) && saved.editors.length)
+    document.querySelectorAll(".editor-box").forEach(box => {
+      box.checked = saved.editors.includes(box.value);
+    });
+  document.getElementById("opt-build").checked = !!saved.build;
+  document.getElementById("opt-fresh").checked = !!saved.fresh;
+  document.getElementById("opt-scan").checked = !!saved.scan;
+  if (saved.scanThreshold) document.getElementById("opt-scan-threshold").value = saved.scanThreshold;
+}
+
 let runInProgress = false;
 let runState = null;
 
@@ -274,6 +305,7 @@ function startRun() {
   }).then(async response => {
     const result = await response.json();
     if (response.ok && result.started) {
+      saveRunForm();
       note.textContent = "run started - it will appear at the top of the table in a few seconds";
       note.dataset.pending = "1";
       refreshRunState();
@@ -324,7 +356,7 @@ async function refresh() {
   }).join("");
   updateDeleteButton();
 }
-loadDefaults();
+loadDefaults().then(restoreRunForm);
 refresh();
 setInterval(refresh, 5000);
 </script>

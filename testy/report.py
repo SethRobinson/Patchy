@@ -71,10 +71,13 @@ _PAGE = r"""<!DOCTYPE html>
   .keep-banner { border: 1px solid var(--good); background: rgba(79,194,107,.08); border-radius: 6px;
                  padding: 8px 12px; margin: 6px 0 12px; }
   .keep-banner b { color: var(--good); }
+  /* The panel itself never scrolls (so the resize handle and close button stay put);
+     #detail-body inside it is the scroll container. */
   #detail { position: fixed; right: 0; top: 0; bottom: 0; width: min(880px, 92vw);
-            background: var(--panel); border-left: 1px solid var(--line); padding: 18px 22px;
-            overflow: auto; transform: translateX(102%); transition: transform .18s ease; z-index: 5; }
+            background: var(--panel); border-left: 1px solid var(--line);
+            transform: translateX(102%); transition: transform .18s ease; z-index: 5; }
   #detail.open { transform: none; }
+  #detail-body { height: 100%; overflow: auto; padding: 18px 22px; }
   #detail-resizer { position: absolute; left: 0; top: 0; bottom: 0; width: 7px;
                     cursor: ew-resize; }
   #detail-resizer:hover, body.resizing #detail-resizer { background: var(--accent); opacity: .4; }
@@ -429,7 +432,7 @@ function openDetail(fi, ek, keep) {
   }
   document.getElementById("detail-body").innerHTML = html;
   document.getElementById("detail").classList.add("open");
-  if (!keep) document.getElementById("detail").scrollTop = 0;
+  if (!keep) document.getElementById("detail-body").scrollTop = 0;
 }
 function closeDetail() { selected = null; document.getElementById("detail").classList.remove("open"); }
 
