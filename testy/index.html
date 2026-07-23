@@ -31,10 +31,13 @@
   #new-run label { font-size:13px; display:flex; gap:5px; align-items:center; }
   #new-run input[type=number] { width:56px; background:var(--bg); color:var(--text);
                border:1px solid var(--line); border-radius:4px; padding:3px 6px; }
-  #start-run, #cancel-run, #pause-run, #resume-run { background:var(--accent); border:0;
-               color:#0d0e10; font-weight:600; padding:7px 18px; border-radius:6px;
+  #start-run, #cancel-run, #pause-run, #resume-run, #delete-runs { background:var(--accent);
+               border:0; color:#0d0e10; font-weight:600; padding:7px 18px; border-radius:6px;
                cursor:pointer; font-size:13px; }
-  #start-run:disabled, #pause-run:disabled { background:var(--line); color:var(--dim); cursor:default; }
+  #start-run:disabled, #pause-run:disabled, #delete-runs:disabled { background:var(--line);
+               color:var(--dim); cursor:default; }
+  th.sel, td.sel { width:30px; text-align:center; }
+  #runs-toolbar { display:flex; gap:12px; align-items:center; margin:0 0 10px; }
   #run-errors { color:#d95c4a; font-size:12.5px; margin-top:8px; white-space:pre-line; }
   #run-note { color:var(--good); font-size:12.5px; margin-top:8px; }
 </style>
@@ -61,12 +64,20 @@
     <div id="run-errors"></div>
     <div id="run-note"></div>
   </section>
-  <table><thead><tr><th>Run</th><th>Files</th><th>Patchy</th><th>Editors (render / native)</th></tr></thead>
-  <tbody id="rows"><tr><td colspan="4">loading...</td></tr></tbody></table>
+  <div id="runs-toolbar">
+    <button id="delete-runs" onclick="deleteRuns()" disabled>Delete selected</button>
+    <span id="delete-note" class="scores"></span>
+  </div>
+  <table><thead><tr><th class="sel"><input type="checkbox" id="sel-all"
+    onchange="toggleAll(this.checked)" title="select all / none"></th>
+  <th>Run</th><th>Files</th><th>Patchy</th><th>Editors (render / native)</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="5">loading...</td></tr></tbody></table>
   <div class="hint">Newest first; the top row links to the latest run. A run without scores is
   still in progress (its dashboard updates live). Pause stops a run at the next checkpoint and
   keeps everything finished so far; Resume continues it (it survives restarts and reboots, and
-  works for interrupted runs too).</div>
+  works for interrupted runs too). Delete removes the selected runs' directories, deleting only
+  the exact files Testy wrote (anything unexpected is left in place and reported); runs whose
+  directory is already gone are simply removed from this list.</div>
 </main>
 <script>
 "use strict";
@@ -181,6 +192,67 @@ function cancelRun() {
   });
 }
 
+// Selected run names survive the 5s table re-renders; refresh() prunes names that
+// are no longer listed.
+let selectedRuns = new Set();
+
+function toggleRun(box) {
+  if (box.checked) selectedRuns.add(box.value); else selectedRuns.delete(box.value);
+  updateDeleteButton();
+}
+
+function toggleAll(checked) {
+  document.querySelectorAll(".run-box").forEach(box => {
+    if (box.disabled) return;
+    box.checked = checked;
+    if (checked) selectedRuns.add(box.value); else selectedRuns.delete(box.value);
+  });
+  updateDeleteButton();
+}
+
+function updateDeleteButton() {
+  const button = document.getElementById("delete-runs");
+  button.disabled = selectedRuns.size === 0;
+  button.textContent = selectedRuns.size
+    ? "Delete " + selectedRuns.size + " selected" : "Delete selected";
+  const boxes = [...document.querySelectorAll(".run-box")].filter(b => !b.disabled);
+  document.getElementById("sel-all").checked = boxes.length > 0 && boxes.every(b => b.checked);
+}
+
+function deleteRuns() {
+  const names = [...selectedRuns];
+  const note = document.getElementById("delete-note");
+  if (!names.length) return;
+  if (!confirm("Delete " + names.length + " run(s), including their reports and saved images?\n" +
+               "Only files Testy itself wrote are removed; anything unexpected is left in place."))
+    return;
+  fetch("/testy-delete-runs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ runs: names }),
+  }).then(async response => {
+    const result = await response.json();
+    if (!response.ok) {
+      note.style.color = "var(--warn)";
+      note.textContent = (result.errors || ["delete failed"]).join("; ");
+      return;
+    }
+    const bits = [];
+    if (result.deleted.length) bits.push("deleted " + result.deleted.length + " run(s)");
+    if (result.missing.length) bits.push(result.missing.length + " already gone (unlisted)");
+    if (result.partial.length) bits.push(result.partial.length + " partly deleted");
+    result.warnings.forEach(w => bits.push(w));
+    result.errors.forEach(e => bits.push(e));
+    note.style.color = result.errors.length || result.warnings.length ? "var(--warn)" : "var(--good)";
+    note.textContent = bits.join(" - ") || "nothing deleted";
+    selectedRuns.clear();
+    refresh();
+  }).catch(error => {
+    note.style.color = "var(--warn)";
+    note.textContent = "delete failed: " + error;
+  });
+}
+
 function startRun() {
   const files = document.getElementById("run-files").value
     .split("\n").map(l => l.trim()).filter(Boolean);
@@ -219,9 +291,12 @@ async function refresh() {
   started.forEach(entry => byName.set(entry.run, { run: entry.run }));
   finished.forEach(entry => byName.set(entry.run, entry));
   const runs = [...byName.values()].sort((a, b) => b.run.localeCompare(a.run));
+  const known = new Set(runs.map(r => r.run));
+  selectedRuns = new Set([...selectedRuns].filter(name => known.has(name)));
   const rows = document.getElementById("rows");
   if (!runs.length) {
-    rows.innerHTML = "<tr><td colspan='4'>no runs yet - start one with testy.py</td></tr>";
+    rows.innerHTML = "<tr><td colspan='5'>no runs yet - start one with testy.py</td></tr>";
+    updateDeleteButton();
     return;
   }
   rows.innerHTML = runs.map((r, index) => {
@@ -238,10 +313,16 @@ async function refresh() {
           : (runState && runState.resumable && runState.resumable.run === r.run
               ? '<span class="live">' + esc(runState.resumable.state) + " - resumable</span>"
               : '<span class="scores">incomplete</span>'));
-    return "<tr" + (index === 0 ? " class='latest'" : "") + "><td><a href='runs/" + esc(r.run) +
+    const live = index === 0 && runInProgress;
+    return "<tr" + (index === 0 ? " class='latest'" : "") + "><td class='sel'>" +
+      "<input type='checkbox' class='run-box' value='" + esc(r.run) + "'" +
+      (selectedRuns.has(r.run) ? " checked" : "") +
+      (live ? " disabled title='the live run cannot be deleted'" : "") +
+      " onchange='toggleRun(this)'></td><td><a href='runs/" + esc(r.run) +
       "/report.html'>" + esc(r.run) + "</a></td><td>" + (r.files ?? "") +
       "</td><td>" + patchy + "</td><td class='scores'>" + others + "</td></tr>";
   }).join("");
+  updateDeleteButton();
 }
 loadDefaults();
 refresh();

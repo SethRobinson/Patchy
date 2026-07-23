@@ -49,6 +49,16 @@ resume command is printed on the way out. The Pause request itself is just a
 `pause.flag` file dropped in the run directory, so scripts can pause a run the same
 way.
 
+The panel's runs table has a checkbox per run (plus a select-all box in the header)
+and a Delete button for clearing out old runs. Deletion follows the same conservative
+rules as scan-mode scrubbing: only the exact artifact file names Testy itself writes
+are removed, one by one, and directories go through plain `rmdir`, so anything
+unexpected inside a run directory survives and is reported in the panel instead of
+deleted. Deleted (and partly deleted) runs are also dropped from `runs/index.jsonl`
+and `runs/history.jsonl`; selecting a run whose directory was already removed by hand
+simply unlists it. The live run cannot be deleted (its checkbox is disabled and the
+server refuses); global caches under `testy/cache/` are never touched by run deletion.
+
 The CLI remains for scripted use:
 
 ```powershell

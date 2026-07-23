@@ -210,6 +210,82 @@ def _resumable() -> dict | None:
     return None
 
 
+# Everything a run directory can contain at its top level; run deletion removes
+# exactly these names (plus the per-file artifact names in Runner.SCRUB_*) and
+# nothing else.
+RUN_ROOT_FILES = ("report.html", "status.json", "status.json.tmp", "results.json",
+                  "flagged.txt", PAUSE_FLAG)
+# Every editor subdirectory a run can create under files/<stem>/.
+KNOWN_CELL_DIRS = (*DEFAULT_EDITORS, "affinity")
+
+
+def _delete_run_dir(run_dir: Path) -> list[str]:
+    """Delete one run directory the way scan-mode scrubbing does: only the exact file
+    names Testy itself writes, one by one, and plain rmdir (never recursive, never a
+    wildcard) for directories - anything unexpected inside survives and is reported
+    back instead of deleted."""
+    warnings: list[str] = []
+
+    def unlink_known(directory: Path, names: tuple[str, ...]) -> None:
+        if not directory.is_dir():
+            return
+        for name in names:
+            try:
+                (directory / name).unlink(missing_ok=True)
+            except OSError as error:
+                warnings.append(f"could not delete {directory / name}: {error}")
+
+    def rmdir_or_report(directory: Path) -> None:
+        if not directory.is_dir():
+            return
+        try:
+            directory.rmdir()
+        except OSError:
+            leftovers = sorted(p.name for p in directory.iterdir())
+            shown = ", ".join(leftovers[:8]) + (f" +{len(leftovers) - 8} more" if len(leftovers) > 8 else "")
+            warnings.append(f"left {directory} in place (unexpected contents: {shown})")
+
+    files_root = run_dir / "files"
+    if files_root.is_dir():
+        for stem_dir in sorted(files_root.iterdir()):
+            if not stem_dir.is_dir():
+                warnings.append(f"left unexpected file in place: {stem_dir}")
+                continue
+            unlink_known(stem_dir / "_staged", Runner.SCRUB_STAGED)
+            rmdir_or_report(stem_dir / "_staged")
+            unlink_known(stem_dir / "_truth", Runner.SCRUB_TRUTH)
+            rmdir_or_report(stem_dir / "_truth")
+            for editor_key in KNOWN_CELL_DIRS:
+                unlink_known(stem_dir / editor_key, Runner.SCRUB_CELL)
+                rmdir_or_report(stem_dir / editor_key)
+            rmdir_or_report(stem_dir)
+    rmdir_or_report(files_root)
+    unlink_known(run_dir, RUN_ROOT_FILES)
+    rmdir_or_report(run_dir)
+    return warnings
+
+
+def _purge_run_listings(names: set[str]) -> None:
+    """Drop deleted runs from index.jsonl/history.jsonl so they stop being listed."""
+    for filename in ("index.jsonl", "history.jsonl"):
+        path = config.RUNS_DIR / filename
+        if not path.exists():
+            continue
+        kept: list[str] = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                drop = json.loads(line).get("run") in names
+            except Exception:
+                drop = False
+            if not drop:
+                kept.append(line)
+        temp_path = path.parent / (path.name + ".tmp")
+        temp_path.write_text("".join(line + "\n" for line in kept), encoding="utf-8")
+        temp_path.replace(path)
+
+
 class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Static serving of testy/ plus the control-plane endpoints: the Photopea upload
     sink (confined to runs/), corpus defaults, run state, and start-run."""
@@ -271,6 +347,9 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
         if parsed.path == "/testy-resume-run":
             self._resume_run()
+            return
+        if parsed.path == "/testy-delete-runs":
+            self._delete_runs()
             return
         if parsed.path != "/testy-upload":
             self.send_error(404)
@@ -443,6 +522,44 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             ]
             self._spawn_child(command, run_dir=target)
         self._send_json({"resumed": True, "run": target.name})
+
+    def _delete_runs(self) -> None:
+        request = self._read_json_body()
+        if request is None:
+            return
+        names = request.get("runs")
+        if (not isinstance(names, list) or not names
+                or not all(isinstance(n, str) and n for n in names)):
+            self._send_json({"errors": ["no runs given to delete"]}, status=400)
+            return
+        runs_root = config.RUNS_DIR.resolve()
+        targets: list[tuple[str, Path]] = []
+        for name in names:
+            target = (config.RUNS_DIR / name).resolve()
+            if target.parent != runs_root or target == runs_root:
+                self._send_json(
+                    {"errors": [f"refusing to delete {name}: not a run directory"]}, status=400)
+                return
+            targets.append((name, target))
+        deleted: list[str] = []
+        missing: list[str] = []
+        partial: list[str] = []
+        warnings: list[str] = []
+        errors: list[str] = []
+        with _spawn_lock:
+            live = _live_run_dir() if _run_in_progress() else None
+            for name, target in targets:
+                if live is not None and target == live:
+                    errors.append(f"{name} is the live run; cancel or pause it first")
+                    continue
+                if not target.exists():
+                    missing.append(name)  # dir removed by hand earlier; just unlist it
+                    continue
+                warnings.extend(_delete_run_dir(target))
+                (partial if target.exists() else deleted).append(name)
+            _purge_run_listings({*deleted, *missing, *partial})
+        self._send_json({"deleted": deleted, "missing": missing, "partial": partial,
+                         "warnings": warnings, "errors": errors})
 
     def _cancel_run(self) -> None:
         global _child_run
