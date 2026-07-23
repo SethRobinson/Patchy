@@ -39,6 +39,8 @@ constexpr std::uint16_t kColorModeRgb = 3;
 constexpr std::uint16_t kColorModeCmyk = 4;
 constexpr std::uint16_t kCompressionRaw = 0;
 constexpr std::uint16_t kCompressionRle = 1;
+constexpr std::uint16_t kCompressionZip = 2;
+constexpr std::uint16_t kCompressionZipPrediction = 3;
 constexpr std::uint16_t kChannelRed = 0;
 constexpr std::uint16_t kChannelGreen = 1;
 constexpr std::uint16_t kChannelBlue = 2;
@@ -366,8 +368,23 @@ void write_rgb8_image_data_with_extra_channels(
 // bytes are not an 8-bit RLE-composite PSD/PSB or are already compliant.
 [[nodiscard]] std::optional<std::vector<std::uint8_t>> even_composite_rows_normalized(
     std::span<const std::uint8_t> file_bytes);
+// How a channel's samples decode into Patchy's 8-bit pipeline. 16-bit samples are
+// full-range big-endian u16 (value/257, rounded); 32-bit samples are big-endian
+// linear-light floats: color channels sRGB-encode, alpha/mask/saved channels scale
+// linearly. zip_payload_length is the compressed byte count for zip/zip-prediction
+// channels (not derivable from the stream itself; layer records carry it).
+struct ChannelDecodeInfo {
+  std::uint16_t depth{8};
+  bool color_channel{true};
+  std::uint64_t zip_payload_length{0};
+};
+// Converts big-endian 16/32-bit planar samples to 8 bits in place of the input
+// vector; depth 8 passes through untouched.
+[[nodiscard]] std::vector<std::uint8_t> convert_channel_to_8bit(std::vector<std::uint8_t>&& data,
+                                                                std::uint16_t depth, bool color_channel);
 std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
-                                            std::int32_t height, bool wide_rle_counts);
+                                            std::int32_t height, bool wide_rle_counts,
+                                            const ChannelDecodeInfo& decode_info = {});
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader& reader, const Header& header,
                                                                 std::uint16_t compression);
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels_from(

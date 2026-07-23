@@ -24,6 +24,7 @@
 #include "formats/raw_document_io.hpp"
 #include "formats/raw_tone.hpp"
 #include "formats/raw_white_balance.hpp"
+#include "formats/miniz/miniz.h"
 #include "formats/tga_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "plugins/plugin_host.hpp"
@@ -1420,6 +1421,463 @@ void psd_interface_mock2_loads_if_available() {
   CHECK(flattened.height() == 600);
 }
 
+std::vector<std::uint8_t> zlib_deflate(std::span<const std::uint8_t> raw) {
+  std::vector<std::uint8_t> compressed(mz_compressBound(static_cast<mz_ulong>(raw.size())));
+  mz_ulong compressed_length = static_cast<mz_ulong>(compressed.size());
+  CHECK(mz_compress(compressed.data(), &compressed_length, raw.data(),
+                    static_cast<mz_ulong>(raw.size())) == MZ_OK);
+  compressed.resize(compressed_length);
+  return compressed;
+}
+
+// 16-bit samples are full-range big-endian u16; the loader converts value/257 rounded.
+constexpr std::array<std::uint16_t, 5> kDeep16Samples{0, 128, 256, 32768, 65535};
+constexpr std::array<std::uint8_t, 5> kDeep16Expected{0, 0, 1, 128, 255};
+
+void psd_16_bit_flat_raw_composite_converts_to_8_bit() {
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 5, 16, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u16(0);
+  for (int channel = 0; channel < 3; ++channel) {
+    for (const auto sample : kDeep16Samples) {
+      writer.write_u16(sample);
+    }
+  }
+
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes(), options);
+  CHECK(read.format() == patchy::PixelFormat::rgb8());
+  CHECK(read.layers().size() == 1);
+  for (std::size_t x = 0; x < kDeep16Samples.size(); ++x) {
+    const auto* px = read.layers().front().pixels().pixel(static_cast<std::int32_t>(x), 0);
+    CHECK(px[0] == kDeep16Expected[x]);
+    CHECK(px[1] == kDeep16Expected[x]);
+    CHECK(px[2] == kDeep16Expected[x]);
+  }
+  CHECK(std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("16-bit") != std::string::npos;
+  }));
+}
+
+void psd_16_bit_flat_rle_composite_converts_to_8_bit() {
+  patchy::psd::BigEndianWriter row;
+  for (const auto sample : kDeep16Samples) {
+    row.write_u16(sample);
+  }
+  patchy::psd::BigEndianWriter encoded_row;
+  write_packbits_literal_row(encoded_row, row.bytes());
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 5, 16, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u16(1);
+  for (int channel = 0; channel < 3; ++channel) {
+    writer.write_u16(static_cast<std::uint16_t>(encoded_row.bytes().size()));
+  }
+  for (int channel = 0; channel < 3; ++channel) {
+    writer.write_bytes(encoded_row.bytes());
+  }
+
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(read.layers().size() == 1);
+  for (std::size_t x = 0; x < kDeep16Samples.size(); ++x) {
+    const auto* px = read.layers().front().pixels().pixel(static_cast<std::int32_t>(x), 0);
+    CHECK(px[0] == kDeep16Expected[x]);
+    CHECK(px[1] == kDeep16Expected[x]);
+    CHECK(px[2] == kDeep16Expected[x]);
+  }
+}
+
+// 16-bit files keep an empty standard layer info section and store the layers in the
+// Lr16 global tagged block; non-empty channels typically use zip-with-prediction.
+void psd_16_bit_lr16_layers_convert_with_zip_prediction() {
+  // Red decodes to {0xFFFF, 0x8000}: first u16 literal, second delta-encoded.
+  const auto red_zip = zlib_deflate(std::array<std::uint8_t, 4>{0xFF, 0xFF, 0x80, 0x01});
+  // Blue is plain zip of {0x8080, 0x4040}.
+  const auto blue_zip = zlib_deflate(std::array<std::uint8_t, 4>{0x80, 0x80, 0x40, 0x40});
+
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);
+  layer_extra.write_u32(0);
+  write_pascal_padded(layer_extra, "Deep Layer", 4);
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(1);
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(1);
+  layer_info.write_u32(2);
+  layer_info.write_u16(4);
+  layer_info.write_u16(0xFFFFU);
+  layer_info.write_u32(6);
+  layer_info.write_u16(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(2U + red_zip.size()));
+  layer_info.write_u16(1);
+  layer_info.write_u32(6);
+  layer_info.write_u16(2);
+  layer_info.write_u32(static_cast<std::uint32_t>(2U + blue_zip.size()));
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+  layer_info.write_u16(0);  // transparency: raw 16-bit
+  layer_info.write_u16(0xFFFFU);
+  layer_info.write_u16(0xFFFFU);
+  layer_info.write_u16(3);  // red: zip with prediction
+  layer_info.write_bytes(red_zip);
+  layer_info.write_u16(0);  // green: raw 16-bit
+  layer_info.write_u16(0);
+  layer_info.write_u16(0xFFFFU);
+  layer_info.write_u16(2);  // blue: zip without prediction
+  layer_info.write_bytes(blue_zip);
+
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(0);  // empty standard layer info
+  layer_mask.write_u32(0);  // global layer mask info
+  write_ascii4(layer_mask, "8BIM");
+  write_ascii4(layer_mask, "Lr16");
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  while ((layer_mask.bytes().size() % 4U) != 0) {
+    layer_mask.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 2, 16, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  for (int i = 0; i < 6; ++i) {
+    writer.write_u16(0);  // raw 16-bit composite, 3 planes x 2 px
+  }
+
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(read.layers().size() == 1);
+  CHECK(read.layers().front().name() == "Deep Layer");
+  CHECK(read.layers().front().pixels().format() == patchy::PixelFormat::rgba8());
+  const auto* px0 = read.layers().front().pixels().pixel(0, 0);
+  const auto* px1 = read.layers().front().pixels().pixel(1, 0);
+  CHECK(px0[0] == 255);
+  CHECK(px0[1] == 0);
+  CHECK(px0[2] == 128);
+  CHECK(px0[3] == 255);
+  CHECK(px1[0] == 128);
+  CHECK(px1[1] == 255);
+  CHECK(px1[2] == 64);
+  CHECK(px1[3] == 255);
+
+  // The consumed Lr16 block must not be re-emitted from a converted 8-bit save.
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(read);
+  const std::array<std::uint8_t, 4> lr16_key{'L', 'r', '1', '6'};
+  CHECK(std::search(resaved.begin(), resaved.end(), lr16_key.begin(), lr16_key.end()) ==
+        resaved.end());
+}
+
+// The merged-transparency flag of a 16-bit file lives in the Lr16 layer count sign;
+// the prefer-flat path (smart-object rendering) must walk to it.
+void psd_16_bit_merged_transparency_flag_reads_from_lr16() {
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);
+  layer_extra.write_u32(0);
+  write_pascal_padded(layer_extra, "L", 4);
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(0xFFFFU);  // layer count -1: composite carries merged alpha
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u16(4);
+  for (const auto channel_id : {0xFFFFU, 0U, 1U, 2U}) {
+    layer_info.write_u16(static_cast<std::uint16_t>(channel_id));
+    layer_info.write_u32(0);
+  }
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(0);
+  layer_mask.write_u32(0);
+  write_ascii4(layer_mask, "8BIM");
+  write_ascii4(layer_mask, "Lr16");
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  while ((layer_mask.bytes().size() % 4U) != 0) {
+    layer_mask.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 4, 1, 2, 16, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  for (int i = 0; i < 6; ++i) {
+    writer.write_u16(0);  // RGB planes
+  }
+  writer.write_u16(0xFFFFU);  // merged alpha plane: opaque, transparent
+  writer.write_u16(0);
+
+  patchy::psd::ReadOptions options;
+  options.prefer_flat_composite = true;
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes(), options);
+  CHECK(read.layers().size() == 1);
+  const auto& mask = read.layers().front().mask();
+  CHECK(mask.has_value());
+  CHECK(mask->pixels.pixel(0, 0)[0] == 255);
+  CHECK(mask->pixels.pixel(1, 0)[0] == 0);
+}
+
+void psd_32_bit_flat_raw_composite_converts_to_8_bit() {
+  // Linear floats sRGB-encode on conversion; out-of-range values clamp.
+  const std::array<float, 5> samples{0.0F, 0.25F, 0.5F, 1.0F, 2.0F};
+  const std::array<std::uint8_t, 5> expected{0, 137, 188, 255, 255};
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 5, 32, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u16(0);
+  for (int channel = 0; channel < 3; ++channel) {
+    for (const auto sample : samples) {
+      writer.write_u32(std::bit_cast<std::uint32_t>(sample));
+    }
+  }
+
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes(), options);
+  CHECK(read.layers().size() == 1);
+  for (std::size_t x = 0; x < samples.size(); ++x) {
+    const auto* px = read.layers().front().pixels().pixel(static_cast<std::int32_t>(x), 0);
+    CHECK(px[0] == expected[x]);
+    CHECK(px[1] == expected[x]);
+    CHECK(px[2] == expected[x]);
+  }
+  CHECK(std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("32-bit") != std::string::npos;
+  }));
+}
+
+void psd_32_bit_lr32_zip_prediction_layer_converts() {
+  // Red decodes to floats {1.0f, 0.25f} (big-endian 3F800000, 3E800000). The
+  // prediction filter stores each row as byte planes (all MSBs first) and then
+  // byte-delta-encodes: shuffled 3F 3E 80 80 00 00 00 00 -> deltas below.
+  const auto red_zip = zlib_deflate(
+      std::array<std::uint8_t, 8>{0x3F, 0xFF, 0x42, 0x00, 0x80, 0x00, 0x00, 0x00});
+
+  const auto write_f32 = [](patchy::psd::BigEndianWriter& target, float value) {
+    target.write_u32(std::bit_cast<std::uint32_t>(value));
+  };
+
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);
+  layer_extra.write_u32(0);
+  write_pascal_padded(layer_extra, "HDR Layer", 4);
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(1);
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(1);
+  layer_info.write_u32(2);
+  layer_info.write_u16(4);
+  layer_info.write_u16(0xFFFFU);
+  layer_info.write_u32(10);
+  layer_info.write_u16(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(2U + red_zip.size()));
+  layer_info.write_u16(1);
+  layer_info.write_u32(10);
+  layer_info.write_u16(2);
+  layer_info.write_u32(10);
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+  layer_info.write_u16(0);  // transparency: raw floats (linear scale, not sRGB)
+  write_f32(layer_info, 1.0F);
+  write_f32(layer_info, 1.0F);
+  layer_info.write_u16(3);  // red: zip with prediction
+  layer_info.write_bytes(red_zip);
+  layer_info.write_u16(0);  // green: raw floats
+  write_f32(layer_info, 0.0F);
+  write_f32(layer_info, 0.5F);
+  layer_info.write_u16(0);  // blue: raw floats
+  write_f32(layer_info, 0.5F);
+  write_f32(layer_info, 0.0F);
+
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(0);
+  layer_mask.write_u32(0);
+  write_ascii4(layer_mask, "8BIM");
+  write_ascii4(layer_mask, "Lr32");
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  while ((layer_mask.bytes().size() % 4U) != 0) {
+    layer_mask.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 2, 32, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  for (int i = 0; i < 6; ++i) {
+    writer.write_u32(0);  // raw float composite, 3 planes x 2 px
+  }
+
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(read.layers().size() == 1);
+  CHECK(read.layers().front().name() == "HDR Layer");
+  const auto* px0 = read.layers().front().pixels().pixel(0, 0);
+  const auto* px1 = read.layers().front().pixels().pixel(1, 0);
+  CHECK(px0[0] == 255);
+  CHECK(px0[1] == 0);
+  CHECK(px0[2] == 188);
+  CHECK(px0[3] == 255);
+  CHECK(px1[0] == 137);
+  CHECK(px1[1] == 188);
+  CHECK(px1[2] == 0);
+  CHECK(px1[3] == 255);
+}
+
+// Real Photoshop-written 16-bit file (raw composite + zip-prediction Lr16 layers).
+void psd_16_bit_flat_filter_list_loads_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("Flat-filter-list.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local 16-bit fixture missing: " << path.string() << '\n';
+    return;
+  }
+
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.retain_flat_composite = true;
+  options.notices = &notices;
+  const auto document = patchy::psd::DocumentIo::read_file(path, options);
+  CHECK(document.width() == 320);
+  CHECK(document.height() == 480);
+  CHECK(!document.layers().empty());
+  CHECK(document.metadata().psd_flat_composite.has_value());
+  const auto& layers = document.layers();
+  CHECK(std::any_of(layers.begin(), layers.end(), [](const patchy::Layer& layer) {
+    return layer.kind() == patchy::LayerKind::Group;
+  }));
+  CHECK(std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("16-bit") != std::string::npos;
+  }));
+
+  // The decoded layers (zip-prediction Lr16 data) flattened by Patchy must agree
+  // with Photoshop's own merged composite (raw data) from the same file: the two
+  // decode paths cross-check each other.
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto& composite = *document.metadata().psd_flat_composite;
+  CHECK(composite.width() == flattened.width());
+  CHECK(composite.height() == flattened.height());
+  double total_abs_diff = 0.0;
+  std::size_t far_off_pixels = 0;
+  for (std::int32_t y = 0; y < composite.height(); ++y) {
+    for (std::int32_t x = 0; x < composite.width(); ++x) {
+      const auto* rendered = flattened.pixel(x, y);
+      const auto* merged = composite.pixel(x, y);
+      int pixel_max_diff = 0;
+      for (int channel = 0; channel < 3; ++channel) {
+        const auto diff = std::abs(static_cast<int>(rendered[channel]) - static_cast<int>(merged[channel]));
+        total_abs_diff += diff;
+        pixel_max_diff = std::max(pixel_max_diff, diff);
+      }
+      if (pixel_max_diff > 24) {
+        ++far_off_pixels;
+      }
+    }
+  }
+  const auto pixel_count = static_cast<double>(composite.width()) * composite.height();
+  const auto mean_abs_diff = total_abs_diff / (pixel_count * 3.0);
+  const auto far_off_fraction = static_cast<double>(far_off_pixels) / pixel_count;
+  std::cout << "  16-bit fixture flatten vs Photoshop composite mean abs diff: " << mean_abs_diff
+            << ", pixels off by >24: " << (far_off_fraction * 100.0) << "%\n";
+  // Baseline July 2026: mean 0.97, far-off 1.9%. The far-off pixels are the file's
+  // CS4-era 'ic *' vector shape layers whose vmsk blocks fail to parse (they
+  // import preserved-and-locked with empty rasters); that is independent of bit depth.
+  CHECK(mean_abs_diff < 2.0);
+  CHECK(far_off_fraction < 0.025);
+}
+
+// Photoshop 2026-written deep fixtures (COM-generated, July 2026): left half filled
+// (135,206,235), a (16,16)-(48,48) fill of (255,64,0), white elsewhere; layered
+// variants keep two layers (zip-prediction channels) and a compat-off white
+// composite, flat variants carry the real image as an RLE composite. 32-bit fills
+// store value/255 as linear floats, so the expected colors for those are exactly
+// what Photoshop itself produced when converting the same files to 8-bit.
+void check_photoshop_deep_fixture(const std::string& file_name, bool layered,
+                                  const std::array<int, 3>& sky, const std::array<int, 3>& hot) {
+  const auto path = patchy::test::local_psd_fixture_path(file_name);
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local deep fixture missing: " << path.string() << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.width() == 64);
+  CHECK(document.height() == 64);
+  CHECK(document.layers().size() == (layered ? 2U : 1U));
+  const auto check_pixel = [](const std::uint8_t* px, const std::array<int, 3>& expected) {
+    CHECK(px[0] == expected[0]);
+    CHECK(px[1] == expected[1]);
+    CHECK(px[2] == expected[2]);
+  };
+  const auto& background = document.layers().front();
+  check_pixel(background.pixels().pixel(8, 8), sky);
+  check_pixel(background.pixels().pixel(56, 56), {255, 255, 255});
+  if (layered) {
+    const auto& overlay = document.layers()[1];
+    CHECK(overlay.name() == "Layer 1");
+    CHECK(overlay.bounds().x == 16);
+    CHECK(overlay.bounds().y == 16);
+    CHECK(overlay.pixels().format() == patchy::PixelFormat::rgba8());
+    check_pixel(overlay.pixels().pixel(8, 8), hot);
+    CHECK(overlay.pixels().pixel(8, 8)[3] == 255);
+  } else {
+    check_pixel(background.pixels().pixel(24, 24), hot);
+  }
+}
+
+void psd_photoshop_16_bit_fixtures_load_if_available() {
+  check_photoshop_deep_fixture("ps2026-16bit-flat.psd", false, {135, 206, 235}, {255, 64, 0});
+  check_photoshop_deep_fixture("ps2026-16bit.psd", true, {135, 206, 235}, {255, 64, 0});
+}
+
+void psd_photoshop_32_bit_fixtures_load_if_available() {
+  check_photoshop_deep_fixture("ps2026-32bit-flat.psd", false, {192, 232, 246}, {255, 137, 0});
+  check_photoshop_deep_fixture("ps2026-32bit.psd", true, {192, 232, 246}, {255, 137, 0});
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_core_io_tests() {
@@ -1443,6 +1901,17 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
       {"psd_zero_length_layer_channels_read_as_empty", psd_zero_length_layer_channels_read_as_empty},
       {"psd_interface_mock2_loads_if_available", psd_interface_mock2_loads_if_available},
+      {"psd_16_bit_flat_raw_composite_converts_to_8_bit", psd_16_bit_flat_raw_composite_converts_to_8_bit},
+      {"psd_16_bit_flat_rle_composite_converts_to_8_bit", psd_16_bit_flat_rle_composite_converts_to_8_bit},
+      {"psd_16_bit_lr16_layers_convert_with_zip_prediction",
+       psd_16_bit_lr16_layers_convert_with_zip_prediction},
+      {"psd_16_bit_merged_transparency_flag_reads_from_lr16",
+       psd_16_bit_merged_transparency_flag_reads_from_lr16},
+      {"psd_32_bit_flat_raw_composite_converts_to_8_bit", psd_32_bit_flat_raw_composite_converts_to_8_bit},
+      {"psd_32_bit_lr32_zip_prediction_layer_converts", psd_32_bit_lr32_zip_prediction_layer_converts},
+      {"psd_16_bit_flat_filter_list_loads_if_available", psd_16_bit_flat_filter_list_loads_if_available},
+      {"psd_photoshop_16_bit_fixtures_load_if_available", psd_photoshop_16_bit_fixtures_load_if_available},
+      {"psd_photoshop_32_bit_fixtures_load_if_available", psd_photoshop_32_bit_fixtures_load_if_available},
       {"psd_layered_writer_uses_rle_for_compressible_layer_channels",
        psd_layered_writer_uses_rle_for_compressible_layer_channels},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},

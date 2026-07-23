@@ -106,8 +106,10 @@ std::vector<std::uint8_t> read_length_block(BigEndianReader& reader, const char*
 }
 
 PixelFormat format_from_header(const Header& header) {
-  if (header.depth != 8) {
-    throw std::runtime_error("The starter PSD reader currently supports 8-bit files only");
+  // 16- and 32-bit files decode by converting every channel to 8-bit at read time
+  // (Patchy's pixel pipeline is 8-bit only), so the returned format is always 8-bit.
+  if (header.depth != 8 && header.depth != 16 && header.depth != 32) {
+    throw std::runtime_error("The starter PSD reader currently supports 8, 16, and 32-bit files only");
   }
   if (header.color_mode != kColorModeRgb && header.color_mode != kColorModeCmyk) {
     throw std::runtime_error("The starter PSD reader currently supports RGB and CMYK files only");

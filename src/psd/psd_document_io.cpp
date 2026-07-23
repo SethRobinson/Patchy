@@ -367,23 +367,19 @@ Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
   return cloned;
 }
 
-std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height,
-                               std::uint16_t source_color_mode, float global_light_angle,
-                               float global_light_altitude, bool large_document,
-                               const CmykToRgbTransform* cmyk_icc,
-                               bool& has_merged_transparency,
-                               std::vector<std::string>* notices) {
+// Decodes a layer-info payload starting at the layer-count i16. This is the body of
+// the standard layer info section, and byte-identical inside the Lr16/Lr32/Layr
+// global tagged blocks that carry the layers of 16/32-bit files.
+std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::int32_t canvas_width,
+                                           std::int32_t canvas_height, std::uint16_t source_color_mode,
+                                           std::uint16_t depth, float global_light_angle,
+                                           float global_light_altitude, bool large_document,
+                                           const CmykToRgbTransform* cmyk_icc,
+                                           bool& has_merged_transparency,
+                                           std::vector<std::string>* notices) {
   has_merged_transparency = false;
   int modern_brightness_contrast_count = 0;
   int unrendered_color_balance_count = 0;
-  const auto layer_info_length = large_document
-                                     ? read_section_length_u64(layer_reader, "layer info")
-                                     : static_cast<std::uint64_t>(read_section_length(layer_reader, "layer info"));
-  if (layer_info_length == 0) {
-    return {};
-  }
-
-  const auto layer_info_end = layer_reader.position() + static_cast<std::size_t>(layer_info_length);
   const auto layer_count_raw = static_cast<std::int16_t>(layer_reader.read_u16());
   has_merged_transparency = layer_count_raw < 0;
   const auto layer_count = static_cast<std::uint16_t>(
@@ -436,7 +432,8 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       }
       const auto compression = layer_reader.read_u16();
       const auto payload_length = channel.length - 2;
-      if (compression != kCompressionRaw && compression != kCompressionRle) {
+      if (compression != kCompressionRaw && compression != kCompressionRle &&
+          compression != kCompressionZip && compression != kCompressionZipPrediction) {
         layer_reader.skip(payload_length);
         continue;
       }
@@ -449,11 +446,13 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
                                       : height;
       const auto channel_pixel_count =
           static_cast<std::size_t>(channel_width) * static_cast<std::size_t>(channel_height);
-      if (compression == kCompressionRaw && payload_length < channel_pixel_count) {
+      const auto sample_bytes = static_cast<std::size_t>(depth / 8U);
+      if (compression == kCompressionRaw && payload_length < channel_pixel_count * sample_bytes) {
         throw std::runtime_error("PSD layer channel data is truncated");
       }
-      const auto channel_data =
-          read_channel_data(layer_reader, compression, channel_width, channel_height, large_document);
+      const auto channel_data = read_channel_data(
+          layer_reader, compression, channel_width, channel_height, large_document,
+          ChannelDecodeInfo{depth, is_source_color_channel(channel.id, source_color_mode), payload_length});
       if (channel.id == kChannelUserMask && record.mask.has_value() && channel_width > 0 && channel_height > 0) {
         PixelBuffer mask_pixels(channel_width, channel_height, PixelFormat::gray8());
         std::copy(channel_data.begin(), channel_data.end(), mask_pixels.data().begin());
@@ -809,12 +808,6 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     decoded_layers.push_back(DecodedLayer{std::move(layer), record.section_divider_type});
   }
 
-  if (layer_reader.position() < layer_info_end) {
-    layer_reader.skip(layer_info_end - layer_reader.position());
-  }
-  if ((layer_info_length % 2U) != 0 && layer_reader.remaining() > 0) {
-    layer_reader.skip(1);
-  }
   if (modern_brightness_contrast_count > 0 && notices != nullptr) {
     notices->push_back(std::to_string(modern_brightness_contrast_count) + " Brightness/Contrast layer" +
                        (modern_brightness_contrast_count == 1 ? "" : "s") +
@@ -830,29 +823,93 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
   return build_group_hierarchy(std::move(decoded_layers));
 }
 
+std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height,
+                               std::uint16_t source_color_mode, std::uint16_t depth, float global_light_angle,
+                               float global_light_altitude, bool large_document,
+                               const CmykToRgbTransform* cmyk_icc,
+                               bool& has_merged_transparency,
+                               std::vector<std::string>* notices) {
+  has_merged_transparency = false;
+  const auto layer_info_length = large_document
+                                     ? read_section_length_u64(layer_reader, "layer info")
+                                     : static_cast<std::uint64_t>(read_section_length(layer_reader, "layer info"));
+  if (layer_info_length == 0) {
+    return {};
+  }
+
+  const auto layer_info_end = layer_reader.position() + static_cast<std::size_t>(layer_info_length);
+  auto layers = read_layer_info_records(layer_reader, canvas_width, canvas_height, source_color_mode, depth,
+                                        global_light_angle, global_light_altitude, large_document, cmyk_icc,
+                                        has_merged_transparency, notices);
+  if (layer_reader.position() < layer_info_end) {
+    layer_reader.skip(layer_info_end - layer_reader.position());
+  }
+  if ((layer_info_length % 2U) != 0 && layer_reader.remaining() > 0) {
+    layer_reader.skip(1);
+  }
+  return layers;
+}
+
 bool read_merged_transparency_flag_and_skip_layer_mask(BigEndianReader& reader,
                                                         std::uint64_t layer_mask_length,
-                                                        bool large_document) {
+                                                        const Header& header) {
   if (layer_mask_length > reader.remaining()) {
     throw std::runtime_error("Invalid PSD layer and mask information length");
   }
   if (layer_mask_length == 0U) {
     return false;
   }
-  const auto prefix_size = large_document ? 8U : 4U;
+  const auto prefix_size = header.large_document ? 8U : 4U;
   if (layer_mask_length < prefix_size) {
     reader.skip(static_cast<std::size_t>(layer_mask_length));
     return false;
   }
+  const auto section_end = reader.position() + static_cast<std::size_t>(layer_mask_length);
   const auto layer_info_length =
-      large_document ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32());
-  std::size_t consumed = prefix_size;
+      header.large_document ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32());
   bool has_merged_transparency = false;
-  if (layer_info_length >= 2U && layer_mask_length - consumed >= 2U) {
+  if (layer_info_length >= 2U && section_end - reader.position() >= 2U) {
     has_merged_transparency = static_cast<std::int16_t>(reader.read_u16()) < 0;
-    consumed += 2U;
+  } else if (header.depth != 8 && layer_info_length == 0U) {
+    // 16/32-bit files keep an empty standard layer info section; the layer count
+    // whose sign carries the merged-transparency flag lives in the Lr16/Lr32
+    // global tagged block, so walk past the global mask info to find it.
+    const std::string deep_key = header.depth == 16 ? "Lr16" : "Lr32";
+    if (section_end - reader.position() >= 4U) {
+      const auto global_mask_length = reader.read_u32();
+      reader.skip(std::min<std::size_t>(global_mask_length, section_end - reader.position()));
+      while (section_end - reader.position() >= 12U) {
+        const auto block_signature = read_signature(reader);
+        if (block_signature != std::array<char, 4>{'8', 'B', 'I', 'M'} &&
+            block_signature != std::array<char, 4>{'8', 'B', '6', '4'}) {
+          break;
+        }
+        const auto block_key = read_signature(reader);
+        const auto key = std::string(block_key.begin(), block_key.end());
+        const bool wide_length = block_signature == std::array<char, 4>{'8', 'B', '6', '4'} ||
+                                 (header.large_document && tagged_block_length_is_u64(key));
+        if (wide_length && section_end - reader.position() < 8U) {
+          break;
+        }
+        const auto block_length =
+            wide_length ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32());
+        if (block_length > section_end - reader.position()) {
+          break;
+        }
+        if (key == deep_key) {
+          if (block_length >= 2U) {
+            has_merged_transparency = static_cast<std::int16_t>(reader.read_u16()) < 0;
+          }
+          break;
+        }
+        const auto padding = (4U - (block_length % 4U)) % 4U;
+        reader.skip(std::min<std::size_t>(
+            static_cast<std::size_t>(block_length) + static_cast<std::size_t>(padding),
+            section_end - reader.position()));
+      }
+    }
   }
-  reader.skip(static_cast<std::size_t>(layer_mask_length) - consumed);
+  reader.skip(section_end - reader.position());
   return has_merged_transparency;
 }
 
@@ -866,6 +923,12 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   BigEndianReader reader(bytes);
   const auto header = read_header(reader);
   const auto format = format_from_header(header);
+  if (header.depth != 8 && options.notices != nullptr) {
+    options.notices->push_back(header.depth == 32
+                                   ? "Converted 32-bit (HDR) color to 8-bit; precision and dynamic "
+                                     "range beyond the 8-bit gamut were lost."
+                                   : "Converted 16-bit color to 8-bit; some precision was lost.");
+  }
 
   skip_length_block(reader, "color mode data");
   auto image_resources = read_length_block(reader, "image resources");
@@ -932,7 +995,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   bool has_merged_transparency = false;
   if (options.prefer_flat_composite) {
     has_merged_transparency =
-        read_merged_transparency_flag_and_skip_layer_mask(reader, layer_mask_length, header.large_document);
+        read_merged_transparency_flag_and_skip_layer_mask(reader, layer_mask_length, header);
 
     auto metadata = std::move(document.metadata());
     auto color_state = std::move(document.color_state());
@@ -960,8 +1023,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto layer_mask_payload = reader.read_bytes(static_cast<std::size_t>(layer_mask_length));
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
-                              global_light_angle, global_light_altitude, header.large_document, cmyk_icc,
-                              has_merged_transparency, options.notices);
+                              header.depth, global_light_angle, global_light_altitude, header.large_document,
+                              cmyk_icc, has_merged_transparency, options.notices);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
@@ -1011,7 +1074,30 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         break;
       }
       auto payload = layer_reader.read_bytes(static_cast<std::size_t>(block_length));
-      if (key.rfind("lnk", 0) == 0 || key.rfind("Lnk", 0) == 0) {
+      const auto* layer_info_key = header.depth == 16   ? "Lr16"
+                                   : header.depth == 32 ? "Lr32"
+                                                        : "Layr";
+      if (key == layer_info_key && document.layers().empty() && payload.size() >= 2U) {
+        // 16/32-bit files store their layers here instead of the (empty) standard
+        // layer info section ('Layr' is the same structure for 8-bit files). The
+        // layers convert to 8-bit, so the block is consumed and deliberately NOT
+        // preserved: re-emitting a stale deep layer block from an 8-bit re-save
+        // would mislead Photoshop.
+        BigEndianReader block_reader(payload);
+        auto deep_layers = read_layer_info_records(
+            block_reader, document.width(), document.height(), header.color_mode, header.depth,
+            global_light_angle, global_light_altitude, header.large_document, cmyk_icc,
+            has_merged_transparency, options.notices);
+        // Always Photoshop's bottom-to-top order: legacy Patchy never wrote these
+        // blocks, so the legacy-order heuristic used for the standard section
+        // could only misfire here.
+        for (const auto& source : deep_layers) {
+          add_layer(source);
+        }
+      } else if ((key == "Mt16" && header.depth == 16) || (key == "Mt32" && header.depth == 32)) {
+        // Deep merged-transparency planes have no place in the converted 8-bit
+        // document; drop them rather than re-emit them from an 8-bit save.
+      } else if (key.rfind("lnk", 0) == 0 || key.rfind("Lnk", 0) == 0) {
         // Smart-object source blocks parse into the store (payloads shared_ptr-held so
         // undo snapshots stop duplicating embedded files); unparseable ones stay opaque.
         SmartObjectLinkBlock link_block;

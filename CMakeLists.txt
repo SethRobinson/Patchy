@@ -14,9 +14,9 @@ if(APPLE)
   set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 endif()
 
-# The vendored miniz (src/formats/miniz/miniz.c, zlib inflate/deflate for the Aseprite
-# format) and Little CMS (src/color/lcms2/, ICC color management for CMYK PSD import)
-# are plain C.
+# The vendored miniz (src/formats/miniz/miniz.c, zlib inflate/deflate for zip-compressed
+# PSD channels and the Aseprite format; compiled into patchy_psd) and Little CMS
+# (src/color/lcms2/, ICC color management for CMYK PSD import) are plain C.
 enable_language(C)
 
 include(CTest)
@@ -242,6 +242,7 @@ endif()
 
 add_library(patchy_psd
   src/formats/acv_curves_io.cpp
+  src/formats/miniz/miniz.c
   src/psd/abr_reader.cpp
   src/psd/asl_io.cpp
   src/psd/grd_io.cpp
@@ -310,7 +311,6 @@ add_library(patchy_formats
   src/formats/svg_document_write.cpp
   src/formats/svg_xml.cpp
   src/formats/tga_document_io.cpp
-  src/formats/miniz/miniz.c
   src/formats/stb/stb_image_impl.c
   src/formats/zstd/zstddeclib.c
 )

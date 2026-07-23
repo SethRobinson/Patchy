@@ -18,7 +18,7 @@ The visible portion must retain a `*.` token. The Windows 11 native dialog appen
 
 All read AND write (camera raw below is the one read-only entry); modules in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).
 
-- **PSD/PSB** — see the PSB section below and docs/ps-compat.md.
+- **PSD/PSB** — see the PSB section below and docs/ps-compat.md; 16/32-bit files import with conversion to 8-bit (see the deep-import section below).
 - **BMP** — including 32-bit `BI_RGB`/compression 0, whose 4th byte Patchy keeps (feeds document-alpha import below).
 - **ICO/CUR** — multi-size; every embedded size imports as a hidden layer named "WxH": the writer reuses a matching "WxH" pixel layer verbatim, so small sizes round-trip; 256px entries are PNG-compressed via an injected Qt codec, `ico::set_png_codec`, installed by `install_ico_png_codec()` in the MainWindow ctor; CUR hotspots ride layer metadata `patchy.cursor_hotspot` and prefill the export dialog.
 - **TGA** — types 1/2/3/9/10/11, both origin flags; 15/16-bit rejected; palette-mode docs write type 1 indexed.
@@ -453,6 +453,51 @@ PSB support threads `Header::large_document` / `WriteOptions::large_document` th
 - Old Photoshop writes EMPTY layers (0x0 rect) with zero-length channel data: no payload and no 2-byte compression marker at all. The reader treats a zero-length channel as empty instead of erroring (`psd_zero_length_layer_channels_read_as_empty`; interface_mock2.psd is a real 2018 file with one).
 - CMYK-mode documents carry CMYK colors in three places, all converted to sRGB through ONE shared path so effect/text colors keep their relationship to the converted pixels: pixel channels (stored inverted), lfx2 effect colors as 'CMYC' descriptors of ink percentages (`descriptor_rgb_color`), and text engine `/FillColor << /Type 2 >>` values as 0-1 ink fractions (`rgb_color_from_engine_values`). Missing any of these reads black (the restaurant-menu bug: brown color overlays rendered black). When the file embeds a usable CMYK ICC profile (resource 1039, which real CMYK files almost always do), all three convert through it via the vendored lcms2 core (`CmykToRgbTransform` in src/color/color_management, relative colorimetric + black point compensation, Photoshop's defaults; the `CmykColorConverter` threaded through the descriptor/text parsers quantizes ink fractions to inverted 8-bit and runs the SAME transform as pixels). Without one, the naive ink mix (`rgb = 255*(1-ink)*(1-black)`) is the fallback; no default profile is bundled (Adobe profiles may only ship embedded in image files). The CMYK profile is never promoted into `color_state()` and is stripped from RGB re-exports. Accuracy vs Photoshop's ACE engine: max per-channel delta 2, mean 0.13 over a 20-patch SWOP probe (see ps-compat.md). Known gap: legacy 'lrFX' blocks ignore the color-space id (PS5-era CMYK effect colors read as RGB). Pinned by `photoshop-cmyk-style-colors.psd` (embeds SWOP v2) + `psd_cmyk_document_converts_style_and_text_colors`, `color_cmyk_transform_matches_pinned_swop_values`, `color_cmyk_transform_rejects_garbage_profile`; the profile-less synthetic CMYK tests pin the naive fallback unchanged.
 - The default-false PSD paths are pinned byte-identical by `psd_layered_writer_bytes_are_stable` (FNV hash canary; re-pin only for deliberate format changes).
+
+## 16-bit and 32-bit PSD/PSB import (converted to 8-bit)
+
+Patchy's pixel pipeline is 8-bit only, so 16- and 32-bit-per-channel files open by
+converting every channel to 8 bits at decode time (`convert_channel_to_8bit` /
+`ChannelDecodeInfo` in psd_channel_data.cpp); saving such a document writes an
+ordinary 8-bit file, and an import notice states the conversion. Facts pinned July
+2026 against Photoshop 2026 (COM-generated fixtures) and a CS4-era 16-bit file:
+
+- **16-bit samples are full-range big-endian u16 (0..65535, NOT the 0..32768
+  pattern-resource scale)**; conversion is value/257 with rounding, like the .af
+  importer. **32-bit samples are big-endian linear-light floats**: color channels
+  clamp to 0..1 and sRGB-encode, which reproduces Photoshop's own default
+  (Exposure and Gamma) 32-to-8 conversion exactly on the probe colors;
+  transparency, masks, and saved channels scale linearly instead.
+- **Deep files keep an EMPTY standard layer-info section; the real layers live in
+  the `Lr16`/`Lr32` document-global tagged block** (same body as layer info,
+  starting at the layer-count i16 with no length prefix; `read_layer_info_records`
+  parses both). The block is consumed, never preserved: re-emitting a stale deep
+  layer block (or `Mt16`/`Mt32` merged-transparency data) from a converted 8-bit
+  save would mislead Photoshop. An 8-bit file with an empty standard section and a
+  `Layr` block parses the same way. The legacy top-to-bottom order heuristic is
+  skipped for these blocks (legacy Patchy never wrote them). The
+  merged-transparency flag is the sign of the block's layer count; the
+  prefer-flat-composite path walks to it too
+  (`read_merged_transparency_flag_and_skip_layer_mask`).
+- **Layer channels decode zip (2) and zip-with-prediction (3)** in addition to
+  raw/RLE; miniz is compiled into patchy_psd for the inflate. Prediction undo:
+  16-bit rows are running sums over big-endian u16; 32-bit rows are byte-delta
+  decoded then unshuffled from four per-row byte planes (MSBs first) back into
+  interleaved floats; 8-bit rows are plain byte deltas. Photoshop writes
+  zip-with-prediction for non-empty deep layer channels.
+- **Composite-section RLE rows are plain PackBits at every depth, NO prediction**
+  (empirically pinned; a predicted decode of a real 32-bit composite yields
+  garbage). Photoshop writes raw or RLE composites for deep files; zip composites
+  stay rejected. A deep file saved without Maximize Compatibility carries an
+  all-white composite (Photoshop behavior, not a Patchy bug); the layers are
+  authoritative.
+- Local (untracked) fixtures: `ps2026-{16,32}bit[-flat].psd` (COM-generated:
+  left-half fill 135,206,235; center square 255,64,0; the 32-bit expected values
+  192,232,246 / 255,137,0 are Photoshop's own 8-bit conversion sampled via COM)
+  and `Flat-filter-list.psd` (CS4-era 16-bit, raw composite + zip-pred Lr16; the
+  test cross-checks Patchy's flatten against the file's own composite). Tests:
+  `psd_16_bit_*`, `psd_32_bit_*`, `psd_photoshop_16_bit_fixtures_load_if_available`,
+  `psd_photoshop_32_bit_fixtures_load_if_available` in psd_core_io_tests.cpp.
 
 ## Saved PSD channels and flat-image alpha
 
