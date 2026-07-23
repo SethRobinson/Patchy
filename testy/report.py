@@ -75,6 +75,10 @@ _PAGE = r"""<!DOCTYPE html>
             background: var(--panel); border-left: 1px solid var(--line); padding: 18px 22px;
             overflow: auto; transform: translateX(102%); transition: transform .18s ease; z-index: 5; }
   #detail.open { transform: none; }
+  #detail-resizer { position: absolute; left: 0; top: 0; bottom: 0; width: 7px;
+                    cursor: ew-resize; }
+  #detail-resizer:hover, body.resizing #detail-resizer { background: var(--accent); opacity: .4; }
+  body.resizing { user-select: none; cursor: ew-resize; }
   #detail h2 { margin: 0 0 2px; font-size: 15px; }
   #detail .sub { color: var(--dim); margin-bottom: 12px; font-size: 12px; }
   #detail .imgs { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0 16px; }
@@ -111,7 +115,9 @@ _PAGE = r"""<!DOCTYPE html>
   <table class="matrix"><thead id="matrix-head"></thead><tbody id="matrix-body"></tbody></table>
   <section id="history"></section>
 </main>
-<aside id="detail"><button class="close" onclick="closeDetail()">&times;</button><div id="detail-body"></div></aside>
+<aside id="detail"><div id="detail-resizer"
+  title="drag to resize; double-click to reset"></div><button class="close"
+  onclick="closeDetail()">&times;</button><div id="detail-body"></div></aside>
 <script>
 "use strict";
 let S = null;
@@ -336,9 +342,10 @@ function openDetail(fi, ek, keep) {
   selected = [fi, ek];
   const f = S.files[fi], cell = (f.cells || {})[ek] || {}, gt = f.groundTruth || {};
   const art = cell.artifacts || {}, gart = gt.artifacts || {};
+  const editorName = esc((S.editors[ek] || {}).displayName || ek);
   let html = "<h2><span class='copyable' title='" + esc(f.source) +
     " (click to copy path)' onclick='copyPath(" + fi + ", this)'>" + esc(f.name) + "</span>" +
-    " &middot; " + esc((S.editors[ek] || {}).displayName || ek) + "</h2>" +
+    " &middot; " + editorName + "</h2>" +
     '<div class="sub">' + esc(cell.state) + (cell.stage ? " - " + esc(cell.stage) : "") +
     (cell.error ? ' - <span class="bad-text">' + esc(cell.error) + "</span>" : "") + "</div>";
   if (f.scan) {
@@ -351,12 +358,12 @@ function openDetail(fi, ek, keep) {
   }
   html += '<div class="imgs">' +
     img(gart.renderThumb, "Photoshop ground truth", gart.render) +
-    img(art.renderThumb, "Editor render", art.render) +
+    img(art.renderThumb, editorName + " render", art.render) +
     img(art.heatmap, "Difference heatmap") +
-    img(art.trapThumb, "Trap render (sentinel = used baked composite)", art.trap) +
-    img(art.roundtripThumb, "Resave reopened in Photoshop", art.roundtripRender) +
-    img(gart.mutatedThumb, "PS render, text appended", gart.mutated) +
-    img(art.mutatedThumb, "Editor render, text appended", art.mutated) +
+    img(art.trapThumb, editorName + " trap render (sentinel = used baked composite)", art.trap) +
+    img(art.roundtripThumb, editorName + " resave reopened in Photoshop", art.roundtripRender) +
+    img(gart.mutatedThumb, "Photoshop render, text appended", gart.mutated) +
+    img(art.mutatedThumb, editorName + " render, text appended", art.mutated) +
     "</div>";
   if (cell.renderMetrics) {
     const m = cell.renderMetrics;
@@ -425,6 +432,35 @@ function openDetail(fi, ek, keep) {
   if (!keep) document.getElementById("detail").scrollTop = 0;
 }
 function closeDetail() { selected = null; document.getElementById("detail").classList.remove("open"); }
+
+// The detail panel's left edge is a drag handle so the image grid can be widened
+// (e.g. to line up the text-appended renders side by side); the chosen width sticks
+// across runs via localStorage. Double-click resets to the default width.
+(function () {
+  const detail = document.getElementById("detail");
+  const resizer = document.getElementById("detail-resizer");
+  const clampWidth = w => Math.max(360, Math.min(Math.round(window.innerWidth * 0.96), w));
+  let saved = null;
+  try { saved = parseInt(localStorage.getItem("testyDetailWidth"), 10) || null; } catch (e) {}
+  if (saved) detail.style.width = clampWidth(saved) + "px";
+  resizer.addEventListener("mousedown", event => {
+    event.preventDefault();
+    document.body.classList.add("resizing");
+    const move = e => { detail.style.width = clampWidth(window.innerWidth - e.clientX) + "px"; };
+    const up = () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+      document.body.classList.remove("resizing");
+      try { localStorage.setItem("testyDetailWidth", parseInt(detail.style.width, 10)); } catch (e) {}
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+  });
+  resizer.addEventListener("dblclick", () => {
+    detail.style.width = "";
+    try { localStorage.removeItem("testyDetailWidth"); } catch (e) {}
+  });
+})();
 
 function copyPath(fi, element) {
   const path = S.files[fi].source;
