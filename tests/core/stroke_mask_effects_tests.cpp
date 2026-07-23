@@ -657,6 +657,128 @@ void psd_photoshop_stroke_partial_alpha_fixture_matches() {
   CHECK(band[1] > 200 && band[0] < 80);  // outer band at full strength
 }
 
+// Shared canvas for the Overprint knockout cases: orange backdrop, opaque
+// gray square, Inside white stroke size 10 (COM probes July 2026,
+// docs/ps-compat.md). Band samples sit mid-band at (20, 32); the interior
+// clear of the band is (32, 32).
+patchy::Document make_overprint_document(const patchy::LayerStroke& stroke, float layer_opacity,
+                                         bool with_red_overlay) {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(64, 64, 255, 128, 0));
+  patchy::Layer content(document.allocate_layer_id(), "Content", solid_rgba(32, 32, 110, 110, 110, 255));
+  content.set_bounds(patchy::Rect{16, 16, 32, 32});
+  content.set_opacity(layer_opacity);
+  if (with_red_overlay) {
+    patchy::LayerColorOverlay overlay;
+    overlay.enabled = true;
+    overlay.blend_mode = patchy::BlendMode::Normal;
+    overlay.color = patchy::RgbColor{255, 0, 0};
+    overlay.opacity = 1.0F;
+    content.layer_style().color_overlays.push_back(overlay);
+  }
+  content.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(content));
+  return document;
+}
+
+patchy::LayerStroke white_inside_stroke(float opacity, bool overprint) {
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.color = patchy::RgbColor{255, 255, 255};
+  stroke.opacity = opacity;
+  stroke.size = 10.0F;
+  stroke.position = patchy::LayerStrokePosition::Inside;
+  stroke.overprint = overprint;
+  return stroke;
+}
+
+void check_pixel_near(const patchy::PixelBuffer& image, std::int32_t x, std::int32_t y, int red, int green,
+                      int blue, int tolerance) {
+  const auto* pixel = image.pixel(x, y);
+  CHECK(std::abs(static_cast<int>(pixel[0]) - red) <= tolerance);
+  CHECK(std::abs(static_cast<int>(pixel[1]) - green) <= tolerance);
+  CHECK(std::abs(static_cast<int>(pixel[2]) - blue) <= tolerance);
+}
+
+void layer_stroke_overprint_off_knocks_out_content_under_band() {
+  // Overprint off (the Photoshop default): the band knocks the gray content
+  // out and the 29% white blends against the orange backdrop — no gray in
+  // the band at all (probe P1: PS renders exactly 0.29*white + 0.71*orange).
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(
+      make_overprint_document(white_inside_stroke(0.29F, false), 1.0F, false));
+  check_pixel_near(flattened, 20, 32, 255, 165, 74, 2);
+  check_pixel_near(flattened, 32, 32, 110, 110, 110, 0);  // interior untouched
+  check_pixel_near(flattened, 10, 32, 255, 128, 0, 0);    // outside untouched
+}
+
+void layer_stroke_overprint_on_blends_over_content() {
+  // Overprint on: the stroke blends over the layer's own gray (probe P7).
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(
+      make_overprint_document(white_inside_stroke(0.29F, true), 1.0F, false));
+  check_pixel_near(flattened, 20, 32, 152, 152, 152, 2);
+  check_pixel_near(flattened, 32, 32, 110, 110, 110, 0);
+}
+
+void layer_stroke_opaque_knockout_is_invisible() {
+  // An opaque Normal stroke covers exactly what it would have knocked out, so
+  // Overprint has no visible effect and the knockout path must reproduce the
+  // historical bytes exactly (the identity property of the (1-C)/(1-s)
+  // compensation).
+  const auto with_knockout = patchy::Compositor{}.flatten_rgb8(
+      make_overprint_document(white_inside_stroke(1.0F, false), 1.0F, false));
+  const auto without = patchy::Compositor{}.flatten_rgb8(
+      make_overprint_document(white_inside_stroke(1.0F, true), 1.0F, false));
+  CHECK(with_knockout.width() == without.width());
+  CHECK(with_knockout.height() == without.height());
+  std::size_t mismatches = 0;
+  for (std::int32_t y = 0; y < with_knockout.height(); ++y) {
+    for (std::int32_t x = 0; x < with_knockout.width(); ++x) {
+      const auto* a = with_knockout.pixel(x, y);
+      const auto* b = without.pixel(x, y);
+      if (a[0] != b[0] || a[1] != b[1] || a[2] != b[2]) {
+        ++mismatches;
+      }
+    }
+  }
+  CHECK(mismatches == 0);
+}
+
+void layer_stroke_knockout_composes_with_layer_opacity() {
+  // Layer opacity scales the whole knocked-out plane (probe P4: band =
+  // 0.145*white + 0.855*orange, interior = half gray over orange).
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(
+      make_overprint_document(white_inside_stroke(0.29F, false), 0.5F, false));
+  check_pixel_near(flattened, 20, 32, 255, 146, 37, 2);
+  check_pixel_near(flattened, 32, 32, 183, 119, 55, 2);
+}
+
+void layer_stroke_knockout_removes_interior_overlay_under_band() {
+  // Interior effects ride the content plane: a 100% red Color Overlay is
+  // knocked out under the band too (probe P2 — PS shows pure
+  // stroke-over-backdrop, not stroke-over-red).
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(
+      make_overprint_document(white_inside_stroke(0.29F, false), 1.0F, true));
+  check_pixel_near(flattened, 20, 32, 255, 165, 74, 2);
+  check_pixel_near(flattened, 32, 32, 255, 0, 0, 0);  // overlay intact inside
+}
+
+void layer_stroke_knockout_blend_mode_uses_backdrop() {
+  // Overprint off applies the stroke's blend mode against the BACKDROP even
+  // at 100% opacity (probe P3: multiply band = mult(stroke, orange), not
+  // mult(stroke, gray)); Overprint on keeps the over-content multiply.
+  auto multiply = white_inside_stroke(1.0F, false);
+  multiply.blend_mode = patchy::BlendMode::Multiply;
+  multiply.color = patchy::RgbColor{200, 100, 50};
+  const auto knocked =
+      patchy::Compositor{}.flatten_rgb8(make_overprint_document(multiply, 1.0F, false));
+  check_pixel_near(knocked, 20, 32, 200, 50, 0, 2);
+  multiply.overprint = true;
+  const auto over_content =
+      patchy::Compositor{}.flatten_rgb8(make_overprint_document(multiply, 1.0F, false));
+  check_pixel_near(over_content, 20, 32, 86, 43, 22, 2);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
@@ -681,6 +803,15 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
       {"layer_stroke_outside_antialiases_corners", layer_stroke_outside_antialiases_corners},
       {"layer_stroke_fractional_size_renders_partial_ring",
        layer_stroke_fractional_size_renders_partial_ring},
+      {"layer_stroke_overprint_off_knocks_out_content_under_band",
+       layer_stroke_overprint_off_knocks_out_content_under_band},
+      {"layer_stroke_overprint_on_blends_over_content", layer_stroke_overprint_on_blends_over_content},
+      {"layer_stroke_opaque_knockout_is_invisible", layer_stroke_opaque_knockout_is_invisible},
+      {"layer_stroke_knockout_composes_with_layer_opacity",
+       layer_stroke_knockout_composes_with_layer_opacity},
+      {"layer_stroke_knockout_removes_interior_overlay_under_band",
+       layer_stroke_knockout_removes_interior_overlay_under_band},
+      {"layer_stroke_knockout_blend_mode_uses_backdrop", layer_stroke_knockout_blend_mode_uses_backdrop},
       {"psd_photoshop_stroke_partial_alpha_fixture_matches",
        psd_photoshop_stroke_partial_alpha_fixture_matches},
       {"psd_photoshop_stroke_positions_fixture_matches",

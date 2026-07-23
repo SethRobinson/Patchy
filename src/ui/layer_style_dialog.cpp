@@ -2571,6 +2571,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                              QStringLiteral("layerStyleStrokeOpacitySpin"), 0, 100,
                                              static_cast<int>(std::round(stroke.opacity * 100.0F)),
                                              QStringLiteral("%"));
+  auto* stroke_overprint = new QCheckBox(QObject::tr("Overprint"), stroke_group);
+  stroke_overprint->setObjectName(QStringLiteral("layerStyleStrokeOverprintCheck"));
+  stroke_overprint->setChecked(stroke.overprint);
+  stroke_overprint->setToolTip(QObject::tr(
+      "Blend the stroke against the layer's own content. When off, the stroke knocks the content out of "
+      "its band and blends with the layers below, like Photoshop"));
+  stroke_form->addRow(QString(), stroke_overprint);
   auto* stroke_fill = new QComboBox(stroke_group);
   stroke_fill->setObjectName(QStringLiteral("layerStyleStrokeFillCombo"));
   stroke_fill->addItem(QObject::tr("Color"), false);
@@ -3057,6 +3064,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                 static_cast<std::uint8_t>(stroke_green->value()),
                                 static_cast<std::uint8_t>(stroke_blue->value())};
         target.position = static_cast<LayerStrokePosition>(stroke_position->currentData().toInt());
+        target.overprint = stroke_overprint->isChecked();
         target.uses_gradient = stroke_fill->currentData().toBool();
         target.gradient = stroke_gradient_controls->value();
         break;
@@ -3287,6 +3295,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         stroke_green->setValue(value.color.green);
         stroke_blue->setValue(value.color.blue);
         set_combo_data(stroke_position, static_cast<int>(value.position));
+        stroke_overprint->setChecked(value.overprint);
         stroke_fill->setCurrentIndex(value.uses_gradient ? 1 : 0);
         stroke_gradient_controls->load(value.gradient);
         update_stroke_fill_visibility();
@@ -4141,6 +4150,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(stroke_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(stroke_overprint, &QCheckBox::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(stroke_fill, &QComboBox::currentIndexChanged, &dialog, [&](int) {
     update_stroke_fill_visibility();
     emit_preview(true);

@@ -427,6 +427,7 @@ void psd_layer_styles_round_trip_patchy_effects() {
   stroke.opacity = 0.9F;
   stroke.size = 2.0F;
   stroke.position = patchy::LayerStrokePosition::Inside;
+  stroke.overprint = true;
   stroke.uses_gradient = true;
   stroke.gradient = fill.gradient;
   layer.layer_style().strokes.push_back(stroke);
@@ -487,6 +488,7 @@ void psd_layer_styles_round_trip_patchy_effects() {
   CHECK(style.gradient_fills.front().gradient.alpha_stops.size() == 2);
   CHECK(style.strokes.size() == 1);
   CHECK(style.strokes.front().position == patchy::LayerStrokePosition::Inside);
+  CHECK(style.strokes.front().overprint);
   CHECK(style.strokes.front().uses_gradient);
   CHECK(style.bevels.size() == 1);
   CHECK(style.bevels.front().shadow_color.blue == 10);
@@ -576,6 +578,14 @@ void psd_generated_stroke_descriptors_match_photoshop_shape() {
   const auto& solid_overprint = require_value(solid_frame, "overprint");
   CHECK(solid_overprint.type == DescriptorType::Bool);
   CHECK(!solid_overprint.bool_value);
+
+  // The Overprint checkbox writes its stored value through the same slot.
+  patchy::LayerStroke overprinted = solid;
+  overprinted.overprint = true;
+  const auto overprinted_frame = generated_stroke_descriptor(overprinted);
+  const auto& overprinted_value = require_value(overprinted_frame, "overprint");
+  CHECK(overprinted_value.type == DescriptorType::Bool);
+  CHECK(overprinted_value.bool_value);
 
   patchy::LayerStroke gradient = solid;
   gradient.uses_gradient = true;

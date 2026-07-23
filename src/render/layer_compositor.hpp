@@ -270,6 +270,25 @@ inline bool layer_mask_clips_effect_output(const Layer& layer) {
          layer_vector_mask_hides_effects(layer);
 }
 
+// Per-pixel content attenuation from Stroke effects whose Overprint option is
+// off (the Photoshop default): the stroke band knocks the layer's own content
+// — fill, interior effects, and clipped members — out and blends against the
+// layers below (Photoshop 2026 COM probes, July 2026; docs/ps-compat.md).
+// Values are the combined factor over the base draw rect; anything outside
+// the rect reads 1 (no attenuation).
+struct StrokeKnockoutPlane {
+  Rect rect{};
+  std::vector<float> factor;
+
+  [[nodiscard]] float at(std::int32_t x, std::int32_t y) const {
+    if (x < rect.x || y < rect.y || x >= rect.x + rect.width || y >= rect.y + rect.height) {
+      return 1.0F;
+    }
+    return factor[static_cast<std::size_t>(y - rect.y) * static_cast<std::size_t>(rect.width) +
+                  static_cast<std::size_t>(x - rect.x)];
+  }
+};
+
 template <typename Target, typename Callback>
 inline void profile_compositor_step(Target& destination, const Layer& layer, const char* step, Rect rect,
                                     Callback&& callback) {
@@ -476,7 +495,8 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
 template <typename Target>
 void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                          const LayerInnerShadow& shadow, std::optional<Rect> layer_mask_bounds,
-                         StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0) {
+                         StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0,
+                         const StrokeKnockoutPlane* knockout = nullptr) {
   if (!shadow.enabled || shadow.opacity <= 0.0F || shadow.size <= 0.0F) {
     return;
   }
@@ -523,7 +543,10 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
       }
       const auto falloff_alpha =
           shifted_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
-      const auto shadow_alpha = source_alpha * falloff_alpha * shadow.opacity * layer.opacity();
+      auto shadow_alpha = source_alpha * falloff_alpha * shadow.opacity * layer.opacity();
+      if (knockout != nullptr) {
+        shadow_alpha *= knockout->at(x, y);
+      }
       composite_effect_color(destination, x, y, shadow.color, shadow_alpha, shadow.blend_mode);
     }
   }
@@ -532,7 +555,8 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
 template <typename Target>
 void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                        const LayerInnerGlow& glow, std::optional<Rect> layer_mask_bounds,
-                       StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0) {
+                       StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0,
+                       const StrokeKnockoutPlane* knockout = nullptr) {
   if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
     return;
   }
@@ -587,7 +611,10 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
       }
       const auto source_factor =
           falloff_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
-      const auto glow_alpha = source_alpha * source_factor * glow.opacity * layer.opacity();
+      auto glow_alpha = source_alpha * source_factor * glow.opacity * layer.opacity();
+      if (knockout != nullptr) {
+        glow_alpha *= knockout->at(x, y);
+      }
       composite_effect_color(destination, x, y, glow.color, glow_alpha, glow.blend_mode);
     }
   }
@@ -595,7 +622,8 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
 
 template <typename Target>
 void render_color_overlay(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                          const LayerColorOverlay& overlay, std::optional<Rect> layer_mask_bounds) {
+                          const LayerColorOverlay& overlay, std::optional<Rect> layer_mask_bounds,
+                          const StrokeKnockoutPlane* knockout = nullptr) {
   if (!overlay.enabled || overlay.opacity <= 0.0F) {
     return;
   }
@@ -612,15 +640,19 @@ void render_color_overlay(Target& destination, const Layer& layer, const PixelBu
       if (source_alpha <= 0.0F) {
         continue;
       }
-      composite_effect_color(destination, x, y, overlay.color, source_alpha * overlay.opacity * layer.opacity(),
-                             overlay.blend_mode);
+      auto alpha = source_alpha * overlay.opacity * layer.opacity();
+      if (knockout != nullptr) {
+        alpha *= knockout->at(x, y);
+      }
+      composite_effect_color(destination, x, y, overlay.color, alpha, overlay.blend_mode);
     }
   }
 }
 
 template <typename Target>
 void render_gradient_fill(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                          const LayerGradientFill& fill, std::optional<Rect> layer_mask_bounds) {
+                          const LayerGradientFill& fill, std::optional<Rect> layer_mask_bounds,
+                          const StrokeKnockoutPlane* knockout = nullptr) {
   if (!fill.enabled || fill.opacity <= 0.0F) {
     return;
   }
@@ -641,7 +673,10 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
         continue;
       }
       const auto position = gradient_position(fill.gradient, gradient_bounds, x, y);
-      const auto alpha = source_alpha * fill.opacity * layer.opacity() * gradient_stop_opacity(fill.gradient, position);
+      auto alpha = source_alpha * fill.opacity * layer.opacity() * gradient_stop_opacity(fill.gradient, position);
+      if (knockout != nullptr) {
+        alpha *= knockout->at(x, y);
+      }
       composite_effect_color(destination, x, y, gradient_color_dithered(fill.gradient, position, x, y), alpha,
                              fill.blend_mode);
     }
@@ -656,7 +691,8 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
 template <typename Target>
 void render_pattern_overlay(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip,
                             Rect bounds, const LayerPatternOverlay& overlay,
-                            std::optional<Rect> layer_mask_bounds, const PatternStore* patterns) {
+                            std::optional<Rect> layer_mask_bounds, const PatternStore* patterns,
+                            const StrokeKnockoutPlane* knockout = nullptr) {
   if (!overlay.enabled || overlay.opacity <= 0.0F || patterns == nullptr) {
     return;
   }
@@ -680,7 +716,10 @@ void render_pattern_overlay(Target& destination, const Layer& layer, const Pixel
         continue;
       }
       const auto sample = sampler.sample(x, y);
-      const auto alpha = source_alpha * sample.alpha * overlay.opacity * layer.opacity();
+      auto alpha = source_alpha * sample.alpha * overlay.opacity * layer.opacity();
+      if (knockout != nullptr) {
+        alpha *= knockout->at(x, y);
+      }
       if (alpha <= 0.0F) {
         continue;
       }
@@ -1209,25 +1248,39 @@ inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Lay
   return mask;
 }
 
-template <typename Target>
-void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                   const LayerStroke& stroke, std::optional<Rect> layer_mask_bounds,
-                   StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0) {
+// A stroke whose band mask has been resolved (cache hit or computed): enough
+// to draw the stroke and to evaluate its Overprint knockout of the base
+// content without recomputing the distance fields.
+struct PreparedStroke {
+  const LayerStroke* stroke{nullptr};
+  std::uint32_t effect_index{0};
+  std::shared_ptr<const StyleMaskEntry> entry;
+  Rect mask_bounds{};
+  Rect draw_rect{};
+  Rect gradient_bounds{};
+  bool clip_to_mask{false};
+  bool shape_burst{false};
+};
+
+inline std::optional<PreparedStroke> prepare_stroke_render(const Layer& layer, const PixelBuffer& source, Rect clip,
+                                                           Rect bounds, const LayerStroke& stroke,
+                                                           std::optional<Rect> layer_mask_bounds,
+                                                           StyleMaskProvider* masks, std::uint32_t effect_index) {
   if (!stroke.enabled || stroke.opacity <= 0.0F || stroke.size <= 0.0F) {
-    return;
+    return std::nullopt;
   }
   const auto radius = std::max(1, static_cast<int>(std::ceil(stroke.size)));
   const auto full_mask_bounds = outset_rect(bounds, radius + 1);
   const auto effect_bounds = stroke.position == LayerStrokePosition::Inside ? bounds : full_mask_bounds;
   const auto draw_rect = intersect_rect(clip, effect_bounds);
   if (draw_rect.empty()) {
-    return;
+    return std::nullopt;
   }
   const auto legacy_mask_bounds = clipped_mask_bounds(full_mask_bounds, draw_rect, radius + 1);
   const auto mask_shapes_source = !layer.layer_style().layer_mask_hides_effects;
   const auto shape_burst =
       stroke.uses_gradient && stroke.gradient.type == LayerStyleGradientType::ShapeBurst;
-  const auto [entry, mask_bounds] = style_mask_for_render(
+  auto [entry, mask_bounds] = style_mask_for_render(
       masks, layer, StyleMaskKind::Stroke, effect_index, full_mask_bounds, full_mask_bounds, legacy_mask_bounds,
       bounds, layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
@@ -1236,12 +1289,117 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
                                              shape_burst ? &computed.secondary : nullptr);
         return computed;
       });
-  const auto& mask = entry->primary;
+  PreparedStroke prepared;
+  prepared.stroke = &stroke;
+  prepared.effect_index = effect_index;
+  prepared.entry = std::move(entry);
+  prepared.mask_bounds = mask_bounds;
+  prepared.draw_rect = draw_rect;
+  prepared.clip_to_mask = layer_mask_clips_effect_output(layer);
+  prepared.shape_burst = shape_burst;
+  prepared.gradient_bounds = stroke.uses_gradient && stroke.gradient.align_with_layer
+                                 ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
+                                 : effect_bounds;
+  return prepared;
+}
+
+// The band coverage the draw loop actually paints with at (x, y): the cached
+// mask value times the "Layer Mask Hides Effects" output clip.
+inline float prepared_stroke_coverage(const PreparedStroke& prepared, const Layer& layer, std::int32_t x,
+                                      std::int32_t y, std::optional<Rect> layer_mask_bounds) {
+  const auto& bounds = prepared.mask_bounds;
+  if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) {
+    return 0.0F;
+  }
+  auto coverage = prepared.entry->primary[static_cast<std::size_t>((y - bounds.y) * bounds.width + (x - bounds.x))];
+  if (prepared.clip_to_mask && coverage > 0.0F) {
+    coverage *= layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+  }
+  return coverage;
+}
+
+// Mirrors render_prepared_stroke's per-pixel alpha (same expressions in the
+// same order) so the Normal-mode knockout divisor cancels the later stroke
+// draw exactly.
+inline float prepared_stroke_draw_alpha(const PreparedStroke& prepared, const Layer& layer, std::int32_t x,
+                                        std::int32_t y, float coverage) {
+  const auto& stroke = *prepared.stroke;
+  auto alpha = coverage * stroke.opacity * layer.opacity();
+  if (stroke.uses_gradient) {
+    if (prepared.shape_burst) {
+      const auto& bounds = prepared.mask_bounds;
+      const auto band =
+          prepared.entry->secondary[static_cast<std::size_t>((y - bounds.y) * bounds.width + (x - bounds.x))];
+      const auto span = shape_burst_ramp_span(stroke.size, stroke.position);
+      alpha *= shape_burst_stroke_opacity(stroke.gradient, band, span);
+    } else {
+      const auto position = gradient_position(stroke.gradient, prepared.gradient_bounds, x, y);
+      alpha *= gradient_stop_opacity(stroke.gradient, position);
+    }
+  }
+  return alpha;
+}
+
+// Overprint-off knockout factor for the base content under this stroke.
+// Normal mode uses the compensated divisor (1 - C) / (1 - s): the later
+// source-over stroke draw scales the destination by (1 - s), so the band's
+// content term lands at exactly a x (1 - C) — Photoshop's full knockout —
+// and the opaque solid case (s = C) is a structural no-op. Non-Normal modes
+// use plain (1 - C): the divisor degenerates there (an opaque stroke keeps
+// s = C, f = 1 for every C < 1), and P3 pins the band interior (C = 1,
+// content fully gone, blend against the backdrop), which both forms satisfy;
+// only the 1 px AA fringe stays approximate. COM probes July 2026.
+inline float stroke_knockout_factor(const PreparedStroke& prepared, const Layer& layer, std::int32_t x,
+                                    std::int32_t y, std::optional<Rect> layer_mask_bounds) {
+  const auto coverage = prepared_stroke_coverage(prepared, layer, x, y, layer_mask_bounds);
+  if (coverage <= 0.0F) {
+    return 1.0F;
+  }
+  if (prepared.stroke->blend_mode != BlendMode::Normal) {
+    return clamp_unit(1.0F - coverage);
+  }
+  const auto draw_alpha = prepared_stroke_draw_alpha(prepared, layer, x, y, coverage);
+  const auto remaining = 1.0F - draw_alpha;
+  if (remaining <= 1e-6F) {
+    // Only reachable as coverage -> 1 (draw_alpha <= coverage): full knockout.
+    return 0.0F;
+  }
+  return clamp_unit((1.0F - coverage) / remaining);
+}
+
+// Overprint-off knockout is invisible for an opaque Normal stroke at full
+// layer opacity: the stroke covers exactly what it would have knocked out.
+// Skipping it keeps the base pass's fast row path and the pinned opaque
+// fixtures on their historical byte-exact path.
+inline bool stroke_knockout_is_identity(const LayerStroke& stroke, const Layer& layer) {
+  if (stroke.blend_mode != BlendMode::Normal) {
+    return false;
+  }
+  if (stroke.opacity < 1.0F || layer.opacity() < 1.0F) {
+    return false;
+  }
+  if (stroke.uses_gradient) {
+    for (const auto& stop : stroke.gradient.alpha_stops) {
+      if (stop.opacity < 1.0F) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+template <typename Target>
+void render_prepared_stroke(Target& destination, const Layer& layer, const PreparedStroke& prepared,
+                            std::optional<Rect> layer_mask_bounds) {
+  const auto& stroke = *prepared.stroke;
+  const auto& mask = prepared.entry->primary;
+  const auto& entry = prepared.entry;
+  const auto mask_bounds = prepared.mask_bounds;
+  const auto draw_rect = prepared.draw_rect;
   const auto mask_width = mask_bounds.width;
-  const auto clip_to_mask = layer_mask_clips_effect_output(layer);
-  const auto gradient_bounds = stroke.uses_gradient && stroke.gradient.align_with_layer
-                                   ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
-                                   : effect_bounds;
+  const auto clip_to_mask = prepared.clip_to_mask;
+  const auto shape_burst = prepared.shape_burst;
+  const auto gradient_bounds = prepared.gradient_bounds;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       const auto mask_index = static_cast<std::size_t>((y - mask_bounds.y) * mask_width + (x - mask_bounds.x));
@@ -1274,6 +1432,18 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
       composite_effect_color(destination, x, y, color, alpha, stroke.blend_mode);
     }
   }
+}
+
+template <typename Target>
+void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
+                   const LayerStroke& stroke, std::optional<Rect> layer_mask_bounds,
+                   StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0) {
+  const auto prepared =
+      prepare_stroke_render(layer, source, clip, bounds, stroke, layer_mask_bounds, masks, effect_index);
+  if (!prepared.has_value()) {
+    return;
+  }
+  render_prepared_stroke(destination, layer, *prepared, layer_mask_bounds);
 }
 
 template <typename Target>
@@ -1404,6 +1574,45 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       });
     }
   }
+
+  // Strokes without Overprint knock the layer's own content (fill, interior
+  // effects, clipped members) out of their band and blend against the layers
+  // below (COM probes July 2026, docs/ps-compat.md). Resolve those strokes'
+  // band masks up front — the stroke draw below reuses the same prepared
+  // entries — and fold the combined per-pixel factor into one plane the base
+  // pass and every interior effect multiply in. Opaque solid Normal strokes
+  // skip all of this: their knockout is a structural no-op.
+  std::vector<PreparedStroke> knockout_strokes;
+  StrokeKnockoutPlane knockout_plane;
+  if (!draw_rect.empty() && style.effects_visible) {
+    for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
+      const auto& stroke = style.strokes[index];
+      if (stroke.overprint || stroke_knockout_is_identity(stroke, layer)) {
+        continue;
+      }
+      if (auto prepared =
+              prepare_stroke_render(layer, source, clip, bounds, stroke, layer_mask_bounds, masks, index)) {
+        knockout_strokes.push_back(std::move(*prepared));
+      }
+    }
+    if (!knockout_strokes.empty()) {
+      profile_compositor_step(destination, layer, "stroke_knockout", draw_rect, [&] {
+        knockout_plane.rect = draw_rect;
+        knockout_plane.factor.assign(
+            static_cast<std::size_t>(draw_rect.width) * static_cast<std::size_t>(draw_rect.height), 1.0F);
+        for (const auto& prepared : knockout_strokes) {
+          auto* factor = knockout_plane.factor.data();
+          for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+            for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+              *factor++ *= stroke_knockout_factor(prepared, layer, x, y, layer_mask_bounds);
+            }
+          }
+        }
+      });
+    }
+  }
+  const auto* knockout = knockout_strokes.empty() ? nullptr : &knockout_plane;
+
   if (!draw_rect.empty()) {
     profile_compositor_step(destination, layer, "base_pixels", draw_rect, [&] {
       const auto format = source.format();
@@ -1413,8 +1622,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       const auto has_enabled_mask = (layer.mask().has_value() && !layer.mask()->disabled) ||
                                     layer_has_enabled_vector_mask(layer);
       bool composited_by_target = false;
-      if (!has_blend_if && !has_enabled_mask && prepared_satins.empty() && layer.fill_opacity() == 1.0F &&
-          layer.blend_mode() == BlendMode::Normal) {
+      if (!has_blend_if && !has_enabled_mask && prepared_satins.empty() && knockout == nullptr &&
+          layer.fill_opacity() == 1.0F && layer.blend_mode() == BlendMode::Normal) {
         if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
                                 std::int32_t width, std::uint16_t channel_count, float opacity) {
                         target.composite_source_row(x, y, row, width, channel_count, opacity);
@@ -1437,8 +1646,11 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             const auto sx = x - bounds.x;
             const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
             const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-            const auto source_coverage =
+            auto source_coverage =
                 source_alpha * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+            if (knockout != nullptr) {
+              source_coverage *= knockout->at(x, y);
+            }
             const auto special_fill = layer.fill_opacity() != 1.0F &&
                                       blend_mode_has_special_fill(layer.blend_mode());
             auto alpha = source_coverage * layer.opacity();
@@ -1514,9 +1726,12 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
         for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
           const auto sx = x - bounds.x;
           const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
-          const auto source_alpha =
+          auto source_alpha =
               (channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F) *
               layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) * layer.opacity();
+          if (knockout != nullptr) {
+            source_alpha *= knockout->at(x, y);
+          }
           if (source_alpha <= 0.0F) {
             continue;
           }
@@ -1540,13 +1755,15 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     for (std::uint32_t index = 0; index < style.inner_shadows.size(); ++index) {
       const auto& shadow = style.inner_shadows[index];
       profile_compositor_step(destination, layer, "inner_shadow", clip, [&] {
-        render_inner_shadow(destination, layer, source, clip, bounds, shadow, layer_mask_bounds, masks, index);
+        render_inner_shadow(destination, layer, source, clip, bounds, shadow, layer_mask_bounds, masks, index,
+                            knockout);
       });
     }
     for (std::uint32_t index = 0; index < style.inner_glows.size(); ++index) {
       const auto& glow = style.inner_glows[index];
       profile_compositor_step(destination, layer, "inner_glow", clip, [&] {
-        render_inner_glow(destination, layer, source, clip, bounds, glow, layer_mask_bounds, masks, index);
+        render_inner_glow(destination, layer, source, clip, bounds, glow, layer_mask_bounds, masks, index,
+                          knockout);
       });
     }
     // Interior overlays on a stroked shape layer apply to the FILL plane and
@@ -1587,17 +1804,19 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     for (const auto& overlay : style.pattern_overlays) {
       profile_compositor_step(destination, layer, "pattern_overlay", clip, [&] {
         render_pattern_overlay(destination, layer, *interior_source, clip, bounds, overlay,
-                               layer_mask_bounds, patterns);
+                               layer_mask_bounds, patterns, knockout);
       });
     }
     for (const auto& fill : style.gradient_fills) {
       profile_compositor_step(destination, layer, "gradient_fill", clip, [&] {
-        render_gradient_fill(destination, layer, *interior_source, clip, bounds, fill, layer_mask_bounds);
+        render_gradient_fill(destination, layer, *interior_source, clip, bounds, fill, layer_mask_bounds,
+                             knockout);
       });
     }
     for (const auto& overlay : style.color_overlays) {
       profile_compositor_step(destination, layer, "color_overlay", clip, [&] {
-        render_color_overlay(destination, layer, *interior_source, clip, bounds, overlay, layer_mask_bounds);
+        render_color_overlay(destination, layer, *interior_source, clip, bounds, overlay, layer_mask_bounds,
+                             knockout);
       });
     }
     if (stroke_restamp != nullptr && !draw_rect.empty()) {
@@ -1617,8 +1836,11 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             if (source_alpha <= 0.0F) {
               continue;
             }
-            const auto source_coverage =
+            auto source_coverage =
                 source_alpha * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+            if (knockout != nullptr) {
+              source_coverage *= knockout->at(x, y);
+            }
             const auto special_fill = layer.fill_opacity() != 1.0F &&
                                       blend_mode_has_special_fill(layer.blend_mode());
             auto alpha = source_coverage * layer.opacity();
@@ -1643,7 +1865,15 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
       const auto& stroke = style.strokes[index];
       profile_compositor_step(destination, layer, "stroke", clip, [&] {
-        render_stroke(destination, layer, source, clip, bounds, stroke, layer_mask_bounds, masks, index);
+        const auto prepared =
+            std::find_if(knockout_strokes.begin(), knockout_strokes.end(),
+                         [index](const PreparedStroke& candidate) { return candidate.effect_index == index; });
+        if (prepared != knockout_strokes.end()) {
+          // Reuse the band mask the knockout pass already resolved.
+          render_prepared_stroke(destination, layer, *prepared, layer_mask_bounds);
+        } else {
+          render_stroke(destination, layer, source, clip, bounds, stroke, layer_mask_bounds, masks, index);
+        }
       });
     }
     // Bevel shading derives from the layer matte but composites OVER the

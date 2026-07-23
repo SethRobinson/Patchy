@@ -542,6 +542,7 @@ std::optional<LayerStroke> parse_stroke(const DescriptorObject& effect,
   if (stroke.uses_gradient) {
     stroke.gradient = parse_layer_style_gradient(effect, cmyk);
   }
+  stroke.overprint = descriptor_bool(effect, "overprint", false);
   return stroke;
 }
 
@@ -1514,7 +1515,7 @@ void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke)
   } else {
     write_native_rgb_color_descriptor_item(writer, "Clr ", stroke.color);
   }
-  write_descriptor_bool_item(writer, "overprint", false);
+  write_descriptor_bool_item(writer, "overprint", stroke.overprint);
 }
 
 // Writes a ShpC contour object. A Linear contour mirrors PS 27.8's default form

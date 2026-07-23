@@ -338,6 +338,10 @@ struct LayerStroke {
   LayerStrokePosition position{LayerStrokePosition::Outside};
   bool uses_gradient{false};
   LayerStyleGradient gradient;
+  // Photoshop's Overprint checkbox. Off (the PS default): the stroke band
+  // knocks out the layer's own content and blends against the layers below.
+  // On: the stroke blends over the layer's own content.
+  bool overprint{false};
 };
 
 // A layer-effect contour curve (the descriptor ShpC/CrPt shape shared by the

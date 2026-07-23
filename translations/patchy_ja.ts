@@ -763,6 +763,14 @@
         <translation>反転</translation>
     </message>
     <message>
+        <source>Overprint</source>
+        <translation>オーバープリント</translation>
+    </message>
+    <message>
+        <source>Blend the stroke against the layer&apos;s own content. When off, the stroke knocks the content out of its band and blends with the layers below, like Photoshop</source>
+        <translation>境界線をレイヤー自身の内容の上に合成します。オフの場合は境界線の帯からレイヤー内容をノックアウトし、Photoshop と同様に下のレイヤーと合成します</translation>
+    </message>
+    <message>
         <location line="+3"/>
         <source>Brightness/Contrast</source>
         <translation>明るさ/コントラスト</translation>

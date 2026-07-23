@@ -886,6 +886,66 @@ void psd_photoshop_stroke_aa_matte_fixture_matches_render() {
   CHECK(static_cast<double>(over_aa_tolerance) / total_pixels <= 0.03);
 }
 
+// Photoshop 2026 authored photoshop-stroke-overprint.psd/.bmp via COM (July
+// 2026): six stroke arms over an orange (255,128,0) backdrop, gray (110)
+// content, pinning the Overprint knockout model. Arms: Inside 29% white
+// overprint off (band = 0.29*white + 0.71*orange — content fully knocked
+// out), the same with overprint ON (band = stroke over the gray content),
+// 60% off, Multiply (200,100,50) 100% off (blend mode applies against the
+// BACKDROP), an AA ellipse at 29% off (fringe compensation), and a
+// layer-opacity-50 arm (the knocked-out plane scales with layer opacity).
+void psd_photoshop_stroke_overprint_fixture_matches_render() {
+  const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-stroke-overprint.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-stroke-overprint.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto* off_arm = find_layer_named(document.layers(), "ins29 off");
+  const auto* on_arm = find_layer_named(document.layers(), "ins29 on");
+  CHECK(off_arm != nullptr);
+  CHECK(on_arm != nullptr);
+  CHECK(off_arm->layer_style().strokes.size() == 1);
+  CHECK(!off_arm->layer_style().strokes.front().overprint);
+  CHECK(on_arm->layer_style().strokes.size() == 1);
+  CHECK(on_arm->layer_style().strokes.front().overprint);
+  const auto reference =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference, flat);
+  CHECK(metrics.mean_abs_channel_delta <= 1.0);
+  std::uint64_t over_tolerance = 0;
+  for (std::int32_t y = 0; y < reference.height(); ++y) {
+    for (std::int32_t x = 0; x < reference.width(); ++x) {
+      const auto* a = reference.pixel(x, y);
+      const auto* b = flat.pixel(x, y);
+      int max_delta = 0;
+      for (int channel = 0; channel < 3; ++channel) {
+        max_delta = std::max(max_delta,
+                             std::abs(static_cast<int>(a[channel]) - static_cast<int>(b[channel])));
+      }
+      if (max_delta > 6) {
+        ++over_tolerance;
+      }
+    }
+  }
+  const auto total_pixels =
+      static_cast<double>(reference.width()) * static_cast<double>(reference.height());
+  CHECK(static_cast<double>(over_tolerance) / total_pixels <= 0.01);
+  // Mid-band spot checks against Photoshop's exact bytes.
+  const auto check_near = [&](std::int32_t x, std::int32_t y, int red, int green, int blue) {
+    const auto* pixel = flat.pixel(x, y);
+    CHECK(std::abs(static_cast<int>(pixel[0]) - red) <= 2);
+    CHECK(std::abs(static_cast<int>(pixel[1]) - green) <= 2);
+    CHECK(std::abs(static_cast<int>(pixel[2]) - blue) <= 2);
+  };
+  check_near(24, 45, 255, 165, 74);     // ins29 off: knocked out, orange shows
+  check_near(124, 45, 152, 152, 152);   // ins29 on: over the gray content
+  check_near(224, 45, 255, 204, 153);   // ins60 off
+  check_near(24, 135, 200, 50, 0);      // multiply off: mult against backdrop
+  check_near(120, 135, 255, 165, 74);   // AA ellipse band interior
+  check_near(224, 135, 255, 147, 37);   // layer opacity 50
+}
+
 // Photoshop 2026 authored photoshop-pillow-emboss.psd/.bmp and
 // photoshop-pillow-emboss2.psd/.bmp via COM (July 2026): squares on a gray-128
 // backdrop carrying Smooth Pillow Emboss at depth 1/5/10/25/50/100/200/500/1000,
@@ -1361,6 +1421,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_bevel_smooth_fixture_matches_render},
       {"psd_photoshop_stroke_aa_matte_fixture_matches_render",
        psd_photoshop_stroke_aa_matte_fixture_matches_render},
+      {"psd_photoshop_stroke_overprint_fixture_matches_render",
+       psd_photoshop_stroke_overprint_fixture_matches_render},
       {"psd_photoshop_pillow_emboss_fixtures_match_render",
        psd_photoshop_pillow_emboss_fixtures_match_render},
       {"psd_photoshop_stroke_shapeburst_fixture_matches_render",

@@ -667,6 +667,8 @@ void ui_layer_fx_badge_button_opens_layer_style_dialog() {
 void ui_layer_style_stroke_blend_mode_round_trips() {
   // The Stroke page's Blend Mode combo (added July 2026 for Photoshop parity) must
   // save into LayerStroke::blend_mode and load back when the dialog reopens.
+  // The Overprint checkbox (July 2026, PS's stroke knockout toggle) rides the
+  // same round trip: unchecked by default, saved into LayerStroke::overprint.
   patchy::ui::MainWindow window;
   show_window(window);
   auto* blending_options = require_action(window, "layerBlendingOptionsAction");
@@ -678,9 +680,12 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
     auto* stroke_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleStrokeBlendModeCombo"));
     auto* stroke_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeSizeSpin"));
+    auto* stroke_overprint = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleStrokeOverprintCheck"));
     CHECK(categories != nullptr);
     CHECK(stroke_blend != nullptr);
     CHECK(stroke_size != nullptr);
+    CHECK(stroke_overprint != nullptr);
+    CHECK(!stroke_overprint->isChecked());  // Photoshop's default
     const auto stroke_items = categories->findItems(QStringLiteral("Stroke"), Qt::MatchExactly);
     CHECK(!stroke_items.empty());
     stroke_items.front()->setCheckState(Qt::Checked);
@@ -689,6 +694,7 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
     stroke_blend->setCurrentIndex(
         std::max(0, stroke_blend->findData(static_cast<int>(patchy::BlendMode::Multiply))));
     CHECK(stroke_blend->currentData().toInt() == static_cast<int>(patchy::BlendMode::Multiply));
+    stroke_overprint->setChecked(true);
     edited = true;
     qobject_cast<QDialog*>(dialog)->accept();
   });
@@ -705,14 +711,18 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
   CHECK(layer->layer_style().strokes.front().enabled);
   CHECK(layer->layer_style().strokes.front().blend_mode == patchy::BlendMode::Multiply);
   CHECK(layer->layer_style().strokes.front().size == 6.0F);
+  CHECK(layer->layer_style().strokes.front().overprint);
 
   bool reloaded = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
     CHECK(dialog != nullptr);
     auto* stroke_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleStrokeBlendModeCombo"));
+    auto* stroke_overprint = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleStrokeOverprintCheck"));
     CHECK(stroke_blend != nullptr);
+    CHECK(stroke_overprint != nullptr);
     CHECK(stroke_blend->currentData().toInt() == static_cast<int>(patchy::BlendMode::Multiply));
+    CHECK(stroke_overprint->isChecked());
     reloaded = true;
     qobject_cast<QDialog*>(dialog)->reject();
   });
