@@ -1823,11 +1823,11 @@ void psd_16_bit_flat_filter_list_loads_if_available() {
   const auto far_off_fraction = static_cast<double>(far_off_pixels) / pixel_count;
   std::cout << "  16-bit fixture flatten vs Photoshop composite mean abs diff: " << mean_abs_diff
             << ", pixels off by >24: " << (far_off_fraction * 100.0) << "%\n";
-  // Baseline July 2026: mean 0.97, far-off 1.9%. The far-off pixels are the file's
-  // CS4-era 'ic *' vector shape layers whose vmsk blocks fail to parse (they
-  // import preserved-and-locked with empty rasters); that is independent of bit depth.
-  CHECK(mean_abs_diff < 2.0);
-  CHECK(far_off_fraction < 0.025);
+  // Baseline July 2026: mean 0.50, far-off 0.9% (after the legacy 0xFFFF vmsk
+  // combine-op fix let the CS4-era 'ic *' shape layers rasterize). The residual
+  // sits in the icons' layer-effect shading and anti-aliased edges.
+  CHECK(mean_abs_diff < 1.0);
+  CHECK(far_off_fraction < 0.015);
 }
 
 // Photoshop 2026-written deep fixtures (COM-generated, July 2026): left half filled

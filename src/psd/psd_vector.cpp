@@ -69,7 +69,15 @@ std::optional<VectorPath> parse_records(std::span<const std::uint8_t> payload, s
           return std::nullopt;
         }
         const auto knot_count = read_u16_at(record, 2);
-        const auto operation = read_u16_at(record, 4);
+        auto operation = read_u16_at(record, 4);
+        if (operation == 0xFFFFU) {
+          // CS4-era length records leave the combine op unset (0xFFFF, with the
+          // modern constant-1 field 0): legacy shapes fill by subpath parity.
+          // Xor over the accumulated coverage reproduces that in the sequential
+          // renderer, matching Photoshop's own composite of such files (the
+          // Flat-filter-list.psd icons render nested cutouts as holes).
+          operation = 0U;
+        }
         if (operation > 3U) {
           return std::nullopt;
         }

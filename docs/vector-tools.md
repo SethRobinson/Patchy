@@ -367,6 +367,13 @@ PSD writer resolve them.
   3 = intersect**); u16 constant 1; 4 zero bytes; u32 subpath/origination index
   (0,1,2,... in file order; ties the subpath to its `vogk` keyOriginIndex);
   10 zero bytes.
+- CS4-era files write length records with the combine op UNSET (0xFFFF, and 0 in
+  the constant-1 field; the first subpath observed as op 1 / constant 2 instead).
+  Legacy shapes fill by subpath parity: the reader maps 0xFFFF to xor, which the
+  sequential-combine renderer reproduces exactly (nested cutouts become holes,
+  matching Photoshop's own composite of the 2010 Android icon-template file).
+  Pinned by `psd_legacy_vmsk_unset_combine_op_fills_by_parity`; real-file
+  coverage rides `psd_16_bit_flat_filter_list_loads_if_available`.
 - Knot records: selector 1 (closed smooth/linked), 2 (closed corner),
   4 (open smooth), 5 (open corner). Three coordinate pairs, each pair is
   (y then x), each value i32 8.24 fixed point expressed as a FRACTION of the

@@ -1125,6 +1125,146 @@ void collect_referenced_pattern_resources_covers_vector_content() {
   CHECK(has_id(kStrokeId));
 }
 
+// CS4-era vmsk length records leave the combine op unset (0xFFFF, with 0 in the
+// modern constant-1 field): legacy shapes fill by subpath parity, which the reader
+// decodes as xor. Mirrors the Flat-filter-list.psd icons, where every nested
+// cutout renders as a hole in Photoshop's own composite.
+void psd_legacy_vmsk_unset_combine_op_fills_by_parity() {
+  patchy::psd::BigEndianWriter soco;
+  soco.write_u32(16);
+  const auto double_value = [](double value) {
+    patchy::psd::DescriptorValue result;
+    result.type = patchy::psd::DescriptorValue::Type::Double;
+    result.double_value = value;
+    return result;
+  };
+  patchy::psd::DescriptorObject rgb;
+  rgb.class_id = "RGBC";
+  rgb.values["Rd  "] = double_value(210.0);
+  rgb.values["Grn "] = double_value(40.0);
+  rgb.values["Bl  "] = double_value(50.0);
+  patchy::psd::DescriptorObject root;
+  root.class_id = "null";
+  patchy::psd::DescriptorValue color;
+  color.type = patchy::psd::DescriptorValue::Type::Object;
+  color.object_value = std::make_shared<patchy::psd::DescriptorObject>(rgb);
+  root.values["Clr "] = color;
+  patchy::psd::write_descriptor(soco, root);
+
+  patchy::psd::BigEndianWriter vmsk;
+  vmsk.write_u32(3);  // version
+  vmsk.write_u32(0);  // flags
+  const auto write_zeros = [&vmsk](std::size_t count) {
+    for (std::size_t i = 0; i < count; ++i) {
+      vmsk.write_u8(0);
+    }
+  };
+  vmsk.write_u16(6);  // fill rule record
+  write_zeros(24);
+  vmsk.write_u16(8);  // initial fill record
+  write_zeros(24);
+  const auto fixed_fraction = [](double fraction) {
+    return static_cast<std::uint32_t>(std::lround(fraction * 16777216.0));
+  };
+  const auto write_corner_knot = [&](double x_fraction, double y_fraction) {
+    vmsk.write_u16(2);  // closed corner knot
+    for (int pair = 0; pair < 3; ++pair) {
+      vmsk.write_u32(fixed_fraction(y_fraction));
+      vmsk.write_u32(fixed_fraction(x_fraction));
+    }
+  };
+  const auto write_square = [&](std::uint16_t operation, std::uint16_t constant, double lo, double hi) {
+    vmsk.write_u16(0);  // closed length record
+    vmsk.write_u16(4);  // knot count
+    vmsk.write_u16(operation);
+    vmsk.write_u16(constant);
+    write_zeros(18);
+    write_corner_knot(lo, lo);
+    write_corner_knot(hi, lo);
+    write_corner_knot(hi, hi);
+    write_corner_knot(lo, hi);
+  };
+  // The first subpath of the CS4 files carries op 1 / constant 2; the nested
+  // cutouts carry the unset 0xFFFF / 0 form.
+  write_square(1, 2, 0.125, 0.875);
+  write_square(0xFFFFU, 0, 0.375, 0.625);
+
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);
+  layer_extra.write_u32(0);
+  patchy::test::write_pascal_padded(layer_extra, "Legacy Shape", 4);
+  patchy::test::write_test_layer_block(layer_extra, "SoCo", soco.bytes());
+  patchy::test::write_test_layer_block(layer_extra, "vmsk", vmsk.bytes());
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(1);
+  for (int i = 0; i < 4; ++i) {
+    layer_info.write_u32(0);  // 0x0 bounds: shape layers rasterize from the path
+  }
+  layer_info.write_u16(4);
+  for (const auto channel_id : {0xFFFFU, 0U, 1U, 2U}) {
+    layer_info.write_u16(static_cast<std::uint16_t>(channel_id));
+    layer_info.write_u32(2);  // compression marker only
+  }
+  patchy::test::write_ascii4(layer_info, "8BIM");
+  patchy::test::write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+  for (int channel = 0; channel < 4; ++channel) {
+    layer_info.write_u16(0);  // raw, zero pixels
+  }
+  if ((layer_info.bytes().size() % 2U) != 0) {
+    layer_info.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 16, 16, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  layer_mask.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  for (int i = 0; i < 3 * 16 * 16; ++i) {
+    writer.write_u8(255);
+  }
+
+  const auto document = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(document.layers().size() == 1);
+  const auto& shape = std::as_const(document.layers()).front();
+  const auto* content = shape.vector_shape();
+  CHECK(content != nullptr);
+  CHECK(content->fill.kind == VectorFillKind::Solid);
+  CHECK(content->fill.color.red == 210);
+  CHECK(content->path.subpaths.size() == 2);
+  CHECK(content->path.subpaths[0].op == PathCombineOp::Add);
+  CHECK(content->path.subpaths[1].op == PathCombineOp::Xor);
+  CHECK(shape.metadata().count(patchy::kLayerMetadataVectorLock) == 0);
+  // Canvas 16x16: outer square 2..14, cutout 6..10. The ring fills, the nested
+  // cutout and the outside stay empty.
+  const auto bounds = shape.bounds();
+  const auto& pixels = shape.pixels();
+  CHECK(pixels.format() == patchy::PixelFormat::rgba8());
+  const auto alpha_at = [&](int doc_x, int doc_y) -> int {
+    const int local_x = doc_x - bounds.x;
+    const int local_y = doc_y - bounds.y;
+    if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
+      return 0;
+    }
+    return pixels.pixel(local_x, local_y)[3];
+  };
+  CHECK(alpha_at(4, 8) == 255);
+  CHECK(alpha_at(8, 8) == 0);
+  CHECK(alpha_at(1, 1) == 0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
@@ -1134,6 +1274,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_shape_pattern_fixture_parses_and_renders", psd_shape_pattern_fixture_parses_and_renders},
       {"psd_shape_strokes_fixture_parses_and_renders", psd_shape_strokes_fixture_parses_and_renders},
       {"psd_shape_boolean_fixture_combines_and_renders", psd_shape_boolean_fixture_combines_and_renders},
+      {"psd_legacy_vmsk_unset_combine_op_fills_by_parity", psd_legacy_vmsk_unset_combine_op_fills_by_parity},
       {"psd_shape_first_ops_fixture_renders", psd_shape_first_ops_fixture_renders},
       {"psd_shape_live_fixture_parses_origination", psd_shape_live_fixture_parses_origination},
       {"psd_vector_mask_fixture_masks_pixels", psd_vector_mask_fixture_masks_pixels},
