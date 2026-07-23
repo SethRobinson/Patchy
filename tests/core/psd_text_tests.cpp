@@ -290,6 +290,109 @@ void psd_import_regenerates_large_styled_text_preview_alpha() {
   CHECK(tall_alpha_columns == 0);
 }
 
+// A FOREIGN (Photoshop-authored) type layer with a big outer effect but a clean,
+// fill-colored raster keeps Photoshop's pixels on import: substitution waits for an
+// edit, exactly like Photoshop with a missing font. The same document with Patchy's
+// own signature still regenerates (the control), so this pins the authorship gate.
+void psd_import_keeps_clean_foreign_styled_text_raster() {
+  constexpr std::int32_t layer_width = 320;
+  constexpr std::int32_t layer_height = 150;
+
+  patchy::Document document(420, 260, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(420, 260, 230, 220, 204));
+
+  // Clean matte: fill-colored bars, no baked effect pollution.
+  auto clean = solid_rgba(layer_width, layer_height, 243, 237, 230, 0);
+  for (std::int32_t band = 0; band < 4; ++band) {
+    for (std::int32_t y = 20 + band * 32; y < 28 + band * 32; ++y) {
+      for (std::int32_t x = 16; x < layer_width - 16; ++x) {
+        clean.pixel(x, y)[3] = 255;
+      }
+    }
+  }
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Foreign styled text", std::move(clean));
+  text_layer.set_bounds(patchy::Rect{50, 70, layer_width, layer_height});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Bars Bars";
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t9\t34\t1\t0\t#f3ede6\tArial";
+  text_layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t9\tcenter";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "260";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "90";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "34";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#f3ede6";
+  text_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Multiply;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 90.0F;
+  shadow.distance = 0.0F;
+  shadow.spread = 60.0F;
+  shadow.size = 80.0F;
+  text_layer.layer_style().drop_shadows.push_back(shadow);
+
+  const auto reference = std::as_const(text_layer).pixels();  // copy for the post-import compare
+  document.add_layer(std::move(text_layer));
+
+  auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+
+  // Control: read the Patchy-signed bytes as-is; the big shadow regenerates the matte.
+  const auto control = patchy::psd::DocumentIo::read(bytes);
+  const auto* control_layer = find_layer_named(control.layers(), "Foreign styled text");
+  CHECK(control_layer != nullptr);
+  bool control_differs = false;
+  for (std::int32_t y = 0; y < layer_height && !control_differs; ++y) {
+    for (std::int32_t x = 0; x < layer_width; ++x) {
+      if (control_layer->pixels().pixel(x, y)[3] != reference.pixel(x, y)[3]) {
+        control_differs = true;
+        break;
+      }
+    }
+  }
+  CHECK(control_differs);
+
+  // Strip Patchy's engine-data signature so the block reads as Photoshop-authored.
+  const std::string signature =
+      "/KinsokuSet [ ] /MojiKumiSet [ ] /TheNormalStyleSheet 0 /TheNormalParagraphSheet 0";
+  auto patched = bytes;
+  bool patched_any = false;
+  auto it = patched.begin();
+  while (true) {
+    it = std::search(it, patched.end(), signature.begin(), signature.end());
+    if (it == patched.end()) {
+      break;
+    }
+    *it = static_cast<std::uint8_t>('X');  // "/XinsokuSet ..." no longer matches
+    patched_any = true;
+    ++it;
+  }
+  CHECK(patched_any);
+
+  const auto read = patchy::psd::DocumentIo::read(patched);
+  const auto* imported = find_layer_named(read.layers(), "Foreign styled text");
+  CHECK(imported != nullptr);
+  CHECK(imported->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "psd_raster_preview");
+  CHECK(imported->pixels().width() == layer_width);
+  CHECK(imported->pixels().height() == layer_height);
+  bool pixels_kept = imported->pixels().width() == layer_width && imported->pixels().height() == layer_height;
+  for (std::int32_t y = 0; y < layer_height && pixels_kept; ++y) {
+    for (std::int32_t x = 0; x < layer_width; ++x) {
+      const auto* actual = imported->pixels().pixel(x, y);
+      const auto* expected = reference.pixel(x, y);
+      if (actual[3] != expected[3] || (expected[3] > 0U && (actual[0] != expected[0] || actual[1] != expected[1] ||
+                                                            actual[2] != expected[2]))) {
+        pixels_kept = false;
+        break;
+      }
+    }
+  }
+  CHECK(pixels_kept);
+}
+
 void psd_writer_exports_patchy_rich_text_as_photoshop_type() {
   patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
@@ -1537,7 +1640,10 @@ void psd_duke_nukem_mobile_text_style_renders_if_available() {
           });
       if (has_large_shadow && has_large_glow) {
         found_large_text_style = true;
-        CHECK(layer.metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+        // The stored raster is a clean text-only matte, so the import keeps
+        // Photoshop's own pixels (substitution waits for an edit, like Photoshop)
+        // instead of regenerating a substituted-font preview.
+        CHECK(layer.metadata().at(patchy::kLayerMetadataTextRasterStatus) == "psd_raster_preview");
         int tall_alpha_columns = 0;
         for (std::int32_t x = 0; x < layer.pixels().width(); ++x) {
           int column_alpha = 0;
@@ -1560,12 +1666,73 @@ void psd_duke_nukem_mobile_text_style_renders_if_available() {
   write_bmp_artifact("psd_duke_nukem_mobile_text_style", document);
 }
 
+void psd_polymega_text_keeps_photoshop_raster_if_available() {
+  // Reported repro (July 2026): the file's text uses Carter One (not installed here)
+  // with a big live drop shadow, and the import used to regenerate the preview with a
+  // substituted font before any edit. The stored raster is the clean black text matte
+  // (the white fill comes from a Color Overlay effect), so the import must keep
+  // Photoshop's pixels and leave substitution to an actual edit.
+  const auto path = patchy::test::local_psd_fixture_path("Polymega jump test.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const patchy::Layer* text_layer = nullptr;
+  const std::function<void(const std::vector<patchy::Layer>&)> visit = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (layer.kind() == patchy::LayerKind::Group) {
+        visit(layer.children());
+        continue;
+      }
+      const auto text = layer.metadata().find(patchy::kLayerMetadataText);
+      if (text != layer.metadata().end() && text->second.find("Tapping jump") != std::string::npos) {
+        text_layer = &layer;
+      }
+    }
+  };
+  visit(document.layers());
+  CHECK(text_layer != nullptr);
+  if (text_layer == nullptr) {
+    return;
+  }
+
+  // The gate this pins: a big enabled drop shadow used to force regeneration.
+  const auto& shadows = text_layer->layer_style().drop_shadows;
+  CHECK(!shadows.empty());
+  CHECK(text_layer->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "psd_raster_preview");
+
+  // The kept matte is Photoshop's black text fill; a regenerated preview would be a
+  // substituted-font render with a different ink footprint.
+  const auto& pixels = text_layer->pixels();
+  std::uint64_t visible = 0;
+  std::uint64_t dark = 0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      if (px[3] <= 16U) {
+        continue;
+      }
+      ++visible;
+      if (px[0] <= 32U && px[1] <= 32U && px[2] <= 32U) {
+        ++dark;
+      }
+    }
+  }
+  const auto area = static_cast<std::uint64_t>(pixels.width()) * static_cast<std::uint64_t>(pixels.height());
+  CHECK(visible > area / 20U);
+  CHECK(visible < area / 2U);
+  CHECK(dark * 10U > visible * 9U);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_text_tests() {
   return {
       {"psd_import_regenerates_large_styled_text_preview_alpha",
        psd_import_regenerates_large_styled_text_preview_alpha},
+      {"psd_import_keeps_clean_foreign_styled_text_raster",
+       psd_import_keeps_clean_foreign_styled_text_raster},
       {"psd_writer_exports_patchy_rich_text_as_photoshop_type",
        psd_writer_exports_patchy_rich_text_as_photoshop_type},
       {"psd_writer_preserves_imported_photoshop_text_geometry",
@@ -1614,5 +1781,7 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_title_screen_demo_layer_styles_render_if_available},
       {"psd_duke_nukem_mobile_text_style_renders_if_available",
        psd_duke_nukem_mobile_text_style_renders_if_available},
+      {"psd_polymega_text_keeps_photoshop_raster_if_available",
+       psd_polymega_text_keeps_photoshop_raster_if_available},
   };
 }

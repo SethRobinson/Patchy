@@ -536,8 +536,9 @@ bool layer_style_has_regeneratable_outer_text_effect(const LayerStyle& style) no
   return false;
 }
 
-bool psd_text_preview_lacks_declared_fill_color(const PixelBuffer& pixels, RgbColor fill) {
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 4) {
+bool psd_text_preview_lacks_declared_fill_color(const PixelBuffer& pixels, const std::vector<RgbColor>& fills) {
+  if (fills.empty() || pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 ||
+      pixels.format().channels < 4) {
     return false;
   }
 
@@ -549,15 +550,41 @@ bool psd_text_preview_lacks_declared_fill_color(const PixelBuffer& pixels, RgbCo
       continue;
     }
     ++visible;
-    const auto red_delta = std::abs(static_cast<int>(pixels.data()[offset]) - static_cast<int>(fill.red));
-    const auto green_delta = std::abs(static_cast<int>(pixels.data()[offset + 1U]) - static_cast<int>(fill.green));
-    const auto blue_delta = std::abs(static_cast<int>(pixels.data()[offset + 2U]) - static_cast<int>(fill.blue));
-    if (std::max({red_delta, green_delta, blue_delta}) <= 18 && red_delta + green_delta + blue_delta <= 44) {
-      ++fill_like;
+    for (const auto& fill : fills) {
+      const auto red_delta = std::abs(static_cast<int>(pixels.data()[offset]) - static_cast<int>(fill.red));
+      const auto green_delta = std::abs(static_cast<int>(pixels.data()[offset + 1U]) - static_cast<int>(fill.green));
+      const auto blue_delta = std::abs(static_cast<int>(pixels.data()[offset + 2U]) - static_cast<int>(fill.blue));
+      if (std::max({red_delta, green_delta, blue_delta}) <= 18 && red_delta + green_delta + blue_delta <= 44) {
+        ++fill_like;
+        break;
+      }
     }
   }
 
   return visible >= 256U && fill_like * 8U < visible;
+}
+
+// Every fill color the type layer's style runs declare (primary run first). The
+// pollution check must accept ANY of them: multi-colored text is still a clean
+// text-only raster.
+std::vector<RgbColor> imported_text_declared_fill_colors(const LayerRecord& record) {
+  std::vector<RgbColor> colors;
+  const auto append_unique = [&colors](RgbColor color) {
+    const auto exists = std::any_of(colors.begin(), colors.end(), [color](RgbColor existing) {
+      return existing.red == color.red && existing.green == color.green && existing.blue == color.blue;
+    });
+    if (!exists) {
+      colors.push_back(color);
+    }
+  };
+  append_unique(imported_text_primary_run(record).color);
+  if (record.text.has_value() && record.text_runs.has_value()) {
+    const auto fallback = imported_text_fallback_run(record);
+    for (const auto& run : parse_patchy_text_runs_metadata(*record.text_runs, *record.text, fallback)) {
+      append_unique(run.color);
+    }
+  }
+  return colors;
 }
 
 }  // namespace
@@ -574,11 +601,17 @@ bool should_regenerate_imported_text_preview(const LayerRecord& record, const Pi
   if (!layer_style_has_regeneratable_outer_text_effect(record.layer_style)) {
     return false;
   }
-  if (record.text_geometry.has_value()) {
+  // Patchy-authored type blocks re-render losslessly (Patchy's own engine rendered
+  // them in the first place), so a big outer effect always gets a clean glyph matte.
+  if (record.text_geometry.has_value() && record.text_patchy_generated_type_block) {
     return true;
   }
-  const auto fill = imported_text_primary_run(record).color;
-  return psd_text_preview_lacks_declared_fill_color(pixels, fill);
+  // Photoshop-authored type layers keep Photoshop's raster until the text is edited,
+  // matching Photoshop's own missing-font behavior: regenerating here substitutes
+  // fonts (and reflows the wrap) before the user touches the layer. Regenerate only
+  // when the stored preview is visibly NOT the declared text fill -- baked-in effect
+  // pixels that would corrupt the live outer-effect contour.
+  return psd_text_preview_lacks_declared_fill_color(pixels, imported_text_declared_fill_colors(record));
 }
 
 namespace {

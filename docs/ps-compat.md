@@ -119,6 +119,22 @@ Patchy's serialized run format ("patchy.text.runs") gained v3 for this: double s
 
 **Text is rendered UNHINTED** (July 2026): Photoshop never runs TrueType hinting; its antialiased modes (Sharp/Crisp/Strong/Smooth) all filter unhinted outlines with ideal metrics. `configure_text_font_smoothing` therefore maps every antialiased `/AntiAlias` mode to `QFont::PreferNoHinting` (mode 0/None keeps `NoAntialias` + full hinting for the pixel-fit look). The old Sharp/Crisp -> full-hinting mapping fattened stems on small-print-era fonts (tips.psd's 1993 Bitstream Futura MdCn BT) and shifted advances enough to collide adjacent glyphs versus Photoshop's raster.
 
+**Imported type layers keep Photoshop's raster until edited** (July 2026): Photoshop
+stores each type layer's rendered pixels in the file and displays them untouched until
+the text is actually edited, so a missing font never changes a document's appearance on
+open. Patchy now matches this: `should_regenerate_imported_text_preview`
+(psd_text_write.cpp) keeps Photoshop-authored rasters (`psd_raster_preview`) even when
+the layer carries a big drop shadow or outer glow, and regenerates only when the stored
+preview is visibly NOT any style run's declared fill color (baked-in effect pixels that
+would corrupt the live outer-effect contour) or when the type block is Patchy-authored
+(lossless re-render). It used to regenerate every big-effect text layer through the GDI
+path, which substituted missing fonts and reflowed the wrap before any edit (the
+"Polymega jump test.psd" Carter One repro). Editing a kept raster still warns before
+substituting; CLI automation (`--append-text`) substitutes silently. Pinned by
+`psd_import_keeps_clean_foreign_styled_text_raster` (synthetic, both arms),
+`psd_polymega_text_keeps_photoshop_raster_if_available`, and the updated
+`psd_duke_nukem_mobile_text_style_renders_if_available`.
+
 Black/Heavy faces (DirectWrite weight >= 800, e.g. "Arial-Black") resolve to their FULL face name so the renderer's family+style matcher finds the real face; flattening them to family + bold rendered the Bold face (~15% narrower on the SNES blurb). The bold flag stays set, so a missing Black face still falls back to Bold. The options-bar font COMBO must never be fed such a name raw: `QFont("Arial Black")` walks Windows' substitution chain to TAHOMA (no such family exists in Qt's DirectWrite database -- it is family "Arial", style "Black"), so combo updates go through `text_font_combo_font_for_family`.
 
 **Rotated point-text anchoring**: committed placement pins the TEXT-SPACE anchor -- the justification fraction along the reading axis (line STARTS for left text), first-line side on the stack axis -- never a fixed document corner. The document's visual top-left is the line-END corner under a 90-degree rotation, and pinning it slid the SNES back panel along its reading axis by the line-length delta on every conversion. Both alignment variants follow this rule (`psd_point_text_local_bounds_transform_for_pixels` interpolates in local space; the CS-era document-bounds fallback pins the fractionally-corresponding point of the source ink box).

@@ -1966,6 +1966,9 @@ void ui_duke_psd_seth_text_edit_preview_if_available() {
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   const auto hit_widget_point = canvas->widget_position_for_document_point(target->bounds.center());
+  // The layer keeps Photoshop's raster since import no longer regenerates big-effect
+  // text, so entering the editor may warn about the fixture's missing font.
+  accept_missing_psd_text_font_warning_if_present();
   send_mouse(*canvas, QEvent::MouseButtonPress, hit_widget_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, hit_widget_point, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
