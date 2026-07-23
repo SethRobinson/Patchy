@@ -898,7 +898,11 @@ void psd_photoshop_stroke_aa_matte_fixture_matches_render() {
 // saturated depths and the altitude-60 mid-depth highlight tail
 // (docs/ps-compat.md).
 void psd_photoshop_pillow_emboss_fixtures_match_render() {
-  for (const auto* stem : {"photoshop-pillow-emboss", "photoshop-pillow-emboss2"}) {
+  // photoshop-emboss-styles adds AA-ellipse pillow probes (fringe pixels
+  // carry BOTH sides' shading — the two-sided composite) and plain-Emboss
+  // squares/ellipse (same calibrated model, one global sign, no flip).
+  for (const auto* stem :
+       {"photoshop-pillow-emboss", "photoshop-pillow-emboss2", "photoshop-emboss-styles"}) {
     const auto psd_path = patchy::test::committed_psd_fixture_path(std::string(stem) + ".psd");
     const auto bmp_path = psd_path.parent_path() / (std::string(stem) + ".bmp");
     CHECK(std::filesystem::exists(psd_path));
