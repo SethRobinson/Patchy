@@ -806,6 +806,127 @@ void psd_photoshop_outer_glow_fixtures_match_render() {
   CHECK(static_cast<double>(over_aa_tolerance) / extreme_pixels <= 0.08);
 }
 
+double fraction_over_delta(const patchy::PixelBuffer& reference, const patchy::PixelBuffer& rendered,
+                           int tolerance) {
+  std::uint64_t over = 0;
+  for (std::int32_t y = 0; y < reference.height(); ++y) {
+    for (std::int32_t x = 0; x < reference.width(); ++x) {
+      const auto* a = reference.pixel(x, y);
+      const auto* b = rendered.pixel(x, y);
+      int max_delta = 0;
+      for (int channel = 0; channel < 3; ++channel) {
+        max_delta = std::max(max_delta,
+                             std::abs(static_cast<int>(a[channel]) - static_cast<int>(b[channel])));
+      }
+      if (max_delta > tolerance) {
+        ++over;
+      }
+    }
+  }
+  return static_cast<double>(over) /
+         (static_cast<double>(reference.width()) * static_cast<double>(reference.height()));
+}
+
+// Photoshop 2026 authored all three inner-effect fixtures via COM (July 2026):
+// mid-gray backdrops with filled rectangles and bars, a square-with-hole, and
+// an anti-aliased ellipse. They pin the calibrated interior pipeline (inverse
+// matte -> integer choke dilation -> tent blur -> Range gain, Center source =
+// complement of the gained Edge field) and the ColorDodge effect-alpha fold.
+void psd_photoshop_inner_glow_fixtures_match_render() {
+  const auto range_path = patchy::test::committed_psd_fixture_path("photoshop-inner-glow-range.psd");
+  const auto range_bmp = range_path.parent_path() / "photoshop-inner-glow-range.bmp";
+  CHECK(std::filesystem::exists(range_path));
+  CHECK(std::filesystem::exists(range_bmp));
+
+  const auto document = patchy::psd::DocumentIo::read_file(range_path);
+  const auto* sq25 = find_layer_named(document.layers(), "sq25");
+  CHECK(sq25 != nullptr);
+  const auto* sq25_glow = first_enabled_inner_glow(*sq25);
+  CHECK(sq25_glow != nullptr);
+  CHECK(sq25_glow->technique == patchy::LayerGlowTechnique::Softer);
+  CHECK(close_float(sq25_glow->range, 25.0F));
+  CHECK(close_float(sq25_glow->size, 18.0F));
+  CHECK(sq25_glow->source == patchy::LayerInnerGlowSource::Edge);
+  const auto* bar50 = find_layer_named(document.layers(), "bar50");
+  CHECK(bar50 != nullptr);
+  const auto* bar50_glow = first_enabled_inner_glow(*bar50);
+  CHECK(bar50_glow != nullptr);
+  CHECK(bar50_glow->blend_mode == patchy::BlendMode::Screen);
+  CHECK(close_float(bar50_glow->size, 17.0F));
+  CHECK(close_float(bar50_glow->choke, 8.0F));
+  CHECK(close_float(bar50_glow->opacity, 0.35F));
+  CHECK(close_float(bar50_glow->range, 50.0F));
+  const auto* ctr50 = find_layer_named(document.layers(), "ctr50");
+  CHECK(ctr50 != nullptr);
+  const auto* ctr50_glow = first_enabled_inner_glow(*ctr50);
+  CHECK(ctr50_glow != nullptr);
+  CHECK(ctr50_glow->source == patchy::LayerInnerGlowSource::Center);
+  CHECK(close_float(ctr50_glow->range, 50.0F));
+
+  const auto reference_flat =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(range_bmp));
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  // Straight-edge profiles are byte-exact (the compositor unit tests pin them);
+  // the residual is ~20 pixels of the ColorDodge arm's two-edge overlap where
+  // Photoshop's between-pass tent rounding shifts the mask ~1/255 and dodge
+  // amplifies it several-fold.
+  CHECK(metrics.max_channel_delta <= 6);
+  CHECK(metrics.mean_abs_channel_delta <= 0.10);
+
+  // GlwT and Inpr survive a Patchy re-save.
+  const auto round_tripped =
+      patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* round_tripped_sq25 = find_layer_named(round_tripped.layers(), "sq25");
+  CHECK(round_tripped_sq25 != nullptr);
+  const auto* round_tripped_glow = first_enabled_inner_glow(*round_tripped_sq25);
+  CHECK(round_tripped_glow != nullptr);
+  CHECK(round_tripped_glow->technique == patchy::LayerGlowTechnique::Softer);
+  CHECK(close_float(round_tripped_glow->range, 25.0F));
+
+  // Extremes: choke-100 hard band around a hole, size 40, AA ellipse with
+  // choke, small Center square with choke past the exact-dilation limit.
+  const auto extreme_path = patchy::test::committed_psd_fixture_path("photoshop-inner-glow.psd");
+  const auto extreme_bmp = extreme_path.parent_path() / "photoshop-inner-glow.bmp";
+  CHECK(std::filesystem::exists(extreme_path));
+  CHECK(std::filesystem::exists(extreme_bmp));
+  const auto extreme_document = patchy::psd::DocumentIo::read_file(extreme_path);
+  const auto extreme_reference =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(extreme_bmp));
+  const auto extreme_flat = patchy::Compositor{}.flatten_rgb8(extreme_document);
+  const auto extreme_metrics = rgb_diff_metrics(extreme_reference, extreme_flat);
+  CHECK(extreme_metrics.mean_abs_channel_delta <= 1.2);
+  CHECK(fraction_over_delta(extreme_reference, extreme_flat, 6) <= 0.08);
+}
+
+void psd_photoshop_inner_shadow_fixture_matches_render() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-inner-shadow.psd");
+  const auto bmp = path.parent_path() / "photoshop-inner-shadow.bmp";
+  CHECK(std::filesystem::exists(path));
+  CHECK(std::filesystem::exists(bmp));
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto* choke50 = find_layer_named(document.layers(), "choke50");
+  CHECK(choke50 != nullptr);
+  const auto* choke50_shadow = first_enabled_inner_shadow(*choke50);
+  CHECK(choke50_shadow != nullptr);
+  CHECK(close_float(choke50_shadow->choke, 50.0F));
+  CHECK(close_float(choke50_shadow->size, 18.0F));
+  const auto* dist = find_layer_named(document.layers(), "dist");
+  CHECK(dist != nullptr);
+  const auto* dist_shadow = first_enabled_inner_shadow(*dist);
+  CHECK(dist_shadow != nullptr);
+  CHECK(close_float(dist_shadow->distance, 5.0F));
+  CHECK(close_float(dist_shadow->size, 7.0F));
+
+  const auto reference_flat =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp));
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  CHECK(metrics.max_channel_delta <= 3);
+  CHECK(metrics.mean_abs_channel_delta <= 0.10);
+}
+
 // Photoshop 2026 authored photoshop-bevel-smooth.psd via COM (July 2026): mid-tone
 // rectangles and a thin bar on white with smooth inner bevels at sizes 5/10,
 // altitudes 30/60, and the Contour sub-option off / Linear-Range-50 /
@@ -1544,6 +1665,10 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_arrows_imports_photoshop_inner_effects},
       {"psd_photoshop_outer_glow_fixtures_match_render",
        psd_photoshop_outer_glow_fixtures_match_render},
+      {"psd_photoshop_inner_glow_fixtures_match_render",
+       psd_photoshop_inner_glow_fixtures_match_render},
+      {"psd_photoshop_inner_shadow_fixture_matches_render",
+       psd_photoshop_inner_shadow_fixture_matches_render},
       {"psd_photoshop_bevel_smooth_fixture_matches_render",
        psd_photoshop_bevel_smooth_fixture_matches_render},
       {"psd_photoshop_stroke_aa_matte_fixture_matches_render",

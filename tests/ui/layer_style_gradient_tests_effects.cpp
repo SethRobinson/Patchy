@@ -1377,6 +1377,52 @@ void ui_layer_style_outer_glow_technique_and_range_map_to_settings() {
   CHECK(result.spread == 8.0F);
 }
 
+void ui_layer_style_inner_glow_technique_and_range_map_to_settings() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Glow Styled",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerInnerGlow glow;
+  glow.enabled = true;
+  glow.technique = patchy::LayerGlowTechnique::Precise;
+  glow.range = 80.0F;
+  layer.layer_style().inner_glows.push_back(glow);
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* technique = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleInnerGlowTechniqueCombo"));
+    auto* range = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleInnerGlowRangeSpin"));
+    auto* choke = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleInnerGlowChokeSpin"));
+    CHECK(categories != nullptr);
+    CHECK(technique != nullptr);
+    CHECK(range != nullptr);
+    CHECK(choke != nullptr);
+    // The imported values load into the controls.
+    CHECK(technique->currentData().toInt() == static_cast<int>(patchy::LayerGlowTechnique::Precise));
+    CHECK(range->value() == 80);
+    const auto glow_items = categories->findItems(QStringLiteral("Inner Glow"), Qt::MatchExactly);
+    CHECK(!glow_items.empty());
+    categories->setCurrentItem(glow_items.front());
+    QApplication::processEvents();
+    CHECK(!range->visibleRegion().isEmpty());
+    technique->setCurrentIndex(
+        std::max(0, technique->findData(static_cast<int>(patchy::LayerGlowTechnique::Softer))));
+    range->setValue(25);
+    choke->setValue(8);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(settings.has_value());
+  CHECK(settings->style.inner_glows.size() == 1);
+  const auto& result = settings->style.inner_glows.front();
+  CHECK(result.enabled);
+  CHECK(result.technique == patchy::LayerGlowTechnique::Softer);
+  CHECK(result.range == 25.0F);
+  CHECK(result.choke == 8.0F);
+}
+
 void ui_layer_style_pattern_warning_follows_resolvability() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Photoshop Effects",
@@ -1547,6 +1593,8 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
       {"ui_layer_style_satin_controls_map_to_settings", ui_layer_style_satin_controls_map_to_settings},
       {"ui_layer_style_outer_glow_technique_and_range_map_to_settings",
        ui_layer_style_outer_glow_technique_and_range_map_to_settings},
+      {"ui_layer_style_inner_glow_technique_and_range_map_to_settings",
+       ui_layer_style_inner_glow_technique_and_range_map_to_settings},
       {"ui_layer_style_pattern_warning_follows_resolvability",
        ui_layer_style_pattern_warning_follows_resolvability},
       {"ui_layer_style_bevel_texture_missing_pattern_presents_unchecked",

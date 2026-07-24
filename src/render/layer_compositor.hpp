@@ -360,14 +360,17 @@ inline float shape_burst_stroke_opacity(const LayerStyleGradient& gradient, floa
 }
 
 // Photoshop composites layer-effect planes with the effect's alpha FOLDED into
-// the source color toward white for the burn modes, then blends at full
-// coverage (COM-probed July 2026 over a gray backdrop: a 50%-opacity black
-// linearBurn shadow subtracts an absolute 255 x alpha from every channel and
-// colorBurn matches the folded curve exactly, both refuting the plain
-// lerp(b, blend(b, color), alpha) model; Normal, Multiply, and Darken keep the
-// plain model, and the affine modes — Multiply, Screen, LinearDodge — are
-// algebraically identical either way). Every effect draw goes through here;
-// layer PIXEL compositing keeps the standard model.
+// the source color toward the mode's neutral, then blends at full coverage:
+// toward white for the burn modes (COM-probed July 2026 over a gray backdrop: a
+// 50%-opacity black linearBurn shadow subtracts an absolute 255 x alpha from
+// every channel and colorBurn matches the folded curve exactly, both refuting
+// the plain lerp(b, blend(b, color), alpha) model) and toward BLACK for
+// colorDodge (the July 2026 inner-glow repro probe: a pale-blue 77% colorDodge
+// glow matches blend(b, color x alpha) within 2/255 while the plain model
+// overshoots by ~15). Normal, Multiply, and Darken keep the plain model, and
+// the affine modes — Multiply, Screen, LinearDodge — are algebraically
+// identical either way. Every effect draw goes through here; layer PIXEL
+// compositing keeps the standard model.
 template <typename Target>
 inline void composite_effect_color(Target& destination, std::int32_t x, std::int32_t y, RgbColor color,
                                    float alpha, BlendMode mode) {
@@ -375,6 +378,15 @@ inline void composite_effect_color(Target& destination, std::int32_t x, std::int
     const auto fold = [alpha](std::uint8_t channel) {
       return static_cast<std::uint8_t>(
           std::clamp<long>(std::lround(255.0F - (255.0F - static_cast<float>(channel)) * alpha), 0L, 255L));
+    };
+    destination.composite_color(x, y, RgbColor{fold(color.red), fold(color.green), fold(color.blue)},
+                                alpha > 0.0F ? 1.0F : 0.0F, mode);
+    return;
+  }
+  if (mode == BlendMode::ColorDodge) {
+    const auto fold = [alpha](std::uint8_t channel) {
+      return static_cast<std::uint8_t>(
+          std::clamp<long>(std::lround(static_cast<float>(channel) * alpha), 0L, 255L));
     };
     destination.composite_color(x, y, RgbColor{fold(color.red), fold(color.green), fold(color.blue)},
                                 alpha > 0.0F ? 1.0F : 0.0F, mode);
@@ -523,14 +535,11 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
   const auto radians = (180.0F - shadow.angle_degrees) * kPi / 180.0F;
   const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
   const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
-  const auto choke_unit = clamp_unit(shadow.choke / 100.0F);
-  const auto blur_radius = interior_style_blur_radius(shadow.size * (1.0F - choke_unit));
-  // The choke = 0 padding must stay exactly the historical one: a wider window
-  // shifts the box blur's running-sum rounding, and choke 0 is pinned bit for bit.
-  auto sample_padding = blur_radius * 3 + std::max(std::abs(offset_x), std::abs(offset_y)) + 1;
-  if (choke_unit > 0.0F) {
-    sample_padding += static_cast<int>(std::ceil(std::max(0.0F, shadow.size) * choke_unit)) + 1;
-  }
+  // The COM-calibrated interior pipeline (July 2026, distance-0 probes at sizes
+  // 5-40 and chokes 0-50 matched byte-for-byte): choke dilation of the inverse
+  // matte, then the tent blur. Padding covers choke reach + tent reach + offset.
+  const auto sample_padding = static_cast<int>(std::lround(std::max(0.0F, shadow.size))) +
+                              std::max(std::abs(offset_x), std::abs(offset_y)) + 2;
   const auto full_domain = outset_rect(bounds, sample_padding);
   const auto legacy_mask_bounds = clipped_mask_bounds(full_domain, draw_rect, sample_padding);
   const auto [entry, mask_bounds] = style_mask_for_render(
@@ -539,8 +548,8 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
         StyleMaskEntry computed;
         computed.primary =
             layer_alpha_mask(source, layer, bounds, domain, -offset_x, -offset_y, layer_mask_bounds);
-        prepare_layer_style_interior_falloff_mask(computed.primary, domain.width, domain.height, shadow.size,
-                                                  shadow.choke);
+        prepare_photoshop_interior_soft_mask(computed.primary, domain.width, domain.height, shadow.size,
+                                             shadow.choke);
         return computed;
       });
   const auto width = mask_bounds.width;
@@ -579,13 +588,25 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
     return;
   }
 
+  // Softer (Photoshop's default technique) is the COM-calibrated interior
+  // pipeline: inverse matte -> integer choke dilation -> tent blur -> Range
+  // gain, with Center as the complement (see prepare_inner_glow_softer_mask).
+  // Precise keeps the historical box-blur falloff verbatim (uncalibrated, like
+  // the outer glow's Precise; Range is not applied there).
+  const auto softer = glow.technique == LayerGlowTechnique::Softer;
   const auto choke_unit = clamp_unit(glow.choke / 100.0F);
   const auto blur_radius = interior_style_blur_radius(glow.size * (1.0F - choke_unit));
-  // The choke = 0 padding must stay exactly the historical one: a wider window
-  // shifts the box blur's running-sum rounding, and choke 0 is pinned bit for bit.
-  auto sample_padding = blur_radius * 3 + 1;
-  if (choke_unit > 0.0F) {
-    sample_padding += static_cast<int>(std::ceil(std::max(0.0F, glow.size) * choke_unit)) + 1;
+  int sample_padding = 0;
+  if (softer) {
+    // Covers the choke dilation reach plus the tent reach for every choke split.
+    sample_padding = static_cast<int>(std::lround(std::max(0.0F, glow.size))) + 2;
+  } else {
+    // The choke = 0 padding must stay exactly the historical one: a wider window
+    // shifts the box blur's running-sum rounding, and choke 0 is pinned bit for bit.
+    sample_padding = blur_radius * 3 + 1;
+    if (choke_unit > 0.0F) {
+      sample_padding += static_cast<int>(std::ceil(std::max(0.0F, glow.size) * choke_unit)) + 1;
+    }
   }
   const auto full_domain = outset_rect(bounds, sample_padding);
   const auto legacy_mask_bounds = clipped_mask_bounds(full_domain, draw_rect, sample_padding);
@@ -594,16 +615,19 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
       layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
         computed.primary = layer_alpha_mask(source, layer, bounds, domain, 0, 0, layer_mask_bounds);
-        if (glow.source == LayerInnerGlowSource::Center && choke_unit <= 0.0F) {
+        if (softer) {
+          prepare_inner_glow_softer_mask(computed.primary, domain.width, domain.height, glow.size,
+                                         glow.choke, glow.range,
+                                         glow.source == LayerInnerGlowSource::Center);
+        } else if (glow.source == LayerInnerGlowSource::Center && choke_unit <= 0.0F) {
           // The historical Center-source path: the blurred matte itself is the glow field.
           blur_mask_in_place(computed.primary, domain.width, domain.height, blur_radius, 3);
         } else {
           prepare_layer_style_interior_falloff_mask(computed.primary, domain.width, domain.height, glow.size,
                                                     glow.choke);
           if (glow.source == LayerInnerGlowSource::Center) {
-            // Center source with choke: Photoshop erodes the matte geometrically, so the
-            // glow retreats to the choked core (COM-probed: choke 100 leaves a hard
-            // Euclidean erosion by the full size).
+            // Center source with choke: the glow retreats to the choked core (choke 100
+            // leaves a hard Euclidean erosion by the full size).
             for (auto& value : computed.primary) {
               value = clamp_unit(1.0F - value);
             }

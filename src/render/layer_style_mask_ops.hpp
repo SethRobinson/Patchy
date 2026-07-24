@@ -93,6 +93,12 @@ void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, int heig
 void prepare_outer_glow_softer_mask(std::vector<float>& mask, int width, int height, float size, float spread,
                                     float range);
 
+void prepare_photoshop_interior_soft_mask(std::vector<float>& mask, int width, int height, float size,
+                                          float choke);
+
+void prepare_inner_glow_softer_mask(std::vector<float>& mask, int width, int height, float size,
+                                    float choke, float range, bool center_source);
+
 int interior_style_blur_radius(float size) noexcept;
 
 void prepare_layer_style_interior_falloff_mask(std::vector<float>& mask, int width, int height, float size,

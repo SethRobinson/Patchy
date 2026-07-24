@@ -368,60 +368,68 @@ namespace {
 // exposes the kernel's support (per-glyph boxes jutting out of
 // qual_rca_pinout.psd's spread-100 label plates) and turns float dust into
 // pixels.
+// Bounded exact grayscale dilation by an integer radius: max of value x
+// area-sampled-disc coverage with exact Euclidean distances. Beyond the limit
+// (rare: a spread/choke over ~30% of a large size) the chamfer band keeps the
+// historical behavior; its binarization error is proportionally small at such
+// radii. Shared by the exterior spread and the interior choke, arithmetic and
+// iteration order verbatim from the pinned exterior pipeline.
+void dilate_layer_style_mask_by_radius(std::vector<float>& mask, int width, int height, int radius) {
+  if (radius <= 0 || width <= 0 || height <= 0 || mask.empty()) {
+    return;
+  }
+  constexpr int kExactDilationRadiusLimit = 8;
+  if (radius <= kExactDilationRadiusLimit) {
+    const int reach = radius + 1;
+    std::vector<float> weights;
+    std::vector<int> offsets_x;
+    std::vector<int> offsets_y;
+    for (int dy = -reach; dy <= reach; ++dy) {
+      for (int dx = -reach; dx <= reach; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        const auto distance = std::sqrt(static_cast<double>(dx) * dx + static_cast<double>(dy) * dy);
+        const auto coverage = std::clamp(static_cast<double>(radius) + 1.0 - distance, 0.0, 1.0);
+        if (coverage > 0.0) {
+          weights.push_back(static_cast<float>(coverage));
+          offsets_x.push_back(dx);
+          offsets_y.push_back(dy);
+        }
+      }
+    }
+    std::vector<float> dilated(mask);
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const auto index =
+            static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
+        auto value = dilated[index];
+        for (std::size_t tap = 0; tap < weights.size(); ++tap) {
+          const auto sx = x + offsets_x[tap];
+          const auto sy = y + offsets_y[tap];
+          if (sx < 0 || sy < 0 || sx >= width || sy >= height) {
+            continue;
+          }
+          const auto candidate =
+              mask[static_cast<std::size_t>(sy) * static_cast<std::size_t>(width) + static_cast<std::size_t>(sx)] *
+              weights[tap];
+          value = std::max(value, candidate);
+        }
+        dilated[index] = value;
+      }
+    }
+    mask.swap(dilated);
+  } else {
+    expand_layer_style_mask_in_place(mask, width, height, static_cast<float>(radius), 1.0F);
+  }
+}
+
 void prepare_photoshop_soft_effect_mask(std::vector<float>& mask, int width, int height, float size,
                                         float spread) {
   const auto rounded_size = std::lround(std::max(0.0F, size));
   const auto spread_radius =
       static_cast<int>(std::lround(std::max(0.0F, size) * clamp_unit(spread / 100.0F)));
-  if (spread_radius > 0 && width > 0 && height > 0 && !mask.empty()) {
-    // Bounded exact grayscale dilation. Beyond the limit (rare: spread over
-    // ~30% of a large size) the chamfer band keeps the historical behavior;
-    // its binarization error is proportionally small at such radii.
-    constexpr int kExactDilationRadiusLimit = 8;
-    if (spread_radius <= kExactDilationRadiusLimit) {
-      const int reach = spread_radius + 1;
-      std::vector<float> weights;
-      std::vector<int> offsets_x;
-      std::vector<int> offsets_y;
-      for (int dy = -reach; dy <= reach; ++dy) {
-        for (int dx = -reach; dx <= reach; ++dx) {
-          if (dx == 0 && dy == 0) {
-            continue;
-          }
-          const auto distance = std::sqrt(static_cast<double>(dx) * dx + static_cast<double>(dy) * dy);
-          const auto coverage = std::clamp(static_cast<double>(spread_radius) + 1.0 - distance, 0.0, 1.0);
-          if (coverage > 0.0) {
-            weights.push_back(static_cast<float>(coverage));
-            offsets_x.push_back(dx);
-            offsets_y.push_back(dy);
-          }
-        }
-      }
-      std::vector<float> dilated(mask);
-      for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-          const auto index =
-              static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
-          auto value = dilated[index];
-          for (std::size_t tap = 0; tap < weights.size(); ++tap) {
-            const auto sx = x + offsets_x[tap];
-            const auto sy = y + offsets_y[tap];
-            if (sx < 0 || sy < 0 || sx >= width || sy >= height) {
-              continue;
-            }
-            const auto candidate =
-                mask[static_cast<std::size_t>(sy) * static_cast<std::size_t>(width) + static_cast<std::size_t>(sx)] *
-                weights[tap];
-            value = std::max(value, candidate);
-          }
-          dilated[index] = value;
-        }
-      }
-      mask.swap(dilated);
-    } else {
-      expand_layer_style_mask_in_place(mask, width, height, static_cast<float>(spread_radius), 1.0F);
-    }
-  }
+  dilate_layer_style_mask_by_radius(mask, width, height, spread_radius);
   if (rounded_size > 0) {
     const auto tent_peak = std::max<long>(2, rounded_size) - spread_radius;
     if (tent_peak >= 2) {
@@ -453,6 +461,55 @@ void prepare_outer_glow_softer_mask(std::vector<float>& mask, int width, int hei
   prepare_photoshop_soft_effect_mask(mask, width, height, size, spread);
   const auto gain = 100.0F / std::clamp(range, 1.0F, 100.0F);
   if (gain > 1.0F) {
+    for (auto& value : mask) {
+      value = std::min(1.0F, value * gain);
+    }
+  }
+}
+
+// The interior mirror of the exterior pipeline above (COM-probed July 2026 with
+// square, bar, dot, hole, and small-square renders at sizes 1-40 and chokes
+// 0-100; straight edges, the choke sweep, and the 5x5 dot's 2D corners matched
+// Photoshop byte-for-byte): the INVERSE matte expands by the integer choke
+// radius lround(choke% x size) and the remaining size blurs with the tent
+// N = max(2, lround(size)) - choke radius. Choke 100 or size 0 leaves the hard
+// Euclidean band; sizes 1-2 still blur with the N=2 tent. Turns the shape's
+// alpha matte into the interior falloff field, 1 at the contour fading to 0
+// inside. Inner shadows use this raw field; inner glows add Range below.
+void prepare_photoshop_interior_soft_mask(std::vector<float>& mask, int width, int height, float size,
+                                          float choke) {
+  const auto rounded_size = std::lround(std::max(0.0F, size));
+  const auto choke_radius =
+      static_cast<int>(std::lround(std::max(0.0F, size) * clamp_unit(choke / 100.0F)));
+  for (auto& value : mask) {
+    value = 1.0F - clamp_unit(value);
+  }
+  dilate_layer_style_mask_by_radius(mask, width, height, choke_radius);
+  if (rounded_size > 0) {
+    const auto tent_peak = std::max<long>(2, rounded_size) - choke_radius;
+    if (tent_peak >= 2) {
+      blur_satin_tent_mask_in_place(mask, width, height, static_cast<float>(tent_peak));
+    }
+  }
+}
+
+// Photoshop's inner-glow "Softer" technique: the interior falloff above, then
+// the Quality > Range ('Inpr') gain min(1, v x 100/range) - identical to the
+// outer glow's, applied AFTER the blur (the choke-50 x Range-50 probe pinned
+// the order). The Center source is the exact COMPLEMENT of the gained Edge
+// field (Center probes at choke 0/50 and Range 25-100 matched 255 - edge byte
+// for byte), which also reproduces the historical blurred-matte look at choke 0
+// and the hard geometric erosion at choke 100. A descriptor that omits 'Inpr'
+// renders at Range 100; the UI writes 50, so typical files double the raw blur.
+void prepare_inner_glow_softer_mask(std::vector<float>& mask, int width, int height, float size,
+                                    float choke, float range, bool center_source) {
+  prepare_photoshop_interior_soft_mask(mask, width, height, size, choke);
+  const auto gain = 100.0F / std::clamp(range, 1.0F, 100.0F);
+  if (center_source) {
+    for (auto& value : mask) {
+      value = 1.0F - std::min(1.0F, value * gain);
+    }
+  } else if (gain > 1.0F) {
     for (auto& value : mask) {
       value = std::min(1.0F, value * gain);
     }

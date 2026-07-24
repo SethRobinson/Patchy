@@ -2587,6 +2587,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   add_blend_mode_items(inner_glow_blend);
   inner_glow_blend->setCurrentIndex(std::max(0, inner_glow_blend->findData(static_cast<int>(inner_glow.blend_mode))));
   inner_glow_form->addRow(QObject::tr("Blend Mode"), inner_glow_blend);
+  auto* inner_glow_technique = new QComboBox(inner_glow_group);
+  inner_glow_technique->setObjectName(QStringLiteral("layerStyleInnerGlowTechniqueCombo"));
+  inner_glow_technique->addItem(QObject::tr("Softer"), static_cast<int>(LayerGlowTechnique::Softer));
+  inner_glow_technique->addItem(QObject::tr("Precise"), static_cast<int>(LayerGlowTechnique::Precise));
+  inner_glow_technique->setCurrentIndex(
+      std::max(0, inner_glow_technique->findData(static_cast<int>(inner_glow.technique))));
+  inner_glow_form->addRow(QObject::tr("Technique"), inner_glow_technique);
   auto* inner_glow_opacity =
       add_slider_spin_row(inner_glow_form, inner_glow_group, QObject::tr("Opacity"),
                           QStringLiteral("layerStyleInnerGlowOpacitySpin"), 0, 100,
@@ -2598,6 +2605,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       add_slider_spin_row(inner_glow_form, inner_glow_group, QObject::tr("Choke"),
                           QStringLiteral("layerStyleInnerGlowChokeSpin"), 0, 100,
                           static_cast<int>(std::round(inner_glow.choke)), QStringLiteral("%"));
+  auto* inner_glow_range =
+      add_slider_spin_row(inner_glow_form, inner_glow_group, QObject::tr("Range"),
+                          QStringLiteral("layerStyleInnerGlowRangeSpin"), 1, 100,
+                          static_cast<int>(std::round(inner_glow.range)), QStringLiteral("%"));
   auto* inner_glow_source = new QComboBox(inner_glow_group);
   inner_glow_source->setObjectName(QStringLiteral("layerStyleInnerGlowSourceCombo"));
   inner_glow_source->addItem(QObject::tr("Edge"), static_cast<int>(LayerInnerGlowSource::Edge));
@@ -3027,6 +3038,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.opacity = static_cast<float>(inner_glow_opacity->value()) / 100.0F;
         target.size = static_cast<float>(inner_glow_size->value());
         target.choke = static_cast<float>(inner_glow_choke->value());
+        target.technique = static_cast<LayerGlowTechnique>(inner_glow_technique->currentData().toInt());
+        target.range = static_cast<float>(inner_glow_range->value());
         target.source = static_cast<LayerInnerGlowSource>(inner_glow_source->currentData().toInt());
         target.color = RgbColor{static_cast<std::uint8_t>(inner_glow_red->value()),
                                 static_cast<std::uint8_t>(inner_glow_green->value()),
@@ -3256,6 +3269,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         inner_glow_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
         inner_glow_size->setValue(static_cast<int>(std::round(value.size)));
         inner_glow_choke->setValue(static_cast<int>(std::round(value.choke)));
+        set_combo_data(inner_glow_technique, static_cast<int>(value.technique));
+        inner_glow_range->setValue(std::clamp(static_cast<int>(std::round(value.range)), 1, 100));
         set_combo_data(inner_glow_source, static_cast<int>(value.source));
         inner_glow_red->setValue(value.color.red);
         inner_glow_green->setValue(value.color.green);
@@ -3760,7 +3775,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                      gradient_opacity, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range,
                      outer_glow_red,
                      outer_glow_green, outer_glow_blue, inner_glow_opacity, inner_glow_size, inner_glow_choke,
-                     inner_glow_red, inner_glow_green, inner_glow_blue, satin_opacity, satin_angle, satin_distance,
+                     inner_glow_range, inner_glow_red, inner_glow_green, inner_glow_blue, satin_opacity,
+                     satin_angle, satin_distance,
                      satin_size, satin_red, satin_green, satin_blue, shadow_opacity, shadow_angle, shadow_distance,
                      shadow_size, shadow_spread, shadow_red,
                      shadow_green, shadow_blue, inner_shadow_opacity, inner_shadow_angle, inner_shadow_distance,
@@ -4068,6 +4084,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(outer_glow_technique, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(inner_glow_blend, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(inner_glow_technique, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(inner_glow_source, &QComboBox::currentIndexChanged, &dialog,
                     [&emit_preview](int) { emit_preview(true); });

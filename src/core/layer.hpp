@@ -312,6 +312,12 @@ struct LayerInnerGlow {
   float choke{0.0F};
   float size{5.0F};
   LayerInnerGlowSource source{LayerInnerGlowSource::Edge};
+  LayerGlowTechnique technique{LayerGlowTechnique::Softer};
+  // Photoshop's Quality > Range ('Inpr', percent), shared with the outer glow:
+  // the Softer interior falloff is scaled by 100/range and clamped, so the UI
+  // default of 50 doubles the glow near the contour. The Center source is the
+  // complement of the gained Edge field.
+  float range{50.0F};
 };
 
 struct LayerColorOverlay {

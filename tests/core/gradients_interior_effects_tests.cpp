@@ -886,6 +886,101 @@ void compositor_inner_glow_center_choke_erodes_matte_geometrically() {
   CHECK(flattened.pixel(99, 99)[0] >= 250);  // deep center stays lit
 }
 
+patchy::Document inner_glow_probe_document(patchy::LayerInnerGlow glow) {
+  // Mirrors the July 2026 COM probe geometry: 200x200 black backdrop, 120x120
+  // opaque black square at (40,40), effect at Normal 100% white unless the
+  // caller overrides, so the flattened byte equals round(255 x falloff mask).
+  patchy::Document document(200, 200, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(200, 200, 0, 0, 0));
+  patchy::Layer layer(document.allocate_layer_id(), "Source", solid_rgba(120, 120, 0, 0, 0, 255));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{40, 40, 120, 120});
+  source.layer_style().inner_glows.push_back(glow);
+  return document;
+}
+
+patchy::LayerInnerGlow probe_inner_glow(float size, float choke, float range,
+                                        patchy::LayerInnerGlowSource glow_source) {
+  patchy::LayerInnerGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 255, 255};
+  glow.opacity = 1.0F;
+  glow.size = size;
+  glow.choke = choke;
+  glow.range = range;
+  glow.source = glow_source;
+  return glow;
+}
+
+void compositor_inner_glow_softer_tent_reach() {
+  // Photoshop's size-18 Edge profile at Range 100 (COM probe ig_sq_s18_c0_r100,
+  // byte-exact): the tent dies at ~size, where the historical triple box blur
+  // still painted out to ~1.5 x size.
+  const auto document =
+      inner_glow_probe_document(probe_inner_glow(18.0F, 0.0F, 100.0F, patchy::LayerInnerGlowSource::Edge));
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const std::array<int, 18> expected{120, 107, 94, 83, 72, 61, 52, 43, 35, 28, 22, 17, 12, 8, 5, 2, 1, 0};
+  for (std::size_t depth = 0; depth < expected.size(); ++depth) {
+    const auto value = static_cast<int>(flattened.pixel(40 + static_cast<std::int32_t>(depth), 100)[0]);
+    CHECK(std::abs(value - expected[depth]) <= 1);
+  }
+  CHECK(flattened.pixel(60, 100)[0] == 0);  // depth 20: historical blur painted ~10 here
+  CHECK(flattened.pixel(66, 100)[0] == 0);  // depth 26: deep tail must stay clean
+}
+
+void compositor_inner_glow_range_gain_saturates() {
+  // Range 50 doubles the raw blur and clamps (COM probe ig_sq_s18_c0_r50): the
+  // profile is pointwise min(255, 2 x Range-100) including the saturated head.
+  const auto document =
+      inner_glow_probe_document(probe_inner_glow(18.0F, 0.0F, 50.0F, patchy::LayerInnerGlowSource::Edge));
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const std::array<int, 18> expected{240, 213, 188, 165, 143, 122, 103, 86, 71, 56, 44, 33, 24, 16, 9, 5, 2, 0};
+  for (std::size_t depth = 0; depth < expected.size(); ++depth) {
+    const auto value = static_cast<int>(flattened.pixel(40 + static_cast<std::int32_t>(depth), 100)[0]);
+    CHECK(std::abs(value - expected[depth]) <= 1);
+  }
+  const auto range25 =
+      inner_glow_probe_document(probe_inner_glow(18.0F, 0.0F, 25.0F, patchy::LayerInnerGlowSource::Edge));
+  const auto saturated = patchy::Compositor{}.flatten_rgb8(range25);
+  for (std::int32_t depth = 0; depth <= 4; ++depth) {
+    CHECK(saturated.pixel(40 + depth, 100)[0] == 255);  // x4 gain saturates the head
+  }
+  CHECK(saturated.pixel(57, 100)[0] == 0);  // the tail still dies at ~size
+}
+
+void compositor_inner_glow_center_complements_edge_field() {
+  // The Center source is the exact complement of the gained Edge field (COM
+  // probes ig_sq_s18_c50_r100_ctr vs ig_sq_s18_c50_r100 matched 255 - edge byte
+  // for byte, and the Range-50 Center probe matched 255 - min(255, 2 x edge)).
+  const auto edge_doc =
+      inner_glow_probe_document(probe_inner_glow(18.0F, 50.0F, 100.0F, patchy::LayerInnerGlowSource::Edge));
+  const auto center_doc =
+      inner_glow_probe_document(probe_inner_glow(18.0F, 50.0F, 100.0F, patchy::LayerInnerGlowSource::Center));
+  const auto edge = patchy::Compositor{}.flatten_rgb8(edge_doc);
+  const auto center = patchy::Compositor{}.flatten_rgb8(center_doc);
+  for (std::int32_t depth = 0; depth < 30; ++depth) {
+    const auto sum = static_cast<int>(edge.pixel(40 + depth, 100)[0]) +
+                     static_cast<int>(center.pixel(40 + depth, 100)[0]);
+    CHECK(std::abs(sum - 255) <= 1);
+  }
+}
+
+void compositor_inner_glow_precise_keeps_historical_falloff() {
+  // Technique Precise stays on the historical (uncalibrated) box-blur path, so
+  // pre-change renders of Precise files are unchanged: the size-18 falloff
+  // still reaches past the tent's ~size support.
+  auto glow = probe_inner_glow(18.0F, 0.0F, 100.0F, patchy::LayerInnerGlowSource::Edge);
+  glow.technique = patchy::LayerGlowTechnique::Precise;
+  const auto document = inner_glow_probe_document(glow);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(58, 100)[0] > 3);   // depth 18: the triple box still paints here
+  CHECK(flattened.pixel(60, 100)[0] > 0);   // depth 20: past the tent's support
+  CHECK(flattened.pixel(70, 100)[0] == 0);  // depth 30: past even the historical support
+  CHECK(flattened.pixel(40, 100)[0] > 115);
+  CHECK(flattened.pixel(40, 100)[0] < 130);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> gradients_interior_effects_tests() {
@@ -917,5 +1012,11 @@ std::vector<patchy::test::TestCase> gradients_interior_effects_tests() {
        compositor_inner_glow_full_choke_keeps_rounded_interior},
       {"compositor_inner_glow_center_choke_erodes_matte_geometrically",
        compositor_inner_glow_center_choke_erodes_matte_geometrically},
+      {"compositor_inner_glow_softer_tent_reach", compositor_inner_glow_softer_tent_reach},
+      {"compositor_inner_glow_range_gain_saturates", compositor_inner_glow_range_gain_saturates},
+      {"compositor_inner_glow_center_complements_edge_field",
+       compositor_inner_glow_center_complements_edge_field},
+      {"compositor_inner_glow_precise_keeps_historical_falloff",
+       compositor_inner_glow_precise_keeps_historical_falloff},
   };
 }

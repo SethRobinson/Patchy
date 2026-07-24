@@ -1969,6 +1969,9 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
       glow.size = static_cast<float>(std::max(0.0, effect.double_field(af::tag4("Radi"), 5.0)));
       glow.source = effect.bool_field(af::tag4("Cntr"), false) ? LayerInnerGlowSource::Center
                                                                : LayerInnerGlowSource::Edge;
+      // Affinity glows are plain gaussian falloffs; the raw blur (Range 100)
+      // is the closest match, not Photoshop's doubled UI default.
+      glow.range = 100.0F;
       style.inner_glows.push_back(glow);
     } else if (kind == af::tag4("BevE")) {  // bevel/emboss
       LayerBevelEmboss bevel;

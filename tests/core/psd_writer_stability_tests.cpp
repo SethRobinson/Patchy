@@ -398,6 +398,8 @@ void psd_layer_styles_round_trip_patchy_effects() {
   inner_glow.choke = 10.0F;
   inner_glow.size = 4.0F;
   inner_glow.source = patchy::LayerInnerGlowSource::Edge;
+  inner_glow.technique = patchy::LayerGlowTechnique::Precise;
+  inner_glow.range = 25.0F;
   layer.layer_style().inner_glows.push_back(inner_glow);
 
   patchy::LayerColorOverlay overlay;
@@ -480,6 +482,8 @@ void psd_layer_styles_round_trip_patchy_effects() {
   CHECK(style.inner_glows.size() == 1);
   CHECK(style.inner_glows.front().color.red == 240);
   CHECK(style.inner_glows.front().source == patchy::LayerInnerGlowSource::Edge);
+  CHECK(style.inner_glows.front().technique == patchy::LayerGlowTechnique::Precise);
+  CHECK(style.inner_glows.front().range == 25.0F);
   CHECK(style.color_overlays.size() == 1);
   CHECK(style.color_overlays.front().color.blue == 210);
   CHECK(style.color_overlays.front().opacity == 0.85F);

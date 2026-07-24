@@ -309,7 +309,9 @@ std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect,
   glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
   glow.technique = descriptor_enum(effect, "GlwT", "SfBL") == "PrBL" ? LayerGlowTechnique::Precise
                                                                      : LayerGlowTechnique::Softer;
-  glow.range = std::clamp(static_cast<float>(descriptor_number(effect, "Inpr", 50.0)), 1.0F, 100.0F);
+  // Photoshop renders a glow with no 'Inpr' at Range 100 (COM-probed; the UI
+  // writes 50, so the fallback only fires on Action-Manager-authored files).
+  glow.range = std::clamp(static_cast<float>(descriptor_number(effect, "Inpr", 100.0)), 1.0F, 100.0F);
   return glow;
 }
 
@@ -331,6 +333,10 @@ std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect,
   glow.choke = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
   glow.source = inner_glow_source_from_descriptor(descriptor_enum(effect, "glwS", "SrcE"));
+  glow.technique = descriptor_enum(effect, "GlwT", "SfBL") == "PrBL" ? LayerGlowTechnique::Precise
+                                                                     : LayerGlowTechnique::Softer;
+  // Missing 'Inpr' means Range 100, same as the outer glow above.
+  glow.range = std::clamp(static_cast<float>(descriptor_number(effect, "Inpr", 100.0)), 1.0F, 100.0F);
   return glow;
 }
 
@@ -1434,18 +1440,21 @@ void write_outer_glow_descriptor(BigEndianWriter& writer, const LayerOuterGlow& 
 }
 
 void write_inner_glow_descriptor(BigEndianWriter& writer, const LayerInnerGlow& glow) {
-  write_descriptor_object_header(writer, "", "IrGl", 11);
+  write_descriptor_object_header(writer, "", "IrGl", 12);
   write_descriptor_bool_item(writer, "enab", glow.enabled);
   write_blend_mode_descriptor_item(writer, "Md  ", glow.blend_mode);
   write_rgb_color_descriptor_item(writer, "Clr ", glow.color);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, glow.opacity * 100.0);
+  // GlwT sits between Opct and Ckmt in Photoshop's native IrGl layout, same as OrGl.
+  write_descriptor_enum_item(writer, "GlwT", "BETE",
+                             glow.technique == LayerGlowTechnique::Precise ? "PrBL" : "SfBL");
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, glow.choke);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, glow.size);
   write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
   write_descriptor_enum_item(writer, "glwS", "IGSr", inner_glow_source_descriptor_value(glow.source));
   write_descriptor_unit_float_item(writer, "ShdN", {'#', 'P', 'r', 'c'}, 0.0);
   write_descriptor_bool_item(writer, "AntA", false);
-  write_descriptor_unit_float_item(writer, "Inpr", {'#', 'P', 'r', 'c'}, 50.0);
+  write_descriptor_unit_float_item(writer, "Inpr", {'#', 'P', 'r', 'c'}, glow.range);
 }
 
 void write_color_overlay_descriptor(BigEndianWriter& writer, const LayerColorOverlay& overlay) {
