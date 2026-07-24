@@ -2,7 +2,8 @@
 // (the right dock stack of layers/channels/history/properties/info panels),
 // create_palette_dock, the right-dock-stack resize plumbing
 // (update_right_dock_resize_handle_geometry, set_right_dock_stack_width,
-// handle_right_dock_resize_event), and the collapsible dock title helper.
+// update_right_dock_minimum_width, handle_right_dock_resize_event), and the
+// collapsible dock title helper.
 // Pure function moves from main_window.cpp; behavior must stay identical.
 
 #include "ui/main_window.hpp"
@@ -253,8 +254,20 @@ namespace patchy::ui {
 namespace {
 
 constexpr int kRightDockMinimumWidth = 280;
+// Width the dock chrome adds around a panel: a dock at width W gives its
+// content widget W minus this.
+constexpr int kRightDockChromeWidth = 18;
 constexpr int kRightDockResizeHandleWidth = 7;
 constexpr int kHistoryDockExpandedMinimumHeight = 190;
+
+// The docks that share one width as the right panel stack.
+const std::array<QString, 6>& right_dock_stack_names() {
+  static const std::array<QString, 6> names{
+      QStringLiteral("layersDock"),  QStringLiteral("channelsDock"),
+      QStringLiteral("pathsDock"),   QStringLiteral("historyDock"),
+      QStringLiteral("propertiesDock"), QStringLiteral("infoDock")};
+  return names;
+}
 
 void install_collapsible_dock_title(QDockWidget* dock,
                                     QWidget* content,
@@ -263,7 +276,7 @@ void install_collapsible_dock_title(QDockWidget* dock,
                                     int expanded_maximum_height = QWIDGETSIZE_MAX,
                                     bool initially_expanded = true) {
   dock->setMinimumWidth(kRightDockMinimumWidth);
-  content->setMinimumWidth(kRightDockMinimumWidth - 18);
+  content->setMinimumWidth(kRightDockMinimumWidth - kRightDockChromeWidth);
   if (expanded_minimum_height > 0) {
     dock->setMinimumHeight(expanded_minimum_height);
   }
@@ -271,7 +284,7 @@ void install_collapsible_dock_title(QDockWidget* dock,
 
   auto* title = new QWidget(dock);
   title->setObjectName(object_prefix + QStringLiteral("DockTitle"));
-  title->setMinimumWidth(kRightDockMinimumWidth - 18);
+  title->setMinimumWidth(kRightDockMinimumWidth - kRightDockChromeWidth);
   auto* layout = new QHBoxLayout(title);
   layout->setContentsMargins(7, 3, 7, 3);
   layout->setSpacing(6);
@@ -330,16 +343,80 @@ void MainWindow::update_right_dock_resize_handle_geometry(QWidget* host) {
 }
 
 void MainWindow::set_right_dock_stack_width(int width) {
-  const auto max_width = std::max(kRightDockMinimumWidth, this->width() - 260);
-  const auto target_width = std::clamp(width, kRightDockMinimumWidth, max_width);
-  for (const auto& object_name : {QStringLiteral("layersDock"), QStringLiteral("channelsDock"),
-                                  QStringLiteral("pathsDock"), QStringLiteral("historyDock"),
-                                  QStringLiteral("propertiesDock"), QStringLiteral("infoDock")}) {
+  // Re-measure lazily: styling and retranslation both change the layers
+  // panel's minimum after the docks are built.
+  update_right_dock_minimum_width();
+  const auto minimum = std::max(kRightDockMinimumWidth, right_dock_minimum_width_);
+  const auto max_width = std::max(minimum, this->width() - 260);
+  const auto target_width = std::clamp(width, minimum, max_width);
+  right_dock_pinned_width_ = target_width;
+  for (const auto& object_name : right_dock_stack_names()) {
     auto* dock = findChild<QDockWidget*>(object_name);
     if (dock == nullptr) {
       continue;
     }
     dock->setFixedWidth(target_width);
+    dock->updateGeometry();
+  }
+}
+
+void MainWindow::update_right_dock_minimum_width() {
+  const auto* layers_panel = findChild<QWidget*>(QStringLiteral("layersPanel"));
+  const auto* panel_layout = layers_panel != nullptr ? layers_panel->layout() : nullptr;
+  if (panel_layout == nullptr) {
+    return;
+  }
+  if (blend_combo_ != nullptr) {
+    // Under the app stylesheet the popup list is sized to the field, and the
+    // open list spends part of that width on its frame and scroll bar, so the
+    // field needs that much slack for the longest mode name not to elide in
+    // the list. (Widening only the view does nothing: the styled popup
+    // geometry ignores the view's minimum.)
+    const auto scroll_extent =
+        blend_combo_->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, blend_combo_);
+    blend_combo_->setMinimumWidth(blend_combo_->minimumSizeHint().width() + scroll_extent + 8);
+  }
+  // The platform styles the dock frame, so the chrome around the panel can
+  // only be trusted once the dock has been laid out. An estimate that is off
+  // in either direction breaks the minimum-width geometry: too small lets the
+  // blend/opacity row overflow past the panel's right inset, too large leaves
+  // slack that the row's trailing stretch absorbs, pulling the Fill spin box
+  // out of line with the filter edit's right edge.
+  auto* layers_dock = findChild<QDockWidget*>(QStringLiteral("layersDock"));
+  if (layers_dock != nullptr && layers_panel->isVisible() && layers_panel->width() > 0 &&
+      layers_dock->width() >= layers_panel->width()) {
+    right_dock_chrome_width_ = std::min(layers_dock->width() - layers_panel->width(), 64);
+  }
+  const auto chrome =
+      right_dock_chrome_width_ >= 0 ? right_dock_chrome_width_ : kRightDockChromeWidth;
+  // The blend/opacity row is the widest content in the stack, and its spin
+  // boxes re-measure for the translated prefixes, so a stack narrowed to the
+  // hardcoded floor can clip the Fill spin box and the popup chevrons. The
+  // panel layout's own minimum already accounts for those fixed widths.
+  const auto minimum =
+      std::max(kRightDockMinimumWidth, panel_layout->minimumSize().width() + chrome);
+  if (minimum == right_dock_minimum_width_) {
+    return;
+  }
+  right_dock_minimum_width_ = minimum;
+  // Only the explicit pin tracks whether the stack holds an exact width: Qt's
+  // main-window layout rewrites dock maximum sizes on its own, so they cannot
+  // distinguish a pinned stack from a free one.
+  if (right_dock_pinned_width_ > 0 && right_dock_pinned_width_ < minimum) {
+    // A language switch can widen the row mid-session; keep the pin no
+    // narrower than the new minimum.
+    right_dock_pinned_width_ = minimum;
+  }
+  for (const auto& object_name : right_dock_stack_names()) {
+    auto* dock = findChild<QDockWidget*>(object_name);
+    if (dock == nullptr) {
+      continue;
+    }
+    if (right_dock_pinned_width_ > 0) {
+      dock->setFixedWidth(right_dock_pinned_width_);
+    } else {
+      dock->setMinimumWidth(minimum);
+    }
     dock->updateGeometry();
   }
 }
@@ -689,11 +766,12 @@ void MainWindow::create_docks() {
 
   // One compact row (Photoshop-style): the blend combo hugs its longest mode
   // name and Opacity/Fill are prefixed spin boxes with the toolbar popup
-  // slider, so the panel spends one line here instead of three. The 6 px side
-  // insets sit inside the panel margin so the rows do not read as flush
-  // against the dock edge.
+  // slider, so the panel spends one line here instead of three. No extra side
+  // insets: the panel margin alone places the row, so at the minimum stack
+  // width the Fill spin box's right edge lines up with the name filter and
+  // the layer list below.
   auto* blend_opacity_row = new QHBoxLayout();
-  blend_opacity_row->setContentsMargins(6, 0, 6, 0);
+  blend_opacity_row->setContentsMargins(0, 0, 0, 0);
   blend_opacity_row->setSpacing(6);
   blend_combo_ = new QComboBox(layers_panel);
   add_blend_mode_items(blend_combo_);
@@ -741,14 +819,19 @@ void MainWindow::create_docks() {
     // install inside is a guarded no-op on repeat calls.
     configure_toolbar_spinbox(opacity_spin_, 52);
     configure_toolbar_spinbox(fill_opacity_spin_, 52);
+    // Deferred so the blend combo's own retranslation (which can change its
+    // minimum width) lands before the stack minimum is re-measured.
+    QTimer::singleShot(0, this, [this] { update_right_dock_minimum_width(); });
   });
   layers_layout->addLayout(blend_opacity_row);
 
   // Plain left-packed row: the label, buttons, and filter hug the left edge
   // with the filter absorbing the leftover width (a grid here split the extra
-  // space across its columns and stranded the buttons mid-panel).
+  // space across its columns and stranded the buttons mid-panel). Flush with
+  // the panel margin like the blend row, so the filter's right edge tracks
+  // the layer list's.
   auto* lock_row = new QHBoxLayout();
-  lock_row->setContentsMargins(6, 0, 6, 0);
+  lock_row->setContentsMargins(0, 0, 0, 0);
   lock_row->setSpacing(6);
   auto* lock_label = new QLabel(tr("Lock"), layers_panel);
   bind_widget_text(lock_label, "Lock");
@@ -1094,6 +1177,10 @@ void MainWindow::create_docks() {
   addDockWidget(Qt::RightDockWidgetArea, info_dock);
 
   create_palette_dock();
+  update_right_dock_minimum_width();
+  // Re-measure once the first event-loop pass has shown and styled the docks:
+  // only then can the real dock chrome be read.
+  QTimer::singleShot(0, this, [this] { update_right_dock_minimum_width(); });
 }
 
 void MainWindow::create_palette_dock() {

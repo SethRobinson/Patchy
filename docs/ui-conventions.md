@@ -48,6 +48,7 @@ Blocking refusals and failed operations use `MainWindow::show_status_error` or `
 
 ## Standing UI rules
 
+- The right dock stack's minimum width is measured, not hardcoded: `MainWindow::update_right_dock_minimum_width` derives it from the layers panel layout minimum (whose widest row is the localized blend/opacity row) plus the dock chrome measured from a laid-out dock. At that minimum the blend/opacity row fits exactly, so the Fill spin box's right edge lines up with the name-filter edit. Anything that widens a layers-panel row (new controls, longer prefixes) moves the minimum automatically; do not add a competing hardcoded width, and keep staged `setSidePanelWidth` values in tests comfortably above the measured minimum.
 - The layer context menu always keeps **Edit Layer Styles...** as its first item; `ui_layer_context_menu_keeps_edit_styles_on_top` enforces this.
 - Read modifier state folded from the current event, not `QApplication::keyboardModifiers()`. Live application state can lag event filtering, and offscreen tests retain synthetic modifier bits.
 - Application-wide QSS and hotkey changes require both full release test suites under the handoff rules in `AGENTS.md`.

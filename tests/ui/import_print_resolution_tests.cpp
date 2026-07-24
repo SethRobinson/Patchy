@@ -1729,8 +1729,10 @@ void ui_canvas_tiling_mode_paints_ghost_tiles_live() {
   {
     const auto tiled = render_widget_image(*canvas);
     CHECK(color_close(tiled.pixelColor(ghost_point), QColor(235, 140, 30), 24));
-    // The document's own pixels are untouched by the mode.
-    CHECK(color_close(canvas_pixel(*canvas, QPoint(4, 4)), QColor(235, 140, 30), 24));
+    // The document's own pixels are untouched by the mode. Sample the document
+    // center: at 15% zoom a near-corner point maps within a pixel of the ghost
+    // seam and flips with canvas-centering parity.
+    CHECK(color_close(canvas_pixel(*canvas, QPoint(width / 2, height / 2)), QColor(235, 140, 30), 24));
   }
 
   // A full-layer edit repaints the ghosts in the same pass.

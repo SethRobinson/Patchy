@@ -1649,7 +1649,9 @@ void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
   patchy::Document document(128, 128, patchy::PixelFormat::rgba8());
   patchy::Layer root(document.allocate_layer_id(), "Root Folder", patchy::LayerKind::Group);
   auto* current = &root;
-  for (int depth = 1; depth <= 8; ++depth) {
+  // Deep enough that the indented rows overflow the measured minimum dock
+  // width (which grew past the old 280 px floor) and force horizontal scroll.
+  for (int depth = 1; depth <= 14; ++depth) {
     current->add_child(
         patchy::Layer(document.allocate_layer_id(), "Nested Folder " + std::to_string(depth), patchy::LayerKind::Group));
     current = &current->children().back();

@@ -331,6 +331,7 @@ private:
   bool handle_right_dock_resize_event(QObject* watched, QEvent* event);
   void update_right_dock_resize_handle_geometry(QWidget* host);
   void set_right_dock_stack_width(int width);
+  void update_right_dock_minimum_width();
   bool handle_window_resize_event(QObject* watched, QEvent* event);
   void update_window_resize_cursor(Qt::Edges edges);
   void clear_window_resize_cursor();
@@ -1398,6 +1399,13 @@ private:
   bool right_dock_resizing_{false};
   QPoint right_dock_resize_start_global_;
   int right_dock_resize_start_width_{0};
+  // 0 until update_right_dock_minimum_width() measures the layers panel.
+  int right_dock_minimum_width_{0};
+  // -1 until the chrome around the layers panel is measured from a laid-out
+  // dock; 0 is a valid measurement (frameless docks).
+  int right_dock_chrome_width_{-1};
+  // 0 until set_right_dock_stack_width() pins the stack to an exact width.
+  int right_dock_pinned_width_{0};
   bool spacebar_canvas_pan_down_{false};
   bool spacebar_canvas_pan_dragging_{false};
   bool spacebar_canvas_pan_cursor_active_{false};

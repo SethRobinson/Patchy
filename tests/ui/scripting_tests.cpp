@@ -1240,6 +1240,7 @@ void ui_script_stop_panel_confirm_and_undo() {
     bool panel_clicked = false;
     bool confirm_answered = false;
     bool artifact_saved = false;
+    const char* pending_layer_name = "";
     auto* driver = new QTimer(&window);
     QObject::connect(driver, &QTimer::timeout, &window, [&] {
       for (auto* widget : QApplication::topLevelWidgets()) {
@@ -1261,6 +1262,14 @@ void ui_script_stop_panel_confirm_and_undo() {
           }
         } else if (dialog->objectName() == QStringLiteral("scriptStopPanel") && click_panel &&
                    !panel_clicked) {
+          // The script's first mutation pumps events before its undo snapshot
+          // is recorded, so the panel can appear (and be clicked) with nothing
+          // to undo yet; the confirm samples the snapshot state when it opens.
+          // Wait until the script's layer landed before stopping the run.
+          if (layer_named(patchy::ui::MainWindowTestAccess::document(window),
+                          pending_layer_name) == nullptr) {
+            continue;
+          }
           panel_clicked = true;
           if (!artifact_saved) {
             artifact_saved = true;
@@ -1284,6 +1293,7 @@ void ui_script_stop_panel_confirm_and_undo() {
 
     // Pass 1: Cancel at the confirm - the script must finish normally.
     click_panel = true;
+    pending_layer_name = "stop-cancel-layer";
     CHECK(run_script(window, busy_script.arg(QStringLiteral("stop-cancel-layer"))));
     CHECK(panel_clicked);
     CHECK(confirm_answered);
@@ -1297,6 +1307,7 @@ void ui_script_stop_panel_confirm_and_undo() {
     panel_clicked = false;
     confirm_answered = false;
     confirm_with_undo = true;
+    pending_layer_name = "stop-undo-layer";
     patchy::ui::ScriptEngineHost::RunOptions options;
     options.name = QStringLiteral("stoppable");
     (void)host.run_source(busy_script.arg(QStringLiteral("stop-undo-layer")), std::move(options));
@@ -1542,7 +1553,7 @@ void ui_script_ui_staging_apis() {
   QFile::remove(capture_path);
   CHECK(run_script(window, QStringLiteral(R"JS(
     patchy.ui.setWindowSize(1200, 800);
-    patchy.ui.setSidePanelWidth(300);
+    patchy.ui.setSidePanelWidth(420);
     patchy.ui.setStatusMessage('Staged by script');
     if (!patchy.ui.captureWindow('test-artifacts/ui_script_capture_window.png')) {
       throw new Error('captureWindow returned false');
@@ -1553,7 +1564,9 @@ void ui_script_ui_staging_apis() {
   CHECK(window.height() == 800);
   auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
   CHECK(layers_dock != nullptr);
-  CHECK(layers_dock->width() == 300);
+  // 420 stays above the measured stack minimum, which tracks the localized
+  // blend/opacity row and would clamp a smaller request.
+  CHECK(layers_dock->width() == 420);
   const QImage captured(capture_path);
   CHECK(!captured.isNull());
   CHECK(captured.width() == 1200);
