@@ -1096,6 +1096,114 @@ void psd_photoshop_bevel_smooth_fixture_matches_render() {
   CHECK(metrics.mean_abs_channel_delta <= 0.10);
 }
 
+// Photoshop 2026 authored photoshop-gloss-contour.psd/.bmp via COM (July 2026):
+// the bevel-smooth shapes with non-linear GLOSS contours - the Ring preset at
+// altitudes 30/60 and sizes 5/10, a monotone custom curve, a raised-floor
+// curve (LUT(0) = 128), and a pillow-emboss chisel-hard bar at depth 282 with
+// Ring, mirroring the pinball_from_photoshop.psd bug report. It pins the
+// calibrated gloss model: the LUT remaps the Lambert LIGHT VALUE
+// (L' = LUT(clamp(L, 0, 1))) before the highlight/shadow split, interior flat
+// plateaus genuinely carry the constant LUT(sin alt) wash, and locally flat
+// pixels weight their shading by the matte alpha so exterior flat ground
+// stays clean. The old signed-lighting remap painted LUT(0.5) as constant fog
+// across the whole padded effect rect. Known residual: the lit-side exterior
+// rim of chisel pillow bevels renders brighter than PS's dark tone (the
+// exact lit-rim mapping was not identified; docs/ps-compat.md).
+void psd_photoshop_bevel_gloss_fixture_matches_render() {
+  const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-gloss-contour.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-gloss-contour.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto* ring = find_layer_named(document.layers(), "s5");
+  CHECK(ring != nullptr);
+  CHECK(ring->layer_style().bevels.size() == 1);
+  const auto& ring_bevel = ring->layer_style().bevels.front();
+  CHECK(ring_bevel.enabled);
+  CHECK(ring_bevel.gloss_contour.points.size() == 9U);
+  CHECK(!ring_bevel.contour.enabled);
+  const auto* bar = find_layer_named(document.layers(), "bar6");
+  CHECK(bar != nullptr);
+  CHECK(bar->layer_style().bevels.size() == 1);
+  const auto& bar_bevel = bar->layer_style().bevels.front();
+  CHECK(bar_bevel.style == patchy::BevelEmbossStyleKind::PillowEmboss);
+  CHECK(bar_bevel.technique == patchy::BevelTechnique::ChiselHard);
+  CHECK(!bar_bevel.direction_up);
+  CHECK(close_float(bar_bevel.depth, 2.82F));
+
+  const auto reference =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(reference.width() == flat.width());
+  CHECK(reference.height() == flat.height());
+
+  // Interior flat plateaus carry the constant remap (Ring at altitude 30
+  // brightens the fill, at altitude 60 it darkens it - pinning the L-domain
+  // input), and exterior flat ground stays clean.
+  const auto expect_pixel = [&](std::int32_t x, std::int32_t y, int r, int g, int b,
+                                int tolerance) {
+    const auto* pixel = flat.pixel(x, y);
+    CHECK(std::abs(static_cast<int>(pixel[0]) - r) <= tolerance);
+    CHECK(std::abs(static_cast<int>(pixel[1]) - g) <= tolerance);
+    CHECK(std::abs(static_cast<int>(pixel[2]) - b) <= tolerance);
+  };
+  expect_pixel(160, 60, 136, 110, 91, 2);    // s10 ring, flat interior wash
+  expect_pixel(160, 170, 72, 56, 45, 3);     // s10a60 ring, darkened interior
+  expect_pixel(260, 60, 223, 216, 211, 2);   // cove curve interior
+  expect_pixel(60, 170, 176, 158, 146, 2);   // raised-floor curve interior
+  expect_pixel(232, 170, 255, 255, 255, 1);  // flat ground west of the bar
+  expect_pixel(254, 170, 255, 255, 255, 1);  // flat ground east of the bar
+
+  // Whole-canvas agreement; the tolerance headroom covers the documented
+  // chisel-pillow lit-rim residual and Ring's steep-cliff LUT quantization.
+  std::uint64_t over_tolerance = 0;
+  for (std::int32_t y = 0; y < reference.height(); ++y) {
+    for (std::int32_t x = 0; x < reference.width(); ++x) {
+      const auto* a = reference.pixel(x, y);
+      const auto* b = flat.pixel(x, y);
+      int max_delta = 0;
+      for (int channel = 0; channel < 3; ++channel) {
+        max_delta = std::max(
+            max_delta, std::abs(static_cast<int>(a[channel]) - static_cast<int>(b[channel])));
+      }
+      if (max_delta > 6) {
+        ++over_tolerance;
+      }
+    }
+  }
+  const auto total_pixels =
+      static_cast<double>(reference.width()) * static_cast<double>(reference.height());
+  CHECK(static_cast<double>(over_tolerance) / total_pixels <= 0.025);
+}
+
+// The bug report behind the gloss calibration: pinball_from_photoshop.psd
+// stacks pillow-emboss chisel bevels with the Ring gloss contour at style
+// scale 416.67% over a black backdrop. The old signed-lighting remap painted
+// a constant ~8% highlight fog with EDT medial-axis streaks across the whole
+// padded effect rect (Photoshop renders those flats clean black). The points
+// below sat in that fog at 21-34/255; assert they stay near black.
+void psd_pinball_gloss_pillow_renders_clean_background_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("pinball_from_photoshop.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local pinball_from_photoshop.psd fixture missing: " << path.string()
+              << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flat.width() == 1200);
+  CHECK(flat.height() == 849);
+  const std::array<std::pair<std::int32_t, std::int32_t>, 6> fog_points{{
+      {996, 220}, {216, 376}, {700, 392}, {896, 396}, {992, 424}, {300, 544},
+  }};
+  for (const auto& [x, y] : fog_points) {
+    const auto* pixel = flat.pixel(x, y);
+    CHECK(pixel[0] <= 10);
+    CHECK(pixel[1] <= 10);
+    CHECK(pixel[2] <= 10);
+  }
+}
+
 // Photoshop 2026 authored photoshop-stroke-aa-matte.psd/.bmp via COM (July
 // 2026): an anti-aliased ellipse and a rotated square with solid 10 px
 // outside strokes, plus an AA ellipse with a Shape Burst gradient stroke.
@@ -1813,6 +1921,10 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_gradient_overlay_geometry_fixture_matches_render},
       {"psd_photoshop_bevel_smooth_fixture_matches_render",
        psd_photoshop_bevel_smooth_fixture_matches_render},
+      {"psd_photoshop_bevel_gloss_fixture_matches_render",
+       psd_photoshop_bevel_gloss_fixture_matches_render},
+      {"psd_pinball_gloss_pillow_renders_clean_background_if_available",
+       psd_pinball_gloss_pillow_renders_clean_background_if_available},
       {"psd_photoshop_bevel_texture_fixtures_match_render",
        psd_photoshop_bevel_texture_fixtures_match_render},
       {"psd_photoshop_stroke_aa_matte_fixture_matches_render",

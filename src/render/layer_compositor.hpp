@@ -1105,6 +1105,9 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
       // small-signal gain at every depth, and the shadow side clamps long
       // before the normalized Lambert would; the lit side's tip-past regime
       // stays on the normalized value, depth-1000 probe).
+      // Locally flat surface: the tent/EDT plateaus far from any contour are
+      // exact float constants, so exact-zero differences identify them.
+      const auto surface_is_flat = left == right && top == bottom;
       const auto shade = [&](float sign, float weight) {
         if (weight <= 0.0F) {
           return;
@@ -1121,12 +1124,39 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
           lighting = -((light_z - raw_light) / std::max(0.01F, light_z));
         }
         if (!gloss_is_linear) {
-          // Gloss Contour remaps the signed lighting scalar before the
-          // highlight/shadow split; Linear short-circuits so plain bevels stay
-          // bit-identical to the historical render.
-          const auto remapped = sample_style_contour_lut(
-              gloss_lut, clamp_unit((lighting + 1.0F) * 0.5F), bevel.gloss_anti_aliased);
-          lighting = remapped * 2.0F - 1.0F;
+          // Gloss Contour remaps the Lambert LIGHT VALUE, not the split
+          // shading: L' = LUT(clamp(L, 0, 1)), and the highlight/shadow split
+          // then runs on L' against the flat-face sin(altitude) (COM-calibrated
+          // July 2026, photoshop-gloss-contour fixtures). Flat INTERIOR
+          // plateaus genuinely carry the constant LUT(sin alt) wash (Ring
+          // at altitude 30 brightens the whole fill by 6/255; the altitude-60
+          // arm DARKENS it, pinning the input as L itself, refuting every
+          // signed-lighting mapping), while flat EXTERIOR ground stays clean -
+          // the shading weight of a locally flat pixel is the matte alpha.
+          // Without that gate the flat remap painted constant fog across the
+          // whole padded effect rect outside the shape (the
+          // pinball_from_photoshop garbage). The pillow shadow keeps its
+          // calibrated unnormalized deficit, fed by the remapped raw light.
+          // Linear short-circuits so plain bevels stay bit-identical to the
+          // historical render.
+          if (surface_is_flat) {
+            weight *= matte_alpha;
+            if (weight <= 0.0F) {
+              return;
+            }
+          }
+          const auto remapped_surface = sample_style_contour_lut(
+              gloss_lut, clamp_unit(surface_light), bevel.gloss_anti_aliased);
+          lighting = remapped_surface >= light_z
+                         ? (remapped_surface - light_z) / std::max(0.01F, 1.0F - light_z)
+                         : -((light_z - remapped_surface) / std::max(0.01F, light_z));
+          if (pillow_family && remapped_surface < light_z) {
+            const auto remapped_raw = sample_style_contour_lut(
+                gloss_lut, clamp_unit(raw_light), bevel.gloss_anti_aliased);
+            if (remapped_raw < light_z) {
+              lighting = -((light_z - remapped_raw) / std::max(0.01F, light_z));
+            }
+          }
         }
         if (lighting > 0.0F) {
           composite_effect_color(destination, x, y, bevel.highlight_color,
