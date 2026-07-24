@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 _PAGE = r"""<!DOCTYPE html>
@@ -636,11 +637,26 @@ def write_report_page(run_dir: Path) -> None:
 
 
 def write_status(run_dir: Path, status: dict) -> None:
-    """Atomic-ish status update so the polling page never reads a half-written file."""
+    """Atomic-ish status update so the polling page never reads a half-written file.
+
+    The swap must retry: on Windows os.replace is denied (WinError 5/32) while ANY
+    reader still holds status.json open, and the dashboard server or a polling
+    report page reads it constantly during a live run. Readers hold it only
+    briefly, so a short retry loop rides out the collision."""
     status["run"]["updateCounter"] = status["run"].get("updateCounter", 0) + 1
     temp_path = run_dir / "status.json.tmp"
     temp_path.write_text(json.dumps(status), encoding="utf-8")
-    os.replace(temp_path, run_dir / "status.json")
+    deadline = time.monotonic() + 5.0
+    delay = 0.01
+    while True:
+        try:
+            os.replace(temp_path, run_dir / "status.json")
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, 0.25)
 
 
 def append_history(testy_root: Path, summary: dict) -> None:

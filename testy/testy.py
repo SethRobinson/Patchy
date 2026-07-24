@@ -26,6 +26,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 import traceback
 import webbrowser
 from pathlib import Path
@@ -372,7 +373,35 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         if path == "/testy-run-state":
             self._guarded(self._send_run_state)
             return
+        if path.endswith("/status.json"):
+            self._guarded(self._send_status_json)
+            return
         super().do_GET()
+
+    def _send_status_json(self) -> None:
+        """Serve status.json wholly from memory. The stdlib handler streams with the
+        file handle open for the entire send, and the live run os.replace()ing the
+        same file during that window dies with a Windows sharing error; a big scan's
+        status.json exceeds a megabyte and report pages poll it every 1.2s, so the
+        collision is routine. Read-then-close shrinks the window to microseconds."""
+        target = Path(self.translate_path(self.path))
+        deadline = time.monotonic() + 1.0
+        while True:
+            try:
+                body = target.read_bytes()
+                break
+            except OSError:
+                # Opening mid-swap fails transiently while the run's os.replace
+                # lands; the writer holds it for microseconds, so retry briefly.
+                if time.monotonic() >= deadline:
+                    self.send_error(404)
+                    return
+                time.sleep(0.02)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _send_defaults(self) -> None:
         defaults = config.default_corpus()
@@ -849,7 +878,16 @@ class Runner:
         self.push()
 
     def push(self) -> None:
-        report.write_status(self.run_dir, self.status)
+        try:
+            report.write_status(self.run_dir, self.status)
+        except OSError as error:
+            # A reader that outlasts write_status's retries must not kill a
+            # multi-hour run over a progress refresh; every push writes the full
+            # snapshot, so the next one heals the miss. Terminal states have no
+            # next push and still raise.
+            if self.status.get("state") != "running":
+                raise
+            log(f"could not update status.json ({error}); continuing")
 
     def file_entry(self, index: int) -> dict:
         return self.status["files"][index]

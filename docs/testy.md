@@ -48,6 +48,13 @@ end-of-run source-integrity check compares against the sha1 recorded at first st
 so corpus edits made while the run sat paused are still caught. Crash/kill-interrupted
 runs (status stuck "running" with no process) are offered for resume the same way;
 canceled runs can be resumed too, but only from their own report page's Resume button.
+Status updates are collision-safe on Windows: the run swaps status.json into place
+with a retried os.replace, non-terminal pushes that still fail are logged and skipped
+instead of killing the run, and the server serves status.json from memory rather than
+streaming the open file. Any reader holding the file open makes the swap fail with a
+sharing error (WinError 5); before these guards, big scans died "interrupted" every
+few minutes once status.json grew past a megabyte, because the report page polls it
+every 1.2s and the streamed send held the handle open long enough to collide.
 Failures are terminal: resume never retries a failed or breaker-skipped cell (start a
 fresh run for that; caches make it cheap). Pausing a CLI-started run works via the same
 mechanism, but since that process owns the dashboard, the dashboard exits with it; the
