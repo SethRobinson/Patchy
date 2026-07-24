@@ -684,15 +684,13 @@ void MainWindow::create_docks() {
     QTimer::singleShot(0, this, [this] { reorder_layers_from_list(); });
   });
 
-  auto* layer_control_grid = new QGridLayout();
-  layer_control_grid->setContentsMargins(0, 0, 0, 0);
-  layer_control_grid->setHorizontalSpacing(6);
-  layer_control_grid->setVerticalSpacing(4);
   // One compact row (Photoshop-style): the blend combo hugs its longest mode
   // name and Opacity/Fill are prefixed spin boxes with the toolbar popup
-  // slider, so the panel spends one line here instead of three.
+  // slider, so the panel spends one line here instead of three. The 6 px side
+  // insets sit inside the panel margin so the rows do not read as flush
+  // against the dock edge.
   auto* blend_opacity_row = new QHBoxLayout();
-  blend_opacity_row->setContentsMargins(0, 0, 0, 0);
+  blend_opacity_row->setContentsMargins(6, 0, 6, 0);
   blend_opacity_row->setSpacing(6);
   blend_combo_ = new QComboBox(layers_panel);
   add_blend_mode_items(blend_combo_);
@@ -741,11 +739,17 @@ void MainWindow::create_docks() {
     configure_toolbar_spinbox(opacity_spin_, 52);
     configure_toolbar_spinbox(fill_opacity_spin_, 52);
   });
-  layer_control_grid->addLayout(blend_opacity_row, 0, 0, 1, 3);
+  layers_layout->addLayout(blend_opacity_row);
 
+  // Plain left-packed row: the label, buttons, and filter hug the left edge
+  // with the filter absorbing the leftover width (a grid here split the extra
+  // space across its columns and stranded the buttons mid-panel).
+  auto* lock_row = new QHBoxLayout();
+  lock_row->setContentsMargins(6, 0, 6, 0);
+  lock_row->setSpacing(6);
   auto* lock_label = new QLabel(tr("Lock"), layers_panel);
   bind_widget_text(lock_label, "Lock");
-  layer_control_grid->addWidget(lock_label, 1, 0);
+  lock_row->addWidget(lock_label);
   auto* lock_controls = new QHBoxLayout();
   lock_controls->setContentsMargins(0, 0, 0, 0);
   lock_controls->setSpacing(4);
@@ -800,8 +804,8 @@ void MainWindow::create_docks() {
   // Rides the otherwise-empty stretch space beside the lock buttons instead of
   // spending a panel row of its own.
   lock_controls->addWidget(layer_name_filter_edit_, 1);
-  layer_control_grid->addLayout(lock_controls, 1, 1, 1, 2);
-  layers_layout->addLayout(layer_control_grid);
+  lock_row->addLayout(lock_controls, 1);
+  layers_layout->addLayout(lock_row);
   layers_layout->addWidget(layer_list_, 1);
 
   auto* layer_buttons = new QHBoxLayout();
