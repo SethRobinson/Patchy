@@ -68,6 +68,8 @@ public:
   // Blocks drag reordering while the layer name filter hides rows; a reorder
   // would silently move the filtered-out layers sitting between visible ones.
   void set_drag_blocked(bool blocked);
+  // Invoked once per refused drag attempt so the owner can explain why.
+  void set_drag_blocked_callback(std::function<void()> callback);
   [[nodiscard]] std::optional<LayerDropRequest> take_drop_request();
   void refresh_row_widths();
   bool handle_drag_wheel_at_global_position(QPoint global_position, int primary_delta);
@@ -146,6 +148,9 @@ private:
 
   bool drop_in_progress_{false};
   bool drag_blocked_{false};
+  // After a refused startDrag the button is still down and the base view would
+  // turn the leftover moves into a drag-selection sweep; swallow them instead.
+  bool suppress_drag_select_until_release_{false};
   bool drop_event_uses_viewport_coordinates_{true};
   bool updating_row_widths_{false};
   bool row_mask_update_pending_{false};
@@ -166,6 +171,7 @@ private:
   QWidget* folder_highlight_indicator_{nullptr};
   std::optional<LayerDropRequest> pending_drop_request_;
   std::function<void()> drop_finished_callback_;
+  std::function<void()> drag_blocked_callback_;
   std::function<bool(LayerId, LayerId)> clip_boundary_can_toggle_;
   std::function<void(LayerId)> clip_boundary_toggle_;
   QPointer<QWidget> clip_cursor_widget_;

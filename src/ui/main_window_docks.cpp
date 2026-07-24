@@ -422,6 +422,9 @@ void MainWindow::create_docks() {
 
   auto* layer_list = new LayerListWidget(layers_panel);
   layer_list->set_drop_finished_callback([this] { handle_layer_drop(); });
+  layer_list->set_drag_blocked_callback([this] {
+    show_status_error(tr("Clear the layer name filter to reorder layers"));
+  });
   layer_list->set_clip_boundary_callbacks(
       [this](LayerId upper, LayerId lower) {
         if (!has_active_document()) {
@@ -793,16 +796,18 @@ void MainWindow::create_docks() {
   lock_controls->addWidget(lock_image_pixels_button_);
   lock_controls->addWidget(lock_position_button_);
   lock_controls->addWidget(lock_all_button_);
-  lock_controls->addStretch(1);
-  layer_control_grid->addLayout(lock_controls, 3, 1, 1, 2);
-  layers_layout->addLayout(layer_control_grid);
   layer_name_filter_edit_ = new QLineEdit(layers_panel);
   layer_name_filter_edit_->setObjectName(QStringLiteral("layerNameFilterEdit"));
   layer_name_filter_edit_->setClearButtonEnabled(true);
+  layer_name_filter_edit_->setFixedHeight(24);
   bind_widget_text(layer_name_filter_edit_, "Filter layers by name...");
   connect(layer_name_filter_edit_, &QLineEdit::textChanged, this, [this] { refresh_layer_list(); });
   register_document_widget(layer_name_filter_edit_);
-  layers_layout->addWidget(layer_name_filter_edit_);
+  // Rides the otherwise-empty stretch space beside the lock buttons instead of
+  // spending a panel row of its own.
+  lock_controls->addWidget(layer_name_filter_edit_, 1);
+  layer_control_grid->addLayout(lock_controls, 3, 1, 1, 2);
+  layers_layout->addLayout(layer_control_grid);
   layers_layout->addWidget(layer_list_, 1);
 
   auto* layer_buttons = new QHBoxLayout();

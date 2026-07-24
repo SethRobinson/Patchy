@@ -13156,6 +13156,7 @@ Clipped to the layer below</source>
     <message><source>Running script %1...</source><translation>スクリプト %1 を実行中...</translation></message>
     <message><source>%1 (modified)</source><translation>%1 (変更済み)</translation></message>
     <message><source>Filter layers by name...</source><translation>レイヤー名で絞り込み...</translation></message>
+    <message><source>Clear the layer name filter to reorder layers</source><translation>レイヤーを並べ替えるにはレイヤー名フィルターをクリアしてください</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>

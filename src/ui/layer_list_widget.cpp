@@ -263,6 +263,13 @@ bool LayerListWidget::drop_in_progress() const noexcept {
 
 void LayerListWidget::set_drag_blocked(bool blocked) {
   drag_blocked_ = blocked;
+  if (!blocked) {
+    suppress_drag_select_until_release_ = false;
+  }
+}
+
+void LayerListWidget::set_drag_blocked_callback(std::function<void()> callback) {
+  drag_blocked_callback_ = std::move(callback);
 }
 
 std::optional<LayerDropRequest> LayerListWidget::take_drop_request() {
@@ -591,6 +598,7 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
     }
   } else if (event->type() == QEvent::MouseButtonRelease) {
     row_widget_drag_candidate_ = false;
+    suppress_drag_select_until_release_ = false;
     finish_pending_single_select();
     drag_anchor_layer_id_.reset();
   } else if (event->type() == QEvent::Leave) {
@@ -717,6 +725,10 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     if (mouse_event->buttons() == Qt::NoButton) {
       update_clip_boundary_cursor(nullptr, mouse_event->pos(), mouse_event->modifiers());
     }
+    if (suppress_drag_select_until_release_ && (mouse_event->buttons() & Qt::LeftButton) != 0) {
+      event->accept();
+      return true;
+    }
     if (row_widget_drag_candidate_ && (mouse_event->buttons() & Qt::LeftButton) != 0) {
       if ((mouse_event->pos() - drag_start_position_).manhattanLength() >= QApplication::startDragDistance()) {
         row_widget_drag_candidate_ = false;
@@ -727,11 +739,13 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     }
   } else if (event->type() == QEvent::MouseButtonRelease) {
     row_widget_drag_candidate_ = false;
+    suppress_drag_select_until_release_ = false;
     finish_pending_single_select();
     drag_anchor_layer_id_.reset();
   } else if (event->type() == QEvent::Leave) {
     if ((QApplication::mouseButtons() & Qt::LeftButton) == 0) {
       row_widget_drag_candidate_ = false;
+      suppress_drag_select_until_release_ = false;
       pending_single_select_on_release_ = false;
       drag_anchor_layer_id_.reset();
     }
@@ -901,6 +915,11 @@ void LayerListWidget::startDrag(Qt::DropActions supported_actions) {
     // covers every initiation path, not just Qt's dragEnabled one.
     drag_anchor_layer_id_.reset();
     dragged_layer_ids_.clear();
+    pending_single_select_on_release_ = false;
+    suppress_drag_select_until_release_ = true;
+    if (drag_blocked_callback_) {
+      drag_blocked_callback_();
+    }
     return;
   }
   if (drag_anchor_layer_id_.has_value()) {

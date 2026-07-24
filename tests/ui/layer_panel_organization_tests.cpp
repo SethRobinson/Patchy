@@ -2065,6 +2065,52 @@ void ui_layer_filter_reveal_clears_filter_for_hidden_target() {
   CHECK(layer_list->currentItem() == boat_item);
 }
 
+void ui_layer_filter_drag_attempt_reports_error_without_selection_sweep() {
+  patchy::Document document(48, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Red Layer",
+                           solid_pixels(48, 48, patchy::PixelFormat::rgb8(), QColor(220, 40, 40)));
+  document.add_pixel_layer("Green Layer",
+                           solid_pixels(48, 48, patchy::PixelFormat::rgb8(), QColor(40, 180, 80)));
+  document.add_pixel_layer("Blue Sky",
+                           solid_pixels(48, 48, patchy::PixelFormat::rgb8(), QColor(40, 90, 220)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Filter Drag Feedback"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(layer_list != nullptr);
+  CHECK(filter_edit != nullptr);
+
+  filter_edit->setText(QStringLiteral("layer"));
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 2);
+
+  auto* green_item = require_layer_item(*layer_list, QStringLiteral("Green Layer"));
+  auto* green_name = layer_list->itemWidget(green_item)->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  CHECK(green_name != nullptr);
+  const auto press_point = green_name->rect().center();
+  send_mouse(*green_name, QEvent::MouseButtonPress, press_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*green_name, QEvent::MouseMove, press_point + QPoint(0, 60), Qt::NoButton, Qt::LeftButton);
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Clear the layer name filter to reorder layers"));
+
+  // The button is still down; the leftover moves the platform would deliver to
+  // the viewport must not turn into a drag-selection sweep across the rows.
+  auto* red_item = require_layer_item(*layer_list, QStringLiteral("Red Layer"));
+  const auto red_center = layer_list->visualItemRect(red_item).center();
+  send_mouse(*layer_list->viewport(), QEvent::MouseMove, red_center, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonRelease, red_center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(layer_list->selectedItems().size() <= 1);
+  CHECK(!red_item->isSelected());
+
+  const auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(doc.layers()[0].name() == "Red Layer");
+  CHECK(doc.layers()[1].name() == "Green Layer");
+  CHECK(doc.layers()[2].name() == "Blue Sky");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
@@ -2123,6 +2169,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_layer_filter_empty_match_keeps_document_state},
       {"ui_layer_filter_reveal_clears_filter_for_hidden_target",
        ui_layer_filter_reveal_clears_filter_for_hidden_target},
+      {"ui_layer_filter_drag_attempt_reports_error_without_selection_sweep",
+       ui_layer_filter_drag_attempt_reports_error_without_selection_sweep},
       {"ui_layer_row_selected_highlight_paints", ui_layer_row_selected_highlight_paints},
       {"ui_layer_folder_alt_click_toggles_nested_folders",
        ui_layer_folder_alt_click_toggles_nested_folders},
