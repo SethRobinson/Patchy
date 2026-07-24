@@ -416,19 +416,35 @@ void set_property_label_text(QLabel* label, const QString& text) {
   label->setVisible(!text.trimmed().isEmpty());
 }
 
+// Destination rect that letterboxes a source inside the square thumbnail tile
+// the way Photoshop does: the larger dimension spans the tile, the other is
+// scaled to preserve aspect ratio (never below 1px), centered.
+QRect thumbnail_fit_rect(int source_width, int source_height, int tile_size) {
+  if (source_width <= 0 || source_height <= 0) {
+    return QRect(0, 0, tile_size, tile_size);
+  }
+  const int larger = std::max(source_width, source_height);
+  const int width = std::max(1, (source_width * tile_size + larger / 2) / larger);
+  const int height = std::max(1, (source_height * tile_size + larger / 2) / larger);
+  return QRect((tile_size - width) / 2, (tile_size - height) / 2, width, height);
+}
+
 QPixmap layer_mask_thumbnail(const LayerMask& mask) {
   constexpr int kSize = 28;
   QImage image(kSize, kSize, QImage::Format_RGB888);
   image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
   if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
-    for (int y = 0; y < kSize; ++y) {
-      const auto source_y = std::clamp(static_cast<int>((static_cast<double>(y) / kSize) * mask.pixels.height()), 0,
-                                       std::max(0, mask.pixels.height() - 1));
-      for (int x = 0; x < kSize; ++x) {
-        const auto source_x = std::clamp(static_cast<int>((static_cast<double>(x) / kSize) * mask.pixels.width()), 0,
-                                         std::max(0, mask.pixels.width() - 1));
+    const auto fit = thumbnail_fit_rect(mask.pixels.width(), mask.pixels.height(), kSize);
+    for (int y = 0; y < fit.height(); ++y) {
+      const auto source_y = std::clamp(
+          static_cast<int>((static_cast<double>(y) / fit.height()) * mask.pixels.height()), 0,
+          std::max(0, mask.pixels.height() - 1));
+      for (int x = 0; x < fit.width(); ++x) {
+        const auto source_x = std::clamp(
+            static_cast<int>((static_cast<double>(x) / fit.width()) * mask.pixels.width()), 0,
+            std::max(0, mask.pixels.width() - 1));
         const auto value = *mask.pixels.pixel(source_x, source_y);
-        image.setPixelColor(x, y, QColor(value, value, value));
+        image.setPixelColor(fit.x() + x, fit.y() + y, QColor(value, value, value));
       }
     }
   }
@@ -456,10 +472,11 @@ QPixmap layer_vector_mask_thumbnail(const LayerVectorMask& mask, int document_wi
   image.fill(Qt::black);
   if (!mask.cache.empty() && mask.cache.format() == PixelFormat::gray8() && document_width > 0 &&
       document_height > 0) {
-    for (int y = 0; y < kSize; ++y) {
-      const auto document_y = (static_cast<double>(y) / kSize) * document_height;
-      for (int x = 0; x < kSize; ++x) {
-        const auto document_x = (static_cast<double>(x) / kSize) * document_width;
+    const auto fit = thumbnail_fit_rect(document_width, document_height, kSize);
+    for (int y = 0; y < fit.height(); ++y) {
+      const auto document_y = (static_cast<double>(y) / fit.height()) * document_height;
+      for (int x = 0; x < fit.width(); ++x) {
+        const auto document_x = (static_cast<double>(x) / fit.width()) * document_width;
         const auto local_x = static_cast<int>(document_x) - mask.cache_bounds.x;
         const auto local_y = static_cast<int>(document_y) - mask.cache_bounds.y;
         std::uint8_t value = 0;
@@ -472,7 +489,7 @@ QPixmap layer_vector_mask_thumbnail(const LayerVectorMask& mask, int document_wi
           const auto density = static_cast<int>(mask.density);
           value = static_cast<std::uint8_t>((value * density) / 255 + (255 - density));
         }
-        image.setPixelColor(x, y, QColor(value, value, value));
+        image.setPixelColor(fit.x() + x, fit.y() + y, QColor(value, value, value));
       }
     }
   }
@@ -1124,16 +1141,19 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
 
   const auto& pixels = layer.pixels();
   if (!pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 && pixels.format().channels >= 3) {
-    for (int y = 0; y < kSize; ++y) {
-      const auto source_y = std::clamp(static_cast<int>((static_cast<double>(y) / kSize) * pixels.height()), 0,
-                                       std::max(0, pixels.height() - 1));
-      for (int x = 0; x < kSize; ++x) {
-        const auto source_x = std::clamp(static_cast<int>((static_cast<double>(x) / kSize) * pixels.width()), 0,
-                                         std::max(0, pixels.width() - 1));
+    const auto fit = thumbnail_fit_rect(pixels.width(), pixels.height(), kSize);
+    for (int y = 0; y < fit.height(); ++y) {
+      const auto source_y = std::clamp(
+          static_cast<int>((static_cast<double>(y) / fit.height()) * pixels.height()), 0,
+          std::max(0, pixels.height() - 1));
+      for (int x = 0; x < fit.width(); ++x) {
+        const auto source_x = std::clamp(
+            static_cast<int>((static_cast<double>(x) / fit.width()) * pixels.width()), 0,
+            std::max(0, pixels.width() - 1));
         const auto* px = pixels.pixel(source_x, source_y);
         const auto alpha = pixels.format().channels >= 4 ? static_cast<int>(px[3]) : 255;
-        const auto base = image.pixelColor(x, y);
-        image.setPixelColor(x, y,
+        const auto base = image.pixelColor(fit.x() + x, fit.y() + y);
+        image.setPixelColor(fit.x() + x, fit.y() + y,
                             QColor((static_cast<int>(px[0]) * alpha + base.red() * (255 - alpha)) / 255,
                                    (static_cast<int>(px[1]) * alpha + base.green() * (255 - alpha)) / 255,
                                    (static_cast<int>(px[2]) * alpha + base.blue() * (255 - alpha)) / 255));
@@ -1517,16 +1537,17 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       QImage image(kSize, kSize, QImage::Format_RGB888);
       image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
       if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
-        for (int y = 0; y < kSize; ++y) {
+        const auto fit = thumbnail_fit_rect(mask.pixels.width(), mask.pixels.height(), kSize);
+        for (int y = 0; y < fit.height(); ++y) {
           const auto source_y = std::clamp(
-              static_cast<int>((static_cast<double>(y) / kSize) * mask.pixels.height()), 0,
+              static_cast<int>((static_cast<double>(y) / fit.height()) * mask.pixels.height()), 0,
               std::max(0, mask.pixels.height() - 1));
-          for (int x = 0; x < kSize; ++x) {
+          for (int x = 0; x < fit.width(); ++x) {
             const auto source_x = std::clamp(
-                static_cast<int>((static_cast<double>(x) / kSize) * mask.pixels.width()), 0,
+                static_cast<int>((static_cast<double>(x) / fit.width()) * mask.pixels.width()), 0,
                 std::max(0, mask.pixels.width() - 1));
             const auto value = *mask.pixels.pixel(source_x, source_y);
-            image.setPixelColor(x, y, QColor(value, value, value));
+            image.setPixelColor(fit.x() + x, fit.y() + y, QColor(value, value, value));
           }
         }
       }
