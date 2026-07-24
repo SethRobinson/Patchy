@@ -1800,20 +1800,6 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   if (style.effects_visible) {
-    for (std::uint32_t index = 0; index < style.inner_shadows.size(); ++index) {
-      const auto& shadow = style.inner_shadows[index];
-      profile_compositor_step(destination, layer, "inner_shadow", clip, [&] {
-        render_inner_shadow(destination, layer, source, clip, bounds, shadow, layer_mask_bounds, masks, index,
-                            knockout);
-      });
-    }
-    for (std::uint32_t index = 0; index < style.inner_glows.size(); ++index) {
-      const auto& glow = style.inner_glows[index];
-      profile_compositor_step(destination, layer, "inner_glow", clip, [&] {
-        render_inner_glow(destination, layer, source, clip, bounds, glow, layer_mask_bounds, masks, index,
-                          knockout);
-      });
-    }
     // Interior overlays on a stroked shape layer apply to the FILL plane and
     // the vector stroke re-composites above them (PS 2026 probes
     // fx-sofi-center/outside, docs/vector-tools.md). A stroke-only shape's
@@ -1908,6 +1894,28 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             }
           }
         }
+      });
+    }
+    // Interior effects paint ABOVE the overlays, glow below shadow (Photoshop's
+    // interior stack bottom-to-top: pattern/gradient/color overlay, satin,
+    // inner glow, inner shadow - the Layer Style dialog's list order mirrored).
+    // COM-pinned July 2026 on capsule_v_top.psd: its ColorDodge inner glow
+    // brightens the gradient-overlay-lightened content (blend reads the
+    // destination AFTER overlays), where the historical effects-then-overlays
+    // order dodged the raw dark pixels and the 15% overlay then washed the rim
+    // out entirely.
+    for (std::uint32_t index = 0; index < style.inner_glows.size(); ++index) {
+      const auto& glow = style.inner_glows[index];
+      profile_compositor_step(destination, layer, "inner_glow", clip, [&] {
+        render_inner_glow(destination, layer, source, clip, bounds, glow, layer_mask_bounds, masks, index,
+                          knockout);
+      });
+    }
+    for (std::uint32_t index = 0; index < style.inner_shadows.size(); ++index) {
+      const auto& shadow = style.inner_shadows[index];
+      profile_compositor_step(destination, layer, "inner_shadow", clip, [&] {
+        render_inner_shadow(destination, layer, source, clip, bounds, shadow, layer_mask_bounds, masks, index,
+                            knockout);
       });
     }
     for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {

@@ -785,10 +785,26 @@ RgbColor gradient_color_dithered(const LayerStyleGradient& gradient,
 
 float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::int32_t x,
                         std::int32_t y, GradientSpanBasis basis) {
-  const auto center_x = static_cast<float>(bounds.x) + static_cast<float>(bounds.width) *
-                            (0.5F + gradient.offset_x_percent / 100.0F);
-  const auto center_y = static_cast<float>(bounds.y) + static_cast<float>(bounds.height) *
-                            (0.5F + gradient.offset_y_percent / 100.0F);
+  // Photoshop's overlay gradient center snaps to a PIXEL (the axis runs
+  // through the center of pixel index floor(bounds + extent/2)): even-extent
+  // bounds put it half a pixel past the geometric center, odd extents on it.
+  // COM-pinned July 2026 on capsule_v_top's Middle2 (29x78 visible bounds):
+  // the reflected axis passes through pixel row 44 = 5 + 78/2 exactly (rows
+  // 16/72 both hit the position-0.5 stop) and through pixel column
+  // 20 = 6 + floor(29/2), where the geometric center 44.0/20.5 left the whole
+  // even-axis band pattern half a pixel high. GdFl fill layers keep the
+  // un-snapped center their own probe5c/5d calibration measured (the 0.5 px
+  // quantum sits inside that calibration's tolerance, so it stays unpinned
+  // there).
+  const auto snap_center = basis == GradientSpanBasis::LayerProjection;
+  auto center_x = static_cast<float>(bounds.x) + static_cast<float>(bounds.width) *
+                      (0.5F + gradient.offset_x_percent / 100.0F);
+  auto center_y = static_cast<float>(bounds.y) + static_cast<float>(bounds.height) *
+                      (0.5F + gradient.offset_y_percent / 100.0F);
+  if (snap_center) {
+    center_x = std::floor(center_x) + 0.5F;
+    center_y = std::floor(center_y) + 0.5F;
+  }
   const auto px = static_cast<float>(x) + 0.5F;
   const auto py = static_cast<float>(y) + 0.5F;
   const auto radians = gradient.angle_degrees * kPi / 180.0F;
@@ -815,39 +831,64 @@ float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::in
                                               : std::numeric_limits<float>::infinity()))
           : std::max(1.0F, abs_cos * static_cast<float>(bounds.width) +
                                abs_sin * static_cast<float>(bounds.height));
+  // Scale anchors at each type's natural zero (COM-calibrated July 2026 on
+  // capsule_v_top-derived probes at scale 146, angles 0/90): Linear stretches
+  // about the ramp middle (position 0.5 stays on the bounds center), while
+  // Reflected/Radial/Diamond stretch about the CENTER (position 0), so their
+  // ramp runs floor(projected_span * scale / 2) pixels outward from it (the
+  // truncation is Photoshop's: the reflected/radial/diamond fits returned
+  // half-ramps of exactly 56 = floor(78 * 1.46 / 2) and 21 = floor(29 * 1.46
+  // / 2), rmse under 0.5/255). Rescaling all types about 0.5 shifted a
+  // reflected Silver ramp by a third of its length (the capsule_v_top
+  // light-arch bug). Radial and Diamond are ISOTROPIC in the rotated frame -
+  // a circle and an L1 diamond whose radius follows the angle-projected span
+  // (height at 90 degrees, width at 0; the L2/Chebyshev shapes and per-axis
+  // ellipse normalization were refuted by diagonal and cross-axis probes).
+  // Angle sweeps one full ramp per revolution starting at the angle
+  // direction, increasing clockwise on screen, and IGNORES Scale (all four
+  // cardinal directions hit exact stop values at scale 146). GdFl fill layers
+  // share the anchors but keep their un-truncated center-chord span (pinned
+  // separately, docs/vector-tools.md).
+  const auto scale = std::max(0.01F, gradient.scale);
+  const auto quantize_span = basis == GradientSpanBasis::LayerProjection;
+  const auto raw_half = projected_span * scale * 0.5F;
+  // The whole-pixel half-ramp is shared by every point-mapped type: the
+  // fixture's Linear arm fits L = 72.0 = 2 * floor(50 * 1.46 / 2) exactly
+  // (73.0 was refuted), so Linear spans center +/- half_ramp too.
+  const auto half_ramp = quantize_span ? std::max(1.0F, std::floor(raw_half)) : std::max(0.5F, raw_half);
   float position = 0.0F;
   switch (gradient.type) {
-    case LayerStyleGradientType::Radial: {
-      const auto dx =
-        local_x / std::max(1.0F, static_cast<float>(bounds.width) * 0.5F);
-      const auto dy =
-        local_y / std::max(1.0F, static_cast<float>(bounds.height) * 0.5F);
-      position = std::sqrt(dx * dx + dy * dy);
+    case LayerStyleGradientType::Radial:
+      position = std::sqrt(local_x * local_x + local_y * local_y) / half_ramp;
       break;
-    }
     case LayerStyleGradientType::Angle: {
-      position = (std::atan2(local_y, local_x) + kPi) / (2.0F * kPi);
+      if (local_x == 0.0F && local_y == 0.0F) {
+        // Photoshop's singular center pixel renders the quarter-sweep color
+        // (both the fixture's conical arm and the capsule Middle2 probe put
+        // the position-0.25 stop exactly on the snapped center).
+        position = 0.25F;
+      } else {
+        position = std::atan2(local_y, local_x) / (2.0F * kPi);
+        if (position < 0.0F) {
+          position += 1.0F;
+        }
+      }
       break;
     }
     case LayerStyleGradientType::Reflected:
-      position = std::abs(2.0F * local_x / projected_span);
+      position = std::abs(local_x) / half_ramp;
       break;
-    case LayerStyleGradientType::Diamond: {
-      const auto dx = std::abs(local_x) / std::max(1.0F, static_cast<float>(bounds.width) * 0.5F);
-      const auto dy = std::abs(local_y) / std::max(1.0F, static_cast<float>(bounds.height) * 0.5F);
-      position = std::max(dx, dy);
+    case LayerStyleGradientType::Diamond:
+      position = (std::abs(local_x) + std::abs(local_y)) / half_ramp;
       break;
-    }
     case LayerStyleGradientType::ShapeBurst:
       // Shape Burst is defined by the stroke band's distance field, not by a
       // point mapping; the stroke renderer computes it from the band and never
       // calls this. Anything else falls back to the Linear ramp.
     case LayerStyleGradientType::Linear:
-      position = 0.5F + local_x / projected_span;
+      position = 0.5F + local_x / (2.0F * half_ramp);
       break;
   }
-  const auto scale = std::max(0.01F, gradient.scale);
-  position = 0.5F + (position - 0.5F) / scale;
   if (gradient.reverse) {
     position = 1.0F - position;
   }

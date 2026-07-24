@@ -927,6 +927,73 @@ void psd_photoshop_inner_shadow_fixture_matches_render() {
   CHECK(metrics.mean_abs_channel_delta <= 0.10);
 }
 
+// Photoshop 2026 authored photoshop-gradient-overlay-geometry.psd via COM
+// (July 2026, the capsule_v_top calibration): aliased rectangles carrying one
+// Gradient Overlay each - reflected on even/odd extents at angles 90/0,
+// radial at angles 90/0, diamond, conical with an asymmetric red stop, and
+// linear, all at non-100 Scale - plus an "ordering" rectangle stacking a 15%
+// linear overlay under a ColorDodge inner glow under a Multiply inner shadow.
+// It pins the pixel-snapped gradient center, the whole-pixel half-ramp
+// floor(projected_span * scale / 2) shared by every point-mapped type, the
+// isotropic circular/L1 radial and diamond shapes, the scale-free conical
+// sweep (quarter-sweep color on the singular center pixel), and the interior
+// stack order overlays -> inner glow -> inner shadow.
+void psd_photoshop_gradient_overlay_geometry_fixture_matches_render() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-gradient-overlay-geometry.psd");
+  const auto bmp = path.parent_path() / "photoshop-gradient-overlay-geometry.bmp";
+  CHECK(std::filesystem::exists(path));
+  CHECK(std::filesystem::exists(bmp));
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto first_enabled_gradient_fill = [](const patchy::Layer& layer) -> const patchy::LayerGradientFill* {
+    const auto& fills = layer.layer_style().gradient_fills;
+    const auto found = std::find_if(fills.begin(), fills.end(),
+                                    [](const patchy::LayerGradientFill& fill) { return fill.enabled; });
+    return found == fills.end() ? nullptr : &*found;
+  };
+  const auto expect_gradient = [&](const char* layer_name, patchy::LayerStyleGradientType type,
+                                   float angle) {
+    const auto* layer = find_layer_named(document.layers(), layer_name);
+    CHECK(layer != nullptr);
+    const auto* fill = first_enabled_gradient_fill(*layer);
+    CHECK(fill != nullptr);
+    CHECK(fill->gradient.type == type);
+    CHECK(close_float(fill->gradient.angle_degrees, angle));
+    CHECK(fill->gradient.align_with_layer);
+    return fill;
+  };
+  const auto* refl_even = expect_gradient("reflEven", patchy::LayerStyleGradientType::Reflected, 90.0F);
+  CHECK(close_float(refl_even->gradient.scale, 1.46F));
+  expect_gradient("reflOdd", patchy::LayerStyleGradientType::Reflected, 0.0F);
+  expect_gradient("radial", patchy::LayerStyleGradientType::Radial, 90.0F);
+  const auto* radial0 = expect_gradient("radial0", patchy::LayerStyleGradientType::Radial, 0.0F);
+  CHECK(close_float(radial0->gradient.scale, 1.33F));
+  expect_gradient("diamond", patchy::LayerStyleGradientType::Diamond, 90.0F);
+  expect_gradient("conical", patchy::LayerStyleGradientType::Angle, 90.0F);
+  expect_gradient("linear", patchy::LayerStyleGradientType::Linear, 90.0F);
+
+  const auto* ordering = find_layer_named(document.layers(), "ordering");
+  CHECK(ordering != nullptr);
+  CHECK(first_enabled_gradient_fill(*ordering) != nullptr);
+  const auto* ordering_shadow = first_enabled_inner_shadow(*ordering);
+  CHECK(ordering_shadow != nullptr);
+  CHECK(close_float(ordering_shadow->distance, 5.0F));
+  const auto* ordering_glow = first_enabled_inner_glow(*ordering);
+  CHECK(ordering_glow != nullptr);
+  CHECK(ordering_glow->blend_mode == patchy::BlendMode::ColorDodge);
+  CHECK(close_float(ordering_glow->range, 50.0F));
+
+  const auto reference_flat =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp));
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  // Gradient arms are within 1/255 everywhere; the ordering arm's ColorDodge
+  // two-edge overlap rounding reaches 6 (the same class as the inner-glow
+  // range fixture).
+  CHECK(metrics.max_channel_delta <= 6);
+  CHECK(metrics.mean_abs_channel_delta <= 0.30);
+}
+
 // Photoshop 2026 authored photoshop-bevel-smooth.psd via COM (July 2026): mid-tone
 // rectangles and a thin bar on white with smooth inner bevels at sizes 5/10,
 // altitudes 30/60, and the Contour sub-option off / Linear-Range-50 /
@@ -1669,6 +1736,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_inner_glow_fixtures_match_render},
       {"psd_photoshop_inner_shadow_fixture_matches_render",
        psd_photoshop_inner_shadow_fixture_matches_render},
+      {"psd_photoshop_gradient_overlay_geometry_fixture_matches_render",
+       psd_photoshop_gradient_overlay_geometry_fixture_matches_render},
       {"psd_photoshop_bevel_smooth_fixture_matches_render",
        psd_photoshop_bevel_smooth_fixture_matches_render},
       {"psd_photoshop_stroke_aa_matte_fixture_matches_render",

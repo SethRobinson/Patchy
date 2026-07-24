@@ -270,7 +270,10 @@ void gradient_linear_geometry_uses_angle_projected_layer_span() {
 
   gradient.type = patchy::LayerStyleGradientType::Reflected;
   gradient.angle_degrees = 90.0F;
-  CHECK(patchy::gradient_position(gradient, wide_bounds, 520, 79) < 0.02F);
+  // The reflected axis runs through the pixel-snapped center row 80
+  // (floor(30 + 100/2) - the photoshop-gradient-overlay-geometry fixture pins
+  // the snap), so that row sits at position 0 and the top edge at 1.
+  CHECK(patchy::gradient_position(gradient, wide_bounds, 520, 80) < 0.02F);
   CHECK(patchy::gradient_position(gradient, wide_bounds, 520, 30) > 0.98F);
 }
 
