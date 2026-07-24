@@ -917,7 +917,7 @@ class Runner:
             cell.clear()
             cell.update(cached_cell)
             cell["cached"] = True
-            self._upgrade_cached_metrics(entry, cell, cell_dir, cache_dir, truth)
+            self._upgrade_cached_metrics(entry, cell, cell_dir, cache_dir, staged, truth)
             self.push()
             return
 
@@ -1015,31 +1015,45 @@ class Runner:
                 self._deferred_cell_caches.setdefault(index, []).append((cell_dir, cache_dir, cell))
 
     def _upgrade_cached_metrics(
-        self, entry: dict, cell: dict, cell_dir: Path, cache_dir: Path, truth: dict | None
+        self, entry: dict, cell: dict, cell_dir: Path, cache_dir: Path,
+        staged: staging.StagedPsd, truth: dict | None
     ) -> None:
-        """Backfill the perceptual comparison into a cell cached before it existed.
+        """Reconcile a cached cell with rules that changed since it was written.
 
         The cache key deliberately stays unchanged (a bump would invalidate every
-        slow Photoshop probe); when the artifacts to recompute from are present the
-        render metrics are redone in place and the cache entry rewritten. Old
-        textRender/roundtripRender blocks are left as-is - the report shows a dash.
+        slow Photoshop probe); instead the cell is fixed in place and the cache
+        entry rewritten. Two upgrades exist: backfilling the perceptual comparison
+        into cells from before that metric, and dropping trap verdicts from files
+        that no longer get a trap (e.g. flattened files, where the sentinel hit was
+        a false positive). Old textRender/roundtripRender blocks are left as-is -
+        the report shows a dash.
         """
+        changed = False
         metrics = cell.get("renderMetrics")
-        if not metrics or "perceptual" in metrics or truth is None:
+        if metrics and "perceptual" not in metrics and truth is not None:
+            truth_render = self.files_dir / Path(entry["name"]).stem / "_truth" / "render.png"
+            render_png = cell_dir / "render.png"
+            document_size = tuple(entry.get("docSize", (0, 0)))
+            if truth_render.exists() and render_png.exists() and document_size and document_size[0]:
+                log("    upgrading cached metrics with the perceptual comparison")
+                cell["renderMetrics"] = analyze.compare_renders(
+                    truth_render, render_png, document_size, truth["layers"], None
+                )
+                changed = True
+        if staged.trap is None and (
+            "trapSentinelFraction" in cell or "trapError" in cell
+        ):
+            log("    dropping the cached trap verdict (this file no longer gets a trap)")
+            cell.pop("trapSentinelFraction", None)
+            cell.pop("trapError", None)
+            for key in ("trap", "trapThumb"):
+                (cell.get("artifacts") or {}).pop(key, None)
+            changed = True
+        if not changed:
             return
-        truth_render = self.files_dir / Path(entry["name"]).stem / "_truth" / "render.png"
-        render_png = cell_dir / "render.png"
-        document_size = tuple(entry.get("docSize", (0, 0)))
-        if not (truth_render.exists() and render_png.exists() and document_size and document_size[0]):
-            return
-        log("    upgrading cached metrics with the perceptual comparison")
-        cell["renderMetrics"] = analyze.compare_renders(
-            truth_render, render_png, document_size, truth["layers"], None
-        )
         try:
-            cached = json.loads((cache_dir / "cell.json").read_text(encoding="utf-8"))
-            cached["renderMetrics"] = cell["renderMetrics"]
-            (cache_dir / "cell.json").write_text(json.dumps(cached), encoding="utf-8")
+            cacheable = {k: v for k, v in cell.items() if k != "cached"}
+            (cache_dir / "cell.json").write_text(json.dumps(cacheable), encoding="utf-8")
         except OSError as error:
             log(f"    could not rewrite {cache_dir / 'cell.json'}: {error}")
 
@@ -1448,6 +1462,8 @@ class Runner:
             entry["sha1"] = staged.sha1
             if staged.trap_error:
                 entry["trapError"] = staged.trap_error
+            if staged.trap_skipped:
+                entry["trapSkipped"] = staged.trap_skipped
             truth = self.ground_truth(index, staged)
             for editor_key in self.editor_order:
                 cell = entry["cells"][editor_key]

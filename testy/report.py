@@ -434,6 +434,8 @@ function openDetail(fi, ek, keep) {
         "within the threshold, so this file's images and resaves were discarded; the numbers " +
         "below are kept</div></div>";
   }
+  if (f.trapSkipped)
+    html += '<div class="nums">honest-rendering trap not run: ' + esc(f.trapSkipped) + "</div>";
   html += '<div class="imgs">' +
     img(gart.renderThumb, "Photoshop ground truth", gart.render) +
     img(art.renderThumb, editorName + " render", art.render) +

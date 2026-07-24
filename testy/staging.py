@@ -7,7 +7,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from psd_sections import PsdParseError, write_sentinel_composite
+from psd_sections import PsdParseError, read_layout, write_sentinel_composite
 
 
 def sha1_of_file(path: Path) -> str:
@@ -23,8 +23,9 @@ class StagedPsd:
     source: Path
     sha1: str
     original: Path  # byte-identical copy the editors open
-    trap: Path | None  # sentinel-composite variant (None if the walker balked)
+    trap: Path | None  # sentinel-composite variant (None if skipped or the walker balked)
     trap_error: str | None = None
+    trap_skipped: str | None = None  # why no trap was made (not an error)
 
 
 def stage_psd(source: Path, staging_dir: Path) -> StagedPsd:
@@ -35,8 +36,17 @@ def stage_psd(source: Path, staging_dir: Path) -> StagedPsd:
 
     trap: Path | None = staging_dir / f"trap{suffix}"
     trap_error: str | None = None
+    trap_skipped: str | None = None
     try:
-        write_sentinel_composite(str(source), str(trap))
+        layout = read_layout(source.read_bytes())
+        if layout.layer_count == 0:
+            # A flattened file stores no layer records: the merged composite IS the
+            # document, so every honest renderer must read it (Photoshop itself
+            # trips the sentinel on such files) and the trap proves nothing.
+            trap = None
+            trap_skipped = "flattened file (no layer records): the composite is its only image data"
+        else:
+            write_sentinel_composite(str(source), str(trap))
     except (PsdParseError, OSError) as error:
         trap = None
         trap_error = str(error)
@@ -47,4 +57,5 @@ def stage_psd(source: Path, staging_dir: Path) -> StagedPsd:
         original=original,
         trap=trap,
         trap_error=trap_error,
+        trap_skipped=trap_skipped,
     )

@@ -179,7 +179,11 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   embedded flat composite is replaced with magenta (`psd_sections.py` rewrites only the
   trailing image-data section; all layer data stays byte-identical). An editor whose
   render shows magenta was displaying Photoshop's baked composite instead of compositing
-  layers itself.
+  layers itself. Flattened files (zero layer records) get no trap: their composite is
+  the only image data in the file, so reading it is the correct behavior and even
+  Photoshop would trip the sentinel. The detail panel notes when the trap was skipped
+  for this reason, and a cached cell that scored a sentinel hit under the old rule is
+  cleaned up in place the next time a run reuses it.
 - **Native preservation** - the editor's re-saved PSD is reopened in Photoshop and its
   layer manifest is compared against the original's: text still `TEXT`, each adjustment
   still its exact kind, smart objects still smart, groups/masks/vector masks/live

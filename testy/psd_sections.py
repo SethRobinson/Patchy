@@ -26,6 +26,66 @@ class PsdLayout:
     depth: int  # bits per channel: 1, 8, 16, 32
     color_mode: int
     image_data_offset: int  # file offset of the compression u16 that starts the image-data section
+    # Layer records in the file: 0 for a flattened document (the merged composite is
+    # its only pixel data), None when the inner layer-info structure was unreadable.
+    layer_count: int | None
+
+
+# Additional-layer-info keys whose length field is 8 bytes in PSB files.
+_PSB_LONG_KEYS = {b"LMsk", b"Lr16", b"Lr32", b"Layr", b"Mt16", b"Mt32", b"Mtrn",
+                  b"Alph", b"FMsk", b"lnk2", b"FEid", b"FXid", b"PxSD"}
+# Blocks that hold the real layer records when the standard layer info is empty.
+_LAYER_RECORD_KEYS = (b"Lr16", b"Lr32", b"Layr")
+
+
+def _read_layer_count(data: bytes, start: int, section_length: int, is_psb: bool) -> int | None:
+    """Layer-record count inside the layer-and-mask section starting at `start`.
+
+    0 means a genuinely flattened file. 16/32-bit documents leave the standard
+    layer info empty and keep their layer records in an additional-info block
+    (Lr16/Lr32), so an empty standard block alone proves nothing; the additional
+    blocks are walked before concluding 0. None = structure not understood.
+    """
+    if section_length == 0:
+        return 0
+    end = min(start + section_length, len(data))
+    length_size = 8 if is_psb else 4
+    if section_length < length_size or start + length_size > len(data):
+        return None
+    info_length = struct.unpack_from(">Q" if is_psb else ">I", data, start)[0]
+    if info_length >= 2:
+        if start + length_size + 2 > len(data):
+            return None
+        # Negative means the first alpha channel holds merged transparency.
+        return abs(struct.unpack_from(">h", data, start + length_size)[0])
+    if info_length != 0:
+        return None
+
+    # Empty standard block: walk global mask info, then the additional blocks.
+    offset = start + length_size
+    if offset + 4 > end:
+        return 0  # nothing after the empty block: flattened
+    offset += 4 + struct.unpack_from(">I", data, offset)[0]
+    while offset + 12 <= end:
+        if data[offset:offset + 4] not in (b"8BIM", b"8B64"):
+            return None  # lost the structure; claim nothing
+        key = data[offset + 4:offset + 8]
+        if is_psb and key in _PSB_LONG_KEYS:
+            if offset + 16 > end:
+                return None
+            block_length = struct.unpack_from(">Q", data, offset + 8)[0]
+            data_start = offset + 16
+        else:
+            block_length = struct.unpack_from(">I", data, offset + 8)[0]
+            data_start = offset + 12
+        if key in _LAYER_RECORD_KEYS:
+            if block_length >= 2 and data_start + 2 <= len(data):
+                return abs(struct.unpack_from(">h", data, data_start)[0])
+            return None
+        pad = 4 if is_psb else 2
+        offset = data_start + block_length + (-block_length % pad)
+    # Walked cleanly to the end without meeting a layer-record block: flattened.
+    return 0 if end - offset < 12 else None
 
 
 def read_layout(data: bytes) -> PsdLayout:
@@ -53,12 +113,14 @@ def read_layout(data: bytes) -> PsdLayout:
         if offset + 8 > len(data):
             raise PsdParseError("truncated before layer info")
         layer_info_length = struct.unpack_from(">Q", data, offset)[0]
-        offset += 8 + layer_info_length
+        section_start = offset + 8
     else:
         if offset + 4 > len(data):
             raise PsdParseError("truncated before layer info")
         layer_info_length = struct.unpack_from(">I", data, offset)[0]
-        offset += 4 + layer_info_length
+        section_start = offset + 4
+    layer_count = _read_layer_count(data, section_start, layer_info_length, is_psb)
+    offset = section_start + layer_info_length
 
     if offset + 2 > len(data):
         raise PsdParseError("truncated before image data")
@@ -70,6 +132,7 @@ def read_layout(data: bytes) -> PsdLayout:
         depth=depth,
         color_mode=color_mode,
         image_data_offset=offset,
+        layer_count=layer_count,
     )
 
 
