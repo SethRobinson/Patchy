@@ -3,6 +3,19 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.81 - July 20, 2026
+
+- Affinity Photo and Designer .af files now open as layered documents: raster layers (8-bit, 16-bit, grayscale, and float), groups, layer masks, clipping, opacity and blend modes, CMYK and Lab color through ICC conversion, document DPI, and the canvas background all come through, with scaled and rotated layers rendered through their transforms. Anything Patchy can't model becomes a named placeholder layer with a notice instead of failing the open
+- Affinity text imports as real editable text layers with per-run fonts, sizes, and colors, alignment, paragraph spacing, All Caps, frame-box wrapping, and rotated artistic text, and Affinity layer effects (shadows, glows, strokes, color and gradient overlays, bevels) map onto Patchy layer styles
+- Affinity vector curves import as shape layers with their fills and strokes, placed images become embedded Smart Objects (so Edit Contents and Replace Contents work on them), and Curves, Levels, HSL, Color Balance, Invert, Posterize, Threshold, and Brightness/Contrast adjustment layers import natively with their masks
+- Five new blend modes: Vivid Light, Linear Light, Hard Mix, Darker Color, and Lighter Color, all calibrated bit-exact against Photoshop 2026, and Color Burn and Color Dodge rounding now matches Photoshop exactly
+- File > Import > Image Sequence to Layers and File > Export Layers as Image Sequence: files order naturally (frame2 before frame10), picking one numbered file pulls in its whole run, and export covers visible or all layers with numbered or layer-name file names
+- Seamless texture tools: the tile preview now follows the active document and refreshes live, Image > Shift Seams to Center wraps the image so the seams sit in the middle for retouching (running it again shifts back exactly), and View > Seamless Tiling in Window surrounds the canvas with live ghost tiles
+- Smart Filter rows open their settings on double-click with blend mode and opacity merged into the same dialog, and Filter Gallery entries gain per-effect blend and opacity controls
+- The Open dialog now lists one row per file format, Photoshop style, so every supported type is visible in the dropdown
+- The Character panel grays out with a hint when no text is being edited, Alt+click on a folder's arrow expands or collapses the whole branch, the layer panel's selection highlight and thumbnails render correctly, and options-bar number fields no longer clip wide values
+- The startup splash is gone: Patchy opens straight into the start panel, which now carries the version, links, and update check. Save PDF suggests the document's name, and patchy.exe gains an unattended --export flag for converting files from the command line
+
 ## 0.80 - July 18, 2026
 
 - Vector tools are here: the Rectangle, Ellipse, Line, Polygon, and Custom Shape tools draw editable shape layers, the Pen builds bezier paths point by point with cursor badges that show what each click will do, and the Path Select and Direct Select tools move whole shapes or individual anchors with live re-rendering. Shape layers, vector masks, and saved paths round-trip through PSD and PSB files that open correctly in Photoshop

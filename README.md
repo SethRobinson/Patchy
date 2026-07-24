@@ -169,6 +169,18 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.83 - July 25, 2026
+
+- The Layers panel got a big cleanup: Mode, Opacity, and Fill share one compact row, the lock buttons sit together on the left, and thumbnails aspect-fit their layer instead of stretching to a square (hidden layers keep full-color thumbnails, and the transparency checker is brighter, like Photoshop's)
+- A new filter box in the Layers panel finds layers by name, including inside collapsed folders. Alt-click a visibility eye to solo that layer and Alt-click again to restore what was visible before, or drag down the eye column to toggle a whole run of layers in one sweep
+- Layer groups can now carry raster masks: Add Layer Mask works on folders, group masks render and round-trip through PSD, and group opacity now composites like Photoshop for both Pass Through and isolated blend modes
+- 16-bit and 32-bit PSD files now open, converting to 8-bit with Photoshop-calibrated conversion
+- Layer style rendering moved much closer to Photoshop: inner glow and inner shadow model Range, Technique, and the Center source; Bevel & Emboss gains calibrated Lambert shading, plain and Pillow Emboss, and correct pillow shading on anti-aliased curves; strokes anchor to subpixel coverage, render Shape Burst gradients, and model Overprint and zero-opacity knockout; gradient overlays match Photoshop's linear, radial, diamond, and conical geometry; interior effects stack in Photoshop's order; and Layer Knocks Out Drop Shadow works
+- PSD compatibility fixes: effect blend modes in Photoshop CS-era files import correctly instead of falling back to Normal, CS4-era shape layers rasterize instead of locking the file, imported text keeps Photoshop's own raster until you edit it (no more substituted-font redraws at load), and layers positioned far off the canvas keep their true position instead of being pulled onto the canvas and re-saved wrong
+- The gradient options bar gained a Presets button with a quick-picker popup, which the Edit Gradient Stops dialog now uses too
+- Affinity .af text imports first-line, hanging, and right paragraph indents
+- Fixes: Reveal in Explorer opens the right folder when the path has spaces, boxed text lines that straddle the frame edge draw whole, and the Script Manager's tree pane no longer cuts off bundled script names
+
 ### 0.82 - July 21, 2026
 
 - JavaScript scripting is here: scripts drive documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing through a documented API (patchy.d.ts for machines, a scripting guide under Help for humans), with one undo entry per run no matter how much a script changes
@@ -177,19 +189,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Scripts ask for input through patchy.ui.showOptions: a real options dialog with instructions and folder/file pickers in GUI runs, --script-arg overrides from the command line, and the same defaults applied without a dialog when run unattended
 - Scripts can play sound with patchy.ui.playTone and playSound (Breakout and Pong picked up retro blips), a long busy script shows a stop panel with live progress and optional undo of its changes, and the script watchdog measures inactivity rather than total runtime so hour-long batches survive
 - patchy --run-script file.js runs a script against a new or running instance and writes console output to a file, so external tools and AI agents can drive Patchy; the Script Manager's C:\ button shows a copyable command line for any script
-
-### 0.81 - July 20, 2026
-
-- Affinity Photo and Designer .af files now open as layered documents: raster layers (8-bit, 16-bit, grayscale, and float), groups, layer masks, clipping, opacity and blend modes, CMYK and Lab color through ICC conversion, document DPI, and the canvas background all come through, with scaled and rotated layers rendered through their transforms. Anything Patchy can't model becomes a named placeholder layer with a notice instead of failing the open
-- Affinity text imports as real editable text layers with per-run fonts, sizes, and colors, alignment, paragraph spacing, All Caps, frame-box wrapping, and rotated artistic text, and Affinity layer effects (shadows, glows, strokes, color and gradient overlays, bevels) map onto Patchy layer styles
-- Affinity vector curves import as shape layers with their fills and strokes, placed images become embedded Smart Objects (so Edit Contents and Replace Contents work on them), and Curves, Levels, HSL, Color Balance, Invert, Posterize, Threshold, and Brightness/Contrast adjustment layers import natively with their masks
-- Five new blend modes: Vivid Light, Linear Light, Hard Mix, Darker Color, and Lighter Color, all calibrated bit-exact against Photoshop 2026, and Color Burn and Color Dodge rounding now matches Photoshop exactly
-- File > Import > Image Sequence to Layers and File > Export Layers as Image Sequence: files order naturally (frame2 before frame10), picking one numbered file pulls in its whole run, and export covers visible or all layers with numbered or layer-name file names
-- Seamless texture tools: the tile preview now follows the active document and refreshes live, Image > Shift Seams to Center wraps the image so the seams sit in the middle for retouching (running it again shifts back exactly), and View > Seamless Tiling in Window surrounds the canvas with live ghost tiles
-- Smart Filter rows open their settings on double-click with blend mode and opacity merged into the same dialog, and Filter Gallery entries gain per-effect blend and opacity controls
-- The Open dialog now lists one row per file format, Photoshop style, so every supported type is visible in the dropdown
-- The Character panel grays out with a hint when no text is being edited, Alt+click on a folder's arrow expands or collapses the whole branch, the layer panel's selection highlight and thumbnails render correctly, and options-bar number fields no longer clip wide values
-- The startup splash is gone: Patchy opens straight into the start panel, which now carries the version, links, and update check. Save PDF suggests the document's name, and patchy.exe gains an unattended --export flag for converting files from the command line
 
 [Older releases](RELEASE-HISTORY.md)
 
