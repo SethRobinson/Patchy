@@ -1310,8 +1310,21 @@ class Runner:
                     f"{name}: render differs on {metrics['badFraction'] * 100:.1f}% of pixels "
                     f"(over {self.scan_threshold * 100:g}%)"
                 )
-            if cell.get("trapSentinelFraction", 0.0) > 0.05:
-                reasons.append(f"{name}: trap render shows the baked-composite sentinel")
+            sentinel = cell.get("trapSentinelFraction", 0.0)
+            if sentinel > 0.05:
+                # Photoshop tripping its own trap means the file has layers even the
+                # ground truth cannot re-render (missing fonts etc.), so it fell back
+                # to the baked composite. Another editor matching that is not a cheat;
+                # only sentinel coverage clearly beyond Photoshop's still flags.
+                ps_sentinel = (entry["cells"].get("photoshop") or {}).get(
+                    "trapSentinelFraction", 0.0)
+                if ps_sentinel <= 0.05:
+                    reasons.append(f"{name}: trap render shows the baked-composite sentinel")
+                elif sentinel > ps_sentinel + 0.05:
+                    reasons.append(
+                        f"{name}: trap render shows the baked-composite sentinel on "
+                        f"{sentinel * 100:.1f}% of pixels, well beyond Photoshop's own "
+                        f"{ps_sentinel * 100:.1f}%")
             for key, label in (
                 ("resaveError", "resave failed"),
                 ("mutateError", "text mutation failed"),

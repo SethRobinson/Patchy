@@ -175,7 +175,7 @@ function lossText(losses) {
   return losses.map(l => l.lost + "/" + l.total + " " + l.label).join(", ");
 }
 
-function cellSummary(cell) {
+function cellSummary(cell, psCell) {
   if (!cell || cell.state === "pending") return '<div class="status-line"><span class="dot"></span>queued</div>';
   if (cell.state === "running")
     return '<div class="status-line"><span class="dot run"></span>' + esc(cell.stage || "working") + '</div>';
@@ -201,7 +201,21 @@ function cellSummary(cell) {
     bits.push("objects " + objectsOk + "/" + m.objectsScored);
   }
   const flags = [];
-  if (cell.trapSentinelFraction > 0.05) flags.push("flat-composite cheat");
+  // A sentinel hit matching Photoshop's own trap render is not a cheat: the file has
+  // layers even the ground truth cannot re-render, so both fall back to the composite.
+  const sentinel = cell.trapSentinelFraction || 0;
+  const psSentinel = (psCell && psCell.trapSentinelFraction) || 0;
+  let compositeNote = "";
+  if (sentinel > 0.05) {
+    if (psSentinel <= 0.05)
+      flags.push("flat-composite cheat");
+    else if (sentinel > psSentinel + 0.05)
+      flags.push("flat-composite cheat (beyond Photoshop's " + pct(psSentinel) + ")");
+    else
+      compositeNote = cell === psCell
+        ? "renders from the baked composite"
+        : "renders from the baked composite (so does Photoshop)";
+  }
   if (cell.renderMetrics && cell.renderMetrics.sizeMismatch) flags.push("size mismatch");
   if (cell.opens === "fallback-render") flags.push("PS needed fallback render");
   if (cell.resaveRejected) flags.push("resave rejected by Photoshop");
@@ -214,7 +228,8 @@ function cellSummary(cell) {
   return '<div class="status-line"><span class="dot ' + cls + '"></span>' +
          (cell.opens === "fail" ? "failed to open" : "opened") + '</div>' +
          '<div class="nums">' + bits.join(" &middot; ") + '</div>' + lossLine +
-         (flags.length ? '<div class="flag">' + flags.join(" &middot; ") + '</div>' : "");
+         (flags.length ? '<div class="flag">' + flags.join(" &middot; ") + '</div>' : "") +
+         (compositeNote ? '<div class="nums">' + compositeNote + '</div>' : "");
 }
 
 function renderControls() {
@@ -343,7 +358,7 @@ function render() {
       '<div class="nums">' + (f.docSize ? f.docSize[0] + "x" + f.docSize[1] : "") +
       (f.layerCount ? " &middot; " + f.layerCount + " layers" : "") + "</div>" + gtNote + scanNote + "</td>" +
       editors.map(k => "<td class='cell' onclick='openDetail(" + fi + ",\"" + k + "\")'>" +
-                       cellSummary((f.cells || {})[k]) + "</td>").join("") + "</tr>";
+                       cellSummary((f.cells || {})[k], (f.cells || {}).photoshop) + "</td>").join("") + "</tr>";
   }).join("");
 
   const agg = {};
@@ -437,6 +452,13 @@ function openDetail(fi, ek, keep) {
   }
   if (f.trapSkipped)
     html += '<div class="nums">honest-rendering trap not run: ' + esc(f.trapSkipped) + "</div>";
+  const psTrap = ((f.cells || {}).photoshop || {}).trapSentinelFraction || 0;
+  if (cell.trapSentinelFraction > 0.05 && psTrap > 0.05 &&
+      !(cell.trapSentinelFraction > psTrap + 0.05))
+    html += '<div class="nums">trap: ' + pct(cell.trapSentinelFraction) +
+      " of pixels come from the baked composite, but Photoshop's own trap render shows " +
+      pct(psTrap) + " - the file has layers even the ground truth cannot re-render " +
+      "(e.g. missing fonts), so this is not counted as a cheat</div>";
   html += '<div class="imgs">' +
     img(gart.renderThumb, "Photoshop ground truth", gart.render) +
     img(art.renderThumb, editorName + " render", art.render) +

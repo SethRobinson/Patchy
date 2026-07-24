@@ -135,7 +135,8 @@ Useful flags:
 `--scan` (or the control panel's "scan: keep only flagged" checkbox) turns a run into a
 triage pass over a big file list: each file is FLAGGED if anything failed (ground truth,
 open, resave, trap, text mutation, a skipped/broken editor, a resave Photoshop rejects,
-a trap sentinel hit) or if any editor's render differs from Photoshop's on more than the
+a trap sentinel hit that Photoshop's own trap render does not share, see "Honest
+rendering" below) or if any editor's render differs from Photoshop's on more than the
 threshold fraction of pixels (default 10%, `--scan 25` for 25%). Which "fraction of
 pixels" that means follows the run's comparison mode: visually-wrong pixels
 (`renderMetrics.perceptual.badFraction`) by default, raw over-6/255 pixels
@@ -196,7 +197,13 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   the only image data in the file, so reading it is the correct behavior and even
   Photoshop would trip the sentinel. The detail panel notes when the trap was skipped
   for this reason, and a cached cell that scored a sentinel hit under the old rule is
-  cleaned up in place the next time a run reuses it.
+  cleaned up in place the next time a run reuses it. Photoshop tripping its own trap
+  means the file has layers even the ground truth cannot re-render (missing fonts
+  etc.), so it fell back to the baked composite; another editor matching that is not
+  a cheat. Such cells show a neutral "renders from the baked composite (so does
+  Photoshop)" note instead of the cheat flag and do not flag in scan mode; only
+  sentinel coverage more than 5 points beyond Photoshop's own still counts as a
+  cheat.
 - **Native preservation** - the editor's re-saved PSD is reopened in Photoshop and its
   layer manifest is compared against the original's: text still `TEXT`, each adjustment
   still its exact kind, smart objects still smart, groups/masks/vector masks/live
