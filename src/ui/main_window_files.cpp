@@ -2247,9 +2247,12 @@ void MainWindow::reveal_path_in_file_explorer(const QString& path, bool is_file)
       return;
     }
 #if defined(Q_OS_WIN)
-    // Open the containing folder with the file pre-selected.
+    // Open the containing folder with the file pre-selected. "/select," and the
+    // path must stay SEPARATE arguments: QProcess quotes any space-containing
+    // argument whole, and Explorer treats a quoted "/select,path" blob as
+    // unparseable, silently opening the default folder instead.
     QProcess::startDetached(QStringLiteral("explorer.exe"),
-                            {QStringLiteral("/select,") + QDir::toNativeSeparators(info.absoluteFilePath())});
+                            {QStringLiteral("/select,"), QDir::toNativeSeparators(info.absoluteFilePath())});
 #elif defined(Q_OS_MACOS)
     // open -R reveals the file selected in Finder (a plain folder open loses the selection).
     QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-R"), info.absoluteFilePath()});
