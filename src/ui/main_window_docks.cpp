@@ -688,70 +688,64 @@ void MainWindow::create_docks() {
   layer_control_grid->setContentsMargins(0, 0, 0, 0);
   layer_control_grid->setHorizontalSpacing(6);
   layer_control_grid->setVerticalSpacing(4);
-  auto* mode_label = new QLabel(tr("Mode"), layers_panel);
-  bind_widget_text(mode_label, "Mode");
-  layer_control_grid->addWidget(mode_label, 0, 0);
+  // One compact row (Photoshop-style): the blend combo hugs its longest mode
+  // name and Opacity/Fill are prefixed spin boxes with the toolbar popup
+  // slider, so the panel spends one line here instead of three.
+  auto* blend_opacity_row = new QHBoxLayout();
+  blend_opacity_row->setContentsMargins(0, 0, 0, 0);
+  blend_opacity_row->setSpacing(6);
   blend_combo_ = new QComboBox(layers_panel);
   add_blend_mode_items(blend_combo_);
   blend_combo_->setObjectName(QStringLiteral("layerBlendModeCombo"));
-  layer_control_grid->addWidget(blend_combo_, 0, 1, 1, 2);
+  blend_combo_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  blend_combo_->setToolTip(tr("Blend mode"));
+  bind_tooltip(blend_combo_, "Blend mode");
+  blend_opacity_row->addWidget(blend_combo_);
   connect(blend_combo_, &QComboBox::currentIndexChanged, this, [this](int index) { set_active_layer_blend(index); });
   register_document_widget(blend_combo_);
 
-  auto* opacity_label = new QLabel(tr("Opacity"), layers_panel);
-  bind_widget_text(opacity_label, "Opacity");
-  layer_control_grid->addWidget(opacity_label, 1, 0);
-  opacity_slider_ = new QSlider(Qt::Horizontal, layers_panel);
-  opacity_slider_->setObjectName(QStringLiteral("layerOpacitySlider"));
-  opacity_slider_->setRange(0, 100);
-  opacity_slider_->setValue(100);
-  layer_control_grid->addWidget(opacity_slider_, 1, 1);
   opacity_spin_ = new QSpinBox(layers_panel);
   opacity_spin_->setObjectName(QStringLiteral("layerOpacitySpin"));
   opacity_spin_->setRange(0, 100);
+  opacity_spin_->setValue(100);
+  opacity_spin_->setPrefix(tr("Opacity: "));
   opacity_spin_->setSuffix(QStringLiteral("%"));
-  opacity_spin_->setButtonSymbols(QAbstractSpinBox::NoButtons);
-  opacity_spin_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  opacity_spin_->setFixedWidth(54);
-  layer_control_grid->addWidget(opacity_spin_, 1, 2);
-  connect(opacity_slider_, &QSlider::valueChanged, opacity_spin_, &QSpinBox::setValue);
-  connect(opacity_spin_, &QSpinBox::valueChanged, opacity_slider_, &QSlider::setValue);
+  configure_toolbar_spinbox(opacity_spin_, 52);
+  blend_opacity_row->addWidget(opacity_spin_);
   connect(opacity_spin_, &QSpinBox::valueChanged, this, [this](int value) { set_active_layer_opacity(value); });
-  connect(opacity_slider_, &QSlider::sliderReleased, this, [this] { finish_pending_layer_opacity_edit(); });
   connect(opacity_spin_, &QSpinBox::editingFinished, this, [this] { finish_pending_layer_opacity_edit(); });
-  register_document_widget(opacity_slider_);
   register_document_widget(opacity_spin_);
 
-  auto* fill_opacity_label = new QLabel(tr("Fill"), layers_panel);
-  bind_widget_text(fill_opacity_label, "Fill");
-  layer_control_grid->addWidget(fill_opacity_label, 2, 0);
-  fill_opacity_slider_ = new QSlider(Qt::Horizontal, layers_panel);
-  fill_opacity_slider_->setObjectName(QStringLiteral("layerFillOpacitySlider"));
-  fill_opacity_slider_->setRange(0, 100);
-  fill_opacity_slider_->setValue(100);
-  layer_control_grid->addWidget(fill_opacity_slider_, 2, 1);
   fill_opacity_spin_ = new QSpinBox(layers_panel);
   fill_opacity_spin_->setObjectName(QStringLiteral("layerFillOpacitySpin"));
   fill_opacity_spin_->setRange(0, 100);
+  fill_opacity_spin_->setValue(100);
+  fill_opacity_spin_->setPrefix(tr("Fill: "));
   fill_opacity_spin_->setSuffix(QStringLiteral("%"));
-  fill_opacity_spin_->setButtonSymbols(QAbstractSpinBox::NoButtons);
-  fill_opacity_spin_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  fill_opacity_spin_->setFixedWidth(54);
-  layer_control_grid->addWidget(fill_opacity_spin_, 2, 2);
-  connect(fill_opacity_slider_, &QSlider::valueChanged, fill_opacity_spin_, &QSpinBox::setValue);
-  connect(fill_opacity_spin_, &QSpinBox::valueChanged, fill_opacity_slider_, &QSlider::setValue);
+  configure_toolbar_spinbox(fill_opacity_spin_, 52);
+  blend_opacity_row->addWidget(fill_opacity_spin_);
   connect(fill_opacity_spin_, &QSpinBox::valueChanged, this,
           [this](int value) { set_active_layer_fill_opacity(value); });
-  connect(fill_opacity_slider_, &QSlider::sliderReleased, this,
-          [this] { finish_pending_layer_fill_opacity_edit(); });
   connect(fill_opacity_spin_, &QSpinBox::editingFinished, this,
           [this] { finish_pending_layer_fill_opacity_edit(); });
-  register_document_widget(fill_opacity_slider_);
   register_document_widget(fill_opacity_spin_);
+  blend_opacity_row->addStretch(1);
+  register_retranslation([this] {
+    if (opacity_spin_ == nullptr || fill_opacity_spin_ == nullptr) {
+      return;
+    }
+    opacity_spin_->setPrefix(tr("Opacity: "));
+    fill_opacity_spin_->setPrefix(tr("Fill: "));
+    // Re-measures the fixed width for the translated prefixes; the popup
+    // install inside is a guarded no-op on repeat calls.
+    configure_toolbar_spinbox(opacity_spin_, 52);
+    configure_toolbar_spinbox(fill_opacity_spin_, 52);
+  });
+  layer_control_grid->addLayout(blend_opacity_row, 0, 0, 1, 3);
 
   auto* lock_label = new QLabel(tr("Lock"), layers_panel);
   bind_widget_text(lock_label, "Lock");
-  layer_control_grid->addWidget(lock_label, 3, 0);
+  layer_control_grid->addWidget(lock_label, 1, 0);
   auto* lock_controls = new QHBoxLayout();
   lock_controls->setContentsMargins(0, 0, 0, 0);
   lock_controls->setSpacing(4);
@@ -806,7 +800,7 @@ void MainWindow::create_docks() {
   // Rides the otherwise-empty stretch space beside the lock buttons instead of
   // spending a panel row of its own.
   lock_controls->addWidget(layer_name_filter_edit_, 1);
-  layer_control_grid->addLayout(lock_controls, 3, 1, 1, 2);
+  layer_control_grid->addLayout(lock_controls, 1, 1, 1, 2);
   layers_layout->addLayout(layer_control_grid);
   layers_layout->addWidget(layer_list_, 1);
 

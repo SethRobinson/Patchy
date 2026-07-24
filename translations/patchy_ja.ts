@@ -13157,6 +13157,9 @@ Clipped to the layer below</source>
     <message><source>%1 (modified)</source><translation>%1 (変更済み)</translation></message>
     <message><source>Filter layers by name...</source><translation>レイヤー名で絞り込み...</translation></message>
     <message><source>Clear the layer name filter to reorder layers</source><translation>レイヤーを並べ替えるにはレイヤー名フィルターをクリアしてください</translation></message>
+    <message><source>Blend mode</source><translation>描画モード</translation></message>
+    <message><source>Opacity: </source><translation>不透明度: </translation></message>
+    <message><source>Fill: </source><translation>塗りつぶし: </translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>

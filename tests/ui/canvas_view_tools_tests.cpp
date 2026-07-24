@@ -1459,7 +1459,7 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   save_widget_artifact("ui_info_panel_layers_docks", window);
 }
 
-void ui_layer_opacity_slider_defers_slow_rendering_and_undoes_once() {
+void ui_layer_opacity_control_defers_slow_rendering_and_undoes_once() {
   patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   patchy::Layer layer(document.allocate_layer_id(), "Opacity Target",
@@ -1477,11 +1477,8 @@ void ui_layer_opacity_slider_defers_slow_rendering_and_undoes_once() {
   canvas->force_refresh();
   QApplication::processEvents();
 
-  auto* opacity_slider = window.findChild<QSlider*>(QStringLiteral("layerOpacitySlider"));
   auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
-  CHECK(opacity_slider != nullptr);
   CHECK(opacity_spin != nullptr);
-  CHECK(opacity_slider->value() == 100);
   CHECK(opacity_spin->value() == 100);
 
   EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
@@ -1491,15 +1488,16 @@ void ui_layer_opacity_slider_defers_slow_rendering_and_undoes_once() {
   qputenv("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS", QByteArray("0"));
   qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("240"));
 
+  // The popup slider drives the spin box with plain setValue calls, so this
+  // sweep exercises the same path a slider drag does.
   QElapsedTimer slider_updates;
   slider_updates.start();
   for (int value = 99; value >= 25; --value) {
-    opacity_slider->setValue(value);
+    opacity_spin->setValue(value);
     CHECK(opacity_spin->value() == value);
     QApplication::processEvents(QEventLoop::AllEvents, 1);
   }
   CHECK(slider_updates.elapsed() < 300);
-  CHECK(opacity_slider->value() == 25);
   CHECK(opacity_spin->value() == 25);
 
   auto& edited_document = patchy::ui::MainWindowTestAccess::document(window);
@@ -1731,8 +1729,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},
-      {"ui_layer_opacity_slider_defers_slow_rendering_and_undoes_once",
-       ui_layer_opacity_slider_defers_slow_rendering_and_undoes_once},
+      {"ui_layer_opacity_control_defers_slow_rendering_and_undoes_once",
+       ui_layer_opacity_control_defers_slow_rendering_and_undoes_once},
       {"ui_collapsed_right_docks_keep_deep_layer_rows_readable",
        ui_collapsed_right_docks_keep_deep_layer_rows_readable},
       {"ui_menu_disabled_items_render_grayed", ui_menu_disabled_items_render_grayed},

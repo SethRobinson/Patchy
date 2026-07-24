@@ -2658,15 +2658,8 @@ void MainWindow::refresh_layer_controls() {
     if (visible_check_ != nullptr) {
       visible_check_->setChecked(true);
     }
-    if (opacity_slider_ != nullptr) {
-      opacity_slider_->setValue(100);
-    }
     if (opacity_spin_ != nullptr) {
       opacity_spin_->setValue(100);
-    }
-    if (fill_opacity_slider_ != nullptr) {
-      fill_opacity_slider_->setValue(100);
-      fill_opacity_slider_->setEnabled(false);
     }
     if (fill_opacity_spin_ != nullptr) {
       fill_opacity_spin_->setValue(100);
@@ -2748,17 +2741,10 @@ void MainWindow::refresh_layer_controls() {
     return;
   }
 
-  if (opacity_slider_ != nullptr) {
-    opacity_slider_->setValue(static_cast<int>(std::round(layer->opacity() * 100.0F)));
-  }
   if (opacity_spin_ != nullptr) {
     opacity_spin_->setValue(static_cast<int>(std::round(layer->opacity() * 100.0F)));
   }
   const bool fill_enabled = layer->kind() != LayerKind::Group;
-  if (fill_opacity_slider_ != nullptr) {
-    fill_opacity_slider_->setValue(static_cast<int>(std::round(layer->fill_opacity() * 100.0F)));
-    fill_opacity_slider_->setEnabled(fill_enabled);
-  }
   if (fill_opacity_spin_ != nullptr) {
     fill_opacity_spin_->setValue(static_cast<int>(std::round(layer->fill_opacity() * 100.0F)));
     fill_opacity_spin_->setEnabled(fill_enabled);

@@ -1053,9 +1053,7 @@ private:
   QAction* path_duplicate_action_{nullptr};
   QAction* path_clipping_action_{nullptr};
   QAction* path_delete_action_{nullptr};
-  QSlider* opacity_slider_{nullptr};
   QSpinBox* opacity_spin_{nullptr};
-  QSlider* fill_opacity_slider_{nullptr};
   QSpinBox* fill_opacity_spin_{nullptr};
   QTimer* layer_opacity_apply_timer_{nullptr};
   QTimer* layer_opacity_idle_timer_{nullptr};
