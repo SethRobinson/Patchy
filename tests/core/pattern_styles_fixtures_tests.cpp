@@ -1147,6 +1147,87 @@ void psd_lrfx_legacy_drop_shadow_parses_fixed_point() {
   CHECK(close_float(shadow.opacity, 71.0F / 255.0F));
 }
 
+// CS-era Photoshop stores lfx2 'BlnM' enum values as length-0 charIDs ('Drkn',
+// 'Lghn', ...), a namespace distinct from both the modern stringIDs ("darken")
+// and the layer-record blend signatures ('dark'). The pre-July-2026 table only
+// aliased a subset, so a CS gradient overlay set to Darken imported as Normal.
+// Ground truth: Photoshop 2026 typeIDToStringID(charIDToTypeID(x)) plus the
+// weedkiller_skin.psd fixture below, which PS 2026 reads as Darken.
+void psd_lfx2_charid_blend_mode_enum_parses() {
+  const std::array<char, 4> norm{'n', 'o', 'r', 'm'};
+  const auto mode = [&](std::string_view value) {
+    return patchy::psd::blend_mode_from_descriptor_enum(value, norm);
+  };
+  CHECK(mode("Drkn") == patchy::BlendMode::Darken);
+  CHECK(mode("Lghn") == patchy::BlendMode::Lighten);
+  CHECK(mode("HrdL") == patchy::BlendMode::HardLight);
+  CHECK(mode("Dfrn") == patchy::BlendMode::Difference);
+  CHECK(mode("Xclu") == patchy::BlendMode::Exclusion);
+  CHECK(mode("H   ") == patchy::BlendMode::Hue);
+  CHECK(mode("Strt") == patchy::BlendMode::Saturation);
+  CHECK(mode("Clr ") == patchy::BlendMode::Color);
+  CHECK(mode("Lmns") == patchy::BlendMode::Luminosity);
+  // Existing forms stay mapped; dissolve has no Patchy mode and resolves Normal.
+  CHECK(mode("darken") == patchy::BlendMode::Darken);
+  CHECK(mode("dark") == patchy::BlendMode::Darken);
+  CHECK(mode("Mltp") == patchy::BlendMode::Multiply);
+  CHECK(mode("Dslv") == patchy::BlendMode::Normal);
+
+  // Integration: a minimal lfx2 payload whose GrFl blend mode rides the
+  // length-0 charID enum form, like Photoshop CS wrote it.
+  patchy::psd::DescriptorObject gradient;
+  gradient.class_id = "GrFl";
+  patchy::psd::DescriptorValue enab;
+  enab.type = patchy::psd::DescriptorValue::Type::Bool;
+  enab.bool_value = true;
+  gradient.values["enab"] = enab;
+  gradient.key_order.push_back({"enab", false});
+  patchy::psd::DescriptorValue blend;
+  blend.type = patchy::psd::DescriptorValue::Type::Enum;
+  blend.enum_type = "BlnM";
+  blend.enum_value = "Drkn";  // long_form stays false: written as a charID
+  gradient.values["Md  "] = blend;
+  gradient.key_order.push_back({"Md  ", false});
+
+  patchy::psd::DescriptorObject root;
+  root.class_id = "null";
+  patchy::psd::DescriptorValue effect;
+  effect.type = patchy::psd::DescriptorValue::Type::Object;
+  effect.object_value = std::make_shared<patchy::psd::DescriptorObject>(gradient);
+  root.values["GrFl"] = effect;
+  root.key_order.push_back({"GrFl", false});
+
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u32(0);   // lfx2 version
+  writer.write_u32(16);  // descriptor version
+  patchy::psd::write_descriptor(writer, root);
+  const auto style = patchy::psd::parse_lfx2_layer_style(writer.bytes(), patchy::psd::CmykColorConverter{});
+  CHECK(style.gradient_fills.size() == 1U);
+  CHECK(style.gradient_fills.front().enabled);
+  CHECK(style.gradient_fills.front().blend_mode == patchy::BlendMode::Darken);
+}
+
+// Real-file regression: Photoshop CS authored this PSD with a Darken gradient
+// overlay and Normal strokes, all in the charID enum form. Photoshop 2026
+// displays Darken; Patchy imported Normal before the charID table was filled in.
+void psd_weedkiller_legacy_charid_styles_parse_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("weedkiller_skin.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local weedkiller_skin.psd fixture missing: " << path.string() << '\n';
+    return;
+  }
+  std::ifstream stream(path, std::ios::binary);
+  std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  const auto* layer = find_layer_named(document.layers(), "Layer 2");
+  CHECK(layer != nullptr);
+  const auto& style = layer->layer_style();
+  CHECK(style.gradient_fills.size() == 1U);
+  CHECK(style.gradient_fills.front().blend_mode == patchy::BlendMode::Darken);
+  CHECK(style.strokes.size() == 1U);
+  CHECK(style.strokes.front().blend_mode == patchy::BlendMode::Normal);
+}
+
 // Photoshop ignores the legacy lrFX compatibility mirror whenever lfx2 exists;
 // merging it resurrected effects the lfx2 deliberately disables (and the
 // misparsed legacy values then aborted the flatten). Reproduced by disabling
@@ -1477,6 +1558,9 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_stroke_shapeburst_fixture_matches_render},
       {"psd_lrfx_legacy_drop_shadow_parses_fixed_point",
        psd_lrfx_legacy_drop_shadow_parses_fixed_point},
+      {"psd_lfx2_charid_blend_mode_enum_parses", psd_lfx2_charid_blend_mode_enum_parses},
+      {"psd_weedkiller_legacy_charid_styles_parse_if_available",
+       psd_weedkiller_legacy_charid_styles_parse_if_available},
       {"psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available",
        psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available},
       {"psd_cmyk_document_converts_style_and_text_colors", psd_cmyk_document_converts_style_and_text_colors},

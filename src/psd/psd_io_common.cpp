@@ -314,6 +314,10 @@ std::array<char, 4> blend_mode_key(BlendMode mode) {
   return {'n', 'o', 'r', 'm'};
 }
 
+// Accepts both the layer-record blend signatures ('dark', 'mul ', ...) and the
+// descriptor-enum charIDs ('Drkn', 'Mltp', ...) that CS-era lfx2 blocks store as
+// length-0 'BlnM' values. 'Dslv' (dissolve) has no Patchy blend mode and
+// intentionally resolves to Normal through the default below.
 BlendMode blend_mode_from_key(const std::array<char, 4>& key) {
   if (key == std::array<char, 4>{'N', 'r', 'm', 'l'}) {
     return BlendMode::Normal;
@@ -336,10 +340,10 @@ BlendMode blend_mode_from_key(const std::array<char, 4>& key) {
   if (key == std::array<char, 4>{'O', 'v', 'r', 'l'}) {
     return BlendMode::Overlay;
   }
-  if (key == std::array<char, 4>{'d', 'a', 'r', 'k'}) {
+  if (key == std::array<char, 4>{'d', 'a', 'r', 'k'} || key == std::array<char, 4>{'D', 'r', 'k', 'n'}) {
     return BlendMode::Darken;
   }
-  if (key == std::array<char, 4>{'l', 'i', 't', 'e'}) {
+  if (key == std::array<char, 4>{'l', 'i', 't', 'e'} || key == std::array<char, 4>{'L', 'g', 'h', 'n'}) {
     return BlendMode::Lighten;
   }
   if (key == std::array<char, 4>{'d', 'i', 'v', ' '}) {
@@ -354,13 +358,13 @@ BlendMode blend_mode_from_key(const std::array<char, 4>& key) {
   if (key == std::array<char, 4>{'C', 'B', 'r', 'n'}) {
     return BlendMode::ColorBurn;
   }
-  if (key == std::array<char, 4>{'h', 'L', 'i', 't'}) {
+  if (key == std::array<char, 4>{'h', 'L', 'i', 't'} || key == std::array<char, 4>{'H', 'r', 'd', 'L'}) {
     return BlendMode::HardLight;
   }
   if (key == std::array<char, 4>{'s', 'L', 'i', 't'} || key == std::array<char, 4>{'S', 'f', 't', 'L'}) {
     return BlendMode::SoftLight;
   }
-  if (key == std::array<char, 4>{'d', 'i', 'f', 'f'}) {
+  if (key == std::array<char, 4>{'d', 'i', 'f', 'f'} || key == std::array<char, 4>{'D', 'f', 'r', 'n'}) {
     return BlendMode::Difference;
   }
   if (key == std::array<char, 4>{'l', 'b', 'r', 'n'}) {
@@ -369,22 +373,22 @@ BlendMode blend_mode_from_key(const std::array<char, 4>& key) {
   if (key == std::array<char, 4>{'p', 'L', 'i', 't'}) {
     return BlendMode::PinLight;
   }
-  if (key == std::array<char, 4>{'s', 'a', 't', ' '}) {
+  if (key == std::array<char, 4>{'s', 'a', 't', ' '} || key == std::array<char, 4>{'S', 't', 'r', 't'}) {
     return BlendMode::Saturation;
   }
-  if (key == std::array<char, 4>{'l', 'u', 'm', ' '}) {
+  if (key == std::array<char, 4>{'l', 'u', 'm', ' '} || key == std::array<char, 4>{'L', 'm', 'n', 's'}) {
     return BlendMode::Luminosity;
   }
   if (key == std::array<char, 4>{'p', 'a', 's', 's'}) {
     return BlendMode::PassThrough;
   }
-  if (key == std::array<char, 4>{'s', 'm', 'u', 'd'}) {
+  if (key == std::array<char, 4>{'s', 'm', 'u', 'd'} || key == std::array<char, 4>{'X', 'c', 'l', 'u'}) {
     return BlendMode::Exclusion;
   }
-  if (key == std::array<char, 4>{'h', 'u', 'e', ' '}) {
+  if (key == std::array<char, 4>{'h', 'u', 'e', ' '} || key == std::array<char, 4>{'H', ' ', ' ', ' '}) {
     return BlendMode::Hue;
   }
-  if (key == std::array<char, 4>{'c', 'o', 'l', 'r'}) {
+  if (key == std::array<char, 4>{'c', 'o', 'l', 'r'} || key == std::array<char, 4>{'C', 'l', 'r', ' '}) {
     return BlendMode::Color;
   }
   if (key == std::array<char, 4>{'l', 'd', 'd', 'g'}) {

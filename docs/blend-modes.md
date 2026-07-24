@@ -8,7 +8,7 @@ Adding a blend mode means updating ALL of:
 
 - `blend_math.cpp` — the pixel math.
 - `blend_mode_ui.cpp` — display order is decoupled from enum order via combo item data; insert the new mode at its Photoshop menu position.
-- The three PSD maps: the 4-char blend key map AND the lfx2 stringID map, in BOTH read and write directions (lfx2 blend modes are written as full stringIDs, never 4-char codes — see [ps-compat.md](ps-compat.md)).
+- The three PSD maps: the 4-char blend key map (whose read direction also carries the CS-era descriptor charID aliases like 'Drkn') AND the lfx2 stringID map, in BOTH read and write directions (lfx2 blend modes are written as full stringIDs, never 4-char codes — see [ps-compat.md](ps-compat.md)).
 - The Aseprite map in both directions.
 
 ## Calibrated math rules
