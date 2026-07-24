@@ -2254,6 +2254,17 @@ void MainWindow::reveal_layer_in_layer_list(LayerId id) {
     session().collapsed_layer_groups.erase(ancestor_id);
   }
 
+  if (layer_name_filter_edit_ != nullptr && !layer_name_filter_edit_->text().isEmpty()) {
+    const auto* target = document().find_layer(id);
+    if (target == nullptr || !QString::fromStdString(target->name())
+                                  .contains(layer_name_filter_edit_->text(), Qt::CaseInsensitive)) {
+      // The refresh below re-reads the emptied text; blocking the signal
+      // avoids a second rebuild from textChanged.
+      const QSignalBlocker blocker(layer_name_filter_edit_);
+      layer_name_filter_edit_->clear();
+    }
+  }
+
   refresh_layer_list();
   for (int row = 0; row < layer_list_->count(); ++row) {
     auto* item = layer_list_->item(row);
@@ -2344,6 +2355,34 @@ void MainWindow::refresh_layer_list() {
     }
   }
 
+  // Layer name filter: rows for non-matching layers are never created (the
+  // same absent-row state collapsed folders use), so selection ranges, reorder
+  // guards, and the thumbnail cache stay correct without a hidden-row state.
+  // The set holds matches plus their ancestor groups; it is built in a
+  // pre-pass because append_layers creates a group's row before recursing.
+  const auto filter_text =
+      layer_name_filter_edit_ != nullptr ? layer_name_filter_edit_->text() : QString();
+  const bool filter_active = !filter_text.isEmpty();
+  std::set<LayerId> filter_included_ids;
+  if (filter_active) {
+    std::function<bool(const Layer&)> mark_included = [&](const Layer& layer) {
+      bool included =
+          QString::fromStdString(layer.name()).contains(filter_text, Qt::CaseInsensitive);
+      for (const auto& child : layer.children()) {
+        if (mark_included(child)) {
+          included = true;  // No short-circuit: every subtree must be visited.
+        }
+      }
+      if (included) {
+        filter_included_ids.insert(layer.id());
+      }
+      return included;
+    };
+    for (const auto& layer : doc.layers()) {
+      mark_included(layer);
+    }
+  }
+
   const auto active = doc.active_layer_id();
   const auto edit_target =
       canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
@@ -2351,11 +2390,18 @@ void MainWindow::refresh_layer_list() {
   std::function<void(const std::vector<Layer>&, int, bool, LayerLockFlags)> append_layers =
       [&](const std::vector<Layer>& layers, int depth, bool ancestors_visible, LayerLockFlags ancestor_lock_flags) {
     for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+      if (filter_active && !filter_included_ids.contains(it->id())) {
+        continue;
+      }
       const auto effective_visible = ancestors_visible && it->visible();
       const auto direct_lock_flags = layer_lock_flags(*it);
       const auto effective_lock_flags = ancestor_lock_flags | direct_lock_flags;
       const auto is_group = it->kind() == LayerKind::Group;
-      const auto group_expanded = !is_group || !collapsed_groups.contains(it->id());
+      // While filtering, shown groups are force-expanded for display only
+      // (session collapse state untouched) so matches inside collapsed
+      // folders get rows and the expand arrow matches what is shown.
+      const auto group_expanded =
+          !is_group || filter_active || !collapsed_groups.contains(it->id());
       const auto sibling_index = static_cast<std::size_t>(std::distance(layers.begin(), it.base())) - 1U;
       const auto row_clipped =
           !is_group && it->clipped() && effective_clip_base(layers, sibling_index) != nullptr;
@@ -2504,6 +2550,7 @@ void MainWindow::refresh_layer_list() {
   }
   restyle_layer_rows(layer_list_);
   if (auto* list = dynamic_cast<LayerListWidget*>(layer_list_); list != nullptr) {
+    list->set_drag_blocked(filter_active);
     list->refresh_row_widths();
   }
   if (auto* scroll_bar = layer_list_->verticalScrollBar(); scroll_bar != nullptr) {

@@ -261,6 +261,10 @@ bool LayerListWidget::drop_in_progress() const noexcept {
   return drop_in_progress_;
 }
 
+void LayerListWidget::set_drag_blocked(bool blocked) {
+  drag_blocked_ = blocked;
+}
+
 std::optional<LayerDropRequest> LayerListWidget::take_drop_request() {
   auto request = std::move(pending_drop_request_);
   pending_drop_request_.reset();
@@ -892,6 +896,13 @@ void LayerListWidget::finish_pending_single_select() {
 }
 
 void LayerListWidget::startDrag(Qt::DropActions supported_actions) {
+  if (drag_blocked_) {
+    // Both row-widget eventFilter paths call startDrag directly, so this gate
+    // covers every initiation path, not just Qt's dragEnabled one.
+    drag_anchor_layer_id_.reset();
+    dragged_layer_ids_.clear();
+    return;
+  }
   if (drag_anchor_layer_id_.has_value()) {
     keep_drag_anchor_selected();
   }
@@ -924,6 +935,10 @@ void LayerListWidget::startDrag(Qt::DropActions supported_actions) {
 }
 
 void LayerListWidget::dragEnterEvent(QDragEnterEvent* event) {
+  if (drag_blocked_) {
+    event->ignore();
+    return;
+  }
   keep_drag_anchor_selected();
   update_drop_preview(event->position().toPoint());
   update_auto_scroll(event->position().toPoint());
@@ -932,6 +947,10 @@ void LayerListWidget::dragEnterEvent(QDragEnterEvent* event) {
 }
 
 void LayerListWidget::dragMoveEvent(QDragMoveEvent* event) {
+  if (drag_blocked_) {
+    event->ignore();
+    return;
+  }
   keep_drag_anchor_selected();
   update_drop_preview(event->position().toPoint());
   update_auto_scroll(event->position().toPoint());
@@ -947,6 +966,12 @@ void LayerListWidget::dragLeaveEvent(QDragLeaveEvent* event) {
 }
 
 void LayerListWidget::dropEvent(QDropEvent* event) {
+  if (drag_blocked_) {
+    // The empty-ids fallback below reorders from the selection, so an external
+    // drop while filtered must be refused outright.
+    event->ignore();
+    return;
+  }
   stop_auto_scroll();
   clear_drop_preview();
   auto ids = !dragged_layer_ids_.empty() ? dragged_layer_ids_ : layer_ids_from_mime_data(event->mimeData());

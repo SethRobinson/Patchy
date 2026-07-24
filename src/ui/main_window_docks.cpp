@@ -796,6 +796,13 @@ void MainWindow::create_docks() {
   lock_controls->addStretch(1);
   layer_control_grid->addLayout(lock_controls, 3, 1, 1, 2);
   layers_layout->addLayout(layer_control_grid);
+  layer_name_filter_edit_ = new QLineEdit(layers_panel);
+  layer_name_filter_edit_->setObjectName(QStringLiteral("layerNameFilterEdit"));
+  layer_name_filter_edit_->setClearButtonEnabled(true);
+  bind_widget_text(layer_name_filter_edit_, "Filter layers by name...");
+  connect(layer_name_filter_edit_, &QLineEdit::textChanged, this, [this] { refresh_layer_list(); });
+  register_document_widget(layer_name_filter_edit_);
+  layers_layout->addWidget(layer_name_filter_edit_);
   layers_layout->addWidget(layer_list_, 1);
 
   auto* layer_buttons = new QHBoxLayout();

@@ -1798,6 +1798,273 @@ void ui_layer_fill_opacity_control_updates_active_layer() {
   CHECK(std::abs(layer->fill_opacity() - 0.37F) < 0.001F);
 }
 
+patchy::Document make_name_filter_document() {
+  patchy::Document document(48, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(48, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  patchy::Layer group(document.allocate_layer_id(), "Assets", patchy::LayerKind::Group);
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Hero",
+                                solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(220, 40, 40))));
+  document.add_layer(std::move(group));
+  return document;
+}
+
+void ui_layer_filter_shows_matching_rows_and_ancestor_folders() {
+  auto document = make_name_filter_document();
+  const auto background_id = document.layers()[0].id();
+  document.set_active_layer(background_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Layer Name Filter"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(layer_list != nullptr);
+  CHECK(filter_edit != nullptr);
+  CHECK(filter_edit->isEnabled());
+  CHECK(layer_list->count() == 3);
+
+  filter_edit->setText(QStringLiteral("hero"));
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 2);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Hero")) != nullptr);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Assets")) != nullptr);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Background")) == nullptr);
+  // The filtered-out active layer stays active in the document; the list just
+  // shows no selection.
+  CHECK(layer_list->selectedItems().isEmpty());
+  const auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(doc.active_layer_id() == background_id);
+
+  filter_edit->clear();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 3);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Background")) != nullptr);
+  save_widget_artifact("ui_layer_name_filter", window);
+}
+
+void ui_layer_filter_reveals_matches_inside_collapsed_folders() {
+  patchy::Document document(48, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(48, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  patchy::Layer group(document.allocate_layer_id(), "Assets", patchy::LayerKind::Group);
+  group.metadata()[patchy::kLayerMetadataGroupExpanded] = "false";
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Hero",
+                                solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(220, 40, 40))));
+  document.add_layer(std::move(group));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Filter Collapsed Folder"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(layer_list != nullptr);
+  CHECK(filter_edit != nullptr);
+  CHECK(layer_list->count() == 2);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Hero")) == nullptr);
+
+  filter_edit->setText(QStringLiteral("hero"));
+  QApplication::processEvents();
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Hero")) != nullptr);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Assets"))
+            ->data(patchy::ui::kLayerGroupExpandedRole)
+            .toBool());
+
+  filter_edit->clear();
+  QApplication::processEvents();
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Hero")) == nullptr);
+  CHECK(!require_layer_item(*layer_list, QStringLiteral("Assets"))
+             ->data(patchy::ui::kLayerGroupExpandedRole)
+             .toBool());
+}
+
+void ui_layer_filter_reapplies_after_layer_rename() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(make_name_filter_document(), QStringLiteral("Filter Rename"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(layer_list != nullptr);
+  CHECK(filter_edit != nullptr);
+
+  filter_edit->setText(QStringLiteral("hero"));
+  QApplication::processEvents();
+  auto* hero_item = require_layer_item(*layer_list, QStringLiteral("Hero"));
+  const auto hero_id = static_cast<patchy::LayerId>(hero_item->data(patchy::ui::kLayerIdRole).toULongLong());
+  CHECK(layer_list->count() == 2);
+
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  doc.find_layer(hero_id)->set_name("Sky");
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 0);
+
+  doc.find_layer(hero_id)->set_name("Hero");
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 2);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Hero")) != nullptr);
+}
+
+void ui_layer_filter_blocks_layer_drag_reorder() {
+  patchy::Document document(48, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Red Layer",
+                           solid_pixels(48, 48, patchy::PixelFormat::rgb8(), QColor(220, 40, 40)));
+  document.add_pixel_layer("Green Layer",
+                           solid_pixels(48, 48, patchy::PixelFormat::rgb8(), QColor(40, 180, 80)));
+  document.add_pixel_layer("Blue Sky",
+                           solid_pixels(48, 48, patchy::PixelFormat::rgb8(), QColor(40, 90, 220)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Filter Drag Block"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(layer_list != nullptr);
+  CHECK(filter_edit != nullptr);
+
+  filter_edit->setText(QStringLiteral("layer"));
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 2);
+  auto* red_item = require_layer_item(*layer_list, QStringLiteral("Red Layer"));
+  const auto red_id = static_cast<patchy::LayerId>(red_item->data(patchy::ui::kLayerIdRole).toULongLong());
+  auto* green_item = require_layer_item(*layer_list, QStringLiteral("Green Layer"));
+  const auto green_rect = layer_list->visualItemRect(green_item);
+
+  send_layer_drop(*layer_list, QPoint(2, green_rect.top() + 2), {red_id});
+  process_events_for(1);
+  const auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(doc.layers()[0].name() == "Red Layer");
+  CHECK(doc.layers()[1].name() == "Green Layer");
+  CHECK(doc.layers()[2].name() == "Blue Sky");
+  CHECK(layer_list->count() == 2);
+
+  // Control: the same drop reorders once the filter is cleared.
+  filter_edit->clear();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 3);
+  const auto top_rect = layer_list->visualItemRect(layer_list->item(0));
+  send_layer_drop(*layer_list, QPoint(2, top_rect.top() + 2), {red_id});
+  process_events_for(1);
+  CHECK(layer_list->row(require_layer_item(*layer_list, QStringLiteral("Red Layer"))) == 0);
+}
+
+void ui_layer_filter_persists_across_document_tabs() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(tabs != nullptr);
+  CHECK(layer_list != nullptr);
+  CHECK(filter_edit != nullptr);
+
+  window.add_document_session(make_name_filter_document(), QStringLiteral("Filter Tab A"));
+  QApplication::processEvents();
+  auto* hero_canvas = tabs->currentWidget();
+
+  patchy::Document boat_document(48, 48, patchy::PixelFormat::rgb8());
+  boat_document.add_pixel_layer("Boat",
+                                solid_pixels(48, 48, patchy::PixelFormat::rgb8(), QColor(40, 90, 220)));
+  window.add_document_session(std::move(boat_document), QStringLiteral("Filter Tab B"));
+  QApplication::processEvents();
+  auto* boat_canvas = tabs->currentWidget();
+
+  filter_edit->setText(QStringLiteral("hero"));
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 0);
+
+  tabs->setCurrentWidget(hero_canvas);
+  QApplication::processEvents();
+  CHECK(filter_edit->text() == QStringLiteral("hero"));
+  CHECK(layer_list->count() == 2);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Hero")) != nullptr);
+
+  tabs->setCurrentWidget(boat_canvas);
+  QApplication::processEvents();
+  CHECK(filter_edit->text() == QStringLiteral("hero"));
+  CHECK(layer_list->count() == 0);
+}
+
+void ui_layer_filter_empty_match_keeps_document_state() {
+  auto document = make_name_filter_document();
+  const auto background_id = document.layers()[0].id();
+  document.set_active_layer(background_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Filter Empty Match"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(layer_list != nullptr);
+  CHECK(filter_edit != nullptr);
+
+  filter_edit->setText(QStringLiteral("zzz"));
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 0);
+  const auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(doc.active_layer_id() == background_id);
+
+  filter_edit->clear();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 3);
+  CHECK(layer_list->currentItem() != nullptr);
+  CHECK(static_cast<patchy::LayerId>(
+            layer_list->currentItem()->data(patchy::ui::kLayerIdRole).toULongLong()) == background_id);
+}
+
+void ui_layer_filter_reveal_clears_filter_for_hidden_target() {
+  patchy::Document document(48, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(48, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  const auto background_id = document.layers()[0].id();
+  patchy::Layer group(document.allocate_layer_id(), "Assets", patchy::LayerKind::Group);
+  auto boat = patchy::Layer(document.allocate_layer_id(), "Boat",
+                            solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 80, 220)));
+  boat.set_bounds(patchy::Rect{12, 12, 12, 12});
+  group.add_child(std::move(boat));
+  document.add_layer(std::move(group));
+  document.set_active_layer(background_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Filter Reveal Target"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(layer_list != nullptr);
+  CHECK(filter_edit != nullptr);
+
+  filter_edit->setText(QStringLiteral("background"));
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 1);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Boat")) == nullptr);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  const auto click = canvas->widget_position_for_document_point(QPoint(16, 16));
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+
+  CHECK(filter_edit->text().isEmpty());
+  auto* boat_item = require_layer_item(*layer_list, QStringLiteral("Boat"));
+  CHECK(boat_item->isSelected());
+  CHECK(layer_list->currentItem() == boat_item);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
@@ -1845,6 +2112,17 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_folder_visibility_preserves_layer_panel_scroll", ui_folder_visibility_preserves_layer_panel_scroll},
       {"ui_layer_fill_opacity_control_updates_active_layer",
        ui_layer_fill_opacity_control_updates_active_layer},
+      {"ui_layer_filter_shows_matching_rows_and_ancestor_folders",
+       ui_layer_filter_shows_matching_rows_and_ancestor_folders},
+      {"ui_layer_filter_reveals_matches_inside_collapsed_folders",
+       ui_layer_filter_reveals_matches_inside_collapsed_folders},
+      {"ui_layer_filter_reapplies_after_layer_rename", ui_layer_filter_reapplies_after_layer_rename},
+      {"ui_layer_filter_blocks_layer_drag_reorder", ui_layer_filter_blocks_layer_drag_reorder},
+      {"ui_layer_filter_persists_across_document_tabs", ui_layer_filter_persists_across_document_tabs},
+      {"ui_layer_filter_empty_match_keeps_document_state",
+       ui_layer_filter_empty_match_keeps_document_state},
+      {"ui_layer_filter_reveal_clears_filter_for_hidden_target",
+       ui_layer_filter_reveal_clears_filter_for_hidden_target},
       {"ui_layer_row_selected_highlight_paints", ui_layer_row_selected_highlight_paints},
       {"ui_layer_folder_alt_click_toggles_nested_folders",
        ui_layer_folder_alt_click_toggles_nested_folders},

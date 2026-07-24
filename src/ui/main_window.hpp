@@ -54,6 +54,7 @@ class QEvent;
 class QFontComboBox;
 class QImage;
 class QLabel;
+class QLineEdit;
 class QMenu;
 class QPushButton;
 class QShowEvent;
@@ -1029,6 +1030,7 @@ private:
   QPixmap quick_mask_thumbnail_;
   bool swallow_next_canvas_left_press_{false};
   QListWidget* layer_list_{nullptr};
+  QLineEdit* layer_name_filter_edit_{nullptr};
   ChannelPanel* channel_panel_{nullptr};
   QDockWidget* channel_dock_{nullptr};
   PathsPanel* paths_panel_{nullptr};

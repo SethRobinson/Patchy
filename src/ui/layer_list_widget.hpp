@@ -65,6 +65,9 @@ public:
   void set_item_double_click_callback(std::function<void(QListWidgetItem*)> callback);
   void set_smart_filter_double_click_callback(std::function<void(QListWidgetItem*, std::size_t)> callback);
   [[nodiscard]] bool drop_in_progress() const noexcept;
+  // Blocks drag reordering while the layer name filter hides rows; a reorder
+  // would silently move the filtered-out layers sitting between visible ones.
+  void set_drag_blocked(bool blocked);
   [[nodiscard]] std::optional<LayerDropRequest> take_drop_request();
   void refresh_row_widths();
   bool handle_drag_wheel_at_global_position(QPoint global_position, int primary_delta);
@@ -142,6 +145,7 @@ private:
   void update_row_viewport_masks();
 
   bool drop_in_progress_{false};
+  bool drag_blocked_{false};
   bool drop_event_uses_viewport_coordinates_{true};
   bool updating_row_widths_{false};
   bool row_mask_update_pending_{false};

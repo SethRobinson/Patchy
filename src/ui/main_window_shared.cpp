@@ -405,6 +405,10 @@ void apply_bound_translation(QObject* object) {
       toolbar->setWindowTitle(text);
     } else if (auto* label = qobject_cast<QLabel*>(object); label != nullptr) {
       label->setText(text);
+    } else if (auto* line_edit = qobject_cast<QLineEdit*>(object); line_edit != nullptr) {
+      // Line edits carry user data in text(); the bound translation targets
+      // the placeholder.
+      line_edit->setPlaceholderText(text);
     } else if (auto* button = qobject_cast<QAbstractButton*>(object); button != nullptr) {
       button->setText(text);
     } else if (auto* group = qobject_cast<QGroupBox*>(object); group != nullptr) {

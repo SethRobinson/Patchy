@@ -13155,6 +13155,7 @@ Clipped to the layer below</source>
     <message><source>A script is already running: %1</source><translation>スクリプトは既に実行中です: %1</translation></message>
     <message><source>Running script %1...</source><translation>スクリプト %1 を実行中...</translation></message>
     <message><source>%1 (modified)</source><translation>%1 (変更済み)</translation></message>
+    <message><source>Filter layers by name...</source><translation>レイヤー名で絞り込み...</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
