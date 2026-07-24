@@ -134,6 +134,42 @@ private:
   std::vector<float> alpha_;
 };
 
+// Photoshop's Opacity on a pass-through group is a post-composite fade: the
+// children first meet the backdrop exactly as at 100% (child blend modes and
+// interior adjustments included), then the whole result interpolates back
+// toward the pre-group backdrop — the PDF non-isolated-group alpha formula.
+// One fade applies to the composite, so overlapping children never
+// double-fade. Per-pixel independence keeps this strip-parallel and
+// dirty-patch safe. Untouched pixels are skipped so their bytes never
+// round-trip through the premultiplied lerp.
+template <typename Target>
+void fade_toward_snapshot(Target& destination, const CompositeSnapshot& before, Rect rect, float opacity) {
+  opacity = clamp_unit(opacity);
+  for (std::int32_t y = rect.y; y < rect.y + rect.height; ++y) {
+    for (std::int32_t x = rect.x; x < rect.x + rect.width; ++x) {
+      const auto previous = before.sample_color(x, y);
+      const auto current = destination.sample_color(x, y);
+      if (previous.color == current.color && previous.alpha == current.alpha) {
+        continue;
+      }
+      const auto output_alpha = previous.alpha + (current.alpha - previous.alpha) * opacity;
+      if (output_alpha <= 0.0F) {
+        continue;
+      }
+      const auto previous_weight = previous.alpha * (1.0F - opacity) / output_alpha;
+      const auto current_weight = current.alpha * opacity / output_alpha;
+      const auto color =
+          RgbColor{clamp_byte(static_cast<float>(previous.color.red) * previous_weight +
+                              static_cast<float>(current.color.red) * current_weight),
+                   clamp_byte(static_cast<float>(previous.color.green) * previous_weight +
+                              static_cast<float>(current.color.green) * current_weight),
+                   clamp_byte(static_cast<float>(previous.color.blue) * previous_weight +
+                              static_cast<float>(current.color.blue) * current_weight)};
+      destination.store_color(x, y, color, output_alpha);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Optional cache hook for the expensive per-effect float masks (distance
 // transforms, spread expansions, interior blurs). A provider that returns a
@@ -2076,6 +2112,26 @@ public:
     return CompositeSample{RgbColor{rgb[0], rgb[1], rgb[2]}, alpha_[index]};
   }
 
+  // Direct overwrite for fade_toward_snapshot (a faded pass-through group
+  // nested inside an isolated group). Groups are never composited into a
+  // frozen instance (layer_clipped_for_render excludes groups from clip runs),
+  // and the lerped alpha lies between two states that both respected any clip
+  // cap, so no clip_alpha interaction is needed.
+  void store_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha) {
+    x -= rect_.x;
+    y -= rect_.y;
+    if (x < 0 || y < 0 || x >= rect_.width || y >= rect_.height) {
+      return;
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+    auto* dst = rgb_.data() + index * 3U;
+    dst[0] = color.red;
+    dst[1] = color.green;
+    dst[2] = color.blue;
+    alpha_[index] = clamp_unit(alpha);
+  }
+
   void record_clip_coverage(std::int32_t x, std::int32_t y, float alpha) noexcept {
     if (frozen_ || !use_original_clip_coverage_) {
       return;
@@ -2268,6 +2324,15 @@ public:
     return base_.sample_color(x, y);
   }
 
+  // Deliberately NOT attenuated by mask_alpha: fade_toward_snapshot lerps two
+  // destination states that already include this chain's mask attenuation, so
+  // masking the store would double-apply the masks.
+  void store_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha)
+    requires requires(Base& base) { base.store_color(std::int32_t{}, std::int32_t{}, RgbColor{}, 0.0F); }
+  {
+    base_.store_color(x, y, color, alpha);
+  }
+
   void record_clip_coverage(std::int32_t x, std::int32_t y, float alpha)
     requires requires(Base& base) { base.record_clip_coverage(std::int32_t{}, std::int32_t{}, 0.0F); }
   {
@@ -2376,18 +2441,45 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   if (layer.kind() == LayerKind::Group) {
-    if (layer_has_rendered_blend_if(layer)) {
-      const auto blend_if = layer.blend_if();
+    // Blend-if groups and every non-pass-through group isolate: children
+    // composite against transparency and the merged result meets the backdrop
+    // with the group's blend mode, opacity, and mask (Photoshop's isolated
+    // transparency group).
+    if (layer_has_rendered_blend_if(layer) || layer.blend_mode() != BlendMode::PassThrough) {
+      // Blend-if groups keep the calibrated full-clip buffer; the plain
+      // isolated path bounds it by the children's render bounds instead
+      // (layer_render_bounds ignores LayerBoundsOverride, so overrides also
+      // fall back to the full clip). Coverage can only exist where pixel
+      // children painted, so the bounded buffer merges identically.
+      const auto isolated_rect = overrides == nullptr && !layer_has_rendered_blend_if(layer)
+                                     ? intersect_rect(clip, layer_render_bounds(layer))
+                                     : clip;
+      if (isolated_rect.empty()) {
+        return;
+      }
+      // Unsupported blend-if payloads are raw-preserved, never rendered: a
+      // non-pass-through group without a RENDERED blend-if merges with
+      // identity ranges.
+      const auto blend_if = layer_has_rendered_blend_if(layer) ? layer.blend_if() : LayerBlendIf{};
       std::optional<CompositeSnapshot> backdrop;
       if (blend_if_has_underlying_ranges(blend_if)) {
-        backdrop.emplace(destination, clip);
+        backdrop.emplace(destination, isolated_rect);
       }
-      IsolatedClipGroupTarget isolated(clip);
-      composite_layers(isolated, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
-                       patterns);
+      IsolatedClipGroupTarget isolated(isolated_rect);
+      composite_layers(isolated, layer.children(), isolated_rect, overrides, throw_on_unsupported_pixel_format,
+                       masks, patterns);
       isolated.merge_layer_into(destination, layer, blend_if, backdrop.has_value() ? &*backdrop : nullptr,
                                 layer_mask_bounds_for_render(layer, overrides));
       return;
+    }
+    // Pass-through group Opacity is a post-composite fade (fade_toward_snapshot):
+    // snapshot the backdrop, composite the children at full strength, then
+    // interpolate. The fade covers the full clip because an interior adjustment
+    // with unlimited bounds can touch backdrop pixels outside the children's
+    // render bounds.
+    std::optional<CompositeSnapshot> before;
+    if (layer.opacity() < 1.0F) {
+      before.emplace(destination, clip);
     }
     // A group's raster/vector mask attenuates every child contribution in
     // place. No isolation: the default group is pass-through, so child blend
@@ -2406,10 +2498,13 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
         composite_layers(masked, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
                          patterns);
       }
-      return;
+    } else {
+      composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
+                       patterns);
     }
-    composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
-                     patterns);
+    if (before.has_value()) {
+      fade_toward_snapshot(destination, *before, clip, layer.opacity());
+    }
     return;
   }
 

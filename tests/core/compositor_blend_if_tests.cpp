@@ -527,6 +527,246 @@ void compositor_pass_through_group_blend_if_isolates_adjustment_child() {
   expect_gray_pair(render(this_white, true), 20, 105);
 }
 
+// Pass-through group Opacity is a single post-composite fade toward the
+// pre-group backdrop (the PDF non-isolated-group formula): at an overlap the
+// upper child fully covers the lower one FIRST, then the whole result fades
+// once. Per-child opacity scaling would instead leak the lower child through.
+void compositor_pass_through_group_opacity_fades_once_at_overlap() {
+  patchy::Document document(3, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(3, 1, 40, 40, 40));
+
+  patchy::Layer group(document.allocate_layer_id(), "Faded", patchy::LayerKind::Group);
+  group.set_blend_mode(patchy::BlendMode::PassThrough);
+  group.set_opacity(0.5F);
+  patchy::Layer red(document.allocate_layer_id(), "Red", solid_rgba(2, 1, 200, 0, 0, 255));
+  red.set_bounds(patchy::Rect{0, 0, 2, 1});
+  patchy::Layer blue(document.allocate_layer_id(), "Blue", solid_rgba(2, 1, 0, 0, 200, 255));
+  blue.set_bounds(patchy::Rect{1, 0, 2, 1});
+  group.add_child(std::move(red));
+  group.add_child(std::move(blue));
+  document.add_layer(std::move(group));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(0, 0)[0] == 120);  // red only: lerp(40, 200, 0.5)
+  CHECK(flattened.pixel(0, 0)[2] == 20);
+  // Overlap: blue covered red at full strength before the fade. Per-child
+  // scaling would leave red at 60 here.
+  CHECK(flattened.pixel(1, 0)[0] == 20);
+  CHECK(flattened.pixel(1, 0)[2] == 120);
+  CHECK(flattened.pixel(2, 0)[0] == 20);
+  CHECK(flattened.pixel(2, 0)[2] == 120);
+}
+
+// A Multiply child inside a faded pass-through group still meets the TRUE
+// backdrop (no isolation); the fade interpolates the multiplied result.
+void compositor_pass_through_group_opacity_with_multiply_child() {
+  const auto render = [](float group_opacity) {
+    patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(1, 1, 100, 100, 100));
+    patchy::Layer group(document.allocate_layer_id(), "Faded", patchy::LayerKind::Group);
+    group.set_blend_mode(patchy::BlendMode::PassThrough);
+    group.set_opacity(group_opacity);
+    patchy::Layer child(document.allocate_layer_id(), "Multiply", solid_rgba(1, 1, 128, 128, 128, 255));
+    child.set_blend_mode(patchy::BlendMode::Multiply);
+    group.add_child(std::move(child));
+    document.add_layer(std::move(group));
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+
+  const auto full = static_cast<int>(render(1.0F).pixel(0, 0)[0]);
+  CHECK(full < 60);  // multiplied against the backdrop, far below either input
+  const auto faded = static_cast<int>(render(0.5F).pixel(0, 0)[0]);
+  const auto expected = static_cast<int>(std::lround(100.0 * 0.5 + static_cast<double>(full) * 0.5));
+  CHECK(faded == expected);  // lerp(backdrop, full-strength result, 0.5)
+}
+
+// An interior adjustment keeps reaching the backdrop below the group and its
+// effect fades with the group opacity.
+void compositor_pass_through_group_opacity_fades_adjustment() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(1, 1, 100, 100, 100));
+
+  patchy::AdjustmentSettings invert;
+  invert.kind = patchy::AdjustmentKind::Invert;
+  patchy::Layer adjustment(document.allocate_layer_id(), "Invert", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(1, 1));
+  patchy::configure_adjustment_layer(adjustment, invert);
+
+  patchy::Layer group(document.allocate_layer_id(), "Faded", patchy::LayerKind::Group);
+  group.set_blend_mode(patchy::BlendMode::PassThrough);
+  group.set_opacity(0.5F);
+  group.add_child(std::move(adjustment));
+  document.add_layer(std::move(group));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(0, 0)[0] == 128);  // lerp(100, inverted 155, 0.5)
+}
+
+// The group mask attenuates the children in place, then the opacity fade
+// applies once on top; fully masked pixels stay untouched.
+void compositor_pass_through_group_opacity_respects_group_mask() {
+  patchy::Document document(2, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(2, 1, 40, 40, 40));
+
+  patchy::Layer group(document.allocate_layer_id(), "Masked Faded", patchy::LayerKind::Group);
+  group.set_blend_mode(patchy::BlendMode::PassThrough);
+  group.set_opacity(0.5F);
+  group.add_child(
+      patchy::Layer(document.allocate_layer_id(), "White", solid_rgba(2, 1, 255, 255, 255, 255)));
+  patchy::PixelBuffer mask_pixels(2, 1, patchy::PixelFormat::gray8());
+  *mask_pixels.pixel(0, 0) = 255;
+  *mask_pixels.pixel(1, 0) = 0;
+  group.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 2, 1}, std::move(mask_pixels), 255, false});
+  document.add_layer(std::move(group));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(0, 0)[0] == 148);  // lerp(40, 255, 0.5) = 147.5 -> 148
+  CHECK(flattened.pixel(1, 0)[0] == 40);   // fully masked: untouched
+}
+
+// Nested faded pass-through groups snapshot LIFO; the fades compose.
+void compositor_nested_pass_through_group_opacities_compose() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(1, 1, 40, 40, 40));
+
+  patchy::Layer inner(document.allocate_layer_id(), "Inner", patchy::LayerKind::Group);
+  inner.set_blend_mode(patchy::BlendMode::PassThrough);
+  inner.set_opacity(0.5F);
+  inner.add_child(
+      patchy::Layer(document.allocate_layer_id(), "White", solid_rgba(1, 1, 255, 255, 255, 255)));
+
+  patchy::Layer outer(document.allocate_layer_id(), "Outer", patchy::LayerKind::Group);
+  outer.set_blend_mode(patchy::BlendMode::PassThrough);
+  outer.set_opacity(0.5F);
+  outer.add_child(std::move(inner));
+  document.add_layer(std::move(outer));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // Inner fade: lerp(40, 255, 0.5) = 148; outer fade: lerp(40, 148, 0.5) = 94.
+  CHECK(flattened.pixel(0, 0)[0] == 94);
+}
+
+// A non-pass-through group isolates its children: a Multiply child no longer
+// sees the backdrop, and an adjustment-only Normal group is a no-op.
+void compositor_normal_group_isolates_children() {
+  {
+    patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(1, 1, 100, 100, 100));
+    patchy::Layer group(document.allocate_layer_id(), "Normal Group", patchy::LayerKind::Group);
+    group.set_blend_mode(patchy::BlendMode::Normal);
+    patchy::Layer child(document.allocate_layer_id(), "Multiply", solid_rgba(1, 1, 128, 128, 128, 255));
+    child.set_blend_mode(patchy::BlendMode::Multiply);
+    group.add_child(std::move(child));
+    document.add_layer(std::move(group));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    // Multiply against the isolated transparent buffer keeps the source color;
+    // the group then replaces the backdrop in Normal mode.
+    CHECK(flattened.pixel(0, 0)[0] == 128);
+  }
+  {
+    patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(1, 1, 100, 100, 100));
+    patchy::AdjustmentSettings invert;
+    invert.kind = patchy::AdjustmentKind::Invert;
+    patchy::Layer adjustment(document.allocate_layer_id(), "Invert", patchy::LayerKind::Adjustment);
+    adjustment.set_bounds(patchy::Rect::from_size(1, 1));
+    patchy::configure_adjustment_layer(adjustment, invert);
+    patchy::Layer group(document.allocate_layer_id(), "Normal Group", patchy::LayerKind::Group);
+    group.set_blend_mode(patchy::BlendMode::Normal);
+    group.add_child(std::move(adjustment));
+    document.add_layer(std::move(group));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(0, 0)[0] == 100);  // no source pixels to adjust
+  }
+}
+
+// A group's blend mode and opacity merge its isolated result exactly like an
+// equivalent single layer with that mode and opacity.
+void compositor_group_blend_mode_and_opacity_apply() {
+  patchy::Document reference(1, 1, patchy::PixelFormat::rgb8());
+  reference.add_pixel_layer("Backdrop", solid_rgb(1, 1, 100, 100, 100));
+  auto& reference_layer = reference.add_pixel_layer("Multiply", solid_rgba(1, 1, 128, 128, 128, 255));
+  reference_layer.set_blend_mode(patchy::BlendMode::Multiply);
+  reference_layer.set_opacity(0.5F);
+  const auto expected = patchy::Compositor{}.flatten_rgb8(reference).pixel(0, 0)[0];
+
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(1, 1, 100, 100, 100));
+  patchy::Layer group(document.allocate_layer_id(), "Multiply Group", patchy::LayerKind::Group);
+  group.set_blend_mode(patchy::BlendMode::Multiply);
+  group.set_opacity(0.5F);
+  group.add_child(
+      patchy::Layer(document.allocate_layer_id(), "Gray", solid_rgba(1, 1, 128, 128, 128, 255)));
+  document.add_layer(std::move(group));
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(0, 0)[0] == expected);
+  CHECK(expected < 100);  // sanity: multiply at half strength darkened the backdrop
+}
+
+// The reported bug scenario: a faded pass-through group over a TRANSPARENT
+// canvas must reduce output coverage, which only the alpha-aware flatten path
+// can show (source-over alone cannot reduce alpha).
+void compositor_pass_through_group_opacity_fades_over_transparency() {
+  patchy::Document document(2, 1, patchy::PixelFormat::rgba8());
+  patchy::Layer group(document.allocate_layer_id(), "Faded", patchy::LayerKind::Group);
+  group.set_blend_mode(patchy::BlendMode::PassThrough);
+  group.set_opacity(0.5F);
+  auto child = solid_rgba(2, 1, 255, 0, 0, 255);
+  child.pixel(1, 0)[3] = 128;  // second pixel half-covered
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Red", std::move(child)));
+  document.add_layer(std::move(group));
+
+  const auto flattened = patchy::flatten_document_rgba8(document);
+  CHECK(flattened.pixel(0, 0)[0] == 255);
+  CHECK(flattened.pixel(0, 0)[3] == 128);  // opaque child faded to half coverage
+  CHECK(flattened.pixel(1, 0)[0] == 255);
+  CHECK(flattened.pixel(1, 0)[3] == 64);  // half-covered child faded to a quarter
+}
+
+// Photoshop 2026 authored photoshop-group-opacity.psd via COM (July 2026): a
+// gray-100 backdrop with four arms — Pass Through groups at 46% holding
+// overlapping opaque red/blue rects, a Multiply gray-160 rect, and a masked
+// Invert adjustment, plus a Normal group at 60% holding a Multiply gray-160
+// rect — saved alongside Photoshop's own flatten. It pins group Opacity
+// semantics against ground truth: pass-through groups composite children at
+// full strength against the true backdrop and then fade ONCE toward the
+// pre-group backdrop (the overlap pixel keeps only the upper child; the
+// Multiply child sees the backdrop), while a non-pass-through group isolates
+// its children (Multiply against transparency keeps the source color) and
+// merges with the group's mode and opacity.
+void psd_photoshop_group_opacity_fixture_matches_render() {
+  const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-group-opacity.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-group-opacity.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto reference_flat =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(document);
+
+  // Photoshop's own flatten at the probe pixels (COM color samplers):
+  // fade-once overlap keeps only the upper blue child, pass-through Multiply
+  // lands 83, the masked Invert 125, and the isolated Normal-group Multiply
+  // 136 (pass-through math would put it near 78).
+  const auto expect_reference = [&](std::int32_t x, std::int32_t y, int red, int green, int blue) {
+    const auto* pixel = reference_flat.pixel(x, y);
+    CHECK(static_cast<int>(pixel[0]) == red);
+    CHECK(static_cast<int>(pixel[1]) == green);
+    CHECK(static_cast<int>(pixel[2]) == blue);
+  };
+  expect_reference(3, 8, 146, 54, 54);
+  expect_reference(6, 8, 54, 54, 146);
+  expect_reference(17, 8, 83, 83, 83);
+  expect_reference(25, 8, 100, 100, 100);
+  expect_reference(30, 8, 125, 125, 125);
+  expect_reference(41, 8, 136, 136, 136);
+
+  const auto metrics = patchy::test::rgb_diff_metrics(reference_flat, patchy_flat);
+  CHECK(metrics.max_channel_delta <= 1);
+  CHECK(metrics.mean_abs_channel_delta <= 0.25);
+}
+
 void compositor_flattens_visible_layers() {
   patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(1, 1, 10, 20, 30));
@@ -786,5 +1026,23 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
        compositor_blend_if_clip_base_keeps_original_coverage},
       {"compositor_pass_through_group_blend_if_isolates_adjustment_child",
        compositor_pass_through_group_blend_if_isolates_adjustment_child},
+      {"compositor_pass_through_group_opacity_fades_once_at_overlap",
+       compositor_pass_through_group_opacity_fades_once_at_overlap},
+      {"compositor_pass_through_group_opacity_with_multiply_child",
+       compositor_pass_through_group_opacity_with_multiply_child},
+      {"compositor_pass_through_group_opacity_fades_adjustment",
+       compositor_pass_through_group_opacity_fades_adjustment},
+      {"compositor_pass_through_group_opacity_respects_group_mask",
+       compositor_pass_through_group_opacity_respects_group_mask},
+      {"compositor_nested_pass_through_group_opacities_compose",
+       compositor_nested_pass_through_group_opacities_compose},
+      {"compositor_normal_group_isolates_children",
+       compositor_normal_group_isolates_children},
+      {"compositor_group_blend_mode_and_opacity_apply",
+       compositor_group_blend_mode_and_opacity_apply},
+      {"compositor_pass_through_group_opacity_fades_over_transparency",
+       compositor_pass_through_group_opacity_fades_over_transparency},
+      {"psd_photoshop_group_opacity_fixture_matches_render",
+       psd_photoshop_group_opacity_fixture_matches_render},
   };
 }

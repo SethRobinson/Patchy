@@ -425,6 +425,20 @@ public:
     return render_detail::CompositeSample{RgbColor{pixel[0], pixel[1], pixel[2]}, alpha_[index]};
   }
 
+  // Direct overwrite for render_detail::fade_toward_snapshot (pass-through
+  // group opacity); source-over cannot reduce coverage.
+  void store_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha) {
+    if (x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
+      return;
+    }
+    auto* dst = destination_.pixel(x, y);
+    dst[0] = color.red;
+    dst[1] = color.green;
+    dst[2] = color.blue;
+    alpha_[static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) +
+           static_cast<std::size_t>(x)] = clamp_unit(alpha);
+  }
+
   void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
     amount = clamp_unit(amount);
     if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
@@ -509,6 +523,19 @@ public:
     const auto* pixel = destination_.pixel(x, y);
     return render_detail::CompositeSample{RgbColor{pixel[0], pixel[1], pixel[2]},
                                           static_cast<float>(pixel[3]) / 255.0F};
+  }
+
+  // Direct overwrite for render_detail::fade_toward_snapshot (pass-through
+  // group opacity); source-over cannot reduce coverage.
+  void store_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha) {
+    if (x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
+      return;
+    }
+    auto* dst = destination_.pixel(x, y);
+    dst[0] = color.red;
+    dst[1] = color.green;
+    dst[2] = color.blue;
+    dst[3] = clamp_byte(clamp_unit(alpha) * 255.0F);
   }
 
   void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {

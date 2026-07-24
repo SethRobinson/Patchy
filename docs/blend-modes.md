@@ -27,6 +27,46 @@ Adding a blend mode means updating ALL of:
   separately and were deliberately left unchanged.
 - `aseprite_blend_modes_match_aseprite_render` pins the Aseprite-parity set in-suite.
 
+## Group compositing: Pass Through, isolation, and group opacity
+
+Calibrated against a Photoshop 2026 COM-authored fixture (July 2026,
+`test-fixtures/psd/photoshop-group-opacity.psd/.bmp`, pinned within 1/255 by
+`psd_photoshop_group_opacity_fixture_matches_render`). The group branch lives
+in `composite_layer` (src/render/layer_compositor.hpp); the UI renderer routes
+every blend-if, masked, non-pass-through, or faded group through it
+(src/ui/image_document_io.cpp), which also covers Merge Group and Merge Down.
+
+- **Pass Through group opacity is a post-composite fade.** Children composite
+  at full strength against the true backdrop (child blend modes and interior
+  adjustments keep meeting the layers below), then the whole result
+  interpolates back toward the pre-group backdrop by the group opacity: the
+  PDF non-isolated-group alpha formula. One fade applies to the composite, so
+  overlapping children never double-fade. Implemented as `CompositeSnapshot` +
+  `fade_toward_snapshot` + a `store_color` overwrite primitive (source-over
+  cannot reduce coverage). The fade covers the full clip because an interior
+  adjustment with unlimited bounds can touch backdrop pixels outside the
+  children's render bounds. A group raster/vector mask still attenuates each
+  child contribution in place; the fade applies once on top.
+- **Non-pass-through groups isolate.** Children composite into a transparent
+  `IsolatedClipGroupTarget` (bounded by the children's render bounds when no
+  overrides are active) and the merged result meets the backdrop with the
+  group's blend mode, opacity, and mask: a Multiply child inside a Normal
+  group no longer sees the backdrop. Groups default to `BlendMode::Normal` in
+  core, so tests that want Photoshop's default folder behavior must set
+  `BlendMode::PassThrough` explicitly (the UI folder command and PSD import
+  do).
+- **Blend-if groups always isolate** (calibrated separately; see the blend-if
+  group tests). A Pass Through group WITH blend-if keeps that path, where
+  opacity is an alpha multiply on the merged result.
+- **Every compositor target must implement `store_color`** (direct overwrite
+  of straight color + coverage) alongside `composite_color`/`sample_color`:
+  Rgb8PixelBufferTarget, QImageCompositeTarget, the two BMP render targets,
+  Rgba8FlattenTarget, IsolatedClipGroupTarget, and the forwarding
+  GroupMaskedTarget.
+- Photoshop Knockout (shallow/deep) is not modeled. The single-pixel merged
+  sampler `compose_layer_pixel` (src/ui/canvas_widget_render.cpp) still
+  ignores group opacity and child blend modes (pre-existing approximation).
+
 ## July 2026 modes (Vivid/Linear Light, Hard Mix, Darker/Lighter Color)
 
 Calibrated against full 256x256 Photoshop 2026 flatten captures (crossed gray

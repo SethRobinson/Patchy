@@ -121,6 +121,23 @@ public:
                                           preserve_alpha_ ? static_cast<float>(pixel[3]) / 255.0F : 1.0F};
   }
 
+  // Direct overwrite for render_detail::fade_toward_snapshot (pass-through
+  // group opacity); source-over cannot reduce coverage.
+  void store_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha) {
+    const auto image_x = x - origin_x_;
+    const auto image_y = y - origin_y_;
+    if (image_x < 0 || image_y < 0 || image_x >= destination_.width() || image_y >= destination_.height()) {
+      return;
+    }
+    auto* dst = destination_.scanLine(image_y) + static_cast<std::size_t>(image_x) * (preserve_alpha_ ? 4U : 3U);
+    dst[0] = color.red;
+    dst[1] = color.green;
+    dst[2] = color.blue;
+    if (preserve_alpha_) {
+      dst[3] = clamp_byte(clamp_unit(alpha) * 255.0F);
+    }
+  }
+
   void composite_source_row(std::int32_t x, std::int32_t y, const std::uint8_t* source_row, std::int32_t width,
                             std::uint16_t channels, float opacity) {
     if (source_row == nullptr || width <= 0 || channels < 3) {
@@ -889,12 +906,15 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
       ++profile->groups;
     }
     if (render_detail::layer_has_rendered_blend_if(layer) ||
+        layer.blend_mode() != BlendMode::PassThrough || layer.opacity() < 1.0F ||
         (layer.mask().has_value() && !layer.mask()->disabled) || layer_has_enabled_vector_mask(layer)) {
       // A Blend-If group must be rendered as one isolated source so This Layer
       // samples the group result and Underlying Layer samples the outer stack.
       // A masked group routes through composite_layer too, so the group mask
-      // attenuates every child contribution (same tradeoff: no per-member
-      // style cache or profiling inside).
+      // attenuates every child contribution, a non-pass-through group so it
+      // isolates with its blend mode and opacity, and a faded pass-through
+      // group so the post-composite opacity fade applies (same tradeoff for
+      // all: no per-member style cache or profiling inside).
       render_detail::composite_layer(target, layer, clip, overrides, false, masks, nullptr, patterns);
     } else {
       // Clip runs inside the children go through render_detail::composite_layer

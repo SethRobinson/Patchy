@@ -867,6 +867,7 @@ void compositor_group_mask_attenuates_pass_through_children() {
   patchy::configure_adjustment_layer(adjustment, invert);
 
   patchy::Layer group(document.allocate_layer_id(), "Masked Folder", patchy::LayerKind::Group);
+  group.set_blend_mode(patchy::BlendMode::PassThrough);  // Photoshop's group default
   const auto group_id = group.id();
   group.add_child(std::move(adjustment));
   patchy::PixelBuffer mask_pixels(4, 1, patchy::PixelFormat::gray8());
@@ -897,12 +898,14 @@ void compositor_nested_group_masks_multiply() {
   document.add_pixel_layer("Backdrop", solid_rgb(2, 1, 0, 0, 0));
 
   patchy::Layer inner(document.allocate_layer_id(), "Inner", patchy::LayerKind::Group);
+  inner.set_blend_mode(patchy::BlendMode::PassThrough);
   inner.add_child(patchy::Layer(document.allocate_layer_id(), "White", solid_rgba(2, 1, 255, 255, 255, 255)));
   patchy::PixelBuffer inner_mask(2, 1, patchy::PixelFormat::gray8());
   inner_mask.clear(128);
   inner.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 2, 1}, std::move(inner_mask), 255, false});
 
   patchy::Layer outer(document.allocate_layer_id(), "Outer", patchy::LayerKind::Group);
+  outer.set_blend_mode(patchy::BlendMode::PassThrough);
   outer.add_child(std::move(inner));
   patchy::PixelBuffer outer_mask(2, 1, patchy::PixelFormat::gray8());
   *outer_mask.pixel(0, 0) = 255;
@@ -1014,6 +1017,27 @@ void compositor_clipping_is_thread_count_stable() {
   member.set_clipped(true);
   member.set_blend_mode(patchy::BlendMode::Multiply);
   document.add_layer(std::move(member));
+
+  // A faded pass-through group and a fractional-opacity Normal group also span
+  // the strip boundaries, covering the group-opacity fade and isolated-merge
+  // paths in the parity check.
+  patchy::Layer faded(document.allocate_layer_id(), "Faded PT", patchy::LayerKind::Group);
+  faded.set_blend_mode(patchy::BlendMode::PassThrough);
+  faded.set_opacity(0.37F);
+  patchy::Layer faded_child(document.allocate_layer_id(), "Faded Child",
+                            solid_rgba(2000, 1600, 250, 60, 20, 200));
+  faded_child.set_bounds(patchy::Rect{200, 200, 2000, 1600});
+  faded.add_child(std::move(faded_child));
+  document.add_layer(std::move(faded));
+  patchy::Layer isolated(document.allocate_layer_id(), "Iso Normal", patchy::LayerKind::Group);
+  isolated.set_blend_mode(patchy::BlendMode::Normal);
+  isolated.set_opacity(0.6F);
+  patchy::Layer isolated_child(document.allocate_layer_id(), "Iso Child",
+                               solid_rgba(1000, 1800, 20, 200, 90, 255));
+  isolated_child.set_bounds(patchy::Rect{1300, 100, 1000, 1800});
+  isolated_child.set_blend_mode(patchy::BlendMode::Multiply);
+  isolated.add_child(std::move(isolated_child));
+  document.add_layer(std::move(isolated));
 
   const auto parallel = patchy::Compositor{}.flatten_rgb8(document);
 #ifdef _WIN32
