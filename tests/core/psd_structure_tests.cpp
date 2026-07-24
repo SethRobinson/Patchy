@@ -972,6 +972,41 @@ void compositor_clipping_is_thread_count_stable() {
   CHECK(identical);
 }
 
+void psd_far_offcanvas_layer_keeps_true_origin() {
+  // Layers may sit far outside the canvas and Photoshop composites the
+  // off-canvas slice in place. The old reader clamped the origin into
+  // [-canvas, 2*canvas] WITHOUT cropping the pixels, silently shifting such
+  // content (stroke_from_photoshop.psd's 2155-tall frame layer at top -780 on
+  // a 240-tall canvas rendered a slice 540 px off, and a resave would have
+  // baked the shift in permanently).
+  patchy::Document document(40, 30, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(40, 30, 255, 255, 255));
+  patchy::PixelBuffer tall(20, 140, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 140; ++y) {
+    for (std::int32_t x = 0; x < 20; ++x) {
+      auto* px = tall.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(y);  // row marker
+      px[1] = 10;
+      px[2] = 20;
+      px[3] = 255;
+    }
+  }
+  patchy::Layer offcanvas(document.allocate_layer_id(), "Tall", std::move(tall));
+  offcanvas.set_bounds(patchy::Rect{5, -100, 20, 140});
+  document.add_layer(std::move(offcanvas));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2);
+  const auto& layer = read.layers()[1];
+  CHECK(layer.bounds().x == 5);
+  CHECK(layer.bounds().y == -100);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(read);
+  // Canvas row 0 shows the layer's row 100 (the old clamp showed row 30).
+  CHECK(flattened.pixel(10, 0)[0] == 100);
+  CHECK(flattened.pixel(10, 29)[0] == 129);
+}
+
 void psd_ipad_main_v04_preserves_folders_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
   if (!std::filesystem::exists(path)) {
@@ -1120,6 +1155,7 @@ std::vector<patchy::test::TestCase> psd_structure_tests() {
       {"compositor_clipped_adjustment_affects_base_only", compositor_clipped_adjustment_affects_base_only},
       {"compositor_clipping_run_edge_cases", compositor_clipping_run_edge_cases},
       {"compositor_clipping_is_thread_count_stable", compositor_clipping_is_thread_count_stable},
+      {"psd_far_offcanvas_layer_keeps_true_origin", psd_far_offcanvas_layer_keeps_true_origin},
       {"psd_ipad_main_v04_preserves_folders_if_available", psd_ipad_main_v04_preserves_folders_if_available},
       {"psd_writer_preserves_layer_additional_blocks_and_long_names",
        psd_writer_preserves_layer_additional_blocks_and_long_names},

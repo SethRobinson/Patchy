@@ -630,8 +630,15 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     } else {
       const auto layer_width = std::max(width, layer.pixels().width());
       const auto layer_height = std::max(height, layer.pixels().height());
-      layer.set_bounds(Rect{std::clamp(record.bounds.x, -canvas_width, canvas_width * 2),
-                            std::clamp(record.bounds.y, -canvas_height, canvas_height * 2), layer_width,
+      // Keep the recorded origin: layers legitimately sit far outside the
+      // canvas and Photoshop composites the off-canvas slice in place. The
+      // old [-canvas, 2*canvas] clamp silently SHIFTED such content (a frame
+      // layer at top -780 on a 240-tall canvas rendered a slice 540 px off,
+      // and a resave would have baked the shift in). Only guard against
+      // corrupt coordinates that could overflow later rect math.
+      constexpr std::int32_t kMaxLayerOffset = 1 << 23;
+      layer.set_bounds(Rect{std::clamp(record.bounds.x, -kMaxLayerOffset, kMaxLayerOffset),
+                            std::clamp(record.bounds.y, -kMaxLayerOffset, kMaxLayerOffset), layer_width,
                             layer_height});
     }
     layer.set_blend_mode(record.blend_mode);
