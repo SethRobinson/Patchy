@@ -31,6 +31,8 @@
   #new-run label { font-size:13px; display:flex; gap:5px; align-items:center; }
   #new-run input[type=number] { width:56px; background:var(--bg); color:var(--text);
                border:1px solid var(--line); border-radius:4px; padding:3px 6px; }
+  #new-run select { background:var(--bg); color:var(--text); border:1px solid var(--line);
+               border-radius:4px; padding:3px 6px; font-size:13px; }
   #start-run, #cancel-run, #pause-run, #resume-run, #delete-runs { background:var(--accent);
                border:0; color:#0d0e10; font-weight:600; padding:7px 18px; border-radius:6px;
                cursor:pointer; font-size:13px; }
@@ -55,6 +57,11 @@
       <label><input type="checkbox" id="opt-fresh"> ignore caches</label>
       <label title="keep images only for files that fail or differ from Photoshop by more than the threshold"><input type="checkbox" id="opt-scan"> scan: keep only flagged, over
         <input type="number" id="opt-scan-threshold" value="10" min="0" max="100" step="1"> % diff</label>
+      <label title="which comparison drives flagging; the report always shows both numbers">compare
+        <select id="opt-compare">
+          <option value="perceptual" selected>visual (structure + color)</option>
+          <option value="strict">strict (pixels over 6/255)</option>
+        </select></label>
       <button id="start-run" onclick="startRun()">Start run</button>
       <button id="pause-run" onclick="pauseRun()" style="display:none; background:var(--warn);">Pause run</button>
       <button id="cancel-run" onclick="cancelRun()" style="display:none; background:#d95c4a;">Cancel run</button>
@@ -118,6 +125,7 @@ function saveRunForm() {
       fresh: document.getElementById("opt-fresh").checked,
       scan: document.getElementById("opt-scan").checked,
       scanThreshold: document.getElementById("opt-scan-threshold").value,
+      compare: document.getElementById("opt-compare").value,
     }));
   } catch (e) { /* storage unavailable; defaults still work */ }
 }
@@ -135,6 +143,8 @@ function restoreRunForm() {
   document.getElementById("opt-fresh").checked = !!saved.fresh;
   document.getElementById("opt-scan").checked = !!saved.scan;
   if (saved.scanThreshold) document.getElementById("opt-scan-threshold").value = saved.scanThreshold;
+  if (saved.compare === "strict" || saved.compare === "perceptual")
+    document.getElementById("opt-compare").value = saved.compare;
 }
 
 let runInProgress = false;
@@ -301,6 +311,7 @@ function startRun() {
       fresh: document.getElementById("opt-fresh").checked,
       scan: document.getElementById("opt-scan").checked,
       scanThreshold: parseFloat(document.getElementById("opt-scan-threshold").value),
+      compare: document.getElementById("opt-compare").value,
     }),
   }).then(async response => {
     const result = await response.json();

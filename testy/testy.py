@@ -146,6 +146,38 @@ def _run_in_progress() -> bool:
     return _in_process_run_active or (_child_run is not None and _child_run.poll() is None)
 
 
+def _child_run_command(
+    base_url: str,
+    files: list[str],
+    editors: list[str],
+    *,
+    skip_build: bool = False,
+    fresh: bool = False,
+    scan_threshold: float | None = None,
+    compare: str | None = None,
+    suffix: str | None = None,
+) -> list[str]:
+    """The argv for a browser-spawned child run; shared by start-run and retest."""
+    command = [
+        sys.executable, str(config.TESTY_ROOT / "testy.py"),
+        "--files", *files,
+        "--editors", ",".join(editors),
+        "--no-browser", "--exit-when-done",
+        "--server-url", base_url,
+    ]
+    if compare is not None:
+        command.extend(["--compare", compare])
+    if suffix is not None:
+        command.extend(["--suffix", suffix])
+    if skip_build:
+        command.append("--no-build")
+    if fresh:
+        command.append("--fresh")
+    if scan_threshold is not None:
+        command.extend(["--scan", str(scan_threshold)])
+    return command
+
+
 def _read_status(status_path: Path) -> dict | None:
     """Parse a run's status.json, reusing the last parse while the file is unchanged
     (the run-state endpoint re-reads the same newest file every few seconds)."""
@@ -351,6 +383,9 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == "/testy-delete-runs":
             self._delete_runs()
             return
+        if parsed.path == "/testy-retest-file":
+            self._retest_file()
+            return
         if parsed.path != "/testy-upload":
             self.send_error(404)
             return
@@ -434,24 +469,71 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
                 scan_threshold = -1.0
             if not 0.0 <= scan_threshold <= 100.0:
                 errors.append("scan threshold must be a percentage between 0 and 100")
+        compare = str(request.get("compare") or "perceptual")
+        if compare not in ("strict", "perceptual"):
+            errors.append(f"unknown comparison mode: {compare}")
         if errors:
             self._send_json({"errors": errors}, status=400)
             return
 
         base_url = f"http://127.0.0.1:{self.server.server_address[1]}"
-        command = [
-            sys.executable, str(config.TESTY_ROOT / "testy.py"),
-            "--files", *files,
-            "--editors", ",".join(editors),
-            "--no-browser", "--exit-when-done",
-            "--server-url", base_url,
-        ]
-        if request.get("skipBuild"):
-            command.append("--no-build")
-        if request.get("fresh"):
-            command.append("--fresh")
-        if scan_threshold is not None:
-            command.extend(["--scan", str(scan_threshold)])
+        command = _child_run_command(
+            base_url, files, editors,
+            skip_build=bool(request.get("skipBuild")),
+            fresh=bool(request.get("fresh")),
+            scan_threshold=scan_threshold,
+            compare=compare,
+        )
+        with _spawn_lock:
+            if _run_in_progress():
+                self._send_json({"errors": ["a run is already in progress"]}, status=409)
+                return
+            self._spawn_child(command)
+        self._send_json({"started": True})
+
+    def _retest_file(self) -> None:
+        """Re-run a single file from an existing run as a fresh run of its own.
+
+        The typical use is checking whether a Patchy fix landed: the child run
+        refreshes the Patchy build by default, the Photoshop ground truth and the
+        other editors' cells come straight from the caches (fast), and the Patchy
+        cell re-measures because its cache key includes the git hash.
+        """
+        if _run_in_progress():
+            self._send_json({"errors": ["a run is already in progress"]}, status=409)
+            return
+        request = self._read_json_body()
+        if request is None:
+            return
+        name = str(request.get("run") or "")
+        source = str(request.get("source") or "")
+        target = (config.RUNS_DIR / name).resolve()
+        status_path = target / "status.json"
+        if not name or target.parent != config.RUNS_DIR.resolve() or not status_path.exists():
+            self._send_json({"errors": [f"no run named {name}"]}, status=404)
+            return
+        status = _read_status(status_path)
+        if status is None:
+            self._send_json({"errors": [f"could not read {name}/status.json"]}, status=500)
+            return
+        # Only paths the named run itself lists may be retested; the endpoint must
+        # not become a generic launch-anything surface.
+        if not any(f.get("source") == source for f in status.get("files", [])):
+            self._send_json({"errors": ["that file is not part of this run"]}, status=400)
+            return
+        if not Path(source).exists():
+            self._send_json({"errors": [f"the source file is gone: {source}"]}, status=400)
+            return
+        run_options = status.get("run", {})
+        editors = [e for e in run_options.get("editorOrder", DEFAULT_EDITORS) if e]
+        base_url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        # No --scan: a retest is an inspection run, so every artifact is kept.
+        command = _child_run_command(
+            base_url, [source], editors,
+            skip_build=bool(request.get("skipBuild")),
+            compare=run_options.get("compare", "strict"),
+            suffix=run_options.get("suffix"),
+        )
         with _spawn_lock:
             if _run_in_progress():
                 self._send_json({"errors": ["a run is already in progress"]}, status=409)
@@ -650,6 +732,9 @@ class Runner:
         # Photoshop ground truth (and hit no failure of any kind) are "passed" and
         # their run artifacts are discarded. None = normal run, keep everything.
         self.scan_threshold: float | None = None if args.scan is None else args.scan / 100.0
+        # Which metric drives scan flagging (both are always computed and reported):
+        # "strict" pixel differences or the "perceptual" visual comparison.
+        self.compare_mode: str = args.compare
         # In scan mode cell-cache writes wait for the per-file verdict so passing
         # files do not pile renders/resaves into testy/cache: {index: [(cell_dir,
         # cache_dir, cell), ...]}.
@@ -669,6 +754,8 @@ class Runner:
             self.suffix = self.status["run"]["suffix"]
             scan = self.status["run"].get("scan")
             self.scan_threshold = scan["thresholdPct"] / 100.0 if scan else None
+            # Runs from before the perceptual metric flagged strictly; keep doing so.
+            self.compare_mode = self.status["run"].get("compare", "strict")
             self.args.fresh = False
             self.args.no_build = True
         else:
@@ -707,6 +794,7 @@ class Runner:
                 "suffix": self.suffix,
                 "editorOrder": self.editor_order,
                 "name": self.run_name,
+                "compare": self.compare_mode,
             },
             "editors": {
                 key: {
@@ -829,6 +917,7 @@ class Runner:
             cell.clear()
             cell.update(cached_cell)
             cell["cached"] = True
+            self._upgrade_cached_metrics(entry, cell, cell_dir, cache_dir, truth)
             self.push()
             return
 
@@ -924,6 +1013,35 @@ class Runner:
                 self._write_cell_cache(cell_dir, cache_dir, cell)
             else:
                 self._deferred_cell_caches.setdefault(index, []).append((cell_dir, cache_dir, cell))
+
+    def _upgrade_cached_metrics(
+        self, entry: dict, cell: dict, cell_dir: Path, cache_dir: Path, truth: dict | None
+    ) -> None:
+        """Backfill the perceptual comparison into a cell cached before it existed.
+
+        The cache key deliberately stays unchanged (a bump would invalidate every
+        slow Photoshop probe); when the artifacts to recompute from are present the
+        render metrics are redone in place and the cache entry rewritten. Old
+        textRender/roundtripRender blocks are left as-is - the report shows a dash.
+        """
+        metrics = cell.get("renderMetrics")
+        if not metrics or "perceptual" in metrics or truth is None:
+            return
+        truth_render = self.files_dir / Path(entry["name"]).stem / "_truth" / "render.png"
+        render_png = cell_dir / "render.png"
+        document_size = tuple(entry.get("docSize", (0, 0)))
+        if not (truth_render.exists() and render_png.exists() and document_size and document_size[0]):
+            return
+        log("    upgrading cached metrics with the perceptual comparison")
+        cell["renderMetrics"] = analyze.compare_renders(
+            truth_render, render_png, document_size, truth["layers"], None
+        )
+        try:
+            cached = json.loads((cache_dir / "cell.json").read_text(encoding="utf-8"))
+            cached["renderMetrics"] = cell["renderMetrics"]
+            (cache_dir / "cell.json").write_text(json.dumps(cached), encoding="utf-8")
+        except OSError as error:
+            log(f"    could not rewrite {cache_dir / 'cell.json'}: {error}")
 
     @staticmethod
     def _write_cell_cache(cell_dir: Path, cache_dir: Path, cell: dict) -> None:
@@ -1095,6 +1213,17 @@ class Runner:
             if metrics is None:
                 if truth.get("state") == "done":
                     reasons.append(f"{name}: no render comparison was produced")
+            elif self.compare_mode == "perceptual":
+                perceptual = metrics.get("perceptual")
+                if perceptual is None:
+                    reasons.append(f"{name}: no perceptual comparison available")
+                elif perceptual.get("badFraction", 1.0) > self.scan_threshold:
+                    reasons.append(
+                        f"{name}: render looks wrong on "
+                        f"{perceptual['badFraction'] * 100:.1f}% of pixels "
+                        f"(over {self.scan_threshold * 100:g}%; "
+                        f"{metrics['badFraction'] * 100:.1f}% strict)"
+                    )
             elif metrics.get("badFraction", 1.0) > self.scan_threshold:
                 reasons.append(
                     f"{name}: render differs on {metrics['badFraction'] * 100:.1f}% of pixels "
@@ -1149,8 +1278,11 @@ class Runner:
 
     def _write_flagged_list(self) -> None:
         threshold_pct = self.status["run"]["scan"]["thresholdPct"]
+        basis = ("looks visually different from Photoshop's"
+                 if self.compare_mode == "perceptual"
+                 else "differs from Photoshop's")
         lines = [
-            f"# Testy scan: files flagged for review (render differs from Photoshop on more "
+            f"# Testy scan: files flagged for review (render {basis} on more "
             f"than {threshold_pct:g}% of pixels, or something failed).",
             "# Reusable as a corpus: python testy\\testy.py --corpus <this file>",
         ]
@@ -1381,6 +1513,7 @@ class Runner:
         for editor_key in self.editor_order:
             opened = total = 0
             render_scores: list[float] = []
+            visual_scores: list[float] = []
             native_scores: list[float] = []
             for entry in self.status["files"]:
                 cell = entry["cells"].get(editor_key)
@@ -1392,6 +1525,8 @@ class Runner:
                 metrics = cell.get("renderMetrics")
                 if metrics:
                     render_scores.append(metrics["accuracy"])
+                    if metrics.get("perceptual"):
+                        visual_scores.append(metrics["perceptual"]["accuracy"])
                 native = cell.get("native")
                 if native and "nativeScore" in native:
                     native_scores.append(native["nativeScore"])
@@ -1399,6 +1534,7 @@ class Runner:
                 "opened": opened,
                 "total": total,
                 "render": sum(render_scores) / len(render_scores) if render_scores else 0.0,
+                "visual": sum(visual_scores) / len(visual_scores) if visual_scores else 0.0,
                 "native": sum(native_scores) / len(native_scores) if native_scores else 0.0,
             }
         return aggregate
@@ -1413,18 +1549,21 @@ class Runner:
 
     def _print_summary(self) -> None:
         aggregate = self._aggregate()
-        log("summary (mean render accuracy / mean native preservation / opened):")
+        log("summary (mean strict render / visual match / native preservation / opened):")
         for editor_key in self.editor_order:
             a = aggregate[editor_key]
             log(
                 f"  {self.editors[editor_key].display_name:<10} "
-                f"render {a['render'] * 100:5.1f}%   native {a['native'] * 100:5.1f}%   "
+                f"render {a['render'] * 100:5.1f}%   visual {a['visual'] * 100:5.1f}%   "
+                f"native {a['native'] * 100:5.1f}%   "
                 f"opened {a['opened']}/{a['total']}"
             )
         if self.scan_threshold is not None:
             flagged = [e for e in self.status["files"] if e.get("scan", {}).get("flagged")]
+            basis = "visual" if self.compare_mode == "perceptual" else "strict"
             log(f"scan: {len(flagged)}/{len(self.status['files'])} file(s) flagged "
-                f"(threshold {self.scan_threshold * 100:g}%); passed files' artifacts discarded")
+                f"(threshold {self.scan_threshold * 100:g}% {basis} difference); "
+                f"passed files' artifacts discarded")
             for entry in flagged:
                 log(f"  FLAGGED {entry['name']}: {entry['scan']['reasons'][0]}")
             log(f"flagged list (reusable as a corpus): {self.run_dir / 'flagged.txt'}")
@@ -1444,6 +1583,11 @@ def main() -> int:
                              "than PCT%% of pixels (default 10) or that fail anything, and "
                              "discard the saved images/resaves of files that pass so big scans "
                              "stay small (metrics are kept for every file)")
+    parser.add_argument("--compare", choices=("strict", "perceptual"), default="perceptual",
+                        help="which comparison drives scan flagging: 'strict' counts every pixel "
+                             "off by more than 6/255, 'perceptual' (default) counts pixels that "
+                             "look wrong (SSIM structure + CIEDE2000 color). Both numbers are "
+                             "always computed and shown in the report")
     parser.add_argument("--no-build", action="store_true", help="skip the Patchy release build refresh")
     parser.add_argument("--fresh", action="store_true", help="ignore cached ground truth / cells")
     parser.add_argument("--resume", default=None, metavar="RUN_DIR",

@@ -59,6 +59,19 @@ and `runs/history.jsonl`; selecting a run whose directory was already removed by
 simply unlists it. The live run cannot be deleted (its checkbox is disabled and the
 server refuses); global caches under `testy/cache/` are never touched by run deletion.
 
+Every report served by the panel also has a "Retest file" button in a file's detail
+panel: it re-runs just that file as a fresh run of its own, reusing the viewed run's
+editors and options, and the page jumps to the new run's report once it starts. The
+typical use is checking whether a Patchy fix landed, so the retest refreshes the
+Patchy release build first (a no-op when already built). Caches make everything else
+fast: the Photoshop ground truth and the other editors' cells load from
+`testy/cache/`, while the Patchy cell re-measures because its cache key includes the
+git hash. The button respects the one-run-at-a-time rule (it is disabled while a run
+is live) and does not exist in a frozen report opened from disk. Cells cached before
+the perceptual metric existed are upgraded in place when a run reuses them: the
+render comparison is recomputed from the cached images and the cache entry rewritten,
+so old caches never force a strict-only report.
+
 The CLI remains for scripted use:
 
 ```powershell
@@ -97,6 +110,10 @@ Useful flags:
 - `--resume runs\<ts>` - continue a paused/canceled/interrupted run directory, skipping
   completed work (see above; implies `--no-build`, ignores `--files/--corpus/--editors`).
 - `--scan [PCT]` - scan mode; see below.
+- `--compare strict|perceptual` - which comparison drives scan flagging (default
+  perceptual). Both numbers are always computed and shown in the report either way;
+  a resumed run keeps the mode it started with, and runs from before this option
+  flag strictly.
 - `--exit-when-done`, `--no-browser`, `--no-serve`, `--port N` - dashboard behavior.
 - `--suffix "~TESTY~"` - the marker string used by the forced text re-render test.
 
@@ -106,8 +123,11 @@ Useful flags:
 triage pass over a big file list: each file is FLAGGED if anything failed (ground truth,
 open, resave, trap, text mutation, a skipped/broken editor, a resave Photoshop rejects,
 a trap sentinel hit) or if any editor's render differs from Photoshop's on more than the
-threshold fraction of pixels (`renderMetrics.badFraction`; default 10%, `--scan 25` for
-25%). Flagged files keep all artifacts as usual. Files that pass keep their metrics in
+threshold fraction of pixels (default 10%, `--scan 25` for 25%). Which "fraction of
+pixels" that means follows the run's comparison mode: visually-wrong pixels
+(`renderMetrics.perceptual.badFraction`) by default, raw over-6/255 pixels
+(`renderMetrics.badFraction`) with `--compare strict`. Flagged files keep all artifacts
+as usual. Files that pass keep their metrics in
 the report and `results.json`, but their images, resaves, and staged copies are deleted
 from the run directory so large scans do not fill the disk, and their cells stay out of
 `testy/cache/`. Deletion is deliberately conservative: only the exact artifact file
@@ -139,13 +159,22 @@ touched; a SHA check at the end of every run proves it), and Testy records:
 
 - **Opens** - did the file load at all.
 - **Render accuracy** - the editor's flattened PNG vs Photoshop's, composited over white
-  at document size: RMSE, % pixels off by more than 6/255 (AA tolerance), and a
-  per-object breakdown using ground-truth layer bounds. An object "renders ok" while
-  under 25% of its region's pixels are off: text layers legitimately differ on every
-  glyph edge (10-20% of their bbox) even when correct, so the budget is tuned to catch
-  missing/misplaced/wrong objects (which blow past 50%), not anti-aliasing jitter. A
+  at document size. Two comparisons always run side by side. The strict one counts
+  pixels off by more than 6/255 per channel (plus RMSE); it is honest about raw data
+  but marks a visually identical render as ~100% different when a subtle
+  color-management shift moves every pixel a hair over the tolerance. The visual
+  (perceptual) one counts pixels that actually look wrong: SSIM's contrast-structure
+  term (is the same structure present) combined with CIEDE2000 deltaE (is the color
+  visibly different), both computed on lightly blurred copies so sub-pixel
+  anti-aliasing jitter stays quiet, with the deltaE threshold scaled up under strong
+  local contrast (contrast masking). A global 8/255 shift scores ~0% visually while
+  strict reports ~100%; a genuinely missing, misplaced, or recolored object fires
+  both. Each metric also gets a per-object breakdown using ground-truth layer
+  bounds; an object "renders ok" while under 25% of its region's pixels are off
+  (text layers legitimately differ on every glyph edge even when correct, and a
   layer's bbox also contains whatever renders behind it, so overlapping errors can
-  count against more than one object. Worst offenders are named in the detail panel.
+  count against more than one object). Worst offenders are named in the detail
+  panel, ranked by the run's comparison mode.
 - **Honest rendering (trap)** - the editor also opens a byte-patched variant whose
   embedded flat composite is replaced with magenta (`psd_sections.py` rewrites only the
   trailing image-data section; all layer data stays byte-identical). An editor whose

@@ -94,6 +94,11 @@ _PAGE = r"""<!DOCTYPE html>
   #detail th { background: var(--panel2); }
   #detail .close { position: absolute; top: 10px; right: 14px; cursor: pointer; color: var(--dim);
                    font-size: 20px; border: 0; background: none; }
+  #detail .retest-btn { background: var(--panel2); color: var(--text); font-size: 12px;
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 12px; cursor: pointer; }
+  #detail .retest-btn:hover:enabled { border-color: var(--accent); }
+  #detail .retest-btn:disabled { color: var(--dim); cursor: default; }
+  #detail .retest-note { color: var(--dim); font-size: 11.5px; margin-left: 8px; }
   .ok-text { color: var(--good); } .bad-text { color: var(--bad); } .warn-text { color: var(--warn); }
   .copyable { cursor: pointer; border-bottom: 1px dotted var(--dim); }
   .copyable:hover { color: var(--accent); }
@@ -184,10 +189,16 @@ function cellSummary(cell) {
            '<div class="nums">' + esc((cell.error || "").slice(0, 90)) + '</div>';
   const bits = [];
   if (cell.renderMetrics) bits.push("render " + pct(cell.renderMetrics.accuracy));
+  if (cell.renderMetrics && cell.renderMetrics.perceptual)
+    bits.push("visual " + pct(cell.renderMetrics.perceptual.accuracy));
   if (cell.native && cell.native.perCategory)
     bits.push("native " + cell.native.nativeKept + "/" + cell.native.nativeTotal);
-  if (cell.renderMetrics && cell.renderMetrics.objectsScored)
-    bits.push("objects " + cell.renderMetrics.objectsRenderedOk + "/" + cell.renderMetrics.objectsScored);
+  if (cell.renderMetrics && cell.renderMetrics.objectsScored) {
+    const m = cell.renderMetrics;
+    const objectsOk = S.run.compare === "perceptual" && m.objectsRenderedOkPerceptual != null
+      ? m.objectsRenderedOkPerceptual : m.objectsRenderedOk;
+    bits.push("objects " + objectsOk + "/" + m.objectsScored);
+  }
   const flags = [];
   if (cell.trapSentinelFraction > 0.05) flags.push("flat-composite cheat");
   if (cell.renderMetrics && cell.renderMetrics.sizeMismatch) flags.push("size mismatch");
@@ -245,6 +256,56 @@ function controlRun(action) {
   }).catch(e => { /* server gone mid-click; the next poll reconciles */ });
 }
 
+// One-file retest: POSTs the source path back to the server, which spawns a
+// fresh run for just that file (rebuilding Patchy by default; every other cell
+// comes from the caches). Once the child's status.json appears the page jumps
+// to the new run's report.
+let retestNote = "";
+let retestPending = false;
+
+function retestFile(fi) {
+  retestPending = true;
+  retestNote = "starting retest...";
+  render();
+  fetch("/testy-retest-file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ run: RUN_ID, source: S.files[fi].source }),
+  }).then(async response => {
+    const result = await response.json();
+    if (!response.ok) {
+      retestPending = false;
+      retestNote = (result.errors || ["retest failed"]).join("; ");
+      render();
+      return;
+    }
+    retestNote = "rebuilding and retesting - this page will jump to the new run";
+    render();
+    waitForRetestRun(Date.now() + 90000);
+  }).catch(e => {
+    retestPending = false;
+    retestNote = "the server is unreachable";
+    render();
+  });
+}
+
+function waitForRetestRun(deadline) {
+  fetch("/testy-run-state", { cache: "no-store" }).then(async response => {
+    const state = response.ok ? await response.json() : null;
+    if (state && state.running && state.run && state.run !== RUN_ID) {
+      location.href = "/runs/" + state.run + "/report.html";
+      return;
+    }
+    if (Date.now() > deadline) {
+      retestPending = false;
+      retestNote = "retest started - find it at the top of the control panel's run table";
+      render();
+      return;
+    }
+    setTimeout(() => waitForRetestRun(deadline), 1000);
+  }).catch(() => setTimeout(() => waitForRetestRun(deadline), 1500));
+}
+
 function render() {
   if (!S) return;
   const pill = document.getElementById("state-pill");
@@ -254,9 +315,11 @@ function render() {
   pill.textContent = interrupted ? "interrupted" : S.state;
   pill.className = interrupted ? "interrupted" : S.state;
   renderControls();
+  const compareWord = S.run.compare === "perceptual" ? "visual" : "render";
   document.getElementById("run-meta").textContent =
     S.run.startedAt + "  -  " + S.files.length + " file(s)  -  Patchy " + (S.run.patchyVersion || "?") +
-    (S.run.scan ? "  -  scan mode: flag over " + S.run.scan.thresholdPct + "% render difference" : "");
+    (S.run.compare === "perceptual" ? "  -  compare: visual" : "") +
+    (S.run.scan ? "  -  scan mode: flag over " + S.run.scan.thresholdPct + "% " + compareWord + " difference" : "");
 
   const editors = S.run.editorOrder;
   document.getElementById("matrix-head").innerHTML =
@@ -283,7 +346,7 @@ function render() {
   }).join("");
 
   const agg = {};
-  editors.forEach(k => agg[k] = { opened: 0, total: 0, acc: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0] });
+  editors.forEach(k => agg[k] = { opened: 0, total: 0, acc: [], vis: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0] });
   S.files.forEach(f => editors.forEach(k => {
     const c = (f.cells || {})[k];
     if (!c || c.state === "pending" || c.state === "running" || c.state === "skipped") return;
@@ -291,6 +354,7 @@ function render() {
     a.total++;
     if (c.state === "done" && c.opens !== "fail") a.opened++;
     if (c.renderMetrics) a.acc.push(c.renderMetrics.accuracy);
+    if (c.renderMetrics && c.renderMetrics.perceptual) a.vis.push(c.renderMetrics.perceptual.accuracy);
     if (c.native && typeof c.native.nativeScore === "number") {
       a.native.push(c.native.nativeScore);
       const pc = c.native.perCategory || {};
@@ -307,7 +371,7 @@ function render() {
     const decided = S.files.filter(f => f.scan).length;
     const flagged = S.files.filter(f => f.scan && f.scan.flagged).length;
     scanCard = '<div class="card"><h3>Scan</h3><div class="ver">flag over ' +
-      S.run.scan.thresholdPct + "% render difference or any failure</div>" +
+      S.run.scan.thresholdPct + "% " + compareWord + " difference or any failure</div>" +
       '<div class="row"><span>scanned</span><b>' + decided + "/" + S.files.length + "</b></div>" +
       '<div class="row"><span>flagged</span><b class="' + (flagged ? "bad-text" : "ok-text") + '">' +
       flagged + "</b></div>" +
@@ -318,6 +382,7 @@ function render() {
     const rows = [];
     rows.push(["opened", a.total ? a.opened + "/" + a.total : "-"]);
     const acc = mean(a.acc); rows.push(["render", acc == null ? "-" : pct(acc)]);
+    const vis = mean(a.vis); if (vis != null) rows.push(["visual", pct(vis)]);
     const nat = mean(a.native); rows.push(["native", nat == null ? "-" : pct(nat)]);
     [["text", "text kept"], ["adj", "adjustments"], ["smart", "smart objects"], ["fx", "live effects"]].forEach(([key, label]) => {
       const v = a[key];
@@ -351,6 +416,16 @@ function openDetail(fi, ek, keep) {
     " &middot; " + editorName + "</h2>" +
     '<div class="sub">' + esc(cell.state) + (cell.stage ? " - " + esc(cell.stage) : "") +
     (cell.error ? ' - <span class="bad-text">' + esc(cell.error) + "</span>" : "") + "</div>";
+  // Retest only exists while testy.py itself serves the page; a frozen report
+  // opened from disk has no server to spawn the run.
+  if (runState && RUN_ID) {
+    const busy = runState.running || retestPending;
+    html += '<div class="sub"><button class="retest-btn" onclick="retestFile(' + fi + ')"' +
+      (busy ? " disabled" : "") +
+      (runState.running ? ' title="a run is in progress; retest when it finishes"' : "") +
+      '>Retest file</button>' +
+      (retestNote ? '<span class="retest-note">' + esc(retestNote) + "</span>" : "") + "</div>";
+  }
   if (f.scan) {
     html += f.scan.flagged
       ? '<div class="loss-banner"><b>Flagged by the scan</b><div class="nums">' +
@@ -370,15 +445,29 @@ function openDetail(fi, ek, keep) {
     "</div>";
   if (cell.renderMetrics) {
     const m = cell.renderMetrics;
-    html += "<table><tr><th>Render accuracy</th><th>RMSE</th><th>Pixels off</th><th>Objects ok</th><th>Trap sentinel</th></tr>" +
-      "<tr><td>" + pct(m.accuracy) + "</td><td>" + m.rmse + "</td><td>" + pct(m.badFraction) +
-      "</td><td>" + m.objectsRenderedOk + "/" + m.objectsScored + "</td><td>" +
+    const p = m.perceptual;
+    const visualMode = S.run.compare === "perceptual";
+    const objectsOk = visualMode && m.objectsRenderedOkPerceptual != null
+      ? m.objectsRenderedOkPerceptual : m.objectsRenderedOk;
+    html += "<table><tr><th>Render accuracy</th><th>Visual match</th><th>RMSE</th>" +
+      "<th>Pixels off</th><th>Visually off</th><th>Mean deltaE</th><th>Objects ok</th><th>Trap sentinel</th></tr>" +
+      "<tr><td>" + pct(m.accuracy) + "</td><td>" + (p ? pct(p.accuracy) : "-") + "</td><td>" + m.rmse +
+      "</td><td>" + pct(m.badFraction) + "</td><td>" + (p ? pct(p.badFraction) : "-") +
+      "</td><td>" + (p ? p.deltaEMean : "-") +
+      "</td><td>" + objectsOk + "/" + m.objectsScored + "</td><td>" +
       (cell.trapSentinelFraction == null ? "-" : pct(cell.trapSentinelFraction)) + "</td></tr></table>";
-    const worst = (m.perObject || []).filter(o => !o.ok).slice(0, 12);
+    // "Worst" follows the run's comparison mode when the perceptual fields exist
+    // (cells cached before the metric only carry the strict ones).
+    const isBad = o => visualMode && o.perceptualOk !== undefined ? !o.perceptualOk : !o.ok;
+    const fracOf = o => visualMode && o.perceptualBadFraction !== undefined
+      ? o.perceptualBadFraction : o.badFraction;
+    const worst = (m.perObject || []).filter(isBad).sort((a, b) => fracOf(b) - fracOf(a)).slice(0, 12);
     if (worst.length) {
-      html += "<h3>Worst-rendered objects</h3><table><tr><th>Layer</th><th>Kind</th><th>Bad pixels</th></tr>" +
+      html += "<h3>Worst-rendered objects</h3><table><tr><th>Layer</th><th>Kind</th><th>Bad pixels</th><th>Visually bad</th></tr>" +
         worst.map(o => "<tr><td>" + esc(o.name) + "</td><td>" + esc(o.kind) + "</td><td>" +
-                       pct(o.badFraction) + "</td></tr>").join("") + "</table>";
+                       pct(o.badFraction) + "</td><td>" +
+                       (o.perceptualBadFraction == null ? "-" : pct(o.perceptualBadFraction)) +
+                       "</td></tr>").join("") + "</table>";
     }
   }
   if (cell.native && cell.native.perCategory) {
@@ -422,13 +511,16 @@ function openDetail(fi, ek, keep) {
       '<div class="nums">' + esc(cell.native.error) + "</div></div>";
   }
   if (cell.roundtripRender) {
-    html += "<h3>Round trip back into Photoshop</h3><table><tr><th>Accuracy vs original</th><th>Pixels off</th></tr>" +
-      "<tr><td>" + pct(cell.roundtripRender.accuracy) + "</td><td>" + pct(cell.roundtripRender.badFraction) +
-      "</td></tr></table>";
+    const rp = cell.roundtripRender.perceptual;
+    html += "<h3>Round trip back into Photoshop</h3><table><tr><th>Accuracy vs original</th><th>Visual match</th><th>Pixels off</th></tr>" +
+      "<tr><td>" + pct(cell.roundtripRender.accuracy) + "</td><td>" + (rp ? pct(rp.accuracy) : "-") +
+      "</td><td>" + pct(cell.roundtripRender.badFraction) + "</td></tr></table>";
   }
   if (cell.textRender) {
-    html += "<h3>Forced text re-render vs Photoshop</h3><table><tr><th>Accuracy</th><th>Pixels off</th></tr>" +
-      "<tr><td>" + pct(cell.textRender.accuracy) + "</td><td>" + pct(cell.textRender.badFraction) + "</td></tr></table>";
+    const tp = cell.textRender.perceptual;
+    html += "<h3>Forced text re-render vs Photoshop</h3><table><tr><th>Accuracy</th><th>Visual match</th><th>Pixels off</th></tr>" +
+      "<tr><td>" + pct(cell.textRender.accuracy) + "</td><td>" + (tp ? pct(tp.accuracy) : "-") +
+      "</td><td>" + pct(cell.textRender.badFraction) + "</td></tr></table>";
   }
   document.getElementById("detail-body").innerHTML = html;
   document.getElementById("detail").classList.add("open");
