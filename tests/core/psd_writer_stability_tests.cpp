@@ -362,6 +362,7 @@ void psd_layer_styles_round_trip_patchy_effects() {
   shadow.distance = 4.0F;
   shadow.spread = 15.0F;
   shadow.size = 6.0F;
+  shadow.layer_conceals = false;
   layer.layer_style().drop_shadows.push_back(shadow);
 
   patchy::LayerInnerShadow inner_shadow;
@@ -468,6 +469,7 @@ void psd_layer_styles_round_trip_patchy_effects() {
   CHECK(style.drop_shadows.front().blend_mode == patchy::BlendMode::Multiply);
   CHECK(style.drop_shadows.front().color.red == 10);
   CHECK(style.drop_shadows.front().opacity == 0.6F);
+  CHECK(!style.drop_shadows.front().layer_conceals);
   CHECK(style.inner_shadows.size() == 2);
   CHECK(style.inner_shadows.front().color.blue == 10);
   CHECK(style.inner_shadows.front().choke == 20.0F);

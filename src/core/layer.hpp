@@ -255,6 +255,11 @@ struct LayerDropShadow {
   float distance{5.0F};
   float spread{0.0F};
   float size{5.0F};
+  // Photoshop's "Layer Knocks Out Drop Shadow" (descriptor layerConceals,
+  // default on): the layer's transparency shape punches a hole in its own
+  // shadow, so nothing shadows the backdrop under the shape even when the
+  // fill is knocked out or semi-transparent.
+  bool layer_conceals{true};
   // Photoshop's "Use Global Light". Only meaningful while importing: the PSD reader
   // resolves the document's global angle into angle_degrees and clears this flag.
   bool use_global_light{false};

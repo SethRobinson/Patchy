@@ -669,6 +669,8 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
   // save into LayerStroke::blend_mode and load back when the dialog reopens.
   // The Overprint checkbox (July 2026, PS's stroke knockout toggle) rides the
   // same round trip: unchecked by default, saved into LayerStroke::overprint.
+  // The Drop Shadow page's "Layer Knocks Out Drop Shadow" checkbox (PS default
+  // ON, LayerDropShadow::layer_conceals) round-trips the same way.
   patchy::ui::MainWindow window;
   show_window(window);
   auto* blending_options = require_action(window, "layerBlendingOptionsAction");
@@ -681,11 +683,22 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
     auto* stroke_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleStrokeBlendModeCombo"));
     auto* stroke_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeSizeSpin"));
     auto* stroke_overprint = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleStrokeOverprintCheck"));
+    auto* shadow_conceals = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleDropShadowConcealsCheck"));
     CHECK(categories != nullptr);
     CHECK(stroke_blend != nullptr);
     CHECK(stroke_size != nullptr);
     CHECK(stroke_overprint != nullptr);
     CHECK(!stroke_overprint->isChecked());  // Photoshop's default
+    CHECK(shadow_conceals != nullptr);
+    CHECK(shadow_conceals->isChecked());  // Photoshop's default is ON
+    // Page values commit when the category selection moves away from the
+    // page (or on accept for the current page), so edit the Drop Shadow page
+    // first and switch to the Stroke page before accepting.
+    const auto shadow_items = categories->findItems(QStringLiteral("Drop Shadow"), Qt::MatchExactly);
+    CHECK(!shadow_items.empty());
+    shadow_items.front()->setCheckState(Qt::Checked);
+    categories->setCurrentItem(shadow_items.front());
+    shadow_conceals->setChecked(false);
     const auto stroke_items = categories->findItems(QStringLiteral("Stroke"), Qt::MatchExactly);
     CHECK(!stroke_items.empty());
     stroke_items.front()->setCheckState(Qt::Checked);
@@ -712,6 +725,8 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
   CHECK(layer->layer_style().strokes.front().blend_mode == patchy::BlendMode::Multiply);
   CHECK(layer->layer_style().strokes.front().size == 6.0F);
   CHECK(layer->layer_style().strokes.front().overprint);
+  CHECK(!layer->layer_style().drop_shadows.empty());
+  CHECK(!layer->layer_style().drop_shadows.front().layer_conceals);
 
   bool reloaded = false;
   QTimer::singleShot(0, [&] {
@@ -719,10 +734,13 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
     CHECK(dialog != nullptr);
     auto* stroke_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleStrokeBlendModeCombo"));
     auto* stroke_overprint = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleStrokeOverprintCheck"));
+    auto* shadow_conceals = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleDropShadowConcealsCheck"));
     CHECK(stroke_blend != nullptr);
     CHECK(stroke_overprint != nullptr);
+    CHECK(shadow_conceals != nullptr);
     CHECK(stroke_blend->currentData().toInt() == static_cast<int>(patchy::BlendMode::Multiply));
     CHECK(stroke_overprint->isChecked());
+    CHECK(!shadow_conceals->isChecked());
     reloaded = true;
     qobject_cast<QDialog*>(dialog)->reject();
   });

@@ -2867,6 +2867,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* shadow_spread = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Spread"),
                                             QStringLiteral("layerStyleDropShadowSpreadSpin"), 0, 100,
                                             static_cast<int>(std::round(shadow.spread)), QStringLiteral("%"));
+  auto* shadow_conceals = new QCheckBox(QObject::tr("Layer Knocks Out Drop Shadow"), shadow_group);
+  shadow_conceals->setObjectName(QStringLiteral("layerStyleDropShadowConcealsCheck"));
+  shadow_conceals->setChecked(shadow.layer_conceals);
+  shadow_conceals->setToolTip(QObject::tr(
+      "Hide the shadow under the layer's own shape so it never shows through knocked-out or "
+      "semi-transparent content, like Photoshop"));
+  shadow_form->addRow(QString(), shadow_conceals);
   const auto shadow_rows =
       make_color_rows(shadow_form, shadow_group, QStringLiteral("layerStyleDropShadow"), shadow.color);
   auto* shadow_red = shadow_rows.red;
@@ -3189,6 +3196,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.distance = static_cast<float>(shadow_distance->value());
         target.size = static_cast<float>(shadow_size->value());
         target.spread = static_cast<float>(shadow_spread->value());
+        target.layer_conceals = shadow_conceals->isChecked();
         target.color = RgbColor{static_cast<std::uint8_t>(shadow_red->value()),
                                 static_cast<std::uint8_t>(shadow_green->value()),
                                 static_cast<std::uint8_t>(shadow_blue->value())};
@@ -3408,6 +3416,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         shadow_distance->setValue(static_cast<int>(std::round(value.distance)));
         shadow_size->setValue(static_cast<int>(std::round(value.size)));
         shadow_spread->setValue(static_cast<int>(std::round(value.spread)));
+        shadow_conceals->setChecked(value.layer_conceals);
         shadow_red->setValue(value.color.red);
         shadow_green->setValue(value.color.green);
         shadow_blue->setValue(value.color.blue);
@@ -4144,6 +4153,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(shadow_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(shadow_conceals, &QCheckBox::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(inner_shadow_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(stroke_position, &QComboBox::currentIndexChanged, &dialog,

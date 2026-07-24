@@ -767,6 +767,14 @@
         <translation>オーバープリント</translation>
     </message>
     <message>
+        <source>Layer Knocks Out Drop Shadow</source>
+        <translation>レイヤーがドロップシャドウをノックアウト</translation>
+    </message>
+    <message>
+        <source>Hide the shadow under the layer&apos;s own shape so it never shows through knocked-out or semi-transparent content, like Photoshop</source>
+        <translation>レイヤー自身の形状の下でシャドウを隠し、ノックアウトされた内容や半透明の内容から Photoshop と同様に透けて見えないようにします</translation>
+    </message>
+    <message>
         <source>Blend the stroke against the layer&apos;s own content. When off, the stroke knocks the content out of its band and blends with the layers below, like Photoshop</source>
         <translation>境界線をレイヤー自身の内容の上に合成します。オフの場合は境界線の帯からレイヤー内容をノックアウトし、Photoshop と同様に下のレイヤーと合成します</translation>
     </message>

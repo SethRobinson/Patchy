@@ -763,6 +763,80 @@ void layer_stroke_knockout_removes_interior_overlay_under_band() {
   check_pixel_near(flattened, 32, 32, 255, 0, 0, 0);  // overlay intact inside
 }
 
+void layer_stroke_zero_opacity_knockout_still_knocks_out() {
+  // A 0%-opacity Overprint-off stroke paints nothing but still knocks the
+  // content out of its band at full coverage — the band shows the pure
+  // backdrop (PS COM probe July 2026; the stroke_from_photoshop2.psd case,
+  // where a size-109 inside stroke at 0% wipes the whole layer interior).
+  // With Overprint on the same stroke is a complete no-op.
+  const auto knocked = patchy::Compositor{}.flatten_rgb8(
+      make_overprint_document(white_inside_stroke(0.0F, false), 1.0F, false));
+  check_pixel_near(knocked, 20, 32, 255, 128, 0, 0);   // band: pure backdrop
+  check_pixel_near(knocked, 32, 32, 110, 110, 110, 0);  // interior intact
+  const auto untouched = patchy::Compositor{}.flatten_rgb8(
+      make_overprint_document(white_inside_stroke(0.0F, true), 1.0F, false));
+  check_pixel_near(untouched, 20, 32, 110, 110, 110, 0);
+}
+
+patchy::LayerDropShadow test_drop_shadow(float distance, float size, bool conceals) {
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Multiply;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 0.75F;
+  shadow.angle_degrees = 120.0F;
+  shadow.distance = distance;
+  shadow.size = size;
+  shadow.layer_conceals = conceals;
+  return shadow;
+}
+
+void drop_shadow_layer_conceals_hides_shadow_under_shape() {
+  // "Layer Knocks Out Drop Shadow" (layerConceals, PS default on): the layer's
+  // transparency shape punches a hole in its own shadow regardless of fill
+  // opacity (COM probes July 2026: a 50%-fill interior shows content over the
+  // PURE backdrop; with the option off the shadow shows through).
+  patchy::Document on_document(64, 64, patchy::PixelFormat::rgb8());
+  on_document.add_pixel_layer("Backdrop", solid_rgb(64, 64, 255, 128, 0));
+  patchy::Layer on_layer(on_document.allocate_layer_id(), "Content", solid_rgba(32, 32, 110, 110, 110, 255));
+  on_layer.set_bounds(patchy::Rect{16, 16, 32, 32});
+  on_layer.set_fill_opacity(0.5F);
+  on_layer.layer_style().drop_shadows.push_back(test_drop_shadow(0.0F, 5.0F, true));
+  on_document.add_layer(std::move(on_layer));
+  const auto concealed = patchy::Compositor{}.flatten_rgb8(on_document);
+  check_pixel_near(concealed, 32, 32, 183, 119, 55, 2);  // no shadow under shape
+
+  patchy::Document off_document(64, 64, patchy::PixelFormat::rgb8());
+  off_document.add_pixel_layer("Backdrop", solid_rgb(64, 64, 255, 128, 0));
+  patchy::Layer off_layer(off_document.allocate_layer_id(), "Content", solid_rgba(32, 32, 110, 110, 110, 255));
+  off_layer.set_bounds(patchy::Rect{16, 16, 32, 32});
+  off_layer.set_fill_opacity(0.5F);
+  off_layer.layer_style().drop_shadows.push_back(test_drop_shadow(0.0F, 5.0F, false));
+  off_document.add_layer(std::move(off_layer));
+  const auto revealed = patchy::Compositor{}.flatten_rgb8(off_document);
+  check_pixel_near(revealed, 32, 32, 87, 71, 55, 2);  // shadow shows through
+}
+
+void drop_shadow_conceals_composes_with_stroke_knockout() {
+  // The stroke_from_photoshop2.psd case: a 0%-opacity Overprint-off stroke
+  // knocks the content out of the band, and layerConceals keeps the layer's
+  // own drop shadow from filling the hole — the band shows the pure backdrop
+  // while the shadow stays visible outside the shape.
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(64, 64, 255, 128, 0));
+  patchy::Layer content(document.allocate_layer_id(), "Content", solid_rgba(32, 32, 110, 110, 110, 255));
+  content.set_bounds(patchy::Rect{16, 16, 32, 32});
+  content.layer_style().strokes.push_back(white_inside_stroke(0.0F, false));
+  content.layer_style().drop_shadows.push_back(test_drop_shadow(8.0F, 8.0F, true));
+  document.add_layer(std::move(content));
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  check_pixel_near(flattened, 20, 32, 255, 128, 0, 0);   // band: pure backdrop, no shadow
+  check_pixel_near(flattened, 32, 32, 110, 110, 110, 0);  // interior content intact
+  const auto* fringe = flattened.pixel(52, 52);           // outside SE corner: shadow present
+  CHECK(fringe[0] < 250);
+  CHECK(fringe[2] < 10);
+}
+
 void layer_stroke_knockout_blend_mode_uses_backdrop() {
   // Overprint off applies the stroke's blend mode against the BACKDROP even
   // at 100% opacity (probe P3: multiply band = mult(stroke, orange), not
@@ -811,6 +885,12 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
        layer_stroke_knockout_composes_with_layer_opacity},
       {"layer_stroke_knockout_removes_interior_overlay_under_band",
        layer_stroke_knockout_removes_interior_overlay_under_band},
+      {"layer_stroke_zero_opacity_knockout_still_knocks_out",
+       layer_stroke_zero_opacity_knockout_still_knocks_out},
+      {"drop_shadow_layer_conceals_hides_shadow_under_shape",
+       drop_shadow_layer_conceals_hides_shadow_under_shape},
+      {"drop_shadow_conceals_composes_with_stroke_knockout",
+       drop_shadow_conceals_composes_with_stroke_knockout},
       {"layer_stroke_knockout_blend_mode_uses_backdrop", layer_stroke_knockout_blend_mode_uses_backdrop},
       {"psd_photoshop_stroke_partial_alpha_fixture_matches",
        psd_photoshop_stroke_partial_alpha_fixture_matches},

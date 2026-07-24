@@ -271,6 +271,7 @@ std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect,
   shadow.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 5.0)));
   shadow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   shadow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  shadow.layer_conceals = descriptor_bool(effect, "layerConceals", true);
   return shadow;
 }
 
@@ -1397,7 +1398,7 @@ void write_drop_shadow_descriptor(BigEndianWriter& writer, const LayerDropShadow
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, shadow.size);
   write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
   write_descriptor_bool_item(writer, "AntA", false);
-  write_descriptor_bool_item(writer, "layerConceals", true);
+  write_descriptor_bool_item(writer, "layerConceals", shadow.layer_conceals);
 }
 
 void write_inner_shadow_descriptor(BigEndianWriter& writer, const LayerInnerShadow& shadow) {

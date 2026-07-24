@@ -422,6 +422,16 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
   const auto width = mask_bounds.width;
   const auto& mask = entry->primary;
 
+  // "Layer Knocks Out Drop Shadow" (layerConceals, PS default on): the layer's
+  // transparency shape punches a hole in its own shadow — independent of fill
+  // opacity, master opacity, and any stroke knockout (COM probes July 2026:
+  // a fill-0 or knocked-out interior shows the pure backdrop, never the
+  // shadow). Invisible under fully opaque content, which simply covers the
+  // shadow either way.
+  std::vector<float> conceal_mask;
+  if (shadow.layer_conceals) {
+    conceal_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
+  }
   const auto clip_to_mask = layer_mask_clips_effect_output(layer);
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
@@ -429,6 +439,10 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
                    shadow.opacity * layer.opacity();
       if (clip_to_mask) {
         alpha *= layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+      }
+      if (!conceal_mask.empty()) {
+        alpha *= 1.0F - conceal_mask[static_cast<std::size_t>((y - draw_rect.y) * draw_rect.width +
+                                                              (x - draw_rect.x))];
       }
       composite_effect_color(destination, x, y, shadow.color, alpha, shadow.blend_mode);
     }
@@ -1266,7 +1280,11 @@ inline std::optional<PreparedStroke> prepare_stroke_render(const Layer& layer, c
                                                            Rect bounds, const LayerStroke& stroke,
                                                            std::optional<Rect> layer_mask_bounds,
                                                            StyleMaskProvider* masks, std::uint32_t effect_index) {
-  if (!stroke.enabled || stroke.opacity <= 0.0F || stroke.size <= 0.0F) {
+  // No opacity gate here: a 0%-opacity Overprint-off stroke paints nothing
+  // but still knocks the content out of its band at full coverage (PS COM
+  // probe + the fixture's ins0 arm, July 2026), so the knockout pass must be
+  // able to prepare it. Draw-only callers skip zero opacity themselves.
+  if (!stroke.enabled || stroke.size <= 0.0F) {
     return std::nullopt;
   }
   const auto radius = std::max(1, static_cast<int>(std::ceil(stroke.size)));
@@ -1392,6 +1410,9 @@ template <typename Target>
 void render_prepared_stroke(Target& destination, const Layer& layer, const PreparedStroke& prepared,
                             std::optional<Rect> layer_mask_bounds) {
   const auto& stroke = *prepared.stroke;
+  if (stroke.opacity <= 0.0F) {
+    return;  // the knockout already happened in the base pass; nothing to draw
+  }
   const auto& mask = prepared.entry->primary;
   const auto& entry = prepared.entry;
   const auto mask_bounds = prepared.mask_bounds;
@@ -1438,6 +1459,9 @@ template <typename Target>
 void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                    const LayerStroke& stroke, std::optional<Rect> layer_mask_bounds,
                    StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0) {
+  if (stroke.opacity <= 0.0F) {
+    return;  // nothing to draw; any Overprint-off knockout is the caller's pass
+  }
   const auto prepared =
       prepare_stroke_render(layer, source, clip, bounds, stroke, layer_mask_bounds, masks, effect_index);
   if (!prepared.has_value()) {

@@ -887,13 +887,15 @@ void psd_photoshop_stroke_aa_matte_fixture_matches_render() {
 }
 
 // Photoshop 2026 authored photoshop-stroke-overprint.psd/.bmp via COM (July
-// 2026): six stroke arms over an orange (255,128,0) backdrop, gray (110)
+// 2026): eight stroke arms over an orange (255,128,0) backdrop, gray (110)
 // content, pinning the Overprint knockout model. Arms: Inside 29% white
 // overprint off (band = 0.29*white + 0.71*orange — content fully knocked
 // out), the same with overprint ON (band = stroke over the gray content),
 // 60% off, Multiply (200,100,50) 100% off (blend mode applies against the
-// BACKDROP), an AA ellipse at 29% off (fringe compensation), and a
-// layer-opacity-50 arm (the knocked-out plane scales with layer opacity).
+// BACKDROP), an AA ellipse at 29% off (fringe compensation), a
+// layer-opacity-50 arm (the knocked-out plane scales with layer opacity),
+// and 0%-opacity arms: overprint off still knocks the band out to the pure
+// backdrop while painting nothing, overprint on is a complete no-op.
 void psd_photoshop_stroke_overprint_fixture_matches_render() {
   const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-stroke-overprint.psd");
   const auto bmp_path = psd_path.parent_path() / "photoshop-stroke-overprint.bmp";
@@ -944,6 +946,50 @@ void psd_photoshop_stroke_overprint_fixture_matches_render() {
   check_near(24, 135, 200, 50, 0);      // multiply off: mult against backdrop
   check_near(120, 135, 255, 165, 74);   // AA ellipse band interior
   check_near(224, 135, 255, 147, 37);   // layer opacity 50
+  check_near(24, 225, 255, 128, 0);     // ins0 off: knocked out, nothing drawn
+  check_near(55, 225, 110, 110, 110);   // ins0 off: interior beyond band intact
+  check_near(124, 225, 110, 110, 110);  // ins0 on: complete no-op
+}
+
+// Photoshop 2026 authored photoshop-shadow-conceals.psd/.bmp via COM (July
+// 2026): six drop-shadow arms over an orange backdrop pinning "Layer Knocks
+// Out Drop Shadow" (DrSh layerConceals, default on): the layer's transparency
+// shape punches a hole in its own shadow regardless of fill opacity, master
+// opacity, or a stroke knockout. Arms: 0%-stroke knockout band with conceals
+// on (band = pure backdrop) and off (band = shadowed backdrop), fill-50 with
+// conceals on (content over pure backdrop) and off (shadow through the
+// fill), master-50 on, and fill-0 on (the classic no-shadow-inside case).
+void psd_photoshop_shadow_conceals_fixture_matches_render() {
+  const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-shadow-conceals.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-shadow-conceals.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto* on_arm = find_layer_named(document.layers(), "knock on");
+  const auto* off_arm = find_layer_named(document.layers(), "knock off");
+  CHECK(on_arm != nullptr);
+  CHECK(off_arm != nullptr);
+  CHECK(on_arm->layer_style().drop_shadows.size() == 1);
+  CHECK(on_arm->layer_style().drop_shadows.front().layer_conceals);
+  CHECK(off_arm->layer_style().drop_shadows.size() == 1);
+  CHECK(!off_arm->layer_style().drop_shadows.front().layer_conceals);
+  const auto reference =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference, flat);
+  CHECK(metrics.mean_abs_channel_delta <= 1.0);
+  const auto check_near = [&](std::int32_t x, std::int32_t y, int red, int green, int blue) {
+    const auto* pixel = flat.pixel(x, y);
+    CHECK(std::abs(static_cast<int>(pixel[0]) - red) <= 2);
+    CHECK(std::abs(static_cast<int>(pixel[1]) - green) <= 2);
+    CHECK(std::abs(static_cast<int>(pixel[2]) - blue) <= 2);
+  };
+  check_near(24, 45, 255, 128, 0);     // knock on: band shows the pure backdrop
+  check_near(124, 45, 148, 74, 0);     // knock off: shadow fills the band
+  check_near(255, 45, 182, 119, 55);   // fill50 on: content over pure backdrop
+  check_near(55, 135, 87, 71, 55);     // fill50 off: shadow through the fill
+  check_near(155, 135, 182, 119, 55);  // master50 on
+  check_near(255, 135, 255, 128, 0);   // fill0 on: no shadow inside the shape
 }
 
 // Photoshop 2026 authored photoshop-pillow-emboss.psd/.bmp and
@@ -1423,6 +1469,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_stroke_aa_matte_fixture_matches_render},
       {"psd_photoshop_stroke_overprint_fixture_matches_render",
        psd_photoshop_stroke_overprint_fixture_matches_render},
+      {"psd_photoshop_shadow_conceals_fixture_matches_render",
+       psd_photoshop_shadow_conceals_fixture_matches_render},
       {"psd_photoshop_pillow_emboss_fixtures_match_render",
        psd_photoshop_pillow_emboss_fixtures_match_render},
       {"psd_photoshop_stroke_shapeburst_fixture_matches_render",
