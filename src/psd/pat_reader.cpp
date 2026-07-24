@@ -22,6 +22,7 @@ constexpr std::uint32_t kModeGrayscale = 1;
 constexpr std::uint32_t kModeIndexed = 2;
 constexpr std::uint32_t kModeRgb = 3;
 constexpr std::uint32_t kModeCmyk = 4;
+constexpr std::uint32_t kModeMultichannel = 7;
 constexpr std::uint32_t kMaxPatternCount = 4096;
 constexpr std::int32_t kMaxPatternDimension = 16384;
 constexpr std::uint64_t kMaxPatternPixels = 8ULL * 1024ULL * 1024ULL;
@@ -61,7 +62,9 @@ struct PatPlaneInspection {
 };
 
 [[nodiscard]] bool supported_mode(std::uint32_t mode) noexcept {
-  return mode == kModeGrayscale || mode == kModeIndexed || mode == kModeRgb || mode == kModeCmyk;
+  // Multichannel decodes through the shared codec's single-plane gray path.
+  return mode == kModeGrayscale || mode == kModeIndexed || mode == kModeRgb ||
+         mode == kModeCmyk || mode == kModeMultichannel;
 }
 
 [[nodiscard]] std::string pattern_label(const PatRecord& record, std::uint32_t one_based_index) {

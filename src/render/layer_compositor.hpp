@@ -975,10 +975,17 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
             // height field before normals. PS calibration (checker probes):
             // DARK texels are raised by default (Invert flips), and the bump
             // plane is smoothed so texel plateaus become domes/pits whose
-            // slopes shade the whole cell, not just its edges. The amplitude
-            // doubled when the July 2026 Lambert calibration halved
-            // normal_scale, keeping the bump's height gradients unchanged.
-            constexpr float kTextureAmplitude = 6.0F;
+            // slopes shade the whole cell, not just its edges. The gain was
+            // recalibrated in the LINEAR regime July 2026 with triangle-wave
+            // ramp probes byte-patched into tree_world_a.psd's texture (the
+            // old checker probes only exercised saturated hard edges, where
+            // clamped shading let a ~5x-too-hot gain still fit): the bump
+            // plane feeds the height field with NO extra amplitude, and the
+            // size/bevel-depth/texture-depth couplings through normal_scale
+            // reproduce PS's measured ratios (size 10 and depth 200% both
+            // scale PS's stripe modulation by the same 1.79x they scale
+            // ours). Pinned by photoshop-bevel-texture-ramp.psd/bmp.
+            constexpr float kTextureAmplitude = 1.0F;
             const PatternTileSampler sampler(resource->tile, layer, bevel.texture.scale, 0.0F,
                                              bevel.texture.link_with_layer, bevel.texture.phase_x,
                                              bevel.texture.phase_y);

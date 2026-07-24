@@ -26,6 +26,7 @@ enum PatternImageMode : std::uint32_t {
   kModeIndexed = 2,
   kModeRgb = 3,
   kModeCmyk = 4,
+  kModeMultichannel = 7,
 };
 
 struct DecodedPlane {
@@ -193,8 +194,12 @@ std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
       color_table = reader.read_bytes(256U * 3U);
     }
 
+    // Multichannel (CS-era bevel-texture presets such as Clouds) carries one
+    // plane that Photoshop reads exactly like grayscale: byte-patching a
+    // mode-7 pattern to mode 1 renders byte-identically in PS 2026.
     const auto supported_mode =
-        mode == kModeGrayscale || mode == kModeIndexed || mode == kModeRgb || mode == kModeCmyk;
+        mode == kModeGrayscale || mode == kModeIndexed || mode == kModeRgb ||
+        mode == kModeCmyk || mode == kModeMultichannel;
     const auto pattern_pixels =
         width > 0 && height > 0
             ? static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height)
@@ -256,7 +261,8 @@ std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
             auto* px = row + static_cast<std::size_t>(x) * 4U;
             const auto alpha = alpha_present ? plane_sample(alpha_plane, x, y, 255U) : 255U;
             switch (mode) {
-              case kModeGrayscale: {
+              case kModeGrayscale:
+              case kModeMultichannel: {
                 const auto gray = plane_sample(color_planes[0], x, y, 0U);
                 px[0] = gray;
                 px[1] = gray;

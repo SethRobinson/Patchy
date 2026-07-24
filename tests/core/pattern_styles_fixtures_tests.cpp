@@ -994,6 +994,79 @@ void psd_photoshop_gradient_overlay_geometry_fixture_matches_render() {
   CHECK(metrics.mean_abs_channel_delta <= 0.30);
 }
 
+// Photoshop 2026 authored photoshop-bevel-texture-{ramp,clouds}.psd/.bmp via
+// COM (July 2026): 256x256 crops of a CS-era painted PSD (tree_world_a) whose
+// "Shading" layer carries a smooth inner bevel (size 5, altitude 30) with the
+// Texture sub-option. Both files store the texture pattern in a mode-7
+// (Multichannel) Patt block, which Photoshop preserved through the resave and
+// reads exactly like a grayscale plane (byte-patching mode 7 to 1 rendered
+// byte-identically), so the fixtures pin the multichannel pattern decode
+// end to end. The ramp variant's plane bytes were byte-patched to a
+// low-contrast horizontal triangle wave (period 64, amplitude 32/255) with
+// texture scale/depth normalized to 100%: its stripes sit in the LINEAR
+// shading regime, pinning the recalibrated texture gain (bump plane feeds
+// the height field with no extra amplitude; the old checker-calibrated 6x
+// gain only fit because hard edges saturate, and overshot ~5x on gentle
+// slopes). The clouds variant keeps the original Clouds texture at scale
+// 162% / depth 95%, the real-world regression this calibration fixed.
+void psd_photoshop_bevel_texture_fixtures_match_render() {
+  const struct {
+    const char* base;
+    double max_mean;
+    double max_over_tolerance_fraction;
+  } fixtures[] = {
+      // Capture-time metrics: ramp mean 0.79, over-6 0.20%; clouds mean 1.84,
+      // over-6 1.56% (texture magnification filtering and bevel edge AA).
+      {"photoshop-bevel-texture-ramp", 1.2, 0.005},
+      {"photoshop-bevel-texture-clouds", 2.5, 0.03},
+  };
+  for (const auto& fixture : fixtures) {
+    const auto psd_path =
+        patchy::test::committed_psd_fixture_path(std::string(fixture.base) + ".psd");
+    const auto bmp_path = psd_path.parent_path() / (std::string(fixture.base) + ".bmp");
+    CHECK(std::filesystem::exists(psd_path));
+    CHECK(std::filesystem::exists(bmp_path));
+    const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+    const auto* shading = find_layer_named(document.layers(), "Shading");
+    CHECK(shading != nullptr);
+    CHECK(shading->layer_style().bevels.size() == 1);
+    const auto& bevel = shading->layer_style().bevels.front();
+    CHECK(bevel.enabled);
+    CHECK(bevel.texture.enabled);
+    CHECK(bevel.texture.pattern_id == "cffe046e-c525-11da-8325-c0b12431a07b");
+    // The mode-7 Patt block must decode into a usable tile.
+    const auto* pattern = document.metadata().patterns.find(bevel.texture.pattern_id);
+    CHECK(pattern != nullptr);
+    CHECK(!pattern->tile.empty());
+    CHECK(pattern->tile.width() == 128 && pattern->tile.height() == 128);
+
+    const auto reference =
+        patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+    const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+    const auto metrics = rgb_diff_metrics(reference, flat);
+    CHECK(metrics.mean_abs_channel_delta <= fixture.max_mean);
+    std::uint64_t over_tolerance = 0;
+    for (std::int32_t y = 0; y < reference.height(); ++y) {
+      for (std::int32_t x = 0; x < reference.width(); ++x) {
+        const auto* a = reference.pixel(x, y);
+        const auto* b = flat.pixel(x, y);
+        int max_delta = 0;
+        for (int channel = 0; channel < 3; ++channel) {
+          max_delta = std::max(
+              max_delta, std::abs(static_cast<int>(a[channel]) - static_cast<int>(b[channel])));
+        }
+        if (max_delta > 6) {
+          ++over_tolerance;
+        }
+      }
+    }
+    const auto total_pixels =
+        static_cast<double>(reference.width()) * static_cast<double>(reference.height());
+    CHECK(static_cast<double>(over_tolerance) / total_pixels <=
+          fixture.max_over_tolerance_fraction);
+  }
+}
+
 // Photoshop 2026 authored photoshop-bevel-smooth.psd via COM (July 2026): mid-tone
 // rectangles and a thin bar on white with smooth inner bevels at sizes 5/10,
 // altitudes 30/60, and the Contour sub-option off / Linear-Range-50 /
@@ -1740,6 +1813,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_gradient_overlay_geometry_fixture_matches_render},
       {"psd_photoshop_bevel_smooth_fixture_matches_render",
        psd_photoshop_bevel_smooth_fixture_matches_render},
+      {"psd_photoshop_bevel_texture_fixtures_match_render",
+       psd_photoshop_bevel_texture_fixtures_match_render},
       {"psd_photoshop_stroke_aa_matte_fixture_matches_render",
        psd_photoshop_stroke_aa_matte_fixture_matches_render},
       {"psd_photoshop_stroke_overprint_fixture_matches_render",

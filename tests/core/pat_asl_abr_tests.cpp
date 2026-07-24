@@ -867,7 +867,9 @@ void asl_reader_reads_photoshop_shipped_styles_if_available() {
   CHECK(parsed.has_value());
   CHECK(error.empty());
   CHECK(parsed->styles.size() == 6U);
-  CHECK(parsed->patterns.size() == 6U);
+  // 7 pattern records ship in the file; "Carpet" is mode 7 (Multichannel) and
+  // only decodes since the July 2026 multichannel pattern support.
+  CHECK(parsed->patterns.size() == 7U);
   // ZString display names resolve.
   CHECK(parsed->styles.front().name == "White Grid on Orange");
   for (const auto& style : parsed->styles) {
@@ -950,6 +952,34 @@ void psd_pattern_unused_vma_slot_is_not_decoded() {
   CHECK(patterns.front().id == "cccccccc-0000-0000-0000-000000000001");
   const auto* pixel = patterns.front().tile.pixel(1, 1);
   CHECK(pixel[0] == 40 && pixel[1] == 80 && pixel[2] == 120 && pixel[3] == 255);
+}
+
+void psd_pattern_multichannel_decodes_as_grayscale() {
+  // CS-era bevel-texture presets (e.g. Clouds in tree_world_a.psd) store image
+  // mode 7 (Multichannel) with one plane. Photoshop reads that plane exactly
+  // like grayscale: byte-patching such a pattern to mode 1 renders
+  // byte-identically in PS 2026.
+  const std::vector<TestPatPlane> planes{
+      {0, 0, 0, 2, 2, 8, 0, {10, 20, 200, 250}},
+  };
+  const auto pat = test_color_pat_bytes(
+      7, 2, 2, "Multichannel", "dddddddd-0000-0000-0000-000000000001", planes);
+  const auto payload = pat_record_as_patterns_block(pat);
+  const auto patterns = patchy::psd::parse_patterns_block(payload, nullptr);
+  CHECK(patterns.size() == 1U);
+  CHECK(patterns.front().name == "Multichannel");
+  const auto* pixel = patterns.front().tile.pixel(1, 1);
+  CHECK(pixel[0] == 250 && pixel[1] == 250 && pixel[2] == 250 && pixel[3] == 255);
+
+  // The standalone .pat path accepts the same records.
+  std::string error;
+  const auto result = patchy::psd::read_pat(pat, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->patterns.size() == 1U);
+  const auto* pat_pixel = result->patterns.front().tile.pixel(0, 0);
+  CHECK(pat_pixel[0] == 10 && pat_pixel[1] == 10 && pat_pixel[2] == 10 && pat_pixel[3] == 255);
 }
 
 void psd_pattern_vma_cannot_consume_the_next_record() {
@@ -1479,6 +1509,8 @@ std::vector<patchy::test::TestCase> pat_asl_abr_tests() {
        pat_attempt_budgets_include_failed_compressed_records},
       {"psd_pattern_unused_vma_slot_is_not_decoded",
        psd_pattern_unused_vma_slot_is_not_decoded},
+      {"psd_pattern_multichannel_decodes_as_grayscale",
+       psd_pattern_multichannel_decodes_as_grayscale},
       {"psd_pattern_vma_cannot_consume_the_next_record",
        psd_pattern_vma_cannot_consume_the_next_record},
       {"abr_v6_fixture_parses_brushes_names_and_spacing", abr_v6_fixture_parses_brushes_names_and_spacing},
