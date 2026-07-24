@@ -570,6 +570,8 @@ if(PATCHY_BUILD_APP)
       src/ui/background_workers.cpp
       src/ui/gradient_library.cpp
       src/ui/gradient_manager_dialog.cpp
+      src/ui/gradient_preset_popup.hpp
+      src/ui/gradient_preset_popup.cpp
       src/ui/blend_mode_ui.cpp
       src/ui/brush_dynamics_popup.hpp
       src/ui/brush_dynamics_popup.cpp

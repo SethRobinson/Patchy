@@ -52,6 +52,7 @@
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
+#include "ui/gradient_preset_popup.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/font_picker.hpp"
@@ -289,6 +290,41 @@ QString gradient_preview_button_style(const std::vector<GradientStop>& stops, in
       .arg(gradient_css_stops(stops, opacity, reverse));
 }
 
+// The Gradient tool's stop model is a flat std::vector<GradientStop>: applying
+// a library preset resolves the dynamic Foreground/Background stop kinds from
+// the current colors, then flattens the definition (smoothness, midpoints,
+// Noise) into sampled stops. Shared by the Edit Gradient Stops dialog's
+// Preset... button and the options-bar Presets popup.
+[[nodiscard]] std::vector<GradientStop> sampled_gradient_stops_from_definition(
+    const GradientDefinition& definition, const QColor& foreground, const QColor& background) {
+  LayerStyleGradient gradient;
+  static_cast<GradientDefinition&>(gradient) = definition;
+  for (auto& stop : gradient.color_stops) {
+    if (stop.kind == GradientColorStop::Kind::Foreground) {
+      stop.color = RgbColor{static_cast<std::uint8_t>(foreground.red()),
+                            static_cast<std::uint8_t>(foreground.green()),
+                            static_cast<std::uint8_t>(foreground.blue())};
+    } else if (stop.kind == GradientColorStop::Kind::Background) {
+      stop.color = RgbColor{static_cast<std::uint8_t>(background.red()),
+                            static_cast<std::uint8_t>(background.green()),
+                            static_cast<std::uint8_t>(background.blue())};
+    }
+    stop.kind = GradientColorStop::Kind::User;
+  }
+  std::vector<GradientStop> sampled;
+  const int sample_count = gradient.form == GradientDefinitionForm::Noise ? 65 : 33;
+  sampled.reserve(sample_count);
+  for (int index = 0; index < sample_count; ++index) {
+    const auto position = static_cast<float>(index) / static_cast<float>(sample_count - 1);
+    const auto color = gradient_color(gradient, position);
+    sampled.push_back(GradientStop{
+        position, EditColor{color.red, color.green, color.blue,
+                            static_cast<std::uint8_t>(std::clamp(
+                                std::lround(gradient_stop_opacity(gradient, position) * 255.0F), 0L, 255L))}});
+  }
+  return sampled;
+}
+
 class GradientStopTableDelegate final : public QStyledItemDelegate {
 public:
   using QStyledItemDelegate::QStyledItemDelegate;
@@ -460,34 +496,6 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
     loading = false;
     refresh_preview();
   };
-  const auto stops_from_definition = [&](GradientDefinition definition) {
-    LayerStyleGradient gradient;
-    static_cast<GradientDefinition&>(gradient) = std::move(definition);
-    for (auto& stop : gradient.color_stops) {
-      if (stop.kind == GradientColorStop::Kind::Foreground) {
-        stop.color = RgbColor{static_cast<std::uint8_t>(foreground.red()),
-                              static_cast<std::uint8_t>(foreground.green()),
-                              static_cast<std::uint8_t>(foreground.blue())};
-      } else if (stop.kind == GradientColorStop::Kind::Background) {
-        stop.color = RgbColor{static_cast<std::uint8_t>(background.red()),
-                              static_cast<std::uint8_t>(background.green()),
-                              static_cast<std::uint8_t>(background.blue())};
-      }
-      stop.kind = GradientColorStop::Kind::User;
-    }
-    std::vector<GradientStop> sampled;
-    const int sample_count = gradient.form == GradientDefinitionForm::Noise ? 65 : 33;
-    sampled.reserve(sample_count);
-    for (int index = 0; index < sample_count; ++index) {
-      const auto position = static_cast<float>(index) / static_cast<float>(sample_count - 1);
-      const auto color = gradient_color(gradient, position);
-      sampled.push_back(GradientStop{
-          position, EditColor{color.red, color.green, color.blue,
-                              static_cast<std::uint8_t>(std::clamp(
-                                  std::lround(gradient_stop_opacity(gradient, position) * 255.0F), 0L, 255L))}});
-    }
-    return sampled;
-  };
   const auto set_row_color = [&](int row, QColor color) {
     if (row < 0 || row >= table->rowCount() || !color.isValid()) {
       return;
@@ -576,13 +584,20 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
     load_stops(default_stops());
     using_default_stops = true;
   });
-  QObject::connect(presets, &QPushButton::clicked, &dialog, [&] {
+  QObject::connect(presets, &QPushButton::clicked, &dialog, [&, presets] {
     if (gradient_library == nullptr) return;
-    const auto selected = request_gradient_manager(&dialog, *gradient_library, {});
-    if (const auto* entry = gradient_library->find_entry(selected); entry != nullptr) {
-      load_stops(stops_from_definition(entry->definition));
+    // Frame-reference captures are safe here: the popup is a child of the
+    // dialog's button and cannot outlive the blocked dialog frame.
+    const auto use_entry = [&](const GradientLibraryEntry& entry) {
+      load_stops(sampled_gradient_stops_from_definition(entry.definition, foreground, background));
       using_default_stops = false;
-    }
+    };
+    show_gradient_preset_popup(presets, *gradient_library, use_entry, [&, use_entry] {
+      const auto selected = request_gradient_manager(&dialog, *gradient_library, {});
+      if (const auto* entry = gradient_library->find_entry(selected); entry != nullptr) {
+        use_entry(*entry);
+      }
+    });
   });
   preview->stop_selected = [&](int row) {
     if (row >= 0 && row < table->rowCount()) {
@@ -1546,6 +1561,30 @@ void MainWindow::edit_gradient_stops() {
   refresh_gradient_controls_from_canvas();
   save_tool_settings();
   refresh_document_info();
+}
+
+void MainWindow::choose_gradient_preset() {
+  if (canvas_ == nullptr || gradient_presets_button_ == nullptr) {
+    return;
+  }
+  const auto apply_entry = [this](const GradientLibraryEntry& entry) {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    canvas_->set_gradient_stops(sampled_gradient_stops_from_definition(
+        entry.definition, canvas_->primary_color(), canvas_->secondary_color()));
+    refresh_gradient_controls_from_canvas();
+    save_tool_settings();
+    refresh_document_info();
+    statusBar()->showMessage(tr("Gradient preset: %1").arg(gradient_library_entry_display_name(entry)));
+  };
+  show_gradient_preset_popup(gradient_presets_button_, gradient_library(), apply_entry,
+                             [this, apply_entry] {
+                               const auto selected = request_gradient_manager(this, gradient_library(), {});
+                               if (const auto* entry = gradient_library().find_entry(selected); entry != nullptr) {
+                                 apply_entry(*entry);
+                               }
+                             });
 }
 
 void MainWindow::refresh_gradient_controls_from_canvas() {

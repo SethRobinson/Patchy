@@ -165,6 +165,7 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 #include <QUrl>
 #include <QVariant>
 #include <QWheelEvent>
@@ -977,6 +978,7 @@ void ui_options_bar_tracks_active_tool() {
   auto* gradient_opacity_slider = window.findChild<QSlider*>(QStringLiteral("gradientOpacitySlider"));
   auto* gradient_reverse = window.findChild<QCheckBox*>(QStringLiteral("gradientReverseCheck"));
   auto* gradient_preview = window.findChild<QPushButton*>(QStringLiteral("gradientPreviewButton"));
+  auto* gradient_presets = window.findChild<QPushButton*>(QStringLiteral("gradientPresetsButton"));
   auto* gradient_edit_stops = window.findChild<QPushButton*>(QStringLiteral("gradientEditStopsButton"));
   auto* clone_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
   auto* healing_diffusion = window.findChild<QSpinBox*>(QStringLiteral("healingDiffusionSpin"));
@@ -1011,6 +1013,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(gradient_opacity_slider != nullptr);
   CHECK(gradient_reverse != nullptr);
   CHECK(gradient_preview != nullptr);
+  CHECK(gradient_presets != nullptr);
   CHECK(gradient_edit_stops != nullptr);
   CHECK(clone_aligned != nullptr);
   CHECK(healing_diffusion != nullptr);
@@ -1044,6 +1047,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(!gradient_method->isVisible());
   CHECK(!gradient_opacity->isVisible());
   CHECK(!gradient_reverse->isVisible());
+  CHECK(!gradient_presets->isVisible());
   CHECK(!gradient_edit_stops->isVisible());
   CHECK(!move_auto_select->isVisible());
   CHECK(!move_show_transform_controls->isVisible());
@@ -1210,6 +1214,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(gradient_opacity_slider->isVisible());
   CHECK(gradient_reverse->isVisible());
   CHECK(gradient_preview->isVisible());
+  CHECK(gradient_presets->isVisible());
   CHECK(gradient_edit_stops->isVisible());
   CHECK(!brush_size->isVisible());
   CHECK(!brush_opacity->isVisible());
@@ -1336,6 +1341,129 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(canvas->gradient_stops()->at(1).color.g == 255);
   CHECK(canvas->gradient_stops()->at(1).color.a >= 63);
   CHECK(canvas->gradient_stops()->at(1).color.a <= 64);
+}
+
+void ui_gradient_toolbar_preset_popup_applies_stops() {
+  SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
+  SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
+  SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
+  SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
+  SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/gradientMethod"));
+    settings.remove(QStringLiteral("tools/gradientReverse"));
+    settings.remove(QStringLiteral("tools/gradientOpacity"));
+    settings.remove(QStringLiteral("tools/gradientUseCustomStops"));
+    settings.remove(QStringLiteral("tools/gradientStops"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->gradient_stops().has_value());
+
+  auto& library = window.gradient_library();
+  library.restore_default_gradients();  // suite-order independence: repair any deleted builtins
+  CHECK(!library.entries().empty());
+  QString sepia_id;
+  QString cyanotype_id;
+  for (const auto& entry : library.entries()) {
+    if (entry.name == QStringLiteral("Sepia Wash")) {
+      sepia_id = entry.storage_id;
+    } else if (entry.name == QStringLiteral("Cyanotype")) {
+      cyanotype_id = entry.storage_id;
+    }
+  }
+  CHECK(!sepia_id.isEmpty());
+  CHECK(!cyanotype_id.isEmpty());
+  const auto find_item = [](QTreeWidget* tree, const QString& storage_id) -> QTreeWidgetItem* {
+    for (QTreeWidgetItemIterator it(tree); *it != nullptr; ++it) {
+      if ((*it)->data(0, Qt::UserRole).toString() == storage_id) {
+        return *it;
+      }
+    }
+    return nullptr;
+  };
+
+  auto* presets_button = window.findChild<QPushButton*>(QStringLiteral("gradientPresetsButton"));
+  CHECK(presets_button != nullptr);
+  CHECK(presets_button->isVisible());
+  presets_button->click();
+  QApplication::processEvents();
+  QPointer<QFrame> popup = presets_button->findChild<QFrame*>(QStringLiteral("gradientPresetsButtonPopup"));
+  CHECK(popup != nullptr);
+  CHECK(popup->isVisible());
+  auto* tree = popup->findChild<QTreeWidget*>(QStringLiteral("gradientPresetsButtonTree"));
+  CHECK(tree != nullptr);
+  auto* sepia_item = find_item(tree, sepia_id);
+  CHECK(sepia_item != nullptr);
+  tree->scrollToItem(sepia_item);
+  QApplication::processEvents();
+  const auto sepia_rect = tree->visualItemRect(sepia_item);
+  CHECK(sepia_rect.isValid());
+  QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier, sepia_rect.center());
+  QApplication::processEvents();
+  CHECK(popup == nullptr);  // selecting a leaf closes the WA_DeleteOnClose popup
+
+  // Sepia Wash flattens to 33 sampled stops with exact endpoint colors.
+  CHECK(canvas->gradient_stops().has_value());
+  CHECK(canvas->gradient_stops()->size() == 33);
+  const auto applied = *canvas->gradient_stops();
+  CHECK(applied.front().color.r == 0x2b);
+  CHECK(applied.front().color.g == 0x1b);
+  CHECK(applied.front().color.b == 0x12);
+  CHECK(applied.front().color.a == 255);
+  CHECK(applied.back().color.r == 0xf1);
+  CHECK(applied.back().color.g == 0xdf);
+  CHECK(applied.back().color.b == 0xc0);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Sepia Wash")));
+  auto* gradient_preview = window.findChild<QPushButton*>(QStringLiteral("gradientPreviewButton"));
+  CHECK(gradient_preview != nullptr);
+  CHECK(gradient_preview->styleSheet().contains(QStringLiteral("rgba(241, 223, 192, 255)")));
+
+  // The Edit Stops dialog's Preset... button opens the same quick popup; a
+  // rejected dialog discards the picked preset.
+  bool checked_dialog_popup = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("gradientStopsDialog"));
+    CHECK(dialog != nullptr);
+    auto* table = dialog->findChild<QTableWidget*>(QStringLiteral("gradientStopsTable"));
+    auto* preset_button = dialog->findChild<QPushButton*>(QStringLiteral("gradientPresetButton"));
+    CHECK(table != nullptr);
+    CHECK(preset_button != nullptr);
+    CHECK(table->rowCount() == 33);
+    preset_button->click();
+    QApplication::processEvents();
+    QPointer<QFrame> dialog_popup =
+        preset_button->findChild<QFrame*>(QStringLiteral("gradientPresetButtonPopup"));
+    CHECK(dialog_popup != nullptr);
+    CHECK(dialog_popup->isVisible());
+    auto* dialog_tree = dialog_popup->findChild<QTreeWidget*>(QStringLiteral("gradientPresetButtonTree"));
+    CHECK(dialog_tree != nullptr);
+    auto* cyanotype_item = find_item(dialog_tree, cyanotype_id);
+    CHECK(cyanotype_item != nullptr);
+    dialog_tree->scrollToItem(cyanotype_item);
+    QApplication::processEvents();
+    const auto cyanotype_rect = dialog_tree->visualItemRect(cyanotype_item);
+    CHECK(cyanotype_rect.isValid());
+    QTest::mouseClick(dialog_tree->viewport(), Qt::LeftButton, Qt::NoModifier, cyanotype_rect.center());
+    QApplication::processEvents();
+    CHECK(table->rowCount() == 33);
+    CHECK(table->item(0, 1)->text() == QStringLiteral("#081C33"));
+    checked_dialog_popup = true;
+    dialog->reject();
+  });
+  auto* gradient_edit_stops = window.findChild<QPushButton*>(QStringLiteral("gradientEditStopsButton"));
+  CHECK(gradient_edit_stops != nullptr);
+  gradient_edit_stops->click();
+  QApplication::processEvents();
+  CHECK(checked_dialog_popup);
+  CHECK(canvas->gradient_stops().has_value());
+  CHECK(canvas->gradient_stops()->size() == 33);
+  CHECK(canvas->gradient_stops()->front().color.r == 0x2b);
 }
 
 void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
@@ -1726,6 +1854,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
+      {"ui_gradient_toolbar_preset_popup_applies_stops", ui_gradient_toolbar_preset_popup_applies_stops},
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},

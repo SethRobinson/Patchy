@@ -19,7 +19,7 @@ Layer-style placement adds Linear, Radial, Angle, Reflected, and Diamond geometr
 
 The application library lives under the settings directory's `gradients/` folder. Each entry is one single-gradient `.grd` plus a JSON sidecar with its fixed storage id, canonical name, and folder path. Default ids and English names in `src/core/gradient_presets.cpp` are persisted and append-only. New defaults need a new `introduced_version` and a `kDefaultGradientsVersion` bump; never rename or reuse an existing id.
 
-The quick picker and Gradient Manager read the same `GradientLibrary`. Manager writes are immediate. Restore repairs changed or deleted built-ins without deleting user gradients. Import deduplicates identical name/payload pairs but permits equal names with different definitions. Folder and subtree export includes matching `phry` markers.
+The quick picker (`src/ui/gradient_preset_popup.{hpp,cpp}`) and Gradient Manager read the same `GradientLibrary`. The quick picker anchors to the layer-style Preset buttons, the gradient toolbar's Presets button, and the Edit Gradient Stops dialog's Preset button; its Manage Gradients button falls through to the Gradient Manager. The Gradient tool has no definition-backed state: applying a preset there resolves foreground/background stops from the current colors and flattens the definition into sampled stops (33, or 65 for Noise), so the applied result is static. Manager writes are immediate. Restore repairs changed or deleted built-ins without deleting user gradients. Import deduplicates identical name/payload pairs but permits equal names with different definitions. Folder and subtree export includes matching `phry` markers.
 
 ## Stop editor widget
 

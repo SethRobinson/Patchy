@@ -13162,6 +13162,9 @@ Clipped to the layer below</source>
     <message><source>Fill: </source><translation>塗りつぶし: </translation></message>
     <message><source>Hid other layers</source><translation>他のレイヤーを非表示にしました</translation></message>
     <message><source>Restored layer visibility</source><translation>レイヤーの表示状態を元に戻しました</translation></message>
+    <message><source>Presets</source><translation>プリセット</translation></message>
+    <message><source>Choose a gradient preset</source><translation>グラデーションプリセットを選択</translation></message>
+    <message><source>Gradient preset: %1</source><translation>グラデーションプリセット: %1</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>

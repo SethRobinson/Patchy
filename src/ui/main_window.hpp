@@ -894,6 +894,7 @@ private:
   void refresh_color_buttons();
   void refresh_text_color_button();
   void edit_gradient_stops();
+  void choose_gradient_preset();
   void refresh_gradient_controls_from_canvas();
   [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();
@@ -1136,6 +1137,7 @@ private:
   QSlider* gradient_opacity_slider_{nullptr};
   QCheckBox* gradient_reverse_check_{nullptr};
   QPushButton* gradient_preview_button_{nullptr};
+  QPushButton* gradient_presets_button_{nullptr};
   QPushButton* gradient_edit_stops_button_{nullptr};
   QFontComboBox* text_font_combo_{nullptr};
   QDoubleSpinBox* text_size_spin_{nullptr};

@@ -1365,6 +1365,13 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   gradient_preview_button_->setToolTip(tr("Gradient preview"));
   bind_tooltip(gradient_preview_button_, "Gradient preview");
   add_option_widget(gradient_preview_button_, {CanvasTool::Gradient});
+  gradient_presets_button_ = new QPushButton(toolbar);
+  gradient_presets_button_->setObjectName(QStringLiteral("gradientPresetsButton"));
+  gradient_presets_button_->setText(tr("Presets"));
+  bind_widget_text(gradient_presets_button_, "Presets");
+  gradient_presets_button_->setToolTip(tr("Choose a gradient preset"));
+  bind_tooltip(gradient_presets_button_, "Choose a gradient preset");
+  add_option_widget(gradient_presets_button_, {CanvasTool::Gradient});
   gradient_edit_stops_button_ = new QPushButton(tr("Edit Stops..."), toolbar);
   gradient_edit_stops_button_->setObjectName(QStringLiteral("gradientEditStopsButton"));
   add_option_widget(gradient_edit_stops_button_, {CanvasTool::Gradient});
@@ -1396,6 +1403,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
   connect(gradient_preview_button_, &QPushButton::clicked, this, [this] { edit_gradient_stops(); });
+  connect(gradient_presets_button_, &QPushButton::clicked, this, [this] { choose_gradient_preset(); });
   connect(gradient_edit_stops_button_, &QPushButton::clicked, this, [this] { edit_gradient_stops(); });
 
   clone_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
