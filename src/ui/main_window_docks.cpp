@@ -458,6 +458,9 @@ void MainWindow::create_docks() {
         }
         toggle_active_layer_clipping();
       });
+  layer_list->set_visibility_isolate_callback([this](LayerId id) { isolate_layer_visibility(id); });
+  layer_list->set_visibility_sweep_callback(
+      [this](LayerId id, bool visible) { set_layer_visibility(id, visible); });
   layer_list->set_ctrl_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target) {
     if (canvas_ == nullptr || item == nullptr) {
       return;

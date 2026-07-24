@@ -233,6 +233,16 @@ private:
     std::vector<HistoryState> undo_stack;
     std::vector<HistoryState> redo_stack;
     std::set<LayerId> collapsed_layer_groups;
+    // Alt-click eye isolation. `saved` is the pre-isolation visibility snapshot
+    // (pre-order); `applied` is the state right after isolating, so any outside
+    // visibility change invalidates the restore and the next Alt-click starts a
+    // fresh isolation instead.
+    struct VisibilityIsolation {
+      LayerId isolated_id{0};
+      std::vector<std::pair<LayerId, bool>> saved;
+      std::vector<std::pair<LayerId, bool>> applied;
+    };
+    std::optional<VisibilityIsolation> visibility_isolation;
     std::int64_t revision{0};
     std::int64_t saved_revision{0};
     // True when the top undo entry is a coalescable selection move, so the next
@@ -762,6 +772,8 @@ private:
   void toggle_layer_folder_expanded(LayerId id, bool include_nested = false);
   void reveal_layer_in_layer_list(LayerId id);
   void set_layer_visibility_from_item(QListWidgetItem* item);
+  void set_layer_visibility(LayerId id, bool visible);
+  void isolate_layer_visibility(LayerId id);
   void show_layer_context_menu(QPoint position);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
   void merge_visible_to_new_layer();

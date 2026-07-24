@@ -13160,6 +13160,8 @@ Clipped to the layer below</source>
     <message><source>Blend mode</source><translation>描画モード</translation></message>
     <message><source>Opacity: </source><translation>不透明度: </translation></message>
     <message><source>Fill: </source><translation>塗りつぶし: </translation></message>
+    <message><source>Hid other layers</source><translation>他のレイヤーを非表示にしました</translation></message>
+    <message><source>Restored layer visibility</source><translation>レイヤーの表示状態を元に戻しました</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>

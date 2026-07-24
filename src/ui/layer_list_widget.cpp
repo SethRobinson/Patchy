@@ -239,6 +239,116 @@ bool LayerListWidget::handle_clip_boundary_press(QPoint viewport_position, Qt::K
   return true;
 }
 
+void LayerListWidget::set_visibility_isolate_callback(std::function<void(LayerId)> callback) {
+  visibility_isolate_callback_ = std::move(callback);
+}
+
+void LayerListWidget::set_visibility_sweep_callback(std::function<void(LayerId, bool)> callback) {
+  visibility_sweep_callback_ = std::move(callback);
+}
+
+bool LayerListWidget::handle_visibility_eye_press(QWidget* eye_button, const QMouseEvent* event) {
+  const auto viewport_pos = viewport()->mapFromGlobal(eye_button->mapToGlobal(event->pos()));
+  auto* item = itemAt(viewport_pos);
+  if (item == nullptr) {
+    return false;
+  }
+  const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+  if (id == 0) {
+    return false;
+  }
+  if ((event->modifiers() & Qt::AltModifier) != 0) {
+    if (!visibility_isolate_callback_) {
+      return false;
+    }
+    // Deferred: isolation rebuilds the layer rows, deleting the pressed button.
+    QTimer::singleShot(0, this, [this, id] {
+      if (visibility_isolate_callback_) {
+        visibility_isolate_callback_(id);
+      }
+    });
+    return true;
+  }
+  auto* button = qobject_cast<QToolButton*>(eye_button);
+  if (button == nullptr || !visibility_sweep_callback_) {
+    return false;
+  }
+  // The whole sweep applies the state the first toggle produces, so the toggle
+  // happens on press (not the button's usual click-on-release).
+  constexpr int kSweepColumnSlack = 8;
+  const auto button_top_left = viewport()->mapFromGlobal(eye_button->mapToGlobal(QPoint(0, 0)));
+  visibility_sweep_active_ = true;
+  visibility_sweep_target_visible_ = !button->isChecked();
+  visibility_sweep_min_x_ = button_top_left.x() - kSweepColumnSlack;
+  visibility_sweep_max_x_ = button_top_left.x() + eye_button->width() + kSweepColumnSlack;
+  visibility_sweep_last_viewport_pos_ = viewport_pos;
+  visibility_swept_ids_ = {id};
+  // Deferred: a folder toggle rebuilds the layer rows, deleting the pressed button.
+  QTimer::singleShot(0, this, [this, id, visible = visibility_sweep_target_visible_] {
+    if (visibility_sweep_callback_) {
+      visibility_sweep_callback_(id, visible);
+    }
+  });
+  return true;
+}
+
+bool LayerListWidget::handle_visibility_sweep_move(QPoint viewport_position, const QMouseEvent* event) {
+  if (!visibility_sweep_active_) {
+    return false;
+  }
+  if ((event->buttons() & Qt::LeftButton) == 0) {
+    // A release outside the list can slip past the release branches; never let
+    // a stale sweep keep eating moves or suppressing selection.
+    end_visibility_sweep();
+    return false;
+  }
+  const auto span_top = std::min(visibility_sweep_last_viewport_pos_.y(), viewport_position.y());
+  const auto span_bottom = std::max(visibility_sweep_last_viewport_pos_.y(), viewport_position.y());
+  visibility_sweep_last_viewport_pos_ = viewport_position;
+  if (viewport_position.x() < visibility_sweep_min_x_ || viewport_position.x() > visibility_sweep_max_x_) {
+    return true;
+  }
+  for (int i = 0; i < count(); ++i) {
+    auto* candidate = item(i);
+    if (candidate == nullptr) {
+      continue;
+    }
+    const auto rect = visualItemRect(candidate);
+    if (rect.bottom() < span_top || rect.top() > span_bottom) {
+      continue;
+    }
+    const auto candidate_id = static_cast<LayerId>(candidate->data(kLayerIdRole).toULongLong());
+    if (candidate_id == 0 || std::find(visibility_swept_ids_.begin(), visibility_swept_ids_.end(), candidate_id) !=
+                                 visibility_swept_ids_.end()) {
+      continue;
+    }
+    auto* row_widget = itemWidget(candidate);
+    auto* eye =
+        row_widget != nullptr ? row_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck")) : nullptr;
+    if (eye == nullptr || !eye->isEnabled()) {
+      // Not marked swept: a later pass may reach it once a hidden parent
+      // folder has been revealed.
+      continue;
+    }
+    visibility_swept_ids_.push_back(candidate_id);
+    QTimer::singleShot(0, this, [this, candidate_id, visible = visibility_sweep_target_visible_] {
+      if (visibility_sweep_callback_) {
+        visibility_sweep_callback_(candidate_id, visible);
+      }
+    });
+  }
+  return true;
+}
+
+void LayerListWidget::end_visibility_sweep() {
+  visibility_sweep_active_ = false;
+  visibility_sweep_target_visible_ = false;
+  visibility_sweep_min_x_ = 0;
+  visibility_sweep_max_x_ = 0;
+  visibility_sweep_last_viewport_pos_ = QPoint();
+  visibility_swept_ids_.clear();
+}
+
 void LayerListWidget::set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback) {
   ctrl_click_callback_ = std::move(callback);
 }
@@ -515,9 +625,17 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
   if (event->type() == QEvent::MouseButtonPress) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
     auto* widget = qobject_cast<QWidget*>(watched);
+    end_visibility_sweep();
     if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
         handle_clip_boundary_press(viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos())),
                                    mouse_event->modifiers())) {
+      event->accept();
+      return true;
+    }
+    if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
+        widget->objectName() == QLatin1String("layerVisibilityCheck") &&
+        (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0 &&
+        handle_visibility_eye_press(widget, mouse_event)) {
       event->accept();
       return true;
     }
@@ -571,7 +689,16 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
   } else if (event->type() == QEvent::MouseButtonDblClick) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
     auto* widget = qobject_cast<QWidget*>(watched);
+    end_visibility_sweep();
     if (widget != nullptr && mouse_event->button() == Qt::LeftButton) {
+      // Rapid eye clicks arrive as press/dblclick pairs; treat the dblclick as
+      // another press so every click toggles.
+      if (widget->objectName() == QLatin1String("layerVisibilityCheck") &&
+          (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0 &&
+          handle_visibility_eye_press(widget, mouse_event)) {
+        event->accept();
+        return true;
+      }
       if (!layer_row_button_owns_clicks(widget->objectName())) {
         const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
         if (handle_item_double_click(itemAt(viewport_pos), viewport_pos)) {
@@ -583,6 +710,12 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
   } else if (event->type() == QEvent::MouseMove) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
     auto* widget = qobject_cast<QWidget*>(watched);
+    if (widget != nullptr &&
+        handle_visibility_sweep_move(viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos())),
+                                     mouse_event)) {
+      event->accept();
+      return true;
+    }
     if (widget != nullptr && mouse_event->buttons() == Qt::NoButton) {
       update_clip_boundary_cursor(widget, viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos())),
                                   mouse_event->modifiers());
@@ -597,6 +730,7 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       }
     }
   } else if (event->type() == QEvent::MouseButtonRelease) {
+    end_visibility_sweep();
     row_widget_drag_candidate_ = false;
     suppress_drag_select_until_release_ = false;
     finish_pending_single_select();
@@ -641,6 +775,11 @@ bool LayerListWidget::nativeEventFilter(const QByteArray& event_type, void* mess
 }
 
 void LayerListWidget::setSelection(const QRect& rect, QItemSelectionModel::SelectionFlags command) {
+  // An eye sweep owns the whole press-drag; the base view must not turn the
+  // held button into a rubber-band selection.
+  if (visibility_sweep_active_) {
+    return;
+  }
   if (drag_selection_locked()) {
     keep_drag_anchor_selected();
     return;
@@ -673,6 +812,7 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
   }
   if (event->type() == QEvent::MouseButtonPress) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
+    end_visibility_sweep();
     if (mouse_event->button() == Qt::LeftButton &&
         handle_clip_boundary_press(mouse_event->pos(), mouse_event->modifiers())) {
       event->accept();
@@ -715,6 +855,7 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     }
   } else if (event->type() == QEvent::MouseButtonDblClick) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
+    end_visibility_sweep();
     if (mouse_event->button() == Qt::LeftButton &&
         handle_item_double_click(itemAt(mouse_event->pos()), mouse_event->pos())) {
       event->accept();
@@ -722,6 +863,10 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     }
   } else if (event->type() == QEvent::MouseMove) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
+    if (handle_visibility_sweep_move(mouse_event->pos(), mouse_event)) {
+      event->accept();
+      return true;
+    }
     if (mouse_event->buttons() == Qt::NoButton) {
       update_clip_boundary_cursor(nullptr, mouse_event->pos(), mouse_event->modifiers());
     }
@@ -738,12 +883,14 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
       }
     }
   } else if (event->type() == QEvent::MouseButtonRelease) {
+    end_visibility_sweep();
     row_widget_drag_candidate_ = false;
     suppress_drag_select_until_release_ = false;
     finish_pending_single_select();
     drag_anchor_layer_id_.reset();
   } else if (event->type() == QEvent::Leave) {
     if ((QApplication::mouseButtons() & Qt::LeftButton) == 0) {
+      end_visibility_sweep();
       row_widget_drag_candidate_ = false;
       suppress_drag_select_until_release_ = false;
       pending_single_select_on_release_ = false;

@@ -59,6 +59,12 @@ public:
   // releases the upper layer.
   void set_clip_boundary_callbacks(std::function<bool(LayerId, LayerId)> can_toggle,
                                    std::function<void(LayerId)> toggle);
+  // Photoshop's Alt-click on a visibility eye: hide every other layer, or
+  // restore the pre-isolation state on the second Alt-click.
+  void set_visibility_isolate_callback(std::function<void(LayerId)> callback);
+  // Photoshop's eye sweep: press an eye and drag along the column; every eye
+  // crossed adopts the state the first toggle produced.
+  void set_visibility_sweep_callback(std::function<void(LayerId, bool)> callback);
   void set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback);
   void set_thumbnail_click_callback(
       std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> callback);
@@ -106,6 +112,9 @@ private:
                                    Qt::KeyboardModifiers modifiers);
   bool handle_clip_boundary_press(QPoint viewport_position, Qt::KeyboardModifiers modifiers);
   void clear_clip_boundary_cursor();
+  bool handle_visibility_eye_press(QWidget* eye_button, const QMouseEvent* event);
+  bool handle_visibility_sweep_move(QPoint viewport_position, const QMouseEvent* event);
+  void end_visibility_sweep();
   [[nodiscard]] std::optional<LayerCtrlClickTarget> ctrl_click_target(QListWidgetItem* item,
                                                                       QPoint viewport_pos) const;
   void toggle_ctrl_selection(QListWidgetItem* item);
@@ -160,6 +169,12 @@ private:
   int scroll_bar_drag_travel_{0};
   bool row_widget_drag_candidate_{false};
   bool pending_single_select_on_release_{false};
+  bool visibility_sweep_active_{false};
+  bool visibility_sweep_target_visible_{false};
+  int visibility_sweep_min_x_{0};
+  int visibility_sweep_max_x_{0};
+  QPoint visibility_sweep_last_viewport_pos_{};
+  std::vector<LayerId> visibility_swept_ids_;
   QBasicTimer auto_scroll_timer_;
   int auto_scroll_direction_{0};
   QPoint drag_start_position_{};
@@ -174,6 +189,8 @@ private:
   std::function<void()> drag_blocked_callback_;
   std::function<bool(LayerId, LayerId)> clip_boundary_can_toggle_;
   std::function<void(LayerId)> clip_boundary_toggle_;
+  std::function<void(LayerId)> visibility_isolate_callback_;
+  std::function<void(LayerId, bool)> visibility_sweep_callback_;
   QPointer<QWidget> clip_cursor_widget_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> ctrl_click_callback_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> thumbnail_click_callback_;

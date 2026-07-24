@@ -2111,6 +2111,422 @@ void ui_layer_filter_drag_attempt_reports_error_without_selection_sweep() {
   CHECK(doc.layers()[2].name() == "Blue Sky");
 }
 
+// Bottom-to-top: Background, Folder [Child A visible, Child B hidden], Top Layer.
+struct EyeTestLayerIds {
+  patchy::LayerId background{0};
+  patchy::LayerId folder{0};
+  patchy::LayerId child_a{0};
+  patchy::LayerId child_b{0};
+  patchy::LayerId top{0};
+};
+
+EyeTestLayerIds build_eye_test_document(patchy::Document& document, bool folder_visible = true,
+                                        bool child_b_visible = false) {
+  EyeTestLayerIds ids;
+  ids.background = document
+                       .add_pixel_layer("Background",
+                                        solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)))
+                       .id();
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  ids.folder = group.id();
+  group.set_visible(folder_visible);
+  auto child_a = patchy::Layer(document.allocate_layer_id(), "Child A",
+                               solid_pixels(16, 16, patchy::PixelFormat::rgba8(), QColor(40, 80, 220)));
+  ids.child_a = child_a.id();
+  group.add_child(std::move(child_a));
+  auto child_b = patchy::Layer(document.allocate_layer_id(), "Child B",
+                               solid_pixels(16, 16, patchy::PixelFormat::rgba8(), QColor(220, 80, 40)));
+  child_b.set_visible(child_b_visible);
+  ids.child_b = child_b.id();
+  group.add_child(std::move(child_b));
+  document.add_layer(std::move(group));
+  ids.top = document
+                .add_pixel_layer("Top Layer",
+                                 solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(60, 200, 90)))
+                .id();
+  return ids;
+}
+
+QToolButton* layer_row_eye_button(QListWidget& layer_list, const QString& layer_name) {
+  auto* item = require_layer_item(layer_list, layer_name);
+  auto* row_widget = layer_list.itemWidget(item);
+  CHECK(row_widget != nullptr);
+  auto* eye = row_widget != nullptr
+                  ? row_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"))
+                  : nullptr;
+  CHECK(eye != nullptr);
+  return eye;
+}
+
+// A real press/release pair on the eye (not QToolButton::click), so the list's
+// Alt-isolate / sweep interception runs. The deferred handlers rebuild rows, so
+// callers must re-fetch widgets afterwards.
+void click_layer_row_eye(QListWidget& layer_list, const QString& layer_name,
+                         Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  auto* eye = layer_row_eye_button(layer_list, layer_name);
+  if (eye == nullptr) {
+    return;
+  }
+  const auto center = eye->rect().center();
+  send_mouse(*eye, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton, modifiers);
+  send_mouse(*eye, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, modifiers);
+  QApplication::processEvents();
+  QApplication::processEvents();
+}
+
+bool document_layer_visible(patchy::Document& document, patchy::LayerId id) {
+  const auto* layer = std::as_const(document).find_layer(id);
+  CHECK(layer != nullptr);
+  return layer != nullptr && layer->visible();
+}
+
+void ui_layer_eye_alt_click_isolates_and_restores() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  const auto ids = build_eye_test_document(document);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Eye Isolate"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  click_layer_row_eye(*layer_list, QStringLiteral("Top Layer"), Qt::AltModifier);
+  CHECK(document_layer_visible(doc, ids.top));
+  CHECK(!document_layer_visible(doc, ids.background));
+  CHECK(!document_layer_visible(doc, ids.folder));
+  CHECK(!document_layer_visible(doc, ids.child_a));
+  CHECK(!document_layer_visible(doc, ids.child_b));
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Top Layer"))->checkState() == Qt::Checked);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Background"))->checkState() == Qt::Unchecked);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Folder"))->checkState() == Qt::Unchecked);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Hid other layers"));
+  save_widget_artifact("ui_layer_eye_alt_click_isolated", window);
+
+  click_layer_row_eye(*layer_list, QStringLiteral("Top Layer"), Qt::AltModifier);
+  CHECK(document_layer_visible(doc, ids.top));
+  CHECK(document_layer_visible(doc, ids.background));
+  CHECK(document_layer_visible(doc, ids.folder));
+  CHECK(document_layer_visible(doc, ids.child_a));
+  // Child B was hidden before the isolation and must come back hidden.
+  CHECK(!document_layer_visible(doc, ids.child_b));
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Background"))->checkState() == Qt::Checked);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Restored layer visibility"));
+}
+
+void ui_layer_eye_alt_click_folder_isolates_group() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  const auto ids = build_eye_test_document(document);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Eye Isolate Folder"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  click_layer_row_eye(*layer_list, QStringLiteral("Folder"), Qt::AltModifier);
+  CHECK(document_layer_visible(doc, ids.folder));
+  // The isolated folder's contents keep their own flags.
+  CHECK(document_layer_visible(doc, ids.child_a));
+  CHECK(!document_layer_visible(doc, ids.child_b));
+  CHECK(!document_layer_visible(doc, ids.background));
+  CHECK(!document_layer_visible(doc, ids.top));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Hid other layers"));
+
+  click_layer_row_eye(*layer_list, QStringLiteral("Folder"), Qt::AltModifier);
+  CHECK(document_layer_visible(doc, ids.folder));
+  CHECK(document_layer_visible(doc, ids.child_a));
+  CHECK(!document_layer_visible(doc, ids.child_b));
+  CHECK(document_layer_visible(doc, ids.background));
+  CHECK(document_layer_visible(doc, ids.top));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Restored layer visibility"));
+}
+
+void ui_layer_eye_alt_click_reisolate_keeps_original_snapshot() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  const auto ids = build_eye_test_document(document);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Eye Reisolate"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  click_layer_row_eye(*layer_list, QStringLiteral("Top Layer"), Qt::AltModifier);
+  CHECK(document_layer_visible(doc, ids.top));
+  CHECK(!document_layer_visible(doc, ids.background));
+
+  // Alt-clicking another eye while isolated switches the isolation target.
+  click_layer_row_eye(*layer_list, QStringLiteral("Background"), Qt::AltModifier);
+  CHECK(document_layer_visible(doc, ids.background));
+  CHECK(!document_layer_visible(doc, ids.top));
+  CHECK(!document_layer_visible(doc, ids.folder));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Hid other layers"));
+
+  // The restore still returns to the true pre-isolation state, not to the
+  // intermediate only-Top-visible state.
+  click_layer_row_eye(*layer_list, QStringLiteral("Background"), Qt::AltModifier);
+  CHECK(document_layer_visible(doc, ids.background));
+  CHECK(document_layer_visible(doc, ids.top));
+  CHECK(document_layer_visible(doc, ids.folder));
+  CHECK(document_layer_visible(doc, ids.child_a));
+  CHECK(!document_layer_visible(doc, ids.child_b));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Restored layer visibility"));
+}
+
+void ui_layer_eye_alt_click_after_external_change_starts_fresh() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  const auto ids = build_eye_test_document(document);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Eye Fresh Isolate"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  click_layer_row_eye(*layer_list, QStringLiteral("Top Layer"), Qt::AltModifier);
+  CHECK(!document_layer_visible(doc, ids.background));
+
+  // A manual visibility change invalidates the stored isolation snapshot.
+  click_layer_row_eye(*layer_list, QStringLiteral("Background"));
+  CHECK(document_layer_visible(doc, ids.background));
+
+  click_layer_row_eye(*layer_list, QStringLiteral("Top Layer"), Qt::AltModifier);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Hid other layers"));
+  CHECK(document_layer_visible(doc, ids.top));
+  CHECK(!document_layer_visible(doc, ids.background));
+
+  // The restore returns to the state captured at the fresh isolation (Top and
+  // Background visible, the folder still hidden from the first isolation).
+  click_layer_row_eye(*layer_list, QStringLiteral("Top Layer"), Qt::AltModifier);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Restored layer visibility"));
+  CHECK(document_layer_visible(doc, ids.top));
+  CHECK(document_layer_visible(doc, ids.background));
+  CHECK(!document_layer_visible(doc, ids.folder));
+  CHECK(!document_layer_visible(doc, ids.child_a));
+}
+
+void ui_layer_eye_sweep_sets_crossed_rows_to_first_state() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  std::vector<patchy::LayerId> ids;
+  ids.push_back(document
+                    .add_pixel_layer("Keep Layer",
+                                     solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)))
+                    .id());
+  for (const auto* name : {"Row Four", "Row Three", "Row Two", "Row One"}) {
+    ids.push_back(document
+                      .add_pixel_layer(name, solid_pixels(64, 64, patchy::PixelFormat::rgba8(),
+                                                          QColor(40, 80, 220)))
+                      .id());
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Eye Sweep"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* viewport = layer_list->viewport();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto selected_before = layer_list->selectedItems().size();
+  auto* current_before = layer_list->currentItem();
+
+  const auto sweep_over = [&](const QString& start_name, std::initializer_list<const char*> crossed) {
+    auto* eye = layer_row_eye_button(*layer_list, start_name);
+    if (eye == nullptr) {
+      return;
+    }
+    const auto center = eye->rect().center();
+    const auto column_x = viewport->mapFromGlobal(eye->mapToGlobal(center)).x();
+    send_mouse(*eye, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    QApplication::processEvents();
+    QApplication::processEvents();
+    auto last_position = QPoint(column_x, 0);
+    for (const auto* name : crossed) {
+      auto* item = require_layer_item(*layer_list, QString::fromLatin1(name));
+      last_position = QPoint(column_x, layer_list->visualItemRect(item).center().y());
+      send_mouse(*viewport, QEvent::MouseMove, last_position, Qt::NoButton, Qt::LeftButton);
+      QApplication::processEvents();
+      QApplication::processEvents();
+    }
+    send_mouse(*viewport, QEvent::MouseButtonRelease, last_position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  // Downward sweep from the top row hides every crossed eye.
+  sweep_over(QStringLiteral("Row One"), {"Row Two", "Row Three", "Row Four"});
+  CHECK(!document_layer_visible(doc, ids[4]));
+  CHECK(!document_layer_visible(doc, ids[3]));
+  CHECK(!document_layer_visible(doc, ids[2]));
+  CHECK(!document_layer_visible(doc, ids[1]));
+  CHECK(document_layer_visible(doc, ids[0]));
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Row Three"))->checkState() == Qt::Unchecked);
+  // The press-drag must not rubber-band rows into the selection.
+  CHECK(layer_list->selectedItems().size() == selected_before);
+  CHECK(layer_list->currentItem() == current_before);
+
+  // Upward sweep from a hidden eye shows everything it crosses again.
+  sweep_over(QStringLiteral("Row Four"), {"Row Three", "Row Two", "Row One"});
+  CHECK(document_layer_visible(doc, ids[4]));
+  CHECK(document_layer_visible(doc, ids[3]));
+  CHECK(document_layer_visible(doc, ids[2]));
+  CHECK(document_layer_visible(doc, ids[1]));
+  CHECK(document_layer_visible(doc, ids[0]));
+  CHECK(layer_list->selectedItems().size() == selected_before);
+}
+
+void ui_layer_eye_sweep_skips_disabled_and_off_column() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  const auto ids = build_eye_test_document(document, /*folder_visible=*/false, /*child_b_visible=*/true);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Eye Sweep Skips"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* viewport = layer_list->viewport();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  // Children of the hidden folder have disabled eyes; sweeping across them
+  // leaves their stored flags alone.
+  auto* eye = layer_row_eye_button(*layer_list, QStringLiteral("Background"));
+  CHECK(eye != nullptr);
+  auto center = eye->rect().center();
+  auto column_x = viewport->mapFromGlobal(eye->mapToGlobal(center)).x();
+  send_mouse(*eye, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(!document_layer_visible(doc, ids.background));
+  auto* child_a_item = require_layer_item(*layer_list, QStringLiteral("Child A"));
+  const auto child_a_y = layer_list->visualItemRect(child_a_item).center().y();
+  send_mouse(*viewport, QEvent::MouseMove, QPoint(column_x, child_a_y), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  send_mouse(*viewport, QEvent::MouseButtonRelease, QPoint(column_x, child_a_y), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(document_layer_visible(doc, ids.child_a));
+  CHECK(document_layer_visible(doc, ids.child_b));
+  CHECK(!document_layer_visible(doc, ids.folder));
+
+  // A drag that strays out of the eye column stops toggling: the folder row is
+  // crossed at thumbnail x and its (enabled) eye must not flip.
+  eye = layer_row_eye_button(*layer_list, QStringLiteral("Background"));
+  CHECK(eye != nullptr);
+  center = eye->rect().center();
+  column_x = viewport->mapFromGlobal(eye->mapToGlobal(center)).x();
+  send_mouse(*eye, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(document_layer_visible(doc, ids.background));
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder"));
+  const auto off_column = QPoint(column_x + 60, layer_list->visualItemRect(folder_item).center().y());
+  send_mouse(*viewport, QEvent::MouseMove, off_column, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  send_mouse(*viewport, QEvent::MouseButtonRelease, off_column, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!document_layer_visible(doc, ids.folder));
+  CHECK(document_layer_visible(doc, ids.background));
+}
+
+void ui_layer_eye_sweep_survives_folder_row_rebuild() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  const auto ids = build_eye_test_document(document, /*folder_visible=*/true, /*child_b_visible=*/true);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Eye Sweep Rebuild"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* viewport = layer_list->viewport();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto selected_before = layer_list->selectedItems().size();
+
+  // Pressing a folder eye rebuilds every row (destroying the pressed button);
+  // the sweep must keep going through the viewport afterwards. This is the
+  // regression for the old drag-from-eye rubber-band artifact.
+  auto* eye = layer_row_eye_button(*layer_list, QStringLiteral("Folder"));
+  CHECK(eye != nullptr);
+  const auto center = eye->rect().center();
+  const auto column_x = viewport->mapFromGlobal(eye->mapToGlobal(center)).x();
+  send_mouse(*eye, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(!document_layer_visible(doc, ids.folder));
+
+  QPoint last_position(column_x, 0);
+  for (const auto* name : {"Child A", "Child B", "Background"}) {
+    auto* item = require_layer_item(*layer_list, QString::fromLatin1(name));
+    last_position = QPoint(column_x, layer_list->visualItemRect(item).center().y());
+    send_mouse(*viewport, QEvent::MouseMove, last_position, Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  }
+  send_mouse(*viewport, QEvent::MouseButtonRelease, last_position, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(!document_layer_visible(doc, ids.folder));
+  // The now-disabled children were skipped; the enabled Background eye adopted
+  // the sweep state.
+  CHECK(document_layer_visible(doc, ids.child_a));
+  CHECK(document_layer_visible(doc, ids.child_b));
+  CHECK(!document_layer_visible(doc, ids.background));
+  CHECK(document_layer_visible(doc, ids.top));
+  CHECK(layer_list->selectedItems().size() == selected_before);
+  save_widget_artifact("ui_layer_eye_sweep_after_folder_rebuild", window);
+}
+
+void ui_layer_eye_double_click_toggles_each_click() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  const auto blink_id = document
+                            .add_pixel_layer("Blink Layer",
+                                             solid_pixels(64, 64, patchy::PixelFormat::rgba8(),
+                                                          QColor(40, 80, 220)))
+                            .id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Eye Double Click"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  click_layer_row_eye(*layer_list, QStringLiteral("Blink Layer"));
+  CHECK(!document_layer_visible(doc, blink_id));
+
+  // Rapid clicking turns the second press into a double-click; it must still
+  // toggle like a press.
+  auto* eye = layer_row_eye_button(*layer_list, QStringLiteral("Blink Layer"));
+  CHECK(eye != nullptr);
+  const auto center = eye->rect().center();
+  send_mouse(*eye, QEvent::MouseButtonDblClick, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*eye, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(document_layer_visible(doc, blink_id));
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Blink Layer"))->checkState() == Qt::Checked);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
@@ -2174,5 +2590,16 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_row_selected_highlight_paints", ui_layer_row_selected_highlight_paints},
       {"ui_layer_folder_alt_click_toggles_nested_folders",
        ui_layer_folder_alt_click_toggles_nested_folders},
+      {"ui_layer_eye_alt_click_isolates_and_restores", ui_layer_eye_alt_click_isolates_and_restores},
+      {"ui_layer_eye_alt_click_folder_isolates_group", ui_layer_eye_alt_click_folder_isolates_group},
+      {"ui_layer_eye_alt_click_reisolate_keeps_original_snapshot",
+       ui_layer_eye_alt_click_reisolate_keeps_original_snapshot},
+      {"ui_layer_eye_alt_click_after_external_change_starts_fresh",
+       ui_layer_eye_alt_click_after_external_change_starts_fresh},
+      {"ui_layer_eye_sweep_sets_crossed_rows_to_first_state",
+       ui_layer_eye_sweep_sets_crossed_rows_to_first_state},
+      {"ui_layer_eye_sweep_skips_disabled_and_off_column", ui_layer_eye_sweep_skips_disabled_and_off_column},
+      {"ui_layer_eye_sweep_survives_folder_row_rebuild", ui_layer_eye_sweep_survives_folder_row_rebuild},
+      {"ui_layer_eye_double_click_toggles_each_click", ui_layer_eye_double_click_toggles_each_click},
   };
 }

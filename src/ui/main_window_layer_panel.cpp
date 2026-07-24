@@ -2282,41 +2282,61 @@ void MainWindow::set_layer_visibility_from_item(QListWidgetItem* item) {
   if (updating_layer_list_ || item == nullptr) {
     return;
   }
-  const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
-  auto* layer = document().find_layer(id);
-  if (layer == nullptr) {
+  set_layer_visibility(static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()),
+                       item->checkState() == Qt::Checked);
+}
+
+void MainWindow::set_layer_visibility(LayerId id, bool visible) {
+  if (!has_active_document()) {
     return;
   }
-
-  const bool visible = item->checkState() == Qt::Checked;
-  if (layer->visible() == visible) {
+  auto* layer = document().find_layer(id);
+  if (layer == nullptr || layer->visible() == visible) {
     return;
   }
 
   layer->set_visible(visible);
   const auto is_group = layer->kind() == LayerKind::Group;
-  item->setForeground(visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
-  if (auto* row_widget = layer_list_ != nullptr ? layer_list_->itemWidget(item) : nullptr; row_widget != nullptr) {
-    if (auto* visibility = row_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
-        visibility != nullptr) {
-      QSignalBlocker visibility_blocker(visibility);
-      visibility->setChecked(visible);
-      update_layer_visibility_button(visibility, visible);
+  QListWidgetItem* item = nullptr;
+  if (layer_list_ != nullptr) {
+    for (int row = 0; row < layer_list_->count(); ++row) {
+      auto* candidate = layer_list_->item(row);
+      if (candidate != nullptr && static_cast<LayerId>(candidate->data(kLayerIdRole).toULongLong()) == id) {
+        item = candidate;
+        break;
+      }
     }
-    if (auto* name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName")); name != nullptr) {
-      name->setEnabled(visible);
+  }
+  if (item != nullptr) {
+    // setCheckState and setForeground both emit itemChanged; the guard keeps
+    // them from re-entering via set_layer_visibility_from_item.
+    const auto was_updating = updating_layer_list_;
+    updating_layer_list_ = true;
+    item->setCheckState(visible ? Qt::Checked : Qt::Unchecked);
+    item->setForeground(visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
+    if (auto* row_widget = layer_list_->itemWidget(item); row_widget != nullptr) {
+      if (auto* visibility = row_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+          visibility != nullptr) {
+        QSignalBlocker visibility_blocker(visibility);
+        visibility->setChecked(visible);
+        update_layer_visibility_button(visibility, visible);
+      }
+      if (auto* name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName")); name != nullptr) {
+        name->setEnabled(visible);
+      }
+      if (auto* details = row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails")); details != nullptr) {
+        details->setEnabled(visible);
+      }
+      if (auto* fx_badge = row_widget->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton"));
+          fx_badge != nullptr) {
+        fx_badge->setEnabled(visible);
+      }
+      if (auto* smart_badge = row_widget->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
+          smart_badge != nullptr) {
+        smart_badge->setEnabled(visible);
+      }
     }
-    if (auto* details = row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails")); details != nullptr) {
-      details->setEnabled(visible);
-    }
-    if (auto* fx_badge = row_widget->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton"));
-        fx_badge != nullptr) {
-      fx_badge->setEnabled(visible);
-    }
-    if (auto* smart_badge = row_widget->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
-        smart_badge != nullptr) {
-      smart_badge->setEnabled(visible);
-    }
+    updating_layer_list_ = was_updating;
   }
   canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
   refresh_layer_controls();
@@ -2326,6 +2346,77 @@ void MainWindow::set_layer_visibility_from_item(QListWidgetItem* item) {
     restyle_layer_rows(layer_list_);
   }
   statusBar()->showMessage(visible ? tr("Layer shown") : tr("Layer hidden"));
+}
+
+namespace {
+
+void collect_layer_visibility(const std::vector<Layer>& layers, std::vector<std::pair<LayerId, bool>>& out) {
+  for (const auto& layer : layers) {
+    out.emplace_back(layer.id(), layer.visible());
+    collect_layer_visibility(layer.children(), out);
+  }
+}
+
+}  // namespace
+
+void MainWindow::isolate_layer_visibility(LayerId id) {
+  if (!has_active_document()) {
+    return;
+  }
+  std::vector<LayerId> ancestor_list;
+  if (!collect_layer_ancestor_groups(std::as_const(document()).layers(), id, ancestor_list)) {
+    return;
+  }
+
+  std::vector<std::pair<LayerId, bool>> capture;
+  collect_layer_visibility(std::as_const(document()).layers(), capture);
+
+  auto& isolation = session().visibility_isolation;
+  const bool isolation_current = isolation.has_value() && capture == isolation->applied;
+  if (isolation_current && isolation->isolated_id == id) {
+    for (const auto& [saved_id, saved_visible] : isolation->saved) {
+      if (auto* layer = document().find_layer(saved_id); layer != nullptr) {
+        layer->set_visible(saved_visible);
+      }
+    }
+    isolation.reset();
+    canvas_->document_changed();
+    refresh_layer_list();
+    refresh_layer_controls();
+    statusBar()->showMessage(tr("Restored layer visibility"));
+    return;
+  }
+
+  if (!isolation_current) {
+    // Alt-clicking another eye while isolated keeps the original snapshot, so
+    // the eventual restore returns to the true pre-isolation state.
+    isolation.emplace();
+    isolation->saved = std::move(capture);
+  }
+
+  const std::set<LayerId> ancestors(ancestor_list.begin(), ancestor_list.end());
+
+  // Mutations go through find_layer: mutable children() bumps revisions.
+  const std::function<void(const std::vector<Layer>&)> apply = [&](const std::vector<Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (layer.id() == id) {
+        // Descendants keep their own flags so the isolated folder shows as-is.
+        document().find_layer(layer.id())->set_visible(true);
+        continue;
+      }
+      document().find_layer(layer.id())->set_visible(ancestors.count(layer.id()) != 0);
+      apply(layer.children());
+    }
+  };
+  apply(std::as_const(document()).layers());
+
+  isolation->isolated_id = id;
+  isolation->applied.clear();
+  collect_layer_visibility(std::as_const(document()).layers(), isolation->applied);
+  canvas_->document_changed();
+  refresh_layer_list();
+  refresh_layer_controls();
+  statusBar()->showMessage(tr("Hid other layers"));
 }
 
 void MainWindow::refresh_layer_list() {
