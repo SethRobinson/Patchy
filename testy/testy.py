@@ -26,6 +26,7 @@ import socket
 import subprocess
 import sys
 import threading
+import traceback
 import webbrowser
 from pathlib import Path
 
@@ -157,10 +158,19 @@ def _child_run_command(
     compare: str | None = None,
     suffix: str | None = None,
 ) -> list[str]:
-    """The argv for a browser-spawned child run; shared by start-run and retest."""
+    """The argv for a browser-spawned child run; shared by start-run and retest.
+
+    The file list travels through a corpus file, never argv: a pasted corpus of a
+    few hundred paths overflows the Windows 32K command-line limit and CreateProcess
+    fails with WinError 206 before the child ever starts. One run at a time means
+    the single well-known name cannot be clobbered mid-run, and resume reads the
+    run's own status.json, so overwrites by later runs are harmless."""
+    corpus_path = config.RUNS_DIR / "last-child-corpus.txt"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    corpus_path.write_text("".join(f"{f}\n" for f in files), encoding="utf-8")
     command = [
         sys.executable, str(config.TESTY_ROOT / "testy.py"),
-        "--files", *files,
+        "--corpus", str(corpus_path),
         "--editors", ",".join(editors),
         "--no-browser", "--exit-when-done",
         "--server-url", base_url,
@@ -339,56 +349,71 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _guarded(self, handler) -> None:
+        """Run one endpoint handler; an unhandled exception becomes a JSON 500 the
+        panel can display instead of a dropped connection (which the browser reports
+        only as an unhelpful "TypeError: Failed to fetch")."""
+        try:
+            handler()
+        except Exception as error:
+            traceback.print_exc()
+            try:
+                self._send_json({"errors": [f"server error: {error}"]}, status=500)
+            except Exception:
+                pass  # response already partly sent; the traceback above is the record
+
     def do_GET(self):  # noqa: N802 - stdlib signature
         from urllib.parse import urlparse
 
         path = urlparse(self.path).path
         if path == "/testy-defaults":
-            defaults = config.default_corpus()
-            self._send_json(
-                {
-                    "files": [str(f) for f in defaults if f.exists()],
-                    "editors": DEFAULT_EDITORS,
-                    "allEditors": [*DEFAULT_EDITORS, "affinity"],
-                }
-            )
+            self._guarded(self._send_defaults)
             return
         if path == "/testy-run-state":
-            live = _live_run_dir() if _run_in_progress() else None
-            self._send_json({
-                "running": _run_in_progress(),
-                "run": live.name if live is not None else None,
-                "pausePending": bool(live is not None and (live / PAUSE_FLAG).exists()),
-                "resumable": _resumable(),
-            })
+            self._guarded(self._send_run_state)
             return
         super().do_GET()
 
+    def _send_defaults(self) -> None:
+        defaults = config.default_corpus()
+        self._send_json(
+            {
+                "files": [str(f) for f in defaults if f.exists()],
+                "editors": DEFAULT_EDITORS,
+                "allEditors": [*DEFAULT_EDITORS, "affinity"],
+            }
+        )
+
+    def _send_run_state(self) -> None:
+        live = _live_run_dir() if _run_in_progress() else None
+        self._send_json({
+            "running": _run_in_progress(),
+            "run": live.name if live is not None else None,
+            "pausePending": bool(live is not None and (live / PAUSE_FLAG).exists()),
+            "resumable": _resumable(),
+        })
+
     def do_POST(self):  # noqa: N802 - stdlib signature
+        from urllib.parse import urlparse
+
+        handler = {
+            "/testy-start-run": self._start_run,
+            "/testy-cancel-run": self._cancel_run,
+            "/testy-pause-run": self._pause_run,
+            "/testy-resume-run": self._resume_run,
+            "/testy-delete-runs": self._delete_runs,
+            "/testy-retest-file": self._retest_file,
+            "/testy-upload": self._upload,
+        }.get(urlparse(self.path).path)
+        if handler is None:
+            self.send_error(404)
+            return
+        self._guarded(handler)
+
+    def _upload(self) -> None:
         from urllib.parse import parse_qs, urlparse
 
         parsed = urlparse(self.path)
-        if parsed.path == "/testy-start-run":
-            self._start_run()
-            return
-        if parsed.path == "/testy-cancel-run":
-            self._cancel_run()
-            return
-        if parsed.path == "/testy-pause-run":
-            self._pause_run()
-            return
-        if parsed.path == "/testy-resume-run":
-            self._resume_run()
-            return
-        if parsed.path == "/testy-delete-runs":
-            self._delete_runs()
-            return
-        if parsed.path == "/testy-retest-file":
-            self._retest_file()
-            return
-        if parsed.path != "/testy-upload":
-            self.send_error(404)
-            return
         name = parse_qs(parsed.query).get("name", [""])[0]
         runs_root = (config.TESTY_ROOT / "runs").resolve()
         target = (config.TESTY_ROOT / name).resolve()
@@ -477,17 +502,19 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         base_url = f"http://127.0.0.1:{self.server.server_address[1]}"
-        command = _child_run_command(
-            base_url, files, editors,
-            skip_build=bool(request.get("skipBuild")),
-            fresh=bool(request.get("fresh")),
-            scan_threshold=scan_threshold,
-            compare=compare,
-        )
         with _spawn_lock:
             if _run_in_progress():
                 self._send_json({"errors": ["a run is already in progress"]}, status=409)
                 return
+            # Inside the lock: building the command writes the corpus handoff file,
+            # which must not be overwritten between here and the spawn.
+            command = _child_run_command(
+                base_url, files, editors,
+                skip_build=bool(request.get("skipBuild")),
+                fresh=bool(request.get("fresh")),
+                scan_threshold=scan_threshold,
+                compare=compare,
+            )
             self._spawn_child(command)
         self._send_json({"started": True})
 
@@ -527,17 +554,19 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         run_options = status.get("run", {})
         editors = [e for e in run_options.get("editorOrder", DEFAULT_EDITORS) if e]
         base_url = f"http://127.0.0.1:{self.server.server_address[1]}"
-        # No --scan: a retest is an inspection run, so every artifact is kept.
-        command = _child_run_command(
-            base_url, [source], editors,
-            skip_build=bool(request.get("skipBuild")),
-            compare=run_options.get("compare", "strict"),
-            suffix=run_options.get("suffix"),
-        )
         with _spawn_lock:
             if _run_in_progress():
                 self._send_json({"errors": ["a run is already in progress"]}, status=409)
                 return
+            # Inside the lock: building the command writes the corpus handoff file,
+            # which must not be overwritten between here and the spawn.
+            # No --scan: a retest is an inspection run, so every artifact is kept.
+            command = _child_run_command(
+                base_url, [source], editors,
+                skip_build=bool(request.get("skipBuild")),
+                compare=run_options.get("compare", "strict"),
+                suffix=run_options.get("suffix"),
+            )
             self._spawn_child(command)
         self._send_json({"started": True})
 

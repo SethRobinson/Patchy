@@ -23,7 +23,13 @@ absolute path per line) and takes any pasted .psd list instead; pick editors and
 options and hit Start - the run appears at the top of the runs table (clickable while
 live), and the Start button stays disabled until it finishes. Browser-started runs
 reuse the panel's server (`--server-url` under the hood) and log to
-`testy/runs/last-child-run.log`. A Cancel button (shown while a run is live) kills the
+`testy/runs/last-child-run.log`; their file list is handed to the child through
+`testy/runs/last-child-corpus.txt` (`--corpus` under the hood), never argv, because a
+pasted corpus of a few hundred paths overflows the Windows 32K command-line limit and
+the spawn fails with WinError 206 before the child starts. A server endpoint that
+still hits an unexpected error reports it to the panel as a JSON 500 rather than
+dropping the connection (which the browser shows only as "TypeError: Failed to
+fetch"). A Cancel button (shown while a run is live) kills the
 whole run process tree and marks the run "canceled".
 
 A Pause button (panel and live report) checkpoints big runs instead of killing them:
