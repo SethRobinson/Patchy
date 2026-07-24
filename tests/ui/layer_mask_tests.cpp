@@ -350,6 +350,56 @@ void ui_layer_mask_target_paints_inverts_disables_and_applies() {
   save_widget_artifact("ui_layer_mask_target_editing", window);
 }
 
+void ui_group_layer_mask_add_paint_and_delete() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  patchy::Layer group(document.allocate_layer_id(), "Masked Folder", patchy::LayerKind::Group);
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Red Child",
+                                solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(220, 30, 30))));
+  document.add_layer(std::move(group));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Group Mask"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  canvas->set_snap_enabled(false);
+
+  // The group is the active layer; adding a mask targets it for editing and
+  // the group row gains the mask thumbnail.
+  require_action(window, "layerAddMaskAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  auto* item = require_layer_item(*layers, QStringLiteral("Masked Folder"));
+  auto* row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  CHECK(row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) != nullptr);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(220, 30, 30), 8));
+
+  // Painting the group mask black hides the child there; elsewhere stays red.
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(18);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(30, 32)),
+       canvas->widget_position_for_document_point(QPoint(34, 32)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(255, 255, 255), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(8, 56)), QColor(220, 30, 30), 8));
+
+  require_action(window, "layerDeleteMaskAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(220, 30, 30), 8));
+  item = require_layer_item(*layers, QStringLiteral("Masked Folder"));
+  row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  CHECK(row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) == nullptr);
+  save_widget_artifact("ui_group_layer_mask", window);
+}
+
 void ui_mask_paint_updates_distant_drop_shadow() {
   patchy::Document document(220, 220, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -752,6 +802,7 @@ std::vector<patchy::test::TestCase> layer_mask_tests() {
        ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail},
       {"ui_layer_mask_target_paints_inverts_disables_and_applies",
        ui_layer_mask_target_paints_inverts_disables_and_applies},
+      {"ui_group_layer_mask_add_paint_and_delete", ui_group_layer_mask_add_paint_and_delete},
       {"ui_mask_paint_updates_distant_drop_shadow", ui_mask_paint_updates_distant_drop_shadow},
       {"ui_layer_mask_add_without_selection_targets_mask_and_chip_exits",
        ui_layer_mask_add_without_selection_targets_mask_and_chip_exits},

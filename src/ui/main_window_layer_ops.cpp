@@ -1235,12 +1235,13 @@ void MainWindow::add_layer_mask() {
   auto& doc = document();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
-    show_status_error(tr("Select a pixel or adjustment layer before adding a mask"));
+    show_status_error(tr("Select a pixel, adjustment, or group layer before adding a mask"));
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (layer == nullptr || (layer->kind() != LayerKind::Pixel && layer->kind() != LayerKind::Adjustment)) {
-    show_status_error(tr("Select a pixel or adjustment layer before adding a mask"));
+  if (layer == nullptr || (layer->kind() != LayerKind::Pixel && layer->kind() != LayerKind::Adjustment &&
+                           layer->kind() != LayerKind::Group)) {
+    show_status_error(tr("Select a pixel, adjustment, or group layer before adding a mask"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
@@ -2370,7 +2371,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   const auto active_pixels_locked = active_layer != nullptr && layer_id_locks_image_pixels(active_layer->id());
   add_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked &&
                               (active_layer->kind() == LayerKind::Pixel ||
-                               active_layer->kind() == LayerKind::Adjustment) &&
+                               active_layer->kind() == LayerKind::Adjustment ||
+                               active_layer->kind() == LayerKind::Group) &&
                               canvas_ != nullptr &&
                               (canvas_->has_selection() || !active_layer->mask().has_value()));
   edit_mask_action->setEnabled(

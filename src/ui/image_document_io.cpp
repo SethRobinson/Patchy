@@ -888,9 +888,13 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
     if (profiling) {
       ++profile->groups;
     }
-    if (render_detail::layer_has_rendered_blend_if(layer)) {
+    if (render_detail::layer_has_rendered_blend_if(layer) ||
+        (layer.mask().has_value() && !layer.mask()->disabled) || layer_has_enabled_vector_mask(layer)) {
       // A Blend-If group must be rendered as one isolated source so This Layer
       // samples the group result and Underlying Layer samples the outer stack.
+      // A masked group routes through composite_layer too, so the group mask
+      // attenuates every child contribution (same tradeoff: no per-member
+      // style cache or profiling inside).
       render_detail::composite_layer(target, layer, clip, overrides, false, masks, nullptr, patterns);
     } else {
       // Clip runs inside the children go through render_detail::composite_layer

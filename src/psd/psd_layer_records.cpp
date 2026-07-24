@@ -295,12 +295,26 @@ EncodedLayer encode_group_boundary(const Layer& layer) {
   return encoded;
 }
 
-EncodedLayer encode_group(const Layer& layer) {
+EncodedLayer encode_group(const Layer& layer, bool large_document) {
   EncodedLayer encoded;
   encoded.layer = &layer;
   encoded.kind = EncodedLayerKind::Group;
   encoded.bounds = layer.bounds();
   encoded.blending_ranges = &layer.raw_psd_blending_ranges();
+  // Photoshop carries a group's raster mask on the folder record: the -2
+  // channel plus the mask-data block (write_layer_record adds the block).
+  // Mask-less groups keep their historical zero-channel record byte for byte.
+  if (layer.mask().has_value() && !layer.mask()->pixels.empty()) {
+    const auto& mask = *layer.mask();
+    if (mask.pixels.format() != PixelFormat::gray8()) {
+      throw std::runtime_error("Layered PSD export requires 8-bit grayscale layer masks");
+    }
+    if (mask.bounds.width != mask.pixels.width() || mask.bounds.height != mask.pixels.height()) {
+      throw std::runtime_error("Layer mask bounds do not match mask pixels");
+    }
+    encoded.channels.push_back(encode_channel(kChannelUserMask, mask.pixels.width(), mask.pixels.height(),
+                                              mask.pixels.data(), large_document));
+  }
   return encoded;
 }
 
@@ -594,7 +608,9 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
 
   BigEndianWriter extra;
   if (encoded.layer != nullptr &&
-      (encoded.kind == EncodedLayerKind::Pixel || encoded.kind == EncodedLayerKind::Adjustment) &&
+      (encoded.kind == EncodedLayerKind::Pixel || encoded.kind == EncodedLayerKind::Adjustment ||
+       (encoded.kind == EncodedLayerKind::Group && encoded.layer->mask().has_value() &&
+        !encoded.layer->mask()->pixels.empty())) &&
       encoded.layer->mask().has_value()) {
     const auto& mask = *encoded.layer->mask();
     BigEndianWriter mask_data;
@@ -911,7 +927,7 @@ void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encode
     for (const auto& child : layer.children()) {
       append_encoded_layers(child, encoded_layers, large_document);
     }
-    encoded_layers.push_back(encode_group(layer));
+    encoded_layers.push_back(encode_group(layer, large_document));
     return;
   }
 

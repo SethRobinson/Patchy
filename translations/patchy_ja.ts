@@ -10182,8 +10182,8 @@ To update, paste this into a terminal:
     <message>
         <location line="+10"/>
         <location line="+5"/>
-        <source>Select a pixel or adjustment layer before adding a mask</source>
-        <translation>マスクを追加する前にピクセルレイヤーまたは調整レイヤーを選択してください</translation>
+        <source>Select a pixel, adjustment, or group layer before adding a mask</source>
+        <translation>マスクを追加する前にピクセルレイヤー、調整レイヤー、またはグループを選択してください</translation>
     </message>
     <message>
         <location line="+16"/>

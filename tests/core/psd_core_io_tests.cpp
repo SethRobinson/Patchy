@@ -932,6 +932,47 @@ void psd_layer_masks_render_and_round_trip() {
   CHECK(flattened.pixel(3, 0)[0] == 255);
 }
 
+void psd_group_layer_mask_round_trips() {
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(4, 2, 255, 255, 255));
+
+  patchy::Layer group(document.allocate_layer_id(), "Masked Folder", patchy::LayerKind::Group);
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Red Child", solid_rgba(4, 2, 220, 20, 20, 255)));
+  patchy::PixelBuffer mask_pixels(2, 2, patchy::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  group.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 2, 2}, std::move(mask_pixels), 0, false});
+  patchy::set_layer_mask_linked(group, false);
+  document.add_layer(std::move(group));
+
+  // The mask (white 2x2 over default black) confines the group's child.
+  auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(0, 0)[0] == 220);
+  CHECK(flattened.pixel(3, 0)[0] == 255);
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2);
+  const auto& folder = read.layers()[1];
+  CHECK(folder.kind() == patchy::LayerKind::Group);
+  CHECK(folder.mask().has_value());
+  CHECK(folder.mask()->bounds.x == 0);
+  CHECK(folder.mask()->bounds.width == 2);
+  CHECK(folder.mask()->bounds.height == 2);
+  CHECK(folder.mask()->default_color == 0);
+  CHECK(!folder.mask()->disabled);
+  CHECK(*folder.mask()->pixels.pixel(1, 1) == 255);
+  CHECK(!patchy::layer_mask_linked(folder));
+
+  flattened = patchy::Compositor{}.flatten_rgb8(read);
+  CHECK(flattened.pixel(0, 0)[0] == 220);
+  CHECK(flattened.pixel(3, 0)[0] == 255);
+
+  // Second generation: a Patchy-written masked group re-reads identically.
+  const auto read_again = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(read));
+  CHECK(read_again.layers()[1].mask().has_value());
+  CHECK(*read_again.layers()[1].mask()->pixels.pixel(0, 0) == 255);
+}
+
 std::uint8_t psd_first_layer_mask_flags(std::span<const std::uint8_t> bytes) {
   const auto extra_data = psd_first_layer_extra_data(bytes);
   patchy::psd::BigEndianReader reader(extra_data);
@@ -1916,6 +1957,7 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
        psd_layered_writer_uses_rle_for_compressible_layer_channels},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
+      {"psd_group_layer_mask_round_trips", psd_group_layer_mask_round_trips},
       {"psd_layer_mask_link_state_round_trips", psd_layer_mask_link_state_round_trips},
       {"psd_legacy_document_alpha_marker_stays_a_layer_mask",
        psd_legacy_document_alpha_marker_stays_a_layer_mask},

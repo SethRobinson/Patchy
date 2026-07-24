@@ -853,6 +853,71 @@ void compositor_clipped_adjustment_affects_base_only() {
   CHECK(unclipped_flat.pixel(0, 0)[0] == 228);  // backdrop adjusted too (100 + 128)
 }
 
+void compositor_group_mask_attenuates_pass_through_children() {
+  // A masked group stays pass-through: the mask attenuates each child's
+  // contribution in place, so an interior adjustment still reaches the
+  // backdrop below the group where (and only as much as) the mask reveals it.
+  patchy::Document document(4, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(4, 1, 100, 100, 100));
+
+  patchy::AdjustmentSettings invert;
+  invert.kind = patchy::AdjustmentKind::Invert;
+  patchy::Layer adjustment(document.allocate_layer_id(), "Invert", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(adjustment, invert);
+
+  patchy::Layer group(document.allocate_layer_id(), "Masked Folder", patchy::LayerKind::Group);
+  const auto group_id = group.id();
+  group.add_child(std::move(adjustment));
+  patchy::PixelBuffer mask_pixels(4, 1, patchy::PixelFormat::gray8());
+  *mask_pixels.pixel(0, 0) = 255;
+  *mask_pixels.pixel(1, 0) = 0;
+  *mask_pixels.pixel(2, 0) = 128;
+  *mask_pixels.pixel(3, 0) = 255;
+  group.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 4, 1}, std::move(mask_pixels), 255, false});
+  document.add_layer(std::move(group));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(0, 0)[0] == 155);  // fully revealed: inverted backdrop
+  CHECK(flattened.pixel(1, 0)[0] == 100);  // fully masked: backdrop untouched
+  const auto half = flattened.pixel(2, 0)[0];
+  CHECK(half > 120 && half < 135);  // half-strength adjustment
+  CHECK(flattened.pixel(3, 0)[0] == 155);
+
+  // A disabled group mask is a no-op.
+  auto* folder = document.find_layer(group_id);
+  CHECK(folder != nullptr);
+  folder->mask()->disabled = true;
+  const auto with_disabled = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(with_disabled.pixel(1, 0)[0] == 155);
+}
+
+void compositor_nested_group_masks_multiply() {
+  patchy::Document document(2, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(2, 1, 0, 0, 0));
+
+  patchy::Layer inner(document.allocate_layer_id(), "Inner", patchy::LayerKind::Group);
+  inner.add_child(patchy::Layer(document.allocate_layer_id(), "White", solid_rgba(2, 1, 255, 255, 255, 255)));
+  patchy::PixelBuffer inner_mask(2, 1, patchy::PixelFormat::gray8());
+  inner_mask.clear(128);
+  inner.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 2, 1}, std::move(inner_mask), 255, false});
+
+  patchy::Layer outer(document.allocate_layer_id(), "Outer", patchy::LayerKind::Group);
+  outer.add_child(std::move(inner));
+  patchy::PixelBuffer outer_mask(2, 1, patchy::PixelFormat::gray8());
+  *outer_mask.pixel(0, 0) = 255;
+  *outer_mask.pixel(1, 0) = 64;
+  outer.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 2, 1}, std::move(outer_mask), 255, false});
+  document.add_layer(std::move(outer));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // White over black through the mask chain: 128/255, then 128/255 * 64/255.
+  const auto single = flattened.pixel(0, 0)[0];
+  CHECK(single > 124 && single < 132);
+  const auto stacked = flattened.pixel(1, 0)[0];
+  CHECK(stacked > 28 && stacked < 36);
+}
+
 void compositor_clipping_run_edge_cases() {
   // (a) A clipped layer with nothing below renders unclipped.
   {
@@ -1153,6 +1218,9 @@ std::vector<patchy::test::TestCase> psd_structure_tests() {
       {"compositor_clip_group_blends_with_base_mode_and_opacity",
        compositor_clip_group_blends_with_base_mode_and_opacity},
       {"compositor_clipped_adjustment_affects_base_only", compositor_clipped_adjustment_affects_base_only},
+      {"compositor_group_mask_attenuates_pass_through_children",
+       compositor_group_mask_attenuates_pass_through_children},
+      {"compositor_nested_group_masks_multiply", compositor_nested_group_masks_multiply},
       {"compositor_clipping_run_edge_cases", compositor_clipping_run_edge_cases},
       {"compositor_clipping_is_thread_count_stable", compositor_clipping_is_thread_count_stable},
       {"psd_far_offcanvas_layer_keeps_true_origin", psd_far_offcanvas_layer_keeps_true_origin},

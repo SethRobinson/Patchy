@@ -2159,6 +2159,112 @@ private:
   bool frozen_{false};
 };
 
+// Applies a group's raster/vector mask to everything its children composite,
+// WITHOUT isolating them: Photoshop's default pass-through group keeps child
+// blend modes and interior adjustments interacting with the backdrop below the
+// group, so the mask must attenuate each contribution in place rather than
+// clip a merged buffer. A nested masked group pushes onto the same adapter
+// (the chain multiplies), which also caps template-instantiation depth at one
+// wrapper per underlying target type. composite_source_row is deliberately not
+// forwarded so masked groups always take the per-pixel path.
+template <typename Base>
+class GroupMaskedTarget {
+public:
+  explicit GroupMaskedTarget(Base& base) : base_(base) {}
+
+  void push_mask(const Layer& group, std::optional<Rect> mask_bounds) {
+    masks_.push_back(MaskEntry{&group, mask_bounds});
+  }
+  void pop_mask() { masks_.pop_back(); }
+
+  [[nodiscard]] float mask_alpha(std::int32_t x, std::int32_t y) const {
+    auto alpha = 1.0F;
+    for (const auto& entry : masks_) {
+      alpha *= layer_mask_alpha_for_render(*entry.group, x, y, entry.mask_bounds);
+      if (alpha <= 0.0F) {
+        return 0.0F;
+      }
+    }
+    return alpha;
+  }
+
+  void composite_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha, BlendMode mode) {
+    alpha *= mask_alpha(x, y);
+    if (alpha > 0.0F) {
+      base_.composite_color(x, y, color, alpha, mode);
+    }
+  }
+
+  void composite_special_fill_color(std::int32_t x, std::int32_t y, RgbColor color, float source_coverage,
+                                    float fill_opacity, float layer_opacity, BlendMode mode)
+    requires requires(Base& base) {
+      base.composite_special_fill_color(std::int32_t{}, std::int32_t{}, RgbColor{}, 0.0F, 0.0F, 0.0F,
+                                        BlendMode::Normal);
+    }
+  {
+    source_coverage *= mask_alpha(x, y);
+    if (source_coverage > 0.0F) {
+      base_.composite_special_fill_color(x, y, color, source_coverage, fill_opacity, layer_opacity, mode);
+    }
+  }
+
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount)
+    requires requires(Base& base) {
+      base.adjust_color(std::int32_t{}, std::int32_t{}, std::declval<const AdjustmentSettings&>(), 0.0F);
+    }
+  {
+    amount *= mask_alpha(x, y);
+    if (amount > 0.0F) {
+      base_.adjust_color(x, y, settings, amount);
+    }
+  }
+
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentLut& lut, float amount)
+    requires requires(Base& base) {
+      base.adjust_color(std::int32_t{}, std::int32_t{}, std::declval<const AdjustmentLut&>(), 0.0F);
+    }
+  {
+    amount *= mask_alpha(x, y);
+    if (amount > 0.0F) {
+      base_.adjust_color(x, y, lut, amount);
+    }
+  }
+
+  [[nodiscard]] CompositeSample sample_color(std::int32_t x, std::int32_t y) const
+    requires requires(const Base& base) { base.sample_color(std::int32_t{}, std::int32_t{}); }
+  {
+    return base_.sample_color(x, y);
+  }
+
+  void record_clip_coverage(std::int32_t x, std::int32_t y, float alpha)
+    requires requires(Base& base) { base.record_clip_coverage(std::int32_t{}, std::int32_t{}, 0.0F); }
+  {
+    base_.record_clip_coverage(x, y, alpha * mask_alpha(x, y));
+  }
+
+  void profile_compositor_step(const char* step, const Layer& layer, Rect rect, double elapsed_ms)
+    requires requires(Base& base) {
+      base.profile_compositor_step(std::declval<const char*>(), std::declval<const Layer&>(), Rect{}, 0.0);
+    }
+  {
+    base_.profile_compositor_step(step, layer, rect, elapsed_ms);
+  }
+
+private:
+  struct MaskEntry {
+    const Layer* group;
+    std::optional<Rect> mask_bounds;
+  };
+
+  Base& base_;
+  std::vector<MaskEntry> masks_;
+};
+
+template <typename T>
+struct is_group_masked_target : std::false_type {};
+template <typename T>
+struct is_group_masked_target<GroupMaskedTarget<T>> : std::true_type {};
+
 // Composite one sibling list, folding Photoshop clipping groups: a base layer
 // plus the consecutive clipped() siblings above it composite into an isolated
 // buffer and merge with the base's blend mode. composite_one renders a single
@@ -2249,6 +2355,25 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
                        patterns);
       isolated.merge_layer_into(destination, layer, blend_if, backdrop.has_value() ? &*backdrop : nullptr,
                                 layer_mask_bounds_for_render(layer, overrides));
+      return;
+    }
+    // A group's raster/vector mask attenuates every child contribution in
+    // place. No isolation: the default group is pass-through, so child blend
+    // modes and interior adjustments must keep meeting the backdrop below the
+    // group, exactly as without a mask.
+    if ((layer.mask().has_value() && !layer.mask()->disabled) || layer_has_enabled_vector_mask(layer)) {
+      const auto mask_bounds = layer_mask_bounds_for_render(layer, overrides);
+      if constexpr (is_group_masked_target<Target>::value) {
+        destination.push_mask(layer, mask_bounds);
+        composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format,
+                         masks, patterns);
+        destination.pop_mask();
+      } else {
+        GroupMaskedTarget<Target> masked(destination);
+        masked.push_mask(layer, mask_bounds);
+        composite_layers(masked, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
+                         patterns);
+      }
       return;
     }
     composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
