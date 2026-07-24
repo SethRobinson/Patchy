@@ -1135,7 +1135,7 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
   for (int y = 0; y < kSize; ++y) {
     for (int x = 0; x < kSize; ++x) {
       const bool dark = ((x / 7) + (y / 7)) % 2 == 0;
-      image.setPixelColor(x, y, dark ? QColor(70, 74, 80) : QColor(112, 118, 126));
+      image.setPixelColor(x, y, dark ? QColor(204, 204, 204) : QColor(255, 255, 255));
     }
   }
 
@@ -1303,7 +1303,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                 ? QObject::tr("Adjustment Layer")
                                 : layer_is_text(layer) ? QObject::tr("Text layer") : QObject::tr("Layer thumbnail"));
   thumbnail->setProperty("layerTargetActive", content_target_active);
-  thumbnail->setEnabled(ancestors_visible && layer.visible());
+  // Thumbnails stay enabled even when the layer is hidden: a disabled QLabel
+  // repaints its pixmap through the style's grayscale disabled-icon filter,
+  // and Photoshop keeps hidden-layer thumbnails full color (the eye already
+  // conveys visibility). Same for the mask and vector-mask previews below.
   if (list_parent != nullptr) {
     thumbnail->installEventFilter(list_parent);
   }
@@ -1352,7 +1355,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         QObject::tr("Layer mask. Click to edit it with the paint tools, Alt-click to view it, Shift-click to "
                     "disable it."));
     mask_preview->setProperty("layerTargetActive", mask_target_active);
-    mask_preview->setEnabled(ancestors_visible && layer.visible());
     if (list_parent != nullptr) {
       mask_preview->installEventFilter(list_parent);
     }
@@ -1370,7 +1372,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         QObject::tr("Vector mask. Click to edit its path with the pen and path tools, Ctrl-click to "
                     "load it as a selection, Alt-click to view it, Shift-click to disable it."));
     vector_mask_preview->setProperty("layerTargetActive", vector_mask_target_active);
-    vector_mask_preview->setEnabled(ancestors_visible && layer.visible());
     if (list_parent != nullptr) {
       vector_mask_preview->installEventFilter(list_parent);
     }

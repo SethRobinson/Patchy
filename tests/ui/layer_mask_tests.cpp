@@ -742,8 +742,11 @@ void ui_layer_thumbnail_updates_after_brush_edit() {
   QApplication::processEvents();
 
   const auto after = thumbnail_center();
-  CHECK(after.red() > before.red() + 80);
+  // The light checkerboard already has a high red channel, so the repaint
+  // shows up as green/blue collapsing under the red paint, not a red delta.
+  CHECK(after.red() > 150);
   CHECK(after.green() < 90);
+  CHECK(after.green() + 80 < before.green());
   CHECK(after.blue() < 90);
   save_widget_artifact("ui_layer_thumbnail_refresh", window);
 }
@@ -789,8 +792,11 @@ void ui_layer_thumbnail_defers_brush_refresh_until_stroke_end() {
   QApplication::processEvents();
 
   const auto after = thumbnail_center();
-  CHECK(after.red() > before.red() + 80);
+  // See ui_layer_thumbnail_updates_after_brush_edit: the light checkerboard
+  // makes green/blue, not red, the channel that proves the repaint.
+  CHECK(after.red() > 150);
   CHECK(after.green() < 90);
+  CHECK(after.green() + 80 < before.green());
   CHECK(after.blue() < 90);
 }
 
