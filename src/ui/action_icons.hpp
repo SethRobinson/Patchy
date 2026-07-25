@@ -7,6 +7,10 @@
 #include <QIcon>
 #include <QString>
 
+#include <functional>
+
+class QPainter;
+
 namespace patchy::ui {
 
 // Icons resolve their colors when painted, so a live color-scheme change needs no
@@ -25,5 +29,14 @@ QIcon simple_icon(QString text, QColor ThemePalette::* accent_role);
 QIcon patchy_app_icon();
 QIcon window_chrome_icon(QString role);
 QIcon canvas_anchor_icon(CanvasAnchor anchor);
+
+// A one-off procedural mark: a glyph outside the shared icon vocabulary, drawn by
+// the caller against an `authored_size` square area with the ink handed to it.
+// Use this rather than painting into a QPixmap and wrapping it in a QIcon. A
+// baked pixmap freezes the color of the scheme that happened to be active when
+// the icon was built, which in Light left window buttons and dialog closers as
+// near-white marks on near-white chrome.
+QIcon themed_glyph_icon(QString name, qreal authored_size, QColor ThemePalette::* ink_role,
+                        std::function<void(QPainter&, const QColor&)> glyph);
 
 }  // namespace patchy::ui

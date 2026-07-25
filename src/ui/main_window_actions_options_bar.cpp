@@ -377,25 +377,29 @@ protected:
                         objectName() == QStringLiteral("selectionAntiAliasCheck") ||
                         objectName() == QStringLiteral("cloneAlignedCheck") ||
                         objectName() == QStringLiteral("shapeFillCheck");
+    // Every color here is a role: this glyph is painted, not styled, so it would
+    // otherwise stay dark-on-dark in the Light scheme.
+    const auto& colors = theme();
     if (framed) {
-      painter.fillRect(rect(), QColor(41, 41, 41));
-      painter.setPen(QPen(QColor(23, 23, 23), 1));
+      painter.fillRect(rect(), colors.field_bg);
+      painter.setPen(QPen(colors.field_inset_border, 1));
       painter.drawRect(rect().adjusted(0, 0, -1, -1));
-      painter.setPen(QPen(QColor(93, 93, 93), 1));
+      painter.setPen(QPen(colors.field_bevel_top, 1));
       painter.drawLine(rect().topLeft(), rect().topRight());
     }
 
     const QRect box(7, (height() - 14) / 2, 14, 14);
-    painter.setBrush(isChecked() ? QColor(20, 115, 230) : QColor(31, 31, 31));
-    painter.setPen(QPen(isChecked() ? QColor(156, 207, 255) : QColor(120, 120, 120), 1));
+    painter.setBrush(isChecked() ? colors.accent : colors.checkbox_compact_bg);
+    painter.setPen(
+        QPen(isChecked() ? colors.checkbox_accent_border : colors.checkbox_compact_border, 1));
     painter.drawRect(box);
     if (isChecked()) {
-      painter.setPen(QPen(QColor(255, 255, 255), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+      painter.setPen(QPen(colors.text_on_accent, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
       painter.drawLine(QPointF(box.left() + 3.0, box.center().y() + 0.5), QPointF(box.left() + 6.0, box.bottom() - 3.0));
       painter.drawLine(QPointF(box.left() + 6.0, box.bottom() - 3.0), QPointF(box.right() - 2.0, box.top() + 3.0));
     }
 
-    painter.setPen(isEnabled() ? QColor(240, 240, 240) : QColor(145, 145, 145));
+    painter.setPen(isEnabled() ? colors.text_bright : colors.text_disabled);
     painter.drawText(QRect(box.right() + 7, 0, width() - box.right() - 10, height()), Qt::AlignVCenter | Qt::AlignLeft,
                      text());
   }

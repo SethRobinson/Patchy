@@ -68,28 +68,29 @@ constexpr auto kDialogPositionMemoryIdProperty = "patchy.dialogPositionMemoryId"
 constexpr int kChevronAreaWidth = 14;
 
 QIcon dialog_close_icon() {
-  QPixmap pixmap(32, 32);
-  pixmap.fill(Qt::transparent);
-  QPainter painter(&pixmap);
-  painter.setRenderHint(QPainter::Antialiasing);
-  painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
-  painter.drawLine(QPointF(10.0, 10.0), QPointF(22.0, 22.0));
-  painter.drawLine(QPointF(22.0, 10.0), QPointF(10.0, 22.0));
-  return QIcon(pixmap);
+  // Ink follows the scheme: this X sits on the dialog's own title bar, which
+  // Light turns pale, and a baked near-white cross would vanish there.
+  return themed_glyph_icon(QStringLiteral("dialog-close"), 32.0, &ThemePalette::text_bright,
+                           [](QPainter& painter, const QColor& ink) {
+                             painter.setPen(QPen(ink, 2.0, Qt::SolidLine, Qt::SquareCap,
+                                                 Qt::MiterJoin));
+                             painter.drawLine(QPointF(10.0, 10.0), QPointF(22.0, 22.0));
+                             painter.drawLine(QPointF(22.0, 10.0), QPointF(10.0, 22.0));
+                           });
 }
 
 QIcon compact_symbol_icon(const QString& symbol) {
-  QPixmap pixmap(32, 32);
-  pixmap.fill(Qt::transparent);
-
-  QPainter painter(&pixmap);
-  painter.setRenderHint(QPainter::Antialiasing);
-  painter.setPen(QPen(QColor(238, 242, 246), 4.0, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
-  painter.drawLine(QPointF(8.0, 16.0), QPointF(24.0, 16.0));
-  if (symbol == QStringLiteral("+")) {
-    painter.drawLine(QPointF(16.0, 8.0), QPointF(16.0, 24.0));
-  }
-  return QIcon(pixmap);
+  const bool plus = symbol == QStringLiteral("+");
+  return themed_glyph_icon(plus ? QStringLiteral("compact-plus") : QStringLiteral("compact-minus"),
+                           32.0, &ThemePalette::text_bright,
+                           [plus](QPainter& painter, const QColor& ink) {
+                             painter.setPen(QPen(ink, 4.0, Qt::SolidLine, Qt::SquareCap,
+                                                 Qt::MiterJoin));
+                             painter.drawLine(QPointF(8.0, 16.0), QPointF(24.0, 16.0));
+                             if (plus) {
+                               painter.drawLine(QPointF(16.0, 8.0), QPointF(16.0, 24.0));
+                             }
+                           });
 }
 
 class NumericPopupChevron final : public QWidget {

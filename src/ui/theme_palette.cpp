@@ -375,6 +375,46 @@ const ThemePalette& dark_palette() {
 
 namespace {
 
+// Raises a mirrored neutral into Light's surface band.
+//
+// A mirror alone is not enough. Dark's surfaces are packed into the bottom third
+// of the value range (0x1e to 0x5d covers the canvas, every panel, every toolbar
+// and the tool palette), so mirroring parks all of them between 0xa2 and 0xe1 and
+// the result reads as a medium-gray app rather than a light one. Light schemes
+// put their surfaces in the top fifth instead, which is what makes them look lit.
+//
+// Ink mirrors low and must not move: body text, muted labels and disabled text
+// all land under the first stop and pass through unchanged. Above it the curve
+// climbs steeply through the chrome band and then flattens as it approaches
+// white, because that end has no room left. It is a table rather than a formula
+// because the stops were placed against the rendered app: the first has to clear
+// disabled text, and the knee has to lift the tool palette (Dark's lightest
+// chrome, and therefore Light's darkest) without flattening it into the panels.
+//
+// Monotonic, so no two roles can swap order; only the spacing changes, and near
+// white it compresses. Hairlines that carry real structure are corrected by hand
+// in light_palette() below.
+[[nodiscard]] qreal lift_to_surface_band(qreal mirrored) {
+  static constexpr std::array<std::pair<qreal, qreal>, 6> kRamp{{
+      {0.00, 0.00},
+      {0.58, 0.58},
+      {0.66, 0.82},
+      {0.75, 0.885},
+      {0.85, 0.935},
+      {1.00, 1.00},
+  }};
+  for (std::size_t index = 1; index < kRamp.size(); ++index) {
+    const auto [from_x, from_y] = kRamp[index - 1];
+    const auto [to_x, to_y] = kRamp[index];
+    if (mirrored <= to_x) {
+      const qreal span = to_x - from_x;
+      const qreal along = span <= 0.0 ? 1.0 : (mirrored - from_x) / span;
+      return from_y + along * (to_y - from_y);
+    }
+  }
+  return kRamp.back().second;
+}
+
 // Flips one dark role to its light counterpart.
 //
 // The palette has a long tail of one-off neutrals (a divider here, a disabled
@@ -383,11 +423,11 @@ namespace {
 // invites inconsistency, and forgetting one leaves a dark smear in an otherwise
 // light dialog. So the default is derived and the exceptions are explicit.
 //
-// Neutrals mirror their lightness outright, which preserves every "this is two
-// steps darker than that" relationship within a family. Chromatic colors keep
-// their hue and saturation but are pulled toward the middle instead: a bright
-// accent designed to glow on near-black becomes unreadable if simply inverted,
-// while a mid-tone of the same hue reads on both.
+// Neutrals mirror their lightness and are then lifted into Light's surface band,
+// which preserves every "this is two steps darker than that" relationship within
+// a family. Chromatic colors keep their hue and saturation but are pulled toward
+// the middle instead: a bright accent designed to glow on near-black becomes
+// unreadable if simply inverted, while a mid-tone of the same hue reads on both.
 QColor flip_for_light(const QColor& color) {
   const auto hsl = color.toHsl();
   const qreal hue = hsl.hslHueF();
@@ -395,8 +435,8 @@ QColor flip_for_light(const QColor& color) {
   const qreal lightness = hsl.lightnessF();
   constexpr qreal kNeutralSaturation = 0.15;
   const qreal flipped = 1.0 - lightness;
-  const qreal target =
-      saturation < kNeutralSaturation ? flipped : std::clamp(flipped, 0.28, 0.66);
+  const qreal target = saturation < kNeutralSaturation ? lift_to_surface_band(flipped)
+                                                       : std::clamp(flipped, 0.28, 0.66);
   auto result = QColor::fromHslF(hue < 0.0 ? 0.0 : hue, saturation, std::clamp(target, 0.0, 1.0));
   result.setAlpha(color.alpha());
   return result.toRgb();
@@ -426,8 +466,8 @@ const ThemePalette& light_palette() {
     // It also has to stay clear of title_bar_bg below. A flat flip put both at
     // the same gray, so a dialog floating over the canvas lost its title bar
     // into the pasteboard behind it.
-    light.canvas_backdrop = rgb(0x9e9e9e);
-    light.canvas_scrollbar_track = rgb(0x9e9e9e);
+    light.canvas_backdrop = rgb(0xb0b0b0);
+    light.canvas_scrollbar_track = rgb(0xb0b0b0);
     // The document edge has to stay visible against that mid gray rather than
     // becoming the near-white a flip would produce.
     light.canvas_document_border = rgb(0x6e747c);
@@ -436,8 +476,8 @@ const ThemePalette& light_palette() {
     // to read as distinct from both: darker than the dialog body it heads, and
     // clearly lighter than the canvas it may float over. A slight cool cast
     // separates it from the neutral grays around it.
-    light.title_bar_bg = rgb(0xbfc4cb);
-    light.title_bar_border = rgb(0xa2a7ae);
+    light.title_bar_bg = rgb(0xdcdfe4);
+    light.title_bar_border = rgb(0xc0c4ca);
 
     // Brand and state colors carry meaning, so they hold their hue rather than
     // being pushed to a mid tone. The blue accent already reads on both.
@@ -448,7 +488,7 @@ const ThemePalette& light_palette() {
     // An inset control's top edge is a raised highlight against a dark surface
     // and has to become a cast shadow against a light one. Flipping the value
     // would keep it a highlight and invert the bevel.
-    light.field_bevel_top = rgb(0x8f8f8f);
+    light.field_bevel_top = rgb(0xa8a8a8);
 
     // Selection backgrounds keep their saturation rather than washing out to a
     // pale tint. That is the convention in light themes, and it is what keeps the
@@ -473,6 +513,22 @@ const ThemePalette& light_palette() {
     light.window_border = rgb(0x7d7d7d);
     light.menu_border = rgb(0xa8a8a8);
     light.splash_border = rgb(0xa8adb5);
+
+    // The same inversion, one level in: outlines and recesses drawn INSIDE the
+    // window. Each of these is darker than the surface it sits on in Dark, so the
+    // mirror hands back a line lighter than that surface, and the surface band is
+    // near white with nowhere for such a line to show. Text fields would lose
+    // their well, the tool column and docks their outline, and the splitter its
+    // groove. Values are roughly twice their Dark separation because the same
+    // step reads weaker at the light end of the range.
+    light.field_inset_border = rgb(0xc6c6c6);
+    light.toolbar_border = rgb(0xcbcbcb);
+    light.tool_palette_border = rgb(0xa9a9a9);
+    light.panel_border_strong = rgb(0xcdcdcd);
+    light.panel_title_border_bottom = rgb(0xd5d6d8);
+    light.list_surface_border = rgb(0xd9d9d9);
+    light.list_item_border = rgb(0xe6e6e7);
+    light.splitter_bg = rgb(0xdedede);
 
     // The clipping badge is a pale blue chosen to glow on a dark row. A flip
     // clamps it to a heavy navy; match the icon accent instead so it reads as
