@@ -768,19 +768,39 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload,
 
 namespace {
 
-RgbColor read_legacy_effect_color(BigEndianReader& reader) {
-  (void)reader.read_u16();
-  const auto red = reader.read_u16();
-  const auto green = reader.read_u16();
-  const auto blue = reader.read_u16();
-  (void)reader.read_u16();
-  return RgbColor{static_cast<std::uint8_t>(red / 257U), static_cast<std::uint8_t>(green / 257U),
-                  static_cast<std::uint8_t>(blue / 257U)};
+// Photoshop's 10-byte color structure: a u16 color space, then four u16
+// components. Space 0 is RGB (0-65535 per channel), 2 is CMYK stored INVERTED
+// (0xFFFF = 0% ink, so 0/0/0/100% black reads as ffff ffff ffff 0000 and a white
+// highlight as ffff ffff ffff ffff), and 8 is Grayscale with the level in the
+// first component on a 0-10000 scale. The pre-2026 reader took every space as
+// RGB, which turned PS 5.x-era CMYK black into WHITE - a multiply shadow that
+// renders as nothing (Title02.psd, the Cockpit Master title screen).
+RgbColor read_legacy_effect_color(BigEndianReader& reader, const CmykColorConverter& cmyk) {
+  const auto space = reader.read_u16();
+  const std::array<std::uint16_t, 4> components{reader.read_u16(), reader.read_u16(), reader.read_u16(),
+                                                reader.read_u16()};
+  switch (space) {
+    case 2U: {
+      const auto ink = [&components](std::size_t index) {
+        return 1.0 - static_cast<double>(components[index]) / 65535.0;
+      };
+      return cmyk.rgb_from_ink(ink(0), ink(1), ink(2), ink(3));
+    }
+    case 8U: {
+      const auto level = static_cast<std::uint8_t>(
+          std::clamp(std::lround(static_cast<double>(components[0]) * 255.0 / 10000.0), 0L, 255L));
+      return RgbColor{level, level, level};
+    }
+    default:
+      return RgbColor{static_cast<std::uint8_t>(components[0] / 257U),
+                      static_cast<std::uint8_t>(components[1] / 257U),
+                      static_cast<std::uint8_t>(components[2] / 257U)};
+  }
 }
 
 }  // namespace
 
-LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload) {
+LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload, const CmykColorConverter& cmyk) {
   LayerStyle style;
   try {
     BigEndianReader reader(payload);
@@ -801,24 +821,32 @@ LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload) {
       if (key != std::array<char, 4>{'d', 's', 'd', 'w'}) {
         continue;
       }
-      // PS 5.x 'dsdw' record: u32 record size, u32 version, then blur /
-      // intensity / angle / distance as 16.16 FIXED point, a 10-byte color,
-      // blend signature + key, enabled, use-global-angle, and a 0-255 opacity
-      // byte (28% stores 71). The pre-July-2026 parser read the fixed fields as
-      // raw integers one slot early, so a merged legacy shadow could carry a
-      // ~7.8-million-pixel distance and abort the flatten on allocation.
+      // PS 5.x 'dsdw' record: the effect's u32 size field is part of the block
+      // header the loop above already consumed, so the payload STARTS at the u32
+      // version (0, or 2 with a trailing native color), then blur / intensity /
+      // angle / distance as 16.16 FIXED point, a 10-byte color, blend signature
+      // + key, enabled, use-global-angle, and a 0-255 opacity byte (28% stores
+      // 71). Skipping a size field here as well consumed one slot too many: a
+      // version-0 record (41 bytes, what PS 5.x actually writes) then ran off
+      // the end reading the blend key and the whole legacy style was discarded,
+      // so both Cockpit Master title-screen shadows rendered as nothing.
       BigEndianReader effect_reader(effect_payload);
-      (void)effect_reader.read_u32();  // record size
       (void)effect_reader.read_u32();  // version
       const auto read_fixed = [&effect_reader]() {
         return static_cast<float>(static_cast<std::int32_t>(effect_reader.read_u32())) / 65536.0F;
       };
       LayerDropShadow shadow;
       shadow.size = std::clamp(read_fixed(), 0.0F, 250.0F);
+      // Photoshop 2026 folds a nonzero legacy Intensity into the shadow's
+      // TRANSFER CONTOUR, not into Spread/Choke, which stays 0 (COM probes that
+      // byte-patched this very record: 50% reports the knee (170,255), 100%
+      // reports (127,255) - coverage scaled by 1 + Intensity/100 and clamped).
+      // Patchy models no drop-shadow contour, so the field stays unread; the
+      // PS 5.x files seen so far all store 0, which is the plain Linear curve.
       (void)effect_reader.read_u32();  // intensity
       shadow.angle_degrees = std::clamp(read_fixed(), -180.0F, 180.0F);
       shadow.distance = std::clamp(read_fixed(), 0.0F, 30000.0F);
-      shadow.color = read_legacy_effect_color(effect_reader);
+      shadow.color = read_legacy_effect_color(effect_reader, cmyk);
       (void)read_signature(effect_reader);
       shadow.blend_mode = blend_mode_from_key(read_signature(effect_reader));
       shadow.enabled = effect_reader.read_u8() != 0;

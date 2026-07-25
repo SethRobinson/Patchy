@@ -1478,19 +1478,33 @@ void psd_photoshop_stroke_shapeburst_fixture_matches_render() {
 // point and opacity as a 0-255 byte. The pre-July-2026 parser read the fixed
 // fields as raw integers one slot early, so a legacy shadow could carry a
 // ~7.8-million-pixel distance and abort the whole flatten on allocation.
+//
+// The effect's own size field is the block header ('8BIM' + key + u32 size), so
+// the payload handed to the parser STARTS at the version. This test used to
+// write that size twice - once as the header and again inside the payload -
+// which is what the parser assumed, so both agreed on a shape Photoshop never
+// writes. A real version-0 record is 41 bytes, and skipping the phantom size
+// ran the reader off its end mid-blend-key: every legacy effect on the layer
+// was thrown away. Photoshop's own bytes are what the test builds now.
 void psd_lrfx_legacy_drop_shadow_parses_fixed_point() {
-  patchy::psd::BigEndianWriter writer;
-  writer.write_u16(0);  // effects version
-  writer.write_u16(1);  // effect count
-  writer.write_bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>("8BIMdsdw"), 8));
+  const patchy::psd::CmykColorConverter cmyk{};
+  const auto lrfx_block = [](const std::vector<std::uint8_t>& effect_bytes) {
+    patchy::psd::BigEndianWriter writer;
+    writer.write_u16(0);  // effects version
+    writer.write_u16(1);  // effect count
+    writer.write_bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>("8BIMdsdw"), 8));
+    writer.write_u32(static_cast<std::uint32_t>(effect_bytes.size()));
+    writer.write_bytes(effect_bytes);
+    return writer.bytes();
+  };
+
   patchy::psd::BigEndianWriter effect;
-  effect.write_u32(51);  // record size
-  effect.write_u32(2);   // version
+  effect.write_u32(2);            // version (2 = PS 5.5, carries a trailing native color)
   effect.write_u32(12U << 16U);   // blur (size), fixed
   effect.write_u32(0);            // intensity
   effect.write_u32(120U << 16U);  // angle, fixed
   effect.write_u32(5U << 16U);    // distance, fixed
-  effect.write_u16(0);  // color space
+  effect.write_u16(0);            // color space: RGB
   effect.write_u16(0xFFFF);
   effect.write_u16(0);
   effect.write_u16(0);
@@ -1499,11 +1513,12 @@ void psd_lrfx_legacy_drop_shadow_parses_fixed_point() {
   effect.write_u8(1);   // enabled
   effect.write_u8(1);   // use global angle
   effect.write_u8(71);  // opacity byte (28%)
-  const auto& effect_bytes = effect.bytes();
-  writer.write_u32(static_cast<std::uint32_t>(effect_bytes.size()));
-  writer.write_bytes(effect_bytes);
+  for (int i = 0; i < 10; ++i) {
+    effect.write_u8(0);  // native color (version 2 only)
+  }
+  CHECK(effect.bytes().size() == 51U);
 
-  const auto style = patchy::psd::parse_lrfx_layer_style(writer.bytes());
+  const auto style = patchy::psd::parse_lrfx_layer_style(lrfx_block(effect.bytes()), cmyk);
   CHECK(style.drop_shadows.size() == 1U);
   const auto& shadow = style.drop_shadows.front();
   CHECK(shadow.enabled);
@@ -1514,6 +1529,53 @@ void psd_lrfx_legacy_drop_shadow_parses_fixed_point() {
   CHECK(shadow.blend_mode == patchy::BlendMode::LinearBurn);
   CHECK(shadow.color.red == 255 && shadow.color.green == 0 && shadow.color.blue == 0);
   CHECK(close_float(shadow.opacity, 71.0F / 255.0F));
+
+  // The 41-byte version-0 record PS 5.x actually writes, with the CMYK black
+  // ('ffff ffff ffff 0000' - the components are stored INVERTED, so 0xFFFF is
+  // 0% ink) that Title02.psd carries. Reading that color as RGB yielded white,
+  // and a white multiply shadow renders as nothing at all.
+  patchy::psd::BigEndianWriter legacy;
+  legacy.write_u32(0);            // version 0 (PS 5.0)
+  legacy.write_u32(0);            // blur (size) 0 - a hard-edged shadow
+  legacy.write_u32(0);            // intensity
+  legacy.write_u32(120U << 16U);  // angle, fixed
+  legacy.write_u32(6U << 16U);    // distance, fixed
+  legacy.write_u16(2);            // color space: CMYK
+  legacy.write_u16(0xFFFF);       // cyan    0%
+  legacy.write_u16(0xFFFF);       // magenta 0%
+  legacy.write_u16(0xFFFF);       // yellow  0%
+  legacy.write_u16(0);            // black 100%
+  legacy.write_bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>("8BIMmul "), 8));
+  legacy.write_u8(1);     // enabled
+  legacy.write_u8(1);     // use global angle
+  legacy.write_u8(0x59);  // opacity byte (35%)
+  CHECK(legacy.bytes().size() == 41U);
+
+  const auto legacy_style = patchy::psd::parse_lrfx_layer_style(lrfx_block(legacy.bytes()), cmyk);
+  CHECK(legacy_style.drop_shadows.size() == 1U);
+  const auto& legacy_shadow = legacy_style.drop_shadows.front();
+  CHECK(legacy_shadow.enabled);
+  CHECK(legacy_shadow.size == 0.0F);
+  CHECK(legacy_shadow.spread == 0.0F);
+  CHECK(legacy_shadow.angle_degrees == 120.0F);
+  CHECK(legacy_shadow.distance == 6.0F);
+  CHECK(legacy_shadow.use_global_light);
+  CHECK(legacy_shadow.blend_mode == patchy::BlendMode::Multiply);
+  CHECK(legacy_shadow.color.red == 0 && legacy_shadow.color.green == 0 && legacy_shadow.color.blue == 0);
+  CHECK(close_float(legacy_shadow.opacity, 0x59 / 255.0F));
+
+  // A Grayscale-space legacy color carries its level in the first component on
+  // Photoshop's 0-10000 scale, not as a 16-bit channel.
+  auto gray_bytes = legacy.bytes();
+  gray_bytes[20] = 0;      // color space high byte
+  gray_bytes[21] = 8;      // Grayscale
+  gray_bytes[22] = 0x13;   // 5000 / 10000 = 50% gray
+  gray_bytes[23] = 0x88;
+  const auto gray_style = patchy::psd::parse_lrfx_layer_style(lrfx_block(gray_bytes), cmyk);
+  CHECK(gray_style.drop_shadows.size() == 1U);
+  CHECK(gray_style.drop_shadows.front().color.red == 128);
+  CHECK(gray_style.drop_shadows.front().color.green == 128);
+  CHECK(gray_style.drop_shadows.front().color.blue == 128);
 }
 
 // CS-era Photoshop stores lfx2 'BlnM' enum values as length-0 charIDs ('Drkn',
@@ -1631,6 +1693,71 @@ void psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available() {
   CHECK(first_enabled_drop_shadow(*title) == nullptr);
   const auto flat = patchy::Compositor{}.flatten_rgb8(document);
   CHECK(flat.width() == 800 && flat.height() == 512);
+}
+
+// End-to-end guard on real PS 5.x bytes, because the synthetic payload above is
+// exactly what let the shape bug hide. Title02.psd (the Cockpit Master title
+// screen, authored 2000) carries no lfx2 at all: two of its layers hold only an
+// 'lrFX' block whose six effect records have just the drop shadow enabled.
+// Photoshop 2026 reads both through COM as multiply shadows at global angle 120
+// with the CMYK black that converts to RGB (35, 31, 32) - "box" at 75% opacity,
+// 10 px distance, 10 px blur, and "highlighted buttons" at 35%, 6 px distance,
+// 0 px blur. Patchy imported neither and the title screen rendered flat.
+void psd_lrfx_legacy_title_screen_imports_drop_shadows_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("Title02.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local Title02.psd fixture missing: " << path.string() << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+
+  const auto* buttons = find_layer_named(document.layers(), "highlighted buttons");
+  CHECK(buttons != nullptr);
+  CHECK(layer_has_psd_block(*buttons, "lrFX"));
+  const auto* buttons_shadow = first_enabled_drop_shadow(*buttons);
+  CHECK(buttons_shadow != nullptr);
+  CHECK(buttons_shadow->blend_mode == patchy::BlendMode::Multiply);
+  CHECK(close_float(buttons_shadow->opacity, 0x59 / 255.0F));
+  CHECK(buttons_shadow->distance == 6.0F);
+  CHECK(buttons_shadow->size == 0.0F);
+  CHECK(buttons_shadow->spread == 0.0F);
+  // Resource 1037 holds the same 120 degrees, so the global-light resolve is a
+  // no-op here and the flag is cleared on import.
+  CHECK(buttons_shadow->angle_degrees == 120.0F);
+  CHECK(!buttons_shadow->use_global_light);
+  // Photoshop's color-managed CMYK gives (35, 31, 32); with no CMYK profile to
+  // ride, Patchy's naive ink mix lands on black, the same rule lfx2 CMYK colors
+  // follow. What must never happen again is white, which multiplies to nothing.
+  CHECK(buttons_shadow->color.red == 0 && buttons_shadow->color.green == 0 && buttons_shadow->color.blue == 0);
+
+  const auto* box = find_layer_named(document.layers(), "box");
+  CHECK(box != nullptr);
+  CHECK(layer_has_psd_block(*box, "lrFX"));
+  const auto* box_shadow = first_enabled_drop_shadow(*box);
+  CHECK(box_shadow != nullptr);
+  CHECK(box_shadow->blend_mode == patchy::BlendMode::Multiply);
+  CHECK(close_float(box_shadow->opacity, 0xBF / 255.0F));
+  CHECK(box_shadow->distance == 10.0F);
+  CHECK(box_shadow->size == 10.0F);
+  CHECK(box_shadow->angle_degrees == 120.0F);
+
+  // The five disabled records beside each shadow stay out of the style.
+  CHECK(buttons->layer_style().inner_shadows.empty());
+  CHECK(buttons->layer_style().outer_glows.empty());
+  CHECK(buttons->layer_style().inner_glows.empty());
+  CHECK(buttons->layer_style().bevels.empty());
+
+  // The shadow has to reach the canvas: sample a pixel beside the "PLAY ONLINE"
+  // row that only the hard-edged 6 px offset shadow darkens, against clear sky
+  // nine rows up. Photoshop renders (117, 136, 157) there over a (166, 195, 225)
+  // backdrop; Patchy's blacker shadow color lands ~10/255 darker still.
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flat.width() == 640 && flat.height() == 480);
+  const auto* shadowed = flat.pixel(201, 189);
+  const auto* clear = flat.pixel(201, 180);
+  CHECK(shadowed[0] < clear[0] - 20);
+  CHECK(shadowed[1] < clear[1] - 20);
+  CHECK(shadowed[2] < clear[2] - 20);
 }
 
 // CMYK-mode documents store lfx2 effect colors as 'CMYC' descriptors (ink percentages) and
@@ -1944,6 +2071,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_weedkiller_legacy_charid_styles_parse_if_available},
       {"psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available",
        psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available},
+      {"psd_lrfx_legacy_title_screen_imports_drop_shadows_if_available",
+       psd_lrfx_legacy_title_screen_imports_drop_shadows_if_available},
       {"psd_cmyk_document_converts_style_and_text_colors", psd_cmyk_document_converts_style_and_text_colors},
       {"color_cmyk_transform_rejects_garbage_profile", color_cmyk_transform_rejects_garbage_profile},
       {"color_cmyk_transform_matches_pinned_swop_values", color_cmyk_transform_matches_pinned_swop_values},

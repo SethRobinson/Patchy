@@ -467,7 +467,7 @@ LayerStyleGradient parse_layer_style_gradient(const DescriptorObject& effect, co
 void write_f32(BigEndianWriter& writer, float value);
 LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload,
                                   const CmykColorConverter& cmyk);
-LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload);
+LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload, const CmykColorConverter& cmyk);
 void resolve_global_light(LayerStyle& style, float angle_degrees, float altitude_degrees);
 void merge_missing_layer_style_effects(LayerStyle& target, LayerStyle source);
 std::optional<LayerStyle> parse_patchy_layer_style(std::span<const std::uint8_t> payload);

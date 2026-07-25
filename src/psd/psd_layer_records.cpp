@@ -560,7 +560,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
   // effects block at all (true PS 5.x-era files).
   if (lrfx_block_index.has_value() && !saw_lfx2_block && !record.layer_style_from_lmfx) {
     merge_missing_layer_style_effects(
-        record.layer_style, parse_lrfx_layer_style(record.additional_blocks[*lrfx_block_index].payload));
+        record.layer_style, parse_lrfx_layer_style(record.additional_blocks[*lrfx_block_index].payload, cmyk));
   }
   if (record.name.empty()) {
     record.name = "Layer";
