@@ -459,6 +459,10 @@ function openDetail(fi, ek, keep) {
   (gt.dialogs || []).forEach(d => {
     html += '<div class="nums">Photoshop warned while opening this file: ' + esc(d) + "</div>";
   });
+  (cell.dialogs || []).forEach(d => {
+    html += '<div class="nums">Photoshop warned during this cell (its probe also '
+      + "re-saves the file, and save-time warnings are modal too): " + esc(d) + "</div>";
+  });
   (cell.resaveDialogs || []).forEach(d => {
     html += '<div class="nums">Photoshop warned while reopening ' + editorName +
       "'s resave: " + esc(d) + "</div>";

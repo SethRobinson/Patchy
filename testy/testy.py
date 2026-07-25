@@ -1168,14 +1168,22 @@ class Runner:
     ) -> None:
         if editor_key == "photoshop":
             result = self.ps.probe(staged.original, render_png, resave_psd=resave_psd)
+            # This probe also SAVES a PSD, and Photoshop's save-time warnings are
+            # modal too ("contains nested layer groups that may change in
+            # appearance..."). The ground truth never saves, so a dialog seen here
+            # is one only this leg raises and would otherwise go unrecorded.
+            dialogs = list(result.get("dialogs") or [])
             if not result.get("ok"):
                 cell.update({"state": "failed", "opens": "fail", "error": result.get("error")})
                 return
             cell["opens"] = "ok" if result.get("render") == "ok" else "fallback-render"
             if staged.trap is not None:
                 trap_result = self.ps.probe(staged.trap, trap_png)
+                dialogs += [d for d in trap_result.get("dialogs") or [] if d not in dialogs]
                 if not trap_result.get("ok"):
                     cell["trapError"] = trap_result.get("error")
+            if dialogs:
+                cell["dialogs"] = dialogs
             return
 
         if editor_key == "patchy":

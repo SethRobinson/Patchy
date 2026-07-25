@@ -277,9 +277,14 @@ full native preservation, which validates the pipeline itself.
   Save or Discard), and only through messages posted to that dialog's own button, so
   nothing can land in another app. A dialog with no safe answer is left standing and
   named in the failure text, which turns "photoshop hung >120s" into the alert's
-  actual wording. Dismissed alerts are recorded per file (`groundTruth.dialogs`) and
-  per resave (`cell.resaveDialogs`, i.e. Photoshop complaining about what that
-  editor wrote) and shown in the detail panel; they do not flag a file in scan mode,
+  actual wording. Not all of these are open-time dialogs: the Photoshop cell's probe
+  also saves a PSD, and Photoshop's save-time warnings are modal too ("contains nested
+  layer groups that may change in appearance if opened in applications older than
+  Photoshop CS6", seen on a 415-layer template), so that leg can hang on a save rather
+  than an open. Dismissed alerts are recorded per file (`groundTruth.dialogs`), per
+  cell (`cell.dialogs`, covering that cell's own open/save/trap probes) and per resave
+  (`cell.resaveDialogs`, i.e. Photoshop complaining about what that editor wrote), and
+  shown in the detail panel; they do not flag a file in scan mode,
   since the metadata they complain about is not something Testy measures.
   `python testy\win_dialogs.py --selftest` exercises the guard against real Win32
   dialogs raised by a helper process, including the refusal and watchdog paths, so
