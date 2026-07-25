@@ -1,3 +1,4 @@
+#include "ui/action_icons.hpp"
 #include "ui/canvas_widget.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
@@ -1557,6 +1558,14 @@ void ui_themed_icons_recolor_between_schemes() {
   CHECK(dark_swatch.pixelColor(white_fill) == QColor(Qt::white));
   CHECK(dark_swatch.pixelColor(black_fill) == QColor(0x11, 0x11, 0x11));
 
+  // Glyphs with no authored SVG go through a second engine that resolves a
+  // palette role instead of substituting SVG text. The clipping badge is the one
+  // users notice, and it is the reason that overload exists.
+  const QIcon clip_icon =
+      patchy::ui::simple_icon(QStringLiteral("clip"), &patchy::ui::ThemePalette::layer_clip_badge);
+  const auto dark_clip = clip_icon.pixmap(QSize(20, 20)).toImage();
+  CHECK(!dark_clip.isNull());
+
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
 
   const auto light_render = action_icon.pixmap(QSize(32, 32)).toImage();
@@ -1586,6 +1595,11 @@ void ui_themed_icons_recolor_between_schemes() {
   CHECK(light_swatch.pixelColor(black_fill) == QColor(0x11, 0x11, 0x11));
   // ...while the outline around them did follow the scheme.
   CHECK(light_swatch != dark_swatch);
+
+  // Same QIcon instance, so the role really is resolved at paint time.
+  const auto light_clip = clip_icon.pixmap(QSize(20, 20)).toImage();
+  CHECK(light_clip != dark_clip);
+  CHECK(ink_luminance(light_clip) < ink_luminance(dark_clip));
 }
 
 void ui_main_window_persists_window_geometry() {
@@ -2427,6 +2441,159 @@ void ui_no_widget_ships_unresolved_theme_tokens() {
   CHECK(styled > 0);
 }
 
+[[nodiscard]] int channel_delta(const QColor& first, const QColor& second) {
+  return std::max({std::abs(first.red() - second.red()), std::abs(first.green() - second.green()),
+                   std::abs(first.blue() - second.blue())});
+}
+
+// Light is derived from Dark, so two roles that never touch in Dark can land on
+// the same value in Light. That happened: title_bar_bg and canvas_backdrop both
+// resolved to the same gray and a dialog floating over the canvas lost its title
+// bar entirely. Encode the pairs that actually sit against each other on screen.
+// Thresholds are set below what Dark already achieves, so this asserts "Light is
+// at least as readable here as the scheme we have always shipped".
+void ui_theme_adjacent_roles_stay_distinguishable() {
+  struct RolePair {
+    const char* description;
+    QColor patchy::ui::ThemePalette::* first;
+    QColor patchy::ui::ThemePalette::* second;
+    int minimum_delta;
+  };
+  const std::array<RolePair, 4> pairs{{
+      {"a dialog title bar floating over the canvas", &patchy::ui::ThemePalette::title_bar_bg,
+       &patchy::ui::ThemePalette::canvas_backdrop, 24},
+      {"a dialog title bar against the dialog body it heads", &patchy::ui::ThemePalette::title_bar_bg,
+       &patchy::ui::ThemePalette::window_bg, 12},
+      {"the chrome bar against a docked panel", &patchy::ui::ThemePalette::title_bar_bg,
+       &patchy::ui::ThemePalette::panel_bg, 16},
+      {"the clipping badge on an unselected layer row", &patchy::ui::ThemePalette::layer_clip_badge,
+       &patchy::ui::ThemePalette::layer_row_bg, 60},
+  }};
+
+  for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
+    const auto& palette = patchy::ui::theme(scheme);
+    const char* label = scheme == patchy::ui::ColorScheme::Light ? "light" : "dark";
+    for (const auto& pair : pairs) {
+      const int measured = channel_delta(palette.*pair.first, palette.*pair.second);
+      if (measured < pair.minimum_delta) {
+        fprintf(stderr, "  %s: %s -> delta %d, want >= %d\n", label, pair.description, measured,
+                pair.minimum_delta);
+      }
+      CHECK(measured >= pair.minimum_delta);
+    }
+  }
+}
+
+[[nodiscard]] double relative_luminance(const QColor& color) {
+  const auto channel = [](double value) {
+    return value <= 0.03928 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(color.redF()) + 0.7152 * channel(color.greenF()) +
+         0.0722 * channel(color.blueF());
+}
+
+[[nodiscard]] double contrast_ratio(const QColor& first, const QColor& second) {
+  const double a = relative_luminance(first);
+  const double b = relative_luminance(second);
+  return (std::max(a, b) + 0.05) / (std::min(a, b) + 0.05);
+}
+
+// Text roles pinned to one value across both schemes are the trap here:
+// text_on_accent is correctly white over a saturated selection, and was also
+// being used over neutral raised surfaces, where Light turns the background
+// pale and the label vanishes. Every text/background pair has to hold up in
+// both schemes, not just the one it was authored against.
+void ui_theme_text_roles_contrast_with_their_backgrounds() {
+  struct TextPair {
+    const char* description;
+    QColor patchy::ui::ThemePalette::* text;
+    QColor patchy::ui::ThemePalette::* background;
+  };
+  const std::array<TextPair, 10> pairs{{
+      {"a highlighted menu item", &patchy::ui::ThemePalette::text_on_accent,
+       &patchy::ui::ThemePalette::menu_item_selected_bg},
+      {"a checked options-bar button", &patchy::ui::ThemePalette::text_on_accent,
+       &patchy::ui::ThemePalette::accent_checked_bg},
+      {"the selected layer-style category", &patchy::ui::ThemePalette::text_on_accent,
+       &patchy::ui::ThemePalette::category_selected_bg},
+      {"the About dialog's primary button", &patchy::ui::ThemePalette::text_on_accent,
+       &patchy::ui::ThemePalette::splash_primary_bg},
+      {"the selected document tab", &patchy::ui::ThemePalette::text_on_raised,
+       &patchy::ui::ThemePalette::tab_selected_bg},
+      {"the selected Preferences tab", &patchy::ui::ThemePalette::text_on_raised,
+       &patchy::ui::ThemePalette::dialog_tab_selected_bg},
+      {"an Image Size panel label", &patchy::ui::ThemePalette::text_on_raised,
+       &patchy::ui::ThemePalette::dlg_raised_bg},
+      {"body text on the window surface", &patchy::ui::ThemePalette::text_primary,
+       &patchy::ui::ThemePalette::window_bg},
+      {"the menu bar", &patchy::ui::ThemePalette::text_bright,
+       &patchy::ui::ThemePalette::title_bar_bg},
+      {"a selected layer row's name", &patchy::ui::ThemePalette::layer_row_name_text,
+       &patchy::ui::ThemePalette::layer_row_selected_bg},
+  }};
+
+  // 3:1 is the floor for UI text and large type; every pair here clears it in
+  // Dark, so this asserts Light is no worse than what already ships.
+  constexpr double kMinimumContrast = 3.0;
+  for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
+    const auto& palette = patchy::ui::theme(scheme);
+    const char* label = scheme == patchy::ui::ColorScheme::Light ? "light" : "dark";
+    for (const auto& pair : pairs) {
+      const double ratio = contrast_ratio(palette.*pair.text, palette.*pair.background);
+      if (ratio < kMinimumContrast) {
+        fprintf(stderr, "  %s: %s -> contrast %.2f, want >= %.1f\n", label, pair.description, ratio,
+                kMinimumContrast);
+      }
+      CHECK(ratio >= kMinimumContrast);
+    }
+  }
+}
+
+// The rendered counterpart to the pair above: the palette can be right and the
+// chrome still wrong if a rule stops applying. Opens the real dialog over the
+// real canvas in Light and looks at the pixels.
+void ui_light_scheme_dialog_chrome_separates_from_canvas() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QApplication::processEvents();
+
+  bool sampled = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* title_bar = dialog->findChild<QWidget*>(QStringLiteral("dialogChromeTitleBar"));
+    CHECK(title_bar != nullptr);
+    if (title_bar != nullptr) {
+      const auto shot = title_bar->grab().toImage();
+      CHECK(!shot.isNull());
+      if (!shot.isNull()) {
+        // Mid-height, right of the badge and left of the close button.
+        const auto bar = shot.pixelColor(shot.width() / 2, shot.height() / 2);
+        const int against_canvas = channel_delta(bar, patchy::ui::theme().canvas_backdrop);
+        const int against_body = channel_delta(bar, patchy::ui::theme().window_bg);
+        if (against_canvas < 20 || against_body < 10) {
+          fprintf(stderr, "  title bar %s: delta %d vs canvas, %d vs dialog body\n",
+                  qPrintable(bar.name(QColor::HexRgb)), against_canvas, against_body);
+        }
+        CHECK(against_canvas >= 20);
+        CHECK(against_body >= 10);
+        sampled = true;
+      }
+    }
+    save_widget_artifact("ui_light_scheme_preferences_dialog", *dialog);
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(sampled);
+}
+
 // An unresolved @token makes Qt drop the entire declaration containing it,
 // silently. Nothing downstream would notice, so assert no token survives and no
 // raw hex was left behind in either scheme.
@@ -2514,6 +2681,11 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_icon_color_map_covers_every_authored_color", ui_icon_color_map_covers_every_authored_color},
       {"ui_no_widget_ships_unresolved_theme_tokens", ui_no_widget_ships_unresolved_theme_tokens},
       {"ui_theme_palettes_define_every_role", ui_theme_palettes_define_every_role},
+      {"ui_theme_adjacent_roles_stay_distinguishable", ui_theme_adjacent_roles_stay_distinguishable},
+      {"ui_theme_text_roles_contrast_with_their_backgrounds",
+       ui_theme_text_roles_contrast_with_their_backgrounds},
+      {"ui_light_scheme_dialog_chrome_separates_from_canvas",
+       ui_light_scheme_dialog_chrome_separates_from_canvas},
       {"ui_theme_qss_resolves_every_token", ui_theme_qss_resolves_every_token},
       {"ui_status_bar_error_message_flashes_then_persists_until_replaced",
        ui_status_bar_error_message_flashes_then_persists_until_replaced},

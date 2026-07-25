@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/pixel_tools.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QColor>
 #include <QIcon>
@@ -16,6 +17,11 @@ namespace patchy::ui {
 // meaning independent of the scheme, such as a red destructive marker; those are
 // never recolored and must stay legible on both light and dark chrome.
 QIcon simple_icon(QString text, QColor accent = QColor());
+
+// Same, but the accent is a palette role resolved at paint time, so the glyph
+// follows the color scheme. Prefer this over passing theme().some_role directly:
+// that would freeze the color at the moment the icon was built.
+QIcon simple_icon(QString text, QColor ThemePalette::* accent_role);
 QIcon patchy_app_icon();
 QIcon window_chrome_icon(QString role);
 QIcon canvas_anchor_icon(CanvasAnchor anchor);

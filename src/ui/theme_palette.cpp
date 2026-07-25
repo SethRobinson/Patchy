@@ -38,6 +38,7 @@ const ThemePalette& dark_palette() {
       .text_bright = rgb(0xf0f0f0),
       .text_disabled = rgb(0x737373),
       .text_on_accent = rgb(0xffffff),
+      .text_on_raised = rgb(0xffffff),
       .splitter_bg = rgb(0x1e2022),
       .splitter_hover_bg = rgb(0x4e6f95),
 
@@ -157,6 +158,7 @@ const ThemePalette& dark_palette() {
       .layer_lock_badge_inherited = rgb(0x7e848c),
       .layer_thumbnail_border = rgb(0x969ea8),
       .layer_mask_disabled_cross = rgb(0xe84646),
+      .layer_clip_badge = rgb(0x96cdff),
 
       // Bright accent.
       .accent_bright = rgb(0x31a8ff),
@@ -420,11 +422,22 @@ const ThemePalette& light_palette() {
     // destroys value judgement while editing, which is why Photoshop and every
     // other editor keep a mid gray in light mode. Its scroll-bar track is the
     // same surface and has to match exactly or the gutter reads as a seam.
-    light.canvas_backdrop = rgb(0xb0b0b0);
-    light.canvas_scrollbar_track = rgb(0xb0b0b0);
+    //
+    // It also has to stay clear of title_bar_bg below. A flat flip put both at
+    // the same gray, so a dialog floating over the canvas lost its title bar
+    // into the pasteboard behind it.
+    light.canvas_backdrop = rgb(0x9e9e9e);
+    light.canvas_scrollbar_track = rgb(0x9e9e9e);
     // The document edge has to stay visible against that mid gray rather than
     // becoming the near-white a flip would produce.
     light.canvas_document_border = rgb(0x6e747c);
+
+    // The chrome bar sits between the pasteboard and the window surface, and has
+    // to read as distinct from both: darker than the dialog body it heads, and
+    // clearly lighter than the canvas it may float over. A slight cool cast
+    // separates it from the neutral grays around it.
+    light.title_bar_bg = rgb(0xbfc4cb);
+    light.title_bar_border = rgb(0xa2a7ae);
 
     // Brand and state colors carry meaning, so they hold their hue rather than
     // being pushed to a mid tone. The blue accent already reads on both.
@@ -437,16 +450,35 @@ const ThemePalette& light_palette() {
     // would keep it a highlight and invert the bevel.
     light.field_bevel_top = rgb(0x8f8f8f);
 
-    // White-on-accent text stays white: the accents above stay saturated.
+    // Selection backgrounds keep their saturation rather than washing out to a
+    // pale tint. That is the convention in light themes, and it is what keeps the
+    // white label on a highlighted menu item or a checked button readable: a
+    // lightened selection with white text on it is illegible.
+    light.menu_item_selected_bg = rgb(0x2f6fb5);
+    light.category_selected_bg = rgb(0x2f6fb5);
+    light.accent_checked_bg = rgb(0x1667b7);
+    light.splash_primary_bg = rgb(0x2f7fc1);
+
+    // White-on-accent text stays white, because of the four roles above. Text on
+    // a raised neutral surface has to invert instead.
     light.text_on_accent = rgb(0xffffff);
+    light.text_on_raised = rgb(0x1a1a1a);
 
     // Edges that separate a surface from what is behind it. Flipping a near-black
     // outline gives a near-white one, which against a light surface is no edge at
     // all: the frameless main window would lose its silhouette against a light
     // desktop, and an open menu would blend into the panel underneath it.
-    light.window_border = rgb(0x9a9a9a);
+    // Dark enough to outline a dialog against the canvas pasteboard, not just
+    // against the window surface.
+    light.window_border = rgb(0x7d7d7d);
     light.menu_border = rgb(0xa8a8a8);
     light.splash_border = rgb(0xa8adb5);
+
+    // The clipping badge is a pale blue chosen to glow on a dark row. A flip
+    // clamps it to a heavy navy; match the icon accent instead so it reads as
+    // the same family of marker and holds up on both an unselected light row and
+    // the blue of a selected one.
+    light.layer_clip_badge = rgb(0x1668c4);
 
     // Icon ink. The flip lands close, but these are the most-looked-at pixels in
     // the app and deserve exact values.
@@ -496,6 +528,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(text_bright),
       PATCHY_THEME_ROLE(text_disabled),
       PATCHY_THEME_ROLE(text_on_accent),
+      PATCHY_THEME_ROLE(text_on_raised),
       PATCHY_THEME_ROLE(splitter_bg),
       PATCHY_THEME_ROLE(splitter_hover_bg),
 
@@ -602,6 +635,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(layer_lock_badge_inherited),
       PATCHY_THEME_ROLE(layer_thumbnail_border),
       PATCHY_THEME_ROLE(layer_mask_disabled_cross),
+      PATCHY_THEME_ROLE(layer_clip_badge),
 
       PATCHY_THEME_ROLE(accent_bright),
       PATCHY_THEME_ROLE(accent_bright_hover),

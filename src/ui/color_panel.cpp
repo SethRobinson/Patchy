@@ -1266,7 +1266,7 @@ void PatchyColorPickerPrivate::build_ui() {
     QTabBar::tab:hover:!selected { background: @color_button_hover_bg; }
     QTabBar::tab:selected {
       background: @field_border;
-      color: @text_on_accent;
+      color: @text_on_raised;
       border-bottom-color: @field_border;
     }
   )"));

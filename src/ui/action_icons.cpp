@@ -353,6 +353,8 @@ class ProceduralIconEngine final : public QIconEngine {
  public:
   ProceduralIconEngine(QString text, QColor accent)
       : text_(std::move(text)), accent_(std::move(accent)) {}
+  ProceduralIconEngine(QString text, QColor ThemePalette::* accent_role)
+      : text_(std::move(text)), accent_role_(accent_role) {}
 
   void paint(QPainter* painter, const QRect& rect, QIcon::Mode mode, QIcon::State state) override {
     if (painter == nullptr) {
@@ -381,7 +383,7 @@ class ProceduralIconEngine final : public QIconEngine {
     // The glyph code is authored against a 32x32 area.
     painter.scale(static_cast<qreal>(size.width()) / 32.0,
                   static_cast<qreal>(size.height()) / 32.0);
-    paint_simple_icon_glyph(painter, text_, accent_.isValid() ? accent_ : theme().icon_ink);
+    paint_simple_icon_glyph(painter, text_, resolved_accent());
     painter.end();
     if (mode == QIcon::Normal) {
       return rendered;
@@ -405,12 +407,26 @@ class ProceduralIconEngine final : public QIconEngine {
 
   QString iconName() override { return text_; }
   bool isNull() override { return false; }
-  QIconEngine* clone() const override { return new ProceduralIconEngine(text_, accent_); }
+  QIconEngine* clone() const override {
+    return accent_role_ != nullptr ? new ProceduralIconEngine(text_, accent_role_)
+                                   : new ProceduralIconEngine(text_, accent_);
+  }
   QString key() const override { return QStringLiteral("PatchyProceduralIcon"); }
 
  private:
+  // A role wins over an explicit color, and an invalid explicit color falls back
+  // to the theme's icon ink. Resolved here rather than stored so the glyph
+  // follows a live scheme change.
+  [[nodiscard]] QColor resolved_accent() const {
+    if (accent_role_ != nullptr) {
+      return theme().*accent_role_;
+    }
+    return accent_.isValid() ? accent_ : theme().icon_ink;
+  }
+
   QString text_;
   QColor accent_;
+  QColor ThemePalette::* accent_role_ = nullptr;
 };
 
 }  // namespace
@@ -422,6 +438,17 @@ QIcon simple_icon(QString text, QColor accent) {
     return themed_svg_icon(key);
   }
   return QIcon(new ProceduralIconEngine(std::move(text), std::move(accent)));
+}
+
+QIcon simple_icon(QString text, QColor ThemePalette::* accent_role) {
+  ensure_icon_resources();
+  const auto key = resource_icon_key(text);
+  // An authored SVG carries its own colors through the icon color map, so the
+  // role only applies to the procedural glyphs.
+  if (QFile::exists(QStringLiteral(":/patchy/icons/%1.svg").arg(key))) {
+    return themed_svg_icon(key);
+  }
+  return QIcon(new ProceduralIconEngine(std::move(text), accent_role));
 }
 
 QIcon window_chrome_icon(QString role) {

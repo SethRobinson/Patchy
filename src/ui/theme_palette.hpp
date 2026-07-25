@@ -34,7 +34,13 @@ struct ThemePalette {
   QColor text_secondary;
   QColor text_bright;
   QColor text_disabled;
+  // Text over a saturated selection (a highlighted menu item, a checked accent
+  // button). Those backgrounds stay saturated in Light, so this stays white.
   QColor text_on_accent;
+  // Text over a raised NEUTRAL surface (a selected tab, the Image Size panels).
+  // Same white in Dark, but it has to invert in Light: those backgrounds lighten,
+  // and white on light gray is the one combination that disappears completely.
+  QColor text_on_raised;
   QColor splitter_bg;
   QColor splitter_hover_bg;
 
@@ -155,6 +161,7 @@ struct ThemePalette {
   QColor layer_lock_badge_inherited;
   QColor layer_thumbnail_border;
   QColor layer_mask_disabled_cross;
+  QColor layer_clip_badge;
 
   // The bright accent used for active targets and the mask-edit chip.
   QColor accent_bright;

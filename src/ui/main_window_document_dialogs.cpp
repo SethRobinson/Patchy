@@ -349,7 +349,7 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
     QSpinBox, QComboBox {
       background: @dlg_button_bg;
       border: 1px solid @dlg_button_border;
-      color: @text_on_accent;
+      color: @text_on_raised;
       min-height: 24px;
       padding: 1px 6px;
     }
@@ -374,7 +374,7 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
       background: @dlg_raised_bg;
       border: 1px solid @dlg_raised_border;
       border-radius: 13px;
-      color: @text_on_accent;
+      color: @text_on_raised;
       min-width: 130px;
       min-height: 24px;
       padding: 0 18px;
@@ -704,15 +704,15 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
   append_themed_style(dialog, QStringLiteral(R"(
     QDialog#patchyCanvasSizeDialog {
       background: @dlg_raised_bg;
-      color: @text_on_accent;
+      color: @text_on_raised;
     }
     QDialog#patchyCanvasSizeDialog QWidget {
       background: @dlg_raised_bg;
-      color: @text_on_accent;
+      color: @text_on_raised;
     }
     QDialog#patchyCanvasSizeDialog QLabel {
       background: transparent;
-      color: @text_on_accent;
+      color: @text_on_raised;
       font-size: 11px;
     }
     QDialog#patchyCanvasSizeDialog QLabel[sectionLabel="true"] {
@@ -730,7 +730,7 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
       background: @dlg_tab_bg;
       border: 1px solid @dlg_tab_border;
       border-radius: 3px;
-      color: @text_on_accent;
+      color: @text_on_raised;
       min-height: 22px;
       padding: 0 8px;
     }
@@ -745,7 +745,7 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
     }
     QDialog#patchyCanvasSizeDialog QCheckBox {
       background: transparent;
-      color: @text_on_accent;
+      color: @text_on_raised;
       font-size: 11px;
       spacing: 7px;
     }
@@ -782,7 +782,7 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
       background: @dlg_raised_bg;
       border: 1px solid @dlg_action_border;
       border-radius: 13px;
-      color: @text_on_accent;
+      color: @text_on_raised;
       min-width: 70px;
       min-height: 24px;
       padding: 0 14px;

@@ -236,7 +236,7 @@ ThemedQss new_document_dialog_style() {
     QToolButton[newDocumentChip="true"]:checked {
       background: @selection_soft_bg;
       border-color: @primary_border;
-      color: @text_on_accent;
+      color: @text_on_raised;
     }
     QDialog#patchyNewDocumentDialog QDoubleSpinBox,
     QDialog#patchyNewDocumentDialog QComboBox {

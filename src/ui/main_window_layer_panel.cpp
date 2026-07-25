@@ -1240,7 +1240,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     auto* clip_badge = new QToolButton(row);
     clip_badge->setObjectName(QStringLiteral("layerClippingBadgeButton"));
     clip_badge->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    clip_badge->setIcon(simple_icon(QStringLiteral("clip"), QColor(150, 205, 255)));
+    clip_badge->setIcon(simple_icon(QStringLiteral("clip"), &ThemePalette::layer_clip_badge));
     clip_badge->setIconSize(QSize(20, 20));
     clip_badge->setFixedSize(24, 24);
     clip_badge->setFocusPolicy(Qt::NoFocus);

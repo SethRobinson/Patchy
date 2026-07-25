@@ -921,7 +921,7 @@ QString photoshop_style_template() {
     }
     QTabBar::tab:selected {
       background: @tab_selected_bg;
-      color: @text_on_accent;
+      color: @text_on_raised;
       border-bottom-color: @tab_selected_bg;
     }
   )")

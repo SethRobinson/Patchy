@@ -913,7 +913,7 @@ void MainWindow::show_preferences() {
     }
     QDialog#patchyPreferencesDialog QTabBar::tab:selected {
       background: @dialog_tab_selected_bg;
-      color: @text_on_accent;
+      color: @text_on_raised;
       border-bottom-color: @dialog_tab_selected_bg;
     }
     QDialog#patchyPreferencesDialog QFrame[preferencesPanel="true"] {
