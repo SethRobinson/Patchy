@@ -925,14 +925,11 @@ QString photoshop_style_template() {
       border-bottom-color: @tab_selected_bg;
     }
   )")
-         // The canvas scroll bars are document-window chrome, so they are styled
-         // dark on every platform to sit against the dark canvas backdrop
-         // (Photoshop's document window). Dock and list scroll bars on
-         // Windows/Linux deliberately stay native; see the macOS-only block
-         // below. Once QSS styles a scroll bar, QStyleSheetStyle takes over the
-         // whole rendering, so every subcontrol needs a rule or it gets ugly
-         // defaults. The values mirror the macOS block; on macOS both rule sets
-         // match these bars and the ID selectors win with identical values.
+         // The canvas scroll bars are document-window chrome, so their track slaves
+         // to the canvas backdrop (Photoshop's document window) rather than to the
+         // window surface every other bar sits on. That one role is the only thing
+         // separating them from the panel bars below, whose rules also match them;
+         // these ID selectors are more specific and win.
          + QStringLiteral(R"(
     QScrollBar#canvasHorizontalScrollBar, QScrollBar#canvasVerticalScrollBar {
       background: @canvas_scrollbar_track;
@@ -962,13 +959,10 @@ QString photoshop_style_template() {
     }
   )")
 #ifdef Q_OS_MACOS
-         // macOS-only styling to match the Windows look: QMacStyle group boxes carry
-         // Aqua-sized native chrome (big title gap and content margins, plus Aqua
-         // layout-item overlaps since their rule border stays native), which blows
-         // dense panels like the brush Dynamics popup past the screen height; and
-         // QMacStyle scroll bars are minimal flat overlays whose handle is hard to
-         // spot on the dark theme, so they get the Windows-classic layout (dithered
-         // track, flat handle, arrow buttons). Windows/Linux keep native rendering.
+         // macOS-only: QMacStyle group boxes carry Aqua-sized native chrome (big
+         // title gap and content margins, plus Aqua layout-item overlaps since
+         // their rule border stays native), which blows dense panels like the brush
+         // Dynamics popup past the screen height.
          + QStringLiteral(R"(
     QGroupBox {
       border: 1px solid @group_box_border;
@@ -983,14 +977,33 @@ QString photoshop_style_template() {
       padding: 0 3px;
       background: @window_bg;
     }
+  )")
+#endif
+         // Panel, dialog and list scroll bars, on every platform.
+         //
+         // These cannot be left to the native style, however much it looks like
+         // they could be. The QWidget rule at the top of this sheet sets a
+         // background on every widget in the application, scroll bars included, and
+         // once QSS touches a scroll bar QStyleSheetStyle owns the entire complex
+         // control. With no subcontrol rules it fills the groove with the window
+         // background and leaves the base style to draw the rest on top. Against
+         // Dark's near-black surface that passed for native rendering. In Light the
+         // groove, the handle and the panel behind them all resolve to the same
+         // near-white and the bar disappears, leaving only the arrow glyphs as two
+         // faint marks. So every subcontrol gets a rule.
+         + QStringLiteral(R"(
+    /* Flat, unlike the canvas bars above. The dither is a single asset shared by
+       both, and it can only suit one of them: the two tracks are the same value in
+       Dark but Light pins the canvas track to the mid-gray pasteboard and derives
+       the panel track to near-white, and a mid-gray checkerboard laid over that
+       turns a dialog's gutter into a dark stripe. The texture belongs to the
+       pasteboard gutter; a panel bar reads from its handle. */
     QScrollBar:vertical {
       background: @panel_scrollbar_track;
-      background-image: url(@icon(scroll-dither));
       width: 16px;
     }
     QScrollBar:horizontal {
       background: @panel_scrollbar_track;
-      background-image: url(@icon(scroll-dither));
       height: 16px;
     }
     QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
@@ -1014,7 +1027,6 @@ QString photoshop_style_template() {
       background: transparent;
     }
   )")
-#endif
       ;
 }
 

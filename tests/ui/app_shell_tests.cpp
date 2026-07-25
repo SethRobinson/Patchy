@@ -2594,6 +2594,76 @@ void ui_light_scheme_dialog_chrome_separates_from_canvas() {
   CHECK(sampled);
 }
 
+// Panel and list scroll bars are styled by the application sheet on every
+// platform rather than left to the native style. They have to be: the global
+// QWidget background rule reaches them anyway, and once QSS touches a scroll bar
+// QStyleSheetStyle owns the whole complex control, so one without subcontrol
+// rules fills its groove with the window background and lets the base style draw
+// the rest on top. Against Dark's near-black surface that passed for native
+// rendering, which is how it survived review. In Light the groove, the handle and
+// the panel behind them all derived to the same near-white and the bar vanished,
+// leaving two faint arrow glyphs as the only evidence it was there.
+//
+// A role-pair check cannot catch this, because the track is deliberately the same
+// value as the surface in both schemes and the separation comes from the handle
+// and the dither texture over it. So render a real bar and read it.
+void ui_light_scheme_panel_scroll_bar_handle_reads_against_track() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QApplication::processEvents();
+
+  // Far more rows than fit, so the handle covers a small fraction of the groove
+  // and the bare track below it is actually rendered.
+  auto* list = new QListWidget(&window);
+  list->setObjectName(QStringLiteral("lightScrollBarProbeList"));
+  for (int row = 0; row < 400; ++row) {
+    list->addItem(QStringLiteral("row %1").arg(row));
+  }
+  list->setGeometry(0, 0, 200, 160);
+  list->show();
+  QApplication::processEvents();
+
+  auto* bar = list->verticalScrollBar();
+  CHECK(bar != nullptr);
+  if (bar == nullptr) {
+    return;
+  }
+  const auto shot = bar->grab().toImage();
+  CHECK(!shot.isNull());
+  if (shot.isNull()) {
+    return;
+  }
+  save_widget_artifact("ui_light_scheme_panel_scroll_bar", *list);
+
+  // The list sits at row 0, so the handle is parked at the top of the groove and
+  // bare track runs below it. Compare the two rows across the full width rather
+  // than at one column: a handle is placed by its border as much as by its fill,
+  // and the fill alone sits deliberately close to the track in a light scheme.
+  // What has to hold is that the two rows do not render as the same thing, which
+  // is exactly what failed here.
+  const int handle_y = 6;
+  const int track_y = shot.height() - 6;
+  int separation = 0;
+  int at_column = 0;
+  for (int x = 0; x < shot.width(); ++x) {
+    const int delta = channel_delta(shot.pixelColor(x, handle_y), shot.pixelColor(x, track_y));
+    if (delta > separation) {
+      separation = delta;
+      at_column = x;
+    }
+  }
+  if (separation < 40) {
+    fprintf(stderr, "  light panel scroll bar: handle row %s vs track row %s, best delta %d at x=%d, want >= 40\n",
+            qPrintable(shot.pixelColor(at_column, handle_y).name(QColor::HexRgb)),
+            qPrintable(shot.pixelColor(at_column, track_y).name(QColor::HexRgb)), separation,
+            at_column);
+  }
+  CHECK(separation >= 40);
+}
+
 // An unresolved @token makes Qt drop the entire declaration containing it,
 // silently. Nothing downstream would notice, so assert no token survives and no
 // raw hex was left behind in either scheme.
@@ -2686,6 +2756,8 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
        ui_theme_text_roles_contrast_with_their_backgrounds},
       {"ui_light_scheme_dialog_chrome_separates_from_canvas",
        ui_light_scheme_dialog_chrome_separates_from_canvas},
+      {"ui_light_scheme_panel_scroll_bar_handle_reads_against_track",
+       ui_light_scheme_panel_scroll_bar_handle_reads_against_track},
       {"ui_theme_qss_resolves_every_token", ui_theme_qss_resolves_every_token},
       {"ui_status_bar_error_message_flashes_then_persists_until_replaced",
        ui_status_bar_error_message_flashes_then_persists_until_replaced},

@@ -521,6 +521,14 @@ const ThemePalette& light_palette() {
     // their well, the tool column and docks their outline, and the splitter its
     // groove. Values are roughly twice their Dark separation because the same
     // step reads weaker at the light end of the range.
+    // A panel scroll bar's groove is the same recess, one step subtler. The
+    // mirror lands it on exactly the same near-white as window_bg, which in Dark
+    // is harmless (the dither carried the texture and the surface was near-black)
+    // but in Light erases the gutter: the bar becomes a floating handle with no
+    // channel to run in. Drop it just far enough to read as a recess while
+    // staying lighter than the handle that slides over it.
+    light.panel_scrollbar_track = rgb(0xe6e6e6);
+
     light.field_inset_border = rgb(0xc6c6c6);
     light.toolbar_border = rgb(0xcbcbcb);
     light.tool_palette_border = rgb(0xa9a9a9);
