@@ -461,7 +461,10 @@ const ThemePalette& light_palette() {
     // The pasteboard around the document never goes white: a white surround
     // destroys value judgement while editing, which is why Photoshop and every
     // other editor keep a mid gray in light mode. Its scroll-bar track is the
-    // same surface and has to match exactly or the gutter reads as a seam.
+    // same surface and has to match exactly or the gutter reads as a seam. The
+    // canvas bars also lay the scroll-dither texture over that track, so the
+    // Light variant of the asset (icons/light/scroll-dither.svg) is authored
+    // around this value; move one and move the other.
     //
     // It also has to stay clear of title_bar_bg below. A flat flip put both at
     // the same gray, so a dialog floating over the canvas lost its title bar
@@ -489,6 +492,25 @@ const ThemePalette& light_palette() {
     // and has to become a cast shadow against a light one. Flipping the value
     // would keep it a highlight and invert the bevel.
     light.field_bevel_top = rgb(0xa8a8a8);
+
+    // A tab bar says "current document" with lightness, and a mirror keeps the
+    // value while inverting the claim: Dark lifts the selected tab above its
+    // neighbours (0x3f over 0x2b), so Light handed it back as the darkest of the
+    // three and the background document looked like the active one. Light keeps
+    // the meaning instead. The selected tab rises to near white, above the
+    // window surface the strip itself is painted in, and the unselected tabs
+    // drop below that surface so they read as recessed into it. Hover still sits
+    // between the two, moving toward the selected end.
+    light.tab_bg = rgb(0xdedede);
+    light.tab_hover_bg = rgb(0xe6e6e6);
+    light.tab_selected_bg = rgb(0xf8f8f8);
+
+    // The Preferences tab strip carries the same inversion, one step subtler.
+    // Only these two move: dialog_tab_bg is also the pane behind the tabs, so
+    // darkening it to separate the unselected tabs would darken the settings
+    // sheet with them.
+    light.dialog_tab_hover_bg = rgb(0xf2f2f2);
+    light.dialog_tab_selected_bg = rgb(0xf9f9f9);
 
     // Selection backgrounds keep their saturation rather than washing out to a
     // pale tint. That is the convention in light themes, and it is what keeps the
@@ -528,6 +550,20 @@ const ThemePalette& light_palette() {
     // channel to run in. Drop it just far enough to read as a recess while
     // staying lighter than the handle that slides over it.
     light.panel_scrollbar_track = rgb(0xe6e6e6);
+
+    // The handle is the control and the groove is the surface it runs in, so the
+    // handle is the light element on a dark scheme and the dark one on a light
+    // scheme. The mirror preserved its value instead of its role and left a
+    // near-white handle sliding over the mid-gray canvas gutter, which read as a
+    // gap in the bar rather than a grip. One fill serves both families, so it has
+    // to clear the darker of the two tracks: it sits a Dark-sized step below the
+    // pasteboard gray the canvas gutter is painted in, which leaves it well below
+    // the near-white panel groove as well. The border deepens rather than
+    // brightens it, and hover deepens it further, the direction a light scheme
+    // gains contrast.
+    light.scrollbar_handle_bg = rgb(0x8a8a8a);
+    light.scrollbar_handle_border = rgb(0x6e6e6e);
+    light.scrollbar_handle_hover_bg = rgb(0x757575);
 
     light.field_inset_border = rgb(0xc6c6c6);
     light.toolbar_border = rgb(0xcbcbcb);
