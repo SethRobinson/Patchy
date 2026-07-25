@@ -1371,7 +1371,10 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     if (!key.has_value()) {
       return;
     }
-    write_additional_layer_block(layer_mask, *key, payload, options.large_document, long_length);
+    // Global blocks 4-align outside the declared length below, so the per-layer
+    // even-padding must stay off here or the alignment math shifts by one byte.
+    write_additional_layer_block(layer_mask, *key, payload, options.large_document, long_length,
+                                 /*pad_payload_to_even=*/false);
     // Global tagged blocks are padded to 4-byte boundaries.
     const auto padding = (4U - (payload.size() % 4U)) % 4U;
     for (std::size_t i = 0; i < padding; ++i) {

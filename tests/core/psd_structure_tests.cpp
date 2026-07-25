@@ -1160,8 +1160,15 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
       std::search(extra_data.begin(), extra_data.end(), custom_block_header.begin(), custom_block_header.end());
   CHECK(custom_block != extra_data.end());
   const auto custom_block_offset = static_cast<std::size_t>(custom_block - extra_data.begin());
-  CHECK(read_u32_be_at(extra_data, custom_block_offset + 8U) == static_cast<std::uint32_t>(custom_payload.size()));
-  const auto next_signature_offset = custom_block_offset + 12U + custom_payload.size();
+  // The odd 5-byte payload gets the even-length envelope: declared length 6
+  // with one zero pad byte inside it. Photoshop's layer-record walk advances by
+  // the length rounded up to even, so an odd declared length would turn every
+  // following block into "unknown data" there.
+  CHECK(read_u32_be_at(extra_data, custom_block_offset + 8U) ==
+        static_cast<std::uint32_t>(custom_payload.size() + 1U));
+  CHECK(read_u32_be_at(extra_data, custom_block_offset + 8U) % 2U == 0U);
+  CHECK(extra_data[custom_block_offset + 12U + custom_payload.size()] == 0U);
+  const auto next_signature_offset = custom_block_offset + 12U + custom_payload.size() + 1U;
   CHECK(next_signature_offset + 4U <= extra_data.size());
   CHECK(extra_data[next_signature_offset] == static_cast<std::uint8_t>('8'));
   CHECK(extra_data[next_signature_offset + 1U] == static_cast<std::uint8_t>('B'));
@@ -1180,8 +1187,10 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   bool found_custom = false;
   bool found_text = false;
   bool found_unicode_name = false;
+  // The read-back payload carries the envelope's pad byte (declared length 6).
+  const std::vector<std::uint8_t> padded_custom_payload{9, 8, 7, 6, 5, 0};
   for (const auto& block : read.layers().front().unknown_psd_blocks()) {
-    if (block.key == "zzzz" && block.payload == custom_payload) {
+    if (block.key == "zzzz" && block.payload == padded_custom_payload) {
       found_custom = true;
     }
     if (block.key == "TySh" && block.payload == text_payload) {

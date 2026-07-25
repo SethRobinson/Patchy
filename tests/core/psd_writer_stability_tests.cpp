@@ -1089,6 +1089,189 @@ void psd_photoshop_layer_style_4a_round_trip_fixture_imports() {
   CHECK(*resaved_payload == preserved->payload);
 }
 
+// Photoshop's per-layer tagged-block walk advances by the declared length
+// rounded up to an even byte count, and one odd block makes it misparse every
+// following block in that layer record as "unknown data" (the July 2026
+// pinball Levels report). Walk every layer record of a written document,
+// assert the even-length envelope invariant, and prove the rounding walk and
+// Patchy's exact-advance walk both land exactly on each record's end. Returns
+// every block key seen across the document.
+std::unordered_set<std::string> collect_layer_block_keys_checking_even_envelopes(
+    std::span<const std::uint8_t> bytes, bool large_document) {
+  std::unordered_set<std::string> keys;
+  patchy::psd::BigEndianReader reader(bytes);
+  (void)patchy::psd::read_header(reader);
+  reader.skip(reader.read_u32());  // color mode data
+  reader.skip(reader.read_u32());  // image resources
+  if (large_document) {
+    (void)reader.read_u64();  // layer and mask section length
+    (void)reader.read_u64();  // layer info length
+  } else {
+    (void)reader.read_u32();
+    (void)reader.read_u32();
+  }
+  const auto layer_count_raw = static_cast<std::int16_t>(reader.read_u16());
+  const auto layer_count = layer_count_raw < 0 ? -layer_count_raw : layer_count_raw;
+  CHECK(layer_count > 0);
+  for (std::int16_t index = 0; index < layer_count; ++index) {
+    reader.skip(16);  // bounds
+    const auto channel_count = reader.read_u16();
+    for (std::uint16_t channel = 0; channel < channel_count; ++channel) {
+      reader.skip(2U + (large_document ? 8U : 4U));  // channel id + byte length
+    }
+    reader.skip(12);  // blend signature/key, opacity, clipping, flags, filler
+    const auto extra_length = reader.read_u32();
+    const auto extra = reader.read_bytes(extra_length);
+    patchy::psd::BigEndianReader blocks(extra);
+    blocks.skip(blocks.read_u32());  // layer mask data
+    blocks.skip(blocks.read_u32());  // blending ranges
+    (void)patchy::test::read_pascal_padded(blocks, 4);
+    auto rounded_cursor = static_cast<std::uint64_t>(blocks.position());
+    while (blocks.remaining() >= 12U) {
+      const auto signature = blocks.read_bytes(4);
+      const bool narrow_signature = std::equal(signature.begin(), signature.end(), "8BIM");
+      const bool wide_signature = std::equal(signature.begin(), signature.end(), "8B64");
+      CHECK(narrow_signature || wide_signature);
+      if (!narrow_signature && !wide_signature) {
+        break;
+      }
+      const auto key_bytes = blocks.read_bytes(4);
+      const std::string key(key_bytes.begin(), key_bytes.end());
+      keys.insert(key);
+      // The documented 8-byte-length key set (see psd_io_common.cpp); the
+      // per-layer blocks this suite generates never hit it, but the walker
+      // stays faithful to Photoshop's by-key rule.
+      static const std::unordered_set<std::string> kWideLengthKeys{
+          "LMsk", "Lr16", "Lr32", "Layr", "Mt16", "Mt32", "Mtrn",
+          "Alph", "FMsk", "lnk2", "FEid", "FXid", "PxSD", "cinf"};
+      const bool wide_length = wide_signature || (large_document && kWideLengthKeys.count(key) > 0U);
+      const auto declared =
+          wide_length ? blocks.read_u64() : static_cast<std::uint64_t>(blocks.read_u32());
+      CHECK(declared % 2U == 0U);  // the even-length envelope invariant
+      blocks.skip(static_cast<std::size_t>(declared));  // exact advance
+      rounded_cursor = static_cast<std::uint64_t>(blocks.position()) + (declared % 2U);
+    }
+    CHECK(blocks.remaining() == 0U);      // the exact walk exhausts the record
+    CHECK(rounded_cursor == extra.size());  // the rounding walk lands on the same end
+  }
+  return keys;
+}
+
+void psd_layer_tagged_blocks_declare_even_lengths() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
+  auto& base = document.add_pixel_layer("Base", solid_rgb(64, 48, 200, 180, 40));
+  // A preserved foreign block with an odd payload re-emits under the even
+  // envelope (the declared length grows by one zero pad byte).
+  base.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"zzzz", {1, 2, 3}});
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Odd Text", solid_rgba(32, 16, 255, 255, 255, 255));
+  text_layer.set_bounds(patchy::Rect{4, 4, 32, 16});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Odd";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "17";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#102030";
+  text_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Multiply;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 0.5F;
+  shadow.angle_degrees = 120.0F;
+  shadow.distance = 3.0F;
+  shadow.size = 5.0F;
+  text_layer.layer_style().drop_shadows.push_back(shadow);
+  document.add_layer(std::move(text_layer));
+
+  patchy::AdjustmentSettings levels;
+  levels.kind = patchy::AdjustmentKind::Levels;
+  levels.levels.red.black_output = 40;
+  patchy::Layer levels_layer(document.allocate_layer_id(), "Levels", patchy::LayerKind::Adjustment);
+  levels_layer.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(levels_layer, levels);
+  document.add_layer(std::move(levels_layer));
+
+  patchy::AdjustmentSettings hue;
+  hue.kind = patchy::AdjustmentKind::HueSaturation;
+  hue.hue_saturation.hue_shift = 30;
+  patchy::Layer hue_layer(document.allocate_layer_id(), "Hue", patchy::LayerKind::Adjustment);
+  hue_layer.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(hue_layer, hue);
+  document.add_layer(std::move(hue_layer));
+
+  patchy::AdjustmentSettings curves;
+  curves.kind = patchy::AdjustmentKind::Curves;
+  curves.curves.rgb = {{0, 10}, {128, 200}, {255, 250}};
+  patchy::Layer curves_layer(document.allocate_layer_id(), "Curves", patchy::LayerKind::Adjustment);
+  curves_layer.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(curves_layer, curves);
+  document.add_layer(std::move(curves_layer));
+
+  const auto psd_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto psd_keys = collect_layer_block_keys_checking_even_envelopes(psd_bytes, false);
+  for (const auto* key : {"luni", "zzzz", "TySh", "lfx2", "levl", "hue2", "curv"}) {
+    CHECK(psd_keys.count(key) == 1U);
+  }
+  CHECK(psd_keys.count("plAD") == 0U);
+
+  patchy::psd::WriteOptions options;
+  options.large_document = true;
+  const auto psb_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document, options);
+  const auto psb_keys = collect_layer_block_keys_checking_even_envelopes(psb_bytes, true);
+  CHECK(psb_keys.count("TySh") == 1U);
+  CHECK(psb_keys.count("zzzz") == 1U);
+  CHECK(psb_keys.count("plAD") == 0U);
+}
+
+void psd_pinball_resave_writes_even_blocks_and_no_plad_if_available() {
+  // The July 2026 user report: Photoshop showed "This document contains
+  // unknown data which will be discarded" on every Patchy resave because the
+  // Levels layer carried the private plAD key at an odd 143-byte length.
+  const auto original =
+      patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3_from_photoshop.psd");
+  if (!std::filesystem::exists(original)) {
+    std::cout << "[SKIP] local pinball_retronight_poster_a3_from_photoshop.psd fixture missing: "
+              << original.string() << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(original);
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto keys = collect_layer_block_keys_checking_even_envelopes(resaved, false);
+  CHECK(keys.count("plAD") == 0U);
+  CHECK(keys.count("levl") == 1U);
+
+  // The Levels layer stays an editable adjustment through the resave.
+  const auto reread = patchy::psd::DocumentIo::read(resaved);
+  std::function<const patchy::Layer*(const std::vector<patchy::Layer>&)> find_levels =
+      [&find_levels](const std::vector<patchy::Layer>& layers) -> const patchy::Layer* {
+    for (const auto& layer : layers) {
+      if (layer.name() == "Levels 1") {
+        return &layer;
+      }
+      if (const auto* nested = find_levels(layer.children()); nested != nullptr) {
+        return nested;
+      }
+    }
+    return nullptr;
+  };
+  const auto* levels_layer = find_levels(reread.layers());
+  CHECK(levels_layer != nullptr);
+  if (levels_layer != nullptr) {
+    const auto settings = patchy::adjustment_settings_from_layer(*levels_layer);
+    CHECK(settings.has_value());
+    CHECK(settings->kind == patchy::AdjustmentKind::Levels);
+  }
+
+  // The legacy Patchy save (odd 143-byte plAD in the wild) heals on resave.
+  const auto legacy =
+      patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3_from_patchy.psd");
+  if (std::filesystem::exists(legacy)) {
+    const auto legacy_resave =
+        patchy::psd::DocumentIo::write_layered_rgb8(patchy::psd::DocumentIo::read_file(legacy));
+    const auto legacy_keys = collect_layer_block_keys_checking_even_envelopes(legacy_resave, false);
+    CHECK(legacy_keys.count("plAD") == 0U);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_writer_stability_tests() {
@@ -1096,6 +1279,9 @@ std::vector<patchy::test::TestCase> psd_writer_stability_tests() {
       {"psb_write_accepts_over_30k_dimension_psd_rejects",
        psb_write_accepts_over_30k_dimension_psd_rejects},
       {"psd_layered_writer_bytes_are_stable", psd_layered_writer_bytes_are_stable},
+      {"psd_layer_tagged_blocks_declare_even_lengths", psd_layer_tagged_blocks_declare_even_lengths},
+      {"psd_pinball_resave_writes_even_blocks_and_no_plad_if_available",
+       psd_pinball_resave_writes_even_blocks_and_no_plad_if_available},
       {"psd_layered_write_keeps_merged_transparency_in_composite",
        psd_layered_write_keeps_merged_transparency_in_composite},
       {"psd_legacy_black_composite_fixture_keeps_layer_transparency",

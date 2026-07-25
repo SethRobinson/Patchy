@@ -72,7 +72,6 @@ constexpr std::array<char, 4> kPatchyLayerStyleBlockKey{'p', 'l', 'F', 'X'};
 constexpr std::array<char, 4> kPatchyLayerStylePayloadSignature{'P', 'L', 'F', 'X'};
 constexpr std::uint16_t kPatchyLayerStyleVersion = 1;
 constexpr std::uint16_t kMaxPatchyLayerStyleEntries = 512;
-constexpr std::array<char, 4> kPatchyAdjustmentBlockKey{'p', 'l', 'A', 'D'};
 constexpr std::array<char, 4> kPatchyAdjustmentPayloadSignature{'P', 'L', 'A', 'D'};
 constexpr std::uint16_t kPatchyAdjustmentVersion = 4;
 constexpr std::array<char, 4> kPatchyCurvesExtensionSignature{'C', 'R', 'V', '2'};
@@ -330,9 +329,13 @@ std::array<char, 4> blend_mode_key(BlendMode mode);
 BlendMode blend_mode_from_key(const std::array<char, 4>& key);
 BlendMode blend_mode_from_descriptor_enum(std::string_view value, const std::array<char, 4>& fallback_key);
 std::optional<std::array<char, 4>> block_key_from_string(std::string_view key);
+// Per-layer blocks must keep pad_payload_to_even: Photoshop's layer-record walk
+// advances by the declared length rounded up to an even byte count, so one odd
+// block makes it misparse every following block as "unknown data". Only the
+// global-section emitter passes false (it 4-aligns outside the declared length).
 void write_additional_layer_block(BigEndianWriter& writer, const std::array<char, 4>& key,
                                   std::span<const std::uint8_t> payload, bool large_document,
-                                  bool force_wide = false);
+                                  bool force_wide = false, bool pad_payload_to_even = true);
 
 // Generic descriptor-writing primitives (definitions in psd_io_common.cpp).
 void write_descriptor_item_header(BigEndianWriter& writer, std::string_view key, const std::array<char, 4>& type);
@@ -442,11 +445,10 @@ std::vector<std::uint8_t> photoshop_color_balance_payload(const ColorBalanceAdju
 // True when the payload carries settings Patchy preserves but does not render
 // (nonzero shadows/highlights or preserve luminosity) - drives the import notice.
 [[nodiscard]] bool photoshop_color_balance_payload_has_unrendered_data(std::span<const std::uint8_t> payload);
-std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer);
+// Reads the legacy private 'plAD' block. Read-only since 2026-07: Photoshop
+// reports the unknown key as "unknown data" on open, so no kind writes it
+// anymore; native levl/curv/hue2/blnc blocks carry the modeled state instead.
 std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::uint8_t> payload);
-// plAD's kind byte only encodes the original v4 kinds; old builds read unknown
-// values as Levels, so newer kinds must never be written into plAD.
-[[nodiscard]] bool patchy_plad_supports_kind(AdjustmentKind kind);
 
 // Layer-style codecs: lfx2/lrFX parse, global-light resolution, and the private
 // plFX block (definitions in psd_layer_styles.cpp). The public lfx2 write API

@@ -1,7 +1,9 @@
 // Adjustment-layer codecs for the PSD reader/writer: the Photoshop levl /
 // curv / hue2 payloads (hue2 patches in place, curv preserves imported bytes
-// exactly), the Patchy CRV2 curves extension, and the private plAD adjustment
-// block. Split out of psd_document_io.cpp as a pure move.
+// exactly), plus read-only legacy support for the private plAD adjustment
+// block and its CRV2 curves extension (never written since 2026-07: Photoshop
+// reported the unknown key as "unknown data" on every open). Split out of
+// psd_document_io.cpp as a pure move.
 
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_io_internal.hpp"
@@ -57,27 +59,6 @@ namespace patchy::psd {
 
 namespace {
 
-std::uint8_t adjustment_kind_value(AdjustmentKind kind) {
-  switch (kind) {
-    case AdjustmentKind::Levels:
-      return 0U;
-    case AdjustmentKind::Curves:
-      return 1U;
-    case AdjustmentKind::HueSaturation:
-      return 2U;
-    case AdjustmentKind::ColorBalance:
-      return 3U;
-    case AdjustmentKind::Invert:
-    case AdjustmentKind::Posterize:
-    case AdjustmentKind::Threshold:
-    case AdjustmentKind::BrightnessContrast:
-      // Unreachable: patchy_adjustment_payload never writes plAD for kinds
-      // newer than v4 (old parsers would misread the byte as Levels).
-      return 0U;
-  }
-  return 0U;
-}
-
 AdjustmentKind adjustment_kind_from_value(std::uint8_t value) {
   switch (value) {
     case 1U:
@@ -89,20 +70,6 @@ AdjustmentKind adjustment_kind_from_value(std::uint8_t value) {
     default:
       return AdjustmentKind::Levels;
   }
-}
-
-std::uint8_t curves_channel_value(CurvesChannel channel) {
-  switch (channel) {
-    case CurvesChannel::Rgb:
-      return 0U;
-    case CurvesChannel::Red:
-      return 1U;
-    case CurvesChannel::Green:
-      return 2U;
-    case CurvesChannel::Blue:
-      return 3U;
-  }
-  return 0U;
 }
 
 std::optional<CurvesChannel> curves_channel_from_value(std::uint8_t value) {
@@ -118,20 +85,6 @@ std::optional<CurvesChannel> curves_channel_from_value(std::uint8_t value) {
     default:
       return std::nullopt;
   }
-}
-
-std::uint8_t levels_channel_value(LevelsChannel channel) {
-  switch (channel) {
-    case LevelsChannel::Red:
-      return 1U;
-    case LevelsChannel::Green:
-      return 2U;
-    case LevelsChannel::Blue:
-      return 3U;
-    case LevelsChannel::Rgb:
-      return 0U;
-  }
-  return 0U;
 }
 
 LevelsChannel levels_channel_from_value(int value) {
@@ -193,15 +146,6 @@ int read_i16(BigEndianReader& reader) {
   return static_cast<int>(static_cast<std::int16_t>(reader.read_u16()));
 }
 
-void write_levels_record_i32(BigEndianWriter& writer, LevelsRecord record) {
-  record = clamp_levels_record(record);
-  write_i32(writer, record.black_input);
-  write_i32(writer, record.white_input);
-  write_i32(writer, record.gamma_percent);
-  write_i32(writer, record.black_output);
-  write_i32(writer, record.white_output);
-}
-
 LevelsRecord read_levels_record_i32(BigEndianReader& reader) {
   return clamp_levels_record(
       LevelsRecord{read_i32(reader), read_i32(reader), read_i32(reader), read_i32(reader), read_i32(reader)});
@@ -251,27 +195,6 @@ constexpr std::array<std::uint8_t, 120> kPhotoshopHueSaturationDefaultTail = {
     0x00, 0xF0, 0x00, 0x64, 0x00, 0x32, 0x01, 0x2C, 0x00, 0x64, 0x00, 0x32,
 };
 
-void write_patchy_curves_extension(BigEndianWriter& writer, const CurvesAdjustment& curves) {
-  BigEndianWriter extension;
-  extension.write_u16(kPatchyCurvesExtensionVersion);
-  extension.write_u16(kPatchyCurvesExtensionChannelCount);
-  constexpr std::array channels{CurvesChannel::Rgb, CurvesChannel::Red, CurvesChannel::Green, CurvesChannel::Blue};
-  for (const auto channel : channels) {
-    const auto points = normalized_curve_control_points(curve_points_for_channel(curves, channel));
-    extension.write_u8(curves_channel_value(channel));
-    extension.write_u8(0U);  // reserved
-    extension.write_u16(static_cast<std::uint16_t>(points.size()));
-    for (const auto point : points) {
-      extension.write_u16(static_cast<std::uint16_t>(point.input));
-      extension.write_u16(static_cast<std::uint16_t>(point.output));
-    }
-  }
-
-  write_signature(writer, kPatchyCurvesExtensionSignature);
-  writer.write_u32(static_cast<std::uint32_t>(extension.bytes().size()));
-  writer.write_bytes(extension.bytes());
-}
-
 std::optional<CurvesAdjustment> parse_patchy_curves_extension(std::span<const std::uint8_t> payload) {
   if (payload.size() > kPatchyCurvesExtensionMaxPayloadSize) {
     return std::nullopt;
@@ -319,18 +242,6 @@ std::optional<CurvesAdjustment> parse_patchy_curves_extension(std::span<const st
 bool curve_points_are_exact_identity(const CurveControlPoints& points) {
   return points.size() == 2U && points[0] == CurveControlPoint{0, 0} &&
          points[1] == CurveControlPoint{255, 255};
-}
-
-bool curves_require_patchy_extension(const CurvesAdjustment& curves) {
-  if (!curve_points_are_exact_identity(curves.red) || !curve_points_are_exact_identity(curves.green) ||
-      !curve_points_are_exact_identity(curves.blue)) {
-    return true;
-  }
-  if (curve_points_are_exact_identity(curves.rgb)) {
-    return false;
-  }
-  return curves.rgb.size() != 3U || curves.rgb[0].input != 0 || curves.rgb[1].input != 128 ||
-         curves.rgb[2].input != 255;
 }
 
 }  // namespace
@@ -500,29 +411,6 @@ std::vector<std::uint8_t> photoshop_curves_payload(const CurvesAdjustment& curve
     writer.write_u8(0U);
   }
   return writer.bytes();
-}
-
-std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::uint8_t> payload);
-
-bool patchy_plad_supports_kind(AdjustmentKind kind) {
-  switch (kind) {
-    case AdjustmentKind::Levels:
-    case AdjustmentKind::HueSaturation:
-      return true;
-    case AdjustmentKind::Curves:
-    case AdjustmentKind::ColorBalance:
-      // Both migrated to native-only writes (Curves 2026-07 for the
-      // Photoshop unknown-data warning; Color Balance 2026-07 because a
-      // plAD-only layer opened in Photoshop as an opaque white NORMAL raster).
-      // plAD kind bytes 1 and 3 are still READ for legacy imports.
-      return false;
-    case AdjustmentKind::Invert:
-    case AdjustmentKind::Posterize:
-    case AdjustmentKind::Threshold:
-    case AdjustmentKind::BrightnessContrast:
-      return false;
-  }
-  return false;
 }
 
 std::optional<AdjustmentSettings> parse_photoshop_color_balance_adjustment(
@@ -738,63 +626,13 @@ std::vector<std::uint8_t> photoshop_threshold_payload(const ThresholdAdjustment&
   return writer.bytes();
 }
 
-std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
-  const auto settings = adjustment_settings_from_layer(layer);
-  if (!settings.has_value() || !patchy_plad_supports_kind(settings->kind)) {
-    return {};
-  }
-
-  if (settings->kind == AdjustmentKind::Curves) {
-    for (const auto& block : layer.unknown_psd_blocks()) {
-      if (block.key != "plAD") {
-        continue;
-      }
-      const auto original = parse_patchy_adjustment(block.payload);
-      if (original.has_value() && original->kind == AdjustmentKind::Curves &&
-          original->curves == settings->curves) {
-        // Untouched imported Curves payloads remain byte-identical, including an
-        // unknown, future, or malformed CRV2 tail. A real Patchy edit changes the
-        // modeled points and falls through to regenerate the known v4 shape.
-        return block.payload;
-      }
-      break;
-    }
-  }
-
-  BigEndianWriter writer;
-  write_signature(writer, kPatchyAdjustmentPayloadSignature);
-  writer.write_u16(kPatchyAdjustmentVersion);
-  writer.write_u8(adjustment_kind_value(settings->kind));
-  for (int index = 0; index < 4; ++index) {
-    write_levels_record_i32(writer, levels_record_for_photoshop_index(settings->levels, index));
-  }
-  write_i32(writer, levels_channel_value(settings->levels.channel));
-  const auto composite_curve_lut = build_curve_lut(settings->curves.rgb);
-  write_i32(writer, composite_curve_lut[0]);
-  write_i32(writer, composite_curve_lut[128]);
-  write_i32(writer, composite_curve_lut[255]);
-  write_i32(writer, settings->hue_saturation.hue_shift);
-  write_i32(writer, settings->hue_saturation.saturation_delta);
-  write_i32(writer, settings->hue_saturation.lightness_delta);
-  write_i32(writer, settings->color_balance.cyan_red);
-  write_i32(writer, settings->color_balance.magenta_green);
-  write_i32(writer, settings->color_balance.yellow_blue);
-  // Trailing version-4 extension (July 2026): Hue/Saturation colorize. Kept under
-  // version 4 because shipped parsers tolerate longer payloads but reject unknown
-  // versions - a bump would make every new adjustment file unreadable in old builds.
-  write_i32(writer, settings->hue_saturation.colorize ? 1 : 0);
-  write_i32(writer, settings->hue_saturation.colorize_hue);
-  write_i32(writer, settings->hue_saturation.colorize_saturation);
-  write_i32(writer, settings->hue_saturation.colorize_lightness);
-  if (settings->kind == AdjustmentKind::Curves && curves_require_patchy_extension(settings->curves)) {
-    // Length-delimited extension under the intentionally unchanged plAD v4.
-    // Older builds ignore trailing bytes and continue to use the three legacy
-    // composite outputs written above.
-    write_patchy_curves_extension(writer, settings->curves);
-  }
-  return writer.bytes();
-}
-
+// Read-only since 2026-07: no adjustment kind writes plAD anymore (Photoshop
+// reported the unknown key as "unknown data" on every open). The v4 layout
+// stays parseable for legacy imports: 'PLAD' signature, u16 version 4, kind u8
+// (0 Levels, 1 Curves, 2 HueSat, 3 ColorBalance; newer kinds were never
+// written because old builds read unknown kind bytes as Levels), 4 levels
+// records of 5 i32, levels channel i32, 3 legacy curve outputs, 3 hue/sat,
+// 3 color balance, optional 4-i32 colorize tail, optional CRV2 curves tail.
 std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::uint8_t> payload) {
   try {
     BigEndianReader reader(payload);

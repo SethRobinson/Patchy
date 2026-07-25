@@ -1510,30 +1510,43 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
       engine_data_for_text(*text, runs, paragraph_runs, boxed_text, geometry.box_bounds, anti_alias);
   const auto descriptor_text = photoshop_engine_text(*text);
 
-  BigEndianWriter writer;
-  writer.write_u16(1);
-  for (const auto value : geometry.transform) {
-    write_f64(writer, value);
-  }
-  writer.write_u16(50);
-  writer.write_u32(16);
-  write_text_descriptor(writer, descriptor_text, engine_data, geometry);
-  writer.write_u16(1);
-  writer.write_u32(16);
-  write_warp_descriptor(writer, warp_active ? &*warp : nullptr);
-  if (warp_active) {
-    // Photoshop stores the warp's reference box (the text 'bounds') as four
-    // big-endian float32s in the TySh tail when warped, zeros otherwise.
-    write_f32(writer, static_cast<float>(geometry.bounds.left));
-    write_f32(writer, static_cast<float>(geometry.bounds.top));
-    write_f32(writer, static_cast<float>(geometry.bounds.right));
-    write_f32(writer, static_cast<float>(geometry.bounds.bottom));
-  } else {
-    for (const auto value : geometry.tail_bounds) {
-      write_i32(writer, value);
+  const auto build_payload = [&](std::span<const std::uint8_t> engine_bytes) {
+    BigEndianWriter writer;
+    writer.write_u16(1);
+    for (const auto value : geometry.transform) {
+      write_f64(writer, value);
     }
+    writer.write_u16(50);
+    writer.write_u32(16);
+    write_text_descriptor(writer, descriptor_text, engine_bytes, geometry);
+    writer.write_u16(1);
+    writer.write_u32(16);
+    write_warp_descriptor(writer, warp_active ? &*warp : nullptr);
+    if (warp_active) {
+      // Photoshop stores the warp's reference box (the text 'bounds') as four
+      // big-endian float32s in the TySh tail when warped, zeros otherwise.
+      write_f32(writer, static_cast<float>(geometry.bounds.left));
+      write_f32(writer, static_cast<float>(geometry.bounds.top));
+      write_f32(writer, static_cast<float>(geometry.bounds.right));
+      write_f32(writer, static_cast<float>(geometry.bounds.bottom));
+    } else {
+      for (const auto value : geometry.tail_bounds) {
+        write_i32(writer, value);
+      }
+    }
+    return writer.bytes();
+  };
+  auto payload = build_payload(engine_data);
+  if ((payload.size() % 2U) != 0U) {
+    // The TySh tail is read end-anchored (last 16 bytes) by Photoshop and by
+    // Patchy's own reader, so the even-length envelope pad must never land
+    // after it. Keep the body itself even instead: engine data tolerates
+    // trailing whitespace, and Photoshop never writes an odd TySh either.
+    auto padded_engine_data = engine_data;
+    padded_engine_data.push_back('\n');
+    payload = build_payload(padded_engine_data);
   }
-  return writer.bytes();
+  return payload;
 }
 
 bool should_write_generated_text_block(const EncodedLayer& encoded) {

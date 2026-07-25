@@ -703,6 +703,45 @@ std::vector<std::uint8_t> test_patchy_curves_plad_payload(const patchy::CurvesAd
   return writer.bytes();
 }
 
+// Legacy plAD v4 payload for the non-Curves kinds (never written since 2026-07;
+// synthesized here to pin the read path): 'PLAD', u16 version 4, kind byte,
+// four levels records, levels channel, legacy composite curve outputs,
+// hue/sat/lightness, color balance, and the trailing colorize extension.
+std::vector<std::uint8_t> test_patchy_plad_payload(
+    std::uint8_t kind, int levels_channel,
+    std::array<patchy::LevelsRecord, 4> levels_records =
+        {patchy::LevelsRecord{0, 255, 100, 0, 255}, patchy::LevelsRecord{0, 255, 100, 0, 255},
+         patchy::LevelsRecord{0, 255, 100, 0, 255}, patchy::LevelsRecord{0, 255, 100, 0, 255}},
+    std::array<int, 3> hue_saturation = {0, 0, 0}) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_bytes(std::array<std::uint8_t, 4>{'P', 'L', 'A', 'D'});
+  writer.write_u16(4);
+  writer.write_u8(kind);
+  const auto write_i32 = [&writer](int value) { writer.write_u32(static_cast<std::uint32_t>(value)); };
+  for (const auto& record : levels_records) {
+    write_i32(record.black_input);
+    write_i32(record.white_input);
+    write_i32(record.gamma_percent);
+    write_i32(record.black_output);
+    write_i32(record.white_output);
+  }
+  write_i32(levels_channel);
+  write_i32(0);    // Legacy composite curve shadow output.
+  write_i32(128);  // Legacy composite curve midtone output.
+  write_i32(255);  // Legacy composite curve highlight output.
+  for (const auto value : hue_saturation) {
+    write_i32(value);
+  }
+  for (int color_balance_value = 0; color_balance_value < 3; ++color_balance_value) {
+    write_i32(0);
+  }
+  write_i32(0);   // Hue/Saturation colorize disabled.
+  write_i32(0);   // Colorize hue.
+  write_i32(25);  // Colorize saturation default.
+  write_i32(0);   // Colorize lightness.
+  return writer.bytes();
+}
+
 void psd_curves_native_output_omits_private_plad_and_migrates_legacy() {
   const auto write_document = [](const patchy::CurvesAdjustment& curves) {
     patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
@@ -890,8 +929,12 @@ void psd_native_curves_suppresses_private_fallback_and_preserves_both_blocks() {
   const auto rewritten_plad = psd_layer_block_payload(rewritten_extra, "plAD");
   CHECK(rewritten_curv.has_value());
   CHECK(*rewritten_curv == native_curv);
+  // The preserved odd 143-byte plAD re-emits with the even-length envelope pad
+  // (declared length includes one trailing zero byte); the content is intact.
   CHECK(rewritten_plad.has_value());
-  CHECK(*rewritten_plad == stale_plad);
+  CHECK(rewritten_plad->size() == stale_plad.size() + 1U);
+  CHECK(std::equal(stale_plad.begin(), stale_plad.end(), rewritten_plad->begin()));
+  CHECK(rewritten_plad->back() == 0U);
 
   patchy::Document native_document(1, 1, patchy::PixelFormat::rgb8());
   native_document.add_pixel_layer("Base", solid_rgb(1, 1, 40, 80, 120));
@@ -1058,6 +1101,9 @@ void psd_levels_adjustment_channel_round_trips() {
   CHECK(flattened.pixel(0, 0)[1] == 200);
   CHECK(flattened.pixel(0, 0)[2] == 0);
 
+  // Fresh saves are native-levl only (no private plAD since 2026-07), and levl
+  // has no field for the dialog's selected channel tab: the values round-trip
+  // while the selection resets to the composite default, matching Photoshop.
   const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
   const auto round_tripped = patchy::psd::DocumentIo::read(bytes);
   CHECK(round_tripped.layers().size() == 2);
@@ -1065,14 +1111,27 @@ void psd_levels_adjustment_channel_round_trips() {
   CHECK(round_tripped_settings.has_value());
   CHECK(round_tripped_settings->kind == patchy::AdjustmentKind::Levels);
   CHECK(round_tripped_settings->levels.red.black_output == 255);
-  CHECK(round_tripped_settings->levels.channel == patchy::LevelsChannel::Red);
+  CHECK(round_tripped_settings->levels.channel == patchy::LevelsChannel::Rgb);
   const auto round_tripped_flattened = patchy::Compositor{}.flatten_rgb8(round_tripped);
   CHECK(round_tripped_flattened.pixel(0, 0)[0] == 255);
   CHECK(round_tripped_flattened.pixel(0, 0)[1] == 200);
   CHECK(round_tripped_flattened.pixel(0, 0)[2] == 0);
+
+  // Legacy files still restore the channel tab: native levl stays authoritative
+  // for the values while the plAD merge supplies the selection.
+  std::array<patchy::LevelsRecord, 4> native_records{};
+  native_records[1].black_output = 255;
+  const auto legacy_bytes =
+      single_adjustment_layer_psd({{{'l', 'e', 'v', 'l'}, test_photoshop_levels_payload(native_records)},
+                                   {{'p', 'l', 'A', 'D'}, test_patchy_plad_payload(0U, 1)}});
+  const auto legacy_settings =
+      patchy::adjustment_settings_from_layer(patchy::psd::DocumentIo::read(legacy_bytes).layers().front());
+  CHECK(legacy_settings.has_value());
+  CHECK(legacy_settings->levels.red.black_output == 255);
+  CHECK(legacy_settings->levels.channel == patchy::LevelsChannel::Red);
 }
 
-void psd_levels_adjustment_writes_native_levl_and_patchy_fallback() {
+void psd_levels_adjustment_writes_native_levl_only() {
   patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(1, 1, 32, 128, 220));
 
@@ -1091,7 +1150,7 @@ void psd_levels_adjustment_writes_native_levl_and_patchy_fallback() {
   const auto extra_data = psd_layer_extra_data(bytes, 1);
   const auto levl = psd_layer_block_payload(extra_data, "levl");
   CHECK(levl.has_value());
-  CHECK(psd_layer_block_payload(extra_data, "plAD").has_value());
+  CHECK(!psd_layer_block_payload(extra_data, "plAD").has_value());
   CHECK(levl->size() == 2U + 29U * 10U);
   CHECK(psd_levels_payload_record(*levl, 0).black_input == 12);
   CHECK(psd_levels_payload_record(*levl, 0).gamma_percent == 125);
@@ -1129,23 +1188,17 @@ void psd_native_levels_adjustment_imports_without_patchy_block() {
 }
 
 void psd_native_levels_overrides_stale_patchy_fallback() {
-  patchy::Document stale_document(1, 1, patchy::PixelFormat::rgb8());
-  stale_document.add_pixel_layer("Base", solid_rgb(1, 1, 0, 200, 0));
-  patchy::AdjustmentSettings stale_settings;
-  stale_settings.kind = patchy::AdjustmentKind::Levels;
-  stale_settings.levels.blue.black_output = 255;
-  patchy::Layer stale_adjustment(stale_document.allocate_layer_id(), "Stale Levels", patchy::LayerKind::Adjustment);
-  stale_adjustment.set_bounds(patchy::Rect::from_size(1, 1));
-  patchy::configure_adjustment_layer(stale_adjustment, stale_settings);
-  stale_document.add_layer(std::move(stale_adjustment));
-  const auto stale_extra = psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(stale_document), 1);
-  const auto stale_plad = psd_layer_block_payload(stale_extra, "plAD");
-  CHECK(stale_plad.has_value());
+  // Fresh saves no longer write plAD, so synthesize the block a pre-2026-07
+  // build would have produced: blue black output raised to 255.
+  std::array<patchy::LevelsRecord, 4> stale_records{
+      patchy::LevelsRecord{0, 255, 100, 0, 255}, patchy::LevelsRecord{0, 255, 100, 0, 255},
+      patchy::LevelsRecord{0, 255, 100, 0, 255}, patchy::LevelsRecord{0, 255, 100, 255, 255}};
+  const auto stale_plad = test_patchy_plad_payload(0U, 0, stale_records);
 
   std::array<patchy::LevelsRecord, 4> native_records{};
   native_records[1].black_output = 255;
   const auto bytes = single_adjustment_layer_psd({{{'l', 'e', 'v', 'l'}, test_photoshop_levels_payload(native_records)},
-                                                  {{'p', 'l', 'A', 'D'}, *stale_plad}});
+                                                  {{'p', 'l', 'A', 'D'}, stale_plad}});
   const auto document = patchy::psd::DocumentIo::read(bytes);
   const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
   CHECK(settings.has_value());
@@ -1290,7 +1343,7 @@ void psd_native_hue2_colorize_adjustment_imports_and_renders() {
   CHECK(flattened.pixel(0, 0)[2] == 182);
 }
 
-void psd_hue_saturation_adjustment_writes_native_hue2_and_patchy_fallback() {
+void psd_hue_saturation_adjustment_writes_native_hue2_only() {
   patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(1, 1, 120, 120, 120));
   patchy::AdjustmentSettings settings;
@@ -1309,9 +1362,9 @@ void psd_hue_saturation_adjustment_writes_native_hue2_and_patchy_fallback() {
   CHECK(hue2.has_value());
   // A Patchy-authored layer emits the byte-exact fresh-layer template PS writes.
   CHECK(*hue2 == test_hue2_payload(true, -157, 52, 0, 0, 0, 0));
-  const auto plad = psd_layer_block_payload(extra, "plAD");
-  CHECK(plad.has_value());
-  CHECK(plad->size() == 143);  // 127-byte version 4 body + 16-byte colorize extension
+  // hue2 alone carries the full model including colorize; the private plAD is
+  // gone (Photoshop reported the unknown key as "unknown data" on open).
+  CHECK(!psd_layer_block_payload(extra, "plAD").has_value());
 
   const auto read = patchy::psd::DocumentIo::read(bytes);
   const auto round_tripped = patchy::adjustment_settings_from_layer(read.layers().back());
@@ -1322,22 +1375,17 @@ void psd_hue_saturation_adjustment_writes_native_hue2_and_patchy_fallback() {
 }
 
 void psd_native_hue2_overrides_stale_patchy_fallback() {
-  patchy::Document stale_document(1, 1, patchy::PixelFormat::rgb8());
-  stale_document.add_pixel_layer("Base", solid_rgb(1, 1, 120, 120, 120));
-  patchy::AdjustmentSettings stale_settings;
-  stale_settings.kind = patchy::AdjustmentKind::HueSaturation;
-  stale_settings.hue_saturation.hue_shift = 90;
-  patchy::Layer stale_adjustment(stale_document.allocate_layer_id(), "Stale", patchy::LayerKind::Adjustment);
-  stale_adjustment.set_bounds(patchy::Rect::from_size(1, 1));
-  patchy::configure_adjustment_layer(stale_adjustment, stale_settings);
-  stale_document.add_layer(std::move(stale_adjustment));
-  const auto stale_extra = psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(stale_document), 1);
-  const auto stale_plad = psd_layer_block_payload(stale_extra, "plAD");
-  CHECK(stale_plad.has_value());
+  // Fresh saves no longer write plAD, so synthesize the block a pre-2026-07
+  // build would have produced: a hue shift of 90 that must lose to native hue2.
+  const auto stale_plad = test_patchy_plad_payload(
+      2U, 0,
+      {patchy::LevelsRecord{0, 255, 100, 0, 255}, patchy::LevelsRecord{0, 255, 100, 0, 255},
+       patchy::LevelsRecord{0, 255, 100, 0, 255}, patchy::LevelsRecord{0, 255, 100, 0, 255}},
+      {90, 0, 0});
 
   const auto bytes =
       single_adjustment_layer_psd({{{'h', 'u', 'e', '2'}, test_hue2_payload(true, -157, 52, 0, 0, 0, 0)},
-                                   {{'p', 'l', 'A', 'D'}, *stale_plad}});
+                                   {{'p', 'l', 'A', 'D'}, stale_plad}});
   const auto document = patchy::psd::DocumentIo::read(bytes);
   const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
   CHECK(settings.has_value());
@@ -2258,8 +2306,7 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"psd_photoshop_curves_fixtures_import_preserve_regenerate_and_round_trip",
        psd_photoshop_curves_fixtures_import_preserve_regenerate_and_round_trip},
       {"psd_levels_adjustment_channel_round_trips", psd_levels_adjustment_channel_round_trips},
-      {"psd_levels_adjustment_writes_native_levl_and_patchy_fallback",
-       psd_levels_adjustment_writes_native_levl_and_patchy_fallback},
+      {"psd_levels_adjustment_writes_native_levl_only", psd_levels_adjustment_writes_native_levl_only},
       {"psd_native_levels_adjustment_imports_without_patchy_block",
        psd_native_levels_adjustment_imports_without_patchy_block},
       {"psd_native_levels_overrides_stale_patchy_fallback",
@@ -2268,8 +2315,8 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        adjustment_hue_saturation_colorize_matches_photoshop_reference},
       {"psd_native_hue2_colorize_adjustment_imports_and_renders",
        psd_native_hue2_colorize_adjustment_imports_and_renders},
-      {"psd_hue_saturation_adjustment_writes_native_hue2_and_patchy_fallback",
-       psd_hue_saturation_adjustment_writes_native_hue2_and_patchy_fallback},
+      {"psd_hue_saturation_adjustment_writes_native_hue2_only",
+       psd_hue_saturation_adjustment_writes_native_hue2_only},
       {"psd_native_hue2_overrides_stale_patchy_fallback", psd_native_hue2_overrides_stale_patchy_fallback},
       {"psd_hue2_round_trip_patches_header_and_preserves_bands_and_tail",
        psd_hue2_round_trip_patches_header_and_preserves_bands_and_tail},

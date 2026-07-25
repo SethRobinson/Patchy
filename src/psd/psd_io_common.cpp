@@ -539,20 +539,31 @@ std::optional<std::array<char, 4>> block_key_from_string(std::string_view key) {
 
 // force_wide carries a preserved block's original 8B64 form; PSD saves always downgrade
 // to the narrow form (PSB-only widths cannot appear in a version-1 file).
+// pad_payload_to_even: Photoshop's per-layer block walk advances by the declared
+// length rounded up to an even byte count, and Photoshop itself never declares an
+// odd length (corpus scan: 0 odd blocks across 397 PS-written files). Declaring
+// the pad byte inside the length keeps exact-advance readers (Patchy's own) and
+// rounding readers (Photoshop) on the same walk; without it one odd block turns
+// the rest of the layer record into "unknown data" in Photoshop.
 void write_additional_layer_block(BigEndianWriter& writer, const std::array<char, 4>& key,
                                   std::span<const std::uint8_t> payload, bool large_document,
-                                  bool force_wide) {
+                                  bool force_wide, bool pad_payload_to_even) {
   const bool wide_length =
       large_document && (force_wide || tagged_block_length_is_u64(std::string_view(key.data(), key.size())));
   write_signature(writer, wide_length ? std::array<char, 4>{'8', 'B', '6', '4'}
                                       : std::array<char, 4>{'8', 'B', 'I', 'M'});
   write_signature(writer, key);
+  const bool pad = pad_payload_to_even && (payload.size() % 2U) != 0U;
+  const auto declared_size = payload.size() + (pad ? 1U : 0U);
   if (wide_length) {
-    writer.write_u64(payload.size());
+    writer.write_u64(declared_size);
   } else {
-    writer.write_u32(checked_u32(payload.size(), "additional layer block length"));
+    writer.write_u32(checked_u32(declared_size, "additional layer block length"));
   }
   writer.write_bytes(payload);
+  if (pad) {
+    writer.write_u8(0);
+  }
 }
 
 #ifdef _WIN32

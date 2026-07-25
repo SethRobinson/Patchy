@@ -740,19 +740,11 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
           photoshop_color_balance_payload(settings->color_balance, find_layer_block(*encoded.layer, "blnc")),
           large_document);
     }
-    // Native Curves carries the complete Patchy point model. Writing plAD next
-    // to curv makes Photoshop report "unknown data" on every open, even though
-    // it recognizes the native adjustment; a plAD-only Color Balance opened in
-    // Photoshop as an opaque white NORMAL raster (no native block at all).
-    // Both migrated to native-only writes; legacy plAD remains readable.
-    // Kinds newer than plAD v4 (Invert, ...) are native-block only: old builds
-    // would misread their kind byte as Levels.
-    if (!settings.has_value() || patchy_plad_supports_kind(settings->kind)) {
-      const auto payload = patchy_adjustment_payload(*encoded.layer);
-      if (!payload.empty()) {
-        write_additional_layer_block(extra, kPatchyAdjustmentBlockKey, payload, large_document);
-      }
-    }
+    // Every adjustment kind is native-block only (2026-07). The private plAD
+    // block is a key Photoshop does not know, so it reported "unknown data" on
+    // every open, and its odd payload length desynced Photoshop's even-rounded
+    // block walk, turning the rest of the layer record into unknown data too.
+    // Legacy plAD stays read-only via parse_patchy_adjustment.
   }
 
   const auto generated_text_payload = should_write_generated_text_block(encoded)
