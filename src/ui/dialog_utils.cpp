@@ -4,6 +4,7 @@
 
 #include "ui/action_icons.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/window_effects.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
@@ -1025,6 +1026,7 @@ QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, cons
                                         DialogChromeCloseMode close_mode) {
   dialog.setWindowTitle(title);
   dialog.setWindowFlag(Qt::FramelessWindowHint, true);
+  apply_frameless_window_effects_on_show(dialog, WindowCornerRadius::Standard);
   append_themed_style(dialog, dialog_chrome_style());
   root->setContentsMargins(0, 0, 0, 0);
   root->setSpacing(0);

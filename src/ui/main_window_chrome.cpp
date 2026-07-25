@@ -46,6 +46,7 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
+#include "ui/window_effects.hpp"
 #include "ui/zoom_status_bar.hpp"
 #include "support/string_utils.hpp"
 
@@ -740,6 +741,9 @@ void MainWindow::ensure_native_resizable_frame() {
 #ifdef Q_OS_WIN
   apply_windows_frameless_resize_style(winId());
   apply_windows_pen_feedback_suppression(winId());
+  // The window keeps WS_THICKFRAME, so DWM already shadows it; this only asks for
+  // the rounded corners. DWM squares them off by itself while maximized.
+  apply_rounded_window_corners(winId(), WindowCornerRadius::Standard);
   native_resizable_frame_applied_ = true;
 #else
   native_resizable_frame_applied_ = true;

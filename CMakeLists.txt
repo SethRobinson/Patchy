@@ -768,6 +768,8 @@ if(PATCHY_BUILD_APP)
       src/ui/update_checker.cpp
       src/ui/warp_text_dialog.hpp
       src/ui/warp_text_dialog.cpp
+      src/ui/window_effects.hpp
+      src/ui/window_effects.cpp
       src/ui/zoom_status_bar.hpp
       src/ui/zoom_status_bar.cpp
       src/ui/icons.qrc

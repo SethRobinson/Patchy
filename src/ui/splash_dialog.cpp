@@ -5,6 +5,7 @@
 #include "ui/splash_artwork.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/window_effects.hpp"
 
 #include <QApplication>
 #include <QDesktopServices>
@@ -37,6 +38,7 @@ public:
   explicit PatchySplashDialog(QWidget* parent = nullptr) : QDialog(parent) {
     setObjectName(QStringLiteral("patchySplashScreen"));
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
+    apply_frameless_window_effects_on_show(*this, WindowCornerRadius::Standard);
     setModal(true);
     setFixedSize(650, 435);
     set_themed_style(*this, QStringLiteral(R"(
