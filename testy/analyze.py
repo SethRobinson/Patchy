@@ -14,6 +14,10 @@ come out of every comparison:
   leg catches flat regions rendered in a flatly wrong color, which SSIM's
   structure term under-penalizes. The blur and the Gaussian SSIM window forgive
   1px anti-aliasing jitter on glyph and shape edges.
+
+The strict metric runs at document resolution. The perceptual one runs on copies
+area-averaged down to PERCEPTUAL_MAX_PIXELS, and is skipped outright when the two
+renders match pixel for pixel; `python testy\\analyze.py --selftest` covers both.
 """
 
 from __future__ import annotations
@@ -23,6 +27,10 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+
+# These are the run's own renders of the corpus, not untrusted input, and a PSB
+# composite legitimately passes Pillow's 89 MP decompression-bomb ceiling.
+Image.MAX_IMAGE_PIXELS = None
 
 # Per-channel difference below this is treated as AA/rounding noise.
 PIXEL_TOLERANCE = 6
@@ -51,6 +59,16 @@ DELTAE_BAD = 6.0
 # even on busy texture.
 DELTAE_MASKING_DIVISOR = 50.0
 DELTAE_BAD_CAP = 2.0 * DELTAE_BAD
+# The perceptual legs answer "would a human see something wrong", which does not
+# need document resolution: both already run on blurred copies to forgive
+# sub-pixel jitter, and nobody views an 18000px banner at 1:1. They cost about a
+# second and 150 MB of numpy temporaries per megapixel: one comparison of an
+# 18000x3508 banner took 66s and 12.3 GB, and 10.9s and 3.5 GB within this budget
+# (most of what is left is decoding two 63 MP PNGs). Above the budget both
+# renders are area-averaged down to it first; the median corpus file (0.1 MP) is
+# untouched. The strict metric stays at document resolution - it is the
+# byte-honest one, and it costs 1.5s on that same banner.
+PERCEPTUAL_MAX_PIXELS = 4_000_000
 
 
 def _gaussian_kernel(sigma: float) -> np.ndarray:
@@ -215,6 +233,48 @@ def _perceptual_bad_map(truth: np.ndarray, editor: np.ndarray) -> tuple[np.ndarr
     return bad, stats
 
 
+def _perceptual_scale(shape: tuple[int, ...]) -> float:
+    """Linear factor bringing an image within PERCEPTUAL_MAX_PIXELS (1.0 = as-is)."""
+    pixels = shape[0] * shape[1]
+    if pixels <= PERCEPTUAL_MAX_PIXELS:
+        return 1.0
+    return math.sqrt(PERCEPTUAL_MAX_PIXELS / pixels)
+
+
+def _downsample(image: np.ndarray, scale: float) -> np.ndarray:
+    """Area-average an HxWx3 float array down by `scale`, one channel at a time.
+
+    BOX (not bilinear) is the point: it keeps each block's mean colour, so a
+    small solid defect survives as a colour shift over the pixels that remain
+    instead of being smeared into its background. Resampling happens in "F"
+    mode, so compositing's fractional values never take a trip through uint8.
+    """
+    height, width = image.shape[:2]
+    size = (max(1, int(width * scale)), max(1, int(height * scale)))
+    planes = [
+        np.asarray(
+            Image.fromarray(np.ascontiguousarray(image[:, :, channel]), mode="F")
+            .resize(size, Image.BOX),
+            dtype=np.float32,
+        )
+        for channel in range(image.shape[2])
+    ]
+    return np.stack(planes, axis=2)
+
+
+def _region_mean(bad_map: np.ndarray, bounds: tuple[int, int, int, int], scale: float) -> float:
+    """Mean of a document-resolution rectangle inside a map computed at `scale`."""
+    left, top, right, bottom = bounds
+    if scale != 1.0:
+        height, width = bad_map.shape[:2]
+        left = min(width - 1, int(left * scale))
+        top = min(height - 1, int(top * scale))
+        # At least one pixel each way: an empty slice would make mean() NaN.
+        right = min(width, max(left + 1, int(round(right * scale))))
+        bottom = min(height, max(top + 1, int(round(bottom * scale))))
+    return float(bad_map[top:bottom, left:right].mean())
+
+
 def _load_over_white(path: Path, size: tuple[int, int] | None) -> tuple[np.ndarray, tuple[int, int]]:
     image = Image.open(path)
     native_size = image.size
@@ -256,7 +316,24 @@ def compare_renders(
     bad = max_channel_diff > PIXEL_TOLERANCE
     rmse = float(math.sqrt(float((diff**2).mean())))
     bad_fraction = float(bad.mean())
-    perceptual_bad, perceptual_stats = _perceptual_bad_map(truth, editor)
+
+    # Identical pixels cannot look different, so say so instead of spending a
+    # minute proving it. This is the Photoshop column's normal case: its cell
+    # render and the ground-truth render come from two probes of the same file
+    # and match to the byte.
+    identical = not bool(max_channel_diff.any())
+    perceptual_scale = 1.0
+    if identical:
+        perceptual_bad = np.zeros((1, 1), dtype=bool)
+        perceptual_stats = {"ssimMean": 1.0, "deltaEMean": 0.0, "deltaEP95": 0.0}
+    else:
+        perceptual_scale = _perceptual_scale(truth.shape)
+        if perceptual_scale < 1.0:
+            perceptual_bad, perceptual_stats = _perceptual_bad_map(
+                _downsample(truth, perceptual_scale), _downsample(editor, perceptual_scale)
+            )
+        else:
+            perceptual_bad, perceptual_stats = _perceptual_bad_map(truth, editor)
     perceptual_fraction = float(perceptual_bad.mean())
 
     width, height = document_size
@@ -274,7 +351,8 @@ def compare_renders(
             continue
         region_bad = float(bad[top:bottom, left:right].mean())
         ok = region_bad <= OBJECT_BAD_FRACTION
-        region_perceptual = float(perceptual_bad[top:bottom, left:right].mean())
+        region_perceptual = 0.0 if identical else _region_mean(
+            perceptual_bad, (left, top, right, bottom), perceptual_scale)
         perceptual_ok = region_perceptual <= OBJECT_BAD_FRACTION
         scored += 1
         rendered_ok += 1 if ok else 0
@@ -317,6 +395,141 @@ def compare_renders(
     }
 
 
+# ---------------------------------------------------------------------------
+# Self-test: `python testy\analyze.py --selftest`
+#
+# Synthetic render pairs written to a temp directory - no Photoshop, no corpus -
+# pin the two properties the metric exists for (a global color shift is not a
+# visual difference; a wrongly rendered object is) and the two shortcuts that
+# make it affordable on large documents.
+# ---------------------------------------------------------------------------
+
+_SELFTEST_SIZE = (1600, 900)
+_DEFECT = (900, 400, 12, 4)  # left, top, width, height
+
+
+def _selftest_canvas(size: tuple[int, int]) -> np.ndarray:
+    """A smooth, deterministic texture: SSIM needs structure to judge."""
+    width, height = size
+    yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
+    return np.stack(
+        [
+            128.0 + 100.0 * np.sin(xx / 40.0),
+            128.0 + 100.0 * np.cos(yy / 30.0),
+            128.0 + 80.0 * np.sin((xx + yy) / 50.0),
+        ],
+        axis=2,
+    ).astype(np.float32)
+
+
+def _selftest() -> int:
+    import tempfile
+    import time
+
+    global _perceptual_bad_map, PERCEPTUAL_MAX_PIXELS
+
+    failures: list[str] = []
+
+    def check(condition: bool, description: str) -> None:
+        print(("  ok   " if condition else "  FAIL ") + description)
+        if not condition:
+            failures.append(description)
+
+    width, height = _SELFTEST_SIZE
+    left, top, defect_w, defect_h = _DEFECT
+    # One object covering the defect, one clean object elsewhere.
+    objects = [
+        {"path": "0", "name": "defect", "kind": "SMARTOBJECT", "visible": True,
+         "bounds": [left, top, left + defect_w, top + defect_h]},
+        {"path": "1", "name": "clean", "kind": "NORMAL", "visible": True,
+         "bounds": [100, 100, 500, 500]},
+    ]
+
+    with tempfile.TemporaryDirectory() as work:
+        work_dir = Path(work)
+
+        def write(name: str, array: np.ndarray) -> Path:
+            path = work_dir / name
+            Image.fromarray(np.clip(array, 0, 255).astype(np.uint8)).save(path)
+            return path
+
+        base = _selftest_canvas(_SELFTEST_SIZE)
+        truth_png = write("truth.png", base)
+        same_png = write("same.png", base)
+        defect = base.copy()
+        defect[top:top + defect_h, left:left + defect_w, :] = [220.0, 40.0, 40.0]
+        defect_png = write("defect.png", defect)
+        shifted_png = write("shifted.png", base + 8.0)
+
+        print("1. identical renders skip the perceptual pass entirely")
+        saved = _perceptual_bad_map
+
+        def refuse(*_args: object) -> tuple:
+            raise AssertionError("the perceptual pass ran on identical renders")
+
+        _perceptual_bad_map = refuse
+        try:
+            started = time.perf_counter()
+            result = compare_renders(truth_png, same_png, _SELFTEST_SIZE, objects)
+            elapsed = time.perf_counter() - started
+        except AssertionError as error:
+            result, elapsed = {"perceptual": {}}, 0.0
+            check(False, str(error))
+        finally:
+            _perceptual_bad_map = saved
+        check(result["badFraction"] == 0.0, "strict reports no difference")
+        check(result["perceptual"]["badFraction"] == 0.0 and
+              result["perceptual"]["ssimMean"] == 1.0,
+              f"visual reports a perfect match ({elapsed * 1000:.0f}ms)")
+        check(all(o["perceptualOk"] for o in result["perObject"]), "every object scores ok")
+
+        print("2. a uniform 8/255 shift is strictly wrong but visually fine")
+        result = compare_renders(truth_png, shifted_png, _SELFTEST_SIZE, objects)
+        check(result["badFraction"] > 0.9,
+              f"strict calls it {result['badFraction'] * 100:.0f}% different")
+        check(result["perceptual"]["badFraction"] < 0.01,
+              f"visual calls it {result['perceptual']['badFraction'] * 100:.2f}% different")
+
+        print(f"3. a {defect_w}x{defect_h}px defect survives an aggressive cap")
+        full = compare_renders(truth_png, defect_png, _SELFTEST_SIZE, objects)
+        check(_perceptual_scale((height, width)) == 1.0,
+              "an image under the budget is not resampled at all")
+        defect_object = next(o for o in full["perObject"] if o["name"] == "defect")
+        check(not defect_object["perceptualOk"],
+              f"uncapped: the defect object flags ({defect_object['perceptualBadFraction'] * 100:.0f}%)")
+
+        original_cap = PERCEPTUAL_MAX_PIXELS
+        PERCEPTUAL_MAX_PIXELS = (width * height) // 16  # scale 0.25, as a 63 MP doc gets
+        try:
+            scale = _perceptual_scale((height, width))
+            started = time.perf_counter()
+            capped = compare_renders(truth_png, defect_png, _SELFTEST_SIZE, objects)
+            capped_seconds = time.perf_counter() - started
+        finally:
+            PERCEPTUAL_MAX_PIXELS = original_cap
+        capped_object = next(o for o in capped["perObject"] if o["name"] == "defect")
+        check(abs(scale - 0.25) < 0.01, f"the cap resamples by {scale:.2f}")
+        check(not capped_object["perceptualOk"],
+              f"capped: the defect object still flags "
+              f"({capped_object['perceptualBadFraction'] * 100:.0f}%)")
+        check(next(o for o in capped["perObject"] if o["name"] == "clean")["perceptualOk"],
+              "capped: the clean object still scores ok")
+        check(capped["badFraction"] == full["badFraction"],
+              "the strict metric is unaffected by the cap")
+
+        print("4. cost")
+        started = time.perf_counter()
+        compare_renders(truth_png, defect_png, _SELFTEST_SIZE, objects)
+        uncapped_seconds = time.perf_counter() - started
+        megapixels = width * height / 1e6
+        print(f"       {megapixels:.2f} MP pair: {uncapped_seconds:.2f}s uncapped, "
+              f"{capped_seconds:.2f}s at a quarter scale "
+              f"({uncapped_seconds / max(capped_seconds, 1e-6):.1f}x)")
+
+    print("FAILED: " + "; ".join(failures) if failures else "all checks passed")
+    return 1 if failures else 0
+
+
 def make_thumbnail(source_png: Path, out_png: Path, max_width: int = 480) -> None:
     image = Image.open(source_png)
     image = image.convert("RGBA")
@@ -324,3 +537,12 @@ def make_thumbnail(source_png: Path, out_png: Path, max_width: int = 480) -> Non
         scale = max_width / image.width
         image = image.resize((max_width, max(1, int(image.height * scale))))
     image.save(out_png)
+
+
+if __name__ == "__main__":
+    import sys
+
+    if "--selftest" in sys.argv:
+        raise SystemExit(_selftest())
+    print(__doc__)
+    print("run with --selftest to exercise the metrics against synthetic renders")

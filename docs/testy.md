@@ -189,6 +189,25 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   layer's bbox also contains whatever renders behind it, so overlapping errors can
   count against more than one object). Worst offenders are named in the detail
   panel, ranked by the run's comparison mode.
+  The strict metric runs at document resolution. The visual one costs about a second
+  and 150 MB of numpy temporaries per megapixel, so it runs on copies area-averaged
+  down to `PERCEPTUAL_MAX_PIXELS` (4 MP) first, and is skipped outright when the two
+  renders match pixel for pixel. Both shortcuts matter on big documents: an
+  18000x3508 banner took 66s and 12.3 GB for one comparison and now takes 10.9s and
+  3.5 GB (most of what is left is decoding two 63 MP PNGs), and the Photoshop column
+  compares its own render against the ground truth, which is pixel-identical, so its
+  visual pass now costs nothing at all. Resolution matters less than it sounds: both
+  legs already judge blurred copies, and a 12x4 px defect in an 18000 px document
+  still flags its object at 100% after a quarter-scale downsample. What does change
+  is the visual `badFraction` on documents over 4 MP - it can read a few times higher
+  or lower in relative terms (measured 0.28% -> 0.86% on a hairline defect), because
+  the blur covers proportionally more of a coarser grid. It drives a 10% triage
+  threshold, not a pinned number, and the strict figure beside it is unchanged.
+  Visual numbers cached by runs from before this change were computed at full
+  resolution, so a big document's history can mix the two.
+  `python testy\analyze.py --selftest` pins all of it (global-shift immunity, defect
+  detection under an aggressive cap, the identical-render skip) against synthetic
+  renders, with no Photoshop or corpus needed.
 - **Honest rendering (trap)** - the editor also opens a byte-patched variant whose
   embedded flat composite is replaced with magenta (`psd_sections.py` rewrites only the
   trailing image-data section; all layer data stays byte-identical). An editor whose
@@ -329,7 +348,7 @@ testy/
   config.py          editor discovery + versions
   staging.py         run-dir copies + trap generation
   psd_sections.py    minimal PSD/PSB section walker (trap patching only)
-  analyze.py         render metrics, sentinel detection, heatmaps
+  analyze.py         render metrics, sentinel detection, heatmaps (--selftest included)
   manifest.py        original-vs-resave structural diff
   report.py          status.json + live report.html + history
   affinity_js.py     token-free MCP/JS client for the Affinity app (SSE + JSON-RPC,
