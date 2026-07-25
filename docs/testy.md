@@ -138,8 +138,8 @@ open, resave, trap, text mutation, a skipped/broken editor, a resave Photoshop r
 a trap sentinel hit that Photoshop's own trap render does not share, see "Honest
 rendering" below) or if any editor's render differs from Photoshop's on more than the
 threshold fraction of pixels (default 10%, `--scan 25` for 25%). Which "fraction of
-pixels" that means follows the run's comparison mode: visually-wrong pixels
-(`renderMetrics.perceptual.badFraction`) by default, raw over-6/255 pixels
+pixels" that means follows the run's comparison mode: perceptually-wrong pixels
+(`renderMetrics.perceptual.badFraction`) by default, raw over-6/255 byte differences
 (`renderMetrics.badFraction`) with `--compare strict`. Flagged files keep all artifacts
 as usual. Files that pass keep their metrics in
 the report and `results.json`, but their images, resaves, and staged copies are deleted
@@ -173,37 +173,38 @@ touched; a SHA check at the end of every run proves it), and Testy records:
 
 - **Opens** - did the file load at all.
 - **Render accuracy** - the editor's flattened PNG vs Photoshop's, composited over white
-  at document size. Two comparisons always run side by side. The strict one counts
-  pixels off by more than 6/255 per channel (plus RMSE); it is honest about raw data
-  but marks a visually identical render as ~100% different when a subtle
-  color-management shift moves every pixel a hair over the tolerance. The visual
-  (perceptual) one counts pixels that actually look wrong: SSIM's contrast-structure
-  term (is the same structure present) combined with CIEDE2000 deltaE (is the color
-  visibly different), both computed on lightly blurred copies so sub-pixel
-  anti-aliasing jitter stays quiet, with the deltaE threshold scaled up under strong
-  local contrast (contrast masking). A global 8/255 shift scores ~0% visually while
-  strict reports ~100%; a genuinely missing, misplaced, or recolored object fires
-  both. Each metric also gets a per-object breakdown using ground-truth layer
+  at document size. Two comparisons always run side by side, labeled **byte match**
+  and **perceptual** in the report (`--compare strict|perceptual` on the CLI, whose
+  values are unchanged). The byte-match one counts pixels off by more than 6/255 per
+  channel (plus RMSE); it is honest about raw data but marks a visually identical
+  render as ~100% different when a subtle color-management shift moves every pixel a
+  hair over the tolerance. The perceptual one counts pixels that actually look wrong:
+  SSIM's contrast-structure term (is the same structure present) combined with
+  CIEDE2000 deltaE (is the color visibly different), both computed on lightly blurred
+  copies so sub-pixel anti-aliasing jitter stays quiet, with the deltaE threshold
+  scaled up under strong local contrast (contrast masking). A global 8/255 shift
+  scores ~0% perceptually while byte match reports ~100%; a genuinely missing,
+  misplaced, or recolored object fires both. Each metric also gets a per-object breakdown using ground-truth layer
   bounds; an object "renders ok" while under 25% of its region's pixels are off
   (text layers legitimately differ on every glyph edge even when correct, and a
   layer's bbox also contains whatever renders behind it, so overlapping errors can
   count against more than one object). Worst offenders are named in the detail
   panel, ranked by the run's comparison mode.
-  The strict metric runs at document resolution. The visual one costs about a second
-  and 150 MB of numpy temporaries per megapixel, so it runs on copies area-averaged
-  down to `PERCEPTUAL_MAX_PIXELS` (4 MP) first, and is skipped outright when the two
-  renders match pixel for pixel. Both shortcuts matter on big documents: an
-  18000x3508 banner took 66s and 12.3 GB for one comparison and now takes 10.9s and
+  The byte-match metric runs at document resolution. The perceptual one costs about a
+  second and 150 MB of numpy temporaries per megapixel, so it runs on copies
+  area-averaged down to `PERCEPTUAL_MAX_PIXELS` (4 MP) first, and is skipped outright
+  when the two renders match pixel for pixel. Both shortcuts matter on big documents:
+  an 18000x3508 banner took 66s and 12.3 GB for one comparison and now takes 10.9s and
   3.5 GB (most of what is left is decoding two 63 MP PNGs), and the Photoshop column
   compares its own render against the ground truth, which is pixel-identical, so its
-  visual pass now costs nothing at all. Resolution matters less than it sounds: both
-  legs already judge blurred copies, and a 12x4 px defect in an 18000 px document
-  still flags its object at 100% after a quarter-scale downsample. What does change
-  is the visual `badFraction` on documents over 4 MP - it can read a few times higher
+  perceptual pass now costs nothing at all. Resolution matters less than it sounds:
+  both legs already judge blurred copies, and a 12x4 px defect in an 18000 px document
+  still flags its object at 100% after a quarter-scale downsample. What does change is
+  the perceptual `badFraction` on documents over 4 MP - it can read a few times higher
   or lower in relative terms (measured 0.28% -> 0.86% on a hairline defect), because
   the blur covers proportionally more of a coarser grid. It drives a 10% triage
-  threshold, not a pinned number, and the strict figure beside it is unchanged.
-  Visual numbers cached by runs from before this change were computed at full
+  threshold, not a pinned number, and the byte-match figure beside it is unchanged.
+  Perceptual numbers cached by runs from before this change were computed at full
   resolution, so a big document's history can mix the two.
   `python testy\analyze.py --selftest` pins all of it (global-shift immunity, defect
   detection under an aggressive cap, the identical-render skip) against synthetic

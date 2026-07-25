@@ -1322,14 +1322,14 @@ class Runner:
                     reasons.append(f"{name}: no perceptual comparison available")
                 elif perceptual.get("badFraction", 1.0) > self.scan_threshold:
                     reasons.append(
-                        f"{name}: render looks wrong on "
+                        f"{name}: perceptually wrong on "
                         f"{perceptual['badFraction'] * 100:.1f}% of pixels "
                         f"(over {self.scan_threshold * 100:g}%; "
-                        f"{metrics['badFraction'] * 100:.1f}% strict)"
+                        f"byte difference {metrics['badFraction'] * 100:.1f}%)"
                     )
             elif metrics.get("badFraction", 1.0) > self.scan_threshold:
                 reasons.append(
-                    f"{name}: render differs on {metrics['badFraction'] * 100:.1f}% of pixels "
+                    f"{name}: byte difference on {metrics['badFraction'] * 100:.1f}% of pixels "
                     f"(over {self.scan_threshold * 100:g}%)"
                 )
             sentinel = cell.get("trapSentinelFraction", 0.0)
@@ -1394,9 +1394,9 @@ class Runner:
 
     def _write_flagged_list(self) -> None:
         threshold_pct = self.status["run"]["scan"]["thresholdPct"]
-        basis = ("looks visually different from Photoshop's"
+        basis = ("differs perceptually from Photoshop's"
                  if self.compare_mode == "perceptual"
-                 else "differs from Photoshop's")
+                 else "differs byte-wise from Photoshop's")
         lines = [
             f"# Testy scan: files flagged for review (render {basis} on more "
             f"than {threshold_pct:g}% of pixels, or something failed).",
@@ -1667,18 +1667,18 @@ class Runner:
 
     def _print_summary(self) -> None:
         aggregate = self._aggregate()
-        log("summary (mean strict render / visual match / native preservation / opened):")
+        log("summary (mean byte match / perceptual match / native preservation / opened):")
         for editor_key in self.editor_order:
             a = aggregate[editor_key]
             log(
                 f"  {self.editors[editor_key].display_name:<10} "
-                f"render {a['render'] * 100:5.1f}%   visual {a['visual'] * 100:5.1f}%   "
+                f"byte {a['render'] * 100:5.1f}%   perceptual {a['visual'] * 100:5.1f}%   "
                 f"native {a['native'] * 100:5.1f}%   "
                 f"opened {a['opened']}/{a['total']}"
             )
         if self.scan_threshold is not None:
             flagged = [e for e in self.status["files"] if e.get("scan", {}).get("flagged")]
-            basis = "visual" if self.compare_mode == "perceptual" else "strict"
+            basis = "perceptual" if self.compare_mode == "perceptual" else "byte"
             log(f"scan: {len(flagged)}/{len(self.status['files'])} file(s) flagged "
                 f"(threshold {self.scan_threshold * 100:g}% {basis} difference); "
                 f"passed files' artifacts discarded")

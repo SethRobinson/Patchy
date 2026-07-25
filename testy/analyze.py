@@ -480,15 +480,15 @@ def _selftest() -> int:
         check(result["badFraction"] == 0.0, "strict reports no difference")
         check(result["perceptual"]["badFraction"] == 0.0 and
               result["perceptual"]["ssimMean"] == 1.0,
-              f"visual reports a perfect match ({elapsed * 1000:.0f}ms)")
+              f"perceptual reports a perfect match ({elapsed * 1000:.0f}ms)")
         check(all(o["perceptualOk"] for o in result["perObject"]), "every object scores ok")
 
-        print("2. a uniform 8/255 shift is strictly wrong but visually fine")
+        print("2. a uniform 8/255 shift is a byte difference, not a perceptual one")
         result = compare_renders(truth_png, shifted_png, _SELFTEST_SIZE, objects)
         check(result["badFraction"] > 0.9,
-              f"strict calls it {result['badFraction'] * 100:.0f}% different")
+              f"byte match calls it {result['badFraction'] * 100:.0f}% different")
         check(result["perceptual"]["badFraction"] < 0.01,
-              f"visual calls it {result['perceptual']['badFraction'] * 100:.2f}% different")
+              f"perceptual calls it {result['perceptual']['badFraction'] * 100:.2f}% different")
 
         print(f"3. a {defect_w}x{defect_h}px defect survives an aggressive cap")
         full = compare_renders(truth_png, defect_png, _SELFTEST_SIZE, objects)

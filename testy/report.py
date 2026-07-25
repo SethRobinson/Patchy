@@ -189,9 +189,9 @@ function cellSummary(cell, psCell) {
     return '<div class="status-line"><span class="dot bad"></span>failed</div>' +
            '<div class="nums">' + esc((cell.error || "").slice(0, 90)) + '</div>';
   const bits = [];
-  if (cell.renderMetrics) bits.push("render " + pct(cell.renderMetrics.accuracy));
+  if (cell.renderMetrics) bits.push("byte match " + pct(cell.renderMetrics.accuracy));
   if (cell.renderMetrics && cell.renderMetrics.perceptual)
-    bits.push("visual " + pct(cell.renderMetrics.perceptual.accuracy));
+    bits.push("perceptual " + pct(cell.renderMetrics.perceptual.accuracy));
   if (cell.native && cell.native.perCategory)
     bits.push("native " + cell.native.nativeKept + "/" + cell.native.nativeTotal);
   if (cell.renderMetrics && cell.renderMetrics.objectsScored) {
@@ -331,10 +331,10 @@ function render() {
   pill.textContent = interrupted ? "interrupted" : S.state;
   pill.className = interrupted ? "interrupted" : S.state;
   renderControls();
-  const compareWord = S.run.compare === "perceptual" ? "visual" : "render";
+  const compareWord = S.run.compare === "perceptual" ? "perceptual" : "byte";
   document.getElementById("run-meta").textContent =
     S.run.startedAt + "  -  " + S.files.length + " file(s)  -  Patchy " + (S.run.patchyVersion || "?") +
-    (S.run.compare === "perceptual" ? "  -  compare: visual" : "") +
+    (S.run.compare === "perceptual" ? "  -  compare: perceptual" : "") +
     (S.run.scan ? "  -  scan mode: flag over " + S.run.scan.thresholdPct + "% " + compareWord + " difference" : "");
 
   const editors = S.run.editorOrder;
@@ -397,8 +397,8 @@ function render() {
     const e = S.editors[k] || {}, a = agg[k];
     const rows = [];
     rows.push(["opened", a.total ? a.opened + "/" + a.total : "-"]);
-    const acc = mean(a.acc); rows.push(["render", acc == null ? "-" : pct(acc)]);
-    const vis = mean(a.vis); if (vis != null) rows.push(["visual", pct(vis)]);
+    const acc = mean(a.acc); rows.push(["byte match", acc == null ? "-" : pct(acc)]);
+    const vis = mean(a.vis); if (vis != null) rows.push(["perceptual", pct(vis)]);
     const nat = mean(a.native); rows.push(["native", nat == null ? "-" : pct(nat)]);
     [["text", "text kept"], ["adj", "adjustments"], ["smart", "smart objects"], ["fx", "live effects"]].forEach(([key, label]) => {
       const v = a[key];
@@ -482,11 +482,11 @@ function openDetail(fi, ek, keep) {
   if (cell.renderMetrics) {
     const m = cell.renderMetrics;
     const p = m.perceptual;
-    const visualMode = S.run.compare === "perceptual";
-    const objectsOk = visualMode && m.objectsRenderedOkPerceptual != null
+    const perceptualMode = S.run.compare === "perceptual";
+    const objectsOk = perceptualMode && m.objectsRenderedOkPerceptual != null
       ? m.objectsRenderedOkPerceptual : m.objectsRenderedOk;
-    html += "<table><tr><th>Render accuracy</th><th>Visual match</th><th>RMSE</th>" +
-      "<th>Pixels off</th><th>Visually off</th><th>Mean deltaE</th><th>Objects ok</th><th>Trap sentinel</th></tr>" +
+    html += "<table><tr><th>Byte match</th><th>Perceptual match</th><th>RMSE</th>" +
+      "<th>Pixels off</th><th>Perceptually off</th><th>Mean deltaE</th><th>Objects ok</th><th>Trap sentinel</th></tr>" +
       "<tr><td>" + pct(m.accuracy) + "</td><td>" + (p ? pct(p.accuracy) : "-") + "</td><td>" + m.rmse +
       "</td><td>" + pct(m.badFraction) + "</td><td>" + (p ? pct(p.badFraction) : "-") +
       "</td><td>" + (p ? p.deltaEMean : "-") +
@@ -494,8 +494,8 @@ function openDetail(fi, ek, keep) {
       (cell.trapSentinelFraction == null ? "-" : pct(cell.trapSentinelFraction)) + "</td></tr></table>";
     // "Worst" follows the run's comparison mode when the perceptual fields exist
     // (cells cached before the metric only carry the strict ones).
-    const isBad = o => visualMode && o.perceptualOk !== undefined ? !o.perceptualOk : !o.ok;
-    const fracOf = o => visualMode && o.perceptualBadFraction !== undefined
+    const isBad = o => perceptualMode && o.perceptualOk !== undefined ? !o.perceptualOk : !o.ok;
+    const fracOf = o => perceptualMode && o.perceptualBadFraction !== undefined
       ? o.perceptualBadFraction : o.badFraction;
     const worst = (m.perObject || []).filter(isBad).sort((a, b) => fracOf(b) - fracOf(a)).slice(0, 12);
     if (worst.length) {
@@ -548,13 +548,13 @@ function openDetail(fi, ek, keep) {
   }
   if (cell.roundtripRender) {
     const rp = cell.roundtripRender.perceptual;
-    html += "<h3>Round trip back into Photoshop</h3><table><tr><th>Accuracy vs original</th><th>Visual match</th><th>Pixels off</th></tr>" +
+    html += "<h3>Round trip back into Photoshop</h3><table><tr><th>Byte match vs original</th><th>Perceptual match</th><th>Pixels off</th></tr>" +
       "<tr><td>" + pct(cell.roundtripRender.accuracy) + "</td><td>" + (rp ? pct(rp.accuracy) : "-") +
       "</td><td>" + pct(cell.roundtripRender.badFraction) + "</td></tr></table>";
   }
   if (cell.textRender) {
     const tp = cell.textRender.perceptual;
-    html += "<h3>Forced text re-render vs Photoshop</h3><table><tr><th>Accuracy</th><th>Visual match</th><th>Pixels off</th></tr>" +
+    html += "<h3>Forced text re-render vs Photoshop</h3><table><tr><th>Byte match</th><th>Perceptual match</th><th>Pixels off</th></tr>" +
       "<tr><td>" + pct(cell.textRender.accuracy) + "</td><td>" + (tp ? pct(tp.accuracy) : "-") +
       "</td><td>" + pct(cell.textRender.badFraction) + "</td></tr></table>";
   }
@@ -631,7 +631,7 @@ async function renderHistory() {
     if (!lines.length) return;
     const editors = S.run.editorOrder;
     document.getElementById("history").innerHTML = "<h2>Past runs</h2><table><tr><th>Run</th><th>Files</th>" +
-      editors.map(k => "<th>" + esc((S.editors[k] || {}).displayName || k) + " render / native</th>").join("") + "</tr>" +
+      editors.map(k => "<th>" + esc((S.editors[k] || {}).displayName || k) + " byte match / native</th>").join("") + "</tr>" +
       lines.slice(-14).reverse().map(r => "<tr><td>" + esc(r.run) + "</td><td>" + r.files + "</td>" +
         editors.map(k => {
           const e = (r.editors || {})[k];
