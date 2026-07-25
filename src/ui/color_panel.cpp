@@ -1254,20 +1254,24 @@ void PatchyColorPickerPrivate::build_ui() {
   sliders_layout->setRowStretch(static_cast<int>(rows.size()), 1);
   tabs_->addTab(sliders_page, PatchyColorPicker::tr("Sliders"));
 
-  // Use stronger selected-tab contrast in this compact picker than the global theme.
+  // Stronger selected-tab contrast in this compact picker than the global theme,
+  // through the picker_tab_* family. These were four borrowed roles (a dialog
+  // hover fill, a field border, a disabled field background), which read
+  // correctly in Dark by coincidence and inverted in Light: see the tab notes in
+  // theme_palette.hpp.
   set_themed_style(*tabs_, QStringLiteral(R"(
     QTabBar::tab {
-      background: @dialog_tab_hover_bg;
+      background: @picker_tab_bg;
       color: @dlg_neutral_border_bright;
-      border: 1px solid @nd_field_disabled_bg;
+      border: 1px solid @picker_tab_border;
       padding: 5px 14px;
       min-height: 20px;
     }
-    QTabBar::tab:hover:!selected { background: @color_button_hover_bg; }
+    QTabBar::tab:hover:!selected { background: @picker_tab_hover_bg; }
     QTabBar::tab:selected {
-      background: @field_border;
+      background: @picker_tab_selected_bg;
       color: @text_on_raised;
-      border-bottom-color: @field_border;
+      border-bottom-color: @picker_tab_selected_bg;
     }
   )"));
 

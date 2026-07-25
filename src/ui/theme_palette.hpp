@@ -216,6 +216,17 @@ struct ThemePalette {
   QColor tab_selected_bg;
   QColor tab_pane_border;
 
+  // The color picker's own tab bar, which steps further between unselected and
+  // selected than the document tabs do because the popup is compact and its
+  // three modes have to be told apart at a glance. Its own family rather than
+  // borrowed roles: it was assembled out of a dialog hover fill and a field
+  // border, and those carried no promise about which way round the two sit, so
+  // Light derived the selected mode darker than the ones beside it.
+  QColor picker_tab_bg;
+  QColor picker_tab_border;
+  QColor picker_tab_hover_bg;
+  QColor picker_tab_selected_bg;
+
   // Canvas chrome: the pasteboard the document floats on, its rulers, and the
   // processing overlay. Painted, not styled, so a scheme change has to repaint
   // the canvas explicitly.
@@ -239,7 +250,9 @@ struct ThemePalette {
 
   // Scroll bars. The canvas track slaves to the canvas backdrop rather than the
   // window surface: it is document-window chrome sitting against the pasteboard,
-  // not a panel. Dock and list scroll bars stay native on Windows and Linux.
+  // not a panel. Every other bar in the application is styled from these roles
+  // too, on every platform; none of them can be left native (see the scroll-bar
+  // block in main_window_theme.cpp).
   QColor canvas_scrollbar_track;
   QColor panel_scrollbar_track;
   QColor scrollbar_handle_bg;

@@ -2664,6 +2664,73 @@ void ui_light_scheme_panel_scroll_bar_handle_reads_against_track() {
   CHECK(separation >= 40);
 }
 
+// The compact color picker styles its own tab bar because it wants more
+// selected-tab contrast than the global theme gives, and borrowing roles to get
+// it is what left it behind when the document tabs were corrected for Light. Its
+// selected fill came from field_border, which sits lighter than its neighbours
+// in Dark and darker than them in Light, so the current mode read as the
+// inactive one. Reading the roles back would only restate whichever pairing the
+// sheet happens to name, so render the bar and compare the tabs as drawn.
+void ui_light_scheme_color_picker_selected_tab_reads_as_selected() {
+  ColorSchemeRestorer restore_active;
+
+  for (const auto preference :
+       {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const bool light = preference == patchy::ui::ColorSchemePreference::Light;
+    const char* label = light ? "light" : "dark";
+
+    patchy::ui::PatchyColorPicker picker(QColor(120, 60, 30));
+    picker.show();
+    QApplication::processEvents();
+
+    auto* tabs = picker.findChild<QTabWidget*>(QStringLiteral("patchyColorPickerTabs"));
+    CHECK(tabs != nullptr);
+    if (tabs == nullptr) {
+      return;
+    }
+    auto* bar = tabs->tabBar();
+    CHECK(bar != nullptr);
+    if (bar == nullptr || bar->count() < 2) {
+      CHECK(false);
+      return;
+    }
+    const auto shot = bar->grab().toImage();
+    CHECK(!shot.isNull());
+    if (shot.isNull()) {
+      return;
+    }
+    if (light) {
+      save_widget_artifact("ui_light_scheme_color_picker", picker);
+    }
+
+    // The picker reopens on whichever mode was used last, so read the current
+    // tab rather than forcing one: setting it would write that mode back into
+    // the shared QSettings store for every test after this one.
+    const int selected_index = bar->currentIndex();
+    const int other_index = selected_index == 0 ? 1 : 0;
+    // Inside the left padding, clear of the border and of the label glyphs.
+    const auto fill = [&shot, bar](int index) {
+      const auto rect = bar->tabRect(index);
+      return shot.pixelColor(rect.left() + 5, rect.center().y());
+    };
+    const auto selected = fill(selected_index);
+    const auto unselected = fill(other_index);
+
+    // Lightness carries the selection in both schemes: the current mode is the
+    // raised tab, whichever end of the value range the scheme lives at. The
+    // threshold is what Dark already ships (0x34 against 0x5a), so this asserts
+    // Light separates them at least as well.
+    const int separation = selected.lightness() - unselected.lightness();
+    if (separation < 30) {
+      fprintf(stderr, "  %s: picker selected tab %s vs unselected %s, lightness %+d, want >= +30\n",
+              label, qPrintable(selected.name(QColor::HexRgb)),
+              qPrintable(unselected.name(QColor::HexRgb)), separation);
+    }
+    CHECK(separation >= 30);
+  }
+}
+
 // An unresolved @token makes Qt drop the entire declaration containing it,
 // silently. Nothing downstream would notice, so assert no token survives and no
 // raw hex was left behind in either scheme.
@@ -2758,6 +2825,8 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
        ui_light_scheme_dialog_chrome_separates_from_canvas},
       {"ui_light_scheme_panel_scroll_bar_handle_reads_against_track",
        ui_light_scheme_panel_scroll_bar_handle_reads_against_track},
+      {"ui_light_scheme_color_picker_selected_tab_reads_as_selected",
+       ui_light_scheme_color_picker_selected_tab_reads_as_selected},
       {"ui_theme_qss_resolves_every_token", ui_theme_qss_resolves_every_token},
       {"ui_status_bar_error_message_flashes_then_persists_until_replaced",
        ui_status_bar_error_message_flashes_then_persists_until_replaced},

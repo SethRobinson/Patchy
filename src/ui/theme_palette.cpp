@@ -207,6 +207,12 @@ const ThemePalette& dark_palette() {
       .tab_selected_bg = rgb(0x3f3f3f),
       .tab_pane_border = rgb(0x5c5c5c),
 
+      // The color picker's tab bar.
+      .picker_tab_bg = rgb(0x343434),
+      .picker_tab_border = rgb(0x2a2a2a),
+      .picker_tab_hover_bg = rgb(0x404040),
+      .picker_tab_selected_bg = rgb(0x5a5a5a),
+
       // Canvas chrome.
       .canvas_backdrop = rgb(0x242629),
       .canvas_empty_text = rgb(0xaab0b8),
@@ -512,6 +518,17 @@ const ThemePalette& light_palette() {
     light.dialog_tab_hover_bg = rgb(0xf2f2f2);
     light.dialog_tab_selected_bg = rgb(0xf9f9f9);
 
+    // And again in the color picker, which keeps its wider step: 0x26 of
+    // lightness between the unselected and selected mode against the document
+    // tabs' 0x1a, the same spread it has in Dark. Its outline is the other half
+    // of the correction. A mirrored 1px line lands lighter than the tabs it is
+    // supposed to bound, which on a near-white strip draws nothing, so the tabs
+    // ran together into one pale block.
+    light.picker_tab_bg = rgb(0xd4d4d4);
+    light.picker_tab_border = rgb(0xc4c4c4);
+    light.picker_tab_hover_bg = rgb(0xe4e4e4);
+    light.picker_tab_selected_bg = rgb(0xfafafa);
+
     // Selection backgrounds keep their saturation rather than washing out to a
     // pale tint. That is the convention in light themes, and it is what keeps the
     // white label on a highlighted menu item or a checked button readable: a
@@ -774,6 +791,11 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(tab_hover_bg),
       PATCHY_THEME_ROLE(tab_selected_bg),
       PATCHY_THEME_ROLE(tab_pane_border),
+
+      PATCHY_THEME_ROLE(picker_tab_bg),
+      PATCHY_THEME_ROLE(picker_tab_border),
+      PATCHY_THEME_ROLE(picker_tab_hover_bg),
+      PATCHY_THEME_ROLE(picker_tab_selected_bg),
 
       PATCHY_THEME_ROLE(canvas_backdrop),
       PATCHY_THEME_ROLE(canvas_empty_text),
