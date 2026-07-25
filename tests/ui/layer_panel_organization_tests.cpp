@@ -1096,12 +1096,13 @@ void ui_layer_panel_mixed_folder_visual_cleanup() {
   save_widget_artifact("ui_layer_panel_mixed_folder_visual_cleanup", window);
 }
 
-void ui_layer_thumbnails_match_source_aspect() {
+void ui_layer_thumbnails_preview_the_whole_document() {
   // 4:1. A square tile would wrap this in checkerboard bars, which claim the
   // opaque layer has transparency it does not have.
   constexpr std::int32_t kWideWidth = 160;
   constexpr std::int32_t kWideHeight = 40;
   const QColor fill(210, 60, 40, 255);
+  const QColor badge_fill(40, 190, 90, 255);
 
   patchy::Document document(kWideWidth, kWideHeight, patchy::PixelFormat::rgba8());
   patchy::Layer banner(document.allocate_layer_id(), "Banner",
@@ -1111,6 +1112,14 @@ void ui_layer_thumbnails_match_source_aspect() {
   banner.set_mask(patchy::LayerMask{patchy::Rect{0, 0, kWideWidth, kWideHeight}, std::move(mask_pixels), 255, false});
   document.add_layer(std::move(banner));
   document.add_layer(patchy::Layer(document.allocate_layer_id(), "Assets", patchy::LayerKind::Group));
+
+  // A small layer parked on the right. Its thumbnail must still be the whole
+  // document, with the content where the layer actually sits. set_bounds comes
+  // after the pixels: set_pixels resets bounds to the buffer size.
+  patchy::Layer badge(document.allocate_layer_id(), "Badge",
+                      solid_pixels(40, 30, patchy::PixelFormat::rgba8(), badge_fill));
+  badge.set_bounds(patchy::Rect{100, 5, 40, 30});
+  document.add_layer(std::move(badge));
 
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1151,7 +1160,43 @@ void ui_layer_thumbnails_match_source_aspect() {
   }
   CHECK(fill_pixels == (content_image.width() - 2) * (content_image.height() - 2));
   CHECK(checkerboard_pixels == 0);
-  save_widget_artifact("ui_layer_thumbnail_source_aspect", window);
+
+  // The 40x30 badge at (100, 5) is a third of the document wide, so its tile is
+  // the document's shape, not its own 4:3, and the content sits on the right.
+  const auto badge_thumbnail = thumbnail_pixmap(QStringLiteral("Badge"), QStringLiteral("layerContentThumbnail"));
+  CHECK(badge_thumbnail.size() == QSize(28, 7));
+  const auto badge_image = badge_thumbnail.toImage();
+  const auto inside = badge_image.pixelColor(20, 3);
+  const auto outside = badge_image.pixelColor(3, 3);
+  CHECK(inside == QColor(badge_fill.red(), badge_fill.green(), badge_fill.blue()));
+  CHECK((outside == QColor(204, 204, 204) || outside == QColor(255, 255, 255)));
+  save_widget_artifact("ui_layer_thumbnail_document_preview", window);
+
+  // Growing the canvas reshapes every tile even though no layer revision moved,
+  // and the Banner stops covering the document, so checkerboard appears beside
+  // it. Counted rather than sampled: the anchor the dialog restores is not this
+  // test's business, only that both now show up.
+  accept_canvas_size_dialog(160, 160);
+  require_action(window, "imageCanvasSizeAction")->trigger();
+  QApplication::processEvents();
+  const auto grown = thumbnail_pixmap(QStringLiteral("Banner"), QStringLiteral("layerContentThumbnail"));
+  CHECK(grown.size() == QSize(28, 28));
+  const auto grown_image = grown.toImage();
+  int grown_fill_pixels = 0;
+  int grown_checkerboard_pixels = 0;
+  for (int y = 1; y + 1 < grown_image.height(); ++y) {
+    for (int x = 1; x + 1 < grown_image.width(); ++x) {
+      const auto color = grown_image.pixelColor(x, y);
+      if (color == QColor(fill.red(), fill.green(), fill.blue())) {
+        ++grown_fill_pixels;
+      }
+      if (color == QColor(204, 204, 204) || color == QColor(255, 255, 255)) {
+        ++grown_checkerboard_pixels;
+      }
+    }
+  }
+  CHECK(grown_fill_pixels > 100);
+  CHECK(grown_checkerboard_pixels > 100);
 
   // A square document still fills the whole slot.
   patchy::Document square(64, 64, patchy::PixelFormat::rgba8());
@@ -2620,7 +2665,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_rows_toggle_visibility_and_drag_reorder", ui_layer_rows_toggle_visibility_and_drag_reorder},
       {"ui_layer_folders_create_with_drag_drop_affordances", ui_layer_folders_create_with_drag_drop_affordances},
       {"ui_layer_panel_mixed_folder_visual_cleanup", ui_layer_panel_mixed_folder_visual_cleanup},
-      {"ui_layer_thumbnails_match_source_aspect", ui_layer_thumbnails_match_source_aspect},
+      {"ui_layer_thumbnails_preview_the_whole_document", ui_layer_thumbnails_preview_the_whole_document},
       {"ui_layer_drag_drops_child_above_parent_folder", ui_layer_drag_drops_child_above_parent_folder},
       {"ui_layer_drag_multiselect_drops_children_above_parent_folder",
        ui_layer_drag_multiselect_drops_children_above_parent_folder},

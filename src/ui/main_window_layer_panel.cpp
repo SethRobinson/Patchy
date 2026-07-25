@@ -443,6 +443,32 @@ QSize layer_preview_source_size(const Layer& layer) {
   return QSize(layer.bounds().width, layer.bounds().height);
 }
 
+// Photoshop previews a layer inside the whole document rect, so a thumbnail
+// says where the layer's pixels sit, not only what they are: a small layer
+// keeps its position and the checkerboard around it, and anything pushed off
+// the canvas is clipped away. This maps a tile pixel back to a coordinate in
+// the source buffer. Without a document (a preview built before a size is
+// known) it degrades to stretching the buffer across the tile.
+struct ThumbnailPreviewSpace {
+  QSize space;
+  QPoint origin;
+
+  [[nodiscard]] int source_x(int x, int tile_width) const {
+    return static_cast<int>((static_cast<double>(x) / tile_width) * space.width()) - origin.x();
+  }
+  [[nodiscard]] int source_y(int y, int tile_height) const {
+    return static_cast<int>((static_cast<double>(y) / tile_height) * space.height()) - origin.y();
+  }
+};
+
+ThumbnailPreviewSpace thumbnail_preview_space(int document_width, int document_height, Rect bounds,
+                                              QSize fallback_source) {
+  if (document_width > 0 && document_height > 0) {
+    return {QSize(document_width, document_height), QPoint(bounds.x, bounds.y)};
+  }
+  return {fallback_source, QPoint(0, 0)};
+}
+
 // A frame costs a row and a column on each side, so a hairline tile would be
 // nothing but border. Below three pixels the content wins.
 void draw_thumbnail_frame(QPainter& painter, QSize tile) {
@@ -466,25 +492,29 @@ void draw_thumbnail_disabled_cross(QPainter& painter, QSize tile) {
   painter.drawLine(QPoint(bottom_right.x(), top_left.y()), QPoint(top_left.x(), bottom_right.y()));
 }
 
-QPixmap layer_mask_thumbnail(const Layer& layer) {
+QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int document_height) {
   constexpr int kSize = 28;
   const auto& mask = *layer.mask();
   const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
-  // An empty mask covers the layer uniformly, so it borrows the layer's shape.
-  const auto source = has_pixels ? QSize(mask.pixels.width(), mask.pixels.height())
-                                 : layer_preview_source_size(layer);
-  const auto tile = thumbnail_tile_size(source.width(), source.height(), kSize);
+  // `mask.bounds` is document space and the mask reads `default_color` outside
+  // it, which is exactly what the fill plus the in-bounds guard below produce.
+  const auto preview = thumbnail_preview_space(
+      document_width, document_height, mask.bounds,
+      has_pixels ? QSize(mask.pixels.width(), mask.pixels.height()) : layer_preview_source_size(layer));
+  const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), kSize);
   QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
   image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
   if (has_pixels) {
     for (int y = 0; y < tile.height(); ++y) {
-      const auto source_y = std::clamp(
-          static_cast<int>((static_cast<double>(y) / tile.height()) * mask.pixels.height()), 0,
-          std::max(0, mask.pixels.height() - 1));
+      const auto source_y = preview.source_y(y, tile.height());
+      if (source_y < 0 || source_y >= mask.pixels.height()) {
+        continue;
+      }
       for (int x = 0; x < tile.width(); ++x) {
-        const auto source_x = std::clamp(
-            static_cast<int>((static_cast<double>(x) / tile.width()) * mask.pixels.width()), 0,
-            std::max(0, mask.pixels.width() - 1));
+        const auto source_x = preview.source_x(x, tile.width());
+        if (source_x < 0 || source_x >= mask.pixels.width()) {
+          continue;
+        }
         const auto value = *mask.pixels.pixel(source_x, source_y);
         image.setPixelColor(x, y, QColor(value, value, value));
       }
@@ -998,7 +1028,9 @@ void draw_invert_adjustment_thumbnail_symbol(QPainter& painter, const QColor& ac
   painter.drawLine(square.topRight(), square.bottomLeft());
 }
 
-QPixmap layer_content_thumbnail(const Layer& layer) {
+// Folder, text, and adjustment layers return early with a square glyph: those
+// are icons, not document previews, so the document rect does not apply.
+QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int document_height) {
   constexpr int kSize = 28;
   if (layer.kind() == LayerKind::Group) {
     QPixmap pixmap(kSize, kSize);
@@ -1166,11 +1198,12 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
     return pixmap;
   }
 
-  // Only the layer's own pixels get a checkerboard, and only where the layer
-  // really is transparent: the tile is shaped to the source, so there is no
-  // letterbox margin left to fill with a pattern that means alpha.
-  const auto source = layer_preview_source_size(layer);
-  const auto tile = thumbnail_tile_size(source.width(), source.height(), kSize);
+  // The tile is the document, so checkerboard now means one of two honest
+  // things: the layer is transparent there, or the layer does not reach there.
+  const auto& pixels = layer.pixels();
+  const auto preview = thumbnail_preview_space(document_width, document_height, layer_pixel_bounds(layer),
+                                               layer_preview_source_size(layer));
+  const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), kSize);
   QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
   for (int y = 0; y < tile.height(); ++y) {
     for (int x = 0; x < tile.width(); ++x) {
@@ -1179,16 +1212,17 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
     }
   }
 
-  const auto& pixels = layer.pixels();
   if (!pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 && pixels.format().channels >= 3) {
     for (int y = 0; y < tile.height(); ++y) {
-      const auto source_y = std::clamp(
-          static_cast<int>((static_cast<double>(y) / tile.height()) * pixels.height()), 0,
-          std::max(0, pixels.height() - 1));
+      const auto source_y = preview.source_y(y, tile.height());
+      if (source_y < 0 || source_y >= pixels.height()) {
+        continue;
+      }
       for (int x = 0; x < tile.width(); ++x) {
-        const auto source_x = std::clamp(
-            static_cast<int>((static_cast<double>(x) / tile.width()) * pixels.width()), 0,
-            std::max(0, pixels.width() - 1));
+        const auto source_x = preview.source_x(x, tile.width());
+        if (source_x < 0 || source_x >= pixels.width()) {
+          continue;
+        }
         const auto* px = pixels.pixel(source_x, source_y);
         const auto alpha = pixels.format().channels >= 4 ? static_cast<int>(px[3]) : 255;
         const auto base = image.pixelColor(x, y);
@@ -1332,7 +1366,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   // Center the 28px pixmap: QLabel's default left alignment piles the slack
   // (and the active-border clipping) onto the right/bottom edges.
   thumbnail->setAlignment(Qt::AlignCenter);
-  thumbnail->setPixmap(content_thumbnail ? content_thumbnail(layer) : layer_content_thumbnail(layer));
+  thumbnail->setPixmap(content_thumbnail
+                           ? content_thumbnail(layer)
+                           : layer_content_thumbnail(layer, document_size.width(), document_size.height()));
   thumbnail->setProperty(kLayerContentThumbnailRevisionProperty,
                          QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
   thumbnail->setToolTip(layer.kind() == LayerKind::Group
@@ -1386,7 +1422,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     mask_preview->setObjectName(QStringLiteral("layerMaskThumbnail"));
     mask_preview->setFixedSize(30, 30);
     mask_preview->setAlignment(Qt::AlignCenter);
-    mask_preview->setPixmap(mask_thumbnail ? mask_thumbnail(layer) : layer_mask_thumbnail(layer));
+    mask_preview->setPixmap(mask_thumbnail
+                                ? mask_thumbnail(layer)
+                                : layer_mask_thumbnail(layer, document_size.width(), document_size.height()));
     mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
                               QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
     mask_preview->setToolTip(
@@ -1571,23 +1609,27 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         button->installEventFilter(list_parent);
       }
     };
-    const auto mask_pixmap = [&layer](const SmartFilterMask& mask) {
+    const auto mask_pixmap = [&layer, document_size](const SmartFilterMask& mask) {
       constexpr int kSize = 22;
       const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
-      const auto source = has_pixels ? QSize(mask.pixels.width(), mask.pixels.height())
-                                     : layer_preview_source_size(layer);
-      const auto tile = thumbnail_tile_size(source.width(), source.height(), kSize);
+      const auto preview = thumbnail_preview_space(
+          document_size.width(), document_size.height(), mask.bounds,
+          has_pixels ? QSize(mask.pixels.width(), mask.pixels.height())
+                     : layer_preview_source_size(layer));
+      const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), kSize);
       QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
       image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
       if (has_pixels) {
         for (int y = 0; y < tile.height(); ++y) {
-          const auto source_y = std::clamp(
-              static_cast<int>((static_cast<double>(y) / tile.height()) * mask.pixels.height()), 0,
-              std::max(0, mask.pixels.height() - 1));
+          const auto source_y = preview.source_y(y, tile.height());
+          if (source_y < 0 || source_y >= mask.pixels.height()) {
+            continue;
+          }
           for (int x = 0; x < tile.width(); ++x) {
-            const auto source_x = std::clamp(
-                static_cast<int>((static_cast<double>(x) / tile.width()) * mask.pixels.width()), 0,
-                std::max(0, mask.pixels.width() - 1));
+            const auto source_x = preview.source_x(x, tile.width());
+            if (source_x < 0 || source_x >= mask.pixels.width()) {
+              continue;
+            }
             const auto value = *mask.pixels.pixel(source_x, source_y);
             image.setPixelColor(x, y, QColor(value, value, value));
           }
@@ -2593,8 +2635,14 @@ void MainWindow::refresh_layer_list() {
       }
       layer_list_->setItemWidget(
           item, make_layer_row_widget(*it, item, layer_list_,
-                                      [this](const Layer& row_layer) { return cached_layer_content_thumbnail(row_layer); },
-                                      [this](const Layer& row_layer) { return cached_layer_mask_thumbnail(row_layer); },
+                                      [this](const Layer& row_layer) {
+                                        return cached_layer_content_thumbnail(row_layer, document().width(),
+                                                                              document().height());
+                                      },
+                                      [this](const Layer& row_layer) {
+                                        return cached_layer_mask_thumbnail(row_layer, document().width(),
+                                                                           document().height());
+                                      },
                                       depth, ancestors_visible, group_expanded, ancestor_lock_flags,
                                       [this](LayerId layer_id, bool include_nested) {
                                         toggle_layer_folder_expanded(layer_id, include_nested);
@@ -2717,24 +2765,28 @@ void MainWindow::refresh_layer_list() {
   refresh_paths_panel();
 }
 
-QPixmap MainWindow::cached_layer_content_thumbnail(const Layer& layer) {
+QPixmap MainWindow::cached_layer_content_thumbnail(const Layer& layer, int document_width,
+                                                   int document_height) {
   auto& entry = layer_thumbnail_cache_[layer.id()];
+  entry.retire_for_extent(document_width, document_height);
   const auto revision = layer.content_revision();
   if (entry.content.isNull() || entry.content_revision != revision) {
-    entry.content = layer_content_thumbnail(layer);
+    entry.content = layer_content_thumbnail(layer, document_width, document_height);
     entry.content_revision = revision;
   }
   return entry.content;
 }
 
-QPixmap MainWindow::cached_layer_mask_thumbnail(const Layer& layer) {
+QPixmap MainWindow::cached_layer_mask_thumbnail(const Layer& layer, int document_width,
+                                                int document_height) {
   if (!layer.mask().has_value()) {
     return {};
   }
   auto& entry = layer_thumbnail_cache_[layer.id()];
+  entry.retire_for_extent(document_width, document_height);
   const auto revision = layer.content_revision();
   if (entry.mask.isNull() || entry.mask_revision != revision) {
-    entry.mask = layer_mask_thumbnail(layer);
+    entry.mask = layer_mask_thumbnail(layer, document_width, document_height);
     entry.mask_revision = revision;
   }
   return entry.mask;
@@ -2746,6 +2798,11 @@ void MainWindow::refresh_layer_thumbnails() {
     return;
   }
   const auto& doc = document();
+  // Thumbnails preview a layer inside the document rect, so a canvas resize
+  // reshapes them even for a layer whose own revision never moved.
+  const QSize document_size(doc.width(), doc.height());
+  const auto extent_changed = document_size != layer_thumbnail_extent_;
+  layer_thumbnail_extent_ = document_size;
   int content_refreshed = 0;
   int content_skipped = 0;
   int mask_refreshed = 0;
@@ -2766,8 +2823,8 @@ void MainWindow::refresh_layer_thumbnails() {
     const auto revision = static_cast<qulonglong>(layer->content_revision());
     if (auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")); thumbnail != nullptr &&
         (layer->kind() == LayerKind::Pixel || layer_is_text(*layer))) {
-      if (thumbnail->property(kLayerContentThumbnailRevisionProperty).toULongLong() != revision) {
-        thumbnail->setPixmap(cached_layer_content_thumbnail(*layer));
+      if (extent_changed || thumbnail->property(kLayerContentThumbnailRevisionProperty).toULongLong() != revision) {
+        thumbnail->setPixmap(cached_layer_content_thumbnail(*layer, doc.width(), doc.height()));
         thumbnail->setProperty(kLayerContentThumbnailRevisionProperty, QVariant::fromValue<qulonglong>(revision));
         ++content_refreshed;
       } else {
@@ -2776,8 +2833,9 @@ void MainWindow::refresh_layer_thumbnails() {
     }
     if (auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
         mask_thumbnail != nullptr && layer->mask().has_value()) {
-      if (mask_thumbnail->property(kLayerMaskThumbnailRevisionProperty).toULongLong() != revision) {
-        mask_thumbnail->setPixmap(cached_layer_mask_thumbnail(*layer));
+      if (extent_changed ||
+          mask_thumbnail->property(kLayerMaskThumbnailRevisionProperty).toULongLong() != revision) {
+        mask_thumbnail->setPixmap(cached_layer_mask_thumbnail(*layer, doc.width(), doc.height()));
         mask_thumbnail->setProperty(kLayerMaskThumbnailRevisionProperty, QVariant::fromValue<qulonglong>(revision));
         ++mask_refreshed;
       } else {

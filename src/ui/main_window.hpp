@@ -856,15 +856,34 @@ private:
   // layer's thumbnail from its full pixel buffer. Safe because layer revisions
   // are app-globally unique (core/layer.cpp) - a value can never name two
   // different contents. Cleared on document switches; pruned against the layer
-  // tree by refresh_layer_thumbnails.
+  // tree by refresh_layer_thumbnails. The canvas extent is part of the key
+  // because thumbnails preview a layer inside the document rect: growing the
+  // canvas reshapes a small layer's thumbnail without touching its revision.
   struct LayerThumbnailCacheEntry {
     std::uint64_t content_revision{0};
+    std::int32_t document_width{0};
+    std::int32_t document_height{0};
     QPixmap content;
     std::uint64_t mask_revision{0};
     QPixmap mask;
+
+    // The extent is shared by both tiles, so it is retired once for both
+    // before either getter consults its own revision. Retiring it inside each
+    // getter would let the pair clear each other on every row build.
+    void retire_for_extent(std::int32_t width, std::int32_t height) {
+      if (document_width == width && document_height == height) {
+        return;
+      }
+      document_width = width;
+      document_height = height;
+      content = {};
+      mask = {};
+    }
   };
-  [[nodiscard]] QPixmap cached_layer_content_thumbnail(const Layer& layer);
-  [[nodiscard]] QPixmap cached_layer_mask_thumbnail(const Layer& layer);
+  [[nodiscard]] QPixmap cached_layer_content_thumbnail(const Layer& layer, int document_width,
+                                                       int document_height);
+  [[nodiscard]] QPixmap cached_layer_mask_thumbnail(const Layer& layer, int document_width,
+                                                    int document_height);
   void refresh_layer_controls();
   void refresh_channel_panel();
   [[nodiscard]] QPixmap cached_channel_thumbnail(const DocumentChannel& channel);
@@ -1016,6 +1035,10 @@ private:
   // once a document floats in its own window.
   CanvasWidget* canvas_{nullptr};
   std::unordered_map<LayerId, LayerThumbnailCacheEntry> layer_thumbnail_cache_;
+  // Canvas extent the layer rows' thumbnails were last stamped for. A resize
+  // reshapes every tile without moving any layer revision, so the per-widget
+  // revision stamps alone would leave the old shapes on screen.
+  QSize layer_thumbnail_extent_;
   struct ChannelThumbnailCacheEntry {
     std::uint64_t content_revision{0};
     QPixmap thumbnail;
