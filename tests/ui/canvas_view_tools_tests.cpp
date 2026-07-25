@@ -537,6 +537,150 @@ void ui_canvas_pan_keeps_document_partly_visible() {
   check_minimum_visible();
 }
 
+std::pair<QScrollBar*, QScrollBar*> require_canvas_scroll_bars(patchy::ui::CanvasWidget& canvas) {
+  auto* horizontal = canvas.findChild<QScrollBar*>(QStringLiteral("canvasHorizontalScrollBar"));
+  auto* vertical = canvas.findChild<QScrollBar*>(QStringLiteral("canvasVerticalScrollBar"));
+  CHECK(horizontal != nullptr);
+  CHECK(vertical != nullptr);
+  return {horizontal, vertical};
+}
+
+void ui_canvas_scroll_bars_reflect_pan_range() {
+  patchy::Document document(100, 80, patchy::PixelFormat::rgba8());
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(500, 400);
+  canvas.set_document(&document);
+  canvas.center_document_in_view();
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto [horizontal, vertical] = require_canvas_scroll_bars(canvas);
+  CHECK(horizontal->isVisible());
+  CHECK(vertical->isVisible());
+
+  // Flush against the bottom/right edges, each shortened by the other's
+  // thickness so the corner square stays free (never assert pixel thickness;
+  // the offscreen style's extent differs from the app style's).
+  CHECK(horizontal->geometry().left() == 0);
+  CHECK(horizontal->geometry().bottom() == canvas.height() - 1);
+  CHECK(horizontal->width() == canvas.width() - vertical->width());
+  CHECK(vertical->geometry().top() == 0);
+  CHECK(vertical->geometry().right() == canvas.width() - 1);
+  CHECK(vertical->height() == canvas.height() - horizontal->height());
+
+  // The range mirrors the pan clamp (>= 10% of the document, or of the viewport
+  // if smaller, stays visible): pan spans
+  // [minimum_visible - document_span, viewport_span - minimum_visible], and the
+  // bar value counts down from the pan maximum (value 0 = top/left extreme).
+  const auto expected_maximum_and_centered_value = [](int viewport_span, int document_span) {
+    const auto minimum_visible =
+        std::max(1.0, static_cast<double>(std::min(viewport_span, document_span)) * 0.10);
+    const auto pan_minimum = minimum_visible - static_cast<double>(document_span);
+    const auto pan_maximum = static_cast<double>(viewport_span) - minimum_visible;
+    const auto centered_pan =
+        (static_cast<double>(viewport_span) - static_cast<double>(document_span)) / 2.0;
+    return std::pair(static_cast<int>(std::lround(pan_maximum - pan_minimum)),
+                     static_cast<int>(std::lround(pan_maximum - centered_pan)));
+  };
+  const auto [h_maximum, h_value] = expected_maximum_and_centered_value(500, 100);  // 580, 290
+  const auto [v_maximum, v_value] = expected_maximum_and_centered_value(400, 80);   // 464, 232
+  CHECK(horizontal->minimum() == 0);
+  CHECK(horizontal->maximum() == h_maximum);
+  CHECK(horizontal->value() == h_value);
+  CHECK(horizontal->pageStep() == 500);
+  CHECK(vertical->minimum() == 0);
+  CHECK(vertical->maximum() == v_maximum);
+  CHECK(vertical->value() == v_value);
+  CHECK(vertical->pageStep() == 400);
+
+  canvas.set_document(nullptr);
+  CHECK(!horizontal->isVisible());
+  CHECK(!vertical->isVisible());
+}
+
+void ui_canvas_hand_pan_updates_scroll_bars() {
+  patchy::Document document(100, 80, patchy::PixelFormat::rgba8());
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(500, 400);
+  canvas.set_document(&document);
+  canvas.center_document_in_view();
+  canvas.set_tool(patchy::ui::CanvasTool::Pan);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto [horizontal, vertical] = require_canvas_scroll_bars(canvas);
+  const auto h_before = horizontal->value();
+  const auto v_before = vertical->value();
+
+  // Dragging the document left/up by (100, 80) scrolls the view right/down by
+  // the same amount.
+  send_mouse(canvas, QEvent::MouseButtonPress, QPoint(250, 200), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, QPoint(150, 120), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, QPoint(150, 120), Qt::LeftButton, Qt::NoButton);
+
+  CHECK(std::abs(horizontal->value() - (h_before + 100)) <= 1);
+  CHECK(std::abs(vertical->value() - (v_before + 80)) <= 1);
+}
+
+void ui_canvas_scroll_bar_scrolls_view() {
+  patchy::Document document(100, 80, patchy::PixelFormat::rgba8());
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(500, 400);
+  canvas.set_document(&document);
+  canvas.center_document_in_view();
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto [horizontal, vertical] = require_canvas_scroll_bars(canvas);
+  int view_changes = 0;
+  canvas.set_view_changed_callback([&view_changes] { ++view_changes; });
+
+  const auto origin_before = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto h_target = horizontal->value() + 50;
+  horizontal->setValue(h_target);
+  auto origin = canvas.widget_position_for_document_point(QPoint(0, 0));
+  CHECK(origin.x() == origin_before.x() - 50);
+  CHECK(origin.y() == origin_before.y());
+  CHECK(horizontal->value() == h_target);  // the resync echo must not fight the user's value
+  CHECK(view_changes == 1);
+
+  const auto v_target = vertical->value() + 30;
+  vertical->setValue(v_target);
+  origin = canvas.widget_position_for_document_point(QPoint(0, 0));
+  CHECK(origin.x() == origin_before.x() - 50);
+  CHECK(origin.y() == origin_before.y() - 30);
+  CHECK(vertical->value() == v_target);
+  CHECK(view_changes == 2);
+}
+
+void ui_canvas_scroll_bars_follow_zoom_and_resize() {
+  patchy::Document document(100, 80, patchy::PixelFormat::rgba8());
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(500, 400);
+  canvas.set_document(&document);
+  canvas.center_document_in_view();
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto [horizontal, vertical] = require_canvas_scroll_bars(canvas);
+
+  canvas.set_zoom(2.0);
+  // Document span doubles to 200x160, so minimum_visible becomes 20/16 and the
+  // range widens: maximum = (viewport - min_vis) - (min_vis - span).
+  CHECK(horizontal->maximum() == 660);  // (500 - 20) - (20 - 200)
+  CHECK(vertical->maximum() == 528);    // (400 - 16) - (16 - 160)
+  CHECK(horizontal->pageStep() == 500);
+
+  canvas.resize(600, 500);
+  QApplication::processEvents();
+  CHECK(horizontal->pageStep() == 600);
+  CHECK(vertical->pageStep() == 500);
+  CHECK(horizontal->maximum() == 760);  // (600 - 20) - (20 - 200)
+  CHECK(vertical->maximum() == 628);    // (500 - 16) - (16 - 160)
+  CHECK(horizontal->geometry().bottom() == canvas.height() - 1);
+  CHECK(vertical->geometry().right() == canvas.width() - 1);
+}
+
 void ui_canvas_fractional_zoom_paints_to_document_edge() {
   patchy::Document document(1024, 768, patchy::PixelFormat::rgba8());
   patchy::PixelBuffer pixels(1024, 768, patchy::PixelFormat::rgba8());
@@ -1844,6 +1988,10 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},
       {"ui_max_brush_uses_overlay_cursor", ui_max_brush_uses_overlay_cursor},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
+      {"ui_canvas_scroll_bars_reflect_pan_range", ui_canvas_scroll_bars_reflect_pan_range},
+      {"ui_canvas_hand_pan_updates_scroll_bars", ui_canvas_hand_pan_updates_scroll_bars},
+      {"ui_canvas_scroll_bar_scrolls_view", ui_canvas_scroll_bar_scrolls_view},
+      {"ui_canvas_scroll_bars_follow_zoom_and_resize", ui_canvas_scroll_bars_follow_zoom_and_resize},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
       {"ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp",
        ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp},

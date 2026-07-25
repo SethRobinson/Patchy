@@ -44,6 +44,7 @@
 class QPainter;
 class QEvent;
 class QResizeEvent;
+class QScrollBar;
 class QTabletEvent;
 
 namespace patchy {
@@ -1273,6 +1274,8 @@ private:
   void reset_warp_state();
   bool constrain_pan() noexcept;
   void notify_view_changed();
+  void sync_scroll_bars();
+  void handle_scroll_bar_value_changed(Qt::Orientation orientation, int value);
   void report_status_error(const QString& message) const;
   void emit_info_for_widget_position(QPoint widget_position) const;
   [[nodiscard]] PenInputSample pen_input_sample_from_tablet_event(const QTabletEvent& event) const;
@@ -1317,6 +1320,9 @@ private:
   double zoom_{1.0};
   QPointF pan_{40.0, 40.0};
   bool wheel_zooms_{true};
+  QScrollBar* horizontal_scroll_bar_{nullptr};
+  QScrollBar* vertical_scroll_bar_{nullptr};
+  bool syncing_scroll_bars_{false};
   QImage render_cache_{};
   bool render_cache_dirty_{true};
   bool tiling_preview_enabled_{false};

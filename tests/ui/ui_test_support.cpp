@@ -2,6 +2,8 @@
 
 #include "ui_test_access.hpp"
 
+#include <QScrollBar>
+
 namespace patchy::test::ui {
 
 patchy::PixelBuffer solid_pixels(std::int32_t width, std::int32_t height, patchy::PixelFormat format, QColor color) {
@@ -657,6 +659,18 @@ QColor canvas_pixel_center(patchy::ui::CanvasWidget& canvas, QPoint document_poi
 
 std::optional<QRect> dark_document_bounds(patchy::ui::CanvasWidget& canvas, QRect document_rect) {
   const auto image = canvas.grab().toImage();
+  // The canvas scroll bars (and the corner square between them) overlay the far
+  // edges of the widget; document pixels underneath them are hidden, so keep
+  // the scan inside the L-shaped region the bars do not cover.
+  auto scan_limit = QPoint(image.width(), image.height());
+  if (const auto* vertical = canvas.findChild<QScrollBar*>(QStringLiteral("canvasVerticalScrollBar"));
+      vertical != nullptr && vertical->isVisible()) {
+    scan_limit.setX(std::min(scan_limit.x(), vertical->x()));
+  }
+  if (const auto* horizontal = canvas.findChild<QScrollBar*>(QStringLiteral("canvasHorizontalScrollBar"));
+      horizontal != nullptr && horizontal->isVisible()) {
+    scan_limit.setY(std::min(scan_limit.y(), horizontal->y()));
+  }
   int min_x = document_rect.right() + 1;
   int min_y = document_rect.bottom() + 1;
   int max_x = document_rect.left() - 1;
@@ -664,7 +678,8 @@ std::optional<QRect> dark_document_bounds(patchy::ui::CanvasWidget& canvas, QRec
   for (int y = document_rect.top(); y <= document_rect.bottom(); ++y) {
     for (int x = document_rect.left(); x <= document_rect.right(); ++x) {
       const auto widget_point = canvas.widget_position_for_document_point(QPoint(x, y));
-      if (!image.rect().contains(widget_point)) {
+      if (!image.rect().contains(widget_point) || widget_point.x() >= scan_limit.x() ||
+          widget_point.y() >= scan_limit.y()) {
         continue;
       }
       const auto color = image.pixelColor(widget_point);

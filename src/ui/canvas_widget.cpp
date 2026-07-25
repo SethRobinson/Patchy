@@ -40,6 +40,7 @@
 #include <QRadialGradient>
 #include <QResizeEvent>
 #include <QScreen>
+#include <QScrollBar>
 #include <QSet>
 #include <QTabletEvent>
 #include <QTimerEvent>
@@ -214,6 +215,18 @@ CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
   setMouseTracking(true);
   setTabletTracking(true);
   setFocusPolicy(Qt::StrongFocus);
+  const auto make_scroll_bar = [this](Qt::Orientation orientation, const QString& name) {
+    auto* bar = new QScrollBar(orientation, this);
+    bar->setObjectName(name);
+    bar->setFocusPolicy(Qt::NoFocus);  // keep canvas keyboard handling unaffected
+    bar->setCursor(Qt::ArrowCursor);   // children otherwise inherit the canvas tool cursor
+    bar->hide();
+    connect(bar, &QScrollBar::valueChanged, this,
+            [this, orientation](int value) { handle_scroll_bar_value_changed(orientation, value); });
+    return bar;
+  };
+  horizontal_scroll_bar_ = make_scroll_bar(Qt::Horizontal, QStringLiteral("canvasHorizontalScrollBar"));
+  vertical_scroll_bar_ = make_scroll_bar(Qt::Vertical, QStringLiteral("canvasVerticalScrollBar"));
   // Watch the whole app for modifier-key changes so the selection cursor badge
   // updates the instant Shift/Alt change even when the canvas does not hold
   // keyboard focus (the key events otherwise go to whichever panel has focus).
@@ -364,6 +377,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   if (isVisible()) {
     constrain_pan();
   }
+  sync_scroll_bars();  // this path constrains pan without notify_view_changed()
   update();
   if (quick_mask_was_cleared && quick_mask_changed_callback_) {
     quick_mask_changed_callback_();

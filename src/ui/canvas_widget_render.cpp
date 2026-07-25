@@ -50,6 +50,7 @@
 #include <QRadialGradient>
 #include <QResizeEvent>
 #include <QScreen>
+#include <QScrollBar>
 #include <QSet>
 #include <QTabletEvent>
 #include <QTimerEvent>
@@ -833,6 +834,13 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_brush_hover_outline(painter);
   draw_brush_adjust_overlay(painter);
   draw_processing_overlay(painter);
+  if (vertical_scroll_bar_ != nullptr && vertical_scroll_bar_->isVisible() &&
+      horizontal_scroll_bar_ != nullptr && horizontal_scroll_bar_->isVisible()) {
+    // The corner square between the bars reads as scroll chrome, like Photoshop.
+    painter.fillRect(QRect(width() - vertical_scroll_bar_->width(), height() - horizontal_scroll_bar_->height(),
+                           vertical_scroll_bar_->width(), horizontal_scroll_bar_->height()),
+                     QColor(0x26, 0x26, 0x26));  // scroll track color
+  }
 }
 
 QImage CanvasWidget::render_document_image() const {

@@ -320,6 +320,9 @@ void CanvasWidget::resizeEvent(QResizeEvent* event) {
     update();
     notify_view_changed();
   }
+  // Bar geometry and page step track the viewport even when pan was unchanged
+  // (idempotent when notify_view_changed already synced above).
+  sync_scroll_bars();
 }
 
 void CanvasWidget::mousePressEvent(QMouseEvent* event) {

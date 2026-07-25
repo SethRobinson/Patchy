@@ -47,6 +47,7 @@
 #include <QRadialGradient>
 #include <QResizeEvent>
 #include <QScreen>
+#include <QScrollBar>
 #include <QSet>
 #include <QTabletEvent>
 #include <QTimerEvent>
@@ -78,15 +79,30 @@ namespace {
 constexpr double kMinZoom = 0.05;
 constexpr double kMaxZoom = 128.0;
 constexpr double kMinimumVisibleDocumentFraction = 0.10;
+constexpr int kScrollBarSingleStep = 20;
+
+// The allowed pan range per axis: at least 10% of the document (or of the
+// viewport, whichever is smaller) must stay visible. The scroll bars derive
+// their range from the same rule so bar scrolling and hand-tool panning can
+// never disagree.
+struct PanAxisRange {
+  double minimum;
+  double maximum;
+};
+
+PanAxisRange pan_axis_range(double viewport_span, double document_span) noexcept {
+  const auto minimum_visible =
+      std::max(1.0, std::min(viewport_span, document_span) * kMinimumVisibleDocumentFraction);
+  return {minimum_visible - document_span, viewport_span - minimum_visible};
+}
 
 double constrained_document_axis(double pan, double viewport_span, double document_span) noexcept {
   if (!std::isfinite(pan) || viewport_span <= 0.0 || document_span <= 0.0) {
     return pan;
   }
 
-  const auto minimum_visible =
-      std::max(1.0, std::min(viewport_span, document_span) * kMinimumVisibleDocumentFraction);
-  return std::clamp(pan, minimum_visible - document_span, viewport_span - minimum_visible);
+  const auto range = pan_axis_range(viewport_span, document_span);
+  return std::clamp(pan, range.minimum, range.maximum);
 }
 
 }  // namespace
@@ -257,9 +273,73 @@ bool CanvasWidget::constrain_pan() noexcept {
 
 void CanvasWidget::notify_view_changed() {
   ZoomTraceScope trace("view_changed", zoom_);
+  sync_scroll_bars();  // before the callback so observers see consistent bars
   if (view_changed_callback_) {
     view_changed_callback_();
   }
+}
+
+void CanvasWidget::sync_scroll_bars() {
+  if (horizontal_scroll_bar_ == nullptr || vertical_scroll_bar_ == nullptr) {
+    return;
+  }
+  syncing_scroll_bars_ = true;
+
+  // Right and bottom edges, each shortened so the corner square stays free
+  // (Photoshop layout). setGeometry no-ops when unchanged.
+  const auto bar_thickness_v = std::max(1, vertical_scroll_bar_->sizeHint().width());
+  const auto bar_thickness_h = std::max(1, horizontal_scroll_bar_->sizeHint().height());
+  horizontal_scroll_bar_->setGeometry(0, height() - bar_thickness_h,
+                                      std::max(0, width() - bar_thickness_v), bar_thickness_h);
+  vertical_scroll_bar_->setGeometry(width() - bar_thickness_v, 0, bar_thickness_v,
+                                    std::max(0, height() - bar_thickness_h));
+
+  const bool bars_visible = document_ != nullptr && document_->width() > 0 && document_->height() > 0 &&
+                            width() > 0 && height() > 0;
+  horizontal_scroll_bar_->setVisible(bars_visible);
+  vertical_scroll_bar_->setVisible(bars_visible);
+  if (bars_visible) {
+    const auto sync_axis = [](QScrollBar& bar, double pan, double viewport_span, double document_span) {
+      const auto range = pan_axis_range(viewport_span, document_span);
+      // Worst case fits int: a 300000 px document side at 128x zoom plus the
+      // viewport is ~38.4M, and Qt's slider pixel math is qint64.
+      const auto maximum = std::max(0, qRound(range.maximum - range.minimum));
+      bar.setRange(0, maximum);
+      bar.setPageStep(qRound(viewport_span));  // proportional thumb, like Photoshop
+      bar.setSingleStep(kScrollBarSingleStep);
+      // maximum and value are rounded independently, hence the explicit clamp.
+      bar.setValue(std::clamp(qRound(range.maximum - pan), 0, maximum));
+    };
+    sync_axis(*horizontal_scroll_bar_, pan_.x(), static_cast<double>(width()),
+              static_cast<double>(document_->width()) * zoom_);
+    sync_axis(*vertical_scroll_bar_, pan_.y(), static_cast<double>(height()),
+              static_cast<double>(document_->height()) * zoom_);
+    horizontal_scroll_bar_->raise();  // stay above later-created children (inline text editor)
+    vertical_scroll_bar_->raise();
+  }
+  syncing_scroll_bars_ = false;
+}
+
+void CanvasWidget::handle_scroll_bar_value_changed(Qt::Orientation orientation, int value) {
+  if (syncing_scroll_bars_ || document_ == nullptr || document_->width() <= 0 || document_->height() <= 0) {
+    return;
+  }
+  const bool horizontal = orientation == Qt::Horizontal;
+  const auto viewport_span = static_cast<double>(horizontal ? width() : height());
+  const auto document_span =
+      static_cast<double>(horizontal ? document_->width() : document_->height()) * zoom_;
+  if (viewport_span <= 0.0 || document_span <= 0.0) {
+    return;
+  }
+  const auto target = pan_axis_range(viewport_span, document_span).maximum - static_cast<double>(value);
+  auto& component = horizontal ? pan_.rx() : pan_.ry();
+  if (component == target) {
+    return;
+  }
+  component = target;
+  constrain_pan();  // no-op by construction (target is inside the clamp range); safety net
+  update();
+  notify_view_changed();
 }
 
 QPoint CanvasWidget::widget_position_for_document_point(QPoint document_position) const {

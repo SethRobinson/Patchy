@@ -911,6 +911,42 @@ QString photoshop_style() {
       border-bottom-color: #3f3f3f;
     }
   )")
+         // The canvas scroll bars are document-window chrome, so they are styled
+         // dark on every platform to sit against the dark canvas backdrop
+         // (Photoshop's document window). Dock and list scroll bars on
+         // Windows/Linux deliberately stay native; see the macOS-only block
+         // below. Once QSS styles a scroll bar, QStyleSheetStyle takes over the
+         // whole rendering, so every subcontrol needs a rule or it gets ugly
+         // defaults. The values mirror the macOS block; on macOS both rule sets
+         // match these bars and the ID selectors win with identical values.
+         + QStringLiteral(R"(
+    QScrollBar#canvasHorizontalScrollBar, QScrollBar#canvasVerticalScrollBar {
+      background: #262626;
+      background-image: url(:/patchy/icons/scroll-dither.svg);
+    }
+    QScrollBar#canvasVerticalScrollBar:vertical { width: 16px; }
+    QScrollBar#canvasHorizontalScrollBar:horizontal { height: 16px; }
+    QScrollBar#canvasHorizontalScrollBar::handle, QScrollBar#canvasVerticalScrollBar::handle {
+      background: #565656;
+      border: 1px solid #6e6e6e;
+    }
+    QScrollBar#canvasVerticalScrollBar::handle:vertical { min-height: 8px; }
+    QScrollBar#canvasHorizontalScrollBar::handle:horizontal { min-width: 8px; }
+    QScrollBar#canvasHorizontalScrollBar::handle:hover, QScrollBar#canvasVerticalScrollBar::handle:hover {
+      background: #646464;
+    }
+    QScrollBar#canvasHorizontalScrollBar::sub-line, QScrollBar#canvasHorizontalScrollBar::add-line,
+    QScrollBar#canvasVerticalScrollBar::sub-line, QScrollBar#canvasVerticalScrollBar::add-line {
+      width: 0;
+      height: 0;
+      background: none;
+      border: none;
+    }
+    QScrollBar#canvasHorizontalScrollBar::add-page, QScrollBar#canvasHorizontalScrollBar::sub-page,
+    QScrollBar#canvasVerticalScrollBar::add-page, QScrollBar#canvasVerticalScrollBar::sub-page {
+      background: transparent;
+    }
+  )")
 #ifdef Q_OS_MACOS
          // macOS-only styling to match the Windows look: QMacStyle group boxes carry
          // Aqua-sized native chrome (big title gap and content margins, plus Aqua
