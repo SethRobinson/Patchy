@@ -13,12 +13,6 @@ namespace patchy {
 
 namespace {
 
-struct HslColor {
-  double hue{0.0};
-  double saturation{0.0};
-  double lightness{0.0};
-};
-
 std::optional<int> parse_int(std::string_view value) {
   int parsed = 0;
   const auto* begin = value.data();
@@ -174,68 +168,6 @@ bool levels_record_has_effect(LevelsRecord record) {
          record.black_output != 0 || record.white_output != 255;
 }
 
-HslColor rgb_to_hsl(RgbColor color) {
-  const auto red = static_cast<double>(color.red) / 255.0;
-  const auto green = static_cast<double>(color.green) / 255.0;
-  const auto blue = static_cast<double>(color.blue) / 255.0;
-  const auto maximum = std::max({red, green, blue});
-  const auto minimum = std::min({red, green, blue});
-  const auto delta = maximum - minimum;
-
-  HslColor hsl;
-  hsl.lightness = (maximum + minimum) * 0.5;
-  if (delta <= 0.0) {
-    return hsl;
-  }
-
-  hsl.saturation = hsl.lightness > 0.5 ? delta / (2.0 - maximum - minimum) : delta / (maximum + minimum);
-  if (maximum == red) {
-    hsl.hue = (green - blue) / delta + (green < blue ? 6.0 : 0.0);
-  } else if (maximum == green) {
-    hsl.hue = (blue - red) / delta + 2.0;
-  } else {
-    hsl.hue = (red - green) / delta + 4.0;
-  }
-  hsl.hue /= 6.0;
-  return hsl;
-}
-
-double hue_to_rgb(double p, double q, double t) {
-  if (t < 0.0) {
-    t += 1.0;
-  }
-  if (t > 1.0) {
-    t -= 1.0;
-  }
-  if (t < 1.0 / 6.0) {
-    return p + (q - p) * 6.0 * t;
-  }
-  if (t < 0.5) {
-    return q;
-  }
-  if (t < 2.0 / 3.0) {
-    return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
-  }
-  return p;
-}
-
-RgbColor hsl_to_rgb(HslColor hsl) {
-  hsl.hue = hsl.hue - std::floor(hsl.hue);
-  hsl.saturation = std::clamp(hsl.saturation, 0.0, 1.0);
-  hsl.lightness = std::clamp(hsl.lightness, 0.0, 1.0);
-  if (hsl.saturation <= 0.0) {
-    const auto gray = clamp_byte(static_cast<float>(hsl.lightness * 255.0));
-    return RgbColor{gray, gray, gray};
-  }
-
-  const auto q = hsl.lightness < 0.5 ? hsl.lightness * (1.0 + hsl.saturation)
-                                     : hsl.lightness + hsl.saturation - hsl.lightness * hsl.saturation;
-  const auto p = 2.0 * hsl.lightness - q;
-  return RgbColor{clamp_byte(static_cast<float>(hue_to_rgb(p, q, hsl.hue + 1.0 / 3.0) * 255.0)),
-                  clamp_byte(static_cast<float>(hue_to_rgb(p, q, hsl.hue) * 255.0)),
-                  clamp_byte(static_cast<float>(hue_to_rgb(p, q, hsl.hue - 1.0 / 3.0) * 255.0))};
-}
-
 std::uint8_t levels_channel(std::uint8_t value, LevelsRecord record) {
   record = clamp_levels_record(record);
   const auto input_range = static_cast<double>(record.white_input - record.black_input);
@@ -277,14 +209,104 @@ RgbColor apply_curves(RgbColor color, const CurvesAdjustment& settings) {
   return RgbColor{cache.lut.red[color.red], cache.lut.green[color.green], cache.lut.blue[color.blue]};
 }
 
-// Photoshop 2026 colorize, calibrated pixel-for-pixel against COM-rendered
-// probe files (docs/ps-compat.md "Hue/Saturation colorize"): lightness is the
-// integer (max+min)/2, the lightness slider blends toward white/black and
-// rounds, saturation applies through Photoshop's slightly-nonlinear percent
-// table with asymmetric rounding (round toward the max channel, truncate
-// toward the min), and the hue's sector interpolant comes from a per-degree
-// table measured off Photoshop's wheel (it is not the ideal hexagon ramp).
-// 99.6% of probe pixels match exactly; the rest are within 2/255.
+// Photoshop 2026 Hue/Saturation, calibrated pixel-for-pixel against COM-rendered
+// probe files (docs/ps-compat.md "Hue/Saturation"). Colorize and the master
+// sliders share three stages: the lightness slider blends a value toward
+// white/black and rounds, the hue lives on a 1530-step wheel, and the result is
+// rebuilt from an integer lightness plus a half-chroma spread with asymmetric
+// rounding. Colorize applies lightness to the pixel's HSL lightness and
+// synthesizes a hue; master applies it per channel and rotates the existing hue.
+
+// Photoshop's lightness slider. Colorize feeds it the integer (max+min)/2;
+// master feeds it each channel in turn, which is what makes the slider a blend
+// toward white/black rather than an offset on HSL lightness.
+//
+// Photoshop quantizes the percent to a byte first: k = |lightness| * 255 / 100
+// truncated, then blends by k/255. That is byte-exact over all 201 percents on
+// every gray and every chroma-grid probe; the plain |lightness|/100 form drifts
+// by 1 on 188 of them. The two agree exactly on multiples of 20, which is why
+// the colorize calibration (probed at 0 and +-40) never saw the difference.
+int photoshop_lightness_value(int value, int lightness) {
+  const auto step = std::abs(lightness) * 255 / 100;
+  if (lightness > 0) {
+    return static_cast<int>(value + (255.0 - value) * step / 255.0 + 0.5);
+  }
+  if (lightness < 0) {
+    return static_cast<int>(value * (255.0 - step) / 255.0 + 0.5);
+  }
+  return value;
+}
+
+// Photoshop's hue wheel as a 1530-step ramp: six sectors of 255 interpolant
+// steps, so one degree is 4.25 steps. Master mode rotates a pixel's existing
+// hue, so it needs this inverse direction as well as the forward split below.
+double photoshop_wheel_position(RgbColor color) {
+  const int red = color.red;
+  const int green = color.green;
+  const int blue = color.blue;
+  const int maximum = std::max({red, green, blue});
+  const int minimum = std::min({red, green, blue});
+  const auto span = static_cast<double>(maximum - minimum);
+  if (span <= 0.0) {
+    return 0.0;
+  }
+  const auto ramp = [span](int middle, int low) {
+    return 255.0 * static_cast<double>(middle - low) / span;
+  };
+  if (red == maximum && blue == minimum) {
+    return ramp(green, blue);           // red -> yellow
+  }
+  if (green == maximum && blue == minimum) {
+    return 510.0 - ramp(red, blue);     // yellow -> green
+  }
+  if (green == maximum && red == minimum) {
+    return 510.0 + ramp(blue, red);     // green -> cyan
+  }
+  if (blue == maximum && red == minimum) {
+    return 1020.0 - ramp(green, red);   // cyan -> blue
+  }
+  if (blue == maximum && green == minimum) {
+    return 1020.0 + ramp(red, green);   // blue -> magenta
+  }
+  return 1530.0 - ramp(blue, green);    // magenta -> red
+}
+
+void photoshop_wheel_split(double position, int& sector, double& interpolant) {
+  position = std::fmod(position, 1530.0);
+  if (position < 0.0) {
+    position += 1530.0;
+  }
+  sector = std::min(5, static_cast<int>(position / 255.0));
+  const auto offset = position - static_cast<double>(sector) * 255.0;
+  interpolant = sector % 2 == 0 ? offset : 255.0 - offset;
+}
+
+// The tail both modes share. The asymmetric rounding (round toward the max
+// channel, truncate toward the min) reproduces Photoshop's alternating 2l/2l+1
+// channel sums, and it is what makes an all-zero master render a byte-exact
+// identity for every input in the RGB cube.
+RgbColor photoshop_hsl_reconstruct(int light, double half_chroma, int sector, double interpolant) {
+  const auto q = std::min(255, light + static_cast<int>(half_chroma + 0.5));
+  const auto p = std::max(0, light - static_cast<int>(half_chroma));
+  const auto mid = p + static_cast<int>(static_cast<double>(q - p) * interpolant / 255.0 + 0.5);
+  const auto q8 = static_cast<std::uint8_t>(q);
+  const auto p8 = static_cast<std::uint8_t>(p);
+  const auto m8 = static_cast<std::uint8_t>(mid);
+  switch (sector) {
+    case 0:
+      return RgbColor{q8, m8, p8};  // red -> yellow
+    case 1:
+      return RgbColor{m8, q8, p8};  // yellow -> green
+    case 2:
+      return RgbColor{p8, q8, m8};  // green -> cyan
+    case 3:
+      return RgbColor{p8, m8, q8};  // cyan -> blue
+    case 4:
+      return RgbColor{m8, p8, q8};  // blue -> magenta
+    default:
+      return RgbColor{q8, p8, m8};  // magenta -> red
+  }
+}
 
 // Per-degree hue interpolant (x/255) within the 60-degree sector
 // (sector = hue / 60): mid = p + f * (q - p).
@@ -342,6 +364,57 @@ constexpr std::array<double, 101> kColorizeSaturationScale = {
     1.003952500,
 };
 
+// Photoshop's effective master saturation multiplier per slider percent,
+// indexed delta + 100. Fitted by maximum-agreement interval overlap over the
+// full 32,640-entry (lightness, chroma) probe grid at hue 0 and lightness 0
+// (docs/ps-compat.md). No closed form reproduces it: -100 is exactly 0, 0 is
+// exactly 1, -50 lands on 0.5 and +50 on 2.0, but +40 and +60 sit measurably
+// below 1/(1 - s/100), so all 201 percents were probed. +100 is 128, NOT
+// unbounded: Photoshop leaves a chroma-1 midtone at half-saturation there.
+constexpr std::array<double, 201> kMasterSaturationScale = {
+    0.000000000, 0.015503876, 0.027027027, 0.034482759, 0.047619048,
+    0.054545455, 0.066666667, 0.074074074, 0.085714286, 0.097560976,
+    0.105263158, 0.117647059, 0.125000000, 0.136363636, 0.142857143,
+    0.155963303, 0.163934426, 0.176470588, 0.187500000, 0.195121951,
+    0.206896552, 0.214285714, 0.226415094, 0.235294118, 0.247311828,
+    0.253333333, 0.266666667, 0.277777778, 0.285714286, 0.296296296,
+    0.304347826, 0.315789474, 0.324324324, 0.333333333, 0.347826087,
+    0.355555556, 0.368421053, 0.375000000, 0.387096774, 0.393939394,
+    0.406250000, 0.413793103, 0.425531915, 0.437500000, 0.444444444,
+    0.457142857, 0.465116279, 0.476190476, 0.483870968, 0.496062992,
+    0.500000000, 0.515151515, 0.527272727, 0.534883721, 0.545454545,
+    0.555555556, 0.566037736, 0.574468085, 0.586206897, 0.600000000,
+    0.606060606, 0.617021277, 0.625000000, 0.636363636, 0.645161290,
+    0.656000000, 0.666666667, 0.675675676, 0.687500000, 0.695652174,
+    0.707317073, 0.714285714, 0.727272727, 0.733333333, 0.747368421,
+    0.753246753, 0.764705882, 0.777777778, 0.785714286, 0.800000000,
+    0.804878049, 0.816326531, 0.823529412, 0.836363636, 0.847457627,
+    0.857142857, 0.866666667, 0.875000000, 0.886792453, 0.894736842,
+    0.905982906, 0.914285714, 0.925925926, 0.937500000, 0.945454545,
+    0.956521739, 0.965517241, 0.976744186, 0.984126984, 1.000000000,
+    1.000000000, 1.011764706, 1.023255814, 1.031250000, 1.043478261,
+    1.050847458, 1.066666667, 1.074074074, 1.086956522, 1.097560976,
+    1.111111111, 1.121212121, 1.137254902, 1.153846154, 1.160000000,
+    1.176470588, 1.187500000, 1.205128205, 1.216216216, 1.235294118,
+    1.247311828, 1.266666667, 1.277777778, 1.297872340, 1.310344828,
+    1.333333333, 1.352941176, 1.368421053, 1.388888889, 1.403508772,
+    1.428571429, 1.444444444, 1.470588235, 1.485714286, 1.514285714,
+    1.529411765, 1.560000000, 1.575757576, 1.608695652, 1.640000000,
+    1.658536585, 1.692307692, 1.716981132, 1.750000000, 1.777777778,
+    1.811594203, 1.838709677, 1.882352941, 1.909090909, 1.952380952,
+    2.000000000, 2.030769231, 2.076923077, 2.111111111, 2.166666667,
+    2.200000000, 2.263157895, 2.307692308, 2.368421053, 2.411764706,
+    2.481481481, 2.533333333, 2.609756098, 2.692307692, 2.750000000,
+    2.842105263, 2.904761905, 3.000000000, 3.081081081, 3.200000000,
+    3.275862069, 3.411764706, 3.500000000, 3.666666667, 3.761904762,
+    3.933333333, 4.125000000, 4.263157895, 4.500000000, 4.666666667,
+    4.923076923, 5.117647059, 5.444444444, 5.692307692, 6.090909091,
+    6.400000000, 6.909090909, 7.333333333, 8.000000000, 8.818181818,
+    9.500000000, 10.666666667, 11.666666667, 13.500000000, 15.000000000,
+    18.250000000, 21.333333333, 28.400000000, 36.500000000, 64.000000000,
+    128.000000000,
+};
+
 RgbColor apply_colorize(RgbColor color, const HueSaturationAdjustment& settings) {
   const int hue = ((settings.colorize_hue % 360) + 360) % 360;
   const auto saturation = std::clamp(settings.colorize_saturation, 0, 100);
@@ -349,51 +422,63 @@ RgbColor apply_colorize(RgbColor color, const HueSaturationAdjustment& settings)
 
   const int maximum = std::max({color.red, color.green, color.blue});
   const int minimum = std::min({color.red, color.green, color.blue});
-  int light = (maximum + minimum) >> 1;
-  if (lightness > 0) {
-    light = static_cast<int>(light + (255.0 - light) * lightness / 100.0 + 0.5);
-  } else if (lightness < 0) {
-    light = static_cast<int>(light * (100.0 + lightness) / 100.0 + 0.5);
-  }
+  const int light = photoshop_lightness_value((maximum + minimum) >> 1, lightness);
   const int band = std::min(light, 255 - light);
-  const auto delta = band * kColorizeSaturationScale[static_cast<std::size_t>(saturation)];
-  const auto q = std::min(255, light + static_cast<int>(delta + 0.5));
-  const auto p = std::max(0, light - static_cast<int>(delta));
-  const auto interp = static_cast<double>(kColorizeHueInterp[static_cast<std::size_t>(hue)]);
-  const auto mid = p + static_cast<int>((q - p) * interp / 255.0 + 0.5);
-
-  const auto q8 = static_cast<std::uint8_t>(q);
-  const auto p8 = static_cast<std::uint8_t>(p);
-  const auto m8 = static_cast<std::uint8_t>(mid);
-  switch (hue / 60) {
-    case 0:
-      return RgbColor{q8, m8, p8};  // red -> yellow
-    case 1:
-      return RgbColor{m8, q8, p8};  // yellow -> green
-    case 2:
-      return RgbColor{p8, q8, m8};  // green -> cyan
-    case 3:
-      return RgbColor{p8, m8, q8};  // cyan -> blue
-    case 4:
-      return RgbColor{m8, p8, q8};  // blue -> magenta
-    default:
-      return RgbColor{q8, p8, m8};  // magenta -> red
-  }
+  const auto half_chroma = band * kColorizeSaturationScale[static_cast<std::size_t>(saturation)];
+  return photoshop_hsl_reconstruct(light, half_chroma, hue / 60,
+                                   static_cast<double>(kColorizeHueInterp[static_cast<std::size_t>(hue)]));
 }
 
 RgbColor apply_hue_saturation(RgbColor color, HueSaturationAdjustment settings) {
   if (settings.colorize) {
     return apply_colorize(color, settings);
   }
-  settings.hue_shift = std::clamp(settings.hue_shift, -180, 180);
-  settings.saturation_delta = std::clamp(settings.saturation_delta, -100, 100);
-  settings.lightness_delta = std::clamp(settings.lightness_delta, -100, 100);
+  const auto hue_shift = std::clamp(settings.hue_shift, -180, 180);
+  const auto saturation_delta = std::clamp(settings.saturation_delta, -100, 100);
+  const auto lightness_delta = std::clamp(settings.lightness_delta, -100, 100);
 
-  auto hsl = rgb_to_hsl(color);
-  hsl.hue += static_cast<double>(settings.hue_shift) / 360.0;
-  hsl.saturation += static_cast<double>(settings.saturation_delta) / 100.0;
-  hsl.lightness += static_cast<double>(settings.lightness_delta) / 100.0;
-  return hsl_to_rgb(hsl);
+  // The lightness slider runs first and per channel. Cache its 256-entry ramp
+  // per thread: the slider is constant for a whole layer, so recomputing three
+  // doubles per pixel is the hot cost on this path (the apply_curves precedent).
+  struct CachedLightnessRamp {
+    int lightness{0};
+    bool valid{false};
+    std::array<std::uint8_t, 256> values{};
+  };
+  thread_local CachedLightnessRamp ramp;
+  if (!ramp.valid || ramp.lightness != lightness_delta) {
+    for (int value = 0; value < 256; ++value) {
+      ramp.values[static_cast<std::size_t>(value)] =
+          static_cast<std::uint8_t>(photoshop_lightness_value(value, lightness_delta));
+    }
+    ramp.lightness = lightness_delta;
+    ramp.valid = true;
+  }
+  const RgbColor lit{ramp.values[color.red], ramp.values[color.green], ramp.values[color.blue]};
+
+  const int maximum = std::max({lit.red, lit.green, lit.blue});
+  const int minimum = std::min({lit.red, lit.green, lit.blue});
+  if (maximum == minimum) {
+    return lit;  // Photoshop's master sliders never tint a neutral pixel.
+  }
+
+  const int light = (maximum + minimum) >> 1;
+  const auto half = static_cast<double>(maximum - minimum) * 0.5;
+  // Saturation grows toward the in-gamut limit and never falls below the
+  // incoming chroma, which is what keeps an all-zero render an exact identity
+  // for the {min == 0, max odd} and {max == 255, min even} inputs.
+  const auto limit = std::max(static_cast<double>(std::min(light, 255 - light)), half);
+  const auto half_chroma =
+      std::min(half * kMasterSaturationScale[static_cast<std::size_t>(saturation_delta + 100)], limit);
+
+  // Photoshop rotates by a whole number of wheel steps, floor(degrees * 4.25 +
+  // 0.5), not by the continuous 4.25 * degrees: measured on all 360 slider
+  // degrees, the two disagree at every degree that is not a multiple of four.
+  const auto rotation = std::floor(static_cast<double>(hue_shift) * 4.25 + 0.5);
+  int sector = 0;
+  double interpolant = 0.0;
+  photoshop_wheel_split(photoshop_wheel_position(lit) + rotation, sector, interpolant);
+  return photoshop_hsl_reconstruct(light, half_chroma, sector, interpolant);
 }
 
 RgbColor apply_color_balance(RgbColor color, ColorBalanceAdjustment settings) {

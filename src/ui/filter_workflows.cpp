@@ -938,53 +938,19 @@ void apply_curves_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& sel
 
 void apply_hue_saturation_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
                                     HueSaturationSettings settings, const FilterProgress* progress) {
-  if (settings.colorize) {
-    // Route through the core math so the destructive filter matches an
-    // adjustment layer with identical settings exactly.
-    AdjustmentSettings adjustment;
-    adjustment.kind = AdjustmentKind::HueSaturation;
-    adjustment.hue_saturation = to_hue_saturation_adjustment(settings);
-    const auto channels = pixels.format().channels;
-    for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
-      auto* px = pixels.pixel(x, y);
-      const auto adjusted = apply_adjustment_to_color(RgbColor{px[0], px[1], px[2]}, adjustment);
-      px[0] = adjusted.red;
-      px[1] = adjusted.green;
-      px[2] = adjusted.blue;
-      static_cast<void>(channels);  // alpha (px[3]) is left untouched
-    });
-    return;
-  }
-  settings.hue_shift = std::clamp(settings.hue_shift, -180, 180);
-  settings.saturation_delta = std::clamp(settings.saturation_delta, -100, 100);
-  settings.lightness_delta = std::clamp(settings.lightness_delta, -100, 100);
-  const auto channels = pixels.format().channels;
-  const auto saturation_offset =
-      static_cast<int>(std::round(static_cast<double>(settings.saturation_delta) * 255.0 / 100.0));
-  const auto lightness_offset =
-      static_cast<int>(std::round(static_cast<double>(settings.lightness_delta) * 255.0 / 100.0));
-
+  // Route through the core math so the destructive filter matches an adjustment
+  // layer with identical settings exactly, in master mode as well as colorize.
+  // to_hue_saturation_adjustment already clamps every slider.
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::HueSaturation;
+  adjustment.hue_saturation = to_hue_saturation_adjustment(settings);
   for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
     auto* px = pixels.pixel(x, y);
-    QColor color(px[0], px[1], px[2]);
-    const auto original_alpha = channels >= 4 ? px[3] : 255;
-    auto hue = color.hslHue();
-    if (hue < 0) {
-      hue = 0;
-    }
-    hue = (hue + settings.hue_shift) % 360;
-    if (hue < 0) {
-      hue += 360;
-    }
-    const auto saturation = std::clamp(color.hslSaturation() + saturation_offset, 0, 255);
-    const auto lightness = std::clamp(color.lightness() + lightness_offset, 0, 255);
-    const auto adjusted = QColor::fromHsl(hue, saturation, lightness);
-    px[0] = static_cast<std::uint8_t>(adjusted.red());
-    px[1] = static_cast<std::uint8_t>(adjusted.green());
-    px[2] = static_cast<std::uint8_t>(adjusted.blue());
-    if (channels >= 4) {
-      px[3] = original_alpha;
-    }
+    const auto adjusted = apply_adjustment_to_color(RgbColor{px[0], px[1], px[2]}, adjustment);
+    px[0] = adjusted.red;
+    px[1] = adjusted.green;
+    px[2] = adjusted.blue;
+    // alpha (px[3]) is left untouched
   });
 }
 

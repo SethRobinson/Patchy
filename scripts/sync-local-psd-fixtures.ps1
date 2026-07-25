@@ -20,6 +20,7 @@ $fixtures = @(
   @{ Name = "Duke nukem mobile.psd"; Source = "C:/temp/Duke nukem mobile.psd" },
   @{ Name = "CDi_A4.psd"; Source = "D:/projects/C2/ExhibitSigns/CDi_A4.psd" },
   @{ Name = "tips.psd"; Source = "D:/projects/proton/RTDink/media/interface/win/tips.psd" },
+  @{ Name = "wordpress_banner3.psd"; Source = "D:/projects/C2/wordpress_banner3.psd" },
   @{
     Name = "C2Kyoto Nintendo NES Cartridge Label Template (Front).psd"
     Source = "D:/projects/cc65/c2game/screenshots_and_labels/C2Kyoto Nintendo NES Cartridge Label Template (Front).psd"

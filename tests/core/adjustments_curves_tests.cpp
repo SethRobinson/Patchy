@@ -1314,6 +1314,148 @@ void adjustment_hue_saturation_colorize_matches_photoshop_reference() {
   CHECK(patchy::adjustment_has_effect(identity));
 }
 
+void adjustment_hue_saturation_master_matches_photoshop_reference() {
+  // Every expected triple below is Photoshop 2026's own render of the same
+  // input under the same sliders, read off the byte-patched hue2 probe sweep
+  // described in docs/ps-compat.md "Hue/Saturation master".
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::HueSaturation;
+  // Stale colorize values must be ignored while colorize is OFF.
+  settings.hue_saturation.colorize_hue = 203;
+  settings.hue_saturation.colorize_saturation = 52;
+
+  const auto sliders = [&settings](int hue, int saturation, int lightness) {
+    settings.hue_saturation.hue_shift = hue;
+    settings.hue_saturation.saturation_delta = saturation;
+    settings.hue_saturation.lightness_delta = lightness;
+  };
+  const auto check_color = [&settings](patchy::RgbColor input, patchy::RgbColor expected) {
+    const auto actual = patchy::apply_adjustment_to_color(input, settings);
+    CHECK(actual.red == expected.red);
+    CHECK(actual.green == expected.green);
+    CHECK(actual.blue == expected.blue);
+  };
+
+  // The wordpress_banner3.psd sliders, the case this calibration came from.
+  sliders(-12, 14, -14);
+  CHECK(patchy::adjustment_has_effect(settings));
+  check_color({128, 128, 128}, {110, 110, 110});  // neutrals stay neutral
+  check_color({60, 60, 60}, {52, 52, 52});
+  check_color({200, 50, 50}, {183, 33, 63});
+  check_color({255, 0, 0}, {220, 0, 44});
+  check_color({180, 90, 20}, {166, 45, 6});
+  check_color({200, 85, 50}, {183, 38, 33});
+  check_color({200, 173, 50}, {183, 125, 33});
+  check_color({50, 200, 85}, {33, 183, 38});
+  check_color({50, 200, 173}, {33, 183, 125});
+
+  // Hue only: a pure rotation on Photoshop's 1530-step wheel.
+  sliders(45, 0, 0);
+  check_color({200, 50, 50}, {200, 162, 50});
+  sliders(-90, 0, 0);
+  check_color({200, 50, 50}, {125, 50, 200});
+
+  // Saturation -100 is exactly neutral, and is byte-exact on every probe pixel.
+  sliders(0, -100, 0);
+  check_color({200, 50, 50}, {125, 125, 125});
+  check_color({255, 0, 0}, {127, 127, 127});
+
+  // Lightness only, blending per channel toward white and black.
+  sliders(0, 0, 40);
+  check_color({200, 50, 50}, {222, 132, 132});
+  check_color({64, 64, 64}, {140, 140, 140});
+  sliders(0, 0, -40);
+  check_color({200, 50, 50}, {120, 30, 30});
+  check_color({200, 200, 200}, {120, 120, 120});
+
+  // All three stages at once, on colors with three distinct channels.
+  sliders(30, -40, 20);
+  check_color({200, 85, 50}, {187, 168, 115});
+  check_color({200, 138, 50}, {181, 187, 115});
+  check_color({200, 173, 50}, {164, 187, 115});
+  check_color({85, 200, 50}, {115, 187, 134});
+
+  // Residual envelope: no probed pixel is off by more than 2/255. This one is
+  // the worst case seen on the banner corpus, where Photoshop renders
+  // (65, 159, 181); pin the bound rather than the byte so a future refinement
+  // that closes the gap does not have to re-pin an approximation.
+  sliders(-12, 14, -14);
+  const auto residual = patchy::apply_adjustment_to_color(patchy::RgbColor{86, 155, 200}, settings);
+  CHECK(std::abs(static_cast<int>(residual.red) - 65) <= 2);
+  CHECK(std::abs(static_cast<int>(residual.green) - 159) <= 2);
+  CHECK(std::abs(static_cast<int>(residual.blue) - 181) <= 2);
+}
+
+void adjustment_hue_saturation_master_identity_and_neutrals() {
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::HueSaturation;
+
+  // All sliders zero is a byte-exact identity over the whole RGB cube. This is
+  // what the asymmetric q/p rounding in photoshop_hsl_reconstruct buys, and it
+  // is the invariant a future refactor is most likely to break.
+  CHECK(!patchy::adjustment_has_effect(settings));
+  for (int red = 0; red < 256; red += 3) {
+    for (int green = 0; green < 256; green += 5) {
+      for (int blue = 0; blue < 256; blue += 7) {
+        const patchy::RgbColor input{static_cast<std::uint8_t>(red), static_cast<std::uint8_t>(green),
+                                     static_cast<std::uint8_t>(blue)};
+        const auto actual = patchy::apply_adjustment_to_color(input, settings);
+        CHECK(actual.red == input.red);
+        CHECK(actual.green == input.green);
+        CHECK(actual.blue == input.blue);
+      }
+    }
+  }
+
+  // Photoshop never tints a neutral pixel from the master sliders, at any hue
+  // or saturation. The pre-calibration additive-HSL math turned gray 128 into
+  // (105, 79, 85) under the banner's own sliders.
+  constexpr std::array<int, 5> hues{-180, -12, 0, 45, 180};
+  constexpr std::array<int, 5> saturations{-100, -14, 0, 14, 100};
+  for (const auto hue : hues) {
+    for (const auto saturation : saturations) {
+      settings.hue_saturation.hue_shift = hue;
+      settings.hue_saturation.saturation_delta = saturation;
+      settings.hue_saturation.lightness_delta = 0;
+      for (int value = 0; value < 256; ++value) {
+        const auto gray = static_cast<std::uint8_t>(value);
+        const auto actual = patchy::apply_adjustment_to_color(patchy::RgbColor{gray, gray, gray}, settings);
+        CHECK(actual.red == gray);
+        CHECK(actual.green == gray);
+        CHECK(actual.blue == gray);
+      }
+    }
+  }
+
+  // The saturation limit clamps the reconstructed bytes, never the incoming
+  // chroma: {min == 0, max odd} and {max == 255, min even} exceed a normalized
+  // saturation of 1 because the lightness floors, and clamping there would
+  // break the identity above.
+  settings.hue_saturation.hue_shift = 0;
+  settings.hue_saturation.saturation_delta = 0;
+  for (const patchy::RgbColor input :
+       {patchy::RgbColor{7, 3, 0}, patchy::RgbColor{255, 128, 0}, patchy::RgbColor{255, 200, 2},
+        patchy::RgbColor{1, 0, 0}, patchy::RgbColor{255, 254, 254}}) {
+    const auto actual = patchy::apply_adjustment_to_color(input, settings);
+    CHECK(actual.red == input.red);
+    CHECK(actual.green == input.green);
+    CHECK(actual.blue == input.blue);
+  }
+
+  // Photoshop's lightness slider quantizes the percent to a byte before
+  // blending, so -1 is not a no-op and +100/-100 reach pure white and black.
+  settings.hue_saturation.lightness_delta = 100;
+  const auto white = patchy::apply_adjustment_to_color(patchy::RgbColor{40, 90, 200}, settings);
+  CHECK(white.red == 255);
+  CHECK(white.green == 255);
+  CHECK(white.blue == 255);
+  settings.hue_saturation.lightness_delta = -100;
+  const auto black = patchy::apply_adjustment_to_color(patchy::RgbColor{40, 90, 200}, settings);
+  CHECK(black.red == 0);
+  CHECK(black.green == 0);
+  CHECK(black.blue == 0);
+}
+
 void psd_native_hue2_colorize_adjustment_imports_and_renders() {
   // The exact header generic_bg.psd carries: colorize on, hue -157 (= 203),
   // saturation 52, stale master (-180, -61, 0).
@@ -1508,6 +1650,91 @@ void psd_photoshop_hue_saturation_colorize_fixture_matches_composite() {
   const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
   CHECK(metrics.max_channel_delta <= 2);
   CHECK(metrics.mean_abs_channel_delta <= 0.1);
+}
+
+// Photoshop 2026 authored photoshop-hue-saturation-master.psd/.bmp via COM
+// (July 2026): one self-authored raster of gray ramps, a full-chroma hue
+// wheel, and two mid-chroma ramps, with six MASKED Hue/Saturation layers over
+// it, one 40px band each, carrying (-12,+14,-14), hue-only +45 and -90,
+// saturation -100 and +60, and lightness +40. The adjustment layers were
+// created with default sliders and their hue2 headers byte-patched, so the
+// band order matches the bottom-to-top layer record order.
+void psd_photoshop_hue_saturation_master_fixture_matches_render() {
+  const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-hue-saturation-master.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-hue-saturation-master.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  constexpr std::array<std::array<int, 3>, 6> expected_sliders{
+      {{-12, 14, -14}, {45, 0, 0}, {-90, 0, 0}, {0, -100, 0}, {0, 60, 0}, {0, 0, 40}}};
+  for (std::size_t band = 0; band < expected_sliders.size(); ++band) {
+    const auto name = "Master " + std::to_string(band + 1U);
+    const auto* layer = find_layer_named(document.layers(), name);
+    CHECK(layer != nullptr);
+    CHECK(layer->kind() == patchy::LayerKind::Adjustment);
+    CHECK(layer->mask().has_value());
+    const auto settings = patchy::adjustment_settings_from_layer(*layer);
+    CHECK(settings.has_value());
+    CHECK(!settings->hue_saturation.colorize);
+    CHECK(settings->hue_saturation.hue_shift == expected_sliders[band][0]);
+    CHECK(settings->hue_saturation.saturation_delta == expected_sliders[band][1]);
+    CHECK(settings->hue_saturation.lightness_delta == expected_sliders[band][2]);
+  }
+
+  const auto reference = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference, flat);
+  // The calibration envelope: no probed pixel anywhere in the sweep is off by
+  // more than 2/255 (docs/ps-compat.md "Hue/Saturation master").
+  CHECK(metrics.max_channel_delta <= 2);
+  CHECK(metrics.mean_abs_channel_delta <= 0.5);
+}
+
+void psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("wordpress_banner3.psd");
+  if (!std::filesystem::exists(path)) {
+    std::printf("[SKIP] psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available (no local fixture)\n");
+    return;
+  }
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto* adjustment = find_layer_named(document.layers(), "Hue/Saturation 1");
+  CHECK(adjustment != nullptr);
+  CHECK(adjustment->clipped());
+  const auto settings = patchy::adjustment_settings_from_layer(*adjustment);
+  CHECK(settings.has_value());
+  CHECK(!settings->hue_saturation.colorize);
+  CHECK(settings->hue_saturation.hue_shift == -12);
+  CHECK(settings->hue_saturation.saturation_delta == 14);
+  CHECK(settings->hue_saturation.lightness_delta == -14);
+
+  // This file has no usable embedded composite (all white), so pin absolute
+  // colors Photoshop 2026 renders inside the clipped band instead. Before the
+  // master calibration these were off by up to 63/255 and Testy's strict mode
+  // reported 38.6% of the canvas bad; the whole difference was this one layer.
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flat.width() == 1200);
+  CHECK(flat.height() == 280);
+  write_rgb8_bmp_artifact("psd_wordpress_banner3_patchy_composite", flat);
+
+  struct PhotoshopPixel {
+    std::int32_t x;
+    std::int32_t y;
+    std::array<int, 3> expected;
+  };
+  constexpr std::array<PhotoshopPixel, 6> pins{{{760, 140, {50, 48, 47}},
+                                                {820, 180, {56, 50, 50}},
+                                                {940, 140, {187, 122, 79}},
+                                                {1000, 140, {153, 109, 79}},
+                                                {1000, 260, {184, 131, 96}},
+                                                {1120, 140, {193, 159, 128}}}};
+  for (const auto& pin : pins) {
+    const auto* actual = flat.pixel(pin.x, pin.y);
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+      CHECK(std::abs(static_cast<int>(actual[channel]) - pin.expected[channel]) <= 2);
+    }
+  }
 }
 
 void psd_generic_bg_colorize_writes_comparison_artifacts_if_available() {
@@ -2313,6 +2540,10 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        psd_native_levels_overrides_stale_patchy_fallback},
       {"adjustment_hue_saturation_colorize_matches_photoshop_reference",
        adjustment_hue_saturation_colorize_matches_photoshop_reference},
+      {"adjustment_hue_saturation_master_matches_photoshop_reference",
+       adjustment_hue_saturation_master_matches_photoshop_reference},
+      {"adjustment_hue_saturation_master_identity_and_neutrals",
+       adjustment_hue_saturation_master_identity_and_neutrals},
       {"psd_native_hue2_colorize_adjustment_imports_and_renders",
        psd_native_hue2_colorize_adjustment_imports_and_renders},
       {"psd_hue_saturation_adjustment_writes_native_hue2_only",
@@ -2325,6 +2556,10 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        psd_patchy_adjustment_block_without_colorize_fields_still_parses},
       {"psd_photoshop_hue_saturation_colorize_fixture_matches_composite",
        psd_photoshop_hue_saturation_colorize_fixture_matches_composite},
+      {"psd_photoshop_hue_saturation_master_fixture_matches_render",
+       psd_photoshop_hue_saturation_master_fixture_matches_render},
+      {"psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available",
+       psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available},
       {"psd_generic_bg_colorize_writes_comparison_artifacts_if_available",
        psd_generic_bg_colorize_writes_comparison_artifacts_if_available},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
