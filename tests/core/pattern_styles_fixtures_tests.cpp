@@ -1760,6 +1760,58 @@ void psd_lrfx_legacy_title_screen_imports_drop_shadows_if_available() {
   CHECK(shadowed[2] < clear[2] - 20);
 }
 
+// Same file, the other half of its rendering: layers 2-9 are one clipping run
+// over the "box" frame, whose LAYER MASK cuts a hole exactly where the torn-edge
+// ghost plane sits. Photoshop clips the run to the base's transparency, so the
+// hole stays empty and the sky plus the frame's own drop shadow show through.
+// Patchy froze the clip shape from the group buffer's accumulated alpha, which
+// already carried that shadow, so the clipped "torn" layer repainted the hole
+// and washed the plane out (Photoshop 2026 renders (71, 78, 88) at 400,350; the
+// bug rendered (136, 147, 160)).
+//
+// The pinned values are Photoshop's, with a tolerance for the one known
+// divergence in this file: its legacy shadow color is CMYK black, which
+// Photoshop color-manages to RGB (35, 31, 32) and Patchy mixes to 0, leaving
+// shadowed pixels up to ~24/255 darker. Anything that lets the clipped stack
+// back into the hole moves these by 60+.
+void psd_lrfx_legacy_title_screen_clips_stack_to_base_mask_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("Title02.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local Title02.psd fixture missing: " << path.string() << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto* box = find_layer_named(document.layers(), "box");
+  CHECK(box != nullptr);
+  CHECK(box->mask().has_value());
+  CHECK(!box->clipped());
+  for (const char* name : {"shade", "shade inner", "torn", "Layer 1"}) {
+    const auto* member = find_layer_named(document.layers(), name);
+    CHECK(member != nullptr);
+    CHECK(member->clipped());
+  }
+
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flat.width() == 640 && flat.height() == 480);
+  const auto near_photoshop = [&](std::int32_t x, std::int32_t y, std::array<int, 3> expected) {
+    const auto* px = flat.pixel(x, y);
+    for (int channel = 0; channel < 3; ++channel) {
+      if (std::abs(static_cast<int>(px[channel]) - expected[static_cast<std::size_t>(channel)]) > 24) {
+        return false;
+      }
+    }
+    return true;
+  };
+  // Inside the base's mask hole, under opaque "torn" pixels: the clipped stack
+  // must stay out and leave sky plus the frame's shadow.
+  CHECK(near_photoshop(400, 350, {71, 78, 88}));
+  CHECK(near_photoshop(450, 345, {118, 132, 150}));
+  CHECK(near_photoshop(420, 360, {161, 182, 204}));
+  // Where the base's mask is open, the same layer paints and both agree exactly.
+  CHECK(near_photoshop(470, 335, {213, 229, 243}));
+  CHECK(near_photoshop(500, 350, {237, 243, 249}));
+}
+
 // CMYK-mode documents store lfx2 effect colors as 'CMYC' descriptors (ink percentages) and
 // text engine fill colors as /Type 2 values; both convert to sRGB through the document's
 // embedded ICC profile, with the SAME transform as the pixel decode. The fixture is a
@@ -2073,6 +2125,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available},
       {"psd_lrfx_legacy_title_screen_imports_drop_shadows_if_available",
        psd_lrfx_legacy_title_screen_imports_drop_shadows_if_available},
+      {"psd_lrfx_legacy_title_screen_clips_stack_to_base_mask_if_available",
+       psd_lrfx_legacy_title_screen_clips_stack_to_base_mask_if_available},
       {"psd_cmyk_document_converts_style_and_text_colors", psd_cmyk_document_converts_style_and_text_colors},
       {"color_cmyk_transform_rejects_garbage_profile", color_cmyk_transform_rejects_garbage_profile},
       {"color_cmyk_transform_matches_pinned_swop_values", color_cmyk_transform_matches_pinned_swop_values},

@@ -2046,19 +2046,25 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
 }
 
 // Isolated buffer for one Photoshop clipping group. The base layer composites
-// in normally, then freeze_clip() locks the clipping shape. Identity layers
-// preserve Patchy's historical accumulated-alpha shape; Blend-If bases use a
-// separately recorded original content/mask coverage so gating the base does
-// not hide clipped members. Clipped members blend against the base's COLOR at
-// full strength
+// in normally, then freeze_clip() locks the clipping shape to the base's own
+// CONTENT coverage - source alpha x layer/vector mask x opacity - recorded
+// through record_clip_coverage() as the base paints. Photoshop clips members
+// to the base's transparency alone, so the base's layer STYLES must not widen
+// it: they still composite into the buffer and merge normally, they just do
+// not license a clipped member to paint where the base itself is absent.
+// Clipped members blend against the base's COLOR at full strength
 // (destination alpha 1 - Photoshop's default "Blend Clipped Layers as Group"
 // semantics) without growing coverage, and a clipped adjustment layer's
 // adjust_color touches only masked pixels. merge_into() then lays the ensemble
 // into the real destination with the base's blend mode; the base's own opacity
 // is already folded into the frozen alpha, so the group fades as a unit.
+//
+// records_clip_coverage is set only for instances that will freeze (real clip
+// runs); isolated non-pass-through groups reuse this buffer without a clip
+// shape and skip the per-pixel bookkeeping.
 class IsolatedClipGroupTarget {
 public:
-  explicit IsolatedClipGroupTarget(Rect rect, bool use_original_clip_coverage = false)
+  explicit IsolatedClipGroupTarget(Rect rect, bool records_clip_coverage = false)
       : rect_(rect),
         rgb_(static_cast<std::size_t>(std::max(0, rect.width)) * static_cast<std::size_t>(std::max(0, rect.height)) *
                  3U,
@@ -2066,7 +2072,7 @@ public:
         alpha_(static_cast<std::size_t>(std::max(0, rect.width)) * static_cast<std::size_t>(std::max(0, rect.height)),
                0.0F),
         clip_alpha_(alpha_.size(), 0.0F),
-        use_original_clip_coverage_(use_original_clip_coverage) {}
+        records_clip_coverage_(records_clip_coverage) {}
 
   void composite_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha, BlendMode mode) {
     alpha = clamp_unit(alpha);
@@ -2170,7 +2176,7 @@ public:
   }
 
   void record_clip_coverage(std::int32_t x, std::int32_t y, float alpha) noexcept {
-    if (frozen_ || !use_original_clip_coverage_) {
+    if (frozen_ || !records_clip_coverage_) {
       return;
     }
     x -= rect_.x;
@@ -2221,15 +2227,10 @@ public:
     dst[2] = clamp_byte(static_cast<float>(lut.blue[dst[2]]) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
   }
 
-  void freeze_clip() noexcept {
-    if (!use_original_clip_coverage_) {
-      // Preserve the historical/default path byte for byte: before Blend If,
-      // Patchy deliberately let base-layer styles contribute to the frozen
-      // clipping shape. Only Blend-If bases need Photoshop's original matte.
-      clip_alpha_ = alpha_;
-    }
-    frozen_ = true;
-  }
+  // Locks the clipping shape. clip_alpha_ already holds exactly the base's
+  // content coverage; the accumulated alpha_ must NOT be substituted, because
+  // by now it also carries the base's drop shadow, glow, and stroke output.
+  void freeze_clip() noexcept { frozen_ = true; }
 
   template <typename Target>
   void merge_into(Target& destination, BlendMode mode) const {
@@ -2280,7 +2281,7 @@ private:
   std::vector<std::uint8_t> rgb_;
   std::vector<float> alpha_;
   std::vector<float> clip_alpha_;
-  bool use_original_clip_coverage_{false};
+  bool records_clip_coverage_{false};
   bool frozen_{false};
 };
 
@@ -2440,8 +2441,7 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
     if (layer_has_rendered_underlying_blend_if(layer)) {
       base_backdrop.emplace(destination, group_rect);
     }
-    IsolatedClipGroupTarget group(
-        group_rect, layer_has_rendered_blend_if(layer) || layer.fill_opacity() != 1.0F);
+    IsolatedClipGroupTarget group(group_rect, /*records_clip_coverage=*/true);
     composite_layer(group, layer, group_rect, overrides, throw_on_unsupported_pixel_format, masks,
                     base_backdrop.has_value() ? &*base_backdrop : nullptr, patterns);
     group.freeze_clip();

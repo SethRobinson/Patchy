@@ -468,6 +468,66 @@ void compositor_blend_if_clip_base_keeps_original_coverage() {
   CHECK(flattened.pixel(0, 0)[2] == 0);
 }
 
+// Photoshop clips members to the base layer's TRANSPARENCY alone. The base's
+// layer styles still render, but they must not widen the clipping shape: a
+// clipped layer never paints where the base itself is absent, only where its
+// drop shadow, glow, or stroke landed. Patchy used to freeze the clip from the
+// group buffer's accumulated alpha, which by then included that effect output,
+// so every clipped member spilled across the base's whole shadow (the Cockpit
+// Master title screen: its plane stack is clipped to a frame layer whose mask
+// cuts a hole, and the frame's drop shadow relicensed the hole).
+void compositor_clip_base_effects_do_not_widen_the_clip_shape() {
+  patchy::Document document(8, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(8, 1, 255, 255, 255));
+
+  // Opaque red at x = 1..2, transparent elsewhere.
+  patchy::PixelBuffer base_pixels(8, 1, patchy::PixelFormat::rgba8());
+  for (std::int32_t x = 0; x < 8; ++x) {
+    auto* px = base_pixels.pixel(x, 0);
+    px[0] = 255;
+    px[1] = 0;
+    px[2] = 0;
+    px[3] = (x == 1 || x == 2) ? 255 : 0;
+  }
+  patchy::Layer base(document.allocate_layer_id(), "Shadowed Base", std::move(base_pixels));
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Normal;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  // (180 - angle) puts angle 180 straight to the right; size/spread 0 keeps the
+  // shadow a hard 2 px copy at x = 3..4, with no blur fringe to reason about.
+  shadow.angle_degrees = 180.0F;
+  shadow.distance = 2.0F;
+  shadow.size = 0.0F;
+  shadow.spread = 0.0F;
+  base.layer_style().drop_shadows.push_back(shadow);
+  document.add_layer(std::move(base));
+
+  patchy::Layer clipped(document.allocate_layer_id(), "Green Clip", solid_rgba(8, 1, 0, 255, 0, 255));
+  clipped.set_clipped(true);
+  document.add_layer(std::move(clipped));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto pixel = [&](std::int32_t x) {
+    const auto* px = flattened.pixel(x, 0);
+    return std::array<int, 3>{px[0], px[1], px[2]};
+  };
+  const std::array<int, 3> green{0, 255, 0};
+  const std::array<int, 3> black{0, 0, 0};
+  const std::array<int, 3> white{255, 255, 255};
+  // Inside the base's own matte the clipped green wins (it covers the red).
+  CHECK(pixel(1) == green);
+  CHECK(pixel(2) == green);
+  // The shadow still renders, and stays the shadow: no green leaks onto it.
+  CHECK(pixel(3) == black);
+  CHECK(pixel(4) == black);
+  // Neither the base, its shadow, nor the clipped member reaches the rest.
+  CHECK(pixel(0) == white);
+  CHECK(pixel(5) == white);
+  CHECK(pixel(7) == white);
+}
+
 void compositor_pass_through_group_blend_if_isolates_adjustment_child() {
   const auto gray_pair = [](std::uint8_t left, std::uint8_t right) {
     patchy::PixelBuffer pixels(2, 1, patchy::PixelFormat::rgb8());
@@ -1024,6 +1084,8 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
        compositor_blend_if_gates_group_composite},
       {"compositor_blend_if_clip_base_keeps_original_coverage",
        compositor_blend_if_clip_base_keeps_original_coverage},
+      {"compositor_clip_base_effects_do_not_widen_the_clip_shape",
+       compositor_clip_base_effects_do_not_widen_the_clip_shape},
       {"compositor_pass_through_group_blend_if_isolates_adjustment_child",
        compositor_pass_through_group_blend_if_isolates_adjustment_child},
       {"compositor_pass_through_group_opacity_fades_once_at_overlap",
