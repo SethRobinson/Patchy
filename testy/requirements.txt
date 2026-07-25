@@ -1,5 +1,5 @@
 # Testy's Python dependencies (any Python 3.11+).
-pywin32          # Photoshop COM driver
+pywin32          # Photoshop COM driver + the modal-dialog guard (win_dialogs.py)
 Pillow           # render comparison
 numpy            # render comparison
 selenium         # Photopea driver (headless Chrome; Selenium Manager fetches chromedriver)

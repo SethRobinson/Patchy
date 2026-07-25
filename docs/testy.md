@@ -239,6 +239,36 @@ full native preservation, which validates the pipeline itself.
   ArrayBuffer back to the server's `/testy-upload` endpoint (uploads are path-confined to
   `runs/`; the server also sends CORS headers). Needs internet; selenium manager fetches
   chromedriver on first use.
+- Nuisance modal dialogs are answered from outside the COM call. `DialogModes.NO`
+  does not reach every dialog: some files make Photoshop raise a modal alert from
+  inside `app.open` ("This file contains file info data which cannot be read and has
+  been ignored" - a PSD whose IPTC resource holds something other than IPTC records,
+  e.g. `Closed.psd` in the local corpus, which carries a TIFF/Exif block there). The
+  scripted call is already blocked when the alert appears, so nothing inside
+  ExtendScript can dismiss it, and before July 2026 the file simply burned two
+  120s watchdog timeouts plus a Photoshop restart and scored "ground truth failed".
+  Every probe now runs under a `testy/win_dialogs.py` DialogGuard, which polls
+  Photoshop's windows from a side thread and clicks the acknowledging button. It is
+  deliberately narrow: only owned windows or standard `#32770` dialogs with at most
+  six push buttons (never an app's own frame, which is full of hidden buttons named
+  OK and Cancel), only real push buttons (so an alert's "Don't show again" checkbox
+  is never ticked, which would quietly change Photoshop's settings), only buttons
+  that mean carry on (OK/Yes/Continue/Update/Close/Done/Proceed - never Cancel, No,
+  Save or Discard), and only through messages posted to that dialog's own button, so
+  nothing can land in another app. A dialog with no safe answer is left standing and
+  named in the failure text, which turns "photoshop hung >120s" into the alert's
+  actual wording. Dismissed alerts are recorded per file (`groundTruth.dialogs`) and
+  per resave (`cell.resaveDialogs`, i.e. Photoshop complaining about what that
+  editor wrote) and shown in the detail panel; they do not flag a file in scan mode,
+  since the metadata they complain about is not something Testy measures.
+  `python testy\win_dialogs.py --selftest` exercises the guard against real Win32
+  dialogs raised by a helper process, including the refusal and watchdog paths, so
+  it needs neither Photoshop nor a broken PSD.
+- A file whose ground truth failed does not get probed a second time for the
+  Photoshop column: the cell inherits the ground-truth error. The ground truth
+  already opened that exact file with that exact driver and already retried on a
+  freshly restarted Photoshop, so a second probe would fail identically and cost
+  another two minutes and another restart.
 - Photoshop self-heals from engine wedges (verified July 2026): during a long session
   Photoshop's scripting engine wedges into a state where EVERY `app.open` returns error
   8000 ("open options are incorrect") regardless of the file - a control file that
@@ -304,6 +334,7 @@ testy/
   report.py          status.json + live report.html + history
   affinity_js.py     token-free MCP/JS client for the Affinity app (SSE + JSON-RPC,
                      launch/quit lifecycle; also reused by .af format tooling)
+  win_dialogs.py     modal-dialog guard for scripted apps (--selftest included)
   drivers/           photoshop (COM), patchy (CLI), krita (CLI),
                      photopea (headless Chrome + embed API), affinity (built-in JS
                      automation via affinity_js)

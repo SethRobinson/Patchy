@@ -5,20 +5,33 @@ inspect, render, close-no-save) so a crash mid-script never leaks documents into
 later probes. Techniques follow docs/ps-compat.md: DialogModes.NO, pixel ruler
 and type units, close only documents the script opened, and the copy-merged
 fallback for files whose smart-object blocks make saveAs report a disk error.
+
+DialogModes.NO does not reach every dialog: some files make Photoshop raise a
+modal alert from inside app.open ("This file contains file info data which
+cannot be read and has been ignored"), and a blocked DoJavaScript call has no
+way to answer it. Every probe therefore runs under a win_dialogs.DialogGuard,
+which acknowledges recognized alerts from outside the COM call and carries the
+hang watchdog.
 """
 
 from __future__ import annotations
 
 import json
 import subprocess
-import threading
 import time
 from pathlib import Path
+from typing import Callable
+
+import win_dialogs
+
+IMAGE_NAME = "Photoshop.exe"
 
 # A single scripted probe (open + flatten + save PNG + resave PSD + manifest walk) can
 # legitimately take ~20-30s on a 30 MB file, so this hang watchdog is a generous safety
 # net for a genuinely stuck modal, NOT a per-op deadline. A wedged engine (the common
 # failure) returns error 8000 instantly, so it is handled fast by restart-and-retry.
+# Every dialog the guard clears restarts the countdown: that is Photoshop making
+# progress, not hanging.
 SCRIPT_WATCHDOG_SECONDS = 120
 
 # ExtendScript is ES3: no JSON object, so the probe builds its JSON by hand via q().
@@ -228,9 +241,17 @@ def _js_string(value: str | None) -> str:
     return f'"{escaped}"'
 
 
+def _kill_photoshop() -> None:
+    try:
+        subprocess.run(["taskkill", "/IM", IMAGE_NAME, "/F"], capture_output=True, timeout=30)
+    except Exception:
+        pass
+
+
 class PhotoshopDriver:
-    def __init__(self) -> None:
+    def __init__(self, log: Callable[[str], None] | None = None) -> None:
         self._app = None
+        self._log = log
 
     def _application(self):
         if self._app is None:
@@ -253,11 +274,7 @@ class PhotoshopDriver:
                 self._app.Quit()
         except Exception:
             pass
-        try:
-            subprocess.run(["taskkill", "/IM", "Photoshop.exe", "/F"],
-                           capture_output=True, timeout=30)
-        except Exception:
-            pass
+        _kill_photoshop()
         self._app = None
         time.sleep(3.0)
         # Force a fresh launch now so the wait is spent here, not mid-probe.
@@ -291,6 +308,14 @@ class PhotoshopDriver:
             return result
         self.restart()
         retry = self._probe_once(psd_path, render_png, mutate_suffix, mutated_png, resave_psd)
+        # Dialogs the first attempt reported are part of this file's story even when
+        # the retry is the one that carries the result.
+        dialogs = list(result.get("dialogs") or [])
+        for entry in retry.get("dialogs") or []:
+            if entry not in dialogs:
+                dialogs.append(entry)
+        if dialogs:
+            retry["dialogs"] = dialogs
         if retry.get("ok"):
             return retry
         retry["error"] = (f"{retry.get('error', 'unknown')} "
@@ -313,32 +338,42 @@ class PhotoshopDriver:
             "mutate_suffix": _js_string(mutate_suffix),
             "mutated_png": _js_string(str(mutated_png)) if mutated_png is not None else "null",
         }
-        # Hang watchdog: a stuck modal would block DoJavaScript forever. A side timer
-        # force-kills Photoshop.exe on timeout, which makes the blocked COM call raise
-        # instead. (Only trips on true hangs; see SCRIPT_WATCHDOG_SECONDS.)
-        hung = {"killed": False}
-
-        def watchdog() -> None:
-            hung["killed"] = True
-            try:
-                subprocess.run(["taskkill", "/IM", "Photoshop.exe", "/F"],
-                               capture_output=True, timeout=30)
-            except Exception:
-                pass
-
-        timer = threading.Timer(SCRIPT_WATCHDOG_SECONDS, watchdog)
-        timer.start()
+        # The guard answers modal alerts Photoshop raises behind the blocked COM call
+        # (see the module docstring) and force-kills Photoshop.exe once nothing has
+        # moved for SCRIPT_WATCHDOG_SECONDS, which makes that call raise instead of
+        # blocking forever.
+        guard = win_dialogs.DialogGuard(
+            [IMAGE_NAME],
+            watchdog_seconds=SCRIPT_WATCHDOG_SECONDS,
+            on_timeout=_kill_photoshop,
+            log=self._log,
+        )
         try:
-            app = self._application()
-            raw = app.DoJavaScript(jsx)
+            with guard:
+                app = self._application()
+                raw = app.DoJavaScript(jsx)
         except Exception as error:  # COM-level failure (crash, watchdog kill, busy modal)
             self._app = None
-            if hung["killed"]:
-                return {"ok": False, "error": f"photoshop hung >{SCRIPT_WATCHDOG_SECONDS}s; killed"}
-            return {"ok": False, "error": f"com-error: {error}"}
-        finally:
-            timer.cancel()
+            return self._with_dialogs(guard, {"ok": False, "error": self._failure_text(guard, error)})
         try:
-            return json.loads(raw)
+            return self._with_dialogs(guard, json.loads(raw))
         except Exception:
-            return {"ok": False, "error": f"unparseable probe result: {raw[:500]!r}"}
+            return self._with_dialogs(
+                guard, {"ok": False, "error": f"unparseable probe result: {raw[:500]!r}"})
+
+    @staticmethod
+    def _with_dialogs(guard: win_dialogs.DialogGuard, result: dict) -> dict:
+        """Record the alerts Photoshop raised, so a warning it shrugged off is
+        visible in the report instead of silently costing a few seconds."""
+        if guard.dismissed:
+            result["dialogs"] = list(guard.dismissed)
+        return result
+
+    @staticmethod
+    def _failure_text(guard: win_dialogs.DialogGuard, error: Exception) -> str:
+        if not guard.timed_out:
+            return f"com-error: {error}"
+        if guard.blocked:
+            return (f"photoshop hung >{SCRIPT_WATCHDOG_SECONDS}s behind a dialog with no "
+                    f"safe answer: {guard.blocked[-1]}; killed")
+        return f"photoshop hung >{SCRIPT_WATCHDOG_SECONDS}s; killed"

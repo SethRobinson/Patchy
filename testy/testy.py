@@ -824,7 +824,7 @@ class Runner:
             self.editor_order = [e for e in self.status["run"]["editorOrder"] if e in self.editors]
         else:
             self.editor_order = [e for e in args.editors.split(",") if e in self.editors]
-        self.ps = PhotoshopDriver()
+        self.ps = PhotoshopDriver(log=log)
         self.files_dir = self.run_dir / "files"
         self.files_dir.mkdir(parents=True, exist_ok=True)
         config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -925,6 +925,8 @@ class Runner:
 
         if not result.get("ok"):
             entry["groundTruth"] = {"state": "failed", "error": result.get("error", "unknown")}
+            if result.get("dialogs"):
+                entry["groundTruth"]["dialogs"] = result["dialogs"]
             self.push()
             return None
 
@@ -951,6 +953,12 @@ class Runner:
             "mutateCount": result.get("mutateCount"),
             "artifacts": artifacts,
         }
+        # Alerts Photoshop raised while opening the file (the driver acknowledged
+        # them so the probe could finish); they say something about the file, so
+        # the report shows them rather than swallowing them.
+        if result.get("dialogs"):
+            entry["groundTruth"]["dialogs"] = result["dialogs"]
+            log(f"    Photoshop warned while opening this file: {result['dialogs'][0]}")
         (gt_dir / "manifest.json").write_text(json.dumps(result["layers"], indent=1), encoding="utf-8")
         self.push()
         return result
@@ -969,6 +977,17 @@ class Runner:
 
         if not info.available:
             cell.update({"state": "failed", "error": "editor not found on this machine"})
+            self.push()
+            return
+
+        # The ground truth just opened this exact file with this exact driver. If
+        # that failed - after its own restart-and-retry - opening it again fails
+        # the same way, and a probe that ends in the hang watchdog costs two
+        # minutes plus a Photoshop restart. Take the verdict already in hand.
+        if editor_key == "photoshop" and truth is None:
+            cell.update({"state": "failed", "opens": "fail",
+                         "error": entry.get("groundTruth", {}).get(
+                             "error", "Photoshop could not open this file")})
             self.push()
             return
 
@@ -1048,6 +1067,9 @@ class Runner:
             cell["stage"] = "reopening resave in Photoshop"
             self.push()
             roundtrip = self.ps.probe(resave_psd, cell_dir / "roundtrip.png")
+            # A dialog here is Photoshop complaining about what THIS editor wrote.
+            if roundtrip.get("dialogs"):
+                cell["resaveDialogs"] = roundtrip["dialogs"]
             if roundtrip.get("ok"):
                 (cell_dir / "roundtrip_manifest.json").write_text(
                     json.dumps(roundtrip["layers"], indent=1), encoding="utf-8"

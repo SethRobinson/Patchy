@@ -452,6 +452,17 @@ function openDetail(fi, ek, keep) {
   }
   if (f.trapSkipped)
     html += '<div class="nums">honest-rendering trap not run: ' + esc(f.trapSkipped) + "</div>";
+  // Modal alerts Photoshop raised on open. The driver acknowledges them so the
+  // probe can finish, but they are worth showing: on the original they say the
+  // file has something Photoshop cannot read, and on an editor's resave they say
+  // that editor wrote it.
+  (gt.dialogs || []).forEach(d => {
+    html += '<div class="nums">Photoshop warned while opening this file: ' + esc(d) + "</div>";
+  });
+  (cell.resaveDialogs || []).forEach(d => {
+    html += '<div class="nums">Photoshop warned while reopening ' + editorName +
+      "'s resave: " + esc(d) + "</div>";
+  });
   const psTrap = ((f.cells || {}).photoshop || {}).trapSentinelFraction || 0;
   if (cell.trapSentinelFraction > 0.05 && psTrap > 0.05 &&
       !(cell.trapSentinelFraction > psTrap + 0.05))
