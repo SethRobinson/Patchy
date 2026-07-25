@@ -1096,6 +1096,73 @@ void ui_layer_panel_mixed_folder_visual_cleanup() {
   save_widget_artifact("ui_layer_panel_mixed_folder_visual_cleanup", window);
 }
 
+void ui_layer_thumbnails_match_source_aspect() {
+  // 4:1. A square tile would wrap this in checkerboard bars, which claim the
+  // opaque layer has transparency it does not have.
+  constexpr std::int32_t kWideWidth = 160;
+  constexpr std::int32_t kWideHeight = 40;
+  const QColor fill(210, 60, 40, 255);
+
+  patchy::Document document(kWideWidth, kWideHeight, patchy::PixelFormat::rgba8());
+  patchy::Layer banner(document.allocate_layer_id(), "Banner",
+                       solid_pixels(kWideWidth, kWideHeight, patchy::PixelFormat::rgba8(), fill));
+  patchy::PixelBuffer mask_pixels(kWideWidth, kWideHeight, patchy::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  banner.set_mask(patchy::LayerMask{patchy::Rect{0, 0, kWideWidth, kWideHeight}, std::move(mask_pixels), 255, false});
+  document.add_layer(std::move(banner));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Assets", patchy::LayerKind::Group));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Wide Banner"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto thumbnail_pixmap = [layer_list](const QString& layer_name, const QString& thumbnail_name) {
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, layer_name));
+    CHECK(row != nullptr);
+    auto* label = row->findChild<QLabel*>(thumbnail_name);
+    CHECK(label != nullptr);
+    return label->pixmap(Qt::ReturnByValue);
+  };
+
+  const auto content = thumbnail_pixmap(QStringLiteral("Banner"), QStringLiteral("layerContentThumbnail"));
+  CHECK(content.size() == QSize(28, 7));
+  CHECK(thumbnail_pixmap(QStringLiteral("Banner"), QStringLiteral("layerMaskThumbnail")).size() == QSize(28, 7));
+  // Glyph thumbnails stay square: they are icons, not document previews.
+  CHECK(thumbnail_pixmap(QStringLiteral("Assets"), QStringLiteral("layerContentThumbnail")).size() == QSize(28, 28));
+
+  // Inside the frame the opaque layer must be nothing but its own color; a
+  // single checkerboard pixel means a letterbox margin came back.
+  const auto content_image = content.toImage();
+  int fill_pixels = 0;
+  int checkerboard_pixels = 0;
+  for (int y = 1; y + 1 < content_image.height(); ++y) {
+    for (int x = 1; x + 1 < content_image.width(); ++x) {
+      const auto color = content_image.pixelColor(x, y);
+      if (color == QColor(fill.red(), fill.green(), fill.blue())) {
+        ++fill_pixels;
+      }
+      if (color == QColor(204, 204, 204) || color == QColor(255, 255, 255)) {
+        ++checkerboard_pixels;
+      }
+    }
+  }
+  CHECK(fill_pixels == (content_image.width() - 2) * (content_image.height() - 2));
+  CHECK(checkerboard_pixels == 0);
+  save_widget_artifact("ui_layer_thumbnail_source_aspect", window);
+
+  // A square document still fills the whole slot.
+  patchy::Document square(64, 64, patchy::PixelFormat::rgba8());
+  square.add_pixel_layer("Square",
+                         solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(40, 110, 230, 255)));
+  window.add_document_session(std::move(square), QStringLiteral("Square"));
+  QApplication::processEvents();
+  CHECK(thumbnail_pixmap(QStringLiteral("Square"), QStringLiteral("layerContentThumbnail")).size() ==
+        QSize(28, 28));
+}
+
 void ui_layer_drag_drops_child_above_parent_folder() {
   patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background",
@@ -2553,6 +2620,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_rows_toggle_visibility_and_drag_reorder", ui_layer_rows_toggle_visibility_and_drag_reorder},
       {"ui_layer_folders_create_with_drag_drop_affordances", ui_layer_folders_create_with_drag_drop_affordances},
       {"ui_layer_panel_mixed_folder_visual_cleanup", ui_layer_panel_mixed_folder_visual_cleanup},
+      {"ui_layer_thumbnails_match_source_aspect", ui_layer_thumbnails_match_source_aspect},
       {"ui_layer_drag_drops_child_above_parent_folder", ui_layer_drag_drops_child_above_parent_folder},
       {"ui_layer_drag_multiselect_drops_children_above_parent_folder",
        ui_layer_drag_multiselect_drops_children_above_parent_folder},

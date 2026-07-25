@@ -420,67 +420,102 @@ void set_property_label_text(QLabel* label, const QString& text) {
   label->setVisible(!text.trimmed().isEmpty());
 }
 
-// Destination rect that letterboxes a source inside the square thumbnail tile
-// the way Photoshop does: the larger dimension spans the tile, the other is
-// scaled to preserve aspect ratio (never below 1px), centered.
-QRect thumbnail_fit_rect(int source_width, int source_height, int tile_size) {
+// Photoshop shapes a thumbnail like its source instead of padding a square
+// slot: the larger dimension spans the tile, the other keeps the source aspect
+// (never below 1px). Padding a square would wrap an opaque wide layer in
+// checkerboard, which reads as transparency that is not there.
+QSize thumbnail_tile_size(int source_width, int source_height, int tile_size) {
   if (source_width <= 0 || source_height <= 0) {
-    return QRect(0, 0, tile_size, tile_size);
+    return QSize(tile_size, tile_size);
   }
   const int larger = std::max(source_width, source_height);
-  const int width = std::max(1, (source_width * tile_size + larger / 2) / larger);
-  const int height = std::max(1, (source_height * tile_size + larger / 2) / larger);
-  return QRect((tile_size - width) / 2, (tile_size - height) / 2, width, height);
+  return QSize(std::max(1, (source_width * tile_size + larger / 2) / larger),
+               std::max(1, (source_height * tile_size + larger / 2) / larger));
 }
 
-QPixmap layer_mask_thumbnail(const LayerMask& mask) {
+// The shape a layer previews itself with: its pixel buffer when it has one,
+// its declared bounds otherwise.
+QSize layer_preview_source_size(const Layer& layer) {
+  const auto& pixels = layer.pixels();
+  if (!pixels.empty()) {
+    return QSize(pixels.width(), pixels.height());
+  }
+  return QSize(layer.bounds().width, layer.bounds().height);
+}
+
+// A frame costs a row and a column on each side, so a hairline tile would be
+// nothing but border. Below three pixels the content wins.
+void draw_thumbnail_frame(QPainter& painter, QSize tile) {
+  if (tile.width() < 3 || tile.height() < 3) {
+    return;
+  }
+  painter.setPen(QPen(theme().layer_thumbnail_border, 1));
+  painter.drawRect(QRect(0, 0, tile.width() - 1, tile.height() - 1));
+}
+
+// The disabled-mask cross keeps its 3px inset on a square tile and shrinks the
+// inset on a short one so the X still spans something.
+void draw_thumbnail_disabled_cross(QPainter& painter, QSize tile) {
+  const int inset_x = std::min(3, std::max(0, (tile.width() - 3) / 2));
+  const int inset_y = std::min(3, std::max(0, (tile.height() - 3) / 2));
+  const QPoint top_left(inset_x, inset_y);
+  const QPoint bottom_right(tile.width() - 1 - inset_x, tile.height() - 1 - inset_y);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setPen(QPen(theme().layer_mask_disabled_cross, 2));
+  painter.drawLine(top_left, bottom_right);
+  painter.drawLine(QPoint(bottom_right.x(), top_left.y()), QPoint(top_left.x(), bottom_right.y()));
+}
+
+QPixmap layer_mask_thumbnail(const Layer& layer) {
   constexpr int kSize = 28;
-  QImage image(kSize, kSize, QImage::Format_RGB888);
+  const auto& mask = *layer.mask();
+  const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
+  // An empty mask covers the layer uniformly, so it borrows the layer's shape.
+  const auto source = has_pixels ? QSize(mask.pixels.width(), mask.pixels.height())
+                                 : layer_preview_source_size(layer);
+  const auto tile = thumbnail_tile_size(source.width(), source.height(), kSize);
+  QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
   image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
-  if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
-    const auto fit = thumbnail_fit_rect(mask.pixels.width(), mask.pixels.height(), kSize);
-    for (int y = 0; y < fit.height(); ++y) {
+  if (has_pixels) {
+    for (int y = 0; y < tile.height(); ++y) {
       const auto source_y = std::clamp(
-          static_cast<int>((static_cast<double>(y) / fit.height()) * mask.pixels.height()), 0,
+          static_cast<int>((static_cast<double>(y) / tile.height()) * mask.pixels.height()), 0,
           std::max(0, mask.pixels.height() - 1));
-      for (int x = 0; x < fit.width(); ++x) {
+      for (int x = 0; x < tile.width(); ++x) {
         const auto source_x = std::clamp(
-            static_cast<int>((static_cast<double>(x) / fit.width()) * mask.pixels.width()), 0,
+            static_cast<int>((static_cast<double>(x) / tile.width()) * mask.pixels.width()), 0,
             std::max(0, mask.pixels.width() - 1));
         const auto value = *mask.pixels.pixel(source_x, source_y);
-        image.setPixelColor(fit.x() + x, fit.y() + y, QColor(value, value, value));
+        image.setPixelColor(x, y, QColor(value, value, value));
       }
     }
   }
 
   QPixmap pixmap = QPixmap::fromImage(image);
   QPainter painter(&pixmap);
-  painter.setPen(QPen(theme().layer_thumbnail_border, 1));
-  painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+  draw_thumbnail_frame(painter, tile);
   if (mask.disabled) {
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(theme().layer_mask_disabled_cross, 2));
-    painter.drawLine(QPoint(3, 3), QPoint(kSize - 4, kSize - 4));
-    painter.drawLine(QPoint(kSize - 4, 3), QPoint(3, kSize - 4));
+    draw_thumbnail_disabled_cross(painter, tile);
   }
   return pixmap;
 }
 
 // The vector-mask thumbnail shows the baked grayscale coverage cache (areas
 // outside cache_bounds are hidden, i.e. black), with the raster-mask border
-// and disabled-cross conventions.
+// and disabled-cross conventions. It is document-shaped because the coverage
+// cache is addressed in document space.
 QPixmap layer_vector_mask_thumbnail(const LayerVectorMask& mask, int document_width,
                                     int document_height) {
   constexpr int kSize = 28;
-  QImage image(kSize, kSize, QImage::Format_RGB888);
+  const auto tile = thumbnail_tile_size(document_width, document_height, kSize);
+  QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
   image.fill(Qt::black);
   if (!mask.cache.empty() && mask.cache.format() == PixelFormat::gray8() && document_width > 0 &&
       document_height > 0) {
-    const auto fit = thumbnail_fit_rect(document_width, document_height, kSize);
-    for (int y = 0; y < fit.height(); ++y) {
-      const auto document_y = (static_cast<double>(y) / fit.height()) * document_height;
-      for (int x = 0; x < fit.width(); ++x) {
-        const auto document_x = (static_cast<double>(x) / fit.width()) * document_width;
+    for (int y = 0; y < tile.height(); ++y) {
+      const auto document_y = (static_cast<double>(y) / tile.height()) * document_height;
+      for (int x = 0; x < tile.width(); ++x) {
+        const auto document_x = (static_cast<double>(x) / tile.width()) * document_width;
         const auto local_x = static_cast<int>(document_x) - mask.cache_bounds.x;
         const auto local_y = static_cast<int>(document_y) - mask.cache_bounds.y;
         std::uint8_t value = 0;
@@ -493,19 +528,15 @@ QPixmap layer_vector_mask_thumbnail(const LayerVectorMask& mask, int document_wi
           const auto density = static_cast<int>(mask.density);
           value = static_cast<std::uint8_t>((value * density) / 255 + (255 - density));
         }
-        image.setPixelColor(fit.x() + x, fit.y() + y, QColor(value, value, value));
+        image.setPixelColor(x, y, QColor(value, value, value));
       }
     }
   }
   QPixmap pixmap = QPixmap::fromImage(image);
   QPainter painter(&pixmap);
-  painter.setPen(QPen(theme().layer_thumbnail_border, 1));
-  painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+  draw_thumbnail_frame(painter, tile);
   if (mask.disabled) {
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(theme().layer_mask_disabled_cross, 2));
-    painter.drawLine(QPoint(3, 3), QPoint(kSize - 4, kSize - 4));
-    painter.drawLine(QPoint(kSize - 4, 3), QPoint(3, kSize - 4));
+    draw_thumbnail_disabled_cross(painter, tile);
   }
   return pixmap;
 }
@@ -1135,9 +1166,14 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
     return pixmap;
   }
 
-  QImage image(kSize, kSize, QImage::Format_RGB888);
-  for (int y = 0; y < kSize; ++y) {
-    for (int x = 0; x < kSize; ++x) {
+  // Only the layer's own pixels get a checkerboard, and only where the layer
+  // really is transparent: the tile is shaped to the source, so there is no
+  // letterbox margin left to fill with a pattern that means alpha.
+  const auto source = layer_preview_source_size(layer);
+  const auto tile = thumbnail_tile_size(source.width(), source.height(), kSize);
+  QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
+  for (int y = 0; y < tile.height(); ++y) {
+    for (int x = 0; x < tile.width(); ++x) {
       const bool dark = ((x / 7) + (y / 7)) % 2 == 0;
       image.setPixelColor(x, y, dark ? QColor(204, 204, 204) : QColor(255, 255, 255));
     }
@@ -1145,19 +1181,18 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
 
   const auto& pixels = layer.pixels();
   if (!pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 && pixels.format().channels >= 3) {
-    const auto fit = thumbnail_fit_rect(pixels.width(), pixels.height(), kSize);
-    for (int y = 0; y < fit.height(); ++y) {
+    for (int y = 0; y < tile.height(); ++y) {
       const auto source_y = std::clamp(
-          static_cast<int>((static_cast<double>(y) / fit.height()) * pixels.height()), 0,
+          static_cast<int>((static_cast<double>(y) / tile.height()) * pixels.height()), 0,
           std::max(0, pixels.height() - 1));
-      for (int x = 0; x < fit.width(); ++x) {
+      for (int x = 0; x < tile.width(); ++x) {
         const auto source_x = std::clamp(
-            static_cast<int>((static_cast<double>(x) / fit.width()) * pixels.width()), 0,
+            static_cast<int>((static_cast<double>(x) / tile.width()) * pixels.width()), 0,
             std::max(0, pixels.width() - 1));
         const auto* px = pixels.pixel(source_x, source_y);
         const auto alpha = pixels.format().channels >= 4 ? static_cast<int>(px[3]) : 255;
-        const auto base = image.pixelColor(fit.x() + x, fit.y() + y);
-        image.setPixelColor(fit.x() + x, fit.y() + y,
+        const auto base = image.pixelColor(x, y);
+        image.setPixelColor(x, y,
                             QColor((static_cast<int>(px[0]) * alpha + base.red() * (255 - alpha)) / 255,
                                    (static_cast<int>(px[1]) * alpha + base.green() * (255 - alpha)) / 255,
                                    (static_cast<int>(px[2]) * alpha + base.blue() * (255 - alpha)) / 255));
@@ -1167,8 +1202,7 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
 
   QPixmap pixmap = QPixmap::fromImage(image);
   QPainter painter(&pixmap);
-  painter.setPen(QPen(theme().layer_thumbnail_border, 1));
-  painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+  draw_thumbnail_frame(painter, tile);
   return pixmap;
 }
 
@@ -1352,7 +1386,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     mask_preview->setObjectName(QStringLiteral("layerMaskThumbnail"));
     mask_preview->setFixedSize(30, 30);
     mask_preview->setAlignment(Qt::AlignCenter);
-    mask_preview->setPixmap(mask_thumbnail ? mask_thumbnail(layer) : layer_mask_thumbnail(*layer.mask()));
+    mask_preview->setPixmap(mask_thumbnail ? mask_thumbnail(layer) : layer_mask_thumbnail(layer));
     mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
                               QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
     mask_preview->setToolTip(
@@ -1537,34 +1571,33 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         button->installEventFilter(list_parent);
       }
     };
-    const auto mask_pixmap = [](const SmartFilterMask& mask) {
+    const auto mask_pixmap = [&layer](const SmartFilterMask& mask) {
       constexpr int kSize = 22;
-      QImage image(kSize, kSize, QImage::Format_RGB888);
+      const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
+      const auto source = has_pixels ? QSize(mask.pixels.width(), mask.pixels.height())
+                                     : layer_preview_source_size(layer);
+      const auto tile = thumbnail_tile_size(source.width(), source.height(), kSize);
+      QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
       image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
-      if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
-        const auto fit = thumbnail_fit_rect(mask.pixels.width(), mask.pixels.height(), kSize);
-        for (int y = 0; y < fit.height(); ++y) {
+      if (has_pixels) {
+        for (int y = 0; y < tile.height(); ++y) {
           const auto source_y = std::clamp(
-              static_cast<int>((static_cast<double>(y) / fit.height()) * mask.pixels.height()), 0,
+              static_cast<int>((static_cast<double>(y) / tile.height()) * mask.pixels.height()), 0,
               std::max(0, mask.pixels.height() - 1));
-          for (int x = 0; x < fit.width(); ++x) {
+          for (int x = 0; x < tile.width(); ++x) {
             const auto source_x = std::clamp(
-                static_cast<int>((static_cast<double>(x) / fit.width()) * mask.pixels.width()), 0,
+                static_cast<int>((static_cast<double>(x) / tile.width()) * mask.pixels.width()), 0,
                 std::max(0, mask.pixels.width() - 1));
             const auto value = *mask.pixels.pixel(source_x, source_y);
-            image.setPixelColor(fit.x() + x, fit.y() + y, QColor(value, value, value));
+            image.setPixelColor(x, y, QColor(value, value, value));
           }
         }
       }
       QPixmap pixmap = QPixmap::fromImage(image);
       QPainter painter(&pixmap);
-      painter.setPen(QPen(theme().layer_thumbnail_border, 1));
-      painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+      draw_thumbnail_frame(painter, tile);
       if (!mask.enabled) {
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.setPen(QPen(theme().layer_mask_disabled_cross, 2));
-        painter.drawLine(QPoint(3, 3), QPoint(kSize - 4, kSize - 4));
-        painter.drawLine(QPoint(kSize - 4, 3), QPoint(3, kSize - 4));
+        draw_thumbnail_disabled_cross(painter, tile);
       }
       return pixmap;
     };
@@ -2701,7 +2734,7 @@ QPixmap MainWindow::cached_layer_mask_thumbnail(const Layer& layer) {
   auto& entry = layer_thumbnail_cache_[layer.id()];
   const auto revision = layer.content_revision();
   if (entry.mask.isNull() || entry.mask_revision != revision) {
-    entry.mask = layer_mask_thumbnail(*layer.mask());
+    entry.mask = layer_mask_thumbnail(layer);
     entry.mask_revision = revision;
   }
   return entry.mask;
