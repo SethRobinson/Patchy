@@ -104,8 +104,12 @@ constexpr std::array<char, 4> kPhotoshopBrightnessContrastDescriptorBlockKey{'C'
 // highlights i16 x3 (cyan/red, magenta/green, yellow/blue each), preserve
 // luminosity u8, pad u8. Patchy models the midtones triple only.
 constexpr std::array<char, 4> kPhotoshopColorBalanceBlockKey{'b', 'l', 'n', 'c'};
-// version u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3.
+// version u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3,
+// then six band records of four i16 range stops plus an i16 h/s/l triple, then
+// an undocumented 36-byte trailer Photoshop always writes.
 constexpr std::size_t kPhotoshopHueSaturationHeaderSize = 16;
+constexpr std::size_t kPhotoshopHueSaturationBandRecordSize = 14;
+constexpr std::size_t kPhotoshopHueSaturationBandBlockSize = kPhotoshopHueSaturationBandRecordSize * 6U;
 constexpr int kMaxTextSizePixels = 8192;
 constexpr std::uint32_t kPsdProtectTransparency = 1U << 0U;
 constexpr std::uint32_t kPsdProtectComposite = 1U << 1U;

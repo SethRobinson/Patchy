@@ -34,7 +34,7 @@ Click a thumbnail for the full-size image.
     </td>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/hue_saturation.png"><img src="docs/images/screenshots/hue_saturation.png" width="270" alt="Hue and Saturation adjustment dialog editing a colorful photograph"></a>
-      <br><sub>Live color adjustments, with Hue/Saturation calibrated against Photoshop</sub>
+      <br><sub>Live color adjustments, including targeted Hue/Saturation ranges</sub>
     </td>
   </tr>
   <tr>

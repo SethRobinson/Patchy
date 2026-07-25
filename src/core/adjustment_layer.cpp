@@ -114,6 +114,50 @@ std::optional<CurvesAdjustment> metadata_curves_adjustment(const Layer& layer) {
   return CurvesAdjustment{*rgb, *red, *green, *blue};
 }
 
+// "r0;r1;r2;r3;hue;saturation;lightness". A malformed or missing value leaves
+// the band at Photoshop's default hextant, which renders as no effect.
+std::string serialize_hue_saturation_band(const HueSaturationBand& band) {
+  const std::array<int, 7> fields{band.outer_start,   band.inner_start,      band.inner_end,
+                                  band.outer_end,     band.hue_shift,        band.saturation_delta,
+                                  band.lightness_delta};
+  std::string encoded;
+  for (std::size_t index = 0; index < fields.size(); ++index) {
+    if (index != 0U) {
+      encoded.push_back(';');
+    }
+    encoded += std::to_string(fields[index]);
+  }
+  return encoded;
+}
+
+std::optional<HueSaturationBand> parse_hue_saturation_band(std::string_view encoded) {
+  std::array<int, 7> fields{};
+  for (std::size_t index = 0; index < fields.size(); ++index) {
+    if (encoded.empty()) {
+      return std::nullopt;
+    }
+    const auto separator = encoded.find(';');
+    const auto token = encoded.substr(0, separator);
+    const auto value = parse_int(token);
+    if (!value.has_value()) {
+      return std::nullopt;
+    }
+    fields[index] = *value;
+    encoded = separator == std::string_view::npos ? std::string_view{} : encoded.substr(separator + 1U);
+  }
+  if (!encoded.empty()) {
+    return std::nullopt;
+  }
+  const auto degrees = [](int value) { return ((value % 360) + 360) % 360; };
+  return HueSaturationBand{degrees(fields[0]),
+                           degrees(fields[1]),
+                           degrees(fields[2]),
+                           degrees(fields[3]),
+                           std::clamp(fields[4], -180, 180),
+                           std::clamp(fields[5], -100, 100),
+                           std::clamp(fields[6], -100, 100)};
+}
+
 LevelsRecord metadata_levels_record_or(const Layer& layer, const char* black_input_key, const char* white_input_key,
                                        const char* gamma_percent_key, const char* black_output_key,
                                        const char* white_output_key) {
@@ -429,6 +473,36 @@ RgbColor apply_colorize(RgbColor color, const HueSaturationAdjustment& settings)
                                    static_cast<double>(kColorizeHueInterp[static_cast<std::size_t>(hue)]));
 }
 
+// A band's strength at an input hue: 0 outside the outer stops, ramping in
+// between outer_start and inner_start, 1 between the inner stops, ramping out
+// between inner_end and outer_end. Stops run in wheel order and may wrap past
+// 360. Verified against Photoshop over the whole wheel for the default
+// hextants, a narrow custom range, and hard edges (outer == inner).
+double hue_saturation_band_weight(double hue_degrees, const HueSaturationBand& band) {
+  const auto forward = [](int from, double to) {
+    auto delta = std::fmod(to - static_cast<double>(from), 360.0);
+    return delta < 0.0 ? delta + 360.0 : delta;
+  };
+  const auto ramp_in = forward(band.outer_start, band.inner_start);
+  const auto plateau = forward(band.inner_start, band.inner_end);
+  const auto ramp_out = forward(band.inner_end, band.outer_end);
+  if (ramp_in + plateau + ramp_out <= 0.0) {
+    return 0.0;
+  }
+  const auto position = forward(band.outer_start, hue_degrees);
+  if (position < ramp_in) {
+    return position / ramp_in;
+  }
+  if (position <= ramp_in + plateau) {
+    return 1.0;
+  }
+  const auto tail = position - ramp_in - plateau;
+  if (tail >= ramp_out) {
+    return 0.0;
+  }
+  return 1.0 - tail / ramp_out;
+}
+
 RgbColor apply_hue_saturation(RgbColor color, HueSaturationAdjustment settings) {
   if (settings.colorize) {
     return apply_colorize(color, settings);
@@ -436,6 +510,44 @@ RgbColor apply_hue_saturation(RgbColor color, HueSaturationAdjustment settings) 
   const auto hue_shift = std::clamp(settings.hue_shift, -180, 180);
   const auto saturation_delta = std::clamp(settings.saturation_delta, -100, 100);
   const auto lightness_delta = std::clamp(settings.lightness_delta, -100, 100);
+
+  // Band contributions ride on top of the master sliders. Photoshop selects the
+  // band from the pixel's ORIGINAL hue (the master rotation does not move the
+  // selection, verified), and the band lightness runs BEFORE the master one.
+  std::array<double, 6> band_weights{};
+  auto banded = color;
+  if (settings.any_band_has_effect()) {
+    const auto wheel = photoshop_wheel_position(color);
+    const auto hue_degrees = wheel / 4.25;
+    int sector = 0;
+    double interpolant = 0.0;
+    photoshop_wheel_split(wheel, sector, interpolant);
+    auto maximum = static_cast<double>(std::max({color.red, color.green, color.blue}));
+    auto minimum = static_cast<double>(std::min({color.red, color.green, color.blue}));
+    double lightness = 0.0;
+    for (std::size_t index = 0; index < settings.bands.size(); ++index) {
+      const auto& band = settings.bands[index];
+      if (!band.has_effect()) {
+        continue;
+      }
+      band_weights[index] = hue_saturation_band_weight(hue_degrees, band);
+      lightness += band_weights[index] * std::clamp(band.lightness_delta, -100, 100);
+    }
+    // A band's Lightness is NOT the master blend toward white/black: it
+    // collapses the chroma toward the max channel (positive) or the min channel
+    // (negative), so +100 flattens the range to gray(max). Overlapping bands SUM
+    // their weighted percents and apply once, which is what keeps a default
+    // hextant crossfade continuous (applying them in turn overshoots by 16/255).
+    if (lightness > 0.0) {
+      minimum += (maximum - minimum) * std::min(lightness, 100.0) / 100.0;
+    } else if (lightness < 0.0) {
+      maximum += (minimum - maximum) * std::min(-lightness, 100.0) / 100.0;
+    }
+    const auto high = std::clamp(static_cast<int>(maximum + 0.5), 0, 255);
+    const auto low = std::clamp(static_cast<int>(minimum + 0.5), 0, 255);
+    banded = photoshop_hsl_reconstruct((high + low) >> 1, (high - low) * 0.5, sector, interpolant);
+  }
+  color = banded;
 
   // The lightness slider runs first and per channel. Cache its 256-entry ramp
   // per thread: the slider is constant for a whole layer, so recomputing three
@@ -464,17 +576,40 @@ RgbColor apply_hue_saturation(RgbColor color, HueSaturationAdjustment settings) 
 
   const int light = (maximum + minimum) >> 1;
   const auto half = static_cast<double>(maximum - minimum) * 0.5;
+  // The bands form one combined adjustment that then composes with the master:
+  // their weighted saturation offsets from 1 SUM (a product would bump the
+  // ratio above a single band's in every default-hextant crossfade), and the
+  // band total MULTIPLIES the master ratio. Hue rotations add in whole wheel
+  // steps, converted per band.
+  auto band_saturation_offset = 0.0;
+  auto rotation = std::floor(static_cast<double>(hue_shift) * 4.25 + 0.5);
+  for (std::size_t index = 0; index < settings.bands.size(); ++index) {
+    const auto weight = band_weights[index];
+    if (weight <= 0.0) {
+      continue;
+    }
+    const auto& band = settings.bands[index];
+    const auto band_saturation = std::clamp(band.saturation_delta, -100, 100);
+    if (band_saturation != 0) {
+      band_saturation_offset +=
+          weight * (kMasterSaturationScale[static_cast<std::size_t>(band_saturation + 100)] - 1.0);
+    }
+    const auto band_hue = std::clamp(band.hue_shift, -180, 180);
+    if (band_hue != 0) {
+      rotation += std::floor(weight * static_cast<double>(band_hue) * 4.25 + 0.5);
+    }
+  }
+  const auto ratio = kMasterSaturationScale[static_cast<std::size_t>(saturation_delta + 100)] *
+                     std::max(0.0, 1.0 + band_saturation_offset);
   // Saturation grows toward the in-gamut limit and never falls below the
   // incoming chroma, which is what keeps an all-zero render an exact identity
   // for the {min == 0, max odd} and {max == 255, min even} inputs.
   const auto limit = std::max(static_cast<double>(std::min(light, 255 - light)), half);
-  const auto half_chroma =
-      std::min(half * kMasterSaturationScale[static_cast<std::size_t>(saturation_delta + 100)], limit);
+  const auto half_chroma = std::min(half * ratio, limit);
 
   // Photoshop rotates by a whole number of wheel steps, floor(degrees * 4.25 +
   // 0.5), not by the continuous 4.25 * degrees: measured on all 360 slider
   // degrees, the two disagree at every degree that is not a multiple of four.
-  const auto rotation = std::floor(static_cast<double>(hue_shift) * 4.25 + 0.5);
   int sector = 0;
   double interpolant = 0.0;
   photoshop_wheel_split(photoshop_wheel_position(lit) + rotation, sector, interpolant);
@@ -494,6 +629,15 @@ RgbColor apply_color_balance(RgbColor color, ColorBalanceAdjustment settings) {
 }
 
 }  // namespace
+
+std::array<HueSaturationBand, 6> default_hue_saturation_bands() {
+  std::array<HueSaturationBand, 6> bands{};
+  for (std::size_t index = 0; index < bands.size(); ++index) {
+    const auto& range = kHueSaturationDefaultBandRanges[index];
+    bands[index] = HueSaturationBand{range[0], range[1], range[2], range[3], 0, 0, 0};
+  }
+  return bands;
+}
 
 LevelsRecord clamp_levels_record(LevelsRecord record) {
   record.black_input = std::clamp(record.black_input, 0, 254);
@@ -925,6 +1069,14 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
       metadata_int_or(layer, kLayerMetadataAdjustmentHueSaturationColorizeSaturation, 25);
   settings.hue_saturation.colorize_lightness =
       metadata_int_or(layer, kLayerMetadataAdjustmentHueSaturationColorizeLightness, 0);
+  settings.hue_saturation.bands = default_hue_saturation_bands();
+  for (std::size_t index = 0; index < settings.hue_saturation.bands.size(); ++index) {
+    const auto key = std::string(kLayerMetadataAdjustmentHueSaturationBandPrefix) + std::to_string(index);
+    const auto encoded = metadata_string_or(layer, key.c_str(), {});
+    if (const auto band = parse_hue_saturation_band(encoded)) {
+      settings.hue_saturation.bands[index] = *band;
+    }
+  }
   settings.color_balance.cyan_red = metadata_int_or(layer, kLayerMetadataAdjustmentColorBalanceCyanRed, 0);
   settings.color_balance.magenta_green = metadata_int_or(layer, kLayerMetadataAdjustmentColorBalanceMagentaGreen, 0);
   settings.color_balance.yellow_blue = metadata_int_or(layer, kLayerMetadataAdjustmentColorBalanceYellowBlue, 0);
@@ -996,6 +1148,12 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
                    std::clamp(settings.hue_saturation.colorize_saturation, 0, 100));
   set_metadata_int(layer, kLayerMetadataAdjustmentHueSaturationColorizeLightness,
                    std::clamp(settings.hue_saturation.colorize_lightness, -100, 100));
+  for (std::size_t index = 0; index < settings.hue_saturation.bands.size(); ++index) {
+    set_metadata_string(layer, (std::string(kLayerMetadataAdjustmentHueSaturationBandPrefix) +
+                                std::to_string(index))
+                                   .c_str(),
+                        serialize_hue_saturation_band(settings.hue_saturation.bands[index]));
+  }
   set_metadata_int(layer, kLayerMetadataAdjustmentColorBalanceCyanRed,
                    std::clamp(settings.color_balance.cyan_red, -100, 100));
   set_metadata_int(layer, kLayerMetadataAdjustmentColorBalanceMagentaGreen,
@@ -1112,7 +1270,8 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
       }
     case AdjustmentKind::HueSaturation:
       return settings.hue_saturation.colorize || settings.hue_saturation.hue_shift != 0 ||
-             settings.hue_saturation.saturation_delta != 0 || settings.hue_saturation.lightness_delta != 0;
+             settings.hue_saturation.saturation_delta != 0 || settings.hue_saturation.lightness_delta != 0 ||
+             settings.hue_saturation.any_band_has_effect();
     case AdjustmentKind::ColorBalance:
       return settings.color_balance.cyan_red != 0 || settings.color_balance.magenta_green != 0 ||
              settings.color_balance.yellow_blue != 0;

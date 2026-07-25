@@ -2,6 +2,7 @@
 
 #include "core/layer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -68,6 +69,10 @@ inline constexpr const char* kLayerMetadataAdjustmentHueSaturationColorizeSatura
     "patchy.adjustment.hue_saturation.colorize_saturation";
 inline constexpr const char* kLayerMetadataAdjustmentHueSaturationColorizeLightness =
     "patchy.adjustment.hue_saturation.colorize_lightness";
+// Per-hue-range bands. One key per band index 0..5 (reds, yellows, greens,
+// cyans, blues, magentas) holding "r0;r1;r2;r3;hue;saturation;lightness".
+inline constexpr const char* kLayerMetadataAdjustmentHueSaturationBandPrefix =
+    "patchy.adjustment.hue_saturation.band.";
 inline constexpr const char* kLayerMetadataAdjustmentColorBalanceCyanRed =
     "patchy.adjustment.color_balance.cyan_red";
 inline constexpr const char* kLayerMetadataAdjustmentColorBalanceMagentaGreen =
@@ -150,6 +155,36 @@ struct CurvesEyedropperSamples {
   std::optional<RgbColor> white;
 };
 
+// One of Photoshop's six per-hue-range bands. The four stops are hue degrees in
+// wheel order and may wrap past 360 (the reds default is 315/345/15/45); the
+// effect ramps in between the outer and inner start, holds between the inner
+// stops, and ramps out between the inner and outer end.
+struct HueSaturationBand {
+  int outer_start{0};
+  int inner_start{0};
+  int inner_end{0};
+  int outer_end{0};
+  int hue_shift{0};          // -180..180
+  int saturation_delta{0};   // -100..100
+  int lightness_delta{0};    // -100..100
+
+  [[nodiscard]] bool has_effect() const {
+    return hue_shift != 0 || saturation_delta != 0 || lightness_delta != 0;
+  }
+  friend bool operator==(const HueSaturationBand&, const HueSaturationBand&) = default;
+};
+
+// Photoshop's fresh-layer hextants, the same ranges `kPhotoshopHueSaturationDefaultTail` writes.
+inline constexpr std::array<std::array<int, 4>, 6> kHueSaturationDefaultBandRanges{
+    {{315, 345, 15, 45},
+     {15, 45, 75, 105},
+     {75, 105, 135, 165},
+     {135, 165, 195, 225},
+     {195, 225, 255, 285},
+     {255, 285, 315, 345}}};
+
+[[nodiscard]] std::array<HueSaturationBand, 6> default_hue_saturation_bands();
+
 struct HueSaturationAdjustment {
   int hue_shift{0};
   int saturation_delta{0};
@@ -160,6 +195,13 @@ struct HueSaturationAdjustment {
   int colorize_hue{0};          // 0..360 (UI convention; PSD stores -180..180)
   int colorize_saturation{25};  // 0..100 (Photoshop's colorize default is 25)
   int colorize_lightness{0};    // -100..100
+  // Per-hue-range bands, in Photoshop's order: reds, yellows, greens, cyans,
+  // blues, magentas. Ignored while colorize is on.
+  std::array<HueSaturationBand, 6> bands{default_hue_saturation_bands()};
+
+  [[nodiscard]] bool any_band_has_effect() const {
+    return std::any_of(bands.begin(), bands.end(), [](const auto& band) { return band.has_effect(); });
+  }
 };
 
 struct ColorBalanceAdjustment {

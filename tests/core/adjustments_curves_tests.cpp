@@ -1691,6 +1691,109 @@ void psd_photoshop_hue_saturation_master_fixture_matches_render() {
   CHECK(metrics.mean_abs_channel_delta <= 0.5);
 }
 
+// Photoshop 2026 authored photoshop-hue-saturation-bands.psd/.bmp via COM
+// (July 2026) on the same probe raster as the master fixture: six masked bands,
+// each exercising one per-hue-range behaviour - a reds hue rotation, a greens
+// saturation boost, reds lightness up and down, two overlapping ranges pulling
+// opposite ways, and a blues desaturation stacked on nonzero master sliders.
+void psd_photoshop_hue_saturation_bands_fixture_matches_render() {
+  const auto psd_path = patchy::test::committed_psd_fixture_path("photoshop-hue-saturation-bands.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-hue-saturation-bands.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto* first = find_layer_named(document.layers(), "Master 1");
+  CHECK(first != nullptr);
+  const auto first_settings = patchy::adjustment_settings_from_layer(*first);
+  CHECK(first_settings.has_value());
+  // Band 0 carries the reds hue rotation; the ranges are Photoshop's hextants.
+  const auto& reds = first_settings->hue_saturation.bands[0];
+  CHECK(reds.hue_shift == 60);
+  CHECK(reds.saturation_delta == 0);
+  CHECK(reds.outer_start == 315);
+  CHECK(reds.inner_start == 345);
+  CHECK(reds.inner_end == 15);
+  CHECK(reds.outer_end == 45);
+  CHECK(patchy::adjustment_has_effect(*first_settings));
+
+  const auto* fifth = find_layer_named(document.layers(), "Master 5");
+  CHECK(fifth != nullptr);
+  const auto fifth_settings = patchy::adjustment_settings_from_layer(*fifth);
+  CHECK(fifth_settings.has_value());
+  CHECK(fifth_settings->hue_saturation.bands[0].hue_shift == 40);
+  CHECK(fifth_settings->hue_saturation.bands[1].hue_shift == -40);
+
+  const auto reference = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference, flat);
+  // Bands are looser than the master sliders: the plateau matches within 2 but
+  // the feather ramps carry up to 7/255 (docs/ps-compat.md records the gap).
+  CHECK(metrics.max_channel_delta <= 7);
+  CHECK(metrics.mean_abs_channel_delta <= 0.2);
+}
+
+void adjustment_hue_saturation_bands_weight_and_composition() {
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::HueSaturation;
+  CHECK(!patchy::adjustment_has_effect(settings));
+
+  // Defaults are Photoshop's hextants and render as no effect at all.
+  const auto defaults = patchy::default_hue_saturation_bands();
+  CHECK(settings.hue_saturation.bands == defaults);
+  CHECK(defaults[0].outer_start == 315);
+  CHECK(defaults[5].outer_end == 345);
+  for (int red = 0; red < 256; red += 7) {
+    for (int green = 0; green < 256; green += 11) {
+      const patchy::RgbColor input{static_cast<std::uint8_t>(red), static_cast<std::uint8_t>(green), 90};
+      const auto actual = patchy::apply_adjustment_to_color(input, settings);
+      CHECK(actual.red == input.red);
+      CHECK(actual.green == input.green);
+      CHECK(actual.blue == input.blue);
+    }
+  }
+
+  // A band only touches hues inside its range. Reds +60 rotates pure red but
+  // leaves pure green and pure cyan alone, and neutrals stay neutral because a
+  // gray pixel has no hue to match.
+  settings.hue_saturation.bands[0].hue_shift = 60;
+  CHECK(patchy::adjustment_has_effect(settings));
+  const auto rotated = patchy::apply_adjustment_to_color(patchy::RgbColor{255, 0, 0}, settings);
+  CHECK(rotated.red == 255);
+  CHECK(rotated.green > 200);  // red -> yellow
+  CHECK(rotated.blue == 0);
+  for (const patchy::RgbColor untouched : {patchy::RgbColor{0, 255, 0}, patchy::RgbColor{0, 255, 255},
+                                           patchy::RgbColor{128, 128, 128}, patchy::RgbColor{0, 0, 255}}) {
+    const auto actual = patchy::apply_adjustment_to_color(untouched, settings);
+    CHECK(actual.red == untouched.red);
+    CHECK(actual.green == untouched.green);
+    CHECK(actual.blue == untouched.blue);
+  }
+
+  // A band Lightness collapses the range toward its max channel (positive) or
+  // its min channel (negative), which is NOT the master blend toward white.
+  settings.hue_saturation.bands[0] = defaults[0];
+  settings.hue_saturation.bands[0].lightness_delta = 100;
+  const auto flattened = patchy::apply_adjustment_to_color(patchy::RgbColor{150, 0, 0}, settings);
+  CHECK(flattened.red == 150);
+  CHECK(flattened.green == 150);
+  CHECK(flattened.blue == 150);
+  settings.hue_saturation.bands[0].lightness_delta = -100;
+  const auto darkened = patchy::apply_adjustment_to_color(patchy::RgbColor{150, 20, 20}, settings);
+  CHECK(darkened.red == 20);
+  CHECK(darkened.green == 20);
+  CHECK(darkened.blue == 20);
+
+  // Band settings survive the layer metadata round trip, including the ranges.
+  settings.hue_saturation.bands[0].lightness_delta = -30;
+  settings.hue_saturation.bands[3] = patchy::HueSaturationBand{100, 130, 200, 240, -25, 40, 15};
+  patchy::Layer layer(1, "Bands", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(layer, settings);
+  const auto round_tripped = patchy::adjustment_settings_from_layer(layer);
+  CHECK(round_tripped.has_value());
+  CHECK(round_tripped->hue_saturation.bands == settings.hue_saturation.bands);
+}
+
 void psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("wordpress_banner3.psd");
   if (!std::filesystem::exists(path)) {
@@ -2558,6 +2661,10 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        psd_photoshop_hue_saturation_colorize_fixture_matches_composite},
       {"psd_photoshop_hue_saturation_master_fixture_matches_render",
        psd_photoshop_hue_saturation_master_fixture_matches_render},
+      {"adjustment_hue_saturation_bands_weight_and_composition",
+       adjustment_hue_saturation_bands_weight_and_composition},
+      {"psd_photoshop_hue_saturation_bands_fixture_matches_render",
+       psd_photoshop_hue_saturation_bands_fixture_matches_render},
       {"psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available",
        psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available},
       {"psd_generic_bg_colorize_writes_comparison_artifacts_if_available",

@@ -27,6 +27,11 @@ struct HueSaturationSettings {
   int colorize_hue{0};          // 0..360
   int colorize_saturation{25};  // 0..100
   int colorize_lightness{0};    // -100..100
+  // Photoshop's per-hue-range bands (reds, yellows, greens, cyans, blues,
+  // magentas), plus which one the dialog's three sliders are editing: 0 is
+  // Master, 1..6 select bands[0..5].
+  std::array<HueSaturationBand, 6> bands{default_hue_saturation_bands()};
+  int edit_range{0};
 };
 
 [[nodiscard]] HueSaturationAdjustment to_hue_saturation_adjustment(const HueSaturationSettings& settings);

@@ -1238,6 +1238,7 @@ HueSaturationAdjustment to_hue_saturation_adjustment(const HueSaturationSettings
   adjustment.colorize_hue = std::clamp(settings.colorize_hue, 0, 360) % 360;
   adjustment.colorize_saturation = std::clamp(settings.colorize_saturation, 0, 100);
   adjustment.colorize_lightness = std::clamp(settings.colorize_lightness, -100, 100);
+  adjustment.bands = settings.bands;
   return adjustment;
 }
 
@@ -1250,6 +1251,7 @@ HueSaturationSettings to_hue_saturation_settings(const HueSaturationAdjustment& 
   settings.colorize_hue = std::clamp(adjustment.colorize_hue, 0, 360) % 360;
   settings.colorize_saturation = std::clamp(adjustment.colorize_saturation, 0, 100);
   settings.colorize_lightness = std::clamp(adjustment.colorize_lightness, -100, 100);
+  settings.bands = adjustment.bands;
   return settings;
 }
 
@@ -1258,79 +1260,117 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
     HueSaturationSettings initial) {
   initial = to_hue_saturation_settings(to_hue_saturation_adjustment(initial));
 
-  // The three sliders show master or colorize values depending on the Colorize
-  // checkbox; the inactive triple is stashed so toggling round-trips both sets.
+  // The three sliders edit one target at a time: the colorize triple while
+  // Colorize is checked, otherwise whichever entry the Edit combo selects
+  // (Master, then Photoshop's six hue ranges). Every inactive triple is stashed
+  // so switching targets round-trips all of them.
   auto stash = std::make_shared<HueSaturationSettings>(initial);
   auto colorize_check = std::make_shared<QCheckBox*>(nullptr);
+  auto range_combo = std::make_shared<QComboBox*>(nullptr);
 
-  const auto master_rows = [](const HueSaturationSettings& value) {
+  const auto rows_for = [](const HueSaturationSettings& value, bool colorize) {
+    if (colorize) {
+      return std::vector<SliderRowSpec>{
+          {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), 0, 360, value.colorize_hue, {}},
+          {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), 0, 100, value.colorize_saturation,
+           {}},
+          {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, value.colorize_lightness,
+           {}}};
+    }
+    const auto range = std::clamp(value.edit_range, 0, 6);
+    const auto hue = range == 0 ? value.hue_shift : value.bands[static_cast<std::size_t>(range - 1)].hue_shift;
+    const auto saturation = range == 0 ? value.saturation_delta
+                                       : value.bands[static_cast<std::size_t>(range - 1)].saturation_delta;
+    const auto lightness = range == 0 ? value.lightness_delta
+                                      : value.bands[static_cast<std::size_t>(range - 1)].lightness_delta;
     return std::vector<SliderRowSpec>{
-        {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), -180, 180, value.hue_shift, {}},
-        {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), -100, 100, value.saturation_delta, {}},
-        {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, value.lightness_delta, {}}};
-  };
-  const auto colorize_rows = [](const HueSaturationSettings& value) {
-    return std::vector<SliderRowSpec>{
-        {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), 0, 360, value.colorize_hue, {}},
-        {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), 0, 100, value.colorize_saturation, {}},
-        {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, value.colorize_lightness, {}}};
+        {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), -180, 180, hue, {}},
+        {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), -100, 100, saturation, {}},
+        {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, lightness, {}}};
   };
 
-  const auto build_settings = [stash, colorize_check](const std::vector<QSpinBox*>& spins) {
+  // Reads the three spins back into whichever triple is currently selected.
+  const auto capture = [](HueSaturationSettings& value, bool colorize, const std::vector<QSpinBox*>& spins) {
+    if (colorize) {
+      value.colorize_hue = spins[0]->value();
+      value.colorize_saturation = spins[1]->value();
+      value.colorize_lightness = spins[2]->value();
+      return;
+    }
+    const auto range = std::clamp(value.edit_range, 0, 6);
+    if (range == 0) {
+      value.hue_shift = spins[0]->value();
+      value.saturation_delta = spins[1]->value();
+      value.lightness_delta = spins[2]->value();
+      return;
+    }
+    auto& band = value.bands[static_cast<std::size_t>(range - 1)];
+    band.hue_shift = spins[0]->value();
+    band.saturation_delta = spins[1]->value();
+    band.lightness_delta = spins[2]->value();
+  };
+
+  const auto build_settings = [stash, colorize_check, capture](const std::vector<QSpinBox*>& spins) {
     auto settings = *stash;
     settings.colorize = *colorize_check != nullptr && (*colorize_check)->isChecked();
-    if (settings.colorize) {
-      settings.colorize_hue = spins[0]->value();
-      settings.colorize_saturation = spins[1]->value();
-      settings.colorize_lightness = spins[2]->value();
-    } else {
-      settings.hue_shift = spins[0]->value();
-      settings.saturation_delta = spins[1]->value();
-      settings.lightness_delta = spins[2]->value();
-    }
+    capture(settings, settings.colorize, spins);
     return settings;
+  };
+
+  // Retargets the slider ranges and values after the target changes.
+  const auto retarget = [rows_for](QDialog& dialog, const HueSaturationSettings& value, bool colorize,
+                                   const std::vector<QSpinBox*>& spins) {
+    const auto rows = rows_for(value, colorize);
+    for (std::size_t index = 0; index < spins.size() && index < rows.size(); ++index) {
+      auto* slider = dialog.findChild<QSlider*>(rows[index].object_prefix + QStringLiteral("Slider"));
+      if (slider != nullptr) {
+        const QSignalBlocker block_slider(slider);
+        slider->setRange(rows[index].minimum, rows[index].maximum);
+        slider->setValue(rows[index].value);
+      }
+      const QSignalBlocker block_spin(spins[index]);
+      spins[index]->setRange(rows[index].minimum, rows[index].maximum);
+      spins[index]->setValue(rows[index].value);
+    }
   };
 
   return request_adjustment_settings_dialog<HueSaturationSettings>(
       parent, QStringLiteral("patchyHueSaturationDialog"), QObject::tr("Hue/Saturation"),
-      QStringLiteral("hueSaturationPreviewCheck"), initial.colorize ? colorize_rows(initial) : master_rows(initial),
-      build_settings, std::move(preview_changed), {},
-      [stash, colorize_check, master_rows, colorize_rows](QDialog& dialog, QFormLayout* form,
-                                                          const std::vector<QSpinBox*>& spins,
-                                                          const std::function<void()>& flush_preview) {
+      QStringLiteral("hueSaturationPreviewCheck"), rows_for(initial, initial.colorize), build_settings,
+      std::move(preview_changed), {},
+      [stash, colorize_check, range_combo, capture, retarget](QDialog& dialog, QFormLayout* form,
+                                                             const std::vector<QSpinBox*>& spins,
+                                                             const std::function<void()>& flush_preview) {
+        auto* combo = new QComboBox(&dialog);
+        combo->setObjectName(QStringLiteral("hueSaturationRangeCombo"));
+        combo->addItems({QObject::tr("Master"), QObject::tr("Reds"), QObject::tr("Yellows"), QObject::tr("Greens"),
+                         QObject::tr("Cyans"), QObject::tr("Blues"), QObject::tr("Magentas")});
+        combo->setCurrentIndex(std::clamp(stash->edit_range, 0, 6));
+        combo->setEnabled(!stash->colorize);
+        *range_combo = combo;
+        form->insertRow(0, QObject::tr("Edit:"), combo);
+
         auto* check = new QCheckBox(QObject::tr("Colorize"), &dialog);
         check->setObjectName(QStringLiteral("hueSaturationColorizeCheck"));
         check->setChecked(stash->colorize);
         *colorize_check = check;
         form->addRow(QString(), check);
-        QObject::connect(
-            check, &QCheckBox::toggled, &dialog,
-            [&dialog, stash, spins, master_rows, colorize_rows, flush_preview](bool colorize) {
-              // Stash the outgoing triple, then retarget slider ranges/values.
-              if (colorize) {
-                stash->hue_shift = spins[0]->value();
-                stash->saturation_delta = spins[1]->value();
-                stash->lightness_delta = spins[2]->value();
-              } else {
-                stash->colorize_hue = spins[0]->value();
-                stash->colorize_saturation = spins[1]->value();
-                stash->colorize_lightness = spins[2]->value();
-              }
-              const auto rows = colorize ? colorize_rows(*stash) : master_rows(*stash);
-              for (std::size_t index = 0; index < spins.size() && index < rows.size(); ++index) {
-                auto* slider =
-                    dialog.findChild<QSlider*>(rows[index].object_prefix + QStringLiteral("Slider"));
-                if (slider != nullptr) {
-                  const QSignalBlocker block_slider(slider);
-                  slider->setRange(rows[index].minimum, rows[index].maximum);
-                  slider->setValue(rows[index].value);
-                }
-                const QSignalBlocker block_spin(spins[index]);
-                spins[index]->setRange(rows[index].minimum, rows[index].maximum);
-                spins[index]->setValue(rows[index].value);
-              }
-              flush_preview();
-            });
+
+        QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog,
+                         [&dialog, stash, spins, capture, retarget, flush_preview](int index) {
+                           capture(*stash, false, spins);
+                           stash->edit_range = std::clamp(index, 0, 6);
+                           retarget(dialog, *stash, false, spins);
+                           flush_preview();
+                         });
+        QObject::connect(check, &QCheckBox::toggled, &dialog,
+                         [&dialog, stash, combo, spins, capture, retarget, flush_preview](bool colorize) {
+                           // Stash the outgoing triple, then retarget the sliders.
+                           capture(*stash, !colorize, spins);
+                           combo->setEnabled(!colorize);
+                           retarget(dialog, *stash, colorize, spins);
+                           flush_preview();
+                         });
       });
 }
 

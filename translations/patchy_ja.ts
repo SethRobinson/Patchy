@@ -4876,6 +4876,46 @@ Mixed selection</source>
         <translation>色彩の統一</translation>
     </message>
     <message>
+        <location filename="../src/ui/adjustment_dialogs.cpp"/>
+        <source>Edit:</source>
+        <translation>編集対象:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/adjustment_dialogs.cpp"/>
+        <source>Master</source>
+        <translation>マスター</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/adjustment_dialogs.cpp"/>
+        <source>Reds</source>
+        <translation>レッド系</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/adjustment_dialogs.cpp"/>
+        <source>Yellows</source>
+        <translation>イエロー系</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/adjustment_dialogs.cpp"/>
+        <source>Greens</source>
+        <translation>グリーン系</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/adjustment_dialogs.cpp"/>
+        <source>Cyans</source>
+        <translation>シアン系</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/adjustment_dialogs.cpp"/>
+        <source>Blues</source>
+        <translation>ブルー系</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/adjustment_dialogs.cpp"/>
+        <source>Magentas</source>
+        <translation>マゼンタ系</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="+473"/>
         <source>Colorize: hue %1, saturation %2, lightness %3</source>
         <translation>色彩の統一: 色相 %1、彩度 %2、明度 %3</translation>

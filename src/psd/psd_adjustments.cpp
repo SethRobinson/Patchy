@@ -301,6 +301,22 @@ std::optional<AdjustmentSettings> parse_photoshop_hue2_adjustment(std::span<cons
     settings.hue_saturation.hue_shift = std::clamp(read_i16(reader), -180, 180);
     settings.hue_saturation.saturation_delta = std::clamp(read_i16(reader), -100, 100);
     settings.hue_saturation.lightness_delta = std::clamp(read_i16(reader), -100, 100);
+    // Six per-hue-range band records: four i16 range stops in wheel order then
+    // an i16 hue/saturation/lightness triple. Files that stop after the header
+    // (the legacy 16-byte shape) keep Photoshop's default hextants.
+    settings.hue_saturation.bands = default_hue_saturation_bands();
+    if (reader.remaining() >= kPhotoshopHueSaturationBandRecordSize * settings.hue_saturation.bands.size()) {
+      const auto degrees = [](int value) { return ((value % 360) + 360) % 360; };
+      for (auto& band : settings.hue_saturation.bands) {
+        band.outer_start = degrees(read_i16(reader));
+        band.inner_start = degrees(read_i16(reader));
+        band.inner_end = degrees(read_i16(reader));
+        band.outer_end = degrees(read_i16(reader));
+        band.hue_shift = std::clamp(read_i16(reader), -180, 180);
+        band.saturation_delta = std::clamp(read_i16(reader), -100, 100);
+        band.lightness_delta = std::clamp(read_i16(reader), -100, 100);
+      }
+    }
     return settings;
   } catch (const std::exception&) {
     return std::nullopt;
@@ -319,17 +335,31 @@ std::vector<std::uint8_t> photoshop_hue2_payload(const HueSaturationAdjustment& 
   write_i16(header, std::clamp(settings.hue_shift, -180, 180));
   write_i16(header, std::clamp(settings.saturation_delta, -100, 100));
   write_i16(header, std::clamp(settings.lightness_delta, -100, 100));
+  for (const auto& band : settings.bands) {
+    write_i16(header, ((band.outer_start % 360) + 360) % 360);
+    write_i16(header, ((band.inner_start % 360) + 360) % 360);
+    write_i16(header, ((band.inner_end % 360) + 360) % 360);
+    write_i16(header, ((band.outer_end % 360) + 360) % 360);
+    write_i16(header, std::clamp(band.hue_shift, -180, 180));
+    write_i16(header, std::clamp(band.saturation_delta, -100, 100));
+    write_i16(header, std::clamp(band.lightness_delta, -100, 100));
+  }
 
   auto bytes = header.bytes();
   if (original != nullptr && original->payload.size() >= kPhotoshopHueSaturationHeaderSize &&
       original->payload[0] == 0x00 && original->payload[1] == kPhotoshopHueSaturationVersion) {
-    // Patch-in-place: everything past the header (band records, trailer) stays
-    // byte-identical to the imported payload, so unedited layers round-trip exactly.
+    // Patch-in-place: the header and the six band records come from the model,
+    // the undocumented 36-byte trailer stays byte-identical to the imported
+    // payload, so an unedited layer still round-trips exactly.
     std::vector<std::uint8_t> patched(original->payload.begin(), original->payload.end());
-    std::copy(bytes.begin(), bytes.end(), patched.begin());
+    const auto copied = std::min(bytes.size(), patched.size());
+    std::copy_n(bytes.begin(), copied, patched.begin());
     return patched;
   }
-  bytes.insert(bytes.end(), kPhotoshopHueSaturationDefaultTail.begin(), kPhotoshopHueSaturationDefaultTail.end());
+  // A fresh layer already carries its band records from the model, so only the
+  // undocumented 36-byte trailer is appended from Photoshop's template.
+  bytes.insert(bytes.end(), kPhotoshopHueSaturationDefaultTail.begin() + kPhotoshopHueSaturationBandBlockSize,
+               kPhotoshopHueSaturationDefaultTail.end());
   return bytes;
 }
 
