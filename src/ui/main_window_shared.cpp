@@ -563,7 +563,7 @@ void restyle_layer_rows(QListWidget* list) {
     // The row visuals live in app-stylesheet rules keyed on these dynamic
     // properties (see photoshop_style). A per-widget setStyleSheet background
     // here never showed: the row's inner containers painted the global QWidget
-    // #262626 over it (the theme now forces them transparent).
+    // window_bg over it (the theme now forces them transparent).
     if (row_widget->property("layerRowSelected").toBool() != item->isSelected() ||
         row_widget->property("layerRowGroup").toBool() != is_group) {
       row_widget->setProperty("layerRowSelected", item->isSelected());

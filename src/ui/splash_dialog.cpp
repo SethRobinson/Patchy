@@ -4,6 +4,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/splash_artwork.hpp"
 #include "ui/update_checker.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QApplication>
 #include <QDesktopServices>
@@ -38,64 +39,64 @@ public:
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     setModal(true);
     setFixedSize(650, 435);
-    setStyleSheet(QStringLiteral(R"(
+    set_themed_style(*this, QStringLiteral(R"(
       QDialog#patchySplashScreen {
-        background: #171d26;
-        border: 1px solid #3b4655;
+        background: @splash_bg;
+        border: 1px solid @splash_border;
       }
       QLabel#splashTitle {
-        color: #f5f8fb;
+        color: @splash_title_text;
         font-size: 42px;
         font-weight: 800;
       }
       QLabel#splashSubtitle {
-        color: #c9d5e2;
+        color: @splash_subtitle_text;
         font-size: 15px;
       }
       QLabel#splashCredit {
-        color: #edf3f8;
+        color: @splash_body_text;
         font-size: 13px;
       }
       QLabel#splashContributors {
-        color: #edf3f8;
+        color: @splash_body_text;
         font-size: 13px;
       }
       QLabel#splashHome {
-        color: #edf3f8;
+        color: @splash_body_text;
         font-size: 13px;
       }
       QLabel#splashStatus {
-        color: #93a2b3;
+        color: @splash_status_text;
         font-size: 12px;
       }
       QLabel#splashSettingsCaption {
-        color: #edf3f8;
+        color: @splash_body_text;
         font-size: 12px;
         font-weight: 700;
       }
       QLabel#splashSettingsPath {
-        color: #b7c3d2;
+        color: @splash_caption_text;
         font-size: 11px;
       }
       QPushButton#splashOpenSettingsFolderButton {
-        background: #263242;
-        color: #edf3f8;
-        border: 1px solid #536277;
+        background: @splash_button_bg;
+        color: @splash_body_text;
+        border: 1px solid @splash_button_border;
         padding: 5px 12px;
         min-width: 120px;
       }
       QPushButton#splashOpenSettingsFolderButton:hover {
-        background: #304057;
+        background: @splash_button_hover_bg;
       }
       QPushButton#splashCloseButton {
-        background: #2f7fc1;
-        color: #ffffff;
-        border: 1px solid #63a9df;
+        background: @splash_primary_bg;
+        color: @text_on_accent;
+        border: 1px solid @splash_primary_border;
         padding: 5px 18px;
         min-width: 74px;
       }
       QPushButton#splashCloseButton:hover {
-        background: #358fd9;
+        background: @splash_primary_hover_bg;
       }
     )"));
 
@@ -125,7 +126,7 @@ public:
 
     auto* divider = new QFrame(this);
     divider->setFrameShape(QFrame::HLine);
-    divider->setStyleSheet(QStringLiteral("color: #3b4655; background: #3b4655;"));
+    set_themed_style(*divider, QStringLiteral("color: @splash_border; background: @splash_border;"));
     copy->addWidget(divider);
 
     auto* version = new QLabel(QObject::tr("Version %1").arg(QStringLiteral(PATCHY_VERSION)), this);
@@ -139,7 +140,7 @@ public:
     copy->addWidget(credit);
 
     auto* contributors = new QLabel(
-        QObject::tr("Code contributions from %1").arg(code_contributors_link_html(QStringLiteral("#9ed0ff"))),
+        QObject::tr("Code contributions from %1").arg(code_contributors_link_html(QStringLiteral("@splash_link_text"))),
         this);
     contributors->setObjectName(QStringLiteral("splashContributors"));
     contributors->setTextFormat(Qt::RichText);
@@ -155,10 +156,10 @@ public:
       label->setOpenExternalLinks(true);
       copy->addWidget(label);
     };
-    const auto github_link = QStringLiteral("<a style=\"color:#9ed0ff; text-decoration:none;\" "
+    const auto github_link = QStringLiteral("<a style=\"color:@splash_link_text; text-decoration:none;\" "
                                             "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>");
     add_home_link(QObject::tr("GitHub: %1").arg(github_link));
-    const auto seth_site_link = QStringLiteral("<a style=\"color:#9ed0ff; text-decoration:none;\" "
+    const auto seth_site_link = QStringLiteral("<a style=\"color:@splash_link_text; text-decoration:none;\" "
                                                "href=\"https://rtsoft.com\">rtsoft.com</a>");
     add_home_link(QObject::tr("Seth's site: %1").arg(seth_site_link));
 

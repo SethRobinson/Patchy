@@ -74,6 +74,7 @@
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/zoom_status_bar.hpp"
+#include "ui/theme_qss.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -315,50 +316,50 @@ QPixmap image_size_preview_pixmap(const Document& document, QSize preview_size) 
   return pixmap;
 }
 
-QString canvas_color_swatch_style(QColor color) {
-  return QStringLiteral("QPushButton#canvasSizeExtensionColorSwatch { background: rgb(%1, %2, %3); "
-                        "border: 1px solid #9a9a9a; border-radius: 3px; padding: 0; min-width: 49px; "
+ThemedQss canvas_color_swatch_style(QColor color) {
+  return ThemedQss(QStringLiteral("QPushButton#canvasSizeExtensionColorSwatch { background: rgb(%1, %2, %3); "
+                        "border: 1px solid @dlg_neutral_border; border-radius: 3px; padding: 0; min-width: 49px; "
                         "max-width: 49px; min-height: 24px; max-height: 24px; } "
-                        "QPushButton#canvasSizeExtensionColorSwatch:hover { border-color: #c8c8c8; }")
-      .arg(color.red())
-      .arg(color.green())
-      .arg(color.blue());
+                        "QPushButton#canvasSizeExtensionColorSwatch:hover { border-color: @dlg_neutral_border_bright; }")
+                          .arg(color.red())
+                          .arg(color.green())
+                          .arg(color.blue()));
 }
 
 std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, const Document& document) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyImageSizeDialog"));
   dialog.setWindowTitle(QObject::tr("Image Size"));
-  dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(R"(
+  append_themed_style(dialog, QStringLiteral(R"(
     QDialog#patchyImageSizeDialog {
-      background: #555555;
-      color: #f2f2f2;
+      background: @dlg_raised_bg;
+      color: @dlg_raised_text;
     }
     QLabel {
       background: transparent;
-      color: #f2f2f2;
+      color: @dlg_raised_text;
     }
     QLabel#imageSizePreview {
-      background: #1e1e1e;
-      border: 1px solid #242424;
+      background: @dlg_field_bg;
+      border: 1px solid @dlg_field_border;
     }
     QLabel#imageSizeUpscaleLabel {
-      color: #d8d8d8;
+      color: @dlg_field_text;
     }
     QSpinBox, QComboBox {
-      background: #4a4a4a;
-      border: 1px solid #686868;
-      color: #ffffff;
+      background: @dlg_button_bg;
+      border: 1px solid @dlg_button_border;
+      color: @text_on_accent;
       min-height: 24px;
       padding: 1px 6px;
     }
     QSpinBox:focus {
-      border: 1px solid #1473e6;
-      background: #3f3f3f;
+      border: 1px solid @accent;
+      background: @dlg_button_focus_bg;
     }
     QToolButton#imageSizeLinkButton {
-      background: #4a4a4a;
-      border: 1px solid #686868;
+      background: @dlg_button_bg;
+      border: 1px solid @dlg_button_border;
       min-width: 24px;
       max-width: 24px;
       min-height: 46px;
@@ -366,21 +367,21 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
       padding: 0;
     }
     QToolButton#imageSizeLinkButton:checked {
-      border-color: #9abbe7;
-      background: #424f5f;
+      border-color: @dlg_focus_border;
+      background: @dlg_anchor_active_bg;
     }
     QDialogButtonBox QPushButton {
-      background: #555555;
-      border: 1px solid #8b8b8b;
+      background: @dlg_raised_bg;
+      border: 1px solid @dlg_raised_border;
       border-radius: 13px;
-      color: #ffffff;
+      color: @text_on_accent;
       min-width: 130px;
       min-height: 24px;
       padding: 0 18px;
     }
     QDialogButtonBox QPushButton:hover {
-      border-color: #b5b5b5;
-      background: #606060;
+      border-color: @dlg_raised_hover_border;
+      background: @dlg_raised_hover_bg;
     }
   )"));
   dialog.resize(632, 386);
@@ -700,43 +701,43 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyCanvasSizeDialog"));
   dialog.setWindowTitle(QObject::tr("Canvas Size"));
-  dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(R"(
+  append_themed_style(dialog, QStringLiteral(R"(
     QDialog#patchyCanvasSizeDialog {
-      background: #555555;
-      color: #ffffff;
+      background: @dlg_raised_bg;
+      color: @text_on_accent;
     }
     QDialog#patchyCanvasSizeDialog QWidget {
-      background: #555555;
-      color: #ffffff;
+      background: @dlg_raised_bg;
+      color: @text_on_accent;
     }
     QDialog#patchyCanvasSizeDialog QLabel {
       background: transparent;
-      color: #ffffff;
+      color: @text_on_accent;
       font-size: 11px;
     }
     QDialog#patchyCanvasSizeDialog QLabel[sectionLabel="true"] {
       font-weight: 700;
     }
     QDialog#patchyCanvasSizeDialog QFrame#canvasSizeSeparator {
-      background: #727272;
-      color: #727272;
+      background: @dlg_divider;
+      color: @dlg_divider;
       min-height: 1px;
       max-height: 1px;
       border: 0;
     }
     QDialog#patchyCanvasSizeDialog QSpinBox,
     QDialog#patchyCanvasSizeDialog QComboBox {
-      background: #4f4f4f;
-      border: 1px solid #767676;
+      background: @dlg_tab_bg;
+      border: 1px solid @dlg_tab_border;
       border-radius: 3px;
-      color: #ffffff;
+      color: @text_on_accent;
       min-height: 22px;
       padding: 0 8px;
     }
     QDialog#patchyCanvasSizeDialog QSpinBox:focus,
     QDialog#patchyCanvasSizeDialog QComboBox:focus {
-      border-color: #9abbe7;
-      background: #4a4a4a;
+      border-color: @dlg_focus_border;
+      background: @dlg_button_bg;
     }
     QDialog#patchyCanvasSizeDialog QComboBox::drop-down {
       border: 0;
@@ -744,24 +745,24 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
     }
     QDialog#patchyCanvasSizeDialog QCheckBox {
       background: transparent;
-      color: #ffffff;
+      color: @text_on_accent;
       font-size: 11px;
       spacing: 7px;
     }
     QDialog#patchyCanvasSizeDialog QCheckBox::indicator {
       width: 11px;
       height: 11px;
-      background: #5a5a5a;
-      border: 1px solid #8a8a8a;
+      background: @dlg_grid_bg;
+      border: 1px solid @dlg_grid_border;
     }
     QDialog#patchyCanvasSizeDialog QCheckBox::indicator:checked {
-      background: #2f75bd;
-      border-color: #9abbe7;
-      image: url(:/patchy/icons/checkmark.svg);
+      background: @accent_pressed_bg;
+      border-color: @dlg_focus_border;
+      image: url(@icon(checkmark));
     }
     QDialog#patchyCanvasSizeDialog QToolButton#canvasSizeAnchorButton {
-      background: #5c5c5c;
-      border: 1px solid #777777;
+      background: @dlg_cell_bg;
+      border: 1px solid @dlg_cell_border;
       border-radius: 0;
       min-width: 22px;
       max-width: 22px;
@@ -770,18 +771,18 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
       padding: 0;
     }
     QDialog#patchyCanvasSizeDialog QToolButton#canvasSizeAnchorButton:hover {
-      background: #656565;
-      border-color: #9a9a9a;
+      background: @dlg_cell_hover_bg;
+      border-color: @dlg_neutral_border;
     }
     QDialog#patchyCanvasSizeDialog QToolButton#canvasSizeAnchorButton:checked {
-      background: #4a4a4a;
-      border-color: #c8c8c8;
+      background: @dlg_button_bg;
+      border-color: @dlg_neutral_border_bright;
     }
     QDialog#patchyCanvasSizeDialog QPushButton {
-      background: #555555;
-      border: 1px solid #8c8c8c;
+      background: @dlg_raised_bg;
+      border: 1px solid @dlg_action_border;
       border-radius: 13px;
-      color: #ffffff;
+      color: @text_on_accent;
       min-width: 70px;
       min-height: 24px;
       padding: 0 14px;
@@ -789,11 +790,11 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
       font-weight: 700;
     }
     QDialog#patchyCanvasSizeDialog QPushButton:hover {
-      background: #606060;
-      border-color: #b7b7b7;
+      background: @dlg_raised_hover_bg;
+      border-color: @dlg_action_hover_border;
     }
     QDialog#patchyCanvasSizeDialog QPushButton#canvasSizeOkButton {
-      border-color: #2d8cff;
+      border-color: @dlg_focus_ring;
       border-width: 2px;
     }
   )"));
@@ -951,7 +952,7 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
 
   QColor extension_color_value(Qt::white);
   const auto update_swatch = [&extension_color_value, color_swatch] {
-    color_swatch->setStyleSheet(canvas_color_swatch_style(extension_color_value));
+    set_themed_style(*color_swatch, canvas_color_swatch_style(extension_color_value));
   };
   update_swatch();
 

@@ -564,6 +564,8 @@ if(PATCHY_BUILD_APP)
     endfunction()
     add_library(patchy_ui
       src/ui/action_icons.cpp
+      src/ui/icon_theme.hpp
+      src/ui/icon_theme.cpp
       src/ui/app_settings.hpp
       src/ui/app_settings.cpp
       src/ui/background_workers.hpp
@@ -747,6 +749,12 @@ if(PATCHY_BUILD_APP)
       src/ui/style_library.cpp
       src/ui/style_manager_dialog.hpp
       src/ui/style_manager_dialog.cpp
+      src/ui/theme_manager.hpp
+      src/ui/theme_manager.cpp
+      src/ui/theme_palette.hpp
+      src/ui/theme_palette.cpp
+      src/ui/theme_qss.hpp
+      src/ui/theme_qss.cpp
       src/ui/tile_preview_window.hpp
       src/ui/tile_preview_window.cpp
       src/ui/app_credits.hpp

@@ -18,6 +18,8 @@
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/sound_effects.hpp"
+#include "ui/theme_qss.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -509,7 +511,7 @@ public:
     title_label_->setObjectName(QStringLiteral("scriptStopPanelTitle"));
     detail_label_ = new QLabel(this);
     detail_label_->setObjectName(QStringLiteral("scriptStopPanelDetail"));
-    detail_label_->setStyleSheet(QStringLiteral("color: #8a939f;"));
+    set_themed_style(*detail_label_, QStringLiteral("color: @script_detail_text;"));
     text_column->addWidget(title_label_);
     text_column->addWidget(detail_label_);
     layout->addLayout(text_column, 1);
@@ -1701,7 +1703,7 @@ QJSValue ScriptEngineHost::run_form_dialog(const QJSValue& spec, bool merge_args
   root->addWidget(buttons);
   // Spin-box button styling must land AFTER all children exist (QSS
   // sub-control gotcha, dialog_utils.hpp).
-  dialog.setStyleSheet(dialog_spinbox_button_style());
+  append_themed_style(dialog, dialog_spinbox_button_style());
 
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return QJSValue(QJSValue::NullValue);

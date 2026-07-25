@@ -1,6 +1,8 @@
 #include "ui/start_panel.hpp"
 
 #include "ui/app_credits.hpp"
+#include "ui/theme_palette.hpp"
+#include "ui/theme_qss.hpp"
 #include "ui/splash_artwork.hpp"
 
 #include <QDir>
@@ -58,7 +60,7 @@ class RecentFileDelegate final : public QStyledItemDelegate {
     if (selected || hovered) {
       painter->setRenderHint(QPainter::Antialiasing, true);
       painter->setPen(Qt::NoPen);
-      painter->setBrush(selected ? QColor(0x33, 0x41, 0x4f) : QColor(0x32, 0x32, 0x32));
+      painter->setBrush(selected ? theme().selection_soft_bg : theme().start_panel_row_hover_bg);
       painter->drawRoundedRect(row, 4.0, 4.0);
       painter->setRenderHint(QPainter::Antialiasing, false);
     }
@@ -67,14 +69,14 @@ class RecentFileDelegate final : public QStyledItemDelegate {
     const QRect text_area = row.adjusted(10, 3, -10, -3);
     const auto name_font = derived_font(option.font, 0, true);
     painter->setFont(name_font);
-    painter->setPen(QColor(0xe6, 0xe6, 0xe6));
+    painter->setPen(theme().text_primary);
     const QRect name_rect(text_area.left(), text_area.top(), text_area.width(), text_area.height() / 2);
     painter->drawText(name_rect, Qt::AlignLeft | Qt::AlignVCenter,
                       QFontMetrics(name_font).elidedText(info.fileName(), Qt::ElideMiddle, name_rect.width()));
 
     const auto path_font = derived_font(option.font, -1, false);
     painter->setFont(path_font);
-    painter->setPen(QColor(0x8b, 0x8b, 0x8b));
+    painter->setPen(theme().start_panel_muted_text);
     const QRect path_rect(text_area.left(), text_area.top() + text_area.height() / 2, text_area.width(),
                           text_area.height() - text_area.height() / 2);
     painter->drawText(path_rect, Qt::AlignLeft | Qt::AlignVCenter,
@@ -190,25 +192,28 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   credit->setTextFormat(Qt::PlainText);
   add_footer_row({version, credit});
 
-  auto* contributors = new QLabel(
-      tr("Code contributions from %1").arg(code_contributors_link_html(QStringLiteral("#7fa8cf"))), this);
+  auto* contributors = new QLabel(this);
   contributors->setObjectName(QStringLiteral("startPanelContributors"));
   contributors->setTextFormat(Qt::RichText);
+  set_themed_label_text(
+      *contributors,
+      tr("Code contributions from %1").arg(code_contributors_link_html(QStringLiteral("@link_text"))));
   contributors->setTextInteractionFlags(Qt::TextBrowserInteraction);
   contributors->setOpenExternalLinks(true);
   add_footer_row({contributors});
 
   const auto make_home_label = [this](const QString& text) {
-    auto* label = new QLabel(text, this);
+    auto* label = new QLabel(this);
     label->setObjectName(QStringLiteral("startPanelHome"));
     label->setTextFormat(Qt::RichText);
     label->setTextInteractionFlags(Qt::TextBrowserInteraction);
     label->setOpenExternalLinks(true);
+    set_themed_label_text(*label, text);
     return label;
   };
-  const auto github_link = QStringLiteral("<a style=\"color:#7fa8cf; text-decoration:none;\" "
+  const auto github_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
                                           "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>");
-  const auto seth_site_link = QStringLiteral("<a style=\"color:#7fa8cf; text-decoration:none;\" "
+  const auto seth_site_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
                                              "href=\"https://rtsoft.com\">rtsoft.com</a>");
   add_footer_row({make_home_label(tr("GitHub: %1").arg(github_link)),
                   make_home_label(tr("Seth's site: %1").arg(seth_site_link))});
@@ -229,70 +234,70 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     }
   });
 
-  setStyleSheet(QStringLiteral(R"(
+  set_themed_style(*this, QStringLiteral(R"(
     QWidget#startPanel {
-      background: #262626;
+      background: @window_bg;
     }
     QWidget#startPanelColumn {
       background: transparent;
     }
     QLabel#startPanelTitle {
       background: transparent;
-      color: #e9e9e9;
+      color: @start_panel_title_text;
       font-size: 30px;
       font-weight: 700;
     }
     QLabel#startPanelTagline {
       background: transparent;
-      color: #9fb0c0;
+      color: @start_panel_tagline_text;
       font-size: 12px;
     }
     QLabel#startPanelVersion, QLabel#startPanelCredit, QLabel#startPanelContributors, QLabel#startPanelHome {
       background: transparent;
-      color: #8b8b8b;
+      color: @start_panel_muted_text;
       font-size: 11px;
     }
     QLabel#startPanelUpdateStatus {
       background: transparent;
-      color: #7a8a9a;
+      color: @start_panel_status_text;
       font-size: 11px;
     }
     QLabel#startPanelRecentLabel {
       background: transparent;
-      color: #9a9a9a;
+      color: @start_panel_section_text;
       font-size: 11px;
       font-weight: 700;
       padding-left: 2px;
     }
     QLabel#startPanelHint {
       background: transparent;
-      color: #7a7a7a;
+      color: @start_panel_hint_text;
       font-size: 11px;
     }
     QWidget#startPanel QPushButton {
-      background: #3a3a3a;
-      border: 1px solid #5a5a5a;
+      background: @button_bg;
+      border: 1px solid @field_border;
       border-radius: 14px;
-      color: #f0f0f0;
+      color: @text_bright;
       min-width: 130px;
       min-height: 28px;
       padding: 0 18px;
     }
     QWidget#startPanel QPushButton:hover {
-      background: #454545;
-      border-color: #7d7d7d;
+      background: @neutral_button_hover_bg;
+      border-color: @neutral_button_hover_border;
     }
     QWidget#startPanel QPushButton#startPanelNewButton {
-      background: #354960;
-      border: 1px solid #6f9bd1;
+      background: @primary_bg;
+      border: 1px solid @primary_border;
       font-weight: 700;
     }
     QWidget#startPanel QPushButton#startPanelNewButton:hover {
-      background: #3f5773;
+      background: @primary_hover_bg;
     }
     QListWidget#startPanelRecentList {
-      background: #222222;
-      border: 1px solid #1b1b1b;
+      background: @list_surface_bg;
+      border: 1px solid @list_surface_border;
       border-radius: 5px;
       padding: 3px;
     }

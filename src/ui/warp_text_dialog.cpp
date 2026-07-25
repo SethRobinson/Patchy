@@ -1,6 +1,7 @@
 #include "ui/warp_text_dialog.hpp"
 
 #include "ui/dialog_utils.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QComboBox>
 #include <QDialog>
@@ -191,7 +192,7 @@ std::optional<TextWarp> request_text_warp(QWidget* parent, const TextWarp& initi
 
   // Keep readable - / + buttons on the spin boxes (sub-control gotcha: apply the
   // style after all children exist, with unprefixed selectors; see dialog_utils).
-  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+  append_themed_style(dialog, dialog_spinbox_button_style());
   dialog.adjustSize();
 
   if (exec_dialog(dialog) != QDialog::Accepted) {

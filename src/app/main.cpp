@@ -4,6 +4,7 @@
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/stress_test.hpp"
+#include "ui/theme_manager.hpp"
 
 #include <QApplication>
 #include <QByteArray>
@@ -307,6 +308,7 @@ int main(int argc, char* argv[]) {
   load_bundled_fonts();
   app.setFont(application_font());
   patchy::ui::LocalizationManager::instance().load_saved_language();
+  patchy::ui::ThemeManager::instance().load_saved_preference();
 
   // Parse command-line arguments after translations load so option descriptions are localized.
   QCommandLineParser parser;

@@ -6,6 +6,7 @@
 
 #include "ui/dialog_utils.hpp"
 #include "ui/tool_cursors.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QApplication>
 #include <QClipboard>
@@ -251,19 +252,19 @@ QString custom_swatch_style(QColor color, bool selected) {
   // box, so a state-dependent border width would resize the whole button on
   // selection (the swatch rows visibly jumped). The buttons are setFixedSize'd;
   // the thicker selected/hover border simply draws further inward.
-  const auto border = selected ? QStringLiteral("2px solid #63a6ff") : QStringLiteral("1px solid #747b86");
+  const auto border = selected ? QStringLiteral("2px solid @accent_bright") : QStringLiteral("1px solid @swatch_border");
   const auto background = QStringLiteral("rgb(%1, %2, %3)").arg(color.red()).arg(color.green()).arg(color.blue());
   const auto border_radius = selected ? 1 : 2;
   return QStringLiteral(
              "QPushButton { background: %1; border: %2; border-radius: %3px; padding: 0; }"
-             "QPushButton:hover { border: 2px solid #63a6ff; }")
+             "QPushButton:hover { border: 2px solid @accent_bright; }")
       .arg(background)
       .arg(border)
       .arg(border_radius);
 }
 
 QString color_frame_style(QColor color) {
-  return QStringLiteral("QFrame { background: rgb(%1, %2, %3); border: 1px solid #747b86; }")
+  return QStringLiteral("QFrame { background: rgb(%1, %2, %3); border: 1px solid @swatch_border; }")
       .arg(color.red())
       .arg(color.green())
       .arg(color.blue());
@@ -1254,19 +1255,19 @@ void PatchyColorPickerPrivate::build_ui() {
   tabs_->addTab(sliders_page, PatchyColorPicker::tr("Sliders"));
 
   // Use stronger selected-tab contrast in this compact picker than the global theme.
-  tabs_->setStyleSheet(QStringLiteral(R"(
+  set_themed_style(*tabs_, QStringLiteral(R"(
     QTabBar::tab {
-      background: #343434;
-      color: #c8c8c8;
-      border: 1px solid #2a2a2a;
+      background: @dialog_tab_hover_bg;
+      color: @dlg_neutral_border_bright;
+      border: 1px solid @nd_field_disabled_bg;
       padding: 5px 14px;
       min-height: 20px;
     }
-    QTabBar::tab:hover:!selected { background: #404040; }
+    QTabBar::tab:hover:!selected { background: @color_button_hover_bg; }
     QTabBar::tab:selected {
-      background: #5a5a5a;
-      color: #ffffff;
-      border-bottom-color: #5a5a5a;
+      background: @field_border;
+      color: @text_on_accent;
+      border-bottom-color: @field_border;
     }
   )"));
 
@@ -1538,7 +1539,7 @@ void PatchyColorPickerPrivate::sync_controls() {
   green_spin_->setValue(color_.green());
   blue_spin_->setValue(color_.blue());
   html_edit_->setText(color_.name(QColor::HexRgb).toUpper());
-  preview_->setStyleSheet(color_frame_style(color_));
+  set_themed_style(*preview_, color_frame_style(color_));
   for (auto* view : live_views_) {
     if (view != nullptr) {
       view->update();
@@ -1855,7 +1856,7 @@ void PatchyColorPickerPrivate::refresh_custom_swatch(int index) {
   if (button == nullptr) {
     return;
   }
-  button->setStyleSheet(custom_swatch_style(color, index == selected_custom_slot_));
+  set_themed_style(*button, custom_swatch_style(color, index == selected_custom_slot_));
   button->setToolTip(color_tool_tip(color));
 }
 
@@ -1979,7 +1980,7 @@ QString color_button_style(QColor color) {
     QPushButton {
       background: rgb(%1, %2, %3);
       color: %4;
-      border: 1px solid #f0f0f0;
+      border: 1px solid @text_bright;
       border-radius: 0;
       min-width: 26px;
       max-width: 26px;
@@ -1989,7 +1990,7 @@ QString color_button_style(QColor color) {
       padding: 0;
     }
     QPushButton:hover {
-      border-color: #4aa3ff;
+      border-color: @accent_bright;
     }
   )")
       .arg(color.red())
@@ -2001,7 +2002,7 @@ QString color_button_style(QColor color) {
 QString inline_text_editor_style(QColor color, int pixel_size) {
   Q_UNUSED(pixel_size);
   return QStringLiteral(
-             "QTextEdit { background: transparent; border: 1px dashed #63a8ff; padding: 0; color: rgb(%1, %2, %3); "
+             "QTextEdit { background: transparent; border: 1px dashed @accent_bright; padding: 0; color: rgb(%1, %2, %3); "
              "selection-background-color: rgba(49, 116, 190, 130); selection-color: rgb(%1, %2, %3); } "
              "QTextEdit QWidget { background: transparent; } "
              "QTextEdit::selection { background: rgba(49, 116, 190, 130); color: rgb(%1, %2, %3); }")

@@ -1,4 +1,5 @@
 #include "ui/filter_gallery_controls.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QCoreApplication>
 #include <QEvent>
@@ -19,7 +20,7 @@ namespace patchy::ui {
 
 namespace {
 
-constexpr QColor kAccentColor{76, 154, 255};
+[[nodiscard]] QColor accent_color() { return theme().accent_control; }
 constexpr int kDialMinimumSize = 84;
 constexpr int kDialMaximumSize = 128;
 constexpr double kDialCenterDeadRadius = 6.0;
@@ -151,14 +152,14 @@ void FilterAngleDial::paintEvent(QPaintEvent*) {
   painter.setPen(QPen(QColor(20, 22, 26, isEnabled() ? 230 : 120), 5.0,
                       Qt::SolidLine, Qt::RoundCap));
   painter.drawLine(center, end);
-  painter.setPen(QPen(kAccentColor, 2.5, Qt::SolidLine, Qt::RoundCap));
+  painter.setPen(QPen(accent_color(), 2.5, Qt::SolidLine, Qt::RoundCap));
   painter.drawLine(center, end);
   painter.setPen(QPen(QColor(20, 22, 26), 1.0));
-  painter.setBrush(kAccentColor);
+  painter.setBrush(accent_color());
   painter.drawEllipse(center, 4.5, 4.5);
 
   if (hasFocus()) {
-    painter.setPen(QPen(kAccentColor, 2.0));
+    painter.setPen(QPen(accent_color(), 2.0));
     painter.setBrush(Qt::NoBrush);
     painter.drawEllipse(face.adjusted(1.0, 1.0, -1.0, -1.0));
   }
@@ -445,7 +446,7 @@ void FilterWaveformControl::paintEvent(QPaintEvent*) {
   QPainter painter(this);
   painter.drawPixmap(0, 0, graph_cache_);
   if (hasFocus()) {
-    painter.setPen(QPen(kAccentColor, 2.0));
+    painter.setPen(QPen(accent_color(), 2.0));
     painter.setBrush(Qt::NoBrush);
     painter.drawRect(rect().adjusted(1, 1, -2, -2));
   }
@@ -692,7 +693,7 @@ void FilterWaveformControl::rebuild_cache() {
   painter.setPen(QPen(QColor(20, 22, 26, isEnabled() ? 220 : 110), 4.0,
                       Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
   painter.drawPath(waveform);
-  painter.setPen(QPen(kAccentColor, 2.0, Qt::SolidLine, Qt::RoundCap,
+  painter.setPen(QPen(accent_color(), 2.0, Qt::SolidLine, Qt::RoundCap,
                       Qt::RoundJoin));
   painter.drawPath(waveform);
 }

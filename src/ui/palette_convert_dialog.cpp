@@ -3,6 +3,7 @@
 #include "core/palette_presets.hpp"
 #include "formats/palette_io.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QComboBox>
 #include <QDialog>
@@ -590,7 +591,7 @@ std::optional<PaletteConvertSettings> request_palette_convert_settings(
   colors_spin->setEnabled(true);
   // Keep readable - / + buttons on the spin boxes (sub-control gotcha: apply the
   // style after all children exist, with unprefixed selectors; see dialog_utils).
-  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+  append_themed_style(dialog, dialog_spinbox_button_style());
   refresh_preview();
 
   if (exec_dialog(dialog) != QDialog::Accepted) {

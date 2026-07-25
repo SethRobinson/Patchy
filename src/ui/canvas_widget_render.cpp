@@ -25,6 +25,7 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/tool_cursors.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QApplication>
 #include <QCursor>
@@ -581,10 +582,10 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   ZoomTraceScope trace("paint", zoom_);
   QPainter painter(this);
   const auto exposed_rect = event != nullptr ? event->rect() : rect();
-  painter.fillRect(exposed_rect, QColor(36, 38, 41));
+  painter.fillRect(exposed_rect, theme().canvas_backdrop);
 
   if (document_ == nullptr || document_->width() == 0 || document_->height() == 0) {
-    painter.setPen(QColor(170, 176, 184));
+    painter.setPen(theme().canvas_empty_text);
     painter.drawText(rect(), Qt::AlignCenter, tr("No document"));
     return;
   }
@@ -799,7 +800,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   }
   draw_grid_overlay(painter, target_rect, exposed_rect);
   draw_guides_overlay(painter);
-  painter.setPen(QColor(95, 101, 110));
+  painter.setPen(theme().canvas_document_border);
   const auto border_rect = target_rect.adjusted(0.5, 0.5, -0.5, -0.5);
   if (!border_rect.isEmpty()) {
     painter.drawRect(border_rect);
@@ -839,7 +840,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     // The corner square between the bars reads as scroll chrome, like Photoshop.
     painter.fillRect(QRect(width() - vertical_scroll_bar_->width(), height() - horizontal_scroll_bar_->height(),
                            vertical_scroll_bar_->width(), horizontal_scroll_bar_->height()),
-                     QColor(0x26, 0x26, 0x26));  // scroll track color
+                     theme().canvas_scrollbar_track);
   }
 }
 
@@ -1708,10 +1709,10 @@ void CanvasWidget::draw_rulers(QPainter& painter) const {
   }
 
   painter.save();
-  painter.fillRect(QRect(0, 0, width(), kTopRulerHeight), QColor(42, 45, 49));
-  painter.fillRect(QRect(0, 0, kLeftRulerWidth, height()), QColor(42, 45, 49));
-  painter.fillRect(QRect(0, 0, kLeftRulerWidth, kTopRulerHeight), QColor(35, 38, 42));
-  painter.setPen(QColor(78, 82, 90));
+  painter.fillRect(QRect(0, 0, width(), kTopRulerHeight), theme().ruler_bar_bg);
+  painter.fillRect(QRect(0, 0, kLeftRulerWidth, height()), theme().ruler_bar_bg);
+  painter.fillRect(QRect(0, 0, kLeftRulerWidth, kTopRulerHeight), theme().ruler_corner_bg);
+  painter.setPen(theme().ruler_edge);
   painter.drawLine(0, kTopRulerHeight - 1, width(), kTopRulerHeight - 1);
   painter.drawLine(kLeftRulerWidth - 1, 0, kLeftRulerWidth - 1, height());
 
@@ -1719,7 +1720,7 @@ void CanvasWidget::draw_rulers(QPainter& painter) const {
   label_font.setPointSize(std::max(7, label_font.pointSize() - 2));
   painter.setFont(label_font);
   const QFontMetrics metrics(label_font);
-  QPen tick_pen(QColor(185, 190, 198));
+  QPen tick_pen(theme().ruler_tick);
   tick_pen.setCosmetic(true);
   painter.setPen(tick_pen);
 
@@ -1804,8 +1805,10 @@ void CanvasWidget::draw_processing_overlay(QPainter& painter) const {
                          panel_size);
   QPainterPath panel_path;
   panel_path.addRoundedRect(QRectF(panel_rect), 8.0, 8.0);
-  painter.fillPath(panel_path, QColor(31, 35, 41, 236));
-  painter.setPen(QPen(QColor(78, 86, 96), 1));
+  auto hud_fill = theme().canvas_hud_bg;
+  hud_fill.setAlpha(236);
+  painter.fillPath(panel_path, hud_fill);
+  painter.setPen(QPen(theme().canvas_hud_border, 1));
   painter.drawPath(panel_path);
 
   const QPointF spinner_center(panel_rect.left() + 36.0, panel_rect.center().y());
@@ -1818,13 +1821,15 @@ void CanvasWidget::draw_processing_overlay(QPainter& painter) const {
                         spinner_center.y() + std::sin(angle) * 8.0);
     const QPointF outer(spinner_center.x() + std::cos(angle) * 15.0,
                         spinner_center.y() + std::sin(angle) * 15.0);
-    QPen pen(QColor(238, 244, 250, std::clamp(alpha, 55, 220)), 2.8, Qt::SolidLine, Qt::RoundCap);
+    auto spinner = theme().canvas_hud_spinner;
+    spinner.setAlpha(std::clamp(alpha, 55, 220));
+    QPen pen(spinner, 2.8, Qt::SolidLine, Qt::RoundCap);
     painter.setPen(pen);
     painter.drawLine(inner, outer);
   }
 
   painter.setFont(label_font);
-  painter.setPen(QColor(238, 242, 247));
+  painter.setPen(theme().canvas_hud_text);
   const QRect text_rect(panel_rect.left() + kSpinnerColumnWidth, panel_rect.top(),
                         std::max(0, panel_rect.width() - kSpinnerColumnWidth - kTextRightPadding),
                         panel_rect.height());

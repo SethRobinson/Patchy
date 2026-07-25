@@ -1,4 +1,5 @@
 #include "ui/zoom_status_bar.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QKeyEvent>
 #include <QPainter>
@@ -19,11 +20,13 @@ namespace {
 constexpr int kErrorFlashDurationMs = 1000;
 constexpr double kErrorFlashPulses = 2.0;  // decaying red pulses over the flash
 constexpr int kErrorFlashFrameMs = 33;     // ~30 fps, only while the flash runs
-// Colors tuned for the #252525 status bar (QStatusBar rule in photoshop_style()).
-const QColor kErrorTextColor(0xff, 0x6b, 0x68);
-const QColor kErrorWashColor(0xa8, 0x32, 0x32);
-const QColor kWarningFillColor(0xe0, 0x5c, 0x5c);
-const QColor kWarningMarkColor(0x25, 0x25, 0x25);
+// These follow the color scheme; status_error_mark is the status-bar surface
+// punched out of the warning triangle, so it tracks status_bar_bg by role
+// rather than by a copied literal (see theme_palette.hpp).
+[[nodiscard]] QColor error_text_color() { return theme().status_error_text; }
+[[nodiscard]] QColor error_wash_color() { return theme().status_error_wash; }
+[[nodiscard]] QColor warning_fill_color() { return theme().status_warning_fill; }
+[[nodiscard]] QColor warning_mark_color() { return theme().status_error_mark; }
 
 }  // namespace
 
@@ -195,7 +198,7 @@ void ZoomStatusBar::paintEvent(QPaintEvent* event) {
         0.5 * (1.0 + std::cos(phase * 2.0 * std::numbers::pi * kErrorFlashPulses));
     const auto alpha = static_cast<int>(std::lround(170.0 * wave * (1.0 - phase)));
     if (alpha > 0) {
-      auto wash = kErrorWashColor;
+      auto wash = error_wash_color();
       wash.setAlpha(alpha);
       painter.save();
       painter.setRenderHint(QPainter::Antialiasing, true);
@@ -215,7 +218,7 @@ void ZoomStatusBar::paintEvent(QPaintEvent* event) {
   if (right <= text_left) {
     return;
   }
-  painter.setPen(error_active_ ? kErrorTextColor : palette().windowText().color());
+  painter.setPen(error_active_ ? error_text_color() : palette().windowText().color());
   painter.drawText(QRect(text_left, 0, right - text_left, height()),
                    Qt::AlignLeading | Qt::AlignVCenter | Qt::TextSingleLine, message);
 }
@@ -230,11 +233,11 @@ void ZoomStatusBar::paint_warning_icon(QPainter& painter, const QRect& icon_rect
   triangle.lineTo(r.left(), r.bottom());
   triangle.closeSubpath();
   painter.setPen(Qt::NoPen);
-  painter.setBrush(kWarningFillColor);
+  painter.setBrush(warning_fill_color());
   painter.drawPath(triangle);
   const auto stem_width = std::max(1.0, r.width() / 8.0);
   const auto stem_x = r.center().x() - stem_width / 2.0;
-  painter.setBrush(kWarningMarkColor);
+  painter.setBrush(warning_mark_color());
   painter.drawRect(QRectF(stem_x, r.top() + r.height() * 0.34, stem_width, r.height() * 0.32));
   painter.drawRect(QRectF(stem_x, r.bottom() - r.height() * 0.20, stem_width, stem_width));
   painter.restore();

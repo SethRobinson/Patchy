@@ -60,6 +60,7 @@ Do not say a release was created unless the release preset build succeeded.
 - **Nothing proportional to all layer pixels may run per repaint.** Cache or bound work reachable from `paintEvent`; use content revision for whole-render results and `pixel_revision()` for pixel-buffer-only results. See [docs/performance.md](docs/performance.md).
 - **Core algorithms must be deterministic across toolchains.** Use splitmix64 with explicit uniform mapping, never `std::uniform_*_distribution`. Use integer math or deterministic-double envelopes with fixed tie-breaks for geometry and graph algorithms.
 - **Persisted identifiers never change.** Hotkey command ids, preset ids, stress-test step ids, New Document preset ids, script/API identifiers, settings keys, and file-format tokens are compatibility contracts. `BlendMode` and `BrushDynamicControl` are append-only enums.
+- **No hardcoded chrome colors in `src/ui`.** Every UI color is a named role in `src/ui/theme_palette.hpp`, written as an `@role_name` token in QSS or read through `theme()` when painted. See the color-scheme section of [docs/ui-conventions.md](docs/ui-conventions.md) for what is deliberately exempt (the transparency checkerboard, marching ants, tool cursors, user grid/guide colors).
 - **Byte-stability canaries change only deliberately.** `psd_layered_writer_bytes_are_stable`, `gif_encoder_bytes_are_stable`, and `tool_write_paths_digest_baseline` pin default output. Never re-pin them to make a refactor pass.
 - **The CPU compositor is the reference renderer.** GPU and optimized paths must match its pinned output.
 - **Serialization is fixed-width and cross-platform.** Never write `size_t`, `long`, `wchar_t`, native structs, or host-endian values into a file format. PSD I/O uses explicit big-endian primitives. See [docs/platform.md](docs/platform.md) and the relevant format document.
@@ -71,7 +72,7 @@ Read these before acting in the named area:
 | Work area | Required reference |
 |---|---|
 | MainWindow/CanvasWidget/PSD splits, function moves, shared helpers, broad refactors | [docs/code-organization.md](docs/code-organization.md), plus [docs/refactor-backlog.md](docs/refactor-backlog.md) for cleanup work |
-| QActions, dialogs, options bar, list rows, status messages, shared QSS/UI conventions | [docs/ui-conventions.md](docs/ui-conventions.md) |
+| QActions, dialogs, options bar, list rows, status messages, shared QSS/UI conventions, colors and the Dark/Light color scheme | [docs/ui-conventions.md](docs/ui-conventions.md) |
 | Tests, offscreen behavior, visual QA, app screenshots, suite failure diagnosis | [docs/testing.md](docs/testing.md) |
 | Platform-guarded code, macOS/Linux behavior, remote builds | [docs/platform.md](docs/platform.md) |
 | Patents, licensing, trademarks, bundled assets, or a feature adjacent to a legal boundary | [docs/legal-constraints.md](docs/legal-constraints.md) |

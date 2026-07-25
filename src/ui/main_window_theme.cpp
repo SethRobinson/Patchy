@@ -1,7 +1,8 @@
-// The application-wide dark QSS theme, split out of main_window.cpp:
+// The application-wide QSS theme, split out of main_window.cpp:
 // photoshop_style() returns the stylesheet the MainWindow constructor applies
-// to the whole window (declared in main_window_shared.hpp).
-// Pure function move from main_window.cpp; behavior must stay identical.
+// to the whole window (declared in main_window_shared.hpp), resolved against the
+// active color scheme. Colors live in theme_palette.hpp as @role_name tokens;
+// never write a hex literal into the template below.
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
@@ -65,6 +66,7 @@
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/start_panel.hpp"
+#include "ui/theme_qss.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
@@ -247,34 +249,39 @@ int qInitResources_icons();
 
 namespace patchy::ui {
 
-QString photoshop_style() {
+namespace {
+
+// The stylesheet with its colors still written as @role_name tokens. Every
+// color here must be a token: theme_palette.hpp owns the values, and
+// ui_theme_qss_resolves_every_token fails if a token has no matching role.
+QString photoshop_style_template() {
   return QStringLiteral(R"(
     QMainWindow, QMenuBar, QMenu, QDockWidget, QWidget {
-      background: #262626;
-      color: #e6e6e6;
+      background: @window_bg;
+      color: @text_primary;
       font-size: 12px;
     }
     QMainWindow {
-      border: 1px solid #1f1f1f;
+      border: 1px solid @window_border;
     }
     QMainWindow::separator {
-      background: #1e2022;
+      background: @splitter_bg;
       width: 7px;
       height: 7px;
     }
     QMainWindow::separator:hover {
-      background: #4e6f95;
+      background: @splitter_hover_bg;
     }
     QWidget#rightDockResizeHandle {
-      background: #1e2022;
+      background: @splitter_bg;
     }
     QWidget#rightDockResizeHandle:hover {
-      background: #4e6f95;
+      background: @splitter_hover_bg;
     }
     QMenuBar {
-      background: #4f4f4f;
-      color: #f0f0f0;
-      border-bottom: 1px solid #343434;
+      background: @title_bar_bg;
+      color: @text_bright;
+      border-bottom: 1px solid @title_bar_border;
       min-height: 34px;
       max-height: 34px;
       padding-left: 35px;
@@ -286,38 +293,38 @@ QString photoshop_style() {
       margin: 0 1px;
     }
     QMenuBar::item:selected {
-      background: #3a3a3a;
+      background: @menu_bar_item_hover_bg;
     }
     QLabel#patchyBadge {
       background: transparent;
       border: 0;
     }
     QMenu {
-      background: #3a3a3a;
-      border: 1px solid #1f1f1f;
+      background: @menu_bg;
+      border: 1px solid @menu_border;
     }
     QMenu::item {
       padding: 7px 34px 7px 24px;
     }
     QMenu::item:selected {
-      background: #4e6f95;
-      color: #ffffff;
+      background: @menu_item_selected_bg;
+      color: @text_on_accent;
     }
     QMenu::item:disabled {
-      color: #737373;
+      color: @text_disabled;
     }
     QMenuBar::item:disabled {
-      color: #9a9a9a;
+      color: @menu_bar_text_disabled;
     }
     QMenu::separator {
       height: 1px;
-      background: #555555;
+      background: @menu_separator;
       margin: 4px 6px;
     }
     QToolBar {
-      background: #3b3b3b;
+      background: @toolbar_bg;
       border: 0;
-      border-bottom: 1px solid #292929;
+      border-bottom: 1px solid @toolbar_border;
       spacing: 2px;
       padding: 3px;
     }
@@ -345,18 +352,18 @@ QString photoshop_style() {
       max-height: 20px;
     }
     QToolButton#brushDynamicsButton[dynamicsActive="true"] {
-      border-color: #6bb3ff;
+      border-color: @accent_border_bright;
     }
     QToolButton:hover {
-      background: #4a4a4a;
-      border-color: #696969;
+      background: @button_hover_bg;
+      border-color: @button_hover_border;
     }
     QToolButton:checked {
-      background: #2f75bd;
-      border-color: #6bb3ff;
+      background: @accent_pressed_bg;
+      border-color: @accent_border_bright;
     }
     QWidget#windowChromeControls {
-      background: #4f4f4f;
+      background: @title_bar_bg;
     }
     QToolButton[windowChromeButton="true"] {
       background: transparent;
@@ -369,21 +376,21 @@ QString photoshop_style() {
       max-height: 34px;
     }
     QToolButton[windowChromeButton="true"]:hover {
-      background: #626262;
+      background: @window_chrome_hover_bg;
       border: 0;
     }
     QToolButton[windowChromeButton="true"]:pressed {
-      background: #3c3c3c;
+      background: @window_chrome_pressed_bg;
     }
     QToolButton#windowCloseButton:hover {
-      background: #c42b1c;
+      background: @window_close_hover_bg;
     }
     QToolButton#windowCloseButton:pressed {
-      background: #9f2117;
+      background: @window_close_pressed_bg;
     }
     QToolBar#toolPalette {
-      background: #535353;
-      border-right: 1px solid #202020;
+      background: @tool_palette_bg;
+      border-right: 1px solid @tool_palette_border;
       border-bottom: 0;
       padding: 3px 4px;
       spacing: 1px;
@@ -403,7 +410,7 @@ QString photoshop_style() {
       padding: 0;
     }
     QToolButton[toolFlyout="true"]::menu-indicator {
-      image: url(:/patchy/icons/tool-flyout-corner.svg);
+      image: url(@icon(tool-flyout-corner));
       width: 7px;
       height: 7px;
       subcontrol-origin: padding;
@@ -412,36 +419,36 @@ QString photoshop_style() {
       right: 1px;
     }
     QToolBar#toolPalette::separator {
-      background: #616161;
+      background: @tool_palette_separator;
       height: 1px;
       margin: 3px 7px;
     }
     QWidget#toolPaletteSpacer {
-      background: #535353;
+      background: @tool_palette_bg;
     }
     QToolBar#Options {
-      background: #3d3d3d;
+      background: @options_bar_bg;
       min-height: 38px;
-      border-top: 1px solid #5a5a5a;
-      border-bottom: 1px solid #292929;
+      border-top: 1px solid @options_bar_top_edge;
+      border-bottom: 1px solid @toolbar_border;
       spacing: 5px;
       padding: 4px 7px;
     }
     QToolBar#Options QFrame#optionSeparator {
-      color: #565656;
+      color: @option_separator;
       max-width: 2px;
     }
     QToolBar#Options QLabel {
-      color: #e1e1e1;
+      color: @text_secondary;
       padding-left: 5px;
       padding-right: 2px;
     }
     QToolBar#Options QLabel[optionLabel="true"] {
-      background: #262626;
-      border: 1px solid #171717;
+      background: @option_chip_bg;
+      border: 1px solid @field_inset_border;
       border-right: 0;
-      border-top-color: #5d5d5d;
-      color: #f0f0f0;
+      border-top-color: @field_bevel_top;
+      color: @text_bright;
       min-height: 24px;
       max-height: 24px;
       padding: 0 7px;
@@ -450,35 +457,35 @@ QString photoshop_style() {
       min-height: 24px;
       max-height: 24px;
       padding-left: 4px;
-      background: #292929;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
+      background: @field_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
     }
     QWidget#selectionFeatherGroup {
-      background: #292929;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
+      background: @field_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
       min-height: 24px;
       max-height: 24px;
     }
     QWidget#selectionFeatherGroup QLabel {
-      background: #262626;
+      background: @option_chip_bg;
       border: 0;
-      border-right: 1px solid #171717;
-      color: #f0f0f0;
+      border-right: 1px solid @field_inset_border;
+      color: @text_bright;
       min-height: 24px;
       max-height: 24px;
       padding: 0 8px;
     }
     QWidget#selectionFeatherGroup QSpinBox {
-      background: #292929;
+      background: @field_bg;
       border: 0;
       min-height: 24px;
       max-height: 24px;
       padding-left: 6px;
     }
     QToolBar#Options QCheckBox {
-      color: #f0f0f0;
+      color: @text_bright;
       min-height: 24px;
       max-height: 24px;
       padding-left: 6px;
@@ -486,76 +493,76 @@ QString photoshop_style() {
       spacing: 6px;
     }
     QToolBar#Options QCheckBox#selectionAntiAliasCheck {
-      background: #292929;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
+      background: @field_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
       padding-left: 7px;
       padding-right: 10px;
     }
     QToolBar#Options QCheckBox::indicator {
       width: 14px;
       height: 14px;
-      background: #1f1f1f;
-      border: 1px solid #777777;
+      background: @checkbox_compact_bg;
+      border: 1px solid @checkbox_compact_border;
     }
     QToolBar#Options QCheckBox::indicator:hover {
-      border-color: #9ccfff;
+      border-color: @checkbox_accent_border;
     }
     QToolBar#Options QCheckBox::indicator:checked {
-      background: #1473e6;
-      border-color: #9ccfff;
-      image: url(:/patchy/icons/checkmark.svg);
+      background: @accent;
+      border-color: @checkbox_accent_border;
+      image: url(@icon(checkmark));
     }
     QToolBar#Options QSlider::groove:horizontal {
       height: 4px;
-      background: #1c1c1c;
-      border: 1px solid #555555;
+      background: @slider_groove_bg;
+      border: 1px solid @slider_groove_border;
     }
     QToolBar#Options QSlider::sub-page:horizontal {
-      background: #1473e6;
-      border: 1px solid #5aa9ff;
+      background: @accent;
+      border: 1px solid @slider_fill_border;
     }
     QToolBar#Options QSlider::handle:horizontal {
-      background: #c9d0d8;
-      border: 1px solid #101010;
+      background: @slider_handle_bg;
+      border: 1px solid @slider_handle_border;
       width: 10px;
       margin: -5px 0;
     }
     QToolBar#Options QPushButton {
       min-height: 24px;
       max-height: 24px;
-      background: #303030;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
+      background: @options_button_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
       padding: 1px 7px;
     }
     QToolBar#Options QPushButton[optionsSessionButton="true"] {
       padding: 1px 2px; /* the 20px session icons need the width the default 7px padding eats */
     }
     QToolBar#Options QPushButton:checked {
-      background: #1667b7;
-      border-color: #63adff;
-      color: #ffffff;
+      background: @accent_checked_bg;
+      border-color: @accent_checked_border;
+      color: @text_on_accent;
     }
     QDockWidget::title {
-      background: #323232;
+      background: @dock_title_bg;
       padding: 5px;
-      border-bottom: 1px solid #202020;
+      border-bottom: 1px solid @panel_border_strong;
     }
     QWidget#historyDockTitle, QWidget#channelsDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
     QWidget#layersDockTitle {
-      background: #2f3032;
-      border-top: 1px solid #45474b;
-      border-bottom: 1px solid #1b1c1e;
+      background: @panel_title_bg;
+      border-top: 1px solid @panel_title_bevel_top;
+      border-bottom: 1px solid @panel_title_border_bottom;
     }
     QWidget#historyDockTitle QLabel, QWidget#channelsDockTitle QLabel, QWidget#propertiesDockTitle QLabel,
     QWidget#infoDockTitle QLabel, QWidget#layersDockTitle QLabel {
-      color: #f0f0f0;
+      color: @text_bright;
       font-weight: 600;
     }
     QToolButton[dockCollapseButton="true"] {
       background: transparent;
-      color: #cfd3d8;
+      color: @dock_collapse_text;
       border: 1px solid transparent;
       border-radius: 0;
       padding: 0;
@@ -566,36 +573,36 @@ QString photoshop_style() {
       font-weight: 700;
     }
     QToolButton[dockCollapseButton="true"]:hover {
-      background: #3b3d40;
-      border-color: #5b5e63;
+      background: @dock_collapse_hover_bg;
+      border-color: @dock_collapse_hover_border;
     }
     QToolButton[dockCollapseButton="true"]:checked {
       background: transparent;
-      color: #cfd3d8;
+      color: @dock_collapse_text;
       border-color: transparent;
     }
     QListWidget, QTreeWidget, QComboBox, QSpinBox, QSlider, QLineEdit, QTextEdit {
-      background: #2b2b2b;
-      color: #e6e6e6;
-      border: 1px solid #5a5a5a;
-      selection-background-color: #3a414a;
+      background: @field_bg_large;
+      color: @text_primary;
+      border: 1px solid @field_border;
+      selection-background-color: @list_selection_bg;
       min-height: 20px;
     }
     QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QLineEdit:disabled,
     QTextEdit:disabled {
-      background: #242527;
-      color: #6d7075;
-      border: 1px solid #3d3f42;
+      background: @field_bg_disabled;
+      color: @field_text_disabled;
+      border: 1px solid @field_border_disabled;
     }
     QListWidget::item {
       min-height: 48px;
       padding: 0;
-      border-bottom: 1px solid #202225;
+      border-bottom: 1px solid @list_item_border;
     }
     QListWidget::item:selected {
-      background: #3a414a;
-      color: #f4f6f8;
-      border: 1px solid #67717d;
+      background: @list_selection_bg;
+      color: @list_selection_text;
+      border: 1px solid @list_selection_border;
     }
     QListWidget#layerList::item {
       color: transparent;
@@ -612,21 +619,21 @@ QString photoshop_style() {
        flips them). The transparent rule is load-bearing: these plain-QWidget
        containers inside each row otherwise match the global QWidget rule, get
        WA_StyledBackground auto-applied by the stylesheet engine, and paint
-       opaque #262626 over the row background - which is what silently hid the
+       opaque window_bg over the row background - which is what silently hid the
        selection highlight for months. */
     QWidget#layerMainRow, QWidget#layerSmartFiltersRow, QWidget#layerSmartFilterEntryRow {
       background: transparent;
     }
     QWidget#layerRowWidget {
-      background: #242628;
-      border-bottom: 1px solid #303338;
+      background: @layer_row_bg;
+      border-bottom: 1px solid @layer_row_border;
     }
     QWidget#layerRowWidget[layerRowGroup="true"] {
-      background: #292d31;
+      background: @layer_row_group_bg;
     }
     QWidget#layerRowWidget[layerRowSelected="true"] {
-      background: #2d4c6d;
-      border-bottom: 1px solid #4f91ca;
+      background: @layer_row_selected_bg;
+      border-bottom: 1px solid @layer_row_selected_border;
     }
     QListWidget::indicator {
       width: 0;
@@ -644,12 +651,12 @@ QString photoshop_style() {
     QListWidget#layerStyleCategoryList::item {
       min-height: 24px;
       padding: 0;
-      border-bottom: 1px solid #3b3b3b;
+      border-bottom: 1px solid @category_list_item_border;
     }
     QListWidget#layerStyleCategoryList::item:selected {
-      background: #2d4c6d;
-      color: #ffffff;
-      border: 1px solid #4f91ca;
+      background: @category_selected_bg;
+      color: @text_on_accent;
+      border: 1px solid @category_selected_border;
     }
     QListWidget#layerStyleCategoryList::indicator {
       width: 0;
@@ -665,76 +672,76 @@ QString photoshop_style() {
       border: 0;
     }
     QLabel#layerRowName {
-      color: #f0f3f8;
+      color: @layer_row_name_text;
       font-size: 12px;
     }
     QLabel#layerRowDetails {
-      color: #aeb6c2;
+      color: @layer_row_details_text;
       font-size: 10px;
     }
     QLabel#layerContentThumbnail[layerTargetActive="true"],
     QLabel#layerMaskThumbnail[layerTargetActive="true"],
     QLabel#layerSmartFilterMaskThumbnail[layerTargetActive="true"] {
-      border: 2px solid #31a8ff;
+      border: 2px solid @accent_bright;
       padding: 0;
     }
     QToolButton#maskEditModeChip {
-      background: #31a8ff;
-      color: #0d1420;
-      border: 1px solid #6cc4ff;
+      background: @accent_bright;
+      color: @text_on_accent_bright;
+      border: 1px solid @accent_bright_border;
       border-radius: 4px;
       padding: 2px 10px;
       font-weight: 600;
     }
     QToolButton#maskEditModeChip:hover {
-      background: #5cbcff;
+      background: @accent_bright_hover;
     }
     QLineEdit#statusZoomEdit {
-      background: #1e1e1e;
-      color: #cfcfcf;
-      border: 1px solid #4a4a4a;
+      background: @status_field_bg;
+      color: @status_text;
+      border: 1px solid @status_field_border;
       border-radius: 3px;
       padding: 0 5px;
       min-height: 16px;
       font-size: 11px;
     }
     QLineEdit#statusZoomEdit:focus {
-      border-color: #31a8ff;
-      color: #f0f0f0;
+      border-color: @accent_bright;
+      color: @text_bright;
     }
     QLineEdit#statusZoomEdit:disabled {
-      color: #6f6f6f;
-      border-color: #3a3a3a;
+      color: @status_text_disabled;
+      border-color: @status_field_border_disabled;
     }
     QLabel#canvasInfoLabel, QLabel#documentInfoLabel {
-      color: #d7dde6;
+      color: @info_text;
       line-height: 130%;
     }
     QScrollArea#propertiesScrollArea {
-      background: #28292b;
+      background: @panel_bg;
       border: 0;
     }
     QWidget#propertiesPanel {
-      background: #28292b;
+      background: @panel_bg;
     }
     QLabel#documentInfoLabel, QLabel#activeLayerInfoLabel, QLabel#activeLayerGeometryLabel,
     QLabel#activeLayerMaskLabel, QLabel#activeLayerAdjustmentLabel, QLabel#activeLayerTextLabel,
     QLabel#activeToolInfoLabel {
-      background: #24272b;
-      border: 1px solid #3e454d;
+      background: @panel_inset_bg;
+      border: 1px solid @panel_inset_border;
       padding: 4px;
-      color: #d7dde6;
+      color: @info_text;
       font-size: 11px;
     }
     QWidget#layersPanel {
-      background: #28292b;
+      background: @panel_bg;
     }
     QListWidget#layerList {
       min-height: 120px;
     }
     QToolButton#layerFolderDisclosureButton {
       background: transparent;
-      color: #d9e0ea;
+      color: @layer_glyph_text;
       border: 1px solid transparent;
       border-radius: 3px;
       padding: 0;
@@ -744,8 +751,8 @@ QString photoshop_style() {
       max-height: 20px;
     }
     QToolButton#layerFolderDisclosureButton:hover {
-      border-color: #59636f;
-      background: #30343a;
+      border-color: @layer_button_hover_border;
+      background: @layer_button_hover_bg;
     }
     QToolButton#layerFolderDisclosureButton[layerDragActive="true"]:hover {
       border-color: transparent;
@@ -758,7 +765,7 @@ QString photoshop_style() {
     }
     QToolButton#layerVisibilityCheck {
       background: transparent;
-      color: #f2f6fb;
+      color: @layer_visibility_text;
       border: 1px solid transparent;
       border-radius: 3px;
       padding: 0;
@@ -768,8 +775,8 @@ QString photoshop_style() {
       max-height: 22px;
     }
     QToolButton#layerVisibilityCheck:hover {
-      background: #30343a;
-      border-color: #59636f;
+      background: @layer_button_hover_bg;
+      border-color: @layer_button_hover_border;
     }
     QToolButton#layerVisibilityCheck[layerDragActive="true"]:hover {
       border-color: transparent;
@@ -793,8 +800,8 @@ QString photoshop_style() {
       padding: 0;
     }
     QToolButton[layerLockControl="true"] {
-      background: #24272b;
-      border: 1px solid #46505b;
+      background: @panel_inset_bg;
+      border: 1px solid @layer_lock_border;
       border-radius: 3px;
       padding: 0;
       min-width: 24px;
@@ -803,16 +810,16 @@ QString photoshop_style() {
       max-height: 24px;
     }
     QToolButton[layerLockControl="true"]:hover {
-      background: #30343a;
-      border-color: #687481;
+      background: @layer_button_hover_bg;
+      border-color: @layer_lock_hover_border;
     }
     QToolButton[layerLockControl="true"]:checked {
-      background: #3b3420;
-      border-color: #c9a944;
+      background: @layer_lock_checked_bg;
+      border-color: @layer_lock_checked_border;
     }
     QToolButton[layerLockControl="true"][mixed="true"] {
-      background: #2f3136;
-      border-color: #7b8490;
+      background: @layer_lock_mixed_bg;
+      border-color: @layer_lock_mixed_border;
     }
     QToolButton#layerMaskLinkButton, QToolButton#layerFxBadgeButton, QToolButton#layerSmartObjectBadgeButton,
     QToolButton#layerClippingBadgeButton {
@@ -823,19 +830,19 @@ QString photoshop_style() {
     }
     QToolButton#layerMaskLinkButton:hover, QToolButton#layerFxBadgeButton:hover,
     QToolButton#layerSmartObjectBadgeButton:hover, QToolButton#layerClippingBadgeButton:hover {
-      background: #30343a;
-      border-color: #59636f;
+      background: @layer_button_hover_bg;
+      border-color: @layer_button_hover_border;
     }
     QPushButton {
-      background: #3a3a3a;
-      color: #e6e6e6;
-      border: 1px solid #666666;
+      background: @button_bg;
+      color: @text_primary;
+      border: 1px solid @button_border;
       border-radius: 0;
       padding: 4px 8px;
     }
     QPushButton:hover {
-      background: #4a4a4a;
-      border-color: #8a8a8a;
+      background: @button_hover_bg;
+      border-color: @button_hover_border_strong;
     }
     QPushButton[compactSymbolButton="true"] {
       padding: 0;
@@ -859,23 +866,23 @@ QString photoshop_style() {
       max-height: 30px;
     }
     QPushButton[layerDropActive="true"], QToolButton[layerDropActive="true"] {
-      background: #2e3f50;
-      border: 2px solid #31a8ff;
+      background: @layer_drop_bg;
+      border: 2px solid @accent_bright;
       padding: 0;
     }
     QStatusBar {
-      background: #252525;
-      color: #cfcfcf;
+      background: @status_bar_bg;
+      color: @status_text;
     }
     QLabel {
-      color: #e1e1e1;
-      /* Transparent, not the global QWidget #262626: labels sit on panels of other
-         shades (e.g. the #303030 Preferences panels) and an opaque fill shows as a
+      color: @text_secondary;
+      /* Transparent, not the global QWidget window_bg: labels sit on panels of other
+         shades (e.g. the Preferences panels) and an opaque fill shows as a
          mismatched strip behind the text. */
       background: transparent;
     }
     QCheckBox {
-      color: #e1e1e1;
+      color: @text_secondary;
       background: transparent;
       /* The explicit border matters on macOS: for rules with only a native border,
          the stylesheet layer keeps QMacStyle's Aqua layout-item margins (+2,+3,-9,-4),
@@ -888,34 +895,34 @@ QString photoshop_style() {
     QCheckBox::indicator {
       width: 12px;
       height: 12px;
-      background: #4a4a4a;
-      border: 1px solid #8a8a8a;
+      background: @checkbox_indicator_bg;
+      border: 1px solid @checkbox_indicator_border;
     }
     QCheckBox::indicator:hover {
-      border-color: #9ccfff;
+      border-color: @checkbox_accent_border;
     }
     QCheckBox::indicator:checked {
-      background: #1473e6;
-      border-color: #9ccfff;
-      image: url(:/patchy/icons/checkmark.svg);
+      background: @accent;
+      border-color: @checkbox_accent_border;
+      image: url(@icon(checkmark));
     }
     QTabWidget::pane {
-      border-top: 1px solid #5c5c5c;
+      border-top: 1px solid @tab_pane_border;
     }
     QTabBar::tab {
-      background: #2b2b2b;
-      color: #e1e1e1;
-      border: 1px solid #2b2b2b;
+      background: @tab_bg;
+      color: @text_secondary;
+      border: 1px solid @tab_bg;
       padding: 5px 12px;
       min-height: 20px;
     }
     QTabBar::tab:hover:!selected {
-      background: #353535;
+      background: @tab_hover_bg;
     }
     QTabBar::tab:selected {
-      background: #3f3f3f;
-      color: #ffffff;
-      border-bottom-color: #3f3f3f;
+      background: @tab_selected_bg;
+      color: @text_on_accent;
+      border-bottom-color: @tab_selected_bg;
     }
   )")
          // The canvas scroll bars are document-window chrome, so they are styled
@@ -928,19 +935,19 @@ QString photoshop_style() {
          // match these bars and the ID selectors win with identical values.
          + QStringLiteral(R"(
     QScrollBar#canvasHorizontalScrollBar, QScrollBar#canvasVerticalScrollBar {
-      background: #262626;
-      background-image: url(:/patchy/icons/scroll-dither.svg);
+      background: @canvas_scrollbar_track;
+      background-image: url(@icon(scroll-dither));
     }
     QScrollBar#canvasVerticalScrollBar:vertical { width: 16px; }
     QScrollBar#canvasHorizontalScrollBar:horizontal { height: 16px; }
     QScrollBar#canvasHorizontalScrollBar::handle, QScrollBar#canvasVerticalScrollBar::handle {
-      background: #565656;
-      border: 1px solid #6e6e6e;
+      background: @scrollbar_handle_bg;
+      border: 1px solid @scrollbar_handle_border;
     }
     QScrollBar#canvasVerticalScrollBar::handle:vertical { min-height: 8px; }
     QScrollBar#canvasHorizontalScrollBar::handle:horizontal { min-width: 8px; }
     QScrollBar#canvasHorizontalScrollBar::handle:hover, QScrollBar#canvasVerticalScrollBar::handle:hover {
-      background: #646464;
+      background: @scrollbar_handle_hover_bg;
     }
     QScrollBar#canvasHorizontalScrollBar::sub-line, QScrollBar#canvasHorizontalScrollBar::add-line,
     QScrollBar#canvasVerticalScrollBar::sub-line, QScrollBar#canvasVerticalScrollBar::add-line {
@@ -964,7 +971,7 @@ QString photoshop_style() {
          // track, flat handle, arrow buttons). Windows/Linux keep native rendering.
          + QStringLiteral(R"(
     QGroupBox {
-      border: 1px solid #4f4f4f;
+      border: 1px solid @group_box_border;
       border-radius: 3px;
       margin-top: 8px;
       padding: 2px 2px 2px 2px;
@@ -974,26 +981,26 @@ QString photoshop_style() {
       subcontrol-position: top left;
       left: 8px;
       padding: 0 3px;
-      background: #262626;
+      background: @window_bg;
     }
     QScrollBar:vertical {
-      background: #262626;
-      background-image: url(:/patchy/icons/scroll-dither.svg);
+      background: @panel_scrollbar_track;
+      background-image: url(@icon(scroll-dither));
       width: 16px;
     }
     QScrollBar:horizontal {
-      background: #262626;
-      background-image: url(:/patchy/icons/scroll-dither.svg);
+      background: @panel_scrollbar_track;
+      background-image: url(@icon(scroll-dither));
       height: 16px;
     }
     QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
-      background: #565656;
-      border: 1px solid #6e6e6e;
+      background: @scrollbar_handle_bg;
+      border: 1px solid @scrollbar_handle_border;
     }
     QScrollBar::handle:vertical { min-height: 8px; }
     QScrollBar::handle:horizontal { min-width: 8px; }
     QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
-      background: #646464;
+      background: @scrollbar_handle_hover_bg;
     }
     /* No arrow buttons: fixed-size line buttons make the groove degenerate on
        short scrollbars (collapsed docks), where the native styles shrink theirs. */
@@ -1009,6 +1016,73 @@ QString photoshop_style() {
   )")
 #endif
       ;
+}
+
+}  // namespace
+
+QString photoshop_style() {
+  // Both palettes are compile-time constants, so a scheme's resolved sheet never
+  // changes once built and can be cached for the process lifetime.
+  static std::array<QString, 2> resolved;
+  auto& cached = resolved[active_color_scheme() == ColorScheme::Light ? 1 : 0];
+  if (cached.isEmpty()) {
+    cached = apply_theme_tokens(photoshop_style_template());
+  }
+  return cached;
+}
+
+void MainWindow::apply_color_scheme() {
+  // set_active_color_scheme() has already run inside ThemeManager, so every
+  // theme() read below sees the new palette.
+
+  // 1. The window's own sheet. Qt repolishes the entire child tree from here,
+  //    which covers every dock, panel, and parented dialog, plus
+  //    DocumentFloatWindow (stylesheet propagation follows the QObject parent
+  //    chain, and a float window is a child of this window).
+  setStyleSheet(photoshop_style());
+
+  // 2. Top-level windows that are not in this window's child tree, plus any
+  //    widget deeper in the tree that carries its own themed template (the
+  //    chromed dialogs, per-instance color swatches, the start panel).
+  rebuild_themed_styles_in(*this);
+  for (auto* top_level : QApplication::topLevelWidgets()) {
+    if (top_level == nullptr || top_level == this) {
+      continue;
+    }
+    // Translucent click-through overlays (the screen color picker) paint a
+    // single near-transparent fill and must not be restyled or repolished.
+    if (top_level->testAttribute(Qt::WA_TranslucentBackground)) {
+      continue;
+    }
+    rebuild_themed_styles_in(*top_level);
+    top_level->style()->unpolish(top_level);
+    top_level->style()->polish(top_level);
+    top_level->update();
+  }
+
+  // 3. Pixmaps built from theme colors. Qt sends no event for a palette-struct
+  //    change, so anything cached has to be dropped by hand or it keeps
+  //    painting the old scheme forever.
+  layer_thumbnail_cache_.clear();
+  channel_thumbnail_cache_.clear();
+  path_thumbnail_cache_.clear();
+  refresh_layer_list();
+  refresh_channel_panel();
+  refresh_paths_panel();
+
+  // 4. Canvas chrome is painted, not styled, so it needs an explicit repaint.
+  for (const auto& session : sessions_) {
+    if (session == nullptr) {
+      continue;
+    }
+    if (session->canvas != nullptr) {
+      session->canvas->update();
+    }
+    if (session->float_window != nullptr) {
+      session->float_window->update();
+    }
+  }
+  update();
 }
 
 }  // namespace patchy::ui

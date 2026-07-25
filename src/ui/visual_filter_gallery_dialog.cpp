@@ -12,6 +12,7 @@
 #include "ui/filter_preview_proxy.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/zoomable_image_preview.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QCheckBox>
 #include <QAbstractItemModel>
@@ -475,7 +476,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   // The application stylesheet hides QListWidget indicators globally because
   // the Layers panel paints its own visibility controls. This list uses native
   // item check states, so restore a compact, readable indicator locally.
-  applied_list->setStyleSheet(QStringLiteral(R"(
+  set_themed_style(*applied_list, QStringLiteral(R"(
     QListWidget#filterGalleryAppliedEffectsList::item {
       min-height: 30px;
       padding: 0 4px;
@@ -489,13 +490,13 @@ VisualFilterGalleryResult request_visual_filter_gallery(
       max-height: 13px;
       margin-left: 4px;
       margin-right: 5px;
-      background: #4a4a4a;
-      border: 1px solid #8a8a8a;
+      background: @checkbox_indicator_bg;
+      border: 1px solid @checkbox_indicator_border;
     }
     QListWidget#filterGalleryAppliedEffectsList::indicator:checked {
-      background: #1473e6;
-      border-color: #9ccfff;
-      image: url(:/patchy/icons/checkmark.svg);
+      background: @accent;
+      border-color: @checkbox_accent_border;
+      image: url(@icon(checkmark));
     }
   )"));
   applied_layout->addWidget(applied_list, 1);
@@ -1013,7 +1014,10 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     central_timer->start();
   };
 
-  const auto base_dialog_style = dialog.styleSheet();
+  // The accumulated template, not the resolved sheet: the rebuild below re-sets
+  // the whole stylesheet, and re-setting resolved text would freeze the dialog's
+  // colors at whatever scheme was active when the gallery opened.
+  const auto base_dialog_style = themed_style_template(dialog);
   const auto spinbox_style = dialog_spinbox_button_style();
   std::function<void()> rebuild_parameter_editor;
   rebuild_parameter_editor = [&] {
@@ -1071,7 +1075,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     // created after the parent stylesheet. Reapply one stable stylesheet after
     // each editor rebuild; never append to the current value.
     dialog.setStyleSheet(QString());
-    dialog.setStyleSheet(base_dialog_style + spinbox_style);
+    set_themed_style(dialog, base_dialog_style + spinbox_style);
     if (refresh_spatial_overlay) {
       refresh_spatial_overlay();
     }

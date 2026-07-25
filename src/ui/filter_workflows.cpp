@@ -11,6 +11,7 @@
 #include "ui/filter_preview_proxy.hpp"
 #include "ui/filter_workflows_internal.hpp"
 #include "ui/zoomable_image_preview.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QAbstractItemView>
 #include <QButtonGroup>
@@ -683,7 +684,7 @@ std::optional<FilterInvocation> request_filter_settings(
   }
 
   if (blending != nullptr) {
-    dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+    append_themed_style(dialog, dialog_spinbox_button_style());
   }
   QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
     if (dialog.isVisible()) {

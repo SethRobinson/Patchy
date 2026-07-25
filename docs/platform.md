@@ -41,6 +41,12 @@ The large quarantine keeps long-ago frees poisoned for the whole run (glados has
 - `main_window_palette.cpp` uses `toStdU16String()` for `std::filesystem::path` (UTF-16 -> native on every platform — do not reintroduce `toStdWString`).
 - Tests: `test_harness.hpp`, the paired crash reporters in `tests/ui/main.cpp`, `test_fonts.hpp`.
 
+## Color scheme and native chrome
+
+`ThemeManager` mirrors the resolved scheme onto Qt with `QStyleHints::setColorScheme` (`unsetColorScheme` for "follow system"). On Windows that is what re-tints the chrome Patchy does not style: native dialog title bars, dock and list scroll bars, tooltips, `QMessageBox`, and the color picker all follow the app's choice, so there is no `DWMWA_USE_IMMERSIVE_DARK_MODE` call and no registry read. Under `QT_QPA_PLATFORM=offscreen` the call is a no-op and `colorScheme()` reports `Unknown`, which is what keeps the whole UI suite deterministic regardless of the host's Windows setting.
+
+The frameless main window has no native title bar to tint; it draws its own 1px edge from the `window_border` role, which the Light palette overrides explicitly so the window keeps a silhouette against a light desktop. `DWMWA_BORDER_COLOR` in `main_window_chrome.cpp` stays unconditionally `COLOR_NONE`.
+
 ## Styled QCheckBox and QMacStyle margins
 
 A stylesheet-styled QCheckBox needs a NON-native border in some matching rule — the app stylesheet's global `QCheckBox { border: none; }` covers this; do not remove it. Qt only suppresses QMacStyle's Aqua layout-item margins (checkboxes: +2,+3,-9,-4) for styled widgets whose rule has a non-native border (qstylesheetstyle.cpp, SE_*LayoutItem). With the margins active, box layouts deliberately overlap the neighboring label ~9px into the checkbox — right for the inset native glyph, but on the flat 12px stylesheet indicator the label lands ON the box (the 0.13-mac "text jammed into the checkbox" Layer Style bug). Only reproducible in the real app: the test harness never loads the QMacStyle plugin, so offscreen/test runs cannot catch a regression here.

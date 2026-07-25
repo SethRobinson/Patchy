@@ -19,6 +19,7 @@
 #include "ui/style_browser.hpp"
 #include "ui/style_library.hpp"
 #include "ui/style_manager_dialog.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QAbstractButton>
 #include <QCheckBox>
@@ -778,7 +779,7 @@ QListWidgetItem* add_layer_style_category(QListWidget* list, const QString& text
 }
 
 void update_color_preview_label(QWidget* widget, int red, int green, int blue) {
-  widget->setStyleSheet(QStringLiteral("%1 { background: rgb(%2, %3, %4); border: 1px solid #9aa4b2; }")
+  set_themed_style(*widget, QStringLiteral("%1 { background: rgb(%2, %3, %4); border: 1px solid @swatch_border; }")
                            .arg(widget->metaObject()->className())
                            .arg(red)
                            .arg(green)
@@ -927,10 +928,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                     "effect that references it cannot "
                     "render until you choose another pattern.")
             .arg(names.join(QStringLiteral("\", \""))));
-    warning->setStyleSheet(QStringLiteral(
-        "QLabel#layerStyleMissingPatternWarning { background: #4a3a1f; border: "
-        "1px solid #9a7430; "
-        "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
+    set_themed_style(*warning, QStringLiteral(
+        "QLabel#layerStyleMissingPatternWarning { background: @warning_banner_bg; border: "
+        "1px solid @warning_banner_border; "
+        "border-radius: 3px; color: @warning_banner_text; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
   const bool has_unsupported_satin_contour =
@@ -947,10 +948,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     warning->setObjectName(QStringLiteral("layerStyleSatinContourWarning"));
     warning->setWordWrap(true);
     warning->setProperty("warningBanner", true);
-    warning->setStyleSheet(QStringLiteral(
-        "QLabel#layerStyleSatinContourWarning { background: #4a3a1f; border: "
-        "1px solid #9a7430; "
-        "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
+    set_themed_style(*warning, QStringLiteral(
+        "QLabel#layerStyleSatinContourWarning { background: @warning_banner_bg; border: "
+        "1px solid @warning_banner_border; "
+        "border-radius: 3px; color: @warning_banner_text; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
   if (layer.kind() == LayerKind::Group) {
@@ -963,10 +964,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     warning->setObjectName(QStringLiteral("layerStyleGroupEffectsWarning"));
     warning->setWordWrap(true);
     warning->setProperty("warningBanner", true);
-    warning->setStyleSheet(QStringLiteral(
-        "QLabel#layerStyleGroupEffectsWarning { background: #4a3a1f; border: "
-        "1px solid #9a7430; "
-        "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
+    set_themed_style(*warning, QStringLiteral(
+        "QLabel#layerStyleGroupEffectsWarning { background: @warning_banner_bg; border: "
+        "1px solid @warning_banner_border; "
+        "border-radius: 3px; color: @warning_banner_text; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
 
@@ -991,8 +992,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     replace_blend_if_button = new QPushButton(QObject::tr("Replace with Editable Defaults"), warning_row);
     replace_blend_if_button->setObjectName(QStringLiteral("layerStyleBlendIfReplaceButton"));
     warning_layout->addWidget(replace_blend_if_button, 0, Qt::AlignVCenter);
-    warning_row->setStyleSheet(QStringLiteral("QWidget#layerStyleBlendIfUnsupportedWarningRow { "
-                       "background: #4a3a1f; border: 1px solid #9a7430; "
+    set_themed_style(*warning_row, QStringLiteral("QWidget#layerStyleBlendIfUnsupportedWarningRow { "
+                       "background: @warning_banner_bg; border: 1px solid @warning_banner_border; "
         "border-radius: 3px; }"));
     root->addWidget(warning_row);
   }
@@ -1010,10 +1011,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     warning->setObjectName(QStringLiteral("layerStyleBlendIfBoundaryWarning"));
     warning->setWordWrap(true);
     warning->setProperty("warningBanner", true);
-    warning->setStyleSheet(QStringLiteral(
-        "QLabel#layerStyleBlendIfBoundaryWarning { background: #4a3a1f; "
-        "border: 1px solid #9a7430; "
-        "border-radius: 3px; color: #ffe0a3; padding: 7px 9px; }"));
+    set_themed_style(*warning, QStringLiteral(
+        "QLabel#layerStyleBlendIfBoundaryWarning { background: @warning_banner_bg; "
+        "border: 1px solid @warning_banner_border; "
+        "border-radius: 3px; color: @warning_banner_text; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
 
@@ -2091,29 +2092,29 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   const auto blend_if_value_style = QStringLiteral(R"(
     QSpinBox {
-      background: #292929;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
+      background: @field_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
       border-radius: 2px;
-      color: #f0f0f0;
+      color: @text_bright;
       padding: 0 5px;
     }
     QSpinBox:disabled {
-      background: #2c2c2c;
-      color: #767676;
+      background: @spinbox_disabled_bg;
+      color: @spinbox_disabled_text;
     }
   )");
   const auto blend_if_step_button_style = QStringLiteral(R"(
     QPushButton {
-      background: #3a3a3a;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
+      background: @button_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
       border-radius: 2px;
       padding: 0;
     }
-    QPushButton:hover { background: #4a4a4a; border-color: #696969; }
-    QPushButton:pressed { background: #2f75bd; border-color: #6bb3ff; }
-    QPushButton:disabled { background: #2e2e2e; border-top-color: #444444; }
+    QPushButton:hover { background: @button_hover_bg; border-color: @button_hover_border; }
+    QPushButton:pressed { background: @accent_pressed_bg; border-color: @accent_border_bright; }
+    QPushButton:disabled { background: @spin_button_disabled_bg; border-top-color: @spin_button_disabled_bevel; }
   )");
 
   auto make_blend_if_spin = [&](QWidget* parent_widget, const QString& object_name,
@@ -2130,7 +2131,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     spin->setAccessibleName(accessible_name);
     configure_dialog_spinbox(spin, 48);
     spin->setFixedWidth(48);
-    spin->setStyleSheet(blend_if_value_style);
+    set_themed_style(*spin, blend_if_value_style);
 
     auto* decrease = new QPushButton(QStringLiteral("-"), control.container);
     decrease->setObjectName(object_name + QStringLiteral("DecreaseButton"));
@@ -2138,7 +2139,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     decrease->setToolTip(decrease->accessibleName());
     decrease->setAutoRepeat(true);
     configure_compact_symbol_button(decrease);
-    decrease->setStyleSheet(blend_if_step_button_style);
+    set_themed_style(*decrease, blend_if_step_button_style);
 
     auto* increase = new QPushButton(QStringLiteral("+"), control.container);
     increase->setObjectName(object_name + QStringLiteral("IncreaseButton"));
@@ -2146,7 +2147,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     increase->setToolTip(increase->accessibleName());
     increase->setAutoRepeat(true);
     configure_compact_symbol_button(increase);
-    increase->setStyleSheet(blend_if_step_button_style);
+    set_themed_style(*increase, blend_if_step_button_style);
 
     layout->addWidget(spin);
     layout->addWidget(decrease);
@@ -3490,19 +3491,19 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       // The QLabel/QCheckBox backgrounds must be explicitly transparent: once
       // the row's stylesheet applies to them, they would otherwise fill with
       // the inherited palette.
-      row_widget->setStyleSheet(
+      set_themed_style(*row_widget, 
           item->isSelected()
               ? QStringLiteral("QWidget#layerStyleCategoryRow { background: "
-                               "#2d4c6d; border: 1px solid #4f91ca; }"
+                               "@category_selected_bg; border: 1px solid @category_selected_border; }"
                                "QWidget#layerStyleCategoryRow QLabel {"
-                               " background: transparent; color: #ffffff; "
+                               " background: transparent; color: @text_on_accent; "
                                "font-weight: 600; }"
                                "QWidget#layerStyleCategoryRow QCheckBox { "
                                "background: transparent; }")
-              : QStringLiteral("QWidget#layerStyleCategoryRow { background: #2b2b2b;"
-                               " border: 0; border-bottom: 1px solid #3b3b3b; }"
+              : QStringLiteral("QWidget#layerStyleCategoryRow { background: @field_bg_large;"
+                               " border: 0; border-bottom: 1px solid @category_list_item_border; }"
                     "QWidget#layerStyleCategoryRow QLabel { background: "
-                    "transparent; color: #e6e6e6; }"
+                    "transparent; color: @text_primary; }"
                     "QWidget#layerStyleCategoryRow QCheckBox { background: "
                     "transparent; }"));
     }

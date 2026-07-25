@@ -1,4 +1,5 @@
 #include "ui/zoomable_image_preview.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QCursor>
 #include <QKeyEvent>
@@ -21,7 +22,7 @@ namespace {
 constexpr double kMinimumZoom = 0.0625;
 constexpr double kMaximumZoom = 16.0;
 constexpr double kOverlayHandleHitRadius = 11.0;
-constexpr QColor kOverlayAccent{76, 154, 255};
+[[nodiscard]] QColor overlay_accent() { return theme().accent_control; }
 constexpr double kPi = 3.14159265358979323846;
 
 [[nodiscard]] double normalized_degrees(double degrees) {
@@ -712,18 +713,18 @@ void ZoomableImagePreview::draw_center_radius_overlay(
     painter.setBrush(Qt::NoBrush);
     painter.setPen(QPen(QColor(18, 20, 23, 220), 4.0));
     painter.drawEllipse(circle);
-    painter.setPen(QPen(kOverlayAccent, 2.0));
+    painter.setPen(QPen(overlay_accent(), 2.0));
     painter.drawEllipse(circle);
 
     const auto handle = overlay_radius_handle_point(overlay);
     painter.setPen(QPen(QColor(18, 20, 23, 220), 4.0,
                         Qt::SolidLine, Qt::RoundCap));
     painter.drawLine(center, handle);
-    painter.setPen(QPen(kOverlayAccent, 2.0, Qt::SolidLine,
+    painter.setPen(QPen(overlay_accent(), 2.0, Qt::SolidLine,
                         Qt::RoundCap));
     painter.drawLine(center, handle);
     painter.setPen(QPen(QColor(18, 20, 23), 1.5));
-    painter.setBrush(kOverlayAccent);
+    painter.setBrush(overlay_accent());
     painter.drawEllipse(handle, 5.5, 5.5);
   }
 
@@ -733,7 +734,7 @@ void ZoomableImagePreview::draw_center_radius_overlay(
                    center + QPointF(9.0, 0.0));
   painter.drawLine(center + QPointF(0.0, -9.0),
                    center + QPointF(0.0, 9.0));
-  painter.setPen(QPen(kOverlayAccent, 2.0, Qt::SolidLine, Qt::RoundCap));
+  painter.setPen(QPen(overlay_accent(), 2.0, Qt::SolidLine, Qt::RoundCap));
   painter.drawLine(center + QPointF(-9.0, 0.0),
                    center + QPointF(9.0, 0.0));
   painter.drawLine(center + QPointF(0.0, -9.0),
@@ -779,7 +780,7 @@ void ZoomableImagePreview::draw_tilt_shift_overlay(QPainter& painter) const {
       painter.setPen(QPen(QColor(18, 20, 23, 225), 4.0, style,
                           Qt::RoundCap));
       painter.drawLine(start, end);
-      painter.setPen(QPen(kOverlayAccent, 2.0, style, Qt::RoundCap));
+      painter.setPen(QPen(overlay_accent(), 2.0, style, Qt::RoundCap));
       painter.drawLine(start, end);
     }
   };
@@ -791,15 +792,15 @@ void ZoomableImagePreview::draw_tilt_shift_overlay(QPainter& painter) const {
   painter.setPen(QPen(QColor(18, 20, 23, 225), 4.0,
                       Qt::SolidLine, Qt::RoundCap));
   painter.drawLine(opposite_angle_handle, angle_handle);
-  painter.setPen(QPen(kOverlayAccent, 2.0, Qt::SolidLine, Qt::RoundCap));
+  painter.setPen(QPen(overlay_accent(), 2.0, Qt::SolidLine, Qt::RoundCap));
   painter.drawLine(opposite_angle_handle, angle_handle);
 
   const auto draw_handle = [&](QPointF point, bool filled) {
     painter.setPen(QPen(QColor(18, 20, 23, 230), 2.0));
-    painter.setBrush(filled ? kOverlayAccent : QColor(31, 33, 37, 225));
+    painter.setBrush(filled ? overlay_accent() : QColor(31, 33, 37, 225));
     painter.drawEllipse(point, 5.5, 5.5);
     if (!filled) {
-      painter.setPen(QPen(kOverlayAccent, 2.0));
+      painter.setPen(QPen(overlay_accent(), 2.0));
       painter.setBrush(Qt::NoBrush);
       painter.drawEllipse(point, 4.0, 4.0);
     }
@@ -816,7 +817,7 @@ void ZoomableImagePreview::draw_tilt_shift_overlay(QPainter& painter) const {
                    center + QPointF(9.0, 0.0));
   painter.drawLine(center + QPointF(0.0, -9.0),
                    center + QPointF(0.0, 9.0));
-  painter.setPen(QPen(kOverlayAccent, 2.0, Qt::SolidLine, Qt::RoundCap));
+  painter.setPen(QPen(overlay_accent(), 2.0, Qt::SolidLine, Qt::RoundCap));
   painter.drawLine(center + QPointF(-9.0, 0.0),
                    center + QPointF(9.0, 0.0));
   painter.drawLine(center + QPointF(0.0, -9.0),

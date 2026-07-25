@@ -67,6 +67,8 @@
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/zoom_status_bar.hpp"
+#include "ui/theme_manager.hpp"
+#include "ui/theme_qss.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -4781,6 +4783,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     clamp_window_to_available_screen();
   }
   setStyleSheet(photoshop_style());
+  // Connected after the first sheet is applied: connecting earlier would let a
+  // scheme change restyle a half-built window.
+  connect(&ThemeManager::instance(), &ThemeManager::color_scheme_changed, this,
+          [this] { apply_color_scheme(); });
   ensure_native_resizable_frame();
   mask_edit_mode_chip_ = new QToolButton(statusBar());
   mask_edit_mode_chip_->setObjectName(QStringLiteral("maskEditModeChip"));
@@ -6348,7 +6354,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   if (editing_layer_was_visible.has_value()) {
     editor->setProperty("patchy.editingLayerWasVisible", *editing_layer_was_visible);
   }
-  editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
+  set_themed_style(*editor, inline_text_editor_style(text_color, editor_font.pixelSize()));
   if (!initial_rich_text_runs.trimmed().isEmpty()) {
     auto document_font =
         render_text_font_for_display_family(family, std::max(1, document_text_size), text_bold, text_italic,
@@ -7258,7 +7264,7 @@ void MainWindow::open_text_character_dialog() {
   text_character_hint_label_ = new QLabel(tr("Click in text with the Type tool to edit these settings."), dialog);
   text_character_hint_label_->setObjectName(QStringLiteral("textCharacterHint"));
   text_character_hint_label_->setWordWrap(true);
-  text_character_hint_label_->setStyleSheet(QStringLiteral("color: #999999;"));
+  set_themed_style(*text_character_hint_label_, QStringLiteral("color: @hint_text;"));
   layout->addRow(text_character_hint_label_);
 
   text_character_auto_leading_ = new QCheckBox(tr("Auto leading"), dialog);
@@ -7308,7 +7314,7 @@ void MainWindow::open_text_character_dialog() {
           [this](int) { apply_text_character_glyph_scales_to_active_editor(); });
 
   // Sub-control gotcha: the spin-button style must land AFTER all children exist.
-  dialog->setStyleSheet(dialog_spinbox_button_style());
+  append_themed_style(*dialog, dialog_spinbox_button_style());
   sync_text_character_dialog_from_editor();
   run_non_modal_dialog(*dialog);
   // WA_DeleteOnClose destroyed the dialog when the nested loop unwound.
@@ -8213,7 +8219,7 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
   editor->document()->setDefaultFont(editor_font);
   apply_text_smoothing_to_document(*editor->document(),
                                    std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16));
-  editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
+  set_themed_style(*editor, inline_text_editor_style(text_color, editor_font.pixelSize()));
   preserve_text_editor_typing_format(*editor, editor_font, text_color);
   auto document_editor_width =
       std::max(kMinimumTextBoxDocumentSize, editor->property("patchy.documentTextWidth").toInt());
@@ -8303,8 +8309,8 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
       handle->setFocusPolicy(Qt::NoFocus);
       handle->setAttribute(Qt::WA_StyledBackground, true);
       handle->setMouseTracking(true);
-      handle->setStyleSheet(QStringLiteral(
-          "background: rgb(245, 248, 252); border: 1px solid rgb(35, 38, 44); border-radius: 1px;"));
+      set_themed_style(*handle, QStringLiteral("background: @resize_handle_bg; "
+                                               "border: 1px solid @resize_handle_border; border-radius: 1px;"));
       handle->installEventFilter(this);
     }
     QPoint position;

@@ -21,6 +21,7 @@
 #include "ui/pattern_library.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/selection_outline.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -699,7 +700,7 @@ void MainWindow::fill_active_path() {
   sync_pattern_enabled();
   connect(contents, &QComboBox::currentIndexChanged, &dialog, sync_pattern_enabled);
   // The QSS sub-control gotcha: spin-button styling lands AFTER children exist.
-  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+  append_themed_style(dialog, dialog_spinbox_button_style());
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return;
   }
@@ -996,7 +997,7 @@ void MainWindow::make_selection_from_path() {
   connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   layout->addWidget(buttons);
   // The QSS sub-control gotcha: spin-button styling lands AFTER children exist.
-  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+  append_themed_style(dialog, dialog_spinbox_button_style());
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return;
   }
@@ -1127,7 +1128,7 @@ void MainWindow::make_work_path_from_selection() {
   connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   layout->addWidget(buttons);
   // The QSS sub-control gotcha: spin-button styling lands AFTER children exist.
-  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+  append_themed_style(dialog, dialog_spinbox_button_style());
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return;
   }

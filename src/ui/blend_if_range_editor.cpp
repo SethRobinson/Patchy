@@ -1,4 +1,5 @@
 #include "ui/blend_if_range_editor.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QCursor>
 #include <QFocusEvent>
@@ -26,7 +27,10 @@ constexpr int kHandleHeight = 17;
 constexpr int kMinimumWidth = 260;
 constexpr int kWidgetHeight = 56;
 
-constexpr QColor kSelectedColor{76, 154, 255};
+[[nodiscard]] QColor selected_color() { return theme().accent_control; }
+// A matched dark/light outline pair drawn over the black-to-white ramp, the
+// same contrast device as the marching ants: it must read against arbitrary
+// ramp values, not against the UI, so it does not follow the color scheme.
 constexpr QColor kDarkOutline{32, 35, 40};
 constexpr QColor kLightOutline{232, 235, 240};
 
@@ -139,7 +143,7 @@ void BlendIfRangeEditorWidget::paintEvent(QPaintEvent* event) {
         continue;
       }
       painter.setBrush(handle_is_black(handle) ? QColor(20, 22, 26) : QColor(246, 247, 249));
-      painter.setPen(QPen(selected_pass ? kSelectedColor
+      painter.setPen(QPen(selected_pass ? selected_color()
                                        : (handle_is_black(handle) ? kLightOutline : kDarkOutline),
                           selected_pass ? 2.0 : 1.25));
       painter.drawPath(handle_path(handle));
@@ -147,7 +151,7 @@ void BlendIfRangeEditorWidget::paintEvent(QPaintEvent* event) {
   }
 
   painter.setRenderHint(QPainter::Antialiasing, false);
-  painter.setPen(QPen(hasFocus() ? kSelectedColor : QColor(78, 84, 94), hasFocus() ? 2 : 1));
+  painter.setPen(QPen(hasFocus() ? selected_color() : QColor(78, 84, 94), hasFocus() ? 2 : 1));
   painter.setBrush(Qt::NoBrush);
   painter.drawRect(rect().adjusted(1, 1, -2, -2));
 }

@@ -56,6 +56,10 @@
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/start_panel.hpp"
+#include "ui/main_window_shared.hpp"
+#include "ui/icon_theme.hpp"
+#include "ui/theme_palette.hpp"
+#include "ui/theme_qss.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/visual_filter_gallery_dialog.hpp"
@@ -144,6 +148,7 @@
 #include <QStringList>
 #include <QScrollBar>
 #include <QScreen>
+#include <QSet>
 #include <QSettings>
 #include <QSlider>
 #include <QStandardItemModel>
@@ -1382,6 +1387,207 @@ void ui_gui_scale_preference_persists_setting() {
   CHECK(settings.value(QStringLiteral("preferences/guiScalePercent"), 100).toInt() == 150);
 }
 
+// Drives the Preferences color-scheme combo and returns the dialog result, so the
+// persist and cancel tests differ only in how they leave the dialog.
+int choose_preferences_color_scheme(patchy::ui::MainWindow& window, const QString& token,
+                                    bool accept) {
+  bool saw_dialog = false;
+  int result = QDialog::Rejected;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesColorSchemeCombo"));
+    CHECK(combo != nullptr);
+    if (combo == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const auto index = combo->findData(token);
+    CHECK(index >= 0);
+    combo->setCurrentIndex(index);
+    saw_dialog = true;
+    result = accept ? QDialog::Accepted : QDialog::Rejected;
+    if (accept) {
+      dialog->accept();
+    } else {
+      dialog->reject();
+    }
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  return result;
+}
+
+void ui_color_scheme_preference_persists_setting() {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  ColorSchemeRestorer restore_active;
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Dark);
+
+  choose_preferences_color_scheme(window, QStringLiteral("light"), /*accept=*/true);
+
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("preferences/colorScheme")).toString() ==
+        QStringLiteral("light"));
+  CHECK(patchy::ui::ThemeManager::instance().preference() == patchy::ui::ColorSchemePreference::Light);
+  CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Light);
+
+  // Unlike interface scale, the scheme applies immediately, so no restart notice
+  // may appear. A stray modal here would also hang the rest of the suite.
+  CHECK(find_top_level_dialog(QStringLiteral("preferencesInterfaceScaleMessageBox")) == nullptr);
+}
+
+void ui_color_scheme_cancel_restores_entry_scheme() {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  // Seeded rather than asserted absent: accepting Preferences persists the scheme
+  // like every other setting on that page, so any earlier test that accepted the
+  // dialog has already written this key.
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("preferences/colorScheme"), QStringLiteral("dark"));
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // The combo previews live; closing without accepting has to undo the preview.
+  choose_preferences_color_scheme(window, QStringLiteral("light"), /*accept=*/false);
+  QApplication::processEvents();
+
+  CHECK(patchy::ui::ThemeManager::instance().preference() == patchy::ui::ColorSchemePreference::Dark);
+  CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Dark);
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("preferences/colorScheme")).toString() == QStringLiteral("dark"));
+}
+
+void ui_color_scheme_follow_system_tracks_style_hints() {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  ColorSchemeRestorer restore_active;
+
+  auto& manager = patchy::ui::ThemeManager::instance();
+  manager.set_preference(patchy::ui::ColorSchemePreference::FollowSystem, /*persist=*/false);
+
+  // The offscreen platform reports Qt::ColorScheme::Unknown and never emits
+  // colorSchemeChanged, so the system side is driven through the test seam.
+  manager.set_system_color_scheme_for_testing(Qt::ColorScheme::Light);
+  CHECK(manager.resolved_scheme() == patchy::ui::ColorScheme::Light);
+  CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Light);
+
+  manager.set_system_color_scheme_for_testing(Qt::ColorScheme::Dark);
+  CHECK(manager.resolved_scheme() == patchy::ui::ColorScheme::Dark);
+  CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Dark);
+
+  // Unknown is what every platform without a color-scheme notion reports; it must
+  // land on Patchy's historical Dark rather than an invalid state.
+  manager.set_system_color_scheme_for_testing(Qt::ColorScheme::Unknown);
+  CHECK(manager.resolved_scheme() == patchy::ui::ColorScheme::Dark);
+
+  // An explicit choice ignores the system entirely.
+  manager.set_preference(patchy::ui::ColorSchemePreference::Light, /*persist=*/false);
+  manager.set_system_color_scheme_for_testing(Qt::ColorScheme::Dark);
+  CHECK(manager.resolved_scheme() == patchy::ui::ColorScheme::Light);
+  CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Light);
+}
+
+// The regression guard for "live, no restart": an already-built window has to
+// restyle in place, and flipping back has to land exactly where it started.
+void ui_color_scheme_switch_updates_existing_window() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QApplication::processEvents();
+
+  const auto dark_sheet = window.styleSheet();
+  const auto dark_shot = window.grab().toImage();
+  CHECK(dark_sheet.contains(patchy::ui::dark_palette().window_bg.name(QColor::HexRgb)));
+  CHECK(!dark_shot.isNull());
+
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+  QApplication::processEvents();
+
+  const auto light_sheet = window.styleSheet();
+  CHECK(light_sheet != dark_sheet);
+  CHECK(light_sheet.contains(patchy::ui::light_palette().window_bg.name(QColor::HexRgb)));
+  CHECK(window.grab().toImage() != dark_shot);
+  // The light variants of the stylesheet-referenced SVGs are a separate
+  // mechanism from the icon engine, and the easiest one to forget.
+  CHECK(light_sheet.contains(QStringLiteral("icons/light/scroll-dither.svg")));
+  CHECK(dark_sheet.contains(QStringLiteral("icons/scroll-dither.svg")));
+  CHECK(!dark_sheet.contains(QStringLiteral("icons/light/")));
+
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  QApplication::processEvents();
+  CHECK(window.styleSheet() == dark_sheet);
+}
+
+// Icons resolve their colors when painted, so the SAME QIcon a QAction was given
+// at startup must render the new scheme after a flip. Capturing it by value up
+// front is the whole point of the assertion: if this ever needs a setIcon call,
+// the engine has regressed.
+void ui_themed_icons_recolor_between_schemes() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  const QIcon action_icon = require_action(window, "layerNewAction")->icon();
+  CHECK(!action_icon.isNull());
+  const auto dark_render = action_icon.pixmap(QSize(32, 32)).toImage();
+  CHECK(!dark_render.isNull());
+
+  // The paint swatches depict black and white. Their outlines are icon ink and
+  // SHOULD recolor so the glyph stays visible on a light toolbar; only the two
+  // fills are the subject of the drawing and must not move.
+  const QPoint white_fill(23, 23);
+  const QPoint black_fill(13, 13);
+  const auto dark_swatch =
+      patchy::ui::themed_svg_icon(QStringLiteral("default-colors")).pixmap(QSize(32, 32)).toImage();
+  CHECK(dark_swatch.pixelColor(white_fill) == QColor(Qt::white));
+  CHECK(dark_swatch.pixelColor(black_fill) == QColor(0x11, 0x11, 0x11));
+
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+
+  const auto light_render = action_icon.pixmap(QSize(32, 32)).toImage();
+  CHECK(light_render != dark_render);
+
+  const auto ink_luminance = [](const QImage& image) {
+    qint64 total = 0;
+    qint64 covered = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const auto pixel = image.pixelColor(x, y);
+        if (pixel.alpha() < 128) {
+          continue;
+        }
+        total += qGray(pixel.rgb());
+        ++covered;
+      }
+    }
+    return covered > 0 ? total / covered : qint64{0};
+  };
+  // Light-on-dark ink becomes dark-on-light ink.
+  CHECK(ink_luminance(light_render) < ink_luminance(dark_render));
+
+  const auto light_swatch =
+      patchy::ui::themed_svg_icon(QStringLiteral("default-colors")).pixmap(QSize(32, 32)).toImage();
+  CHECK(light_swatch.pixelColor(white_fill) == QColor(Qt::white));
+  CHECK(light_swatch.pixelColor(black_fill) == QColor(0x11, 0x11, 0x11));
+  // ...while the outline around them did follow the scheme.
+  CHECK(light_swatch != dark_swatch);
+}
+
 void ui_main_window_persists_window_geometry() {
   SettingsValueRestorer restore_geometry(QStringLiteral("window/normalGeometry"));
   SettingsValueRestorer restore_maximized(QStringLiteral("window/maximized"));
@@ -2110,6 +2316,141 @@ void ui_svg_icon_resources_are_registered() {
   CHECK(!require_action(window, "layerAddMaskAction")->icon().isNull());
 }
 
+// The icon engine recolors a fixed ten-color vocabulary. A new icon drawn with a
+// color outside it would render fine in Dark and then stay dark-on-dark in Light,
+// which no rendered test would catch. Walk the resources instead.
+void ui_icon_color_map_covers_every_authored_color() {
+  QSet<QString> mapped;
+  for (const auto& [source, member] : patchy::ui::icon_color_roles()) {
+    mapped.insert(QString(source).toLower());
+  }
+  CHECK(!mapped.isEmpty());
+
+  QSet<QString> exempt;
+  for (const auto& name : patchy::ui::literal_color_icon_names()) {
+    exempt.insert(name);
+  }
+  for (const auto& name : patchy::ui::stylesheet_referenced_icon_names()) {
+    exempt.insert(name);
+  }
+
+  const QDir icons(QStringLiteral(":/patchy/icons"));
+  const auto entries = icons.entryList({QStringLiteral("*.svg")}, QDir::Files, QDir::Name);
+  CHECK(entries.size() > 50);
+
+  static const QRegularExpression hex(QStringLiteral("#[0-9a-fA-F]{6}"));
+  int checked = 0;
+  for (const auto& entry : entries) {
+    QFile file(icons.filePath(entry));
+    CHECK(file.open(QIODevice::ReadOnly));
+    const QString svg = QString::fromUtf8(file.readAll());
+    const QString stem = QFileInfo(entry).completeBaseName();
+
+    auto matches = hex.globalMatch(svg);
+    while (matches.hasNext()) {
+      const auto value = matches.next().captured(0);
+      // The substitution is a plain byte replace, so authored hex must be lowercase.
+      if (value != value.toLower()) {
+        fprintf(stderr, "  %s: uppercase hex %s\n", qPrintable(entry), qPrintable(value));
+      }
+      CHECK(value == value.toLower());
+      if (exempt.contains(stem)) {
+        continue;
+      }
+      if (!mapped.contains(value)) {
+        fprintf(stderr, "  %s: %s is not in the icon color map\n", qPrintable(entry), qPrintable(value));
+      }
+      CHECK(mapped.contains(value));
+      ++checked;
+    }
+  }
+  CHECK(checked > 100);
+
+  // Every stylesheet-referenced icon must actually exist under the base path; the
+  // light variants are checked separately once they exist.
+  for (const auto& name : patchy::ui::stylesheet_referenced_icon_names()) {
+    CHECK(QFile::exists(QStringLiteral(":/patchy/icons/%1.svg").arg(name)));
+  }
+}
+
+// A role omitted from a palette's aggregate initializer default-constructs to an
+// invalid QColor, which QSS then renders as a black fill rather than failing.
+// Walking the role table is the only thing that catches it.
+void ui_theme_palettes_define_every_role() {
+  const auto roles = patchy::ui::theme_palette_roles();
+  CHECK(!roles.empty());
+
+  for (const auto& [name, member] : roles) {
+    const auto dark = patchy::ui::dark_palette().*member;
+    const auto light = patchy::ui::light_palette().*member;
+    if (!dark.isValid() || !light.isValid()) {
+      fprintf(stderr, "  role \"%s\" is missing a value\n", QString(name).toUtf8().constData());
+    }
+    CHECK(dark.isValid());
+    CHECK(light.isValid());
+  }
+
+  // Role names are generated from the member spelling, so duplicates mean a
+  // copy-paste in the table rather than a typo.
+  QSet<QString> seen;
+  for (const auto& [name, member] : roles) {
+    CHECK(!seen.contains(QString(name)));
+    seen.insert(QString(name));
+  }
+}
+
+// Handing token text to setStyleSheet is silently destructive: Qt drops the whole
+// declaration, so a rule simply stops existing and only shows up as a wrongly
+// drawn control in one state. ThemedQss makes that a compile error for the shared
+// builders; this catches an inline blob that forgot to go through the helpers.
+void ui_no_widget_ships_unresolved_theme_tokens() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QApplication::processEvents();
+
+  int styled = 0;
+  for (auto* widget : QApplication::allWidgets()) {
+    if (widget == nullptr) {
+      continue;
+    }
+    const auto sheet = widget->styleSheet();
+    if (sheet.isEmpty()) {
+      continue;
+    }
+    ++styled;
+    if (sheet.contains(QLatin1Char('@'))) {
+      fprintf(stderr, "  %s (%s) ships an unresolved theme token\n",
+              qPrintable(widget->objectName()), widget->metaObject()->className());
+    }
+    CHECK(!sheet.contains(QLatin1Char('@')));
+  }
+  CHECK(styled > 0);
+}
+
+// An unresolved @token makes Qt drop the entire declaration containing it,
+// silently. Nothing downstream would notice, so assert no token survives and no
+// raw hex was left behind in either scheme.
+void ui_theme_qss_resolves_every_token() {
+  const patchy::ui::ColorScheme entry_scheme = patchy::ui::active_color_scheme();
+
+  for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
+    patchy::ui::set_active_color_scheme(scheme);
+    const auto style = patchy::ui::photoshop_style();
+    CHECK(!style.isEmpty());
+    CHECK(!style.contains(QLatin1Char('@')));
+  }
+
+  patchy::ui::set_active_color_scheme(entry_scheme);
+
+  // The template is the thing that must stay token-only: a hex literal added
+  // there would be invisible to the check above.
+  const auto resolved = patchy::ui::apply_theme_tokens(QStringLiteral("a: @window_bg; b: @accent;"));
+  CHECK(resolved ==
+        QStringLiteral("a: %1; b: %2;")
+            .arg(patchy::ui::theme().window_bg.name(QColor::HexRgb),
+                 patchy::ui::theme().accent.name(QColor::HexRgb)));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> app_shell_tests() {
@@ -2146,6 +2487,12 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
        ui_update_preference_defaults_startup_check_setting_to_enabled},
       {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},
       {"ui_gui_scale_preference_persists_setting", ui_gui_scale_preference_persists_setting},
+      {"ui_color_scheme_preference_persists_setting", ui_color_scheme_preference_persists_setting},
+      {"ui_color_scheme_cancel_restores_entry_scheme", ui_color_scheme_cancel_restores_entry_scheme},
+      {"ui_color_scheme_follow_system_tracks_style_hints",
+       ui_color_scheme_follow_system_tracks_style_hints},
+      {"ui_color_scheme_switch_updates_existing_window", ui_color_scheme_switch_updates_existing_window},
+      {"ui_themed_icons_recolor_between_schemes", ui_themed_icons_recolor_between_schemes},
       {"ui_main_window_persists_window_geometry", ui_main_window_persists_window_geometry},
       {"ui_psd_import_warning_preference_defaults_to_hidden",
        ui_psd_import_warning_preference_defaults_to_hidden},
@@ -2164,6 +2511,10 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},
+      {"ui_icon_color_map_covers_every_authored_color", ui_icon_color_map_covers_every_authored_color},
+      {"ui_no_widget_ships_unresolved_theme_tokens", ui_no_widget_ships_unresolved_theme_tokens},
+      {"ui_theme_palettes_define_every_role", ui_theme_palettes_define_every_role},
+      {"ui_theme_qss_resolves_every_token", ui_theme_qss_resolves_every_token},
       {"ui_status_bar_error_message_flashes_then_persists_until_replaced",
        ui_status_bar_error_message_flashes_then_persists_until_replaced},
       {"ui_blocking_refusal_shows_error_status_and_info_clears_it",

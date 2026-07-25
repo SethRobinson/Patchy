@@ -1,14 +1,24 @@
 #include "ui/action_icons.hpp"
 
+#include "ui/icon_theme.hpp"
+#include "ui/theme_palette.hpp"
+
+#include <QApplication>
 #include <QFile>
+#include <QGuiApplication>
+#include <QIconEngine>
 #include <QLinearGradient>
+#include <QPaintDevice>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
 #include <QPolygon>
+#include <QStyle>
+#include <QStyleOption>
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 int qInitResources_icons();
 
@@ -181,16 +191,13 @@ QIcon patchy_app_icon() {
   return QIcon(pixmap);
 }
 
-QIcon simple_icon(QString text, QColor accent) {
-  ensure_icon_resources();
-  const auto resource_path = QStringLiteral(":/patchy/icons/%1.svg").arg(resource_icon_key(text));
-  if (QFile::exists(resource_path)) {
-    return QIcon(resource_path);
-  }
+namespace {
 
-  QPixmap pixmap(32, 32);
-  pixmap.fill(Qt::transparent);
-  QPainter painter(&pixmap);
+// Draws one of the ~22 glyphs that have no authored SVG, into a 32x32 logical
+// area. Kept separate from simple_icon() so the engine below can call it at paint
+// time with a freshly resolved accent, rather than baking a color into a pixmap
+// when the QAction is built.
+void paint_simple_icon_glyph(QPainter& painter, const QString& text, const QColor& accent) {
   painter.setRenderHint(QPainter::Antialiasing);
   painter.setPen(QPen(accent, 2.2));
   painter.setBrush(Qt::NoBrush);
@@ -334,10 +341,87 @@ QIcon simple_icon(QString text, QColor accent) {
     font.setPixelSize(14);
     font.setBold(true);
     painter.setFont(font);
-    painter.drawText(pixmap.rect(), Qt::AlignCenter, text.left(2).toUpper());
+    painter.drawText(QRect(0, 0, 32, 32), Qt::AlignCenter, text.left(2).toUpper());
+  }
+}
+
+// Same contract as ThemedIconEngine in icon_theme.cpp: resolve the color when the
+// icon is painted, so a live scheme change needs no QAction::setIcon call. An
+// invalid `accent` means "use the theme's icon ink"; an explicit one is a
+// semantic color (a red delete cross, say) and is left alone.
+class ProceduralIconEngine final : public QIconEngine {
+ public:
+  ProceduralIconEngine(QString text, QColor accent)
+      : text_(std::move(text)), accent_(std::move(accent)) {}
+
+  void paint(QPainter* painter, const QRect& rect, QIcon::Mode mode, QIcon::State state) override {
+    if (painter == nullptr) {
+      return;
+    }
+    const qreal ratio =
+        painter->device() != nullptr ? painter->device()->devicePixelRatioF() : qreal(1.0);
+    painter->drawPixmap(rect, scaledPixmap(rect.size(), mode, state, ratio));
   }
 
-  return QIcon(pixmap);
+  QPixmap pixmap(const QSize& size, QIcon::Mode mode, QIcon::State state) override {
+    return scaledPixmap(size, mode, state, 1.0);
+  }
+
+  QPixmap scaledPixmap(const QSize& size, QIcon::Mode mode, QIcon::State state,
+                       qreal scale) override {
+    Q_UNUSED(state);
+    if (size.isEmpty()) {
+      return {};
+    }
+    const qreal ratio = scale > 0.0 ? scale : qreal(1.0);
+    QPixmap rendered(QSize(qRound(size.width() * ratio), qRound(size.height() * ratio)));
+    rendered.fill(Qt::transparent);
+    rendered.setDevicePixelRatio(ratio);
+    QPainter painter(&rendered);
+    // The glyph code is authored against a 32x32 area.
+    painter.scale(static_cast<qreal>(size.width()) / 32.0,
+                  static_cast<qreal>(size.height()) / 32.0);
+    paint_simple_icon_glyph(painter, text_, accent_.isValid() ? accent_ : theme().icon_ink);
+    painter.end();
+    if (mode == QIcon::Normal) {
+      return rendered;
+    }
+    QStyleOption option;
+    option.palette = QGuiApplication::palette();
+    if (auto* style = QApplication::style(); style != nullptr) {
+      auto generated = style->generatedIconPixmap(mode, rendered, &option);
+      if (!generated.isNull()) {
+        return generated;
+      }
+    }
+    return rendered;
+  }
+
+  QSize actualSize(const QSize& size, QIcon::Mode mode, QIcon::State state) override {
+    Q_UNUSED(mode);
+    Q_UNUSED(state);
+    return size;
+  }
+
+  QString iconName() override { return text_; }
+  bool isNull() override { return false; }
+  QIconEngine* clone() const override { return new ProceduralIconEngine(text_, accent_); }
+  QString key() const override { return QStringLiteral("PatchyProceduralIcon"); }
+
+ private:
+  QString text_;
+  QColor accent_;
+};
+
+}  // namespace
+
+QIcon simple_icon(QString text, QColor accent) {
+  ensure_icon_resources();
+  const auto key = resource_icon_key(text);
+  if (QFile::exists(QStringLiteral(":/patchy/icons/%1.svg").arg(key))) {
+    return themed_svg_icon(key);
+  }
+  return QIcon(new ProceduralIconEngine(std::move(text), std::move(accent)));
 }
 
 QIcon window_chrome_icon(QString role) {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ui/theme_qss.hpp"
+
 #include <QString>
 #include <QStringList>
 #include <QMessageBox>
@@ -32,7 +34,7 @@ void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
 // increment far right). Append to a dialog's stylesheet AFTER all child widgets exist, and keep
 // the selectors unprefixed: Qt ignores ::up-button/::down-button geometry under a descendant
 // prefix, and applies sub-control rules unreliably to children created after the stylesheet.
-[[nodiscard]] QString dialog_spinbox_button_style();
+[[nodiscard]] ThemedQss dialog_spinbox_button_style();
 void configure_compact_symbol_button(QPushButton* button);
 // Adds a "label: [slider ------] [spin]" form row whose slider and spin box mirror
 // each other. Object names are passed explicitly (never derived here): UI tests look

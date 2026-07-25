@@ -3,6 +3,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -402,7 +403,7 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
                    [preview] { preview->restore_all(); });
   preview->set_size(default_size);
 
-  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+  append_themed_style(dialog, dialog_spinbox_button_style());
   remember_dialog_position(dialog);
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;

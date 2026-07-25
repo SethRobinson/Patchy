@@ -11,6 +11,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/localization.hpp"
+#include "ui/theme_manager.hpp"
 
 #include <QApplication>
 #include <QByteArray>
@@ -176,10 +177,17 @@ int main(int argc, char* argv[]) {
     settings.remove(QStringLiteral("window"));
     settings.remove(QStringLiteral("filters/gallery"));
     settings.remove(QStringLiteral("preferences/language"));
+    settings.remove(QStringLiteral("preferences/colorScheme"));
     settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
     settings.sync();
   }
   patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false);
+  // Pin the suite to Dark. The offscreen platform reports Qt::ColorScheme::Unknown
+  // so "follow system" would already resolve here, but pinning explicitly keeps
+  // every color assertion in the corpus independent of the host's Windows setting
+  // and of any future change to how Unknown resolves.
+  patchy::ui::ThemeManager::instance().set_preference(patchy::ui::ColorSchemePreference::Dark,
+                                                      /*persist=*/false);
 
   std::vector<TestCase> tests;
   for (const auto& registration : {

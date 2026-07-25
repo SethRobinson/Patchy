@@ -8,6 +8,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/preset_manager_scaffold.hpp"
 #include "ui/preset_tree_widget.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -510,7 +511,7 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
   tree->reload(initial_tip_id);
   refresh_details();
   // Applied after every child exists; unprefixed sub-control selectors (see dialog_utils note).
-  dialog.setStyleSheet(dialog.styleSheet() + dialog_spinbox_button_style());
+  append_themed_style(dialog, dialog_spinbox_button_style());
   dialog.resize(820, 520);
   dialog.exec();
 }

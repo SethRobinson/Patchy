@@ -1,6 +1,8 @@
 #include "ui/layer_list_widget.hpp"
 
 #include "ui/action_icons.hpp"
+#include "ui/theme_palette.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QApplication>
 #include <QByteArray>
@@ -1322,8 +1324,9 @@ QWidget* LayerListWidget::ensure_insertion_indicator() {
     insertion_indicator_ = new QWidget(viewport());
     insertion_indicator_->setObjectName(QStringLiteral("layerDropInsertionIndicator"));
     insertion_indicator_->setAttribute(Qt::WA_TransparentForMouseEvents);
-    insertion_indicator_->setStyleSheet(QStringLiteral(
-        "QWidget#layerDropInsertionIndicator { background: #31a8ff; border: 1px solid #07121e; border-radius: 2px; }"));
+    set_themed_style(*insertion_indicator_, QStringLiteral(
+        "QWidget#layerDropInsertionIndicator { background: @drop_indicator_bg; "
+        "border: 1px solid @drop_indicator_border; border-radius: 2px; }"));
     insertion_indicator_->hide();
   }
   return insertion_indicator_;
@@ -1334,9 +1337,9 @@ QWidget* LayerListWidget::ensure_folder_highlight_indicator() {
     folder_highlight_indicator_ = new QWidget(viewport());
     folder_highlight_indicator_->setObjectName(QStringLiteral("layerDropFolderHighlightIndicator"));
     folder_highlight_indicator_->setAttribute(Qt::WA_TransparentForMouseEvents);
-    folder_highlight_indicator_->setStyleSheet(QStringLiteral(
+    set_themed_style(*folder_highlight_indicator_, QStringLiteral(
         "QWidget#layerDropFolderHighlightIndicator { background: rgba(49, 168, 255, 36); "
-        "border: 2px solid #31a8ff; border-radius: 3px; }"));
+        "border: 2px solid @drop_indicator_bg; border-radius: 3px; }"));
     folder_highlight_indicator_->hide();
   }
   return folder_highlight_indicator_;

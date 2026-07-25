@@ -498,6 +498,10 @@ private:
   void page_setup();
   void print_document();
   void show_preferences();
+  // Re-applies the whole UI for a new color scheme, live. Connected to
+  // ThemeManager::color_scheme_changed; see main_window_theme.cpp for the order
+  // the steps have to run in.
+  void apply_color_scheme();
   void new_guide_dialog();
   void new_guide_layout_dialog();
   void clear_guides();

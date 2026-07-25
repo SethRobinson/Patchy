@@ -2,6 +2,7 @@
 
 #include "ui/brush_tip_library.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -394,7 +395,7 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
 
   // Keep - / + buttons on the panel's spin boxes (see the sub-control gotcha in dialog_utils);
   // applied after all children exist.
-  setStyleSheet(dialog_spinbox_button_style());
+  set_themed_style(*this, dialog_spinbox_button_style());
 }
 
 void BrushDynamicsPanel::set_values(const patchy::BrushDynamics& dynamics, double base_angle_degrees,

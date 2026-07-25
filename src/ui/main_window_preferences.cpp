@@ -56,6 +56,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/theme_manager.hpp"
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
@@ -72,6 +73,7 @@
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/zoom_status_bar.hpp"
+#include "ui/theme_qss.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -462,6 +464,29 @@ void MainWindow::show_preferences() {
   language_combo->setCurrentIndex(current_index >= 0 ? current_index : 0);
   application_form->addRow(tr("Language:"), language_combo);
 
+  auto* color_scheme_combo = new QComboBox(application_group);
+  color_scheme_combo->setObjectName(QStringLiteral("preferencesColorSchemeCombo"));
+  color_scheme_combo->addItem(tr("Follow system"),
+                              color_scheme_preference_to_token(ColorSchemePreference::FollowSystem));
+  color_scheme_combo->addItem(tr("Dark"), color_scheme_preference_to_token(ColorSchemePreference::Dark));
+  color_scheme_combo->addItem(tr("Light"), color_scheme_preference_to_token(ColorSchemePreference::Light));
+  const auto entry_color_scheme = ThemeManager::instance().preference();
+  const auto color_scheme_index =
+      color_scheme_combo->findData(color_scheme_preference_to_token(entry_color_scheme));
+  color_scheme_combo->setCurrentIndex(color_scheme_index >= 0 ? color_scheme_index : 0);
+  application_form->addRow(tr("Color scheme:"), color_scheme_combo);
+  // The combo previews the scheme live, so every path out of the dialog that is
+  // not Accept has to put it back. The chrome X and Esc both reject (the dialog
+  // has no Cancel button but install_dark_dialog_chrome still closes by
+  // rejecting), and run_stress_test_interactive runs past the accept branch, so
+  // a scope guard is safer than an else.
+  bool color_scheme_committed = false;
+  const auto restore_color_scheme = qScopeGuard([entry_color_scheme, &color_scheme_committed] {
+    if (!color_scheme_committed) {
+      ThemeManager::instance().set_preference(entry_color_scheme, /*persist=*/false);
+    }
+  });
+
   auto* gui_scale_combo = new QComboBox(application_group);
   gui_scale_combo->setObjectName(QStringLiteral("preferencesGuiScaleCombo"));
   constexpr std::array<int, 5> gui_scale_percents{100, 125, 150, 175, 200};
@@ -564,6 +589,14 @@ void MainWindow::show_preferences() {
     if (!code.isEmpty() && LocalizationManager::instance().set_language(code)) {
       refresh_language_actions();
     }
+  });
+
+  // Connected after setCurrentIndex so restoring the saved value does not count
+  // as a user choice.
+  connect(color_scheme_combo, &QComboBox::currentIndexChanged, &dialog, [color_scheme_combo] {
+    ThemeManager::instance().set_preference(
+        color_scheme_preference_from_token(color_scheme_combo->currentData().toString()),
+        /*persist=*/false);
   });
 
   auto [pen_page, pen_layout] = make_tab_page(tabs);
@@ -861,39 +894,39 @@ void MainWindow::show_preferences() {
   // Applied after every child widget exists: Qt does not reliably pick up
   // sub-control rules (QSpinBox::up-button) for widgets created on hidden
   // tab pages after the stylesheet was set.
-  dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(R"(
+  append_themed_style(dialog, QStringLiteral(R"(
     QDialog#patchyPreferencesDialog QTabWidget::pane {
-      border: 1px solid #444444;
-      background: #2b2b2b;
+      border: 1px solid @dialog_tab_border;
+      background: @dialog_tab_bg;
       top: -1px;
     }
     QDialog#patchyPreferencesDialog QTabBar::tab {
-      background: #2b2b2b;
-      border: 1px solid #444444;
-      border-bottom-color: #2b2b2b;
-      color: #dcdcdc;
+      background: @dialog_tab_bg;
+      border: 1px solid @dialog_tab_border;
+      border-bottom-color: @dialog_tab_bg;
+      color: @dialog_tab_text;
       padding: 7px 18px;
       min-width: 92px;
     }
     QDialog#patchyPreferencesDialog QTabBar::tab:hover:!selected {
-      background: #343434;
+      background: @dialog_tab_hover_bg;
     }
     QDialog#patchyPreferencesDialog QTabBar::tab:selected {
-      background: #383838;
-      color: #ffffff;
-      border-bottom-color: #383838;
+      background: @dialog_tab_selected_bg;
+      color: @text_on_accent;
+      border-bottom-color: @dialog_tab_selected_bg;
     }
     QDialog#patchyPreferencesDialog QFrame[preferencesPanel="true"] {
-      background: #303030;
-      border: 1px solid #464646;
+      background: @panel_card_bg;
+      border: 1px solid @panel_card_border;
       border-radius: 4px;
     }
     QDialog#patchyPreferencesDialog QPushButton#preferencesGridColorButton,
     QDialog#patchyPreferencesDialog QPushButton#preferencesGuideColorButton {
-      background: #3a3a3a;
-      border: 1px solid #626262;
+      background: @button_bg;
+      border: 1px solid @color_button_border;
       border-radius: 3px;
-      color: #f0f0f0;
+      color: @text_bright;
       min-height: 30px;
       min-width: 158px;
       padding: 3px 9px;
@@ -901,12 +934,12 @@ void MainWindow::show_preferences() {
     }
     QDialog#patchyPreferencesDialog QPushButton#preferencesGridColorButton:hover,
     QDialog#patchyPreferencesDialog QPushButton#preferencesGuideColorButton:hover {
-      border-color: #80bfff;
-      background: #404040;
+      border-color: @color_button_hover_border;
+      background: @color_button_hover_bg;
     }
     QDialog#patchyPreferencesDialog QLabel#preferencesGridOverlayPreview {
-      background: #202020;
-      border: 1px solid #575757;
+      background: @grid_preview_bg;
+      border: 1px solid @grid_preview_border;
       padding: 0;
     }
     QDialog#patchyPreferencesDialog QScrollArea#preferencesTabScroll,
@@ -914,15 +947,23 @@ void MainWindow::show_preferences() {
       background: transparent;
     }
     /* Plain-QWidget field containers inherit the global QWidget background, which
-       shows as a mismatched band against the #303030 panels. */
+       shows as a mismatched band against the panel_card_bg panels. */
     QDialog#patchyPreferencesDialog QWidget#preferencesVisibilityRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesSnapTargetsRow {
       background: transparent;
     }
-  )") + dialog_spinbox_button_style());
+  )"));
+  // Appended last, after the block above: the spin sub-control rules must be the
+  // final word (see docs/ui-conventions.md).
+  append_themed_style(dialog, dialog_spinbox_button_style());
 
   if (exec_dialog(dialog) == QDialog::Accepted) {
     hotkey_editor->commit();
+    // No restart notice: the scheme is already applied, unlike interface scale.
+    ThemeManager::instance().set_preference(
+        color_scheme_preference_from_token(color_scheme_combo->currentData().toString()),
+        /*persist=*/true);
+    color_scheme_committed = true;
     const auto new_grid_spacing_32 =
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
     settings.setValue(QStringLiteral("updates/checkOnStartup"), update_check->isChecked());

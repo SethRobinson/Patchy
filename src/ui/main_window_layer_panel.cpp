@@ -70,6 +70,8 @@
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/zoom_status_bar.hpp"
+#include "ui/theme_palette.hpp"
+#include "ui/theme_qss.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -299,7 +301,9 @@ protected:
 
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, false);
-    painter.setPen(QPen(QColor(68, 74, 82, 125), 1));
+    auto depth_guide = theme().layer_depth_guide;
+    depth_guide.setAlpha(125);
+    painter.setPen(QPen(depth_guide, 1));
     for (int level = 0; level < depth_; ++level) {
       const auto x = level * kLayerChildIndent + kLayerChildIndent / 2;
       painter.drawLine(QPoint(x, 4), QPoint(x, height() - 4));
@@ -350,7 +354,7 @@ void update_layer_visibility_button(QToolButton* button, bool visible) {
   }
   button->setText(QString());
   button->setIcon(simple_icon(visible ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
-                              visible ? QColor(228, 236, 246) : QColor(118, 126, 136)));
+                              visible ? theme().layer_eye_on : theme().layer_eye_off));
   button->setToolTip(layer_visibility_tooltip(visible));
 }
 
@@ -388,7 +392,7 @@ QLabel* make_layer_lock_badge(LayerLockFlags flag, bool inherited, QWidget* pare
   badge->setAlignment(Qt::AlignCenter);
   badge->setToolTip(layer_lock_flag_tooltip(flag, inherited));
   badge->setProperty("inherited", inherited);
-  const auto color = inherited ? QColor(126, 132, 140) : QColor(242, 215, 125);
+  const auto color = inherited ? theme().layer_lock_badge_inherited : theme().layer_lock_badge_active;
   badge->setPixmap(simple_icon(layer_lock_flag_icon_key(flag), color).pixmap(QSize(14, 14)));
   if (list_parent != nullptr) {
     badge->installEventFilter(list_parent);
@@ -451,11 +455,11 @@ QPixmap layer_mask_thumbnail(const LayerMask& mask) {
 
   QPixmap pixmap = QPixmap::fromImage(image);
   QPainter painter(&pixmap);
-  painter.setPen(QPen(QColor(150, 158, 168), 1));
+  painter.setPen(QPen(theme().layer_thumbnail_border, 1));
   painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
   if (mask.disabled) {
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(QColor(232, 70, 70), 2));
+    painter.setPen(QPen(theme().layer_mask_disabled_cross, 2));
     painter.drawLine(QPoint(3, 3), QPoint(kSize - 4, kSize - 4));
     painter.drawLine(QPoint(kSize - 4, 3), QPoint(3, kSize - 4));
   }
@@ -495,11 +499,11 @@ QPixmap layer_vector_mask_thumbnail(const LayerVectorMask& mask, int document_wi
   }
   QPixmap pixmap = QPixmap::fromImage(image);
   QPainter painter(&pixmap);
-  painter.setPen(QPen(QColor(150, 158, 168), 1));
+  painter.setPen(QPen(theme().layer_thumbnail_border, 1));
   painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
   if (mask.disabled) {
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(QPen(QColor(232, 70, 70), 2));
+    painter.setPen(QPen(theme().layer_mask_disabled_cross, 2));
     painter.drawLine(QPoint(3, 3), QPoint(kSize - 4, kSize - 4));
     painter.drawLine(QPoint(kSize - 4, 3), QPoint(3, kSize - 4));
   }
@@ -1039,7 +1043,7 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
     // The frame must be stroked without antialiasing: an AA 1px rect on integer
     // coordinates leaves the left/top edges as one half-covered column but
     // smears the right/bottom edges across two, which reads as a bevel.
-    painter.setPen(QPen(QColor(150, 158, 168), 1));
+    painter.setPen(QPen(theme().layer_thumbnail_border, 1));
     painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
     painter.setRenderHint(QPainter::Antialiasing);
     QColor text_color;
@@ -1126,7 +1130,7 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
     painter.setBrush(Qt::NoBrush);
     // Crisp frame: see the text-thumbnail comment about AA rect strokes.
     painter.setRenderHint(QPainter::Antialiasing, false);
-    painter.setPen(QPen(QColor(150, 158, 168), 1));
+    painter.setPen(QPen(theme().layer_thumbnail_border, 1));
     painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
     return pixmap;
   }
@@ -1163,7 +1167,7 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
 
   QPixmap pixmap = QPixmap::fromImage(image);
   QPainter painter(&pixmap);
-  painter.setPen(QPen(QColor(150, 158, 168), 1));
+  painter.setPen(QPen(theme().layer_thumbnail_border, 1));
   painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
   return pixmap;
 }
@@ -1511,7 +1515,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     const auto button_style = QStringLiteral(
         "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 0; "
         "min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; } "
-        "QToolButton:hover { background: #30343a; border-color: #59636f; } "
+        "QToolButton:hover { background: @layer_button_hover_bg; border-color: @layer_button_hover_border; } "
         "QToolButton:disabled { background: transparent; border-color: transparent; }");
     const auto configure_visibility_button = [&](QToolButton* button, bool visible,
                                                   const QString& visible_tooltip,
@@ -1520,11 +1524,11 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       button->setChecked(visible);
       button->setText(QString());
       button->setIcon(simple_icon(visible ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
-                                  visible ? QColor(228, 236, 246) : QColor(118, 126, 136)));
+                                  visible ? theme().layer_eye_on : theme().layer_eye_off));
       button->setIconSize(QSize(15, 15));
       button->setFixedSize(20, 20);
       button->setFocusPolicy(Qt::NoFocus);
-      button->setStyleSheet(button_style);
+      set_themed_style(*button, button_style);
       button->setToolTip(controls_supported
                              ? (visible ? visible_tooltip : hidden_tooltip)
                              : preservation_tooltip);
@@ -1554,11 +1558,11 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       }
       QPixmap pixmap = QPixmap::fromImage(image);
       QPainter painter(&pixmap);
-      painter.setPen(QPen(QColor(150, 158, 168), 1));
+      painter.setPen(QPen(theme().layer_thumbnail_border, 1));
       painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
       if (!mask.enabled) {
         painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.setPen(QPen(QColor(232, 70, 70), 2));
+        painter.setPen(QPen(theme().layer_mask_disabled_cross, 2));
         painter.drawLine(QPoint(3, 3), QPoint(kSize - 4, kSize - 4));
         painter.drawLine(QPoint(kSize - 4, 3), QPoint(3, kSize - 4));
       }
@@ -1912,7 +1916,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       edit_button->setIconSize(QSize(15, 15));
       edit_button->setFixedSize(20, 20);
       edit_button->setFocusPolicy(Qt::NoFocus);
-      edit_button->setStyleSheet(button_style);
+      set_themed_style(*edit_button, button_style);
       edit_button->setToolTip(controls_supported ? QObject::tr("Edit Smart Filter")
                                                   : preservation_tooltip);
       edit_button->setEnabled(controls_supported && ancestors_visible);
@@ -1942,9 +1946,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       more_button->setFont(more_font);
       more_button->setFixedSize(20, 20);
       more_button->setFocusPolicy(Qt::NoFocus);
-      more_button->setStyleSheet(
-          button_style +
-          QStringLiteral(" QToolButton::menu-indicator { image: none; width: 0px; }"));
+      set_themed_style(*more_button,
+                       button_style +
+                           QStringLiteral(" QToolButton::menu-indicator { image: none; width: 0px; }"));
       more_button->setToolTip(controls_supported
                                   ? QObject::tr("Smart Filter actions")
                                   : preservation_tooltip);

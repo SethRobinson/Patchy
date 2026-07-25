@@ -1,4 +1,5 @@
 #include "ui/hotkey_editor.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QAction>
 #include <QFrame>
@@ -197,9 +198,9 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
     });
   });
 
-  setStyleSheet(QStringLiteral(R"(
+  set_themed_style(*this, QStringLiteral(R"(
     QWidget#hotkeyEditorPanel QLabel[hotkeyCategoryHeader="true"] {
-      color: #a8b4be;
+      color: @hotkey_hint_text;
       font-size: 11px;
       font-weight: 600;
     }
@@ -207,82 +208,82 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
       margin-bottom: 9px;
     }
     QWidget#hotkeyEditorPanel QWidget[hotkeyRow="true"] {
-      border-bottom: 1px solid #383838;
+      border-bottom: 1px solid @hotkey_header_border;
     }
     QWidget#hotkeyEditorPanel QLabel[hotkeyDim="true"] {
-      color: #9a9a9a;
+      color: @hotkey_muted_text;
       font-size: 11px;
     }
     QWidget#hotkeyEditorPanel QLabel[hotkeyNote="true"] {
-      color: #e8b04a;
+      color: @hotkey_conflict_text;
       font-size: 11px;
     }
     QWidget#hotkeyEditorPanel QLabel[hotkeyFixedChip="true"] {
-      background: #343434;
-      border: 1px solid #4a4a4a;
+      background: @hotkey_search_bg;
+      border: 1px solid @hotkey_search_border;
       border-radius: 3px;
-      color: #b5b5b5;
+      color: @hotkey_search_text;
       font-size: 12px;
       padding: 2px 9px;
     }
     QWidget#hotkeyEditorPanel QPushButton[hotkeyChip="true"] {
-      background: #3a3a3a;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
+      background: @button_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
       border-radius: 3px;
-      color: #f0f0f0;
+      color: @text_bright;
       font-size: 12px;
       min-height: 18px;
       padding: 2px 10px;
     }
     QWidget#hotkeyEditorPanel QPushButton[hotkeyChip="true"]:hover {
-      background: #404040;
-      border-color: #80bfff;
+      background: @color_button_hover_bg;
+      border-color: @color_button_hover_border;
     }
     QWidget#hotkeyEditorPanel QPushButton[hotkeyChipUnbound="true"] {
       background: transparent;
-      border: 1px dashed #5a5a5a;
-      color: #9a9a9a;
+      border: 1px dashed @field_border;
+      color: @hotkey_muted_text;
     }
     QWidget#hotkeyEditorPanel QToolButton[hotkeyReset="true"] {
       background: transparent;
       border: none;
-      color: #9ab8d6;
+      color: @hotkey_shortcut_text;
       font-size: 14px;
     }
     QWidget#hotkeyEditorPanel QToolButton[hotkeyReset="true"]:hover {
-      color: #cfe5ff;
+      color: @hotkey_shortcut_active_text;
     }
     QLineEdit#hotkeyCaptureEdit {
-      background: #252525;
-      border: 1px solid #2f75bd;
+      background: @hotkey_recording_bg;
+      border: 1px solid @accent_pressed_bg;
       border-radius: 3px;
-      color: #9fc1e4;
+      color: @hotkey_recording_text;
       font-size: 12px;
       padding: 1px 8px;
     }
     QFrame#hotkeyConflictBanner {
-      background: #322d20;
-      border: 1px solid #6a5a2c;
+      background: @hotkey_warning_bg;
+      border: 1px solid @hotkey_warning_border;
       border-radius: 3px;
     }
     QFrame#hotkeyConflictBanner QLabel {
       background: transparent;
       border: none;
-      color: #e8c87a;
+      color: @hotkey_warning_text;
       font-size: 11px;
     }
     QFrame#hotkeyConflictBanner QPushButton {
-      background: #3a3a3a;
-      border: 1px solid #626262;
+      background: @button_bg;
+      border: 1px solid @color_button_border;
       border-radius: 3px;
-      color: #f0f0f0;
+      color: @text_bright;
       font-size: 11px;
       padding: 2px 10px;
     }
     QFrame#hotkeyConflictBanner QPushButton:hover {
-      background: #404040;
-      border-color: #80bfff;
+      background: @color_button_hover_bg;
+      border-color: @color_button_hover_border;
     }
   )"));
 
@@ -482,7 +483,7 @@ void HotkeyEditorPanel::refresh_rows() {
     const bool modified = staged_.contains(id);
     const auto escaped_label = row.label.toHtmlEscaped();
     row.name_label->setText(modified
-                                ? QStringLiteral("<span style=\"color:#6bb3ff;\">&#9679;</span> ") + escaped_label
+                                ? QStringLiteral("<span style=\"color:@accent_border_bright;\">&#9679;</span> ") + escaped_label
                                 : escaped_label);
     row.reset_button->setVisible(modified);
     const auto default_text = hotkey_shortcuts_to_storage(row.command->default_shortcuts)

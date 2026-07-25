@@ -81,6 +81,8 @@
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/zoom_status_bar.hpp"
+#include "ui/theme_qss.hpp"
+#include "ui/theme_palette.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -285,8 +287,8 @@ QString gradient_css_stops(const std::vector<GradientStop>& stops, int opacity, 
 QString gradient_preview_button_style(const std::vector<GradientStop>& stops, int opacity, bool reverse) {
   return QStringLiteral(
              "QPushButton { background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, %1); "
-             "border: 1px solid #747b86; border-radius: 2px; min-width: 78px; min-height: 22px; padding: 0; }"
-             "QPushButton:hover { border: 2px solid #63a6ff; }")
+             "border: 1px solid @swatch_border; border-radius: 2px; min-width: 78px; min-height: 22px; padding: 0; }"
+             "QPushButton:hover { border: 2px solid @accent_bright; }")
       .arg(gradient_css_stops(stops, opacity, reverse));
 }
 
@@ -1526,12 +1528,12 @@ void MainWindow::refresh_color_buttons() {
   if (primary_color_button_ != nullptr) {
     primary_color_button_->setText(tr("FG"));
     primary_color_button_->setToolTip(tr("Foreground color %1").arg(primary_color.name(QColor::HexRgb).toUpper()));
-    primary_color_button_->setStyleSheet(color_button_style(primary_color));
+    set_themed_style(*primary_color_button_, color_button_style(primary_color));
   }
   if (secondary_color_button_ != nullptr) {
     secondary_color_button_->setText(tr("BG"));
     secondary_color_button_->setToolTip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()));
-    secondary_color_button_->setStyleSheet(color_button_style(secondary_color));
+    set_themed_style(*secondary_color_button_, color_button_style(secondary_color));
   }
   refresh_text_color_button();
   refresh_gradient_controls_from_canvas();
@@ -1544,7 +1546,7 @@ void MainWindow::refresh_text_color_button() {
   const auto color = current_text_color();
   text_color_button_->setText(tr("T"));
   text_color_button_->setToolTip(tr("Text color %1").arg(color.name(QColor::HexRgb).toUpper()));
-  text_color_button_->setStyleSheet(color_button_style(color));
+  set_themed_style(*text_color_button_, color_button_style(color));
 }
 
 void MainWindow::edit_gradient_stops() {
@@ -1609,7 +1611,7 @@ void MainWindow::refresh_gradient_controls_from_canvas() {
     gradient_reverse_check_->setChecked(canvas_->gradient_reverse());
   }
   if (gradient_preview_button_ != nullptr) {
-    gradient_preview_button_->setStyleSheet(gradient_preview_button_style(
+    set_themed_style(*gradient_preview_button_, gradient_preview_button_style(
         canvas_->effective_gradient_stops(), canvas_->gradient_opacity(), canvas_->gradient_reverse()));
     gradient_preview_button_->setToolTip(tr("Gradient preview"));
   }

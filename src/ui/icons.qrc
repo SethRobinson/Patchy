@@ -60,6 +60,12 @@
     <file alias="channel-load-selection.svg">icons/channel-load-selection.svg</file>
     <file alias="plugin.svg">icons/plugin.svg</file>
     <file alias="scroll-dither.svg">icons/scroll-dither.svg</file>
+    <file alias="light/scroll-dither.svg">icons/light/scroll-dither.svg</file>
+    <file alias="light/spin-minus.svg">icons/light/spin-minus.svg</file>
+    <file alias="light/spin-minus-disabled.svg">icons/light/spin-minus-disabled.svg</file>
+    <file alias="light/spin-plus.svg">icons/light/spin-plus.svg</file>
+    <file alias="light/spin-plus-disabled.svg">icons/light/spin-plus-disabled.svg</file>
+    <file alias="light/tool-flyout-corner.svg">icons/light/tool-flyout-corner.svg</file>
     <file alias="spin-plus.svg">icons/spin-plus.svg</file>
     <file alias="spin-plus-disabled.svg">icons/spin-plus-disabled.svg</file>
     <file alias="spin-minus.svg">icons/spin-minus.svg</file>

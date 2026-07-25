@@ -24,6 +24,7 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/tool_cursors.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QApplication>
 #include <QCursor>
@@ -410,7 +411,7 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
 
       if (quick_mask_active_ || mask_display_mode_ == MaskDisplayMode::Overlay) {
         QImage base(preview_rect.size(), QImage::Format_ARGB32_Premultiplied);
-        base.fill(QColor(36, 38, 41));
+        base.fill(theme().canvas_backdrop);
         {
           QPainter base_painter(&base);
           base_painter.translate(-preview_rect.topLeft());

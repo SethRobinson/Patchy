@@ -2,6 +2,7 @@
 
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -202,11 +203,11 @@ public:
     const auto rect = option.rect;
     const bool selected = (option.state & QStyle::State_Selected) != 0;
     if (selected) {
-      painter->fillRect(rect, QColor(0x3a, 0x41, 0x4a));
-      painter->setPen(QColor(0x67, 0x71, 0x7d));
+      painter->fillRect(rect, theme().list_selection_bg);
+      painter->setPen(theme().list_selection_border);
       painter->drawRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5));
     } else if ((option.state & QStyle::State_MouseOver) != 0) {
-      painter->fillRect(rect, QColor(0x33, 0x37, 0x3d));
+      painter->fillRect(rect, theme().list_row_hover_bg);
     }
     auto text_rect = rect.adjusted(8, 0, -8, 0);
     if (!info.row_sample.isEmpty()) {
@@ -216,14 +217,14 @@ public:
           sample_metrics.elidedText(info.row_sample, Qt::ElideRight, text_rect.width() / 2);
       const auto sample_width = sample_metrics.horizontalAdvance(sample);
       painter->setFont(info.sample_font);
-      painter->setPen(QColor(0x8a, 0x93, 0x9f));
+      painter->setPen(theme().script_detail_text);
       painter->drawText(
           QRect(text_rect.right() - sample_width, text_rect.top(), sample_width, text_rect.height()),
           Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, sample);
       text_rect.setWidth(text_rect.width() - sample_width - 12);
     }
     painter->setFont(info.display_font);
-    painter->setPen(selected ? QColor(0xf4, 0xf6, 0xf8) : QColor(0xe6, 0xe6, 0xe6));
+    painter->setPen(selected ? theme().list_selection_text : theme().text_primary);
     const QFontMetrics metrics(info.display_font);
     painter->drawText(text_rect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                       metrics.elidedText(family, Qt::ElideRight, text_rect.width()));
@@ -333,8 +334,8 @@ void FontPreviewPane::rebuild_lines() {
 
 void FontPreviewPane::paintEvent(QPaintEvent* /*event*/) {
   QPainter painter(this);
-  painter.fillRect(rect(), QColor(0x25, 0x25, 0x25));
-  painter.setPen(QColor(0x17, 0x17, 0x17));
+  painter.fillRect(rect(), theme().preview_pane_bg);
+  painter.setPen(theme().field_inset_border);
   painter.drawLine(0, 0, width(), 0);
 
   QFont label_font = font();
@@ -348,7 +349,7 @@ void FontPreviewPane::paintEvent(QPaintEvent* /*event*/) {
     const auto footer_height = label_metrics.height();
     const auto footer_y = height() - footer_height - 5;
     painter.setFont(label_font);
-    painter.setPen(QColor(0x9a, 0x9a, 0x9a));
+    painter.setPen(theme().preview_pane_muted_text);
     painter.drawText(QRect(10, footer_y, width() - 20, footer_height),
                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                      label_metrics.elidedText(footer_, Qt::ElideRight, width() - 20));
@@ -366,13 +367,13 @@ void FontPreviewPane::paintEvent(QPaintEvent* /*event*/) {
     if (!line.label.isEmpty()) {
       const auto label_width = label_metrics.horizontalAdvance(line.label);
       painter.setFont(label_font);
-      painter.setPen(QColor(0x9a, 0x9a, 0x9a));
+      painter.setPen(theme().preview_pane_muted_text);
       painter.drawText(QRect(width() - label_width - 10, y, label_width, line_height),
                        Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, line.label);
       reserved = label_width + 16;
     }
     painter.setFont(line.font);
-    painter.setPen(QColor(0xe6, 0xe6, 0xe6));
+    painter.setPen(theme().text_primary);
     const QRect text_rect(10, y, width() - 20 - reserved, line_height);
     painter.drawText(text_rect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                      metrics.elidedText(line.text, Qt::ElideRight, text_rect.width()));
@@ -451,15 +452,15 @@ void FontPickerCombo::showPopup() {
   });
   // The app stylesheet reaches the popup through the parent chain, but has no QListView
   // rules (only QListWidget), so the popup carries its own scoped additions.
-  popup->setStyleSheet(QStringLiteral(R"(
+  set_themed_style(*popup, QStringLiteral(R"(
     QFrame#textFontPickerPopup {
-      background: #2b2b2b;
-      border: 1px solid #171717;
+      background: @field_bg_large;
+      border: 1px solid @field_inset_border;
     }
     QFrame#textFontPickerPopup QListView {
-      background: #232323;
-      color: #e6e6e6;
-      border: 1px solid #171717;
+      background: @popup_list_bg;
+      color: @text_primary;
+      border: 1px solid @field_inset_border;
       outline: none;
     }
   )"));

@@ -5,10 +5,13 @@
 // main_window_document_dialogs.cpp when the dialog gained the card grid.
 
 #include "ui/new_document_dialog.hpp"
+#include "ui/icon_theme.hpp"
+#include "ui/theme_palette.hpp"
 
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QApplication>
 #include <QBoxLayout>
@@ -129,17 +132,17 @@ class PresetCardDelegate final : public QStyledItemDelegate {
     const bool selected = (option.state & QStyle::State_Selected) != 0;
     const bool hovered = (option.state & QStyle::State_MouseOver) != 0;
 
-    QColor background(0x30, 0x30, 0x30);
-    QColor border(0x45, 0x45, 0x45);
+    QColor background = theme().panel_card_bg;
+    QColor border = theme().panel_card_border;
     if (!enabled) {
-      background = QColor(0x2b, 0x2b, 0x2b);
-      border = QColor(0x39, 0x39, 0x39);
+      background = theme().nd_card_disabled_bg;
+      border = theme().nd_card_disabled_border;
     } else if (selected) {
-      background = QColor(0x33, 0x41, 0x52);
-      border = QColor(0x6f, 0x9b, 0xd1);
+      background = theme().nd_card_selected_bg;
+      border = theme().primary_border;
     } else if (hovered) {
-      background = QColor(0x3a, 0x3a, 0x3a);
-      border = QColor(0x5f, 0x5f, 0x5f);
+      background = theme().button_bg;
+      border = theme().nd_card_hover_border;
     }
     QPainterPath card_path;
     card_path.addRoundedRect(QRectF(card).adjusted(0.5, 0.5, -0.5, -0.5), 5.0, 5.0);
@@ -158,7 +161,7 @@ class PresetCardDelegate final : public QStyledItemDelegate {
                          thumb_area.y() + (thumb_area.height() - scaled.height()) / 2, scaled.width(),
                          scaled.height());
       painter->drawPixmap(target, scaled);
-      painter->setPen(QPen(QColor(0x9a, 0x9a, 0x9a), 1.0));
+      painter->setPen(QPen(theme().nd_thumb_outline, 1.0));
       painter->drawRect(target.adjusted(0, 0, -1, -1));
     } else {
       QSizeF box = size.isValid() && size.width() > 0 && size.height() > 0 ? QSizeF(size) : QSizeF(3.0, 2.0);
@@ -166,8 +169,8 @@ class PresetCardDelegate final : public QStyledItemDelegate {
       const QRectF outline(thumb_area.x() + (thumb_area.width() - box.width()) / 2.0,
                            thumb_area.y() + (thumb_area.height() - box.height()) / 2.0, box.width(),
                            box.height());
-      painter->fillRect(outline, enabled ? QColor(0x47, 0x47, 0x47) : QColor(0x35, 0x35, 0x35));
-      QPen outline_pen(enabled ? QColor(0xa2, 0xa2, 0xa2) : QColor(0x58, 0x58, 0x58), 1.0);
+      painter->fillRect(outline, enabled ? theme().nd_thumb_fill : theme().nd_thumb_fill_disabled);
+      QPen outline_pen(enabled ? theme().nd_thumb_border : theme().nd_thumb_border_disabled, 1.0);
       if (!size.isValid() || size.width() <= 0) {
         outline_pen.setStyle(Qt::DashLine);  // Clipboard card with nothing on the clipboard.
       }
@@ -177,7 +180,7 @@ class PresetCardDelegate final : public QStyledItemDelegate {
 
     const auto name_font = derived_font(option.font, 0, true);
     painter->setFont(name_font);
-    painter->setPen(enabled ? QColor(0xe8, 0xe8, 0xe8) : QColor(0x6f, 0x6f, 0x6f));
+    painter->setPen(enabled ? theme().nd_card_title_text : theme().nd_card_title_disabled_text);
     const QRect name_rect(card.left() + 4, card.top() + 41, card.width() - 8, 16);
     painter->drawText(name_rect, Qt::AlignHCenter | Qt::AlignVCenter,
                       QFontMetrics(name_font).elidedText(index.data(Qt::DisplayRole).toString(),
@@ -185,14 +188,14 @@ class PresetCardDelegate final : public QStyledItemDelegate {
 
     const auto detail_font = derived_font(option.font, -1, false);
     painter->setFont(detail_font);
-    painter->setPen(enabled ? QColor(0xa5, 0xa5, 0xa5) : QColor(0x5c, 0x5c, 0x5c));
+    painter->setPen(enabled ? theme().nd_card_detail_text : theme().nd_card_detail_disabled_text);
     const QRect dims_rect(card.left() + 4, card.top() + 57, card.width() - 8, 14);
     const auto dims_text = size.isValid() && size.width() > 0
                                ? QObject::tr("%1 x %2 px").arg(size.width()).arg(size.height())
                                : QObject::tr("No image");
     painter->drawText(dims_rect, Qt::AlignHCenter | Qt::AlignVCenter, dims_text);
 
-    painter->setPen(enabled ? QColor(0x83, 0x83, 0x83) : QColor(0x50, 0x50, 0x50));
+    painter->setPen(enabled ? theme().nd_card_meta_text : theme().nd_card_meta_disabled_text);
     const QRect ppi_rect(card.left() + 4, card.top() + 71, card.width() - 8, 13);
     painter->drawText(ppi_rect, Qt::AlignHCenter | Qt::AlignVCenter,
                       QObject::tr("%1 ppi").arg(QString::number(index.data(kPresetPpiRole).toDouble())));
@@ -200,98 +203,98 @@ class PresetCardDelegate final : public QStyledItemDelegate {
   }
 };
 
-QString new_document_dialog_style() {
-  return QStringLiteral(R"(
+ThemedQss new_document_dialog_style() {
+  return ThemedQss(QStringLiteral(R"(
     QDialog#patchyNewDocumentDialog {
-      background: #262626;
+      background: @window_bg;
     }
     QDialog#patchyNewDocumentDialog QLabel {
       background: transparent;
-      color: #e6e6e6;
+      color: @text_primary;
     }
     QDialog#patchyNewDocumentDialog QLabel#newDocumentSummaryLabel {
-      color: #a8a8a8;
+      color: @nd_section_text;
     }
     QDialog#patchyNewDocumentDialog QListWidget#newDocumentPresetList {
-      background: #222222;
-      border: 1px solid #1b1b1b;
+      background: @list_surface_bg;
+      border: 1px solid @list_surface_border;
       border-radius: 5px;
       padding: 3px;
     }
     QToolButton[newDocumentChip="true"] {
-      background: #303030;
-      border: 1px solid #474747;
+      background: @panel_card_bg;
+      border: 1px solid @nd_chip_border;
       border-radius: 12px;
-      color: #d9d9d9;
+      color: @nd_chip_text;
       padding: 3px 14px;
       min-height: 17px;
     }
     QToolButton[newDocumentChip="true"]:hover {
-      background: #3a3a3a;
-      border-color: #5f5f5f;
+      background: @button_bg;
+      border-color: @nd_card_hover_border;
     }
     QToolButton[newDocumentChip="true"]:checked {
-      background: #33414f;
-      border-color: #6f9bd1;
-      color: #ffffff;
+      background: @selection_soft_bg;
+      border-color: @primary_border;
+      color: @text_on_accent;
     }
     QDialog#patchyNewDocumentDialog QDoubleSpinBox,
     QDialog#patchyNewDocumentDialog QComboBox {
-      background: #303030;
-      border: 1px solid #4a4a4a;
+      background: @panel_card_bg;
+      border: 1px solid @nd_field_border;
       border-radius: 3px;
-      color: #f0f0f0;
+      color: @text_bright;
       min-height: 22px;
       padding: 0 6px;
     }
     QDialog#patchyNewDocumentDialog QDoubleSpinBox:focus,
     QDialog#patchyNewDocumentDialog QComboBox:focus {
-      border-color: #6f9bd1;
+      border-color: @primary_border;
     }
     QDialog#patchyNewDocumentDialog QDoubleSpinBox:disabled,
     QDialog#patchyNewDocumentDialog QComboBox:disabled {
-      background: #2a2a2a;
-      border-color: #383838;
-      color: #6f6f6f;
+      background: @nd_field_disabled_bg;
+      border-color: @nd_field_disabled_border;
+      color: @nd_field_disabled_text;
     }
     QDialog#patchyNewDocumentDialog QToolButton#newDocumentSwapDimensionsButton {
-      background: #303030;
-      border: 1px solid #4a4a4a;
+      background: @panel_card_bg;
+      border: 1px solid @nd_field_border;
       border-radius: 3px;
       min-height: 24px;
       max-height: 24px;
     }
     QDialog#patchyNewDocumentDialog QToolButton#newDocumentSwapDimensionsButton:hover {
-      border-color: #6f9bd1;
+      border-color: @primary_border;
     }
     QDialog#patchyNewDocumentDialog QToolButton#newDocumentSwapDimensionsButton:disabled {
-      background: #2a2a2a;
-      border-color: #383838;
+      background: @nd_field_disabled_bg;
+      border-color: @nd_field_disabled_border;
     }
     QDialog#patchyNewDocumentDialog QPushButton {
-      background: #3a3a3a;
-      border: 1px solid #5a5a5a;
+      background: @button_bg;
+      border: 1px solid @field_border;
       border-radius: 13px;
-      color: #f0f0f0;
+      color: @text_bright;
       min-width: 84px;
       min-height: 26px;
       padding: 0 16px;
     }
     QDialog#patchyNewDocumentDialog QPushButton:hover {
-      background: #454545;
-      border-color: #7d7d7d;
+      background: @neutral_button_hover_bg;
+      border-color: @neutral_button_hover_border;
     }
     QDialog#patchyNewDocumentDialog QPushButton#newDocumentCreateButton {
-      background: #354960;
-      border: 1px solid #6f9bd1;
+      background: @primary_bg;
+      border: 1px solid @primary_border;
       font-weight: 700;
     }
     QDialog#patchyNewDocumentDialog QPushButton#newDocumentCreateButton:hover {
-      background: #3f5773;
+      background: @primary_hover_bg;
     }
     QDialog#patchyNewDocumentDialog QPushButton#newDocumentBackgroundSwatch {
-      background: #303030;
-      border: 1px solid #4a4a4a;
+      background: @panel_card_bg;
+      border: 1px solid @nd_field_border;
       border-radius: 3px;
       min-width: 40px;
       max-width: 40px;
@@ -300,13 +303,13 @@ QString new_document_dialog_style() {
       padding: 0;
     }
     QDialog#patchyNewDocumentDialog QPushButton#newDocumentBackgroundSwatch:hover {
-      border-color: #6f9bd1;
+      border-color: @primary_border;
     }
     QDialog#patchyNewDocumentDialog QPushButton#newDocumentBackgroundSwatch:disabled {
-      background: #2a2a2a;
-      border-color: #383838;
+      background: @nd_field_disabled_bg;
+      border-color: @nd_field_disabled_border;
     }
-  )");
+  )"));
 }
 
 }  // namespace
@@ -403,7 +406,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
 
   auto* swap_dimensions = new QToolButton(&dialog);
   swap_dimensions->setObjectName(QStringLiteral("newDocumentSwapDimensionsButton"));
-  swap_dimensions->setIcon(QIcon(QStringLiteral(":/patchy/icons/rotate.svg")));
+  swap_dimensions->setIcon(themed_svg_icon(QStringLiteral("rotate")));
   swap_dimensions->setIconSize(QSize(18, 18));
   swap_dimensions->setToolTip(QObject::tr("Swap width and height"));
   swap_dimensions->setFixedWidth(28);
@@ -767,7 +770,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     update_summary();
   }
 
-  dialog.setStyleSheet(dialog.styleSheet() + new_document_dialog_style());
+  append_themed_style(dialog, new_document_dialog_style());
   dialog.resize(724, 470);
   width->setFocus(Qt::OtherFocusReason);
   width->selectAll();

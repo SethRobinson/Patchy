@@ -23,6 +23,8 @@
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
+#include "ui/theme_palette.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QClipboard>
 #include <QCoreApplication>
@@ -87,14 +89,14 @@ public:
     const QRect rect = option.rect;
     const bool selected = (option.state & QStyle::State_Selected) != 0;
     if (selected) {
-      painter->fillRect(rect, QColor(0x3a, 0x41, 0x4a));
-      painter->setPen(QColor(0x67, 0x71, 0x7d));
+      painter->fillRect(rect, theme().list_selection_bg);
+      painter->setPen(theme().list_selection_border);
       painter->drawRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5));
     } else if ((option.state & QStyle::State_MouseOver) != 0) {
-      painter->fillRect(rect, QColor(0x33, 0x37, 0x3d));
+      painter->fillRect(rect, theme().list_row_hover_bg);
     }
     const auto icon = index.data(Qt::DecorationRole).value<QIcon>();
-    const auto text_color = selected ? QColor(0xf4, 0xf6, 0xf8) : QColor(0xe6, 0xe6, 0xe6);
+    const auto text_color = selected ? theme().list_selection_text : theme().text_primary;
     if (index.data(kScriptPathRole).toString().isEmpty()) {
       // Folder row (including the Bundled / My Scripts roots, drawn bold).
       constexpr int kGlyph = 18;
@@ -141,12 +143,12 @@ public:
     const QRect file_rect(text_left, mid, text_width, rect.bottom() - mid - 2);
     const auto file_text = small_metrics.elidedText(
         index.data(kScriptFileNameRole).toString(), Qt::ElideRight, text_width);
-    painter->setPen(QColor(0x8a, 0x93, 0x9f));
+    painter->setPen(theme().script_detail_text);
     painter->drawText(file_rect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, file_text);
     if (!index.data(kScriptBundledPathRole).toString().isEmpty()) {
       const int used = small_metrics.horizontalAdvance(file_text) + 8;
       if (used < text_width) {
-        painter->setPen(QColor(0xe0, 0xa0, 0x30));
+        painter->setPen(theme().console_warning_text);
         painter->drawText(QRect(text_left + used, file_rect.top(), text_width - used,
                                 file_rect.height()),
                           Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
@@ -324,7 +326,7 @@ protected:
       y += small_metrics.height() + 4;
     }
     if (!content_.modified_note.isEmpty()) {
-      painter.setPen(QColor(0xe0, 0xa0, 0x30));
+      painter.setPen(theme().console_warning_text);
       painter.drawText(QRect(text_left, y, text_width, small_metrics.height()),
                        Qt::TextSingleLine,
                        small_metrics.elidedText(content_.modified_note, Qt::ElideRight,
@@ -336,7 +338,7 @@ protected:
       painter.drawText(description_rect_, Qt::TextWordWrap, content_.description);
     }
     painter.setFont(small_font_);
-    painter.setPen(QColor(0x8a, 0x93, 0x9f));
+    painter.setPen(theme().script_detail_text);
     painter.drawText(QRect(kPad, height() - kPad - small_metrics.height(), width() - 2 * kPad,
                            small_metrics.height()),
                      Qt::TextSingleLine,
@@ -1156,11 +1158,13 @@ void ScriptEditorDialog::reload_script() {
 void ScriptEditorDialog::append_console(int kind, const QString& text) {
   switch (kind) {
     case 1:
-      console_->appendHtml(QStringLiteral("<span style=\"color:#e0a030\">%1</span>")
+      console_->appendHtml(QStringLiteral("<span style=\"color:%1\">%2</span>")
+                               .arg(theme().console_warning_text.name(QColor::HexRgb))
                                .arg(text.toHtmlEscaped()));
       break;
     case 2:
-      console_->appendHtml(QStringLiteral("<span style=\"color:#e05050\">%1</span>")
+      console_->appendHtml(QStringLiteral("<span style=\"color:%1\">%2</span>")
+                               .arg(theme().console_error_text.name(QColor::HexRgb))
                                .arg(text.toHtmlEscaped()));
       break;
     default:

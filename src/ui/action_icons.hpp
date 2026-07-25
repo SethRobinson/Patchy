@@ -8,7 +8,14 @@
 
 namespace patchy::ui {
 
-QIcon simple_icon(QString text, QColor accent = QColor(220, 226, 235));
+// Icons resolve their colors when painted, so a live color-scheme change needs no
+// setIcon call anywhere; see icon_theme.hpp.
+//
+// A default-constructed (invalid) `accent` means "the theme's icon ink", which is
+// what nearly every caller wants. Pass an explicit color only when it carries
+// meaning independent of the scheme, such as a red destructive marker; those are
+// never recolored and must stay legible on both light and dark chrome.
+QIcon simple_icon(QString text, QColor accent = QColor());
 QIcon patchy_app_icon();
 QIcon window_chrome_icon(QString role);
 QIcon canvas_anchor_icon(CanvasAnchor anchor);

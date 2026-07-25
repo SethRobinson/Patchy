@@ -4,6 +4,7 @@
 #include "ui/background_workers.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/zoomable_image_preview.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -360,9 +361,9 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   dialog.setObjectName(QStringLiteral("rawDevelopDialog"));
   dialog.setWindowTitle(QObject::tr("Develop Raw - %1").arg(file_info.fileName()));
   dialog.resize(1120, 760);
-  dialog.setStyleSheet(dialog.styleSheet() +
-                       QStringLiteral("QScrollArea#rawDevelopControlsScroll,"
-                                      "QWidget#rawDevelopControlsPage { background: transparent; }"));
+  append_themed_style(dialog,
+                      QStringLiteral("QScrollArea#rawDevelopControlsScroll,"
+                                     "QWidget#rawDevelopControlsPage { background: transparent; }"));
 
   auto* layout = new QVBoxLayout(&dialog);
   auto* content_row = new QHBoxLayout();

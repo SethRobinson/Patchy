@@ -9619,6 +9619,26 @@ RGB: -
         <translation>言語:</translation>
     </message>
     <message>
+        <location line="+2"/>
+        <source>Color scheme:</source>
+        <translation>配色:</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Follow system</source>
+        <translation>システム設定に従う</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Dark</source>
+        <translation>ダーク</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Light</source>
+        <translation>ライト</translation>
+    </message>
+    <message>
         <location line="+13"/>
         <source>Interface scale:</source>
         <translation>インターフェースの拡大率:</translation>

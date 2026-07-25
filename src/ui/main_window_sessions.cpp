@@ -73,6 +73,7 @@
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/zoom_status_bar.hpp"
+#include "ui/theme_palette.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -1053,13 +1054,16 @@ void MainWindow::set_float_dock_highlight_visible(bool visible) {
     float_dock_highlight_->setObjectName(QStringLiteral("floatDockHighlight"));
     // Purely a visual affordance: it must never intercept the pointer.
     float_dock_highlight_->setAttribute(Qt::WA_TransparentForMouseEvents);
-    const auto accent = palette().color(QPalette::Highlight);
-    float_dock_highlight_->setStyleSheet(
-        QStringLiteral("#floatDockHighlight { background: rgba(%1, %2, %3, 70); border: 2px solid rgb(%1, %2, %3); }")
-            .arg(accent.red())
-            .arg(accent.green())
-            .arg(accent.blue()));
   }
+  // Rebuilt on every show, not once at construction: the accent moves with the
+  // color scheme, and a sheet built inside the creation branch above would keep
+  // the scheme that happened to be active the first time a document was floated.
+  const auto accent = theme().accent_control;
+  float_dock_highlight_->setStyleSheet(
+      QStringLiteral("#floatDockHighlight { background: rgba(%1, %2, %3, 70); border: 2px solid rgb(%1, %2, %3); }")
+          .arg(accent.red())
+          .arg(accent.green())
+          .arg(accent.blue()));
   const auto zone = float_dock_zone_global();
   float_dock_highlight_->setGeometry(QRect(document_tabs_->mapFromGlobal(zone.topLeft()), zone.size()));
   float_dock_highlight_->raise();

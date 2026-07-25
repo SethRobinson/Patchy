@@ -2,6 +2,22 @@
 
 Read this before changing QActions, dialogs, the options bar, list-row widgets, status messages, application QSS, or other shared UI behavior.
 
+## Color scheme
+
+Patchy ships Dark and Light, chosen in Preferences (`preferences/colorScheme`, values `system`/`dark`/`light`, default `system`). Switching applies live; nothing requires a restart. `ThemeManager` in `src/ui/theme_manager.hpp` owns the preference, resolves "follow system" through `QStyleHints::colorScheme()`, and emits `color_scheme_changed`. It also mirrors the resolved scheme onto Qt with `QStyleHints::setColorScheme`, which is what makes native chrome Patchy does not style (Windows dock and list scroll bars, tooltips, `QMessageBox`, native title bars) agree with the app.
+
+Standing rules:
+
+- **No hex literals for chrome anywhere in `src/ui`.** Colors are named roles in `src/ui/theme_palette.hpp`. QSS writes them as `@role_name` tokens; painted widgets and delegates read `theme().role_name`. Adding a role means the member, a Dark value, and a row in the role table; `ui_theme_palettes_define_every_role` fails if you miss one.
+- **Dark is authored, Light is derived then corrected.** `light_palette()` starts from a lightness flip of every Dark role and then overrides the ones where a flip is wrong (the canvas backdrop, bevels, brand and state colors, icon ink). A new role therefore needs no Light decision unless it deserves one.
+- **Never hand token text to `setStyleSheet`.** Qt drops the whole declaration containing an unresolved token, silently, so a rule just stops existing. Use `set_themed_style` / `append_themed_style` from `src/ui/theme_qss.hpp`; the shared builders return `ThemedQss` so the mistake is a compile error, and `ui_no_widget_ships_unresolved_theme_tokens` catches inline blobs that slip through. Rich-text labels with colored links use `set_themed_label_text`.
+- **`append_themed_style` preserves order.** A widget's sheet is an accumulation (chrome, then the dialog's own block, then `dialog_spinbox_button_style()` last), and the stored template replays in the same order on a scheme change. A dialog that rebuilds its whole sheet reads the accumulated template back with `themed_style_template`, never `styleSheet()`.
+- **A scheme change needs no `setIcon` call.** Icons are backed by engines in `src/ui/icon_theme.hpp` that resolve colors when painted, so existing `QIcon`s render correctly on their next repaint. Do not "fix" this by rebuilding icons.
+- **If you cache a pixmap derived from `theme()`, drop it on a scheme change.** Qt sends no event for a palette-struct change. `MainWindow::apply_color_scheme` clears the layer, channel, and path thumbnail caches for this reason.
+- **Some colors deliberately do not follow the scheme.** The transparency checkerboard depicts alpha and stays light in both themes, like every other editor, so "grid means transparent" remains a learned signal. Marching ants, the clone-source marker, and tool cursors are black-plus-white pairs engineered to read over arbitrary artwork; tying them to UI colors would make a selection vanish over matching pixels. Saved grid and guide colors are user data. The app icon and splash artwork composite against the OS, not Patchy's chrome. Adjustment-layer glyphs encode meaning through their own internal contrast (the Threshold glyph *is* a black/white split).
+
+Authoring icons: 32x32 viewBox, lowercase hex, drawn from the ten-color vocabulary in `icon_color_roles()` (`icon_ink` plus nine accents). `ui_icon_color_map_covers_every_authored_color` rejects anything outside it. The two paint-swatch icons and the seven referenced from QSS by `url()` are exempt and listed explicitly in `icon_theme.cpp`.
+
 ## Hotkeys
 
 Application-level QAction shortcuts must be registered through `MainWindow::register_hotkey(action, "stable.id", default_seq)`, backed by `HotkeyRegistry` in `src/ui/hotkey_registry.hpp`. Never call `setShortcut` or `setShortcuts` directly on an app-level action. Command ids are persisted and must never be renamed. Two commands must not share a default shortcut; `ui_hotkey_defaults_have_no_conflicts` enforces this.

@@ -3,6 +3,7 @@
 #include "ui/app_settings.hpp"
 
 #include "ui/action_icons.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
@@ -402,16 +403,16 @@ void install_numeric_popup(SpinBox* spin) {
   new NumericPopupController<SpinBox>(spin);
 }
 
-QString dialog_chrome_style() {
-  return QStringLiteral(R"(
+ThemedQss dialog_chrome_style() {
+  return ThemedQss(QStringLiteral(R"(
     QDialog {
-      background: #262626;
-      color: #e6e6e6;
-      border: 1px solid #1f1f1f;
+      background: @window_bg;
+      color: @text_primary;
+      border: 1px solid @window_border;
     }
     QWidget#dialogChromeTitleBar {
-      background: #4f4f4f;
-      border-bottom: 1px solid #343434;
+      background: @title_bar_bg;
+      border-bottom: 1px solid @title_bar_border;
       min-height: 34px;
       max-height: 34px;
     }
@@ -421,11 +422,11 @@ QString dialog_chrome_style() {
     }
     QLabel#dialogChromeTitleLabel {
       background: transparent;
-      color: #f0f0f0;
+      color: @text_bright;
       font-weight: 600;
     }
     QWidget#dialogChromeContent {
-      background: #262626;
+      background: @window_bg;
     }
     QToolButton#dialogChromeCloseButton {
       background: transparent;
@@ -438,11 +439,11 @@ QString dialog_chrome_style() {
       max-height: 34px;
     }
     QToolButton#dialogChromeCloseButton:hover {
-      background: #c42b1c;
+      background: @window_close_hover_bg;
       border: 0;
     }
     QToolButton#dialogChromeCloseButton:pressed {
-      background: #9f2117;
+      background: @window_close_pressed_bg;
     }
     QPushButton[compactSymbolButton="true"] {
       padding: 0;
@@ -451,7 +452,7 @@ QString dialog_chrome_style() {
       min-height: 22px;
       max-height: 22px;
     }
-  )");
+  )"));
 }
 
 class DialogChromeDragFilter final : public QObject {
@@ -894,23 +895,23 @@ void position_popup_below(const QWidget& anchor, QWidget& popup) {
   popup.move(position);
 }
 
-QString dialog_spinbox_button_style() {
-  return QStringLiteral(R"(
+ThemedQss dialog_spinbox_button_style() {
+  return ThemedQss(QStringLiteral(R"(
     QSpinBox,
     QDoubleSpinBox {
-      background: #292929;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
+      background: @field_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
       border-radius: 2px;
-      color: #f0f0f0;
+      color: @text_bright;
       min-height: 26px;
       padding-left: 6px;
       padding-right: 54px; /* keep text clear of the - / + buttons */
     }
     QSpinBox:disabled,
     QDoubleSpinBox:disabled {
-      background: #2c2c2c;
-      color: #767676;
+      background: @spinbox_disabled_bg;
+      color: @spinbox_disabled_text;
     }
     /* The decrement button sits on the left, the increment button on the
        far right, so the right-hand button always raises the value. */
@@ -921,9 +922,9 @@ QString dialog_spinbox_button_style() {
       right: 27px;
       width: 24px;
       height: 24px;
-      background: #3a3a3a;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
+      background: @button_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
       border-radius: 2px;
     }
     QSpinBox::up-button,
@@ -933,35 +934,35 @@ QString dialog_spinbox_button_style() {
       right: 1px;
       width: 24px;
       height: 24px;
-      background: #3a3a3a;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
+      background: @button_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
       border-radius: 2px;
     }
     QSpinBox::up-button:hover,
     QSpinBox::down-button:hover,
     QDoubleSpinBox::up-button:hover,
     QDoubleSpinBox::down-button:hover {
-      background: #4a4a4a;
-      border-color: #696969;
+      background: @button_hover_bg;
+      border-color: @button_hover_border;
     }
     QSpinBox::up-button:pressed,
     QSpinBox::down-button:pressed,
     QDoubleSpinBox::up-button:pressed,
     QDoubleSpinBox::down-button:pressed {
-      background: #2f75bd;
-      border-color: #6bb3ff;
+      background: @accent_pressed_bg;
+      border-color: @accent_border_bright;
     }
     QSpinBox::up-button:disabled,
     QSpinBox::down-button:disabled,
     QDoubleSpinBox::up-button:disabled,
     QDoubleSpinBox::down-button:disabled {
-      background: #2e2e2e;
-      border-top-color: #444444;
+      background: @spin_button_disabled_bg;
+      border-top-color: @spin_button_disabled_bevel;
     }
     QSpinBox::up-arrow,
     QDoubleSpinBox::up-arrow {
-      image: url(:/patchy/icons/spin-plus.svg);
+      image: url(@icon(spin-plus));
       width: 12px;
       height: 12px;
     }
@@ -969,11 +970,11 @@ QString dialog_spinbox_button_style() {
     QSpinBox::up-arrow:off,
     QDoubleSpinBox::up-arrow:disabled,
     QDoubleSpinBox::up-arrow:off {
-      image: url(:/patchy/icons/spin-plus-disabled.svg);
+      image: url(@icon(spin-plus-disabled));
     }
     QSpinBox::down-arrow,
     QDoubleSpinBox::down-arrow {
-      image: url(:/patchy/icons/spin-minus.svg);
+      image: url(@icon(spin-minus));
       width: 12px;
       height: 12px;
     }
@@ -981,9 +982,9 @@ QString dialog_spinbox_button_style() {
     QSpinBox::down-arrow:off,
     QDoubleSpinBox::down-arrow:disabled,
     QDoubleSpinBox::down-arrow:off {
-      image: url(:/patchy/icons/spin-minus-disabled.svg);
+      image: url(@icon(spin-minus-disabled));
     }
-  )");
+  )"));
 }
 
 void configure_compact_symbol_button(QPushButton* button) {
@@ -1023,7 +1024,7 @@ QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, cons
                                         DialogChromeCloseMode close_mode) {
   dialog.setWindowTitle(title);
   dialog.setWindowFlag(Qt::FramelessWindowHint, true);
-  dialog.setStyleSheet(dialog.styleSheet() + dialog_chrome_style());
+  append_themed_style(dialog, dialog_chrome_style());
   root->setContentsMargins(0, 0, 0, 0);
   root->setSpacing(0);
 

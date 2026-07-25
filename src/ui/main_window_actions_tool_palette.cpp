@@ -7,6 +7,7 @@
 // order is load-bearing (see create_actions() for the phase order).
 
 #include "ui/main_window.hpp"
+#include "ui/icon_theme.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/main_window_actions_internal.hpp"
 
@@ -449,9 +450,10 @@ private:
   QPointer<QToolButton> extension_;
 };
 
-// Tool icons are hand-authored SVGs in src/ui/icons/tool-*.svg (32x32 viewBox, #dce2eb
-// strokes with one optional #74c0ff accent); review them with the
-// ui_tool_palette_icons_render_sheet visual test.
+// Tool icons are hand-authored SVGs in src/ui/icons/tool-*.svg (32x32 viewBox,
+// icon_ink strokes with one optional icon_accent accent). Author them in the dark
+// values from theme_palette.hpp; icon_theme.cpp recolors them per scheme at paint
+// time. Review them with the ui_tool_palette_icons_render_sheet visual test.
 QIcon tool_icon(CanvasTool tool) {
   static const int icon_resources = ::qInitResources_icons();
   (void)icon_resources;
@@ -557,7 +559,7 @@ QIcon tool_icon(CanvasTool tool) {
       name = "tool-custom-shape";
       break;
   }
-  return QIcon(QStringLiteral(":/patchy/icons/%1.svg").arg(QLatin1String(name)));
+  return themed_svg_icon(QLatin1String(name));
 }
 
 }  // namespace

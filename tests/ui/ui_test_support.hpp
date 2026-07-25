@@ -57,6 +57,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/localization.hpp"
+#include "ui/theme_manager.hpp"
 #include "ui/main_window.hpp"
 #include "ui/new_document_dialog.hpp"
 #include "ui/print_dialog.hpp"
@@ -393,6 +394,32 @@ public:
 
 private:
   QString language_;
+};
+
+// The suite runs pinned to Dark (see tests/ui/main.cpp). Any test that renders in
+// Light must go through this so a failure cannot leave the rest of the corpus in
+// the wrong scheme, and so the system override never leaks.
+class ColorSchemeRestorer {
+public:
+  ColorSchemeRestorer()
+      : preference_(patchy::ui::ThemeManager::instance().preference()) {}
+
+  explicit ColorSchemeRestorer(patchy::ui::ColorSchemePreference preference) : ColorSchemeRestorer() {
+    apply(preference);
+  }
+
+  ~ColorSchemeRestorer() {
+    patchy::ui::ThemeManager::instance().set_system_color_scheme_for_testing(std::nullopt);
+    apply(preference_);
+  }
+
+  static void apply(patchy::ui::ColorSchemePreference preference) {
+    patchy::ui::ThemeManager::instance().set_preference(preference, /*persist=*/false);
+    QApplication::processEvents();
+  }
+
+private:
+  patchy::ui::ColorSchemePreference preference_;
 };
 
 class EnvironmentVariableRestorer {
