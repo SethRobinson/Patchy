@@ -395,6 +395,13 @@ QString photoshop_style() {
       max-height: 24px;
       padding: 1px;
     }
+    QToolBar#toolPalette QPushButton {
+      min-width: 26px;
+      max-width: 26px;
+      min-height: 24px;
+      max-height: 24px;
+      padding: 0;
+    }
     QToolButton[toolFlyout="true"]::menu-indicator {
       image: url(:/patchy/icons/tool-flyout-corner.svg);
       width: 7px;

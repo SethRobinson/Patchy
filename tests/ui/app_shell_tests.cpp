@@ -335,6 +335,89 @@ void ui_main_window_renders_color_controls() {
   save_widget_artifact("ui_main_window", window);
 }
 
+struct ToolPaletteOverflowSetup {
+  QToolBar* palette{nullptr};
+  QPushButton* foreground{nullptr};
+  QPushButton* background{nullptr};
+  QToolButton* quick_mask{nullptr};
+  QToolButton* extension{nullptr};
+};
+
+// Looks up the tool palette widgets, verifies everything fits at a tall
+// height, then shrinks the window to a ~40px palette shortage so the tail of
+// the bottom cluster overflows into the extension button.
+ToolPaletteOverflowSetup shrink_window_until_tool_palette_overflows(patchy::ui::MainWindow& window) {
+  ToolPaletteOverflowSetup setup;
+  setup.palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  CHECK(setup.palette != nullptr);
+  setup.foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
+  setup.background = window.findChild<QPushButton*>(QStringLiteral("backgroundColorButton"));
+  setup.quick_mask = window.findChild<QToolButton*>(QStringLiteral("quickMaskButton"));
+  setup.extension = setup.palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+  CHECK(setup.foreground != nullptr);
+  CHECK(setup.background != nullptr);
+  CHECK(setup.quick_mask != nullptr);
+  CHECK(setup.extension != nullptr);
+
+  // The chrome above and below the palette (menu bar, options bar, status bar)
+  // keeps its height across window resizes, so palette height tracks window
+  // height 1:1 and the fitting window height can be derived from the hint.
+  const int chrome_height = window.height() - setup.palette->height();
+  const int fits_height = setup.palette->sizeHint().height() + chrome_height;
+
+  window.resize(window.width(), fits_height + 24);
+  QApplication::processEvents();
+  process_events_for(60);
+  CHECK(setup.quick_mask->isVisible());
+  CHECK(!setup.extension->isVisible());
+
+  const int short_height = fits_height - 40;
+  CHECK(short_height > 0);
+  window.resize(window.width(), short_height);
+  QApplication::processEvents();
+  process_events_for(60);
+  // A minimum-size clamp refusing the resize would make the overflow
+  // assertions vacuous, so pin the height that was actually applied.
+  CHECK(window.height() == short_height);
+  CHECK(setup.extension->isVisible());
+  return setup;
+}
+
+void ui_tool_palette_overflow_hides_quick_mask_before_swatches() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto setup = shrink_window_until_tool_palette_overflows(window);
+
+  // Vertical overflow hides items tail-first, and the bottom cluster is
+  // ordered so Quick Mask, then Swap/Default, give way before the swatches.
+  CHECK(!setup.quick_mask->isVisible());
+  CHECK(setup.foreground->isVisible());
+  CHECK(setup.background->isVisible());
+  CHECK(setup.palette->width() <= 45);
+}
+
+void ui_tool_palette_extension_button_expands_palette() {
+  patchy::ui::MainWindow window;
+  // The expanded geometry is otherwise applied through the ~200ms main-window
+  // widget animator; disable it so one event-loop settle suffices.
+  window.setAnimated(false);
+  show_window(window);
+  const auto setup = shrink_window_until_tool_palette_overflows(window);
+  CHECK(!setup.quick_mask->isVisible());
+
+  setup.extension->click();
+  CHECK(process_events_until([&] { return setup.palette->width() > 45; }));
+  CHECK(setup.foreground->isVisible());
+  CHECK(setup.background->isVisible());
+  CHECK(setup.quick_mask->isVisible());
+  save_widget_artifact("ui_tool_palette_overflow_expanded", window);
+
+  setup.extension->click();
+  CHECK(process_events_until([&] { return setup.palette->width() <= 45; }));
+  CHECK(!setup.quick_mask->isVisible());
+  CHECK(setup.foreground->isVisible());
+}
+
 void ui_window_force_refresh_action_rebuilds_cache() {
   patchy::Document document(180, 130, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(180, 130, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -2006,6 +2089,9 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_start_panel_recent_files_open_on_click", ui_start_panel_recent_files_open_on_click},
       {"ui_start_panel_shows_about_info_and_update_status", ui_start_panel_shows_about_info_and_update_status},
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
+      {"ui_tool_palette_overflow_hides_quick_mask_before_swatches",
+       ui_tool_palette_overflow_hides_quick_mask_before_swatches},
+      {"ui_tool_palette_extension_button_expands_palette", ui_tool_palette_extension_button_expands_palette},
       {"ui_window_force_refresh_action_rebuilds_cache", ui_window_force_refresh_action_rebuilds_cache},
       {"ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency",
        ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency},

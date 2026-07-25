@@ -549,7 +549,11 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   tool_palette->setAllowedAreas(Qt::LeftToolBarArea);
   tool_palette->setToolButtonStyle(Qt::ToolButtonIconOnly);
   tool_palette->setIconSize(QSize(20, 20));
-  tool_palette->setFixedWidth(43);
+  // Minimum, not fixed: the overflow extension button reveals hidden items by
+  // temporarily widening the bar into extra columns, and a max width clamps
+  // that geometry into a clipped sliver. QSS caps the children narrower, so
+  // the collapsed width stays exactly 43.
+  tool_palette->setMinimumWidth(43);
   addToolBar(Qt::LeftToolBarArea, tool_palette);
 
   auto* tool_group = new QActionGroup(this);
@@ -768,14 +772,9 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   palette_spacer->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
   tool_palette->addWidget(palette_spacer);
   tool_palette->addSeparator();
-  auto* default_colors_action = tool_palette->addAction(tr("Default Colors"));
-  auto* swap_colors_action = tool_palette->addAction(tr("Swap Colors"));
-  default_colors_action->setObjectName(QStringLiteral("colorDefaultAction"));
-  swap_colors_action->setObjectName(QStringLiteral("colorSwapAction"));
-  default_colors_action->setIcon(simple_icon(QStringLiteral("D")));
-  swap_colors_action->setIcon(simple_icon(QStringLiteral("X")));
-  register_hotkey(default_colors_action, "color.default", QKeySequence(Qt::Key_D), QStringLiteral("color"));
-  register_hotkey(swap_colors_action, "color.swap", QKeySequence(Qt::Key_X), QStringLiteral("color"));
+  // Swatches first on purpose: vertical overflow hides items tail-first into
+  // the extension button, so Quick Mask, then Swap/Default, disappear before
+  // the FG/BG swatches.
   primary_color_button_ = new QPushButton(tr("FG"), tool_palette);
   secondary_color_button_ = new QPushButton(tr("BG"), tool_palette);
   primary_color_button_->setObjectName(QStringLiteral("foregroundColorButton"));
@@ -784,6 +783,14 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   secondary_color_button_->setToolTip(tr("Background color"));
   tool_palette->addWidget(primary_color_button_);
   tool_palette->addWidget(secondary_color_button_);
+  auto* default_colors_action = tool_palette->addAction(tr("Default Colors"));
+  auto* swap_colors_action = tool_palette->addAction(tr("Swap Colors"));
+  default_colors_action->setObjectName(QStringLiteral("colorDefaultAction"));
+  swap_colors_action->setObjectName(QStringLiteral("colorSwapAction"));
+  default_colors_action->setIcon(simple_icon(QStringLiteral("D")));
+  swap_colors_action->setIcon(simple_icon(QStringLiteral("X")));
+  register_hotkey(default_colors_action, "color.default", QKeySequence(Qt::Key_D), QStringLiteral("color"));
+  register_hotkey(swap_colors_action, "color.swap", QKeySequence(Qt::Key_X), QStringLiteral("color"));
   tool_palette->addSeparator();
   tool_palette->addAction(quick_mask_action_);
   if (auto* quick_mask_button = qobject_cast<QToolButton*>(
