@@ -163,6 +163,7 @@
 #include <QTextFragment>
 #include <QTextLayout>
 #include <QTimer>
+#include <QAbstractButton>
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeWidget>
@@ -412,7 +413,35 @@ void ui_tool_palette_extension_button_expands_palette() {
   CHECK(setup.quick_mask->isVisible());
   save_widget_artifact("ui_tool_palette_overflow_expanded", window);
 
+  // Stock Qt collapses the expansion half a second after the pointer leaves
+  // the bar; the palette keeps it open until it is explicitly toggled closed.
+  QEvent leave_event(QEvent::Leave);
+  QApplication::sendEvent(setup.palette, &leave_event);
+  process_events_for(700);
+  CHECK(setup.palette->width() > 45);
+  CHECK(setup.quick_mask->isVisible());
+
   setup.extension->click();
+  CHECK(process_events_until([&] { return setup.palette->width() <= 45; }));
+  CHECK(!setup.quick_mask->isVisible());
+  CHECK(setup.foreground->isVisible());
+}
+
+void ui_tool_palette_expanded_collapses_after_tool_pick() {
+  patchy::ui::MainWindow window;
+  window.setAnimated(false);
+  show_window(window);
+  const auto setup = shrink_window_until_tool_palette_overflows(window);
+
+  setup.extension->click();
+  CHECK(process_events_until([&] { return setup.palette->width() > 45; }));
+
+  // Picking a palette item is a completed choice: the expansion closes on its
+  // own like a flyout instead of lingering over the canvas.
+  auto* eraser_button = qobject_cast<QAbstractButton*>(
+      setup.palette->widgetForAction(require_action(window, "toolEraserAction")));
+  CHECK(eraser_button != nullptr);
+  eraser_button->click();
   CHECK(process_events_until([&] { return setup.palette->width() <= 45; }));
   CHECK(!setup.quick_mask->isVisible());
   CHECK(setup.foreground->isVisible());
@@ -2092,6 +2121,7 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_tool_palette_overflow_hides_quick_mask_before_swatches",
        ui_tool_palette_overflow_hides_quick_mask_before_swatches},
       {"ui_tool_palette_extension_button_expands_palette", ui_tool_palette_extension_button_expands_palette},
+      {"ui_tool_palette_expanded_collapses_after_tool_pick", ui_tool_palette_expanded_collapses_after_tool_pick},
       {"ui_window_force_refresh_action_rebuilds_cache", ui_window_force_refresh_action_rebuilds_cache},
       {"ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency",
        ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency},

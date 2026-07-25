@@ -427,6 +427,28 @@ private:
   std::function<void()> callback_;
 };
 
+// Stock QToolBar collapses an expanded overflow bar half a second after the
+// pointer leaves it, which makes the palette's second column nearly
+// unreachable. Swallowing Leave while the extension button is checked turns
+// the expansion into a real toggle; collapse happens through the extension
+// button or the palette-item connects in build_tool_palette().
+class ToolPaletteExpansionLock final : public QObject {
+public:
+  ToolPaletteExpansionLock(QToolButton* extension, QObject* parent)
+      : QObject(parent), extension_(extension) {}
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Leave && extension_ != nullptr && extension_->isChecked()) {
+      return true;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QPointer<QToolButton> extension_;
+};
+
 // Tool icons are hand-authored SVGs in src/ui/icons/tool-*.svg (32x32 viewBox, #dce2eb
 // strokes with one optional #74c0ff accent); review them with the
 // ui_tool_palette_icons_render_sheet visual test.
@@ -806,6 +828,29 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   connect(default_colors_action, &QAction::triggered, this, [this] { default_colors(); });
   register_document_action(default_colors_action);
   register_document_action(swap_colors_action);
+
+  // The overflow expansion behaves as a toggle: the Leave filter keeps it open
+  // while the pointer wanders, and picking any palette item closes it like a
+  // flyout. The collapse is deferred because it hides the clicked button while
+  // that button is still delivering its release.
+  if (auto* extension_button = tool_palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+      extension_button != nullptr) {
+    tool_palette->installEventFilter(new ToolPaletteExpansionLock(extension_button, tool_palette));
+    const auto collapse_palette_expansion = [extension_button] {
+      if (!extension_button->isChecked()) {
+        return;
+      }
+      QTimer::singleShot(0, extension_button, [extension_button] {
+        if (extension_button->isChecked()) {
+          extension_button->click();
+        }
+      });
+    };
+    connect(tool_group, &QActionGroup::triggered, extension_button, collapse_palette_expansion);
+    connect(tool_palette, &QToolBar::actionTriggered, extension_button, collapse_palette_expansion);
+    connect(primary_color_button_, &QPushButton::clicked, extension_button, collapse_palette_expansion);
+    connect(secondary_color_button_, &QPushButton::clicked, extension_button, collapse_palette_expansion);
+  }
 
   // Export the cross-phase locals bind_action_translations() still needs.
   ctx.tool_palette = tool_palette;
