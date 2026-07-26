@@ -130,6 +130,18 @@ void write_descriptor(BigEndianWriter& writer, const DescriptorObject& object);
 [[nodiscard]] std::vector<std::uint8_t> decode_packbits(std::span<const std::uint8_t> encoded,
                                                         std::size_t expected_size,
                                                         std::size_t* consumed_bytes = nullptr);
+// One image scanline, decoded leniently: a run that overruns the scanline is clipped, a
+// scanline whose data ends early keeps zeroes for the rest, and the result is always
+// exactly expected_size bytes. Sets *damaged when either happened, so the reader can
+// report a recovery notice. Real legacy PSDs carry blocks of corrupt scanlines in a
+// single channel and Photoshop still opens them, so the image-channel readers must never
+// fail a whole document over one row; each row's own byte count keeps the stream in sync,
+// so the damage cannot spread. Everything else (patterns, brushes, filter effects, ILBM)
+// keeps decode_packbits, whose exact-length contract catches genuine misparses.
+// See the damaged-scanline section of docs/file-formats.md.
+[[nodiscard]] std::vector<std::uint8_t> decode_packbits_scanline(std::span<const std::uint8_t> encoded,
+                                                                 std::size_t expected_size,
+                                                                 bool* damaged = nullptr);
 // One row of PackBits/ByteRun1 encoding (shared by the PSD RLE writer and the ILBM BODY
 // writer; the algorithms are identical).
 [[nodiscard]] std::vector<std::uint8_t> encode_packbits_row(std::span<const std::uint8_t> row);

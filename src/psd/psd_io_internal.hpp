@@ -389,14 +389,21 @@ struct ChannelDecodeInfo {
 // vector; depth 8 passes through untouched.
 [[nodiscard]] std::vector<std::uint8_t> convert_channel_to_8bit(std::vector<std::uint8_t>&& data,
                                                                 std::uint16_t depth, bool color_channel);
+// damaged_rows, when given, counts the RLE scanlines that did not decode to exactly the
+// channel width. Those rows are recovered rather than thrown on (see
+// decode_packbits_scanline), and the readers turn a nonzero count into an import notice.
 std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
                                             std::int32_t height, bool wide_rle_counts,
-                                            const ChannelDecodeInfo& decode_info = {});
+                                            const ChannelDecodeInfo& decode_info = {},
+                                            std::size_t* damaged_rows = nullptr);
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader& reader, const Header& header,
-                                                                std::uint16_t compression);
+                                                                std::uint16_t compression,
+                                                                std::size_t* damaged_rows = nullptr);
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels_from(
     BigEndianReader& reader, const Header& header, std::uint16_t compression,
-    std::uint16_t first_channel);
+    std::uint16_t first_channel, std::size_t* damaged_rows = nullptr);
+// Appends the "some scanlines were damaged" import notice when the count is nonzero.
+void append_damaged_row_notice(std::size_t damaged_rows, std::vector<std::string>* notices);
 bool is_cmyk_color_mode(std::uint16_t color_mode) noexcept;
 void convert_cmyk_planes_to_rgb(PixelBuffer& pixels, const std::uint8_t* cyan,
                                 const std::uint8_t* magenta, const std::uint8_t* yellow,

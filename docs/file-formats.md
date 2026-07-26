@@ -431,6 +431,28 @@ Everything except PSD/Aseprite flat-exports through `write_flat_image_file`, whi
 - Photoshop Fill Opacity reads and writes the four-byte `iOpa` layer block. The first byte is the 0-255 value and the other three bytes are padding; authored 100% Fill omits the block. Fill affects base content and adjustment strength but not layer effects, and group Fill is ignored. Color Burn, Linear Burn, Color Dodge, Linear Dodge, and Difference use Photoshop's special Fill blend kernels rather than treating Fill as another master-opacity multiplier. Nondefault-Fill clipping bases record their content coverage separately so effects do not become the clipping shape. Aseprite cannot store this property and Patchy warns before discarding it.
 - **Layer origins are preserved verbatim, however far off-canvas** (July 2026): Photoshop composites the off-canvas slice in place, and the reader's old `[-canvas, 2*canvas]` origin clamp silently SHIFTED such content without cropping the pixels (a 2155-tall frame layer at top -780 on a 240-tall canvas rendered a slice 540 px off, and a resave would have baked the shift in). Only a corruption guard remains (`|origin| <= 2^23`, against int overflow in later rect math). `psd_far_offcanvas_layer_keeps_true_origin` pins it.
 
+## Damaged PackBits scanlines
+
+Real legacy PSDs carry blocks of corrupt RLE scanlines, and Photoshop opens them, so the
+image-channel readers must recover instead of failing the document. `decode_packbits_scanline`
+(psd_descriptor.cpp) is the lenient decoder every layer, composite, and saved-channel row goes
+through: a run that overruns the scanline is clipped, a scanline whose data ends early keeps
+zeroes for the rest, and the result is always exactly the channel width. Each row's declared
+byte count still positions the stream, so a damaged row cannot desync the rows after it. The
+readers count recovered rows and `append_damaged_row_notice` turns a nonzero count into one
+import notice for the whole document.
+
+Everything else (patterns, brushes, filter effects, ILBM) keeps the strict `decode_packbits`,
+whose exact-length contract catches genuine misparses of structures that carry no row table.
+
+Ground truth (a 2017 Dink map PSD, 900x900, 58 corrupt rows in one hidden layer's blue channel):
+Patchy's per-layer render matches Photoshop 2026's byte for byte in red and green across every
+row, and in blue everywhere outside the corrupt band. Inside it the two differ, and Patchy
+recovers strictly more: Photoshop abandons the channel at the first bad row and leaves 103 rows
+holding stale buffer content (literally the green plane), while Patchy resyncs on the row table
+and decodes the 46 valid rows after the damage correctly. There is no right answer for the
+genuinely corrupt rows, so nothing pins their pixels.
+
 ## Import notices
 
 Readers report dropped/approximated features via `FormatReadResult::notices` (plain English, like reader error strings: the formats lib is Qt-free). `open_document_path` shows them in the STATUS BAR by default (first note plus a "+N more" suffix); the consolidated `importNoticesMessageBox` popup appears only when `imports/showPsdWarningsAndInfo` is enabled (the same preference that gates the PSD compatibility report; Seth: no info popups by default). Animated GIFs note "first frame only" from the Qt path. Tests that open notice-raising files assert `statusBar()->currentMessage()`; only tests that ENABLE the preference need the REPEATING QTimer dismisser (a one-shot fires during the open-progress phase and the suite hangs; see `ui_import_notices_dialog_shown_when_setting_enabled`).

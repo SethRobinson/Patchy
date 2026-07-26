@@ -1462,6 +1462,194 @@ void psd_interface_mock2_loads_if_available() {
   CHECK(flattened.height() == 600);
 }
 
+// Builds a one-layer RGB PSD whose blue layer channel is RLE-compressed, with the
+// caller's raw PackBits bytes substituted for the middle row. Real legacy files carry
+// blocks of corrupt scanlines (a 2017 Dink map PSD has 58 of them in one channel) and
+// Photoshop opens them, so the reader must recover rather than refuse the document.
+std::vector<std::uint8_t> layered_psd_with_blue_row_bytes(
+    std::span<const std::uint8_t> damaged_middle_row) {
+  constexpr std::int32_t kWidth = 4;
+  constexpr std::int32_t kHeight = 3;
+  // Red and green rise across the layer; blue counts 100, 101, 102 per row so a
+  // damaged row is obvious in the decoded pixels.
+  const auto plane_value = [](int channel, std::int32_t x, std::int32_t y) {
+    return static_cast<std::uint8_t>(channel == 0   ? 10 + x
+                                     : channel == 1 ? 40 + y
+                                                    : 100 + y);
+  };
+
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);  // no mask
+  layer_extra.write_u32(0);  // no blending ranges
+  write_pascal_padded(layer_extra, "Damaged", 4);
+
+  std::array<std::vector<std::uint8_t>, 3> encoded_channels;
+  for (int channel = 0; channel < 3; ++channel) {
+    patchy::psd::BigEndianWriter channel_writer;
+    std::vector<std::vector<std::uint8_t>> rows;
+    for (std::int32_t y = 0; y < kHeight; ++y) {
+      std::vector<std::uint8_t> row;
+      for (std::int32_t x = 0; x < kWidth; ++x) {
+        row.push_back(plane_value(channel, x, y));
+      }
+      auto encoded = patchy::psd::encode_packbits_row(row);
+      if (channel == 2 && y == 1) {
+        encoded.assign(damaged_middle_row.begin(), damaged_middle_row.end());
+      }
+      rows.push_back(std::move(encoded));
+    }
+    channel_writer.write_u16(1);  // RLE
+    for (const auto& row : rows) {
+      channel_writer.write_u16(static_cast<std::uint16_t>(row.size()));
+    }
+    for (const auto& row : rows) {
+      channel_writer.write_bytes(row);
+    }
+    encoded_channels[static_cast<std::size_t>(channel)] = channel_writer.bytes();
+  }
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(1);  // one layer
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(kHeight));
+  layer_info.write_u32(static_cast<std::uint32_t>(kWidth));
+  layer_info.write_u16(3);
+  for (std::uint16_t channel = 0; channel < 3; ++channel) {
+    layer_info.write_u16(channel);
+    layer_info.write_u32(static_cast<std::uint32_t>(encoded_channels[channel].size()));
+  }
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+  for (const auto& channel : encoded_channels) {
+    layer_info.write_bytes(channel);
+  }
+  if ((layer_info.bytes().size() % 2U) != 0) {
+    layer_info.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  layer_mask.write_u32(0);  // no global layer mask info
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, static_cast<std::uint32_t>(kHeight),
+                                                        static_cast<std::uint32_t>(kWidth), 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);  // raw composite
+  for (std::size_t i = 0; i < 3U * static_cast<std::size_t>(kWidth * kHeight); ++i) {
+    writer.write_u8(0);
+  }
+  return writer.bytes();
+}
+
+// Reads the synthetic file and returns the layer's blue plane plus the notices.
+std::pair<std::vector<std::uint8_t>, std::vector<std::string>> read_damaged_blue_plane(
+    std::span<const std::uint8_t> damaged_middle_row) {
+  const auto bytes = layered_psd_with_blue_row_bytes(damaged_middle_row);
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
+  const auto document = patchy::psd::DocumentIo::read(bytes, options);
+  CHECK(document.layers().size() == 1);
+  const auto& pixels = document.layers().front().pixels();
+  CHECK(pixels.width() == 4);
+  CHECK(pixels.height() == 3);
+  std::vector<std::uint8_t> blue;
+  for (std::int32_t y = 0; y < 3; ++y) {
+    for (std::int32_t x = 0; x < 4; ++x) {
+      blue.push_back(pixels.pixel(x, y)[2]);
+    }
+  }
+  return {std::move(blue), std::move(notices)};
+}
+
+bool has_damaged_row_notice(const std::vector<std::string>& notices) {
+  return std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("damaged") != std::string::npos;
+  });
+}
+
+// A run that overshoots the scanline is clipped at the row width; the rest of the
+// channel still decodes from its own row-count entry, so the good rows stay exact.
+void psd_overlong_packbits_row_recovers_and_notes() {
+  // Repeat run of six 200s in a four-wide row, then a literal the row has no space for.
+  const std::vector<std::uint8_t> damaged{0xFBU, 200U, 0x01U, 7U, 8U};
+  const auto [blue, notices] = read_damaged_blue_plane(damaged);
+  const std::vector<std::uint8_t> expected{100, 100, 100, 100, 200, 200, 200, 200, 102, 102, 102, 102};
+  CHECK(blue == expected);
+  CHECK(has_damaged_row_notice(notices));
+}
+
+// A scanline whose data ends early keeps zeroes for the rest instead of failing.
+void psd_short_packbits_row_zero_fills_and_notes() {
+  const std::vector<std::uint8_t> damaged{0x01U, 7U, 8U};  // two of the four bytes
+  const auto [blue, notices] = read_damaged_blue_plane(damaged);
+  const std::vector<std::uint8_t> expected{100, 100, 100, 100, 7, 8, 0, 0, 102, 102, 102, 102};
+  CHECK(blue == expected);
+  CHECK(has_damaged_row_notice(notices));
+}
+
+// A literal run whose bytes are cut off by the end of the row payload.
+void psd_truncated_packbits_literal_recovers_and_notes() {
+  const std::vector<std::uint8_t> damaged{0x03U, 7U, 8U};  // claims four bytes, supplies two
+  const auto [blue, notices] = read_damaged_blue_plane(damaged);
+  const std::vector<std::uint8_t> expected{100, 100, 100, 100, 7, 8, 0, 0, 102, 102, 102, 102};
+  CHECK(blue == expected);
+  CHECK(has_damaged_row_notice(notices));
+}
+
+// The lenient path must stay byte-identical to the strict decoder for valid rows, and
+// must not invent a notice for a file that decodes cleanly.
+void psd_valid_packbits_rows_decode_without_a_damage_notice() {
+  const std::vector<std::uint8_t> good{0x03U, 50U, 51U, 52U, 53U};
+  const auto [blue, notices] = read_damaged_blue_plane(good);
+  const std::vector<std::uint8_t> expected{100, 100, 100, 100, 50, 51, 52, 53, 102, 102, 102, 102};
+  CHECK(blue == expected);
+  CHECK(!has_damaged_row_notice(notices));
+}
+
+void psd_packbits_scanline_decoder_clips_pads_and_reports() {
+  const std::vector<std::uint8_t> exact{0xFEU, 9U, 0x00U, 4U};  // three 9s then one 4
+  bool damaged = true;
+  CHECK(patchy::psd::decode_packbits_scanline(exact, 4, &damaged) ==
+        std::vector<std::uint8_t>({9, 9, 9, 4}));
+  CHECK(!damaged);
+
+  // A no-op header byte (-128) is skipped, exactly like the strict decoder.
+  const std::vector<std::uint8_t> with_noop{0x80U, 0xFEU, 9U, 0x80U, 0x00U, 4U};
+  damaged = true;
+  CHECK(patchy::psd::decode_packbits_scanline(with_noop, 4, &damaged) ==
+        std::vector<std::uint8_t>({9, 9, 9, 4}));
+  CHECK(!damaged);
+
+  const std::vector<std::uint8_t> overlong{0xF9U, 3U};  // repeat eight 3s into four bytes
+  damaged = false;
+  CHECK(patchy::psd::decode_packbits_scanline(overlong, 4, &damaged) ==
+        std::vector<std::uint8_t>({3, 3, 3, 3}));
+  CHECK(damaged);
+
+  const std::vector<std::uint8_t> empty;
+  damaged = false;
+  CHECK(patchy::psd::decode_packbits_scanline(empty, 4, &damaged) ==
+        std::vector<std::uint8_t>({0, 0, 0, 0}));
+  CHECK(damaged);
+
+  damaged = true;
+  CHECK(patchy::psd::decode_packbits_scanline(empty, 0, &damaged).empty());
+  CHECK(!damaged);
+}
+
 std::vector<std::uint8_t> zlib_deflate(std::span<const std::uint8_t> raw) {
   std::vector<std::uint8_t> compressed(mz_compressBound(static_cast<mz_ulong>(raw.size())));
   mz_ulong compressed_length = static_cast<mz_ulong>(compressed.size());
@@ -1980,5 +2168,13 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psb_transparency_channel_is_not_a_layer_mask_if_available",
        psb_transparency_channel_is_not_a_layer_mask_if_available},
       {"psd_layer_record_flags_mark_photoshop5_layers", psd_layer_record_flags_mark_photoshop5_layers},
+      {"psd_overlong_packbits_row_recovers_and_notes", psd_overlong_packbits_row_recovers_and_notes},
+      {"psd_short_packbits_row_zero_fills_and_notes", psd_short_packbits_row_zero_fills_and_notes},
+      {"psd_truncated_packbits_literal_recovers_and_notes",
+       psd_truncated_packbits_literal_recovers_and_notes},
+      {"psd_valid_packbits_rows_decode_without_a_damage_notice",
+       psd_valid_packbits_rows_decode_without_a_damage_notice},
+      {"psd_packbits_scanline_decoder_clips_pads_and_reports",
+       psd_packbits_scanline_decoder_clips_pads_and_reports},
   };
 }

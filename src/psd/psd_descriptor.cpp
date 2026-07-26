@@ -1,5 +1,6 @@
 #include "psd/psd_descriptor.hpp"
 
+#include <algorithm>
 #include <bit>
 #include <stdexcept>
 
@@ -506,6 +507,43 @@ std::vector<std::uint8_t> decode_packbits(std::span<const std::uint8_t> encoded,
   }
   if (consumed_bytes != nullptr) {
     *consumed_bytes = cursor;
+  }
+  return decoded;
+}
+
+std::vector<std::uint8_t> decode_packbits_scanline(std::span<const std::uint8_t> encoded,
+                                                  std::size_t expected_size, bool* damaged) {
+  std::vector<std::uint8_t> decoded(expected_size, 0);
+  std::size_t written = 0;
+  std::size_t cursor = 0;
+  bool clipped = false;
+  while (cursor < encoded.size() && written < expected_size) {
+    const auto header = static_cast<std::int8_t>(encoded[cursor++]);
+    if (header == -128) {
+      continue;  // no-op run
+    }
+    const auto requested = header >= 0 ? static_cast<std::size_t>(header) + 1U
+                                       : static_cast<std::size_t>(1 - header);
+    const auto count = std::min(requested, expected_size - written);
+    clipped = clipped || count != requested;
+    if (header >= 0) {
+      const auto available = std::min(count, encoded.size() - cursor);
+      clipped = clipped || available != count;
+      std::copy_n(encoded.begin() + static_cast<std::ptrdiff_t>(cursor), available,
+                  decoded.begin() + static_cast<std::ptrdiff_t>(written));
+      written += available;
+      cursor += requested;  // skip the whole literal even when the row clipped it
+    } else {
+      if (cursor >= encoded.size()) {
+        clipped = true;
+        break;
+      }
+      std::fill_n(decoded.begin() + static_cast<std::ptrdiff_t>(written), count, encoded[cursor++]);
+      written += count;
+    }
+  }
+  if (damaged != nullptr) {
+    *damaged = clipped || written != expected_size;
   }
   return decoded;
 }
