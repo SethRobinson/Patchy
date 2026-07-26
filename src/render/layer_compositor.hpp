@@ -431,6 +431,132 @@ inline void composite_effect_color(Target& destination, std::int32_t x, std::int
   destination.composite_color(x, y, color, alpha, mode);
 }
 
+// RGB-space twin of composite_effect_color, for interior effects that fold into
+// the layer's own straight color instead of compositing onto the destination.
+// The LinearBurn/ColorBurn/ColorDodge opacity pre-fold has to come along or
+// those modes lose their Photoshop calibration.
+[[nodiscard]] inline std::array<std::uint8_t, 3> fold_effect_color(std::array<std::uint8_t, 3> destination,
+                                                                   RgbColor color, float alpha, BlendMode mode) {
+  if (mode == BlendMode::LinearBurn || mode == BlendMode::ColorBurn) {
+    const auto fold = [alpha](std::uint8_t channel) {
+      return static_cast<std::uint8_t>(
+          std::clamp<long>(std::lround(255.0F - (255.0F - static_cast<float>(channel)) * alpha), 0L, 255L));
+    };
+    return composite_blended_rgb({fold(color.red), fold(color.green), fold(color.blue)}, destination, mode,
+                                 alpha > 0.0F ? 1.0F : 0.0F, 1.0F);
+  }
+  if (mode == BlendMode::ColorDodge) {
+    const auto fold = [alpha](std::uint8_t channel) {
+      return static_cast<std::uint8_t>(
+          std::clamp<long>(std::lround(static_cast<float>(channel) * alpha), 0L, 255L));
+    };
+    return composite_blended_rgb({fold(color.red), fold(color.green), fold(color.blue)}, destination, mode,
+                                 alpha > 0.0F ? 1.0F : 0.0F, 1.0F);
+  }
+  return composite_blended_rgb({color.red, color.green, color.blue}, destination, mode, alpha, 1.0F);
+}
+
+// One resolved interior overlay (Pattern, Gradient or Color), ready to fold into
+// a layer's straight RGB per pixel. Kept in Photoshop's interior order: pattern
+// under gradient under color.
+struct PreparedInteriorOverlay {
+  enum class Kind : std::uint8_t { Pattern, Gradient, Color };
+
+  Kind kind{Kind::Color};
+  BlendMode blend_mode{BlendMode::Normal};
+  float opacity{1.0F};
+  RgbColor color{};                                 // Color overlay
+  std::optional<PatternTileSampler> pattern{};      // Pattern overlay
+  const LayerStyleGradient* gradient{nullptr};      // Gradient overlay
+  Rect gradient_bounds{};
+};
+
+// Resolves the interior overlays a layer will fold into its own color. An
+// unresolvable pattern is dropped here, which renders nothing - the same
+// outcome render_pattern_overlay gives it.
+[[nodiscard]] inline std::vector<PreparedInteriorOverlay> prepare_interior_overlays(
+    const Layer& layer, const LayerStyle& style, const PixelBuffer& source, Rect bounds,
+    const PatternStore* patterns) {
+  std::vector<PreparedInteriorOverlay> prepared;
+  prepared.reserve(style.pattern_overlays.size() + style.gradient_fills.size() + style.color_overlays.size());
+  for (const auto& overlay : style.pattern_overlays) {
+    if (!overlay.enabled || overlay.opacity <= 0.0F || patterns == nullptr) {
+      continue;
+    }
+    const auto* resource = patterns->find(overlay.pattern_id);
+    if (resource == nullptr || resource->tile.empty()) {
+      continue;
+    }
+    PreparedInteriorOverlay entry;
+    entry.kind = PreparedInteriorOverlay::Kind::Pattern;
+    entry.blend_mode = overlay.blend_mode;
+    entry.opacity = overlay.opacity;
+    entry.pattern.emplace(resource->tile, layer, overlay.scale, overlay.angle_degrees, overlay.link_with_layer,
+                          overlay.phase_x, overlay.phase_y);
+    prepared.push_back(std::move(entry));
+  }
+  for (const auto& fill : style.gradient_fills) {
+    if (!fill.enabled || fill.opacity <= 0.0F) {
+      continue;
+    }
+    PreparedInteriorOverlay entry;
+    entry.kind = PreparedInteriorOverlay::Kind::Gradient;
+    entry.blend_mode = fill.blend_mode;
+    entry.opacity = fill.opacity;
+    entry.gradient = &fill.gradient;
+    entry.gradient_bounds = fill.gradient.align_with_layer
+                                ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
+                                : bounds;
+    prepared.push_back(std::move(entry));
+  }
+  for (const auto& overlay : style.color_overlays) {
+    if (!overlay.enabled || overlay.opacity <= 0.0F) {
+      continue;
+    }
+    PreparedInteriorOverlay entry;
+    entry.kind = PreparedInteriorOverlay::Kind::Color;
+    entry.blend_mode = overlay.blend_mode;
+    entry.opacity = overlay.opacity;
+    entry.color = overlay.color;
+    prepared.push_back(std::move(entry));
+  }
+  return prepared;
+}
+
+// Folds the prepared overlays into one styled color. Source alpha, the layer
+// mask, Fill/layer opacity and the backdrop are deliberately absent: the base
+// pass applies each of them once to the folded result, which is what makes a
+// 100%/Normal overlay cover the layer's own pixels the way Photoshop does.
+[[nodiscard]] inline std::array<std::uint8_t, 3> fold_interior_overlays(
+    std::array<std::uint8_t, 3> styled, const std::vector<PreparedInteriorOverlay>& overlays, std::int32_t x,
+    std::int32_t y) {
+  for (const auto& overlay : overlays) {
+    auto coverage = overlay.opacity;
+    auto color = overlay.color;
+    switch (overlay.kind) {
+      case PreparedInteriorOverlay::Kind::Pattern: {
+        const auto sample = overlay.pattern->sample(x, y);
+        coverage *= sample.alpha;
+        color = sample.color;
+        break;
+      }
+      case PreparedInteriorOverlay::Kind::Gradient: {
+        const auto position = gradient_position(*overlay.gradient, overlay.gradient_bounds, x, y);
+        coverage *= gradient_stop_opacity(*overlay.gradient, position);
+        color = gradient_color_dithered(*overlay.gradient, position, x, y);
+        break;
+      }
+      case PreparedInteriorOverlay::Kind::Color:
+        break;
+    }
+    if (coverage <= 0.0F) {
+      continue;
+    }
+    styled = fold_effect_color(styled, color, coverage, overlay.blend_mode);
+  }
+  return styled;
+}
+
 template <typename Target>
 void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                         const LayerDropShadow& shadow, std::optional<Rect> layer_mask_bounds,
@@ -1734,6 +1860,57 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   }
   const auto* knockout = knockout_strokes.empty() ? nullptr : &knockout_plane;
 
+  // Interior overlays on a stroked shape layer apply to the FILL plane and the
+  // vector stroke re-composites above them (PS 2026 probes fx-sofi-center /
+  // outside, docs/vector-tools.md). A stroke-only shape's overlay covers the
+  // stroke, which the legacy combined path already renders. The split planes
+  // come from the shape bake; when absent or mismatched (no stroke, non-Normal
+  // stroke blend, transform-preview override, preserved import raster) the
+  // legacy behavior stands. Blend-If layers keep the legacy path too - the
+  // re-stamp cannot reproduce the per-pixel gate.
+  const PixelBuffer* interior_source = &source;
+  const PixelBuffer* stroke_restamp = nullptr;
+  if (style.effects_visible && !has_blend_if) {
+    if (const auto* shape = layer.vector_shape();
+        shape != nullptr && !shape->stroke_cache.empty() && !shape->fill_cache.empty() &&
+        &source == &layer.pixels() && shape->fill_cache.width() == source.width() &&
+        shape->fill_cache.height() == source.height() && shape->stroke_cache.width() == source.width() &&
+        shape->stroke_cache.height() == source.height()) {
+      // Gate on an overlay that will actually paint: a needless re-stamp would
+      // double-composite the stroke's AA edges.
+      const auto overlay_paints = [](const auto& overlays) {
+        return std::any_of(overlays.begin(), overlays.end(), [](const auto& overlay) {
+          return overlay.enabled && overlay.opacity > 0.0F;
+        });
+      };
+      if (overlay_paints(style.pattern_overlays) || overlay_paints(style.gradient_fills) ||
+          overlay_paints(style.color_overlays)) {
+        interior_source = &shape->fill_cache;
+        stroke_restamp = &shape->stroke_cache;
+      }
+    }
+  }
+
+  // Photoshop resolves the interior overlays INTO the layer's own color and
+  // applies Fill/layer Opacity and the backdrop once to that result, so a
+  // 100%/Normal overlay hides the layer's own pixels outright. Folding them
+  // into the base pass is the only way to reproduce that: compositing each
+  // overlay as its own pass scaled by layer.opacity() leaves (1 - opacity) of
+  // the layer's own color showing through an opaque overlay, and over-composites
+  // semi-transparent interiors instead of knocking them out. Same treatment
+  // Satin already gets, and the same escapes: Blend If (Photoshop does not gate
+  // effects with it), Fill Opacity (which scales the layer's pixels but not its
+  // effects, so the overlay cannot ride the base alpha) and the vector
+  // fill/stroke split (folding would tint the stroke) keep the legacy passes.
+  const bool fold_interior_overlays_into_base =
+      style.effects_visible && !has_blend_if && layer.fill_opacity() == 1.0F && stroke_restamp == nullptr;
+  std::vector<PreparedInteriorOverlay> folded_overlays;
+  if (fold_interior_overlays_into_base && !draw_rect.empty()) {
+    profile_compositor_step(destination, layer, "interior_overlays", draw_rect, [&] {
+      folded_overlays = prepare_interior_overlays(layer, style, source, bounds, patterns);
+    });
+  }
+
   if (!draw_rect.empty()) {
     profile_compositor_step(destination, layer, "base_pixels", draw_rect, [&] {
       const auto format = source.format();
@@ -1742,9 +1919,10 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       const auto source_stride = source.stride_bytes();
       const auto has_enabled_mask = (layer.mask().has_value() && !layer.mask()->disabled) ||
                                     layer_has_enabled_vector_mask(layer);
+      const auto has_folded_overlays = !folded_overlays.empty();
       bool composited_by_target = false;
-      if (!has_blend_if && !has_enabled_mask && prepared_satins.empty() && knockout == nullptr &&
-          layer.fill_opacity() == 1.0F && layer.blend_mode() == BlendMode::Normal) {
+      if (!has_blend_if && !has_enabled_mask && prepared_satins.empty() && folded_overlays.empty() &&
+          knockout == nullptr && layer.fill_opacity() == 1.0F && layer.blend_mode() == BlendMode::Normal) {
         if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
                                 std::int32_t width, std::uint16_t channel_count, float opacity) {
                         target.composite_source_row(x, y, row, width, channel_count, opacity);
@@ -1801,6 +1979,11 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             }
 
             std::array<std::uint8_t, 3> styled_color{src[0], src[1], src[2]};
+            // Overlays sit under Satin in Photoshop's interior stack, so they
+            // fold first.
+            if (has_folded_overlays) {
+              styled_color = fold_interior_overlays(styled_color, folded_overlays, x, y);
+            }
             if (!has_blend_if && layer.fill_opacity() == 1.0F) {
               for (const auto& prepared : prepared_satins) {
                 const auto mask_index =
@@ -1873,58 +2056,30 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   if (style.effects_visible) {
-    // Interior overlays on a stroked shape layer apply to the FILL plane and
-    // the vector stroke re-composites above them (PS 2026 probes
-    // fx-sofi-center/outside, docs/vector-tools.md). A stroke-only shape's
-    // overlay covers the stroke, which the legacy combined path already
-    // renders. The split planes come from the shape bake; when absent or
-    // mismatched (no stroke, non-Normal stroke blend, transform-preview
-    // override, preserved import raster) the legacy behavior stands. Blend-If
-    // layers keep the legacy path too - the re-stamp cannot reproduce the
-    // per-pixel gate.
-    const PixelBuffer* interior_source = &source;
-    const PixelBuffer* stroke_restamp = nullptr;
-    if (!has_blend_if) {
-      if (const auto* shape = layer.vector_shape();
-          shape != nullptr && !shape->stroke_cache.empty() && !shape->fill_cache.empty() &&
-          &source == &layer.pixels() && shape->fill_cache.width() == source.width() &&
-          shape->fill_cache.height() == source.height() &&
-          shape->stroke_cache.width() == source.width() &&
-          shape->stroke_cache.height() == source.height()) {
-        // Gate on an overlay that will actually paint: a needless re-stamp
-        // would double-composite the stroke's AA edges.
-        const auto overlay_paints = [](const auto& overlays) {
-          return std::any_of(overlays.begin(), overlays.end(), [](const auto& overlay) {
-            return overlay.enabled && overlay.opacity > 0.0F;
-          });
-        };
-        if (overlay_paints(style.pattern_overlays) || overlay_paints(style.gradient_fills) ||
-            overlay_paints(style.color_overlays)) {
-          interior_source = &shape->fill_cache;
-          stroke_restamp = &shape->stroke_cache;
-        }
-      }
-    }
     // Overlay stacking pinned against Photoshop 2026 (pairwise 100%-opacity
     // probes): pattern under gradient under color, i.e. Color Overlay paints
-    // last. The historical color-then-gradient order was inverted vs PS.
-    for (const auto& overlay : style.pattern_overlays) {
-      profile_compositor_step(destination, layer, "pattern_overlay", clip, [&] {
-        render_pattern_overlay(destination, layer, *interior_source, clip, bounds, overlay,
-                               layer_mask_bounds, patterns, knockout);
-      });
-    }
-    for (const auto& fill : style.gradient_fills) {
-      profile_compositor_step(destination, layer, "gradient_fill", clip, [&] {
-        render_gradient_fill(destination, layer, *interior_source, clip, bounds, fill, layer_mask_bounds,
-                             knockout);
-      });
-    }
-    for (const auto& overlay : style.color_overlays) {
-      profile_compositor_step(destination, layer, "color_overlay", clip, [&] {
-        render_color_overlay(destination, layer, *interior_source, clip, bounds, overlay, layer_mask_bounds,
-                             knockout);
-      });
+    // last. The historical color-then-gradient order was inverted vs PS. These
+    // destination passes only run for the cases the base-pass fold above cannot
+    // take (Blend If, Fill Opacity, the vector fill/stroke split).
+    if (!fold_interior_overlays_into_base) {
+      for (const auto& overlay : style.pattern_overlays) {
+        profile_compositor_step(destination, layer, "pattern_overlay", clip, [&] {
+          render_pattern_overlay(destination, layer, *interior_source, clip, bounds, overlay,
+                                 layer_mask_bounds, patterns, knockout);
+        });
+      }
+      for (const auto& fill : style.gradient_fills) {
+        profile_compositor_step(destination, layer, "gradient_fill", clip, [&] {
+          render_gradient_fill(destination, layer, *interior_source, clip, bounds, fill, layer_mask_bounds,
+                               knockout);
+        });
+      }
+      for (const auto& overlay : style.color_overlays) {
+        profile_compositor_step(destination, layer, "color_overlay", clip, [&] {
+          render_color_overlay(destination, layer, *interior_source, clip, bounds, overlay, layer_mask_bounds,
+                               knockout);
+        });
+      }
     }
     if (stroke_restamp != nullptr && !draw_rect.empty()) {
       // The vector stroke re-composites above the interior overlays with the

@@ -967,6 +967,63 @@ void compositor_renders_layer_style_color_overlay() {
   CHECK(px[2] == 20);
 }
 
+void compositor_interior_overlay_covers_fill_under_partial_layer_opacity() {
+  // Photoshop resolves interior overlays INTO the layer's own color and applies
+  // layer Opacity once to that result, so a 100%/Normal overlay hides the
+  // layer's own pixels outright at any opacity. Compositing the overlay as its
+  // own destination pass scaled by layer.opacity() instead left (1 - opacity)
+  // of the fill showing through: Game_Screen.psd's crimson panels under a 100%
+  // stucco Pattern Overlay at opacity 196/255 bled red/purple.
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(4, 4, 255, 255, 255));
+
+  auto& layer = document.add_pixel_layer("Panel", solid_rgba(4, 4, 255, 67, 92, 255));
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.blend_mode = patchy::BlendMode::Normal;
+  overlay.color = patchy::RgbColor{0, 0, 255};
+  overlay.opacity = 1.0F;
+  layer.layer_style().color_overlays.push_back(overlay);
+  layer.set_opacity(0.5F);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* px = flattened.pixel(1, 1);
+  // Half the overlay over white, with no trace of the crimson fill. The old
+  // double-scaled pass rendered (128, 81, 215) here.
+  CHECK(std::abs(static_cast<int>(px[0]) - 128) <= 1);
+  CHECK(std::abs(static_cast<int>(px[1]) - 128) <= 1);
+  CHECK(std::abs(static_cast<int>(px[2]) - 255) <= 1);
+
+  // At full opacity the overlay replaces the fill exactly, as it always has.
+  layer.set_opacity(1.0F);
+  const auto opaque = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* opaque_px = opaque.pixel(1, 1);
+  CHECK(opaque_px[0] == 0 && opaque_px[1] == 0 && opaque_px[2] == 255);
+}
+
+void compositor_interior_overlay_knocks_out_semi_transparent_fill() {
+  // The overlay is clipped to the layer's alpha and replaces the content within
+  // it, so a half-alpha fill under a 100%/Normal overlay renders the overlay at
+  // half coverage over the backdrop - not a wash of overlay over fill over
+  // backdrop, which is what the separate destination pass produced.
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(4, 4, 255, 255, 255));
+
+  auto& layer = document.add_pixel_layer("Panel", solid_rgba(4, 4, 255, 67, 92, 128));
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.blend_mode = patchy::BlendMode::Normal;
+  overlay.color = patchy::RgbColor{0, 0, 255};
+  overlay.opacity = 1.0F;
+  layer.layer_style().color_overlays.push_back(overlay);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* px = flattened.pixel(1, 1);
+  CHECK(std::abs(static_cast<int>(px[0]) - 127) <= 1);
+  CHECK(std::abs(static_cast<int>(px[1]) - 127) <= 1);
+  CHECK(std::abs(static_cast<int>(px[2]) - 255) <= 1);
+}
+
 patchy::Layer make_stroked_shape_layer(patchy::Document& document, bool fill_enabled) {
   patchy::Layer shape(document.allocate_layer_id(), "Shape", patchy::PixelBuffer());
   patchy::VectorShapeContent content;
@@ -1077,6 +1134,10 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
       {"compositor_renders_sparse_drop_shadow_from_visible_alpha_bounds",
        compositor_renders_sparse_drop_shadow_from_visible_alpha_bounds},
       {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
+      {"compositor_interior_overlay_covers_fill_under_partial_layer_opacity",
+       compositor_interior_overlay_covers_fill_under_partial_layer_opacity},
+      {"compositor_interior_overlay_knocks_out_semi_transparent_fill",
+       compositor_interior_overlay_knocks_out_semi_transparent_fill},
       {"compositor_interior_overlay_stays_under_vector_stroke",
        compositor_interior_overlay_stays_under_vector_stroke},
   };
