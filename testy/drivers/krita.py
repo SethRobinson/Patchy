@@ -39,4 +39,8 @@ def export(exe: Path, input_path: Path, output_path: Path) -> dict:
         "exitCode": exit_code,
         "stderr": stderr,
         "ok": ok,
+        # Krita ran and gave a verdict (the -1 above is this driver's own sentinel for
+        # a process that never got that far). That verdict is news about the file, not
+        # evidence that Krita is broken, so the orchestrator's circuit breaker skips it.
+        "fileRejected": not ok and exit_code >= 0,
     }

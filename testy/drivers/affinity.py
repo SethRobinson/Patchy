@@ -199,8 +199,11 @@ def export_all(
             result = client.execute_json(script, timeout=CELL_TIMEOUT_SECONDS)
 
         if "error" in result:
+            # Affinity answered, so a refusal here is its importer judging this file,
+            # not a sign the app is unreachable; the circuit breaker skips those.
             return {"ok": False, "opens": "fail",
-                    "error": _interpret_error(result["error"]), "notes": log_lines}
+                    "error": _interpret_error(result["error"]), "notes": log_lines,
+                    "fileRejected": "INAPPROPRIATE_FILE_TYPE_OR_FORMAT" in result["error"]}
 
         legs = result.get("legs", {})
         png = legs.get("png", {})

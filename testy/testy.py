@@ -929,6 +929,10 @@ class Runner:
                 # Photoshop never started; this is not a verdict on the file, and the
                 # run stops on it rather than repeating it 100 more times.
                 entry["groundTruth"]["launchFailure"] = True
+            if result.get("fileRejected"):
+                # Photoshop ran and refused the file. The Photoshop cell inherits this
+                # verdict below, so it carries the classification with it.
+                entry["groundTruth"]["fileRejected"] = True
             if result.get("dialogs"):
                 entry["groundTruth"]["dialogs"] = result["dialogs"]
             self.push()
@@ -989,9 +993,11 @@ class Runner:
         # the same way, and a probe that ends in the hang watchdog costs two
         # minutes plus a Photoshop restart. Take the verdict already in hand.
         if editor_key == "photoshop" and truth is None:
+            failed_truth = entry.get("groundTruth", {})
             cell.update({"state": "failed", "opens": "fail",
-                         "error": entry.get("groundTruth", {}).get(
+                         "error": failed_truth.get(
                              "error", "Photoshop could not open this file")})
+            self._note_file_rejection(cell, failed_truth)
             self.push()
             return
 
@@ -1165,6 +1171,15 @@ class Runner:
         cacheable = {k: v for k, v in cell.items() if k != "cached"}
         (cache_dir / "cell.json").write_text(json.dumps(cacheable), encoding="utf-8")
 
+    @staticmethod
+    def _note_file_rejection(cell: dict, result: dict) -> None:
+        """The editor ran and refused this one file. That is real news about the file,
+        but no evidence the editor is broken, so the circuit breaker must not count it:
+        three unrelated files an importer dislikes can sit next to each other in a
+        corpus and look exactly like a dead app (Krita, July 2026)."""
+        if result.get("fileRejected"):
+            cell["fileRejected"] = True
+
     def _drive_editor(
         self,
         editor_key: str,
@@ -1185,6 +1200,7 @@ class Runner:
             dialogs = list(result.get("dialogs") or [])
             if not result.get("ok"):
                 cell.update({"state": "failed", "opens": "fail", "error": result.get("error")})
+                self._note_file_rejection(cell, result)
                 return
             cell["opens"] = "ok" if result.get("render") == "ok" else "fallback-render"
             if staged.trap is not None:
@@ -1201,6 +1217,7 @@ class Runner:
             if not exported["ok"]:
                 cell.update({"state": "failed", "opens": "fail",
                              "error": patchy_driver.failure_text(exported)})
+                self._note_file_rejection(cell, exported)
                 return
             cell["opens"] = "ok"
             resaved = patchy_driver.export(info.exe, staged.original, resave_psd)
@@ -1222,6 +1239,7 @@ class Runner:
                 detail = exported["stderr"] or f"exit {exported['exitCode']}, no output"
                 cell.update({"state": "failed", "opens": "fail",
                              "error": f"failed to open the PSD (Krita import error; {detail})"})
+                self._note_file_rejection(cell, exported)
                 return
             cell["opens"] = "ok"
             resaved = krita_driver.export(info.exe, staged.original, resave_psd)
@@ -1272,6 +1290,7 @@ class Runner:
             if not result["ok"]:
                 cell.update({"state": "failed", "opens": result.get("opens", "fail"),
                              "error": result.get("error", "automation failed")})
+                self._note_file_rejection(cell, result)
                 return
             cell["opens"] = result.get("opens", "ok")
             if result.get("notes"):
@@ -1624,11 +1643,14 @@ class Runner:
                     continue
                 log(f"    {editor_key}...")
                 self.run_cell(index, editor_key, staged, truth)
-                if cell.get("state") == "failed":
+                # Only failures OF THE EDITOR count. A cell where the editor ran and
+                # refused the file proves the opposite (it is alive and answering), so
+                # it clears the count the same way a success does.
+                if cell.get("state") == "failed" and not cell.get("fileRejected"):
                     consecutive_failures[editor_key] += 1
                     if consecutive_failures[editor_key] >= BREAKER_LIMIT:
-                        log(f"    {editor_key} hit {BREAKER_LIMIT} consecutive failures - "
-                            "skipping it for the rest of the run")
+                        log(f"    {editor_key} failed {BREAKER_LIMIT} files in a row without "
+                            "running - skipping it for the rest of the run")
                 else:
                     consecutive_failures[editor_key] = 0
             if self.scan_threshold is not None and "scan" not in entry:

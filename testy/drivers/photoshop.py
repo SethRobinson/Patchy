@@ -424,6 +424,9 @@ class PhotoshopDriver:
         retry["error"] = (f"{retry.get('error', 'unknown')} "
                           "(persisted even after a full Photoshop restart - this file "
                           "genuinely fails Photoshop's scripted open)")
+        # Photoshop ran and refused this file: news about the file, not evidence the app
+        # is broken, so the orchestrator's circuit breaker skips it. A hang is the app.
+        retry["fileRejected"] = not retry.get("hung")
         return retry
 
     def _probe_once(
@@ -458,7 +461,9 @@ class PhotoshopDriver:
         except Exception as error:  # COM-level failure (crash, watchdog kill, busy modal)
             self._app = None
             failure = {"ok": False, "error": self._failure_text(guard, error)}
-            if _is_launch_failure(error) and not guard.timed_out:
+            if guard.timed_out:
+                failure["hung"] = True  # the app, not the file: a stuck modal or a wedge
+            elif _is_launch_failure(error):
                 failure["launchFailure"] = True
             return self._with_dialogs(guard, failure)
         try:
@@ -562,6 +567,15 @@ def _selftest() -> int:
     check("a file Photoshop rejects keeps its own wording",
           "genuinely fails" in outcome["error"], outcome["error"])
     check("a file Photoshop rejects does not disable the driver", not bad_file.unavailable)
+    check("a file Photoshop rejects is the file's fault, not the app's",
+          outcome.get("fileRejected") is True)
+
+    hung_driver = PhotoshopDriver()
+    hung_driver._probe_once = lambda *a, **k: {
+        "ok": False, "hung": True, "error": f"photoshop hung >{SCRIPT_WATCHDOG_SECONDS}s; killed"}
+    hung_driver.restart = lambda: None
+    check("a hang is the app's fault, so the breaker still counts it",
+          not hung_driver.probe(Path("slow.psd"), None).get("fileRejected"))
 
     print("shutting down:")
     saved = (globals()["_kill_photoshop"], globals()["_photoshop_is_running"],

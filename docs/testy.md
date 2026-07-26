@@ -337,13 +337,18 @@ full native preservation, which validates the pipeline itself.
   the missing fixture.
 - Runs fail fast: the Photopea driver aborts when the host page's step log stalls for
   45s, and the orchestrator trips a per-editor circuit breaker after 3 consecutive
-  failed cells (remaining cells report "skipped" instead of burning timeouts). The
-  breaker covers editor columns only; ground truth is not one of them, and a Photoshop
-  that stops launching ends the run instead (see above). Three genuinely bad files next
-  to each other in the corpus trip the breaker exactly like a dead app does, so a column
-  that goes "skipped" partway through is worth a look before it is believed: in July
-  2026 Krita lost its last 94 files to three unrelated icon PSDs its importer refuses,
-  sitting next to each other in the file list.
+  failed cells (remaining cells report "skipped" instead of burning timeouts). Only
+  failures OF THE EDITOR count. A cell where the editor ran and refused the file (Krita
+  or Patchy exiting non-zero, Affinity answering INAPPROPRIATE_FILE_TYPE_OR_FORMAT, a
+  file Photoshop itself will not open) proves the app is alive and answering, so it
+  clears the count exactly like a success does; a hang, a timeout, a crash, or a launch
+  failure is the app and still counts. Drivers say which by returning `fileRejected`,
+  and the default for anything unclassified is to count, so a new failure mode never
+  quietly disables the breaker. Without that split, three unrelated files an importer
+  dislikes sitting next to each other in the corpus look exactly like a dead app: in
+  July 2026 Krita lost the last 94 files of a run to three icon PSDs from one folder.
+  The breaker covers editor columns only; ground truth is not one of them, and a
+  Photoshop that stops launching ends the run instead (see above).
 - Affinity (Canva unified app 3.2+) is driven through its built-in JavaScript SDK,
   not UI automation (the background-UIA quick-export driver was retired July 2026):
   the app serves a local MCP endpoint (plain JSON-RPC over SSE on [::1]:6767, IPv6
