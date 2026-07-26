@@ -51,10 +51,17 @@ _PAGE = r"""<!DOCTYPE html>
   .card .row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
   .card .row b { font-variant-numeric: tabular-nums; }
   main { padding: 0 22px 40px; }
-  table.matrix { border-collapse: collapse; width: 100%; }
-  .matrix th, .matrix td { border: 1px solid var(--line); padding: 7px 10px; text-align: left;
-                           vertical-align: top; }
+  /* Every cell draws its own grid lines rather than collapsing them into the table's:
+     a collapsed border belongs to the table, so Chromium leaves it behind when the
+     header row pins itself and the pinned row arrives with no lines at all. */
+  table.matrix { border-collapse: separate; border-spacing: 0; width: 100%; }
+  .matrix th, .matrix td { border: 0 solid var(--line); border-width: 0 1px 1px 0;
+                           padding: 7px 10px; text-align: left; vertical-align: top; }
+  .matrix tr > :first-child { border-left-width: 1px; }
   .matrix th { background: var(--panel); font-weight: 600; }
+  /* The column header row rides along at the top of the viewport, so a file far down
+     the matrix still shows which editor each cell belongs to. */
+  .matrix thead th { position: sticky; top: 0; z-index: 3; border-top-width: 1px; }
   .matrix td.file { max-width: 260px; overflow-wrap: anywhere; color: var(--text); }
   .matrix td.cell { min-width: 150px; cursor: pointer; background: var(--panel2); }
   .matrix td.cell:hover { outline: 1px solid var(--accent); }

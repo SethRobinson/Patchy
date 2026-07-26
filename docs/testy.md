@@ -105,7 +105,12 @@ The server root (`http://127.0.0.1:<port>/`) is the same control panel. In every
 report, clicking a file name (matrix or detail panel) copies its full path to the
 clipboard, and clicking any thumbnail opens the full-size image; a Back link in the
 header returns to the control panel (shown only when the page is served, since a
-frozen report opened from disk has no panel to go back to). The detail panel labels
+frozen report opened from disk has no panel to go back to). The matrix's column
+header row stays pinned to the top of the viewport while the rest of the page
+scrolls, so a file hundreds of rows down still shows which editor each cell belongs
+to. That is also why the matrix draws its grid with per-cell borders instead of
+collapsed ones: a collapsed border belongs to the table, so Chromium leaves it behind
+when the row pins and the pinned row arrives with no lines at all. The detail panel labels
 each image with the editor's name, and its left edge can be dragged to resize the
 panel (the width sticks; double-click the divider to reset). Lost native data is
 called out prominently: matrix cells get a red "lost: 5/5 text layers, 5/5 live
