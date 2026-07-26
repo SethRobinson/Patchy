@@ -298,11 +298,38 @@ full native preservation, which validates the pipeline itself.
   Photoshop's scripting engine wedges into a state where EVERY `app.open` returns error
   8000 ("open options are incorrect") regardless of the file - a control file that
   opened fine minutes earlier fails identically once wedged, and opens again after a
-  restart. So on any probe failure the driver fully restarts Photoshop (Quit + taskkill
-  + relaunch) and retries once; a wedge costs one ~35s restart rather than failing every
-  remaining file. A hang watchdog force-kills Photoshop if a single script blocks past
-  120s (a stuck modal), which unblocks the COM call. Failed cells and cells scored
-  without ground truth are never cached, so re-runs retry them.
+  restart. So on any probe failure the driver fully restarts Photoshop (Quit, wait for
+  the process to go, taskkill only what is still standing, relaunch) and retries once;
+  a wedge costs one ~35s restart rather than failing every remaining file. A hang
+  watchdog force-kills Photoshop if a single script blocks past 120s (a stuck modal),
+  which unblocks the COM call. Failed cells and cells scored without ground truth are
+  never cached, so re-runs retry them.
+- Never force-kill Photoshop while it is quitting. It saves its preferences on the way
+  out, and a kill inside that write truncates them: the next launch dies at init with
+  "Could not initialize Photoshop because an unexpected end-of-file was encountered",
+  and every launch after that does the same. In July 2026 a restart landed exactly
+  there, left a zero-length `Workspace Prefs.psp` (and no
+  `Adobe Photoshop 2026 Prefs.psp` at all) in
+  `%APPDATA%\Adobe\Adobe Photoshop 2026\Adobe Photoshop 2026 Settings`, and cost an
+  overnight run: 120 files measured against a Photoshop that could no longer start. The
+  cure is to delete the empty prefs files, which Photoshop rebuilds on the next launch.
+  Do not delete the whole Settings folder; it also holds the brush, style, pattern,
+  action and custom-shape libraries. `restart()` now gives a clean quit
+  `QUIT_GRACE_SECONDS` (30s) to finish before anything is forced, and only a refused
+  quit or a process still up at the deadline is killed.
+- A COM error saying the server never started (`CO_E_SERVER_EXEC_FAILURE`,
+  `REGDB_E_CLASSNOTREG`) is a broken Photoshop, not a bad PSD, and is worded that way
+  in the report, together with whatever alert the dialog guard cleared on the way
+  through (which is what names the actual cause). After two files in a row fail that
+  way the driver reports itself unavailable and answers instantly instead of buying two
+  ~35s launch attempts per file, and the run checkpoints itself exactly like a pause:
+  ground truth is the baseline every column is scored against, so there is nothing left
+  to measure. Fix Photoshop and resume. The ground-truth verdicts those launch failures
+  produced are handed back as pending, so the resume measures them properly rather than
+  keeping a verdict that belonged to the machine, and a resave Photoshop never got to
+  open is not counted as "resave rejected" against the editor that wrote it.
+  `python testy\drivers\photoshop.py --selftest` pins all of it (the classification,
+  the wording, the give-up rule, and what a restart may kill) with no Photoshop needed.
 - A file that fails scripted open even on a freshly restarted engine (with a passing
   control immediately before) is genuinely bad, not a wedge. The one such corpus file,
   `akiko_cycling_okinawa_with_filters.psd`, was confirmed bad in the Photoshop UI and
@@ -310,7 +337,13 @@ full native preservation, which validates the pipeline itself.
   the missing fixture.
 - Runs fail fast: the Photopea driver aborts when the host page's step log stalls for
   45s, and the orchestrator trips a per-editor circuit breaker after 3 consecutive
-  failed cells (remaining cells report "skipped" instead of burning timeouts).
+  failed cells (remaining cells report "skipped" instead of burning timeouts). The
+  breaker covers editor columns only; ground truth is not one of them, and a Photoshop
+  that stops launching ends the run instead (see above). Three genuinely bad files next
+  to each other in the corpus trip the breaker exactly like a dead app does, so a column
+  that goes "skipped" partway through is worth a look before it is believed: in July
+  2026 Krita lost its last 94 files to three unrelated icon PSDs its importer refuses,
+  sitting next to each other in the file list.
 - Affinity (Canva unified app 3.2+) is driven through its built-in JavaScript SDK,
   not UI automation (the background-UIA quick-export driver was retired July 2026):
   the app serves a local MCP endpoint (plain JSON-RPC over SSE on [::1]:6767, IPv6
@@ -360,7 +393,7 @@ testy/
   affinity_js.py     token-free MCP/JS client for the Affinity app (SSE + JSON-RPC,
                      launch/quit lifecycle; also reused by .af format tooling)
   win_dialogs.py     modal-dialog guard for scripted apps (--selftest included)
-  drivers/           photoshop (COM), patchy (CLI), krita (CLI),
+  drivers/           photoshop (COM, --selftest included), patchy (CLI), krita (CLI),
                      photopea (headless Chrome + embed API), affinity (built-in JS
                      automation via affinity_js)
   index.html         run-index landing page (server root)

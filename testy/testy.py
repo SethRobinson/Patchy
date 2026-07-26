@@ -925,6 +925,10 @@ class Runner:
 
         if not result.get("ok"):
             entry["groundTruth"] = {"state": "failed", "error": result.get("error", "unknown")}
+            if result.get("launchFailure"):
+                # Photoshop never started; this is not a verdict on the file, and the
+                # run stops on it rather than repeating it 100 more times.
+                entry["groundTruth"]["launchFailure"] = True
             if result.get("dialogs"):
                 entry["groundTruth"]["dialogs"] = result["dialogs"]
             self.push()
@@ -1086,7 +1090,13 @@ class Runner:
                         )
             else:
                 cell["native"] = {"error": f"Photoshop could not open the resave: {roundtrip.get('error')}"}
-                cell["resaveRejected"] = True
+                # A Photoshop that never started has not rejected anything: blaming the
+                # editor's resave for it would flag the wrong side, so the cell records
+                # the error but is neither marked rejected nor cached.
+                if roundtrip.get("launchFailure"):
+                    cell["uncacheable"] = True
+                else:
+                    cell["resaveRejected"] = True
 
         cell["state"] = "done"
         cell.pop("stage", None)
@@ -1429,10 +1439,34 @@ class Runner:
     def _pause_requested(self) -> bool:
         return (self.run_dir / PAUSE_FLAG).exists()
 
-    def _graceful_pause_exit(self) -> int:
+    def _photoshop_unavailable_exit(self) -> int:
+        """Photoshop stopped launching. Ground truth is the baseline every column is
+        scored against, so the rest of the run could only produce empty cells while
+        still buying two launch timeouts per file. Checkpoint it like a pause: fix
+        Photoshop, resume, and nothing measured so far is lost."""
+        reason = self.ps.unavailable_reason or "Photoshop is unavailable"
+        log(f"ERROR: {reason}")
+        log("    ground truth is the baseline for every editor, so the run stops here "
+            "instead of grinding through the rest of the corpus for nothing")
+        self.status["run"].setdefault("notes", []).append(reason)
+        # A launch failure is a verdict on the machine, not on the file it landed on.
+        # Hand those files back as pending so the resume measures them properly - cells
+        # included, since a cell scored while ground truth was missing carries no
+        # comparison at all and keeping it would freeze half a file into the report.
+        for entry in self.status["files"]:
+            if entry.get("groundTruth", {}).get("launchFailure"):
+                entry["groundTruth"] = {"state": "pending"}
+                for cell in entry.get("cells", {}).values():
+                    cell.clear()
+                    cell["state"] = "pending"
+        return self._graceful_pause_exit("Photoshop unavailable - checkpointing the run")
+
+    def _graceful_pause_exit(
+        self, why: str = "pause requested - checkpointing at the cell boundary"
+    ) -> int:
         """Checkpoint between cells: everything finished so far is already flushed to
         status.json, so recording the state and exiting IS the checkpoint."""
-        log("pause requested - checkpointing at the cell boundary")
+        log(why)
         self._cleanup_drivers()
         self.status["state"] = "paused"
         self.status["run"]["pausedAt"] = _dt.datetime.now().isoformat(timespec="seconds")
@@ -1575,6 +1609,8 @@ class Runner:
             if staged.trap_skipped:
                 entry["trapSkipped"] = staged.trap_skipped
             truth = self.ground_truth(index, staged)
+            if self.ps.unavailable:
+                return self._photoshop_unavailable_exit()
             for editor_key in self.editor_order:
                 cell = entry["cells"][editor_key]
                 if cell.get("state") in self.TERMINAL_CELL_STATES:

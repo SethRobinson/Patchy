@@ -22,7 +22,13 @@ import time
 from pathlib import Path
 from typing import Callable
 
-import win_dialogs
+try:
+    import win_dialogs
+except ModuleNotFoundError:  # running this file directly, e.g. for --selftest
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    import win_dialogs
 
 IMAGE_NAME = "Photoshop.exe"
 
@@ -33,6 +39,30 @@ IMAGE_NAME = "Photoshop.exe"
 # Every dialog the guard clears restarts the countdown: that is Photoshop making
 # progress, not hanging.
 SCRIPT_WATCHDOG_SECONDS = 120
+
+# Photoshop saves its preferences while it shuts down, so a force-kill inside that
+# window truncates them. Every launch afterwards dies at init with "Could not
+# initialize Photoshop because an unexpected end-of-file was encountered" while COM
+# reports nothing but CO_E_SERVER_EXEC_FAILURE. That cost an overnight run in July
+# 2026: a zero-length Workspace Prefs.psp made 120 files measure against a Photoshop
+# that could no longer start (the cure was deleting the empty prefs so Photoshop
+# rebuilds them). A restart therefore asks for a quit and gives the process this long
+# to finish writing before anything forces it.
+QUIT_GRACE_SECONDS = 30.0
+
+# HRESULTs that mean the COM server never started, as opposed to Photoshop running and
+# rejecting the file. They are a property of the machine, never of the PSD.
+LAUNCH_FAILURE_HRESULTS = frozenset({
+    -2146959355,  # 0x80080005 CO_E_SERVER_EXEC_FAILURE
+    -2147221164,  # 0x80040154 REGDB_E_CLASSNOTREG
+    -2147221005,  # 0x800401F3 CO_E_CLASSSTRING (the ProgID stopped resolving)
+})
+
+# Probes that died at launch before the driver declares Photoshop unavailable and stops
+# trying. Each probe already retries once behind a full restart, so two of them is four
+# launch attempts: enough to tell a broken Photoshop from a transient, and cheap enough
+# that a run notices in minutes instead of hours.
+LAUNCH_FAILURE_LIMIT = 2
 
 # ExtendScript is ES3: no JSON object, so the probe builds its JSON by hand via q().
 _PROBE_JSX = r"""
@@ -248,10 +278,48 @@ def _kill_photoshop() -> None:
         pass
 
 
+def _photoshop_is_running() -> bool:
+    try:
+        completed = subprocess.run(
+            ["tasklist", "/FI", f"IMAGENAME eq {IMAGE_NAME}", "/NH"],
+            capture_output=True, text=True, timeout=30)
+    except Exception:
+        return True  # cannot tell; say yes so the caller still force-kills
+    return IMAGE_NAME.lower() in (completed.stdout or "").lower()
+
+
+def _wait_for_photoshop_exit(seconds: float) -> bool:
+    """True once no Photoshop.exe is left, False if one is still up at the deadline."""
+    deadline = time.monotonic() + seconds
+    while _photoshop_is_running():
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.5)
+    return True
+
+
+def _is_launch_failure(error: Exception) -> bool:
+    """Did this COM error mean Photoshop never started? pywin32 puts the HRESULT first."""
+    args = getattr(error, "args", ())
+    return bool(args) and args[0] in LAUNCH_FAILURE_HRESULTS
+
+
 class PhotoshopDriver:
     def __init__(self, log: Callable[[str], None] | None = None) -> None:
         self._app = None
         self._log = log
+        self._version: str | None = None
+        self._launch_failures = 0
+        self._unavailable_reason: str | None = None
+
+    @property
+    def unavailable(self) -> bool:
+        """Photoshop will not start on this machine, so every further probe is waste."""
+        return self._unavailable_reason is not None
+
+    @property
+    def unavailable_reason(self) -> str | None:
+        return self._unavailable_reason
 
     def _application(self):
         if self._app is None:
@@ -269,12 +337,19 @@ class PhotoshopDriver:
         are incorrect") regardless of the file - the only cure is a restart, verified
         July 2026 (a control file that opened fine minutes earlier fails identically
         once wedged, and opens fine again after this)."""
+        quit_sent = False
         try:
             if self._app is not None:
                 self._app.Quit()
+                quit_sent = True
         except Exception:
             pass
-        _kill_photoshop()
+        # A clean quit is worth waiting for: Photoshop writes its preferences on the way
+        # out, and a kill landing inside that write breaks every later launch (see
+        # QUIT_GRACE_SECONDS). A wedged engine never reaches the write, so nothing is
+        # lost by killing it at once, which is also what happens when Quit is refused.
+        if not (quit_sent and _wait_for_photoshop_exit(QUIT_GRACE_SECONDS)):
+            _kill_photoshop()
         self._app = None
         time.sleep(3.0)
         # Force a fresh launch now so the wait is spent here, not mid-probe.
@@ -284,10 +359,18 @@ class PhotoshopDriver:
             pass
 
     def version(self) -> str:
+        """Memoized: the version is fixed for the session, and the ground-truth cache key
+        asks for it once per file - which is one more launch attempt per file whenever
+        Photoshop is down, and an "unknown" key that misses every cached result."""
+        if self._version is not None:
+            return self._version
+        if self.unavailable:
+            return "unknown"
         try:
-            return str(self._application().Version)
+            self._version = str(self._application().Version)
         except Exception:
             return "unknown"
+        return self._version
 
     def probe(
         self,
@@ -302,9 +385,17 @@ class PhotoshopDriver:
         On ANY failure the whole Photoshop instance is restarted and the probe retried
         once: the dominant failure mode is a session-wide engine wedge (every open
         fails until restart), not a bad file, so restarting cures it in one shot.
+
+        The exception is a Photoshop that will not launch at all, which no restart can
+        cure. Those failures are reported as the machine problem they are, and after
+        LAUNCH_FAILURE_LIMIT of them the driver declares itself unavailable and answers
+        instantly, so a caller stops buying two launch timeouts per file.
         """
+        if self.unavailable:
+            return {"ok": False, "launchFailure": True, "error": self._unavailable_reason}
         result = self._probe_once(psd_path, render_png, mutate_suffix, mutated_png, resave_psd)
         if result.get("ok"):
+            self._launch_failures = 0
             return result
         self.restart()
         retry = self._probe_once(psd_path, render_png, mutate_suffix, mutated_png, resave_psd)
@@ -317,7 +408,19 @@ class PhotoshopDriver:
         if dialogs:
             retry["dialogs"] = dialogs
         if retry.get("ok"):
+            self._launch_failures = 0
             return retry
+        if retry.get("launchFailure"):
+            # Photoshop never ran, so this says nothing about the file and the "bad file"
+            # wording below would be a lie. Count it instead: enough of these in a row
+            # and there is no point starting another one.
+            self._launch_failures += 1
+            if self._launch_failures >= LAUNCH_FAILURE_LIMIT:
+                self._unavailable_reason = (
+                    f"Photoshop failed to start on {self._launch_failures} files in a row - "
+                    f"{retry.get('error', 'unknown')}")
+            return retry
+        self._launch_failures = 0
         retry["error"] = (f"{retry.get('error', 'unknown')} "
                           "(persisted even after a full Photoshop restart - this file "
                           "genuinely fails Photoshop's scripted open)")
@@ -354,7 +457,10 @@ class PhotoshopDriver:
                 raw = app.DoJavaScript(jsx)
         except Exception as error:  # COM-level failure (crash, watchdog kill, busy modal)
             self._app = None
-            return self._with_dialogs(guard, {"ok": False, "error": self._failure_text(guard, error)})
+            failure = {"ok": False, "error": self._failure_text(guard, error)}
+            if _is_launch_failure(error) and not guard.timed_out:
+                failure["launchFailure"] = True
+            return self._with_dialogs(guard, failure)
         try:
             return self._with_dialogs(guard, json.loads(raw))
         except Exception:
@@ -371,9 +477,135 @@ class PhotoshopDriver:
 
     @staticmethod
     def _failure_text(guard: win_dialogs.DialogGuard, error: Exception) -> str:
-        if not guard.timed_out:
-            return f"com-error: {error}"
-        if guard.blocked:
-            return (f"photoshop hung >{SCRIPT_WATCHDOG_SECONDS}s behind a dialog with no "
-                    f"safe answer: {guard.blocked[-1]}; killed")
-        return f"photoshop hung >{SCRIPT_WATCHDOG_SECONDS}s; killed"
+        if guard.timed_out:
+            if guard.blocked:
+                return (f"photoshop hung >{SCRIPT_WATCHDOG_SECONDS}s behind a dialog with no "
+                        f"safe answer: {guard.blocked[-1]}; killed")
+            return f"photoshop hung >{SCRIPT_WATCHDOG_SECONDS}s; killed"
+        if _is_launch_failure(error):
+            # The HRESULT only says the server never started. WHY it could not start is
+            # in the alert the guard just cleared on the way through, and that is the
+            # difference between a report someone can act on and a mystery.
+            said = f"; Photoshop said: {guard.dismissed[-1]}" if guard.dismissed else ""
+            return (f"Photoshop itself failed to start (com-error: {error}{said}) - a broken "
+                    "Photoshop or machine state, not a property of this file")
+        return f"com-error: {error}"
+
+
+def _selftest() -> int:
+    """Pin the decisions that keep a run honest, with no Photoshop and no corpus: which
+    COM errors mean "the app never started", what a restart is allowed to force-kill,
+    and when the driver stops trying. All three were wrong in July 2026 and cost a
+    120-file overnight run."""
+    import types
+
+    failures: list[str] = []
+
+    def check(name: str, ok: bool, detail: str = "") -> None:
+        print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+        if not ok:
+            failures.append(name)
+            if detail:
+                print(f"       {detail}")
+
+    class _FakeComError(Exception):
+        """pywin32 raises com_error with the HRESULT first; that is all we read."""
+
+    launch_error = _FakeComError(-2146959355, "Server execution failed", None, None)
+    script_error = _FakeComError(-2147352567, "Exception occurred.", None, None)
+
+    print("classifying failures:")
+    check("CO_E_SERVER_EXEC_FAILURE means Photoshop never started",
+          _is_launch_failure(launch_error))
+    check("REGDB_E_CLASSNOTREG means Photoshop never started",
+          _is_launch_failure(_FakeComError(-2147221164, "Class not registered")))
+    check("a scripting error does not", not _is_launch_failure(script_error))
+    check("a plain exception does not", not _is_launch_failure(RuntimeError("boom")))
+
+    print("wording:")
+    alert = ('Adobe Photoshop: "Could not initialize Photoshop because an unexpected '
+             'end-of-file was encountered." [OK]')
+    guard = types.SimpleNamespace(timed_out=False, blocked=[], dismissed=[alert])
+    text = PhotoshopDriver._failure_text(guard, launch_error)
+    check("a launch failure names the alert Photoshop showed", "end-of-file" in text, text)
+    check("a launch failure does not blame the file",
+          "not a property of this file" in text, text)
+    hung = types.SimpleNamespace(timed_out=True, blocked=[], dismissed=[])
+    check("a watchdog kill still reads as a hang",
+          "hung" in PhotoshopDriver._failure_text(hung, launch_error))
+
+    print("giving up:")
+    driver = PhotoshopDriver()
+    counts = {"probes": 0, "restarts": 0}
+
+    def stub_launch_failure(*_args, **_kwargs) -> dict:
+        counts["probes"] += 1
+        return {"ok": False, "launchFailure": True,
+                "error": "Photoshop itself failed to start (com-error: ...)"}
+
+    driver._probe_once = stub_launch_failure
+    driver.restart = lambda: counts.__setitem__("restarts", counts["restarts"] + 1)
+    for _ in range(LAUNCH_FAILURE_LIMIT):
+        driver.probe(Path("whatever.psd"), None)
+    check(f"unavailable after {LAUNCH_FAILURE_LIMIT} files", driver.unavailable)
+    spent = counts["probes"]
+    later = driver.probe(Path("next.psd"), None)
+    check("further probes cost no launch attempt", counts["probes"] == spent,
+          f"{counts['probes']} probes, expected {spent}")
+    check("further probes still report a launch failure", later.get("launchFailure") is True)
+    check("... and say what happened", "failed to start" in (later.get("error") or ""))
+
+    bad_file = PhotoshopDriver()
+    bad_file._probe_once = lambda *a, **k: {"ok": False, "error": "com-error: (-2147352567,)"}
+    bad_file.restart = lambda: None
+    outcome = bad_file.probe(Path("bad.psd"), None)
+    check("a file Photoshop rejects keeps its own wording",
+          "genuinely fails" in outcome["error"], outcome["error"])
+    check("a file Photoshop rejects does not disable the driver", not bad_file.unavailable)
+
+    print("shutting down:")
+    saved = (globals()["_kill_photoshop"], globals()["_photoshop_is_running"],
+             globals()["QUIT_GRACE_SECONDS"], time.sleep)
+    killed: list[bool] = []
+    globals()["_kill_photoshop"] = lambda: killed.append(True)
+    globals()["QUIT_GRACE_SECONDS"] = 0.05
+    time.sleep = lambda _seconds: None
+    try:
+        def driver_with_quit(quit_action: Callable[[], None]) -> PhotoshopDriver:
+            made = PhotoshopDriver()
+            made._app = types.SimpleNamespace(Quit=quit_action)
+            made._application = lambda: types.SimpleNamespace(Version="27.8.0")
+            return made
+
+        quits: list[bool] = []
+        globals()["_photoshop_is_running"] = lambda: False
+        driver_with_quit(lambda: quits.append(True)).restart()
+        check("a quit that lands is never force-killed", quits and not killed)
+
+        killed.clear()
+        globals()["_photoshop_is_running"] = lambda: True
+        driver_with_quit(lambda: quits.append(True)).restart()
+        check("a process still up at the deadline is force-killed", bool(killed))
+
+        killed.clear()
+
+        def refuse() -> None:
+            raise _FakeComError(-2147418113, "Catastrophic failure")
+
+        driver_with_quit(refuse).restart()
+        check("a refused quit is force-killed at once", bool(killed))
+    finally:
+        (globals()["_kill_photoshop"], globals()["_photoshop_is_running"],
+         globals()["QUIT_GRACE_SECONDS"], time.sleep) = saved
+
+    print(f"\n{'FAILED: ' + ', '.join(failures) if failures else 'all checks passed'}")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    if "--selftest" in sys.argv:
+        raise SystemExit(_selftest())
+    print("usage: python testy\\drivers\\photoshop.py --selftest")
+    raise SystemExit(2)
