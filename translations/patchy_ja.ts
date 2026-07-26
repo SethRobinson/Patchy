@@ -2278,7 +2278,17 @@
         <translation>ドロップシャドウ・光彩・境界線をレイヤーマスクの形に合わせるだけでなく、マスクで切り抜きます</translation>
     </message>
     <message>
-        <location line="+89"/>
+        <location line="+3"/>
+        <source>Blend Interior Effects as Group</source>
+        <translation>内側の効果をグループとして描画</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>Put the layer's blend mode over its overlays, satin, and inner glow instead of letting them blend with their own modes</source>
+        <translation>オーバーレイ・サテン・光彩（内側）をそれぞれの描画モードで合成せず、レイヤーの描画モードでまとめて合成します</translation>
+    </message>
+    <message>
+        <location line="+90"/>
         <source>Decrease %1</source>
         <translation>%1 を減らす</translation>
     </message>

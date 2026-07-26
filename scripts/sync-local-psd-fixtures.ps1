@@ -17,6 +17,7 @@ $fixtures = @(
   @{ Name = "Horror VirtualBoy.psd"; Source = "D:/projects/C2/MiscPrints/Horror VirtualBoy.psd" },
   @{ Name = "Arduboy.psd"; Source = "D:/projects/C2/MiscPrints/Arduboy.psd" },
   @{ Name = "Title Screen_demo.psd"; Source = "D:/projects/DungeonScroll/media/Demo/Title Screen_demo.psd" },
+  @{ Name = "options.psd"; Source = "D:/projects/DungeonScroll/media/interface/options.psd" },
   @{ Name = "Duke nukem mobile.psd"; Source = "C:/temp/Duke nukem mobile.psd" },
   @{ Name = "CDi_A4.psd"; Source = "D:/projects/C2/ExhibitSigns/CDi_A4.psd" },
   @{ Name = "tips.psd"; Source = "D:/projects/proton/RTDink/media/interface/win/tips.psd" },

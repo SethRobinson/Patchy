@@ -306,6 +306,36 @@ inline bool layer_mask_clips_effect_output(const Layer& layer) {
          layer_vector_mask_hides_effects(layer);
 }
 
+// Coverage an exterior effect (drop shadow, outer glow) must be painted with so
+// that the base pass compositing over it leaves Photoshop's contribution.
+//
+// Photoshop's probes (COM, July 2026, exterior-knockout series) show the layer
+// and its exterior effects contributing ADDITIVELY against the layer's original
+// backdrop: a 50%-alpha square over gray with a full outer glow renders the glow
+// at its own coverage AND the square at 50%, never the glow attenuated a second
+// time by the square on top of it. Painting the effect first and letting the
+// base pass composite over it costs exactly one (1 - paint) factor, so the
+// pre-multiplied knockout has to divide that factor back out.
+//
+// `shape` is the layer's transparency coverage (source alpha x layer mask) and
+// `paint` is the coverage the base pass will use for the layer's own pixels
+// (shape x Fill x Opacity). `conceals` marks the effects Photoshop knocks out
+// with the layer's SHAPE regardless of whether those pixels paint - every outer
+// glow, and drop shadows with "Layer Knocks Out Drop Shadow" on: a Fill-0 layer
+// shows the pure backdrop inside its shape, never the effect. Without it the
+// only knockout is the layer's own coverage, which the base pass already
+// applies, so the factor is 1.
+[[nodiscard]] inline float exterior_effect_knockout(float shape, float paint, bool conceals) {
+  if (!conceals) {
+    return 1.0F;
+  }
+  const auto remaining = 1.0F - clamp_unit(paint);
+  if (remaining <= 0.0F) {
+    return 0.0F;
+  }
+  return std::min(1.0F, (1.0F - clamp_unit(shape)) / remaining);
+}
+
 // Per-pixel content attenuation from Stroke effects whose Overprint option is
 // off (the Photoshop default): the stroke band knocks the layer's own content
 // — fill, interior effects, and clipped members — out and blends against the
@@ -601,11 +631,13 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
   // opacity, master opacity, and any stroke knockout (COM probes July 2026:
   // a fill-0 or knocked-out interior shows the pure backdrop, never the
   // shadow). Invisible under fully opaque content, which simply covers the
-  // shadow either way.
+  // shadow either way. See exterior_effect_knockout for why the shape factor is
+  // divided by the coverage the base pass will paint with.
   std::vector<float> conceal_mask;
   if (shadow.layer_conceals) {
     conceal_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   }
+  const auto paint_scale = layer.fill_opacity() * layer.opacity();
   const auto clip_to_mask = layer_mask_clips_effect_output(layer);
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
@@ -615,8 +647,9 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
         alpha *= layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
       }
       if (!conceal_mask.empty()) {
-        alpha *= 1.0F - conceal_mask[static_cast<std::size_t>((y - draw_rect.y) * draw_rect.width +
-                                                              (x - draw_rect.x))];
+        const auto shape = conceal_mask[static_cast<std::size_t>((y - draw_rect.y) * draw_rect.width +
+                                                                 (x - draw_rect.x))];
+        alpha *= exterior_effect_knockout(shape, shape * paint_scale, true);
       }
       composite_effect_color(destination, x, y, shadow.color, alpha, shadow.blend_mode);
     }
@@ -665,13 +698,18 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
   const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
 
+  // The glow always concedes the layer's shape (a Fill-0 layer shows the pure
+  // backdrop inside it, never the glow), but the base pass compositing over the
+  // glow supplies part of that knockout already — see exterior_effect_knockout.
+  const auto paint_scale = layer.fill_opacity() * layer.opacity();
   const auto clip_to_mask = layer_mask_clips_effect_output(layer);
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       const auto source_alpha =
           source_mask[static_cast<std::size_t>((y - draw_rect.y) * source_mask_width + (x - draw_rect.x))];
       auto glow_alpha = mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))] *
-                        (1.0F - source_alpha) * glow.opacity * layer.opacity();
+                        exterior_effect_knockout(source_alpha, source_alpha * paint_scale, true) *
+                        glow.opacity * layer.opacity();
       if (clip_to_mask) {
         glow_alpha *= layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
       }
@@ -1792,6 +1830,24 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     owned_blend_if_backdrop.emplace(destination, draw_rect);
     blend_if_backdrop = &*owned_blend_if_backdrop;
   }
+  // A non-Normal layer blend mode blends against the backdrop the layer met, not
+  // against its own exterior effects (Photoshop COM probes, July 2026: a
+  // 50%-alpha Multiply square over a drop shadow keeps the backdrop's blue, which
+  // no shadow-then-blend order produces). The base pass therefore reads the
+  // pre-effect composite here, and only when an exterior effect can actually
+  // reach a pixel the layer also paints.
+  const auto has_exterior_effects =
+      style.effects_visible &&
+      (std::any_of(style.drop_shadows.begin(), style.drop_shadows.end(),
+                   [](const LayerDropShadow& shadow) { return shadow.enabled && shadow.opacity > 0.0F; }) ||
+       std::any_of(style.outer_glows.begin(), style.outer_glows.end(),
+                   [](const LayerOuterGlow& glow) { return glow.enabled && glow.opacity > 0.0F; }));
+  std::optional<CompositeSnapshot> pre_effect_backdrop;
+  if (has_exterior_effects && layer.blend_mode() != BlendMode::Normal && !has_blend_if &&
+      layer.fill_opacity() == 1.0F && !draw_rect.empty()) {
+    pre_effect_backdrop.emplace(destination, draw_rect);
+  }
+
   if (style.effects_visible) {
     for (std::uint32_t index = 0; index < style.drop_shadows.size(); ++index) {
       const auto& shadow = style.drop_shadows[index];
@@ -1891,17 +1947,17 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     }
   }
 
-  // Photoshop resolves the interior overlays INTO the layer's own color and
-  // applies Fill/layer Opacity and the backdrop once to that result, so a
-  // 100%/Normal overlay hides the layer's own pixels outright. Folding them
-  // into the base pass is the only way to reproduce that: compositing each
-  // overlay as its own pass scaled by layer.opacity() leaves (1 - opacity) of
-  // the layer's own color showing through an opaque overlay, and over-composites
-  // semi-transparent interiors instead of knocking them out. Same treatment
-  // Satin already gets, and the same escapes: Blend If (Photoshop does not gate
-  // effects with it), Fill Opacity (which scales the layer's pixels but not its
-  // effects, so the overlay cannot ride the base alpha) and the vector
-  // fill/stroke split (folding would tint the stroke) keep the legacy passes.
+  // Photoshop resolves the interior overlays INTO one styled color and applies
+  // Fill/layer Opacity and the backdrop once to that result, so a 100%/Normal
+  // overlay hides the layer's own pixels outright. Folding them into the base
+  // pass is the only way to reproduce that: compositing each overlay as its own
+  // pass scaled by layer.opacity() leaves (1 - opacity) of the layer's own color
+  // showing through an opaque overlay, and over-composites semi-transparent
+  // interiors instead of knocking them out. Same treatment Satin already gets,
+  // and the same escapes: Blend If (Photoshop does not gate effects with it),
+  // Fill Opacity (which scales the layer's pixels but not its effects, so the
+  // overlay cannot ride the base alpha) and the vector fill/stroke split
+  // (folding would tint the stroke) keep the legacy passes.
   const bool fold_interior_overlays_into_base =
       style.effects_visible && !has_blend_if && layer.fill_opacity() == 1.0F && stroke_restamp == nullptr;
   std::vector<PreparedInteriorOverlay> folded_overlays;
@@ -1910,6 +1966,21 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       folded_overlays = prepare_interior_overlays(layer, style, source, bounds, patterns);
     });
   }
+
+  // WHAT the fold lands on is Photoshop's "Blend Interior Effects as Group"
+  // blending option ('infx'), off by default. Off, the layer's blend mode
+  // carries its own pixels only and the interior effects blend over that result
+  // with their own modes; on, they fold into the layer's color first and the
+  // layer's blend mode carries everything (COM probes July 2026: a Saturation
+  // layer with a Linear Dodge Gradient Overlay renders the gradient at full
+  // strength with infx off and desaturated through the layer's mode with it on).
+  // Both readings agree whenever the layer's blend mode is Normal, which is why
+  // that path keeps the cheaper source-color fold and its pinned bytes.
+  const bool fold_after_layer_blend = !style.blend_interior_elements;
+  const bool has_interior_folds = !folded_overlays.empty() || !prepared_satins.empty();
+  const bool blend_against_backdrop =
+      layer.blend_mode() != BlendMode::Normal && !has_blend_if && layer.fill_opacity() == 1.0F &&
+      ((has_interior_folds && fold_after_layer_blend) || has_exterior_effects);
 
   if (!draw_rect.empty()) {
     profile_compositor_step(destination, layer, "base_pixels", draw_rect, [&] {
@@ -1981,32 +2052,50 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             std::array<std::uint8_t, 3> styled_color{src[0], src[1], src[2]};
             // Overlays sit under Satin in Photoshop's interior stack, so they
             // fold first.
-            if (has_folded_overlays) {
-              styled_color = fold_interior_overlays(styled_color, folded_overlays, x, y);
-            }
-            if (!has_blend_if && layer.fill_opacity() == 1.0F) {
-              for (const auto& prepared : prepared_satins) {
-                const auto mask_index =
-                    static_cast<std::size_t>(y - prepared.mask_bounds.y) *
-                        static_cast<std::size_t>(prepared.mask_bounds.width) +
-                    static_cast<std::size_t>(x - prepared.mask_bounds.x);
-                const auto coverage =
-                    prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
-                if (coverage <= 0.0F) {
-                  continue;
-                }
-                const auto& color = prepared.effect->color;
-                styled_color = composite_blended_rgb({color.red, color.green, color.blue}, styled_color,
-                                                      prepared.effect->blend_mode, coverage, 1.0F);
+            const auto fold_interiors = [&](std::array<std::uint8_t, 3> color) {
+              if (has_folded_overlays) {
+                color = fold_interior_overlays(color, folded_overlays, x, y);
               }
+              if (!has_blend_if && layer.fill_opacity() == 1.0F) {
+                for (const auto& prepared : prepared_satins) {
+                  const auto mask_index =
+                      static_cast<std::size_t>(y - prepared.mask_bounds.y) *
+                          static_cast<std::size_t>(prepared.mask_bounds.width) +
+                      static_cast<std::size_t>(x - prepared.mask_bounds.x);
+                  const auto coverage =
+                      prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
+                  if (coverage <= 0.0F) {
+                    continue;
+                  }
+                  const auto& effect_color = prepared.effect->color;
+                  color = composite_blended_rgb({effect_color.red, effect_color.green, effect_color.blue}, color,
+                                                prepared.effect->blend_mode, coverage, 1.0F);
+                }
+              }
+              return color;
+            };
+            if (!fold_after_layer_blend) {
+              styled_color = fold_interiors(styled_color);
+            }
+            if (blend_against_backdrop) {
+              const auto backdrop = pre_effect_backdrop.has_value() ? pre_effect_backdrop->sample_color(x, y)
+                                                                    : destination.sample_color(x, y);
+              styled_color = composite_blended_rgb(
+                  styled_color, {backdrop.color.red, backdrop.color.green, backdrop.color.blue},
+                  layer.blend_mode(), 1.0F, backdrop.alpha);
+            }
+            if (fold_after_layer_blend) {
+              styled_color = fold_interiors(styled_color);
             }
             if (special_fill) {
               destination.composite_special_fill_color(
                   x, y, RgbColor{styled_color[0], styled_color[1], styled_color[2]},
                   source_coverage * blend_if_factor, layer.fill_opacity(), layer.opacity(), layer.blend_mode());
             } else {
+              // The blend already happened against the pre-effect backdrop on
+              // that path, so the composite is a plain source-over.
               destination.composite_color(x, y, RgbColor{styled_color[0], styled_color[1], styled_color[2]}, alpha,
-                                          layer.blend_mode());
+                                          blend_against_backdrop ? BlendMode::Normal : layer.blend_mode());
             }
           }
         }

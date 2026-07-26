@@ -471,6 +471,12 @@ struct LayerStyle {
   // Photoshop's "Layer Mask Hides Effects" blending option: the layer mask also
   // clips effect output where it lands, instead of only shaping effect sources.
   bool layer_mask_hides_effects{false};
+  // Photoshop's "Blend Interior Effects as Group" blending option ('infx', off by
+  // default): on, the interior effects fold into the layer's own color and the
+  // layer's blend mode carries the whole result; off, the layer's blend mode
+  // applies to its pixels alone and the interior effects blend over that with
+  // their own modes. See docs/ps-compat.md.
+  bool blend_interior_elements{false};
   std::vector<LayerDropShadow> drop_shadows;
   std::vector<LayerInnerShadow> inner_shadows;
   std::vector<LayerOuterGlow> outer_glows;

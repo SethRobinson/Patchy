@@ -162,6 +162,115 @@ void psd_layer_mask_hides_effects_round_trip() {
   }
 }
 
+void psd_blend_interior_elements_round_trip() {
+  // "Blend Interior Effects as Group" ('infx'). Photoshop's default is off and
+  // it writes no block for that, so absence is the off state on both sides.
+  for (const auto grouped : {false, true}) {
+    patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Styled", solid_rgba(4, 2, 10, 20, 30, 255));
+    patchy::LayerColorOverlay overlay;
+    overlay.enabled = true;
+    layer.layer_style().color_overlays.push_back(overlay);
+    layer.layer_style().blend_interior_elements = grouped;
+
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "infx");
+    CHECK(payload.has_value() == grouped);
+    if (payload.has_value()) {
+      CHECK(payload->size() == 4U);
+      CHECK((*payload)[0] == 1U);
+    }
+
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.layers().size() == 1);
+    CHECK(read.layers().front().layer_style().blend_interior_elements == grouped);
+  }
+}
+
+void blend_interior_elements_moves_the_layer_blend_over_the_overlay() {
+  // Photoshop's default ('infx' off) applies the layer's blend mode to its own
+  // pixels only; the interior overlay then blends over that result with its own
+  // mode. Turning the option on folds the overlay into the layer color first,
+  // so the layer's mode carries it as well. Multiply over a mid backdrop makes
+  // the two readings unmistakable: off, an opaque Normal overlay simply wins;
+  // on, it is multiplied down by the backdrop.
+  for (const auto grouped : {false, true}) {
+    patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(4, 4, 200, 100, 50));
+    auto& layer = document.add_pixel_layer("Panel", solid_rgba(4, 4, 255, 64, 32, 255));
+    layer.set_blend_mode(patchy::BlendMode::Multiply);
+    patchy::LayerColorOverlay overlay;
+    overlay.enabled = true;
+    overlay.blend_mode = patchy::BlendMode::Normal;
+    overlay.color = patchy::RgbColor{0, 0, 255};
+    overlay.opacity = 1.0F;
+    layer.layer_style().color_overlays.push_back(overlay);
+    layer.layer_style().blend_interior_elements = grouped;
+
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    const auto* pixel = flattened.pixel(1, 1);
+    // Photoshop 2026 COM probes h_mult_group0 / i_mult_group1.
+    const std::array<int, 3> expected = grouped ? std::array<int, 3>{0, 0, 50}
+                                                : std::array<int, 3>{0, 0, 255};
+    CHECK(std::abs(static_cast<int>(pixel[0]) - expected[0]) <= 1);
+    CHECK(std::abs(static_cast<int>(pixel[1]) - expected[1]) <= 1);
+    CHECK(std::abs(static_cast<int>(pixel[2]) - expected[2]) <= 1);
+  }
+}
+
+void exterior_effect_is_knocked_out_once_by_semi_transparent_content() {
+  // Photoshop contributes a layer and its exterior effects additively against
+  // the backdrop they both met: a half-alpha square renders its outer glow at
+  // the glow's own coverage AND itself at half coverage. Pre-multiplying the
+  // glow by (1 - alpha) and then compositing the square over it charged that
+  // factor twice, which thinned every glow and shadow along anti-aliased text
+  // edges (the DungeonScroll options screen report).
+  // A 12x12 square inside a 32x32 canvas, matching the COM probe geometry so
+  // the size-5 glow saturates over the shape.
+  const auto square = [](std::uint8_t alpha) {
+    patchy::PixelBuffer pixels(32, 32, patchy::PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < 32; ++y) {
+      for (std::int32_t x = 0; x < 32; ++x) {
+        auto* px = pixels.pixel(x, y);
+        const auto inside = x >= 10 && x < 22 && y >= 10 && y < 22;
+        px[0] = 0;
+        px[1] = 0;
+        px[2] = 255;
+        px[3] = inside ? alpha : 0U;
+      }
+    }
+    return pixels;
+  };
+
+  patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(32, 32, 128, 128, 128));
+  auto& layer = document.add_pixel_layer("Panel", square(128));
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 0, 0};
+  glow.opacity = 1.0F;
+  glow.size = 5.0F;
+  glow.range = 50.0F;
+  layer.layer_style().outer_glows.push_back(glow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* pixel = flattened.pixel(16, 16);
+  // Half the blue square over a fully glowing backdrop: (127, 0, 128), the
+  // Photoshop 2026 COM probe x2_glow_a50. The doubled knockout gave (95, 32, 160).
+  CHECK(std::abs(static_cast<int>(pixel[0]) - 127) <= 1);
+  CHECK(std::abs(static_cast<int>(pixel[1]) - 0) <= 1);
+  CHECK(std::abs(static_cast<int>(pixel[2]) - 128) <= 1);
+
+  // Fill 0 removes the square's pixels but not the knockout: the shape still
+  // hides its own glow, so the pure backdrop remains (probe x7_glow_a100_fill0).
+  layer.pixels() = square(255);
+  layer.set_fill_opacity(0.0F);
+  const auto hidden = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* hidden_pixel = hidden.pixel(16, 16);
+  CHECK(hidden_pixel[0] == 128 && hidden_pixel[1] == 128 && hidden_pixel[2] == 128);
+}
+
 void layer_mask_hides_effects_clips_exterior_effect_output() {
   // "Layer Mask Hides Effects" off (default): the mask shapes what casts the
   // effect, but shadow/glow/stroke output may still land on mask-hidden areas.
@@ -859,6 +968,11 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
   return {
       {"layer_mask_shapes_effects_regardless_of_link", layer_mask_shapes_effects_regardless_of_link},
       {"psd_layer_mask_hides_effects_round_trip", psd_layer_mask_hides_effects_round_trip},
+      {"psd_blend_interior_elements_round_trip", psd_blend_interior_elements_round_trip},
+      {"blend_interior_elements_moves_the_layer_blend_over_the_overlay",
+       blend_interior_elements_moves_the_layer_blend_over_the_overlay},
+      {"exterior_effect_is_knocked_out_once_by_semi_transparent_content",
+       exterior_effect_is_knocked_out_once_by_semi_transparent_content},
       {"layer_mask_hides_effects_clips_exterior_effect_output",
        layer_mask_hides_effects_clips_exterior_effect_output},
       {"psd_photoshop_mask_hides_effects_fixture_clips_shadow",

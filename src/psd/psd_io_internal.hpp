@@ -191,6 +191,7 @@ struct LayerRecord {
   std::optional<PsdTextGeometry> text_geometry;
   std::uint32_t protection_flags{0};
   bool layer_mask_hides_effects{false};
+  bool blend_interior_elements{false};
   LayerStyle layer_style;
   // True once 'lmfx' supplied the style: the multi-instance block is
   // authoritative over the single-instance compatibility lfx2 beside it.

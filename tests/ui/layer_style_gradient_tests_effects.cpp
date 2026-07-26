@@ -1076,6 +1076,43 @@ void ui_layer_style_preview_is_transient_and_show_effects_persists() {
   CHECK(previews.back().style.strokes.front().size == 5.0F);
 }
 
+void ui_layer_style_blending_options_round_trip_the_interior_group_flag() {
+  // "Blend Interior Effects as Group" ('infx') changes rendering but no effect
+  // page owns it, so the Blending Options checkbox is the only thing keeping a
+  // dialog edit from silently clearing an imported layer's flag.
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Grouped Interior",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  layer.layer_style().color_overlays.push_back(overlay);
+  layer.layer_style().blend_interior_elements = true;
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* blend_interior = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBlendInteriorCheck"));
+    CHECK(blend_interior != nullptr);
+    CHECK(blend_interior->isChecked());
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+  const auto kept = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(kept.has_value());
+  CHECK(kept->style.blend_interior_elements);
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* blend_interior = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBlendInteriorCheck"));
+    CHECK(blend_interior != nullptr);
+    blend_interior->setChecked(false);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+  const auto cleared = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(cleared.has_value());
+  CHECK(!cleared->style.blend_interior_elements);
+}
+
 void ui_layer_style_gradient_stroke_controls_map_to_settings() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Gradient Stroke",
@@ -1586,6 +1623,8 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
        ui_layer_style_gradient_page_controls_map_to_settings},
       {"ui_layer_style_preview_is_transient_and_show_effects_persists",
        ui_layer_style_preview_is_transient_and_show_effects_persists},
+      {"ui_layer_style_blending_options_round_trip_the_interior_group_flag",
+       ui_layer_style_blending_options_round_trip_the_interior_group_flag},
       {"ui_layer_style_gradient_stroke_controls_map_to_settings",
        ui_layer_style_gradient_stroke_controls_map_to_settings},
       {"ui_layer_style_bevel_lighting_controls_map_to_settings",

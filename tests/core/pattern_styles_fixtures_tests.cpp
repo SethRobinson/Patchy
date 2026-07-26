@@ -1320,6 +1320,68 @@ void psd_photoshop_stroke_overprint_fixture_matches_render() {
   check_near(124, 225, 110, 110, 110);  // ins0 on: complete no-op
 }
 
+// Photoshop 2026 authored photoshop-interior-exterior-blending.psd/.bmp via COM
+// (July 2026, the options.psd "highlight" report): six 12x12 cells on one
+// (100, 120, 140) backdrop pinning where a layer's blend mode sits relative to
+// its own effects.
+//
+// satOverlayOff/satOverlayOn are the same Saturation layer under a Linear Dodge
+// Color Overlay with "Blend Interior Effects as Group" ('infx') off and on. Off
+// - Photoshop's default - the layer's mode carries its own pixels alone and the
+// overlay blends over that result at full strength; on, the overlay folds into
+// the layer color and the Saturation mode desaturates it too. Rendering every
+// layer the "on" way is what washed out the DungeonScroll options screen.
+//
+// glowSemi/shadowSemi/glowMult/shadowFill0 pin the exterior effects as ADDITIVE
+// contributions against the layer's original backdrop: a half-alpha square does
+// not attenuate its own glow a second time, a Multiply layer blends with the
+// backdrop rather than with the shadow underneath it, and a Fill-0 layer still
+// knocks its shadow out of its own shape.
+void psd_photoshop_interior_exterior_blending_fixture_matches_render() {
+  const auto psd_path =
+      patchy::test::committed_psd_fixture_path("photoshop-interior-exterior-blending.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-interior-exterior-blending.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+
+  const auto* overlay_off = find_layer_named(document.layers(), "satOverlayOff");
+  const auto* overlay_on = find_layer_named(document.layers(), "satOverlayOn");
+  CHECK(overlay_off != nullptr);
+  CHECK(overlay_on != nullptr);
+  CHECK(overlay_off->blend_mode() == patchy::BlendMode::Saturation);
+  CHECK(overlay_on->blend_mode() == patchy::BlendMode::Saturation);
+  CHECK(!overlay_off->layer_style().blend_interior_elements);
+  CHECK(overlay_on->layer_style().blend_interior_elements);
+  CHECK(overlay_off->layer_style().color_overlays.size() == 1);
+  CHECK(overlay_off->layer_style().color_overlays.front().blend_mode == patchy::BlendMode::LinearDodge);
+  const auto* glow_mult = find_layer_named(document.layers(), "glowMult");
+  CHECK(glow_mult != nullptr);
+  CHECK(glow_mult->blend_mode() == patchy::BlendMode::Multiply);
+  const auto* shadow_fill0 = find_layer_named(document.layers(), "shadowFill0");
+  CHECK(shadow_fill0 != nullptr);
+  CHECK(shadow_fill0->fill_opacity() <= 0.01F);
+
+  const auto reference =
+      patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference, flat);
+  CHECK(metrics.max_channel_delta <= 2);
+  CHECK(metrics.mean_abs_channel_delta <= 0.10);
+  const auto check_near = [&](std::int32_t x, std::int32_t y, int red, int green, int blue) {
+    const auto* pixel = flat.pixel(x, y);
+    CHECK(std::abs(static_cast<int>(pixel[0]) - red) <= 2);
+    CHECK(std::abs(static_cast<int>(pixel[1]) - green) <= 2);
+    CHECK(std::abs(static_cast<int>(pixel[2]) - blue) <= 2);
+  };
+  check_near(20, 32, 25, 137, 255);    // infx off: the overlay keeps Linear Dodge
+  check_near(56, 32, 38, 134, 229);    // infx on: the layer's mode takes the overlay too
+  check_near(92, 32, 255, 32, 16);     // half-alpha square over an unattenuated glow
+  check_near(128, 32, 217, 62, 51);    // half-alpha square over its own knocked-out shadow
+  check_near(164, 32, 177, 15, 9);     // Multiply blends the backdrop, not the glow
+  check_near(200, 32, 100, 120, 140);  // fill 0 still hides the shadow inside the shape
+}
+
 // Photoshop 2026 authored photoshop-shadow-conceals.psd/.bmp via COM (July
 // 2026): six drop-shadow arms over an orange backdrop pinning "Layer Knocks
 // Out Drop Shadow" (DrSh layerConceals, default on): the layer's transparency
@@ -2112,6 +2174,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_stroke_overprint_fixture_matches_render},
       {"psd_photoshop_shadow_conceals_fixture_matches_render",
        psd_photoshop_shadow_conceals_fixture_matches_render},
+      {"psd_photoshop_interior_exterior_blending_fixture_matches_render",
+       psd_photoshop_interior_exterior_blending_fixture_matches_render},
       {"psd_photoshop_pillow_emboss_fixtures_match_render",
        psd_photoshop_pillow_emboss_fixtures_match_render},
       {"psd_photoshop_stroke_shapeburst_fixture_matches_render",

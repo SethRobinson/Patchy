@@ -126,7 +126,7 @@ bool is_smart_object_reference_block(std::string_view key) {
 bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block,
                              bool generated_style_block, bool generated_vector_blocks) {
   if (block.key == "luni" || block.key == "plFX" || block.key == "lspf" || block.key == "lmgm" ||
-      (block.key == "plAD" && encoded.kind == EncodedLayerKind::Adjustment)) {
+      block.key == "infx" || (block.key == "plAD" && encoded.kind == EncodedLayerKind::Adjustment)) {
     return true;
   }
   // Edited vector content regenerates its blocks; the preserved originals
@@ -519,6 +519,10 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         // "Layer Mask Hides Effects" blending option (first byte is the bool).
         record.layer_mask_hides_effects = record.additional_blocks.back().payload[0] != 0;
       }
+      if (key == "infx" && !record.additional_blocks.back().payload.empty()) {
+        // "Blend Interior Effects as Group" blending option (first byte is the bool).
+        record.blend_interior_elements = record.additional_blocks.back().payload[0] != 0;
+      }
       if (key == "lsct" || key == "lsdk") {
         const auto& section_payload = record.additional_blocks.back().payload;
         if (section_payload.size() >= 4U) {
@@ -829,6 +833,16 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
       mask_hides.write_u8(0);
       mask_hides.write_u16(0);
       write_additional_layer_block(extra, {'l', 'm', 'g', 'm'}, mask_hides.bytes(), large_document);
+    }
+
+    if (encoded.layer->layer_style().blend_interior_elements) {
+      // "Blend Interior Effects as Group" blending option; absence means off,
+      // which is why an untouched infx=0 import needs no block of its own.
+      BigEndianWriter blend_interior;
+      blend_interior.write_u8(1);
+      blend_interior.write_u8(0);
+      blend_interior.write_u16(0);
+      write_additional_layer_block(extra, {'i', 'n', 'f', 'x'}, blend_interior.bytes(), large_document);
     }
 
     for (const auto& block : encoded.layer->unknown_psd_blocks()) {

@@ -2048,6 +2048,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       QObject::tr("Clip drop shadows, glows, and strokes with the layer mask "
                   "instead of only shaping them"));
   blending_form->addRow(QString(), mask_hides_effects);
+  auto* blend_interior = new QCheckBox(QObject::tr("Blend Interior Effects as Group"), blending_group);
+  blend_interior->setObjectName(QStringLiteral("layerStyleBlendInteriorCheck"));
+  blend_interior->setChecked(style.blend_interior_elements);
+  blend_interior->setToolTip(
+      QObject::tr("Put the layer's blend mode over its overlays, satin, and inner glow "
+                  "instead of letting them blend with their own modes"));
+  blending_form->addRow(QString(), blend_interior);
   blending_layout->addWidget(blending_group);
 
   struct BlendIfRowWidgets {
@@ -3156,6 +3163,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     LayerStyle result = style;
     result.effects_visible = show_effects->isChecked();
     result.layer_mask_hides_effects = mask_hides_effects->isChecked();
+    result.blend_interior_elements = blend_interior->isChecked();
     apply_enabled_states(result);
     save_controls_to_style(result, category);
     // Accepting any style edit regenerates the complete native lfx2 descriptor.
@@ -3768,6 +3776,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(show_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(mask_hides_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
+  QObject::connect(blend_interior, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   for (auto* spin : {bevel_size, bevel_soften, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
                      bevel_shadow_opacity, bevel_contour_range, bevel_texture_scale, bevel_texture_depth,
                      pattern_overlay_opacity, pattern_overlay_angle, pattern_overlay_scale,
@@ -3939,6 +3948,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     // Presets replace the effects; the dialog-level blending pieces a preset
     // does not carry stay as the user set them.
     applied.layer_mask_hides_effects = mask_hides_effects->isChecked();
+    applied.blend_interior_elements = blend_interior->isChecked();
     applied.effects_visible = true;
     loading_controls = true;
     show_effects->setChecked(true);
@@ -3970,6 +3980,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     LayerStyle cleared;
     cleared.effects_visible = show_effects->isChecked();
     cleared.layer_mask_hides_effects = mask_hides_effects->isChecked();
+    cleared.blend_interior_elements = blend_interior->isChecked();
     style = std::move(cleared);
     rebuild_category_list(LayerStyleEffectKind::None, kStylesCategoryIndex);
     load_controls_from_style(categories->currentItem());
