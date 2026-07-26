@@ -34,6 +34,37 @@ specific clause that person wrote (see the existing 0.10/0.12 entries in
 
 Build order matters: finalize the README first (the Windows zip/installer embed a copy), then `release-all.bat` (three consoles: Windows + remote mac/linux; every builder deletes its previous artifacts up front so a failed build can never leave stale files for the newest-file upload scripts), then `upload-to-rtsoft.bat`.
 
+## Batch files call their siblings by full path
+
+`NoDefaultCurrentDirectoryInExePath` is set in most non-interactive shells, including the
+ones coding agents run commands in. It stops cmd from resolving a bare command name out of
+the current directory, so `cmd /c "build-release.bat"` fails with `'build-release.bat' is
+not recognized` even when the file is right there. A relative path that contains a
+separator, like `scripts\remote\release-mac.bat`, still resolves fine, because cmd treats
+that as a path rather than a name to search for.
+
+That is why `release-all.bat` and `upload-to-rtsoft.bat` launch their siblings as
+`"%~dp0name.bat"`. Keep it that way. The failure mode is nasty: on July 26, 2026 the
+Windows console of `release-all.bat` closed instantly without building anything while the
+mac and Linux consoles (launched with a path) built normally, and because that console
+never reached the delete-previous-artifacts step, the previous version's zip and installer
+were still sitting in `build\package` for the upload scripts to pick up.
+
+## scripts\vs-env.bat, not VsDevCmd.bat
+
+Every build entry point (`build-release.bat`, `scripts\run-tests.ps1`,
+`scripts\make-readme-screenshots.ps1`, the handoff command in AGENTS.md) enters the
+developer environment through `scripts\vs-env.bat`, which forwards its arguments to
+VsDevCmd.bat. It is the only place that knows where Visual Studio is installed, and it
+prepends the VS Installer directory to `PATH` before the call.
+
+That `PATH` line is what silences `'vswhere.exe' is not recognized`. VsDevCmd.bat reads the
+product version by pushd-ing into the Installer directory and running `vswhere.exe` by bare
+name, which the rule above blocks. The probe is optional inside VsDevCmd, so it still
+returns 0 and the build works, but the line looks exactly like a real failure in a release
+log. Do not chase it if you see it from some other caller: check whether that caller went
+through vs-env.bat.
+
 ## Agent/non-interactive runs: NO_PAUSE
 
 **Agent/non-interactive release runs must set `NO_PAUSE=1` before launching the batch files.** From PowerShell, set `$env:NO_PAUSE='1'` and then run `cmd /c release-all.bat`; the environment is inherited by the three `start`ed consoles and, critically, by `%RT_PROJECTS%\Signing\sign.bat`, which otherwise pauses after EVERY signed Windows file. Do this before the first launch, not after a signing prompt appears.

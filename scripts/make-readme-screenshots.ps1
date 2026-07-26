@@ -58,7 +58,7 @@ $runOffscreen = $runAll -or -not $jsScenes.Contains($sceneName)
 if (-not $SkipBuild) {
     Push-Location $repo
     try {
-        cmd /s /c '"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 >nul && "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset release --target patchy patchy_ui_visual_tests'
+        cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset release --target patchy patchy_ui_visual_tests'
         if ($LASTEXITCODE -ne 0) { throw "build failed (exit $LASTEXITCODE)" }
     } finally {
         Pop-Location

@@ -26,10 +26,12 @@ Required release handoff steps:
 1. Build the release preset:
 
    ```powershell
-   cmd /s /c '"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 >nul && "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset release'
+   cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset release'
    ```
 
-   Run this from PowerShell or a real cmd prompt, never Git Bash or another POSIX shell. Nested quoting collapses there, cmd prints its banner, and exits 0 without building. Trust the build only if the log contains compile/link lines or `ninja: no work to do`, never the exit code alone.
+   Run this from the repository root in PowerShell or a real cmd prompt, never Git Bash or another POSIX shell. Nested quoting collapses there, cmd prints its banner, and exits 0 without building. Trust the build only if the log contains compile/link lines or `ninja: no work to do`, never the exit code alone.
+
+   `scripts\vs-env.bat` is the one place that knows where VsDevCmd.bat lives; call it instead of VsDevCmd directly so every build gets the same developer environment and none of them print the spurious `'vswhere.exe' is not recognized` line. See [docs/release-process.md](docs/release-process.md).
 
    `build\release\CMakeCache.txt` carries hand-edited flags the preset does not set: `CMAKE_CXX_FLAGS_RELEASE=/O2 /Ob2 /DNDEBUG /Zi` and `CMAKE_EXE_LINKER_FLAGS_RELEASE=/DEBUG:FULL /INCREMENTAL:NO`. They emit `patchy.pdb` for symbolizing WER dumps from `%LOCALAPPDATA%\CrashDumps`. If reconfiguring from scratch, pass them again with `-D...`. To symbolize an older dump, rebuild that commit in a temporary worktree with the same flags; full links reproduce the binary layout.
 

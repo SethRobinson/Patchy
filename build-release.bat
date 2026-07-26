@@ -5,7 +5,6 @@ set "REPO=%~dp0"
 if "%REPO:~-1%"=="\" set "REPO=%REPO:~0,-1%"
 pushd "%REPO%" || exit /b 1
 
-set "VS_DEV=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"
 set "CMAKE_EXE=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 if not exist "%CMAKE_EXE%" set "CMAKE_EXE=cmake"
 set "CSC_EXE=%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
@@ -36,12 +35,8 @@ if not exist "%QTPATHS%" (
   goto fail
 )
 
-if exist "%VS_DEV%" (
-  call "%VS_DEV%" -arch=x64 -host_arch=x64 >nul
-  if errorlevel 1 goto fail
-) else (
-  echo VsDevCmd.bat was not found at "%VS_DEV%"; using the current command environment.
-)
+call "%REPO%\scripts\vs-env.bat" -arch=x64 -host_arch=x64 >nul
+if errorlevel 1 goto fail
 
 if not defined PATCHY_PACKAGE_VERSION (
   for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$text = Get-Content -Raw -LiteralPath 'CMakeLists.txt'; $match = [regex]::Match($text, 'project\s*\([\s\S]*?\bVERSION\s+([0-9]+(?:\.[0-9]+){1,3})', [Text.RegularExpressions.RegexOptions]::IgnoreCase); if ($match.Success) { $match.Groups[1].Value } else { '0.0.0' }"`) do set "PATCHY_PACKAGE_VERSION=%%V"

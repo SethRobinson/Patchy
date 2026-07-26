@@ -16,7 +16,10 @@ function Invoke-CheckedCmd {
 $repo = Resolve-Path (Join-Path $PSScriptRoot "..")
 $cmake = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 $ctest = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\ctest.exe"
-$vsDev = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"
+# vs-env.bat wraps VsDevCmd.bat: it owns the VS install path for every build script and
+# keeps the spurious "'vswhere.exe' is not recognized" line out of the log. See
+# docs/release-process.md.
+$vsDev = Join-Path $PSScriptRoot "vs-env.bat"
 
 if (!(Test-Path $cmake)) {
   $cmake = "cmake"
