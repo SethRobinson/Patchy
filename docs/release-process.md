@@ -71,6 +71,6 @@ through vs-env.bat.
 
 `release-mac.bat` and `release-linux.bat` have their own unconditional final `pause`, so do not wait for those wrapper `cmd.exe` processes to exit: determine success from the child PowerShell completion and fresh versioned artifacts, then close the completed wrapper consoles.
 
-Also keep `NO_PAUSE=1` set for `upload-to-rtsoft.bat`; its per-platform upload scripts receive `nopause`, but the top-level script still has one final `pause`, which an automated runner must dismiss after all uploads complete.
+`upload-to-rtsoft.bat` itself does not read `NO_PAUSE`: it already passes the positional `nopause` argument to the per-platform upload scripts, but the top-level script ends in one final unconditional `pause`, which an automated runner must dismiss (feed Enter) after all uploads complete.
 
 Do not say a release was created unless the release preset build completed successfully.

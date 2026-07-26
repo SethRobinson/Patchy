@@ -33,7 +33,7 @@ Read this before moving functions, adding members to the large UI classes, split
 
 Per-file helpers stay in an anonymous namespace. When a second TU needs one, move it to `main_window_shared`, declare it in the header, and remove the old definition. A duplicated helper with a static local forks its state; an extern declaration beside a same-name anonymous-namespace definition makes calls ambiguous. The split TUs deliberately repeat `main_window.cpp`'s complete include block.
 
-`main_window.cpp` keeps the constructor and event/input plumbing, `configure_canvas`, the text tool and render pipeline, text-dependent rasterize/merge operations, registration helpers, `PreviewDialogEditLock`, and document-action-state machinery. Do not move the text tool as a simple split: it requires a designed `text_render` module with its own interface.
+`main_window.cpp` keeps the constructor and event/input plumbing, `configure_canvas`, the text tool and render pipeline, text-dependent rasterize/merge operations, registration helpers, `PreviewDialogEditLock`, and document-action-state machinery. Do not move the text tool as a simple split: it requires a designed `text_render` module with its own interface. The three text-settings-from-editor variants also stay here; their differences are real and the text pipeline is still same-TU code.
 
 ### Session lifetime and startup
 
@@ -43,13 +43,13 @@ Session data must outlive canvas event delivery. `~MainWindow` detaches every ca
 
 ## CanvasWidget
 
-`CanvasWidget` is split into `canvas_widget_*.cpp` files for events, render, view, guides, selection, selection engines, brush, draw tools, transform, move, pen, and cursors. Free transform and warp remain together in `canvas_widget_transform.cpp` because they share pending-session state. Promote cross-TU helpers to `canvas_widget_shared.{hpp,cpp}`.
+`CanvasWidget` is split into `canvas_widget_*.cpp` files for events, render, view, guides, selection, selection engines, brush, draw tools, transform, move, pen, vector tools, and cursors. Free transform and warp remain together in `canvas_widget_transform.cpp` because they share pending-session state. Promote cross-TU helpers to `canvas_widget_shared.{hpp,cpp}`.
 
 `canvas_widget.cpp` keeps construction, document lifecycle, setters, smart-filter-mask targeting, callback plumbing, and picking helpers. Patent-constraint comments for Quick Select solve-on-release and Magnetic Lasso finish-time region construction stay verbatim with their functions in `canvas_widget_selection_engines.cpp`.
 
 ## PSD codec
 
-The PSD codec uses one TU per block family: `psd_channel_data`, `psd_image_resources`, `psd_adjustments`, `psd_layer_styles`, `psd_text_read`, `psd_text_write`, and `psd_layer_records`. `psd_layer_styles` owns the `psd_layer_effects.hpp` exports used by ASL I/O.
+The PSD codec uses one TU per block family: `psd_channel_data`, `psd_image_resources`, `psd_adjustments`, `psd_layer_styles`, `psd_text_read`, `psd_text_write`, `psd_layer_records`, `psd_smart_objects`, `psd_vector`, `psd_filter_effects`, and `psd_patterns`, with shared descriptor and big-endian primitives in `psd_descriptor` and `psd_binary`. `psd_layer_styles` owns the `psd_layer_effects.hpp` exports used by ASL I/O.
 
 Shared internal constants, record types, and declarations live in `psd_io_internal.hpp`; never include it outside `src/psd`. Shared plumbing definitions live in `psd_io_common.cpp`. `psd_document_io.cpp` keeps the read drivers and public `DocumentIo` API. The writer is byte-pinned, so any body change must satisfy the serialization canaries.
 

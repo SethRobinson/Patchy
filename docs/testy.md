@@ -415,7 +415,7 @@ testy/
                      automation via affinity_js)
   index.html         run-index landing page (server root)
   photopea_host.html the Photopea embedding/automation page
-  corpus/default.txt curated corpus
+  corpus/            gitignored: local corpus lists
   runs/<ts>/         gitignored: artifacts, results.json, report.html
   cache/             gitignored: ground-truth + cell cache
 ```

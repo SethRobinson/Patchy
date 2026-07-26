@@ -101,7 +101,7 @@ Values are normalized through the catalog before execution. Integer, double, boo
 
 ## Categories and UI contracts
 
-Seven filters belong to Image > Adjustments: Invert, Brightness/Contrast, Grayscale, Desaturate, Auto Contrast, Threshold, and Posterize. Grayscale currently has no direct action.
+Seven catalog filters carry `FilterCategory::Adjustment` and surface under Image > Adjustments: Invert, Brightness/Contrast, Grayscale, Desaturate, Auto Contrast, Threshold, and Posterize. Grayscale currently has no direct action. The menu additionally holds the four dialog adjustments (Levels, Curves, Hue/Saturation, Color Balance), which are not catalog filters; see [ps-compat.md](ps-compat.md) for their engines.
 
 The gallery exposes the other 32 effects in the fixed catalog and category order below. Display labels are translated, but order is never locale-sorted.
 
@@ -119,7 +119,7 @@ The gallery exposes the other 32 effects in the fixed catalog and category order
 
 The category selector starts with the synthetic `all` and `favorites` views, then uses the nine tokens in the table. These eleven tokens and their order are settings compatibility surfaces. Never persist a translated label or a `FilterCategory` ordinal.
 
-Liquify appears first in the Distort submenu but is deliberately outside this catalog and gallery. It records an ordered sequence of manual brush gestures rather than one stable filter invocation. Its separate implementation and PSD contract live in `docs/liquify.md`.
+Liquify sits directly under Filter Gallery as a top-level Filter menu action (not in a category submenu) and is deliberately outside this catalog and gallery. It records an ordered sequence of manual brush gestures rather than one stable filter invocation. Its separate implementation and PSD contract live in `docs/liquify.md`.
 
 The catalog generates dialog controls, but the existing Qt object names such as `filterAmountSpin` and `filterRadiusSlider` remain test and automation contracts.
 

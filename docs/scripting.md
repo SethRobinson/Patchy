@@ -317,7 +317,7 @@ newlines. The bundled `Utilities/batch-export.js` is the reference consumer.
   so automation scripts should not open windows.
 
 An AI agent drives Patchy by writing a .js file, invoking `--run-script`, and polling the
-output file. `scripts/patchy.d.ts` is the machine-readable API description and
+output file. `scripts/bundled/patchy.d.ts` is the machine-readable API description and
 `scripts/bundled/scripting-guide.md` the prose guide; point the agent at both.
 
 The Script Manager's C:\ button surfaces this whole flow to users: it shows a copyable,

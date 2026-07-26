@@ -49,8 +49,6 @@ canaries.
 - Consider small parameterized helpers for the undo/redo pair, horizontal/vertical
   flip pair, fill/clear ladder, view-menu checkbox sync, and Smart Object
   relink/replace and update/embed preambles.
-- Keep the three text-settings-from-editor variants in `main_window.cpp`; their
-  differences are real and the text pipeline is still same-TU code.
 - Three latest-wins preview state machines remain after the shared parameter panel,
   preview proxy, overlay sync, and coalesced emitter extractions.
 - `layer_style_dialog.cpp` still repeats blend-mode rows and picker wiring that was not

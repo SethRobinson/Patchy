@@ -113,7 +113,7 @@ Click a thumbnail for the full-size image.
 
 <a href="https://www.youtube.com/watch?v=DSbMqp2cXig"><img src="docs/images/patchy-youtube-preview.png" width="320" alt="Patchy announcement video on YouTube"></a>
 
-The announcement video (recorded around 0.9, so it predates a lot of the features above). More videos land on [Seth's YouTube channel](https://www.youtube.com/@RobinsonTechnologies).
+The announcement video (recorded around the 0.9 release in June 2026, so it predates a lot of the features above). More videos land on [Seth's YouTube channel](https://www.youtube.com/@RobinsonTechnologies).
 
 ## Download
 
