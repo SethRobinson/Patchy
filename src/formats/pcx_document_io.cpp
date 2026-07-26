@@ -217,9 +217,9 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document) {
 
   if (indexed) {
     const auto flat = indexed_flatten_for_palette_mode(document);
-    std::vector<std::uint8_t> row(bytes_per_line, 0);
+    std::vector<std::uint8_t> row(bytes_per_line, std::uint8_t{0});
     for (std::int32_t y = 0; y < height; ++y) {
-      std::fill(row.begin(), row.end(), 0);
+      std::fill(row.begin(), row.end(), std::uint8_t{0});
       std::copy_n(flat.indexes.begin() + static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) * width),
                   width, row.begin());
       encode_rle_row(writer, row);
@@ -234,10 +234,10 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document) {
     }
   } else {
     const auto flattened = flatten_document_rgba8(document);
-    std::vector<std::uint8_t> plane(bytes_per_line, 0);
+    std::vector<std::uint8_t> plane(bytes_per_line, std::uint8_t{0});
     for (std::int32_t y = 0; y < height; ++y) {
       for (int channel = 0; channel < 3; ++channel) {
-        std::fill(plane.begin(), plane.end(), 0);
+        std::fill(plane.begin(), plane.end(), std::uint8_t{0});
         for (std::int32_t x = 0; x < width; ++x) {
           plane[static_cast<std::size_t>(x)] = flattened.pixel(x, y)[channel];
         }

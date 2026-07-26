@@ -2035,7 +2035,7 @@ void StressTestRunner::phase_filters() {
   // area folders, not accidentally anchored inside one).
   step("23_vignette", "Vignette layer", "filters", [&] {
     activate_top_layer();
-    add_named_layer(QStringLiteral("Vignette"));
+    (void)add_named_layer(QStringLiteral("Vignette"));
     use_solid_fill_settings();
     w.fill_active_layer_with_color(QColor(255, 255, 255), MainWindow::tr("Vignette base"));
     apply_filter_direct(QStringLiteral("patchy.filters.vignette"), {{"strength", std::int64_t{70}}},
@@ -2046,7 +2046,7 @@ void StressTestRunner::phase_filters() {
 
   // 24: film grain overlay.
   step("24_grain", "Analog grain layer (overlay)", "filters", [&] {
-    add_named_layer(QStringLiteral("Grain"));
+    (void)add_named_layer(QStringLiteral("Grain"));
     use_solid_fill_settings();
     w.fill_active_layer_with_color(QColor(128, 128, 128), MainWindow::tr("Grain base"));
     apply_filter_direct(QStringLiteral("patchy.filters.film_grain"), {{"amount", std::int64_t{55}}},

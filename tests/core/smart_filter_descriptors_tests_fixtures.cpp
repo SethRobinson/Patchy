@@ -1366,7 +1366,7 @@ void smart_filter_effects_codec_rejects_malformed_data_and_accepts_alignment() {
     CHECK(patchy::psd::serialize_filter_effects_block(parsed) == payload);
   }
 
-  for (const auto payload : {make_payload(1U, 1U), make_payload(4U, 0U)}) {
+  for (const auto& payload : {make_payload(1U, 1U), make_payload(4U, 0U)}) {
     const auto parsed = patchy::psd::parse_filter_effects_block("FEid", payload);
     CHECK(parsed.opaque);
     CHECK(parsed.records.empty());

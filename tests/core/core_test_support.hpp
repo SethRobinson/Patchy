@@ -83,6 +83,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <unordered_set>
 #include <utility>
@@ -108,7 +109,7 @@ void write_rgb8_bmp_artifact(const std::string& name, const patchy::PixelBuffer&
 
 void write_bmp_artifact(const std::string& name, const patchy::Document& document);
 
-const patchy::Layer* find_layer_named(const std::vector<patchy::Layer>& layers, const std::string& name);
+const patchy::Layer* find_layer_named(const std::vector<patchy::Layer>& layers, std::string_view name);
 
 bool close_float(float actual, float expected, float tolerance = 0.01F);
 
@@ -123,10 +124,10 @@ RgbDiffMetrics rgb_diff_metrics(const patchy::PixelBuffer& left, const patchy::P
 
 patchy::LayerId active_tool_layer(const patchy::Document& document);
 
-const patchy::Layer& require_layer_named(const patchy::Document& document, const std::string& name);
+const patchy::Layer& require_layer_named(const patchy::Document& document, std::string_view name);
 
 const patchy::SmartFilterStack& require_smart_filter_stack(const patchy::Document& document,
-                                                           const std::string& name);
+                                                           std::string_view name);
 
 patchy::SmartFilterStack test_gaussian_smart_filter_stack(double radius);
 

@@ -709,8 +709,11 @@ void ui_compatibility_report_flags_unrendered_styles_on_groups() {
 void ui_compatibility_report_handles_supported_unsupported_and_boundary_blend_if() {
   constexpr std::array<std::uint8_t, 8> identity_range{0, 0, 255, 255, 0, 0, 255, 255};
   std::vector<std::uint8_t> identity_payload;
+  identity_payload.reserve(identity_range.size() * 5U);
   for (int channel = 0; channel < 5; ++channel) {
-    identity_payload.insert(identity_payload.end(), identity_range.begin(), identity_range.end());
+    for (const auto byte : identity_range) {
+      identity_payload.push_back(byte);
+    }
   }
 
   patchy::Document document(120, 90, patchy::PixelFormat::rgba8());

@@ -1,11 +1,11 @@
 #include "render/compositor.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/environment.hpp"
 #include "render/layer_compositor.hpp"
 
 #include <algorithm>
 #include <array>
-#include <cstdlib>
 #include <cstring>
 #include <future>
 #include <stdexcept>
@@ -180,7 +180,8 @@ PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::
   const auto area = static_cast<std::int64_t>(document.width()) * static_cast<std::int64_t>(document.height());
   const auto hardware_threads = static_cast<int>(std::thread::hardware_concurrency());
   const auto strips = std::clamp(std::min(document.height() / 128, hardware_threads), 1, 16);
-  const bool parallel = strips >= 2 && area >= 4'000'000 && std::getenv("PATCHY_RENDER_SINGLE_THREADED") == nullptr;
+  const bool parallel =
+      strips >= 2 && area >= 4'000'000 && !environment_variable_is_set("PATCHY_RENDER_SINGLE_THREADED");
   if (parallel) {
     struct StripResult {
       PixelBuffer pixels;
@@ -230,16 +231,6 @@ PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::
     *merged_alpha = target.alpha_bytes();
   }
   return output;
-}
-
-void Compositor::composite_layer(PixelBuffer& destination, const Layer& layer, Rect clip) const {
-  Rgb8PixelBufferTarget target(destination, 1.0F);
-  render_detail::composite_layer(target, layer, clip, nullptr, true);
-}
-
-void Compositor::composite_pixels(PixelBuffer& destination, const Layer& layer, Rect clip) const {
-  Rgb8PixelBufferTarget target(destination, 1.0F);
-  render_detail::composite_pixel_layer(target, layer, clip, nullptr, true);
 }
 
 }  // namespace patchy

@@ -968,7 +968,7 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
     update_swatch();
   };
 
-  QObject::connect(extension_color, &QComboBox::activated, &dialog, [extension_color, &dialog, &extension_color_value,
+  QObject::connect(extension_color, &QComboBox::activated, &dialog, [extension_color, &extension_color_value,
                                                                       update_swatch, choose_extension_color](int index) {
     if (index == 0) {
       choose_extension_color();

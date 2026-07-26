@@ -86,19 +86,19 @@ struct FilterParameterDefinition {
   std::string control_object_name;
   FilterParameterKind kind{FilterParameterKind::Integer};
   FilterParameterValue default_value{std::int64_t{0}};
-  std::optional<double> minimum;
-  std::optional<double> maximum;
-  std::optional<double> step;
+  std::optional<double> minimum{};
+  std::optional<double> maximum{};
+  std::optional<double> step{};
   FilterParameterUnit unit{FilterParameterUnit::None};
   FilterSpatialScale spatial_scale{FilterSpatialScale::None};
-  std::vector<FilterParameterOption> options;
+  std::vector<FilterParameterOption> options{};
   FilterParameterPresentation presentation{
       FilterParameterPresentation::Standard};
   // Optional compact range for linked sliders and other coarse visual
   // controls. Typed values, normalization, recipes, and persistence always
   // use minimum/maximum above.
-  std::optional<double> practical_minimum;
-  std::optional<double> practical_maximum;
+  std::optional<double> practical_minimum{};
+  std::optional<double> practical_maximum{};
 };
 
 enum class FilterProgressStage {

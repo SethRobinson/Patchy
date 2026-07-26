@@ -239,7 +239,7 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document) {
   for (std::int32_t y = 0; y < indexed.height; ++y) {
     const auto* row = indexed.indexes.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(indexed.width);
     for (std::uint8_t plane = 0; plane < planes; ++plane) {
-      std::fill(plane_row.begin(), plane_row.end(), 0);
+      std::fill(plane_row.begin(), plane_row.end(), std::uint8_t{0});
       for (std::int32_t x = 0; x < indexed.width; ++x) {
         if ((row[x] >> plane) & 1U) {
           plane_row[static_cast<std::size_t>(x / 8)] |= static_cast<std::uint8_t>(1U << (7 - (x % 8)));

@@ -1,4 +1,5 @@
 #include "core/layer.hpp"
+#include "core/environment.hpp"
 #include "core/smart_filter.hpp"
 #include "core/vector_shape.hpp"
 
@@ -6,7 +7,6 @@
 #include <array>
 #include <atomic>
 #include <cstdio>
-#include <cstdlib>
 #include <limits>
 #include <stdexcept>
 
@@ -43,7 +43,7 @@ std::uint64_t next_layer_revision() noexcept {
 // thumbnails, style masks, the undo render diff) - this trace is how the
 // find_layer const-walk bug was found; keep it for the next hunt.
 inline void trace_revision_bump(const char* accessor, const std::string& name) noexcept {
-  static const bool enabled = std::getenv("PATCHY_REV_TRACE") != nullptr;
+  static const bool enabled = environment_variable_is_set("PATCHY_REV_TRACE");
   if (enabled) {
     std::fprintf(stderr, "REVBUMP %s %s\n", accessor, name.c_str());
   }

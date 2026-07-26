@@ -9,7 +9,7 @@
 // scripts and tears down timer/window-driven ones. Saving a bundled script
 // writes the user-folder shadow copy (script_folders.hpp) so the shipped file
 // stays pristine (Revert to Bundled deletes the copy), and Set Icon from
-// Current Window captures a script's icon PNG the same shadow way. The C:\
+// Current Window captures a script's icon PNG the same shadow way. The drive
 // toolbar button (and the script context menu) shows a copyable command-line
 // example for the selected script (script_cli_example_command; the @cli
 // header directive supplies the argument tokens), and Help opens the bundled
@@ -1010,7 +1010,7 @@ void ScriptEditorDialog::show_cli_example_for(const QString& script_path) {
     box->setFixedHeight(box->fontMetrics().height() * lines + 16);
     return box;
   };
-  const auto make_copy_button = [this, dialog](QPlainTextEdit* box, const QString& name) {
+  const auto make_copy_button = [dialog](QPlainTextEdit* box, const QString& name) {
     auto* button = new QPushButton(tr("Copy"), dialog);
     button->setObjectName(name);
     connect(button, &QPushButton::clicked, dialog, [box, button] {

@@ -489,12 +489,22 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Eraser");
     case CanvasTool::Gradient:
       return QObject::tr("Gradient");
+    case CanvasTool::Pen:
+      return QObject::tr("Pen");
+    case CanvasTool::PathSelect:
+      return QObject::tr("Path Select");
+    case CanvasTool::DirectSelect:
+      return QObject::tr("Direct Select");
     case CanvasTool::Line:
       return QObject::tr("Line");
     case CanvasTool::Rectangle:
       return QObject::tr("Rectangle");
     case CanvasTool::Ellipse:
       return QObject::tr("Ellipse");
+    case CanvasTool::Polygon:
+      return QObject::tr("Polygon");
+    case CanvasTool::CustomShape:
+      return QObject::tr("Custom Shape");
     case CanvasTool::Fill:
       return QObject::tr("Fill");
     case CanvasTool::Eyedropper:

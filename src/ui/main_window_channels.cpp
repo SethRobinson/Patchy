@@ -409,6 +409,7 @@ void MainWindow::refresh_channel_panel() {
         break;
       case CanvasWidget::LayerEditTarget::Content:
       case CanvasWidget::LayerEditTarget::Mask:
+      case CanvasWidget::LayerEditTarget::VectorMask:
       case CanvasWidget::LayerEditTarget::SmartFilterMask:
         break;
     }
@@ -772,6 +773,7 @@ void MainWindow::refresh_edit_target_chip() {
       break;
     case CanvasWidget::LayerEditTarget::Content:
     case CanvasWidget::LayerEditTarget::Mask:
+    case CanvasWidget::LayerEditTarget::VectorMask:
     case CanvasWidget::LayerEditTarget::DocumentChannel:
     case CanvasWidget::LayerEditTarget::SmartFilterMask:
       break;

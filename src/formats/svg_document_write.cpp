@@ -46,31 +46,6 @@ std::string format_opacity(double value) {
   return detail::format_number(std::round(value * 1e6) / 1e6);
 }
 
-std::string xml_escape(std::string_view text) {
-  std::string result;
-  result.reserve(text.size());
-  for (const char c : text) {
-    switch (c) {
-      case '&':
-        result += "&amp;";
-        break;
-      case '<':
-        result += "&lt;";
-        break;
-      case '>':
-        result += "&gt;";
-        break;
-      case '"':
-        result += "&quot;";
-        break;
-      default:
-        result.push_back(c);
-        break;
-    }
-  }
-  return result;
-}
-
 std::string base64(std::span<const std::uint8_t> bytes) {
   static constexpr char kAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   std::string result;
@@ -331,13 +306,13 @@ PixelBuffer crop(const PixelBuffer& pixels, Rect rect) {
 struct Writer {
   const Document& document;
   std::vector<std::string>* notices{};
-  std::string defs;
-  std::string body;
+  std::string defs{};
+  std::string body{};
   int gradient_index{0};
   int pattern_index{0};
   int clip_index{0};
   int mask_index{0};
-  std::set<std::string> used_ids;
+  std::set<std::string> used_ids{};
 
   void notice(std::string value) {
     if (notices != nullptr && std::find(notices->begin(), notices->end(), value) == notices->end()) {

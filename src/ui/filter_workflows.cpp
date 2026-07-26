@@ -556,7 +556,7 @@ std::optional<FilterInvocation> request_filter_settings(
     auto* proxy_timer = new QTimer(&dialog);
     proxy_timer->setSingleShot(true);
     proxy_timer->setInterval(35);
-    const auto render_current = [&, proxy_timer] {
+    const auto render_current = [&] {
       FilterRecipe recipe;
       FilterRecipeEntry entry;
       entry.invocation = build_settings().invocation;

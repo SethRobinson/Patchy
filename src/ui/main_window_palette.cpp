@@ -595,7 +595,7 @@ ImageSaveOptions MainWindow::image_save_defaults_for_document() {
     if (!fitting.empty()) {
       options.ico_sizes = std::move(fitting);
     } else if (!options.ico_sizes.empty()) {
-      options.ico_sizes = {options.ico_sizes.front()};
+      options.ico_sizes.erase(options.ico_sizes.begin() + 1, options.ico_sizes.end());
     }
     for (const auto& layer : std::as_const(document()).layers()) {
       const auto found = layer.metadata().find(ico::kLayerMetadataCursorHotspot);

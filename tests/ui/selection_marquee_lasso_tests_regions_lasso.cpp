@@ -488,7 +488,7 @@ void ui_ctrl_click_layer_and_mask_preserve_soft_coverage() {
   click_layer_row_thumbnail(*layers, QStringLiteral("Soft Pixels"), QStringLiteral("layerContentThumbnail"),
                             Qt::ControlModifier);
   CHECK(canvas->selection_has_partial_alpha());
-  for (const auto [x, expected] : std::array<std::pair<int, std::uint8_t>, 6>{
+  for (const auto& [x, expected] : std::array<std::pair<int, std::uint8_t>, 6>{
            std::pair{2, std::uint8_t{0}}, std::pair{8, std::uint8_t{1}},
            std::pair{20, std::uint8_t{60}}, std::pair{32, std::uint8_t{127}},
            std::pair{44, std::uint8_t{128}}, std::pair{60, std::uint8_t{255}}}) {
@@ -512,7 +512,7 @@ void ui_ctrl_click_layer_and_mask_preserve_soft_coverage() {
   click_layer_row_thumbnail(*layers, QStringLiteral("Soft Pixels"), QStringLiteral("layerMaskThumbnail"),
                             Qt::ControlModifier);
   CHECK(canvas->selection_has_partial_alpha());
-  for (const auto [y, expected] : std::array<std::pair<int, std::uint8_t>, 6>{
+  for (const auto& [y, expected] : std::array<std::pair<int, std::uint8_t>, 6>{
            std::pair{2, std::uint8_t{0}}, std::pair{8, std::uint8_t{1}},
            std::pair{20, std::uint8_t{60}}, std::pair{32, std::uint8_t{127}},
            std::pair{44, std::uint8_t{128}}, std::pair{56, std::uint8_t{255}}}) {

@@ -1,5 +1,7 @@
 #include "formats/af_document_io.hpp"
 
+#include "core/environment.hpp"
+
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
@@ -57,7 +59,6 @@ constexpr std::uint32_t kTagInf = 0x666E4923U;   // "#Inf"
 constexpr std::uint32_t kTagProt = 0x746F7250U;  // "Prot"
 constexpr std::uint32_t kTagFil = 0x6C694623U;   // "#Fil"
 constexpr std::uint32_t kTagThmb = 0x626D6854U;  // "Thmb"
-constexpr std::uint32_t kTagDoc = 0x534BFF00U;   // doc.dat stream header
 constexpr std::array<std::uint32_t, 4> kFatTags = {
     0x54414623U,  // "#FAT"
     0x32544623U,  // "#FT2"
@@ -501,7 +502,6 @@ void undo_tile_interleave(std::vector<std::uint8_t>& bytes) {
 
 // ---------------------------------------------------------------- tier 1
 
-constexpr std::int32_t kIntSentinel = -2147483647;  // Affinity's "unbounded" marker
 constexpr std::int32_t kMaxLayerSide = 300000;      // matches the PSB dimension cap
 constexpr int kTileSize = 256;
 
@@ -2052,7 +2052,7 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
       ctx.notices.push_back("Layer '" + name + "': effect '" + effect_tag_text(kind) +
                             "' is not supported; skipped");
     }
-    if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
+    if (environment_variable_is_set("PATCHY_AF_TRACE")) {
       std::fprintf(stderr, "[af] effect '%s' on '%s'\n", effect_tag_text(kind).c_str(),
                    name.c_str());
     }
@@ -2754,10 +2754,10 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
       double max_x = 0.0;
       double max_y = 0.0;
       bool first_corner = true;
-      for (const auto [sx, sy] : {std::pair<double, double>{box[0], box[1]},
-                                  {box[2], box[1]},
-                                  {box[0], box[3]},
-                                  {box[2], box[3]}}) {
+      for (const auto& [sx, sy] : {std::pair<double, double>{box[0], box[1]},
+                                   {box[2], box[1]},
+                                   {box[0], box[3]},
+                                   {box[2], box[3]}}) {
         const double px = a * sx + b_term * sy + tx;
         const double py = c_term * sx + d * sy + ty;
         min_x = first_corner ? px : std::min(min_x, px);
@@ -2879,7 +2879,7 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
     ctx.notices.push_back("Layer '" + display +
                           "': small/petite caps text style is not supported; rendered as typed");
   }
-  if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
+  if (environment_variable_is_set("PATCHY_AF_TRACE")) {
     std::fprintf(stderr, "[af] text '%s': %zu style runs, %zu paragraph runs, align %lld\n",
                  display.c_str(), style_runs.size(), paragraph_runs.size(),
                  static_cast<long long>(align));
@@ -3053,7 +3053,7 @@ struct AfVectorFill {
 [[nodiscard]] std::optional<Layer> build_vector_layer(LayerBuildContext& ctx, const af::AfClass& node,
                                                       const std::string& display) {
   auto path = vector_path_from_node(node);
-  if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
+  if (environment_variable_is_set("PATCHY_AF_TRACE")) {
     std::fprintf(stderr, "[af] vector '%s': path=%d subpaths=%zu crvs=%d data=%d\n",
                  display.c_str(), path.has_value(),
                  path.has_value() ? path->subpaths.size() : 0U,
@@ -3110,7 +3110,7 @@ struct AfVectorFill {
   apply_mask_children(ctx, node, layer, display);
   update_vector_shape_raster(layer, Rect{0, 0, ctx.document.width(), ctx.document.height()},
                              nullptr);
-  if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
+  if (environment_variable_is_set("PATCHY_AF_TRACE")) {
     std::fprintf(stderr, "[af] vector '%s': baked %dx%d at %d,%d fill=%d stroke=%d\n",
                  display.c_str(), std::as_const(layer).pixels().width(),
                  std::as_const(layer).pixels().height(), layer.bounds().x, layer.bounds().y,
@@ -3502,7 +3502,7 @@ namespace {
       // preview rather than failing the open. Record why for diagnosis.
       notices.emplace_back(std::string("Full layer import failed (") + error.what() +
                            "); fell back to the embedded preview");
-      if (std::getenv("PATCHY_AF_TRACE") != nullptr) {
+      if (environment_variable_is_set("PATCHY_AF_TRACE")) {
         std::fprintf(stderr, "[af] tier-1 import threw: %s\n", error.what());
       }
     }

@@ -31,7 +31,7 @@ public:
     }
     const std::uint16_t file_version = reader_.read_u16();
     document.root_type_tag = reader_.read_u32();
-    reader_.read_u16();  // tag version
+    (void)reader_.read_u16();  // tag version
     if (file_version >= 2) {
       document.document_version = reader_.read_u32();
     }
@@ -171,7 +171,7 @@ private:
       return value;
     }
     const std::uint32_t count = read_count();
-    reader_.read_u16();  // shared version
+    (void)reader_.read_u16();  // shared version
     std::vector<std::int64_t> ids(count);
     for (std::uint32_t i = 0; i < count; ++i) {
       ids[i] = reader_.read_u16();
@@ -183,7 +183,7 @@ private:
     if (!array) {
       return read_one_string();
     }
-    reader_.read_u32();  // total size
+    (void)reader_.read_u32();  // total size
     const std::uint32_t count = read_count();
     // Represent string arrays as skipped (not needed by the importer) but still
     // consume them so the walk stays aligned.
@@ -244,7 +244,7 @@ private:
     if (array) {
       throw std::runtime_error("Affinity document tree has an invalid flags array");
     }
-    reader_.read_u16();  // version
+    (void)reader_.read_u16();  // version
     const std::uint8_t count = reader_.read_u8();
     if (count > 8) {
       throw std::runtime_error("Affinity document tree has an invalid flags count");
@@ -383,7 +383,6 @@ private:
           const std::uint32_t tag = reader_.read_u32();
           if (first_type) {
             cls->type_tag = tag;
-            first_type = false;
           }
           break;
         }
@@ -392,7 +391,7 @@ private:
         }
         if (type_flag == 0) {
           const std::uint32_t tag = reader_.read_u32();
-          reader_.read_u16();  // ancestor version (u16 in v3; afread read u32 for v1/v2)
+          (void)reader_.read_u16();  // ancestor version (u16 in v3; afread read u32 for v1/v2)
           if (first_type) {
             cls->type_tag = tag;
             first_type = false;
@@ -419,7 +418,7 @@ private:
       (void)array_version;
     } else {
       cls->type_tag = reader_.read_u32();
-      reader_.read_u16();  // type version
+      (void)reader_.read_u16();  // type version
     }
     read_fields(*cls, true, depth);
     return cls;

@@ -1117,7 +1117,7 @@ void smart_filter_surface_blur_matches_photoshop_weighting_bounds_and_native_pat
   constexpr std::array<std::pair<int, int>, 4> kLowSamples{{
       {0, 0}, {1, 0}, {2, 0}, {1, 1},
   }};
-  for (const auto [x, y] : kLowSamples) {
+  for (const auto& [x, y] : kLowSamples) {
     auto* pixel = tie_probe.pixel(x, y);
     pixel[0] = 190U;
     pixel[1] = 5U;

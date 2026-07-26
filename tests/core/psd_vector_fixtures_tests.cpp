@@ -1,4 +1,5 @@
 #include "core/document.hpp"
+#include "core/environment.hpp"
 #include "core/layer.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_resource.hpp"
@@ -615,8 +616,8 @@ void psd_authored_shape_layer_writes_native_blocks() {
 
   const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
   // Photoshop acceptance probe: dump the authored bytes for a manual COM check.
-  if (const char* dump_path = std::getenv("PATCHY_DUMP_AUTHORED_PSD")) {
-    std::ofstream dump(dump_path, std::ios::binary);
+  if (const auto dump_path = patchy::environment_variable("PATCHY_DUMP_AUTHORED_PSD")) {
+    std::ofstream dump(*dump_path, std::ios::binary);
     dump.write(reinterpret_cast<const char*>(written.data()),
                static_cast<std::streamsize>(written.size()));
   }
@@ -751,8 +752,8 @@ void psd_pattern_fill_shape_embeds_patt_block() {
 
   const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
   // Photoshop acceptance probe: dump the authored bytes for a manual COM check.
-  if (const char* dump_path = std::getenv("PATCHY_DUMP_PATTERN_PSD")) {
-    std::ofstream dump(dump_path, std::ios::binary);
+  if (const auto dump_path = patchy::environment_variable("PATCHY_DUMP_PATTERN_PSD")) {
+    std::ofstream dump(*dump_path, std::ios::binary);
     dump.write(reinterpret_cast<const char*>(written.data()),
                static_cast<std::streamsize>(written.size()));
   }
@@ -990,8 +991,8 @@ void psd_partial_vogk_is_omitted_full_vogk_kept() {
 
   const auto mixed_written = patchy::psd::DocumentIo::write_layered_rgb8(make_document(true));
   // Photoshop acceptance probe: dump the mixed-liveness bytes for a COM check.
-  if (const char* dump_path = std::getenv("PATCHY_DUMP_MIXED_PSD")) {
-    std::ofstream dump(dump_path, std::ios::binary);
+  if (const auto dump_path = patchy::environment_variable("PATCHY_DUMP_MIXED_PSD")) {
+    std::ofstream dump(*dump_path, std::ios::binary);
     dump.write(reinterpret_cast<const char*>(mixed_written.data()),
                static_cast<std::streamsize>(mixed_written.size()));
   }
@@ -1091,8 +1092,8 @@ void psd_damaged_pattern_file_resave_is_photoshop_safe_if_available() {
   const auto ids = patchy::psd::pattern_ids_in_block(*patt);
   CHECK(std::find(ids.begin(), ids.end(), "1076f0b5-6d90-e4f2-8896-d4f3093299f8") != ids.end());
 
-  if (const char* dump_path = std::getenv("PATCHY_DUMP_RESAVED_USER_PSD")) {
-    std::ofstream dump(dump_path, std::ios::binary);
+  if (const auto dump_path = patchy::environment_variable("PATCHY_DUMP_RESAVED_USER_PSD")) {
+    std::ofstream dump(*dump_path, std::ios::binary);
     dump.write(reinterpret_cast<const char*>(written.data()),
                static_cast<std::streamsize>(written.size()));
   }

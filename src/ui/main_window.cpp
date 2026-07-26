@@ -2065,10 +2065,6 @@ QString document_html_for_editor(const QString& document_html, const QFont& edit
   return document.toHtml();
 }
 
-QString document_html_from_editor(const QTextEdit& editor, double zoom) {
-  return normalized_rich_text_html(*document_from_editor_in_document_units(editor, zoom));
-}
-
 QString rich_text_runs_from_document(const QTextDocument& document, const TextToolSettings& fallback,
                                      QColor fallback_color) {
   QStringList lines;

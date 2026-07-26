@@ -49,7 +49,9 @@ void append_u32(QByteArray& out, std::uint32_t value) {
   out.append(static_cast<char>((value >> 24) & 0xff));
 }
 
+#if !defined(Q_OS_MACOS)
 bool sound_disabled() { return qEnvironmentVariableIsSet("PATCHY_NO_SOUND"); }
+#endif
 
 }  // namespace
 

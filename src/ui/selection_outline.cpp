@@ -18,7 +18,6 @@ namespace {
 constexpr int kEast = 0;
 constexpr int kSouth = 1;
 constexpr int kWest = 2;
-constexpr int kNorth = 3;
 constexpr std::array<int, 4> kDirDx = {1, 0, -1, 0};
 constexpr std::array<int, 4> kDirDy = {0, 1, 0, -1};
 

@@ -3066,13 +3066,13 @@ void MainWindow::refresh_layer_controls() {
     const auto* owner_stack = owner_layer != nullptr
                                   ? owner_layer->smart_filter_stack()
                                   : nullptr;
-    const auto pixels = owner_stack != nullptr &&
-                                owner_stack->support ==
-                                    SmartFilterStackSupport::Supported
-                            ? materialize_smart_filter_mask(
-                                  owner_stack->mask, document().width(),
-                                  document().height())
-                            : std::nullopt;
+    auto pixels = owner_stack != nullptr &&
+                          owner_stack->support ==
+                              SmartFilterStackSupport::Supported
+                      ? materialize_smart_filter_mask(
+                            owner_stack->mask, document().width(),
+                            document().height())
+                      : std::nullopt;
     if (!owner.has_value() || !pixels.has_value() ||
         active != owner) {
       canvas_->clear_smart_filter_mask_edit_target();

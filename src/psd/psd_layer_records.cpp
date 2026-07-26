@@ -375,10 +375,10 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       if ((mask_flags & 0x10U) != 0 && reader.position() < mask_end) {
         const auto parameter_flags = reader.read_u8();
         if ((parameter_flags & 0x01U) != 0 && reader.position() < mask_end) {
-          reader.read_u8();  // user mask density (preserved via re-import only)
+          (void)reader.read_u8();  // user mask density (preserved via re-import only)
         }
         if ((parameter_flags & 0x02U) != 0 && mask_end - reader.position() >= 8U) {
-          read_f64(reader);  // user mask feather
+          (void)read_f64(reader);  // user mask feather
         }
         if ((parameter_flags & 0x04U) != 0 && reader.position() < mask_end) {
           record.mask->vector_density = reader.read_u8();

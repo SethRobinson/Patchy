@@ -8,6 +8,16 @@ project(
 )
 
 if(APPLE)
+  # Modern Apple linkers rescan archives and do not need repeated transitive
+  # static libraries. Keep the first occurrence so direct dependency order is
+  # retained while avoiding duplicate-library linker diagnostics.
+  if(POLICY CMP0156)
+    cmake_policy(SET CMP0156 NEW)
+  endif()
+  if(POLICY CMP0179)
+    cmake_policy(SET CMP0179 NEW)
+  endif()
+
   # Objective-C++ translation units (per-OS *_mac.mm files, e.g. dialog_utils_mac.mm).
   enable_language(OBJCXX)
   set(CMAKE_OBJCXX_STANDARD 20)
@@ -44,6 +54,15 @@ function(patchy_configure_target target)
   endif()
 endfunction()
 
+# Miniz declares an internal fixed table without const qualification. Keep strict
+# warnings on the owning target and isolate only that vendored diagnostic.
+if(MSVC)
+  set_source_files_properties(
+    src/formats/miniz/miniz.c
+    PROPERTIES COMPILE_OPTIONS /wd4132
+  )
+endif()
+
 add_library(patchy_core
   src/core/gradient_presets.cpp
   src/core/adjustment_layer.cpp
@@ -53,6 +72,7 @@ add_library(patchy_core
   src/core/contour_presets.cpp
   src/core/document.cpp
   src/core/document_channel.cpp
+  src/core/environment.cpp
   src/core/document_geometry.cpp
   src/core/document_path.cpp
   src/core/layer.cpp

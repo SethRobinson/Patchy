@@ -337,7 +337,7 @@ void MainWindow::levels_dialog() {
     remember_dialog_position(progress);
     progress.setValue(0);
     auto filter_progress = progress_dialog_filter_progress(
-        progress, [this, display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
+        progress, [display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
         QEventLoop::AllEvents, [this] {
           if (canvas_ != nullptr) {
             canvas_->tick_processing_operation();
@@ -474,7 +474,7 @@ void MainWindow::curves_dialog() {
     remember_dialog_position(progress);
     progress.setValue(0);
     auto filter_progress = progress_dialog_filter_progress(
-        progress, [this, display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
+        progress, [display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
         QEventLoop::AllEvents, [this] {
           if (canvas_ != nullptr) {
             canvas_->tick_processing_operation();

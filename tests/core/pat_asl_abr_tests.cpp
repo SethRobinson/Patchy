@@ -1374,8 +1374,8 @@ void abr_v1_parses_sampled_brush_and_skips_computed() {
   mask[2U * 4U + 2U] = 200;
 
   const std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> entries = {
-      {1U, std::vector<std::uint8_t>(14, 0)},  // computed brush: no bitmap, skipped with warning
-      {2U, make_abr_v12_sampled_body(1, {}, 25, 4, 4, 8, 0, mask)},
+      {std::uint16_t{1}, std::vector<std::uint8_t>(14, 0)},  // computed brush: no bitmap, skipped with warning
+      {std::uint16_t{2}, make_abr_v12_sampled_body(1, {}, 25, 4, 4, 8, 0, mask)},
   };
   const auto bytes = make_abr_v12_file(1, entries);
 
@@ -1407,8 +1407,8 @@ void abr_v2_parses_named_rle_and_16bit_brushes() {
   deep.write_u16(0x8000);
 
   const std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> entries = {
-      {2U, make_abr_v12_sampled_body(2, u"Dots", 50, 8, 2, 8, 1, rle.bytes())},
-      {2U, make_abr_v12_sampled_body(2, u"Deep", 25, 2, 1, 16, 0, deep.bytes())},
+      {std::uint16_t{2}, make_abr_v12_sampled_body(2, u"Dots", 50, 8, 2, 8, 1, rle.bytes())},
+      {std::uint16_t{2}, make_abr_v12_sampled_body(2, u"Deep", 25, 2, 1, 16, 0, deep.bytes())},
   };
   const auto bytes = make_abr_v12_file(2, entries);
 
@@ -1442,7 +1442,7 @@ void abr_rejects_corrupt_truncated_and_empty_files() {
 
   // Computed-only file: parses but contains nothing usable.
   const std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> computed_only = {
-      {1U, std::vector<std::uint8_t>(14, 0)},
+      {std::uint16_t{1}, std::vector<std::uint8_t>(14, std::uint8_t{0})},
   };
   CHECK(!patchy::psd::read_abr(make_abr_v12_file(1, computed_only), error).has_value());
   CHECK(error.find("no sampled") != std::string::npos);

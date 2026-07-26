@@ -510,6 +510,8 @@ PsdTextStyleRun imported_text_primary_run(const LayerRecord& record) {
   return fallback;
 }
 
+#ifdef _WIN32
+
 int imported_text_primary_justification(const LayerRecord& record) {
   if (!record.text.has_value() || !record.text_paragraph_runs.has_value()) {
     return 0;
@@ -517,6 +519,8 @@ int imported_text_primary_justification(const LayerRecord& record) {
   const auto runs = parse_patchy_paragraph_runs_metadata(*record.text_paragraph_runs, *record.text);
   return runs.empty() ? 0 : runs.front().justification;
 }
+
+#endif
 
 bool layer_style_has_regeneratable_outer_text_effect(const LayerStyle& style) noexcept {
   if (!style.effects_visible || style.empty()) {
@@ -616,6 +620,8 @@ bool should_regenerate_imported_text_preview(const LayerRecord& record, const Pi
 
 namespace {
 
+#ifdef _WIN32
+
 struct RectD {
   double left{0.0};
   double top{0.0};
@@ -698,6 +704,8 @@ std::wstring windows_text_line_breaks(std::wstring text) {
   return normalized;
 }
 
+#endif
+
 }  // namespace
 
 std::optional<PixelBuffer> render_regenerated_imported_text_pixels(const LayerRecord& record,
@@ -708,6 +716,8 @@ std::optional<PixelBuffer> render_regenerated_imported_text_pixels(const LayerRe
   }
 
   const auto run = imported_text_primary_run(record);
+
+#ifdef _WIN32
   const auto font_size =
       std::clamp(static_cast<int>(std::lround(static_cast<double>(run.size) * imported_text_transform_scale(record))),
                  1, kMaxTextSizePixels);
@@ -715,7 +725,6 @@ std::optional<PixelBuffer> render_regenerated_imported_text_pixels(const LayerRe
   const auto boxed = record.text_box.has_value();
   const auto justification = imported_text_primary_justification(record);
 
-#ifdef _WIN32
   const auto wide_text = windows_text_line_breaks(wide_from_utf8(*record.text));
   if (wide_text.empty()) {
     return std::nullopt;

@@ -427,7 +427,7 @@ void palette_presets_are_well_formed() {
   const auto presets = patchy::builtin_palette_presets();
   CHECK(presets.size() == 13);
 
-  const auto expect_count = [&presets](std::string_view id, std::size_t count) {
+  const auto expect_count = [](std::string_view id, std::size_t count) {
     const auto* preset = patchy::find_builtin_palette_preset(id);
     CHECK(preset != nullptr);
     CHECK(preset->colors.size() == count);

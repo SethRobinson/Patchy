@@ -14,10 +14,6 @@ public:
   // colors are straight (unmatted), with uncovered pixels left at the cleared black.
   [[nodiscard]] PixelBuffer flatten_rgb8(const Document& document,
                                          std::vector<std::uint8_t>* merged_alpha = nullptr) const;
-
-private:
-  void composite_layer(PixelBuffer& destination, const Layer& layer, Rect clip) const;
-  void composite_pixels(PixelBuffer& destination, const Layer& layer, Rect clip) const;
 };
 
 }  // namespace patchy

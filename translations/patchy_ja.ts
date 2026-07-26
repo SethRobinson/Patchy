@@ -13050,7 +13050,6 @@ Clipped to the layer below</source>
     <message><source>Applied Liquify</source><translation>ゆがみを適用しました</translation></message>
     <message><source>Shape</source><translation>シェイプ</translation></message>
     <message><source>Path</source><translation>パス</translation></message>
-    <message><source>Pixels</source><translation>ピクセル</translation></message>
     <message><source>What the shape tools create: a shape layer, work-path subpaths, or raster pixels</source><translation>シェイプツールが作成する対象: シェイプレイヤー、作業用パスのサブパス、またはラスターピクセル</translation></message>
     <message><source>Fill:</source><translation>塗り:</translation></message>
     <message><source>Shape fill: none, solid color, gradient, or pattern</source><translation>シェイプの塗り: なし、ベタ塗り、グラデーション、またはパターン</translation></message>
@@ -13227,7 +13226,6 @@ Clipped to the layer below</source>
     <message><source>%1 (modified)</source><translation>%1 (変更済み)</translation></message>
     <message><source>Filter layers by name...</source><translation>レイヤー名で絞り込み...</translation></message>
     <message><source>Clear the layer name filter to reorder layers</source><translation>レイヤーを並べ替えるにはレイヤー名フィルターをクリアしてください</translation></message>
-    <message><source>Blend mode</source><translation>描画モード</translation></message>
     <message><source>Opacity: </source><translation>不透明度: </translation></message>
     <message><source>Fill: </source><translation>塗りつぶし: </translation></message>
     <message><source>Hid other layers</source><translation>他のレイヤーを非表示にしました</translation></message>
@@ -13808,6 +13806,11 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>QObject</name>
+    <message><source>Pen</source><translation>ペン</translation></message>
+    <message><source>Path Select</source><translation>パスコンポーネント選択</translation></message>
+    <message><source>Direct Select</source><translation>ダイレクト選択</translation></message>
+    <message><source>Polygon</source><translation>多角形</translation></message>
+    <message><source>Custom Shape</source><translation>カスタムシェイプ</translation></message>
     <message><source>Liquify</source><translation>ゆがみ</translation></message>
     <message><source>Warp</source><translation>ワープ</translation></message>
     <message><source>Reconstruct</source><translation>再構築</translation></message>
@@ -13917,8 +13920,6 @@ Clipped to the layer below</source>
     <message><source>Weight:</source><translation>太さ:</translation></message>
     <message><source>X:</source><translation>X:</translation></message>
     <message><source>Y:</source><translation>Y:</translation></message>
-    <message><source>Width:</source><translation>幅:</translation></message>
-    <message><source>Height:</source><translation>高さ:</translation></message>
     <message><source>Top left radius:</source><translation>左上の角丸半径:</translation></message>
     <message><source>Top right radius:</source><translation>右上の角丸半径:</translation></message>
     <message><source>Bottom right radius:</source><translation>右下の角丸半径:</translation></message>

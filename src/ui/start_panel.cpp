@@ -173,7 +173,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   // the startup update-check status.
   auto* footer = new QVBoxLayout();
   footer->setSpacing(3);
-  const auto add_footer_row = [this, footer](std::initializer_list<QWidget*> widgets) {
+  const auto add_footer_row = [footer](std::initializer_list<QWidget*> widgets) {
     auto* row = new QHBoxLayout();
     row->setSpacing(14);
     row->addStretch(1);

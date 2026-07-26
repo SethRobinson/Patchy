@@ -484,7 +484,7 @@ bool refresh_smart_object_layer_preview(
     Document& document, Layer& layer,
     CanvasWidget::TransformInterpolation interpolation,
     bool refresh_native_cache, const QString& parent_document_dir) {
-  const auto rendered = render_smart_object_layer_preview(
+  auto rendered = render_smart_object_layer_preview(
       std::as_const(document), std::as_const(layer), interpolation, nullptr,
       parent_document_dir);
   if (!rendered.has_value()) {

@@ -1,10 +1,8 @@
 # Repository Instructions
 
-Multiple coding agents read this file. Write rules for any agent, not a particular model or session.
+This is repository-wide agent policy. Read it at the start of each task before inspecting files, running commands, or planning work. Reread it only if the repository changes, this file changes, or its contents are no longer available in context.
 
-Read this file at the start of every new task or thread before inspecting files, running commands, or planning project work. Do not reread it during the same continuous task unless the repository changes, this file changes, or its contents are no longer available in context.
-
-This file contains only repository-wide policy, the code-change handoff, universal invariants, and links to conditional references. Keep it at or below 30,000 bytes. Detailed implementation knowledge belongs in `docs/<topic>.md`; read the relevant linked document before working in that area, update it when behavior changes, and do not duplicate its details here.
+Keep this file at or below 30,000 bytes. Detailed implementation knowledge belongs in `docs/<topic>.md`; read the relevant linked document before working in that area, update it when behavior changes, and do not duplicate its details here.
 
 ## Repository-wide rules
 
@@ -13,6 +11,7 @@ This file contains only repository-wide policy, the code-change handoff, univers
 - Commit automatically only after a finished piece of work is verified and its required handoff is complete. Do not commit failing or half-finished states. Never push unless Seth explicitly asks in the current request.
 - Never add AI attribution, generated-with text, or an OpenAI/Codex/Claude co-author to commits or pull requests. Keep commit messages to a concise subject and at most one short supporting line.
 - Never use Computer Use, desktop UI automation, input injection, or another mechanism that controls applications on Seth's computer unless he explicitly authorizes computer control in the current request. Use Patchy's command-line screenshot and automation surfaces where possible; see [docs/testing.md](docs/testing.md).
+- Supported Windows, macOS, and Linux Debug and Release builds must have zero compiler, linker, and `lrelease` warnings. Keep warnings non-fatal. Fix Patchy-owned code explicitly. For vendored sources compiled into Patchy-owned targets, scope a suppression to one source and diagnostic. See [docs/platform.md](docs/platform.md).
 - User-facing documentation must not use em dashes. Write plain, direct prose without hype, emoji headings, "not just X, but Y" constructions, or stock AI phrasing such as "seamlessly", "robust", "comprehensive", and "delve".
 
 The release process, including version bumps, README author crediting, batch-file order, and mandatory `NO_PAUSE=1` for non-interactive runs, lives in [docs/release-process.md](docs/release-process.md). Read it in full before bumping a version or running a release batch file.

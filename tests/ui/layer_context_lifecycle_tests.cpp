@@ -1631,7 +1631,7 @@ void ui_new_document_dialog_remembers_last_settings() {
   CHECK(info->text().contains(QStringLiteral("72 ppi")));
 
   // Reopening restores the remembered card and background.
-  QTimer::singleShot(0, [find_card] {
+  QTimer::singleShot(0, [] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
         continue;
@@ -1878,7 +1878,7 @@ void ui_document_tab_context_menu_file_actions() {
   const auto dismiss_prompt_with = [&window](QMessageBox::StandardButton button) {
     auto* dismiss_timer = new QTimer(&window);
     dismiss_timer->setInterval(10);
-    QObject::connect(dismiss_timer, &QTimer::timeout, &window, [&window, button, dismiss_timer] {
+    QObject::connect(dismiss_timer, &QTimer::timeout, &window, [button, dismiss_timer] {
       auto* dialog =
           qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("reopenDocumentMessageBox")));
       if (dialog == nullptr) {

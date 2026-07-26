@@ -251,14 +251,6 @@ private:
   const QPageLayout* page_layout_{nullptr};
 };
 
-QString print_size_text(const Document& document, const PrintSettings& settings, const QPageLayout& page_layout) {
-  const auto placement = calculate_print_placement(document, settings, page_layout);
-  return QObject::tr("%1 in x %2 in at %3%")
-      .arg(placement.print_size_inches.width(), 0, 'f', 2)
-      .arg(placement.print_size_inches.height(), 0, 'f', 2)
-      .arg(placement.scale_percent, 0, 'f', 1);
-}
-
 double unit_factor_from_inches(const QComboBox* units) {
   if (units == nullptr) {
     return 1.0;

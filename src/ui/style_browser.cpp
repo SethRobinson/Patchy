@@ -29,7 +29,7 @@ StyleBrowserWidget::StyleBrowserWidget(StyleLibrary* library, QWidget* parent)
   // Every user-facing string stays in this class so its translation context
   // remains patchy::ui::StyleBrowserWidget.
   set_folder_label_callback(
-      [this](const QString& folder, int count) { return tr("%1 (%2)").arg(folder).arg(count); });
+      [](const QString& folder, int count) { return tr("%1 (%2)").arg(folder).arg(count); });
   set_prepend_rows_callback([this](QTreeWidget& tree) {
     if (!show_no_style_entry_) {
       return;

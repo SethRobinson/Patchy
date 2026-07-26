@@ -84,13 +84,13 @@ struct FilterControlSpec {
   int maximum{100};
   int value{100};
   QString suffix;
-  std::string parameter_key;
+  std::string parameter_key{};
   FilterParameterKind kind{FilterParameterKind::Integer};
   FilterParameterValue default_value{std::int64_t{100}};
-  std::optional<double> typed_minimum;
-  std::optional<double> typed_maximum;
-  std::optional<double> step;
-  std::vector<FilterParameterOption> options;
+  std::optional<double> typed_minimum{};
+  std::optional<double> typed_maximum{};
+  std::optional<double> step{};
+  std::vector<FilterParameterOption> options{};
   FilterParameterPresentation presentation{
       FilterParameterPresentation::Standard};
 };
@@ -111,7 +111,7 @@ struct FilterPreviewSettings {
   bool preview_enabled{true};
   FilterInvocation invocation;
   // Filled only by the smart-filter settings dialog (its Blending section).
-  std::optional<SmartFilterBlendingSettings> blending;
+  std::optional<SmartFilterBlendingSettings> blending{};
 };
 
 // Optional in-dialog preview source for request_filter_settings. When

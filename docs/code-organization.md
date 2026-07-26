@@ -65,3 +65,15 @@ Shared internal constants, record types, and declarations live in `psd_io_intern
 ## Build-system ownership
 
 CMake runtime assets use shared copy-once targets: `patchy_bundled_fonts`, `patchy_qt_runtime`, and `patchy_qt_base_translations`. Never attach per-target POST_BUILD copies into the shared output directory because parallel Ninja builds can race. New executables call the existing `patchy_copy_*` helpers.
+
+Strict warnings belong to Patchy targets. Do not weaken a target's warning level to
+accommodate bundled miniz, stb, zstd, or another third-party translation unit. If a
+vendored source emits an unavoidable diagnostic, attach the smallest toolchain-specific
+exclusion to that source file and warning number. Do not edit vendored code for warning
+style. Wholly vendored library targets keep any upstream warning policy isolated on
+that target.
+
+On Apple platforms, guarded `CMP0156` and `CMP0179` use the modern linker's static
+library rescan and first-occurrence behavior. This removes duplicate-library linker
+diagnostics without flattening or reordering Patchy's target dependency graph. Keep the
+policies Apple-only and retain the existing `target_link_libraries` ownership.

@@ -136,8 +136,8 @@ struct LayerMaskInfo {
   bool from_rendering{false};
   // Mask parameters (flags bit 4): vector-mask density (raw 0..255) and
   // feather in pixels, when present.
-  std::optional<std::uint8_t> vector_density;
-  std::optional<double> vector_feather;
+  std::optional<std::uint8_t> vector_density{};
+  std::optional<double> vector_feather{};
 };
 
 struct PsdTextBoundsD {

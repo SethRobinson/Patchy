@@ -661,6 +661,8 @@ std::vector<std::string> extract_engine_font_names(std::span<const std::uint8_t>
 // ResolvedPhotoshopFont moved to the public psd/psd_text_runs.hpp (the .af
 // importer shares the heuristic resolver).
 
+#ifdef _WIN32
+
 std::string compact_font_key(std::string_view value) {
   std::string compact;
   compact.reserve(value.size());
@@ -689,6 +691,8 @@ bool font_names_match(std::string_view lhs, std::string_view rhs) {
          lhs_compact == rhs_compact ||
          compact_font_key_with_bt_suffix(lhs_compact) == compact_font_key_with_bt_suffix(rhs_compact);
 }
+
+#endif
 
 bool strip_ascii_ci_suffix(std::string& value, std::string_view suffix) {
   if (value.size() < suffix.size()) {
@@ -778,7 +782,7 @@ ResolvedPhotoshopFont heuristic_resolved_photoshop_font(std::string_view font_na
   bool stripped = true;
   while (stripped) {
     stripped = false;
-    for (const auto suffix : kStyleSuffixes) {
+    for (const auto& suffix : kStyleSuffixes) {
       if (strip_ascii_ci_suffix(resolved.family, suffix.suffix)) {
         resolved.bold = resolved.bold || suffix.bold;
         resolved.italic = resolved.italic || suffix.italic;

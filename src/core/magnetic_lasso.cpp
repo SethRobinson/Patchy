@@ -212,8 +212,8 @@ bool LiveWireEngine::build_field(Window window) {
       const auto center = laplacian_at(x, y);
       bool zero_crossing = center == 0;
       if (!zero_crossing) {
-        for (const auto [nx, ny] : {std::pair{x, y - 1}, std::pair{x - 1, y}, std::pair{x + 1, y},
-                                    std::pair{x, y + 1}}) {
+        for (const auto& [nx, ny] : {std::pair{x, y - 1}, std::pair{x - 1, y}, std::pair{x + 1, y},
+                                     std::pair{x, y + 1}}) {
           const auto neighbor = laplacian_at(nx, ny);
           if ((neighbor < 0) != (center < 0) && std::abs(center) <= std::abs(neighbor)) {
             zero_crossing = true;

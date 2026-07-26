@@ -114,7 +114,7 @@ void run_script_writing_output(ScriptEngineHost& host, const QString& script_pat
                                std::function<void(bool ok)> on_finished) {
   auto capture = std::make_shared<QStringList>();
   auto connections = std::make_shared<std::vector<QMetaObject::Connection>>();
-  auto finalize = [&host, capture, connections, output_path,
+  auto finalize = [capture, connections, output_path,
                    on_finished = std::move(on_finished)](bool ok) {
     for (const auto& connection : *connections) {
       QObject::disconnect(connection);

@@ -1132,13 +1132,13 @@ struct PaintResolution {
 struct Importer {
   const XmlNode& root;
   std::vector<std::string>* notices{};
-  std::vector<CssRule> css;
-  std::unordered_map<std::string, const XmlNode*> ids;
+  std::vector<CssRule> css{};
+  std::unordered_map<std::string, const XmlNode*> ids{};
   Document document{1, 1, PixelFormat::rgba8()};
   Rect canvas{};
   std::size_t drawables{0};
-  std::map<std::string, int, std::less<>> name_counters;
-  std::set<std::string> use_stack;
+  std::map<std::string, int, std::less<>> name_counters{};
+  std::set<std::string> use_stack{};
 
   void notice(std::string text) {
     if (notices != nullptr && std::find(notices->begin(), notices->end(), text) == notices->end()) {

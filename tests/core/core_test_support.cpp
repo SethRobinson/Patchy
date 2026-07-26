@@ -108,7 +108,7 @@ void write_bmp_artifact(const std::string& name, const patchy::Document& documen
   write_rgb8_bmp_artifact(name, patchy::Compositor{}.flatten_rgb8(document));
 }
 
-const patchy::Layer* find_layer_named(const std::vector<patchy::Layer>& layers, const std::string& name) {
+const patchy::Layer* find_layer_named(const std::vector<patchy::Layer>& layers, std::string_view name) {
   for (const auto& layer : layers) {
     if (layer.name() == name) {
       return &layer;
@@ -160,14 +160,14 @@ patchy::LayerId active_tool_layer(const patchy::Document& document) {
   return document.active_layer_id().value();
 }
 
-const patchy::Layer& require_layer_named(const patchy::Document& document, const std::string& name) {
+const patchy::Layer& require_layer_named(const patchy::Document& document, std::string_view name) {
   const auto* layer = find_layer_named(document.layers(), name);
   CHECK(layer != nullptr);
   return *layer;
 }
 
 const patchy::SmartFilterStack& require_smart_filter_stack(const patchy::Document& document,
-                                                           const std::string& name) {
+                                                           std::string_view name) {
   const auto& layer = require_layer_named(document, name);
   const auto* stack = layer.smart_filter_stack();
   CHECK(stack != nullptr);

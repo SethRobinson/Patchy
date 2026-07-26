@@ -99,8 +99,8 @@ struct VectorFill {
   LayerStyleGradient gradient{};
   // GdFl noisePreSeed, preserved on read; authored fills write 0.
   std::int32_t gradient_noise_pre_seed{0};
-  std::string pattern_id;
-  std::string pattern_name;
+  std::string pattern_id{};
+  std::string pattern_name{};
   double pattern_scale{1.0};
   double pattern_angle_degrees{0.0};
   bool pattern_linked{true};
