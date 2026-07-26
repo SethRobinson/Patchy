@@ -4,6 +4,25 @@
 
 namespace patchy::test::ui {
 
+QImage rounded_readme_window_image(const QImage& window_image) {
+  QImage rounded = window_image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  QImage mask(rounded.size(), QImage::Format_ARGB32_Premultiplied);
+  mask.fill(Qt::transparent);
+  {
+    QPainter mask_painter(&mask);
+    mask_painter.setRenderHint(QPainter::Antialiasing);
+    mask_painter.setPen(Qt::NoPen);
+    mask_painter.setBrush(Qt::white);
+    mask_painter.drawRoundedRect(QRectF(QPointF(0, 0), QSizeF(rounded.size())), kReadmeWindowCornerRadius,
+                                 kReadmeWindowCornerRadius);
+  }
+  QPainter painter(&rounded);
+  painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+  painter.drawImage(0, 0, mask);
+  painter.end();
+  return rounded;
+}
+
 void show_readme_shot_window(patchy::ui::MainWindow& window) {
   window.resize(1600, 1000);
   window.show();
@@ -23,7 +42,7 @@ void save_readme_shot(const std::string& name, const QImage& image) {
   ensure_artifact_dir();
   CHECK(!image.isNull());
   const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
-  CHECK(image.save(path));
+  CHECK(rounded_readme_window_image(image).save(path));
 }
 
 void reset_readme_status_bar(patchy::ui::MainWindow& window) {
@@ -33,11 +52,15 @@ void reset_readme_status_bar(patchy::ui::MainWindow& window) {
 
 void draw_readme_overlay(QImage& base, const QImage& overlay, QPoint position) {
   QPainter painter(&base);
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.setPen(Qt::NoPen);
   const QRect target(position, overlay.size());
   for (int ring = 10; ring >= 1; --ring) {
-    painter.fillRect(target.adjusted(-ring, -ring + 3, ring, ring + 3), QColor(0, 0, 0, 12));
+    const QRectF halo(target.adjusted(-ring, -ring + 3, ring, ring + 3));
+    painter.setBrush(QColor(0, 0, 0, 12));
+    painter.drawRoundedRect(halo, kReadmeWindowCornerRadius + ring, kReadmeWindowCornerRadius + ring);
   }
-  painter.drawImage(position, overlay);
+  painter.drawImage(position, rounded_readme_window_image(overlay));
   painter.end();
 }
 

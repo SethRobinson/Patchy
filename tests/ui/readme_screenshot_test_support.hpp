@@ -15,6 +15,18 @@
 
 namespace patchy::test::ui {
 
+// DWM rounds every window Patchy frames itself, but it does the clipping in the
+// compositor (src/ui/window_effects.cpp, DWMWCP_ROUND), so a grabbed window is
+// square. README shots are pictures of windows, so they carry the corners the
+// desktop shows: 8 px, DWMWCP_ROUND's radius at 96 DPI. Keep this in step with
+// the driver's Set-RoundedWindowCorners, which does the same for the
+// script-driven scenes.
+inline constexpr qreal kReadmeWindowCornerRadius = 8.0;
+
+// Masks a grabbed top-level window to the rounded corners DWM would clip, leaving
+// the corner pixels transparent so the shot reads as a window on any page color.
+[[nodiscard]] QImage rounded_readme_window_image(const QImage& window_image);
+
 void show_readme_shot_window(patchy::ui::MainWindow& window);
 
 void close_untitled_start_tab(patchy::ui::MainWindow& window);

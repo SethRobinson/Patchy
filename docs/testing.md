@@ -58,6 +58,14 @@ Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key
   stay in the suite as regression smoke tests either way (the driver skips copying a test
   artifact whose scene has a script-driven owner).
 
+Both pipelines round the corners of the window they captured, because DWM rounds Patchy's
+frameless windows in the compositor and a `QWidget::grab()` is therefore square. The offscreen
+side does it in `save_readme_shot` and `draw_readme_overlay` (which also rounds the shadow it
+fakes under a composited dialog); the driver does it to the script-driven PNGs in
+`Set-RoundedWindowCorners`. Both use 8 px, `DWMWCP_ROUND`'s radius at 96 DPI, and leave the
+corner pixels transparent so a shot reads as a window on a light or dark page. Change the
+radius in both places or the two pipelines drift.
+
 ## Native visual QA and app-driving commands
 
 Never use Computer Use, desktop automation, or input injection for native QA without Seth's explicit authorization in the current request. Use Patchy's command-line control surfaces and inspect their outputs directly.
