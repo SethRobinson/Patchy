@@ -47,6 +47,7 @@ constexpr std::uint16_t kChannelBlue = 2;
 constexpr std::uint16_t kChannelBlack = 3;
 constexpr std::uint16_t kChannelTransparency = 0xFFFFU;
 constexpr std::uint16_t kChannelUserMask = 0xFFFEU;
+constexpr std::uint16_t kChannelRealUserMask = 0xFFFDU;
 constexpr std::uint16_t kImageResourceAlphaChannelNames = 1006;
 constexpr std::uint16_t kImageResourceDisplayInfo = 1007;
 constexpr std::uint16_t kImageResourceResolutionInfo = 1005;

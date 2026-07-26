@@ -1467,7 +1467,8 @@ void psd_interface_mock2_loads_if_available() {
 // blocks of corrupt scanlines (a 2017 Dink map PSD has 58 of them in one channel) and
 // Photoshop opens them, so the reader must recover rather than refuse the document.
 std::vector<std::uint8_t> layered_psd_with_blue_row_bytes(
-    std::span<const std::uint8_t> damaged_middle_row) {
+    std::span<const std::uint8_t> damaged_middle_row,
+    std::optional<std::span<const std::uint8_t>> real_user_mask_payload = std::nullopt) {
   constexpr std::int32_t kWidth = 4;
   constexpr std::int32_t kHeight = 3;
   // Red and green rise across the layer; blue counts 100, 101, 102 per row so a
@@ -1514,10 +1515,14 @@ std::vector<std::uint8_t> layered_psd_with_blue_row_bytes(
   layer_info.write_u32(0);
   layer_info.write_u32(static_cast<std::uint32_t>(kHeight));
   layer_info.write_u32(static_cast<std::uint32_t>(kWidth));
-  layer_info.write_u16(3);
+  layer_info.write_u16(real_user_mask_payload.has_value() ? 4 : 3);
   for (std::uint16_t channel = 0; channel < 3; ++channel) {
     layer_info.write_u16(channel);
     layer_info.write_u32(static_cast<std::uint32_t>(encoded_channels[channel].size()));
+  }
+  if (real_user_mask_payload.has_value()) {
+    layer_info.write_u16(0xFFFDU);  // real user mask (-3)
+    layer_info.write_u32(static_cast<std::uint32_t>(2U + real_user_mask_payload->size()));
   }
   write_ascii4(layer_info, "8BIM");
   write_ascii4(layer_info, "norm");
@@ -1529,6 +1534,10 @@ std::vector<std::uint8_t> layered_psd_with_blue_row_bytes(
   layer_info.write_bytes(layer_extra.bytes());
   for (const auto& channel : encoded_channels) {
     layer_info.write_bytes(channel);
+  }
+  if (real_user_mask_payload.has_value()) {
+    layer_info.write_u16(0);  // raw compression
+    layer_info.write_bytes(*real_user_mask_payload);
   }
   if ((layer_info.bytes().size() % 2U) != 0) {
     layer_info.write_u8(0);
@@ -1578,6 +1587,31 @@ bool has_damaged_row_notice(const std::vector<std::string>& notices) {
   return std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
     return notice.find("damaged") != std::string::npos;
   });
+}
+
+void psd_empty_real_user_mask_channel_does_not_truncate_layer() {
+  const std::vector<std::uint8_t> good{0x03U, 50U, 51U, 52U, 53U};
+  const std::span<const std::uint8_t> empty_payload;
+  const auto bytes = layered_psd_with_blue_row_bytes(good, empty_payload);
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  CHECK(document.layers().size() == 1);
+  const auto& pixels = document.layers().front().pixels();
+  CHECK(pixels.width() == 4);
+  CHECK(pixels.height() == 3);
+  CHECK(pixels.pixel(0, 1)[2] == 50);
+  CHECK(pixels.pixel(3, 1)[2] == 53);
+}
+
+void psd_real_user_mask_payload_is_skipped_without_losing_channel_alignment() {
+  const std::vector<std::uint8_t> good{0x03U, 50U, 51U, 52U, 53U};
+  const std::vector<std::uint8_t> undersized_real_mask{17U};
+  const auto bytes =
+      layered_psd_with_blue_row_bytes(good, std::span<const std::uint8_t>{undersized_real_mask});
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  CHECK(document.layers().size() == 1);
+  const auto& pixels = document.layers().front().pixels();
+  CHECK(pixels.pixel(0, 1)[2] == 50);
+  CHECK(pixels.pixel(3, 1)[2] == 53);
 }
 
 // A run that overshoots the scanline is clipped at the row width; the rest of the
@@ -2107,6 +2141,19 @@ void psd_photoshop_32_bit_fixtures_load_if_available() {
   check_photoshop_deep_fixture("ps2026-32bit.psd", true, {192, 232, 246}, {255, 137, 0});
 }
 
+void psd_app_icon_legacy_fixture_loads_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("APP_Icon_1024x1024.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local APP icon fixture missing: " << path.string() << '\n';
+    return;
+  }
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.width() == 1024);
+  CHECK(document.height() == 1024);
+  CHECK(!document.layers().empty());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_core_io_tests() {
@@ -2130,6 +2177,10 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
       {"psd_zero_length_layer_channels_read_as_empty", psd_zero_length_layer_channels_read_as_empty},
       {"psd_interface_mock2_loads_if_available", psd_interface_mock2_loads_if_available},
+      {"psd_empty_real_user_mask_channel_does_not_truncate_layer",
+       psd_empty_real_user_mask_channel_does_not_truncate_layer},
+      {"psd_real_user_mask_payload_is_skipped_without_losing_channel_alignment",
+       psd_real_user_mask_payload_is_skipped_without_losing_channel_alignment},
       {"psd_16_bit_flat_raw_composite_converts_to_8_bit", psd_16_bit_flat_raw_composite_converts_to_8_bit},
       {"psd_16_bit_flat_rle_composite_converts_to_8_bit", psd_16_bit_flat_rle_composite_converts_to_8_bit},
       {"psd_16_bit_lr16_layers_convert_with_zip_prediction",
@@ -2141,6 +2192,7 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_16_bit_flat_filter_list_loads_if_available", psd_16_bit_flat_filter_list_loads_if_available},
       {"psd_photoshop_16_bit_fixtures_load_if_available", psd_photoshop_16_bit_fixtures_load_if_available},
       {"psd_photoshop_32_bit_fixtures_load_if_available", psd_photoshop_32_bit_fixtures_load_if_available},
+      {"psd_app_icon_legacy_fixture_loads_if_available", psd_app_icon_legacy_fixture_loads_if_available},
       {"psd_layered_writer_uses_rle_for_compressible_layer_channels",
        psd_layered_writer_uses_rle_for_compressible_layer_channels},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},

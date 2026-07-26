@@ -433,6 +433,14 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       }
       const auto compression = layer_reader.read_u16();
       const auto payload_length = channel.length - 2;
+      if (channel.id == kChannelRealUserMask) {
+        // Patchy does not model Photoshop's separate real-user-mask plane. A
+        // complete -2 plane carries the rendered mask in files that also contain
+        // -3. Skip the declared -3 bytes exactly instead of decoding them against
+        // the layer bounds, which are not the real mask's dimensions.
+        layer_reader.skip(payload_length);
+        continue;
+      }
       if (compression != kCompressionRaw && compression != kCompressionRle &&
           compression != kCompressionZip && compression != kCompressionZipPrediction) {
         layer_reader.skip(payload_length);

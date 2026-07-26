@@ -51,5 +51,9 @@ A saved alpha read from PSD/PSB always becomes a document channel, including cha
 - Save and Save As warn before a non-PSD/PSB format discards saved channels. Export is always an explicitly flattened operation and does not warn.
 
 Deferred work: editable component channels, multiple simultaneous overlays, channel-options editing, spot separations, multichannel/CMYK/Lab document modes, 16/32-bit channel editing, vector masks, and PSD real-user-mask channel `-3`.
+The PSD reader ignores `-3` payloads by their declared byte length and keeps the
+supported `-2` rendered mask plane. It must not decode `-3` against the layer
+bounds because the separate real mask can have different dimensions. This also
+accepts the compression-marker-only `-3` records found in older files.
 
 Group raster masks (gap found and fixed July 2026 via Testy): PSD import stores a group's mask, the layered writer emits the folder record's mask block and `-2` channel (mask-less groups keep their historical zero-channel records, so writer canaries are unaffected), Add Layer Mask works on groups, and the compositor applies group masks on the default pass-through path: the mask attenuates each child contribution in place via `GroupMaskedTarget` (layer_compositor.hpp), so interior adjustments still reach the backdrop below the group and nested group masks multiply. Apply Layer Mask stays pixel-only. Still open: zero-area placeholder masks (the empty white mask on every Photoshop adjustment layer) are not materialized on import and vanish on resave, which Testy reports as lost `userMask` attributes even though nothing visible changes; and the compositor still ignores a group's opacity and non-pass-through blend mode outside the Blend If path.
