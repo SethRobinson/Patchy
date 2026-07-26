@@ -498,6 +498,12 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         raw_files = [f for f in raw_files if f]
         editors = [e for e in request.get("editors", DEFAULT_EDITORS) if e]
         errors = []
+        # Unusable paths are skipped, not fatal: a pasted list of a few hundred files
+        # commonly carries a handful of moved or deleted ones, and hand-pruning them
+        # to start a run is pure busywork. They are reported back to the panel, and
+        # only a list with nothing usable left in it stops the run. The CLI's corpus
+        # reader (resolve_corpus) has always behaved this way.
+        skipped = []
         if not raw_files:
             errors.append("no PSD files given")
         known_editors = {*DEFAULT_EDITORS, "affinity"}
@@ -510,11 +516,13 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         for entry in raw_files:
             path = Path(entry)
             if path.suffix.lower() not in (".psd", ".psb"):
-                errors.append(f"not a .psd/.psb: {entry}")
+                skipped.append(f"not a .psd/.psb: {entry}")
             elif not path.exists():
-                errors.append(f"file not found: {entry}")
+                skipped.append(f"file not found: {entry}")
             else:
                 files.append(str(path.resolve()))
+        if raw_files and not files:
+            errors.append(f"none of the {len(raw_files)} listed paths is a readable .psd/.psb")
         scan_threshold: float | None = None
         if request.get("scan"):
             try:
@@ -527,8 +535,12 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         if compare not in ("strict", "perceptual"):
             errors.append(f"unknown comparison mode: {compare}")
         if errors:
-            self._send_json({"errors": errors}, status=400)
+            self._send_json({"errors": errors, "skipped": skipped}, status=400)
             return
+        if skipped:
+            log(f"start-run: skipping {len(skipped)} unusable path(s) of {len(raw_files)}")
+            for entry in skipped:
+                log(f"  {entry}")
 
         base_url = f"http://127.0.0.1:{self.server.server_address[1]}"
         with _spawn_lock:
@@ -545,7 +557,7 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
                 compare=compare,
             )
             self._spawn_child(command)
-        self._send_json({"started": True})
+        self._send_json({"started": True, "skipped": skipped, "files": len(files)})
 
     def _retest_file(self) -> None:
         """Re-run a single file from an existing run as a fresh run of its own.

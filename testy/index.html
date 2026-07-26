@@ -41,6 +41,7 @@
   th.sel, td.sel { width:30px; text-align:center; }
   #runs-toolbar { display:flex; gap:12px; align-items:center; margin:0 0 10px; }
   #run-errors { color:#d95c4a; font-size:12.5px; margin-top:8px; white-space:pre-line; }
+  #run-skipped { color:var(--warn); font-size:12.5px; margin-top:8px; white-space:pre-line; }
   #run-note { color:var(--good); font-size:12.5px; margin-top:8px; }
 </style>
 </head>
@@ -69,6 +70,7 @@
       <span id="run-state-note" class="scores"></span>
     </div>
     <div id="run-errors"></div>
+    <div id="run-skipped"></div>
     <div id="run-note"></div>
   </section>
   <div id="runs-toolbar">
@@ -294,13 +296,27 @@ function deleteRuns() {
   });
 }
 
+// Paths the server left out of the run (missing files, non-PSD lines). They are a
+// warning, not a failure: a long pasted list usually has a few stale entries, so the
+// run starts without them rather than making the list be hand-pruned first. Only the
+// first few are spelled out; the server log has them all.
+function skippedText(skipped) {
+  if (!skipped || !skipped.length) return "";
+  const shown = skipped.slice(0, 8);
+  const rest = skipped.length - shown.length;
+  return ["skipped " + skipped.length + " unusable path(s):"].concat(shown)
+    .concat(rest > 0 ? ["... and " + rest + " more (see the Testy console)"] : []).join("\n");
+}
+
 function startRun() {
   const files = document.getElementById("run-files").value
     .split("\n").map(l => l.trim()).filter(Boolean);
   const editors = [...document.querySelectorAll(".editor-box:checked")].map(b => b.value);
   const errorsDiv = document.getElementById("run-errors");
+  const skippedDiv = document.getElementById("run-skipped");
   const note = document.getElementById("run-note");
   errorsDiv.textContent = "";
+  skippedDiv.textContent = "";
   note.textContent = "";
   fetch("/testy-start-run", {
     method: "POST",
@@ -315,9 +331,11 @@ function startRun() {
     }),
   }).then(async response => {
     const result = await response.json();
+    skippedDiv.textContent = skippedText(result.skipped);
     if (response.ok && result.started) {
       saveRunForm();
-      note.textContent = "run started - it will appear at the top of the table in a few seconds";
+      note.textContent = "run started on " + result.files + " file(s)" +
+        " - it will appear at the top of the table in a few seconds";
       note.dataset.pending = "1";
       refreshRunState();
     } else {

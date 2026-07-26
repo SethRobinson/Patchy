@@ -21,8 +21,15 @@ dashboard server on the configured port, and opens the control panel in the brow
 The panel's "New run" box is pre-filled with the configured default corpus (one
 absolute path per line) and takes any pasted .psd list instead; pick editors and
 options and hit Start - the run appears at the top of the runs table (clickable while
-live), and the Start button stays disabled until it finishes. Browser-started runs
-reuse the panel's server (`--server-url` under the hood) and log to
+live), and the Start button stays disabled until it finishes. Paths in the list that
+no longer exist or are not .psd/.psb never block the run: the server drops them,
+starts on what is left, and reports them under the box as an amber "skipped N
+unusable path(s)" warning (the first few by name, all of them in the Testy console)
+next to how many files the run actually got. That matches what the CLI's corpus
+reader has always done, and it means a pasted list of a few hundred paths with a
+handful of stale ones needs no hand-pruning first. Real errors still stop the start
+and stay red: a list with nothing usable left in it, no editors, a bad threshold.
+Browser-started runs reuse the panel's server (`--server-url` under the hood) and log to
 `testy/runs/last-child-run.log`; their file list is handed to the child through
 `testy/runs/last-child-corpus.txt` (`--corpus` under the hood), never argv, because a
 pasted corpus of a few hundred paths overflows the Windows 32K command-line limit and
