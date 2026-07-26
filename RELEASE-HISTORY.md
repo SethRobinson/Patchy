@@ -3,6 +3,15 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.82 - July 21, 2026
+
+- JavaScript scripting is here: scripts drive documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing through a documented API (patchy.d.ts for machines, a scripting guide under Help for humans), with one undo entry per run no matter how much a script changes
+- The new Script Manager (File > Scripts) puts a folder tree over the bundled and user scripts with per-script icons, names, and hover cards, plus a code editor with syntax highlighting and live run status: spinner, elapsed time, and a stop button. Editing a bundled script saves your own copy, which overrides the original and can be reverted, and New seeds a runnable starter template
+- 20 bundled scripts to use or learn from: CSV data merge, contact sheets, icon export, batch export, versioned saves, layer rename, grid overlays, watermark, play-button overlay, trim to content, duotone, glitch, photo frame, generative art, letter physics, a form-dialog showcase, and playable Breakout, Pong, and Game of Life on real canvases. Scripts can call other scripts with include()
+- Scripts ask for input through patchy.ui.showOptions: a real options dialog with instructions and folder/file pickers in GUI runs, --script-arg overrides from the command line, and the same defaults applied without a dialog when run unattended
+- Scripts can play sound with patchy.ui.playTone and playSound (Breakout and Pong picked up retro blips), a long busy script shows a stop panel with live progress and optional undo of its changes, and the script watchdog measures inactivity rather than total runtime so hour-long batches survive
+- patchy --run-script file.js runs a script against a new or running instance and writes console output to a file, so external tools and AI agents can drive Patchy; the Script Manager's C:\ button shows a copyable command line for any script
+
 ## 0.81 - July 20, 2026
 
 - Affinity Photo and Designer .af files now open as layered documents: raster layers (8-bit, 16-bit, grayscale, and float), groups, layer masks, clipping, opacity and blend modes, CMYK and Lab color through ICC conversion, document DPI, and the canvas background all come through, with scaled and rotated layers rendered through their transforms. Anything Patchy can't model becomes a named placeholder layer with a notice instead of failing the open
