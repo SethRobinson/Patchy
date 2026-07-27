@@ -98,7 +98,7 @@ The CLI remains for scripted use:
 python testy\testy.py [--files a.psd b.psd] [--corpus list.txt] [--editors ...]
 ```
 
-A default run goes through Photoshop, Patchy, Krita, and Photopea, refreshes the
+A default run goes through Photoshop, Patchy, Krita, GIMP, and Photopea, refreshes the
 Patchy release build first (when configured), serves a live dashboard (auto-opens the
 browser), and leaves the frozen report + `results.json` in `testy/runs/<timestamp>/`.
 The server root (`http://127.0.0.1:<port>/`) is the same control panel. In every
@@ -138,7 +138,7 @@ Useful flags:
 
 - `--files a.psd b.psd` - explicit file list instead of the corpus.
 - `--corpus <file>` - another corpus list (one path per line, relative to the repo root).
-- `--editors photoshop,patchy,krita,photopea,affinity` - which columns to run. Affinity is
+- `--editors photoshop,patchy,krita,gimp,photopea,affinity` - which columns to run. Affinity is
   opt-in: its column needs the app's connector enabled once in Affinity's settings (it
   serves the local MCP endpoint the scripting rides on); with it off, Affinity cells fail
   with an actionable message and everything else runs normally. Aseprite was verified to
@@ -259,7 +259,9 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   layer so cached rasters cannot satisfy the render: Photoshop via COM
   (`textItem.contents`), Patchy via `patchy.exe --append-text` (real inline-editor
   sessions per layer). The mutated renders are compared within text-layer regions.
-  Krita 5.3 and Affinity re-render text on open by design. Photopea's mutation pass is
+  Krita 5.3 and Affinity re-render text on open by design. GIMP's PSD import keeps
+  text layers as their baked rasters (no editable text arrives), so it has no
+  mutation leg either. Photopea's mutation pass is
   deliberately disabled: its script engine hangs on contents assignment for some
   documents and its DOM never matched text layers reliably.
 
@@ -275,6 +277,16 @@ full native preservation, which validates the pipeline itself.
 - Krita 5.3.2 headless CLI: `krita.com <in> --export --export-filename <out>` (format by
   extension; PSD export works). Its console shim prints nothing through pipes; success is
   exit code + output existence (Fontconfig warnings are filtered out of reported errors).
+- GIMP 3.2 headless Script-Fu batch: `gimp-console-3.exe -i -d -f --batch-interpreter
+  plug-in-script-fu-eval -b <script> -b "(gimp-quit 0)"` (PNG render and PSD resave via
+  `gimp-file-save`, format by extension). Two hard-won rules live in the driver: GIMP 3
+  refuses batch work without an explicit `--batch-interpreter`, and a batch command
+  that errors makes the console stop WITHOUT running the trailing `(gimp-quit 0)`, so
+  the process hangs forever. The driver wraps the whole script body in Script-Fu's
+  `catch` so the quit always runs; success is judged by output existence, and the
+  GIMP-Error lines naming the real cause reach stderr either way. A timeout kills the
+  process tree via `taskkill /t` because batches execute in a separate script-fu
+  plug-in process.
 - Photopea (web) runs in a headless Chrome via selenium: `testy/photopea_host.html`
   iframes photopea.com and drives it through the official postMessage API. The host page
   fetches the staged PSD same-origin and posts the bytes as an ArrayBuffer (Photopea's
@@ -434,8 +446,8 @@ testy/
                      launch/quit lifecycle; also reused by .af format tooling)
   win_dialogs.py     modal-dialog guard for scripted apps (--selftest included)
   drivers/           photoshop (COM, --selftest included), patchy (CLI), krita (CLI),
-                     photopea (headless Chrome + embed API), affinity (built-in JS
-                     automation via affinity_js)
+                     gimp (Script-Fu batch CLI), photopea (headless Chrome + embed
+                     API), affinity (built-in JS automation via affinity_js)
   index.html         run-index landing page (server root)
   photopea_host.html the Photopea embedding/automation page
   corpus/            gitignored: local corpus lists

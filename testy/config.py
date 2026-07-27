@@ -81,6 +81,13 @@ KRITA_CANDIDATES = [
     Path(r"C:\Program Files\Krita (x64)\bin\krita.exe"),
 ]
 
+GIMP_CANDIDATES = [
+    # The console variant is the headless batch entry point; the plain gimp-3.exe
+    # spins up the full UI.
+    Path(os.path.expandvars(r"%LOCALAPPDATA%\Programs\GIMP 3\bin\gimp-console-3.exe")),
+    Path(r"C:\Program Files\GIMP 3\bin\gimp-console-3.exe"),
+]
+
 AFFINITY_CANDIDATES = [
     Path(os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WindowsApps\Affinity.exe")),
 ]
@@ -150,6 +157,13 @@ def discover_editors(patchy_git_hash: str) -> dict[str, EditorInfo]:
         # krita.com is a console shim next to krita.exe; version rides the exe.
         krita.version = _file_version(krita.exe.with_name("krita.exe"))
     editors["krita"] = krita
+
+    gimp = EditorInfo("gimp", "GIMP",
+                      _configured_editor_path("gimp") or _first_existing(GIMP_CANDIDATES))
+    if gimp.exe is not None:
+        gimp.available = True
+        gimp.version = _file_version(gimp.exe)
+    editors["gimp"] = gimp
 
     affinity = EditorInfo("affinity", "Affinity",
                           _configured_editor_path("affinity") or _first_existing(AFFINITY_CANDIDATES))
