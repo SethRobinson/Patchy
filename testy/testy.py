@@ -1720,7 +1720,7 @@ class Runner:
     def _aggregate(self) -> dict:
         aggregate: dict = {}
         for editor_key in self.editor_order:
-            opened = total = 0
+            opened = total = bad_saves = 0
             render_scores: list[float] = []
             visual_scores: list[float] = []
             native_scores: list[float] = []
@@ -1731,6 +1731,8 @@ class Runner:
                 total += 1
                 if cell.get("state") == "done" and cell.get("opens") != "fail":
                     opened += 1
+                if cell.get("resaveRejected"):
+                    bad_saves += 1
                 metrics = cell.get("renderMetrics")
                 if metrics:
                     render_scores.append(metrics["accuracy"])
@@ -1742,6 +1744,7 @@ class Runner:
             aggregate[editor_key] = {
                 "opened": opened,
                 "total": total,
+                "badSaves": bad_saves,
                 "render": sum(render_scores) / len(render_scores) if render_scores else 0.0,
                 "visual": sum(visual_scores) / len(visual_scores) if visual_scores else 0.0,
                 "native": sum(native_scores) / len(native_scores) if native_scores else 0.0,
@@ -1766,6 +1769,7 @@ class Runner:
                 f"byte {a['render'] * 100:5.1f}%   perceptual {a['visual'] * 100:5.1f}%   "
                 f"native {a['native'] * 100:5.1f}%   "
                 f"opened {a['opened']}/{a['total']}"
+                + (f"   bad .psd saves {a['badSaves']}" if a["badSaves"] else "")
             )
         if self.scan_threshold is not None:
             flagged = [e for e in self.status["files"] if e.get("scan", {}).get("flagged")]

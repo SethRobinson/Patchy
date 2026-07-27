@@ -428,13 +428,14 @@ function render() {
   }).join("");
 
   const agg = {};
-  editors.forEach(k => agg[k] = { opened: 0, total: 0, acc: [], vis: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0] });
+  editors.forEach(k => agg[k] = { opened: 0, total: 0, badSaves: 0, acc: [], vis: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0] });
   S.files.forEach(f => editors.forEach(k => {
     const c = (f.cells || {})[k];
     if (!c || c.state === "pending" || c.state === "running" || c.state === "skipped") return;
     const a = agg[k];
     a.total++;
     if (c.state === "done" && c.opens !== "fail") a.opened++;
+    if (c.resaveRejected) a.badSaves++;
     if (c.renderMetrics) a.acc.push(c.renderMetrics.accuracy);
     if (c.renderMetrics && c.renderMetrics.perceptual) a.vis.push(c.renderMetrics.perceptual.accuracy);
     if (c.native && typeof c.native.nativeScore === "number") {
@@ -474,6 +475,10 @@ function render() {
     const acc = mean(a.acc); rows.push(["byte match", acc == null ? "-" : pct(acc)]);
     const vis = mean(a.vis); if (vis != null) rows.push(["perceptual", pct(vis)]);
     const nat = mean(a.native); rows.push(["native", nat == null ? "-" : pct(nat)]);
+    // How many resaves Photoshop refused to reopen - the "saves corrupted .psd"
+    // cells, rolled up. Red the moment it is not 0.
+    rows.push(["bad .psd saves", !a.total ? "-"
+      : a.badSaves ? '<span class="bad-text">' + a.badSaves + "</span>" : "0"]);
     [["text", "text kept"], ["adj", "adjustments"], ["smart", "smart objects"], ["fx", "live effects"]].forEach(([key, label]) => {
       const v = a[key];
       if (v[1]) rows.push([label, v[0] < v[1] ? '<span class="bad-text">' + v[0] + "/" + v[1] + "</span>"

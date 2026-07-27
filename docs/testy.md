@@ -130,7 +130,9 @@ is resumed, which backfills them. A cell's status line also says what kind of "o
 it was: a render that misses the scan threshold (10% by default, measured by whichever
 comparison the run flags on) reads "opened - poor matching" with a yellow dot, and a
 resave Photoshop cannot reopen reads "opened - saves corrupted .psd" with a red dot, as
-does a render wrong on more than 30% of the pixels.
+does a render wrong on more than 30% of the pixels. Each editor's summary card rolls
+those rejected resaves up as a "bad .psd saves" count, red the moment it is not zero
+(also in the CLI summary and history.jsonl as `badSaves`).
 
 Useful flags:
 
