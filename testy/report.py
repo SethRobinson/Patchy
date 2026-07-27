@@ -560,14 +560,24 @@ function openDetail(fi, ek, keep) {
       " of pixels come from the baked composite, but Photoshop's own trap render shows " +
       pct(psTrap) + " - the file has layers even the ground truth cannot re-render " +
       "(e.g. missing fonts), so this is not counted as a cheat</div>";
+  // The mutated pair only makes sense for editors that HAVE a forced text
+  // re-render leg (Patchy; Photoshop's lives with the ground truth). Showing
+  // the lone Photoshop image for other editors reads as a missing test, so
+  // those panels get the skip reason instead.
+  const mutationSkipped = (S.editors[ek] || {}).mutationSkipped;
+  if (!art.mutatedThumb && ek !== "photoshop" && mutationSkipped)
+    html += '<div class="nums">forced text re-render not run for ' + editorName + ": " +
+      esc(mutationSkipped) + "</div>";
   html += '<div class="imgs">' +
     img(gart.renderThumb, "Photoshop ground truth", gart.render) +
     img(art.renderThumb, editorName + " render", art.render) +
     img(art.heatmap, "Difference heatmap") +
     img(art.trapThumb, editorName + " trap render (sentinel = used baked composite)", art.trap) +
     img(art.roundtripThumb, editorName + " resave reopened in Photoshop", art.roundtripRender) +
-    img(gart.mutatedThumb, "Photoshop render, text appended", gart.mutated) +
-    img(art.mutatedThumb, editorName + " render, text appended", art.mutated) +
+    (art.mutatedThumb || ek === "photoshop"
+      ? img(gart.mutatedThumb, "Photoshop render, text appended", gart.mutated) +
+        img(art.mutatedThumb, editorName + " render, text appended", art.mutated)
+      : "") +
     "</div>";
   if (cell.renderMetrics) {
     const m = cell.renderMetrics;

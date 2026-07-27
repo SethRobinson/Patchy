@@ -51,6 +51,18 @@ DEFAULT_SUFFIX = "~TESTY~"
 # PSD I/O at all and removed from the roster entirely.)
 DEFAULT_EDITORS = ["photoshop", "patchy", "krita", "gimp", "photodemon", "photopea"]
 
+# Why an editor's cell has no forced text re-render leg (surfaced in the report's
+# detail panel so a missing "render, text appended" image reads as deliberate).
+# Photoshop and Patchy are the only editors whose text can be scripted; the
+# Photoshop leg lives with the ground truth rather than its own cell.
+TEXT_MUTATION_SKIPPED = {
+    "krita": "Krita re-renders text layers on open by design, so a forced re-render adds no signal",
+    "affinity": "Affinity re-renders text layers on open by design, so a forced re-render adds no signal",
+    "photopea": "deliberately disabled: Photopea's script engine hangs on text-contents assignment for some documents",
+    "gimp": "GIMP imports PSD text layers as baked rasters, so there is no text object to mutate",
+    "photodemon": "the patched /testy-export CLI cannot script text edits",
+}
+
 # The Patchy release-build refresh command comes from config.local.json
 # ("build_command"); without one, runs measure the existing patchy.exe as-is.
 
@@ -882,6 +894,7 @@ class Runner:
                     "version": info.version,
                     "available": info.available,
                     "notes": info.notes,
+                    "mutationSkipped": TEXT_MUTATION_SKIPPED.get(key),
                 }
                 for key, info in self.editors.items()
             },

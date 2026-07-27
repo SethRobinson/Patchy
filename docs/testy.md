@@ -261,7 +261,11 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   sessions per layer). The mutated renders are compared within text-layer regions.
   Krita 5.3 and Affinity re-render text on open by design. GIMP's PSD import keeps
   text layers as their baked rasters (no editable text arrives), so it has no
-  mutation leg either. Photopea's mutation pass is
+  mutation leg either. The detail panel only shows the "render, text appended" image
+  pair for editors that have the leg (Patchy, and Photoshop whose leg lives with the
+  ground truth); other editors' panels state the reason it is absent
+  (`TEXT_MUTATION_SKIPPED` in testy.py) instead of showing Photoshop's mutated render
+  alone, which read as a missing test. Photopea's mutation pass is
   deliberately disabled: its script engine hangs on contents assignment for some
   documents and its DOM never matched text layers reliably.
 
