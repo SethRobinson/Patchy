@@ -1,8 +1,6 @@
 # Patchy
 
-Open source free image editing.
-
-Think classic Adobe Photoshop CS-style layer editing, modernized: PSD layers, masks, text, blend modes, layer styles, legacy plugins, and current formats like WebP, without subscriptions or telemetry.
+Patchy is a free, open-source image editor for Windows, macOS, and Linux, built for accurate PSD and PSB editing and round trips with Adobe Photoshop. It supports editable text and vectors, masks, layer styles, Smart Objects and Smart Filters, legacy 8BF plug-ins, and JavaScript and command-line automation, without subscriptions or telemetry.
 
 ## Screenshots
 
