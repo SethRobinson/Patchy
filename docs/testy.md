@@ -120,6 +120,18 @@ to a different kind (e.g. text rasterized); attribute-only losses (effects, mask
 blend modes stripped from surviving layers) are labeled as such. A resave Photoshop
 refuses to open shows a "resave rejected" banner instead of a broken panel.
 
+The matrix is built to be read at a glance on a corpus of thousands. Each file's size
+sits next to its document size and layer count ("4000x2500 - 2 layers - 20.3 MB", and
+the size shows even when the ground truth failed and the other two are unknown), the
+header totals the whole corpus next to the file count, and a scan run's card adds a
+size done/total row, since bytes get through at nothing like a steady files-per-hour
+rate. Sizes are recorded when a run starts; a run from before that shows none until it
+is resumed, which backfills them. A cell's status line also says what kind of "opened"
+it was: a render that misses the scan threshold (10% by default, measured by whichever
+comparison the run flags on) reads "opened - poor matching" with a yellow dot, and a
+resave Photoshop cannot reopen reads "opened - saves corrupted .psd" with a red dot, as
+does a render wrong on more than 30% of the pixels.
+
 Useful flags:
 
 - `--files a.psd b.psd` - explicit file list instead of the corpus.

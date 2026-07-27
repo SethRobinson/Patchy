@@ -152,6 +152,50 @@ function pct(x, digits) { return (100 * x).toFixed(digits === undefined ? 1 : di
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
+// PSDs read naturally in MB (0.2 MB, 20.3 MB); a tiny icon file stays honest in KB
+// and a whole corpus rolls up into GB.
+function fmtSize(bytes) {
+  if (bytes == null) return "";
+  if (bytes < 1024) return bytes + " B";
+  const kb = bytes / 1024;
+  if (kb < 102.4) return Math.round(kb) + " KB";
+  const mb = kb / 1024;
+  return mb < 1024 ? mb.toFixed(1) + " MB" : (mb / 1024).toFixed(1) + " GB";
+}
+
+function totalSize(files) {
+  return files.reduce((sum, f) => sum + (f.sizeBytes || 0), 0);
+}
+
+// What the file itself is, wherever its name is shown. Size comes from the corpus
+// entry, so it is there even when the ground truth (and with it the document size
+// and layer count) failed; runs from before sizes were recorded show none.
+function fileFacts(f) {
+  const facts = [];
+  if (f.docSize) facts.push(f.docSize[0] + "x" + f.docSize[1]);
+  if (f.layerCount) facts.push(f.layerCount + " layers");
+  if (f.sizeBytes != null) facts.push(fmtSize(f.sizeBytes));
+  return facts.join(" &middot; ");
+}
+
+// Skim thresholds for the matrix dot. A render that misses the run's scan threshold
+// (10% by default) is "poor matching" in yellow; a resave Photoshop cannot reopen,
+// or a render wrong on more than SEVERE_MISMATCH of the pixels, is red.
+const SEVERE_MISMATCH = 0.30;
+
+function poorMatchLimit() {
+  return S.run.scan ? S.run.scan.thresholdPct / 100 : 0.10;
+}
+
+// The bad-pixel fraction the run's comparison mode judges by - the same number scan
+// mode flags on (cells cached before the perceptual metric only carry the byte one).
+function compareBadFraction(cell) {
+  const m = cell.renderMetrics;
+  if (!m) return null;
+  if (S.run.compare === "perceptual" && m.perceptual) return m.perceptual.badFraction;
+  return m.badFraction;
+}
+
 const LOSS_LABELS = [
   ["cat", "text", "text layers"],
   ["cat", "adjustment", "adjustment layers"],
@@ -225,15 +269,29 @@ function cellSummary(cell, psCell) {
   }
   if (cell.renderMetrics && cell.renderMetrics.sizeMismatch) flags.push("size mismatch");
   if (cell.opens === "fallback-render") flags.push("PS needed fallback render");
-  if (cell.resaveRejected) flags.push("resave rejected by Photoshop");
+  // The two verdicts worth reading from across the matrix ride on the status line
+  // itself, next to the dot, instead of down in the flag list.
+  const notes = [];
+  let severity = 0;  // 0 fine, 1 yellow, 2 red
+  const badFraction = compareBadFraction(cell);
+  if (badFraction != null && badFraction > poorMatchLimit()) {
+    notes.push("poor matching");
+    severity = badFraction > Math.max(SEVERE_MISMATCH, poorMatchLimit()) ? 2 : 1;
+  }
+  if (cell.resaveRejected) { notes.push("saves corrupted .psd"); severity = 2; }
   const losses = lossSummary(cell.native);
   const lossLine = losses.length
     ? '<div class="flag">lost: ' + lossText(losses.slice(0, 3)) +
       (losses.length > 3 ? " +" + (losses.length - 3) + " more" : "") + "</div>"
     : "";
-  const cls = cell.opens === "fail" ? "bad" : (flags.length || losses.length ? "warn" : "ok");
-  return '<div class="status-line"><span class="dot ' + cls + '"></span>' +
-         (cell.opens === "fail" ? "failed to open" : "opened") + '</div>' +
+  const cls = cell.opens === "fail" || severity === 2 ? "bad"
+    : (severity || flags.length || losses.length) ? "warn" : "ok";
+  // One span holds the whole label: .status-line is a flex row with a gap, so a bare
+  // text node beside the note span would be spaced apart from it.
+  const label = cell.opens === "fail" ? "failed to open"
+    : "opened" + (notes.length ? ' - <span class="' + (severity === 2 ? "bad-text" : "warn-text") +
+                                 '">' + notes.join(" - ") + "</span>" : "");
+  return '<div class="status-line"><span class="dot ' + cls + '"></span><span>' + label + '</span></div>' +
          '<div class="nums">' + bits.join(" &middot; ") + '</div>' + lossLine +
          (flags.length ? '<div class="flag">' + flags.join(" &middot; ") + '</div>' : "") +
          (compositeNote ? '<div class="nums">' + compositeNote + '</div>' : "");
@@ -339,8 +397,10 @@ function render() {
   pill.className = interrupted ? "interrupted" : S.state;
   renderControls();
   const compareWord = S.run.compare === "perceptual" ? "perceptual" : "byte";
+  const corpusBytes = totalSize(S.files);
   document.getElementById("run-meta").textContent =
-    S.run.startedAt + "  -  " + S.files.length + " file(s)  -  Patchy " + (S.run.patchyVersion || "?") +
+    S.run.startedAt + "  -  " + S.files.length + " file(s)" +
+    (corpusBytes ? ", " + fmtSize(corpusBytes) : "") + "  -  Patchy " + (S.run.patchyVersion || "?") +
     (S.run.compare === "perceptual" ? "  -  compare: perceptual" : "") +
     (S.run.scan ? "  -  scan mode: flag over " + S.run.scan.thresholdPct + "% " + compareWord + " difference" : "");
 
@@ -362,8 +422,7 @@ function render() {
       : '<div class="nums ok-text">scan: passed (images discarded)</div>');
     return "<tr><td class='file'><b class='copyable' title='" + esc(f.source) +
       " (click to copy path)' onclick='copyPath(" + fi + ", this)'>" + esc(f.name) + "</b>" +
-      '<div class="nums">' + (f.docSize ? f.docSize[0] + "x" + f.docSize[1] : "") +
-      (f.layerCount ? " &middot; " + f.layerCount + " layers" : "") + "</div>" + gtNote + scanNote + "</td>" +
+      '<div class="nums">' + fileFacts(f) + "</div>" + gtNote + scanNote + "</td>" +
       editors.map(k => "<td class='cell' onclick='openDetail(" + fi + ",\"" + k + "\")'>" +
                        cellSummary((f.cells || {})[k], (f.cells || {}).photoshop) + "</td>").join("") + "</tr>";
   }).join("");
@@ -391,14 +450,22 @@ function render() {
   const mean = xs => xs.length ? xs.reduce((p, c) => p + c, 0) / xs.length : null;
   let scanCard = "";
   if (S.run.scan) {
-    const decided = S.files.filter(f => f.scan).length;
+    const done = S.files.filter(f => f.scan);
+    const decided = done.length;
     const flagged = S.files.filter(f => f.scan && f.scan.flagged).length;
+    // Bytes get through at nothing like a steady files-per-hour rate, so the size
+    // done/total is the honest read on how far a big scan actually is.
+    const sizeRow = corpusBytes
+      ? '<div class="row"><span>size</span><b>' + fmtSize(totalSize(done)) + " / " +
+        fmtSize(corpusBytes) + "</b></div>"
+      : "";
     scanCard = '<div class="card"><h3>Scan</h3><div class="ver">flag over ' +
       S.run.scan.thresholdPct + "% " + compareWord + " difference or any failure</div>" +
       '<div class="row"><span>scanned</span><b>' + decided + "/" + S.files.length + "</b></div>" +
       '<div class="row"><span>flagged</span><b class="' + (flagged ? "bad-text" : "ok-text") + '">' +
       flagged + "</b></div>" +
-      '<div class="row"><span>passed</span><b>' + (decided - flagged) + "</b></div></div>";
+      '<div class="row"><span>passed</span><b>' + (decided - flagged) + "</b></div>" +
+      sizeRow + "</div>";
   }
   document.getElementById("summary").innerHTML = scanCard + editors.map(k => {
     const e = S.editors[k] || {}, a = agg[k];
@@ -443,6 +510,7 @@ function openDetail(fi, ek, keep) {
   let html = "<h2><span class='copyable' title='" + esc(f.source) +
     " (click to copy path)' onclick='copyPath(" + fi + ", this)'>" + esc(f.name) + "</span>" +
     " &middot; " + editorName + "</h2>" +
+    '<div class="nums">' + fileFacts(f) + "</div>" +
     '<div class="sub">' + esc(cell.state) + (cell.stage ? " - " + esc(cell.stage) : "") +
     (cell.error ? ' - <span class="bad-text">' + esc(cell.error) + "</span>" : "") + "</div>";
   // Retest only exists while testy.py itself serves the page; a frozen report

@@ -793,6 +793,14 @@ def _version_slug(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9.@+-]+", "_", text)[:60]
 
 
+def _file_size(path: Path) -> int | None:
+    """Bytes on disk, or None for a source that is gone (the report just omits it)."""
+    try:
+        return path.stat().st_size
+    except OSError:
+        return None
+
+
 class Runner:
     def __init__(self, args: argparse.Namespace) -> None:
         global _in_process_run_dir
@@ -879,6 +887,7 @@ class Runner:
                 {
                     "name": path.name,
                     "source": str(path),
+                    "sizeBytes": _file_size(path),
                     "groundTruth": {"state": "pending"},
                     "cells": {key: {"state": "pending"} for key in self.editor_order},
                 }
@@ -1528,6 +1537,10 @@ class Runner:
                 if cell.get("state") == "running":
                     cell.clear()
                     cell["state"] = "pending"
+            # Runs started before the report showed file sizes carry none; one stat
+            # per file fills them in, so a resume upgrades the whole report.
+            if entry.get("sizeBytes") is None:
+                entry["sizeBytes"] = _file_size(Path(entry["source"]))
         self.push()
 
     def _file_complete(self, entry: dict) -> bool:
