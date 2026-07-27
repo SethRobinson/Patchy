@@ -248,7 +248,9 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   Photoshop)" note instead of the cheat flag and do not flag in scan mode; only
   sentinel coverage more than 5 points beyond Photoshop's own still counts as a
   cheat.
-- **Native preservation** - the editor's re-saved PSD is reopened in Photoshop and its
+- **Native preservation** (labeled "data kept in .psd save" in the report and CLI
+  summary; the results.json/history.jsonl keys stay `native`/`nativeScore`) - the
+  editor's re-saved PSD is reopened in Photoshop and its
   layer manifest is compared against the original's: text still `TEXT`, each adjustment
   still its exact kind, smart objects still smart, groups/masks/vector masks/live
   effects/clipping/blend modes intact. This is the "23/40 objects survived" number; a

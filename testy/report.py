@@ -244,7 +244,7 @@ function cellSummary(cell, psCell) {
   if (cell.renderMetrics && cell.renderMetrics.perceptual)
     bits.push("perceptual " + pct(cell.renderMetrics.perceptual.accuracy));
   if (cell.native && cell.native.perCategory)
-    bits.push("native " + cell.native.nativeKept + "/" + cell.native.nativeTotal);
+    bits.push("kept in .psd save " + cell.native.nativeKept + "/" + cell.native.nativeTotal);
   if (cell.renderMetrics && cell.renderMetrics.objectsScored) {
     const m = cell.renderMetrics;
     const objectsOk = S.run.compare === "perceptual" && m.objectsRenderedOkPerceptual != null
@@ -474,7 +474,7 @@ function render() {
     rows.push(["opened", a.total ? a.opened + "/" + a.total : "-"]);
     const acc = mean(a.acc); rows.push(["byte match", acc == null ? "-" : pct(acc)]);
     const vis = mean(a.vis); if (vis != null) rows.push(["perceptual", pct(vis)]);
-    const nat = mean(a.native); rows.push(["native", nat == null ? "-" : pct(nat)]);
+    const nat = mean(a.native); rows.push(["data kept in .psd save", nat == null ? "-" : pct(nat)]);
     // How many resaves Photoshop refused to reopen - the "saves corrupted .psd"
     // cells, rolled up. Red the moment it is not 0.
     rows.push(["bad .psd saves", !a.total ? "-"
@@ -608,7 +608,7 @@ function openDetail(fi, ek, keep) {
   }
   if (cell.native && cell.native.perCategory) {
     const n = cell.native, pc = n.perCategory, at = n.attributes;
-    html += "<h3>Native preservation (via Photoshop reopen): " + n.nativeKept + "/" + n.nativeTotal + "</h3>";
+    html += "<h3>Data kept in .psd save (via Photoshop reopen): " + n.nativeKept + "/" + n.nativeTotal + "</h3>";
     const losses = lossSummary(n);
     if (losses.length) {
       const changed = n.changedLayers || [];
@@ -642,7 +642,7 @@ function openDetail(fi, ek, keep) {
           "</td></tr>").join("") + "</table>";
     }
   } else if (cell.native && cell.native.error) {
-    html += "<h3>Native preservation (via Photoshop reopen)</h3>" +
+    html += "<h3>Data kept in .psd save (via Photoshop reopen)</h3>" +
       '<div class="loss-banner"><b>Resave rejected: Photoshop could not open this editor&#39;s PSD</b>' +
       '<div class="nums">' + esc(cell.native.error) + "</div></div>";
   }
@@ -731,7 +731,7 @@ async function renderHistory() {
     if (!lines.length) return;
     const editors = S.run.editorOrder;
     document.getElementById("history").innerHTML = "<h2>Past runs</h2><table><tr><th>Run</th><th>Files</th>" +
-      editors.map(k => "<th>" + esc((S.editors[k] || {}).displayName || k) + " byte match / native</th>").join("") + "</tr>" +
+      editors.map(k => "<th>" + esc((S.editors[k] || {}).displayName || k) + " byte match / kept in .psd save</th>").join("") + "</tr>" +
       lines.slice(-14).reverse().map(r => "<tr><td>" + esc(r.run) + "</td><td>" + r.files + "</td>" +
         editors.map(k => {
           const e = (r.editors || {})[k];

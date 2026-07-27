@@ -1826,13 +1826,13 @@ class Runner:
 
     def _print_summary(self) -> None:
         aggregate = self._aggregate()
-        log("summary (mean byte match / perceptual match / native preservation / opened):")
+        log("summary (mean byte match / perceptual match / data kept in .psd save / opened):")
         for editor_key in self.editor_order:
             a = aggregate[editor_key]
             log(
                 f"  {self.editors[editor_key].display_name:<10} "
                 f"byte {a['render'] * 100:5.1f}%   perceptual {a['visual'] * 100:5.1f}%   "
-                f"native {a['native'] * 100:5.1f}%   "
+                f"kept {a['native'] * 100:5.1f}%   "
                 f"opened {a['opened']}/{a['total']}"
                 + (f"   bad .psd saves {a['badSaves']}" if a["badSaves"] else "")
             )
