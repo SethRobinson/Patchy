@@ -452,6 +452,14 @@ full native preservation, which validates the pipeline itself.
   app's settings; a load refusal (INAPPROPRIATE_FILE_TYPE_OR_FORMAT) is Affinity's
   own import rejecting the file and scores honestly as opens=fail
   (vectors_overlay_stroke.psd is such a file - the UI refuses it too).
+- Affinity staging I/O rides through `_retry_locked`, which waits out transient
+  Windows sharing violations (up to ~2s) on every staged-file unlink, copy, and
+  move: Affinity can briefly hold a just-loaded document's handle and antivirus
+  scans grab fresh Desktop copies. In July 2026 a cell died with a bare
+  "driver error: [WinError 32]" because the post-cell unlink of its own staged
+  input raised from the driver's finally block, which replaced the cell's real
+  result; cleanup is now non-fatal (a stubbornly locked file is left for the
+  next cell's staging retry or cleanup()'s rmtree).
 - Affinity lifecycle: Document.close is NOT_IMPLEMENTED on Windows, so opened
   documents pile up as tabs; an instance the driver launched restarts after 10
   documents and is quit at cleanup() via WM_CLOSE while UIA-dismissing whatever

@@ -60,6 +60,25 @@ def _staging_dir() -> Path:
     return directory
 
 
+def _retry_locked(operation: Callable[[], object],
+                  attempts: int = 8, delay: float = 0.25) -> bool:
+    """Run a file operation, waiting out transient Windows sharing violations
+    (Affinity briefly holding a just-loaded document's handle, antivirus
+    scanning a fresh staging copy). Returns False only when the file stays
+    locked through every attempt (~2s); any other error still raises."""
+    for attempt in range(attempts):
+        try:
+            operation()
+            return True
+        except OSError as error:
+            # ERROR_ACCESS_DENIED (5), ERROR_SHARING_VIOLATION (32),
+            # ERROR_LOCK_VIOLATION (33): all present as "file is in use".
+            if getattr(error, "winerror", None) not in (5, 32, 33):
+                raise
+            time.sleep(delay)
+    return False
+
+
 def _ensure_client(exe: Path, log: Callable[[str], None]) -> AffinityJs:
     global _client, _we_own_instance
     if _client is not None and _client.alive and affinity_js.port_open():
@@ -170,11 +189,19 @@ def export_all(
     input_file = staging / f"{real_stem}{original.suffix}"
     png_staged = staging / f"{real_stem}-render.png"
     psd_staged = staging / f"{real_stem}-resave.psd"
-    for stale in (png_staged, psd_staged):
-        stale.unlink(missing_ok=True)
-    shutil.copyfile(original, input_file)
 
     try:
+        # Every staging-file operation retries through transient sharing
+        # violations: Affinity can briefly hold a handle around a load, and
+        # antivirus scans grab fresh Desktop files (July 2026: a cell died on
+        # WinError 32 unlinking its own staged input).
+        for stale in (png_staged, psd_staged):
+            if not _retry_locked(lambda s=stale: s.unlink(missing_ok=True)):
+                return {"ok": False, "opens": "fail", "notes": log_lines,
+                        "error": f"staging file is locked by another process: {stale.name}"}
+        if not _retry_locked(lambda: shutil.copyfile(original, input_file)):
+            return {"ok": False, "opens": "fail", "notes": log_lines,
+                    "error": f"staging file is locked by another process: {input_file.name}"}
         progress("Affinity: connecting")
         client = _ensure_client(exe, log)
         if not _we_own_instance and not _notes_on_reuse_emitted:
@@ -218,12 +245,15 @@ def export_all(
         moved_ok = True
         if png.get("ok") and png_staged.exists() and png_staged.stat().st_size > 0:
             render_png.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(png_staged), render_png)
+            if not _retry_locked(lambda: shutil.move(str(png_staged), render_png)):
+                moved_ok = False
+                png = dict(png, error="exported render is locked by another process")
         else:
             moved_ok = False
         if psd.get("ok") and psd_staged.exists() and psd_staged.stat().st_size > 0:
             resave_psd.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(psd_staged), resave_psd)
+            if not _retry_locked(lambda: shutil.move(str(psd_staged), resave_psd)):
+                log("psd: exported resave is locked by another process; leg discarded")
 
         if trap is not None:
             log("trap: skipped (Affinity re-renders layers by design; the "
@@ -259,7 +289,12 @@ def export_all(
         return {"ok": False, "opens": "fail",
                 "error": f"driver crash: {error}", "notes": log_lines}
     finally:
-        input_file.unlink(missing_ok=True)
+        # Cleanup must never raise: an exception here would replace the cell's
+        # real result with a bare "driver error" (seen July 2026 when Affinity
+        # still held the staged input's handle). A file that stays locked is
+        # simply left behind; the next cell's staging retry or cleanup()'s
+        # rmtree deals with it.
+        _retry_locked(lambda: input_file.unlink(missing_ok=True))
 
 
 def cleanup() -> None:
