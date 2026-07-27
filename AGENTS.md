@@ -76,7 +76,7 @@ Read these before acting in the named area:
 | QActions, dialogs, options bar, list rows, status messages, shared QSS/UI conventions, colors and the Dark/Light color scheme | [docs/ui-conventions.md](docs/ui-conventions.md) |
 | Tests, offscreen behavior, visual QA, app screenshots, suite failure diagnosis | [docs/testing.md](docs/testing.md) |
 | Platform-guarded code, macOS/Linux behavior, remote builds | [docs/platform.md](docs/platform.md) |
-| Patents, licensing, trademarks, bundled assets, or a feature adjacent to a legal boundary | [docs/legal-constraints.md](docs/legal-constraints.md) |
+| Patents, licensing, trademarks, bundled assets, or a feature adjacent to a legal boundary | [docs/legal-constraints.md](docs/legal-constraints.md), with the underlying research record in [docs/patent-research.md](docs/patent-research.md) |
 | PSD descriptors, layer styles, Photoshop calibration, COM verification | [docs/ps-compat.md](docs/ps-compat.md) |
 | Contributor pull-request review | [docs/pr-review.md](docs/pr-review.md) |
 | Release/version/package/upload work | [docs/release-process.md](docs/release-process.md) |

@@ -1,6 +1,6 @@
 # Binding legal and licensing constraints
 
-Read this file before changing any feature named below or introducing an adjacent implementation. The detailed claim and compatibility records live in [smart-objects.md](smart-objects.md), [selection-tools.md](selection-tools.md), [liquify.md](liquify.md), [brushes.md](brushes.md), [vector-tools.md](vector-tools.md), and [file-formats.md](file-formats.md). These constraints are binding even when a broader feature appears technically straightforward.
+Read this file before changing any feature named below or introducing an adjacent implementation. The claim-level research record lives in [patent-research.md](patent-research.md); detailed compatibility records live in [smart-objects.md](smart-objects.md), [selection-tools.md](selection-tools.md), [liquify.md](liquify.md), [brushes.md](brushes.md), [vector-tools.md](vector-tools.md), and [file-formats.md](file-formats.md). These constraints are binding even when a broader feature appears technically straightforward.
 
 ## Selection tools
 
@@ -32,7 +32,7 @@ Read this file before changing any feature named below or introducing an adjacen
 
 - PSD interoperability is based on observed output from a licensed Photoshop, never decompilation. Do not copy verbatim Adobe specification text into the repository; link to it. Use self-authored fixtures only and do not support the undocumented PSDC cloud-document format.
 - "Smart Object(s)", "Smart Filter(s)", "Filter Gallery", and "PSD" are not Adobe trademarks in the reviewed record. PHOTOSHOP is registered and policed. Use referential language such as "compatible with Adobe Photoshop"; never use Adobe marks in Patchy's product name, icons, or branding, and retain README.md's Trademark Notice.
-- Bundled art and textures must never come from AI image generation. Acceptable sources are code generation or real photography/human artwork under a commercially compatible license, preferably CC0. Every third-party asset needs a `NOTICE-THIRD-PARTY.md` entry and must ship losslessly. For ambientCG use only photogrammetry/photo `creationMethod`; Poly Haven textures are human-made.
+- Bundled art and textures must never come from AI image generation. Acceptable sources are code generation or real photography/human artwork under a commercially compatible license, preferably CC0. Every third-party asset needs a `NOTICE-THIRD-PARTY.md` entry and must ship losslessly. Poly Haven textures are human-made.
 - HEIC/HEIF decoding uses platform codecs only. Never vendor libheif, libde265, x265, or another HEVC decoder/encoder, and do not add HEIC encoding. See [file-formats.md](file-formats.md) for the patent-pool rationale and platform design.
 - Shipping dependencies must permit commercial distribution. GPL tools may be used locally for development or fixture generation only when they are not linked into or distributed with Patchy.
 - No Photoshop SDK code or Adobe-created assets may enter this repository or a Patchy binary. The only exception is the self-authored regression material in `test-fixtures/psd/`, which is not Adobe artwork.

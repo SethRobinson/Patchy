@@ -643,7 +643,7 @@ new patent check):
   (plain user-invoked grid/guide snapping of anchors is classic and fine).
 - On-canvas live-shape gizmo widgets (in-canvas radius handles etc.) - plain
   options-bar/dialog parameter editing is the cleared route (Apple US 8971623
-  showed non-Adobe UI patents bite; see docs/smart-objects.md).
+  showed non-Adobe UI patents bite; see docs/patent-research.md).
 - Variable-width strokes / art brushes on paths (out of scope anyway).
 
 Method rules binding for this feature (same as all PSD work): ground truth is

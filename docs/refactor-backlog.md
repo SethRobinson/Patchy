@@ -91,6 +91,9 @@ canaries.
   layer before insertion.
 - `CanvasWidget::focusOutEvent` does not cancel a plain content-target shape drag, so
   `drawing_shape_` can survive an application switch.
+- `VisibleSizeGrip` (dialog_utils.cpp) paints a hardcoded light gray, chosen for the
+  Dark scheme; it is not scheme-aware, so its strokes can lose contrast on Light's
+  pale popups. Route the color through a theme role.
 
 ## Longer-term design
 
@@ -108,7 +111,12 @@ canaries.
 
 ## Build system
 
-- The vcpkg manifest does not cover all Qt modules used by the build, so
-  `dev-vcpkg` is not a reliable bootstrap path.
+- The vcpkg manifest does not cover all Qt modules used by the build (`Qml` via
+  qtdeclarative and `LinguistTools` via qttools are unmanifested), so `dev-vcpkg` is
+  not a reliable bootstrap path.
 - `patchy_color` is referenced before its target definition. CMake accepts this, but
   the ordering is easy to break during target reorganization.
+- The absolute VS 18 cmake.exe path is hardcoded in three places (the AGENTS.md
+  handoff command, `scripts/run-tests.ps1`, and `scripts/make-readme-screenshots.ps1`),
+  against the vs-env.bat single-owner principle; only run-tests.ps1 falls back to a
+  PATH `cmake`.
