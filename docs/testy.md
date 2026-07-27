@@ -294,6 +294,21 @@ full native preservation, which validates the pipeline itself.
   open its GUI and burn the cell timeout); only the sibling checkout or an explicit
   `photodemon` path in config.local.json is used. PhotoDemon keeps text layers
   editable on PSD import, but with no scripting there is no mutation leg.
+  The CLI mode also disables PhotoDemon's ExifTool plugin for the session: Testy does
+  not measure metadata, and ExifTool's asynchronous metadata pipe wedged a PSD export
+  in the wild (July 2026, `shelf_2.psd`: the .psd was fully written and Photoshop
+  reopened it fine, then the metadata catch-up wait spun forever, the process hit a
+  "has stopped working" dialog, and the cell burned its whole 180s timeout). Two
+  driver-side defenses came out of the same incident and apply generally: every CLI
+  driver (PhotoDemon, Krita, GIMP) now spawns its editor inside
+  `drivers/winproc.suppressed_error_dialogs()`, an inherited error mode that stops
+  Windows Error Reporting dialogs from holding a crashed editor open until a human
+  clicks them, and the PhotoDemon driver judges a leg by its sidecar plus the artifact
+  rather than the exit code, so an export that completed before the process died on
+  the way out scores ok with the crash kept as a driver note in the detail panel.
+  Only a clean exit with a sidecar verdict counts as "the app refused this file" for
+  the circuit breaker; a crash, hang, or launch failure still counts against
+  PhotoDemon itself.
 - GIMP 3.2 headless Script-Fu batch: `gimp-console-3.exe -i -d -f --batch-interpreter
   plug-in-script-fu-eval -b <script> -b "(gimp-quit 0)"` (PNG render and PSD resave via
   `gimp-file-save`, format by extension). Two hard-won rules live in the driver: GIMP 3

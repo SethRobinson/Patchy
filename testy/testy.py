@@ -1296,8 +1296,12 @@ class Runner:
         if editor_key == "photodemon":
             # Same fused open+export CLI shape as Krita and GIMP: a failed PNG leg
             # means the PSD IMPORT failed, and a failed resave after a good render
-            # means the PSD EXPORT did.
+            # means the PSD EXPORT did. A leg whose export completed before the
+            # process died scores ok, with the crash kept as a driver note.
+            notes = []
             exported = photodemon_driver.export(info.exe, staged.original, render_png)
+            if exported["note"]:
+                notes.append(f"render: {exported['note']}")
             if not exported["ok"]:
                 detail = exported["stderr"] or f"exit {exported['exitCode']}, no output"
                 cell.update({"state": "failed", "opens": "fail",
@@ -1306,11 +1310,17 @@ class Runner:
                 return
             cell["opens"] = "ok"
             resaved = photodemon_driver.export(info.exe, staged.original, resave_psd)
+            if resaved["note"]:
+                notes.append(f"resave: {resaved['note']}")
             if not resaved["ok"]:
                 detail = resaved["stderr"] or f"exit {resaved['exitCode']}, no output"
                 cell["resaveError"] = f"opened, but PhotoDemon's PSD export failed ({detail})"
             if staged.trap is not None:
-                photodemon_driver.export(info.exe, staged.trap, trap_png)
+                trapped = photodemon_driver.export(info.exe, staged.trap, trap_png)
+                if trapped["note"]:
+                    notes.append(f"trap: {trapped['note']}")
+            if notes:
+                cell["driverNotes"] = notes
             return
 
         if editor_key == "photopea":

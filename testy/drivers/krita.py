@@ -11,17 +11,20 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from drivers import winproc
+
 TIMEOUT_SECONDS = 180
 
 
 def export(exe: Path, input_path: Path, output_path: Path) -> dict:
     try:
-        completed = subprocess.run(
-            [str(exe), str(input_path), "--export", "--export-filename", str(output_path)],
-            capture_output=True,
-            text=True,
-            timeout=TIMEOUT_SECONDS,
-        )
+        with winproc.suppressed_error_dialogs():
+            completed = subprocess.run(
+                [str(exe), str(input_path), "--export", "--export-filename", str(output_path)],
+                capture_output=True,
+                text=True,
+                timeout=TIMEOUT_SECONDS,
+            )
         exit_code = completed.returncode
         # Krita always spews harmless Fontconfig warnings; without filtering they bury
         # the real failure cause in the report.

@@ -17,6 +17,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from drivers import winproc
+
 TIMEOUT_SECONDS = 180
 
 # Startup/noise lines that would bury the real failure cause in the report.
@@ -44,9 +46,10 @@ def export(exe: Path, input_path: Path, output_path: Path) -> dict:
         "-b", script, "-b", "(gimp-quit 0)",
     ]
     try:
-        process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-        )
+        with winproc.suppressed_error_dialogs():
+            process = subprocess.Popen(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
     except OSError as error:
         return {"exitCode": -1, "stderr": str(error), "ok": False, "fileRejected": False}
     try:
