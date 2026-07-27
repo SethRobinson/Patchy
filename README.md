@@ -4,6 +4,21 @@ Open source free image editing.
 
 Think classic Adobe Photoshop CS-style layer editing, modernized: PSD layers, masks, text, blend modes, layer styles, legacy plugins, and current formats like WebP, without subscriptions or telemetry.
 
+## PSD compatibility, measured
+
+Patchy is tested against Adobe Photoshop 2026 on a mixed PSD corpus. In the paused July 28, 2026 Testy snapshot, Patchy had the strongest open-source render result, Photoshop reopened all 260 Patchy saves, and 1,438 of 1,439 text objects remained editable.
+
+| Tested editor | Perceptual render match | PSD saves rejected by Photoshop | Editable text kept |
+|---|---:|---:|---:|
+| **Patchy `d5a5ed0`** | **99.57%** | **0 / 260** | **1,438 / 1,439** |
+| Photopea, web build | 99.77% | 1 / 259 | 1,417 / 1,439 |
+| GIMP 3.2.4 | 95.78% | 0 / 259 | 0 / 1,439 |
+| Affinity 3.2.3.4646 | 95.24% | 0 / 258 | 0 / 1,434 |
+| PhotoDemon 2026.01.0251 | 94.56% | 0 / 258 | 0 / 1,403 |
+| Krita 5.3.2.1 | 89.54% | 97 / 259 | 663 / 1,439 |
+
+These are corpus-specific results from an unfinished run, not universal product ratings. See the [full results and methodology](docs/psd-compatibility-benchmark.md), including tested versions, native PSD data preservation, Photoshop round-trip rendering, and known limitations.
+
 ## Screenshots
 
 Click a thumbnail for the full-size image.
