@@ -169,6 +169,11 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.85 - July 27, 2026
+
+- Layer styles blend the way Photoshop does now. A layer's blend mode applies to its own pixels alone unless Blend Interior Effects as Group is on, and exterior effects contribute against the backdrop instead of under the layer, so glows and shadows keep their weight along anti-aliased text. Color, Gradient, and Pattern Overlay fold into the layer color rather than painting over the composite, so an opaque overlay hides the fill beneath it and layer opacity is no longer applied twice
+- Damaged PSD files open instead of being refused: corrupt scanlines are recovered row by row, with an import notice saying how many came back, and legacy files that carry Photoshop's separate real user mask channel read correctly instead of arriving truncated
+
 ### 0.84 - July 26, 2026
 
 - Patchy has a Light color scheme now. File > Preferences picks Dark, Light, or the system light/dark setting, and the switch happens live: panels, dialogs, tabs, scroll bars, and the color picker all get real light colors instead of an inverted dark theme
@@ -178,18 +183,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Hue/Saturation is calibrated against Photoshop. The master controls match byte for byte, and the per-hue-range bands (Reds, Yellows, Greens, and the rest) render with a new Edit range control instead of being ignored
 - Photoshop no longer warns about unreadable data when it opens a PSD that Patchy saved
 - More layer style work: Bevel & Emboss Gloss Contour matches Photoshop's light remap, bevel pattern texture is calibrated and reads multichannel patterns, drop shadows saved by Photoshop 5.x import instead of vanishing, and a clipping run now clips to its base layer's transparency rather than to the base layer's effects
-
-### 0.83 - July 25, 2026
-
-- The Layers panel got a big cleanup: Mode, Opacity, and Fill share one compact row, the lock buttons sit together on the left, and thumbnails aspect-fit their layer instead of stretching to a square (hidden layers keep full-color thumbnails, and the transparency checker is brighter, like Photoshop's)
-- A new filter box in the Layers panel finds layers by name, including inside collapsed folders. Alt-click a visibility eye to solo that layer and Alt-click again to restore what was visible before, or drag down the eye column to toggle a whole run of layers in one sweep
-- Layer groups can now carry raster masks: Add Layer Mask works on folders, group masks render and round-trip through PSD, and group opacity now composites like Photoshop for both Pass Through and isolated blend modes
-- 16-bit and 32-bit PSD files now open, converting to 8-bit with Photoshop-calibrated conversion
-- Layer style rendering moved much closer to Photoshop: inner glow and inner shadow model Range, Technique, and the Center source; Bevel & Emboss gains calibrated Lambert shading, plain and Pillow Emboss, and correct pillow shading on anti-aliased curves; strokes anchor to subpixel coverage, render Shape Burst gradients, and model Overprint and zero-opacity knockout; gradient overlays match Photoshop's linear, radial, diamond, and conical geometry; interior effects stack in Photoshop's order; and Layer Knocks Out Drop Shadow works
-- PSD compatibility fixes: effect blend modes in Photoshop CS-era files import correctly instead of falling back to Normal, CS4-era shape layers rasterize instead of locking the file, imported text keeps Photoshop's own raster until you edit it (no more substituted-font redraws at load), and layers positioned far off the canvas keep their true position instead of being pulled onto the canvas and re-saved wrong
-- The gradient options bar gained a Presets button with a quick-picker popup, which the Edit Gradient Stops dialog now uses too
-- Affinity .af text imports first-line, hanging, and right paragraph indents
-- Fixes: Reveal in Explorer opens the right folder when the path has spaces, boxed text lines that straddle the frame edge draw whole, and the Script Manager's tree pane no longer cuts off bundled script names
 
 [Older releases](RELEASE-HISTORY.md)
 

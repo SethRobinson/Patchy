@@ -3,6 +3,18 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.83 - July 25, 2026
+
+- The Layers panel got a big cleanup: Mode, Opacity, and Fill share one compact row, the lock buttons sit together on the left, and thumbnails aspect-fit their layer instead of stretching to a square (hidden layers keep full-color thumbnails, and the transparency checker is brighter, like Photoshop's)
+- A new filter box in the Layers panel finds layers by name, including inside collapsed folders. Alt-click a visibility eye to solo that layer and Alt-click again to restore what was visible before, or drag down the eye column to toggle a whole run of layers in one sweep
+- Layer groups can now carry raster masks: Add Layer Mask works on folders, group masks render and round-trip through PSD, and group opacity now composites like Photoshop for both Pass Through and isolated blend modes
+- 16-bit and 32-bit PSD files now open, converting to 8-bit with Photoshop-calibrated conversion
+- Layer style rendering moved much closer to Photoshop: inner glow and inner shadow model Range, Technique, and the Center source; Bevel & Emboss gains calibrated Lambert shading, plain and Pillow Emboss, and correct pillow shading on anti-aliased curves; strokes anchor to subpixel coverage, render Shape Burst gradients, and model Overprint and zero-opacity knockout; gradient overlays match Photoshop's linear, radial, diamond, and conical geometry; interior effects stack in Photoshop's order; and Layer Knocks Out Drop Shadow works
+- PSD compatibility fixes: effect blend modes in Photoshop CS-era files import correctly instead of falling back to Normal, CS4-era shape layers rasterize instead of locking the file, imported text keeps Photoshop's own raster until you edit it (no more substituted-font redraws at load), and layers positioned far off the canvas keep their true position instead of being pulled onto the canvas and re-saved wrong
+- The gradient options bar gained a Presets button with a quick-picker popup, which the Edit Gradient Stops dialog now uses too
+- Affinity .af text imports first-line, hanging, and right paragraph indents
+- Fixes: Reveal in Explorer opens the right folder when the path has spaces, boxed text lines that straddle the frame edge draw whole, and the Script Manager's tree pane no longer cuts off bundled script names
+
 ## 0.82 - July 21, 2026
 
 - JavaScript scripting is here: scripts drive documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing through a documented API (patchy.d.ts for machines, a scripting guide under Help for humans), with one undo entry per run no matter how much a script changes
