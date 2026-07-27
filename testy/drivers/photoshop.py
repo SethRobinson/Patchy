@@ -271,6 +271,22 @@ def _js_string(value: str | None) -> str:
     return f'"{escaped}"'
 
 
+def _js_path(path: Path | None) -> str:
+    """A path as an ExtendScript `new File(...)` argument.
+
+    The File constructor URI-DECODES what it is given, so a literal percent sign in a
+    name is read as an escape sequence: `eco%20beret.psd` resolves to `eco beret.psd`,
+    which does not exist, and app.open answers "Expected a reference to an existing
+    File/Folder" for a file that is sitting right there. Pre-encoding every '%' as
+    '%25' makes File() decode back to the real name (verified: File(".../eco%2520beret/
+    x").fsName ends in `eco%20beret\\x` and exists=true). The run directory inherits the
+    corpus file's stem, so this bites the render/resave targets too, not just the input.
+    """
+    if path is None:
+        return "null"
+    return _js_string(str(path).replace("%", "%25"))
+
+
 def _kill_photoshop() -> None:
     try:
         subprocess.run(["taskkill", "/IM", IMAGE_NAME, "/F"], capture_output=True, timeout=30)
@@ -438,11 +454,12 @@ class PhotoshopDriver:
         resave_psd: Path | None,
     ) -> dict:
         jsx = _PROBE_JSX % {
-            "input": _js_string(str(psd_path)),
-            "render_png": _js_string(str(render_png)) if render_png is not None else "null",
-            "resave_psd": _js_string(str(resave_psd)) if resave_psd is not None else "null",
+            "input": _js_path(psd_path),
+            "render_png": _js_path(render_png),
+            "resave_psd": _js_path(resave_psd),
+            # Text appended to layer contents, not a path: it must reach Photoshop verbatim.
             "mutate_suffix": _js_string(mutate_suffix),
-            "mutated_png": _js_string(str(mutated_png)) if mutated_png is not None else "null",
+            "mutated_png": _js_path(mutated_png),
         }
         # The guard answers modal alerts Photoshop raises behind the blocked COM call
         # (see the module docstring) and force-kills Photoshop.exe once nothing has
@@ -538,6 +555,16 @@ def _selftest() -> int:
     hung = types.SimpleNamespace(timed_out=True, blocked=[], dismissed=[])
     check("a watchdog kill still reads as a hang",
           "hung" in PhotoshopDriver._failure_text(hung, launch_error))
+
+    print("paths into ExtendScript:")
+    check("a percent in a name survives File()'s URI decoding",
+          _js_path(Path(r"D:\runs\1\files\eco%20beret\_staged\original.psd"))
+          == '"D:/runs/1/files/eco%2520beret/_staged/original.psd"',
+          _js_path(Path(r"D:\runs\1\files\eco%20beret\_staged\original.psd")))
+    check("an ordinary path is only slash-normalized",
+          _js_path(Path(r"D:\runs\1\files\plain\render.png")) == '"D:/runs/1/files/plain/render.png"')
+    check("a missing path is still null", _js_path(None) == "null")
+    check("the text suffix is NOT path-encoded", _js_string("~50%~") == '"~50%~"')
 
     print("giving up:")
     driver = PhotoshopDriver()

@@ -269,6 +269,17 @@ full native preservation, which validates the pipeline itself.
   ArrayBuffer back to the server's `/testy-upload` endpoint (uploads are path-confined to
   `runs/`; the server also sends CORS headers). Needs internet; selenium manager fetches
   chromedriver on first use.
+- A percent sign in a corpus file's name is a hazard, because two of the three things
+  Testy hands a path to decode escape sequences. ExtendScript's `new File(...)`
+  URI-decodes its argument, so `eco%20beret.psd` resolved to `eco beret.psd` and
+  Photoshop answered "Expected a reference to an existing File/Folder" for a file that
+  was sitting right there; the dashboard server unquotes request paths the same way, so
+  Photopea's fetch of the staged copy 404'd and the report's thumbnails came back empty.
+  Each boundary now encodes the path it is about to hand over (`drivers/photoshop.py`'s
+  `_js_path`, `drivers/photopea.py`'s `_file_url`, `report.py`'s `artUrl`), while the
+  `/testy-upload` `name` deliberately stays raw: it rides in a query parameter and is
+  decoded exactly once already. A run directory inherits the corpus file's stem, so this
+  reaches every artifact under it, not just the input file.
 - Nuisance modal dialogs are answered from outside the COM call. `DialogModes.NO`
   does not reach every dialog: some files make Photoshop raise a modal alert from
   inside `app.open` ("This file contains file info data which cannot be read and has

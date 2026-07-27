@@ -57,7 +57,20 @@ def _chrome():
 
 
 def _rel_url(testy_root: Path, path: Path) -> str:
+    """The run-relative path, raw. This is also the /testy-upload `name`, which rides in
+    a query parameter and is decoded exactly once on the way in, so it must stay raw."""
     return str(path.resolve().relative_to(testy_root.resolve())).replace("\\", "/")
+
+
+def _file_url(base_url: str, testy_root: Path, path: Path) -> str:
+    """A GET-able URL for a staged file.
+
+    Percent-encoded, unlike the upload names above: the server unquotes the request
+    path, so a corpus file whose own name contains a '%' (eco%20beret.psd, whose run
+    directory inherits the stem) would otherwise be looked up as `eco beret` and
+    answered with a 404. quote() leaves '/' alone, so the separators survive.
+    """
+    return f"{base_url}/{urllib.parse.quote(_rel_url(testy_root, path))}"
 
 
 def _run_host_page(base_url: str, query: dict[str, str],
@@ -114,7 +127,7 @@ def export_all(
         result = _run_host_page(
             base_url,
             {
-                "file": f"{base_url}/{_rel_url(testy_root, original)}",
+                "file": _file_url(base_url, testy_root, original),
                 "upload": upload_base,
                 "render": _rel_url(testy_root, render_png),
                 "resave": _rel_url(testy_root, resave_psd),
@@ -127,7 +140,7 @@ def export_all(
                 _run_host_page(
                     base_url,
                     {
-                        "file": f"{base_url}/{_rel_url(testy_root, trap)}",
+                        "file": _file_url(base_url, testy_root, trap),
                         "upload": upload_base,
                         "render": _rel_url(testy_root, trap_png),
                     },

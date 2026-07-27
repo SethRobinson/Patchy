@@ -421,11 +421,17 @@ function render() {
   if (selected) openDetail(selected[0], selected[1], true);
 }
 
+// status.json stores artifact paths exactly as they sit on disk, and a run directory
+// inherits its corpus file's stem: files/eco%20beret/patchy/render.png. Served raw the
+// server unquotes the escape, looks for "eco beret" and 404s, so every segment is
+// encoded (per segment, so the '/' separators survive).
+function artUrl(p) { return String(p).split("/").map(encodeURIComponent).join("/"); }
+
 function img(fig, cap, full) {
   if (!fig) return "";
-  const target = (full || fig) + "?v=" + (S.run.updateCounter || 0);
-  return "<figure><a href='" + target + "' target='_blank' title='open full size'>" +
-         "<img src='" + fig + "?v=" + (S.run.updateCounter || 0) + "'></a>" +
+  const version = "?v=" + (S.run.updateCounter || 0);
+  return "<figure><a href='" + artUrl(full || fig) + version + "' target='_blank' title='open full size'>" +
+         "<img src='" + artUrl(fig) + version + "'></a>" +
          "<figcaption>" + cap + "</figcaption></figure>";
 }
 
