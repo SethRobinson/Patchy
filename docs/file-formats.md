@@ -161,9 +161,11 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   blend math stays Patchy's calibrated implementation. On any structural
   problem the reader falls back to the **tier-0** embedded-preview layer rather
   than failing the open (env `PATCHY_AF_TRACE=1` prints why the tree walk
-  bailed). The reverse-engineered format record, generated corpus, and Python
+  bailed). The reverse-engineering working notes, generated corpus, and Python
   reference/verification tooling live in `local-test-fixtures/af-spike/`
-  (machine-local; FINDINGS.md there is the running format spec).
+  (machine-local and untracked; FINDINGS.md there holds the raw spike notes).
+  This section is the committed .af format record, and
+  `src/formats/format_registry.cpp` points here for the container spec.
 - **What imports faithfully**: raster layers in RGBA8/16, Gray8/16, and
   RGBA-float32 (16-bit down-converts value/257, float linearizes to sRGB),
   whether untransformed, translated, or under a full scale/rotate affine
@@ -446,12 +448,10 @@ Everything else (patterns, brushes, filter effects, ILBM) keeps the strict `deco
 whose exact-length contract catches genuine misparses of structures that carry no row table.
 
 Ground truth (a 2017 Dink map PSD, 900x900, 58 corrupt rows in one hidden layer's blue channel):
-Patchy's per-layer render matches Photoshop 2026's byte for byte in red and green across every
-row, and in blue everywhere outside the corrupt band. Inside it the two differ, and Patchy
-recovers strictly more: Photoshop abandons the channel at the first bad row and leaves 103 rows
-holding stale buffer content (literally the green plane), while Patchy resyncs on the row table
-and decodes the 46 valid rows after the damage correctly. There is no right answer for the
-genuinely corrupt rows, so nothing pins their pixels.
+outside the corrupt band Patchy's per-layer render matches Photoshop 2026 byte for byte; inside it
+Patchy recovers strictly more (Photoshop abandons the channel at the first bad row and leaves 103
+rows of stale buffer content, while Patchy resyncs on the row table and decodes the 46 valid rows
+after the damage). Nothing pins the genuinely corrupt rows because they have no right answer.
 
 ## Import notices
 
@@ -527,8 +527,8 @@ ordinary 8-bit file, and an import notice states the conversion. Facts pinned Ju
 PSD/PSB saved alpha and spot channels are ordered, full-canvas `DocumentChannel` planes. They are not layer masks and do not change the normal composite. Names, Unicode names, alpha identifiers, display records, ordering, uniform planes, and pixel values round-trip through the final image-data section; see [channels.md](channels.md) for the model and UI rules. Photoshop's identifier resource skips spot channels.
 
 - A negative layer count structurally marks the first extra composite plane as merged transparency. The reader never exposes that plane in the Channels dock. Every remaining plane after the source color components becomes a saved channel, regardless of its name.
-- Layered writes emit RGB, optional merged transparency, then every document channel. The header's total stays at or below 56; excess data is an error, never silently discarded. Opaque documents with no saved channels keep the historical byte-stable writer path.
-- Image resources 1006, 1045, 1053, and 1007/1077 travel in the same order as their planes. Imported spot display records remain opaque-preserved while spot editing is unavailable.
+- Layered writes emit RGB, optional merged transparency (present only when the layered composite has transparent pixels), then every document channel. The header's total stays at or below 56; excess data is an error, never silently discarded. Opaque documents with no saved channels keep the historical byte-stable writer path.
+- Image resources 1006 (legacy Pascal names; ASCII fallback with one `?` per non-ASCII character), 1045 (Unicode names, authoritative), 1053 (identifiers for saved alpha channels only: Photoshop skips merged transparency and spot channels, so import and export advance its index only for alpha channels), and 1007/1077 (display information) travel in the same order as their planes. Opaque display records travel with their channel so reordering does not detach spot metadata from its pixels. Imported spot display records remain opaque-preserved while spot editing is unavailable.
 - Raster layer masks stay layer channel `-2`, including masks that originated as flat PNG/BMP/TIFF/TGA/WebP alpha. The old PSD `"Alpha 1"` name heuristic and marked-mask promotion are not used for layered PSD saves. Group masks ride the folder divider record the same way (mask-data block plus `-2` channel, matching Photoshop's own layout); a mask-less group keeps its historical zero-channel record.
 
 A non-PSD flat image's meaningful per-pixel alpha still becomes an editable grayscale layer mask through `patchy::ui::promote_flat_alpha_to_layer_mask`. It fires only for one ordinary pixel layer, skips uniform alpha, and refuses text and smart-object layers. `kLayerMetadataDocumentAlpha` remains the non-destructive flat-export marker: `document_alpha_rgba8` keeps covered RGB values intact when writing formats with one alpha plane. PSD imports bypass this promotion because their saved channels are decoded directly.

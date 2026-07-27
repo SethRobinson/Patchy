@@ -14,17 +14,7 @@ Patchy keeps Photoshop document channels separate from layer masks. `Layer::mask
 
 ## PSD and PSB layout
 
-The final image-data section is written in this order:
-
-1. RGB component planes.
-2. The derived merged-transparency plane, only when the layered composite has transparent pixels.
-3. Stored document channels in document order.
-
-A negative layer count identifies plane 2 as merged transparency. It is never added to `Document::channels()`. Positive-count layered files and flat files have no structural merged-transparency plane, so all planes after the source color components are saved channels.
-
-Channel names and display records are aligned by extra-plane order across image resources 1006 (legacy Pascal names), 1045 (Unicode names), and 1007/1077 (display information). Resource 1006 gets an ASCII fallback with one `?` per non-ASCII character; the exact UTF-8 name is carried through 1045. Resource 1053 is different: Photoshop writes identifiers for saved alpha channels only, skipping merged transparency and spot channels. Import and export therefore advance its index only for alpha channels. The Unicode name is authoritative. Opaque display records travel with their channel so reordering does not detach spot metadata from its pixels.
-
-The writer enforces Photoshop's 56-total-channel limit and errors instead of dropping data. The no-saved-channel path stays byte-identical to the historical writer.
+The wire layout (final image-data plane order, the negative-layer-count merged-transparency marking, image-resource alignment for 1006/1045/1053/1007/1077, the 56-channel cap, and the byte-stable no-channel path) lives in the saved-channels section of [file-formats.md](file-formats.md). Model-side rule: the merged-transparency plane is never added to `Document::channels()`.
 
 ## Photoshop 2026 ground truth
 

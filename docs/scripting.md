@@ -370,15 +370,10 @@ pipe is per-user, so `--run-script` adds no cross-user surface.
 
 ## Future work (ranked by community research, July 2026)
 
-A two-agent sweep of the Photoshop/Affinity/Krita/Aseprite/GIMP scripting communities
-(Affinity's 35-page scripting mega-thread, Adobe UXP threads, Aseprite's itch.io script
-economy, Krita Artists) ranked what artists actually use scripting for. Already covered:
-batch folder processing (pickers + listFiles + batch-export.js), export-layers options,
-form dialogs, CLI args, one-undo-per-run (Krita users beg for this), modern JS, typed API
-docs, and (July 2026) the ten-script batch: data merge (CSV + text layers - was item 3
-of this list), contact sheets, icon export, versioned saves, batch layer rename, grid
-overlays, duotone/glitch/photo-frame effects, and a form-dialog showcase demo.
-Deliberately NOT built yet, in rough demand order:
+A sweep of the Photoshop/Affinity/Krita/Aseprite/GIMP scripting communities ranked what
+artists actually use scripting for; everything above this section plus the bundled script
+set already covers the top of that list. Deliberately NOT built yet, in rough demand
+order:
 
 1. Events/hooks (document changed, before/after save/command) - on-save auto-export is
    the killer use. Needs a reentrancy design against the one-run-at-a-time rule.

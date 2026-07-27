@@ -44,11 +44,10 @@ separator, like `scripts\remote\release-mac.bat`, still resolves fine, because c
 that as a path rather than a name to search for.
 
 That is why `release-all.bat` and `upload-to-rtsoft.bat` launch their siblings as
-`"%~dp0name.bat"`. Keep it that way. The failure mode is nasty: on July 26, 2026 the
-Windows console of `release-all.bat` closed instantly without building anything while the
-mac and Linux consoles (launched with a path) built normally, and because that console
-never reached the delete-previous-artifacts step, the previous version's zip and installer
-were still sitting in `build\package` for the upload scripts to pick up.
+`"%~dp0name.bat"`; keep it that way (both files carry the same warning as comments). A
+bare-name launch dies instantly before the delete-previous-artifacts step, leaving the
+previous version's zip and installer in `build\package` for the newest-file upload
+scripts to pick up.
 
 ## scripts\vs-env.bat, not VsDevCmd.bat
 
@@ -58,12 +57,10 @@ developer environment through `scripts\vs-env.bat`, which forwards its arguments
 VsDevCmd.bat. It is the only place that knows where Visual Studio is installed, and it
 prepends the VS Installer directory to `PATH` before the call.
 
-That `PATH` line is what silences `'vswhere.exe' is not recognized`. VsDevCmd.bat reads the
-product version by pushd-ing into the Installer directory and running `vswhere.exe` by bare
-name, which the rule above blocks. The probe is optional inside VsDevCmd, so it still
-returns 0 and the build works, but the line looks exactly like a real failure in a release
-log. Do not chase it if you see it from some other caller: check whether that caller went
-through vs-env.bat.
+That `PATH` line is what silences the spurious `'vswhere.exe' is not recognized` message
+(harmless, but it reads exactly like a real failure in a release log; the full mechanism
+is explained in `scripts\vs-env.bat`'s own comments). Do not chase that message if some
+other caller prints it: check whether that caller went through vs-env.bat.
 
 ## Agent/non-interactive runs: NO_PAUSE
 

@@ -216,8 +216,6 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   or lower in relative terms (measured 0.28% -> 0.86% on a hairline defect), because
   the blur covers proportionally more of a coarser grid. It drives a 10% triage
   threshold, not a pinned number, and the byte-match figure beside it is unchanged.
-  Perceptual numbers cached by runs from before this change were computed at full
-  resolution, so a big document's history can mix the two.
   `python testy\analyze.py --selftest` pins all of it (global-shift immunity, defect
   detection under an aggressive cap, the identical-render skip) against synthetic
   renders, with no Photoshop or corpus needed.

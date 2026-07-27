@@ -3,12 +3,9 @@
 Feature deep-dive for Patchy's vector workflows. This document carries the PSD
 vector-data encoding notes (all pinned by observation of Photoshop 27.8 via COM
 scripting, July 2026 - never from Adobe's specification text), the fixture
-inventory, the tool/UI behavior contracts, and the patent record.
-Implementation status: complete (July 2026) - shape tools with Shape/Path/
-Pixels modes, pen and path-editing tools, the appearance dialog and fill
-layers, vector masks, the Paths panel, polygon/custom shapes with the shape
-library, and vector-aware geometry ops all shipped; PSD read/write round-trips
-per the dirty-or-verbatim rule with COM-verified Photoshop acceptance.
+inventory, the tool/UI behavior contracts, and the patent record. PSD
+read/write round-trips per the dirty-or-verbatim rule with COM-verified
+Photoshop acceptance.
 
 Probe and fixture-generation scripts live in `local-test-fixtures/vector-probe/`
 (untracked), including `psd_dump.py`, a standalone PSD structure dumper used for
@@ -336,10 +333,9 @@ PSD writer resolve them.
      (`origination_covers_path_groups` gates the writer, and the reader keeps
      partial raw vogk/vowv out of the preserved blocks so damaged files heal
      on resave); the shapes open as plain paths, PS's own fallback, and only
-     live-parameter editability is lost. How PS itself encodes mixed layers
-     in a FILE was not probed (headless authoring of the mixed state was not
-     achieved); if that capture is ever made, matching it could restore
-     mixed-layer liveness round-trips.
+     live-parameter editability is lost. PS's own file encoding of mixed
+     layers remains unprobed; a future capture could restore mixed-layer
+     liveness round-trips.
 - Channel data is EMPTY: layer bounds (0,0,0,0) and every channel (including
   transparency id -1) is 2 bytes (just the compression marker). Readers must
   rasterize from the vector data.
@@ -479,8 +475,7 @@ renderer exactly:
 
 - Linear span = the CENTER CHORD of the aligned bounds:
   min(w/|cos a|, h/|sin a|), centered on the bounds center (measured within
-  0.5 px at angles 0/20/37/60/75/90 on full-canvas and inset-rect layers; the
-  earlier "matches neither" note came from conflating easing with span). This
+  0.5 px at angles 0/20/37/60/75/90 on full-canvas and inset-rect layers). This
   intentionally differs from the corner-to-corner projection layer-style
   overlays use - overlays keep their separately pinned calibration via
   GradientSpanBasis::LayerProjection.
@@ -513,19 +508,13 @@ renderer exactly:
   pixel means. Patchy's crisper render is deliberate (the unrotated linear
   tap applied in rotated space).
 
-### Stroke outline winding (fixed July 2026)
+### Stroke outline winding
 
 The stroker builds the band as a union of per-segment quads plus join/cap
 wedges rasterized under the nonzero rule; every loop must carry the SAME
-orientation (append_outline_loop normalizes by signed area). Join wedges
-were previously emitted with the turn-direction-dependent winding, which
-CANCELLED the segment quads a wedge overlapped - invisible while wedges
-stayed inside their own corner gap, but a wide stroke on a densely
-flattened large-radius arc (short quads, long wedges) showed hatched
-notches near the arc-to-straight junction, dependent on width/geometry
-(the vectors_overlay_stroke.psd frame corner;
-stroke_arc_band_has_no_winding_notches pins the fix, and the stroke golden
-digests were deliberately re-pinned for it).
+orientation (append_outline_loop normalizes by signed area), because an
+opposite-winding wedge cancels the segment quads it overlaps.
+stroke_arc_band_has_no_winding_notches pins this.
 
 ### Interior effects vs the vector stroke (probed July 2026)
 
