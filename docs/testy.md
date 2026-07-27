@@ -98,7 +98,7 @@ The CLI remains for scripted use:
 python testy\testy.py [--files a.psd b.psd] [--corpus list.txt] [--editors ...]
 ```
 
-A default run goes through Photoshop, Patchy, Krita, GIMP, and Photopea, refreshes the
+A default run goes through Photoshop, Patchy, Krita, GIMP, PhotoDemon, and Photopea, refreshes the
 Patchy release build first (when configured), serves a live dashboard (auto-opens the
 browser), and leaves the frozen report + `results.json` in `testy/runs/<timestamp>/`.
 The server root (`http://127.0.0.1:<port>/`) is the same control panel. In every
@@ -138,7 +138,7 @@ Useful flags:
 
 - `--files a.psd b.psd` - explicit file list instead of the corpus.
 - `--corpus <file>` - another corpus list (one path per line, relative to the repo root).
-- `--editors photoshop,patchy,krita,gimp,photopea,affinity` - which columns to run. Affinity is
+- `--editors photoshop,patchy,krita,gimp,photodemon,photopea,affinity` - which columns to run. Affinity is
   opt-in: its column needs the app's connector enabled once in Affinity's settings (it
   serves the local MCP endpoint the scripting rides on); with it off, Affinity cells fail
   with an actionable message and everything else runs normally. Aseprite was verified to
@@ -277,6 +277,23 @@ full native preservation, which validates the pipeline itself.
 - Krita 5.3.2 headless CLI: `krita.com <in> --export --export-filename <out>` (format by
   extension; PSD export works). Its console shim prints nothing through pipes; success is
   exit code + output existence (Fontconfig warnings are filtered out of reported errors).
+- PhotoDemon runs as a locally patched build, because the stock app has no automation
+  surface at all (its command line only loads files into the GUI; batch processing and
+  macros are GUI wizards). The patch lives in a PhotoDemon checkout next to this
+  repository (`../PhotoDemon`, BSD-licensed): a small `Testy.bas` module plus a hook in
+  `FormMain`'s startup adds `PhotoDemon.exe <in> /testy-export <out>`, which reuses
+  PhotoDemon's own batch-processor machinery (MacroBATCH dialog suppression,
+  `LoadFileAsNewImage`, `PhotoDemon_BatchSaveImage` with default settings, format by
+  extension), writes a one-line phase report to `<out>.testy.txt` (the driver consumes
+  and deletes it), and exits. The patch must NEVER be sent upstream: PhotoDemon has a
+  strict no-LLM/no-AI contribution policy. Builds are compiled with twinBASIC
+  (`C:\Apps\twinBASIC`, Community edition, 32-bit; unattended builds are not licensed,
+  so rebuilding after a patch change is a manual click in its IDE), and the exe must
+  sit at the checkout root next to the `App\` folder or PhotoDemon refuses to start.
+  Editor discovery deliberately ignores stock install locations (a stock build would
+  open its GUI and burn the cell timeout); only the sibling checkout or an explicit
+  `photodemon` path in config.local.json is used. PhotoDemon keeps text layers
+  editable on PSD import, but with no scripting there is no mutation leg.
 - GIMP 3.2 headless Script-Fu batch: `gimp-console-3.exe -i -d -f --batch-interpreter
   plug-in-script-fu-eval -b <script> -b "(gimp-quit 0)"` (PNG render and PSD resave via
   `gimp-file-save`, format by extension). Two hard-won rules live in the driver: GIMP 3
@@ -446,8 +463,9 @@ testy/
                      launch/quit lifecycle; also reused by .af format tooling)
   win_dialogs.py     modal-dialog guard for scripted apps (--selftest included)
   drivers/           photoshop (COM, --selftest included), patchy (CLI), krita (CLI),
-                     gimp (Script-Fu batch CLI), photopea (headless Chrome + embed
-                     API), affinity (built-in JS automation via affinity_js)
+                     gimp (Script-Fu batch CLI), photodemon (patched-build CLI),
+                     photopea (headless Chrome + embed API), affinity (built-in JS
+                     automation via affinity_js)
   index.html         run-index landing page (server root)
   photopea_host.html the Photopea embedding/automation page
   corpus/            gitignored: local corpus lists

@@ -41,6 +41,7 @@ import staging
 from drivers import gimp as gimp_driver
 from drivers import krita as krita_driver
 from drivers import patchy as patchy_driver
+from drivers import photodemon as photodemon_driver
 from drivers.photoshop import PhotoshopDriver
 
 DEFAULT_SUFFIX = "~TESTY~"
@@ -48,7 +49,7 @@ DEFAULT_SUFFIX = "~TESTY~"
 # its driver is background-UIA best-effort and the app's cold-start timing is flaky,
 # so default runs stay fast and reliable without it. (Aseprite was verified to have no
 # PSD I/O at all and removed from the roster entirely.)
-DEFAULT_EDITORS = ["photoshop", "patchy", "krita", "gimp", "photopea"]
+DEFAULT_EDITORS = ["photoshop", "patchy", "krita", "gimp", "photodemon", "photopea"]
 
 # The Patchy release-build refresh command comes from config.local.json
 # ("build_command"); without one, runs measure the existing patchy.exe as-is.
@@ -1290,6 +1291,26 @@ class Runner:
                 cell["resaveError"] = f"opened, but GIMP's PSD export failed ({detail})"
             if staged.trap is not None:
                 gimp_driver.export(info.exe, staged.trap, trap_png)
+            return
+
+        if editor_key == "photodemon":
+            # Same fused open+export CLI shape as Krita and GIMP: a failed PNG leg
+            # means the PSD IMPORT failed, and a failed resave after a good render
+            # means the PSD EXPORT did.
+            exported = photodemon_driver.export(info.exe, staged.original, render_png)
+            if not exported["ok"]:
+                detail = exported["stderr"] or f"exit {exported['exitCode']}, no output"
+                cell.update({"state": "failed", "opens": "fail",
+                             "error": f"failed to open the PSD (PhotoDemon import error; {detail})"})
+                self._note_file_rejection(cell, exported)
+                return
+            cell["opens"] = "ok"
+            resaved = photodemon_driver.export(info.exe, staged.original, resave_psd)
+            if not resaved["ok"]:
+                detail = resaved["stderr"] or f"exit {resaved['exitCode']}, no output"
+                cell["resaveError"] = f"opened, but PhotoDemon's PSD export failed ({detail})"
+            if staged.trap is not None:
+                photodemon_driver.export(info.exe, staged.trap, trap_png)
             return
 
         if editor_key == "photopea":

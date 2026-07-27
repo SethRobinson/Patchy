@@ -88,6 +88,15 @@ GIMP_CANDIDATES = [
     Path(r"C:\Program Files\GIMP 3\bin\gimp-console-3.exe"),
 ]
 
+# Only the locally patched build (with the /testy-export switch) is discoverable:
+# a stock PhotoDemon install would open its GUI and hang the cell until the
+# timeout, so standard install locations are deliberately NOT candidates here.
+# The convention is a PhotoDemon checkout next to this repository; anything else
+# goes in config.local.json ("photodemon").
+PHOTODEMON_CANDIDATES = [
+    REPO_ROOT.parent / "PhotoDemon" / "PhotoDemon.exe",
+]
+
 AFFINITY_CANDIDATES = [
     Path(os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WindowsApps\Affinity.exe")),
 ]
@@ -164,6 +173,15 @@ def discover_editors(patchy_git_hash: str) -> dict[str, EditorInfo]:
         gimp.available = True
         gimp.version = _file_version(gimp.exe)
     editors["gimp"] = gimp
+
+    photodemon = EditorInfo("photodemon", "PhotoDemon",
+                            _configured_editor_path("photodemon")
+                            or _first_existing(PHOTODEMON_CANDIDATES))
+    if photodemon.exe is not None:
+        photodemon.available = True
+        photodemon.version = f"{_file_version(photodemon.exe)} (testy CLI build)"
+        photodemon.notes.append("locally patched build with /testy-export")
+    editors["photodemon"] = photodemon
 
     affinity = EditorInfo("affinity", "Affinity",
                           _configured_editor_path("affinity") or _first_existing(AFFINITY_CANDIDATES))
