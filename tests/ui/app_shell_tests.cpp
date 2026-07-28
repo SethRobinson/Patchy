@@ -1165,7 +1165,7 @@ void ui_open_dialog_hides_name_filter_details() {
     CHECK(!displayed.first().contains(QStringLiteral("*.tif")));
     CHECK(displayed.contains(QStringLiteral("Photoshop Document (*.psd *.psb)")));
     CHECK(displayed.contains(QStringLiteral("TIFF Image (*.tif *.tiff)")));
-    CHECK(displayed.contains(QStringLiteral("Affinity Document (*.af)")));
+    CHECK(displayed.contains(QStringLiteral("Affinity Document (*.af *.afphoto *.afdesign *.afpub)")));
     CHECK(displayed.last() == QStringLiteral("All Files (*.*)"));
     saw_open_dialog = true;
     dialog->reject();

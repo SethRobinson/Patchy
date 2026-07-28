@@ -4,12 +4,15 @@
 // document; tiny-rgba16.af is the same document converted to 16-bit before
 // saving; tiny-embedded-jpeg.af is a self-authored 400x300 JPEG opened and
 // saved, which stores the untouched JPEG plus mips instead of base tiles), so
-// their provenance is ours - see NOTICE-THIRD-PARTY.md. Adversarial cases are
-// byte mutations of the fixtures.
+// their provenance is ours - see NOTICE-THIRD-PARTY.md. The tiny-v2-*.afphoto
+// fixtures were authored interactively in Affinity Photo 2.6.5 (the 2.x
+// generation of the same container). Adversarial cases are byte mutations of
+// the fixtures.
 
 #include "formats/af_document_io.hpp"
 
 #include "core/adjustment_layer.hpp"
+#include "formats/format_registry.hpp"
 #include "core/document.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_shape.hpp"
@@ -758,6 +761,87 @@ void af_imports_adjustment_layers() {
   }
 }
 
+void af_reads_affinity2_raster_document() {
+  // tiny-v2-raster.afphoto was authored interactively in Affinity Photo 2.6.5
+  // (the 2.x generation shares the .af container and doc-tree grammar; only
+  // the extension differs): a 96x64 sRGB/8 document whose base pixel layer is
+  // filled (200,40,40) under a second pixel layer holding a (40,60,220)
+  // rectangle set to Multiply at 50% opacity. The blend mode pins the
+  // version-0 wire enum: Multiply is id 2 there, which the version-6 (JS)
+  // numbering misreads as Darken.
+  const auto& registry = patchy::builtin_format_registry();
+  const auto* handler = registry.find_by_extension(".afphoto");
+  CHECK(handler != nullptr);
+  CHECK(handler->identifier == "patchy.formats.af");
+  CHECK(registry.find_by_extension("AFDESIGN") == handler);
+  CHECK(registry.find_by_extension(".afpub") == handler);
+  CHECK(registry.find_by_extension(".af") == handler);
+  CHECK(!handler->can_write());  // read-only, like .af itself
+
+  const auto bytes = read_fixture("tiny-v2-raster.afphoto");
+  const auto result = handler->read(bytes);
+  const auto& document = result.document;
+  CHECK(document.width() == 96);
+  CHECK(document.height() == 64);
+  CHECK(document.layers().size() == 3);  // white Background + two pixel layers
+  const auto& base = document.layers()[1];
+  const std::uint8_t* red = base.pixels().pixel(8, 8);
+  CHECK(red[0] == 200);
+  CHECK(red[1] == 40);
+  CHECK(red[2] == 40);
+  CHECK(red[3] == 255);
+  const auto& top = document.layers()[2];
+  CHECK(top.blend_mode() == patchy::BlendMode::Multiply);
+  CHECK(std::abs(top.opacity() - 0.5F) < 0.005F);
+  const std::uint8_t* blue = top.pixels().pixel(50 - top.bounds().x, 32 - top.bounds().y);
+  CHECK(blue[0] == 40);
+  CHECK(blue[1] == 60);
+  CHECK(blue[2] == 220);
+  CHECK(blue[3] == 255);
+  for (const auto& notice : result.notices) {
+    CHECK(notice.find("placeholder") == std::string::npos);
+    CHECK(notice.find("not supported") == std::string::npos);
+  }
+}
+
+void af_reads_affinity2_shape_text_document() {
+  // tiny-v2-shape-text.afphoto (Affinity Photo 2.6.5, interactive): a 128x80
+  // document with a green (40,180,90) rectangle drawn with the shape tool and
+  // converted to curves, plus the artistic text "Af2" (Arial). The 2.x wire
+  // matches 3.x, so the curve imports as a real vector shape layer and the
+  // text as pending-render text metadata.
+  const auto bytes = read_fixture("tiny-v2-shape-text.afphoto");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 128);
+  CHECK(document.height() == 80);
+
+  const patchy::Layer* shape = nullptr;
+  const patchy::Layer* text = nullptr;
+  for (const auto& layer : document.layers()) {
+    if (patchy::layer_is_vector_shape(layer)) {
+      shape = &layer;
+    }
+    if (layer.metadata().contains("patchy.text")) {
+      text = &layer;
+    }
+  }
+  CHECK(shape != nullptr);
+  const auto* content = shape->vector_shape();
+  CHECK(content->fill.kind == patchy::VectorFillKind::Solid);
+  CHECK(content->fill.color == (patchy::RgbColor{40, 180, 90}));
+  CHECK(content->path.subpaths.size() == 1);
+  CHECK(content->path.subpaths.front().closed);
+  CHECK(shape->bounds().x == 12 && shape->bounds().y == 30);
+  CHECK(shape->bounds().width == 48 && shape->bounds().height == 40);
+
+  CHECK(text != nullptr);
+  const auto& metadata = text->metadata();
+  CHECK(metadata.at("patchy.text") == "Af2");
+  CHECK(metadata.at("patchy.text.font") == "Arial");
+  CHECK(metadata.contains("patchy.af.pending_text_render"));
+}
+
 void af_read_rejects_non_affinity_bytes() {
   const std::vector<std::uint8_t> garbage = {'n', 'o', 't', ' ', 'a', 'f', 0, 1, 2, 3};
   bool threw = false;
@@ -833,6 +917,8 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_head_fat_revision_wins", af_head_fat_revision_wins},
       {"af_imports_adjustment_layers", af_imports_adjustment_layers},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
+      {"af_reads_affinity2_raster_document", af_reads_affinity2_raster_document},
+      {"af_reads_affinity2_shape_text_document", af_reads_affinity2_shape_text_document},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},
       {"af_read_survives_mutation_sweep", af_read_survives_mutation_sweep},

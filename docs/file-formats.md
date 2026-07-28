@@ -148,9 +148,18 @@ macOS/Linux but not Windows.
 
 `src/formats/af_document_io.{hpp,cpp}` opens Affinity's native unified format
 (the 2025 "Affinity by Canva" app; magic `00 FF 4B 41`). Registered read-only
-(`patchy.formats.af`, sniff on the magic) with a read-only filter-table row;
-only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
-(same container family, deferred to keep the version matrix small).
+(`patchy.formats.af`, sniff on the magic) with a read-only filter-table row
+claiming `.af` plus the Affinity 2.x generations `.afphoto/.afdesign/.afpub`.
+Affinity 2.x writes the same container (version 11) and the same doc.dat wire
+grammar (file_ver 2, document versions in the verified 20..32 range) as the
+unified app, so one importer covers both; verified against documents authored
+interactively in Affinity Photo 2.6.5 (`test-fixtures/af/tiny-v2-*.afphoto`
+score 0 %-off against Affinity's own PNG exports). `.afdesign` and `.afpub`
+are the identical format written by the sibling apps (Designer 2 on this
+machine is installed but unlicensed and Publisher 2 absent, so those two are
+claimed on format identity, not per-app renders). Pre-2.x (afread-era 1.x)
+files that fail the tree parse fall back to the tier-0 embedded-preview
+import with a notice.
 
 - **Tier 2 (current)**: parses the serialized document tree (`doc.dat`) and
   builds real Patchy layers - the layer tree (groups nested with pass-through
@@ -338,9 +347,23 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   not rendered. If NOTHING in a document decodes to pixels or pending text,
   the importer prefers the tier-0 embedded preview over an all-placeholder
   blank canvas.
-- **Blend enum -> Patchy `BlendMode`** and the RasterFormat ids are in
-  FINDINGS.md; the Affinity `Blnd` field's enum id is the BlendMode value
-  directly (absent = Normal).
+- **Blend enum -> Patchy `BlendMode`**: layer `Blnd` and effect `BlnM` share
+  ONE versioned wire enum (`map_blend_mode` in af_document_io.cpp). The
+  version-0 base table is 0 Normal, 1 Darken, 2 Multiply, 3 ColourBurn,
+  4 Lighten, 5 Screen, 6 ColourDodge, 7 Add, 8 Overlay, 9 SoftLight,
+  10 HardLight, 11 VividLight, 12 PinLight, 13 HardMix, 14 Difference,
+  15 Exclusion, 16 Subtract, 17 Hue, 18 Saturation, 19 Luminosity, 20 Colour,
+  21 Average, 22 Negation, 23 Glow, 25 Erase; later modes REUSE ids under an
+  enum-version bump (DarkerColour 2/v1, LighterColour 6/v1, LinearLight
+  15/v1, Reflect 24/v2, ContrastNegate 28/v2, LinearBurn 5/v3, Divide 21/v4),
+  and version >= 6 renumbers the space to the JS-facing BlendMode table
+  (Pigment = 1/v6). Pinned by blend-sweep-v0.afphoto (a Photo 2.6 document
+  with one layer per blend-dropdown entry, af-spike/v2_corpus) plus the
+  fx-blend-sweep effect renders. The importer originally fed wire ids through
+  the JS table alone, which misread every non-Normal version-0 layer -
+  2.x documents AND 3.x PSD conversions (fixing it dropped the deko corpus
+  doc from 131 to 32 RMSE and tlm-main-mockup from 33.5 to 2.0). Absent
+  `Blnd` = Normal; unmapped values = Normal + notice.
 - **Container**: little-endian; u16 container version (verified 7..12; newer
   versions still attempt the import plus a warning notice), "#Inf" block
   (stream-table offset, thumbnail offset, timestamps), "Prot" protocol tag,
@@ -371,9 +394,11 @@ only `.af` is claimed, not the older `.afphoto/.afdesign/.afpub` generations
   `LittleEndianReader`, stream and layer sizes capped, table/tree chains capped,
   and `af_read_survives_truncation_sweep`/`af_read_survives_mutation_sweep`
   pin no-crash behavior on hostile input. Fixtures under `test-fixtures/af/`
-  are self-authored via scripted Affinity (NOTICE entry); regenerate them and
-  the machine-local corpus through `testy/affinity_js.py` (the token-free
-  MCP/JS client) if the app's format moves.
+  are self-authored (NOTICE entry): the `tiny-*.af` set via scripted Affinity
+  3.x (regenerate through `testy/affinity_js.py`, the token-free MCP/JS
+  client), the `tiny-v2-*.afphoto` set interactively in Affinity Photo 2.6.5
+  (no scripting API in 2.x; ground-truth PNG exports and the blend-sweep
+  probe live in af-spike/v2_corpus).
 - **Legal record**: the format is proprietary and undocumented; Serif/Canva
   publish no spec or public SDK. Patchy's knowledge comes from byte-level
   observation of documents authored with the licensed Affinity install on this

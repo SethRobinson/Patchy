@@ -166,6 +166,10 @@ not part of any release package.
   conversion) created by the Patchy team by scripting a licensed Affinity 3.2.3
   install through its built-in JavaScript SDK; no third-party content. Used by
   the .af importer tests.
+- `test-fixtures/af/tiny-v2-*.afphoto`: Affinity 2 documents (simple color
+  fills, a curve shape, and short text) created by the Patchy team
+  interactively in a licensed Affinity Photo 2.6.5 install; no third-party
+  content. Used by the 2.x extension importer tests.
 - `test-fixtures/aseprite/*.aseprite` and
   `aseprite-blend-modes-reference.png` (Aseprite's own flattened render of the
   blend-mode fixture): authored locally with Aseprite 1.3.17 via a batch script

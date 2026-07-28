@@ -1280,38 +1280,101 @@ struct DecodedBitmap {
   return decoded;
 }
 
-// Affinity BlendMode enum id -> Patchy BlendMode. Unmapped modes return nullopt
-// (caller uses Normal + a notice). Passthrough is a group concept, handled apart.
-[[nodiscard]] std::optional<BlendMode> map_blend_mode(std::int64_t id) {
-  switch (id) {
-    case 0: return BlendMode::Normal;
-    case 2: return BlendMode::Darken;
-    case 3: return BlendMode::DarkerColor;
-    case 4: return BlendMode::Multiply;
-    case 5: return BlendMode::ColorBurn;
-    case 6: return BlendMode::LinearBurn;
-    case 7: return BlendMode::Lighten;
-    case 8: return BlendMode::LighterColor;
-    case 9: return BlendMode::Screen;
-    case 10: return BlendMode::ColorDodge;
-    case 11: return BlendMode::LinearDodge;
-    case 12: return BlendMode::Overlay;
-    case 13: return BlendMode::SoftLight;
-    case 14: return BlendMode::HardLight;
-    case 15: return BlendMode::VividLight;
-    case 16: return BlendMode::PinLight;
-    case 17: return BlendMode::LinearLight;
-    case 18: return BlendMode::HardMix;
-    case 19: return BlendMode::Difference;
-    case 20: return BlendMode::Exclusion;
-    case 21: return BlendMode::Subtract;
-    case 22: return BlendMode::Divide;
-    case 23: return BlendMode::Hue;
-    case 24: return BlendMode::Saturation;
-    case 25: return BlendMode::Luminosity;
-    case 26: return BlendMode::Color;
-    default: return std::nullopt;  // Pigment, Average, Negation, ... -> Normal + notice
+// Affinity blend wire enum (id, enum version) -> Patchy BlendMode. Layer Blnd
+// and effect BlnM share ONE versioned enum space: a version-0 base table plus
+// modes added later that REUSE ids under an enum-version bump. Pinned twice
+// over: the fx-blend-sweep corpus renders (effects) and blend-sweep-v0.afphoto
+// (a Photo 2.6 doc with one layer per blend-dropdown entry; the wire values
+// pair 1:1 with the labels). The JS-facing BlendMode table (Pigment=1,
+// Darken=2, Multiply=4, ...) is the VERSION-6 numbering only - the importer
+// originally fed wire ids through it and misread every non-Normal layer
+// written with version-0 ids (2.x documents, and 3.x PSD conversions like the
+// deko corpus doc, whose Screen layer imported as Darken until this table).
+// Unmapped modes return nullopt (caller uses Normal + a notice); Passthrough
+// is a group concept, handled apart.
+[[nodiscard]] std::optional<BlendMode> map_blend_mode(const af::AfEnum& value) {
+  if (value.version == 0) {
+    switch (value.id) {
+      case 0: return BlendMode::Normal;
+      case 1: return BlendMode::Darken;
+      case 2: return BlendMode::Multiply;
+      case 3: return BlendMode::ColorBurn;
+      case 4: return BlendMode::Lighten;
+      case 5: return BlendMode::Screen;
+      case 6: return BlendMode::ColorDodge;
+      case 7: return BlendMode::LinearDodge;  // "Add"
+      case 8: return BlendMode::Overlay;
+      case 9: return BlendMode::SoftLight;
+      case 10: return BlendMode::HardLight;
+      case 11: return BlendMode::VividLight;
+      case 12: return BlendMode::PinLight;
+      case 13: return BlendMode::HardMix;
+      case 14: return BlendMode::Difference;
+      case 15: return BlendMode::Exclusion;
+      case 16: return BlendMode::Subtract;
+      case 17: return BlendMode::Hue;
+      case 18: return BlendMode::Saturation;
+      case 19: return BlendMode::Luminosity;
+      case 20: return BlendMode::Color;
+      // 21 Average, 22 Negation, 23 Glow, 25 Erase: no Patchy equivalent.
+      default: return std::nullopt;
+    }
   }
+  if (value.version == 1 && value.id == 2) {
+    return BlendMode::DarkerColor;
+  }
+  if (value.version == 1 && value.id == 6) {
+    return BlendMode::LighterColor;
+  }
+  if (value.version == 1 && value.id == 15) {
+    return BlendMode::LinearLight;
+  }
+  if (value.version == 3 && value.id == 5) {
+    return BlendMode::LinearBurn;
+  }
+  if (value.version == 4 && value.id == 21) {
+    return BlendMode::Divide;
+  }
+  // 24/v2 Reflect and 28/v2 Contrast Negate have no Patchy equivalent.
+  if (value.version >= 6) {
+    // Version 6 renumbers the space to match the JS-facing BlendMode table
+    // (Pigment inserted at 1, the darken/lighten groups reordered); seen on
+    // layers painted with the unified app's new modes (CyanisePixel's Pigment
+    // strokes are 1/v6).
+    switch (value.id) {
+      case 0: return BlendMode::Normal;
+      // 1 Pigment: no Patchy equivalent.
+      case 2: return BlendMode::Darken;
+      case 3: return BlendMode::DarkerColor;
+      case 4: return BlendMode::Multiply;
+      case 5: return BlendMode::ColorBurn;
+      case 6: return BlendMode::LinearBurn;
+      case 7: return BlendMode::Lighten;
+      case 8: return BlendMode::LighterColor;
+      case 9: return BlendMode::Screen;
+      case 10: return BlendMode::ColorDodge;
+      case 11: return BlendMode::LinearDodge;  // "Add"
+      case 12: return BlendMode::Overlay;
+      case 13: return BlendMode::SoftLight;
+      case 14: return BlendMode::HardLight;
+      case 15: return BlendMode::VividLight;
+      case 16: return BlendMode::PinLight;
+      case 17: return BlendMode::LinearLight;
+      case 18: return BlendMode::HardMix;
+      case 19: return BlendMode::Difference;
+      case 20: return BlendMode::Exclusion;
+      case 21: return BlendMode::Subtract;
+      case 22: return BlendMode::Divide;
+      case 23: return BlendMode::Hue;
+      case 24: return BlendMode::Saturation;
+      case 25: return BlendMode::Luminosity;
+      case 26: return BlendMode::Color;
+      // 27 Average, 28 Negation, 29 Reflect, 30 Glow, 31 ContrastInvert,
+      // 32 Erase: no Patchy equivalent.
+      default: return std::nullopt;
+    }
+  }
+  return std::nullopt;
 }
 
 struct LayerBuildContext {
@@ -1571,7 +1634,7 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
   const auto* blnd = node.field(af::tag4("Blnd"));
   if (blnd != nullptr) {
     if (const auto* e = std::get_if<af::AfEnum>(&blnd->value)) {
-      if (const auto mapped = map_blend_mode(e->id)) {
+      if (const auto mapped = map_blend_mode(*e)) {
         group.set_blend_mode(*mapped);
       }
     }
@@ -1641,7 +1704,7 @@ void apply_common(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
   const auto* blnd = node.field(af::tag4("Blnd"));
   if (blnd != nullptr) {
     if (const auto* e = std::get_if<af::AfEnum>(&blnd->value)) {
-      const auto mapped = map_blend_mode(e->id);
+      const auto mapped = map_blend_mode(*e);
       if (mapped) {
         layer.set_blend_mode(*mapped);
       } else {
@@ -1665,48 +1728,12 @@ void apply_common(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
 // authored one-toggle docs in local-test-fixtures/af-spike/corpus/fx-*.af
 // (blend sweep, alignment/bevel-type sweeps, angle-direction renders).
 
-// Effect-blend wire (id, enum_version) -> BlendMode. The base table is the
-// version-0 dropdown order; modes added later REUSE ids under a version bump
-// (LinearBurn = 5/v3 vs Screen = 5/v0, LinearLight = 15/v1 vs Exclusion =
-// 15/v0, Divide = 21/v4), so the version participates in the lookup.
+// Effect-blend wire (id, enum_version) -> BlendMode. Effect BlnM uses the SAME
+// versioned wire enum as the layer Blnd field (the blend-sweep-v0.afphoto
+// pairing matches the fx-blend-sweep effect pinning value for value), so the
+// shared table above does the lookup.
 [[nodiscard]] std::optional<BlendMode> map_effect_blend_mode(const af::AfEnum& value) {
-  if (value.version != 0) {
-    if (value.id == 5 && value.version == 3) {
-      return BlendMode::LinearBurn;
-    }
-    if (value.id == 15 && value.version == 1) {
-      return BlendMode::LinearLight;
-    }
-    if (value.id == 21) {
-      return BlendMode::Divide;
-    }
-    return std::nullopt;
-  }
-  switch (value.id) {
-    case 0: return BlendMode::Normal;
-    case 1: return BlendMode::Darken;
-    case 2: return BlendMode::Multiply;
-    case 3: return BlendMode::ColorBurn;
-    case 4: return BlendMode::Lighten;
-    case 5: return BlendMode::Screen;
-    case 6: return BlendMode::ColorDodge;
-    case 7: return BlendMode::LinearDodge;
-    case 8: return BlendMode::Overlay;
-    case 9: return BlendMode::SoftLight;
-    case 10: return BlendMode::HardLight;
-    case 11: return BlendMode::VividLight;
-    case 12: return BlendMode::PinLight;
-    case 13: return BlendMode::HardMix;
-    case 14: return BlendMode::Difference;
-    case 15: return BlendMode::Exclusion;
-    case 16: return BlendMode::Subtract;
-    case 17: return BlendMode::Hue;
-    case 18: return BlendMode::Saturation;
-    case 19: return BlendMode::Luminosity;
-    case 20: return BlendMode::Color;
-    case 21: return BlendMode::Divide;
-    default: return std::nullopt;
-  }
+  return map_blend_mode(value);
 }
 
 [[nodiscard]] double degrees_from_radians(double radians) {

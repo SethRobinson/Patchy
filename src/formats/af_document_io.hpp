@@ -11,8 +11,9 @@
 namespace patchy::af {
 
 // Affinity by Canva's native container (.af since the 2025 unified app; the same
-// magic covers the older .afphoto/.afdesign/.afpub generations, which Patchy does
-// not register). Proprietary and undocumented; everything here was derived from
+// magic and wire grammar cover the Affinity 2.x .afphoto/.afdesign/.afpub
+// generations, which Patchy registers too). Proprietary and undocumented;
+// everything here was derived from
 // files authored with a licensed Affinity install plus the MIT-licensed afread
 // project's notes on the 2020-era format - never from disassembling Affinity.
 // Container layout, verification corpus, and the legal record live in

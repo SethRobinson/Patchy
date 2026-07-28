@@ -435,10 +435,12 @@ const QList<FileFormatEntry>& file_format_entries() {
                     {},
                     false,
                     false});
-    // Affinity's native .af opens as a preview-only import (tier 0) and is never
-    // written, so the entry is read-only like camera raw and HEIF.
+    // Affinity documents open read-only, so the entry has no save extensions like
+    // camera raw and HEIF. The Affinity 2.x generations (.afphoto/.afdesign/.afpub)
+    // share the .af container and grammar, so the one row claims them all.
     list.push_back({QT_TRANSLATE_NOOP("QObject", "Affinity Document"),
-                    {QStringLiteral("af")},
+                    {QStringLiteral("af"), QStringLiteral("afphoto"), QStringLiteral("afdesign"),
+                     QStringLiteral("afpub")},
                     {},
                     false,
                     false});

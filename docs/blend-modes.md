@@ -12,7 +12,7 @@ Adding a blend mode means updating ALL of:
 - The Aseprite map in both directions.
 - `script_api.cpp` — `kBlendModeIds` is INDEXED BY THE ENUM ORDINAL, so its size literal has to grow with the enum and the new id appends at the end. Scripts hard-code these strings.
 - `svg_io_internal.hpp` — `blend_mode_css` has a `default:` returning the empty string, which is what raises the SVG rasterization barrier. Nothing to do unless CSS can express the mode.
-- `af_document_io.cpp` — read-only Affinity id map. Unmapped ids already fall back to Normal plus a notice, so leave an id alone unless a real Affinity file confirms it.
+- `af_document_io.cpp` — read-only Affinity map (`map_blend_mode`). The wire enum is VERSIONED: a version-0 base table shared by layer `Blnd` and effect `BlnM`, versioned id reuse for later modes, and a version-6 renumbering that matches the JS-facing table; the full record is in [file-formats.md](file-formats.md). Unmapped values already fall back to Normal plus a notice, so leave an entry alone unless a real Affinity file pins it (the blend-sweep-v0.afphoto probe in af-spike/v2_corpus is the version-0 evidence).
 - `recipe_blend_mode_supported` (`filters/filter_registry.hpp`) — decide explicitly whether recipes and Smart Filters can execute the mode. This used to be an ordinal range ending at `Divide`, duplicated in `filter_look_library.cpp`, and went stale the moment the enum grew: the combos offered Vivid Light and friends while the guard silently rejected them.
 - `translations/patchy_ja.ts` — the display name.
 

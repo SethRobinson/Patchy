@@ -135,12 +135,14 @@ void register_builtin_formats(FormatRegistry& registry) {
                              [](std::span<const std::uint8_t> bytes) { return heif::read_heif(bytes); },
                              nullptr,
                              [](std::span<const std::uint8_t> bytes) { return heif::sniff(bytes); }});
-  // Affinity's native .af is a read-only source (write stays null): tier 0 imports the
-  // embedded document preview with notices; layer decoding lands in later tiers. The
-  // container spec record lives in docs/file-formats.md ".af (Affinity)".
+  // Affinity's native container is a read-only source (write stays null). The 2.x
+  // .afphoto/.afdesign/.afpub generations share the .af magic and wire grammar, so
+  // one handler covers them all; pre-2.x files that fail the tree parse fall back
+  // to the embedded-preview import with a notice. The container spec record lives
+  // in docs/file-formats.md ".af (Affinity)".
   registry.register_handler({"patchy.formats.af",
                              "Affinity Document",
-                             {".af"},
+                             {".af", ".afphoto", ".afdesign", ".afpub"},
                              [](std::span<const std::uint8_t> bytes) {
                                FormatReadResult result;
                                result.document = af::DocumentIo::read(bytes, &result.notices);
