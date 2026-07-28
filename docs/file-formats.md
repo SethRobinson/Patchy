@@ -161,6 +161,23 @@ claimed on format identity, not per-app renders). Pre-2.x (afread-era 1.x)
 files that fail the tree parse fall back to the tier-0 embedded-preview
 import with a notice.
 
+A 14-file wild sweep (public GitHub design sources, 2026-07-28; files and
+per-file notes in af-spike FINDINGS.md "Wild-file sweep", never committed)
+confirmed the claim in practice: container v10-v12 and document versions
+3..31 all import through the registered extensions, and 1.x-era files
+(versions 3-9) parse fully rather than falling back; five files, spanning
+versions 3 through 31, render pixel-identical to their own embedded
+thumbnails. Known gaps that sweep surfaced, in wild-frequency order:
+parametric `ShpN` shapes (placeholders; only converted-to-curves `PCrv`
+renders), multi-artboard documents (only the first spread imports while
+thumbnails show every artboard), the v9-era embedded-document layout (the
+`edc/<n>` stream is an 8-byte `EmDc` wrapper around the nested container,
+which is only a thin proxy; the placed original lives in the parent's
+`c/<n>` Blck tree, so these embeds currently skip with a notice), and the
+v7-era gradient-overlay wire (`FilG` nests `Grad` inside an extra `Grad`
+wrapper, so overlay stops don't import). A truncated/corrupt wild file is
+rejected cleanly (the FAT walk throws; no crash).
+
 - **Tier 2 (current)**: parses the serialized document tree (`doc.dat`) and
   builds real Patchy layers - the layer tree (groups nested with pass-through
   by default), each raster layer's full-resolution pixels decoded from its
