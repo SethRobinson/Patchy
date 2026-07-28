@@ -265,9 +265,22 @@ Important Photoshop features that are not supported yet, or are only partially s
 - Layer comps, timeline/video/animation workflows, content-aware tools, and generative tools
 - Photoshop's own automation surfaces: Actions (.atn), UXP/JSX panels, and scripts written for Photoshop (Patchy has its own JavaScript scripting and batch processing instead, see above)
 - High-fidelity PSD/PSB edge cases, including layered PSB writing and byte-perfect preservation of every Photoshop-only metadata block
-- Not tested much yet; expect bugs
 - Patchy is slower than Photoshop, especially on large documents and it doesn't support GPU acceleration at all.  However, being CPU only helps with porting and stability so kind of a trade-off that makes sense, for now.  That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.
 
+### Affinity import
+
+Patchy opens Affinity documents read-only: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x-era files. Raster layers (including 16-bit, float, CMYK, and Lab documents), groups, masks, clipping, blend modes, opacity, editable text with per-run styles, vector curves, rectangle/ellipse/polygon shapes, artboards, layer effects, supported adjustment layers, and placed images (which become embedded Smart Objects) all import, verified against Affinity's own renders. If a file can't be imported as layers, Patchy falls back to its embedded preview instead of failing the open, and an import notice explains what was skipped.
+
+Affinity features that are not supported yet, or are only partially supported:
+
+- Saving to Affinity formats (import only; save your edits as PSD)
+- Parametric shapes beyond rectangles, ellipses, and regular polygons: stars, smoothed shapes, and compound-shape booleans import as placeholders or plain groups
+- Adjustment layers beyond the eight kinds Patchy models, and live filters, import as named empty placeholders; Brightness/Contrast and Color Balance import approximately
+- Affinity-only blend modes (Pigment, Reflect, Glow, Erase, and others) fall back to Normal with a notice
+- Bevel/Emboss and glow effects are approximated; Gaussian blur layer effects and group-level effects don't render
+- Rotated or sheared frame text renders without its rotation (artistic text rotates correctly)
+- Multi-page documents open the first page only
+- Affinity 1.x-era files: vector stroke widths don't import, and embedded-document placement can land slightly off
 
 ## License
 
