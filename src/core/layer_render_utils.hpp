@@ -33,6 +33,9 @@ namespace patchy {
 [[nodiscard]] int document_effect_padding(const Document& document) noexcept;
 [[nodiscard]] Rect layer_bounds_with_effects(const Layer& layer, Rect bounds) noexcept;
 [[nodiscard]] Rect layer_render_bounds(const Layer& layer) noexcept;
+// A group whose own layer style should render (kind Group, effects visible,
+// style non-empty). Style-less groups keep the historical composite paths.
+[[nodiscard]] bool group_style_renders(const Layer& layer) noexcept;
 [[nodiscard]] bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept;
 // Vector-mask coverage sample (1.0 when absent/disabled; density folds in).
 // Both layer_mask_alpha_at overloads already multiply this in, so every mask

@@ -493,7 +493,11 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         // compatibility lfx2 Photoshop writes beside it, in either block order.
         record.layer_style = parse_lfx2_layer_style(record.additional_blocks.back().payload, cmyk);
         record.layer_style_from_lmfx = true;
-      } else if (key == "lfx2") {
+      } else if (key == "lfx2" || key == "lfxs") {
+        // 'lfxs' is the layer-SET effects block Photoshop 2026 writes for
+        // GROUP styles (discovered 2026-07-28 via the photoshop-group-fx-*
+        // COM fixtures: groups carry lfxs + an lrFX legacy mirror and no
+        // lfx2). The payload shape is identical to lfx2.
         saw_lfx2_block = true;
         if (!record.layer_style_from_lmfx) {
           merge_missing_layer_style_effects(record.layer_style,

@@ -1382,6 +1382,80 @@ void psd_photoshop_interior_exterior_blending_fixture_matches_render() {
   check_near(200, 32, 100, 120, 140);  // fill 0 still hides the shadow inside the shape
 }
 
+// Photoshop 2026 authored the four photoshop-group-fx-*.psd/.bmp probe pairs
+// via COM (2026-07-28; docs/ps-compat.md "Layer effects on GROUPS"). Each is
+// a multi-arm document of groups carrying layer effects: pass-through
+// survives group effects, the effect source is the flattened masked
+// silhouette, exterior effects stay additive against the pre-effect
+// backdrop, interior overlays keep their own modes unless infx folds them,
+// folder Fill stays ignored, and strokes band the silhouette.
+void psd_photoshop_group_fx_fixtures_match_render() {
+  struct Probe {
+    std::int32_t x;
+    std::int32_t y;
+    int red;
+    int green;
+    int blue;
+  };
+  struct FixtureCase {
+    const char* name;
+    std::vector<Probe> probes;
+    // mask-stroke carries the documented stroke corner-arc AA divergence (24
+    // pixels on the outside stroke's rounded corners; the shared linear
+    // coverage ramp overfills against PS's rounder arc AA - the same corner
+    // rule the stroke-aa-matte fixture records).
+    int max_channel_delta{2};
+  };
+  const FixtureCase cases[] = {
+      {"photoshop-group-fx-passthrough",
+       {{36, 50, 200, 0, 0},     // pass-through Multiply child under a group shadow
+        {60, 50, 0, 0, 0},       // the group shadow, from the union silhouette
+        {116, 50, 255, 0, 0},    // Normal group isolates the same child
+        {196, 50, 200, 0, 0},    // control square: pass-through Multiply
+        {224, 50, 200, 150, 100}}},  // control: no effects means no shadow
+      {"photoshop-group-fx-interior",
+       {{36, 50, 0, 255, 0},     // overlay covers the pass-through composite
+        {116, 50, 0, 255, 0},    // and the Normal group
+        {196, 50, 0, 255, 0},    // Multiply group, infx off: overlay keeps Normal
+        {276, 50, 0, 150, 0}}},  // infx on: overlay folds, Multiply carries it
+      {"photoshop-group-fx-blend-fill",
+       {{36, 50, 192, 15, 50},   // 50% child + its half-strength shadow, additive
+        {60, 50, 128, 30, 100},  // the shadow saw the child's 50% alpha
+        {116, 50, 0, 0, 0},      // Multiply group blends the pre-shadow backdrop
+        {140, 50, 255, 0, 0},    // full-strength shadow beside it
+        {196, 50, 0, 255, 0},    // folder Fill 50 ignored: overlay at full
+        {320 - 4, 6, 0, 60, 200}}},  // backdrop sanity
+      {"photoshop-group-fx-mask-stroke",
+       {{26, 50, 255, 0, 0},     // mask-visible half of the square
+        {46, 50, 0, 60, 200},    // mask-hidden half shows backdrop
+        {26, 76, 0, 0, 0},       // shadow only under the visible half
+        {46, 76, 0, 60, 200},    // no shadow under the hidden half
+        {218, 50, 0, 255, 0},    // outside stroke bands the silhouette
+        {294, 50, 0, 255, 0},    // inside stroke replaces the band at its own mode
+        {276, 50, 0, 0, 0}},     // Multiply group content inside the band
+       30}};
+  for (const auto& fixture : cases) {
+    const auto psd_path =
+        patchy::test::committed_psd_fixture_path(std::string(fixture.name) + ".psd");
+    const auto bmp_path = psd_path.parent_path() / (std::string(fixture.name) + ".bmp");
+    CHECK(std::filesystem::exists(psd_path));
+    CHECK(std::filesystem::exists(bmp_path));
+    const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+    const auto reference =
+        patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp_path));
+    const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+    const auto metrics = rgb_diff_metrics(reference, flat);
+    for (const auto& probe : fixture.probes) {
+      const auto* pixel = flat.pixel(probe.x, probe.y);
+      CHECK(std::abs(static_cast<int>(pixel[0]) - probe.red) <= 2);
+      CHECK(std::abs(static_cast<int>(pixel[1]) - probe.green) <= 2);
+      CHECK(std::abs(static_cast<int>(pixel[2]) - probe.blue) <= 2);
+    }
+    CHECK(metrics.max_channel_delta <= fixture.max_channel_delta);
+    CHECK(metrics.mean_abs_channel_delta <= 0.10);
+  }
+}
+
 // Photoshop 2026 authored photoshop-shadow-conceals.psd/.bmp via COM (July
 // 2026): six drop-shadow arms over an orange backdrop pinning "Layer Knocks
 // Out Drop Shadow" (DrSh layerConceals, default on): the layer's transparency
@@ -2178,6 +2252,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_stroke_overprint_fixture_matches_render},
       {"psd_photoshop_shadow_conceals_fixture_matches_render",
        psd_photoshop_shadow_conceals_fixture_matches_render},
+      {"psd_photoshop_group_fx_fixtures_match_render",
+       psd_photoshop_group_fx_fixtures_match_render},
       {"psd_photoshop_interior_exterior_blending_fixture_matches_render",
        psd_photoshop_interior_exterior_blending_fixture_matches_render},
       {"psd_photoshop_pillow_emboss_fixtures_match_render",

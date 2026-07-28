@@ -289,7 +289,9 @@ int layer_effect_padding(const Layer& layer) noexcept {
     for (const auto& child : layer.children()) {
       padding = std::max(padding, layer_effect_padding(child));
     }
-    return padding;
+    // The group's OWN style pads too (rendered since July 2026); zero for
+    // style-less groups, so existing documents keep their exact rects.
+    return std::max(padding, layer_style_effect_padding(layer.layer_style()));
   }
   return layer_style_effect_padding(layer.layer_style());
 }
@@ -313,9 +315,20 @@ Rect layer_render_bounds(const Layer& layer) noexcept {
     for (const auto& child : layer.children()) {
       bounds = unite_rect(bounds, layer_render_bounds(child));
     }
-    return bounds;
+    // The group's own effects (shadows/glows) extend past the children;
+    // style-less groups keep their exact historical rects (padding 0).
+    const auto own_padding = layer_style_effect_padding(layer.layer_style());
+    return bounds.empty() || own_padding <= 0 ? bounds : outset_rect(bounds, own_padding);
   }
   return layer_bounds_with_effects(layer, layer.bounds());
+}
+
+bool group_style_renders(const Layer& layer) noexcept {
+  // A group whose style should render (July 2026: group layer effects render;
+  // COM-calibrated rules in docs/ps-compat.md). Style-less groups take the
+  // exact historical composite paths.
+  return layer.kind() == LayerKind::Group && layer.layer_style().effects_visible &&
+         !layer.layer_style().empty();
 }
 
 bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept {
