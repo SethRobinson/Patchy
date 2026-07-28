@@ -167,16 +167,36 @@ confirmed the claim in practice: container v10-v12 and document versions
 3..31 all import through the registered extensions, and 1.x-era files
 (versions 3-9) parse fully rather than falling back; five files, spanning
 versions 3 through 31, render pixel-identical to their own embedded
-thumbnails. Known gaps that sweep surfaced, in wild-frequency order:
-parametric `ShpN` shapes (placeholders; only converted-to-curves `PCrv`
-renders), multi-artboard documents (only the first spread imports while
-thumbnails show every artboard), the v9-era embedded-document layout (the
-`edc/<n>` stream is an 8-byte `EmDc` wrapper around the nested container,
-which is only a thin proxy; the placed original lives in the parent's
-`c/<n>` Blck tree, so these embeds currently skip with a notice), and the
-v7-era gradient-overlay wire (`FilG` nests `Grad` inside an extra `Grad`
-wrapper, so overlay stops don't import). A truncated/corrupt wild file is
-rejected cleanly (the FAT walk throws; no crash).
+thumbnails. A truncated/corrupt wild file is rejected cleanly (the FAT walk
+throws; no crash).
+
+Old-generation wire variants that sweep surfaced, now handled (pinned by
+`af_reads_old_generation_wild_files_if_available`, which skips without the
+local samples): `edc/<n>` embedded-document streams carry an 8-byte `EmDc`
+tag wrapper around the nested container in old AND current files (the
+importer unwraps it; before this every `EmbR` flatten failed with a notice);
+the oldest (v3-era) documents name the vector fill descriptor `BFil` instead
+of `BFFl` (same FDsc payload; their `PFil` stroke has no width source and
+stays unsupported); gradient stops and other colors can be `HSLA` classes
+(hue in turns, standard HSL conversion) or five-float `CMYK` classes (the
+same profile-less ink mix as the CMYK raster decoder - reading the first
+four floats as RGBA painted embedded menu icons cyan). Unwrapping embeds
+also rescued documents that previously fell to the tier-0 preview because
+nothing decoded (a v3-era all-vector logo now imports for real at 4 RMSE
+against its own thumbnail; restaurant-menu improved 27.6 -> 23.7).
+
+Remaining known gaps, in wild-frequency order: parametric `ShpN` shapes
+(placeholders; only converted-to-curves `PCrv` renders), multi-artboard
+documents (only the first spread imports while thumbnails show every
+artboard), and old-generation embed placement (the parent `Xfrm` places the
+flattened nested canvas raw-origin; the one v9 sample renders its logo
+offset ~15% of canvas with a slightly different effective scale, so the old
+transform stack has an extra mapping still unpinned). Old files also SAVE
+their snapshot caches: a `Snap` subtree (DocN/Sprd/Rstr whose DyBm `Bckg`
+names a `c/<n>` stream) holding a full-resolution PNG render of the whole
+document - modern files save these slots empty (the spike's G3 verdict).
+That baked render would make a far better degradation fallback than the
+512px thumbnail for old documents; unwired for now.
 
 - **Tier 2 (current)**: parses the serialized document tree (`doc.dat`) and
   builds real Patchy layers - the layer tree (groups nested with pass-through

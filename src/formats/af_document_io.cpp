@@ -1683,9 +1683,17 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
   }
   try {
     const auto nested_bytes = extract_stream(ctx.bytes, stream->second, embedded_ref->data, nullptr);
+    std::span<const std::uint8_t> nested_span(nested_bytes);
+    // edc/<n> streams wrap the nested container in an 8-byte "EmDc" tag + u32
+    // prefix - in every generation observed (v9-era wild files AND current
+    // corpus documents), so this flatten never succeeded before the unwrap
+    // (2026-07-28 wild sweep). Tolerate a bare container anyway.
+    if (nested_span.size() > 8 && nested_span[0] == 'E' && nested_span[1] == 'm' &&
+        nested_span[2] == 'D' && nested_span[3] == 'c') {
+      nested_span = nested_span.subspan(8);
+    }
     std::vector<std::string> nested_notices;  // inner notices stay summarized
-    const Document nested = read_container(std::span<const std::uint8_t>(nested_bytes),
-                                           nested_notices, ctx.embed_depth + 1);
+    const Document nested = read_container(nested_span, nested_notices, ctx.embed_depth + 1);
     ctx.notices.push_back("Layer '" + name + "': embedded document flattened on import");
     return flatten_document_rgba8(nested);
   } catch (const std::exception& error) {
@@ -3099,7 +3107,15 @@ struct AfVectorFill {
   VectorShapeContent content;
   content.path = std::move(*path);
   float fill_alpha = 1.0F;
-  if (auto fill = vector_fill_from_descriptor(first_class_of(node, af::tag4("BFFl")))) {
+  // The fill descriptor rides BFFl on current files; the oldest generation
+  // (doc-tree version 3, the 2026-07-28 wild sweep) named the same FDsc field
+  // BFil. (Its stroke sibling PFil carries the Fill class directly with no
+  // width source, so old strokes stay unsupported.)
+  const af::AfClass* fill_descriptor = first_class_of(node, af::tag4("BFFl"));
+  if (fill_descriptor == nullptr) {
+    fill_descriptor = first_class_of(node, af::tag4("BFil"));
+  }
+  if (auto fill = vector_fill_from_descriptor(fill_descriptor)) {
     content.fill = std::move(fill->fill);
     fill_alpha = fill->alpha;
   } else {
@@ -3313,8 +3329,16 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
   }
 }
 
-// Read an Affinity RGBA color class: its `_col` field is a sized struct of
-// four little-endian float32 components in 0..1 (sRGB-encoded, like the UI).
+// Read an Affinity color class: its `_col` field is a sized struct of
+// little-endian float32 components in 0..1. RGBA classes carry four
+// sRGB-encoded channels directly (like the UI); HSLA classes (older-
+// generation gradient stops, 2026-07-28 wild sweep) store hue in turns plus
+// saturation/lightness and convert through the standard HSL model; CMYK
+// classes (five floats c,m,y,k,a - embedded icon docs inside CMYK parents)
+// convert with the same naive profile-less (1-ink)(1-k) mix the CMYK raster
+// decoder uses. Reading a CMYK payload's first four floats as RGBA painted
+// the restaurant-menu icons cyan-green once their embeds started importing.
+// Other color classes (Gray, LABA) stay unmapped for now.
 [[nodiscard]] std::optional<std::array<float, 4>> read_rgba_color(const af::AfClass* color_class) {
   if (color_class == nullptr) {
     return std::nullopt;
@@ -3327,8 +3351,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
   if (data == nullptr || data->size() < 16) {
     return std::nullopt;
   }
-  std::array<float, 4> color{};
-  for (int i = 0; i < 4; ++i) {
+  const auto read_component = [&data](int i) {
     const std::uint32_t bits =
         static_cast<std::uint32_t>((*data)[static_cast<std::size_t>(i) * 4U]) |
         (static_cast<std::uint32_t>((*data)[static_cast<std::size_t>(i) * 4U + 1]) << 8U) |
@@ -3339,7 +3362,41 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     if (!(value >= 0.0F)) {
       value = 0.0F;  // also catches NaN
     }
-    color[i] = std::min(value, 1.0F);
+    return std::min(value, 1.0F);
+  };
+  std::array<float, 4> color{};
+  for (int i = 0; i < 4; ++i) {
+    color[i] = read_component(i);
+  }
+  if (color_class->type_tag == af::tag4("CMYK") && data->size() >= 20) {
+    const float k = color[3];
+    const std::array<float, 4> converted{(1.0F - color[0]) * (1.0F - k),
+                                         (1.0F - color[1]) * (1.0F - k),
+                                         (1.0F - color[2]) * (1.0F - k), read_component(4)};
+    return converted;
+  }
+  if (color_class->type_tag == af::tag4("HSLA")) {
+    const float hue = color[0] - std::floor(color[0]);  // turns, wrapped
+    const float saturation = color[1];
+    const float lightness = color[2];
+    const float chroma = (1.0F - std::abs(2.0F * lightness - 1.0F)) * saturation;
+    const float segment = hue * 6.0F;
+    const float x = chroma * (1.0F - std::abs(std::fmod(segment, 2.0F) - 1.0F));
+    float r = 0.0F;
+    float g = 0.0F;
+    float b = 0.0F;
+    switch (static_cast<int>(segment)) {
+      case 0: r = chroma; g = x; break;
+      case 1: r = x; g = chroma; break;
+      case 2: g = chroma; b = x; break;
+      case 3: g = x; b = chroma; break;
+      case 4: r = x; b = chroma; break;
+      default: r = chroma; b = x; break;
+    }
+    const float m = lightness - chroma / 2.0F;
+    color[0] = std::clamp(r + m, 0.0F, 1.0F);
+    color[1] = std::clamp(g + m, 0.0F, 1.0F);
+    color[2] = std::clamp(b + m, 0.0F, 1.0F);
   }
   return color;
 }

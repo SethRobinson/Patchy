@@ -13,6 +13,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "formats/format_registry.hpp"
+#include "local_psd_fixtures.hpp"
 #include "core/document.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_shape.hpp"
@@ -24,6 +25,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <span>
 #include <stdexcept>
@@ -842,6 +844,66 @@ void af_reads_affinity2_shape_text_document() {
   CHECK(metadata.contains("patchy.af.pending_text_render"));
 }
 
+void af_reads_old_generation_wild_files_if_available() {
+  // Third-party wild samples (local-test-fixtures/af-spike/web_samples, never
+  // committed; this test skips where they are absent) pin the old-generation
+  // wire variants from the 2026-07-28 sweep. fladder-banner2.afphoto: the
+  // embedded Fladder logo only renders when the EmDc stream wrapper is
+  // unwrapped AND the nested v3-era document's BFil fill descriptor is read
+  // (the logo is an orange-gradient curve). qlmarkdown-icon.afdesign: the
+  // enabled gradient overlay's stops are HSLA color classes (white -> black).
+  {
+    const auto path = patchy::test::local_format_fixture_path("af-spike/web_samples",
+                                                              "fladder-banner2.afphoto");
+    if (!std::filesystem::exists(path)) {
+      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+    } else {
+      std::ifstream stream(path, std::ios::binary);
+      const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                            std::istreambuf_iterator<char>());
+      const auto document = patchy::af::DocumentIo::read(bytes);
+      bool found_orange = false;
+      for (const auto& layer : document.layers()) {
+        const auto& pixels = layer.pixels();
+        for (std::int32_t y = 0; y < pixels.height() && !found_orange; y += 3) {
+          for (std::int32_t x = 0; x < pixels.width(); x += 3) {
+            const std::uint8_t* p = pixels.pixel(x, y);
+            if (p[3] > 200 && p[0] > 200 && p[1] > 60 && p[1] < 190 && p[2] < 110) {
+              found_orange = true;
+              break;
+            }
+          }
+        }
+      }
+      CHECK(found_orange);
+    }
+  }
+  {
+    const auto path = patchy::test::local_format_fixture_path("af-spike/web_samples",
+                                                              "qlmarkdown-icon.afdesign");
+    if (!std::filesystem::exists(path)) {
+      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+    } else {
+      std::ifstream stream(path, std::ios::binary);
+      const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                            std::istreambuf_iterator<char>());
+      const auto document = patchy::af::DocumentIo::read(bytes);
+      const patchy::Layer* box = nullptr;
+      for (const auto& layer : document.layers()) {
+        if (layer.name() == "box") {
+          box = &layer;
+        }
+      }
+      CHECK(box != nullptr);
+      CHECK(box->layer_style().gradient_fills.size() == 1);
+      const auto& gradient = box->layer_style().gradient_fills.front().gradient;
+      CHECK(gradient.color_stops.size() == 2);
+      CHECK(gradient.color_stops.front().color == (patchy::RgbColor{255, 255, 255}));
+      CHECK(gradient.color_stops.back().color == (patchy::RgbColor{0, 0, 0}));
+    }
+  }
+}
+
 void af_read_rejects_non_affinity_bytes() {
   const std::vector<std::uint8_t> garbage = {'n', 'o', 't', ' ', 'a', 'f', 0, 1, 2, 3};
   bool threw = false;
@@ -919,6 +981,8 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_reads_affinity2_raster_document", af_reads_affinity2_raster_document},
       {"af_reads_affinity2_shape_text_document", af_reads_affinity2_shape_text_document},
+      {"af_reads_old_generation_wild_files_if_available",
+       af_reads_old_generation_wild_files_if_available},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},
       {"af_read_survives_mutation_sweep", af_read_survives_mutation_sweep},
