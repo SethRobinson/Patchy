@@ -611,6 +611,10 @@
         <translation>通常</translation>
     </message>
     <message>
+        <source>Dissolve</source>
+        <translation>ディザ合成</translation>
+    </message>
+    <message>
         <location line="-40"/>
         <source>Multiply</source>
         <translation>乗算</translation>

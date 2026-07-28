@@ -437,9 +437,21 @@ inline float shape_burst_stroke_opacity(const LayerStyleGradient& gradient, floa
 // the affine modes — Multiply, Screen, LinearDodge — are algebraically
 // identical either way. Every effect draw goes through here; layer PIXEL
 // compositing keeps the standard model.
+// Dissolve takes its own branch first: it is a coverage decision, not a colour
+// function, so the effect's alpha becomes the probability that the pixel is
+// painted at all and the surviving pixels composite at full strength through
+// Normal. Each effect passes its own DissolveField so a dissolved shadow and a
+// dissolved glow on one layer do not dither onto the same pixels.
 template <typename Target>
 inline void composite_effect_color(Target& destination, std::int32_t x, std::int32_t y, RgbColor color,
-                                   float alpha, BlendMode mode) {
+                                   float alpha, BlendMode mode, DissolveField field) {
+  if (mode == BlendMode::Dissolve) {
+    if (dissolve_coverage(x, y, alpha, field) <= 0.0F) {
+      return;
+    }
+    destination.composite_color(x, y, color, 1.0F, BlendMode::Normal);
+    return;
+  }
   if (mode == BlendMode::LinearBurn || mode == BlendMode::ColorBurn) {
     const auto fold = [alpha](std::uint8_t channel) {
       return static_cast<std::uint8_t>(
@@ -466,7 +478,14 @@ inline void composite_effect_color(Target& destination, std::int32_t x, std::int
 // The LinearBurn/ColorBurn/ColorDodge opacity pre-fold has to come along or
 // those modes lose their Photoshop calibration.
 [[nodiscard]] inline std::array<std::uint8_t, 3> fold_effect_color(std::array<std::uint8_t, 3> destination,
-                                                                   RgbColor color, float alpha, BlendMode mode) {
+                                                                   RgbColor color, float alpha, BlendMode mode,
+                                                                   std::int32_t x, std::int32_t y,
+                                                                   DissolveField field) {
+  if (mode == BlendMode::Dissolve) {
+    return dissolve_coverage(x, y, alpha, field) > 0.0F
+               ? std::array<std::uint8_t, 3>{color.red, color.green, color.blue}
+               : destination;
+  }
   if (mode == BlendMode::LinearBurn || mode == BlendMode::ColorBurn) {
     const auto fold = [alpha](std::uint8_t channel) {
       return static_cast<std::uint8_t>(
@@ -563,17 +582,20 @@ struct PreparedInteriorOverlay {
   for (const auto& overlay : overlays) {
     auto coverage = overlay.opacity;
     auto color = overlay.color;
+    auto field = DissolveField::ColorOverlay;
     switch (overlay.kind) {
       case PreparedInteriorOverlay::Kind::Pattern: {
         const auto sample = overlay.pattern->sample(x, y);
         coverage *= sample.alpha;
         color = sample.color;
+        field = DissolveField::PatternOverlay;
         break;
       }
       case PreparedInteriorOverlay::Kind::Gradient: {
         const auto position = gradient_position(*overlay.gradient, overlay.gradient_bounds, x, y);
         coverage *= gradient_stop_opacity(*overlay.gradient, position);
         color = gradient_color_dithered(*overlay.gradient, position, x, y);
+        field = DissolveField::GradientOverlay;
         break;
       }
       case PreparedInteriorOverlay::Kind::Color:
@@ -582,7 +604,7 @@ struct PreparedInteriorOverlay {
     if (coverage <= 0.0F) {
       continue;
     }
-    styled = fold_effect_color(styled, color, coverage, overlay.blend_mode);
+    styled = fold_effect_color(styled, color, coverage, overlay.blend_mode, x, y, field);
   }
   return styled;
 }
@@ -651,7 +673,8 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
                                                                  (x - draw_rect.x))];
         alpha *= exterior_effect_knockout(shape, shape * paint_scale, true);
       }
-      composite_effect_color(destination, x, y, shadow.color, alpha, shadow.blend_mode);
+      composite_effect_color(destination, x, y, shadow.color, alpha, shadow.blend_mode,
+                             DissolveField::DropShadow);
     }
   }
 }
@@ -713,7 +736,8 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
       if (clip_to_mask) {
         glow_alpha *= layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
       }
-      composite_effect_color(destination, x, y, glow.color, glow_alpha, glow.blend_mode);
+      composite_effect_color(destination, x, y, glow.color, glow_alpha, glow.blend_mode,
+                             DissolveField::OuterGlow);
     }
   }
 }
@@ -770,7 +794,8 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
       if (knockout != nullptr) {
         shadow_alpha *= knockout->at(x, y);
       }
-      composite_effect_color(destination, x, y, shadow.color, shadow_alpha, shadow.blend_mode);
+      composite_effect_color(destination, x, y, shadow.color, shadow_alpha, shadow.blend_mode,
+                             DissolveField::InnerShadow);
     }
   }
 }
@@ -853,7 +878,8 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
       if (knockout != nullptr) {
         glow_alpha *= knockout->at(x, y);
       }
-      composite_effect_color(destination, x, y, glow.color, glow_alpha, glow.blend_mode);
+      composite_effect_color(destination, x, y, glow.color, glow_alpha, glow.blend_mode,
+                             DissolveField::InnerGlow);
     }
   }
 }
@@ -882,7 +908,8 @@ void render_color_overlay(Target& destination, const Layer& layer, const PixelBu
       if (knockout != nullptr) {
         alpha *= knockout->at(x, y);
       }
-      composite_effect_color(destination, x, y, overlay.color, alpha, overlay.blend_mode);
+      composite_effect_color(destination, x, y, overlay.color, alpha, overlay.blend_mode,
+                             DissolveField::ColorOverlay);
     }
   }
 }
@@ -916,7 +943,7 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
         alpha *= knockout->at(x, y);
       }
       composite_effect_color(destination, x, y, gradient_color_dithered(fill.gradient, position, x, y), alpha,
-                             fill.blend_mode);
+                             fill.blend_mode, DissolveField::GradientOverlay);
     }
   }
 }
@@ -961,7 +988,8 @@ void render_pattern_overlay(Target& destination, const Layer& layer, const Pixel
       if (alpha <= 0.0F) {
         continue;
       }
-      composite_effect_color(destination, x, y, sample.color, alpha, overlay.blend_mode);
+      composite_effect_color(destination, x, y, sample.color, alpha, overlay.blend_mode,
+                             DissolveField::PatternOverlay);
     }
   }
 }
@@ -1325,11 +1353,11 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
         if (lighting > 0.0F) {
           composite_effect_color(destination, x, y, bevel.highlight_color,
                                  clamp_unit(lighting) * weight * bevel.highlight_opacity * layer.opacity(),
-                                 bevel.highlight_blend_mode);
+                                 bevel.highlight_blend_mode, DissolveField::Bevel);
         } else if (lighting < 0.0F) {
           composite_effect_color(destination, x, y, bevel.shadow_color,
                                  clamp_unit(-lighting) * weight * bevel.shadow_opacity * layer.opacity(),
-                                 bevel.shadow_blend_mode);
+                                 bevel.shadow_blend_mode, DissolveField::Bevel);
         }
       };
       if (pillow) {
@@ -1711,7 +1739,7 @@ void render_prepared_stroke(Target& destination, const Layer& layer, const Prepa
           alpha *= gradient_stop_opacity(stroke.gradient, position);
         }
       }
-      composite_effect_color(destination, x, y, color, alpha, stroke.blend_mode);
+      composite_effect_color(destination, x, y, color, alpha, stroke.blend_mode, DissolveField::Stroke);
     }
   }
 }
@@ -1765,6 +1793,11 @@ void composite_adjustment_layer(Target& destination, const Layer& layer, Rect cl
   const auto lut = build_adjustment_lut(*settings);
   const auto has_blend_if = layer_has_rendered_blend_if(layer);
   const auto blend_if = has_blend_if ? layer.blend_if() : LayerBlendIf{};
+  // Adjustment layers otherwise ignore their blend mode entirely (a known
+  // approximation). Dissolve is the one mode that has to be honored here,
+  // because it is a coverage decision rather than a colour function: the
+  // adjustment then lands whole on a dithered subset of the pixels.
+  const auto dissolve = layer.blend_mode() == BlendMode::Dissolve;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       auto amount = layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) * layer.opacity() *
@@ -1781,6 +1814,12 @@ void composite_adjustment_layer(Target& destination, const Layer& layer, Rect cl
         }
         amount *= blend_if_source_alpha_factor(blend_if, adjusted) *
                   blend_if_underlying_alpha_factor(blend_if, underlying);
+        if (amount <= 0.0F) {
+          continue;
+        }
+      }
+      if (dissolve) {
+        amount = dissolve_coverage(x, y, amount, DissolveField::Layer);
         if (amount <= 0.0F) {
           continue;
         }
@@ -2068,6 +2107,16 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                     continue;
                   }
                   const auto& effect_color = prepared.effect->color;
+                  // Deliberately not routed through fold_effect_color: this
+                  // fold keeps the plain model for the burn/dodge modes, and
+                  // changing that would move pinned satin bytes. Dissolve is
+                  // handled here for the same reason.
+                  if (prepared.effect->blend_mode == BlendMode::Dissolve) {
+                    if (dissolve_coverage(x, y, coverage, DissolveField::Satin) > 0.0F) {
+                      color = {effect_color.red, effect_color.green, effect_color.blue};
+                    }
+                    continue;
+                  }
                   color = composite_blended_rgb({effect_color.red, effect_color.green, effect_color.blue}, color,
                                                 prepared.effect->blend_mode, coverage, 1.0F);
                 }
@@ -2094,8 +2143,24 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             } else {
               // The blend already happened against the pre-effect backdrop on
               // that path, so the composite is a plain source-over.
+              auto composite_mode = blend_against_backdrop ? BlendMode::Normal : layer.blend_mode();
+              // Keyed on the LAYER's mode, not composite_mode: the
+              // blend-against-backdrop path above already rewrote the latter to
+              // Normal, and for Dissolve that pre-blend is an identity pass
+              // because Dissolve's colour function is the source.
+              if (layer.blend_mode() == BlendMode::Dissolve) {
+                // Coverage is the paint probability; the pixels that survive
+                // land at full strength through Normal. This runs AFTER
+                // record_clip_coverage above, because a clipping run is masked
+                // by the base's transparency and not by what it painted.
+                alpha = dissolve_coverage(x, y, alpha, DissolveField::Layer);
+                if (alpha <= 0.0F) {
+                  continue;
+                }
+                composite_mode = BlendMode::Normal;
+              }
               destination.composite_color(x, y, RgbColor{styled_color[0], styled_color[1], styled_color[2]}, alpha,
-                                          blend_against_backdrop ? BlendMode::Normal : layer.blend_mode());
+                                          composite_mode);
             }
           }
         }
@@ -2136,7 +2201,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             const auto alpha =
                 source_alpha * prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
             if (alpha > 0.0F) {
-              composite_effect_color(destination, x, y, prepared.effect->color, alpha, prepared.effect->blend_mode);
+              composite_effect_color(destination, x, y, prepared.effect->color, alpha, prepared.effect->blend_mode,
+                                     DissolveField::Satin);
             }
           }
         }
@@ -2206,6 +2272,12 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
               destination.composite_special_fill_color(x, y, color, source_coverage,
                                                        layer.fill_opacity(), layer.opacity(),
                                                        layer.blend_mode());
+            } else if (layer.blend_mode() == BlendMode::Dissolve) {
+              // The stroke shares the layer's blend mode, so it dithers on the
+              // same field as the base pass and lands on the same pixels.
+              if (dissolve_coverage(x, y, alpha, DissolveField::Layer) > 0.0F) {
+                destination.composite_color(x, y, color, 1.0F, BlendMode::Normal);
+              }
             } else {
               destination.composite_color(x, y, color, alpha, layer.blend_mode());
             }
@@ -2487,7 +2559,14 @@ public:
           continue;
         }
         const auto* px = rgb_.data() + index * 3U;
-        destination.composite_color(rect_.x + x, rect_.y + y, RgbColor{px[0], px[1], px[2]}, alpha, mode);
+        const auto color = RgbColor{px[0], px[1], px[2]};
+        if (mode == BlendMode::Dissolve) {
+          if (dissolve_coverage(rect_.x + x, rect_.y + y, alpha, DissolveField::Layer) > 0.0F) {
+            destination.composite_color(rect_.x + x, rect_.y + y, color, 1.0F, BlendMode::Normal);
+          }
+          continue;
+        }
+        destination.composite_color(rect_.x + x, rect_.y + y, color, alpha, mode);
       }
     }
   }
@@ -2513,9 +2592,18 @@ public:
           alpha *= blend_if_underlying_alpha_factor(
               blend_if, backdrop->sample_color(rect_.x + x, rect_.y + y));
         }
-        if (alpha > 0.0F) {
-          destination.composite_color(rect_.x + x, rect_.y + y, color, alpha, mode);
+        if (alpha <= 0.0F) {
+          continue;
         }
+        // A Dissolve group dithers its MERGED result, so the children keep
+        // compositing against each other at full strength first.
+        if (mode == BlendMode::Dissolve) {
+          if (dissolve_coverage(rect_.x + x, rect_.y + y, alpha, DissolveField::Layer) > 0.0F) {
+            destination.composite_color(rect_.x + x, rect_.y + y, color, 1.0F, BlendMode::Normal);
+          }
+          continue;
+        }
+        destination.composite_color(rect_.x + x, rect_.y + y, color, alpha, mode);
       }
     }
   }

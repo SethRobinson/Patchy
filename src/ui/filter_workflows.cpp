@@ -453,7 +453,7 @@ std::optional<FilterInvocation> request_filter_settings(
 
     blend_mode_combo = new QComboBox(&dialog);
     blend_mode_combo->setObjectName(QStringLiteral("smartFilterBlendModeCombo"));
-    add_blend_mode_items(blend_mode_combo);
+    add_blend_mode_items(blend_mode_combo, BlendModeMenu::Filter);
     const auto blend_mode_index =
         blend_mode_combo->findData(static_cast<int>(initial_blending.blend_mode));
     blend_mode_combo->setCurrentIndex(

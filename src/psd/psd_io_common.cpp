@@ -260,6 +260,8 @@ std::array<char, 4> blend_mode_key(BlendMode mode) {
       return {'p', 'a', 's', 's'};
     case BlendMode::Normal:
       return {'n', 'o', 'r', 'm'};
+    case BlendMode::Dissolve:
+      return {'d', 'i', 's', 's'};
     case BlendMode::Multiply:
       return {'m', 'u', 'l', ' '};
     case BlendMode::Screen:
@@ -316,11 +318,13 @@ std::array<char, 4> blend_mode_key(BlendMode mode) {
 
 // Accepts both the layer-record blend signatures ('dark', 'mul ', ...) and the
 // descriptor-enum charIDs ('Drkn', 'Mltp', ...) that CS-era lfx2 blocks store as
-// length-0 'BlnM' values. 'Dslv' (dissolve) has no Patchy blend mode and
-// intentionally resolves to Normal through the default below.
+// length-0 'BlnM' values.
 BlendMode blend_mode_from_key(const std::array<char, 4>& key) {
   if (key == std::array<char, 4>{'N', 'r', 'm', 'l'}) {
     return BlendMode::Normal;
+  }
+  if (key == std::array<char, 4>{'d', 'i', 's', 's'} || key == std::array<char, 4>{'D', 's', 'l', 'v'}) {
+    return BlendMode::Dissolve;
   }
   if (key == std::array<char, 4>{'m', 'u', 'l', ' '}) {
     return BlendMode::Multiply;
@@ -428,6 +432,9 @@ BlendMode blend_mode_from_descriptor_enum(std::string_view value, const std::arr
   }
   if (value == "normal") {
     return BlendMode::Normal;
+  }
+  if (value == "dissolve") {
+    return BlendMode::Dissolve;
   }
   if (value == "multiply") {
     return BlendMode::Multiply;

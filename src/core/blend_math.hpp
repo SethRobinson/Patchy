@@ -31,6 +31,34 @@ struct FillCompositeResult {
                                                                 std::array<std::uint8_t, 3> destination,
                                                                 BlendMode mode, float source_alpha,
                                                                 float destination_alpha);
+// Which deterministic noise field a Dissolve draw samples. A layer and each of
+// its dissolved effects use a different field so their dither patterns do not
+// land on identical pixels. Values are salts, not indices; they may be
+// reordered freely because nothing persists them.
+enum class DissolveField : std::uint32_t {
+  Layer = 0,
+  DropShadow,
+  InnerShadow,
+  OuterGlow,
+  InnerGlow,
+  ColorOverlay,
+  GradientOverlay,
+  PatternOverlay,
+  Satin,
+  Stroke,
+  Bevel
+};
+
+// Photoshop's Dissolve replaces partial coverage with a stochastic all-or-
+// nothing paint decision, so it cannot be expressed as a blend_rgb colour
+// function. Returns exactly 0 or 1; callers composite the result with
+// BlendMode::Normal.
+//
+// The threshold is a pure function of the DOCUMENT coordinate, which is what
+// keeps a dirty-rect repaint, a strip-parallel render and a full flatten
+// producing the same pattern. Never make this stateful.
+[[nodiscard]] float dissolve_coverage(std::int32_t x, std::int32_t y, float alpha,
+                                      DissolveField field = DissolveField::Layer) noexcept;
 [[nodiscard]] bool blend_mode_has_special_fill(BlendMode mode) noexcept;
 [[nodiscard]] FillCompositeResult composite_special_fill_rgb(
     std::array<std::uint8_t, 3> source, std::array<std::uint8_t, 3> destination, BlendMode mode,

@@ -1,5 +1,7 @@
 #include "ui/blend_mode_ui.hpp"
 
+#include "filters/filter_registry.hpp"
+
 #include <QComboBox>
 #include <QObject>
 
@@ -13,6 +15,8 @@ QString blend_mode_name(BlendMode mode) {
       return QObject::tr("Pass Through");
     case BlendMode::Normal:
       return QObject::tr("Normal");
+    case BlendMode::Dissolve:
+      return QObject::tr("Dissolve");
     case BlendMode::Multiply:
       return QObject::tr("Multiply");
     case BlendMode::Screen:
@@ -68,11 +72,11 @@ QString blend_mode_name(BlendMode mode) {
 }
 
 
-void add_blend_mode_items(QComboBox* combo) {
+void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
   // Photoshop's menu grouping order; item data carries the enum value, so display order is
   // free to differ from enum order.
   constexpr std::array kBlendModes = {
-      BlendMode::Normal,
+      BlendMode::Normal,     BlendMode::Dissolve,
       BlendMode::Darken,     BlendMode::Multiply,    BlendMode::ColorBurn,
       BlendMode::LinearBurn, BlendMode::DarkerColor,
       BlendMode::Lighten,    BlendMode::Screen,      BlendMode::ColorDodge,
@@ -83,6 +87,9 @@ void add_blend_mode_items(QComboBox* combo) {
       BlendMode::Hue,        BlendMode::Saturation,  BlendMode::Color,      BlendMode::Luminosity,
   };
   for (const auto mode : kBlendModes) {
+    if (menu == BlendModeMenu::Filter && !recipe_blend_mode_supported(mode)) {
+      continue;
+    }
     combo->addItem(blend_mode_name(mode), static_cast<int>(mode));
   }
 }

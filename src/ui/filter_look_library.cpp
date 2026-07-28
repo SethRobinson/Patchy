@@ -104,10 +104,7 @@ void set_error(FilterLookLibraryError* destination,
   const auto utf8 = token.toUtf8();
   const auto mode = psd::blend_mode_from_lfx2_enum(
       std::string_view(utf8.constData(), static_cast<std::size_t>(utf8.size())));
-  const auto value = static_cast<int>(mode);
-  if (value < static_cast<int>(BlendMode::Normal) ||
-      value > static_cast<int>(BlendMode::Divide) ||
-      blend_mode_token(mode) != token) {
+  if (!recipe_blend_mode_supported(mode) || blend_mode_token(mode) != token) {
     return std::nullopt;
   }
   return mode;
@@ -328,9 +325,7 @@ void set_error(FilterLookLibraryError* destination,
       entry.opacity > 1.0) {
     return std::nullopt;
   }
-  const auto mode_value = static_cast<int>(entry.blend_mode);
-  if (mode_value < static_cast<int>(BlendMode::Normal) ||
-      mode_value > static_cast<int>(BlendMode::Divide)) {
+  if (!recipe_blend_mode_supported(entry.blend_mode)) {
     return std::nullopt;
   }
   const auto mode = blend_mode_from_token(blend_mode_token(entry.blend_mode));

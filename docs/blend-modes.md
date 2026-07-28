@@ -7,9 +7,16 @@ Everything a new blend mode touches, and the calibrated rounding rules. `BlendMo
 Adding a blend mode means updating ALL of:
 
 - `blend_math.cpp` — the pixel math.
-- `blend_mode_ui.cpp` — display order is decoupled from enum order via combo item data; insert the new mode at its Photoshop menu position.
+- `blend_mode_ui.cpp` — the name switch AND the `kBlendModes` array. Display order is decoupled from enum order via combo item data; insert the new mode at its Photoshop menu position. `BlendModeMenu::Filter` drops the modes a recipe or Smart Filter step cannot execute.
 - The three PSD maps: the 4-char blend key map (whose read direction also carries the CS-era descriptor charID aliases like 'Drkn') AND the lfx2 stringID map, in BOTH read and write directions (lfx2 blend modes are written as full stringIDs, never 4-char codes — see [ps-compat.md](ps-compat.md)).
 - The Aseprite map in both directions.
+- `script_api.cpp` — `kBlendModeIds` is INDEXED BY THE ENUM ORDINAL, so its size literal has to grow with the enum and the new id appends at the end. Scripts hard-code these strings.
+- `svg_io_internal.hpp` — `blend_mode_css` has a `default:` returning the empty string, which is what raises the SVG rasterization barrier. Nothing to do unless CSS can express the mode.
+- `af_document_io.cpp` — read-only Affinity id map. Unmapped ids already fall back to Normal plus a notice, so leave an id alone unless a real Affinity file confirms it.
+- `recipe_blend_mode_supported` (`filters/filter_registry.hpp`) — decide explicitly whether recipes and Smart Filters can execute the mode. This used to be an ordinal range ending at `Divide`, duplicated in `filter_look_library.cpp`, and went stale the moment the enum grew: the combos offered Vivid Light and friends while the guard silently rejected them.
+- `translations/patchy_ja.ts` — the display name.
+
+Most of the exhaustive `switch (mode)` maps are caught by `-Wswitch` because they have no `default:`. The ones that are NOT: the `if`-chains in `blend_mode_from_key` and `blend_mode_from_descriptor_enum`, the `kBlendModes` array, and `kBlendModeIds`. Check those four by hand.
 
 ## Calibrated math rules
 
@@ -92,3 +99,72 @@ The pinned kernels, all bit-exact on the capture except where noted:
   modes (its "eight special modes"); Patchy's `blend_mode_has_special_fill`
   deliberately does not include them yet, so fill-opacity behavior below 100%
   is uncalibrated for the three light modes.
+
+## Dissolve (July 2026)
+
+Dissolve is the one mode that is NOT a colour function. Coverage becomes the
+probability that a pixel is painted at all: the pixel is either fully painted
+through Normal or not painted, so a Dissolve layer never produces a blended
+intermediate value. It therefore cannot live in `blend_rgb`, which takes
+neither alpha nor a coordinate. `blend_rgb` returns the source for Dissolve so
+that the callers with no pixel coordinate (the eyedropper's
+`compose_layer_pixel`, the filter fade loops) degrade to Normal.
+
+The math is `dissolve_coverage(x, y, alpha, field)` in `blend_math.cpp`, and the
+compositor applies it. **Patchy's noise field is its own, not a reconstruction of
+Photoshop's** — a compatible rendering, the same standing as Add Noise, Mosaic
+and Plastic Wrap. The threshold is `splitmix64(x | y << 32 ^ salt)` compared on
+an explicit 24-bit integer scale against `lround(alpha * 2^24)`, which keeps the
+uniform mapping exact on every toolchain (the AGENTS.md determinism invariant)
+and makes coverage monotone in alpha, so raising Opacity only adds pixels
+instead of reshuffling the pattern.
+
+- **The field is a pure function of the DOCUMENT coordinate.** That is what lets
+  a dirty-rect repaint, a strip-parallel render and a full flatten all reproduce
+  the same pattern; `image_document_io.cpp` states the clip-equals-full
+  invariant the patch machinery depends on. Never make this stateful, and never
+  key it on a layer-local or buffer-local coordinate.
+- **Each dissolved effect uses its own `DissolveField` salt**, so a dissolved
+  drop shadow and a dissolved outer glow on one layer do not dither onto
+  identical pixels. The layer's own pixels, its vector stroke, and a Dissolve
+  group's merged result all share `DissolveField::Layer`.
+- Applied at: the base pixel pass and the vector stroke pass, both
+  `IsolatedClipGroupTarget` merges (a Dissolve GROUP dithers its merged result,
+  so children still composite against each other at full strength),
+  `composite_adjustment_layer`, and the two effect choke points
+  `composite_effect_color` and `fold_effect_color`. The inline satin fold in the
+  base pass handles it separately, deliberately: routing that fold through
+  `fold_effect_color` would also give it the burn/dodge opacity pre-fold and
+  move pinned satin bytes.
+- **Fill and Opacity are not special-cased.** Dissolve is not one of Photoshop's
+  eight special-Fill modes, so both simply compound into the probability
+  (`coverage x opacity x fill`), which is what the compositor already computes.
+- **Clip coverage stays undithered.** The threshold runs after
+  `record_clip_coverage`, because a clipping run is masked by the base's
+  transparency and not by what the base actually painted (ps-compat.md).
+- Adjustment layers otherwise ignore their blend mode entirely. Dissolve is the
+  one mode honored there, because it is a coverage decision: the adjustment
+  lands whole on a dithered subset of pixels.
+
+Three deliberate divergences from Photoshop:
+
+- **Zoomed out, the canvas shows a wash rather than noise.** `display_mip_cache_`
+  smooth-downscales a full-resolution composite, so below 100% zoom the dither
+  box-filters into uniform partial-opacity grey. Photoshop dissolves at screen
+  resolution. Flatten and every export are correct; this is preview-only, and
+  there is no reduced-resolution composite hook to intercept.
+- **Inside a Smart Object the field is Smart-Object-local**, since the nested
+  document composites in its own coordinate space. Moving the Smart Object on
+  the parent canvas does not re-dither its interior.
+- **Recipes and Smart Filters exclude Dissolve** (`recipe_blend_mode_supported`).
+  Their blend step mixes through integer weights rather than making a coverage
+  decision, so Dissolve there would need its own design; the filter combos hide
+  it instead of offering a mode that gets rejected on save.
+
+Aseprite has no dissolve, so the .ase writer marks it lossy (Normal) like the
+other unrepresentable modes. Pinned by
+`blend_dissolve_coverage_is_deterministic_and_uniform`,
+`compositor_dissolve_is_anchored_to_document_coordinates`,
+`compositor_dissolve_compounds_fill_and_opacity`,
+`compositor_dissolve_dithers_layer_effects` and the UI suite's
+`ui_dissolve_clipped_render_matches_full_render`.

@@ -511,7 +511,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   auto* blend_mode_combo = new QComboBox(applied_effects);
   blend_mode_combo->setObjectName(
       QStringLiteral("filterGalleryBlendModeCombo"));
-  add_blend_mode_items(blend_mode_combo);
+  add_blend_mode_items(blend_mode_combo, BlendModeMenu::Filter);
   blend_mode_combo->setEnabled(false);
   blending_form->addRow(QObject::tr("Mode:"), blend_mode_combo);
   auto* opacity_row = new QWidget(applied_effects);

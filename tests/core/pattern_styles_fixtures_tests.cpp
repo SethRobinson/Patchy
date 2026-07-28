@@ -1660,11 +1660,15 @@ void psd_lfx2_charid_blend_mode_enum_parses() {
   CHECK(mode("Strt") == patchy::BlendMode::Saturation);
   CHECK(mode("Clr ") == patchy::BlendMode::Color);
   CHECK(mode("Lmns") == patchy::BlendMode::Luminosity);
-  // Existing forms stay mapped; dissolve has no Patchy mode and resolves Normal.
+  // Existing forms stay mapped. Dissolve gained a Patchy mode in July 2026, so
+  // its charID, layer-record key and stringID all resolve now instead of
+  // silently degrading to Normal on import and on resave.
   CHECK(mode("darken") == patchy::BlendMode::Darken);
   CHECK(mode("dark") == patchy::BlendMode::Darken);
   CHECK(mode("Mltp") == patchy::BlendMode::Multiply);
-  CHECK(mode("Dslv") == patchy::BlendMode::Normal);
+  CHECK(mode("Dslv") == patchy::BlendMode::Dissolve);
+  CHECK(mode("diss") == patchy::BlendMode::Dissolve);
+  CHECK(mode("dissolve") == patchy::BlendMode::Dissolve);
 
   // Integration: a minimal lfx2 payload whose GrFl blend mode rides the
   // length-0 charID enum form, like Photoshop CS wrote it.

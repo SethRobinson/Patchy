@@ -453,6 +453,43 @@ void ui_tool_palette_expanded_collapses_after_tool_pick() {
   CHECK(setup.foreground->isVisible());
 }
 
+// Dissolve's dither threshold is a pure function of the document coordinate,
+// which is exactly what the dirty-rect patch machinery needs: rendering a
+// sub-rect must produce the same pixels as the same region of a full render.
+// A stateful or scanline-counted noise field would pass every core unit test
+// and still crawl under the canvas as the user pans.
+void ui_dissolve_clipped_render_matches_full_render() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(Qt::black)));
+  auto& top = document.add_pixel_layer(
+      "Dissolve", solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  top.set_blend_mode(patchy::BlendMode::Dissolve);
+  top.set_opacity(0.5F);
+
+  const auto full = patchy::ui::qimage_from_document(document, true);
+  const std::array<QRect, 4> patches{QRect(0, 0, 71, 53), QRect(71, 0, 89, 53), QRect(0, 53, 71, 67),
+                                     QRect(71, 53, 89, 67)};
+  int painted = 0;
+  for (const auto& patch : patches) {
+    const auto clipped = patchy::ui::qimage_from_document_rect(document, patch, true);
+    CHECK(clipped.width() == patch.width());
+    CHECK(clipped.height() == patch.height());
+    for (int y = 0; y < patch.height(); ++y) {
+      for (int x = 0; x < patch.width(); ++x) {
+        const auto expected = full.pixelColor(patch.x() + x, patch.y() + y);
+        CHECK(clipped.pixelColor(x, y) == expected);
+        // All or nothing, never a blended grey.
+        CHECK(expected.red() == 0 || expected.red() == 255);
+        painted += expected.red() == 255 ? 1 : 0;
+      }
+    }
+  }
+  // Roughly half of 160x120 dithered on.
+  CHECK(painted > 9000);
+  CHECK(painted < 10500);
+}
+
 void ui_window_force_refresh_action_rebuilds_cache() {
   patchy::Document document(180, 130, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(180, 130, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -2767,6 +2804,7 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
        ui_tool_palette_overflow_hides_quick_mask_before_swatches},
       {"ui_tool_palette_extension_button_expands_palette", ui_tool_palette_extension_button_expands_palette},
       {"ui_tool_palette_expanded_collapses_after_tool_pick", ui_tool_palette_expanded_collapses_after_tool_pick},
+      {"ui_dissolve_clipped_render_matches_full_render", ui_dissolve_clipped_render_matches_full_render},
       {"ui_window_force_refresh_action_rebuilds_cache", ui_window_force_refresh_action_rebuilds_cache},
       {"ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency",
        ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency},

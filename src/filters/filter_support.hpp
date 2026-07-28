@@ -12,12 +12,9 @@
 
 namespace patchy {
 
-// Whether a recipe/smart-filter blend step supports this blend mode.
-inline bool recipe_blend_mode_supported(BlendMode mode) noexcept {
-  const auto value = static_cast<int>(mode);
-  return value >= static_cast<int>(BlendMode::Normal) &&
-         value <= static_cast<int>(BlendMode::Divide);
-}
+// recipe_blend_mode_supported moved to filter_registry.hpp so src/ui shares one
+// definition; this header stays internal to src/filters and cannot be included
+// from there.
 
 // Progress adapter that maps phase phase_index of phase_count onto the outer
 // progress range. (smart_filter_renderer keeps its own phase_progress variant

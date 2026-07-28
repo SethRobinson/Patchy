@@ -36,13 +36,13 @@ namespace {
 
 // Script-facing blend mode ids. Append-only and aligned with the BlendMode
 // enum order (core/layer.hpp); scripts hard-code these strings.
-constexpr std::array<const char*, 27> kBlendModeIds = {
+constexpr std::array<const char*, 28> kBlendModeIds = {
     "pass-through", "normal",       "multiply",    "screen",       "overlay",
     "darken",       "lighten",      "color-dodge", "color-burn",   "hard-light",
     "soft-light",   "difference",   "linear-burn", "pin-light",    "saturation",
     "luminosity",   "exclusion",    "hue",         "color",        "linear-dodge",
     "subtract",     "divide",       "vivid-light", "linear-light", "hard-mix",
-    "darker-color", "lighter-color"};
+    "darker-color", "lighter-color", "dissolve"};
 
 QJSValue rect_to_js(QJSEngine* engine, const Rect& rect) {
   auto value = engine->newObject();

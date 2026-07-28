@@ -1120,6 +1120,8 @@ namespace {
 // so write exactly that form.
 std::string_view blend_mode_descriptor_value(BlendMode mode) {
   switch (mode) {
+    case BlendMode::Dissolve:
+      return "dissolve";
     case BlendMode::Multiply:
       return "multiply";
     case BlendMode::Screen:

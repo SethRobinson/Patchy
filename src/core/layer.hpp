@@ -71,7 +71,13 @@ enum class BlendMode {
   LinearLight,
   HardMix,
   DarkerColor,
-  LighterColor
+  LighterColor,
+  // July 2026 addition. Dissolve is the one mode that is NOT a colour function:
+  // it turns coverage into an all-or-nothing paint decision against a
+  // deterministic per-document-pixel threshold, so its math lives in
+  // dissolve_coverage (core/blend_math.hpp) and is applied by the compositor,
+  // not by blend_rgb. See docs/blend-modes.md.
+  Dissolve
 };
 
 enum class LayerKind {

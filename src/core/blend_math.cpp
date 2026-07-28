@@ -166,6 +166,13 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
     case BlendMode::DarkerColor:
     case BlendMode::LighterColor:
       return src;
+    // Dissolve has no colour function: wherever it paints at all it paints the
+    // source, and the coverage decision is made by dissolve_coverage in the
+    // compositor. Returning the source here also keeps the callers that have no
+    // pixel coordinate (the eyedropper's compose_layer_pixel, the filter fade
+    // loops) degrading to Normal instead of falling through.
+    case BlendMode::Dissolve:
+      return src;
   }
   return src;
 }
@@ -527,6 +534,27 @@ std::array<std::uint8_t, 3> composite_blended_rgb(std::array<std::uint8_t, 3> so
                    output_alpha);
   }
   return output;
+}
+
+float dissolve_coverage(std::int32_t x, std::int32_t y, float alpha, DissolveField field) noexcept {
+  alpha = clamp_unit(alpha);
+  if (alpha <= 0.0F) {
+    return 0.0F;
+  }
+  if (alpha >= 1.0F) {
+    return 1.0F;
+  }
+  const auto key = static_cast<std::uint64_t>(static_cast<std::uint32_t>(x)) |
+                   (static_cast<std::uint64_t>(static_cast<std::uint32_t>(y)) << 32U);
+  const auto salt = static_cast<std::uint64_t>(field) * 0x9e3779b97f4a7c15ULL;
+  // Compare as integers on an explicit 24-bit scale rather than against a
+  // float in [0, 1): the mapping is then exact and identical on every
+  // toolchain, per the determinism invariant in AGENTS.md.
+  constexpr std::uint32_t kScale = 1U << 24U;
+  const auto threshold = static_cast<std::uint32_t>(splitmix64(key ^ salt) >> 40U);
+  const auto probability =
+      static_cast<std::uint32_t>(std::lround(alpha * static_cast<float>(kScale)));
+  return probability > threshold ? 1.0F : 0.0F;
 }
 
 bool blend_mode_has_special_fill(BlendMode mode) noexcept {

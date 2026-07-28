@@ -896,6 +896,8 @@ void compositor_applies_extended_blend_modes() {
       {patchy::BlendMode::LinearDodge, 255, 180, 240},
       {patchy::BlendMode::Subtract, 0, 60, 40},
       {patchy::BlendMode::Divide, 128, 255, 255},
+      // Dissolve at full coverage never dithers, so it is exactly Normal here.
+      {patchy::BlendMode::Dissolve, 200, 60, 100},
   };
 
   for (const auto& blend : expected) {
@@ -937,6 +939,178 @@ void compositor_fill_opacity_matches_photoshop_modes() {
     CHECK(pixel[1] == item.rgb[1]);
     CHECK(pixel[2] == item.rgb[2]);
   }
+}
+
+// Dissolve is the one blend mode that is not a colour function: coverage
+// becomes the probability that a pixel is painted at all, and the threshold is
+// a deterministic function of the document coordinate. Patchy's field is its
+// own, not a reconstruction of Photoshop's, so what is pinned here is the
+// behaviour the renderer depends on, not Photoshop's exact pixels.
+void blend_dissolve_coverage_is_deterministic_and_uniform() {
+  // The two ends are exact and out-of-range inputs clamp: a fully opaque
+  // Dissolve layer must be byte-identical to Normal, never speckled.
+  for (std::int32_t y = 0; y < 8; ++y) {
+    for (std::int32_t x = 0; x < 8; ++x) {
+      CHECK(patchy::dissolve_coverage(x, y, 0.0F) == 0.0F);
+      CHECK(patchy::dissolve_coverage(x, y, 1.0F) == 1.0F);
+      CHECK(patchy::dissolve_coverage(x, y, -1.0F) == 0.0F);
+      CHECK(patchy::dissolve_coverage(x, y, 2.0F) == 1.0F);
+    }
+  }
+
+  // Every partial coverage resolves to exactly 0 or 1, and repeats. Repeating
+  // is the load-bearing property: a dirty-rect repaint re-evaluates the same
+  // pixels and must reach the same answer.
+  int painted = 0;
+  for (std::int32_t y = 0; y < 256; ++y) {
+    for (std::int32_t x = 0; x < 256; ++x) {
+      const auto first = patchy::dissolve_coverage(x, y, 0.5F);
+      CHECK(first == 0.0F || first == 1.0F);
+      CHECK(patchy::dissolve_coverage(x, y, 0.5F) == first);
+      painted += first > 0.0F ? 1 : 0;
+    }
+  }
+  // 65536 samples at p = 0.5. Deliberately a loose window rather than a pinned
+  // count: the point is that the field is uniform, not which hash produced it.
+  CHECK(painted > 32000);
+  CHECK(painted < 33500);
+
+  // Coverage is monotone in alpha, so raising Opacity only ever adds pixels
+  // instead of reshuffling the pattern.
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 0; x < 64; ++x) {
+      if (patchy::dissolve_coverage(x, y, 0.25F) > 0.0F) {
+        CHECK(patchy::dissolve_coverage(x, y, 0.75F) > 0.0F);
+      }
+    }
+  }
+
+  // Separate fields decorrelate, so a dissolved drop shadow and a dissolved
+  // outer glow on one layer do not dither onto identical pixels.
+  int agreements = 0;
+  for (std::int32_t y = 0; y < 128; ++y) {
+    for (std::int32_t x = 0; x < 128; ++x) {
+      const auto layer = patchy::dissolve_coverage(x, y, 0.5F, patchy::DissolveField::Layer);
+      const auto glow = patchy::dissolve_coverage(x, y, 0.5F, patchy::DissolveField::OuterGlow);
+      agreements += layer == glow ? 1 : 0;
+    }
+  }
+  // Two independent fields agree on about half of the 16384 pixels; two
+  // identical ones would agree on all of them.
+  CHECK(agreements > 7500);
+  CHECK(agreements < 9000);
+}
+
+// The field is anchored to the DOCUMENT coordinate, which is what lets the
+// dirty-rect patch machinery and the strip-parallel renderer reproduce the same
+// pattern that a full flatten produces. Rendering the same content at the same
+// document position on two different canvas sizes must agree pixel for pixel.
+void compositor_dissolve_is_anchored_to_document_coordinates() {
+  const auto render = [](std::int32_t canvas) {
+    patchy::Document document(canvas, canvas, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(canvas, canvas, 0, 0, 0));
+    auto& top = document.add_pixel_layer("Dissolve", solid_rgba(canvas, canvas, 255, 255, 255, 255));
+    top.set_blend_mode(patchy::BlendMode::Dissolve);
+    top.set_opacity(0.5F);
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+  // Not named "small": <rpcndr.h> defines that as a macro for char on Windows.
+  const auto narrow_canvas = render(48);
+  const auto wide_canvas = render(96);
+  int painted = 0;
+  for (std::int32_t y = 0; y < 48; ++y) {
+    for (std::int32_t x = 0; x < 48; ++x) {
+      const auto* a = narrow_canvas.pixel(x, y);
+      const auto* b = wide_canvas.pixel(x, y);
+      CHECK(a[0] == b[0]);
+      CHECK(a[1] == b[1]);
+      CHECK(a[2] == b[2]);
+      // All or nothing: a dissolved pixel is never a blended grey.
+      CHECK(a[0] == 0 || a[0] == 255);
+      painted += a[0] == 255 ? 1 : 0;
+    }
+  }
+  CHECK(painted > 1000);
+  CHECK(painted < 1300);
+}
+
+// Fill and Opacity are not special-cased for Dissolve (it is not one of
+// Photoshop's eight special-Fill modes), so both simply compound into the paint
+// probability. Fill 50% x Opacity 50% therefore paints about a quarter of the
+// pixels, and Fill 0% paints none.
+void compositor_dissolve_compounds_fill_and_opacity() {
+  const auto painted_fraction = [](float opacity, float fill) {
+    patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(64, 64, 0, 0, 0));
+    auto& top = document.add_pixel_layer("Dissolve", solid_rgba(64, 64, 255, 255, 255, 255));
+    top.set_blend_mode(patchy::BlendMode::Dissolve);
+    top.set_opacity(opacity);
+    top.set_fill_opacity(fill);
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    int painted = 0;
+    for (std::int32_t y = 0; y < 64; ++y) {
+      for (std::int32_t x = 0; x < 64; ++x) {
+        painted += flattened.pixel(x, y)[0] == 255 ? 1 : 0;
+      }
+    }
+    return painted;
+  };
+  CHECK(painted_fraction(1.0F, 0.0F) == 0);
+  CHECK(painted_fraction(0.0F, 1.0F) == 0);
+  CHECK(painted_fraction(1.0F, 1.0F) == 64 * 64);
+  const auto quarter = painted_fraction(0.5F, 0.5F);
+  CHECK(quarter > 900);
+  CHECK(quarter < 1150);
+}
+
+// Layer-style effects dissolve too, each on its own field. The probe is a hard
+// 2 px drop shadow (no blur fringe to reason about) at 50% opacity: every
+// shadow pixel is either the full shadow colour or the untouched backdrop, and
+// the run is a mix of both.
+void compositor_dissolve_dithers_layer_effects() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(64, 64, 255, 255, 255));
+
+  patchy::PixelBuffer base_pixels(64, 64, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 0; x < 64; ++x) {
+      auto* px = base_pixels.pixel(x, y);
+      px[0] = 255;
+      px[1] = 0;
+      px[2] = 0;
+      px[3] = x < 32 ? 255 : 0;
+    }
+  }
+  patchy::Layer base(document.allocate_layer_id(), "Shadowed", std::move(base_pixels));
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Dissolve;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 0.5F;
+  shadow.angle_degrees = 180.0F;  // straight to the right
+  shadow.distance = 8.0F;
+  shadow.size = 0.0F;
+  shadow.spread = 0.0F;
+  base.layer_style().drop_shadows.push_back(shadow);
+  document.add_layer(std::move(base));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  int shadowed = 0;
+  int clear = 0;
+  // x = 32..39 is the shadow band the layer itself does not cover.
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 32; x < 40; ++x) {
+      const auto* px = flattened.pixel(x, y);
+      const auto black = px[0] == 0 && px[1] == 0 && px[2] == 0;
+      const auto white = px[0] == 255 && px[1] == 255 && px[2] == 255;
+      CHECK(black || white);  // never a 50% grey
+      shadowed += black ? 1 : 0;
+      clear += white ? 1 : 0;
+    }
+  }
+  CHECK(shadowed + clear == 64 * 8);
+  CHECK(shadowed > 200);
+  CHECK(clear > 200);
 }
 
 }  // namespace
@@ -1067,6 +1241,14 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
       {"compositor_applies_extended_blend_modes", compositor_applies_extended_blend_modes},
       {"compositor_fill_opacity_matches_photoshop_modes",
        compositor_fill_opacity_matches_photoshop_modes},
+      {"blend_dissolve_coverage_is_deterministic_and_uniform",
+       blend_dissolve_coverage_is_deterministic_and_uniform},
+      {"compositor_dissolve_is_anchored_to_document_coordinates",
+       compositor_dissolve_is_anchored_to_document_coordinates},
+      {"compositor_dissolve_compounds_fill_and_opacity",
+       compositor_dissolve_compounds_fill_and_opacity},
+      {"compositor_dissolve_dithers_layer_effects",
+       compositor_dissolve_dithers_layer_effects},
       {"blend_if_codec_decodes_default_and_identity", blend_if_codec_decodes_default_and_identity},
       {"blend_if_codec_round_trips_unique_rgb_ranges", blend_if_codec_round_trips_unique_rgb_ranges},
       {"blend_if_codec_rejects_unsupported_payloads", blend_if_codec_rejects_unsupported_payloads},

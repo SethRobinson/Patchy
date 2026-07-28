@@ -38,6 +38,54 @@ struct FilterRecipe {
   std::vector<FilterRecipeEntry> entries;
 };
 
+// Whether a recipe / Smart Filter blend step supports this blend mode. Every
+// mode qualifies except two structural ones: PassThrough is a group concept,
+// and Dissolve is a coverage decision rather than a colour function, which the
+// integer-weight blend loops in filter_registry.cpp and
+// smart_filter_renderer.cpp do not model.
+//
+// Deliberately an exhaustive switch rather than an ordinal range. It used to be
+// `Normal <= mode <= Divide`, duplicated in filter_look_library.cpp, and went
+// stale as soon as the enum grew: the combos offered Vivid Light and friends
+// and the guard then silently rejected them. -Wswitch now forces a decision for
+// every appended mode. The trailing return also rejects out-of-range values,
+// which matters because this guard reads persisted Saved Look data.
+[[nodiscard]] inline bool recipe_blend_mode_supported(BlendMode mode) noexcept {
+  switch (mode) {
+    case BlendMode::PassThrough:
+    case BlendMode::Dissolve:
+      return false;
+    case BlendMode::Normal:
+    case BlendMode::Multiply:
+    case BlendMode::Screen:
+    case BlendMode::Overlay:
+    case BlendMode::Darken:
+    case BlendMode::Lighten:
+    case BlendMode::ColorDodge:
+    case BlendMode::ColorBurn:
+    case BlendMode::HardLight:
+    case BlendMode::SoftLight:
+    case BlendMode::Difference:
+    case BlendMode::LinearBurn:
+    case BlendMode::PinLight:
+    case BlendMode::Saturation:
+    case BlendMode::Luminosity:
+    case BlendMode::Exclusion:
+    case BlendMode::Hue:
+    case BlendMode::Color:
+    case BlendMode::LinearDodge:
+    case BlendMode::Subtract:
+    case BlendMode::Divide:
+    case BlendMode::VividLight:
+    case BlendMode::LinearLight:
+    case BlendMode::HardMix:
+    case BlendMode::DarkerColor:
+    case BlendMode::LighterColor:
+      return true;
+  }
+  return false;
+}
+
 enum class FilterCategory {
   Uncategorized,
   Adjustment,

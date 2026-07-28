@@ -831,9 +831,10 @@ void aseprite_blend_modes_match_aseprite_render() {
 void psd_round_trips_new_blend_modes() {
   patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(4, 4, 10, 20, 200));
-  const std::array<patchy::BlendMode, 6> modes = {patchy::BlendMode::Exclusion,   patchy::BlendMode::Hue,
+  const std::array<patchy::BlendMode, 7> modes = {patchy::BlendMode::Exclusion,   patchy::BlendMode::Hue,
                                                   patchy::BlendMode::Color,       patchy::BlendMode::LinearDodge,
-                                                  patchy::BlendMode::Subtract,    patchy::BlendMode::Divide};
+                                                  patchy::BlendMode::Subtract,    patchy::BlendMode::Divide,
+                                                  patchy::BlendMode::Dissolve};
   for (const auto mode : modes) {
     auto& layer = document.add_pixel_layer("Layer", solid_rgba(4, 4, 200, 40, 40, 255));
     layer.set_blend_mode(mode);
