@@ -170,6 +170,26 @@ versions 3 through 31, render pixel-identical to their own embedded
 thumbnails. A truncated/corrupt wild file is rejected cleanly (the FAT walk
 throws; no crash).
 
+A second, 57-file sweep the same day (af-spike FINDINGS.md "2.x wild
+sweep") targeted the Affinity 2 generation specifically: 30 genuine 2.x
+documents (doc versions 20-26, container v11, including two real
+Publisher .afpub files) plus 27 more 1.x-era files, all imported without a
+crash. It shipped three fixes, pinned by
+`af_reads_affinity2_wild_files_if_available` (skips without the local
+samples): the canvas comes from the first spread's `SprB` bounds whenever
+they are present and sane, with the document node's `DfSz` only a fallback
+(2.x files routinely store the New Document preset size there; every
+observed DfSz/SprB mismatch resolves to SprB by the file's own thumbnail
+aspect); mask enclosures compose through their OWNER node's transform (the
+adjunct is a child of its owner, so its plane lives in the owner's local
+space - 2.x masks carry no adjunct Xfrm at all, while 3.x masks carry an
+inverse-of-owner Xfrm that lands the plane in spread space); and Designer
+SYMBOL instances resolve through their instance-link rings - a linked
+instance stores no local geometry or paint, and its `SLnk`/`GLnk`/`DLnk`/
+`CLnk` links hold `ILOb` lists naming every sibling instance, one of which
+carries the defining `Crvs`/`Shpe`/fill records (the importer chases one
+hop; per-instance transform and opacity stay on the instance node).
+
 Old-generation wire variants that sweep surfaced, now handled (pinned by
 `af_reads_old_generation_wild_files_if_available`, which skips without the
 local samples): `edc/<n>` embedded-document streams carry an 8-byte `EmDc`

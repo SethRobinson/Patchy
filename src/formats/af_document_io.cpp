@@ -644,15 +644,34 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
 
   const auto* sta = dybm.field(tags.status);
   if (sta == nullptr) {
+    if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+      std::fprintf(stderr, "[af]   plane tag %08x: no status field\n", tags.status);
+    }
     return PlaneStatus::Ok;
   }
   const auto* codes = std::get_if<std::vector<std::int64_t>>(&sta->value);
   if (codes == nullptr) {
+    if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+      std::fprintf(stderr, "[af]   plane tag %08x: status has variant index %zu\n", tags.status,
+                   sta->value.index());
+    }
     return PlaneStatus::Ok;
   }
   const auto* idx = dybm.field(tags.index);
   const auto* blocks =
       idx != nullptr ? std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&idx->value) : nullptr;
+  if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+    std::array<int, 8> histogram{};
+    for (const auto code : *codes) {
+      if (code >= 0 && code < 8) {
+        ++histogram[static_cast<std::size_t>(code)];
+      }
+    }
+    std::fprintf(stderr,
+                 "[af]   plane %08x: %zu codes [0]=%d [2]=%d [4]=%d [5]=%d blocks=%zu src=%d\n",
+                 tags.status, codes->size(), histogram[0], histogram[2], histogram[4], histogram[5],
+                 blocks != nullptr ? blocks->size() : 0U, source != nullptr ? 1 : 0);
+  }
   std::size_t block_index = 0;
   for (std::size_t t = 0; t < codes->size(); ++t) {
     const std::size_t tx = (t % static_cast<std::size_t>(tiles_w)) * kTileSize;
@@ -710,7 +729,10 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
         std::vector<std::uint8_t> tile;
         try {
           tile = extract_stream(bytes, stream->second, embedded->data, nullptr);
-        } catch (const std::exception&) {
+        } catch (const std::exception& error) {
+          if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+            std::fprintf(stderr, "[af]   tile '%s': %s\n", embedded->data.c_str(), error.what());
+          }
           break;
         }
         if (tile.size() == static_cast<std::size_t>(kTileSize) * kTileSize) {
@@ -843,22 +865,31 @@ struct EmbeddedOriginal {
 
 [[nodiscard]] std::optional<EmbeddedOriginal> decode_embedded_original(
     std::span<const std::uint8_t> bytes, const Container& container, const af::AfClass& dybm) {
+  const auto trace = [&](const char* what) {
+    if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+      std::fprintf(stderr, "[af] placed original: %s\n", what);
+    }
+  };
   const auto* field = dybm.field(af::tag4("Bckg"));
   if (field == nullptr) {
+    trace("no Bckg field");
     return std::nullopt;
   }
   const auto* embedded = std::get_if<af::AfEmbedded>(&field->value);
   if (embedded == nullptr || embedded->data.empty()) {
+    trace("Bckg is not an embedded stream reference");
     return std::nullopt;
   }
   const auto stream = container.streams.find(embedded->data);
   if (stream == container.streams.end()) {
+    trace("Bckg stream is missing from the container");
     return std::nullopt;
   }
   try {
     const auto blob = extract_stream(bytes, stream->second, embedded->data, nullptr);
     const af::AfDocument block = af::parse_tree(std::span<const std::uint8_t>(blob));
     if (block.root == nullptr) {
+      trace("Bckg block tree has no root");
       return std::nullopt;
     }
     const auto* data_field = block.root->field(af::tag4("Data"));
@@ -866,11 +897,13 @@ struct EmbeddedOriginal {
                            ? std::get_if<std::vector<std::uint8_t>>(&data_field->value)
                            : nullptr;
     if (data == nullptr) {
+      trace("Bckg block tree has no Data bytes");
       return std::nullopt;
     }
     const int orientation = static_cast<int>(block.root->int_field(af::tag4("TifO"), 1));
     auto pixels = decode_original_file_bytes(*data, orientation);
     if (!pixels) {
+      trace("original file bytes did not decode (not JPEG/PNG?)");
       return std::nullopt;
     }
     EmbeddedOriginal original;
@@ -883,7 +916,10 @@ struct EmbeddedOriginal {
     const auto separator = path.find_last_of("/\\");
     original.name = separator == std::string::npos ? path : path.substr(separator + 1);
     return original;
-  } catch (const std::exception&) {
+  } catch (const std::exception& error) {
+    if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+      std::fprintf(stderr, "[af] placed original: threw '%s'\n", error.what());
+    }
     return std::nullopt;
   }
 }
@@ -1022,6 +1058,13 @@ struct DecodedBitmap {
     }
   }
   const RasterFormat kind = classify_format(format_id);
+  if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+    std::fprintf(stderr, "[af] raster '%s': format %lld %s %lldx%lld\n", layer_name.c_str(),
+                 static_cast<long long>(format_id),
+                 kind == RasterFormat::Unsupported ? "(unsupported)" : "",
+                 static_cast<long long>(dybm.int_field(af::tag4("BmpW"), 0)),
+                 static_cast<long long>(dybm.int_field(af::tag4("BmpH"), 0)));
+  }
   if (kind == RasterFormat::Unsupported) {
     return std::nullopt;
   }
@@ -1071,8 +1114,15 @@ struct DecodedBitmap {
     const bool rgba_kind = kind == RasterFormat::RGBA8 || kind == RasterFormat::RGBA16 ||
                            kind == RasterFormat::RGBAFloat;
     if (rgba_kind) {
-      if (const auto original = decode_embedded_original(bytes, container, dybm);
-          original && original->pixels.width() == static_cast<std::int32_t>(width) &&
+      const auto original = decode_embedded_original(bytes, container, dybm);
+      if (original && environment_variable_is_set("PATCHY_AF_TRACE") &&
+          (original->pixels.width() != static_cast<std::int32_t>(width) ||
+           original->pixels.height() != static_cast<std::int32_t>(height))) {
+        std::fprintf(stderr, "[af] placed original: decoded %dx%d but DyBm is %lldx%lld\n",
+                     original->pixels.width(), original->pixels.height(),
+                     static_cast<long long>(width), static_cast<long long>(height));
+      }
+      if (original && original->pixels.width() == static_cast<std::int32_t>(width) &&
           original->pixels.height() == static_cast<std::int32_t>(height)) {
         for (int channel = 1; channel <= channel_count; ++channel) {
           sources.push_back(source_plane_from_original(
@@ -1631,7 +1681,21 @@ void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer&
                             "': has more than one mask; only the first was imported");
       break;
     }
+    // The adjunct is a CHILD of its owner node, so its plane lives in the
+    // owner's LOCAL space (the scene-graph rule): the owner's transform
+    // composes before the adjunct's own. 2.x-generation masks store no
+    // adjunct Xfrm at all (the plane anchors at the owner's origin - the
+    // wild phone mockup's screen mask), while 3.x masks carry an
+    // inverse-of-owner Xfrm that lands the plane in spread space
+    // (restaurant-menu's image masks pin the pairing).
+    const auto saved_transform = ctx.transform;
+    if (const auto owner = node.vec_field(af::tag4("Xfrm")); owner.size() == 6) {
+      std::array<double, 6> own{};
+      std::copy(owner.begin(), owner.end(), own.begin());
+      ctx.transform = compose_transforms(ctx.transform, own);
+    }
     const auto mask_xfrm = node_xfrm(ctx, *adjunct);
+    ctx.transform = saved_transform;
     const auto origin = layer_origin(mask_xfrm);
     std::int32_t mask_x = 0;
     std::int32_t mask_y = 0;
@@ -3046,8 +3110,40 @@ struct AfVectorFill {
 // group 0: Affinity fills a poly-curve even-odd (the two same-winding nested
 // rectangles of the donut probe render a hole), which is exactly Patchy's
 // within-group rule.
+// Symbol instances (the 2.x generation's Designer symbols): a linked instance
+// stores no geometry of its own; its SLnk -> ILSN -> ILOb ring lists every
+// sibling instance of the same symbol member, and the defining sibling carries
+// the real record (Crvs for curves, Shpe for parametric shapes). The tree
+// parser resolves shared references to the defining AfClass, so one hop
+// through the ring finds it. Pinned by the beat-bot wild file (two symbol
+// raccoons; the second is all linked instances). Paint (BFFl/LILn/LIFl) and
+// the transform stay per-instance on the node itself.
+[[nodiscard]] const af::AfClass* symbol_sibling_with(const af::AfClass& node,
+                                                     std::uint32_t field_tag) {
+  const af::AfClass* link = node.child_class(af::tag4("SLnk"));
+  if (link == nullptr) {
+    return nullptr;
+  }
+  const auto* members = class_list(*link, af::tag4("ILOb"));
+  if (members == nullptr) {
+    return nullptr;
+  }
+  for (const auto& member : *members) {
+    if (member != nullptr && member.get() != &node &&
+        member->child_class(field_tag) != nullptr) {
+      return member.get();
+    }
+  }
+  return nullptr;
+}
+
 [[nodiscard]] std::optional<VectorPath> vector_path_from_node(const af::AfClass& node) {
   const af::AfClass* curves = node.child_class(af::tag4("Crvs"));
+  if (curves == nullptr) {
+    if (const af::AfClass* sibling = symbol_sibling_with(node, af::tag4("Crvs"))) {
+      curves = sibling->child_class(af::tag4("Crvs"));
+    }
+  }
   if (curves == nullptr) {
     return std::nullopt;
   }
@@ -3155,34 +3251,62 @@ struct AfVectorFill {
   // (doc-tree version 3, the 2026-07-28 wild sweep) named the same FDsc field
   // BFil. (Its stroke sibling PFil carries the Fill class directly with no
   // width source, so old strokes stay unsupported.)
-  const af::AfClass* fill_descriptor = first_class_of(node, af::tag4("BFFl"));
-  if (fill_descriptor == nullptr) {
-    fill_descriptor = first_class_of(node, af::tag4("BFil"));
-  }
-  if (auto fill = vector_fill_from_descriptor(fill_descriptor)) {
-    content.fill = std::move(fill->fill);
-    fill_alpha = fill->alpha;
-  } else {
-    content.fill.kind = VectorFillKind::None;
-  }
-  // LILn[0] (LDsc) -> LDeL: the field's value IS the LSty class.
-  double weight = 0.0;
-  if (const af::AfClass* line_descriptor = first_class_of(node, af::tag4("LILn"))) {
-    if (const af::AfClass* style = line_descriptor->child_class(af::tag4("LDeL"))) {
-      weight = style->double_field(af::tag4("Wght"), 0.0);
+  const auto read_paint = [](const af::AfClass& source, VectorShapeContent& into,
+                             float& alpha) -> bool {
+    const af::AfClass* fill_descriptor = first_class_of(source, af::tag4("BFFl"));
+    if (fill_descriptor == nullptr) {
+      fill_descriptor = first_class_of(source, af::tag4("BFil"));
+    }
+    if (auto fill = vector_fill_from_descriptor(fill_descriptor)) {
+      into.fill = std::move(fill->fill);
+      alpha = fill->alpha;
+    } else {
+      into.fill.kind = VectorFillKind::None;
+    }
+    // LILn[0] (LDsc) -> LDeL: the field's value IS the LSty class.
+    double weight = 0.0;
+    if (const af::AfClass* line_descriptor = first_class_of(source, af::tag4("LILn"))) {
+      if (const af::AfClass* style = line_descriptor->child_class(af::tag4("LDeL"))) {
+        weight = style->double_field(af::tag4("Wght"), 0.0);
+      }
+    }
+    if (weight > 0.0) {
+      if (auto stroke_fill = vector_fill_from_descriptor(first_class_of(source, af::tag4("LIFl")));
+          stroke_fill.has_value() && stroke_fill->fill.kind != VectorFillKind::None) {
+        into.stroke.enabled = true;
+        into.stroke.width = weight;
+        into.stroke.alignment = VectorStrokeAlignment::Center;
+        into.stroke.content = std::move(stroke_fill->fill);
+        into.stroke.opacity = std::clamp(static_cast<double>(stroke_fill->alpha), 0.0, 1.0);
+      }
+    }
+    return into.fill.kind != VectorFillKind::None || into.stroke.enabled;
+  };
+  bool painted = read_paint(node, content, fill_alpha);
+  if (!painted) {
+    // Symbol instances may store their paint on the defining sibling too
+    // (beat-bot's linked raccoon members parse no local fill); chase the
+    // instance-link rings the same way the geometry does.
+    static constexpr const char* kRings[] = {"SLnk", "GLnk", "DLnk", "CLnk"};
+    for (const char* ring : kRings) {
+      const af::AfClass* link = node.child_class(tag_of(ring));
+      const auto* members = link != nullptr ? class_list(*link, af::tag4("ILOb")) : nullptr;
+      if (members == nullptr) {
+        continue;
+      }
+      for (const auto& member : *members) {
+        if (member != nullptr && member.get() != &node &&
+            read_paint(*member, content, fill_alpha)) {
+          painted = true;
+          break;
+        }
+      }
+      if (painted) {
+        break;
+      }
     }
   }
-  if (weight > 0.0) {
-    if (auto stroke_fill = vector_fill_from_descriptor(first_class_of(node, af::tag4("LIFl")));
-        stroke_fill.has_value() && stroke_fill->fill.kind != VectorFillKind::None) {
-      content.stroke.enabled = true;
-      content.stroke.width = weight;
-      content.stroke.alignment = VectorStrokeAlignment::Center;
-      content.stroke.content = std::move(stroke_fill->fill);
-      content.stroke.opacity = std::clamp(static_cast<double>(stroke_fill->alpha), 0.0, 1.0);
-    }
-  }
-  if (content.fill.kind == VectorFillKind::None && !content.stroke.enabled) {
+  if (!painted) {
     return std::nullopt;  // nothing visible; the honest placeholder says so
   }
 
@@ -3306,12 +3430,20 @@ void append_rect_corner(PathSubpath& subpath, double px, double py, double enter
 // extra fields and keep the placeholder).
 [[nodiscard]] std::optional<VectorPath> parametric_shape_path(const af::AfClass& node,
                                                               std::string* why) {
-  const af::AfClass* shape = node.child_class(af::tag4("Shpe"));
+  // A linked symbol instance keeps its geometry (Shpe record AND local box)
+  // on the defining sibling; the instance's own transform still places it.
+  const af::AfClass* geometry_node = &node;
+  if (node.child_class(af::tag4("Shpe")) == nullptr) {
+    if (const af::AfClass* sibling = symbol_sibling_with(node, af::tag4("Shpe"))) {
+      geometry_node = sibling;
+    }
+  }
+  const af::AfClass* shape = geometry_node->child_class(af::tag4("Shpe"));
   if (shape == nullptr) {
     *why = "has no shape record";
     return std::nullopt;
   }
-  const auto box = node.vec_field(af::tag4("ShpB"));
+  const auto box = geometry_node->vec_field(af::tag4("ShpB"));
   if (box.size() != 4 || !(box[2] > box[0]) || !(box[3] > box[1])) {
     *why = "has a degenerate shape box";
     return std::nullopt;
@@ -3740,11 +3872,25 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         Layer layer(ctx.document.allocate_layer_id(), display, std::move(placed->pixels));
         layer.set_bounds(Rect{placed->x, placed->y, w, h});
         apply_common(ctx, node, layer, display);
+        const bool wrapped_smart_object = original_bytes != nullptr;
         if (original_bytes != nullptr) {
           attach_placed_smart_object(ctx, layer, std::move(original_bytes), original_name,
                                      source_w, source_h, quad);
         }
         apply_mask_children(ctx, node, layer, display);
+        if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+          std::size_t opaque = 0;
+          const auto& px = layer.pixels();
+          for (std::int32_t yy = 0; yy < px.height(); yy += 16) {
+            const auto row_span = std::as_const(px).row(yy);
+            for (std::int32_t xx = 0; xx < px.width(); xx += 16) {
+              opaque += row_span[static_cast<std::size_t>(xx) * 4U + 3U] > 0 ? 1U : 0U;
+            }
+          }
+          std::fprintf(stderr, "[af] raster layer '%s': %dx%d at %d,%d sampled-opaque=%zu so=%d\n",
+                       display.c_str(), w, h, placed->x, placed->y, opaque,
+                       wrapped_smart_object ? 1 : 0);
+        }
         out.push_back(std::move(layer));
         emit_clipped_children(&node);
         continue;
@@ -3935,23 +4081,31 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
           ? std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&spread_children->value)
           : nullptr;
 
-  // Artboard spreads: DfSz is one artboard's size, but the spread lays every
-  // artboard out side by side (possibly nested inside groups). Size the
-  // canvas to the union of the artboard boxes - old files also store it as
-  // SprB - so all artboards import at their layout positions; the whole
-  // build then shifts by the spread origin. Affinity's own export of the
-  // tiny-artboards fixture pins the union-canvas shape.
+  // The first spread's bounds (SprB) are the canvas whenever they are
+  // present and sane. DfSz is only a fallback: 2.x-era files routinely
+  // store the New Document preset size there rather than the current canvas
+  // (a wild favicon: DfSz 1920x1080, SprB 800x800, and Affinity's own
+  // thumbnail is square; across the 2026-07 wild sweeps every DfSz/SprB
+  // mismatch resolves to SprB by thumbnail aspect). Artboard spreads lay
+  // every artboard out side by side, so when SprB is missing the canvas is
+  // the union of the artboard boxes; the whole build then shifts by the
+  // spread origin. Affinity's own export of the tiny-artboards fixture pins
+  // the union-canvas shape.
   double origin_x = 0.0;
   double origin_y = 0.0;
   {
-    bool any_artboard = false;
-    std::array<double, 4> computed{};
-    accumulate_artboard_bounds(spread, {1.0, 0.0, 0.0, 0.0, 1.0, 0.0}, 0, any_artboard, computed);
-    if (any_artboard) {
-      auto bounds = spread.vec_field(af::tag4("SprB"));
-      if (bounds.size() != 4 || !(bounds[2] > bounds[0]) || !(bounds[3] > bounds[1])) {
+    auto bounds = spread.vec_field(af::tag4("SprB"));
+    if (bounds.size() != 4 || !(bounds[2] > bounds[0]) || !(bounds[3] > bounds[1])) {
+      bool any_artboard = false;
+      std::array<double, 4> computed{};
+      accumulate_artboard_bounds(spread, {1.0, 0.0, 0.0, 0.0, 1.0, 0.0}, 0, any_artboard,
+                                 computed);
+      bounds.clear();
+      if (any_artboard) {
         bounds.assign(computed.begin(), computed.end());
       }
+    }
+    if (bounds.size() == 4) {
       const auto spread_w = static_cast<std::int32_t>(std::lround(bounds[2] - bounds[0]));
       const auto spread_h = static_cast<std::int32_t>(std::lround(bounds[3] - bounds[1]));
       if (spread_w > 0 && spread_h > 0 && spread_w <= kMaxLayerSide &&

@@ -1063,6 +1063,78 @@ void af_modern_embeds_are_center_anchored_if_available() {
   CHECK(std::abs(swash->bounds().y) <= 2);
 }
 
+// Affinity 2.x wild files (2026-07-28 sweep, local-only web_samples2/; each
+// block skips independently when its sample is absent). These pin the three
+// 2.x-generation fixes the sweep surfaced: the first spread's SprB is the
+// canvas (not DfSz, which stores the New Document preset size), mask
+// enclosures compose through their owner node's transform, and Designer
+// symbol instances resolve geometry/paint through their SLnk/ILOb rings.
+void af_reads_affinity2_wild_files_if_available() {
+  const auto read_document = [](const std::filesystem::path& path) {
+    std::ifstream stream(path, std::ios::binary);
+    const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                          std::istreambuf_iterator<char>());
+    return patchy::af::DocumentIo::read(bytes);
+  };
+
+  // Canvas from SprB: DfSz says 1920x1080 but the document (and Affinity's
+  // own square thumbnail) is the 800x800 spread.
+  {
+    const auto path = patchy::test::local_format_fixture_path(
+        "af-spike/web_samples2", "bluefeet_bluefeet.dev__favicon.afphoto");
+    if (!std::filesystem::exists(path)) {
+      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+    } else {
+      const auto document = read_document(path);
+      CHECK(document.width() == 800);
+      CHECK(document.height() == 800);
+    }
+  }
+
+  // Mask anchoring: the phone mockup's screen mask lives in its owner's
+  // local space (no adjunct Xfrm). Before the fix the mask anchored at the
+  // spread origin, masking the white screen away and flattening the whole
+  // phone to black.
+  {
+    const auto path = patchy::test::local_format_fixture_path(
+        "af-spike/web_samples2", "paulgessinger_swift-paperless__single.afphoto");
+    if (!std::filesystem::exists(path)) {
+      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+    } else {
+      const auto document = read_document(path);
+      const auto flat = patchy::flatten_document_rgba8(document);
+      // A point inside the app screenshot area: opaque and bright (the
+      // Add Document form is white), not the black-screen failure mode.
+      const auto* screen = flat.pixel(300, 600);
+      CHECK(screen[3] == 255);
+      CHECK(screen[0] > 100 && screen[1] > 100 && screen[2] > 100);
+    }
+  }
+
+  // Designer symbols: the logo is one raccoon symbol placed twice (the
+  // second mirrored); both instances' PCrv members carry no local Crvs or
+  // paint and resolve through the SLnk/ILOb ring.
+  {
+    const auto path = patchy::test::local_format_fixture_path(
+        "af-spike/web_samples2", "spensbot_beat-bot__logo.afdesign");
+    if (!std::filesystem::exists(path)) {
+      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+    } else {
+      const auto document = read_document(path);
+      const auto flat = patchy::flatten_document_rgba8(document);
+      // A cheek point on each raccoon: opaque, blue-leaning fur (blue is the
+      // strongest channel; before the symbol fix the right raccoon area was
+      // blank and the left one only had the soft reference raster).
+      for (const std::int32_t x : {245, 735}) {
+        const auto* fur = flat.pixel(x, 200);
+        CHECK(fur[3] == 255);
+        CHECK(fur[2] > 120);
+        CHECK(fur[2] > fur[0]);
+      }
+    }
+  }
+}
+
 void af_read_rejects_non_affinity_bytes() {
   const std::vector<std::uint8_t> garbage = {'n', 'o', 't', ' ', 'a', 'f', 0, 1, 2, 3};
   bool threw = false;
@@ -1147,6 +1219,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
        af_reads_old_generation_wild_files_if_available},
       {"af_modern_embeds_are_center_anchored_if_available",
        af_modern_embeds_are_center_anchored_if_available},
+      {"af_reads_affinity2_wild_files_if_available", af_reads_affinity2_wild_files_if_available},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},
       {"af_read_survives_mutation_sweep", af_read_survives_mutation_sweep},
