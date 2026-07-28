@@ -219,8 +219,12 @@ uniform scale, but its only ground truth is a STALE snapshot cache, so the
 mapping may not exist; 1.x embeds keep origin anchoring, which ns-splash
 pins), embeds whose only pixel source is the node's `IRDS` `FlDS` original
 file bytes (no `edc` stream - fladder-icon-general renders its embed
-empty), and shape kinds beyond rectangle/ellipse/regular-polygon
-(placeholders).
+empty), vector-mask adjuncts (an `AdCh` entry can carry a whole vector
+layer subtree - a `Grup` of shapes - acting as the owner's clip mask; the
+steam-logo wild file pins the construct, currently skipped), and the shape
+kinds Patchy still placeholders (rounded/curved and legacy-geometry stars,
+non-default triangles, and the long tail: arrow, pie, cog, cloud, callouts,
+crescent, segment, double/square star, tear, heart, spiral, QR).
 
 - **Tier 2 (current)**: parses the serialized document tree (`doc.dat`) and
   builds real Patchy layers - the layer tree (groups nested with pass-through
@@ -329,19 +333,34 @@ empty), and shape kinds beyond rectangle/ellipse/regular-polygon
   whose only content is unmodeled shapes still prefers the tier-0 preview).
   The `Shpe` field's class tag is the shape kind: `ShNR` rectangle, `ShpE`
   ellipse (inscribed in the local `ShpB` box), `ShPy` regular polygon
-  (`Side`-gon, JS default 5, inscribed in the box ellipse, first vertex up;
-  smoothed polygons - a `Smth` field - keep the placeholder). `ShNR`
-  carries `ShCR` per-corner radii in TL/TR/BR/BL order (fractions of
-  min(w,h), or pixels when `AbSz`), `CTyp` per-corner types (0 Round,
-  1 Straight = chamfer, 2 RoundInverse = concave arc centered on the
-  corner, 3 Cutout = square notch, 4 None), and `Lock` (absent/true =
+  (`Side`-gon, JS default 5, inscribed in the box ellipse, first vertex up),
+  `ShSt` star (`Pnts` outer vertices alternating with half-step inner
+  vertices at the `IRad` fraction, first vertex up; rounded/curved
+  `CrcI`/`CrcO`/`CrvL`/`CrvR` and legacy-geometry `Lgcy` stars keep the
+  placeholder), and `ShpT` triangle (apex at the `"Pos "` fraction across
+  the top edge). Smoothed polygons (`Smth` true) render smooth anchors whose
+  tangent scales with `Curv`: the probe pins Curv=0 as EXACTLY the plain
+  polygon; Curv=1 maps to the circle through the vertices (plausible,
+  unpinned). `ShNR` carries `ShCR` per-corner radii in TL/TR/BR/BL order
+  (fractions of min(w,h), or pixels when `AbSz`), `CTyp` per-corner types
+  (0 Round, 1 Straight = chamfer, 2 RoundInverse = concave arc centered on
+  the corner, 3 Cutout = square notch, 4 None), and `Lock` (absent/true =
   single-radius mode: corner 0's radius AND type render on all four
   corners). Fill/stroke/transform ride the same BFFl/LILn/LIFl/Xfrm
   handling as PCrv (the shared `build_vector_layer_from_path`). Semantics
   pinned by the af-spike shp-* one-toggle probes against Affinity's own
-  renders (all <= 2.7 RMSE, most ~0); committed fixture tiny-shapes.af +
+  renders (star 0.11 / triangle 0.05 / smooth polygon 0.10 RMSE, rects ~0);
+  committed fixture tiny-shapes.af +
   `af_imports_parametric_shapes_as_shape_layers` (unlocked mixed corners,
-  locked single-radius, ellipse, and a star placeholder).
+  locked single-radius, ellipse, and the star as a real shape layer).
+- **Compound shapes (`Comp`)** import as ONE exact shape layer: Affinity
+  bakes the already-booleaned result poly-curve into the node's own
+  lowercase `crvs` field (same `PCvD` -> `Data` layout as PCrv's `Crvs`),
+  and the node carries its own BFFl/LILn/LIFl paint. The per-child `ComO`
+  operation enum stays unmined; when the baked path is missing the children
+  still import as a group of operand shapes (subtract operands render
+  opaque - the pre-July-2026 behavior). snes-box-a3 dropped 43.6 -> 33.7
+  RMSE on this alone.
 - **Text (`TxtA` artistic / `TxtF` frame)** imports as real Patchy text
   layers with **per-run styles**: the reader extracts each story (text with
   U+2029/U+2028 breaks, per-run font/size/weight/italic and brush-fill color
@@ -444,7 +463,9 @@ empty), and shape kinds beyond rectangle/ellipse/regular-polygon
   node `Xfrm` applies as a full affine (no axis-aligned approximation).
   Probe scores: rect/donut 0.00 RMSE, ellipse 1.6, stroked rect 3.5; the
   all-vector snes corpus doc dropped 196 -> 46 (the rest is rotated text).
-  Compound-shape (`Comp`) booleans still import as groups of their children.
+  Compound-shape (`Comp`) booleans import their baked result path (see the
+  Compound shapes bullet above); only baked-path-less compounds fall back to
+  a group of their children.
 - **Honest degradation (notice + named empty layer)**: undecodable vector
   curves, unmapped adjustment kinds and live-filter nodes (their bitmap is
   a mask plane, not content), and text whose story shape is missing. These

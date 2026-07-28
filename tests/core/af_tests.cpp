@@ -707,8 +707,8 @@ void af_imports_parametric_shapes_as_shape_layers() {
   // "roundrect" (unlocked per-corner: TL Round 0.5, TR Round 0.1, BR
   // Straight 0.3, BL None on a 50x30 box), "locked" (single-radius mode:
   // corner 0 Round 0.25 renders on ALL corners; Lock absent = locked),
-  // "ellipse", and "star" (an unmodeled kind that must stay an honest
-  // placeholder).
+  // "ellipse", and "star" (default 5-point ShSt; a real shape layer since
+  // July 2026, pinned at rmse 0.1 against Affinity's own probe render).
   const auto bytes = read_fixture("tiny-shapes.af");
   std::vector<std::string> notices;
   const auto document = patchy::af::DocumentIo::read(bytes, &notices);
@@ -762,16 +762,22 @@ void af_imports_parametric_shapes_as_shape_layers() {
     CHECK(pixels.pixel(89 - layer.bounds().x, 21 - layer.bounds().y)[3] == 255);
   }
   {
-    // The star keeps its name and position but renders nothing.
+    // The star (default 5 points, inner radius 0.5, box (64,44)-(114,74))
+    // imports as a real shape layer: 10 corner anchors alternating outer
+    // vertices on the box ellipse with half-step inner vertices.
     const auto& layer = layer_named("star");
-    CHECK(!patchy::layer_is_vector_shape(layer));
-    CHECK(std::as_const(layer).pixels().empty());
-    bool noticed = false;
+    CHECK(patchy::layer_is_vector_shape(layer));
+    const auto* content = layer.vector_shape();
+    CHECK(content->fill.color == (patchy::RgbColor{240, 200, 40}));
+    CHECK(content->path.subpaths.size() == 1);
+    CHECK(content->path.subpaths.front().anchors.size() == 10);
+    const auto& pixels = std::as_const(layer).pixels();
+    // Centre filled; the box's top-left corner lies between two arms.
+    CHECK(pixels.pixel(89 - layer.bounds().x, 59 - layer.bounds().y)[3] == 255);
+    CHECK(pixels.pixel(66 - layer.bounds().x, 46 - layer.bounds().y)[3] == 0);
     for (const auto& notice : notices) {
-      noticed = noticed || (notice.find("star") != std::string::npos &&
-                            notice.find("does not model") != std::string::npos);
+      CHECK(notice.find("does not model") == std::string::npos);
     }
-    CHECK(noticed);
   }
 }
 

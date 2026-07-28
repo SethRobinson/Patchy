@@ -3140,6 +3140,11 @@ struct AfVectorFill {
 [[nodiscard]] std::optional<VectorPath> vector_path_from_node(const af::AfClass& node) {
   const af::AfClass* curves = node.child_class(af::tag4("Crvs"));
   if (curves == nullptr) {
+    // Compound (Comp) nodes store their baked, already-booleaned result
+    // poly-curve under a lowercase 'crvs' field with the same PCvD layout.
+    curves = node.child_class(af::tag4("crvs"));
+  }
+  if (curves == nullptr) {
     if (const af::AfClass* sibling = symbol_sibling_with(node, af::tag4("Crvs"))) {
       curves = sibling->child_class(af::tag4("Crvs"));
     }
@@ -3515,22 +3520,89 @@ void append_rect_corner(PathSubpath& subpath, double px, double py, double enter
     add(x0, cy, x0, cy + ky, x0, cy - ky);
   } else if (shape->type_tag == af::tag4("ShPy")) {
     for (const auto& field : shape->fields) {
-      if (field.tag != af::tag4("Side")) {
-        *why = "is a smoothed or non-regular Affinity polygon";
+      if (field.tag != af::tag4("Side") && field.tag != af::tag4("Smth") &&
+          field.tag != af::tag4("Curv")) {
+        *why = "is a non-regular Affinity polygon";
         return std::nullopt;
       }
     }
     const auto sides = std::clamp<std::int64_t>(shape->int_field(af::tag4("Side"), 5), 3, 256);
+    const bool smooth = shape->bool_field(af::tag4("Smth"), false);
     const double cx = (x0 + x1) / 2.0;
     const double cy = (y0 + y1) / 2.0;
     constexpr double kPi = 3.14159265358979323846;
+    // Smoothed polygons replace every corner with a symmetric smooth anchor
+    // whose tangent length scales with Curv: the shp-polygon6-smooth probe
+    // pins Smth=true/Curv=0 as rendering EXACTLY like the plain polygon, so
+    // Curv is the rounding amount. Curv=1 is mapped to the circle through
+    // the vertices ((4/3)tan(pi/2n) in unit-circle space) - plausible but
+    // unpinned, no Curv>0 ground truth exists yet.
+    const double curv = std::clamp(shape->double_field(af::tag4("Curv"), 0.0), 0.0, 1.0);
+    const double tangent =
+        smooth ? curv * (4.0 / 3.0) * std::tan(kPi / (2.0 * static_cast<double>(sides))) : 0.0;
     for (std::int64_t i = 0; i < sides; ++i) {
       const double angle = -kPi / 2.0 + 2.0 * kPi * static_cast<double>(i) /
                                             static_cast<double>(sides);
-      const double x = cx + (w / 2.0) * std::cos(angle);
-      const double y = cy + (h / 2.0) * std::sin(angle);
-      subpath.anchors.push_back(PathAnchor{x, y, x, y, x, y, false});
+      const double ux = std::cos(angle);
+      const double uy = std::sin(angle);
+      const double x = cx + (w / 2.0) * ux;
+      const double y = cy + (h / 2.0) * uy;
+      if (!smooth) {
+        subpath.anchors.push_back(PathAnchor{x, y, x, y, x, y, false});
+        continue;
+      }
+      // The tangent runs perpendicular to the radius (unit space), scaled per
+      // axis by the box's half sizes.
+      const double tx = -uy * tangent * (w / 2.0);
+      const double ty = ux * tangent * (h / 2.0);
+      subpath.anchors.push_back(PathAnchor{x, y, x - tx, y - ty, x + tx, y + ty, true});
     }
+  } else if (shape->type_tag == af::tag4("ShSt")) {
+    // Star: Pnts outer vertices on the box-inscribed ellipse (first vertex
+    // up, like ShPy), alternating with inner vertices at the IRad fraction,
+    // offset by half a step. Rounded/curved stars (CrcI/CrcO/CrvL/CrvR) and
+    // legacy-geometry stars keep the placeholder until pinned.
+    for (const auto& field : shape->fields) {
+      if (field.tag != af::tag4("Pnts") && field.tag != af::tag4("IRad") &&
+          field.tag != af::tag4("Lgcy")) {
+        *why = "is a rounded or curved Affinity star";
+        return std::nullopt;
+      }
+    }
+    if (shape->bool_field(af::tag4("Lgcy"), false)) {
+      *why = "uses legacy Affinity star geometry";
+      return std::nullopt;
+    }
+    const auto points = std::clamp<std::int64_t>(shape->int_field(af::tag4("Pnts"), 5), 3, 256);
+    const double inner = std::clamp(shape->double_field(af::tag4("IRad"), 0.5), 0.0, 1.0);
+    const double cx = (x0 + x1) / 2.0;
+    const double cy = (y0 + y1) / 2.0;
+    constexpr double kPi = 3.14159265358979323846;
+    for (std::int64_t i = 0; i < points; ++i) {
+      const double outer_angle = -kPi / 2.0 + 2.0 * kPi * static_cast<double>(i) /
+                                                  static_cast<double>(points);
+      const double inner_angle = outer_angle + kPi / static_cast<double>(points);
+      const double ox = cx + (w / 2.0) * std::cos(outer_angle);
+      const double oy = cy + (h / 2.0) * std::sin(outer_angle);
+      subpath.anchors.push_back(PathAnchor{ox, oy, ox, oy, ox, oy, false});
+      const double ix = cx + inner * (w / 2.0) * std::cos(inner_angle);
+      const double iy = cy + inner * (h / 2.0) * std::sin(inner_angle);
+      subpath.anchors.push_back(PathAnchor{ix, iy, ix, iy, ix, iy, false});
+    }
+  } else if (shape->type_tag == af::tag4("ShpT")) {
+    // Triangle: apex at the "Pos " fraction across the top edge (default
+    // centered), base along the bottom of the box.
+    for (const auto& field : shape->fields) {
+      if (field.tag != af::tag4("Pos ")) {
+        *why = "is an Affinity triangle variant Patchy does not model";
+        return std::nullopt;
+      }
+    }
+    const double pos = std::clamp(shape->double_field(af::tag4("Pos "), 0.5), 0.0, 1.0);
+    const double ax = x0 + pos * w;
+    subpath.anchors.push_back(PathAnchor{ax, y0, ax, y0, ax, y0, false});
+    subpath.anchors.push_back(PathAnchor{x1, y1, x1, y1, x1, y1, false});
+    subpath.anchors.push_back(PathAnchor{x0, y1, x0, y1, x0, y1, false});
   } else {
     *why = "is an Affinity shape kind Patchy does not model";
     return std::nullopt;
@@ -3778,6 +3850,21 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         continue;
       }
       emit_placeholder("is an Affinity adjustment or live filter (not applied yet)");
+      continue;
+    }
+
+    // Compound shapes: Affinity bakes the boolean result into the node's own
+    // lowercase 'crvs' poly-curve, so the compound imports as ONE exact shape
+    // layer with the node's own fill/stroke (per-child ComO ops stay
+    // unmined). Without a decodable baked path the children still carry the
+    // operand shapes; they import as a group (subtract operands render
+    // opaque - approximate, the pre-2026-07 behavior).
+    if (tag == af::tag4("Comp")) {
+      if (auto compound = build_vector_layer(ctx, node, display)) {
+        out.push_back(std::move(*compound));
+        continue;
+      }
+      out.push_back(build_group(ctx, node, name));
       continue;
     }
 
