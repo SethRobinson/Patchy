@@ -317,9 +317,21 @@ crescent, segment, double/square star, tear, heart, spiral, QR).
   convention). Script-materialized bitmaps still store no profile.
 - **Approximate (notice, but rendered)**: profile-less CMYK raster layers
   convert through the naive ink mix - the PSD reader's profile-less fallback;
-  .af channels are straight ink, not PSD-inverted. Blend modes Patchy lacks
-  (Pigment, Average, Negation, Reflect, Glow, Erase, ...) map to Normal with
-  a notice.
+  .af channels are straight ink, not PSD-inverted. Affinity-only blend modes
+  remap to the closest EXISTING BlendMode with a notice naming both modes
+  (`approximate_blend_mode`; never new enum values - imports must stay
+  PSD-savable). Chosen by RMSE over a 2026-07-29 full-gamut probe (af-spike
+  blend_probes: every (s,d) byte pair once per channel, scored against
+  Affinity's own renders; harness reproduces Normal at 0.0/Exclusion 0.3):
+  Average = (s+d)/2 exactly -> Normal with the layer/group/effect opacity
+  folded x0.5 (algebraically identical); Negation = 1-|1-s-d| -> Exclusion
+  (RMSE 60 vs Normal's 109); Reflect = d^2/(1-s) -> Overlay (37 vs 101);
+  Glow = s^2/(1-d) -> Linear Light (24 vs 51); Pigment (no classical formula
+  fits) -> Overlay (45 vs 109). ContrastNegate (best candidate still 84 of
+  128) and Erase (an alpha-removal operator, inexpressible in the compositor
+  AND in PSD) stay Normal + the plain not-supported notice; groups with an
+  unmapped explicit mode now fall to Normal + notice instead of silently
+  keeping pass-through. Pinned by tiny-blend-affinity.af.
 - **Lab documents (LABA16, format 5)** decode natively: the wire is the ICC
   v4 Lab16 PCS encoding (L 0..65535 = 0..100, a/b with 0x8080 = 0), converted
   through lcms2's built-in D50 Lab profile (`LabToRgbTransform`,
@@ -499,17 +511,21 @@ crescent, segment, double/square star, tear, heart, spiral, QR).
   4 Lighten, 5 Screen, 6 ColourDodge, 7 Add, 8 Overlay, 9 SoftLight,
   10 HardLight, 11 VividLight, 12 PinLight, 13 HardMix, 14 Difference,
   15 Exclusion, 16 Subtract, 17 Hue, 18 Saturation, 19 Luminosity, 20 Colour,
-  21 Average, 22 Negation, 23 Glow, 25 Erase; later modes REUSE ids under an
-  enum-version bump (DarkerColour 2/v1, LighterColour 6/v1, LinearLight
-  15/v1, Reflect 24/v2, ContrastNegate 28/v2, LinearBurn 5/v3, Divide 21/v4),
+  21 Average, 22 Negation, 23 Reflect, 24 Glow, 25 Erase; later modes REUSE
+  ids under an enum-version bump (DarkerColour 2/v1, LighterColour 6/v1,
+  LinearLight 15/v1, ContrastNegate 28/v2, LinearBurn 5/v3, Divide 21/v4),
   and version >= 6 renumbers the space to the JS-facing BlendMode table
   (Pigment = 1/v6). Pinned by blend-sweep-v0.afphoto (a Photo 2.6 document
   with one layer per blend-dropdown entry, af-spike/v2_corpus) plus the
   fx-blend-sweep effect renders. The importer originally fed wire ids through
   the JS table alone, which misread every non-Normal version-0 layer -
   2.x documents AND 3.x PSD conversions (fixing it dropped the deko corpus
-  doc from 131 to 32 RMSE and tlm-main-mockup from 33.5 to 2.0). Absent
-  `Blnd` = Normal; unmapped values = Normal + notice.
+  doc from 131 to 32 RMSE and tlm-main-mockup from 33.5 to 2.0). An earlier
+  record had 23 as Glow with Reflect at 24/v2; the 2026-07-29 JS probe
+  (BlendMode.Reflect writes 23/v0, BlendMode.Glow 24/v0, matching the
+  dropdown order of the sweep layers) pins the correct pairing. Absent
+  `Blnd` = Normal; unmapped values approximate or fall to Normal + notice
+  (see the Approximate bullet above).
 - **Container**: little-endian; u16 container version (verified 7..12; newer
   versions still attempt the import plus a warning notice), "#Inf" block
   (stream-table offset, thumbnail offset, timestamps), "Prot" protocol tag,

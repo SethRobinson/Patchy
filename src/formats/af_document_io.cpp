@@ -1366,7 +1366,12 @@ struct DecodedBitmap {
       case 18: return BlendMode::Saturation;
       case 19: return BlendMode::Luminosity;
       case 20: return BlendMode::Color;
-      // 21 Average, 22 Negation, 23 Glow, 25 Erase: no Patchy equivalent.
+      // 21 Average, 22 Negation, 23 Reflect, 24 Glow, 25 Erase: no exact
+      // Patchy equivalent (approximate_blend_mode has the best-fit remaps).
+      // The original FINDINGS pairing recorded 23 as Glow with Reflect at
+      // 24/v2; the 2026-07-29 JS probe (BlendMode.Reflect -> wire 23/v0,
+      // BlendMode.Glow -> 24/v0) and the dropdown order of the
+      // blend-sweep-v0 layers pin the correct assignment.
       default: return std::nullopt;
     }
   }
@@ -1385,7 +1390,7 @@ struct DecodedBitmap {
   if (value.version == 4 && value.id == 21) {
     return BlendMode::Divide;
   }
-  // 24/v2 Reflect and 28/v2 Contrast Negate have no Patchy equivalent.
+  // 28/v2 Contrast Negate has no Patchy equivalent (and no adopted best fit).
   if (value.version >= 6) {
     // Version 6 renumbers the space to match the JS-facing BlendMode table
     // (Pigment inserted at 1, the darken/lighten groups reordered); seen on
@@ -1423,6 +1428,49 @@ struct DecodedBitmap {
       // 32 Erase: no Patchy equivalent.
       default: return std::nullopt;
     }
+  }
+  return std::nullopt;
+}
+
+// Best-fit approximations for the Affinity-only blend modes onto modes Patchy
+// (and PSD) already store - never new BlendMode values. Chosen by RMSE over a
+// full-gamut probe (af-spike blend_probes, 2026-07-29: every (s,d) byte pair
+// once in the red channel, scored against Affinity's own render; the harness
+// reproduces Normal at 0.0 and Exclusion at 0.3):
+//   Average  = (s+d)/2 exactly -> Normal with opacity folded x0.5
+//              (algebraically identical; plain Normal scores 54)
+//   Negation = 1-|1-s-d| exactly -> Exclusion (60 vs Normal's 109)
+//   Reflect  = d^2/(1-s) exactly -> Overlay (37 vs 101)
+//   Glow     = s^2/(1-d) exactly -> Linear Light (24 vs 51)
+//   Pigment  (no classical formula fits) -> Overlay (45 vs 109)
+// ContrastNegate/ContrastInvert stays Normal + notice: its best candidate
+// (Exclusion) still scores 84 of Normal's 128 - too wrong to render as if
+// right. Erase stays Normal + notice: it is an alpha-removal operator, not a
+// color blend (the compositor has no such primitive, and PSD could not store
+// it either).
+struct BlendApproximation {
+  BlendMode mode;
+  float opacity_scale;        // folded into the carrier's opacity (Average)
+  const char* affinity_name;  // both names ride the notice
+  const char* patchy_name;
+};
+
+[[nodiscard]] std::optional<BlendApproximation> approximate_blend_mode(const af::AfEnum& value) {
+  const bool v6 = value.version >= 6;  // the renumbered JS-facing space
+  if ((value.version == 0 && value.id == 21) || (v6 && value.id == 27)) {
+    return BlendApproximation{BlendMode::Normal, 0.5F, "Average", "Normal at half opacity"};
+  }
+  if ((value.version == 0 && value.id == 22) || (v6 && value.id == 28)) {
+    return BlendApproximation{BlendMode::Exclusion, 1.0F, "Negation", "Exclusion"};
+  }
+  if ((value.version == 0 && value.id == 23) || (v6 && value.id == 29)) {
+    return BlendApproximation{BlendMode::Overlay, 1.0F, "Reflect", "Overlay"};
+  }
+  if ((value.version == 0 && value.id == 24) || (v6 && value.id == 30)) {
+    return BlendApproximation{BlendMode::LinearLight, 1.0F, "Glow", "Linear Light"};
+  }
+  if (v6 && value.id == 1) {
+    return BlendApproximation{BlendMode::Overlay, 1.0F, "Pigment", "Overlay"};
   }
   return std::nullopt;
 }
@@ -1791,6 +1839,17 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
     if (const auto* e = std::get_if<af::AfEnum>(&blnd->value)) {
       if (const auto mapped = map_blend_mode(*e)) {
         group.set_blend_mode(*mapped);
+      } else if (const auto approx = approximate_blend_mode(*e)) {
+        group.set_blend_mode(approx->mode);
+        group.set_opacity(group.opacity() * approx->opacity_scale);
+        ctx.notices.push_back("Layer '" + group.name() + "': Affinity blend mode '" +
+                              approx->affinity_name + "' approximated as " + approx->patchy_name);
+      } else {
+        // An explicit-but-unmapped mode must not keep pass-through: that
+        // renders the children as if the group did not exist at all.
+        group.set_blend_mode(BlendMode::Normal);
+        ctx.notices.push_back("Layer '" + group.name() +
+                              "': blend mode not supported by Patchy; shown as Normal");
       }
     }
   }
@@ -1876,6 +1935,11 @@ void apply_common(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
       const auto mapped = map_blend_mode(*e);
       if (mapped) {
         layer.set_blend_mode(*mapped);
+      } else if (const auto approx = approximate_blend_mode(*e)) {
+        layer.set_blend_mode(approx->mode);
+        layer.set_opacity(layer.opacity() * approx->opacity_scale);
+        ctx.notices.push_back("Layer '" + name + "': Affinity blend mode '" +
+                              approx->affinity_name + "' approximated as " + approx->patchy_name);
       } else {
         ctx.notices.push_back("Layer '" + name +
                               "': blend mode not supported by Patchy; shown as Normal");
@@ -2030,14 +2094,23 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
       continue;
     }
     const af::AfClass& effect = *entry;
-    const float opacity =
+    float opacity =
         static_cast<float>(std::clamp(effect.double_field(af::tag4("Opac"), 1.0), 0.0, 1.0));
+    // Every effect kind reads blend() BEFORE opacity, so the Average
+    // approximation can fold its half-opacity into the shared local.
     const auto blend = [&](BlendMode fallback) {
       const auto* field = effect.field(af::tag4("BlnM"));
       if (field != nullptr) {
         if (const auto* e = std::get_if<af::AfEnum>(&field->value)) {
           if (const auto mapped = map_effect_blend_mode(*e)) {
             return *mapped;
+          }
+          if (const auto approx = approximate_blend_mode(*e)) {
+            opacity *= approx->opacity_scale;
+            ctx.notices.push_back("Layer '" + name + "': effect blend mode '" +
+                                  approx->affinity_name + "' approximated as " +
+                                  approx->patchy_name);
+            return approx->mode;
           }
           ctx.notices.push_back("Layer '" + name + "': effect blend mode approximated");
         }

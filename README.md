@@ -276,7 +276,7 @@ Affinity features that are not supported yet, or are only partially supported:
 - Saving to Affinity formats (import only; save your edits as PSD)
 - The long tail of parametric shape kinds (arrows, pies, cogs, clouds, callouts, hearts, spirals, and rounded or legacy-geometry stars) import as named placeholders
 - Adjustment layers beyond the eight kinds Patchy models, and live filters, import as named empty placeholders; Brightness/Contrast and Color Balance import approximately
-- Affinity-only blend modes (Pigment, Reflect, Glow, Erase, and others) fall back to Normal with a notice
+- Affinity-only blend modes render through their closest Photoshop-compatible equivalent with a notice (Average matches exactly at half opacity; Negation, Reflect, Glow, and Pigment approximate; Contrast Negate and Erase fall back to Normal)
 - Bevel/Emboss and glow effects are approximated; Gaussian blur layer effects don't render
 - Rotated or sheared frame text renders without its rotation (artistic text rotates correctly)
 - Multi-page documents open the first page only

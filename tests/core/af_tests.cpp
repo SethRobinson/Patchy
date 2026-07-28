@@ -1022,6 +1022,65 @@ void af_imports_vector_mask_adjuncts() {
   }
 }
 
+void af_approximates_affinity_only_blend_modes() {
+  // tiny-blend-affinity.af: a gradient image "base" under one rect per
+  // Affinity-only blend mode - wire stamps pinned by the fixture's tree dump:
+  // "avg" Average (21,v0), "neg" Negation (22,v0), "refl" Reflect (23,v0),
+  // "glow" Glow (24,v0), "pig" Pigment (1,v6), "cneg" ContrastNegate (28,v2),
+  // "erase" Erase (25,v0) - plus container "refgroup" (Blnd Reflect) holding
+  // "gchild". Best-fit remaps chosen by RMSE against Affinity's full-gamut
+  // probe renders (af-spike blend_probes): Average is EXACTLY Normal at half
+  // opacity; Negation -> Exclusion; Reflect/Pigment -> Overlay; Glow ->
+  // Linear Light. ContrastNegate and Erase stay Normal with the plain
+  // not-supported notice (nothing existing is close enough to render as if
+  // right).
+  const auto bytes = read_fixture("tiny-blend-affinity.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  const auto layer_named = [&](const char* name) -> const patchy::Layer& {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        return layer;
+      }
+    }
+    throw std::runtime_error(std::string("layer not found: ") + name);
+  };
+
+  const auto& avg = layer_named("avg");
+  CHECK(avg.blend_mode() == patchy::BlendMode::Normal);
+  CHECK(std::abs(avg.opacity() - 0.5F) < 0.005F);  // authored 1.0, folded x0.5
+  CHECK(layer_named("neg").blend_mode() == patchy::BlendMode::Exclusion);
+  CHECK(layer_named("refl").blend_mode() == patchy::BlendMode::Overlay);
+  CHECK(layer_named("glow").blend_mode() == patchy::BlendMode::LinearLight);
+  CHECK(layer_named("pig").blend_mode() == patchy::BlendMode::Overlay);
+  CHECK(layer_named("cneg").blend_mode() == patchy::BlendMode::Normal);
+  CHECK(layer_named("erase").blend_mode() == patchy::BlendMode::Normal);
+
+  // The group must not silently keep pass-through for an explicit mode.
+  const auto& group = layer_named("refgroup");
+  CHECK(group.kind() == patchy::LayerKind::Group);
+  CHECK(group.blend_mode() == patchy::BlendMode::Overlay);
+
+  const auto notice_for = [&](const char* layer, const char* text) {
+    const std::string needle = std::string("'") + layer + "'";
+    for (const auto& notice : notices) {
+      if (notice.find(needle) != std::string::npos &&
+          notice.find(text) != std::string::npos) {
+        return true;
+      }
+    }
+    return false;
+  };
+  CHECK(notice_for("avg", "'Average' approximated as Normal at half opacity"));
+  CHECK(notice_for("neg", "'Negation' approximated as Exclusion"));
+  CHECK(notice_for("refl", "'Reflect' approximated as Overlay"));
+  CHECK(notice_for("glow", "'Glow' approximated as Linear Light"));
+  CHECK(notice_for("pig", "'Pigment' approximated as Overlay"));
+  CHECK(notice_for("cneg", "not supported by Patchy; shown as Normal"));
+  CHECK(notice_for("erase", "not supported by Patchy; shown as Normal"));
+  CHECK(notice_for("refgroup", "'Reflect' approximated as Overlay"));
+}
+
 void af_reads_affinity2_raster_document() {
   // tiny-v2-raster.afphoto was authored interactively in Affinity Photo 2.6.5
   // (the 2.x generation shares the .af container and doc-tree grammar; only
@@ -1374,6 +1433,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_live_filter_and_unmapped_adjustment_import_honestly",
        af_live_filter_and_unmapped_adjustment_import_honestly},
       {"af_imports_vector_mask_adjuncts", af_imports_vector_mask_adjuncts},
+      {"af_approximates_affinity_only_blend_modes", af_approximates_affinity_only_blend_modes},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_reads_affinity2_raster_document", af_reads_affinity2_raster_document},
       {"af_reads_affinity2_shape_text_document", af_reads_affinity2_shape_text_document},
