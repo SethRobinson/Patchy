@@ -485,7 +485,18 @@ sweep closed the rest of the long tail - see the parametric-shapes bullet).
   first `PLig` light). The effect `BlnM` enum is its OWN space (NOT the layer
   `Blnd` enum): base ids 0..21 with LATER-ADDED modes reusing ids under an
   enum-version bump (LinearBurn 5/v3, LinearLight 15/v1, Divide 21/v4) -
-  table in `map_effect_blend_mode`. Gaussian blur and unknown kinds skip with
+  table in `map_effect_blend_mode`. The Gaussian blur effect (`Gaus`) is a
+  content blur PSD cannot store, so it BAKES into the layer pixels at the end
+  of the read (`bake_pending_blur_effects`; the read-time-only
+  patchy.af.pending_blur marker never survives into the document): the layer
+  is padded with transparency so its alpha boundary softens and the bounds
+  grow with the spill, the effect opacity blends back over the sharp
+  original, and `PrAl` (Preserve Alpha) keeps the original coverage. The
+  wire `Radi` measures 2 sigma on Affinity's renders while the
+  PS-calibrated kernel radius is ~1 sigma, so the bake halves it
+  (edge-profile fit of the fx-gaussian probe; rmse 0.48, and the committed
+  tiny-fx-blur.af scores 0.46). Blur on pending TEXT layers keeps a notice
+  (text renders post-open, after the bake). Unknown effect kinds skip with
   a notice; group effects import AND render (July 2026, through the same
   calibrated group pipeline as PSD group styles).
   Semantics pinned by the authored one-toggle docs in af-spike/corpus/fx-*

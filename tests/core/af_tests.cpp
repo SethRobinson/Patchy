@@ -849,6 +849,63 @@ void af_imports_long_tail_parametric_shapes() {
   }
 }
 
+void af_bakes_gaussian_blur_layer_effects() {
+  // tiny-fx-blur.af: "blurred" (40x24 red raster, Gaussian blur layer effect
+  // radius 3) and "keptalpha" (24x24 blue raster, radius 4 with Preserve
+  // Alpha). PSD cannot store a content-blur effect, so the importer bakes it
+  // into the pixels: plain blur grows the bounds with the spill and softens
+  // the edges; Preserve Alpha keeps the original coverage. Affinity's wire
+  // radius is 2 sigma while the PS-calibrated kernel radius is ~1 sigma
+  // (edge-profile fit); the whole fixture scores rmse 0.46 vs Affinity's own
+  // render.
+  const auto bytes = read_fixture("tiny-fx-blur.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  const auto layer_named = [&](const char* name) -> const patchy::Layer& {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        return layer;
+      }
+    }
+    throw std::runtime_error(std::string("layer not found: ") + name);
+  };
+  const auto alpha_at = [&](const patchy::Layer& layer, std::int32_t x, std::int32_t y) -> int {
+    const auto& pixels = std::as_const(layer).pixels();
+    const std::int32_t lx = x - layer.bounds().x;
+    const std::int32_t ly = y - layer.bounds().y;
+    if (lx < 0 || ly < 0 || lx >= pixels.width() || ly >= pixels.height()) {
+      return 0;
+    }
+    return pixels.pixel(lx, ly)[3];
+  };
+
+  const auto& blurred = layer_named("blurred");
+  CHECK(blurred.bounds().x < 0);  // the spill grew the bounds
+  CHECK(blurred.bounds().y < 0);
+  CHECK(alpha_at(blurred, 20, 12) == 255);  // solid centre
+  const int edge = alpha_at(blurred, 41, 12);
+  CHECK(edge > 0);
+  CHECK(edge < 255);  // softened boundary just past the sharp 40px edge
+  CHECK(!blurred.metadata().contains("patchy.af.pending_blur"));
+
+  const auto& kept = layer_named("keptalpha");
+  CHECK(kept.bounds().x == 0);
+  CHECK(kept.bounds().y == 0);
+  CHECK(kept.bounds().width == 24);
+  CHECK(kept.bounds().height == 24);  // Preserve Alpha keeps the coverage
+  CHECK(alpha_at(kept, 0, 0) == 255);
+  CHECK(alpha_at(kept, 23, 23) == 255);
+
+  int baked_notices = 0;
+  for (const auto& notice : notices) {
+    if (notice.find("Gaussian blur layer effect baked") != std::string::npos) {
+      ++baked_notices;
+    }
+    CHECK(notice.find("'Gaus' is not supported") == std::string::npos);
+  }
+  CHECK(baked_notices == 2);
+}
+
 void af_imports_multi_artboard_document() {
   // tiny-artboards.af: two artboards - "board-a" (orange, box (0,0)-(80,60),
   // with a blue "overflow" child rect spanning x 60..100) and "board-b"
@@ -1496,6 +1553,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_imports_parametric_shapes_as_shape_layers",
        af_imports_parametric_shapes_as_shape_layers},
       {"af_imports_long_tail_parametric_shapes", af_imports_long_tail_parametric_shapes},
+      {"af_bakes_gaussian_blur_layer_effects", af_bakes_gaussian_blur_layer_effects},
       {"af_imports_multi_artboard_document", af_imports_multi_artboard_document},
       {"af_head_fat_revision_wins", af_head_fat_revision_wins},
       {"af_imports_adjustment_layers", af_imports_adjustment_layers},

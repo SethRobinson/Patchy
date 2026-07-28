@@ -11,6 +11,7 @@
 #include "psd/psd_smart_objects.hpp"
 #include "psd/psd_text_runs.hpp"
 #include "color/color_management.hpp"
+#include "filters/smart_filter_renderer.hpp"
 #include "formats/af_tree.hpp"
 #include "formats/binary_le.hpp"
 #include "formats/document_flatten.hpp"
@@ -53,6 +54,11 @@
 namespace patchy::af {
 
 namespace {
+
+// Read-time-only marker for a Gaussian-blur layer effect awaiting its bake
+// (resolved and ERASED by bake_pending_blur_effects before read() returns, so
+// it never rides a saved document). Value: "<radius> <opacity> <preserve>".
+constexpr const char* kAfPendingBlurKey = "patchy.af.pending_blur";
 
 constexpr std::uint32_t kMagic = 0x414BFF00U;
 constexpr std::uint32_t kTagInf = 0x666E4923U;   // "#Inf"
@@ -2317,6 +2323,19 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
       style.bevels.push_back(bevel);
       ctx.notices.push_back("Layer '" + name +
                             "': 3D effect approximated as Bevel/Emboss");
+    } else if (kind == af::tag4("Gaus")) {
+      // Gaussian blur layer effect: a content blur, not an lfx2-style
+      // destination pass (PSD cannot store it), so it BAKES into the layer's
+      // pixels once they are final - the importer stamps a pending marker
+      // that bake_pending_blur_effects resolves at the end of the read. Wire:
+      // Radi = the UI radius in document px 1:1 (fx-gaussian probe), PrAl =
+      // preserve alpha.
+      const double radius = std::max(0.0, effect.double_field(af::tag4("Radi"), 0.0));
+      if (radius > 0.0) {
+        layer.metadata()[kAfPendingBlurKey] =
+            std::to_string(radius) + " " + std::to_string(opacity) + " " +
+            (effect.bool_field(af::tag4("PrAl"), false) ? "1" : "0");
+      }
     } else {
       ctx.notices.push_back("Layer '" + name + "': effect '" + effect_tag_text(kind) +
                             "' is not supported; skipped");
@@ -4982,6 +5001,127 @@ namespace {
 
 // Shared by the public read() and the embedded-document recursion (embedded
 // containers are complete .af containers stored in edc/<n> streams).
+// Resolve every pending Gaussian-blur layer effect (stamped by
+// apply_layer_effects) now that layer pixels are final: blur through the
+// calibrated smart-filter kernel (Affinity's wire radius maps 1:1 onto
+// document px), honoring the effect's opacity (blend back over the sharp
+// original) and preserve-alpha flag (blur stays inside the original
+// coverage). Pending text layers render post-open, after this pass can see
+// them, so they keep a notice instead.
+void bake_pending_blur_effects(std::vector<Layer>& layers, std::vector<std::string>& notices) {
+  for (auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      bake_pending_blur_effects(layer.children(), notices);
+    }
+    auto& metadata = layer.metadata();
+    const auto entry = metadata.find(kAfPendingBlurKey);
+    if (entry == metadata.end()) {
+      continue;
+    }
+    double radius = 0.0;
+    double opacity = 1.0;
+    int preserve_alpha = 0;
+    {
+      char* end = nullptr;
+      radius = std::strtod(entry->second.c_str(), &end);
+      if (end != nullptr) {
+        opacity = std::strtod(end, &end);
+      }
+      if (end != nullptr) {
+        preserve_alpha = static_cast<int>(std::strtol(end, nullptr, 10));
+      }
+    }
+    metadata.erase(entry);
+    if (metadata.contains(kLayerMetadataAfPendingText)) {
+      notices.push_back("Layer '" + layer.name() +
+                        "': Gaussian blur layer effect is not applied to text");
+      continue;
+    }
+    const auto& source = std::as_const(layer).pixels();
+    if (source.empty() || radius <= 0.0) {
+      continue;
+    }
+    const Rect source_bounds = layer.bounds();
+    // The smart-filter blur keeps the supplied bounds (edge-repeat outside),
+    // but Affinity's effect diffuses the layer's alpha boundary too - pad
+    // with transparency so the edges soften and the bounds grow with the
+    // spill.
+    const std::int32_t pad =
+        static_cast<std::int32_t>(std::ceil(radius)) * 3 + 1;
+    PixelBuffer padded(source.width() + 2 * pad, source.height() + 2 * pad,
+                       PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < source.height(); ++y) {
+      const auto src_row = std::as_const(source).row(y);
+      auto dst_row = padded.row(y + pad);
+      std::copy(src_row.begin(), src_row.end(),
+                dst_row.begin() + static_cast<std::size_t>(pad) * 4U);
+    }
+    const Rect padded_bounds{source_bounds.x - pad, source_bounds.y - pad, padded.width(),
+                             padded.height()};
+    // Affinity's wire radius measures 2 sigma on its own renders while the
+    // Photoshop-calibrated kernel's radius measures ~1 sigma (edge-profile
+    // fit of the fx-gaussian probe), so halve it.
+    auto blurred = render_photoshop_gaussian_blur(padded, padded_bounds, radius * 0.5);
+    if (blurred.pixels.empty()) {
+      continue;
+    }
+    if (opacity < 1.0) {
+      // The effect blends over the sharp original at its opacity.
+      auto& px = blurred.pixels;
+      for (std::int32_t y = 0; y < px.height(); ++y) {
+        auto row = px.row(y);
+        const std::int32_t sy = blurred.bounds.y + y - source_bounds.y;
+        for (std::int32_t x = 0; x < px.width(); ++x) {
+          const std::int32_t sx = blurred.bounds.x + x - source_bounds.x;
+          std::uint8_t original[4] = {0, 0, 0, 0};
+          if (sx >= 0 && sy >= 0 && sx < source.width() && sy < source.height()) {
+            const std::uint8_t* sp = source.pixel(sx, sy);
+            std::copy(sp, sp + 4, original);
+          }
+          std::uint8_t* bp = row.data() + static_cast<std::size_t>(x) * 4U;
+          // Mix in premultiplied space so transparent-area colors stay inert.
+          const double ba = bp[3] / 255.0;
+          const double oa = original[3] / 255.0;
+          const double out_a = ba * opacity + oa * (1.0 - opacity);
+          for (int c = 0; c < 3; ++c) {
+            const double mixed =
+                bp[c] * ba * opacity + original[c] * oa * (1.0 - opacity);
+            bp[c] = static_cast<std::uint8_t>(std::lround(
+                out_a > 0.0 ? std::clamp(mixed / out_a, 0.0, 255.0) : 0.0));
+          }
+          bp[3] = static_cast<std::uint8_t>(std::lround(std::clamp(out_a * 255.0, 0.0, 255.0)));
+        }
+      }
+    }
+    if (preserve_alpha != 0) {
+      // Preserve Alpha keeps the original coverage: crop the blur back to the
+      // source bounds and reinstate the original alpha plane.
+      PixelBuffer kept(source.width(), source.height(), PixelFormat::rgba8());
+      for (std::int32_t y = 0; y < kept.height(); ++y) {
+        auto row = kept.row(y);
+        const std::int32_t by = source_bounds.y + y - blurred.bounds.y;
+        for (std::int32_t x = 0; x < kept.width(); ++x) {
+          std::uint8_t* kp = row.data() + static_cast<std::size_t>(x) * 4U;
+          const std::int32_t bx = source_bounds.x + x - blurred.bounds.x;
+          if (bx >= 0 && by >= 0 && bx < blurred.pixels.width() && by < blurred.pixels.height()) {
+            const std::uint8_t* bp = blurred.pixels.pixel(bx, by);
+            std::copy(bp, bp + 3, kp);
+          }
+          kp[3] = source.pixel(x, y)[3];
+        }
+      }
+      layer.set_pixels(std::move(kept));
+      notices.push_back("Layer '" + layer.name() +
+                        "': Gaussian blur layer effect baked into the layer pixels");
+      continue;
+    }
+    layer.set_pixels(std::move(blurred.pixels));
+    layer.set_bounds(blurred.bounds);
+    notices.push_back("Layer '" + layer.name() +
+                      "': Gaussian blur layer effect baked into the layer pixels");
+  }
+}
+
 [[nodiscard]] Document read_container(std::span<const std::uint8_t> bytes,
                                       std::vector<std::string>& notices, int embed_depth) {
   if (!sniff(bytes)) {
@@ -5020,6 +5160,7 @@ namespace {
         } catch (const std::exception&) {
         }
       }
+      bake_pending_blur_effects(document.layers(), notices);
       return document;
     } catch (const std::exception& error) {
       // A structurally unusable tree (or an unforeseen shape) falls back to the

@@ -277,7 +277,7 @@ Affinity features that are not supported yet, or are only partially supported:
 - A few parametric shape kinds (callouts, spirals, QR codes, circle-rounded stars, and exotic arrow ends) import as named placeholders
 - Adjustment layers beyond the eight kinds Patchy models, and live filters, import as named empty placeholders; Brightness/Contrast and Color Balance import approximately
 - Affinity-only blend modes render through their closest Photoshop-compatible equivalent with a notice (Average matches exactly at half opacity; Negation, Reflect, Glow, and Pigment approximate; Contrast Negate and Erase fall back to Normal)
-- Bevel/Emboss and glow effects are approximated; Gaussian blur layer effects don't render
+- Bevel/Emboss and glow effects are approximated; Gaussian blur layer effects bake into the layer pixels (they render correctly but are no longer live)
 - Rotated or sheared frame text renders without its rotation (artistic text rotates correctly)
 - Multi-page documents open the first page only
 - Affinity 1.x-era files: vector stroke widths don't import, and embedded-document placement can land slightly off

@@ -335,8 +335,10 @@ add_library(patchy_formats
   src/formats/zstd/zstddeclib.c
 )
 # patchy_libraw stays PRIVATE: only raw_document_io.cpp touches LibRaw types; the public
-# raw_document_io.hpp is LibRaw-free like the rest of the formats API.
-target_link_libraries(patchy_formats PUBLIC patchy_core patchy_render patchy_psd PRIVATE patchy_libraw)
+# raw_document_io.hpp is LibRaw-free like the rest of the formats API. patchy_filters is
+# PRIVATE too: af_document_io.cpp bakes Gaussian-blur layer effects through the calibrated
+# smart-filter blur (filters depends only on core, so no cycle).
+target_link_libraries(patchy_formats PUBLIC patchy_core patchy_render patchy_psd PRIVATE patchy_filters patchy_libraw)
 if(WIN32)
   # HEIF/HEIC decodes through Windows Imaging Component (the Microsoft Store HEIF/HEVC
   # codec packages carry the HEVC patent licensing -- Patchy must never vendor an HEVC
