@@ -893,6 +893,64 @@ void af_imports_adjustment_layers() {
   }
 }
 
+void af_live_filter_and_unmapped_adjustment_import_honestly() {
+  // tiny-live-filter.af: a red "base" rect under a Gaussian Blur live filter
+  // node "blurfx" (FlRN; its Bitm is the filter's mask plane, not content)
+  // and an Exposure adjustment "exposure" (ExRA, a kind Patchy does not map)
+  // holding a blue child rect "clipchild". Both unmapped nodes must import as
+  // the HONEST "adjustment or live filter" placeholder - never the misleading
+  // "unsupported pixel format" - and the adjustment's clipped child must
+  // survive as a clipped layer instead of being dropped.
+  const auto bytes = read_fixture("tiny-live-filter.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 80);
+  CHECK(document.height() == 60);
+
+  const auto layer_index = [&](const char* name) -> std::size_t {
+    for (std::size_t i = 0; i < document.layers().size(); ++i) {
+      if (document.layers()[i].name() == name) {
+        return i;
+      }
+    }
+    throw std::runtime_error(std::string("layer not found: ") + name);
+  };
+
+  const auto& base = document.layers()[layer_index("base")];
+  CHECK(patchy::layer_is_vector_shape(base));
+  CHECK(base.vector_shape()->fill.color == (patchy::RgbColor{200, 40, 40}));
+
+  // Both unmapped nodes become named empty placeholders.
+  const auto& blurfx = document.layers()[layer_index("blurfx")];
+  CHECK(blurfx.kind() == patchy::LayerKind::Pixel);
+  CHECK(!patchy::layer_is_vector_shape(blurfx));
+  const auto& exposure = document.layers()[layer_index("exposure")];
+  CHECK(exposure.kind() == patchy::LayerKind::Pixel);
+
+  // The adjustment's child imports as a clipped layer ABOVE the placeholder.
+  const auto& clipchild = document.layers()[layer_index("clipchild")];
+  CHECK(layer_index("clipchild") > layer_index("exposure"));
+  CHECK(clipchild.clipped());
+  CHECK(patchy::layer_is_vector_shape(clipchild));
+  CHECK(clipchild.vector_shape()->fill.color == (patchy::RgbColor{40, 60, 220}));
+
+  bool blur_notice = false;
+  bool exposure_notice = false;
+  for (const auto& notice : notices) {
+    CHECK(notice.find("unsupported pixel format") == std::string::npos);
+    if (notice.find("'blurfx'") != std::string::npos) {
+      CHECK(notice.find("adjustment or live filter") != std::string::npos);
+      blur_notice = true;
+    }
+    if (notice.find("'exposure'") != std::string::npos) {
+      CHECK(notice.find("adjustment or live filter") != std::string::npos);
+      exposure_notice = true;
+    }
+  }
+  CHECK(blur_notice);
+  CHECK(exposure_notice);
+}
+
 void af_reads_affinity2_raster_document() {
   // tiny-v2-raster.afphoto was authored interactively in Affinity Photo 2.6.5
   // (the 2.x generation shares the .af container and doc-tree grammar; only
@@ -1218,6 +1276,8 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_imports_multi_artboard_document", af_imports_multi_artboard_document},
       {"af_head_fat_revision_wins", af_head_fat_revision_wins},
       {"af_imports_adjustment_layers", af_imports_adjustment_layers},
+      {"af_live_filter_and_unmapped_adjustment_import_honestly",
+       af_live_filter_and_unmapped_adjustment_import_honestly},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_reads_affinity2_raster_document", af_reads_affinity2_raster_document},
       {"af_reads_affinity2_shape_text_document", af_reads_affinity2_shape_text_document},

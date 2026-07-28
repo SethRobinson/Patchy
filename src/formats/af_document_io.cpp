@@ -1483,11 +1483,14 @@ struct LayerBuildContext {
 // Adjustment and live-filter node families (JSLib: *AdjustmentRasterNode /
 // *FilterRasterNode). Their Bitm is the adjustment's mask plane, not content.
 [[nodiscard]] bool is_adjustment_or_filter(std::uint32_t type_tag) {
-  // Known adjustment tags observed so far plus the *RA suffix convention
-  // (CrRA curves, HsRA HSL, ...). Filters follow *RF/other patterns; a mask-
-  // format bitmap on an unknown node lands in the same placeholder path anyway.
+  // Adjustments follow the *RA suffix convention (CrRA curves, HsRA HSL, ...;
+  // ancestor chain *RA/AdjR). Live filters all share the ONE concrete tag FlRN
+  // (FilterRasterNode; the filter kind rides in its Filt child class - pinned
+  // by tiny-live-filter.af's Gaussian Blur). A mask-format bitmap on any other
+  // unknown node lands in the same honest placeholder path anyway.
   const std::uint32_t suffix = type_tag & 0xFFFFU;
-  return suffix == (static_cast<std::uint32_t>('R') << 8U | 'A');
+  return suffix == (static_cast<std::uint32_t>('R') << 8U | 'A') ||
+         type_tag == af::tag4("FlRN");
 }
 
 // Read the [tx, ty] integer origin for a layer from a pure-translation
@@ -3846,6 +3849,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         continue;
       }
       emit_placeholder("is an Affinity adjustment or live filter (not applied yet)");
+      emit_clipped_children(&node);
       continue;
     }
 
@@ -3876,6 +3880,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     if (bitmap_class != nullptr) {
       std::optional<PixelBuffer> pixels;
       bool approximate_color = false;
+      bool bitmap_is_mask_plane = false;
       std::string fail_reason;
       std::shared_ptr<const std::vector<std::uint8_t>> original_bytes;
       std::string original_name;
@@ -3889,6 +3894,11 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
           pixels = std::move(decoded->rgba);
           original_bytes = std::move(decoded->original_bytes);
           original_name = std::move(decoded->original_name);
+        } else if (decoded && !decoded->mask.empty()) {
+          // A node whose own bitmap is a MASK plane is an adjustment or live
+          // filter Patchy does not map (live filters follow this shape; their
+          // bitmap is the filter's mask, not content).
+          bitmap_is_mask_plane = true;
         }
       }
       // The placed quad (source rect corners through the node transform), for
@@ -3978,9 +3988,11 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         emit_clipped_children(&node);
         continue;
       }
-      emit_placeholder(!pixels ? (fail_reason.empty() ? "has an unsupported pixel format"
-                                                      : fail_reason)
-                               : "has a degenerate transform");
+      emit_placeholder(
+          bitmap_is_mask_plane
+              ? "is an Affinity adjustment or live filter (not applied yet)"
+              : (!pixels ? (fail_reason.empty() ? "has an unsupported pixel format" : fail_reason)
+                         : "has a degenerate transform"));
       emit_clipped_children(&node);
       continue;
     }

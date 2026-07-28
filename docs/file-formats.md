@@ -445,9 +445,17 @@ crescent, segment, double/square star, tear, heart, spiral, QR).
   Brightness/Contrast and Colour Balance (both notice-approximate: the
   engines' math differs; Affinity's colour-balance full-scale maps to about
   a tenth of the PS range). Other adjustment kinds and live filters keep the
-  placeholder path. Placement note: `BitI` is the bitmap's used/dirty
-  sub-rect, NEVER a placement source - untransformed layers sit at the
-  origin, translated/transformed ones go through `Xfrm`.
+  placeholder path, and their clipped children (Affinity nests them in the
+  node's `Chld` list) still import above the placeholder. Adjustment node
+  tags follow the `*RA` suffix convention (ancestor chain `*RA/AdjR`); live
+  filters all share the ONE concrete tag `FlRN` (FilterRasterNode) with the
+  filter kind in its `Filt` child class (`is_adjustment_or_filter` matches
+  both, so live filters get the honest placeholder notice, not the
+  "unsupported pixel format" one; pinned by tiny-live-filter.af, whose
+  Gaussian Blur stores UI radius 3 as `Filt` -> `Radi` 9.0). Placement note:
+  `BitI` is the bitmap's used/dirty sub-rect, NEVER a placement source -
+  untransformed layers sit at the origin, translated/transformed ones go
+  through `Xfrm`.
 - **Vector curves (`PCrv`)** import as real Patchy shape layers (the SVG
   pattern: `VectorShapeContent` + baked pixels via `update_vector_shape_raster`,
   block-dirty so PSD saves regenerate). Wire: `Crvs` -> `PCvD` -> `Data` (an
