@@ -926,6 +926,10 @@ void compositor_fill_opacity_matches_photoshop_modes() {
       {patchy::BlendMode::ColorDodge, {66, 113, 235}},
       {patchy::BlendMode::LinearDodge, {140, 130, 240}},
       {patchy::BlendMode::Difference, {60, 70, 120}},
+      // The July 2026 light-mode calibration, read off the Fill-50 captures.
+      {patchy::BlendMode::VividLight, {56, 44, 178}},
+      {patchy::BlendMode::LinearLight, {112, 31, 171}},
+      {patchy::BlendMode::HardMix, {26, 6, 225}},
   };
   for (const auto& item : expected) {
     patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
@@ -938,6 +942,82 @@ void compositor_fill_opacity_matches_photoshop_modes() {
     CHECK(pixel[0] == item.rgb[0]);
     CHECK(pixel[1] == item.rgb[1]);
     CHECK(pixel[2] == item.rgb[2]);
+  }
+}
+
+// The July 2026 special-Fill calibration for Vivid Light, Linear Light and
+// Hard Mix, pinned against 256x256 Photoshop 2026 flatten captures of crossed
+// gray ramps at Fill 1 through 99 percent (fill_byte = lround(fill * 255)).
+// The quads sample both kernel halves, every clamp edge, and the points that
+// discriminated the calibrated rounding during fitting; blend_math.cpp
+// documents the kernels. Fill 0 is identity (Photoshop skips the layer).
+void blend_math_light_modes_special_fill_match_photoshop_captures() {
+  struct Quad {
+    int source;
+    int destination;
+    int fill_byte;
+    int expected;
+  };
+  static constexpr Quad kLinearLight[] = {
+      {0, 64, 26, 37}, {32, 64, 26, 44}, {128, 128, 26, 127},
+      {192, 0, 26, 12}, {255, 128, 26, 153}, {128, 64, 64, 63},
+      {128, 200, 125, 199}, {0, 200, 128, 71}, {32, 128, 128, 31},
+      {128, 0, 128, 0}, {128, 128, 128, 128}, {192, 0, 128, 64},
+      {255, 64, 128, 191}, {192, 0, 191, 96}, {255, 64, 191, 254},
+      {64, 128, 230, 12}, {255, 0, 230, 229}, {0, 128, 3, 124},
+      {255, 128, 3, 130}, {0, 254, 252, 1}, {255, 1, 252, 252},
+  };
+  static constexpr Quad kVividLight[] = {
+      {136, 64, 26, 65}, {135, 64, 26, 64}, {130, 192, 26, 192},
+      {131, 192, 26, 193}, {129, 64, 64, 64}, {131, 64, 64, 65},
+      {0, 129, 128, 2}, {0, 192, 128, 129}, {32, 128, 128, 51},
+      {96, 64, 128, 37}, {128, 64, 128, 64}, {160, 64, 128, 73},
+      {160, 128, 128, 146}, {192, 128, 128, 172}, {255, 64, 128, 129},
+      {129, 192, 191, 193}, {1, 254, 191, 251}, {64, 128, 230, 24},
+      {255, 32, 230, 255}, {0, 128, 3, 126}, {255, 128, 3, 130},
+      {127, 254, 252, 254}, {128, 1, 252, 1},
+  };
+  static constexpr Quad kHardMix[] = {
+      {0, 32, 26, 7}, {128, 128, 26, 128}, {255, 224, 26, 249},
+      {0, 100, 64, 48}, {127, 64, 64, 43}, {255, 32, 64, 43},
+      {0, 128, 125, 6}, {127, 128, 125, 128}, {128, 128, 125, 129},
+      {255, 128, 125, 251}, {0, 128, 128, 2}, {127, 64, 128, 0},
+      {128, 64, 128, 2}, {192, 32, 128, 2}, {255, 64, 128, 128},
+      {128, 128, 130, 130}, {128, 128, 153, 129}, {1, 190, 191, 4},
+      {254, 2, 230, 10}, {0, 128, 3, 126}, {255, 128, 3, 130},
+      {100, 154, 252, 64}, {100, 156, 252, 191},
+  };
+  const auto gray = [](int value) {
+    return std::array<std::uint8_t, 3>{static_cast<std::uint8_t>(value),
+                                       static_cast<std::uint8_t>(value),
+                                       static_cast<std::uint8_t>(value)};
+  };
+  const auto run = [&](patchy::BlendMode mode, const Quad& quad) {
+    // Full coverage over an opaque backdrop isolates the blend kernel: the
+    // composite result IS the kernel output.
+    const auto result = patchy::composite_special_fill_rgb(
+        gray(quad.source), gray(quad.destination), mode, 1.0F,
+        static_cast<float>(quad.fill_byte) / 255.0F, 1.0F, 1.0F);
+    CHECK(result.color[0] == quad.expected);
+    CHECK(result.color[1] == quad.expected);
+    CHECK(result.color[2] == quad.expected);
+  };
+  for (const auto& quad : kLinearLight) {
+    run(patchy::BlendMode::LinearLight, quad);
+  }
+  for (const auto& quad : kVividLight) {
+    run(patchy::BlendMode::VividLight, quad);
+  }
+  for (const auto& quad : kHardMix) {
+    run(patchy::BlendMode::HardMix, quad);
+  }
+  // Fill 0 is identity for all three (blend_mode_has_special_fill routes them
+  // here even at Fill 0, so the kernels must not shift the backdrop).
+  for (const auto mode : {patchy::BlendMode::VividLight, patchy::BlendMode::LinearLight,
+                          patchy::BlendMode::HardMix}) {
+    const auto identity =
+        patchy::composite_special_fill_rgb(gray(200), gray(77), mode, 1.0F, 0.0F, 1.0F, 1.0F);
+    CHECK(identity.color[0] == 77);
   }
 }
 
@@ -1235,6 +1315,8 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
        blend_math_new_modes_match_photoshop_captures},
       {"blend_math_color_burn_dodge_match_photoshop_captures",
        blend_math_color_burn_dodge_match_photoshop_captures},
+      {"blend_math_light_modes_special_fill_match_photoshop_captures",
+       blend_math_light_modes_special_fill_match_photoshop_captures},
       {"compositor_flattens_visible_layers", compositor_flattens_visible_layers},
       {"compositor_multiply_uses_empty_backdrop_as_transparent",
        compositor_multiply_uses_empty_backdrop_as_transparent},

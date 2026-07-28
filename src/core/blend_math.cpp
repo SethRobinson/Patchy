@@ -560,8 +560,112 @@ float dissolve_coverage(std::int32_t x, std::int32_t y, float alpha, DissolveFie
 bool blend_mode_has_special_fill(BlendMode mode) noexcept {
   return mode == BlendMode::ColorBurn || mode == BlendMode::LinearBurn ||
          mode == BlendMode::ColorDodge || mode == BlendMode::LinearDodge ||
-         mode == BlendMode::Difference;
+         mode == BlendMode::Difference || mode == BlendMode::VividLight ||
+         mode == BlendMode::LinearLight || mode == BlendMode::HardMix;
 }
+
+namespace {
+
+// floor(a/b) for signed a and positive b (C++ '/' truncates toward zero).
+int floor_div(int a, int b) {
+  return a >= 0 ? a / b : -((-a + b - 1) / b);
+}
+
+// Round-half-up of a/b for signed a and positive b.
+int nearest_half_up_signed(int a, int b) {
+  return floor_div(2 * a + b, 2 * b);
+}
+
+// The July 2026 special-Fill kernels for the three light modes, calibrated
+// bit-exact against 256x256 Photoshop 2026 flatten captures at Fill 1, 10, 25,
+// 40, 49, 50, 51, 60, 75, 90 and 99 percent (fill_byte = lround(fill * 255)).
+// Unlike the five older special modes, these do NOT fade the source byte
+// toward a neutral: Photoshop fades each kernel's own internal integer terms.
+// Fill 0 is a plain identity in the captures (the invisible layer is skipped),
+// which only Linear Light needs as an explicit guard: its calibrated -1
+// constant (the 127.5 neutral) would otherwise darken by one at Fill 0.
+
+// result = clamp(d + round((2s - 255) * fb / 255) - 1).
+std::uint8_t linear_light_fill_channel(std::uint8_t src, std::uint8_t dst, int fill_byte) {
+  if (fill_byte <= 0) {
+    return dst;
+  }
+  const int delta = nearest_half_up_signed((2 * src - 255) * fill_byte, 255) - 1;
+  return static_cast<std::uint8_t>(std::clamp(static_cast<int>(dst) + delta, 0, 255));
+}
+
+// Each half computes its 100%-Fill doubled term first (the pinned vivid light
+// kernel's round(s*255/128) / round((s-128)*255/127) forms), then fades THAT
+// integer toward the half's neutral by Fill. The ramp keeps the 100% rounding:
+// burn half down, dodge half up.
+std::uint8_t vivid_light_fill_channel(std::uint8_t src, std::uint8_t dst, int fill_byte) {
+  if (fill_byte <= 0) {
+    return dst;
+  }
+  if (src >= 128) {
+    const int doubled_100 = nearest_half_up((src - 128) * 255, 127);
+    const int faded = nearest_half_up(doubled_100 * fill_byte, 255);
+    const int divisor = 255 - faded;
+    if (divisor <= 0) {
+      return 255;  // fill_byte 255 only; the compositor never routes fill 100% here
+    }
+    return static_cast<std::uint8_t>(std::min(255, nearest_half_up(dst * 255, divisor)));
+  }
+  const int doubled_100 = nearest_half_up(src * 255, 128);
+  const int doubled = 255 - nearest_half_up((255 - doubled_100) * fill_byte, 255);
+  const int numerator = dst + doubled - 255;
+  if (numerator <= 0 || doubled <= 0) {
+    return 0;
+  }
+  return static_cast<std::uint8_t>(std::min(255, nearest_half_down(numerator * 255, doubled)));
+}
+
+// A steep ramp, not a threshold: result = clamp(round((d - A) * 255 / (255 -
+// fb2))) with anchor A = round((255 - s) * fb2 / 255) and fb2 = fill_byte
+// minus one at 128 and above (equivalently round(fill_byte * 254 / 255); the
+// nine-fill sweep pinned the step uniquely). At Fill 100% Photoshop uses the
+// genuine threshold kernel instead, so the two never have to agree.
+std::uint8_t hard_mix_fill_channel(std::uint8_t src, std::uint8_t dst, int fill_byte) {
+  const int fb2 = fill_byte - (fill_byte >= 128 ? 1 : 0);
+  if (fb2 <= 0) {
+    return dst;
+  }
+  const int anchor = nearest_half_up((255 - src) * fb2, 255);
+  const int value = nearest_half_up_signed((dst - anchor) * 255, 255 - fb2);
+  return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+}
+
+// The shared special-Fill alpha split: the blend result carries the FULL
+// coverage x opacity weight against the backdrop while Fill only scales the
+// output-alpha growth and the source-only (transparent-backdrop) term.
+// Confirmed for the light modes too by the July 2026 COM probes (a vivid
+// fill-50 layer at opacity 50 and behind a uniform mask both match
+// lerp(d, kernel, coverage) exactly).
+FillCompositeResult compose_special_fill_result(const std::array<std::uint8_t, 3>& source,
+                                                const std::array<std::uint8_t, 3>& destination,
+                                                const std::array<std::uint8_t, 3>& blend,
+                                                float source_coverage, float fill_opacity,
+                                                float layer_opacity, float destination_alpha) {
+  const auto effective_alpha = source_coverage * fill_opacity * layer_opacity;
+  const auto overlap_alpha = source_coverage * layer_opacity;
+  const auto output_alpha = effective_alpha + destination_alpha * (1.0F - effective_alpha);
+  FillCompositeResult result;
+  result.alpha = output_alpha;
+  if (output_alpha <= 0.0F) {
+    return result;
+  }
+  for (std::size_t channel = 0; channel < result.color.size(); ++channel) {
+    const auto source_only = static_cast<float>(source[channel]) * effective_alpha *
+                             (1.0F - destination_alpha);
+    const auto overlap = static_cast<float>(blend[channel]) * overlap_alpha * destination_alpha;
+    const auto destination_only = static_cast<float>(destination[channel]) * destination_alpha *
+                                  (1.0F - overlap_alpha);
+    result.color[channel] = clamp_byte((source_only + overlap + destination_only) / output_alpha);
+  }
+  return result;
+}
+
+}  // namespace
 
 FillCompositeResult composite_special_fill_rgb(std::array<std::uint8_t, 3> source,
                                                 std::array<std::uint8_t, 3> destination,
@@ -572,6 +676,22 @@ FillCompositeResult composite_special_fill_rgb(std::array<std::uint8_t, 3> sourc
   fill_opacity = clamp_unit(fill_opacity);
   layer_opacity = clamp_unit(layer_opacity);
   destination_alpha = clamp_unit(destination_alpha);
+
+  // The three light modes fade their kernels' internal integer terms rather
+  // than the source byte; see the calibrated channel kernels above.
+  if (mode == BlendMode::VividLight || mode == BlendMode::LinearLight || mode == BlendMode::HardMix) {
+    const auto fill_byte = static_cast<int>(std::lround(fill_opacity * 255.0F));
+    std::array<std::uint8_t, 3> light_blend{};
+    for (std::size_t channel = 0; channel < light_blend.size(); ++channel) {
+      light_blend[channel] = mode == BlendMode::VividLight
+                                 ? vivid_light_fill_channel(source[channel], destination[channel], fill_byte)
+                             : mode == BlendMode::LinearLight
+                                 ? linear_light_fill_channel(source[channel], destination[channel], fill_byte)
+                                 : hard_mix_fill_channel(source[channel], destination[channel], fill_byte);
+    }
+    return compose_special_fill_result(source, destination, light_blend, source_coverage,
+                                       fill_opacity, layer_opacity, destination_alpha);
+  }
 
   std::array<std::uint8_t, 3> adjusted_source{};
   std::array<float, 3> adjusted_source_float{};
@@ -604,23 +724,8 @@ FillCompositeResult composite_special_fill_rgb(std::array<std::uint8_t, 3> sourc
       blend[channel] = static_cast<std::uint8_t>(std::clamp(value, 0L, 255L));
     }
   }
-  const auto effective_alpha = source_coverage * fill_opacity * layer_opacity;
-  const auto overlap_alpha = source_coverage * layer_opacity;
-  const auto output_alpha = effective_alpha + destination_alpha * (1.0F - effective_alpha);
-  FillCompositeResult result;
-  result.alpha = output_alpha;
-  if (output_alpha <= 0.0F) {
-    return result;
-  }
-  for (std::size_t channel = 0; channel < result.color.size(); ++channel) {
-    const auto source_only = static_cast<float>(source[channel]) * effective_alpha *
-                             (1.0F - destination_alpha);
-    const auto overlap = static_cast<float>(blend[channel]) * overlap_alpha * destination_alpha;
-    const auto destination_only = static_cast<float>(destination[channel]) * destination_alpha *
-                                  (1.0F - overlap_alpha);
-    result.color[channel] = clamp_byte((source_only + overlap + destination_only) / output_alpha);
-  }
-  return result;
+  return compose_special_fill_result(source, destination, blend, source_coverage, fill_opacity,
+                                     layer_opacity, destination_alpha);
 }
 
 float gradient_stop_opacity(const LayerStyleGradient& gradient, float position,

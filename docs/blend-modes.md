@@ -95,10 +95,37 @@ The pinned kernels, all bit-exact on the capture except where noted:
   integer rule is toolchain-deterministic.
 - These five are absent from Aseprite's format: the .ase writer marks them
   lossy (Normal), like LinearBurn/PinLight.
-- Known gap: Photoshop treats Vivid/Linear Light and Hard Mix as special-Fill
-  modes (its "eight special modes"); Patchy's `blend_mode_has_special_fill`
-  deliberately does not include them yet, so fill-opacity behavior below 100%
-  is uncalibrated for the three light modes.
+- **Special-Fill for the three light modes** (calibrated July 2026 against
+  256x256 Photoshop 2026 flatten captures at Fill 1/10/25/40/49/50/51/60/75/90/99
+  percent, bit-exact on every capture; `blend_mode_has_special_fill` now covers
+  all eight of Photoshop's special modes). With `fb = lround(fill * 255)`:
+  - **Fill 0 is identity for all three** (Photoshop skips the invisible
+    layer). Only Linear Light needs the explicit guard: its kernel's -1
+    constant would otherwise darken by one.
+  - **Linear Light** is `clamp(d + round((2s - 255) * fb / 255) - 1)`. The -1
+    reveals the fade's true neutral is 127.5, not 128 (at low Fill the s=128
+    row darkens d by exactly 1); at fb=255 the formula collapses to the pinned
+    `d + 2s - 256`.
+  - **Vivid Light** fades each half's 100%-kernel integer term, NOT the source
+    byte: dodge divisor = `255 - round(round((s-128)*255/127) * fb/255)`, burn
+    doubled = `255 - round((255 - round(s*255/128)) * fb/255)`; the ramps keep
+    their 100% rounding (burn half down, dodge half up).
+  - **Hard Mix below 100% Fill is a steep ramp, not a threshold**:
+    `clamp(round((d - A) * 255 / (255 - fb2)))` with anchor
+    `A = round((255-s) * fb2 / 255)` and `fb2 = fb - (fb >= 128)`
+    (equivalently `round(fb * 254/255)`; the nine-fill sweep pinned the step
+    uniquely, fill 49% -> fb2 125 vs fill 50% -> fb2 127).
+  - The alpha split is the shared special-Fill one: the blend result carries
+    the full `coverage x opacity` weight while Fill scales only output-alpha
+    growth and the transparent-backdrop source term. COM probes (vivid at
+    Fill 50 under opacity 50 and under a uniform mask) match
+    `lerp(d, kernel, coverage)` exactly. Note Photoshop quantizes opacity to a
+    byte before weighting (50% = 128/255); Patchy keeps float opacity, a
+    pre-existing global <=1/255 divergence.
+  - Pinned by `blend_math_light_modes_special_fill_match_photoshop_captures`
+    and the light-mode rows of `compositor_fill_opacity_matches_photoshop_modes`.
+    The capture PNGs (`cal_fill_*.png`) and `calibrate_fill_blends.ps1` live
+    machine-local in `local-test-fixtures/ps-blend-captures/`.
 
 ## Dissolve (July 2026)
 
