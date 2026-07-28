@@ -1766,10 +1766,6 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
   }
   apply_mask_children(ctx, node, group, name.empty() ? "Group" : name);
   apply_layer_effects(ctx, node, group, name.empty() ? "Group" : name);
-  if (!group.layer_style().empty()) {
-    ctx.notices.push_back("Layer '" + (name.empty() ? std::string("Group") : name) +
-                          "': group layer effects are not rendered");
-  }
   return group;
 }
 

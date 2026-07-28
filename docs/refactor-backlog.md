@@ -94,6 +94,13 @@ canaries.
 - `VisibleSizeGrip` (dialog_utils.cpp) paints a hardcoded light gray, chosen for the
   Dark scheme; it is not scheme-aware, so its strokes can lose contrast on Light's
   pale popups. Route the color through a theme role.
+- Styled GROUPS (July 2026 group layer effects) have no UI render cache: every
+  repaint re-flattens the group's children and re-runs the effect passes
+  (`composite_document_layer` routes styled groups through `composite_layer`).
+  Isolated groups always paid the flatten, so the new cost class is the effect
+  stack plus the pass-through silhouette flatten. A `LayerStyleRenderCache`-style
+  cache keyed on the group's `content_revision()` needs a guarantee that every
+  child mutation path bumps the ancestor revision first.
 
 ## Longer-term design
 

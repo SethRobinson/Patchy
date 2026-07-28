@@ -676,6 +676,9 @@ void ui_compatibility_report_flags_cmyk_rgb_conversion() {
 }
 
 void ui_compatibility_report_flags_unrendered_styles_on_groups() {
+  // Group layer effects RENDER since July 2026, so a styled group must NOT
+  // raise a compatibility warning anymore (the Satin-contour warning below
+  // stays: that limitation is per-effect, not per-kind).
   patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
   patchy::Layer group(document.allocate_layer_id(), "Styled Group", patchy::LayerKind::Group);
   patchy::LayerSatin satin;
@@ -690,9 +693,8 @@ void ui_compatibility_report_flags_unrendered_styles_on_groups() {
 
   const auto warnings = patchy::ui::compatibility_warnings_for_document(document);
   const auto text = warnings.join(QLatin1Char('\n'));
-  CHECK(text.contains(QStringLiteral("Styled Group")));
-  CHECK(text.contains(QStringLiteral("group with layer effects")));
-  CHECK(text.contains(QStringLiteral("does not render group layer effects")));
+  CHECK(!text.contains(QStringLiteral("group with layer effects")));
+  CHECK(!text.contains(QStringLiteral("does not render group layer effects")));
   // Pattern Overlay is a supported effect now; the report must not warn about it.
   CHECK(!text.contains(QStringLiteral("Pattern Overlay")));
 
@@ -851,9 +853,9 @@ void ui_psd_import_notice_reports_unrendered_layer_effects() {
   show_window(window);
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
+  // Group layer effects RENDER since July 2026: no unrendered-effects notice.
   const auto notice = window.statusBar()->currentMessage();
-  CHECK(notice.contains(QStringLiteral(
-      "Patchy preserved group layer effects for PSD round-trip but does not render them yet (groups: 1).")));
+  CHECK(!notice.contains(QStringLiteral("does not render them yet")));
   CHECK(!notice.contains(QStringLiteral("Pattern Overlay")));
 }
 

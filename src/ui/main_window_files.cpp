@@ -592,31 +592,6 @@ bool is_supported_open_path(const QString& path) {
   return !QImageReader::imageFormat(path).isEmpty();
 }
 
-struct UnrenderedLayerEffectCounts {
-  std::size_t groups_with_layer_effects{0};
-};
-
-void count_unrendered_layer_effects(const std::vector<Layer>& layers, UnrenderedLayerEffectCounts& counts) {
-  for (const auto& layer : layers) {
-    const auto& style = layer.layer_style();
-    if (layer.kind() == LayerKind::Group && !style.empty()) {
-      ++counts.groups_with_layer_effects;
-    }
-    count_unrendered_layer_effects(layer.children(), counts);
-  }
-}
-
-QString unrendered_layer_effect_import_notice(const Document& document) {
-  UnrenderedLayerEffectCounts counts;
-  count_unrendered_layer_effects(document.layers(), counts);
-  if (counts.groups_with_layer_effects == 0U) {
-    return {};
-  }
-  return QObject::tr("Patchy preserved group layer effects for PSD round-trip but does not render them yet "
-                     "(groups: %1).")
-      .arg(counts.groups_with_layer_effects);
-}
-
 struct UnsupportedBlendIfCounts {
   std::size_t layer_payloads{0};
   std::size_t group_boundaries{0};
@@ -727,9 +702,6 @@ OpenDocumentResult load_document_from_path(QString path) {
     opened = psd::DocumentIo::read_file(path.toStdString(), psd_options);
     for (const auto& notice : psd_notices) {
       import_notices.push_back(QString::fromStdString(notice));
-    }
-    if (const auto notice = unrendered_layer_effect_import_notice(opened); !notice.isEmpty()) {
-      import_notices.push_back(notice);
     }
     if (const auto notice = unsupported_blend_if_import_notice(opened); !notice.isEmpty()) {
       import_notices.push_back(notice);

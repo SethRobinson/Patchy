@@ -432,7 +432,8 @@ crescent, segment, double/square star, tear, heart, spiral, QR).
   `Blnd` enum): base ids 0..21 with LATER-ADDED modes reusing ids under an
   enum-version bump (LinearBurn 5/v3, LinearLight 15/v1, Divide 21/v4) -
   table in `map_effect_blend_mode`. Gaussian blur and unknown kinds skip with
-  a notice; group effects import but do not render (same caveat as PSD).
+  a notice; group effects import AND render (July 2026, through the same
+  calibrated group pipeline as PSD group styles).
   Semantics pinned by the authored one-toggle docs in af-spike/corpus/fx-*
   (`author_fx_text.py`); outlines/shadows/overlays score RMSE ~0-2 against
   Affinity's own renders, bevels/glows are approximate by design.

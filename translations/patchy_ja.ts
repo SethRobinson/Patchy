@@ -2009,11 +2009,6 @@
         <translation type="vanished">%1 には Photoshop のカスタム輪郭を使用したサテン効果が含まれています。レイヤースタイルを編集するまでは保持されますが、編集後はリニア輪郭が使用されます。</translation>
     </message>
     <message>
-        <location line="+13"/>
-        <source>%1 is a group with layer effects. Patchy preserves them for PSD round-trip but does not render group layer effects yet.</source>
-        <translation>%1 はレイヤー効果を含むグループです。Patchy は PSD 往復用に保持しますが、グループのレイヤー効果はまだ描画しません。</translation>
-    </message>
-    <message>
         <location line="+9"/>
         <source>%1 contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
         <translation>%1 には、Patchy で描画または編集できない Photoshop のサテン輪郭設定（カスタムカーブまたはアンチエイリアス）が含まれています。レイヤースタイルを編集するまでは保持されますが、編集後はアンチエイリアスなしのリニア輪郭が使用されます。</translation>
@@ -2662,11 +2657,6 @@
         <location line="-2013"/>
         <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
         <translation>Photoshop のサテンのカスタム輪郭と輪郭アンチエイリアスは、レイヤースタイルを編集するまでは保持されます。Patchy でのプレビューおよび編集後の保存には、アンチエイリアスなしのリニア輪郭が使用されます。</translation>
-    </message>
-    <message>
-        <location line="+13"/>
-        <source>Layer effects on groups are preserved for PSD round-trip but are not rendered yet. Satin controls remain editable, but Preview cannot show the group result.</source>
-        <translation>グループのレイヤー効果は PSD 往復用に保持されますが、まだ描画されません。サテンの設定は編集できますが、プレビューにグループの結果は表示されません。</translation>
     </message>
     <message>
         <location line="+21"/>
@@ -3362,11 +3352,6 @@
         <location line="-1"/>
         <source>Linked smart object. Click to open the linked file.</source>
         <translation>リンクされたスマートオブジェクト。クリックでリンク先のファイルを開きます。</translation>
-    </message>
-    <message>
-        <location line="+365"/>
-        <source>Patchy preserved group layer effects for PSD round-trip but does not render them yet (groups: %1).</source>
-        <translation>Patchy はグループのレイヤー効果を PSD 往復用に保持しましたが、まだ描画しません（グループ: %1）。</translation>
     </message>
     <message>
         <location line="+31"/>

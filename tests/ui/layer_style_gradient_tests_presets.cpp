@@ -292,7 +292,9 @@ void ui_layer_style_bevel_contour_and_texture_rows_round_trip() {
   CHECK(!result.texture.link_with_layer);
 }
 
-void ui_layer_style_dialog_warns_that_group_effects_do_not_render() {
+void ui_layer_style_dialog_has_no_group_effects_warning() {
+  // Group layer effects RENDER since July 2026 (the calibrated group-fx
+  // pipeline), so the old "not rendered yet" banner must be gone.
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer group(document.allocate_layer_id(), "Styled Group", patchy::LayerKind::Group);
   patchy::LayerSatin satin;
@@ -305,10 +307,7 @@ void ui_layer_style_dialog_warns_that_group_effects_do_not_render() {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleGroupEffectsWarning"));
-    CHECK(warning != nullptr);
-    CHECK(warning->isVisible());
-    CHECK(warning->text().contains(QStringLiteral("not rendered")));
-    CHECK(warning->text().contains(QStringLiteral("Preview cannot show")));
+    CHECK(warning == nullptr);
     dialog->reject();
   });
 
@@ -1751,8 +1750,8 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part2() {
        ui_style_preset_pattern_apply_cancel_restores_document_store},
       {"ui_layer_style_bevel_contour_and_texture_rows_round_trip",
        ui_layer_style_bevel_contour_and_texture_rows_round_trip},
-      {"ui_layer_style_dialog_warns_that_group_effects_do_not_render",
-       ui_layer_style_dialog_warns_that_group_effects_do_not_render},
+      {"ui_layer_style_dialog_has_no_group_effects_warning",
+       ui_layer_style_dialog_has_no_group_effects_warning},
       {"ui_gradient_stops_editor_two_track_renders_artifact",
        ui_gradient_stops_editor_two_track_renders_artifact},
       {"ui_gradient_stops_editor_drags_destination_midpoints",

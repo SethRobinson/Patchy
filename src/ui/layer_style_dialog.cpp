@@ -954,23 +954,6 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         "border-radius: 3px; color: @warning_banner_text; padding: 7px 9px; }"));
     root->addWidget(warning);
   }
-  if (layer.kind() == LayerKind::Group) {
-    auto* warning = new QLabel(
-        QObject::tr("Layer effects on groups are preserved for PSD "
-                               "round-trip but are not rendered yet. Satin "
-                               "controls remain editable, but Preview cannot "
-                               "show the group result."),
-        &dialog);
-    warning->setObjectName(QStringLiteral("layerStyleGroupEffectsWarning"));
-    warning->setWordWrap(true);
-    warning->setProperty("warningBanner", true);
-    set_themed_style(*warning, QStringLiteral(
-        "QLabel#layerStyleGroupEffectsWarning { background: @warning_banner_bg; border: "
-        "1px solid @warning_banner_border; "
-        "border-radius: 3px; color: @warning_banner_text; padding: 7px 9px; }"));
-    root->addWidget(warning);
-  }
-
   QLabel* blend_if_unsupported_warning = nullptr;
   QPushButton* replace_blend_if_button = nullptr;
   if (blend_if_payload_status == BlendIfPayloadStatus::Unsupported) {

@@ -907,14 +907,16 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
     }
     if (render_detail::layer_has_rendered_blend_if(layer) ||
         layer.blend_mode() != BlendMode::PassThrough || layer.opacity() < 1.0F ||
-        (layer.mask().has_value() && !layer.mask()->disabled) || layer_has_enabled_vector_mask(layer)) {
+        (layer.mask().has_value() && !layer.mask()->disabled) || layer_has_enabled_vector_mask(layer) ||
+        group_style_renders(layer)) {
       // A Blend-If group must be rendered as one isolated source so This Layer
       // samples the group result and Underlying Layer samples the outer stack.
       // A masked group routes through composite_layer too, so the group mask
       // attenuates every child contribution, a non-pass-through group so it
-      // isolates with its blend mode and opacity, and a faded pass-through
-      // group so the post-composite opacity fade applies (same tradeoff for
-      // all: no per-member style cache or profiling inside).
+      // isolates with its blend mode and opacity, a faded pass-through
+      // group so the post-composite opacity fade applies, and a STYLED group
+      // so its layer effects render (July 2026; same tradeoff for all: no
+      // per-member style cache or profiling inside).
       render_detail::composite_layer(target, layer, clip, overrides, false, masks, nullptr, patterns);
     } else {
       // Clip runs inside the children go through render_detail::composite_layer

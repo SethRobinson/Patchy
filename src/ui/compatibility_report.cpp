@@ -72,11 +72,6 @@ int unknown_layer_block_count(const Layer& layer) {
 
 void append_unrendered_style_warnings(const Layer& layer, QStringList& warnings) {
   const auto& style = layer.layer_style();
-  if (layer.kind() == LayerKind::Group && !style.empty()) {
-    warnings << QObject::tr("%1 is a group with layer effects. Patchy preserves them for PSD round-trip but does "
-                            "not render group layer effects yet.")
-                    .arg(QString::fromStdString(layer.name()));
-  }
   const auto has_unsupported_satin_contour =
       std::any_of(style.satins.begin(), style.satins.end(), [](const LayerSatin& satin) {
         return satin.unsupported_contour_options;

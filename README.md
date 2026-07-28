@@ -278,7 +278,7 @@ Affinity features that are not supported yet, or are only partially supported:
 - Vector masks (a group of shapes masking a layer) don't apply yet
 - Adjustment layers beyond the eight kinds Patchy models, and live filters, import as named empty placeholders; Brightness/Contrast and Color Balance import approximately
 - Affinity-only blend modes (Pigment, Reflect, Glow, Erase, and others) fall back to Normal with a notice
-- Bevel/Emboss and glow effects are approximated; Gaussian blur layer effects and group-level effects don't render
+- Bevel/Emboss and glow effects are approximated; Gaussian blur layer effects don't render
 - Rotated or sheared frame text renders without its rotation (artistic text rotates correctly)
 - Multi-page documents open the first page only
 - Affinity 1.x-era files: vector stroke widths don't import, and embedded-document placement can land slightly off

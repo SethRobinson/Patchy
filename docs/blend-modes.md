@@ -70,6 +70,18 @@ every blend-if, masked, non-pass-through, or faded group through it
   Rgb8PixelBufferTarget, QImageCompositeTarget, the two BMP render targets,
   Rgba8FlattenTarget, IsolatedClipGroupTarget, and the forwarding
   GroupMaskedTarget.
+- **Styled groups render their layer effects** (July 2026; the calibrated
+  rules live in docs/ps-compat.md "Layer effects on GROUPS"). A non-pass-through
+  styled group routes its flattened `IsolatedClipGroupTarget` content through
+  `composite_pixel_layer` via a pixel override (the group plays the layer's
+  role; folder Fill neutralized by `layer_fill_opacity_for_render`). A
+  PASS-THROUGH styled group does NOT isolate: children composite against the
+  true backdrop as always, while a silhouette flatten feeds exterior effects
+  (painted before the children) and interior effects (painted above them,
+  each with its own blend mode). Style-less groups take the exact historical
+  paths; `group_style_renders` (core/layer_render_utils) is the gate, and
+  `layer_render_bounds`/`layer_effect_padding` include the group's own style
+  padding (zero for empty styles).
 - Photoshop Knockout (shallow/deep) is not modeled. The single-pixel merged
   sampler `compose_layer_pixel` (src/ui/canvas_widget_render.cpp) still
   ignores group opacity and child blend modes (pre-existing approximation).
