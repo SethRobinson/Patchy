@@ -185,18 +185,22 @@ also rescued documents that previously fell to the tier-0 preview because
 nothing decoded (a v3-era all-vector logo now imports for real at 4 RMSE
 against its own thumbnail; restaurant-menu improved 27.6 -> 23.7).
 
-Remaining known gaps, in wild-frequency order: parametric `ShpN` shapes
-(placeholders; only converted-to-curves `PCrv` renders), multi-artboard
-documents (only the first spread imports while thumbnails show every
-artboard), and old-generation embed placement (the parent `Xfrm` places the
-flattened nested canvas raw-origin; the one v9 sample renders its logo
-offset ~15% of canvas with a slightly different effective scale, so the old
-transform stack has an extra mapping still unpinned). Old files also SAVE
-their snapshot caches: a `Snap` subtree (DocN/Sprd/Rstr whose DyBm `Bckg`
-names a `c/<n>` stream) holding a full-resolution PNG render of the whole
-document - modern files save these slots empty (the spike's G3 verdict).
-That baked render would make a far better degradation fallback than the
-512px thumbnail for old documents; unwired for now.
+Closed since that sweep (July 2026, third session): parametric `ShpN`
+shapes import as real shape layers, multi-artboard documents import every
+artboard at its layout position, parent transforms compose down the node
+tree (Affinity is a scene graph), modern embedded documents center-anchor,
+and the old-file `Snap` snapshot render (a full-resolution PNG of the whole
+document in a `c/<n>` stream) replaced the 512px thumbnail as the
+nothing-decoded fallback for documents that carry one. Remaining known
+gaps: old-generation (1.x) stroke styles (`PFil` has no width source, so
+old outlines render as fills or not at all - vrcget's box outline), the
+old-generation embed transform (one v9 sample suggests an extra ~0.766
+uniform scale, but its only ground truth is a STALE snapshot cache, so the
+mapping may not exist; 1.x embeds keep origin anchoring, which ns-splash
+pins), embeds whose only pixel source is the node's `IRDS` `FlDS` original
+file bytes (no `edc` stream - fladder-icon-general renders its embed
+empty), and shape kinds beyond rectangle/ellipse/regular-polygon
+(placeholders).
 
 - **Tier 2 (current)**: parses the serialized document tree (`doc.dat`) and
   builds real Patchy layers - the layer tree (groups nested with pass-through
@@ -205,13 +209,24 @@ That baked render would make a far better degradation fallback than the
   fill-opacity, and blend mode. The importer builds `Layer` objects and lets
   Patchy's compositor do the blending (it never composites itself), so the
   blend math stays Patchy's calibrated implementation. On any structural
-  problem the reader falls back to the **tier-0** embedded-preview layer rather
+  problem the reader falls back to the **tier-0** flat-render layer rather
   than failing the open (env `PATCHY_AF_TRACE=1` prints why the tree walk
-  bailed). The reverse-engineering working notes, generated corpus, and Python
-  reference/verification tooling live in `local-test-fixtures/af-spike/`
-  (machine-local and untracked; FINDINGS.md there holds the raw spike notes).
-  This section is the committed .af format record, and
-  `src/formats/format_registry.cpp` points here for the container spec.
+  bailed): old files that saved a `Snap` snapshot subtree contribute their
+  full-resolution baked render (the largest decodable DyBm original under
+  the root's `Snap` field; possibly a stale cache), everything else the
+  512px embedded thumbnail. The reverse-engineering working notes, generated
+  corpus, and Python reference/verification tooling live in
+  `local-test-fixtures/af-spike/` (machine-local and untracked; FINDINGS.md
+  there holds the raw spike notes). This section is the committed .af format
+  record, and `src/formats/format_registry.cpp` points here for the
+  container spec.
+- **Node transforms compose (scene graph)**: children of any content node
+  live in the parent's LOCAL space, so the parent `Xfrm` composes onto
+  every descendant (`LayerBuildContext::transform`; wild pin:
+  arkanis-discord's scaled containers hold children whose transforms
+  exactly invert the parent scale). The one deliberate exception: CLIPPED
+  children of raster bases keep uncomposed coordinates (the corpus places
+  them in spread space).
 - **What imports faithfully**: raster layers in RGBA8/16, Gray8/16, and
   RGBA-float32 (16-bit down-converts value/257, float linearizes to sRGB),
   whether untransformed, translated, or under a full scale/rotate affine
@@ -223,7 +238,11 @@ That baked render would make a far better degradation fallback than the
   through their affine too); clipping (Affinity nests clipped layers inside
   their base's child list; Patchy models them as clipped siblings above the
   base); embedded documents (the `EmbR`/`EmbC` reference to an `edc/<n>`
-  nested container is parsed recursively and flattened); placed/opened images
+  nested container is parsed recursively and flattened; modern files -
+  document version >= 20 - anchor the node transform's translation on the
+  flattened canvas's CENTER, pinned by restaurant-menu's swashes landing
+  exactly on its canvas corners, while the 1.x generation anchors at the
+  origin, pinned by ns-splash's layout); placed/opened images
   stored in the lazy layout (below); the spread background (`SprT` false ->
   a bottom "Background" fill layer of the `BgrC` color, matching Affinity's
   own composite); document DPI (root `UVCn`/`UPPI` -> print settings);
@@ -272,8 +291,37 @@ That baked render would make a far better degradation fallback than the
   src/color/color_management). Pinned July 2026 against a saturated
   calibration doc at RMSE ~0.5 vs Affinity's own render; the earlier
   "compressed a/b scale" mystery was a desaturated probe document.
-- **Multi-page/artboard documents** import the first spread with a notice
-  naming the total count.
+- **Multi-page documents** import the first spread with a notice naming the
+  total count.
+- **Artboards import fully** (July 2026): an artboard is a `ShpN` rectangle
+  marked `ABEn=true` (old generation) or carrying a non-null `phrp` ->
+  `aprp` artboard-properties class (current files), possibly nested inside
+  transformed groups. The canvas sizes to the spread bounds (`SprB`, or the
+  computed union of the artboard boxes) and each artboard imports as a
+  group at its layout position: the artboard's own rectangle paints as a
+  bottom background layer, children compose through the artboard transform,
+  and a rectangular `LayerMask` (default black) clips the group to the
+  artboard box - Affinity clips artboard content, pinned by its own render
+  of the tiny-artboards fixture (edge-clipped child; an out-of-bounds child
+  disappears entirely). Pinned by `af_imports_multi_artboard_document`.
+- **Parametric shapes (`ShpN`)** import as real Patchy shape layers for the
+  kinds Patchy models; the rest keep a named placeholder (and a document
+  whose only content is unmodeled shapes still prefers the tier-0 preview).
+  The `Shpe` field's class tag is the shape kind: `ShNR` rectangle, `ShpE`
+  ellipse (inscribed in the local `ShpB` box), `ShPy` regular polygon
+  (`Side`-gon, JS default 5, inscribed in the box ellipse, first vertex up;
+  smoothed polygons - a `Smth` field - keep the placeholder). `ShNR`
+  carries `ShCR` per-corner radii in TL/TR/BR/BL order (fractions of
+  min(w,h), or pixels when `AbSz`), `CTyp` per-corner types (0 Round,
+  1 Straight = chamfer, 2 RoundInverse = concave arc centered on the
+  corner, 3 Cutout = square notch, 4 None), and `Lock` (absent/true =
+  single-radius mode: corner 0's radius AND type render on all four
+  corners). Fill/stroke/transform ride the same BFFl/LILn/LIFl/Xfrm
+  handling as PCrv (the shared `build_vector_layer_from_path`). Semantics
+  pinned by the af-spike shp-* one-toggle probes against Affinity's own
+  renders (all <= 2.7 RMSE, most ~0); committed fixture tiny-shapes.af +
+  `af_imports_parametric_shapes_as_shape_layers` (unlocked mixed corners,
+  locked single-radius, ellipse, and a star placeholder).
 - **Text (`TxtA` artistic / `TxtF` frame)** imports as real Patchy text
   layers with **per-run styles**: the reader extracts each story (text with
   U+2029/U+2028 breaks, per-run font/size/weight/italic and brush-fill color

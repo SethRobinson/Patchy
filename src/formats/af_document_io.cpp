@@ -1384,9 +1384,51 @@ struct LayerBuildContext {
   std::vector<std::string>& notices;
   int embed_depth{0};
   int layer_count{0};
+  // The doc.dat grammar version: the 1.x era writes 3..9, the 2.x/3.x
+  // generation 20+. Embedded-document anchoring differs between them.
+  std::uint32_t document_version{0};
+  // The ancestor transform in wire order [a, b, tx, c, d, ty]: children of a
+  // transformed container (artboards, vector shapes, groups) live in their
+  // parent's LOCAL space, so the parent affine composes onto every descendant
+  // (ns-logo's artboard grid and arkanis-discord's scaled template rects are
+  // the wild pins). Raster-base clipped children keep uncomposed coordinates
+  // (the corpus places them in spread space).
+  std::array<double, 6> transform{1.0, 0.0, 0.0, 0.0, 1.0, 0.0};
   static constexpr int kMaxLayers = 20000;   // runaway guard
   static constexpr int kMaxEmbedDepth = 3;   // embedded-document recursion cap
 };
+
+[[nodiscard]] bool is_identity_transform(const std::array<double, 6>& m) {
+  return m[0] == 1.0 && m[1] == 0.0 && m[2] == 0.0 && m[3] == 0.0 && m[4] == 1.0 && m[5] == 0.0;
+}
+
+// parent-then-child composition in the wire layout [a, b, tx, c, d, ty]
+// (dest = [a b; c d] * src + [tx, ty]).
+[[nodiscard]] std::array<double, 6> compose_transforms(const std::array<double, 6>& parent,
+                                                       const std::array<double, 6>& child) {
+  return {parent[0] * child[0] + parent[1] * child[3],
+          parent[0] * child[1] + parent[1] * child[4],
+          parent[0] * child[2] + parent[1] * child[5] + parent[2],
+          parent[3] * child[0] + parent[4] * child[3],
+          parent[3] * child[1] + parent[4] * child[4],
+          parent[3] * child[2] + parent[4] * child[5] + parent[5]};
+}
+
+// A node's effective transform: its wire Xfrm composed under the ancestor
+// transform. Empty when both are identity (callers treat empty as identity,
+// keeping the historical fast paths byte-identical).
+[[nodiscard]] std::vector<double> node_xfrm(const LayerBuildContext& ctx, const af::AfClass& node) {
+  auto xfrm = node.vec_field(af::tag4("Xfrm"));
+  if (is_identity_transform(ctx.transform)) {
+    return xfrm;
+  }
+  std::array<double, 6> child{1.0, 0.0, 0.0, 0.0, 1.0, 0.0};
+  if (xfrm.size() == 6) {
+    std::copy(xfrm.begin(), xfrm.end(), child.begin());
+  }
+  const auto composed = compose_transforms(ctx.transform, child);
+  return std::vector<double>(composed.begin(), composed.end());
+}
 
 // Adjustment and live-filter node families (JSLib: *AdjustmentRasterNode /
 // *FilterRasterNode). Their Bitm is the adjustment's mask plane, not content.
@@ -1398,14 +1440,15 @@ struct LayerBuildContext {
   return suffix == (static_cast<std::uint32_t>('R') << 8U | 'A');
 }
 
-// Read the [tx, ty] integer origin for a layer from a pure-translation Xfrm;
-// untransformed nodes sit at the document origin. Returns nullopt for a
-// non-trivial affine (scale/rotate), which rasterizes through resample_affine.
-// BitI is deliberately NOT a placement source: it is the bitmap's used/dirty
-// sub-rect (akiko's full-canvas photo carries BitI y0=635 yet belongs at 0,0;
-// every corpus doc that placed correctly did so through Xfrm or at origin).
-[[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> layer_origin(const af::AfClass& node) {
-  const auto xfrm = node.vec_field(af::tag4("Xfrm"));
+// Read the [tx, ty] integer origin for a layer from a pure-translation
+// effective transform (node_xfrm); untransformed nodes sit at the document
+// origin. Returns nullopt for a non-trivial affine (scale/rotate), which
+// rasterizes through resample_affine. BitI is deliberately NOT a placement
+// source: it is the bitmap's used/dirty sub-rect (akiko's full-canvas photo
+// carries BitI y0=635 yet belongs at 0,0; every corpus doc that placed
+// correctly did so through Xfrm or at origin).
+[[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> layer_origin(
+    const std::vector<double>& xfrm) {
   if (xfrm.size() == 6) {
     const double a = xfrm[0];
     const double b = xfrm[1];
@@ -1588,7 +1631,8 @@ void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer&
                             "': has more than one mask; only the first was imported");
       break;
     }
-    const auto origin = layer_origin(*adjunct);
+    const auto mask_xfrm = node_xfrm(ctx, *adjunct);
+    const auto origin = layer_origin(mask_xfrm);
     std::int32_t mask_x = 0;
     std::int32_t mask_y = 0;
     if (origin) {
@@ -1596,7 +1640,7 @@ void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer&
       mask_y = origin->second;
     } else {
       // Scale/rotate transform: rasterize the mask plane through the affine.
-      auto placed = resample_affine(decoded->mask, adjunct->vec_field(af::tag4("Xfrm")), true);
+      auto placed = resample_affine(decoded->mask, mask_xfrm, true);
       if (placed) {
         decoded->mask = std::move(placed->pixels);
         mask_x = placed->x;
@@ -1604,10 +1648,9 @@ void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer&
       } else {
         ctx.notices.push_back("Layer '" + name +
                               "': mask has a degenerate transform; its position is approximate");
-        const auto xfrm = adjunct->vec_field(af::tag4("Xfrm"));
-        if (xfrm.size() == 6) {
-          mask_x = static_cast<std::int32_t>(std::lround(xfrm[2]));
-          mask_y = static_cast<std::int32_t>(std::lround(xfrm[5]));
+        if (mask_xfrm.size() == 6) {
+          mask_x = static_cast<std::int32_t>(std::lround(mask_xfrm[2]));
+          mask_y = static_cast<std::int32_t>(std::lround(mask_xfrm[5]));
         }
       }
     }
@@ -1641,8 +1684,18 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
   }
   const auto* kids = class_list(node, af::tag4("Chld"));
   if (kids != nullptr) {
+    // Children live in the group's local space (Affinity is a scene graph:
+    // arkanis-discord's scaled containers hold children whose transforms
+    // exactly invert the parent scale), so the group transform composes.
+    const auto saved = ctx.transform;
+    if (const auto xfrm = node.vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
+      std::array<double, 6> child{};
+      std::copy(xfrm.begin(), xfrm.end(), child.begin());
+      ctx.transform = compose_transforms(ctx.transform, child);
+    }
     std::vector<Layer> child_layers;
     build_layers(ctx, *kids, child_layers);
+    ctx.transform = saved;
     for (auto& child : child_layers) {
       group.add_child(std::move(child));
     }
@@ -2269,7 +2322,7 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
         }
       }
       if (any_nonzero) {
-        const auto origin = layer_origin(node);
+        const auto origin = layer_origin(node_xfrm(ctx, node));
         LayerMask mask;
         mask.bounds = Rect{origin ? origin->first : 0, origin ? origin->second : 0,
                            decoded->mask.width(), decoded->mask.height()};
@@ -2757,7 +2810,7 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
   double size_scale = 1.0;
   bool transform_approximated = false;
   std::string transform_marker;
-  if (const auto xfrm = node.vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
+  if (const auto xfrm = node_xfrm(ctx, node); xfrm.size() == 6) {
     const double a = xfrm[0];
     const double b_term = xfrm[1];
     const double tx = xfrm[2];
@@ -3080,32 +3133,23 @@ struct AfVectorFill {
   return path;
 }
 
-// PCrv -> a real Patchy shape layer (the SVG import pattern: vector content +
-// a baked raster; kLayerMetadataVectorShape + block-dirty so saves regenerate
-// the PSD vector blocks). Fill = BFFl, stroke paint = LIFl with the width from
-// LILn's line style; cap/join/alignment keep Patchy defaults (approximate).
-// Returns nullopt when the path is missing/undecodable (placeholder path).
-[[nodiscard]] std::optional<Layer> build_vector_layer(LayerBuildContext& ctx, const af::AfClass& node,
-                                                      const std::string& display) {
-  auto path = vector_path_from_node(node);
-  if (environment_variable_is_set("PATCHY_AF_TRACE")) {
-    std::fprintf(stderr, "[af] vector '%s': path=%d subpaths=%zu crvs=%d data=%d\n",
-                 display.c_str(), path.has_value(),
-                 path.has_value() ? path->subpaths.size() : 0U,
-                 node.child_class(af::tag4("Crvs")) != nullptr,
-                 node.child_class(af::tag4("Crvs")) != nullptr &&
-                     node.child_class(af::tag4("Crvs"))->child_class(af::tag4("Data")) != nullptr);
-  }
-  if (!path.has_value()) {
-    return std::nullopt;
-  }
-  // The node transform maps local path coordinates into document space (full
-  // affine - vectors need no axis-aligned approximation).
-  if (const auto xfrm = node.vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
-    transform_vector_path(*path, {xfrm[0], xfrm[3], xfrm[1], xfrm[4], xfrm[2], xfrm[5]});
+// A local-space vector path -> a real Patchy shape layer (the SVG import
+// pattern: vector content + a baked raster; kLayerMetadataVectorShape +
+// block-dirty so saves regenerate the PSD vector blocks). Shared by PCrv
+// (hand-drawn curves) and ShpN (parametric shapes). Fill = BFFl, stroke paint
+// = LIFl with the width from LILn's line style; cap/join/alignment keep
+// Patchy defaults (approximate). The node Xfrm maps local path coordinates
+// into document space (full affine - vectors need no axis-aligned
+// approximation). Returns nullopt when nothing is visible (placeholder path).
+[[nodiscard]] std::optional<Layer> build_vector_layer_from_path(LayerBuildContext& ctx,
+                                                                const af::AfClass& node,
+                                                                const std::string& display,
+                                                                VectorPath path) {
+  if (const auto xfrm = node_xfrm(ctx, node); xfrm.size() == 6) {
+    transform_vector_path(path, {xfrm[0], xfrm[3], xfrm[1], xfrm[4], xfrm[2], xfrm[5]});
   }
   VectorShapeContent content;
-  content.path = std::move(*path);
+  content.path = std::move(path);
   float fill_alpha = 1.0F;
   // The fill descriptor rides BFFl on current files; the oldest generation
   // (doc-tree version 3, the 2026-07-28 wild sweep) named the same FDsc field
@@ -3163,6 +3207,373 @@ struct AfVectorFill {
   return layer;
 }
 
+// PCrv -> shape layer via its stored poly-curve.
+[[nodiscard]] std::optional<Layer> build_vector_layer(LayerBuildContext& ctx, const af::AfClass& node,
+                                                      const std::string& display) {
+  auto path = vector_path_from_node(node);
+  if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+    std::fprintf(stderr, "[af] vector '%s': path=%d subpaths=%zu crvs=%d data=%d\n",
+                 display.c_str(), path.has_value(),
+                 path.has_value() ? path->subpaths.size() : 0U,
+                 node.child_class(af::tag4("Crvs")) != nullptr,
+                 node.child_class(af::tag4("Crvs")) != nullptr &&
+                     node.child_class(af::tag4("Crvs"))->child_class(af::tag4("Data")) != nullptr);
+  }
+  if (!path.has_value()) {
+    return std::nullopt;
+  }
+  return build_vector_layer_from_path(ctx, node, display, std::move(*path));
+}
+
+// ---- Parametric shape nodes (ShpN) -> Patchy shape layers ----
+
+// The cubic-bezier approximation constant for a quarter circle.
+constexpr double kQuarterArcK = 0.5522847498307936;
+
+// Corner-type enum on the wire (ShapeCornerType in the scripting API).
+enum : int {
+  kAfCornerRound = 0,
+  kAfCornerStraight = 1,
+  kAfCornerRoundInverse = 2,
+  kAfCornerCutout = 3,
+  kAfCornerNone = 4,
+};
+
+// Appends one rectangle corner's anchors to `subpath`, walking clockwise.
+// `px`/`py` is the sharp corner point, `enter` the unit direction the path
+// travels ALONG the incoming edge to reach it, `exit` the direction it leaves
+// with, `radius` the corner size in local pixels (0 = sharp) and `type` the
+// wire corner type. Geometry pinned by the shp-rect-* probe renders: Round is
+// a circular quarter arc, Straight the chamfer between the two offset points,
+// Cutout removes the radius-sized corner square, RoundInverse a concave
+// quarter arc centered on the corner point itself.
+void append_rect_corner(PathSubpath& subpath, double px, double py, double enter_x, double enter_y,
+                        double exit_x, double exit_y, double radius, int type) {
+  const auto add = [&](double x, double y, bool smooth) -> PathAnchor& {
+    subpath.anchors.push_back(PathAnchor{x, y, x, y, x, y, smooth});
+    return subpath.anchors.back();
+  };
+  if (radius <= 0.0 || type == kAfCornerNone) {
+    add(px, py, false);
+    return;
+  }
+  const double in_x = px - enter_x * radius;   // radius before the corner
+  const double in_y = py - enter_y * radius;
+  const double out_x = px + exit_x * radius;   // radius past the corner
+  const double out_y = py + exit_y * radius;
+  const double k = kQuarterArcK * radius;
+  switch (type) {
+    case kAfCornerRound: {
+      PathAnchor& a = add(in_x, in_y, true);
+      a.out_x = in_x + enter_x * k;
+      a.out_y = in_y + enter_y * k;
+      PathAnchor& b = add(out_x, out_y, true);
+      b.in_x = out_x - exit_x * k;
+      b.in_y = out_y - exit_y * k;
+      break;
+    }
+    case kAfCornerRoundInverse: {
+      PathAnchor& a = add(in_x, in_y, false);
+      a.out_x = in_x + exit_x * k;
+      a.out_y = in_y + exit_y * k;
+      PathAnchor& b = add(out_x, out_y, false);
+      b.in_x = out_x - enter_x * k;
+      b.in_y = out_y - enter_y * k;
+      break;
+    }
+    case kAfCornerCutout:
+      add(in_x, in_y, false);
+      add(in_x + out_x - px, in_y + out_y - py, false);
+      add(out_x, out_y, false);
+      break;
+    case kAfCornerStraight:
+    default:  // an unknown corner type degrades to its chamfer
+      add(in_x, in_y, false);
+      add(out_x, out_y, false);
+      break;
+  }
+}
+
+// Builds the local-space path for a parametric shape node's Shpe record, or
+// nullopt for shape kinds Patchy does not model (the honest placeholder).
+// Wire semantics pinned by the af-spike shp-* one-toggle probes (2026-07-28):
+// the record's class tag is the shape kind; ShpB [x0,y0,x1,y1] is the local
+// box the geometry fills; ShNR carries ShCR per-corner radii in
+// TL/TR/BR/BL order (fraction of min(w,h), or pixels when AbSz), CTyp
+// per-corner types, and Lock (absent/true = corner 0's radius AND type render
+// on all four corners); ShpE is the inscribed ellipse; ShPy a regular Side-gon
+// inscribed in the box ellipse, first vertex up (smoothed polygons carry
+// extra fields and keep the placeholder).
+[[nodiscard]] std::optional<VectorPath> parametric_shape_path(const af::AfClass& node,
+                                                              std::string* why) {
+  const af::AfClass* shape = node.child_class(af::tag4("Shpe"));
+  if (shape == nullptr) {
+    *why = "has no shape record";
+    return std::nullopt;
+  }
+  const auto box = node.vec_field(af::tag4("ShpB"));
+  if (box.size() != 4 || !(box[2] > box[0]) || !(box[3] > box[1])) {
+    *why = "has a degenerate shape box";
+    return std::nullopt;
+  }
+  const double x0 = box[0];
+  const double y0 = box[1];
+  const double x1 = box[2];
+  const double y1 = box[3];
+  const double w = x1 - x0;
+  const double h = y1 - y0;
+
+  VectorPath path;
+  PathSubpath subpath;
+  subpath.closed = true;
+  subpath.op = PathCombineOp::Add;
+  subpath.shape_group = 0;
+
+  if (shape->type_tag == af::tag4("ShNR")) {
+    auto radii = shape->vec_field(af::tag4("ShCR"));
+    radii.resize(4, 0.0);
+    auto types_raw = shape->vec_field(af::tag4("CTyp"));
+    types_raw.resize(4, static_cast<double>(kAfCornerNone));
+    std::array<int, 4> types{};
+    for (std::size_t i = 0; i < 4; ++i) {
+      types[i] = static_cast<int>(types_raw[i]);
+    }
+    if (shape->bool_field(af::tag4("Lock"), true)) {
+      // Single-radius mode: corner 0 defines every corner.
+      radii[1] = radii[2] = radii[3] = radii[0];
+      types[1] = types[2] = types[3] = types[0];
+    }
+    const bool absolute = shape->bool_field(af::tag4("AbSz"), false);
+    const double reference = std::min(w, h);
+    std::array<double, 4> r{};  // TL, TR, BR, BL in local pixels
+    for (std::size_t i = 0; i < 4; ++i) {
+      const double value = absolute ? radii[i] : radii[i] * reference;
+      r[i] = (types[i] == kAfCornerNone) ? 0.0 : std::max(0.0, value);
+    }
+    // Adjacent radii cannot exceed their shared edge (the CSS overlap rule;
+    // Affinity's exact overflow behavior is unprobed).
+    double scale = 1.0;
+    const auto limit = [&](double a, double b, double edge) {
+      if (a + b > edge && a + b > 0.0) {
+        scale = std::min(scale, edge / (a + b));
+      }
+    };
+    limit(r[0], r[1], w);
+    limit(r[1], r[2], h);
+    limit(r[2], r[3], w);
+    limit(r[3], r[0], h);
+    for (double& value : r) {
+      value *= scale;
+    }
+    append_rect_corner(subpath, x0, y0, 0.0, -1.0, 1.0, 0.0, r[0], types[0]);
+    append_rect_corner(subpath, x1, y0, 1.0, 0.0, 0.0, 1.0, r[1], types[1]);
+    append_rect_corner(subpath, x1, y1, 0.0, 1.0, -1.0, 0.0, r[2], types[2]);
+    append_rect_corner(subpath, x0, y1, -1.0, 0.0, 0.0, -1.0, r[3], types[3]);
+  } else if (shape->type_tag == af::tag4("ShpE")) {
+    const double cx = (x0 + x1) / 2.0;
+    const double cy = (y0 + y1) / 2.0;
+    const double kx = kQuarterArcK * (w / 2.0);
+    const double ky = kQuarterArcK * (h / 2.0);
+    const auto add = [&](double ax, double ay, double ix, double iy, double ox, double oy) {
+      subpath.anchors.push_back(PathAnchor{ax, ay, ix, iy, ox, oy, true});
+    };
+    add(cx, y0, cx - kx, y0, cx + kx, y0);
+    add(x1, cy, x1, cy - ky, x1, cy + ky);
+    add(cx, y1, cx + kx, y1, cx - kx, y1);
+    add(x0, cy, x0, cy + ky, x0, cy - ky);
+  } else if (shape->type_tag == af::tag4("ShPy")) {
+    for (const auto& field : shape->fields) {
+      if (field.tag != af::tag4("Side")) {
+        *why = "is a smoothed or non-regular Affinity polygon";
+        return std::nullopt;
+      }
+    }
+    const auto sides = std::clamp<std::int64_t>(shape->int_field(af::tag4("Side"), 5), 3, 256);
+    const double cx = (x0 + x1) / 2.0;
+    const double cy = (y0 + y1) / 2.0;
+    constexpr double kPi = 3.14159265358979323846;
+    for (std::int64_t i = 0; i < sides; ++i) {
+      const double angle = -kPi / 2.0 + 2.0 * kPi * static_cast<double>(i) /
+                                            static_cast<double>(sides);
+      const double x = cx + (w / 2.0) * std::cos(angle);
+      const double y = cy + (h / 2.0) * std::sin(angle);
+      subpath.anchors.push_back(PathAnchor{x, y, x, y, x, y, false});
+    }
+  } else {
+    *why = "is an Affinity shape kind Patchy does not model";
+    return std::nullopt;
+  }
+
+  if (subpath.anchors.size() < 2) {
+    *why = "has a degenerate shape outline";
+    return std::nullopt;
+  }
+  path.subpaths.push_back(std::move(subpath));
+  return path;
+}
+
+// ShpN -> shape layer via its parametric outline. Fails (placeholder) with a
+// reason for unmodeled shape kinds so the notice stays specific.
+[[nodiscard]] std::optional<Layer> build_shape_layer(LayerBuildContext& ctx,
+                                                     const af::AfClass& node,
+                                                     const std::string& display,
+                                                     std::string* why) {
+  auto path = parametric_shape_path(node, why);
+  if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+    const af::AfClass* shape = node.child_class(af::tag4("Shpe"));
+    std::fprintf(stderr, "[af] shape '%s': kind=%08x path=%d why=%s\n", display.c_str(),
+                 shape != nullptr ? shape->type_tag : 0U, path.has_value(),
+                 why->c_str());
+  }
+  if (!path.has_value()) {
+    return std::nullopt;
+  }
+  auto layer = build_vector_layer_from_path(ctx, node, display, std::move(*path));
+  if (!layer.has_value()) {
+    *why = "has no visible fill or stroke";
+  }
+  return layer;
+}
+
+// Artboard detection: old-generation files mark the node with ABEn=true
+// (ns-logo, v7); current files store a non-null phrp -> aprp artboard-
+// properties class instead (the authored tiny-artboards fixture pins it;
+// arkanis-discord/desktop carry the same shape, including artboards nested
+// inside transformed groups).
+[[nodiscard]] bool is_artboard_node(const af::AfClass& node) {
+  return node.type_tag == af::tag4("ShpN") &&
+         (node.bool_field(af::tag4("ABEn"), false) ||
+          node.child_class(af::tag4("phrp")) != nullptr);
+}
+
+// Union of every artboard box under `node` (transformed through the composed
+// ancestor affine), for sizing the canvas when the spread stores no SprB.
+void accumulate_artboard_bounds(const af::AfClass& node, const std::array<double, 6>& parent,
+                                int depth, bool& any, std::array<double, 4>& bounds) {
+  if (depth > 64) {
+    return;
+  }
+  const auto* kids = class_list(node, af::tag4("Chld"));
+  if (kids == nullptr) {
+    return;
+  }
+  for (const auto& child : *kids) {
+    if (child == nullptr) {
+      continue;
+    }
+    auto composed = parent;
+    if (const auto xfrm = child->vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
+      std::array<double, 6> local{};
+      std::copy(xfrm.begin(), xfrm.end(), local.begin());
+      composed = compose_transforms(parent, local);
+    }
+    if (is_artboard_node(*child)) {
+      const auto box = child->vec_field(af::tag4("ShpB"));
+      if (box.size() == 4) {
+        for (const auto& [sx, sy] : {std::pair<double, double>{box[0], box[1]},
+                                     {box[2], box[1]},
+                                     {box[0], box[3]},
+                                     {box[2], box[3]}}) {
+          const double px = composed[0] * sx + composed[1] * sy + composed[2];
+          const double py = composed[3] * sx + composed[4] * sy + composed[5];
+          bounds[0] = any ? std::min(bounds[0], px) : px;
+          bounds[1] = any ? std::min(bounds[1], py) : py;
+          bounds[2] = any ? std::max(bounds[2], px) : px;
+          bounds[3] = any ? std::max(bounds[3], py) : py;
+          any = true;
+        }
+      }
+      continue;  // artboards do not nest inside artboards
+    }
+    accumulate_artboard_bounds(*child, composed, depth + 1, any, bounds);
+  }
+}
+
+// An artboard: a container whose children live in its local space. It
+// imports as a group at its layout position - the artboard's own rectangle
+// (usually a solid background, sometimes fill-less for transparent
+// artboards) paints as a bottom layer, the artboard Xfrm composes onto every
+// descendant, and a rectangular mask clips the group to the artboard bounds
+// exactly as Affinity clips artboard content. Pinned by ns-logo.afdesign (a
+// grid of nine 1024 px artboards) and the authored tiny-artboards fixture
+// (Affinity's own render clips a child rect at the artboard edge).
+[[nodiscard]] Layer build_artboard(LayerBuildContext& ctx, const af::AfClass& node,
+                                   const std::string& display) {
+  Layer group(ctx.document.allocate_layer_id(), display, LayerKind::Group);
+  group.set_visible(node.bool_field(af::tag4("Visi"), true));
+  group.set_opacity(
+      static_cast<float>(std::clamp(node.double_field(af::tag4("Opac"), 1.0), 0.0, 1.0)));
+  group.set_blend_mode(BlendMode::PassThrough);
+
+  std::vector<Layer> children;
+  {
+    // The artboard's own rectangle; the group carries the node's
+    // visibility/opacity, so the background keeps defaults.
+    std::string why;
+    if (auto background = build_shape_layer(ctx, node, display + " Background", &why)) {
+      background->set_visible(true);
+      background->set_opacity(1.0F);
+      children.push_back(std::move(*background));
+    }
+  }
+  const auto saved = ctx.transform;
+  if (const auto xfrm = node.vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
+    std::array<double, 6> child{};
+    std::copy(xfrm.begin(), xfrm.end(), child.begin());
+    ctx.transform = compose_transforms(ctx.transform, child);
+  }
+  if (const auto* kids = class_list(node, af::tag4("Chld"))) {
+    build_layers(ctx, *kids, children);
+  }
+  ctx.transform = saved;
+  for (auto& child : children) {
+    group.add_child(std::move(child));
+  }
+
+  // Clip to the artboard bounds (the ShpB box through the effective
+  // transform; artboards are pure translations in practice, so the bounding
+  // rect IS the artboard rect).
+  const auto box = node.vec_field(af::tag4("ShpB"));
+  if (box.size() == 4 && box[2] > box[0] && box[3] > box[1]) {
+    double min_x = box[0];
+    double min_y = box[1];
+    double max_x = box[2];
+    double max_y = box[3];
+    if (const auto xfrm = node_xfrm(ctx, node); xfrm.size() == 6) {
+      bool first = true;
+      for (const auto& [sx, sy] : {std::pair<double, double>{box[0], box[1]},
+                                   {box[2], box[1]},
+                                   {box[0], box[3]},
+                                   {box[2], box[3]}}) {
+        const double px = xfrm[0] * sx + xfrm[1] * sy + xfrm[2];
+        const double py = xfrm[3] * sx + xfrm[4] * sy + xfrm[5];
+        min_x = first ? px : std::min(min_x, px);
+        max_x = first ? px : std::max(max_x, px);
+        min_y = first ? py : std::min(min_y, py);
+        max_y = first ? py : std::max(max_y, py);
+        first = false;
+      }
+    }
+    const auto mask_x = static_cast<std::int32_t>(std::lround(min_x));
+    const auto mask_y = static_cast<std::int32_t>(std::lround(min_y));
+    const auto mask_w = static_cast<std::int32_t>(std::lround(max_x - min_x));
+    const auto mask_h = static_cast<std::int32_t>(std::lround(max_y - min_y));
+    if (mask_w > 0 && mask_h > 0 && mask_w <= kMaxLayerSide && mask_h <= kMaxLayerSide) {
+      PixelBuffer plane(mask_w, mask_h, PixelFormat::gray8());
+      for (std::int32_t y = 0; y < mask_h; ++y) {
+        auto row = plane.row(y);
+        std::memset(row.data(), 0xFF, row.size());
+      }
+      LayerMask mask;
+      mask.bounds = Rect{mask_x, mask_y, mask_w, mask_h};
+      mask.pixels = std::move(plane);
+      mask.default_color = 0;  // content beyond the artboard is clipped away
+      group.set_mask(std::move(mask));
+    }
+  }
+  return group;
+}
+
 // Emit `node` (and, for content layers, its clipped Chld children after it) into
 // `out`. Affinity nests clipped layers INSIDE their base layer's child list;
 // Patchy models the same thing as clipped siblings above the base.
@@ -3181,18 +3592,31 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     const std::uint32_t tag = node.type_tag;
     const af::AfClass* bitmap_class = node.child_class(af::tag4("Bitm"));
 
-    const auto emit_clipped_children = [&](std::size_t base_index) {
+    // `compose` composes this node's own transform onto the child build:
+    // children of ANY content node live in its local space (Affinity is a
+    // scene graph; arkanis-discord's scaled containers carry children whose
+    // transforms exactly invert the parent scale, and ns-logo's artboard
+    // grid places children only through the artboard transform).
+    const auto emit_clipped_children = [&](const af::AfClass* compose) {
       const auto* kids = class_list(node, af::tag4("Chld"));
       if (kids == nullptr || kids->empty()) {
         return;
       }
+      const auto saved = ctx.transform;
+      if (compose != nullptr) {
+        if (const auto xfrm = compose->vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
+          std::array<double, 6> child{};
+          std::copy(xfrm.begin(), xfrm.end(), child.begin());
+          ctx.transform = compose_transforms(ctx.transform, child);
+        }
+      }
       std::vector<Layer> clipped;
       build_layers(ctx, *kids, clipped);
+      ctx.transform = saved;
       for (auto& layer : clipped) {
         layer.set_clipped(true);
         out.push_back(std::move(layer));
       }
-      (void)base_index;
     };
 
     const auto emit_placeholder = [&](const std::string& why) {
@@ -3203,12 +3627,22 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       out.push_back(std::move(layer));
     };
 
+    // Artboards: containers whose children live in artboard-local space; the
+    // artboard's own rectangle renders as a background inside the group and
+    // the group clips to the artboard bounds (Affinity clips artboard
+    // content). read_document sizes the canvas to the spread bounds so every
+    // artboard imports at its layout position.
+    if (is_artboard_node(node)) {
+      out.push_back(build_artboard(ctx, node, display));
+      continue;
+    }
+
     // Adjustment nodes: the kinds Patchy models become real adjustment layers
     // (with their Bitm mask plane); the rest stay placeholders.
     if (is_adjustment_or_filter(tag)) {
       if (auto adjustment = build_adjustment_layer(ctx, node, display)) {
         out.push_back(std::move(*adjustment));
-        emit_clipped_children(out.size() - 1);
+        emit_clipped_children(&node);
         continue;
       }
       emit_placeholder("is an Affinity adjustment or live filter (not applied yet)");
@@ -3218,7 +3652,8 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     // Group: nest children (a group has a child list and no bitmap).
     if (tag == af::tag4("Grup") ||
         (node.field(af::tag4("Chld")) != nullptr && bitmap_class == nullptr &&
-         tag != af::tag4("TxtA") && tag != af::tag4("TxtF") && tag != af::tag4("PCrv"))) {
+         tag != af::tag4("TxtA") && tag != af::tag4("TxtF") && tag != af::tag4("PCrv") &&
+         tag != af::tag4("ShpN"))) {
       out.push_back(build_group(ctx, node, name));
       continue;
     }
@@ -3246,6 +3681,27 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       std::array<double, 8> quad{};
       std::int32_t source_w = 0;
       std::int32_t source_h = 0;
+      auto xfrm = node_xfrm(ctx, node);
+      // A MODERN embedded document (EmbR) is CENTER-anchored: the node
+      // transform's translation maps the CENTER of the flattened canvas, not
+      // its origin. Pinned against Affinity's render of the restaurant-menu
+      // corpus doc (version 30), where all three placed swashes land exactly
+      // on the canvas corners only under this rule (raw-origin placement put
+      // them ~half a canvas low/right). The 1.x generation (versions 3..9)
+      // anchors at the ORIGIN instead: center-anchoring ns-splash (v7)
+      // measurably worsens its layout against its own thumbnail. Plain
+      // Rstr/ImgN rasters keep origin anchoring in every generation
+      // (corpus-pinned).
+      if (bitmap_class->type_tag == af::tag4("EmbR") && pixels &&
+          ctx.document_version >= 20) {
+        if (xfrm.size() != 6) {
+          xfrm = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0};
+        }
+        const double half_w = static_cast<double>(pixels->width()) / 2.0;
+        const double half_h = static_cast<double>(pixels->height()) / 2.0;
+        xfrm[2] -= xfrm[0] * half_w + xfrm[1] * half_h;
+        xfrm[5] -= xfrm[3] * half_w + xfrm[4] * half_h;
+      }
       if (pixels) {
         source_w = pixels->width();
         source_h = pixels->height();
@@ -3253,7 +3709,6 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
                               0.0};
         const double ys[4] = {0.0, 0.0, static_cast<double>(source_h),
                               static_cast<double>(source_h)};
-        const auto xfrm = node.vec_field(af::tag4("Xfrm"));
         for (int corner = 0; corner < 4; ++corner) {
           if (xfrm.size() == 6) {
             quad[static_cast<std::size_t>(corner) * 2U] =
@@ -3266,14 +3721,14 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
           }
         }
       }
-      const auto origin = layer_origin(node);
+      const auto origin = layer_origin(xfrm);
       std::optional<PlacedRaster> placed;
       if (pixels && origin) {
         placed = PlacedRaster{std::move(*pixels), origin->first, origin->second};
       } else if (pixels) {
         // Scale/rotate transform: rasterize through the affine into an
         // axis-aligned layer (bilinear, pinned against Affinity's render).
-        placed = resample_affine(*pixels, node.vec_field(af::tag4("Xfrm")), false);
+        placed = resample_affine(*pixels, xfrm, false);
       }
       if (placed) {
         if (approximate_color) {
@@ -3291,13 +3746,13 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         }
         apply_mask_children(ctx, node, layer, display);
         out.push_back(std::move(layer));
-        emit_clipped_children(out.size() - 1);
+        emit_clipped_children(&node);
         continue;
       }
       emit_placeholder(!pixels ? (fail_reason.empty() ? "has an unsupported pixel format"
                                                       : fail_reason)
                                : "has a degenerate transform");
-      emit_clipped_children(out.size() - 1);
+      emit_clipped_children(&node);
       continue;
     }
 
@@ -3307,7 +3762,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       if (auto text_layer = build_text_layer(ctx, node, display)) {
         apply_mask_children(ctx, node, *text_layer, display);
         out.push_back(std::move(*text_layer));
-        emit_clipped_children(out.size() - 1);
+        emit_clipped_children(&node);
         continue;
       }
     }
@@ -3317,9 +3772,25 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     if (is_vector) {
       if (auto vector_layer = build_vector_layer(ctx, node, display)) {
         out.push_back(std::move(*vector_layer));
-        emit_clipped_children(out.size() - 1);
+        emit_clipped_children(&node);
         continue;
       }
+    }
+
+    // Parametric shapes: the kinds Patchy models (rectangle with corner
+    // radii, ellipse, regular polygon) become shape layers; the rest keep a
+    // placeholder naming the reason.
+    const bool is_shape = tag == af::tag4("ShpN");
+    if (is_shape) {
+      std::string why;
+      if (auto shape_layer = build_shape_layer(ctx, node, display, &why)) {
+        out.push_back(std::move(*shape_layer));
+        emit_clipped_children(&node);
+        continue;
+      }
+      emit_placeholder(why.empty() ? "is an Affinity shape kind Patchy does not model" : why);
+      emit_clipped_children(&node);
+      continue;
     }
 
     // Undecodable vector leaves and text whose story shape is missing: named
@@ -3439,8 +3910,8 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
   if (size.size() != 2) {
     throw std::runtime_error("Affinity document has no canvas size");
   }
-  const std::int32_t width = static_cast<std::int32_t>(std::lround(size[0]));
-  const std::int32_t height = static_cast<std::int32_t>(std::lround(size[1]));
+  std::int32_t width = static_cast<std::int32_t>(std::lround(size[0]));
+  std::int32_t height = static_cast<std::int32_t>(std::lround(size[1]));
   if (width <= 0 || height <= 0 || width > kMaxLayerSide || height > kMaxLayerSide) {
     throw std::runtime_error("Affinity document has an invalid canvas size");
   }
@@ -3464,6 +3935,35 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
           ? std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&spread_children->value)
           : nullptr;
 
+  // Artboard spreads: DfSz is one artboard's size, but the spread lays every
+  // artboard out side by side (possibly nested inside groups). Size the
+  // canvas to the union of the artboard boxes - old files also store it as
+  // SprB - so all artboards import at their layout positions; the whole
+  // build then shifts by the spread origin. Affinity's own export of the
+  // tiny-artboards fixture pins the union-canvas shape.
+  double origin_x = 0.0;
+  double origin_y = 0.0;
+  {
+    bool any_artboard = false;
+    std::array<double, 4> computed{};
+    accumulate_artboard_bounds(spread, {1.0, 0.0, 0.0, 0.0, 1.0, 0.0}, 0, any_artboard, computed);
+    if (any_artboard) {
+      auto bounds = spread.vec_field(af::tag4("SprB"));
+      if (bounds.size() != 4 || !(bounds[2] > bounds[0]) || !(bounds[3] > bounds[1])) {
+        bounds.assign(computed.begin(), computed.end());
+      }
+      const auto spread_w = static_cast<std::int32_t>(std::lround(bounds[2] - bounds[0]));
+      const auto spread_h = static_cast<std::int32_t>(std::lround(bounds[3] - bounds[1]));
+      if (spread_w > 0 && spread_h > 0 && spread_w <= kMaxLayerSide &&
+          spread_h <= kMaxLayerSide) {
+        width = spread_w;
+        height = spread_h;
+        origin_x = bounds[0];
+        origin_y = bounds[1];
+      }
+    }
+  }
+
   Document document(width, height, PixelFormat::rgba8());
   // Document resolution first (the root's units block stores pixels-per-inch):
   // placed smart objects record it in their placement.
@@ -3477,6 +3977,9 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
   std::vector<Layer> built;
   if (layers != nullptr) {
     LayerBuildContext ctx{bytes, container, document, notices, embed_depth};
+    ctx.document_version = tree.document_version;
+    ctx.transform[2] = -origin_x;
+    ctx.transform[5] = -origin_y;
     build_layers(ctx, *layers, built);
   }
   if (placeholders_only != nullptr) {
@@ -3546,6 +4049,93 @@ namespace {
   return document;
 }
 
+// Old-generation files SAVE their snapshot caches: the root's Snap subtree
+// holds a nested document whose Rstr DyBm names a full-resolution PNG render
+// of the whole document in a c/<n> stream (modern files save these slots
+// empty). When the tree parses but nothing decodes to pixels, that baked
+// render beats the small embedded thumbnail. The snapshot is a CACHE and can
+// lag the document's latest edits (fladder-banner2's logo sits elsewhere in
+// its snapshot than its node transform says), so it is a fallback only.
+[[nodiscard]] std::optional<Document> read_snapshot_render(std::span<const std::uint8_t> bytes,
+                                                           const Container& container,
+                                                           const af::AfDocument& tree,
+                                                           std::uint32_t document_version,
+                                                           std::vector<std::string>& notices) {
+  if (tree.root == nullptr) {
+    return std::nullopt;
+  }
+  const auto* snap_field = tree.root->field(af::tag4("Snap"));
+  if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+    std::fprintf(stderr, "[af] snapshot: field=%d\n", snap_field != nullptr);
+  }
+  if (snap_field == nullptr) {
+    return std::nullopt;
+  }
+  std::vector<const af::AfClass*> pending;
+  if (const auto* single = std::get_if<std::shared_ptr<af::AfClass>>(&snap_field->value)) {
+    pending.push_back(single->get());
+  } else if (const auto* list =
+                 std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&snap_field->value)) {
+    for (const auto& item : *list) {
+      pending.push_back(item.get());
+    }
+  }
+  // The largest decodable render wins (the full-document slot; other DyBms
+  // under the snapshot are per-layer caches).
+  std::optional<PixelBuffer> best;
+  int guard = 0;
+  while (!pending.empty()) {
+    const af::AfClass* node = pending.back();
+    pending.pop_back();
+    if (node == nullptr) {
+      continue;
+    }
+    if (++guard > 4096) {
+      break;
+    }
+    if (node->type_tag == af::tag4("DyBm")) {
+      auto original = decode_embedded_original(bytes, container, *node);
+      if (environment_variable_is_set("PATCHY_AF_TRACE")) {
+        std::fprintf(stderr, "[af] snapshot: dybm decoded=%d size=%dx%d\n", original.has_value(),
+                     original ? original->pixels.width() : 0,
+                     original ? original->pixels.height() : 0);
+      }
+      if (original) {
+        if (!original->pixels.empty() &&
+            (!best || static_cast<std::int64_t>(original->pixels.width()) *
+                              original->pixels.height() >
+                          static_cast<std::int64_t>(best->width()) * best->height())) {
+          best = std::move(original->pixels);
+        }
+      }
+      continue;
+    }
+    for (const auto& field : node->fields) {
+      if (const auto* child = std::get_if<std::shared_ptr<af::AfClass>>(&field.value)) {
+        pending.push_back(child->get());
+      } else if (const auto* list =
+                     std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&field.value)) {
+        for (const auto& item : *list) {
+          pending.push_back(item.get());
+        }
+      }
+    }
+  }
+  if (!best) {
+    return std::nullopt;
+  }
+  Document document(best->width(), best->height(), PixelFormat::rgba8());
+  document.add_pixel_layer("Affinity preview", std::move(*best));
+  std::string summary = "Imported the document's saved snapshot render only (" +
+                        std::to_string(document.width()) + "x" + std::to_string(document.height()) +
+                        "; the document's layers could not be decoded)";
+  if (document_version != 0) {
+    summary += "; document format version " + std::to_string(document_version);
+  }
+  notices.push_back(std::move(summary));
+  return document;
+}
+
 // Shared by the public read() and the embedded-document recursion (embedded
 // containers are complete .af containers stored in edc/<n> streams).
 [[nodiscard]] Document read_container(std::span<const std::uint8_t> bytes,
@@ -3572,9 +4162,15 @@ namespace {
       Document document = build_tier1(bytes, container, tree, notices, embed_depth,
                                       &placeholders_only);
       if (placeholders_only) {
-        // Nothing decoded to pixels (all placeholders); the flat preview shows
-        // the user their document, the structural import would show a blank
-        // canvas. Keep the structural result only when no preview exists.
+        // Nothing decoded to pixels (all placeholders); a flat render shows
+        // the user their document where the structural import would show a
+        // blank canvas. Old files save a full-resolution snapshot render,
+        // which beats the small embedded thumbnail; keep the structural
+        // result only when neither exists.
+        if (auto snapshot =
+                read_snapshot_render(bytes, container, tree, document_version, notices)) {
+          return std::move(*snapshot);
+        }
         try {
           return read_preview_only(bytes, container, document_version, notices);
         } catch (const std::exception&) {

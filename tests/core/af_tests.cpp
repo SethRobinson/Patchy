@@ -12,6 +12,7 @@
 #include "formats/af_document_io.hpp"
 
 #include "core/adjustment_layer.hpp"
+#include "formats/document_flatten.hpp"
 #include "formats/format_registry.hpp"
 #include "local_psd_fixtures.hpp"
 #include "core/document.hpp"
@@ -25,6 +26,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <span>
@@ -700,6 +702,128 @@ void af_imports_vector_curves_as_shape_layers() {
   }
 }
 
+void af_imports_parametric_shapes_as_shape_layers() {
+  // tiny-shapes.af: four ShpN parametric shape nodes on a 120x80 canvas -
+  // "roundrect" (unlocked per-corner: TL Round 0.5, TR Round 0.1, BR
+  // Straight 0.3, BL None on a 50x30 box), "locked" (single-radius mode:
+  // corner 0 Round 0.25 renders on ALL corners; Lock absent = locked),
+  // "ellipse", and "star" (an unmodeled kind that must stay an honest
+  // placeholder).
+  const auto bytes = read_fixture("tiny-shapes.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 120);
+  CHECK(document.height() == 80);
+  const auto layer_named = [&](const char* name) -> const patchy::Layer& {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        return layer;
+      }
+    }
+    throw std::runtime_error(std::string("layer not found: ") + name);
+  };
+  {
+    const auto& layer = layer_named("roundrect");
+    CHECK(patchy::layer_is_vector_shape(layer));
+    const auto* content = layer.vector_shape();
+    CHECK(content->fill.kind == patchy::VectorFillKind::Solid);
+    CHECK(content->fill.color == (patchy::RgbColor{200, 60, 40}));
+    CHECK(content->path.subpaths.size() == 1);
+    // TL Round (2 anchors) + TR Round (2) + BR Straight (2) + BL None (1).
+    CHECK(content->path.subpaths.front().anchors.size() == 7);
+    // Box (6,6)-(56,36): the TL radius is 0.5 * min(50,30) = 15, so local
+    // (8,8) is outside the arc while the centre is filled.
+    const auto& pixels = std::as_const(layer).pixels();
+    CHECK(pixels.pixel(8 - layer.bounds().x, 8 - layer.bounds().y)[3] == 0);
+    CHECK(pixels.pixel(31 - layer.bounds().x, 21 - layer.bounds().y)[3] == 255);
+    // BL is a sharp corner: local (7,34) stays filled.
+    CHECK(pixels.pixel(7 - layer.bounds().x, 34 - layer.bounds().y)[3] == 255);
+  }
+  {
+    // Lock absent = single-radius mode: corner 0's radius (0.25 * 30 = 7.5)
+    // rounds every corner, so the BR corner pixel clips too.
+    const auto& layer = layer_named("locked");
+    CHECK(patchy::layer_is_vector_shape(layer));
+    CHECK(layer.vector_shape()->path.subpaths.front().anchors.size() == 8);
+    const auto& pixels = std::as_const(layer).pixels();
+    CHECK(pixels.pixel(55 - layer.bounds().x, 73 - layer.bounds().y)[3] == 0);
+    CHECK(pixels.pixel(31 - layer.bounds().x, 59 - layer.bounds().y)[3] == 255);
+  }
+  {
+    const auto& layer = layer_named("ellipse");
+    CHECK(patchy::layer_is_vector_shape(layer));
+    const auto* content = layer.vector_shape();
+    CHECK(content->fill.color == (patchy::RgbColor{30, 180, 90}));
+    const auto& anchors = content->path.subpaths.front().anchors;
+    CHECK(anchors.size() == 4);
+    CHECK(anchors.front().smooth);
+    const auto& pixels = std::as_const(layer).pixels();
+    CHECK(pixels.pixel(66 - layer.bounds().x, 8 - layer.bounds().y)[3] == 0);
+    CHECK(pixels.pixel(89 - layer.bounds().x, 21 - layer.bounds().y)[3] == 255);
+  }
+  {
+    // The star keeps its name and position but renders nothing.
+    const auto& layer = layer_named("star");
+    CHECK(!patchy::layer_is_vector_shape(layer));
+    CHECK(std::as_const(layer).pixels().empty());
+    bool noticed = false;
+    for (const auto& notice : notices) {
+      noticed = noticed || (notice.find("star") != std::string::npos &&
+                            notice.find("does not model") != std::string::npos);
+    }
+    CHECK(noticed);
+  }
+}
+
+void af_imports_multi_artboard_document() {
+  // tiny-artboards.af: two artboards - "board-a" (orange, box (0,0)-(80,60),
+  // with a blue "overflow" child rect spanning x 60..100) and "board-b"
+  // (teal, box (100,10)-(160,70), with a yellow "dot" child whose box
+  // (10,10)-(50,40) lies entirely OUTSIDE the artboard). Affinity's own
+  // export (160x70) pins the union canvas, white spread background between
+  // the boards, the overflow rect clipped at x=80, and the dot fully
+  // clipped away.
+  const auto bytes = read_fixture("tiny-artboards.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 160);
+  CHECK(document.height() == 70);
+  const patchy::Layer* board_a = nullptr;
+  const patchy::Layer* board_b = nullptr;
+  for (const auto& layer : document.layers()) {
+    if (layer.name() == "board-a") {
+      board_a = &layer;
+    }
+    if (layer.name() == "board-b") {
+      board_b = &layer;
+    }
+  }
+  CHECK(board_a != nullptr && board_a->kind() == patchy::LayerKind::Group);
+  CHECK(board_b != nullptr && board_b->kind() == patchy::LayerKind::Group);
+  // Each artboard group clips to its box via a rectangular mask.
+  const auto rect_is = [](const patchy::Rect& rect, std::int32_t x, std::int32_t y,
+                          std::int32_t w, std::int32_t h) {
+    return rect.x == x && rect.y == y && rect.width == w && rect.height == h;
+  };
+  CHECK(board_a->mask().has_value());
+  CHECK(rect_is(board_a->mask()->bounds, 0, 0, 80, 60));
+  CHECK(board_a->mask()->default_color == 0);
+  CHECK(board_b->mask().has_value());
+  CHECK(rect_is(board_b->mask()->bounds, 100, 10, 60, 60));
+
+  const auto flattened = patchy::flatten_document_rgba8(document);
+  const auto probe = [&](std::int32_t x, std::int32_t y) {
+    const std::uint8_t* p = flattened.pixel(x, y);
+    return patchy::RgbColor{p[0], p[1], p[2]};
+  };
+  CHECK(probe(40, 30) == (patchy::RgbColor{230, 120, 20}));    // board-a fill
+  CHECK(probe(70, 30) == (patchy::RgbColor{40, 60, 220}));     // overflow child
+  CHECK(probe(85, 5) == (patchy::RgbColor{255, 255, 255}));    // clipped at x=80
+  CHECK(probe(110, 40) == (patchy::RgbColor{20, 160, 150}));   // board-b fill
+  CHECK(probe(20, 20) == (patchy::RgbColor{230, 120, 20}));    // dot clipped away
+  CHECK(probe(0, 69) == (patchy::RgbColor{255, 255, 255}));    // spread gap
+}
+
 void af_head_fat_revision_wins() {
   // tiny-incremental-chain.af carries a TWO-link stream-table chain (the
   // incremental-save layout): the head revision's doc.dat has a colour
@@ -904,6 +1028,41 @@ void af_reads_old_generation_wild_files_if_available() {
   }
 }
 
+void af_modern_embeds_are_center_anchored_if_available() {
+  // restaurant-menu-inside.af (local af-spike corpus; skips where absent) is
+  // a version-30 document with three placed .afdesign swashes. Modern EmbN
+  // transforms map the CENTER of the embedded canvas: the first swash
+  // (nested canvas 1193x409 at scale ~1.006, translate (2979, 206)) must
+  // land with its right edge on the host's right edge (x 3579) and its top
+  // edge at y=0 - Affinity's own render pins those corners. Raw-origin
+  // placement (the old bug) put it at (2979, 206), half a canvas low/right.
+  const auto path =
+      patchy::test::local_format_fixture_path("af-spike/corpus", "restaurant-menu-inside.af");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local corpus fixture missing: " << path.string() << '\n';
+    return;
+  }
+  std::ifstream stream(path, std::ios::binary);
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                        std::istreambuf_iterator<char>());
+  const auto document = patchy::af::DocumentIo::read(bytes);
+  const patchy::Layer* swash = nullptr;
+  const std::function<void(const std::vector<patchy::Layer>&)> visit =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (swash == nullptr && layer.name() == "Layer 1" && !layer.pixels().empty()) {
+            swash = &layer;
+          }
+          visit(layer.children());
+        }
+      };
+  visit(document.layers());
+  CHECK(swash != nullptr);
+  CHECK(std::abs(swash->bounds().width - 1200) <= 3);
+  CHECK(std::abs(swash->bounds().x + swash->bounds().width - 3579) <= 2);
+  CHECK(std::abs(swash->bounds().y) <= 2);
+}
+
 void af_read_rejects_non_affinity_bytes() {
   const std::vector<std::uint8_t> garbage = {'n', 'o', 't', ' ', 'a', 'f', 0, 1, 2, 3};
   bool threw = false;
@@ -976,6 +1135,9 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_imports_rotated_artistic_text_with_transform_marker",
        af_imports_rotated_artistic_text_with_transform_marker},
       {"af_imports_vector_curves_as_shape_layers", af_imports_vector_curves_as_shape_layers},
+      {"af_imports_parametric_shapes_as_shape_layers",
+       af_imports_parametric_shapes_as_shape_layers},
+      {"af_imports_multi_artboard_document", af_imports_multi_artboard_document},
       {"af_head_fat_revision_wins", af_head_fat_revision_wins},
       {"af_imports_adjustment_layers", af_imports_adjustment_layers},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
@@ -983,6 +1145,8 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_reads_affinity2_shape_text_document", af_reads_affinity2_shape_text_document},
       {"af_reads_old_generation_wild_files_if_available",
        af_reads_old_generation_wild_files_if_available},
+      {"af_modern_embeds_are_center_anchored_if_available",
+       af_modern_embeds_are_center_anchored_if_available},
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},
       {"af_read_survives_mutation_sweep", af_read_survives_mutation_sweep},
