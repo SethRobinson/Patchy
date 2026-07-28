@@ -2665,9 +2665,7 @@ void MainWindow::refresh_layer_list() {
         if (!has_active_document()) {
           return;
         }
-        const auto* badge_layer = document().find_layer(layer_id);
-        if (badge_layer == nullptr || badge_layer->kind() == LayerKind::Group) {
-          // Matches the row double-click rule: no blending dialog for folders.
+        if (document().find_layer(layer_id) == nullptr) {
           return;
         }
         reveal_layer_in_layer_list(layer_id);

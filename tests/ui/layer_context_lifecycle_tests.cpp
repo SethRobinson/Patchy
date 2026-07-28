@@ -749,7 +749,7 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
   CHECK(reloaded);
 }
 
-void ui_layer_row_double_click_skips_folders_and_edits_adjustments() {
+void ui_layer_row_double_click_opens_folder_styles_and_edits_adjustments() {
   patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background",
                            solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
@@ -777,21 +777,21 @@ void ui_layer_row_double_click_skips_folders_and_edits_adjustments() {
     return row_name;
   };
 
-  // Double-clicking a folder opens nothing: layer styles cannot apply to
-  // groups, so the blending dialog must not appear.
-  bool folder_opened_dialog = false;
+  // Double-clicking a folder opens the layer styles dialog like any other
+  // layer: group layer effects render since July 2026.
+  bool folder_opened_style_dialog = false;
   QTimer::singleShot(0, [&] {
     auto* style_dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
-    auto* levels_dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
-    if (style_dialog != nullptr || levels_dialog != nullptr) {
-      folder_opened_dialog = true;
-      (style_dialog != nullptr ? style_dialog : levels_dialog)->reject();
+    CHECK(find_top_level_dialog(QStringLiteral("patchyLevelsDialog")) == nullptr);
+    if (style_dialog != nullptr) {
+      folder_opened_style_dialog = true;
+      style_dialog->reject();
     }
   });
   auto* folder_name = row_name_for(QStringLiteral("Folder 1"));
   send_double_click(*folder_name, folder_name->rect().center());
   QApplication::processEvents();
-  CHECK(!folder_opened_dialog);
+  CHECK(folder_opened_style_dialog);
 
   // Double-clicking an adjustment layer opens its settings dialog (Levels
   // here) instead of the blending dialog.
@@ -1919,8 +1919,8 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
        ui_layer_row_double_click_opens_blending_options_dialog},
       {"ui_layer_fx_badge_button_opens_layer_style_dialog", ui_layer_fx_badge_button_opens_layer_style_dialog},
       {"ui_layer_style_stroke_blend_mode_round_trips", ui_layer_style_stroke_blend_mode_round_trips},
-      {"ui_layer_row_double_click_skips_folders_and_edits_adjustments",
-       ui_layer_row_double_click_skips_folders_and_edits_adjustments},
+      {"ui_layer_row_double_click_opens_folder_styles_and_edits_adjustments",
+       ui_layer_row_double_click_opens_folder_styles_and_edits_adjustments},
       {"ui_layer_context_menu_rasterizes_text_and_layer_styles",
        ui_layer_context_menu_rasterizes_text_and_layer_styles},
       {"ui_layer_context_menu_layer_style_actions_follow_selection_state",

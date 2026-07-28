@@ -717,11 +717,9 @@ void MainWindow::create_docks() {
     auto& doc = document();
     const auto active = doc.active_layer_id();
     const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
-    if (layer != nullptr && layer->kind() == LayerKind::Group) {
-      // Layer styles only render for pixel content, so the blending dialog is
-      // useless on a folder.
-      return;
-    }
+    // Groups fall through to the layer styles dialog like every other layer:
+    // group layer effects render since July 2026 (Photoshop opens the same
+    // dialog for a folder row double-click).
     if (layer != nullptr && layer->kind() == LayerKind::Adjustment) {
       edit_active_adjustment_layer();
       return;
