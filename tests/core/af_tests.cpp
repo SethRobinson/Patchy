@@ -951,6 +951,77 @@ void af_live_filter_and_unmapped_adjustment_import_honestly() {
   CHECK(exposure_notice);
 }
 
+void af_imports_vector_mask_adjuncts() {
+  // tiny-vector-mask.af (100x70): "reddisc" (red ellipse, box (8,8)-(68,48))
+  // masked by a single ShpN ellipse adjunct (box (18,13)-(58,43)), and
+  // "bluebox" (blue rect, box (30,20)-(90,60)) masked by a container of two
+  // rects "m1" (34,24)-(54,56) and "m2" (62,24)-(86,56) - the group-of-shapes
+  // construct the steam-logo wild file pins. Both must import as native
+  // vector masks (PSD vmsk round-trips them); Affinity's own render shows the
+  // clipped ellipse and two blue bars with a gap between them.
+  const auto bytes = read_fixture("tiny-vector-mask.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 100);
+  CHECK(document.height() == 70);
+  const auto layer_named = [&](const char* name) -> const patchy::Layer& {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        return layer;
+      }
+    }
+    throw std::runtime_error(std::string("layer not found: ") + name);
+  };
+  const auto coverage_at = [](const patchy::LayerVectorMask& mask, std::int32_t x,
+                              std::int32_t y) -> int {
+    if (x < mask.cache_bounds.x || y < mask.cache_bounds.y ||
+        x >= mask.cache_bounds.x + mask.cache_bounds.width ||
+        y >= mask.cache_bounds.y + mask.cache_bounds.height) {
+      return 0;  // beyond the rasterized coverage the mask hides the layer
+    }
+    return mask.cache.pixel(x - mask.cache_bounds.x, y - mask.cache_bounds.y)[0];
+  };
+
+  {
+    const auto& layer = layer_named("reddisc");
+    CHECK(patchy::layer_is_vector_shape(layer));
+    const auto* mask = layer.vector_mask();
+    CHECK(mask != nullptr);
+    CHECK(mask->path.subpaths.size() == 1);
+    CHECK(mask->path.subpaths.front().anchors.size() == 4);  // the mask ellipse
+    // Mask ellipse centre (38,28), rx 20 / ry 15: the centre is covered, the
+    // owner's left edge (12,28) lies outside the mask.
+    CHECK(coverage_at(*mask, 38, 28) == 255);
+    CHECK(coverage_at(*mask, 12, 28) == 0);
+  }
+  {
+    const auto& layer = layer_named("bluebox");
+    const auto* mask = layer.vector_mask();
+    CHECK(mask != nullptr);
+    CHECK(mask->path.subpaths.size() == 2);  // one rect per group child
+    CHECK(mask->path.subpaths[0].shape_group != mask->path.subpaths[1].shape_group);
+    CHECK(coverage_at(*mask, 44, 40) == 255);  // inside m1
+    CHECK(coverage_at(*mask, 58, 40) == 0);    // the gap between the bars
+    CHECK(coverage_at(*mask, 70, 40) == 255);  // inside m2
+  }
+
+  // The composite applies the masks: the gap shows the white background, the
+  // bars stay blue, and the red disc survives only inside its mask ellipse.
+  const auto flat = patchy::flatten_document_rgba8(document);
+  const auto rgb_at = [&](std::int32_t x, std::int32_t y) {
+    const std::uint8_t* p = flat.pixel(x, y);
+    return std::array<int, 3>{p[0], p[1], p[2]};
+  };
+  CHECK(rgb_at(44, 40) == (std::array<int, 3>{40, 60, 220}));
+  CHECK(rgb_at(58, 40) == (std::array<int, 3>{255, 255, 255}));
+  CHECK(rgb_at(30, 28) == (std::array<int, 3>{200, 40, 40}));
+  CHECK(rgb_at(12, 28) == (std::array<int, 3>{255, 255, 255}));
+
+  for (const auto& notice : notices) {
+    CHECK(notice.find("mask") == std::string::npos);
+  }
+}
+
 void af_reads_affinity2_raster_document() {
   // tiny-v2-raster.afphoto was authored interactively in Affinity Photo 2.6.5
   // (the 2.x generation shares the .af container and doc-tree grammar; only
@@ -1197,6 +1268,30 @@ void af_reads_affinity2_wild_files_if_available() {
       }
     }
   }
+
+  // Vector-mask adjuncts: the Steam logo's steam silhouette is a Grup of
+  // four ShpN shapes plus a PCrv riding the black circle's AdCh enclosure.
+  // It must import as a native vector mask (dropping it left the circle
+  // solid black - rmse 138 vs its own thumbnail; with the mask it scores
+  // ~51, the rest being the gradient-overlay gap).
+  {
+    const auto path = patchy::test::local_format_fixture_path(
+        "af-spike/web_samples2", "The-Noah_steam-screenshot-organizer__logo.afdesign");
+    if (!std::filesystem::exists(path)) {
+      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+    } else {
+      const auto document = read_document(path);
+      const patchy::Layer* masked = nullptr;
+      for (const auto& layer : document.layers()) {
+        if (layer.vector_mask() != nullptr) {
+          CHECK(masked == nullptr);  // exactly one vector-masked layer
+          masked = &layer;
+        }
+      }
+      CHECK(masked != nullptr);
+      CHECK(masked->vector_mask()->path.subpaths.size() >= 5);
+    }
+  }
 }
 
 void af_read_rejects_non_affinity_bytes() {
@@ -1278,6 +1373,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_imports_adjustment_layers", af_imports_adjustment_layers},
       {"af_live_filter_and_unmapped_adjustment_import_honestly",
        af_live_filter_and_unmapped_adjustment_import_honestly},
+      {"af_imports_vector_mask_adjuncts", af_imports_vector_mask_adjuncts},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_reads_affinity2_raster_document", af_reads_affinity2_raster_document},
       {"af_reads_affinity2_shape_text_document", af_reads_affinity2_shape_text_document},

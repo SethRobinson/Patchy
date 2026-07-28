@@ -211,7 +211,18 @@ artboard at its layout position, parent transforms compose down the node
 tree (Affinity is a scene graph), modern embedded documents center-anchor,
 and the old-file `Snap` snapshot render (a full-resolution PNG of the whole
 document in a `c/<n>` stream) replaced the 512px thumbnail as the
-nothing-decoded fallback for documents that carry one. Remaining known
+nothing-decoded fallback for documents that carry one. Vector-mask adjuncts
+closed in the fourth session: an `AdCh` entry with no `Bitm` can carry a
+whole vector layer subtree (a `Grup`/`Scop` of shapes, a `PCrv`, a `ShpN`,
+or a baked `Comp`) acting as the owner's clip mask; the importer walks the
+subtree (owner-space composition, per-contributor `shape_group` union, the
+SVG clipPath convention) into a native `LayerVectorMask` +
+`update_vector_mask_raster`, which PSD saves round-trip as `vmsk`. Pinned
+by tiny-vector-mask.af (rmse 1.1 vs Affinity's own render) and the
+steam-logo wild file (its steam silhouette is a Grup-of-shapes mask; rmse
+138 -> 51). A partly-decodable mask subtree drops WHOLE with a notice
+(a partial mask would clip wrongly); adjunct kinds with no geometry stay
+silently skipped as before. Remaining known
 gaps: old-generation (1.x) stroke styles (`PFil` has no width source, so
 old outlines render as fills or not at all - vrcget's box outline), the
 old-generation embed transform (one v9 sample suggests an extra ~0.766
@@ -219,9 +230,7 @@ uniform scale, but its only ground truth is a STALE snapshot cache, so the
 mapping may not exist; 1.x embeds keep origin anchoring, which ns-splash
 pins), embeds whose only pixel source is the node's `IRDS` `FlDS` original
 file bytes (no `edc` stream - fladder-icon-general renders its embed
-empty), vector-mask adjuncts (an `AdCh` entry can carry a whole vector
-layer subtree - a `Grup` of shapes - acting as the owner's clip mask; the
-steam-logo wild file pins the construct, currently skipped), and the shape
+empty), and the shape
 kinds Patchy still placeholders (rounded/curved and legacy-geometry stars,
 non-default triangles, and the long tail: arrow, pie, cog, cloud, callouts,
 crescent, segment, double/square star, tear, heart, spiral, QR).
@@ -259,7 +268,9 @@ crescent, segment, double/square star, tear, heart, spiral, QR).
   0.003 against Affinity's own render of a rotated+scaled raster); groups
   (nested, pass-through by default); layer masks (the M8/M16 mask plane in a
   node's `AdCh` enclosure becomes a `LayerMask`; transformed masks resample
-  through their affine too); clipping (Affinity nests clipped layers inside
+  through their affine too); vector masks (a Bitm-less `AdCh` adjunct
+  carrying a vector subtree becomes a native `LayerVectorMask` - see the
+  vector-mask paragraph above); clipping (Affinity nests clipped layers inside
   their base's child list; Patchy models them as clipped siblings above the
   base); embedded documents (the `EmbR`/`EmbC` reference to an `edc/<n>`
   nested container is parsed recursively and flattened; modern files -

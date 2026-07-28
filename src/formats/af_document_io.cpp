@@ -1657,8 +1657,16 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
   return std::get_if<std::vector<std::shared_ptr<af::AfClass>>>(&field->value);
 }
 
-// Attach the node's mask (an M8/M16 raster in the AdCh "enclosure" list) to the
-// built layer. Extra or undecodable masks degrade to a notice.
+// Defined with the shape-path builders below (it needs vector_path_from_node
+// and parametric_shape_path).
+void append_vector_mask_paths(const af::AfClass& node, const std::array<double, 6>& base,
+                              int depth, VectorPath& into, std::int32_t& group, int& appended,
+                              int& unsupported);
+
+// Attach the node's mask (an M8/M16 raster in the AdCh "enclosure" list, or a
+// vector layer subtree acting as the owner's clip mask - the latter becomes a
+// native LayerVectorMask) to the built layer. Extra or undecodable masks
+// degrade to a notice.
 void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
                          const std::string& name) {
   const auto* adjuncts = class_list(node, af::tag4("AdCh"));
@@ -1666,12 +1674,49 @@ void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer&
     return;
   }
   bool applied = false;
+  bool vector_applied = false;
   for (const auto& adjunct : *adjuncts) {
     if (adjunct == nullptr) {
       continue;
     }
     const af::AfClass* dybm = adjunct->child_class(af::tag4("Bitm"));
     if (dybm == nullptr) {
+      // No raster plane: the adjunct may be a vector layer subtree (a Grup of
+      // shapes, a PCrv, a ShpN, or a baked Comp) acting as the owner's vector
+      // mask (the steam-logo wild construct). Same owner-space rule as raster
+      // masks: the adjunct is a CHILD of its owner, so the owner's transform
+      // composes before the subtree's own.
+      auto base = ctx.transform;
+      if (const auto owner = node.vec_field(af::tag4("Xfrm")); owner.size() == 6) {
+        std::array<double, 6> own{};
+        std::copy(owner.begin(), owner.end(), own.begin());
+        base = compose_transforms(ctx.transform, own);
+      }
+      VectorPath path;
+      std::int32_t group = 0;
+      int contributors = 0;
+      int unsupported = 0;
+      append_vector_mask_paths(*adjunct, base, 0, path, group, contributors, unsupported);
+      if (contributors == 0 && unsupported == 0) {
+        continue;  // not vector geometry (an adjunct kind Patchy does not know)
+      }
+      if (unsupported > 0 || path.subpaths.empty()) {
+        // A partially-decoded mask would clip wrongly; drop the whole mask
+        // honestly instead.
+        ctx.notices.push_back("Layer '" + name +
+                              "': a vector mask could not be imported and was dropped");
+        continue;
+      }
+      if (vector_applied) {
+        ctx.notices.push_back("Layer '" + name +
+                              "': has more than one vector mask; only the first was imported");
+        continue;
+      }
+      LayerVectorMask mask;
+      mask.path = std::move(path);
+      layer.set_vector_mask(std::move(mask));
+      update_vector_mask_raster(layer, Rect{0, 0, ctx.document.width(), ctx.document.height()});
+      vector_applied = true;
       continue;
     }
     auto decoded = decode_bitmap(ctx.bytes, ctx.container, *dybm, name, &ctx.notices, nullptr);
@@ -3613,6 +3658,59 @@ void append_rect_corner(PathSubpath& subpath, double px, double py, double enter
   }
   path.subpaths.push_back(std::move(subpath));
   return path;
+}
+
+// Collect the geometry of a vector-mask adjunct subtree (declared above
+// apply_mask_children): a PCrv/ShpN/Comp node contributes its path, a Grup
+// recurses its children; every contributor's LOCAL path maps through its own
+// Xfrm composed onto the running affine, and each contributor takes its own
+// shape_group with PathCombineOp::Add - the union-of-even-odd-shapes rule the
+// SVG importer's clipPath handling established. Hidden contributors are
+// skipped. `appended`/`unsupported` let the caller distinguish "not vector
+// geometry at all" (stay silent) from a partly-decodable mask (drop whole,
+// with a notice - a partial mask would clip wrongly).
+void append_vector_mask_paths(const af::AfClass& node, const std::array<double, 6>& base,
+                              int depth, VectorPath& into, std::int32_t& group,
+                              int& appended, int& unsupported) {
+  if (depth > 16) {
+    ++unsupported;
+    return;
+  }
+  if (!node.bool_field(af::tag4("Visi"), true)) {
+    return;
+  }
+  auto composed = base;
+  if (const auto xfrm = node.vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
+    std::array<double, 6> own{};
+    std::copy(xfrm.begin(), xfrm.end(), own.begin());
+    composed = compose_transforms(base, own);
+  }
+  auto path = vector_path_from_node(node);
+  if (!path.has_value() && node.type_tag == af::tag4("ShpN")) {
+    std::string why;
+    path = parametric_shape_path(node, &why);
+  }
+  if (path.has_value()) {
+    transform_vector_path(
+        *path, {composed[0], composed[3], composed[1], composed[4], composed[2], composed[5]});
+    for (auto& subpath : path->subpaths) {
+      subpath.shape_group = group;
+      subpath.op = PathCombineOp::Add;
+      into.subpaths.push_back(std::move(subpath));
+    }
+    ++group;
+    ++appended;
+    return;
+  }
+  if (const auto* kids = class_list(node, af::tag4("Chld")); kids != nullptr && !kids->empty()) {
+    for (const auto& child : *kids) {
+      if (child != nullptr) {
+        append_vector_mask_paths(*child, composed, depth + 1, into, group, appended, unsupported);
+      }
+    }
+    return;
+  }
+  ++unsupported;
 }
 
 // ShpN -> shape layer via its parametric outline. Fails (placeholder) with a
