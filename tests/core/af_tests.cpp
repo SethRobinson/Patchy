@@ -781,6 +781,74 @@ void af_imports_parametric_shapes_as_shape_layers() {
   }
 }
 
+void af_imports_long_tail_parametric_shapes() {
+  // tiny-shapes-2.af: twelve default-parameter shape nodes (the 2026-07-29
+  // long-tail kinds), one per 44x60 cell on a 220x240 canvas - rows of
+  // diamond/pie/heart/arrow, doublestar/cog/crescent/cloud,
+  // trapezoid/segment/squarestar/tear. Constructions are pinned against
+  // Affinity's own convert-to-curves geometry (af-spike shape-curves sweep);
+  // the whole fixture renders at rmse 1.7 vs Affinity's own PNG export.
+  const auto bytes = read_fixture("tiny-shapes-2.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 220);
+  CHECK(document.height() == 240);
+  const auto layer_named = [&](const char* name) -> const patchy::Layer& {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        return layer;
+      }
+    }
+    throw std::runtime_error(std::string("layer not found: ") + name);
+  };
+  const auto alpha_at = [&](const patchy::Layer& layer, std::int32_t x, std::int32_t y) -> int {
+    const auto& pixels = std::as_const(layer).pixels();
+    const std::int32_t lx = x - layer.bounds().x;
+    const std::int32_t ly = y - layer.bounds().y;
+    if (lx < 0 || ly < 0 || lx >= pixels.width() || ly >= pixels.height()) {
+      return 0;
+    }
+    return pixels.pixel(lx, ly)[3];
+  };
+  for (const char* name :
+       {"diamond", "pie", "heart", "arrow", "doublestar", "cog", "crescent", "cloud",
+        "trapezoid", "segment", "squarestar", "tear"}) {
+    CHECK(patchy::layer_is_vector_shape(layer_named(name)));
+  }
+  CHECK(layer_named("diamond").vector_shape()->path.subpaths.front().anchors.size() == 4);
+  CHECK(layer_named("heart").vector_shape()->path.subpaths.front().anchors.size() == 6);
+  CHECK(layer_named("doublestar").vector_shape()->path.subpaths.front().anchors.size() == 20);
+  CHECK(layer_named("cog").vector_shape()->path.subpaths.size() == 2);  // gear + hole
+
+  // Geometry spot checks (document coordinates; cells at 8+col*54, 8+row*80).
+  CHECK(alpha_at(layer_named("diamond"), 30, 38) == 255);
+  CHECK(alpha_at(layer_named("diamond"), 12, 12) == 0);
+  CHECK(alpha_at(layer_named("pie"), 70, 50) == 255);   // filled sector
+  CHECK(alpha_at(layer_named("pie"), 95, 20) == 0);     // the missing quarter
+  CHECK(alpha_at(layer_named("heart"), 125, 25) == 255);
+  CHECK(alpha_at(layer_named("heart"), 138, 14) == 0);  // above the cleft
+  CHECK(alpha_at(layer_named("arrow"), 190, 38) == 255);
+  CHECK(alpha_at(layer_named("arrow"), 176, 12) == 0);  // above the head edge
+  CHECK(alpha_at(layer_named("doublestar"), 30, 118) == 255);
+  CHECK(alpha_at(layer_named("cog"), 84, 100) == 255);  // gear ring
+  CHECK(alpha_at(layer_named("cog"), 84, 118) == 0);    // centre hole
+  CHECK(alpha_at(layer_named("crescent"), 120, 118) == 255);
+  CHECK(alpha_at(layer_named("crescent"), 150, 118) == 0);  // outside the sliver
+  CHECK(alpha_at(layer_named("cloud"), 192, 118) == 255);
+  CHECK(alpha_at(layer_named("trapezoid"), 30, 200) == 255);
+  CHECK(alpha_at(layer_named("trapezoid"), 10, 170) == 0);
+  CHECK(alpha_at(layer_named("segment"), 84, 190) == 255);
+  CHECK(alpha_at(layer_named("segment"), 84, 220) == 0);  // below the chord
+  CHECK(alpha_at(layer_named("squarestar"), 138, 198) == 255);
+  CHECK(alpha_at(layer_named("tear"), 192, 206) == 255);
+  CHECK(alpha_at(layer_named("tear"), 172, 172) == 0);
+
+  for (const auto& notice : notices) {
+    CHECK(notice.find("does not model") == std::string::npos);
+    CHECK(notice.find("placeholder") == std::string::npos);
+  }
+}
+
 void af_imports_multi_artboard_document() {
   // tiny-artboards.af: two artboards - "board-a" (orange, box (0,0)-(80,60),
   // with a blue "overflow" child rect spanning x 60..100) and "board-b"
@@ -1427,6 +1495,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_imports_vector_curves_as_shape_layers", af_imports_vector_curves_as_shape_layers},
       {"af_imports_parametric_shapes_as_shape_layers",
        af_imports_parametric_shapes_as_shape_layers},
+      {"af_imports_long_tail_parametric_shapes", af_imports_long_tail_parametric_shapes},
       {"af_imports_multi_artboard_document", af_imports_multi_artboard_document},
       {"af_head_fat_revision_wins", af_head_fat_revision_wins},
       {"af_imports_adjustment_layers", af_imports_adjustment_layers},

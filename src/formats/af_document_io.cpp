@@ -3548,8 +3548,16 @@ void append_rect_corner(PathSubpath& subpath, double px, double py, double enter
 // TL/TR/BR/BL order (fraction of min(w,h), or pixels when AbSz), CTyp
 // per-corner types, and Lock (absent/true = corner 0's radius AND type render
 // on all four corners); ShpE is the inscribed ellipse; ShPy a regular Side-gon
-// inscribed in the box ellipse, first vertex up (smoothed polygons carry
-// extra fields and keep the placeholder).
+// inscribed in the box ellipse, first vertex up.
+//
+// The 2026-07-29 long-tail kinds (diamond, trapezoid, pie, segment, crescent,
+// heart, tear, arrow, double/square star, cog, cloud, curved-edge stars) are
+// pinned by the af-spike shape-curves sweep: every kind was authored through
+// the JS bridge at several parameter settings, Convert-to-Curves'd, and the
+// exact baked beziers mined (corpus/shape-curves*.json); the constructions
+// below reproduce those regions with Patchy's own arc segmentation. Radial
+// kinds work in the box-inscribed ellipse's "unit space" (y down), where
+// Affinity's own geometry is circles/arcs that the box then stretches.
 [[nodiscard]] std::optional<VectorPath> parametric_shape_path(const af::AfClass& node,
                                                               std::string* why) {
   // A linked symbol instance keeps its geometry (Shpe record AND local box)
@@ -3580,6 +3588,73 @@ void append_rect_corner(PathSubpath& subpath, double px, double py, double enter
   VectorPath path;
   PathSubpath subpath;
   subpath.closed = true;
+
+  // Shared helpers for the long-tail kinds: unit space is the box-inscribed
+  // ellipse's coordinate system (centre (0,0), radius 1, y down); mapping to
+  // the document is an anisotropic scale, which keeps beziers beziers.
+  constexpr double kPiSh = 3.14159265358979323846;
+  constexpr double kCircleK = 0.5522847498307934;
+  const double ucx = (x0 + x1) / 2.0;
+  const double ucy = (y0 + y1) / 2.0;
+  const double hw = w / 2.0;
+  const double hh = h / 2.0;
+  const auto unit_x = [&](double ux) { return ucx + hw * ux; };
+  const auto unit_y = [&](double uy) { return ucy + hh * uy; };
+  const auto push_corner = [](PathSubpath& sp, double px, double py) {
+    sp.anchors.push_back(PathAnchor{px, py, px, py, px, py, false});
+  };
+  const auto push_corner_unit = [&](PathSubpath& sp, double ux, double uy) {
+    push_corner(sp, unit_x(ux), unit_y(uy));
+  };
+  // Append a circular arc (unit space: centre (ax,ay), radius r) from angle
+  // a0 to a1, either direction, split into <=90-degree bezier segments. When
+  // the subpath already ends at the arc's start point only its out handle is
+  // set (so lines and arcs chain); interior anchors are smooth, the arc's
+  // endpoints stay corners for the caller to join.
+  const auto append_unit_arc = [&](PathSubpath& sp, double ax, double ay, double r, double a0,
+                                   double a1) {
+    const int segments =
+        std::max(1, static_cast<int>(std::ceil(std::abs(a1 - a0) / (kPiSh / 3.0) - 1e-9)));
+    const double step = (a1 - a0) / segments;
+    const double k = 4.0 / 3.0 * std::tan(step / 4.0) * r;
+    for (int i = 0; i <= segments; ++i) {
+      const double ang = a0 + step * static_cast<double>(i);
+      const double px = unit_x(ax + r * std::cos(ang));
+      const double py = unit_y(ay + r * std::sin(ang));
+      const double tx = -std::sin(ang) * k * hw;
+      const double ty = std::cos(ang) * k * hh;
+      if (i == 0) {
+        if (!sp.anchors.empty() && std::abs(sp.anchors.back().anchor_x - px) < 1e-6 &&
+            std::abs(sp.anchors.back().anchor_y - py) < 1e-6) {
+          sp.anchors.back().out_x = px + tx;
+          sp.anchors.back().out_y = py + ty;
+        } else {
+          sp.anchors.push_back(PathAnchor{px, py, px, py, px + tx, py + ty, false});
+        }
+        continue;
+      }
+      PathAnchor anchor{px, py, px - tx, py - ty, px, py, i < segments};
+      if (i < segments) {
+        anchor.out_x = px + tx;
+        anchor.out_y = py + ty;
+      }
+      sp.anchors.push_back(anchor);
+    }
+  };
+  // A closed subpath built from chained arcs ends where it began; fold the
+  // duplicate final anchor's incoming handle onto the first anchor.
+  const auto close_fold = [](PathSubpath& sp) {
+    if (sp.anchors.size() >= 2) {
+      const auto& first = sp.anchors.front();
+      const auto& last = sp.anchors.back();
+      if (std::abs(first.anchor_x - last.anchor_x) < 1e-6 &&
+          std::abs(first.anchor_y - last.anchor_y) < 1e-6) {
+        sp.anchors.front().in_x = last.in_x;
+        sp.anchors.front().in_y = last.in_y;
+        sp.anchors.pop_back();
+      }
+    }
+  };
   subpath.op = PathCombineOp::Add;
   subpath.shape_group = 0;
 
@@ -3677,21 +3752,28 @@ void append_rect_corner(PathSubpath& subpath, double px, double py, double enter
   } else if (shape->type_tag == af::tag4("ShSt")) {
     // Star: Pnts outer vertices on the box-inscribed ellipse (first vertex
     // up, like ShPy), alternating with inner vertices at the IRad fraction,
-    // offset by half a step. Rounded/curved stars (CrcI/CrcO/CrvL/CrvR) and
-    // legacy-geometry stars keep the placeholder until pinned.
-    for (const auto& field : shape->fields) {
-      if (field.tag != af::tag4("Pnts") && field.tag != af::tag4("IRad") &&
-          field.tag != af::tag4("Lgcy")) {
-        *why = "is a rounded or curved Affinity star";
-        return std::nullopt;
-      }
-    }
-    if (shape->bool_field(af::tag4("Lgcy"), false)) {
-      *why = "uses legacy Affinity star geometry";
+    // offset by half a step. CrvL/CrvR only take effect when Lgcy
+    // (curvedEdges) is true - the shape-curves sweep pins both a plain-star
+    // conversion for Lgcy alone or CrvL/CrvR alone, and tangential tip
+    // handles for the combination (star-lgcy-crv, CrvL=CrvR=0.4 -> unit
+    // handle 0.18665). Circle-rounded stars (CrcI/CrcO) keep the
+    // placeholder until their tangent construction is pinned.
+    if (shape->double_field(af::tag4("CrcI"), 0.0) > 1e-6 ||
+        shape->double_field(af::tag4("CrcO"), 0.0) > 1e-6) {
+      *why = "is a circle-rounded Affinity star";
       return std::nullopt;
     }
     const auto points = std::clamp<std::int64_t>(shape->int_field(af::tag4("Pnts"), 5), 3, 256);
     const double inner = std::clamp(shape->double_field(af::tag4("IRad"), 0.5), 0.0, 1.0);
+    const bool curved = shape->bool_field(af::tag4("Lgcy"), false);
+    const double curve_left =
+        curved ? std::clamp(shape->double_field(af::tag4("CrvL"), 0.0), 0.0, 1.0) : 0.0;
+    const double curve_right =
+        curved ? std::clamp(shape->double_field(af::tag4("CrvR"), 0.0), 0.0, 1.0) : 0.0;
+    // The pinned 0.4 -> 0.18665 sample gives the per-unit-curve handle scale
+    // at five points; scale other point counts by their half-step tangent.
+    const double handle_scale = 0.46662 * std::tan(kPiSh / static_cast<double>(points)) /
+                                std::tan(kPiSh / 5.0);
     const double cx = (x0 + x1) / 2.0;
     const double cy = (y0 + y1) / 2.0;
     constexpr double kPi = 3.14159265358979323846;
@@ -3701,11 +3783,353 @@ void append_rect_corner(PathSubpath& subpath, double px, double py, double enter
       const double inner_angle = outer_angle + kPi / static_cast<double>(points);
       const double ox = cx + (w / 2.0) * std::cos(outer_angle);
       const double oy = cy + (h / 2.0) * std::sin(outer_angle);
-      subpath.anchors.push_back(PathAnchor{ox, oy, ox, oy, ox, oy, false});
+      if (curve_left > 0.0 || curve_right > 0.0) {
+        // Tangential handles round the tip; CrvL feeds the incoming side.
+        const double tx = -std::sin(outer_angle) * hw;
+        const double ty = std::cos(outer_angle) * hh;
+        subpath.anchors.push_back(PathAnchor{
+            ox, oy, ox - tx * curve_left * handle_scale, oy - ty * curve_left * handle_scale,
+            ox + tx * curve_right * handle_scale, oy + ty * curve_right * handle_scale, false});
+      } else {
+        subpath.anchors.push_back(PathAnchor{ox, oy, ox, oy, ox, oy, false});
+      }
       const double ix = cx + inner * (w / 2.0) * std::cos(inner_angle);
       const double iy = cy + inner * (h / 2.0) * std::sin(inner_angle);
       subpath.anchors.push_back(PathAnchor{ix, iy, ix, iy, ix, iy, false});
     }
+  } else if (shape->type_tag == af::tag4("ShpD")) {
+    // Diamond: side vertices sit Pos of the way up the box (default 0.5).
+    const double pos = std::clamp(shape->double_field(af::tag4("Pos "), 0.5), 0.0, 1.0);
+    const double side_y = y1 - pos * h;
+    push_corner(subpath, ucx, y0);
+    push_corner(subpath, x1, side_y);
+    push_corner(subpath, ucx, y1);
+    push_corner(subpath, x0, side_y);
+  } else if (shape->type_tag == af::tag4("ShTz")) {
+    // Trapezoid: the top edge runs from PosL to PosR across the box.
+    const double pos_l = std::clamp(shape->double_field(af::tag4("PosL"), 0.25), 0.0, 1.0);
+    const double pos_r = std::clamp(shape->double_field(af::tag4("PosR"), 0.75), 0.0, 1.0);
+    push_corner(subpath, x1, y1);
+    push_corner(subpath, x0, y1);
+    push_corner(subpath, x0 + pos_l * w, y0);
+    push_corner(subpath, x0 + pos_r * w, y0);
+  } else if (shape->type_tag == af::tag4("ShHt")) {
+    // Heart: a fixed six-anchor template in box fractions; only the top
+    // cleft anchor moves - its y is Sprd of the way down the box.
+    const double spread = std::clamp(shape->double_field(af::tag4("Sprd"), 0.2), 0.0, 1.0);
+    struct HeartAnchor {
+      double ax, ay, inx, iny, outx, outy;
+      bool smooth;
+    };
+    const HeartAnchor kHeart[6] = {
+        {0.5, 0.0, 0.3947370, 0.0, 0.6052630, 0.0, false},
+        {0.9210530, 0.1, 0.8157890, 0.0, 1.0263160, 0.2, true},
+        {0.9210530, 0.6, 1.0263160, 0.4, 0.8473680, 0.75, true},
+        {0.5, 1.0, 0.6578950, 0.9, 0.3421050, 0.9, false},
+        {0.0789474, 0.6, 0.1526320, 0.75, -0.0263158, 0.4, true},
+        {0.0789474, 0.1, -0.0263158, 0.2, 0.1842110, 0.0, true},
+    };
+    for (const auto& a : kHeart) {
+      const double ay = a.ax == 0.5 && a.ay == 0.0 ? spread : a.ay;
+      subpath.anchors.push_back(PathAnchor{x0 + a.ax * w, y0 + ay * h, x0 + a.inx * w,
+                                           y0 + a.iny * h, x0 + a.outx * w, y0 + a.outy * h,
+                                           a.smooth});
+    }
+  } else if (shape->type_tag == af::tag4("ShTr")) {
+    // Tear: an ellipse whose top anchor collapses into a corner at Tail
+    // across the top edge; Curv scales the upper side handles (default 0.3),
+    // Bend curls the tail tip (handle template pinned at Tail 0.5). The Fixd
+    // and Ball fields do not alter 3.x geometry (sweep-pinned) and are
+    // ignored.
+    const double tail = std::clamp(shape->double_field(af::tag4("Tail"), 0.5), 0.0, 1.0);
+    const double curve = std::clamp(shape->double_field(af::tag4("Curv"), 0.3), 0.0, 1.0);
+    const double bend = std::clamp(shape->double_field(af::tag4("Bend"), 0.0), -1.0, 1.0);
+    const double tip_x = x0 + tail * w;
+    // The bottom bulb is a half-ellipse whose vertical radius caps at half
+    // the WIDTH (the tall-box probe pins side anchors at y1 - w/2 there);
+    // the side anchors' upper handles are Curv of the way back up to the top.
+    const double bulb = std::min(hw, hh);
+    const double side_y = y1 - bulb;
+    subpath.anchors.push_back(PathAnchor{tip_x, y0, tip_x + bend * w * 0.1,
+                                         y0 + bend * h * 0.25, tip_x + bend * w * 0.25, y0,
+                                         false});
+    subpath.anchors.push_back(PathAnchor{x1, side_y, x1, side_y - curve * (side_y - y0), x1,
+                                         side_y + kCircleK * bulb, true});
+    subpath.anchors.push_back(PathAnchor{ucx, y1, ucx + kCircleK * hw, y1, ucx - kCircleK * hw,
+                                         y1, true});
+    subpath.anchors.push_back(PathAnchor{x0, side_y, x0, side_y + kCircleK * bulb, x0,
+                                         side_y - curve * (side_y - y0), true});
+  } else if (shape->type_tag == af::tag4("ShDA")) {
+    // Arrow: a straight-line polygon. Head length is LPr1/RPr1 of the BOX
+    // HEIGHT (wide-box pinned), the shaft is Thck of the height, and
+    // LPr2/RPr2 offset the shaft junction from the barb base. Only end
+    // styles 0 (flat) and 1 (the plain arrowhead) are modeled.
+    const auto left_style = enum_field_id(*shape, af::tag4("LSty"), 1);
+    const auto right_style = enum_field_id(*shape, af::tag4("RSty"), 1);
+    if (left_style > 1 || right_style > 1) {
+      *why = "uses an Affinity arrow end style Patchy does not model";
+      return std::nullopt;
+    }
+    const double thick = std::clamp(shape->double_field(af::tag4("Thck"), 0.35), 0.0, 1.0);
+    const double shaft_top = ucy - thick * hh;
+    const double shaft_bottom = ucy + thick * hh;
+    double left_len = std::max(0.0, shape->double_field(af::tag4("LPr1"), 0.5)) * h;
+    const double left_inner = shape->double_field(af::tag4("LPr2"), 0.0) * h;
+    double right_len = std::max(0.0, shape->double_field(af::tag4("RPr1"), 0.5)) * h;
+    const double right_inner = shape->double_field(af::tag4("RPr2"), 0.0) * h;
+    // Heads that would overlap scale down proportionally to meet (the
+    // tall-box probe: two 30px heads in a 44px box become 22px each).
+    const double head_total = (left_style == 1 ? left_len : 0.0) +
+                              (right_style == 1 ? right_len : 0.0);
+    if (head_total > w && head_total > 0.0) {
+      left_len *= w / head_total;
+      right_len *= w / head_total;
+    }
+    const double barb_l = x0 + left_len;
+    const double shaft_l = left_style == 1 ? barb_l + left_inner : x0;
+    const double barb_r = x1 - right_len;
+    const double shaft_r = right_style == 1 ? barb_r - right_inner : x1;
+    if (left_style == 1) {
+      push_corner(subpath, shaft_l, shaft_bottom);
+      push_corner(subpath, barb_l, y1);
+      push_corner(subpath, x0, ucy);
+      push_corner(subpath, barb_l, y0);
+      push_corner(subpath, shaft_l, shaft_top);
+    } else {
+      push_corner(subpath, x0, shaft_bottom);
+      push_corner(subpath, x0, shaft_top);
+    }
+    if (right_style == 1) {
+      push_corner(subpath, shaft_r, shaft_top);
+      push_corner(subpath, barb_r, y0);
+      push_corner(subpath, x1, ucy);
+      push_corner(subpath, barb_r, y1);
+      push_corner(subpath, shaft_r, shaft_bottom);
+    } else {
+      push_corner(subpath, x1, shaft_top);
+      push_corner(subpath, x1, shaft_bottom);
+    }
+  } else if (shape->type_tag == af::tag4("ShPi")) {
+    // Pie: the wire angles are radians in y-UP math orientation (AngS
+    // default pi/2 = top, AngE default 0 = right); the filled sector runs
+    // from AngE to AngS clockwise on screen. IRad > 0 cuts an annulus.
+    const double phi_s = -shape->double_field(af::tag4("AngS"), kPiSh / 2.0);
+    double phi_e = -shape->double_field(af::tag4("AngE"), 0.0);
+    const double inner = std::clamp(shape->double_field(af::tag4("IRad"), 0.0), 0.0, 1.0);
+    double sweep = phi_s - phi_e;
+    sweep -= std::floor(sweep / (2.0 * kPiSh)) * 2.0 * kPiSh;  // wrap into (0, 2*pi]
+    if (sweep < 1e-9) {
+      sweep = 2.0 * kPiSh;
+    }
+    const double phi_end = phi_e + sweep;  // == phi_s modulo 2*pi
+    if (inner <= 1e-6) {
+      push_corner_unit(subpath, std::cos(phi_end), std::sin(phi_end));
+      push_corner_unit(subpath, 0.0, 0.0);
+      append_unit_arc(subpath, 0.0, 0.0, 1.0, phi_e, phi_end);
+    } else {
+      push_corner_unit(subpath, std::cos(phi_end), std::sin(phi_end));
+      append_unit_arc(subpath, 0.0, 0.0, inner, phi_end, phi_e);
+      append_unit_arc(subpath, 0.0, 0.0, 1.0, phi_e, phi_end);
+    }
+    close_fold(subpath);
+  } else if (shape->type_tag == af::tag4("ShSg")) {
+    // Segment: the box ellipse clipped to the band between two chords
+    // perpendicular to the Angl direction (unit space): Pos0/Pos1 map to
+    // signed offsets 2*Pos-1 along the direction.
+    const double angle = shape->double_field(af::tag4("Angl"), kPiSh / 2.0);
+    double c0 = std::clamp(2.0 * shape->double_field(af::tag4("Pos0"), 0.25) - 1.0, -1.0, 1.0);
+    double c1 = std::clamp(2.0 * shape->double_field(af::tag4("Pos1"), 1.0) - 1.0, -1.0, 1.0);
+    if (c0 > c1) {
+      std::swap(c0, c1);
+    }
+    const double alpha0 = std::acos(std::clamp(c0, -1.0, 1.0));
+    const double alpha1 = std::acos(std::clamp(c1, -1.0, 1.0));
+    if (alpha0 - alpha1 < 1e-6) {
+      *why = "has a degenerate shape outline";
+      return std::nullopt;
+    }
+    const double delta = -angle;  // screen angle of the cut direction
+    push_corner_unit(subpath, std::cos(delta + alpha0), std::sin(delta + alpha0));
+    push_corner_unit(subpath, std::cos(delta - alpha0), std::sin(delta - alpha0));
+    if (alpha1 > 1e-6) {
+      append_unit_arc(subpath, 0.0, 0.0, 1.0, delta - alpha0, delta - alpha1);
+      push_corner_unit(subpath, std::cos(delta + alpha1), std::sin(delta + alpha1));
+      append_unit_arc(subpath, 0.0, 0.0, 1.0, delta + alpha1, delta + alpha0);
+    } else {
+      append_unit_arc(subpath, 0.0, 0.0, 1.0, delta - alpha0, delta + alpha0);
+    }
+    close_fold(subpath);
+  } else if (shape->type_tag == af::tag4("ShCr")) {
+    // Crescent: the region between two boundary curves (unit space), each
+    // from (0,-1) through (Arc, 0) to (0,1) - ArcL/ArcR are the signed bulge
+    // fractions (the JS setters negate leftArc on the wire; the wire values
+    // place both boundaries directly). Affinity's boundary is two cubics
+    // whose handles the shape-curves sweep pins exactly across four bulges:
+    // the endpoint handle is (K*m, (1-|m|)/3) and the mid handle is vertical
+    // with length K*|m| + (1-|m|)/3 - the ellipse half at |m|=1, the
+    // straight line at m=0, blended linearly between.
+    const double arc_l = std::clamp(shape->double_field(af::tag4("ArcL"), -1.0), -1.0, 1.0);
+    const double arc_r = std::clamp(shape->double_field(af::tag4("ArcR"), -0.3), -1.0, 1.0);
+    if (std::abs(arc_r - arc_l) < 1e-6) {
+      *why = "has a degenerate shape outline";
+      return std::nullopt;
+    }
+    // Emits the boundary for bulge m from (0,-1) to (0,1) when down is true,
+    // or the reverse; the subpath's last anchor is the start point.
+    const auto boundary = [&](double m, bool down) {
+      const double s = down ? 1.0 : -1.0;
+      if (std::abs(m) < 1e-6) {
+        push_corner_unit(subpath, 0.0, s);
+        return;
+      }
+      const double end_off = (1.0 - std::abs(m)) / 3.0;
+      const double mid_len = kCircleK * std::abs(m) + end_off;
+      auto& start = subpath.anchors.back();
+      start.out_x = unit_x(kCircleK * m);
+      start.out_y = unit_y(-s + s * end_off);
+      subpath.anchors.push_back(PathAnchor{unit_x(m), unit_y(0.0), unit_x(m),
+                                           unit_y(-s * mid_len), unit_x(m), unit_y(s * mid_len),
+                                           true});
+      subpath.anchors.push_back(PathAnchor{unit_x(0.0), unit_y(s), unit_x(kCircleK * m),
+                                           unit_y(s - s * end_off), unit_x(0.0), unit_y(s),
+                                           false});
+    };
+    push_corner_unit(subpath, 0.0, -1.0);
+    boundary(arc_r, true);
+    boundary(arc_l, false);
+    close_fold(subpath);
+  } else if (shape->type_tag == af::tag4("ShDS")) {
+    // Double star: 4*Pnts straight-line vertices at uniform angle steps from
+    // the top, radii cycling [1, IRad, PRad, IRad].
+    const auto points = std::clamp<std::int64_t>(shape->int_field(af::tag4("Pnts"), 5), 2, 128);
+    const double inner = std::clamp(shape->double_field(af::tag4("IRad"), 0.525731), 0.0, 1.0);
+    const double point_r = std::clamp(shape->double_field(af::tag4("PRad"), 0.809017), 0.0, 1.0);
+    const double radii[4] = {1.0, inner, point_r, inner};
+    const std::int64_t count = points * 4;
+    for (std::int64_t i = 0; i < count; ++i) {
+      const double ang = -kPiSh / 2.0 +
+                         2.0 * kPiSh * static_cast<double>(i) / static_cast<double>(count);
+      const double r = radii[i % 4];
+      push_corner_unit(subpath, r * std::cos(ang), r * std::sin(ang));
+    }
+  } else if (shape->type_tag == af::tag4("ShSS")) {
+    // Square star: Side arms whose tips are flattened; per arm the two outer
+    // corners sit at (cos h, +/- (1-COut)*sin h) in tip-local unit space
+    // (h = pi/Side), with the inner corner between arms at radius 1-COut.
+    const auto sides = std::clamp<std::int64_t>(shape->int_field(af::tag4("Side"), 5), 3, 128);
+    const double cutout = std::clamp(shape->double_field(af::tag4("COut"), 0.5), 0.0, 1.0);
+    const double inner_r = 1.0 - cutout;
+    const double half = kPiSh / static_cast<double>(sides);
+    for (std::int64_t k = 0; k < sides; ++k) {
+      const double tip = -kPiSh / 2.0 + half +
+                         2.0 * kPiSh * static_cast<double>(k) / static_cast<double>(sides);
+      const double ct = std::cos(tip);
+      const double st = std::sin(tip);
+      const double px = std::cos(half);
+      const double py = inner_r * std::sin(half);
+      push_corner_unit(subpath, ct * px - st * -py, st * px + ct * -py);
+      push_corner_unit(subpath, ct * px - st * py, st * px + ct * py);
+      push_corner_unit(subpath, inner_r * std::cos(tip + half), inner_r * std::sin(tip + half));
+    }
+  } else if (shape->type_tag == af::tag4("ShCg")) {
+    // Cog: alternating tooth-top arcs (radius 1, width TtSz of the tooth
+    // period) and root arcs (radius IRad, width NtSz), joined by straight
+    // flanks; Curv bows the flanks (handles at 2/3*Curv along the chord,
+    // approximate); Hole cuts a centre ellipse.
+    const auto teeth = std::clamp<std::int64_t>(shape->int_field(af::tag4("Teth"), 12), 3, 256);
+    const double root_r = std::clamp(shape->double_field(af::tag4("IRad"), 0.85), 0.0, 1.0);
+    const double hole = std::clamp(shape->double_field(af::tag4("Hole"), 0.2), 0.0, 1.0);
+    const double tooth_size = std::clamp(shape->double_field(af::tag4("TtSz"), 0.37), 0.0, 1.0);
+    const double notch_size = std::clamp(shape->double_field(af::tag4("NtSz"), 0.42), 0.0, 1.0);
+    const double curve = std::clamp(shape->double_field(af::tag4("Curv"), 0.0), 0.0, 1.0);
+    const double period = 2.0 * kPiSh / static_cast<double>(teeth);
+    const double half_top = tooth_size * period / 2.0;
+    const double half_notch = notch_size * period / 2.0;
+    for (std::int64_t k = 0; k < teeth; ++k) {
+      const double centre = -kPiSh / 2.0 + period * static_cast<double>(k);
+      append_unit_arc(subpath, 0.0, 0.0, 1.0, centre - half_top, centre + half_top);
+      append_unit_arc(subpath, 0.0, 0.0, root_r, centre + period / 2.0 - half_notch,
+                      centre + period / 2.0 + half_notch);
+    }
+    close_fold(subpath);
+    if (curve > 0.0) {
+      // Bow every straight flank: a flank runs between an arc-end anchor
+      // (degenerate out handle) and the next arc-start anchor.
+      const std::size_t n = subpath.anchors.size();
+      for (std::size_t i = 0; i < n; ++i) {
+        auto& a = subpath.anchors[i];
+        auto& b = subpath.anchors[(i + 1) % n];
+        const bool a_flat = a.out_x == a.anchor_x && a.out_y == a.anchor_y;
+        const bool b_flat = b.in_x == b.anchor_x && b.in_y == b.anchor_y;
+        if (a_flat && b_flat) {
+          const double dx = (b.anchor_x - a.anchor_x) * (2.0 / 3.0) * curve;
+          const double dy = (b.anchor_y - a.anchor_y) * (2.0 / 3.0) * curve;
+          a.out_x = a.anchor_x + dx;
+          a.out_y = a.anchor_y + dy;
+          b.in_x = b.anchor_x - dx;
+          b.in_y = b.anchor_y - dy;
+        }
+      }
+    }
+    if (subpath.anchors.size() < 2) {
+      *why = "has a degenerate shape outline";
+      return std::nullopt;
+    }
+    path.subpaths.push_back(std::move(subpath));
+    if (hole > 1e-6) {
+      PathSubpath hole_path;
+      hole_path.closed = true;
+      hole_path.op = PathCombineOp::Add;
+      hole_path.shape_group = 0;
+      append_unit_arc(hole_path, 0.0, 0.0, hole, -kPiSh / 2.0, 3.0 * kPiSh / 2.0);
+      close_fold(hole_path);
+      path.subpaths.push_back(std::move(hole_path));
+    }
+    return path;
+  } else if (shape->type_tag == af::tag4("ShCl")) {
+    // Cloud: Bubl bubbles; notches at radius IRad between bumps at radius 1.
+    // Each bubble half is a quarter-ellipse in the bump-rotated frame with
+    // radial semi-axis 1 - IRad*cos(P/2) and tangential semi-axis
+    // IRad*sin(P/2) (wide- and default-probe pinned).
+    const auto bubbles = std::clamp<std::int64_t>(shape->int_field(af::tag4("Bubl"), 12), 3, 256);
+    const double inner = std::clamp(shape->double_field(af::tag4("IRad"), 0.8164966), 0.01, 1.0);
+    const double period = 2.0 * kPiSh / static_cast<double>(bubbles);
+    const double radial = std::max(0.0, 1.0 - inner * std::cos(period / 2.0));
+    const double tangential = inner * std::sin(period / 2.0);
+    for (std::int64_t k = 0; k < bubbles; ++k) {
+      const double bump = -kPiSh / 2.0 + period * static_cast<double>(k);
+      const double dirx = std::cos(bump);
+      const double diry = std::sin(bump);
+      const double tanx = -std::sin(bump);
+      const double tany = std::cos(bump);
+      const double n1x = inner * std::cos(bump - period / 2.0);
+      const double n1y = inner * std::sin(bump - period / 2.0);
+      const double n2x = inner * std::cos(bump + period / 2.0);
+      const double n2y = inner * std::sin(bump + period / 2.0);
+      const auto push_or_patch = [&](double ux, double uy, double outx, double outy) {
+        const double px = unit_x(ux);
+        const double py = unit_y(uy);
+        if (!subpath.anchors.empty() && std::abs(subpath.anchors.back().anchor_x - px) < 1e-6 &&
+            std::abs(subpath.anchors.back().anchor_y - py) < 1e-6) {
+          subpath.anchors.back().out_x = unit_x(outx);
+          subpath.anchors.back().out_y = unit_y(outy);
+        } else {
+          subpath.anchors.push_back(PathAnchor{px, py, px, py, unit_x(outx), unit_y(outy),
+                                               false});
+        }
+      };
+      push_or_patch(n1x, n1y, n1x + kCircleK * radial * dirx, n1y + kCircleK * radial * diry);
+      subpath.anchors.push_back(PathAnchor{
+          unit_x(dirx), unit_y(diry), unit_x(dirx - kCircleK * tangential * tanx),
+          unit_y(diry - kCircleK * tangential * tany),
+          unit_x(dirx + kCircleK * tangential * tanx),
+          unit_y(diry + kCircleK * tangential * tany), true});
+      subpath.anchors.push_back(PathAnchor{unit_x(n2x), unit_y(n2y),
+                                           unit_x(n2x + kCircleK * radial * dirx),
+                                           unit_y(n2y + kCircleK * radial * diry), unit_x(n2x),
+                                           unit_y(n2y), false});
+    }
+    close_fold(subpath);
   } else if (shape->type_tag == af::tag4("ShpT")) {
     // Triangle: apex at the "Pos " fraction across the top edge (default
     // centered), base along the bottom of the box.

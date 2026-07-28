@@ -231,9 +231,9 @@ mapping may not exist; 1.x embeds keep origin anchoring, which ns-splash
 pins), embeds whose only pixel source is the node's `IRDS` `FlDS` original
 file bytes (no `edc` stream - fladder-icon-general renders its embed
 empty), and the shape
-kinds Patchy still placeholders (rounded/curved and legacy-geometry stars,
-non-default triangles, and the long tail: arrow, pie, cog, cloud, callouts,
-crescent, segment, double/square star, tear, heart, spiral, QR).
+kinds Patchy still placeholders (callouts, spiral, QR, circle-rounded
+CrcI/CrcO stars, and arrow end styles beyond flat/plain; the 2026-07-29
+sweep closed the rest of the long tail - see the parametric-shapes bullet).
 
 - **Tier 2 (current)**: parses the serialized document tree (`doc.dat`) and
   builds real Patchy layers - the layer tree (groups nested with pass-through
@@ -358,10 +358,9 @@ crescent, segment, double/square star, tear, heart, spiral, QR).
   ellipse (inscribed in the local `ShpB` box), `ShPy` regular polygon
   (`Side`-gon, JS default 5, inscribed in the box ellipse, first vertex up),
   `ShSt` star (`Pnts` outer vertices alternating with half-step inner
-  vertices at the `IRad` fraction, first vertex up; rounded/curved
-  `CrcI`/`CrcO`/`CrvL`/`CrvR` and legacy-geometry `Lgcy` stars keep the
-  placeholder), and `ShpT` triangle (apex at the `"Pos "` fraction across
-  the top edge). Smoothed polygons (`Smth` true) render smooth anchors whose
+  vertices at the `IRad` fraction, first vertex up), and `ShpT` triangle
+  (apex at the `"Pos "` fraction across the top edge). Smoothed polygons
+  (`Smth` true) render smooth anchors whose
   tangent scales with `Curv`: the probe pins Curv=0 as EXACTLY the plain
   polygon; Curv=1 maps to the circle through the vertices (plausible,
   unpinned). `ShNR` carries `ShCR` per-corner radii in TL/TR/BR/BL order
@@ -376,6 +375,38 @@ crescent, segment, double/square star, tear, heart, spiral, QR).
   committed fixture tiny-shapes.af +
   `af_imports_parametric_shapes_as_shape_layers` (unlocked mixed corners,
   locked single-radius, ellipse, and the star as a real shape layer).
+  The 2026-07-29 sweep added the long tail, each pinned against Affinity's
+  own Convert-to-Curves geometry (af-spike shape-curves*.json; every kind
+  authored via the JS bridge at several parameter settings) and scored at
+  rmse ~0-2 against Affinity's renders: `ShpD` diamond (`Pos ` side-vertex
+  height), `ShTz` trapezoid (top edge from `PosL` to `PosR`), `ShPi` pie
+  (`AngS`/`AngE` radians in y-up math orientation, filled clockwise
+  on-screen from AngE to AngS; `IRad` cuts an annulus), `ShSg` segment (the
+  ellipse clipped to the band 2*Pos0-1..2*Pos1-1 along the `Angl`
+  direction), `ShCr` crescent (two boundary cubics through (0,+/-1) bulging
+  to `ArcL`/`ArcR`; endpoint handle (K*m, (1-|m|)/3), mid handle
+  K*|m|+(1-|m|)/3 - ellipse half at |m|=1, straight line at 0), `ShHt`
+  heart (fixed six-anchor template, `Sprd` = cleft depth), `ShTr` tear
+  (ellipse with the top anchor collapsed to a corner at `Tail`; bottom bulb
+  radius caps at half the width; `Curv` scales the upper handles, `Bend`
+  curls the tip; `Fixd`/`Ball` are 3.x no-ops), `ShDA` arrow (straight
+  polygon; head length `LPr1`/`RPr1` of the box HEIGHT, clamped
+  proportionally when heads would overlap; `Thck` shaft; `LPr2`/`RPr2`
+  barb offsets; end styles 0 flat / 1 arrowhead only, `LSty`/`RSty`),
+  `ShDS` double star (4*`Pnts` vertices cycling radii 1/`IRad`/`PRad`/
+  `IRad`), `ShSS` square star (flat-tipped arms; outer corners at
+  (cos h, (1-`COut`)*sin h) tip-local, h = pi/Side), `ShCg` cog (tooth-top
+  arcs `TtSz` and root arcs `NtSz` of the period at radii 1/`IRad`,
+  straight flanks bowed by `Curv` (approximate), `Hole` centre ellipse as a
+  second subpath), and `ShCl` cloud (`Bubl` bubbles; each half-bubble is a
+  quarter-ellipse in the bump frame, radial semi-axis 1-IRad*cos(P/2),
+  tangential IRad*sin(P/2)). Curved-edge stars (`Lgcy` true) take
+  tangential tip handles scaled by `CrvL`/`CrvR` (pinned at 0.4; CrvL/CrvR
+  without Lgcy are geometry no-ops). Committed fixture tiny-shapes-2.af +
+  `af_imports_long_tail_parametric_shapes` (whole-fixture rmse 1.7 vs
+  Affinity's own export). Still placeholders: callouts (`ShCE`/`ShCR`
+  classes), spiral (`ShSp`), QR, circle-rounded stars (`CrcI`/`CrcO`), and
+  arrow end styles beyond flat/plain.
 - **Compound shapes (`Comp`)** import as ONE exact shape layer: Affinity
   bakes the already-booleaned result poly-curve into the node's own
   lowercase `crvs` field (same `PCvD` -> `Data` layout as PCrv's `Crvs`),

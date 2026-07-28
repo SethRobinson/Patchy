@@ -269,12 +269,12 @@ Important Photoshop features that are not supported yet, or are only partially s
 
 ### Affinity import
 
-Patchy opens Affinity documents read-only: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x-era files. Raster layers (including 16-bit, float, CMYK, and Lab documents), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes (rectangles, ellipses, polygons, stars, triangles), compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (which become embedded Smart Objects) all import, verified against Affinity's own renders and a wild-file corpus that includes real Affinity 2 documents from all three apps. If a file can't be imported as layers, Patchy falls back to its embedded preview instead of failing the open, and an import notice explains what was skipped.
+Patchy opens Affinity documents read-only: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x-era files. Raster layers (including 16-bit, float, CMYK, and Lab documents), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes (rectangles, ellipses, polygons, stars, triangles, diamonds, trapezoids, pies, segments, crescents, hearts, tears, arrows, double and square stars, cogs, clouds), compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (which become embedded Smart Objects) all import, verified against Affinity's own renders and a wild-file corpus that includes real Affinity 2 documents from all three apps. If a file can't be imported as layers, Patchy falls back to its embedded preview instead of failing the open, and an import notice explains what was skipped.
 
 Affinity features that are not supported yet, or are only partially supported:
 
 - Saving to Affinity formats (import only; save your edits as PSD)
-- The long tail of parametric shape kinds (arrows, pies, cogs, clouds, callouts, hearts, spirals, and rounded or legacy-geometry stars) import as named placeholders
+- A few parametric shape kinds (callouts, spirals, QR codes, circle-rounded stars, and exotic arrow ends) import as named placeholders
 - Adjustment layers beyond the eight kinds Patchy models, and live filters, import as named empty placeholders; Brightness/Contrast and Color Balance import approximately
 - Affinity-only blend modes render through their closest Photoshop-compatible equivalent with a notice (Average matches exactly at half opacity; Negation, Reflect, Glow, and Pigment approximate; Contrast Negate and Erase fall back to Normal)
 - Bevel/Emboss and glow effects are approximated; Gaussian blur layer effects don't render
