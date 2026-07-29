@@ -562,6 +562,22 @@ sweep closed the rest of the long tail - see the parametric-shapes bullet).
   `BitI` is the bitmap's used/dirty sub-rect, NEVER a placement source -
   untransformed layers sit at the origin, translated/transformed ones go
   through `Xfrm`.
+- **Crop containers with group children become masked wrapper groups** (July
+  2026): a painted `ShpN`/`PCrv` node with children is Affinity's crop-to-shape
+  construct. Flat children keep the clipped-siblings model, but a child that is
+  itself a GROUP can never be clipped (Photoshop's rule), so before this the
+  run rendered unclipped and ignored the container's visibility - the wild
+  Quintavius trading-card template (ten stacked hidden "* Preview" rect
+  containers, one card group each) rendered the topmost HIDDEN card instead of
+  Affinity's single visible one. Such containers now import as an ISOLATED
+  (Normal) wrapper group named after the node, carrying the node's
+  visibility/opacity/blend/effects and mask adjuncts, the shape's own paint as
+  the bottom child, the children above it (their own Visi kept), and the shape
+  outline baked into a raster group `LayerMask` (`default_color` 0) - the
+  artboard/Erase construction, chosen over a group vector mask because folder
+  records round-trip raster masks through PSD while group `vmsk` blocks are
+  never written. A rare adjunct-occupied mask slot keeps the crop as a vector
+  mask instead (renders identically; only a PSD save loses the crop then).
 - **Vector curves (`PCrv`)** import as real Patchy shape layers (the SVG
   pattern: `VectorShapeContent` + baked pixels via `update_vector_shape_raster`,
   block-dirty so PSD saves regenerate). Wire: `Crvs` -> `PCvD` -> `Data` (an

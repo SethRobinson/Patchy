@@ -4646,6 +4646,31 @@ void fold_erase_layers(LayerBuildContext& ctx, std::vector<Layer>& out,
   }
 }
 
+// The node's own outline in document space (PCrv poly-curve or parametric
+// ShpN), for use as a crop mask. Mirrors build_vector_layer_from_path's
+// transform mapping; all subpaths share one Add group (the even-odd union
+// rule the vector-mask adjunct import established).
+[[nodiscard]] std::optional<VectorPath> crop_outline_path(LayerBuildContext& ctx,
+                                                          const af::AfClass& node) {
+  auto path = vector_path_from_node(node);
+  if (!path.has_value() && node.type_tag == af::tag4("ShpN")) {
+    std::string why;
+    path = parametric_shape_path(node, &why);
+  }
+  if (!path.has_value() || path->subpaths.empty()) {
+    return std::nullopt;
+  }
+  if (const auto xfrm = node_xfrm(ctx, node); xfrm.size() == 6) {
+    transform_vector_path(*path,
+                          {xfrm[0], xfrm[3], xfrm[1], xfrm[4], xfrm[2], xfrm[5]});
+  }
+  for (auto& subpath : path->subpaths) {
+    subpath.shape_group = 0;
+    subpath.op = PathCombineOp::Add;
+  }
+  return path;
+}
+
 // Emit `node` (and, for content layers, its clipped Chld children after it) into
 // `out`. Affinity nests clipped layers INSIDE their base layer's child list;
 // Patchy models the same thing as clipped siblings above the base.
@@ -4720,6 +4745,83 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       Layer layer(ctx.document.allocate_layer_id(), display, LayerKind::Pixel);
       apply_common(ctx, node, layer, display);
       out.push_back(std::move(layer));
+    };
+
+    // Emit a successfully-built vector base (PCrv/ShpN) together with its crop
+    // children. Flat children keep the clipped-siblings model. Children that
+    // include a GROUP cannot (groups can never be clipped - Photoshop's rule -
+    // so the run rendered unclipped, and a HIDDEN container leaked every
+    // stacked card of the wild trading-card template). Those containers become
+    // an ISOLATED wrapper group carrying the node's own visibility/opacity/
+    // blend/effects/masks, the shape's paint as bottom child, the children
+    // above it, and the shape outline baked into the group's mask (the crop) -
+    // the same PSD-native construction artboards and the Erase fold use.
+    const auto emit_vector_base_with_children = [&](Layer&& base_layer) {
+      const auto* kids = class_list(node, af::tag4("Chld"));
+      if (kids == nullptr || kids->empty()) {
+        out.push_back(std::move(base_layer));
+        return;
+      }
+      const auto saved = ctx.transform;
+      if (const auto xfrm = node.vec_field(af::tag4("Xfrm")); xfrm.size() == 6) {
+        std::array<double, 6> child{};
+        std::copy(xfrm.begin(), xfrm.end(), child.begin());
+        ctx.transform = compose_transforms(ctx.transform, child);
+      }
+      std::vector<Layer> child_layers;
+      build_layers(ctx, *kids, child_layers, EraseFolding::Disabled);
+      ctx.transform = saved;
+      const auto has_group_child =
+          std::any_of(child_layers.begin(), child_layers.end(),
+                      [](const Layer& child) { return child.kind() == LayerKind::Group; });
+      if (!has_group_child) {
+        out.push_back(std::move(base_layer));
+        for (auto& child : child_layers) {
+          child.set_clipped(true);
+          out.push_back(std::move(child));
+        }
+        return;
+      }
+      Layer wrapper(ctx.document.allocate_layer_id(), display, LayerKind::Group);
+      // Node-level properties live on the wrapper; absent Blnd keeps the
+      // constructor's Normal, which is the isolated compositing a crop needs.
+      apply_common(ctx, node, wrapper, display);
+      apply_mask_children(ctx, node, wrapper, display);
+      if (std::as_const(wrapper).vector_mask() == nullptr) {
+        if (auto crop = crop_outline_path(ctx, node)) {
+          LayerVectorMask mask;
+          mask.path = std::move(*crop);
+          wrapper.set_vector_mask(std::move(mask));
+          update_vector_mask_raster(wrapper, Rect{0, 0, ctx.document.width(), ctx.document.height()});
+          // Bake the outline into a raster group mask when the raster mask
+          // slot is free: folder records round-trip raster masks natively,
+          // while group records never write vmsk blocks (the artboard/Erase
+          // construction). An adjunct-occupied slot keeps the vector mask
+          // instead (still renders; a PSD save loses only the crop then).
+          const auto* baked = std::as_const(wrapper).vector_mask();
+          if (!std::as_const(wrapper).mask().has_value() && baked != nullptr && !baked->cache.empty()) {
+            LayerMask raster_mask;
+            raster_mask.bounds = baked->cache_bounds;
+            raster_mask.pixels = baked->cache;
+            raster_mask.default_color = 0;  // content beyond the outline is cropped away
+            wrapper.clear_vector_mask();
+            wrapper.set_mask(std::move(raster_mask));
+          }
+        }
+      }
+      // The base keeps only its own paint; the unit properties (visibility,
+      // opacity, blend, effects, masks) moved to the wrapper.
+      base_layer.set_visible(true);
+      base_layer.set_opacity(1.0F);
+      base_layer.set_blend_mode(BlendMode::Normal);
+      base_layer.layer_style() = LayerStyle{};
+      base_layer.clear_mask();
+      base_layer.clear_vector_mask();
+      wrapper.add_child(std::move(base_layer));
+      for (auto& child : child_layers) {
+        wrapper.add_child(std::move(child));
+      }
+      out.push_back(std::move(wrapper));
     };
 
     // Artboards: containers whose children live in artboard-local space; the
@@ -4904,8 +5006,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     const bool is_vector = tag == af::tag4("PCrv");
     if (is_vector) {
       if (auto vector_layer = build_vector_layer(ctx, node, display)) {
-        out.push_back(std::move(*vector_layer));
-        emit_clipped_children(&node);
+        emit_vector_base_with_children(std::move(*vector_layer));
         continue;
       }
     }
@@ -4917,8 +5018,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     if (is_shape) {
       std::string why;
       if (auto shape_layer = build_shape_layer(ctx, node, display, &why)) {
-        out.push_back(std::move(*shape_layer));
-        emit_clipped_children(&node);
+        emit_vector_base_with_children(std::move(*shape_layer));
         continue;
       }
       emit_placeholder(why.empty() ? "is an Affinity shape kind Patchy does not model" : why);
