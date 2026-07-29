@@ -105,16 +105,6 @@ PresetCategory category_of_preset_id(const QString& id) {
   return PresetCategory::Screen;
 }
 
-QFont derived_font(QFont font, int pixel_delta, bool bold) {
-  font.setBold(bold);
-  if (font.pixelSize() > 0) {
-    font.setPixelSize(std::max(8, font.pixelSize() + pixel_delta));
-  } else {
-    font.setPointSizeF(std::max(7.0, font.pointSizeF() + pixel_delta));
-  }
-  return font;
-}
-
 // Paints one preset card: rounded background, an aspect-ratio miniature (the real
 // clipboard thumbnail for the Clipboard card), the preset name, the pixel
 // dimensions, and the preset resolution.
@@ -178,7 +168,7 @@ class PresetCardDelegate final : public QStyledItemDelegate {
       painter->drawRect(outline);
     }
 
-    const auto name_font = derived_font(option.font, 0, true);
+    const auto name_font = offset_font(option.font, 0, true);
     painter->setFont(name_font);
     painter->setPen(enabled ? theme().nd_card_title_text : theme().nd_card_title_disabled_text);
     const QRect name_rect(card.left() + 4, card.top() + 41, card.width() - 8, 16);
@@ -186,7 +176,7 @@ class PresetCardDelegate final : public QStyledItemDelegate {
                       QFontMetrics(name_font).elidedText(index.data(Qt::DisplayRole).toString(),
                                                          Qt::ElideRight, name_rect.width()));
 
-    const auto detail_font = derived_font(option.font, -1, false);
+    const auto detail_font = offset_font(option.font, -1, false);
     painter->setFont(detail_font);
     painter->setPen(enabled ? theme().nd_card_detail_text : theme().nd_card_detail_disabled_text);
     const QRect dims_rect(card.left() + 4, card.top() + 57, card.width() - 8, 14);

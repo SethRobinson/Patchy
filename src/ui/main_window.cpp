@@ -957,16 +957,8 @@ private:
   std::function<void()> commit_;
 };
 
-void scale_font_size(QFont& font, double scale) {
-  if (scale <= 0.0 || !std::isfinite(scale)) {
-    return;
-  }
-  if (font.pixelSize() > 0) {
-    font.setPixelSize(std::max(1, static_cast<int>(std::round(static_cast<double>(font.pixelSize()) * scale))));
-  } else if (font.pointSizeF() > 0.0) {
-    font.setPointSizeF(std::max(1.0, font.pointSizeF() * scale));
-  }
-}
+// scale_font_size lives in dialog_utils.hpp; every derived font size in the UI
+// goes through it so the point/pixel unit split is handled in one place.
 
 void scale_font_width(QFont& font, double scale) {
   if (scale <= 0.0 || !std::isfinite(scale) || std::abs(scale - 1.0) < 0.0001) {

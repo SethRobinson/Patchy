@@ -1,6 +1,7 @@
 #include "ui/start_panel.hpp"
 
 #include "ui/app_credits.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/splash_artwork.hpp"
@@ -33,16 +34,6 @@ constexpr int kMaxRecentEntries = 8;
 constexpr int kRecentRowHeight = 40;
 constexpr int kRecentPathRole = Qt::UserRole + 1;
 
-QFont derived_font(QFont font, int pixel_delta, bool bold) {
-  font.setBold(bold);
-  if (font.pixelSize() > 0) {
-    font.setPixelSize(std::max(8, font.pixelSize() + pixel_delta));
-  } else {
-    font.setPointSizeF(std::max(7.0, font.pointSizeF() + pixel_delta));
-  }
-  return font;
-}
-
 // Two-line recent row: file name over its dimmed directory.
 class RecentFileDelegate final : public QStyledItemDelegate {
  public:
@@ -67,14 +58,14 @@ class RecentFileDelegate final : public QStyledItemDelegate {
 
     const QFileInfo info(index.data(kRecentPathRole).toString());
     const QRect text_area = row.adjusted(10, 3, -10, -3);
-    const auto name_font = derived_font(option.font, 0, true);
+    const auto name_font = offset_font(option.font, 0, true);
     painter->setFont(name_font);
     painter->setPen(theme().text_primary);
     const QRect name_rect(text_area.left(), text_area.top(), text_area.width(), text_area.height() / 2);
     painter->drawText(name_rect, Qt::AlignLeft | Qt::AlignVCenter,
                       QFontMetrics(name_font).elidedText(info.fileName(), Qt::ElideMiddle, name_rect.width()));
 
-    const auto path_font = derived_font(option.font, -1, false);
+    const auto path_font = offset_font(option.font, -1, false);
     painter->setFont(path_font);
     painter->setPen(theme().start_panel_muted_text);
     const QRect path_rect(text_area.left(), text_area.top() + text_area.height() / 2, text_area.width(),

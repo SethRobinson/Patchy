@@ -44,6 +44,18 @@ constexpr int kMaxScriptPreviewLines = 3;  // script sample lines below the spec
 constexpr int kPreviewPaneHeight = 136;
 constexpr int kMaxRowSampleChars = 9;
 
+// Copies `source`'s size onto `font`, which carries its own family. The preview
+// fonts are built from a family name and then sized from the UI font, and a
+// QFont answers only for the unit it was defined in (see dialog_utils.hpp), so
+// the setter has to follow the source rather than always being setPointSizeF.
+void apply_font_size(QFont& font, const QFont& source) {
+  if (source.pixelSize() > 0) {
+    font.setPixelSize(source.pixelSize());
+  } else if (source.pointSizeF() > 0.0) {
+    font.setPointSizeF(source.pointSizeF());
+  }
+}
+
 // Readable per-script samples: the language name written in itself plus a short real
 // phrase. Qt's writingSystemSample strings are 3-4 characters chosen to probe font
 // engines ("Джя"), useless as human specimens. Deliberately untranslated: native-script
@@ -237,8 +249,7 @@ public:
     // The list uses uniformItemSizes, so the first row's hint sizes every row: return a fixed
     // height instead of per-family metrics (a family with a huge line height would otherwise
     // inflate every row).
-    QFont probe = combo_.font();
-    probe.setPointSizeF(probe.pointSizeF() * 4.0 / 3.0);
+    const QFont probe = scaled_font(combo_.font(), 4.0 / 3.0);
     const auto height = std::clamp(QFontMetrics(probe).height() + 6, 22, 34);
     return QSize(200, height);
   }
@@ -281,14 +292,14 @@ void FontPreviewPane::rebuild_lines() {
     // Type-specimen lead: the family name, large, in its own face (merging ON so the name
     // stays complete even when the face misses the odd character).
     QFont name_font(family_);
-    name_font.setPointSizeF(combo_.font().pointSizeF() * 1.9);
+    apply_font_size(name_font, scaled_font(combo_.font(), 1.9));
     lines_.push_back({name_font, family_, QString()});
   }
   int script_lines = 0;
   QStringList footer_names;
   for (const auto ws : info.systems) {
     QFont line_font = info.sample_font;  // the family with NoFontMerging (honest coverage)
-    line_font.setPointSizeF(combo_.font().pointSizeF() * 1.4);
+    apply_font_size(line_font, scaled_font(combo_.font(), 1.4));
     if (ws == QFontDatabase::Latin) {
       //: Latin sample text in the font preview; keep it Latin in every language (it
       //: demonstrates the font's Latin glyph coverage).
@@ -338,8 +349,7 @@ void FontPreviewPane::paintEvent(QPaintEvent* /*event*/) {
   painter.setPen(theme().field_inset_border);
   painter.drawLine(0, 0, width(), 0);
 
-  QFont label_font = font();
-  label_font.setPointSizeF(std::max(7.0, font().pointSizeF() * 0.85));
+  const QFont label_font = scaled_font(font(), 0.85);
   const QFontMetrics label_metrics(label_font);
 
   // The footer is pinned to the pane bottom so overflowing sample lines can never push
@@ -403,9 +413,9 @@ const FontFamilyRenderInfo& FontPickerCombo::family_render_info(const QString& f
       info.systems.append(ws);
     }
   }
-  const auto row_point_size = font().pointSizeF() * 4.0 / 3.0;
+  const QFont row_font = scaled_font(font(), 4.0 / 3.0);
   info.sample_font = QFont(family);
-  info.sample_font.setPointSizeF(row_point_size);
+  apply_font_size(info.sample_font, row_font);
   info.sample_font.setStyleStrategy(QFont::NoFontMerging);
   if (info.latin_capable) {
     info.display_font = QFont(family);
@@ -421,7 +431,7 @@ const FontFamilyRenderInfo& FontPickerCombo::family_render_info(const QString& f
                             .trimmed();
     }
   }
-  info.display_font.setPointSizeF(row_point_size);
+  apply_font_size(info.display_font, row_font);
   return *render_info_.insert(family, info);
 }
 

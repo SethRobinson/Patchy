@@ -11,6 +11,7 @@ Windows is the lead platform and must not regress. Every code change still compl
 - Tests obtain fonts through `tests/test_fonts.hpp`. Its Windows candidates preserve historical baselines. Triage a macOS/Linux failure by fixing a real bug first, then a platform-specific skip with a reason, then a platform-specific baseline. Never loosen a tolerance globally to make one platform pass.
 - File formats remain byte-identical across operating systems. Use explicit endian and fixed-width primitives; never serialize `size_t`, `long`, `wchar_t`, or raw structs.
 - Read environment variables through `core/environment.hpp`. The helper returns an owned string so callers never retain process-environment storage, and its Windows implementation avoids the deprecated `getenv` diagnostic.
+- Never derive a font size by arithmetic on `pointSizeF()`. A QFont carries its size in either points or pixels and the unused accessor returns -1; macOS resolves inherited widget fonts by pixel size, so `f.setPointSizeF(f.pointSizeF() * 0.85)` asks for -0.85 there. Qt refuses it with `QFont::setPointSizeF: Point size <= 0` and leaves the font unchanged, so text meant to be smaller silently renders at full size on macOS only, and the offscreen suite emits the warning thousands of times. Clamping with `std::max(7.0, ...)` hides the warning and pins the size to the floor, which is the same bug without the diagnostic. Use `scale_font_size` / `scaled_font` / `offset_font` from `dialog_utils.hpp`; they branch on the unit the font actually carries.
 
 ## Warning verification
 

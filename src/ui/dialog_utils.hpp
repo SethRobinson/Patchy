@@ -2,6 +2,7 @@
 
 #include "ui/theme_qss.hpp"
 
+#include <QFont>
 #include <QString>
 #include <QStringList>
 #include <QMessageBox>
@@ -18,6 +19,21 @@ class QVBoxLayout;
 class QWidget;
 
 namespace patchy::ui {
+
+// Derived font sizes. A QFont carries its size in EITHER points OR pixels, and
+// the unused accessor returns -1; macOS resolves inherited widget fonts by pixel
+// size, so pointSizeF() is -1 there. That makes the obvious
+// `f.setPointSizeF(f.pointSizeF() * 0.85)` ask for -0.85, which Qt refuses with
+// "QFont::setPointSizeF: Point size <= 0" while leaving the font untouched, so
+// text meant to be smaller renders at full size. Clamping the result with
+// std::max(7.0, ...) only silences the warning; the size is then pinned to the
+// floor instead of scaled, which is the same bug without the diagnostic. These
+// helpers adjust whichever unit the font actually carries and leave a font that
+// declares neither alone.
+void scale_font_size(QFont& font, double scale);
+[[nodiscard]] QFont scaled_font(QFont font, double scale);
+// Additive sibling: shifts the size by `size_delta` points or pixels, and sets bold.
+[[nodiscard]] QFont offset_font(QFont font, int size_delta, bool bold);
 
 // `width` is a minimum: the box grows to keep its widest possible value text
 // (prefix + min/max + suffix) clear of the trailing popup chevron. Set the

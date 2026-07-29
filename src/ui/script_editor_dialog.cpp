@@ -136,8 +136,7 @@ public:
                       Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                       option.fontMetrics.elidedText(index.data(Qt::DisplayRole).toString(),
                                                     Qt::ElideRight, text_width));
-    QFont small = option.font;
-    small.setPointSizeF(small.pointSizeF() * 0.85);
+    const QFont small = scaled_font(option.font, 0.85);
     painter->setFont(small);
     const QFontMetrics small_metrics(small);
     const QRect file_rect(text_left, mid, text_width, rect.bottom() - mid - 2);
@@ -163,8 +162,7 @@ public:
     if (index.data(kScriptPathRole).toString().isEmpty()) {
       return QSize(180, qMax(24, option.fontMetrics.height() + 8));
     }
-    QFont small = option.font;
-    small.setPointSizeF(small.pointSizeF() * 0.85);
+    const QFont small = scaled_font(option.font, 0.85);
     const int text_height = option.fontMetrics.height() + QFontMetrics(small).height();
     return QSize(220, qMax(40, text_height + 8));
   }
@@ -252,11 +250,9 @@ public:
 
   void set_content(Content content) {
     content_ = std::move(content);
-    name_font_ = font();
+    name_font_ = scaled_font(font(), 1.25);
     name_font_.setBold(true);
-    name_font_.setPointSizeF(name_font_.pointSizeF() * 1.25);
-    small_font_ = font();
-    small_font_.setPointSizeF(small_font_.pointSizeF() * 0.88);
+    small_font_ = scaled_font(font(), 0.88);
     // Header block (name + author) sits right of the icon; description and
     // footer span the full content width.
     const int content_width = kWidth - 2 * kPad;

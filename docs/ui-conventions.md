@@ -37,6 +37,8 @@ New non-modal dialogs must use `run_non_modal_dialog`. It rejects child dialogs 
 
 Dialog spin boxes that retain their minus/plus buttons must append `dialog_spinbox_button_style()` from `src/ui/dialog_utils` to the dialog stylesheet after all children exist.
 
+A font derived from another one (a smaller detail line, a larger headline) goes through `scale_font_size`, `scaled_font`, or `offset_font` in `src/ui/dialog_utils.hpp`. Never write `font.setPointSizeF(font.pointSizeF() * k)` directly: the size lives in points or pixels and the unused accessor returns -1, so that line is a no-op plus a Qt warning wherever the inherited font is pixel-defined (macOS). See the cross-platform rules in [platform.md](platform.md).
+
 ## Item-widget rows and selection
 
 Rows installed with `QListWidget::setItemWidget` must paint their own selection because an opaque row widget hides `::item:selected` QSS. Give the list `padding: 0` on `::item`, make the row's child containers transparent, and keep the global `QCheckBox { border: none; }` rule for correct macOS layout.

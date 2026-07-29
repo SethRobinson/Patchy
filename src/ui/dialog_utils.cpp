@@ -818,6 +818,33 @@ int toolbar_spinbox_width(int width, const QFontMetrics& metrics, const QString&
 
 }  // namespace
 
+void scale_font_size(QFont& font, double scale) {
+  if (scale <= 0.0 || !std::isfinite(scale)) {
+    return;
+  }
+  if (font.pixelSize() > 0) {
+    font.setPixelSize(
+        std::max(1, static_cast<int>(std::round(static_cast<double>(font.pixelSize()) * scale))));
+  } else if (font.pointSizeF() > 0.0) {
+    font.setPointSizeF(std::max(1.0, font.pointSizeF() * scale));
+  }
+}
+
+QFont scaled_font(QFont font, double scale) {
+  scale_font_size(font, scale);
+  return font;
+}
+
+QFont offset_font(QFont font, int size_delta, bool bold) {
+  font.setBold(bold);
+  if (font.pixelSize() > 0) {
+    font.setPixelSize(std::max(8, font.pixelSize() + size_delta));
+  } else if (font.pointSizeF() > 0.0) {
+    font.setPointSizeF(std::max(7.0, font.pointSizeF() + size_delta));
+  }
+  return font;
+}
+
 void configure_toolbar_spinbox(QSpinBox* spin, int width) {
   spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
   spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);

@@ -2792,10 +2792,49 @@ void ui_theme_qss_resolves_every_token() {
                  patchy::ui::theme().accent.name(QColor::HexRgb)));
 }
 
+// A QFont holds its size in points OR pixels and the unused accessor returns -1.
+// macOS resolves inherited widget fonts by pixel size, so the natural
+// `f.setPointSizeF(f.pointSizeF() * k)` silently left every derived font at full
+// size there (and spammed "Point size <= 0" through the offscreen suite). The
+// pixel-defined cases below are the macOS condition, reproduced on any platform.
+void ui_derived_font_sizes_scale_in_points_and_pixels() {
+  QFont point_font;
+  point_font.setPointSizeF(20.0);
+  CHECK(std::abs(patchy::ui::scaled_font(point_font, 0.85).pointSizeF() - 17.0) < 0.0001);
+  CHECK(patchy::ui::scaled_font(point_font, 0.85).pixelSize() == -1);
+  CHECK(std::abs(patchy::ui::offset_font(point_font, -1, false).pointSizeF() - 19.0) < 0.0001);
+
+  QFont pixel_font;
+  pixel_font.setPixelSize(20);
+  // The bug: this must shrink, not stay 20 and not become a negative point size.
+  CHECK(patchy::ui::scaled_font(pixel_font, 0.85).pixelSize() == 17);
+  CHECK(patchy::ui::scaled_font(pixel_font, 0.85).pointSizeF() == -1.0);
+  CHECK(patchy::ui::scaled_font(pixel_font, 1.9).pixelSize() == 38);
+  CHECK(patchy::ui::offset_font(pixel_font, -1, false).pixelSize() == 19);
+
+  // Floors keep a derived size positive rather than clamping a real one.
+  CHECK(patchy::ui::scaled_font(pixel_font, 0.001).pixelSize() == 1);
+  QFont small_point_font;
+  small_point_font.setPointSizeF(8.0);
+  CHECK(patchy::ui::offset_font(small_point_font, -4, false).pointSizeF() >= 7.0);
+
+  // Bold rides along with offset_font; scaling never touches weight.
+  CHECK(patchy::ui::offset_font(point_font, 0, true).bold());
+  CHECK(!patchy::ui::scaled_font(point_font, 2.0).bold());
+
+  // A non-positive or non-finite scale is refused rather than corrupting the font.
+  QFont untouched = point_font;
+  patchy::ui::scale_font_size(untouched, 0.0);
+  CHECK(std::abs(untouched.pointSizeF() - 20.0) < 0.0001);
+  patchy::ui::scale_font_size(untouched, std::numeric_limits<double>::quiet_NaN());
+  CHECK(std::abs(untouched.pointSizeF() - 20.0) < 0.0001);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> app_shell_tests() {
   return {
+      {"ui_derived_font_sizes_scale_in_points_and_pixels", ui_derived_font_sizes_scale_in_points_and_pixels},
       {"ui_startup_opens_empty_workspace_with_start_panel", ui_startup_opens_empty_workspace_with_start_panel},
       {"ui_start_panel_recent_files_open_on_click", ui_start_panel_recent_files_open_on_click},
       {"ui_start_panel_shows_about_info_and_update_status", ui_start_panel_shows_about_info_and_update_status},

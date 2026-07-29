@@ -3095,8 +3095,7 @@ void MainWindow::run_stress_test_interactive(StressPreset preset) {
   auto* headline = new QLabel(
       report.rating >= 0.0 ? tr("Rating: %1").arg(QString::number(report.rating, 'f', 0)) : tr("Rating: n/a"),
       &dialog);
-  auto headline_font = headline->font();
-  headline_font.setPointSizeF(headline_font.pointSizeF() * 1.6);
+  auto headline_font = scaled_font(headline->font(), 1.6);
   headline_font.setBold(true);
   headline->setFont(headline_font);
   content->addWidget(headline);
