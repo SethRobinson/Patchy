@@ -608,7 +608,46 @@ bool restore_dialog_position(QDialog& dialog) {
   return true;
 }
 
+#ifdef Q_OS_WASM
+// The browser canvas is the entire "screen" and no window manager exists to
+// rescue an oversized window, so a dialog taller than the canvas leaves its
+// button row unreachable below the page fold. Shrink the dialog, and the
+// explicit minimum several large dialogs set above what a small browser
+// window can show, to the canvas before placing it. A dialog whose LAYOUT
+// minimum exceeds the canvas still overflows (forcing below layout minimum
+// only clips the same content); desktop builds keep the platform window
+// manager's behavior.
+void clamp_dialog_to_screen(QDialog& dialog) {
+  const auto* screen =
+      dialog.parentWidget() != nullptr ? dialog.parentWidget()->screen() : QGuiApplication::primaryScreen();
+  if (screen == nullptr) {
+    return;
+  }
+  QSize bound = screen->availableGeometry().size();
+  if (!dialog.windowFlags().testFlag(Qt::FramelessWindowHint)) {
+    // The Qt-drawn frame does not exist until the window is created, so
+    // reserve its space through the style's title-bar metric plus borders.
+    bound.rwidth() -= 8;
+    bound.rheight() -= dialog.style()->pixelMetric(QStyle::PM_TitleBarHeight, nullptr, &dialog) + 8;
+  }
+  if (bound.isEmpty()) {
+    return;
+  }
+  const auto minimum = dialog.minimumSize();
+  if (minimum.width() > bound.width() || minimum.height() > bound.height()) {
+    dialog.setMinimumSize(minimum.boundedTo(bound));
+  }
+  const auto size = dialog_placement_size(dialog);
+  if (size.width() > bound.width() || size.height() > bound.height()) {
+    dialog.resize(size.boundedTo(bound));
+  }
+}
+#endif
+
 void place_dialog(QDialog& dialog) {
+#ifdef Q_OS_WASM
+  clamp_dialog_to_screen(dialog);
+#endif
   if (!restore_dialog_position(dialog)) {
     dialog.move(centered_dialog_position(dialog));
   }

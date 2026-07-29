@@ -404,7 +404,7 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     apply_timer->setInterval(200);
     QObject::connect(apply_timer, &QTimer::timeout, &editor, apply);
     QObject::connect(panel, &BrushDynamicsPanel::edited, apply_timer, qOverload<>(&QTimer::start));
-    editor.exec();
+    exec_dialog(editor);
     if (apply_timer->isActive()) {
       apply_timer->stop();
       apply();  // flush an edit still inside the debounce window
@@ -513,7 +513,7 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
   // Applied after every child exists; unprefixed sub-control selectors (see dialog_utils note).
   append_themed_style(dialog, dialog_spinbox_button_style());
   dialog.resize(820, 520);
-  dialog.exec();
+  exec_dialog(dialog);
 }
 
 }  // namespace patchy::ui

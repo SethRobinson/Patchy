@@ -1,5 +1,6 @@
 #include "ui/pattern_manager_dialog.hpp"
 
+#include "ui/dialog_utils.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/preset_manager_scaffold.hpp"
 #include "ui/preset_tree_widget.hpp"
@@ -569,7 +570,7 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
   tree->reload(initial_storage_id);
   refresh_details();
   dialog.resize(800, 520);
-  dialog.exec();
+  exec_dialog(dialog);
   return selected_storage_id;
 }
 

@@ -1,5 +1,6 @@
 #include "ui/style_manager_dialog.hpp"
 
+#include "ui/dialog_utils.hpp"
 #include "ui/preset_manager_scaffold.hpp"
 #include "ui/style_browser.hpp"
 #include "ui/style_library.hpp"
@@ -295,7 +296,7 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
   tree->reload(initial_storage_id);
   refresh_details();
   dialog.resize(860, 560);
-  dialog.exec();
+  exec_dialog(dialog);
   return selected_storage_id;
 }
 

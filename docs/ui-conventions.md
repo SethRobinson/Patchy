@@ -35,6 +35,8 @@ Dialogs that react to closing must funnel every path through `done()`. `reject()
 
 New non-modal dialogs must use `run_non_modal_dialog`. It rejects child dialogs when their parent finishes and applies the macOS above-parent native anchor. `request_patchy_color` permits one picker at a time; transient pickers retain their own position-memory group.
 
+Show a dialog through `exec_dialog` or `run_non_modal_dialog` rather than calling `QDialog::exec` directly. Both funnel into `place_dialog`, which centers the dialog on its owner (or restores its remembered position) and, on wasm, shrinks it to the browser canvas first: a browser has no window manager to rescue a dialog taller than the page, so an unclamped one leaves its button row unreachable below the fold. A dialog with no objectName gets the centering and the clamp but no position memory, which is why converting a raw `exec()` call site is safe. See [wasm.md](wasm.md).
+
 Dialog spin boxes that retain their minus/plus buttons must append `dialog_spinbox_button_style()` from `src/ui/dialog_utils` to the dialog stylesheet after all children exist.
 
 A font derived from another one (a smaller detail line, a larger headline) goes through `scale_font_size`, `scaled_font`, or `offset_font` in `src/ui/dialog_utils.hpp`. Never write `font.setPointSizeF(font.pointSizeF() * k)` directly: the size lives in points or pixels and the unused accessor returns -1, so that line is a no-op plus a Qt warning wherever the inherited font is pixel-defined (macOS). See the cross-platform rules in [platform.md](platform.md).

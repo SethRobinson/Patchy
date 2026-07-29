@@ -319,9 +319,42 @@ reloads (defaults re-seed; user presets last one session), the preset
 managers' raw QFileDialog import/export buttons (they browse MEMFS),
 image-sequence export (hidden), script-editor plain Save downloads nothing
 (Save As does), "Open in File Explorer" on recents does nothing, no printing
-or PDF export, no scanner import, silent script sounds, and no stuck-script
-watchdog. Documents above roughly the wasm32 memory ceiling fail to open;
-step 4 turns that into an advertised cap.
+or PDF export, no scanner import, no float windows (documents stay tabbed;
+see below), silent script sounds, and no stuck-script watchdog. Documents
+above roughly the wasm32 memory ceiling fail to open; step 4 turns that into
+an advertised cap.
+
+## Browser UI fit
+
+Two wasm-only accommodations for living inside a single browser canvas:
+
+- **Float windows are disabled.** A browser tab is one window: Qt for
+  WebAssembly has no window manager and no `startSystemMove`, so a floated
+  document covered the whole canvas with no way to move, dock, or reach the
+  UI underneath. `MainWindow::float_document_session` no-ops on wasm; it is
+  the single funnel for every entry point (Window menu, hotkeys, tab context
+  menu, tab tear-off, Float All, Tile/Cascade), so that one guard turns the
+  feature off. The six window-arrangement actions and the tab context menu's
+  Float item are hidden but stay registered for hotkey-id stability (the
+  Print pattern), and the tab tear-off gesture is compiled out of the
+  MainWindow event filter so vertical drift during a tab reorder no longer
+  ends the drag with tear-off's synthetic release. See
+  [float-windows.md](float-windows.md).
+- **Dialogs clamp to the canvas.** Desktop window managers keep an oversized
+  dialog's chrome reachable; the browser canvas has nothing equivalent, so a
+  dialog taller than the canvas left its OK/Cancel row unreachable below the
+  page fold. On wasm `place_dialog` (dialog_utils.cpp, the funnel under
+  `exec_dialog`/`run_non_modal_dialog`) shrinks the dialog, and any explicit
+  minimum size above the canvas, to the available screen before placement.
+  Verified in the browser: at a 1000x620 canvas the Filter Gallery opens at
+  992x588 with its Apply/Cancel row on screen, instead of its requested
+  1120x720. Two limits are deliberate: a dialog whose LAYOUT minimum exceeds
+  the canvas still overflows (forcing it below that minimum would clip the
+  same content), and the clamp runs at placement time only, so shrinking the
+  browser window while a dialog is already open does not re-fit it. Desktop
+  placement is untouched. This is also why a dialog should be shown through
+  `exec_dialog`/`run_non_modal_dialog` rather than a bare `QDialog::exec`;
+  the brush-tip, pattern, and style preset managers were converted for it.
 
 ## Release deployment (rtsoft.com/patchy)
 

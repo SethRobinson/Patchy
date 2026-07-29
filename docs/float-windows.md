@@ -95,5 +95,11 @@ with the usual save prompt, and Cancel keeps both the window and the document. H
 Float geometry persistence across restarts (floats always start tabbed on relaunch) and
 a second view of the same document (selection and overlays live per-canvas).
 
+The wasm build disables the feature entirely: a browser tab cannot host separate movable
+windows (no window manager, no `startSystemMove`), so `float_document_session` no-ops
+there, the arrangement actions and the tab context menu's Float item are hidden (still
+registered for hotkey-id stability), and the tear-off gesture is compiled out. See
+[wasm.md](wasm.md).
+
 Coverage: the `ui_float_*`, `ui_window_float_all_*`, and `ui_tab_drag_out_*` tests in
 tests/ui/float_window_tests.cpp.

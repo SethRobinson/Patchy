@@ -1419,6 +1419,18 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(cascade_windows_action_, &QAction::triggered, this, [this] { cascade_float_windows(); });
   register_document_action(cascade_windows_action_);
 
+#ifdef Q_OS_WASM
+  // Float windows are off on wasm (float_document_session no-ops; a browser
+  // tab cannot host separate movable windows). The actions stay registered so
+  // hotkey ids and wiring are stable; hidden actions do not render in the menu.
+  float_document_action_->setVisible(false);
+  dock_document_action_->setVisible(false);
+  float_all_action_->setVisible(false);
+  consolidate_tabs_action_->setVisible(false);
+  tile_windows_action_->setVisible(false);
+  cascade_windows_action_->setVisible(false);
+#endif
+
   window_menu->addSeparator();
 
   auto* screen_size_menu = window_menu->addMenu(tr("Set Screen Size"));

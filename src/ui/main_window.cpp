@@ -5478,6 +5478,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         break;
       }
       case QEvent::MouseMove: {
+#ifndef Q_OS_WASM
+        // Float windows are off on wasm (see float_document_session); straying
+        // vertically must not end QTabBar's reorder drag with the synthetic
+        // release tear_off_document_tab sends.
         auto* mouse_event = static_cast<QMouseEvent*>(event);
         if (tab_tear_press_index_ >= 0 && (mouse_event->buttons() & Qt::LeftButton) != 0) {
           const auto global = mouse_event->globalPosition().toPoint();
@@ -5492,6 +5496,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
             return true;
           }
         }
+#endif
         break;
       }
       case QEvent::MouseButtonRelease:

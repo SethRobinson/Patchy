@@ -685,6 +685,14 @@ void MainWindow::close_all_document_tabs() {
 }
 
 void MainWindow::float_document_session(DocumentSession& target_session) {
+#ifdef Q_OS_WASM
+  // A browser tab is one window: Qt for WebAssembly has no window manager and
+  // no system move, so a "floated" document covers the whole canvas and buries
+  // the rest of the UI with no way to drag it off. Every float entry point
+  // (Window menu, hotkey, tab context menu, tab tear-off, Float All) funnels
+  // through here, so this single guard turns the feature off on wasm.
+  return;
+#endif
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
     return;
@@ -1165,6 +1173,10 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   reveal_action->setObjectName(QStringLiteral("documentTabRevealAction"));
   copy_path_action->setObjectName(QStringLiteral("documentTabCopyPathAction"));
   close_others_action->setEnabled(sessions_.size() > 1);
+#ifdef Q_OS_WASM
+  // Float windows are off on wasm; see float_document_session.
+  float_action->setVisible(false);
+#endif
   // The file actions need a disk path; never-saved documents (and embedded
   // smart-object child tabs) have none.
   const auto* target_session =
