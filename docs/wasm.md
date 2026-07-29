@@ -363,7 +363,8 @@ in [release-process.md](release-process.md). Short version:
 `scripts\release\build-wasm.bat` (run by `release-all.bat`) builds the
 `wasm-release` preset and stages the deployable files into
 `build\package\wasm-site`; `scripts\release\start-local-wasm-server.bat`
-serves that staged payload for a browser check;
+serves that staged payload for a browser check (it stops a server left over
+from a previous run, then opens the site in the default browser);
 `scripts\release\upload-wasm-to-rtsoft.bat` (run by `upload-to-rtsoft.bat`)
 publishes it to `rtsoft.com/patchy` over ssh/scp.
 
