@@ -1,0 +1,21 @@
+# Caching rules for the Patchy wasm site (staged to build\package\wasm-site by
+# scripts\release\build-wasm.bat, uploaded to rtsoft.com/patchy).
+#
+# The html must revalidate on every load so a redeploy is picked up right away.
+# Everything else is referenced from the html with a ?v=<build tag> query
+# string that changes every deploy, so those URLs can cache forever: a new
+# build means a new URL, and stale cached entries are never used again.
+#
+# Every directive is wrapped in IfModule so a host missing a module serves the
+# site without caching hints instead of failing with a 500.
+<IfModule mod_mime.c>
+AddType application/wasm .wasm
+</IfModule>
+<IfModule mod_headers.c>
+<FilesMatch "\.html$">
+Header set Cache-Control "no-cache"
+</FilesMatch>
+<FilesMatch "\.(js|wasm|data|png|ico|svg)$">
+Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+</IfModule>

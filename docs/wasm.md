@@ -329,14 +329,34 @@ The web build is part of the standard release flow; the batch-file details live
 in [release-process.md](release-process.md). Short version:
 `scripts\release\build-wasm.bat` (run by `release-all.bat`) builds the
 `wasm-release` preset and stages the deployable files into
-`build\package\wasm-site` with an `index.html` copy of `patchy.html`;
-`scripts\release\start-local-wasm-server.bat` serves that staged payload for a
-browser check; `scripts\release\upload-wasm-to-rtsoft.bat` (run by
-`upload-to-rtsoft.bat`) publishes it to `rtsoft.com/patchy` over ssh/scp.
-Hosting needs nothing special: if the server does not send
-`application/wasm`, Emscripten's loader falls back from streaming to
-ArrayBuffer instantiation (slower start, still correct), and modern Apache
-sends the right type anyway. Compressed serving is a step-4 lever.
+`build\package\wasm-site`; `scripts\release\start-local-wasm-server.bat`
+serves that staged payload for a browser check;
+`scripts\release\upload-wasm-to-rtsoft.bat` (run by `upload-to-rtsoft.bat`)
+publishes it to `rtsoft.com/patchy` over ssh/scp.
+
+The deployed page is not Qt's generated `patchy.html` shell (that one still
+lands in `build\wasm-release` and serves the dev loop via `serve-app.ps1`).
+The site stages a Patchy-branded shell configured from
+`packaging\web\patchy.html.in`: logo, app name and version, and a real
+download progress bar. Emscripten exposes no download-progress callback, so
+the page fetches `patchy.wasm` itself with a byte-counting stream reader and
+hands the bytes to `qtLoad` as `wasmBinary`; `qtLoad` forwards unknown config
+keys to the Emscripten module factory, which is also how the page's
+`locateFile` override versions the `patchy.data` fetch. If a transfer hides
+the total size (e.g. compressed encoding), the bar switches to an
+indeterminate sweep rather than showing a wrong percentage.
+
+Caching: `build-wasm.bat` stamps a per-build cache tag (app version plus
+timestamp) into every asset reference (`?v=<tag>`), and the staged `.htaccess`
+(source: `packaging\web\.htaccess`) marks html `no-cache` while tagged assets
+cache forever. A redeploy therefore shows up on the next page load; no
+hard-refresh needed. All `.htaccess` directives are IfModule-guarded, so a
+host missing `mod_headers` serves the site without caching hints instead of
+failing. MIME needs nothing special: if a server does not send
+`application/wasm`, Emscripten falls back from streaming to ArrayBuffer
+instantiation (with `wasmBinary` supplied, streaming is not used anyway).
+Compressed serving is a step-4 lever. The shell page's text is static html
+outside the Qt localization system and stays English.
 
 ## Later steps (not built yet)
 

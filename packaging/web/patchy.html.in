@@ -1,0 +1,146 @@
+<!doctype html>
+<!-- Patchy web shell template. scripts\release\build-wasm.bat substitutes
+     __PATCHY_VERSION__ and __PATCHY_CACHE_TAG__ and stages the result as both
+     patchy.html and index.html in build\package\wasm-site. The ?v= query
+     strings are the cache busters: every deploy gets a fresh tag, so browsers
+     re-fetch changed assets while .htaccess lets tagged URLs cache forever.
+     The page downloads patchy.wasm itself with a byte-counting reader (the
+     Emscripten loader has no download-progress callback) and passes the bytes
+     to qtLoad as wasmBinary. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <!-- 1:1 mapping between CSS pixels and Qt device independent pixels on mobile. -->
+    <meta name="viewport" content="width=device-width, height=device-height, user-scalable=0"/>
+    <title>Patchy Image Editor</title>
+    <link rel="icon" type="image/png" href="patchy-logo.png?v=__PATCHY_CACHE_TAG__">
+    <style>
+      html, body { padding: 0; margin: 0; overflow: hidden; height: 100%; background: #151a23; }
+      #screen { width: 100%; height: 100%; display: none; }
+      #loader {
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; text-align: center;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: #e8ebf1;
+      }
+      #loader img { width: 128px; height: 128px; margin-bottom: 18px; }
+      #title { font-size: 30px; font-weight: 600; margin: 0; }
+      #title span { font-size: 18px; font-weight: 400; color: #8f99ab; }
+      .info { margin: 6px 0 26px; font-size: 14px; color: #8f99ab; }
+      .info a { color: #5aa7f0; text-decoration: none; }
+      .info a:hover { text-decoration: underline; }
+      #bar { width: 340px; max-width: 78vw; height: 8px; border-radius: 4px; background: #2a3242; overflow: hidden; }
+      #bar-fill {
+        width: 0%; height: 100%; border-radius: 4px;
+        background: linear-gradient(90deg, #57a9f2, #7fd9a6);
+        transition: width .12s linear;
+      }
+      /* Unknown total (e.g. a compressed transfer hides the byte count): sweep instead. */
+      .indeterminate #bar-fill { width: 30%; animation: sweep 1.1s ease-in-out infinite alternate; }
+      @keyframes sweep { from { margin-left: 0; } to { margin-left: 70%; } }
+      #status { margin-top: 12px; font-size: 13px; color: #8f99ab; min-height: 1.3em; }
+      #status.error { color: #f07862; white-space: pre-wrap; max-width: 80vw; }
+    </style>
+  </head>
+  <body onload="init()">
+    <div id="screen"></div>
+    <div id="loader">
+      <img src="patchy-logo.png?v=__PATCHY_CACHE_TAG__" alt="Patchy logo">
+      <h1 id="title">Patchy <span>__PATCHY_VERSION__</span></h1>
+      <p class="info">Free, open-source image editor &middot; <a href="https://www.rtsoft.com" target="_blank" rel="noopener">rtsoft.com</a></p>
+      <div id="bar"><div id="bar-fill"></div></div>
+      <div id="status">Preparing...</div>
+      <noscript>JavaScript is disabled. Please enable JavaScript to use Patchy.</noscript>
+    </div>
+
+    <script type="text/javascript">
+      const CACHE_TAG = '__PATCHY_CACHE_TAG__';
+      const el = id => document.getElementById(id);
+      const formatMb = bytes => (bytes / (1024 * 1024)).toFixed(1);
+
+      function setStatus(text) { el('status').textContent = text; }
+
+      function showError(text) {
+        const status = el('status');
+        status.classList.add('error');
+        status.textContent = text;
+        el('bar').style.display = 'none';
+      }
+
+      function setProgress(received, total) {
+        if (total > 0 && received <= total) {
+          el('bar-fill').style.width = ((received / total) * 100).toFixed(1) + '%';
+          setStatus('Downloading ' + formatMb(received) + ' of ' + formatMb(total) + ' MB');
+        } else {
+          el('loader').classList.add('indeterminate');
+          setStatus('Downloading ' + formatMb(received) + ' MB');
+        }
+      }
+
+      async function fetchWasmWithProgress(url) {
+        const response = await fetch(url);
+        if (!response.ok)
+          throw new Error('Download failed: HTTP ' + response.status + ' for ' + url);
+        const total = Number(response.headers.get('Content-Length') || 0);
+        if (!response.body)
+          return await response.arrayBuffer();
+        const reader = response.body.getReader();
+        const chunks = [];
+        let received = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done)
+            break;
+          chunks.push(value);
+          received += value.length;
+          setProgress(received, total);
+        }
+        const bytes = new Uint8Array(received);
+        let offset = 0;
+        for (const chunk of chunks) {
+          bytes.set(chunk, offset);
+          offset += chunk.length;
+        }
+        return bytes.buffer;
+      }
+
+      function showApp() {
+        el('loader').style.display = 'none';
+        el('screen').style.display = 'block';
+      }
+
+      function showExit(exitData) {
+        el('screen').style.display = 'none';
+        el('loader').style.display = 'flex';
+        const message = exitData.crashed
+          ? 'Patchy stopped unexpectedly' + (exitData.text ? ':\n' + exitData.text : '.')
+          : 'Patchy exited' + (exitData.code !== undefined ? ' with code ' + exitData.code : '') + '.';
+        showError(message + '\nReload the page to start again.');
+      }
+
+      async function init() {
+        try {
+          setStatus('Contacting server...');
+          const wasmBinary = await fetchWasmWithProgress('patchy.wasm?v=' + CACHE_TAG);
+          el('loader').classList.remove('indeterminate');
+          el('bar-fill').style.width = '100%';
+          setStatus('Starting Patchy...');
+          await qtLoad({
+            wasmBinary,
+            locateFile: filename => filename + '?v=' + CACHE_TAG,
+            qt: {
+              onLoaded: showApp,
+              onExit: showExit,
+              entryFunction: window.patchy_entry,
+              containerElements: [el('screen')],
+            },
+          });
+        } catch (e) {
+          console.error(e);
+          showError('Patchy failed to load:\n' + (e && e.message ? e.message : e));
+        }
+      }
+    </script>
+    <script src="patchy.js?v=__PATCHY_CACHE_TAG__"></script>
+    <script src="qtloader.js?v=__PATCHY_CACHE_TAG__"></script>
+  </body>
+</html>
