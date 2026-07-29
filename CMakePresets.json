@@ -117,6 +117,22 @@
         "CMAKE_CXX_FLAGS": "-pthread -fwasm-exceptions",
         "CMAKE_EXE_LINKER_FLAGS": "-pthread -fwasm-exceptions -Wno-pthreads-mem-growth -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=4GB -sSTACK_SIZE=8MB -sDEFAULT_PTHREAD_STACK_SIZE=1MB -sPTHREAD_POOL_SIZE=32 -sPTHREAD_POOL_SIZE_STRICT=2 -sNODERAWFS=1 -sENVIRONMENT=node,worker -sEXIT_RUNTIME=1 \"--pre-js=${sourceDir}/scripts/wasm/node-env-pre.js\""
       }
+    },
+    {
+      "name": "wasm-release",
+      "displayName": "WebAssembly app build (Qt for wasm, single-threaded; see docs/wasm.md)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/wasm-release",
+      "toolchainFile": "${sourceDir}/.deps/Qt/6.8.3/wasm_singlethread/lib/cmake/Qt6/qt.toolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "PATCHY_BUILD_APP": "ON",
+        "PATCHY_BUILD_TESTS": "OFF",
+        "QT_HOST_PATH": "${sourceDir}/.deps/Qt/6.8.3/msvc2022_64",
+        "QT_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/.deps/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+        "CMAKE_C_FLAGS": "-fexceptions",
+        "CMAKE_CXX_FLAGS": "-fexceptions"
+      }
     }
   ],
   "buildPresets": [
@@ -159,6 +175,10 @@
     {
       "name": "wasm-core",
       "configurePreset": "wasm-core"
+    },
+    {
+      "name": "wasm-release",
+      "configurePreset": "wasm-release"
     }
   ],
   "testPresets": [

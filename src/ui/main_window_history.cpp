@@ -31,6 +31,7 @@
 #include "psd/psd_smart_objects.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/background_workers.hpp"
 #include "render/compositor.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_dynamics_popup.hpp"
@@ -487,7 +488,7 @@ void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString lab
   constexpr std::size_t kMaxUndo = 40;
   auto& active_session = target_session;
   const auto snapshot_revision = active_session.revision;
-  auto snapshot_future = std::async(std::launch::async, [&active_session] {
+  auto snapshot_future = launch_async([&active_session] {
     if (const auto delay = undo_snapshot_test_delay_ms(); delay > 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }

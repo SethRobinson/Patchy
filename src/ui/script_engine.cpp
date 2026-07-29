@@ -120,6 +120,13 @@ constexpr const char* kBootstrapSource = R"JS(
 
 ScriptWatchdog::ScriptWatchdog(std::function<void()> on_timeout)
     : on_timeout_(std::move(on_timeout)) {
+#ifdef Q_OS_WASM
+  // Single-threaded wasm has no watchdog thread: arm/disarm/feed stay callable
+  // no-ops (flag writes with no waiter) and stuck-loop interruption is lost,
+  // which nothing on this platform could deliver anyway since the engine's
+  // evaluate() cannot be preempted.
+  return;
+#endif
   thread_ = std::thread([this] {
     std::unique_lock<std::mutex> lock(mutex_);
     for (;;) {
@@ -158,7 +165,9 @@ ScriptWatchdog::~ScriptWatchdog() {
     quit_ = true;
   }
   cv_.notify_all();
-  thread_.join();
+  if (thread_.joinable()) {
+    thread_.join();
+  }
 }
 
 void ScriptWatchdog::arm(std::chrono::milliseconds timeout) {

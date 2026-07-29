@@ -70,6 +70,13 @@ void load_bundled_fonts() {
 // QApplication is constructed because Qt only reads the variable at construction time. An
 // existing environment override (e.g. from tests/CI) is left untouched.
 void apply_gui_scale_factor() {
+#ifdef Q_OS_WASM
+  // The browser's devicePixelRatio drives scaling on wasm; QT_SCALE_FACTOR is
+  // the wrong mechanism there, and this is also the one QSettings read that
+  // would run before QApplication exists (worst case for an async-backed
+  // settings store).
+  return;
+#endif
   if (qEnvironmentVariableIsSet("QT_SCALE_FACTOR")) {
     return;
   }
@@ -449,8 +456,14 @@ int main(int argc, char* argv[]) {
   // launches (and tests) possible. A stress-test or export launch opts out entirely: forwarding would
   // silently drop the run into the other instance, and this instance must not squat on the user's pipe
   // either.
+#ifdef Q_OS_WASM
+  // One browser tab is one instance; there is no pipe/socket transport between
+  // tabs, and QLocalSocket's blocking waits must never run under Asyncify.
+  const bool single_instance_enabled = false;
+#else
   const bool single_instance_enabled =
       !qEnvironmentVariableIsSet("PATCHY_NO_SINGLE_INSTANCE") && !stress_mode && !export_mode;
+#endif
   QStringList forward_payload = files;
   if (screenshot_mode) {
     forward_payload.append(encode_screenshot_command(screenshot_path, screenshot_widget, screenshot_rect_text));

@@ -20,9 +20,9 @@ void run_tracked_background_worker(std::function<void()> work) {
     const std::lock_guard<std::mutex> lock(worker_mutex);
     ++live_workers;
   }
-  std::thread([work = std::move(work)] {
+  const auto run_and_release = [](const std::function<void()>& job) {
     try {
-      work();
+      job();
     } catch (...) {
       // Workers handle their own errors; the count must balance regardless.
     }
@@ -31,7 +31,14 @@ void run_tracked_background_worker(std::function<void()> work) {
       --live_workers;
     }
     worker_finished.notify_all();
-  }).detach();
+  };
+#ifdef Q_OS_WASM
+  // Single-threaded wasm cannot spawn workers; run inline. Callers observe
+  // the same ordering because completions are posted via queued invokeMethod.
+  run_and_release(work);
+#else
+  std::thread([run_and_release, work = std::move(work)] { run_and_release(work); }).detach();
+#endif
 }
 
 void wait_for_tracked_background_workers() {

@@ -349,6 +349,13 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_document_action(export_image_sequence_action);
   auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
   auto* print_action = file_menu->addAction(tr("&Print..."));
+#ifdef Q_OS_WASM
+  // Qt ships no QtPrintSupport for WebAssembly (print_dialog_wasm.cpp stubs the
+  // dialogs). The actions stay registered so hotkey ids and wiring are stable;
+  // hidden actions do not render in the menu.
+  page_setup_action->setVisible(false);
+  print_action->setVisible(false);
+#endif
   file_menu->addSeparator();
   // File > Scripts: static entries here (hotkeys register once); the script
   // entries themselves rescan on every open (main_window_scripting.cpp).

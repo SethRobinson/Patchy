@@ -31,6 +31,7 @@
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "render/compositor.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_presets.hpp"
@@ -916,7 +917,7 @@ std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, con
   });
   Q_UNUSED(close_progress);
 
-  auto open_future = std::async(std::launch::async, [path] { return load_document_from_path(path); });
+  auto open_future = launch_async([path] { return load_document_from_path(path); });
   while (open_future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
     QApplication::processEvents(QEventLoop::AllEvents, 15);
   }
@@ -1959,6 +1960,11 @@ void MainWindow::show_update_available(const UpdateInfo& update) {
 }
 
 void MainWindow::begin_startup_update_check() {
+#ifdef Q_OS_WASM
+  // The web build updates by redeploying the site; the GitHub manifest fetch
+  // would only fail CORS and surface a network error on the start panel.
+  return;
+#endif
   {
     auto settings = app_settings();
     if (!settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool()) {

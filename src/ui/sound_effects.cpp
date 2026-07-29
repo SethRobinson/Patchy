@@ -21,7 +21,9 @@
 #include <windows.h>
 
 #include <mmsystem.h>
-#elif !defined(Q_OS_MACOS)
+#elif !defined(Q_OS_MACOS) && !defined(Q_OS_WASM)
+// Q_OS_WASM is excluded: wasm Qt ships no QProcess at all (its no-op playback
+// branch below needs none of these).
 #include <QCoreApplication>
 #include <QDir>
 #include <QProcess>
@@ -133,6 +135,20 @@ void play_wav_file(const QString& path) {
     play_wav_bytes(file.readAll());
   }
 }
+
+#elif defined(Q_OS_WASM)
+
+// No QProcess (or any process) exists in the browser; script sounds are a
+// silent no-op until a Web Audio backend is worth writing. build_tone_wav
+// above stays shared so the synth logic keeps compiling on every platform,
+// and the sound_disabled() gate keeps the same shape as the real backends.
+void play_wav_bytes(QByteArray wav) {
+  if (wav.isEmpty() || sound_disabled()) {
+    return;
+  }
+}
+
+void play_wav_file(const QString& /*path*/) {}
 
 #elif !defined(Q_OS_MACOS)
 

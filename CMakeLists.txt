@@ -364,7 +364,14 @@ target_link_libraries(patchy_color PUBLIC patchy_core PRIVATE patchy_lcms2)
 patchy_configure_target(patchy_color)
 
 if(PATCHY_BUILD_APP)
-  find_package(Qt6 QUIET COMPONENTS Widgets Svg PrintSupport Network Qml LinguistTools Test)
+  # Qt ships no PrintSupport (or Test need) for WebAssembly; requesting it
+  # there would fail the whole find_package and silently skip the app target.
+  if(EMSCRIPTEN)
+    set(PATCHY_QT_COMPONENTS Widgets Svg Network Qml LinguistTools)
+  else()
+    set(PATCHY_QT_COMPONENTS Widgets Svg PrintSupport Network Qml LinguistTools Test)
+  endif()
+  find_package(Qt6 QUIET COMPONENTS ${PATCHY_QT_COMPONENTS})
   if(Qt6_FOUND)
     if(APPLE AND TARGET WrapOpenGL::WrapOpenGL)
       # Qt 6.8's FindWrapOpenGL.cmake links the long-dead AGL framework: the OS still
@@ -404,6 +411,10 @@ if(PATCHY_BUILD_APP)
       set(PATCHY_QT_PLUGIN_DIR "${PATCHY_QT_PREFIX}/plugins")
       set(PATCHY_QT_TRANSLATION_DIR "${PATCHY_QT_PREFIX}/translations")
     endif()
+    if(EMSCRIPTEN)
+      # The wasm kit ships no .qm files; qtbase_ja.qm comes from the host kit.
+      set(PATCHY_QT_TRANSLATION_DIR "${QT_HOST_PATH}/translations")
+    endif()
     # Runtime asset copies are shared copy-once custom targets rather than
     # per-target POST_BUILD commands: all executables share one output
     # directory, and concurrent copies of the same destination files race
@@ -442,35 +453,39 @@ if(PATCHY_BUILD_APP)
     )
     # Per-platform Qt plugin file naming and the platform's TLS backend. The existence
     # checks fail at configure time (not first HTTPS use / first TIFF open at runtime)
-    # when the Qt install is missing qtimageformats or its TLS plugin.
-    if(WIN32)
-      set(PATCHY_REQUIRED_QT_TLS_PLUGINS qschannelbackend)
-      set(PATCHY_QT_PLUGIN_PREFIX "")
-      set(PATCHY_QT_PLUGIN_SUFFIX ".dll")
-    elseif(APPLE)
-      set(PATCHY_REQUIRED_QT_TLS_PLUGINS qsecuretransportbackend)
-      set(PATCHY_QT_PLUGIN_PREFIX "lib")
-      set(PATCHY_QT_PLUGIN_SUFFIX ".dylib")
-    else()
-      set(PATCHY_REQUIRED_QT_TLS_PLUGINS qopensslbackend)
-      set(PATCHY_QT_PLUGIN_PREFIX "lib")
-      set(PATCHY_QT_PLUGIN_SUFFIX ".so")
+    # when the Qt install is missing qtimageformats or its TLS plugin. Not on wasm:
+    # that kit links plugins statically (no loadable files to probe) and has no TLS
+    # backend at all (QtNetwork rides the browser's fetch).
+    if(NOT EMSCRIPTEN)
+      if(WIN32)
+        set(PATCHY_REQUIRED_QT_TLS_PLUGINS qschannelbackend)
+        set(PATCHY_QT_PLUGIN_PREFIX "")
+        set(PATCHY_QT_PLUGIN_SUFFIX ".dll")
+      elseif(APPLE)
+        set(PATCHY_REQUIRED_QT_TLS_PLUGINS qsecuretransportbackend)
+        set(PATCHY_QT_PLUGIN_PREFIX "lib")
+        set(PATCHY_QT_PLUGIN_SUFFIX ".dylib")
+      else()
+        set(PATCHY_REQUIRED_QT_TLS_PLUGINS qopensslbackend)
+        set(PATCHY_QT_PLUGIN_PREFIX "lib")
+        set(PATCHY_QT_PLUGIN_SUFFIX ".so")
+      endif()
+      foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
+        if(NOT EXISTS "${PATCHY_QT_PLUGIN_DIR}/imageformats/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}")
+          message(FATAL_ERROR
+            "Required Qt image format plugin was not found: "
+            "${PATCHY_QT_PLUGIN_DIR}/imageformats/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}. "
+            "Install the Qt qtimageformats module for TIFF/WebP support.")
+        endif()
+      endforeach()
+      foreach(plugin IN LISTS PATCHY_REQUIRED_QT_TLS_PLUGINS)
+        if(NOT EXISTS "${PATCHY_QT_PLUGIN_DIR}/tls/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}")
+          message(FATAL_ERROR
+            "Required Qt TLS plugin was not found: "
+            "${PATCHY_QT_PLUGIN_DIR}/tls/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}.")
+        endif()
+      endforeach()
     endif()
-    foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
-      if(NOT EXISTS "${PATCHY_QT_PLUGIN_DIR}/imageformats/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}")
-        message(FATAL_ERROR
-          "Required Qt image format plugin was not found: "
-          "${PATCHY_QT_PLUGIN_DIR}/imageformats/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}. "
-          "Install the Qt qtimageformats module for TIFF/WebP support.")
-      endif()
-    endforeach()
-    foreach(plugin IN LISTS PATCHY_REQUIRED_QT_TLS_PLUGINS)
-      if(NOT EXISTS "${PATCHY_QT_PLUGIN_DIR}/tls/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}")
-        message(FATAL_ERROR
-          "Required Qt TLS plugin was not found: "
-          "${PATCHY_QT_PLUGIN_DIR}/tls/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}.")
-      endif()
-    endforeach()
     if(WIN32)
       set(PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES)
       foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
@@ -744,7 +759,7 @@ if(PATCHY_BUILD_APP)
       src/ui/preset_manager_scaffold.cpp
       src/ui/preset_tree_widget.hpp
       src/ui/preset_tree_widget.cpp
-      src/ui/print_dialog.cpp
+      src/ui/print_layout.cpp
       src/ui/qt_geometry.cpp
       src/ui/raw_develop_dialog.hpp
       src/ui/raw_develop_dialog.cpp
@@ -805,10 +820,19 @@ if(PATCHY_BUILD_APP)
       src/ui/icons.qrc
       src/ui/textures.qrc
     )
+    # The print dialog TU is the one QtPrintSupport user; Qt ships no
+    # PrintSupport for wasm, so that build compiles the stub TU instead
+    # (print_layout.cpp above keeps the portable placement/render half real
+    # everywhere).
+    if(EMSCRIPTEN)
+      target_sources(patchy_ui PRIVATE src/ui/print_dialog_wasm.cpp)
+    else()
+      target_sources(patchy_ui PRIVATE src/ui/print_dialog.cpp)
+      target_link_libraries(patchy_ui PUBLIC Qt6::PrintSupport)
+    endif()
     target_link_libraries(patchy_ui PUBLIC
       Qt6::Widgets
       Qt6::Svg
-      Qt6::PrintSupport
       Qt6::Network
       Qt6::Qml
       patchy_core
@@ -849,9 +873,34 @@ if(PATCHY_BUILD_APP)
     endif()
     patchy_configure_target(patchy_ui)
 
-    add_executable(patchy WIN32 MACOSX_BUNDLE
-      src/app/main.cpp
-    )
+    if(EMSCRIPTEN)
+      # qt_add_executable generates the wasm deployment sidecars (patchy.html,
+      # qtloader.js) that a plain add_executable does not.
+      qt_add_executable(patchy src/app/main.cpp)
+      set_target_properties(patchy PROPERTIES QT_WASM_INITIAL_MEMORY "512MB")
+      # Asyncify keeps the nested-event-loop sites (QDialog::exec and friends)
+      # working on wasm. Exceptions stay JS-based (-fexceptions, matching the
+      # preset's compile flags) because Asyncify does not support wasm-native
+      # exception handling. The preload mounts land at /fonts, /translations,
+      # and /scripts, which is exactly where the existing
+      # applicationDirPath()-relative probes look (appdir is "/" on wasm).
+      # No -sSTACK_SIZE here: Qt's wasm target machinery sets its own, and a
+      # second value only earns a duplicate-flag link warning.
+      target_link_options(patchy PRIVATE
+        -sASYNCIFY
+        -Os
+        -fexceptions
+        -sALLOW_MEMORY_GROWTH=1
+        -sMAXIMUM_MEMORY=4GB
+        "SHELL:--preload-file ${CMAKE_BINARY_DIR}/fonts@/fonts"
+        "SHELL:--preload-file ${CMAKE_BINARY_DIR}/translations@/translations"
+        "SHELL:--preload-file ${CMAKE_BINARY_DIR}/scripts@/scripts"
+      )
+    else()
+      add_executable(patchy WIN32 MACOSX_BUNDLE
+        src/app/main.cpp
+      )
+    endif()
     target_link_libraries(patchy PRIVATE patchy_ui)
     target_compile_definitions(patchy PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
     patchy_configure_target(patchy)
@@ -924,17 +973,21 @@ if(PATCHY_BUILD_APP)
       add_custom_target(patchy_bundle_resources ALL
                         DEPENDS "${PATCHY_BUNDLE_RESOURCES_STAMP}")
     endif()
-    add_custom_command(TARGET patchy POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-              ${PROJECT_SOURCE_DIR}/test-fixtures
-              $<TARGET_FILE_DIR:patchy>/test-fixtures
-      COMMENT "Copying Patchy test fixtures next to the app binary"
-    )
-    install(TARGETS patchy
-      BUNDLE DESTINATION .
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
-    if(UNIX AND NOT APPLE)
+    if(NOT EMSCRIPTEN)
+      # 34 MB the wasm virtual filesystem could never see; the sole runtime
+      # consumer (load_bundled_legacy_plugins) early-returns when absent.
+      add_custom_command(TARGET patchy POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+                ${PROJECT_SOURCE_DIR}/test-fixtures
+                $<TARGET_FILE_DIR:patchy>/test-fixtures
+        COMMENT "Copying Patchy test fixtures next to the app binary"
+      )
+      install(TARGETS patchy
+        BUNDLE DESTINATION .
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+      )
+    endif()
+    if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
       # Linux install layout (what the Flatpak build uses): binary in bin/, resources
       # under share/patchy/ (probed by load_bundled_fonts / translation_directories),
       # and the freedesktop integration files under share/.

@@ -934,7 +934,7 @@ QImage CanvasWidget::render_document_image_with_processing() {
   }
 
   auto* document = document_;
-  auto future = std::async(std::launch::async, [document] {
+  auto future = launch_async([document] {
     if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
@@ -1039,7 +1039,7 @@ std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_pr
   auto* document = document_;
   auto region = document_region;
   auto bounds = layer_bounds;
-  auto future = std::async(std::launch::async, [document, region = std::move(region), bounds = std::move(bounds)] {
+  auto future = launch_async([document, region = std::move(region), bounds = std::move(bounds)] {
     if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
