@@ -291,13 +291,14 @@ QFont application_font() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  apply_gui_scale_factor();
   // Automation hook (the README shot driver and similar tooling): redirect the
   // ini-backed app_settings() store so a driven run never reads or writes the
   // user's real Patchy settings (recent files, saved window geometry, panels).
+  // Must stay ahead of apply_gui_scale_factor(), the first app_settings() read.
   if (const auto settings_dir = qEnvironmentVariable("PATCHY_SETTINGS_DIR"); !settings_dir.isEmpty()) {
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings_dir);
   }
+  apply_gui_scale_factor();
   PatchyApplication app(argc, argv);
 #ifdef Q_OS_LINUX
   // Lets Wayland compositors match the window to its .desktop entry (taskbar icon,
