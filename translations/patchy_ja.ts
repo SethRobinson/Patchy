@@ -13806,6 +13806,9 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>QObject</name>
+    <message><source>Waiting for the browser file picker...</source><translation>ブラウザーのファイル選択を待っています...</translation></message>
+    <message><source>File name:</source><translation>ファイル名:</translation></message>
+    <message><source>Format:</source><translation>形式:</translation></message>
     <message><source>Pen</source><translation>ペン</translation></message>
     <message><source>Path Select</source><translation>パスコンポーネント選択</translation></message>
     <message><source>Direct Select</source><translation>ダイレクト選択</translation></message>

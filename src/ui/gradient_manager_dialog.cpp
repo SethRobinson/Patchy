@@ -251,6 +251,8 @@ QString request_gradient_manager(QWidget *parent, GradientLibrary &library,
     if (!library.export_grd(selected_ids(), path, error))
       (void)show_warning_message(&dialog, QObject::tr("Export Gradients"),
                                  error, QMessageBox::Ok);
+    else
+      offer_browser_download_for_saved_file(path);
   });
   QObject::connect(use, &QPushButton::clicked, &dialog, &QDialog::accept);
   reload(initial_storage_id);

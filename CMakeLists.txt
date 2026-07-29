@@ -823,9 +823,15 @@ if(PATCHY_BUILD_APP)
     # The print dialog TU is the one QtPrintSupport user; Qt ships no
     # PrintSupport for wasm, so that build compiles the stub TU instead
     # (print_layout.cpp above keeps the portable placement/render half real
-    # everywhere).
+    # everywhere). dialog_utils_wasm.cpp is additive, not a swap: it holds the
+    # browser file-access glue (emscripten::val) that dialog_utils.cpp
+    # delegates to under Q_OS_WASM.
     if(EMSCRIPTEN)
-      target_sources(patchy_ui PRIVATE src/ui/print_dialog_wasm.cpp)
+      target_sources(patchy_ui PRIVATE
+        src/ui/print_dialog_wasm.cpp
+        src/ui/dialog_utils_wasm.hpp
+        src/ui/dialog_utils_wasm.cpp
+      )
     else()
       target_sources(patchy_ui PRIVATE src/ui/print_dialog.cpp)
       target_link_libraries(patchy_ui PUBLIC Qt6::PrintSupport)

@@ -351,8 +351,11 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* print_action = file_menu->addAction(tr("&Print..."));
 #ifdef Q_OS_WASM
   // Qt ships no QtPrintSupport for WebAssembly (print_dialog_wasm.cpp stubs the
-  // dialogs). The actions stay registered so hotkey ids and wiring are stable;
-  // hidden actions do not render in the menu.
+  // dialogs), and an image-sequence export would mean one browser download per
+  // layer, which browsers refuse as download spam. The actions stay registered
+  // so hotkey ids and wiring are stable; hidden actions do not render in the
+  // menu.
+  export_image_sequence_action->setVisible(false);
   page_setup_action->setVisible(false);
   print_action->setVisible(false);
 #endif

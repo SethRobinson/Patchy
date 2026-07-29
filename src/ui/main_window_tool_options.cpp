@@ -685,6 +685,22 @@ std::optional<std::vector<GradientStop>> deserialize_gradient_stops(const QByteA
   return normalized_gradient_stops(stops);
 }
 
+// Reads a default-library seeding stamp (brushes/patterns/gradients/styles).
+// On wasm the stamps would persist in localStorage while the seeded library
+// files live in MEMFS and vanish on reload, so honoring a stored stamp there
+// would skip seeding into an empty store; every wasm session reads as
+// never-seeded and re-creates the defaults instead. (Deleted defaults
+// therefore return on reload; preset persistence itself is a later step.)
+int stored_default_asset_version(const QSettings& settings, const QString& key) {
+#ifdef Q_OS_WASM
+  Q_UNUSED(settings);
+  Q_UNUSED(key);
+  return 0;
+#else
+  return settings.value(key, 0).toInt();
+#endif
+}
+
 }  // namespace
 
 BrushTipLibrary& MainWindow::brush_tip_library() {
@@ -697,7 +713,7 @@ BrushTipLibrary& MainWindow::brush_tip_library() {
     auto settings = app_settings();
     constexpr int kDefaultTipsVersion = 4;  // v4 (July 2026): texture, dual, color, wet-edge tips
     const auto stored_version =
-        settings.value(QStringLiteral("brushes/defaultTipsVersion"), 0).toInt();
+        stored_default_asset_version(settings, QStringLiteral("brushes/defaultTipsVersion"));
     if (stored_version < kDefaultTipsVersion) {
       brush_tip_library_->restore_default_tips(stored_version);
       if (stored_version < 2) {
@@ -723,7 +739,7 @@ PatternLibrary& MainWindow::pattern_library() {
     // launches; the Pattern Manager's explicit restore command brings it back.
     auto settings = app_settings();
     const auto stored_version =
-        settings.value(QStringLiteral("patterns/defaultPatternsVersion"), 0).toInt();
+        stored_default_asset_version(settings, QStringLiteral("patterns/defaultPatternsVersion"));
     if (stored_version < kDefaultPatternsVersion) {
       pattern_library_->restore_default_patterns(stored_version);
       if (pattern_library_->has_all_default_patterns_introduced_after(stored_version)) {
@@ -739,7 +755,8 @@ GradientLibrary& MainWindow::gradient_library() {
   if (gradient_library_ == nullptr) {
     gradient_library_ = new GradientLibrary({}, this);
     auto settings = app_settings();
-    const auto stored_version = settings.value(QStringLiteral("gradients/defaultGradientsVersion"), 0).toInt();
+    const auto stored_version =
+        stored_default_asset_version(settings, QStringLiteral("gradients/defaultGradientsVersion"));
     if (stored_version < kDefaultGradientsVersion) {
       gradient_library_->restore_default_gradients(stored_version);
       if (gradient_library_->has_all_default_gradients_introduced_after(stored_version))
@@ -756,7 +773,7 @@ StyleLibrary& MainWindow::style_library() {
     // launches; the Style Manager's explicit restore command brings it back.
     auto settings = app_settings();
     const auto stored_version =
-        settings.value(QStringLiteral("styles/defaultStylesVersion"), 0).toInt();
+        stored_default_asset_version(settings, QStringLiteral("styles/defaultStylesVersion"));
     if (stored_version < kDefaultStylesVersion) {
       style_library_->restore_default_styles(stored_version);
       if (style_library_->has_all_default_styles_introduced_after(stored_version)) {

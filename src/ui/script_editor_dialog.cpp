@@ -1122,12 +1122,18 @@ bool ScriptEditorDialog::save_script_as() {
       current_path_.isEmpty() ? QStringLiteral("untitled.js") : QFileInfo(current_path_).fileName();
   const auto suggested =
       QDir(MainWindow::user_scripts_directory()).absoluteFilePath(suggested_name);
-  const auto path = get_save_file_name(this, tr("Save Script"), suggested,
-                                       tr("JavaScript files (*.js)"), nullptr,
-                                       QStringLiteral("scriptEditorSaveDialog"));
+  auto path = get_save_file_name(this, tr("Save Script"), suggested,
+                                 tr("JavaScript files (*.js)"), nullptr,
+                                 QStringLiteral("scriptEditorSaveDialog"));
   if (path.isEmpty()) {
     return false;
   }
+#ifdef Q_OS_WASM
+  // The wasm prompt stages saves in a scratch MEMFS dir, but the script tree
+  // and the Scripts menu only scan the script roots, so the save lands in the
+  // user scripts dir (and is offered as a browser download below).
+  path = QDir(MainWindow::user_scripts_directory()).absoluteFilePath(QFileInfo(path).fileName());
+#endif
   QFile file(path);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
     append_console(2, tr("Could not write %1").arg(QDir::toNativeSeparators(path)));
@@ -1135,6 +1141,7 @@ bool ScriptEditorDialog::save_script_as() {
   }
   file.write(editor_->toPlainText().toUtf8());
   file.close();
+  offer_browser_download_for_saved_file(path);
   editor_->document()->setModified(false);
   set_current_path(path);
   refresh_script_tree(path);

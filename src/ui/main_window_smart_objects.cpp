@@ -326,6 +326,7 @@ void MainWindow::export_smart_object_contents() {
                           QStringLiteral("exportSmartObjectFailedMessageBox"));
     return;
   }
+  offer_browser_download_for_saved_file(path);
   remember_save_directory_for_path(path);
   statusBar()->showMessage(tr("Exported smart object contents to %1").arg(path));
 }

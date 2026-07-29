@@ -40,6 +40,9 @@
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
 #include "ui/dialog_utils.hpp"
+#ifdef Q_OS_WASM
+#include "ui/dialog_utils_wasm.hpp"
+#endif
 #include "ui/document_float_window.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/hotkey_editor.hpp"
@@ -4691,6 +4694,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   document_tabs_->setMovable(true);
   setAcceptDrops(true);
   document_tabs_->setAcceptDrops(true);
+#ifdef Q_OS_WASM
+  // Qt 6.8 wasm never registers browser drag listeners for incoming files, so
+  // the page-side glue owns external drops and reports them as MEMFS paths.
+  wasm_files::install_web_drop_target([this](const QString& path) { handle_web_file_drop(path); });
+#endif
   document_tabs_->installEventFilter(this);
   suppress_native_tab_bar_base(*document_tabs_);
   if (auto* tab_bar = document_tabs_->findChild<QTabBar*>(); tab_bar != nullptr) {

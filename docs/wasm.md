@@ -13,10 +13,11 @@ Two wasm configurations share the pinned Emscripten 3.1.56 toolchain:
   `patchy_color`, plus `patchy_plugins`, `patchy_lcms2`, `patchy_libraw`) and
   `patchy_core_tests`, run under node. No Qt at all
   (`PATCHY_BUILD_APP=OFF`).
-- **`wasm-release`** (step 2): the full app linked against Qt for
+- **`wasm-release`** (steps 2-3): the full app linked against Qt for
   WebAssembly (6.8.3 `wasm_singlethread`, static), booting in a browser tab
-  with Asyncify. No file open/save yet (step 3) and no persistence
-  guarantees; it is a boot-and-paint build.
+  with Asyncify. File open/save/export run through the browser (picker in,
+  downloads out), files dragged from the desktop open, and settings persist
+  across reloads in localStorage.
 
 Desktop builds are unaffected: the presets, the `if(EMSCRIPTEN)` branches in
 CMakeLists, a handful of `Q_OS_WASM` gates in `src/ui`/`src/app`, and the
@@ -230,21 +231,102 @@ seconds.
 Testing note: a background/hidden browser tab never fires
 requestAnimationFrame, so Qt stops presenting new frames until the tab is
 visible. Keep the tab foregrounded when testing; nothing is wrong with the
-app when a hidden tab looks frozen.
+app when a hidden tab looks frozen. For automated testing in a hidden tab,
+shim requestAnimationFrame onto setTimeout before qtloader runs (the step-3
+verification used a build-dir copy of patchy.html with exactly that shim).
 
-Known not-working (by design at this step): no file open/save or drag-drop
-(step 3), no persistence guarantees across reloads (step 3), no printing or
-PDF export, no scanner import, silent script sounds, and no stuck-script
-watchdog. Documents above roughly the wasm32 memory ceiling will fail to
-open once file opening exists; step 4 turns that into an advertised cap.
+## Web file access (step 3)
+
+Design: real files never leave the browser sandbox, so both directions stage
+through MEMFS and the whole path-based pipeline runs unchanged. Opens copy
+the picked or dropped bytes to `/opened/<n>/<name>` (or `/dropped/<n>/<name>`)
+and hand that path to `open_document_path`; saves let the existing writers
+write `/saved/<n>/<name>` (or the document's current MEMFS path) and then hand
+the written bytes to the browser as a download. All glue lives in
+`src/ui/dialog_utils_wasm.{hpp,cpp}`; `dialog_utils.cpp`'s three pickers
+delegate to it under `Q_OS_WASM`, and `offer_browser_download_for_saved_file`
+(no-op on desktop) is called after each successful write in the save, export,
+sprite-sheet, smart-object, Curves-preset, gradient-export, and script-editor
+paths.
+
+Two platform findings constrain the shape; do not regress them:
+
+- **A JS promise cannot complete into a nested event loop.** With the app
+  suspended in `QEventLoop::exec` (Asyncify), DOM events still re-enter the
+  module through Qt's event queue, but qstdweb promise callbacks never
+  arrive, so `QFileDialog::getOpenFileContent` deadlocks if anything blocks
+  on it. The picker therefore uses its own `<input type=file>` whose change
+  and cancel handlers are pure page-side JS writing a plain JS object, and
+  the blocked C++ side polls that object with a QTimer (timers reliably
+  resume the suspended loop). Never wait on a Qt async JS API from a nested
+  loop.
+- **Qt 6.8 wasm cannot receive external drops.** It never registers browser
+  dragover/drop listeners (only dragstart/dragleave/dragend for its own
+  drags), so the browser never delivers a desktop file drop to Qt. The glue
+  installs page-side dragover/drop listeners itself
+  (`install_web_drop_target`, wired in the MainWindow constructor), reads the
+  dropped files in JS, and reports them one MEMFS path at a time to
+  `MainWindow::handle_web_file_drop`. The desktop `QDropEvent` path stays
+  untouched and simply never fires on wasm.
+
+The other step-3 decisions:
+
+- **Save As and Export prompt for a name and format** in a small dialog
+  (`wasmSaveFileDialog`) instead of a file dialog; the chosen filter row
+  flows back through `selected_filter`, so `path_with_default_extension` and
+  every caller work unchanged. Save re-downloads under the current name;
+  the session is marked clean after the MEMFS write.
+- **Downloads use our own Blob + `<a download>` anchor click**, not
+  `QFileDialog::saveFileContent`: the Chrome save picker behind that API
+  needs transient user activation (a long PSD write outlives it) and can be
+  cancelled with no signal after the session was already marked saved. The
+  anchor form works identically everywhere and cannot fail silently.
+- **Settings persist in localStorage.** `app_settings()` uses
+  `QSettings::WebLocalStorageFormat` on wasm (the backend is synchronous with
+  an empty `flush()`; there is no async hazard). `IniFormat` would land in
+  MEMFS and evaporate on reload. Keys look like `qt-v0-Patchy-Patchy-<key>`.
+- **Preset libraries re-seed each session.** Library files live under
+  `/presets/<subdir>` in MEMFS (the localStorage backend has no `fileName()`
+  directory) and vanish on reload while the seeding stamps persist, so
+  `stored_default_asset_version` (main_window_tool_options.cpp) treats every
+  wasm session as unseeded. Defaults return on reload, user-created presets
+  last one session; real persistence (IDBFS/OPFS) is a step-4 candidate.
+- **One picker at a time**: a second Open while the browser chooser is up
+  would nest a second Asyncify suspend and hang the runtime; the wait dialog
+  is modal and `pick_open_file` carries a re-entrancy guard.
+- Recent Files/Folders are left as-is: fully functional within a session
+  (MEMFS paths), and the existing startup pruning self-empties them after a
+  reload. Multi-file pickers degrade to a single pick (no multi-file content
+  picker on wasm). Export Layers as Image Sequence is hidden (one download
+  per layer reads as download spam and browsers block it).
+
+### Step-3 status (2026-07)
+
+Verified in Chromium against the built binary through a scripted harness
+(synthetic events; downloads and chooser clicks intercepted and inspected):
+open a real PSD through the picker (parse, session, recents), cancel the
+picker cleanly, re-open immediately, double-open guarded, Save produces a
+download whose bytes match the written MEMFS file, Save As round-trips the
+prompt into `/saved/<n>` plus a download and repaths the session, a dropped
+PNG opens as a document, settings and tool options survive reloads, and the
+preset libraries re-seed identically each boot. Zero console errors and
+zero-warning builds throughout. Not yet exercised by hand: a visible-tab
+click-through (menus, the real OS file chooser, a real Downloads-folder
+save) and the Firefox/Safari input fallback; both are quick manual passes.
+
+Known not-working (by design at this step): preset persistence across
+reloads (defaults re-seed; user presets last one session), the preset
+managers' raw QFileDialog import/export buttons (they browse MEMFS),
+image-sequence export (hidden), script-editor plain Save downloads nothing
+(Save As does), "Open in File Explorer" on recents does nothing, no printing
+or PDF export, no scanner import, silent script sounds, and no stuck-script
+watchdog. Documents above roughly the wasm32 memory ceiling fail to open;
+step 4 turns that into an advertised cap.
 
 ## Later steps (not built yet)
 
-- Step 3: web file open/save at the existing seams (`dialog_utils.hpp`
-  open/save helpers, `read_all_file_bytes()` in `main_window_files.cpp`),
-  drag-drop via browser File objects, async QSettings audit behind
-  `app_settings()`, preset libraries off the filesystem.
 - Step 4: memory tuning (per-platform undo cap and byte budget, tile-cache
   eviction), optional threaded rendering behind COOP/COEP hosting, texture
-  lazy-fetch and compressed packaging/deployment, and the measured
-  document-size cap the web build advertises.
+  lazy-fetch and compressed packaging/deployment, the measured document-size
+  cap the web build advertises, and preset/library persistence (IDBFS or
+  OPFS) so user presets survive reloads.

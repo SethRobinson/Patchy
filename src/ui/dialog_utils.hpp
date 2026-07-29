@@ -123,6 +123,10 @@ enum class FilterNameDetails { Shown, Hidden };
                                           const QString& filter, QString* selected_filter = nullptr,
                                           const QString& object_name = QString(),
                                           const QStringList& recent_files = QStringList());
+// Call after successfully writing `path`. On wasm the write landed in MEMFS,
+// which the user cannot see, so this hands the file to the browser as a
+// download; desktop builds write real files and this is a no-op.
+void offer_browser_download_for_saved_file(const QString& path);
 void hide_menu_action_icons(QMenu* menu);
 
 }  // namespace patchy::ui

@@ -1175,6 +1175,7 @@ std::optional<CurvesSettings> request_curves_settings(
     }
     try {
       acv::write_file(std::filesystem::path(path.toStdU16String()), dialog_settings);
+      offer_browser_download_for_saved_file(path);
     } catch (const std::exception&) {
       show_critical_message(&dialog, QObject::tr("Save Curves Preset"),
                             QObject::tr("The Curves preset could not be saved."),

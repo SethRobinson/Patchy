@@ -996,6 +996,20 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
   return true;
 }
 
+void MainWindow::handle_web_file_drop(const QString& path) {
+  // One MEMFS path per dropped file, delivered by the wasm page-side glue
+  // (install_web_drop_target); mirrors open_dropped_files' guards.
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (!is_supported_open_path(path)) {
+    show_status_error(tr("Drop a supported image or Photoshop document"));
+    return;
+  }
+  open_document_path(path);
+}
+
 void MainWindow::open_command_line_files(const QStringList& paths) {
   for (const auto& path : paths) {
     if (path.isEmpty()) {
@@ -1419,6 +1433,7 @@ void MainWindow::export_sprite_sheet() {
     auto sheet_document = document_from_qimage(sheet, "Sprite Sheet");
     sheet_document.print_settings() = document().print_settings();
     write_flat_image_file(sheet_document, path, extension, *image_options);
+    offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported sprite sheet %1").arg(path));
   } catch (const std::exception& error) {
@@ -1765,6 +1780,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     } else {
       write_flat_image_file(document(), path, extension, effective_image_options);
     }
+    offer_browser_download_for_saved_file(path);
     const bool saved_flattened_copy =
         discards_layers &&
         !(session().smart_object_link.has_value() && session().smart_object_link->external);
@@ -1874,6 +1890,7 @@ void MainWindow::export_flat_image() {
     } else {
       write_flat_image_file(document(), path, extension, effective_image_options);
     }
+    offer_browser_download_for_saved_file(path);
     if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
       persist_image_save_defaults(effective_image_options);
     }

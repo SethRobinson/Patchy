@@ -165,6 +165,9 @@ public:
                                                "href=\"https://rtsoft.com\">rtsoft.com</a>");
     add_home_link(QObject::tr("Seth's site: %1").arg(seth_site_link));
 
+#ifndef Q_OS_WASM
+    // The wasm settings store is window.localStorage, so there is no settings
+    // file to display and no folder a file manager could open.
     auto settings = app_settings();
     const auto settings_file_path = settings.fileName();
     const QFileInfo settings_file_info(settings_file_path);
@@ -198,6 +201,7 @@ public:
     settings_button_row->addWidget(open_settings_folder, 0);
     settings_button_row->addStretch(1);
     copy->addLayout(settings_button_row);
+#endif
 
     copy->addStretch(1);
 

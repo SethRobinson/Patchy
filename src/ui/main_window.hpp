@@ -485,6 +485,10 @@ private:
   void set_tile_preview_visible(bool visible, QAction* toggle_action);
   bool accept_open_file_drag(QDropEvent* event);
   bool open_dropped_files(QDropEvent* event);
+  // Browser drops on wasm: the page-side glue reads the dropped files and
+  // reports them here one MEMFS path at a time (Qt's own drag-drop path never
+  // fires for external files there). Unused on desktop builds.
+  void handle_web_file_drop(const QString& path);
   bool save_document();
   bool save_document_as();
   // flatten_confirmed: the caller already ran confirm_flatten_layers_for_save() for this

@@ -6,6 +6,10 @@
 #include "ui/theme_qss.hpp"
 #include "ui/window_effects.hpp"
 
+#ifdef Q_OS_WASM
+#include "ui/dialog_utils_wasm.hpp"
+#endif
+
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QAction>
@@ -683,6 +687,10 @@ private:
   QPoint placement_position_;
 };
 
+#ifndef Q_OS_WASM
+// The QFileDialog configuration cluster below only serves the desktop branches
+// of the pickers; on wasm those branches delegate to dialog_utils_wasm.cpp and
+// the unused helpers would each earn an -Wunused-function warning.
 void apply_file_dialog_initial_path(QFileDialog& dialog, const QString& path, QFileDialog::AcceptMode accept_mode) {
   if (path.isEmpty()) {
     return;
@@ -799,6 +807,7 @@ void install_save_file_recent_dropdown(QFileDialog& dialog, const QStringList& r
     }
   });
 }
+#endif  // !Q_OS_WASM
 
 }  // namespace
 
@@ -1233,6 +1242,17 @@ void show_critical_message(QWidget* parent, const QString& title, const QString&
 
 QString get_open_file_name(QWidget* parent, const QString& caption, const QString& dir, const QString& filter,
                            QString* selected_filter, const QString& object_name, FilterNameDetails filter_details) {
+#ifdef Q_OS_WASM
+  // The browser owns real file access: the picker copies the pick into MEMFS
+  // and returns its path so the path-based open pipeline runs unchanged
+  // (dialog_utils_wasm.cpp). Start directories, dialog position memory, and
+  // per-row filter selection have no browser equivalent.
+  Q_UNUSED(dir);
+  Q_UNUSED(selected_filter);
+  Q_UNUSED(object_name);
+  Q_UNUSED(filter_details);
+  return wasm_files::pick_open_file(parent, caption, filter);
+#else
   QFileDialog dialog(parent, caption, QString(), filter);
   configure_file_dialog(dialog, object_name, dir, QFileDialog::AcceptOpen, QFileDialog::ExistingFile, selected_filter);
   if (filter_details == FilterNameDetails::Hidden) {
@@ -1246,10 +1266,17 @@ QString get_open_file_name(QWidget* parent, const QString& caption, const QStrin
   }
   const auto files = dialog.selectedFiles();
   return files.isEmpty() ? QString() : files.front();
+#endif
 }
 
 QStringList get_open_file_names(QWidget* parent, const QString& caption, const QString& dir, const QString& filter,
                                 QString* selected_filter, const QString& object_name, FilterNameDetails filter_details) {
+#ifdef Q_OS_WASM
+  // Qt for wasm has no multi-file content picker, so multi-pick degrades to a
+  // single pick; every caller handles a one-element list sensibly.
+  auto path = get_open_file_name(parent, caption, dir, filter, selected_filter, object_name, filter_details);
+  return path.isEmpty() ? QStringList() : QStringList{std::move(path)};
+#else
   QFileDialog dialog(parent, caption, QString(), filter);
   configure_file_dialog(dialog, object_name, dir, QFileDialog::AcceptOpen, QFileDialog::ExistingFiles, selected_filter);
   if (filter_details == FilterNameDetails::Hidden) {
@@ -1262,10 +1289,20 @@ QStringList get_open_file_names(QWidget* parent, const QString& caption, const Q
     *selected_filter = dialog.selectedNameFilter();
   }
   return dialog.selectedFiles();
+#endif
 }
 
 QString get_save_file_name(QWidget* parent, const QString& caption, const QString& dir, const QString& filter,
                            QString* selected_filter, const QString& object_name, const QStringList& recent_files) {
+#ifdef Q_OS_WASM
+  // Saving in the browser means downloading, so there is no location to pick;
+  // a small name + format prompt stands in for the save dialog and the chosen
+  // MEMFS path flows through the unchanged writer pipeline, whose result the
+  // per-site offer_browser_download_for_saved_file hook then downloads.
+  Q_UNUSED(object_name);
+  Q_UNUSED(recent_files);
+  return wasm_files::prompt_save_file(parent, caption, dir, filter, selected_filter);
+#else
   QFileDialog dialog(parent, caption, QString(), filter);
   configure_file_dialog(dialog, object_name, dir, QFileDialog::AcceptSave, QFileDialog::AnyFile, selected_filter);
   if (dialog.testOption(QFileDialog::DontUseNativeDialog)) {
@@ -1279,6 +1316,16 @@ QString get_save_file_name(QWidget* parent, const QString& caption, const QStrin
   }
   const auto files = dialog.selectedFiles();
   return files.isEmpty() ? QString() : files.front();
+#endif
+}
+
+void offer_browser_download_for_saved_file(const QString& path) {
+#ifdef Q_OS_WASM
+  wasm_files::download_file_in_browser(path);
+#else
+  // Desktop builds write real files; there is nothing to offer.
+  Q_UNUSED(path);
+#endif
 }
 
 void hide_menu_action_icons(QMenu* menu) {
