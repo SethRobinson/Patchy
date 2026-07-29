@@ -243,7 +243,7 @@ run offscreen on all three platforms (`QT_QPA_PLATFORM=offscreen`).
 Create local Windows release artifacts:
 
 ```bat
-build-release.bat
+scripts\release\build-release.bat
 ```
 
 The script configures and builds the `release` preset, signs `build\release\patchy.exe`, the installer helper executables, and the installer when the local signing environment is available, deploys the minimum Qt runtime needed by the current app, copies third-party notices, and creates:

@@ -10,10 +10,10 @@ Planned release shape:
 
 ## Local package artifacts
 
-Run the root script from a Developer Command Prompt or regular `cmd.exe`:
+Run the release script from a Developer Command Prompt or regular `cmd.exe` in the repo root:
 
 ```bat
-build-release.bat
+scripts\release\build-release.bat
 ```
 
 The script configures and builds the `release` preset, deploys the Qt runtime, stages runtime files under `build\package\staging\Patchy`, and creates:

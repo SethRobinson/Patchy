@@ -101,7 +101,7 @@ post-open passes (below), `MainWindow::define_custom_shape_from_svg_*`
   references are skipped with a notice.
 - **Robustness fallback**: unparseable XML or > 2000 drawables throws; the
   existing QImageReader fallback (the qsvg plugin, shipped by
-  build-release.bat) rasterizes, and the open path adds an "imported as
+  scripts\release\build-release.bat) rasterizes, and the open path adds an "imported as
   flattened raster" notice naming the reason. The alpha-promotion pass is
   skipped for svg like it is for PSD (layers own their transparency; it would
   also clobber a lone placed image layer's offset).

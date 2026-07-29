@@ -1,8 +1,9 @@
 @echo off
 rem Uploads the newest Linux Flatpak bundle (built by scripts\remote\release-linux.bat)
 rem under the stable "latest" name PatchyLinux.flatpak that latest_version.json points at.
-rem cd to this script's own directory so the relative paths below resolve from any cwd.
-cd /d "%~dp0"
+rem cd to the repo root (this script lives in scripts\release) so the relative paths
+rem below resolve from any cwd.
+cd /d "%~dp0..\.."
 set "LINUX_BUNDLE="
 for /f "delims=" %%F in ('dir /b /o:d build\package\Patchy-*.flatpak 2^>nul') do set "LINUX_BUNDLE=build\package\%%F"
 if not defined LINUX_BUNDLE (

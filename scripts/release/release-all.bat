@@ -10,8 +10,9 @@ rem Launch the builders by full path: cmd won't search the current directory for
 rem bare command name when NoDefaultCurrentDirectoryInExePath is set (non-interactive
 rem shells set it), and the console closes too fast to read the error. See
 rem docs/release-process.md.
-cd /d "%~dp0"
+rem This script lives in scripts\release, so %~dp0..\remote reaches scripts\remote.
+cd /d "%~dp0..\.."
 start "Patchy release - Windows" cmd /c "%~dp0build-release.bat"
-start "Patchy release - macOS" cmd /c "%~dp0scripts\remote\release-mac.bat"
-start "Patchy release - Linux" cmd /c "%~dp0scripts\remote\release-linux.bat"
-echo Three release windows launched. When they all finish, run upload-to-rtsoft.bat.
+start "Patchy release - macOS" cmd /c "%~dp0..\remote\release-mac.bat"
+start "Patchy release - Linux" cmd /c "%~dp0..\remote\release-linux.bat"
+echo Three release windows launched. When they all finish, run scripts\release\upload-to-rtsoft.bat.

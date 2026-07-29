@@ -1,7 +1,7 @@
 # Linux packaging (Flatpak)
 
 Patchy ships on Linux as a self-hosted single-file Flatpak bundle
-(`build/package/Patchy-<version>.flatpak`; `upload-linux-to-rtsoft.bat` publishes the
+(`build/package/Patchy-<version>.flatpak`; `scripts\release\upload-linux-to-rtsoft.bat` publishes the
 newest one to rtsoft.com under the stable name `PatchyLinux.flatpak`, matching the
 Windows "latest" convention). Users install it with
 `flatpak install ./PatchyLinux.flatpak`; the KDE runtime it needs is fetched

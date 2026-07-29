@@ -8,7 +8,7 @@
 #   PATCHY_MAC_SIGN_IDENTITY  e.g. "Developer ID Application: Robinson Technologies Corporation (XXXXXXXXXX)"
 #   PATCHY_NOTARY_PROFILE     a notarytool keychain profile (xcrun notarytool store-credentials)
 # Otherwise those steps are skipped with a message and an unsigned dmg is produced
-# (mirrors the RT_PROJECTS gate in build-release.bat). See packaging/macos/README.md.
+# (mirrors the RT_PROJECTS gate in scripts/release/build-release.bat). See packaging/macos/README.md.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 

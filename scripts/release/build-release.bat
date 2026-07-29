@@ -1,9 +1,9 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
-set "REPO=%~dp0"
-if "%REPO:~-1%"=="\" set "REPO=%REPO:~0,-1%"
-pushd "%REPO%" || exit /b 1
+rem This script lives in scripts\release, two levels below the repo root.
+pushd "%~dp0..\.." || exit /b 1
+set "REPO=%CD%"
 
 set "CMAKE_EXE=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 if not exist "%CMAKE_EXE%" set "CMAKE_EXE=cmake"
