@@ -146,13 +146,14 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
        block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc")) {
     return true;
   }
-  // A Brightness/Contrast edit regenerates legacy-only 'brit'; the preserved
-  // modern 'CgEd' descriptor must be dropped with it, or Photoshop reads the
-  // stale descriptor as authoritative over the new values. Unedited layers
-  // keep it for byte-identical round trips.
-  if (encoded.kind == EncodedLayerKind::Adjustment && block.key == "CgEd" && encoded.layer != nullptr &&
-      brightness_contrast_descriptor_is_stale(*encoded.layer)) {
-    return true;
+  // The Brightness/Contrast emitter owns 'CgEd' (preserved, regenerated, or
+  // deliberately absent); re-emitting the raw block beside it would leave a
+  // stale descriptor Photoshop reads as authoritative over the new values.
+  if (encoded.kind == EncodedLayerKind::Adjustment && block.key == "CgEd" && encoded.layer != nullptr) {
+    if (const auto settings = adjustment_settings_from_layer(*encoded.layer);
+        settings.has_value() && settings->kind == AdjustmentKind::BrightnessContrast) {
+      return true;
+    }
   }
   if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx")) {
     return true;
@@ -741,6 +742,12 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
           extra, kPhotoshopBrightnessContrastBlockKey,
           photoshop_brightness_contrast_payload(settings->brightness_contrast, *encoded.layer),
           large_document);
+      if (auto descriptor =
+              photoshop_brightness_contrast_descriptor_payload(settings->brightness_contrast, *encoded.layer);
+          descriptor.has_value()) {
+        write_additional_layer_block(extra, kPhotoshopBrightnessContrastDescriptorBlockKey,
+                                     std::move(*descriptor), large_document);
+      }
     }
     if (settings.has_value() && settings->kind == AdjustmentKind::ColorBalance) {
       write_additional_layer_block(

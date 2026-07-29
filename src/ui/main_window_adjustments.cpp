@@ -552,8 +552,7 @@ void MainWindow::new_brightness_contrast_adjustment_layer() {
                                    bool enabled, const BrightnessContrastSettings& brightness_contrast) {
     AdjustmentSettings settings;
     settings.kind = AdjustmentKind::BrightnessContrast;
-    settings.brightness_contrast.brightness = std::clamp(brightness_contrast.brightness, -100, 100);
-    settings.brightness_contrast.contrast = std::clamp(brightness_contrast.contrast, -100, 100);
+    settings.brightness_contrast = clamp_brightness_contrast(brightness_contrast);
     update_adjustment_layer_preview(tr("Brightness/Contrast"), settings, enabled, preview_id,
                                     restore_active_layer);
   };
@@ -573,8 +572,7 @@ void MainWindow::apply_brightness_contrast_adjustment(const BrightnessContrastSe
                                                       bool allow_identity) {
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::BrightnessContrast;
-  settings.brightness_contrast.brightness = std::clamp(brightness_contrast.brightness, -100, 100);
-  settings.brightness_contrast.contrast = std::clamp(brightness_contrast.contrast, -100, 100);
+  settings.brightness_contrast = clamp_brightness_contrast(brightness_contrast);
   if (!allow_identity && !adjustment_has_effect(settings)) {
     return;
   }
@@ -869,18 +867,14 @@ void MainWindow::edit_active_adjustment_layer() {
           return;
         }
         auto settings = *original_settings;
-        settings.brightness_contrast.brightness = std::clamp(brightness_contrast.brightness, -100, 100);
-        settings.brightness_contrast.contrast = std::clamp(brightness_contrast.contrast, -100, 100);
+        settings.brightness_contrast = clamp_brightness_contrast(brightness_contrast);
         apply_settings(settings);
       };
       const auto result = request_brightness_contrast_settings(
-          this, preview_changed,
-          BrightnessContrastSettings{original_settings->brightness_contrast.brightness,
-                                     original_settings->brightness_contrast.contrast});
+          this, preview_changed, original_settings->brightness_contrast);
       if (result.has_value()) {
         accepted_settings = *original_settings;
-        accepted_settings->brightness_contrast.brightness = std::clamp(result->brightness, -100, 100);
-        accepted_settings->brightness_contrast.contrast = std::clamp(result->contrast, -100, 100);
+        accepted_settings->brightness_contrast = clamp_brightness_contrast(*result);
       }
       break;
     }

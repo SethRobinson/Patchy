@@ -913,7 +913,122 @@ int threshold_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue)
   return (static_cast<int>(red) * 30 + static_cast<int>(green) * 59 + static_cast<int>(blue) * 11) / 100;
 }
 
-std::uint8_t brightness_contrast_channel_value(std::uint8_t value, int brightness, int contrast) {
+namespace {
+
+// Photoshop 2026 modern-mode Brightness/Contrast, the full closed form
+// recovered from 300 16-bit (15-bit precision) plus 451 8-bit COM ramp
+// captures (July 2026, docs/ps-compat.md "Modern Brightness/Contrast").
+// Everything runs on the unit interval; each byte maps through
+// lround(255 * contrast(brightness(v / 255))).
+//
+// Brightness b in 1..100 is a gain ray with a cubic-Hermite shoulder:
+//   sigma = 2^(b/110)  (the 110th root of 2 multiplied out per step, never
+//   exp2(), so every toolchain computes the identical double)
+//   f(v) = sigma * v                      while the OUTPUT stays <= 0.5
+//   then one Hermite from (0.5/sigma, 0.5, slope sigma) to (1, 1, slope tau)
+//   with tau = max(0.1, 1 / (1 + 12 * (sigma - 1))), clamped to 1 (the
+//   Hermite legitimately overshoots for b > 88, exactly where the tau floor
+//   engages: 1/(1+12(sigma-1)) = 0.1 at sigma = 1.75, i.e. b = 110*log2(1.75)).
+// b in 101..150 composes the two halves: f_b = f_{b-100} o f_100.
+// Negative b is the exact functional inverse of f_{-b}, evaluated by fixed
+// 64-step bisection (pure IEEE arithmetic, deterministic across toolchains).
+// Contrast is linear in c with a parabola in each half, pivoting at (.5,.5):
+//   beta = 1 - 0.0076 * c;  y = (2 - 2*beta)*v^2 + beta*v  mirrored above 0.5.
+// Validation: all 450 15-bit captures within 1 LSB15; 449 of 452 8-bit curves
+// byte-exact, the other three within 1/255.
+constexpr double kModernBrightnessGainStep = 1.006321233202252;  // 2^(1/110)
+
+double modern_brightness_gain(int b) {
+  auto sigma = 1.0;
+  for (int step = 0; step < b; ++step) {
+    sigma *= kModernBrightnessGainStep;
+  }
+  return sigma;
+}
+
+// b in 1..100 only; the >100 composition and the negative inverse live in
+// modern_brightness_value.
+double modern_brightness_core(int b, double v) {
+  const auto sigma = modern_brightness_gain(b);
+  const auto ray_end = 0.5 / sigma;
+  if (v <= ray_end) {
+    return sigma * v;
+  }
+  const auto h = 1.0 - ray_end;
+  const auto t = (v - ray_end) / h;
+  const auto tau = std::max(0.1, 1.0 / (1.0 + 12.0 * (sigma - 1.0)));
+  const auto hermite = ((2.0 * t - 3.0) * t * t + 1.0) * 0.5 + ((t - 2.0) * t + 1.0) * t * h * sigma +
+                       (3.0 - 2.0 * t) * t * t + (t - 1.0) * t * t * h * tau;
+  return std::min(1.0, hermite);
+}
+
+double modern_brightness_positive(int b, double v) {
+  if (b <= 100) {
+    return modern_brightness_core(b, v);
+  }
+  return modern_brightness_core(b - 100, modern_brightness_core(100, v));
+}
+
+double modern_brightness_value(int b, double v) {
+  if (b == 0) {
+    return v;
+  }
+  if (b > 0) {
+    return modern_brightness_positive(b, v);
+  }
+  if (v <= 0.0) {
+    return 0.0;
+  }
+  if (v >= 1.0) {
+    return 1.0;
+  }
+  auto low = 0.0;
+  auto high = 1.0;
+  for (int step = 0; step < 64; ++step) {
+    const auto mid = 0.5 * (low + high);
+    if (modern_brightness_positive(-b, mid) < v) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  return 0.5 * (low + high);
+}
+
+double modern_contrast_value(int c, double v) {
+  const auto beta = 1.0 - 0.0076 * static_cast<double>(c);
+  const auto alpha = 2.0 - 2.0 * beta;
+  if (v <= 0.5) {
+    return (alpha * v + beta) * v;
+  }
+  const auto w = 1.0 - v;
+  return 1.0 - (alpha * w + beta) * w;
+}
+
+}  // namespace
+
+BrightnessContrastAdjustment clamp_brightness_contrast(BrightnessContrastAdjustment settings) {
+  if (settings.use_legacy) {
+    settings.brightness = std::clamp(settings.brightness, -kBrightnessContrastLegacyRange,
+                                     kBrightnessContrastLegacyRange);
+    settings.contrast =
+        std::clamp(settings.contrast, -kBrightnessContrastLegacyRange, kBrightnessContrastLegacyRange);
+  } else {
+    settings.brightness = std::clamp(settings.brightness, -kModernBrightnessRange, kModernBrightnessRange);
+    settings.contrast = std::clamp(settings.contrast, kModernContrastMin, kModernContrastMax);
+  }
+  return settings;
+}
+
+std::uint8_t brightness_contrast_channel_value(std::uint8_t value, int brightness, int contrast,
+                                               bool use_legacy) {
+  if (!use_legacy) {
+    const auto b = std::clamp(brightness, -kModernBrightnessRange, kModernBrightnessRange);
+    const auto c = std::clamp(contrast, kModernContrastMin, kModernContrastMax);
+    const auto adjusted =
+        modern_contrast_value(c, modern_brightness_value(b, static_cast<double>(value) / 255.0));
+    return static_cast<std::uint8_t>(std::clamp(std::lround(255.0 * adjusted), 0L, 255L));
+  }
   // PS 2026 legacy-mode calibration (nine 256-ramp COM captures, July 2026):
   // positive contrast folds brightness into the INPUT and expands around the
   // 127.5 pivot with slope 100/(100-c); c = 100 is a hard threshold at
@@ -1084,10 +1199,22 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
       std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentPosterizeLevels, 4), 2, 255);
   settings.threshold.level =
       std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentThresholdLevel, 128), 1, 255);
+  // Default legacy when the key is absent: pre-July-2026 documents were always
+  // legacy-mode and must keep their render.
+  settings.brightness_contrast.use_legacy =
+      metadata_int_or(layer, kLayerMetadataAdjustmentBrightnessContrastUseLegacy, 1) != 0;
+  const auto brightness_range =
+      settings.brightness_contrast.use_legacy ? kBrightnessContrastLegacyRange : kModernBrightnessRange;
+  const auto contrast_low =
+      settings.brightness_contrast.use_legacy ? -kBrightnessContrastLegacyRange : kModernContrastMin;
+  const auto contrast_high =
+      settings.brightness_contrast.use_legacy ? kBrightnessContrastLegacyRange : kModernContrastMax;
   settings.brightness_contrast.brightness =
-      std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentBrightnessContrastBrightness, 0), -100, 100);
+      std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentBrightnessContrastBrightness, 0),
+                 -brightness_range, brightness_range);
   settings.brightness_contrast.contrast =
-      std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentBrightnessContrastContrast, 0), -100, 100);
+      std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentBrightnessContrastContrast, 0), contrast_low,
+                 contrast_high);
   return settings;
 }
 
@@ -1164,10 +1291,19 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
                    std::clamp(settings.posterize.levels, 2, 255));
   set_metadata_int(layer, kLayerMetadataAdjustmentThresholdLevel,
                    std::clamp(settings.threshold.level, 1, 255));
+  const auto bc_brightness_range =
+      settings.brightness_contrast.use_legacy ? kBrightnessContrastLegacyRange : kModernBrightnessRange;
+  const auto bc_contrast_low =
+      settings.brightness_contrast.use_legacy ? -kBrightnessContrastLegacyRange : kModernContrastMin;
+  const auto bc_contrast_high =
+      settings.brightness_contrast.use_legacy ? kBrightnessContrastLegacyRange : kModernContrastMax;
   set_metadata_int(layer, kLayerMetadataAdjustmentBrightnessContrastBrightness,
-                   std::clamp(settings.brightness_contrast.brightness, -100, 100));
+                   std::clamp(settings.brightness_contrast.brightness, -bc_brightness_range,
+                              bc_brightness_range));
   set_metadata_int(layer, kLayerMetadataAdjustmentBrightnessContrastContrast,
-                   std::clamp(settings.brightness_contrast.contrast, -100, 100));
+                   std::clamp(settings.brightness_contrast.contrast, bc_contrast_low, bc_contrast_high));
+  set_metadata_int(layer, kLayerMetadataAdjustmentBrightnessContrastUseLegacy,
+                   settings.brightness_contrast.use_legacy ? 1 : 0);
 }
 
 RgbColor apply_adjustment_to_color(RgbColor color, const AdjustmentSettings& settings) {
@@ -1198,9 +1334,10 @@ RgbColor apply_adjustment_to_color(RgbColor color, const AdjustmentSettings& set
     case AdjustmentKind::BrightnessContrast: {
       const auto brightness = settings.brightness_contrast.brightness;
       const auto contrast = settings.brightness_contrast.contrast;
-      return RgbColor{brightness_contrast_channel_value(color.red, brightness, contrast),
-                      brightness_contrast_channel_value(color.green, brightness, contrast),
-                      brightness_contrast_channel_value(color.blue, brightness, contrast)};
+      const auto use_legacy = settings.brightness_contrast.use_legacy;
+      return RgbColor{brightness_contrast_channel_value(color.red, brightness, contrast, use_legacy),
+                      brightness_contrast_channel_value(color.green, brightness, contrast, use_legacy),
+                      brightness_contrast_channel_value(color.blue, brightness, contrast, use_legacy)};
     }
   }
   return color;

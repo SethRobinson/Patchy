@@ -379,7 +379,6 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                            std::vector<std::string>* notices,
                                            std::size_t* damaged_rows) {
   has_merged_transparency = false;
-  int modern_brightness_contrast_count = 0;
   int unrendered_color_balance_count = 0;
   const auto layer_count_raw = static_cast<std::int16_t>(layer_reader.read_u16());
   has_merged_transparency = layer_count_raw < 0;
@@ -518,7 +517,6 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     std::optional<AdjustmentSettings> patchy_adjustment_settings;
     std::optional<AdjustmentSettings> brit_adjustment_settings;
     std::optional<AdjustmentSettings> cged_adjustment_settings;
-    bool cged_uses_modern_algorithm = false;
     bool has_native_curves = false;
     std::optional<ParsedVectorMaskBlock> vector_mask_block;
     std::optional<VectorFill> vector_fill;
@@ -595,7 +593,6 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       } else if (block.key == "CgEd") {
         if (auto parsed = parse_photoshop_brightness_contrast_descriptor(block.payload); parsed.has_value()) {
           cged_adjustment_settings = parsed->settings;
-          cged_uses_modern_algorithm = !parsed->use_legacy;
         }
       } else if (block.key == "plAD") {
         patchy_adjustment_settings = parse_patchy_adjustment(block.payload);
@@ -606,9 +603,6 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     // is authoritative; legacy-mode files carry 'brit' only.
     if (cged_adjustment_settings.has_value()) {
       native_adjustment_settings = cged_adjustment_settings;
-      if (cged_uses_modern_algorithm) {
-        ++modern_brightness_contrast_count;
-      }
     } else if (brit_adjustment_settings.has_value()) {
       native_adjustment_settings = brit_adjustment_settings;
     }
@@ -826,12 +820,6 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     decoded_layers.push_back(DecodedLayer{std::move(layer), record.section_divider_type});
   }
 
-  if (modern_brightness_contrast_count > 0 && notices != nullptr) {
-    notices->push_back(std::to_string(modern_brightness_contrast_count) + " Brightness/Contrast layer" +
-                       (modern_brightness_contrast_count == 1 ? "" : "s") +
-                       " use" + (modern_brightness_contrast_count == 1 ? "s" : "") +
-                       " Photoshop's modern algorithm; Patchy renders and edits with legacy semantics.");
-  }
   if (unrendered_color_balance_count > 0 && notices != nullptr) {
     notices->push_back(std::to_string(unrendered_color_balance_count) + " Color Balance layer" +
                        (unrendered_color_balance_count == 1 ? " carries" : "s carry") +

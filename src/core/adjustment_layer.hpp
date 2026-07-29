@@ -85,6 +85,10 @@ inline constexpr const char* kLayerMetadataAdjustmentBrightnessContrastBrightnes
     "patchy.adjustment.brightness_contrast.brightness";
 inline constexpr const char* kLayerMetadataAdjustmentBrightnessContrastContrast =
     "patchy.adjustment.brightness_contrast.contrast";
+// Absent on pre-July-2026 documents, which were always legacy-mode; the reader
+// therefore defaults to 1 (legacy) so old files keep their render.
+inline constexpr const char* kLayerMetadataAdjustmentBrightnessContrastUseLegacy =
+    "patchy.adjustment.brightness_contrast.use_legacy";
 
 enum class AdjustmentKind {
   Levels,
@@ -222,12 +226,21 @@ struct ThresholdAdjustment {
   int level{128};
 };
 
-// Photoshop legacy-mode ranges (-100..100 both). Values from modern-mode
-// CgEd blocks (-150..150 / -50..100) clamp into this model on import.
+// Both Photoshop algorithms are modeled. Modern mode (Photoshop's default,
+// use_legacy false) takes brightness -150..150 and contrast -50..100; legacy
+// mode takes -100..100 for both. Old Patchy documents and 'brit'-only PSDs
+// load as legacy so their render is unchanged.
+inline constexpr int kBrightnessContrastLegacyRange = 100;
+inline constexpr int kModernBrightnessRange = 150;
+inline constexpr int kModernContrastMin = -50;
+inline constexpr int kModernContrastMax = 100;
 struct BrightnessContrastAdjustment {
   int brightness{0};
   int contrast{0};
+  bool use_legacy{false};
 };
+// Clamps both sliders into the active mode's Photoshop range.
+[[nodiscard]] BrightnessContrastAdjustment clamp_brightness_contrast(BrightnessContrastAdjustment settings);
 
 struct AdjustmentSettings {
   AdjustmentKind kind{AdjustmentKind::Levels};
@@ -275,13 +288,16 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
 // threshold operates on the (30r + 59g + 11b) / 100 integer luminance.
 [[nodiscard]] std::uint8_t posterize_channel_value(std::uint8_t value, int levels);
 [[nodiscard]] int threshold_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue);
-// Photoshop legacy-mode Brightness/Contrast, calibrated against PS 2026 ramp
-// captures (July 2026). DELIBERATELY different from the destructive
+// Photoshop Brightness/Contrast, both algorithms calibrated against PS 2026
+// ramp captures (July 2026). DELIBERATELY different from the destructive
 // patchy.filters.brightness_contrast formula (which is byte-pinned and keeps
 // its historical linear (100+c)/100 slope for positive contrast): the
-// adjustment layer round-trips as a native Photoshop legacy 'brit' record, so
-// it must render Photoshop's math, like the Levels dual-formula precedent.
-[[nodiscard]] std::uint8_t brightness_contrast_channel_value(std::uint8_t value, int brightness, int contrast);
+// adjustment layer round-trips as a native Photoshop record, so it must
+// render Photoshop's math, like the Levels dual-formula precedent. The
+// modern (use_legacy false) model is the full closed form recovered from
+// 300 16-bit ramp captures; see docs/ps-compat.md "Modern Brightness/Contrast".
+[[nodiscard]] std::uint8_t brightness_contrast_channel_value(std::uint8_t value, int brightness, int contrast,
+                                                             bool use_legacy);
 
 [[nodiscard]] bool layer_is_adjustment(const Layer& layer);
 [[nodiscard]] std::string adjustment_kind_key(AdjustmentKind kind);

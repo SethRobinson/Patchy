@@ -528,6 +528,8 @@ std::optional<AdjustmentSettings> parse_photoshop_brightness_contrast_adjustment
   BigEndianReader reader(payload);
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::BrightnessContrast;
+  // 'brit' alone (no CgEd descriptor) is the CS-era legacy record.
+  settings.brightness_contrast.use_legacy = true;
   settings.brightness_contrast.brightness =
       std::clamp(static_cast<int>(static_cast<std::int16_t>(reader.read_u16())), -100, 100);
   settings.brightness_contrast.contrast =
@@ -554,13 +556,19 @@ std::optional<BrightnessContrastDescriptorParse> parse_photoshop_brightness_cont
     }
     BrightnessContrastDescriptorParse parsed;
     parsed.settings.kind = AdjustmentKind::BrightnessContrast;
-    // Modern-mode values live in wider ranges (-150..150 / -50..100); they
-    // clamp into the legacy model, the accepted approximation.
-    parsed.settings.brightness_contrast.brightness = std::clamp(brightness->integer_value, -100, 100);
-    parsed.settings.brightness_contrast.contrast = std::clamp(contrast->integer_value, -100, 100);
     if (const auto* legacy = descriptor_value(descriptor, "useLegacy");
         legacy != nullptr && legacy->type == DescriptorValue::Type::Bool) {
       parsed.use_legacy = legacy->bool_value;
+    }
+    parsed.settings.brightness_contrast.use_legacy = parsed.use_legacy;
+    if (parsed.use_legacy) {
+      parsed.settings.brightness_contrast.brightness = std::clamp(brightness->integer_value, -100, 100);
+      parsed.settings.brightness_contrast.contrast = std::clamp(contrast->integer_value, -100, 100);
+    } else {
+      parsed.settings.brightness_contrast.brightness =
+          std::clamp(brightness->integer_value, -kModernBrightnessRange, kModernBrightnessRange);
+      parsed.settings.brightness_contrast.contrast =
+          std::clamp(contrast->integer_value, kModernContrastMin, kModernContrastMax);
     }
     return parsed;
   } catch (const std::exception&) {
@@ -596,14 +604,18 @@ std::optional<BrightnessContrastAdjustment> original_brightness_contrast_state(c
   return std::nullopt;
 }
 
+bool brightness_contrast_settings_match(const BrightnessContrastAdjustment& a,
+                                        const BrightnessContrastAdjustment& b) {
+  return a.brightness == b.brightness && a.contrast == b.contrast && a.use_legacy == b.use_legacy;
+}
+
 }  // namespace
 
 std::vector<std::uint8_t> photoshop_brightness_contrast_payload(const BrightnessContrastAdjustment& settings,
                                                                 const Layer& layer) {
-  const auto brightness = std::clamp(settings.brightness, -100, 100);
-  const auto contrast = std::clamp(settings.contrast, -100, 100);
+  const auto clamped = clamp_brightness_contrast(settings);
   const auto original = original_brightness_contrast_state(layer);
-  if (original.has_value() && original->brightness == brightness && original->contrast == contrast) {
+  if (original.has_value() && brightness_contrast_settings_match(*original, clamped)) {
     for (const auto& block : layer.unknown_psd_blocks()) {
       if (block.key == "brit") {
         return block.payload;  // unedited: byte-identical round trip
@@ -611,23 +623,97 @@ std::vector<std::uint8_t> photoshop_brightness_contrast_payload(const Brightness
     }
   }
   BigEndianWriter writer;
-  writer.write_u16(static_cast<std::uint16_t>(static_cast<std::int16_t>(brightness)));
-  writer.write_u16(static_cast<std::uint16_t>(static_cast<std::int16_t>(contrast)));
+  if (!clamped.use_legacy) {
+    // Photoshop writes an all-zero compatibility 'brit' beside a modern CgEd
+    // (byte-verified on PS 2026 files); the descriptor carries the values.
+    writer.write_u16(0);
+    writer.write_u16(0);
+    writer.write_u16(0);
+    writer.write_u8(0);
+    writer.write_u8(0);
+    return writer.bytes();
+  }
+  writer.write_u16(static_cast<std::uint16_t>(static_cast<std::int16_t>(clamped.brightness)));
+  writer.write_u16(static_cast<std::uint16_t>(static_cast<std::int16_t>(clamped.contrast)));
   writer.write_u16(127);  // mean, Photoshop's fixed midpoint
   writer.write_u8(0);     // lab
   writer.write_u8(0);     // pad
   return writer.bytes();
 }
 
-bool brightness_contrast_descriptor_is_stale(const Layer& layer) {
-  const auto settings = adjustment_settings_from_layer(layer);
-  if (!settings.has_value() || settings->kind != AdjustmentKind::BrightnessContrast) {
-    return false;
+std::optional<std::vector<std::uint8_t>> photoshop_brightness_contrast_descriptor_payload(
+    const BrightnessContrastAdjustment& settings, const Layer& layer) {
+  const auto clamped = clamp_brightness_contrast(settings);
+  const UnknownPsdBlock* original_block = nullptr;
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.key == "CgEd") {
+      original_block = &block;
+    }
   }
   const auto original = original_brightness_contrast_state(layer);
-  return !original.has_value() ||
-         original->brightness != settings->brightness_contrast.brightness ||
-         original->contrast != settings->brightness_contrast.contrast;
+  if (original.has_value() && brightness_contrast_settings_match(*original, clamped)) {
+    if (original_block != nullptr) {
+      return original_block->payload;  // unedited: byte-identical round trip
+    }
+    // Legacy brit-only file, untouched: keep it descriptor-free.
+    return std::nullopt;
+  }
+  if (clamped.use_legacy && original_block == nullptr) {
+    // Edited legacy settings on a file that never had a descriptor stay
+    // brit-only, the historical Patchy output Photoshop reads as legacy.
+    return std::nullopt;
+  }
+  // Regenerate Photoshop 2026's native 7-item shape: null descriptor with
+  // Vrsn/Brgh/Cntr/means/Lab/useLegacy/Auto ('means' and 'useLegacy' are
+  // stringIDs, the rest charIDs). 'means' is inert at render time (dark- and
+  // light-context COM probes render identically); preserve an imported value,
+  // else write Photoshop's default 127.
+  auto means = 127;
+  auto lab = false;
+  auto auto_flag = false;
+  if (original_block != nullptr) {
+    try {
+      BigEndianReader reader(original_block->payload);
+      if (reader.read_u32() == 16) {
+        const auto descriptor = read_descriptor(reader);
+        if (const auto* value = descriptor_value(descriptor, "means");
+            value != nullptr && value->type == DescriptorValue::Type::Integer) {
+          means = value->integer_value;
+        }
+        lab = descriptor_bool(descriptor, "Lab ", false);
+        auto_flag = descriptor_bool(descriptor, "Auto", false);
+      }
+    } catch (const std::exception&) {
+    }
+  }
+  DescriptorObject descriptor;
+  descriptor.name = "";
+  descriptor.class_id = "null";
+  const auto add_integer = [&descriptor](const std::string& key, bool long_form, int value) {
+    DescriptorValue entry;
+    entry.type = DescriptorValue::Type::Integer;
+    entry.integer_value = value;
+    descriptor.values.emplace(key, std::move(entry));
+    descriptor.key_order.push_back({key, long_form});
+  };
+  const auto add_bool = [&descriptor](const std::string& key, bool long_form, bool value) {
+    DescriptorValue entry;
+    entry.type = DescriptorValue::Type::Bool;
+    entry.bool_value = value;
+    descriptor.values.emplace(key, std::move(entry));
+    descriptor.key_order.push_back({key, long_form});
+  };
+  add_integer("Vrsn", false, 1);
+  add_integer("Brgh", false, clamped.brightness);
+  add_integer("Cntr", false, clamped.contrast);
+  add_integer("means", true, means);
+  add_bool("Lab ", false, lab);
+  add_bool("useLegacy", true, clamped.use_legacy);
+  add_bool("Auto", false, auto_flag);
+  BigEndianWriter writer;
+  writer.write_u32(16);
+  write_descriptor(writer, descriptor);
+  return writer.bytes();
 }
 
 std::optional<AdjustmentSettings> parse_photoshop_threshold_adjustment(std::span<const std::uint8_t> payload) {

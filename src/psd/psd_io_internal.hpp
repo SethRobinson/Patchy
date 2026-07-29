@@ -441,13 +441,17 @@ struct BrightnessContrastDescriptorParse {
 std::optional<BrightnessContrastDescriptorParse> parse_photoshop_brightness_contrast_descriptor(
     std::span<const std::uint8_t> payload);
 // Re-emits the imported 'brit' bytes when the layer's settings still match the
-// imported state (CgEd authoritative); regenerates the legacy 8-byte shape on
-// a real edit. `layer` provides the preserved original blocks.
+// imported state (CgEd authoritative); regenerates on a real edit - the
+// value-carrying legacy 8-byte shape, or Photoshop's all-zero compatibility
+// brit when the settings are modern. `layer` provides the preserved originals.
 std::vector<std::uint8_t> photoshop_brightness_contrast_payload(const BrightnessContrastAdjustment& settings,
                                                                 const Layer& layer);
-// True when a Brightness/Contrast edit must drop the preserved 'CgEd' block
-// (a stale descriptor would win over the regenerated 'brit' in Photoshop).
-[[nodiscard]] bool brightness_contrast_descriptor_is_stale(const Layer& layer);
+// The 'CgEd' descriptor that must accompany the brit: preserved bytes when
+// unedited, a regenerated PS-2026-shape descriptor on an edit, and nullopt
+// when the layer should stay descriptor-free (legacy settings on a file that
+// never carried one - a stale CgEd would win over brit in Photoshop).
+std::optional<std::vector<std::uint8_t>> photoshop_brightness_contrast_descriptor_payload(
+    const BrightnessContrastAdjustment& settings, const Layer& layer);
 std::optional<AdjustmentSettings> parse_photoshop_color_balance_adjustment(
     std::span<const std::uint8_t> payload);
 // Patch-in-place: only the midtones bytes are rewritten from the model; the

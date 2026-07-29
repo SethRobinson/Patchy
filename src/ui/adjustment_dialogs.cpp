@@ -1420,20 +1420,66 @@ std::optional<ThresholdSettings> request_threshold_settings(
 std::optional<BrightnessContrastSettings> request_brightness_contrast_settings(
     QWidget* parent, std::function<void(bool, const BrightnessContrastSettings&)> preview_changed,
     BrightnessContrastSettings initial) {
-  initial.brightness = std::clamp(initial.brightness, -100, 100);
-  initial.contrast = std::clamp(initial.contrast, -100, 100);
+  initial = clamp_brightness_contrast(initial);
+  auto legacy_check = std::make_shared<QCheckBox*>(nullptr);
+
+  // Photoshop's slider ranges differ per algorithm: modern takes brightness
+  // -150..150 and contrast -50..100, legacy -100..100 for both.
+  const auto rows_for = [](const BrightnessContrastSettings& value) {
+    const auto brightness_range = value.use_legacy ? kBrightnessContrastLegacyRange : kModernBrightnessRange;
+    const auto contrast_low = value.use_legacy ? -kBrightnessContrastLegacyRange : kModernContrastMin;
+    const auto contrast_high = value.use_legacy ? kBrightnessContrastLegacyRange : kModernContrastMax;
+    return std::vector<SliderRowSpec>{{QObject::tr("Brightness"), QStringLiteral("brightnessContrastBrightness"),
+                                       -brightness_range, brightness_range, value.brightness, {}},
+                                      {QObject::tr("Contrast"), QStringLiteral("brightnessContrastContrast"),
+                                       contrast_low, contrast_high, value.contrast, {}}};
+  };
+
+  const auto build_settings = [legacy_check](const std::vector<QSpinBox*>& spins) {
+    BrightnessContrastSettings settings{spins[0]->value(), spins[1]->value(),
+                                        *legacy_check != nullptr && (*legacy_check)->isChecked()};
+    return clamp_brightness_contrast(settings);
+  };
+
+  const auto retarget = [rows_for](QDialog& dialog, const BrightnessContrastSettings& value,
+                                   const std::vector<QSpinBox*>& spins) {
+    const auto rows = rows_for(value);
+    for (std::size_t index = 0; index < spins.size() && index < rows.size(); ++index) {
+      auto* slider = dialog.findChild<QSlider*>(rows[index].object_prefix + QStringLiteral("Slider"));
+      if (slider != nullptr) {
+        const QSignalBlocker block_slider(slider);
+        slider->setRange(rows[index].minimum, rows[index].maximum);
+        slider->setValue(rows[index].value);
+      }
+      const QSignalBlocker block_spin(spins[index]);
+      spins[index]->setRange(rows[index].minimum, rows[index].maximum);
+      spins[index]->setValue(rows[index].value);
+    }
+  };
+
   // Object names deliberately differ from the destructive catalog dialog's
   // filterBrightness/filterContrast so tests can target each unambiguously.
   return request_adjustment_settings_dialog<BrightnessContrastSettings>(
       parent, QStringLiteral("patchyBrightnessContrastDialog"), QObject::tr("Brightness/Contrast"),
-      QStringLiteral("brightnessContrastPreviewCheck"),
-      {{QObject::tr("Brightness"), QStringLiteral("brightnessContrastBrightness"), -100, 100,
-        initial.brightness, {}},
-       {QObject::tr("Contrast"), QStringLiteral("brightnessContrastContrast"), -100, 100, initial.contrast, {}}},
-      [](const std::vector<QSpinBox*>& spins) {
-        return BrightnessContrastSettings{spins[0]->value(), spins[1]->value()};
-      },
-      std::move(preview_changed));
+      QStringLiteral("brightnessContrastPreviewCheck"), rows_for(initial), build_settings,
+      std::move(preview_changed), {},
+      [initial, legacy_check, retarget](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>& spins,
+                                        const std::function<void()>& flush_preview) {
+        auto* check = new QCheckBox(QObject::tr("Use Legacy"), &dialog);
+        check->setObjectName(QStringLiteral("brightnessContrastUseLegacyCheck"));
+        check->setChecked(initial.use_legacy);
+        *legacy_check = check;
+        form->addRow(QString(), check);
+        QObject::connect(check, &QCheckBox::toggled, &dialog,
+                         [&dialog, spins, retarget, flush_preview](bool use_legacy) {
+                           // Photoshop clamps the sliders into the incoming
+                           // mode's range when the algorithm is switched.
+                           const auto clamped = clamp_brightness_contrast(
+                               BrightnessContrastSettings{spins[0]->value(), spins[1]->value(), use_legacy});
+                           retarget(dialog, clamped, spins);
+                           flush_preview();
+                         });
+      });
 }
 
 }  // namespace patchy::ui

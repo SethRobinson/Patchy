@@ -4876,6 +4876,11 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/adjustment_dialogs.cpp"/>
+        <source>Use Legacy</source>
+        <translation>従来方式を使用</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/adjustment_dialogs.cpp"/>
         <source>Edit:</source>
         <translation>編集対象:</translation>
     </message>

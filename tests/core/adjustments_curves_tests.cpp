@@ -1840,6 +1840,52 @@ void psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available(
   }
 }
 
+void psd_eonkun_modern_brightness_contrast_matches_photoshop_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("EonKun Goodboy Chest.psd");
+  if (!std::filesystem::exists(path)) {
+    std::printf(
+        "[SKIP] psd_eonkun_modern_brightness_contrast_matches_photoshop_if_available (no local fixture)\n");
+    return;
+  }
+
+  // The July 2026 report file behind the modern Brightness/Contrast
+  // calibration: a colorized grass smart object under a modern-mode
+  // Brightness/Contrast 1 (63, -12). The legacy approximation rendered the
+  // whole grass patch ~30/255 too light; the calibrated modern model matches
+  // Photoshop 2026's flatten byte-for-byte at every pinned point.
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto* adjustment = find_layer_named(document.layers(), "Brightness/Contrast 1");
+  CHECK(adjustment != nullptr);
+  const auto settings = patchy::adjustment_settings_from_layer(*adjustment);
+  CHECK(settings.has_value());
+  CHECK(!settings->brightness_contrast.use_legacy);
+  CHECK(settings->brightness_contrast.brightness == 63);
+  CHECK(settings->brightness_contrast.contrast == -12);
+
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flat.width() == 4961);
+  CHECK(flat.height() == 7016);
+  struct PhotoshopPixel {
+    std::int32_t x;
+    std::int32_t y;
+    std::array<int, 3> expected;
+  };
+  // Photoshop 2026 flattened-render samples inside the grass patch, clear of
+  // the two 20%-opacity strip layers.
+  constexpr std::array<PhotoshopPixel, 6> pins{{{1000, 2500, {121, 142, 82}},
+                                                {1500, 3000, {120, 141, 80}},
+                                                {600, 2200, {116, 135, 77}},
+                                                {2000, 2600, {120, 140, 80}},
+                                                {2900, 3500, {135, 156, 90}},
+                                                {350, 2150, {116, 136, 77}}}};
+  for (const auto& pin : pins) {
+    const auto* actual = flat.pixel(pin.x, pin.y);
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+      CHECK(std::abs(static_cast<int>(actual[channel]) - pin.expected[channel]) <= 1);
+    }
+  }
+}
+
 void psd_generic_bg_colorize_writes_comparison_artifacts_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("generic_bg.psd");
   if (!std::filesystem::exists(path)) {
@@ -2275,6 +2321,7 @@ void adjustment_brightness_contrast_math_lut_and_metadata_round_trip() {
 
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::BrightnessContrast;
+  settings.brightness_contrast.use_legacy = true;
   settings.brightness_contrast.brightness = 150;
   settings.brightness_contrast.contrast = -120;
   patchy::Layer layer(1, "Brightness/Contrast", patchy::LayerKind::Adjustment);
@@ -2282,35 +2329,58 @@ void adjustment_brightness_contrast_math_lut_and_metadata_round_trip() {
   const auto restored = patchy::adjustment_settings_from_layer(layer);
   CHECK(restored.has_value());
   CHECK(restored->kind == patchy::AdjustmentKind::BrightnessContrast);
+  CHECK(restored->brightness_contrast.use_legacy);
   CHECK(restored->brightness_contrast.brightness == 100);
   CHECK(restored->brightness_contrast.contrast == -100);
 
+  // Modern mode keeps Photoshop's wider ranges through the metadata round
+  // trip (brightness -150..150, contrast -50..100).
+  settings.brightness_contrast.use_legacy = false;
+  settings.brightness_contrast.brightness = 150;
+  settings.brightness_contrast.contrast = -120;
+  patchy::configure_adjustment_layer(layer, settings);
+  const auto restored_modern = patchy::adjustment_settings_from_layer(layer);
+  CHECK(restored_modern.has_value());
+  CHECK(!restored_modern->brightness_contrast.use_legacy);
+  CHECK(restored_modern->brightness_contrast.brightness == 150);
+  CHECK(restored_modern->brightness_contrast.contrast == -50);
+
+  // A layer without the use_legacy key (pre-July-2026 document) loads legacy.
+  patchy::Layer old_layer(2, "Old Brightness/Contrast", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(old_layer, settings);
+  old_layer.metadata().erase(patchy::kLayerMetadataAdjustmentBrightnessContrastUseLegacy);
+  const auto restored_old = patchy::adjustment_settings_from_layer(old_layer);
+  CHECK(restored_old.has_value());
+  CHECK(restored_old->brightness_contrast.use_legacy);
+
   // Points pinned exactly by the PS 2026 legacy-mode ramp captures.
-  CHECK(patchy::brightness_contrast_channel_value(0, 30, 0) == 30);    // pure brightness is a plain add
-  CHECK(patchy::brightness_contrast_channel_value(250, 30, 0) == 255);
-  CHECK(patchy::brightness_contrast_channel_value(64, 0, 50) == 1);    // slope 2 around the 127.5 pivot
-  CHECK(patchy::brightness_contrast_channel_value(65, 0, 50) == 3);
-  CHECK(patchy::brightness_contrast_channel_value(69, 0, 50) == 11);
-  CHECK(patchy::brightness_contrast_channel_value(126, 0, 100) == 0);  // c = 100 thresholds at v + b >= 127
-  CHECK(patchy::brightness_contrast_channel_value(127, 0, 100) == 255);
-  CHECK(patchy::brightness_contrast_channel_value(176, -50, 100) == 0);   // brightness folds into the input
-  CHECK(patchy::brightness_contrast_channel_value(177, -50, 100) == 255);
+  CHECK(patchy::brightness_contrast_channel_value(0, 30, 0, true) == 30);  // pure brightness is a plain add
+  CHECK(patchy::brightness_contrast_channel_value(250, 30, 0, true) == 255);
+  CHECK(patchy::brightness_contrast_channel_value(64, 0, 50, true) == 1);  // slope 2 around the 127.5 pivot
+  CHECK(patchy::brightness_contrast_channel_value(65, 0, 50, true) == 3);
+  CHECK(patchy::brightness_contrast_channel_value(69, 0, 50, true) == 11);
+  CHECK(patchy::brightness_contrast_channel_value(126, 0, 100, true) == 0);  // c = 100 thresholds at v + b >= 127
+  CHECK(patchy::brightness_contrast_channel_value(127, 0, 100, true) == 255);
+  CHECK(patchy::brightness_contrast_channel_value(176, -50, 100, true) == 0);  // brightness folds into the input
+  CHECK(patchy::brightness_contrast_channel_value(177, -50, 100, true) == 255);
   // Negative contrast adds brightness to the OUTPUT (model value; PS's own
   // LUT wobbles within +/-1 of this formula).
-  CHECK(patchy::brightness_contrast_channel_value(1, -40, -40) == 12);
+  CHECK(patchy::brightness_contrast_channel_value(1, -40, -40, true) == 12);
 
   // Deliberate divergence from the byte-pinned destructive filter: positive
   // contrast uses Photoshop's 100/(100-c) slope, not the catalog's linear
   // (100+c)/100. If this ever "unifies", pinned pixels change - keep both.
-  CHECK(patchy::brightness_contrast_channel_value(64, 0, 50) !=
+  CHECK(patchy::brightness_contrast_channel_value(64, 0, 50, true) !=
         static_cast<std::uint8_t>(std::clamp(std::lround((64.0 - 128.0) * 1.5 + 128.0), 0L, 255L)));
 
+  settings.brightness_contrast.use_legacy = true;
   settings.brightness_contrast.brightness = 20;
   settings.brightness_contrast.contrast = 35;
   const auto lut = patchy::build_adjustment_lut(settings);
   CHECK(lut.has_value());
   for (int value = 0; value < 256; ++value) {
-    const auto expected = patchy::brightness_contrast_channel_value(static_cast<std::uint8_t>(value), 20, 35);
+    const auto expected =
+        patchy::brightness_contrast_channel_value(static_cast<std::uint8_t>(value), 20, 35, true);
     CHECK(lut->red[static_cast<std::size_t>(value)] == expected);
     CHECK(lut->green[static_cast<std::size_t>(value)] == expected);
     CHECK(lut->blue[static_cast<std::size_t>(value)] == expected);
@@ -2320,12 +2390,170 @@ void adjustment_brightness_contrast_math_lut_and_metadata_round_trip() {
   CHECK(!patchy::adjustment_has_effect(settings));
 }
 
+void adjustment_modern_brightness_contrast_matches_photoshop_captures() {
+  // Pinned against the July 2026 Photoshop 2026 COM ramp captures behind the
+  // calibrated modern model (docs/ps-compat.md "Modern Brightness/Contrast";
+  // capture PNGs/TIFFs live machine-local in local-test-fixtures/ps-bc-captures).
+  // The (63, -12) capture below is EonKun Goodboy Chest.psd's exact setting and
+  // matched byte-for-byte, so it pins full equality; the spot grid across both
+  // signs, the b > 100 composition regime, the tau floor (b >= 89), and the
+  // contrast range pins within the same +/-1 envelope as the legacy-mode
+  // calibration (Photoshop's fixed-point LUT splits exact halves differently
+  // on three of the 451 captured curves, all in ray regions with sigma ties).
+  const auto modern = [](std::uint8_t value, int brightness, int contrast) {
+    return patchy::brightness_contrast_channel_value(value, brightness, contrast, false);
+  };
+
+  static constexpr std::array<std::uint8_t, 256> kCapture63Neg12 = {
+      0, 2, 3, 5, 6, 8, 10, 11, 13, 14, 16, 18, 19, 21, 22, 24,
+      26, 27, 29, 30, 32, 33, 35, 36, 38, 40, 41, 43, 44, 46, 47, 49,
+      50, 52, 53, 55, 56, 58, 59, 61, 62, 64, 65, 67, 68, 70, 71, 73,
+      74, 76, 77, 79, 80, 82, 83, 84, 86, 87, 89, 90, 92, 93, 95, 96,
+      97, 99, 100, 102, 103, 104, 106, 107, 109, 110, 111, 113, 114, 116, 117, 118,
+      120, 121, 122, 124, 125, 127, 128, 129, 131, 132, 133, 135, 136, 137, 138, 140,
+      141, 142, 144, 145, 146, 147, 149, 150, 151, 152, 154, 155, 156, 157, 158, 160,
+      161, 162, 163, 164, 165, 167, 168, 169, 170, 171, 172, 173, 174, 176, 177, 178,
+      179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194,
+      195, 196, 197, 198, 199, 200, 200, 201, 202, 203, 204, 205, 206, 207, 207, 208,
+      209, 210, 211, 212, 212, 213, 214, 215, 216, 216, 217, 218, 219, 219, 220, 221,
+      221, 222, 223, 224, 224, 225, 226, 226, 227, 227, 228, 229, 229, 230, 231, 231,
+      232, 232, 233, 234, 234, 235, 235, 236, 236, 237, 237, 238, 238, 239, 239, 240,
+      240, 241, 241, 242, 242, 243, 243, 243, 244, 244, 245, 245, 245, 246, 246, 247,
+      247, 247, 248, 248, 248, 249, 249, 249, 250, 250, 250, 251, 251, 251, 251, 252,
+      252, 252, 252, 253, 253, 253, 253, 254, 254, 254, 254, 254, 254, 255, 255, 255,
+  };
+  for (int value = 0; value < 256; ++value) {
+    CHECK(modern(static_cast<std::uint8_t>(value), 63, -12) == kCapture63Neg12[static_cast<std::size_t>(value)]);
+  }
+
+  struct CaptureSample {
+    int brightness;
+    int contrast;
+    std::uint8_t input;
+    std::uint8_t expected;
+  };
+  static constexpr std::array<CaptureSample, 364> kCaptureSamples = {{
+      {150, 0, 0, 0}, {150, 0, 1, 3}, {150, 0, 16, 41}, {150, 0, 33, 85},
+      {150, 0, 64, 162}, {150, 0, 96, 214}, {150, 0, 127, 238}, {150, 0, 128, 239},
+      {150, 0, 160, 249}, {150, 0, 192, 253}, {150, 0, 224, 254}, {150, 0, 240, 255},
+      {150, 0, 254, 255}, {150, 0, 255, 255}, {125, 0, 0, 0}, {125, 0, 1, 2},
+      {125, 0, 16, 35}, {125, 0, 33, 73}, {125, 0, 64, 141}, {125, 0, 96, 198},
+      {125, 0, 127, 229}, {125, 0, 128, 230}, {125, 0, 160, 245}, {125, 0, 192, 251},
+      {125, 0, 224, 254}, {125, 0, 240, 254}, {125, 0, 254, 255}, {125, 0, 255, 255},
+      {110, 0, 0, 0}, {110, 0, 1, 2}, {110, 0, 16, 32}, {110, 0, 33, 66},
+      {110, 0, 64, 128}, {110, 0, 96, 185}, {110, 0, 127, 220}, {110, 0, 128, 221},
+      {110, 0, 160, 240}, {110, 0, 192, 249}, {110, 0, 224, 253}, {110, 0, 240, 254},
+      {110, 0, 254, 255}, {110, 0, 255, 255}, {101, 0, 0, 0}, {101, 0, 1, 2},
+      {101, 0, 16, 30}, {101, 0, 33, 62}, {101, 0, 64, 121}, {101, 0, 96, 174},
+      {101, 0, 127, 210}, {101, 0, 128, 211}, {101, 0, 160, 233}, {101, 0, 192, 246},
+      {101, 0, 224, 252}, {101, 0, 240, 254}, {101, 0, 254, 255}, {101, 0, 255, 255},
+      {100, 0, 0, 0}, {100, 0, 1, 2}, {100, 0, 16, 30}, {100, 0, 33, 62},
+      {100, 0, 64, 120}, {100, 0, 96, 173}, {100, 0, 127, 208}, {100, 0, 128, 209},
+      {100, 0, 160, 232}, {100, 0, 192, 245}, {100, 0, 224, 252}, {100, 0, 240, 253},
+      {100, 0, 254, 255}, {100, 0, 255, 255}, {89, 0, 0, 0}, {89, 0, 1, 2},
+      {89, 0, 16, 28}, {89, 0, 33, 58}, {89, 0, 64, 112}, {89, 0, 96, 164},
+      {89, 0, 127, 200}, {89, 0, 128, 201}, {89, 0, 160, 227}, {89, 0, 192, 242},
+      {89, 0, 224, 251}, {89, 0, 240, 253}, {89, 0, 254, 255}, {89, 0, 255, 255},
+      {63, 0, 0, 0}, {63, 0, 1, 1}, {63, 0, 16, 24}, {63, 0, 33, 49},
+      {63, 0, 64, 95}, {63, 0, 96, 142}, {63, 0, 127, 181}, {63, 0, 128, 182},
+      {63, 0, 160, 212}, {63, 0, 192, 233}, {63, 0, 224, 248}, {63, 0, 240, 252},
+      {63, 0, 254, 255}, {63, 0, 255, 255}, {25, 0, 0, 0}, {25, 0, 1, 1},
+      {25, 0, 16, 19}, {25, 0, 33, 39}, {25, 0, 64, 75}, {25, 0, 96, 112},
+      {25, 0, 127, 148}, {25, 0, 128, 150}, {25, 0, 160, 185}, {25, 0, 192, 216},
+      {25, 0, 224, 240}, {25, 0, 240, 249}, {25, 0, 254, 255}, {25, 0, 255, 255},
+      {1, 0, 0, 0}, {1, 0, 1, 1}, {1, 0, 16, 16}, {1, 0, 33, 33},
+      {1, 0, 64, 64}, {1, 0, 96, 97}, {1, 0, 127, 128}, {1, 0, 128, 129},
+      {1, 0, 160, 161}, {1, 0, 192, 194}, {1, 0, 224, 225}, {1, 0, 240, 241},
+      {1, 0, 254, 254}, {1, 0, 255, 255}, {-1, 0, 0, 0}, {-1, 0, 1, 1},
+      {-1, 0, 16, 16}, {-1, 0, 33, 33}, {-1, 0, 64, 64}, {-1, 0, 96, 95},
+      {-1, 0, 127, 126}, {-1, 0, 128, 127}, {-1, 0, 160, 159}, {-1, 0, 192, 190},
+      {-1, 0, 224, 223}, {-1, 0, 240, 239}, {-1, 0, 254, 254}, {-1, 0, 255, 255},
+      {-25, 0, 0, 0}, {-25, 0, 1, 1}, {-25, 0, 16, 14}, {-25, 0, 33, 28},
+      {-25, 0, 64, 55}, {-25, 0, 96, 82}, {-25, 0, 127, 108}, {-25, 0, 128, 109},
+      {-25, 0, 160, 137}, {-25, 0, 192, 167}, {-25, 0, 224, 202}, {-25, 0, 240, 224},
+      {-25, 0, 254, 252}, {-25, 0, 255, 255}, {-63, 0, 0, 0}, {-63, 0, 1, 1},
+      {-63, 0, 16, 11}, {-63, 0, 33, 22}, {-63, 0, 64, 43}, {-63, 0, 96, 65},
+      {-63, 0, 127, 85}, {-63, 0, 128, 86}, {-63, 0, 160, 109}, {-63, 0, 192, 138},
+      {-63, 0, 224, 177}, {-63, 0, 240, 205}, {-63, 0, 254, 249}, {-63, 0, 255, 255},
+      {-100, 0, 0, 0}, {-100, 0, 1, 1}, {-100, 0, 16, 9}, {-100, 0, 33, 18},
+      {-100, 0, 64, 34}, {-100, 0, 96, 51}, {-100, 0, 127, 68}, {-100, 0, 128, 68},
+      {-100, 0, 160, 87}, {-100, 0, 192, 111}, {-100, 0, 224, 147}, {-100, 0, 240, 177},
+      {-100, 0, 254, 245}, {-100, 0, 255, 255}, {-110, 0, 0, 0}, {-110, 0, 1, 1},
+      {-110, 0, 16, 8}, {-110, 0, 33, 17}, {-110, 0, 64, 32}, {-110, 0, 96, 48},
+      {-110, 0, 127, 64}, {-110, 0, 128, 64}, {-110, 0, 160, 81}, {-110, 0, 192, 101},
+      {-110, 0, 224, 132}, {-110, 0, 240, 160}, {-110, 0, 254, 238}, {-110, 0, 255, 255},
+      {-125, 0, 0, 0}, {-125, 0, 1, 0}, {-125, 0, 16, 7}, {-125, 0, 33, 15},
+      {-125, 0, 64, 29}, {-125, 0, 96, 44}, {-125, 0, 127, 58}, {-125, 0, 128, 58},
+      {-125, 0, 160, 73}, {-125, 0, 192, 92}, {-125, 0, 224, 120}, {-125, 0, 240, 147},
+      {-125, 0, 254, 228}, {-125, 0, 255, 255}, {-150, 0, 0, 0}, {-150, 0, 1, 0},
+      {-150, 0, 16, 6}, {-150, 0, 33, 13}, {-150, 0, 64, 25}, {-150, 0, 96, 37},
+      {-150, 0, 127, 49}, {-150, 0, 128, 50}, {-150, 0, 160, 63}, {-150, 0, 192, 79},
+      {-150, 0, 224, 106}, {-150, 0, 240, 131}, {-150, 0, 254, 214}, {-150, 0, 255, 255},
+      {0, 100, 0, 0}, {0, 100, 1, 0}, {0, 100, 16, 5}, {0, 100, 33, 14},
+      {0, 100, 64, 40}, {0, 100, 96, 78}, {0, 100, 127, 127}, {0, 100, 128, 128},
+      {0, 100, 160, 178}, {0, 100, 192, 216}, {0, 100, 224, 242}, {0, 100, 240, 250},
+      {0, 100, 254, 255}, {0, 100, 255, 255}, {0, 75, 0, 0}, {0, 75, 1, 0},
+      {0, 75, 16, 8}, {0, 75, 33, 19}, {0, 75, 64, 46}, {0, 75, 96, 82},
+      {0, 75, 127, 127}, {0, 75, 128, 128}, {0, 75, 160, 174}, {0, 75, 192, 210},
+      {0, 75, 224, 237}, {0, 75, 240, 248}, {0, 75, 254, 255}, {0, 75, 255, 255},
+      {0, 50, 0, 0}, {0, 50, 1, 1}, {0, 50, 16, 11}, {0, 50, 33, 24},
+      {0, 50, 64, 52}, {0, 50, 96, 87}, {0, 50, 127, 127}, {0, 50, 128, 128},
+      {0, 50, 160, 169}, {0, 50, 192, 204}, {0, 50, 224, 233}, {0, 50, 240, 245},
+      {0, 50, 254, 254}, {0, 50, 255, 255}, {0, 25, 0, 0}, {0, 25, 1, 1},
+      {0, 25, 16, 13}, {0, 25, 33, 28}, {0, 25, 64, 58}, {0, 25, 96, 91},
+      {0, 25, 127, 127}, {0, 25, 128, 128}, {0, 25, 160, 165}, {0, 25, 192, 198},
+      {0, 25, 224, 228}, {0, 25, 240, 243}, {0, 25, 254, 254}, {0, 25, 255, 255},
+      {0, -12, 0, 0}, {0, -12, 1, 1}, {0, -12, 16, 17}, {0, -12, 33, 35},
+      {0, -12, 64, 67}, {0, -12, 96, 98}, {0, -12, 127, 127}, {0, -12, 128, 128},
+      {0, -12, 160, 158}, {0, -12, 192, 189}, {0, -12, 224, 222}, {0, -12, 240, 239},
+      {0, -12, 254, 254}, {0, -12, 255, 255}, {0, -50, 0, 0}, {0, -50, 1, 1},
+      {0, -50, 16, 21}, {0, -50, 33, 42}, {0, -50, 64, 76}, {0, -50, 96, 105},
+      {0, -50, 127, 127}, {0, -50, 128, 128}, {0, -50, 160, 151}, {0, -50, 192, 180},
+      {0, -50, 224, 215}, {0, -50, 240, 235}, {0, -50, 254, 254}, {0, -50, 255, 255},
+      {63, 50, 0, 0}, {63, 50, 1, 1}, {63, 50, 16, 16}, {63, 50, 33, 38},
+      {63, 50, 64, 86}, {63, 50, 96, 147}, {63, 50, 127, 192}, {63, 50, 128, 193},
+      {63, 50, 160, 223}, {63, 50, 192, 240}, {63, 50, 224, 250}, {63, 50, 240, 253},
+      {63, 50, 254, 255}, {63, 50, 255, 255}, {100, -50, 0, 0}, {100, -50, 1, 3},
+      {100, -50, 16, 39}, {100, -50, 33, 74}, {100, -50, 64, 123}, {100, -50, 96, 162},
+      {100, -50, 127, 197}, {100, -50, 128, 198}, {100, -50, 160, 225}, {100, -50, 192, 242},
+      {100, -50, 224, 250}, {100, -50, 240, 253}, {100, -50, 254, 255}, {100, -50, 255, 255},
+      {-100, 100, 0, 0}, {-100, 100, 1, 0}, {-100, 100, 16, 2}, {-100, 100, 33, 6},
+      {-100, 100, 64, 15}, {-100, 100, 96, 28}, {-100, 100, 127, 43}, {-100, 100, 128, 44},
+      {-100, 100, 160, 66}, {-100, 100, 192, 100}, {-100, 100, 224, 159}, {-100, 100, 240, 200},
+      {-100, 100, 254, 252}, {-100, 100, 255, 255}, {50, 25, 0, 0}, {50, 25, 1, 1},
+      {50, 25, 16, 18}, {50, 25, 33, 40}, {50, 25, 64, 83}, {50, 25, 96, 132},
+      {50, 25, 127, 175}, {50, 25, 128, 177}, {50, 25, 160, 209}, {50, 25, 192, 232},
+      {50, 25, 224, 247}, {50, 25, 240, 252}, {50, 25, 254, 255}, {50, 25, 255, 255},
+  }};
+  int exact = 0;
+  for (const auto& sample : kCaptureSamples) {
+    const auto actual = modern(sample.input, sample.brightness, sample.contrast);
+    CHECK(std::abs(static_cast<int>(actual) - static_cast<int>(sample.expected)) <= 1);
+    exact += actual == sample.expected;
+  }
+  // Only the b = -110 sigma = 1/2 rounding ties may differ; everything else is
+  // byte-exact. Guard against silent drift toward the tolerance.
+  CHECK(exact >= static_cast<int>(kCaptureSamples.size()) - 8);
+
+  // The modern LUT rides the shared channel-separable fast path bit-identically.
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::BrightnessContrast;
+  settings.brightness_contrast.brightness = 63;
+  settings.brightness_contrast.contrast = -12;
+  const auto lut = patchy::build_adjustment_lut(settings);
+  CHECK(lut.has_value());
+  for (int value = 0; value < 256; ++value) {
+    CHECK(lut->red[static_cast<std::size_t>(value)] == kCapture63Neg12[static_cast<std::size_t>(value)]);
+  }
+}
+
 void psd_brightness_contrast_writes_native_brit_only_and_round_trips() {
   patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 100, 100));
 
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::BrightnessContrast;
+  settings.brightness_contrast.use_legacy = true;
   settings.brightness_contrast.brightness = 30;
   settings.brightness_contrast.contrast = -20;
   patchy::Layer adjustment(document.allocate_layer_id(), "Brightness/Contrast", patchy::LayerKind::Adjustment);
@@ -2349,8 +2577,43 @@ void psd_brightness_contrast_writes_native_brit_only_and_round_trips() {
   const auto restored = patchy::adjustment_settings_from_layer(read.layers()[1]);
   CHECK(restored.has_value());
   CHECK(restored->kind == patchy::AdjustmentKind::BrightnessContrast);
+  CHECK(restored->brightness_contrast.use_legacy);
   CHECK(restored->brightness_contrast.brightness == 30);
   CHECK(restored->brightness_contrast.contrast == -20);
+}
+
+void psd_brightness_contrast_modern_writes_cged_and_round_trips() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 100, 100));
+
+  // Patchy-authored modern settings (the default mode, like Photoshop's):
+  // values ride the CgEd descriptor beside Photoshop's all-zero compatibility
+  // 'brit', including values beyond the legacy ranges.
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::BrightnessContrast;
+  settings.brightness_contrast.brightness = 135;
+  settings.brightness_contrast.contrast = -35;
+  patchy::Layer adjustment(document.allocate_layer_id(), "Brightness/Contrast", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(adjustment, settings);
+  document.add_layer(std::move(adjustment));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto extra = psd_layer_extra_data(bytes, 1);
+  const auto brit = psd_layer_block_payload(extra, "brit");
+  CHECK(brit.has_value());
+  CHECK(brit->size() == 8);
+  CHECK(std::all_of(brit->begin(), brit->end(), [](std::uint8_t byte) { return byte == 0; }));
+  const auto descriptor = psd_layer_block_payload(extra, "CgEd");
+  CHECK(descriptor.has_value());
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  const auto restored = patchy::adjustment_settings_from_layer(read.layers()[1]);
+  CHECK(restored.has_value());
+  CHECK(restored->kind == patchy::AdjustmentKind::BrightnessContrast);
+  CHECK(!restored->brightness_contrast.use_legacy);
+  CHECK(restored->brightness_contrast.brightness == 135);
+  CHECK(restored->brightness_contrast.contrast == -35);
 }
 
 void psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve() {
@@ -2364,6 +2627,7 @@ void psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve() {
   const auto legacy_settings = patchy::adjustment_settings_from_layer(*legacy_layer);
   CHECK(legacy_settings.has_value());
   CHECK(legacy_settings->kind == patchy::AdjustmentKind::BrightnessContrast);
+  CHECK(legacy_settings->brightness_contrast.use_legacy);
   CHECK(legacy_settings->brightness_contrast.brightness == 30);
   CHECK(legacy_settings->brightness_contrast.contrast == -20);
 
@@ -2385,23 +2649,26 @@ void psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve() {
   CHECK(std::equal(legacy_original_brit->begin(), legacy_original_brit->end(), legacy_expected.begin()));
 
   // Modern fixture: the CgEd descriptor is authoritative (the compatibility
-  // 'brit' beside it is all zeros), values clamp into the legacy model, and
-  // the read reports the algorithm approximation.
+  // 'brit' beside it is all zeros) and renders with the calibrated modern
+  // algorithm, matching Photoshop's embedded composite.
   const auto modern_path = patchy::test::committed_psd_fixture_path("photoshop-brightness-contrast-modern.psd");
   CHECK(std::filesystem::exists(modern_path));
-  std::vector<std::string> notices;
-  patchy::psd::ReadOptions notice_options;
-  notice_options.notices = &notices;
-  const auto modern_doc = patchy::psd::DocumentIo::read_file(modern_path, notice_options);
+  const auto modern_doc = patchy::psd::DocumentIo::read_file(modern_path);
   const auto* modern_layer = find_layer_named(modern_doc.layers(), "Brightness/Contrast 1");
   CHECK(modern_layer != nullptr);
   const auto modern_settings = patchy::adjustment_settings_from_layer(*modern_layer);
   CHECK(modern_settings.has_value());
+  CHECK(!modern_settings->brightness_contrast.use_legacy);
   CHECK(modern_settings->brightness_contrast.brightness == 40);
   CHECK(modern_settings->brightness_contrast.contrast == 25);
-  CHECK(std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
-    return notice.find("modern algorithm") != std::string::npos;
-  }));
+
+  patchy::psd::ReadOptions modern_flat_options;
+  modern_flat_options.prefer_flat_composite = true;
+  const auto modern_reference = patchy::psd::DocumentIo::read_file(modern_path, modern_flat_options);
+  const auto modern_reference_flat = patchy::Compositor{}.flatten_rgb8(modern_reference);
+  const auto modern_patchy_flat = patchy::Compositor{}.flatten_rgb8(modern_doc);
+  const auto modern_metrics = rgb_diff_metrics(modern_reference_flat, modern_patchy_flat);
+  CHECK(modern_metrics.max_channel_delta <= 1);
 
   // Unedited: both original blocks survive byte-for-byte.
   const auto modern_resaved = patchy::psd::DocumentIo::write_layered_rgb8(modern_doc);
@@ -2411,13 +2678,13 @@ void psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve() {
   CHECK(std::all_of(modern_brit->begin(), modern_brit->end(), [](std::uint8_t byte) { return byte == 0; }));
   CHECK(psd_layer_block_payload(modern_extra, "CgEd").has_value());
 
-  // An edit regenerates legacy 'brit' and drops the stale CgEd descriptor
-  // (Photoshop would otherwise keep reading the old modern values).
+  // A modern edit keeps the values on a regenerated CgEd descriptor (with the
+  // all-zero compatibility brit), including values beyond the legacy ranges.
   auto edited_doc = patchy::psd::DocumentIo::read_file(modern_path);
   auto* edited_layer = edited_doc.find_layer(find_layer_named(edited_doc.layers(), "Brightness/Contrast 1")->id());
   CHECK(edited_layer != nullptr);
   auto edited_settings = *patchy::adjustment_settings_from_layer(*edited_layer);
-  edited_settings.brightness_contrast.brightness = -15;
+  edited_settings.brightness_contrast.brightness = -130;
   edited_settings.brightness_contrast.contrast = 60;
   patchy::configure_adjustment_layer(*edited_layer, edited_settings);
   const auto edited_resaved = patchy::psd::DocumentIo::write_layered_rgb8(edited_doc);
@@ -2425,15 +2692,42 @@ void psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve() {
   const auto edited_brit = psd_layer_block_payload(edited_extra, "brit");
   CHECK(edited_brit.has_value());
   CHECK(edited_brit->size() == 8);
-  const std::array<std::uint8_t, 8> edited_expected{0xFF, 0xF1, 0x00, 0x3C, 0x00, 0x7F, 0x00, 0x00};
-  CHECK(std::equal(edited_brit->begin(), edited_brit->end(), edited_expected.begin()));
-  CHECK(!psd_layer_block_payload(edited_extra, "CgEd").has_value());
+  CHECK(std::all_of(edited_brit->begin(), edited_brit->end(), [](std::uint8_t byte) { return byte == 0; }));
+  CHECK(psd_layer_block_payload(edited_extra, "CgEd").has_value());
   const auto edited_read = patchy::psd::DocumentIo::read(edited_resaved);
   const auto edited_restored =
       patchy::adjustment_settings_from_layer(*find_layer_named(edited_read.layers(), "Brightness/Contrast 1"));
   CHECK(edited_restored.has_value());
-  CHECK(edited_restored->brightness_contrast.brightness == -15);
+  CHECK(!edited_restored->brightness_contrast.use_legacy);
+  CHECK(edited_restored->brightness_contrast.brightness == -130);
   CHECK(edited_restored->brightness_contrast.contrast == 60);
+
+  // Switching an imported modern layer to legacy regenerates a value-carrying
+  // brit plus a CgEd with useLegacy = true, exactly Photoshop's legacy-save
+  // shape for a file that carried a descriptor.
+  auto legacy_switch_doc = patchy::psd::DocumentIo::read_file(modern_path);
+  auto* legacy_switch_layer =
+      legacy_switch_doc.find_layer(find_layer_named(legacy_switch_doc.layers(), "Brightness/Contrast 1")->id());
+  auto legacy_switch_settings = *patchy::adjustment_settings_from_layer(*legacy_switch_layer);
+  legacy_switch_settings.brightness_contrast.use_legacy = true;
+  legacy_switch_settings.brightness_contrast.brightness = -15;
+  legacy_switch_settings.brightness_contrast.contrast = 60;
+  patchy::configure_adjustment_layer(*legacy_switch_layer, legacy_switch_settings);
+  const auto legacy_switch_resaved = patchy::psd::DocumentIo::write_layered_rgb8(legacy_switch_doc);
+  const auto legacy_switch_extra = psd_layer_extra_data(legacy_switch_resaved, 1);
+  const auto legacy_switch_brit = psd_layer_block_payload(legacy_switch_extra, "brit");
+  CHECK(legacy_switch_brit.has_value());
+  const std::array<std::uint8_t, 8> legacy_switch_expected{0xFF, 0xF1, 0x00, 0x3C, 0x00, 0x7F, 0x00, 0x00};
+  CHECK(legacy_switch_brit->size() == 8);
+  CHECK(std::equal(legacy_switch_brit->begin(), legacy_switch_brit->end(), legacy_switch_expected.begin()));
+  CHECK(psd_layer_block_payload(legacy_switch_extra, "CgEd").has_value());
+  const auto legacy_switch_read = patchy::psd::DocumentIo::read(legacy_switch_resaved);
+  const auto legacy_switch_restored = patchy::adjustment_settings_from_layer(
+      *find_layer_named(legacy_switch_read.layers(), "Brightness/Contrast 1"));
+  CHECK(legacy_switch_restored.has_value());
+  CHECK(legacy_switch_restored->brightness_contrast.use_legacy);
+  CHECK(legacy_switch_restored->brightness_contrast.brightness == -15);
+  CHECK(legacy_switch_restored->brightness_contrast.contrast == 60);
 }
 
 void psd_color_balance_writes_native_blnc_only_and_round_trips() {
@@ -2667,6 +2961,8 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        psd_photoshop_hue_saturation_bands_fixture_matches_render},
       {"psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available",
        psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available},
+      {"psd_eonkun_modern_brightness_contrast_matches_photoshop_if_available",
+       psd_eonkun_modern_brightness_contrast_matches_photoshop_if_available},
       {"psd_generic_bg_colorize_writes_comparison_artifacts_if_available",
        psd_generic_bg_colorize_writes_comparison_artifacts_if_available},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
@@ -2686,8 +2982,12 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        psd_photoshop_posterize_threshold_fixtures_import_and_round_trip},
       {"adjustment_brightness_contrast_math_lut_and_metadata_round_trip",
        adjustment_brightness_contrast_math_lut_and_metadata_round_trip},
+      {"adjustment_modern_brightness_contrast_matches_photoshop_captures",
+       adjustment_modern_brightness_contrast_matches_photoshop_captures},
       {"psd_brightness_contrast_writes_native_brit_only_and_round_trips",
        psd_brightness_contrast_writes_native_brit_only_and_round_trips},
+      {"psd_brightness_contrast_modern_writes_cged_and_round_trips",
+       psd_brightness_contrast_modern_writes_cged_and_round_trips},
       {"psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve",
        psd_photoshop_brightness_contrast_fixtures_import_edit_and_preserve},
       {"psd_color_balance_writes_native_blnc_only_and_round_trips",

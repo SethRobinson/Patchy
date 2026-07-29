@@ -1394,8 +1394,9 @@ void ui_brightness_contrast_adjustment_layer_creates_and_edits() {
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
 
-  // Create with brightness +50: gray 100 becomes 150 (pure brightness is a
-  // plain add in the calibrated legacy model).
+  // Create with brightness +50 in the default modern mode: gray 100 maps to
+  // 137 (the calibrated Photoshop 2026 modern curve; the modern ranges are
+  // -150..150 / -50..100).
   bool saw_preview = false;
   QTimer::singleShot(0, [&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
@@ -1406,13 +1407,20 @@ void ui_brightness_contrast_adjustment_layer_creates_and_edits() {
       CHECK(dialog != nullptr);
       auto* brightness = dialog->findChild<QSpinBox*>(QStringLiteral("brightnessContrastBrightnessSpin"));
       auto* contrast = dialog->findChild<QSpinBox*>(QStringLiteral("brightnessContrastContrastSpin"));
+      auto* use_legacy = dialog->findChild<QCheckBox*>(QStringLiteral("brightnessContrastUseLegacyCheck"));
       CHECK(brightness != nullptr);
       CHECK(contrast != nullptr);
+      CHECK(use_legacy != nullptr);
       CHECK(brightness->value() == 0);
       CHECK(contrast->value() == 0);
+      CHECK(!use_legacy->isChecked());
+      CHECK(brightness->minimum() == -150);
+      CHECK(brightness->maximum() == 150);
+      CHECK(contrast->minimum() == -50);
+      CHECK(contrast->maximum() == 100);
       brightness->setValue(50);
       process_events_for(120);
-      saw_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(150, 150, 150), 6);
+      saw_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(137, 137, 137), 6);
       dialog->accept();
       return;
     }
@@ -1423,9 +1431,10 @@ void ui_brightness_contrast_adjustment_layer_creates_and_edits() {
   CHECK(saw_preview);
   CHECK(layer_list->item(0) != nullptr);
   CHECK(layer_list->item(0)->text() == QStringLiteral("Brightness/Contrast"));
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(150, 150, 150), 6));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(137, 137, 137), 6));
 
-  // Edit: the stored value reopens; contrast 100 thresholds at v + b >= 127,
+  // Edit: the stored value and mode reopen; switching to Use Legacy clamps the
+  // ranges to -100..100, and legacy contrast 100 thresholds at v + b >= 127,
   // so brightness 0 sends gray 100 to black.
   QTimer::singleShot(0, [&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
@@ -1436,9 +1445,18 @@ void ui_brightness_contrast_adjustment_layer_creates_and_edits() {
       CHECK(dialog != nullptr);
       auto* brightness = dialog->findChild<QSpinBox*>(QStringLiteral("brightnessContrastBrightnessSpin"));
       auto* contrast = dialog->findChild<QSpinBox*>(QStringLiteral("brightnessContrastContrastSpin"));
+      auto* use_legacy = dialog->findChild<QCheckBox*>(QStringLiteral("brightnessContrastUseLegacyCheck"));
       CHECK(brightness != nullptr);
       CHECK(contrast != nullptr);
+      CHECK(use_legacy != nullptr);
       CHECK(brightness->value() == 50);
+      CHECK(!use_legacy->isChecked());
+      use_legacy->setChecked(true);
+      process_events_for(60);
+      CHECK(brightness->minimum() == -100);
+      CHECK(brightness->maximum() == 100);
+      CHECK(contrast->minimum() == -100);
+      CHECK(contrast->maximum() == 100);
       brightness->setValue(0);
       contrast->setValue(100);
       process_events_for(120);
