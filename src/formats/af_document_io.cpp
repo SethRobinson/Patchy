@@ -3399,30 +3399,87 @@ struct AfVectorFill {
   return path;
 }
 
+// One decoded LDsc line descriptor. The LSty Data blob is a curve12_t (one
+// f64 + four u8 flag bytes, per the afread headers); byte 2 of the four is
+// the stroke panel's line-style control, pinned against ground truth July
+// 2026: 0 = None (sprite wild file: black stroke defined but not drawn),
+// 1 = Solid (the vec-* probe fixtures), 2 = Dashed (restaurant-menu-inside:
+// Patn [4,2] at weight 8.33 renders 33/17 px dashes, so Patn values are
+// stroke-width multiples exactly like Patchy's dash entries), 3 = textured
+// brush (approximated as solid + notice). LDSa is the alignment control:
+// 0 = Center (vec-*), 1 = Inside (restaurant-menu-inside), 2 = Outside (the
+// remaining state of the three-way control). LDSc scales the width with the
+// object transform.
+struct AfLineStyle {
+  double weight{0.0};
+  std::uint8_t line_style{1};
+  VectorStrokeAlignment alignment{VectorStrokeAlignment::Center};
+  std::vector<double> dashes;      // stroke-width multiples
+  double dash_phase{0.0};          // same units
+  bool scale_with_object{false};
+};
+
+[[nodiscard]] std::optional<AfLineStyle> line_style_from_descriptor(
+    const af::AfClass* line_descriptor) {
+  if (line_descriptor == nullptr) {
+    return std::nullopt;
+  }
+  const af::AfClass* style = line_descriptor->child_class(af::tag4("LDeL"));
+  if (style == nullptr) {
+    return std::nullopt;
+  }
+  AfLineStyle result;
+  result.weight = style->double_field(af::tag4("Wght"), 0.0);
+  if (const auto* data = style->field(af::tag4("Data"))) {
+    if (const auto* blob = std::get_if<af::AfCurveArray>(&data->value);
+        blob != nullptr && blob->bytes.size() >= 12) {
+      result.line_style = blob->bytes[10];
+    }
+  }
+  result.dashes = style->vec_field(af::tag4("Patn"));
+  result.dash_phase = style->double_field(af::tag4("Phse"), 0.0);
+  switch (line_descriptor->int_field(af::tag4("LDSa"), 0)) {
+    case 1: result.alignment = VectorStrokeAlignment::Inside; break;
+    case 2: result.alignment = VectorStrokeAlignment::Outside; break;
+    default: result.alignment = VectorStrokeAlignment::Center; break;
+  }
+  result.scale_with_object = line_descriptor->bool_field(af::tag4("LDSc"), false);
+  return result;
+}
+
 // A local-space vector path -> a real Patchy shape layer (the SVG import
 // pattern: vector content + a baked raster; kLayerMetadataVectorShape +
 // block-dirty so saves regenerate the PSD vector blocks). Shared by PCrv
 // (hand-drawn curves) and ShpN (parametric shapes). Fill = BFFl, stroke paint
-// = LIFl with the width from LILn's line style; cap/join/alignment keep
-// Patchy defaults (approximate). The node Xfrm maps local path coordinates
-// into document space (full affine - vectors need no axis-aligned
-// approximation). Returns nullopt when nothing is visible (placeholder path).
+// = LIFl with width/style/alignment/dashes from LILn's line descriptor and
+// the miter limit from the node's CnML; cap and join keep Patchy defaults
+// (their wire enums are unmined - every observed file carries the identical
+// default tuple). The node Xfrm maps local path coordinates into document
+// space (full affine - vectors need no axis-aligned approximation). Returns
+// nullopt when nothing is visible (placeholder path).
 [[nodiscard]] std::optional<Layer> build_vector_layer_from_path(LayerBuildContext& ctx,
                                                                 const af::AfClass& node,
                                                                 const std::string& display,
                                                                 VectorPath path) {
+  double transform_scale = 1.0;
   if (const auto xfrm = node_xfrm(ctx, node); xfrm.size() == 6) {
     transform_vector_path(path, {xfrm[0], xfrm[3], xfrm[1], xfrm[4], xfrm[2], xfrm[5]});
+    const double det = xfrm[0] * xfrm[4] - xfrm[1] * xfrm[3];
+    if (std::isfinite(det) && std::abs(det) > 0.0) {
+      transform_scale = std::sqrt(std::abs(det));
+    }
   }
   VectorShapeContent content;
   content.path = std::move(path);
   float fill_alpha = 1.0F;
+  bool brush_stroke_approximated = false;
   // The fill descriptor rides BFFl on current files; the oldest generation
   // (doc-tree version 3, the 2026-07-28 wild sweep) named the same FDsc field
   // BFil. (Its stroke sibling PFil carries the Fill class directly with no
   // width source, so old strokes stay unsupported.)
-  const auto read_paint = [](const af::AfClass& source, VectorShapeContent& into,
-                             float& alpha) -> bool {
+  const auto read_paint = [transform_scale, &brush_stroke_approximated](
+                              const af::AfClass& source, VectorShapeContent& into,
+                              float& alpha) -> bool {
     const af::AfClass* fill_descriptor = first_class_of(source, af::tag4("BFFl"));
     if (fill_descriptor == nullptr) {
       fill_descriptor = first_class_of(source, af::tag4("BFil"));
@@ -3434,20 +3491,24 @@ struct AfVectorFill {
       into.fill.kind = VectorFillKind::None;
     }
     // LILn[0] (LDsc) -> LDeL: the field's value IS the LSty class.
-    double weight = 0.0;
-    if (const af::AfClass* line_descriptor = first_class_of(source, af::tag4("LILn"))) {
-      if (const af::AfClass* style = line_descriptor->child_class(af::tag4("LDeL"))) {
-        weight = style->double_field(af::tag4("Wght"), 0.0);
-      }
-    }
-    if (weight > 0.0) {
+    const auto line = line_style_from_descriptor(first_class_of(source, af::tag4("LILn")));
+    if (line.has_value() && line->weight > 0.0 && line->line_style != 0) {
       if (auto stroke_fill = vector_fill_from_descriptor(first_class_of(source, af::tag4("LIFl")));
           stroke_fill.has_value() && stroke_fill->fill.kind != VectorFillKind::None) {
         into.stroke.enabled = true;
-        into.stroke.width = weight;
-        into.stroke.alignment = VectorStrokeAlignment::Center;
+        into.stroke.width =
+            line->scale_with_object ? line->weight * transform_scale : line->weight;
+        into.stroke.alignment = line->alignment;
         into.stroke.content = std::move(stroke_fill->fill);
         into.stroke.opacity = std::clamp(static_cast<double>(stroke_fill->alpha), 0.0, 1.0);
+        if (line->line_style == 2 && !line->dashes.empty()) {
+          into.stroke.dashes = line->dashes;
+          into.stroke.dash_offset = line->dash_phase;
+        } else if (line->line_style == 3) {
+          brush_stroke_approximated = true;
+        }
+        into.stroke.miter_limit =
+            std::max(1.0, source.double_field(af::tag4("CnML"), into.stroke.miter_limit));
       }
     }
     return into.fill.kind != VectorFillKind::None || into.stroke.enabled;
@@ -3480,6 +3541,10 @@ struct AfVectorFill {
     return std::nullopt;  // nothing visible; the honest placeholder says so
   }
 
+  if (brush_stroke_approximated) {
+    ctx.notices.push_back("Layer '" + display +
+                          "': Affinity brush-textured stroke approximated as a solid stroke");
+  }
   Layer layer(ctx.document.allocate_layer_id(), display, LayerKind::Pixel);
   layer.metadata()[kLayerMetadataVectorShape] = "1";
   mark_layer_vector_block_dirty(layer);  // no preserved PSD blocks: regenerate on save

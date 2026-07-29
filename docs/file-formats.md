@@ -551,8 +551,17 @@ sweep closed the rest of the long tail - see the parametric-shapes bullet).
   hole), exactly Patchy's within-group rule. Fill = `BFFl` FDsc (solid/
   gradient/none, single class or one-element list), stroke paint = `LIFl`
   with width from `LILn -> LDeL` (the field's value IS the `LSty` class,
-  `Wght`); cap/join/alignment keep Patchy defaults (approximate) and the
-  node `Xfrm` applies as a full affine (no axis-aligned approximation).
+  `Wght`). The `LSty` `Data` blob is a curve12_t (one f64 + four u8 bytes);
+  byte 2 of the four is the stroke panel's line style, pinned July 2026:
+  0 None (stroke defined but not drawn), 1 Solid, 2 Dashed (`Patn` values
+  are stroke-width multiples like Patchy's dash entries, `Phse` the offset),
+  3 textured brush (approximated as solid + notice). `LDSa` on the LDsc is
+  the alignment: 0 Center, 1 Inside, 2 Outside. `LDSc` scales the width by
+  the object transform's uniform scale. The node `CnML` maps to the miter
+  limit (observed 4.0 everywhere, matching the SVG default). Cap and join
+  keep Patchy defaults: their wire enums are unmined because every observed
+  file carries the identical default tuple. The node `Xfrm` applies as a
+  full affine (no axis-aligned approximation).
   Probe scores: rect/donut 0.00 RMSE, ellipse 1.6, stroked rect 3.5; the
   all-vector snes corpus doc dropped 196 -> 46 (the rest is rotated text).
   Compound-shape (`Comp`) booleans import their baked result path (see the
