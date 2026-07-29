@@ -326,7 +326,7 @@ an advertised cap.
 
 ## Browser UI fit
 
-Two wasm-only accommodations for living inside a single browser canvas:
+Wasm-only accommodations for living inside a single browser canvas:
 
 - **Float windows are disabled.** A browser tab is one window: Qt for
   WebAssembly has no window manager and no `startSystemMove`, so a floated
@@ -340,6 +340,17 @@ Two wasm-only accommodations for living inside a single browser canvas:
   MainWindow event filter so vertical drift during a tab reorder no longer
   ends the drag with tear-off's synthetic release. See
   [float-windows.md](float-windows.md).
+- **The main window stays on the bottom of the z-stack.** Qt's wasm
+  compositor keeps one z-stack for all top-level windows and raises whichever
+  window is clicked, so a canvas click lifted the fullscreen main window above
+  a non-modal dialog (layer style, curves): the dialog vanished with no window
+  manager to recover it while its preview edit lock stayed engaged, wedging
+  the app. Modal dialogs never had the problem (the plugin redirects
+  activation to the blocking modal window). The MainWindow constructor sets
+  `Qt::WindowStaysOnBottomHint` on wasm, which parks the main window in the
+  compositor's stay-on-bottom stacking zone: clicking it still activates and
+  focuses it, but the raise becomes a no-op, and dialogs and popups keep their
+  normal order in the regular zone above.
 - **Dialogs clamp to the canvas.** Desktop window managers keep an oversized
   dialog's chrome reachable; the browser canvas has nothing equivalent, so a
   dialog taller than the canvas left its OK/Cancel row unreachable below the
@@ -348,13 +359,17 @@ Two wasm-only accommodations for living inside a single browser canvas:
   minimum size above the canvas, to the available screen before placement.
   Verified in the browser: at a 1000x620 canvas the Filter Gallery opens at
   992x588 with its Apply/Cancel row on screen, instead of its requested
-  1120x720. Two limits are deliberate: a dialog whose LAYOUT minimum exceeds
-  the canvas still overflows (forcing it below that minimum would clip the
-  same content), and the clamp runs at placement time only, so shrinking the
-  browser window while a dialog is already open does not re-fit it. Desktop
-  placement is untouched. This is also why a dialog should be shown through
-  `exec_dialog`/`run_non_modal_dialog` rather than a bare `QDialog::exec`;
-  the brush-tip, pattern, and style preset managers were converted for it.
+  1120x720. When even the dialog's LAYOUT minimum exceeds the canvas,
+  `install_dialog_overflow_scroll` moves the content into a
+  `QScrollArea` (`dialogOverflowScroll`) so the shrink can proceed and the
+  button row stays reachable by scrolling; dark-chrome dialogs keep the title
+  bar fixed and scroll the content area below it, other dialogs scroll whole.
+  One limit is deliberate: the clamp runs at placement time only, so
+  shrinking the browser window while a dialog is already open does not re-fit
+  it. Desktop placement is untouched. This is also why a dialog should be
+  shown through `exec_dialog`/`run_non_modal_dialog` rather than a bare
+  `QDialog::exec`; the brush-tip, pattern, and style preset managers were
+  converted for it.
 
 ## Release deployment (rtsoft.com/patchy)
 

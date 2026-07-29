@@ -4686,6 +4686,15 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   if (use_custom_window_chrome()) {
     setWindowFlag(Qt::FramelessWindowHint, true);
   }
+#ifdef Q_OS_WASM
+  // Qt's wasm compositor keeps one z-stack for every top-level window and
+  // raises whichever window is clicked, so a canvas click lifted the main
+  // window above a non-modal dialog (layer style, curves), hiding it with no
+  // window manager to bring it back while its edit lock stayed engaged.
+  // Parking the main window in the stay-on-bottom stacking zone makes that
+  // raise a no-op; dialogs and popups keep their normal order above it.
+  setWindowFlag(Qt::WindowStaysOnBottomHint, true);
+#endif
 
   document_tabs_ = new QTabWidget(this);
   document_tabs_->setObjectName(QStringLiteral("documentTabs"));

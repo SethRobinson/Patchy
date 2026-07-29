@@ -42,6 +42,7 @@
 #include <QPolygonF>
 #include <QPushButton>
 #include <QScreen>
+#include <QScrollArea>
 #include <QSettings>
 #include <QSize>
 #include <QSlider>
@@ -609,14 +610,62 @@ bool restore_dialog_position(QDialog& dialog) {
 }
 
 #ifdef Q_OS_WASM
+constexpr auto kDialogOverflowScrollInstalledProperty = "patchy.dialogOverflowScrollInstalled";
+
+// Last resort for a dialog whose LAYOUT minimum exceeds the canvas: resizing
+// below that minimum would only overlap the same controls, so the content
+// moves into a scroll area instead and the dialog then fits the canvas with
+// its button row reachable by scrolling. Dark-chrome dialogs keep the title
+// bar fixed and scroll the content area below it; other dialogs scroll whole.
+bool install_dialog_overflow_scroll(QDialog& dialog, QSize bound) {
+  if (dialog.property(kDialogOverflowScrollInstalledProperty).toBool()) {
+    return false;
+  }
+  auto* layout = dialog.layout();
+  if (layout == nullptr) {
+    return false;
+  }
+  const auto layout_minimum = layout->totalMinimumSize();
+  if (layout_minimum.width() <= bound.width() && layout_minimum.height() <= bound.height()) {
+    return false;
+  }
+  dialog.setProperty(kDialogOverflowScrollInstalledProperty, true);
+
+  auto* scroll = new QScrollArea(&dialog);
+  scroll->setObjectName(QStringLiteral("dialogOverflowScroll"));
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+  scroll->setStyleSheet(
+      QStringLiteral("QScrollArea#dialogOverflowScroll { background: transparent; }"
+                     "QScrollArea#dialogOverflowScroll > QWidget > QWidget { background: transparent; }"));
+
+  if (auto* content = dialog.findChild<QWidget*>(QStringLiteral("dialogChromeContent"), Qt::FindDirectChildrenOnly);
+      content != nullptr) {
+    if (auto* item = layout->replaceWidget(content, scroll); item != nullptr) {
+      delete item;
+    }
+    scroll->setWidget(content);
+  } else {
+    auto* container = new QWidget(scroll);
+    // setLayout on a widget steals the layout, and with it every child widget,
+    // from its previous widget (the Designer container-morph path).
+    container->setLayout(layout);
+    scroll->setWidget(container);
+    auto* root = new QVBoxLayout(&dialog);
+    root->setContentsMargins(0, 0, 0, 0);
+    root->addWidget(scroll);
+  }
+  return true;
+}
+
 // The browser canvas is the entire "screen" and no window manager exists to
 // rescue an oversized window, so a dialog taller than the canvas leaves its
 // button row unreachable below the page fold. Shrink the dialog, and the
 // explicit minimum several large dialogs set above what a small browser
-// window can show, to the canvas before placing it. A dialog whose LAYOUT
-// minimum exceeds the canvas still overflows (forcing below layout minimum
-// only clips the same content); desktop builds keep the platform window
-// manager's behavior.
+// window can show, to the canvas before placing it; when even the layout
+// minimum cannot fit, install_dialog_overflow_scroll makes the content
+// scrollable so the shrink can proceed. Desktop builds keep the platform
+// window manager's behavior.
 void clamp_dialog_to_screen(QDialog& dialog) {
   const auto* screen =
       dialog.parentWidget() != nullptr ? dialog.parentWidget()->screen() : QGuiApplication::primaryScreen();
@@ -637,8 +686,11 @@ void clamp_dialog_to_screen(QDialog& dialog) {
   if (minimum.width() > bound.width() || minimum.height() > bound.height()) {
     dialog.setMinimumSize(minimum.boundedTo(bound));
   }
+  // Capture the intended size before any scroll wrap: wrapping collapses the
+  // size hint, and the pre-wrap size is what should be clamped to the canvas.
   const auto size = dialog_placement_size(dialog);
-  if (size.width() > bound.width() || size.height() > bound.height()) {
+  const bool wrapped = install_dialog_overflow_scroll(dialog, bound);
+  if (wrapped || size.width() > bound.width() || size.height() > bound.height()) {
     dialog.resize(size.boundedTo(bound));
   }
 }
