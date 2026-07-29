@@ -13220,6 +13220,8 @@ Clipped to the layer below</source>
     <message><source>%1 (modified)</source><translation>%1 (変更済み)</translation></message>
     <message><source>Filter layers by name...</source><translation>レイヤー名で絞り込み...</translation></message>
     <message><source>Clear the layer name filter to reorder layers</source><translation>レイヤーを並べ替えるにはレイヤー名フィルターをクリアしてください</translation></message>
+    <message><source>Filter recent files...</source><translation>最近使ったファイルを絞り込み...</translation></message>
+    <message><source>No matching recent files</source><translation>一致する最近使ったファイルはありません</translation></message>
     <message><source>Opacity: </source><translation>不透明度: </translation></message>
     <message><source>Fill: </source><translation>塗りつぶし: </translation></message>
     <message><source>Hid other layers</source><translation>他のレイヤーを非表示にしました</translation></message>

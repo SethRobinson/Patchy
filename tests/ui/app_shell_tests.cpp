@@ -598,11 +598,20 @@ void ui_save_as_dialog_lists_recent_files() {
 
   auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
   CHECK(recent_menu != nullptr);
-  CHECK(recent_menu->actions().size() >= 2);
-  CHECK(recent_menu->actions()[0]->data().toString() == first_path);
-  CHECK(recent_menu->actions()[0]->text().remove('&') == QStringLiteral("1 %1").arg(QDir::toNativeSeparators(first_path)));
-  CHECK(recent_menu->actions()[1]->data().toString() == second_path);
-  CHECK(recent_menu->actions()[1]->text().remove('&') == QStringLiteral("2 %1").arg(QDir::toNativeSeparators(second_path)));
+  // The filter row leads the menu; file entries follow it.
+  CHECK(!recent_menu->actions().isEmpty());
+  CHECK(recent_menu->actions().front()->objectName() == QStringLiteral("fileOpenRecentFilterAction"));
+  QList<QAction*> file_actions;
+  for (auto* action : recent_menu->actions()) {
+    if (action != nullptr && !action->isSeparator() && !action->data().toString().isEmpty()) {
+      file_actions << action;
+    }
+  }
+  CHECK(file_actions.size() == 2);
+  CHECK(file_actions[0]->data().toString() == first_path);
+  CHECK(file_actions[0]->text().remove('&') == QStringLiteral("1 %1").arg(QDir::toNativeSeparators(first_path)));
+  CHECK(file_actions[1]->data().toString() == second_path);
+  CHECK(file_actions[1]->text().remove('&') == QStringLiteral("2 %1").arg(QDir::toNativeSeparators(second_path)));
 
   auto* save_as_action = require_action(window, "fileSaveAsAction");
   CHECK(save_as_action->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
@@ -771,6 +780,157 @@ void ui_open_recent_keeps_two_hundred_files_in_grouped_menu() {
   CHECK(!refreshed_menu_paths.contains(recent_files[50]));
 }
 
+void ui_open_recent_filter_narrows_entries_and_opens_first_match() {
+  ensure_artifact_dir();
+  QStringList recent_files;
+  for (int i = 0; i < 120; ++i) {
+    const bool beta = (i % 2) == 1;
+    const auto pattern = beta ? QStringLiteral("test-artifacts/recent-filter-beta-%1.png")
+                              : QStringLiteral("test-artifacts/recent-filter-alpha-%1.psd");
+    const auto path = QFileInfo(pattern.arg(i, 3, 10, QLatin1Char('0'))).absoluteFilePath();
+    if (i == 1) {
+      // Enter opens this one for real, so it must be a loadable image.
+      QImage image(48, 32, QImage::Format_RGB32);
+      image.fill(QColor(90, 150, 210));
+      CHECK(image.save(path));
+    } else {
+      QFile file(path);
+      CHECK(file.open(QIODevice::WriteOnly));
+      CHECK(file.write("patchy recent placeholder") > 0);
+    }
+    recent_files << path;
+  }
+
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), recent_files);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+
+  auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  CHECK(recent_menu != nullptr);
+  CHECK(!recent_menu->actions().isEmpty());
+  auto* filter_action = recent_menu->actions().front();
+  CHECK(filter_action->objectName() == QStringLiteral("fileOpenRecentFilterAction"));
+  auto* filter_edit = recent_menu->findChild<QLineEdit*>(QStringLiteral("fileOpenRecentFilterEdit"));
+  CHECK(filter_edit != nullptr);
+  auto* no_matches_action = recent_menu->findChild<QAction*>(QStringLiteral("fileOpenRecentNoMatchesAction"));
+  CHECK(no_matches_action != nullptr);
+
+  recent_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+  QApplication::processEvents();
+  CHECK(filter_edit->text().isEmpty());
+
+  const auto visible_file_actions = [recent_menu] {
+    QList<QAction*> actions;
+    for (auto* action : recent_menu->actions()) {
+      if (action != nullptr && !action->isSeparator() && action->isVisible() &&
+          !action->data().toString().isEmpty()) {
+        actions << action;
+      }
+    }
+    return actions;
+  };
+  const auto page_menu_actions = [recent_menu] {
+    QList<QAction*> actions;
+    for (auto* action : recent_menu->actions()) {
+      if (auto* submenu = action == nullptr ? nullptr : action->menu();
+          submenu != nullptr && submenu->objectName().startsWith(QStringLiteral("fileOpenRecentRangeMenu"))) {
+        actions << action;
+      }
+    }
+    return actions;
+  };
+
+  // Baseline: 50 direct rows, two page submenus (51-100, 101-120), Clear visible.
+  CHECK(visible_file_actions().size() == 50);
+  CHECK(page_menu_actions().size() == 2);
+  auto* clear_action = require_action(window, "fileClearRecentAction");
+  CHECK(clear_action->isVisible());
+
+  // Typing narrows to matches from the whole list, shown flat.
+  filter_edit->setText(QStringLiteral("beta"));
+  QApplication::processEvents();
+  const auto filtered = visible_file_actions();
+  CHECK(filtered.size() == 50);  // 60 beta files, capped at the page size
+  QStringList filtered_paths;
+  for (auto* action : filtered) {
+    CHECK(action->data().toString().contains(QStringLiteral("beta")));
+    filtered_paths << action->data().toString();
+  }
+  CHECK(filtered_paths.contains(recent_files[99]));  // past the 50-row page boundary: results are flat
+  CHECK(!filtered_paths.contains(recent_files[0]));
+  CHECK(filtered.front()->data().toString() == recent_files[1]);
+  CHECK(filtered.front()->text().remove('&') ==
+        QStringLiteral("2 %1").arg(QDir::toNativeSeparators(recent_files[1])));
+  for (auto* action : page_menu_actions()) {
+    CHECK(!action->isVisible());
+  }
+  CHECK(!clear_action->isVisible());
+  CHECK(!no_matches_action->isVisible());
+
+  // Space-separated words AND together, matching case-insensitively.
+  filter_edit->setText(QStringLiteral("BETA 003"));
+  QApplication::processEvents();
+  const auto multi_word = visible_file_actions();
+  CHECK(multi_word.size() == 1);
+  CHECK(multi_word.front()->data().toString() == recent_files[3]);
+
+  // Arrow keys forward from the edit into the menu's highlight.
+  filter_edit->setText(QStringLiteral("beta"));
+  QApplication::processEvents();
+  send_key(*filter_edit, Qt::Key_Down);
+  if (recent_menu->activeAction() == nullptr || recent_menu->activeAction()->data().toString().isEmpty()) {
+    send_key(*filter_edit, Qt::Key_Down);  // the filter row itself may take the first highlight
+  }
+  CHECK(recent_menu->activeAction() != nullptr);
+  CHECK(recent_menu->activeAction()->data().toString() == recent_files[1]);
+
+  // No matches: only the disabled placeholder row shows.
+  filter_edit->setText(QStringLiteral("zzz-no-such-file"));
+  QApplication::processEvents();
+  CHECK(visible_file_actions().isEmpty());
+  CHECK(no_matches_action->isVisible());
+  CHECK(!no_matches_action->isEnabled());
+
+  // Right-click on the filter row must not open the recent-file context menu.
+  const auto filter_point = recent_menu->actionGeometry(filter_action).center();
+  QContextMenuEvent filter_context_event(QContextMenuEvent::Mouse, filter_point,
+                                         recent_menu->mapToGlobal(filter_point));
+  QApplication::sendEvent(recent_menu, &filter_context_event);
+  QApplication::processEvents();
+  CHECK(!top_level_widget_exists(QStringLiteral("recentFileContextMenu")));
+
+  // Clearing the filter restores the paged structure.
+  filter_edit->clear();
+  QApplication::processEvents();
+  CHECK(visible_file_actions().size() == 50);
+  CHECK(visible_file_actions().front()->data().toString() == recent_files[0]);
+  for (auto* action : page_menu_actions()) {
+    CHECK(action->isVisible());
+  }
+  CHECK(clear_action->isVisible());
+  CHECK(!no_matches_action->isVisible());
+
+  // Enter opens the first match (recent_files[1], the real PNG).
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  CHECK(tabs->count() == 0);
+  filter_edit->setText(QStringLiteral("beta"));
+  QApplication::processEvents();
+  send_key(*filter_edit, Qt::Key_Return);
+  QApplication::processEvents();  // the deferred open fires
+  CHECK(!recent_menu->isVisible());
+  CHECK(tabs->count() == 1);
+  auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  CHECK(info != nullptr);
+  CHECK(info->text().contains(QStringLiteral("48 x 32 px")));
+}
+
 void ui_open_recent_keeps_two_hundred_folders_in_grouped_menu() {
   ensure_artifact_dir();
   QStringList recent_folders;
@@ -908,7 +1068,15 @@ void ui_recent_file_context_menu_copies_path() {
   CHECK(recent_menu != nullptr);
   CHECK(recent_menu->contextMenuPolicy() == Qt::CustomContextMenu);
   CHECK(!recent_menu->actions().isEmpty());
-  auto* recent_action = recent_menu->actions().front();
+  // The filter row leads the menu; the file entry is the first action with data.
+  QAction* recent_action = nullptr;
+  for (auto* action : recent_menu->actions()) {
+    if (action != nullptr && !action->data().toString().isEmpty()) {
+      recent_action = action;
+      break;
+    }
+  }
+  CHECK(recent_action != nullptr);
   CHECK(recent_action->data().toString() == first_path);
 
   recent_menu->popup(window.mapToGlobal(QPoint(40, 40)));
@@ -2851,6 +3019,8 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
       {"ui_open_recent_keeps_two_hundred_files_in_grouped_menu",
        ui_open_recent_keeps_two_hundred_files_in_grouped_menu},
+      {"ui_open_recent_filter_narrows_entries_and_opens_first_match",
+       ui_open_recent_filter_narrows_entries_and_opens_first_match},
       {"ui_open_recent_keeps_two_hundred_folders_in_grouped_menu",
        ui_open_recent_keeps_two_hundred_folders_in_grouped_menu},
       {"ui_recent_file_context_menu_copies_path", ui_recent_file_context_menu_copies_path},

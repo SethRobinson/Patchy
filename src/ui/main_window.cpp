@@ -5241,6 +5241,13 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     }
   }
 
+  if (recent_files_filter_edit_ != nullptr && watched == recent_files_filter_edit_ &&
+      event->type() == QEvent::KeyPress) {
+    if (handle_recent_files_filter_key(*static_cast<QKeyEvent*>(event))) {
+      return true;
+    }
+  }
+
   if (auto* recent_menu = qobject_cast<QMenu*>(watched);
       recent_menu != nullptr && recent_menu->property(kRecentFilesMenuProperty).toBool()) {
     switch (event->type()) {

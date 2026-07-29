@@ -53,6 +53,7 @@ class QDropEvent;
 class QEvent;
 class QFontComboBox;
 class QImage;
+class QKeyEvent;
 class QLabel;
 class QLineEdit;
 class QMenu;
@@ -1000,6 +1001,8 @@ private:
   void save_recent_files() const;
   void add_recent_file(QString path);
   void rebuild_recent_files_menu();
+  void apply_recent_files_filter(const QString& filter_text);
+  bool handle_recent_files_filter_key(QKeyEvent& event);
   void load_recent_folders();
   void save_recent_folders() const;
   void add_recent_folder(QString dir);
@@ -1296,6 +1299,13 @@ private:
   QMenu* legacy_plugins_menu_{nullptr};
   QMenu* recent_files_menu_{nullptr};
   QMenu* recent_folders_menu_{nullptr};
+  // Filter row inside the recent-files menu. rebuild_recent_files_menu()
+  // recreates all of these, so the filter state resets on every rebuild.
+  QAction* recent_files_filter_action_{nullptr};
+  QLineEdit* recent_files_filter_edit_{nullptr};
+  QAction* recent_files_no_matches_action_{nullptr};
+  QList<QAction*> recent_files_filtered_actions_;
+  QList<QAction*> recent_files_structure_actions_;
   // Scripting: the engine host is a QObject child of this window (created
   // lazily); the editor dialog is non-modal and window-owned.
   ScriptEngineHost* script_engine_host_{nullptr};

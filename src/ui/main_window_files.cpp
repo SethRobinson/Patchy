@@ -138,6 +138,7 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QLabel>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QListWidget>
 #include <QLinearGradient>
@@ -202,6 +203,7 @@
 #include <QUrl>
 #include <QVariant>
 #include <QVBoxLayout>
+#include <QWidgetAction>
 #include <QWindow>
 
 #include <algorithm>
@@ -2015,8 +2017,48 @@ void MainWindow::rebuild_recent_files_menu() {
   if (recent_files_menu_ == nullptr) {
     return;
   }
-  recent_files_menu_->clear();
+  recent_files_menu_->clear();  // also deletes the previous filter row and its edit
+  recent_files_filter_action_ = nullptr;
+  recent_files_filter_edit_ = nullptr;
+  recent_files_no_matches_action_ = nullptr;
+  recent_files_filtered_actions_.clear();
+  recent_files_structure_actions_.clear();
   recent_files_menu_->setEnabled(!recent_files_.isEmpty());
+
+  // A native menu bar (the macOS global bar) cannot host QWidgetAction rows;
+  // those platforms keep the plain paged menu.
+  const bool native_menu_bar = menuBar() != nullptr && menuBar()->isNativeMenuBar();
+  if (!recent_files_.isEmpty() && !native_menu_bar) {
+    auto* filter_row = new QWidget(recent_files_menu_);
+    filter_row->setObjectName(QStringLiteral("fileOpenRecentFilterRow"));
+    auto* filter_layout = new QHBoxLayout(filter_row);
+    filter_layout->setContentsMargins(8, 6, 8, 6);
+    recent_files_filter_edit_ = new QLineEdit(filter_row);
+    recent_files_filter_edit_->setObjectName(QStringLiteral("fileOpenRecentFilterEdit"));
+    recent_files_filter_edit_->setClearButtonEnabled(true);
+    recent_files_filter_edit_->setFixedHeight(24);
+    // Keeps the popup a usable width while a filter hides every row.
+    recent_files_filter_edit_->setMinimumWidth(320);
+    // The edit's own Cut/Copy/Paste popup must not nest inside the menu popup.
+    recent_files_filter_edit_->setContextMenuPolicy(Qt::NoContextMenu);
+    bind_widget_text(recent_files_filter_edit_, "Filter recent files...");
+    filter_layout->addWidget(recent_files_filter_edit_);
+    // The global QWidget rule would otherwise paint @window_bg over the menu background.
+    set_themed_style(*filter_row,
+                     QStringLiteral("QWidget#fileOpenRecentFilterRow { background: transparent; }"));
+    auto* filter_action = new QWidgetAction(recent_files_menu_);
+    filter_action->setObjectName(QStringLiteral("fileOpenRecentFilterAction"));
+    filter_action->setDefaultWidget(filter_row);
+    recent_files_menu_->addAction(filter_action);
+    recent_files_filter_action_ = filter_action;
+    connect(recent_files_filter_edit_, &QLineEdit::textChanged, this,
+            [this](const QString& text) { apply_recent_files_filter(text); });
+
+    recent_files_no_matches_action_ = recent_files_menu_->addAction(tr("No matching recent files"));
+    recent_files_no_matches_action_->setObjectName(QStringLiteral("fileOpenRecentNoMatchesAction"));
+    recent_files_no_matches_action_->setEnabled(false);
+    recent_files_no_matches_action_->setVisible(false);
+  }
 
   const auto add_recent_action = [this](QMenu* menu, const QString& path, int index) {
     const auto label = tr("&%1 %2").arg(index).arg(QDir::toNativeSeparators(path));
@@ -2054,6 +2096,108 @@ void MainWindow::rebuild_recent_files_menu() {
       save_recent_files();
       rebuild_recent_files_menu();
     });
+  }
+
+  // Everything the filter hides while active; the filter and no-matches rows
+  // stay visible through filtering.
+  for (auto* action : recent_files_menu_->actions()) {
+    if (action != recent_files_filter_action_ && action != recent_files_no_matches_action_) {
+      recent_files_structure_actions_ << action;
+    }
+  }
+}
+
+void MainWindow::apply_recent_files_filter(const QString& filter_text) {
+  if (recent_files_menu_ == nullptr || recent_files_filter_action_ == nullptr) {
+    return;
+  }
+  for (auto* action : recent_files_filtered_actions_) {
+    recent_files_menu_->removeAction(action);
+    delete action;
+  }
+  recent_files_filtered_actions_.clear();
+
+  const auto tokens = filter_text.simplified().split(QLatin1Char(' '), Qt::SkipEmptyParts);
+  const bool filtering = !tokens.isEmpty();
+  for (auto* action : recent_files_structure_actions_) {
+    action->setVisible(!filtering);
+  }
+
+  if (filtering) {
+    const auto recent_count = static_cast<int>(recent_files_.size());
+    for (int index = 0;
+         index < recent_count && recent_files_filtered_actions_.size() < kRecentFilesMenuPageSize; ++index) {
+      const auto path = recent_files_[index];
+      const auto native_path = QDir::toNativeSeparators(path);
+      const bool matches = std::all_of(tokens.begin(), tokens.end(), [&native_path](const QString& token) {
+        return native_path.contains(token, Qt::CaseInsensitive);
+      });
+      if (!matches) {
+        continue;
+      }
+      // Labels keep the original recency index so a filtered row still says
+      // where the file sits in the full list.
+      auto* action = new QAction(tr("&%1 %2").arg(index + 1).arg(native_path), recent_files_menu_);
+      action->setToolTip(path);
+      action->setData(path);
+      connect(action, &QAction::triggered, this, [this, path] { open_recent_document(path); });
+      recent_files_menu_->addAction(action);
+      recent_files_filtered_actions_ << action;
+    }
+  }
+  if (recent_files_no_matches_action_ != nullptr) {
+    recent_files_no_matches_action_->setVisible(filtering && recent_files_filtered_actions_.isEmpty());
+  }
+  if (recent_files_menu_->isVisible()) {
+    recent_files_menu_->resize(recent_files_menu_->sizeHint());
+  }
+}
+
+bool MainWindow::handle_recent_files_filter_key(QKeyEvent& event) {
+  if (recent_files_menu_ == nullptr) {
+    return false;
+  }
+  switch (event.key()) {
+    case Qt::Key_Up:
+    case Qt::Key_Down:
+    case Qt::Key_PageUp:
+    case Qt::Key_PageDown:
+      // List navigation keeps working while the edit holds focus (the
+      // SearchKeyForwarder pattern from the font picker popup).
+      QApplication::sendEvent(recent_files_menu_, &event);
+      return true;
+    case Qt::Key_Return:
+    case Qt::Key_Enter: {
+      auto* active = recent_files_menu_->activeAction();
+      if (active != nullptr && active->menu() != nullptr) {
+        // Opening the highlighted pages submenu rebuilds nothing; safe to
+        // forward synchronously.
+        QApplication::sendEvent(recent_files_menu_, &event);
+        return true;
+      }
+      QAction* target = nullptr;
+      if (active != nullptr && active->isEnabled() && active != recent_files_filter_action_) {
+        target = active;
+      } else if (!recent_files_filtered_actions_.isEmpty()) {
+        target = recent_files_filtered_actions_.front();
+      }
+      if (target == nullptr) {
+        return true;
+      }
+      // Deferred: triggering synchronously would run rebuild_recent_files_menu
+      // -> menu->clear(), deleting the very edit whose key event is
+      // mid-delivery in the application event filter.
+      QPointer<QAction> guarded(target);
+      recent_files_menu_->close();
+      QTimer::singleShot(0, this, [guarded] {
+        if (guarded != nullptr) {
+          guarded->trigger();
+        }
+      });
+      return true;
+    }
+    default:
+      return false;
   }
 }
 

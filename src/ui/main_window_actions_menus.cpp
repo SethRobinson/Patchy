@@ -298,6 +298,14 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   recent_files_menu_ = file_menu->addMenu(tr("Open &Recent File"));
   recent_files_menu_->setObjectName(QStringLiteral("fileOpenRecentMenu"));
   configure_recent_files_context_menu(recent_files_menu_);
+  connect(recent_files_menu_, &QMenu::aboutToShow, this, [this] {
+    if (recent_files_filter_edit_ != nullptr) {
+      // A stale filter from a dismissed menu resets before showing again; the
+      // focused edit is what routes typed keys into the filter.
+      recent_files_filter_edit_->clear();
+      recent_files_filter_edit_->setFocus();
+    }
+  });
   recent_folders_menu_ = file_menu->addMenu(tr("Open Recent &Folder"));
   recent_folders_menu_->setObjectName(QStringLiteral("fileOpenRecentFolderMenu"));
   configure_recent_files_context_menu(recent_folders_menu_);
