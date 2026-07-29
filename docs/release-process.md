@@ -31,7 +31,17 @@ specific clause that person wrote (see the existing 0.10/0.12 entries in
 
 ## Build and upload order
 
-Build order matters: finalize the README first (the Windows zip/installer embed a copy), then `scripts\release\release-all.bat` (three consoles: Windows + remote mac/linux; every builder deletes its previous artifacts up front so a failed build can never leave stale files for the newest-file upload scripts), then `scripts\release\upload-to-rtsoft.bat`.
+Build order matters: finalize the README first (the Windows zip/installer embed a copy), then `scripts\release\release-all.bat` (four consoles: local Windows and wasm builds plus remote mac/linux; every builder deletes its previous artifacts up front so a failed build can never leave stale files for the upload scripts), then `scripts\release\upload-to-rtsoft.bat`.
+
+## The wasm (web) release
+
+The web build ships with the desktop releases because the site redeploy is its only update mechanism (the in-app update check is stubbed out on wasm). Three scripts, all in `scripts\release`:
+
+- `build-wasm.bat` builds the `wasm-release` preset and stages only the deployable files (`patchy.html`, `patchy.js`, `patchy.wasm`, `patchy.data`, `qtloader.js`, `qtlogo.svg`, plus an `index.html` copy of `patchy.html` so `rtsoft.com/patchy/` works without `/patchy.html`) into `build\package\wasm-site`. The staging directory is deleted up front, so a failed build leaves nothing for the upload script. `release-all.bat` runs this in its fourth console.
+- `start-local-wasm-server.bat` serves the staged `build\package\wasm-site` payload (the exact files an upload would publish) on `http://localhost:8973/` using the emsdk-bundled node and `scripts\wasm\serve.mjs`. An optional first argument overrides the port. For serving the raw build directory during development, `scripts\wasm\serve-app.ps1` still exists.
+- `upload-wasm-to-rtsoft.bat` verifies the staged files, creates `www/patchy` on the server, and uploads everything in one error-checked `scp` with the html files listed last, so a visitor loading mid-upload never gets new html pointing at assets that are not up yet. It talks to ssh/scp directly rather than through `UploadFileToRTsoftSSH.bat` (that helper is single-file and ignores transfer failures). It honors the same positional `nopause` argument as the other per-platform upload scripts, and `upload-to-rtsoft.bat` calls it after the desktop uploads.
+
+There are no versioned wasm artifacts: the site serves stable names and a redeploy replaces them in place.
 
 ## Batch files live in scripts\release and call their siblings by full path
 

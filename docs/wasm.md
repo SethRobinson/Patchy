@@ -323,6 +323,21 @@ or PDF export, no scanner import, silent script sounds, and no stuck-script
 watchdog. Documents above roughly the wasm32 memory ceiling fail to open;
 step 4 turns that into an advertised cap.
 
+## Release deployment (rtsoft.com/patchy)
+
+The web build is part of the standard release flow; the batch-file details live
+in [release-process.md](release-process.md). Short version:
+`scripts\release\build-wasm.bat` (run by `release-all.bat`) builds the
+`wasm-release` preset and stages the deployable files into
+`build\package\wasm-site` with an `index.html` copy of `patchy.html`;
+`scripts\release\start-local-wasm-server.bat` serves that staged payload for a
+browser check; `scripts\release\upload-wasm-to-rtsoft.bat` (run by
+`upload-to-rtsoft.bat`) publishes it to `rtsoft.com/patchy` over ssh/scp.
+Hosting needs nothing special: if the server does not send
+`application/wasm`, Emscripten's loader falls back from streaming to
+ArrayBuffer instantiation (slower start, still correct), and modern Apache
+sends the right type anyway. Compressed serving is a step-4 lever.
+
 ## Later steps (not built yet)
 
 - Step 4: memory tuning (per-platform undo cap and byte budget, tile-cache
