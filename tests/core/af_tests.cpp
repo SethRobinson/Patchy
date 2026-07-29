@@ -1156,19 +1156,35 @@ void af_approximates_affinity_only_blend_modes() {
   // "gchild". Best-fit remaps chosen by RMSE against Affinity's full-gamut
   // probe renders (af-spike blend_probes): Average is EXACTLY Normal at half
   // opacity; Negation -> Exclusion; Reflect/Pigment -> Overlay; Glow ->
-  // Linear Light. ContrastNegate and Erase stay Normal with the plain
-  // not-supported notice (nothing existing is close enough to render as if
-  // right).
+  // Linear Light. ContrastNegate stays Normal with the plain not-supported
+  // notice (nothing existing is close enough to render as if right). Erase
+  // (an alpha-removal operator) folds into an isolated Normal group over the
+  // layers beneath it whose group mask is the carrier's inverse alpha - the
+  // PSD-native construction.
   const auto bytes = read_fixture("tiny-blend-affinity.af");
   std::vector<std::string> notices;
   const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  // Recursive: the Erase fold nests the lower siblings inside a wrapper group.
   const auto layer_named = [&](const char* name) -> const patchy::Layer& {
-    for (const auto& layer : document.layers()) {
-      if (layer.name() == name) {
-        return layer;
-      }
+    const patchy::Layer* found = nullptr;
+    std::function<void(const std::vector<patchy::Layer>&)> visit =
+        [&](const std::vector<patchy::Layer>& layers) {
+          for (const auto& layer : layers) {
+            if (layer.name() == name) {
+              found = &layer;
+              return;
+            }
+            visit(layer.children());
+            if (found != nullptr) {
+              return;
+            }
+          }
+        };
+    visit(document.layers());
+    if (found == nullptr) {
+      throw std::runtime_error(std::string("layer not found: ") + name);
     }
-    throw std::runtime_error(std::string("layer not found: ") + name);
+    return *found;
   };
 
   const auto& avg = layer_named("avg");
@@ -1179,12 +1195,44 @@ void af_approximates_affinity_only_blend_modes() {
   CHECK(layer_named("glow").blend_mode() == patchy::BlendMode::LinearLight);
   CHECK(layer_named("pig").blend_mode() == patchy::BlendMode::Overlay);
   CHECK(layer_named("cneg").blend_mode() == patchy::BlendMode::Normal);
-  CHECK(layer_named("erase").blend_mode() == patchy::BlendMode::Normal);
 
   // The group must not silently keep pass-through for an explicit mode.
   const auto& group = layer_named("refgroup");
   CHECK(group.kind() == patchy::LayerKind::Group);
   CHECK(group.blend_mode() == patchy::BlendMode::Overlay);
+
+  // Erase (ShpB [82,8]..[92,28]) folds into an isolated Normal wrapper group
+  // masked by the carrier's inverse alpha; the carrier layer itself is gone.
+  const auto& wrapper = layer_named("erase (Erase)");
+  CHECK(wrapper.kind() == patchy::LayerKind::Group);
+  CHECK(wrapper.blend_mode() == patchy::BlendMode::Normal);
+  CHECK(std::abs(wrapper.opacity() - 1.0F) < 0.005F);
+  CHECK(!wrapper.clipped());
+  CHECK(wrapper.children().size() == 7);  // base + the six blend rects
+  CHECK(wrapper.children().front().name() == "base");
+  CHECK(wrapper.children().back().name() == "cneg");
+  CHECK(wrapper.mask().has_value());
+  CHECK(wrapper.mask()->default_color == 255);
+  CHECK(!wrapper.mask()->disabled);
+  CHECK(wrapper.mask()->pixels.format() == patchy::PixelFormat::gray8());
+  CHECK(wrapper.mask()->bounds.width == wrapper.mask()->pixels.width());
+  CHECK(wrapper.mask()->bounds.height == wrapper.mask()->pixels.height());
+  CHECK(wrapper.mask()->bounds.contains(87, 18));
+  CHECK(*wrapper.mask()->pixels.pixel(87 - wrapper.mask()->bounds.x,
+                                      18 - wrapper.mask()->bounds.y) == 0);
+  bool erase_at_top_level = false;
+  for (const auto& layer : document.layers()) {
+    erase_at_top_level = erase_at_top_level || layer.name() == "erase";
+  }
+  CHECK(!erase_at_top_level);
+
+  // The composite: inside the erase rect the stack is cut through to the
+  // white spread background; below the rect the base gradient still shows.
+  const auto flat = patchy::flatten_document_rgba8(document);
+  const std::uint8_t* hole = flat.pixel(87, 18);
+  CHECK(hole[0] == 255 && hole[1] == 255 && hole[2] == 255);
+  const std::uint8_t* below = flat.pixel(87, 40);
+  CHECK(!(below[0] == 255 && below[1] == 255 && below[2] == 255));
 
   const auto notice_for = [&](const char* layer, const char* text) {
     const std::string needle = std::string("'") + layer + "'";
@@ -1202,8 +1250,48 @@ void af_approximates_affinity_only_blend_modes() {
   CHECK(notice_for("glow", "'Glow' approximated as Linear Light"));
   CHECK(notice_for("pig", "'Pigment' approximated as Overlay"));
   CHECK(notice_for("cneg", "not supported by Patchy; shown as Normal"));
-  CHECK(notice_for("erase", "not supported by Patchy; shown as Normal"));
+  CHECK(notice_for("erase", "'Erase' imported as a mask on a new group"));
+  CHECK(!notice_for("erase", "not supported by Patchy"));
   CHECK(notice_for("refgroup", "'Reflect' approximated as Overlay"));
+}
+
+void af_erase_blend_round_trips_through_psd() {
+  // The Erase construction must survive Patchy's own PSD writer unchanged:
+  // group + gray8 group mask are native PSD records.
+  const auto bytes = read_fixture("tiny-blend-affinity.af");
+  const auto document = patchy::af::DocumentIo::read(bytes, nullptr);
+  const auto psd_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(psd_bytes);
+
+  const patchy::Layer* wrapper = nullptr;
+  std::function<void(const std::vector<patchy::Layer>&)> visit =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (layer.name() == "erase (Erase)") {
+            wrapper = &layer;
+            return;
+          }
+          visit(layer.children());
+          if (wrapper != nullptr) {
+            return;
+          }
+        }
+      };
+  visit(reread.layers());
+  CHECK(wrapper != nullptr);
+  CHECK(wrapper->kind() == patchy::LayerKind::Group);
+  CHECK(wrapper->blend_mode() == patchy::BlendMode::Normal);
+  CHECK(wrapper->children().size() == 7);
+  CHECK(wrapper->mask().has_value());
+  CHECK(wrapper->mask()->default_color == 255);
+  CHECK(*wrapper->mask()->pixels.pixel(87 - wrapper->mask()->bounds.x,
+                                       18 - wrapper->mask()->bounds.y) == 0);
+
+  const auto flat = patchy::flatten_document_rgba8(reread);
+  const std::uint8_t* hole = flat.pixel(87, 18);
+  CHECK(hole[0] == 255 && hole[1] == 255 && hole[2] == 255);
+  const std::uint8_t* below = flat.pixel(87, 40);
+  CHECK(!(below[0] == 255 && below[1] == 255 && below[2] == 255));
 }
 
 void af_reads_affinity2_raster_document() {
@@ -1517,6 +1605,37 @@ void af_reads_affinity2_wild_files_if_available() {
       CHECK(masked->vector_mask()->path.subpaths.size() >= 5);
     }
   }
+
+  // Erase blend + line-style None on a transparent spread: the sprite's top
+  // ellipse (Blnd 25/v0) must punch a fully transparent hole through the
+  // concentric rings (folded wrapper group, SprT=true so no Background), and
+  // its base disc's black 1px stroke carries line style 0 = None, so no dark
+  // ring may appear at the sprite edge. Was rmse 84 vs its own thumbnail
+  // (solid disc + black outline); ~7 after.
+  {
+    const auto path = patchy::test::local_format_fixture_path(
+        "af-spike/web_samples2", "filiph_game_benchmarks__sprite.afdesign");
+    if (!std::filesystem::exists(path)) {
+      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+    } else {
+      const auto document = read_document(path);
+      CHECK(document.width() == 64 && document.height() == 64);
+      CHECK(document.layers().size() == 1);
+      const auto& wrapper = document.layers().front();
+      CHECK(wrapper.kind() == patchy::LayerKind::Group);
+      CHECK(wrapper.blend_mode() == patchy::BlendMode::Normal);
+      CHECK(wrapper.children().size() == 6);
+      CHECK(wrapper.mask().has_value());
+      CHECK(wrapper.mask()->default_color == 255);
+      const auto flat = patchy::flatten_document_rgba8(document);
+      CHECK(flat.pixel(32, 32)[3] == 0);   // the erased hole
+      CHECK(flat.pixel(32, 12)[3] > 200);  // a ring above it survives
+      // Line style None: the disc's black stroke must not render.
+      const auto* edge = flat.pixel(32, 1);
+      CHECK(edge[3] > 0);
+      CHECK(edge[0] > 100 || edge[2] > 100);  // magenta-ish ring, not black
+    }
+  }
 }
 
 void af_read_rejects_non_affinity_bytes() {
@@ -1602,6 +1721,7 @@ std::vector<patchy::test::TestCase> af_format_tests() {
        af_live_filter_and_unmapped_adjustment_import_honestly},
       {"af_imports_vector_mask_adjuncts", af_imports_vector_mask_adjuncts},
       {"af_approximates_affinity_only_blend_modes", af_approximates_affinity_only_blend_modes},
+      {"af_erase_blend_round_trips_through_psd", af_erase_blend_round_trips_through_psd},
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_reads_affinity2_raster_document", af_reads_affinity2_raster_document},
       {"af_reads_affinity2_shape_text_document", af_reads_affinity2_shape_text_document},

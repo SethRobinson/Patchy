@@ -5,6 +5,8 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_render_utils.hpp"
+#include "core/rect_utils.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
@@ -1467,6 +1469,15 @@ struct DecodedBitmap {
   return std::nullopt;
 }
 
+// Affinity's Erase blend mode: an alpha-removal operator, not a color blend.
+// Wire (25, v0) and (32, v6+). There is no BlendMode counterpart and there
+// never will be (every import must stay PSD-savable), so fold_erase_layers
+// rewrites an Erase carrier into an inverse-alpha MASK on a new isolated
+// group holding the sibling layers beneath it.
+[[nodiscard]] bool is_erase_blend(const af::AfEnum& value) {
+  return (value.version == 0 && value.id == 25) || (value.version >= 6 && value.id == 32);
+}
+
 // Best-fit approximations for the Affinity-only blend modes onto modes Patchy
 // (and PSD) already store - never new BlendMode values. Chosen by RMSE over a
 // full-gamut probe (af-spike blend_probes, 2026-07-29: every (s,d) byte pair
@@ -1726,8 +1737,13 @@ struct PlacedRaster {
   return placed;
 }
 
+// Whether build_layers may fold Erase-blend carriers into group masks at this
+// nesting level. Disabled inside clipping runs: a wrapper group emitted into a
+// clipped-sibling list would silently escape its base's matte.
+enum class EraseFolding : std::uint8_t { Enabled, Disabled };
+
 void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::AfClass>>& children,
-                  std::vector<Layer>& out);
+                  std::vector<Layer>& out, EraseFolding folding = EraseFolding::Enabled);
 [[nodiscard]] Document read_container(std::span<const std::uint8_t> bytes,
                                       std::vector<std::string>& notices, int embed_depth);
 
@@ -1879,6 +1895,10 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
         group.set_opacity(group.opacity() * approx->opacity_scale);
         ctx.notices.push_back("Layer '" + group.name() + "': Affinity blend mode '" +
                               approx->affinity_name + "' approximated as " + approx->patchy_name);
+      } else if (is_erase_blend(*e)) {
+        // A Group carrier has no rasterized alpha at build time, so the fold
+        // declines it (with a notice); do not keep pass-through meanwhile.
+        group.set_blend_mode(BlendMode::Normal);
       } else {
         // An explicit-but-unmapped mode must not keep pass-through: that
         // renders the children as if the group did not exist at all.
@@ -1975,6 +1995,9 @@ void apply_common(LayerBuildContext& ctx, const af::AfClass& node, Layer& layer,
         layer.set_opacity(layer.opacity() * approx->opacity_scale);
         ctx.notices.push_back("Layer '" + name + "': Affinity blend mode '" +
                               approx->affinity_name + "' approximated as " + approx->patchy_name);
+      } else if (is_erase_blend(*e)) {
+        // Carrier keeps Normal here; fold_erase_layers rewrites the sibling
+        // list once the rasterized alpha exists and owns every Erase notice.
       } else {
         ctx.notices.push_back("Layer '" + name +
                               "': blend mode not supported by Patchy; shown as Normal");
@@ -4485,11 +4508,135 @@ void accumulate_artboard_bounds(const af::AfClass& node, const std::array<double
   return group;
 }
 
+// The inverse-alpha plane for an Erase carrier: 255 - the coverage the layer
+// would have painted. Coverage is the compositor's exact formula for a Pixel
+// layer (source alpha x Opacity x Fill opacity x its own raster/vector mask),
+// so the hole matches the shape Affinity erased, antialiased rim included.
+// Clipped to the canvas; default_color 255 leaves everything beyond the
+// carrier untouched. nullopt when the carrier erases nothing.
+[[nodiscard]] std::optional<LayerMask> erase_mask_from_layer(const Layer& layer, Rect canvas) {
+  const PixelBuffer& pixels = std::as_const(layer).pixels();
+  const Rect source = layer.bounds();
+  const Rect bounds = intersect_rect(source, canvas);
+  if (pixels.empty() || bounds.empty() || bounds.width > kMaxLayerSide ||
+      bounds.height > kMaxLayerSide) {
+    return std::nullopt;
+  }
+  const auto channels = static_cast<std::int32_t>(pixels.format().channels);
+  if (pixels.format().bit_depth != BitDepth::UInt8 || channels < 4) {
+    return std::nullopt;
+  }
+  const float scale = std::clamp(layer.opacity(), 0.0F, 1.0F) *
+                      std::clamp(layer.fill_opacity(), 0.0F, 1.0F);
+  PixelBuffer plane(bounds.width, bounds.height, PixelFormat::gray8());
+  bool erases_anything = false;
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    const auto row = plane.row(y);
+    const auto src = pixels.row(bounds.y + y - source.y);
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      const auto sx = static_cast<std::size_t>(bounds.x + x - source.x);
+      const float coverage = static_cast<float>(src[sx * static_cast<std::size_t>(channels) + 3U]) /
+                             255.0F * scale *
+                             layer_mask_alpha_at(layer, bounds.x + x, bounds.y + y);
+      const auto keep = static_cast<std::uint8_t>(
+          std::lround(std::clamp(1.0F - coverage, 0.0F, 1.0F) * 255.0F));
+      row[static_cast<std::size_t>(x)] = keep;
+      erases_anything = erases_anything || keep < 255;
+    }
+  }
+  if (!erases_anything) {
+    return std::nullopt;
+  }
+  LayerMask mask;
+  mask.bounds = bounds;
+  mask.pixels = std::move(plane);
+  mask.default_color = 255;
+  return mask;
+}
+
+// Rewrites each recorded Erase carrier (bottom-up) into an ISOLATED Normal
+// group wrapping the sibling layers beneath it, masked by the carrier's
+// inverse alpha - the only PSD-expressible construction: a pass-through group
+// mask attenuates every child contribution separately (coverage 1-(1-m)^N
+// over N stacked children), while the isolated path applies the mask exactly
+// once to the merged stack. The carrier itself is dropped. Carriers the
+// construction cannot express keep their layer (rendered Normal) + a notice.
+void fold_erase_layers(LayerBuildContext& ctx, std::vector<Layer>& out,
+                       const std::vector<std::size_t>& slots, EraseFolding folding) {
+  constexpr int kMaxEraseFolds = 64;  // bounds wrapper nesting depth
+  const Rect canvas{0, 0, ctx.document.width(), ctx.document.height()};
+  std::size_t removed = 0;
+  int folded = 0;
+  for (const auto slot : slots) {
+    const std::size_t index = slot - removed;
+    if (index >= out.size()) {
+      continue;  // defensive: a carrier whose branch emitted nothing
+    }
+    const Layer& carrier = out[index];
+    const std::string name = carrier.name();
+    const auto decline = [&](const std::string& why) {
+      ctx.notices.push_back("Layer '" + name + "': Affinity blend mode 'Erase' " + why +
+                            "; shown as Normal");
+    };
+    if (!carrier.visible() || carrier.opacity() <= 0.0F) {
+      continue;  // erases nothing and paints nothing; leave silently
+    }
+    if (folding == EraseFolding::Disabled) {
+      decline("is not supported inside a clipping group");
+      continue;
+    }
+    if (carrier.kind() != LayerKind::Pixel) {
+      decline("is not supported on a group or adjustment layer");
+      continue;
+    }
+    if (carrier.clipped()) {
+      decline("is not supported on a clipped layer");
+      continue;
+    }
+    if (index + 1 < out.size() && out[index + 1].clipped()) {
+      decline("is not supported on the base of a clipping group");
+      continue;
+    }
+    if (index == 0) {
+      decline("has no layers beneath it");
+      continue;
+    }
+    if (folded >= kMaxEraseFolds) {
+      decline("exceeds the supported number of Erase layers");
+      break;
+    }
+    auto mask = erase_mask_from_layer(carrier, canvas);
+    if (!mask.has_value()) {
+      decline("is empty");
+      continue;
+    }
+    const bool had_effects = !carrier.layer_style().empty();
+    Layer wrapper(ctx.document.allocate_layer_id(), name + " (Erase)", LayerKind::Group);
+    wrapper.set_blend_mode(BlendMode::Normal);  // isolated: the mask applies once
+    for (std::size_t k = 0; k < index; ++k) {
+      wrapper.add_child(std::move(out[k]));
+    }
+    wrapper.set_mask(std::move(*mask));
+    out.erase(out.begin(), out.begin() + static_cast<std::ptrdiff_t>(index) + 1);
+    out.insert(out.begin(), std::move(wrapper));
+    removed += index;
+    ++folded;
+    ctx.notices.push_back("Layer '" + name +
+                          "': Affinity blend mode 'Erase' imported as a mask on a new group "
+                          "holding the layers beneath it");
+    if (had_effects) {
+      ctx.notices.push_back("Layer '" + name +
+                            "': its layer effects were dropped when the Erase was applied");
+    }
+  }
+}
+
 // Emit `node` (and, for content layers, its clipped Chld children after it) into
 // `out`. Affinity nests clipped layers INSIDE their base layer's child list;
 // Patchy models the same thing as clipped siblings above the base.
 void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::AfClass>>& children,
-                  std::vector<Layer>& out) {
+                  std::vector<Layer>& out, EraseFolding folding) {
+  std::vector<std::size_t> erase_slots;
   for (const auto& child : children) {
     if (child == nullptr) {
       continue;
@@ -4502,6 +4649,16 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     const std::string display = name.empty() ? std::string("Layer") : name;
     const std::uint32_t tag = node.type_tag;
     const af::AfClass* bitmap_class = node.child_class(af::tag4("Bitm"));
+
+    // Erase carriers: remember the index this node's own layer will take.
+    // Every dispatch branch below pushes it first (clipped children follow),
+    // so out.size() here IS that index.
+    if (const auto* blnd = node.field(af::tag4("Blnd")); blnd != nullptr) {
+      if (const auto* e = std::get_if<af::AfEnum>(&blnd->value);
+          e != nullptr && is_erase_blend(*e)) {
+        erase_slots.push_back(out.size());
+      }
+    }
 
     // `compose` composes this node's own transform onto the child build:
     // children of ANY content node live in its local space (Affinity is a
@@ -4522,7 +4679,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         }
       }
       std::vector<Layer> clipped;
-      build_layers(ctx, *kids, clipped);
+      build_layers(ctx, *kids, clipped, EraseFolding::Disabled);
       ctx.transform = saved;
       for (auto& layer : clipped) {
         layer.set_clipped(true);
@@ -4747,6 +4904,9 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     emit_placeholder(is_text ? "is text content" : (is_vector ? "is vector content"
                                                               : "is unsupported content"));
   }
+  if (!erase_slots.empty()) {
+    fold_erase_layers(ctx, out, erase_slots, folding);
+  }
 }
 
 // Read an Affinity color class: its `_col` field is a sized struct of
@@ -4946,6 +5106,8 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
   // Spread background: unless the spread is transparent (SprT), Affinity
   // paints its background color (BgrC, default white) behind every layer and
   // composites it into its own exports; mirror that with a bottom fill layer.
+  // It is added BEFORE `built` deliberately: Affinity's spread background is
+  // not a layer, so an Erase wrapper folded inside `built` must not cover it.
   if (!spread.bool_field(af::tag4("SprT"), false)) {
     std::array<float, 4> color{1.0F, 1.0F, 1.0F, 1.0F};
     if (const auto stored = read_rgba_color(spread.child_class(af::tag4("BgrC")))) {

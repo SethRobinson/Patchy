@@ -346,10 +346,29 @@ sweep closed the rest of the long tail - see the parametric-shapes bullet).
   (RMSE 60 vs Normal's 109); Reflect = d^2/(1-s) -> Overlay (37 vs 101);
   Glow = s^2/(1-d) -> Linear Light (24 vs 51); Pigment (no classical formula
   fits) -> Overlay (45 vs 109). ContrastNegate (best candidate still 84 of
-  128) and Erase (an alpha-removal operator, inexpressible in the compositor
-  AND in PSD) stay Normal + the plain not-supported notice; groups with an
+  128) stays Normal + the plain not-supported notice; groups with an
   unmapped explicit mode now fall to Normal + notice instead of silently
   keeping pass-through. Pinned by tiny-blend-affinity.af.
+- **Erase blend mode folds into a masked group** (July 2026): Erase (wire
+  25/v0 or 32/v6+) removes alpha from everything beneath it - not a color
+  blend, so no BlendMode can carry it. `fold_erase_layers` drops the carrier
+  layer and wraps the sibling layers beneath it in a new `LayerKind::Group`
+  named "<carrier> (Erase)" with blend mode Normal and a gray8 group mask =
+  255 - (carrier alpha x Opacity x Fill x its own masks), clipped to the
+  canvas, `default_color` 255. The wrapper must be ISOLATED (Normal, not
+  pass-through): a pass-through group mask attenuates each child separately
+  (coverage 1-(1-m)^N over N children) while the isolated path masks the
+  merged stack exactly once - and a Normal folder + raster group mask is
+  native PSD, so the construction round-trips. Limits, each declining with a
+  notice and rendering the carrier as Normal: carriers inside clipping runs,
+  Group/adjustment carriers, clip bases, bottom-most carriers (nothing
+  beneath; an Erase at the bottom of a pass-through group DOES reach below
+  the group in Affinity, which PSD cannot express), empty carriers, and more
+  than 64 folds per sibling list. A carrier's own layer effects are dropped
+  (notice). The spread background is deliberately added outside any wrapper:
+  Affinity's background is not a layer and Erase does not cut it. Pinned by
+  tiny-blend-affinity.af (af_approximates_affinity_only_blend_modes,
+  af_erase_blend_round_trips_through_psd) and the sprite wild file.
 - **Lab documents (LABA16, format 5)** decode natively: the wire is the ICC
   v4 Lab16 PCS encoding (L 0..65535 = 0..100, a/b with 0x8080 = 0), converted
   through lcms2's built-in D50 Lab profile (`LabToRgbTransform`,
