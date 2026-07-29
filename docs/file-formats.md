@@ -196,8 +196,13 @@ local samples): `edc/<n>` embedded-document streams carry an 8-byte `EmDc`
 tag wrapper around the nested container in old AND current files (the
 importer unwraps it; before this every `EmbR` flatten failed with a notice);
 the oldest (v3-era) documents name the vector fill descriptor `BFil` instead
-of `BFFl` (same FDsc payload; their `PFil` stroke has no width source and
-stays unsupported); gradient stops and other colors can be `HSLA` classes
+of `BFFl` (same FDsc payload); by v4 `BFil` and the `PFil` stroke paint carry
+the Fill class DIRECTLY (no FDsc/FDeF wrapper) and the stroke width rides a
+node field tagged `LSty` holding the same LDsc shape as modern `LILn` -
+vh-check's stroke-only phone outline pins the trio, and a paint-less 1.x
+container's children emit as PLAIN siblings, not clipped to its empty
+placeholder (modern files keep clipping even to placeholders); gradient
+stops and other colors can be `HSLA` classes
 (hue in turns, standard HSL conversion) or five-float `CMYK` classes (the
 same profile-less ink mix as the CMYK raster decoder - reading the first
 four floats as RGBA painted embedded menu icons cyan). Unwrapping embeds
@@ -241,8 +246,7 @@ steam-logo wild file (its steam silhouette is a Grup-of-shapes mask; rmse
 138 -> 51). A partly-decodable mask subtree drops WHOLE with a notice
 (a partial mask would clip wrongly); adjunct kinds with no geometry stay
 silently skipped as before. Remaining known
-gaps: old-generation (1.x) stroke styles (`PFil` has no width source, so
-old outlines render as fills or not at all - vrcget's box outline), the
+gaps: the
 old-generation embed transform (one v9 sample suggests an extra ~0.766
 uniform scale, but its only ground truth is a STALE snapshot cache, so the
 mapping may not exist; 1.x embeds keep origin anchoring, which ns-splash

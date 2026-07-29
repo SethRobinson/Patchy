@@ -3260,6 +3260,14 @@ struct AfVectorFill {
     return std::nullopt;
   }
   const af::AfClass* fill = descriptor->child_class(af::tag4("FDeF"));
+  if (fill == nullptr && (descriptor->type_tag == af::tag4("FilS") ||
+                          descriptor->type_tag == af::tag4("FilN") ||
+                          descriptor->type_tag == af::tag4("FilG"))) {
+    // The oldest generation (doc versions 3..9) stores the Fill class
+    // DIRECTLY on the field (vh-check's BFil/PFil) instead of wrapping it in
+    // an FDsc; a direct FilG has no FDeX placement and stays undecoded.
+    fill = descriptor;
+  }
   if (fill == nullptr) {
     return std::nullopt;
   }
@@ -3497,9 +3505,10 @@ struct AfLineStyle {
   float fill_alpha = 1.0F;
   bool brush_stroke_approximated = false;
   // The fill descriptor rides BFFl on current files; the oldest generation
-  // (doc-tree version 3, the 2026-07-28 wild sweep) named the same FDsc field
-  // BFil. (Its stroke sibling PFil carries the Fill class directly with no
-  // width source, so old strokes stay unsupported.)
+  // (doc versions 3..9, the 2026-07-28 wild sweep) names the same field BFil
+  // and stores the Fill class directly (no FDsc wrapper). Its stroke fields
+  // are old-named too: the LDsc line descriptor rides a field tagged LSty
+  // (same shape as LILn) and the stroke paint rides PFil (a direct Fill).
   const auto read_paint = [transform_scale, &brush_stroke_approximated](
                               const af::AfClass& source, VectorShapeContent& into,
                               float& alpha) -> bool {
@@ -3514,10 +3523,16 @@ struct AfLineStyle {
       into.fill.kind = VectorFillKind::None;
     }
     // LILn[0] (LDsc) -> LDeL: the field's value IS the LSty class.
-    const auto line = line_style_from_descriptor(first_class_of(source, af::tag4("LILn")));
+    auto line = line_style_from_descriptor(first_class_of(source, af::tag4("LILn")));
+    if (!line.has_value()) {
+      line = line_style_from_descriptor(first_class_of(source, af::tag4("LSty")));
+    }
     if (line.has_value() && line->weight > 0.0 && line->line_style != 0) {
-      if (auto stroke_fill = vector_fill_from_descriptor(first_class_of(source, af::tag4("LIFl")));
-          stroke_fill.has_value() && stroke_fill->fill.kind != VectorFillKind::None) {
+      auto stroke_fill = vector_fill_from_descriptor(first_class_of(source, af::tag4("LIFl")));
+      if (!stroke_fill.has_value() || stroke_fill->fill.kind == VectorFillKind::None) {
+        stroke_fill = vector_fill_from_descriptor(first_class_of(source, af::tag4("PFil")));
+      }
+      if (stroke_fill.has_value() && stroke_fill->fill.kind != VectorFillKind::None) {
         into.stroke.enabled = true;
         into.stroke.width =
             line->scale_with_object ? line->weight * transform_scale : line->weight;
@@ -4665,7 +4680,8 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
     // scene graph; arkanis-discord's scaled containers carry children whose
     // transforms exactly invert the parent scale, and ns-logo's artboard
     // grid places children only through the artboard transform).
-    const auto emit_clipped_children = [&](const af::AfClass* compose) {
+    const auto emit_clipped_children = [&](const af::AfClass* compose,
+                                           bool base_is_placeholder = false) {
       const auto* kids = class_list(node, af::tag4("Chld"));
       if (kids == nullptr || kids->empty()) {
         return;
@@ -4678,11 +4694,22 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
           ctx.transform = compose_transforms(ctx.transform, child);
         }
       }
+      // The clipped-sibling rule holds across generations (tiny-live-filter,
+      // the corpus docs, and the 1.x wild trading cards), with one 1.x
+      // exception: children of a base that painted NOTHING emit unclipped
+      // there. vh-check's paint-less phone container (doc v4) holds its five
+      // painted panels as plain scene-graph children; clipping them to the
+      // empty placeholder hid the whole mockup. Modern files keep clipping
+      // even to placeholders (tiny-live-filter's exposure adjustment pin).
+      const bool clip_children = ctx.document_version >= 10 || !base_is_placeholder;
       std::vector<Layer> clipped;
-      build_layers(ctx, *kids, clipped, EraseFolding::Disabled);
+      build_layers(ctx, *kids, clipped,
+                   clip_children ? EraseFolding::Disabled : EraseFolding::Enabled);
       ctx.transform = saved;
       for (auto& layer : clipped) {
-        layer.set_clipped(true);
+        if (clip_children) {
+          layer.set_clipped(true);
+        }
         out.push_back(std::move(layer));
       }
     };
@@ -4714,7 +4741,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         continue;
       }
       emit_placeholder("is an Affinity adjustment or live filter (not applied yet)");
-      emit_clipped_children(&node);
+      emit_clipped_children(&node, /*base_is_placeholder=*/true);
       continue;
     }
 
@@ -4858,7 +4885,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
               ? "is an Affinity adjustment or live filter (not applied yet)"
               : (!pixels ? (fail_reason.empty() ? "has an unsupported pixel format" : fail_reason)
                          : "has a degenerate transform"));
-      emit_clipped_children(&node);
+      emit_clipped_children(&node, /*base_is_placeholder=*/true);
       continue;
     }
 
@@ -4895,7 +4922,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
         continue;
       }
       emit_placeholder(why.empty() ? "is an Affinity shape kind Patchy does not model" : why);
-      emit_clipped_children(&node);
+      emit_clipped_children(&node, /*base_is_placeholder=*/true);
       continue;
     }
 

@@ -1474,6 +1474,35 @@ void af_reads_old_generation_wild_files_if_available() {
       CHECK(found_red);
     }
   }
+
+  // vh-check (doc v4): the oldest vector-paint wire. BFil/PFil carry the Fill
+  // class DIRECTLY (no FDsc/FDeF wrapper), stroke width rides the node's LSty
+  // LDsc, and the paint-less phone container holds its five painted panels as
+  // PLAIN children (clipping them to its empty placeholder hid the mockup;
+  // only text rendered - rmse 104 vs its own thumbnail, ~23 after).
+  {
+    const auto path = patchy::test::local_format_fixture_path(
+        "af-spike/web_samples2", "Hiswe_vh-check__issue-schema.afdesign");
+    if (!std::filesystem::exists(path)) {
+      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+    } else {
+      std::ifstream stream(path, std::ios::binary);
+      const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                            std::istreambuf_iterator<char>());
+      const auto document = patchy::af::DocumentIo::read(bytes);
+      CHECK(document.width() == 750);
+      CHECK(document.height() == 1334);
+      const auto flat = patchy::flatten_document_rgba8(document);
+      const auto probe = [&](std::int32_t x, std::int32_t y) {
+        const std::uint8_t* p = flat.pixel(x, y);
+        return std::array<std::uint8_t, 3>{p[0], p[1], p[2]};
+      };
+      CHECK(probe(500, 500) == (std::array<std::uint8_t, 3>{255, 0, 120}));    // hot-pink column
+      CHECK(probe(200, 500) == (std::array<std::uint8_t, 3>{255, 229, 242}));  // pale-pink column
+      CHECK(probe(90, 60) == (std::array<std::uint8_t, 3>{130, 183, 209}));    // blue-gray band
+      CHECK(probe(40, 500) == (std::array<std::uint8_t, 3>{68, 68, 85}));      // PFil outline
+    }
+  }
 }
 
 void af_modern_embeds_are_center_anchored_if_available() {
