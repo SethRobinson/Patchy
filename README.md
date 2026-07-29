@@ -131,9 +131,9 @@ notarized (Robinson Technologies Corporation).
 
 | Platform                  | Package                     | Download                                                                                      |
 | ------------------------- | --------------------------- | --------------------------------------------------------------------------------------------- |
-| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (28 MB)     |
-| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (28 MB) |
-| macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (41 MB)                           |
+| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (33 MB)     |
+| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (33 MB) |
+| macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (44 MB)                           |
 | Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (14 MB)                   |
 
 Linux one-line install (paste into a terminal; fetches the bundle and installs it,
