@@ -17,6 +17,9 @@
 #include <windows.h>
 #include <dbghelp.h>
 #pragma comment(lib, "dbghelp.lib")
+#elif defined(__EMSCRIPTEN__)
+// No crash reporter under wasm: Emscripten has neither execinfo.h nor fatal
+// signal delivery, and node already prints a wasm stack for traps and aborts.
 #else
 #include <csignal>
 #include <execinfo.h>
@@ -80,7 +83,7 @@ LONG WINAPI report_access_violation(EXCEPTION_POINTERS* info) {
   fflush(stderr);
   return EXCEPTION_CONTINUE_SEARCH;
 }
-#else
+#elif !defined(__EMSCRIPTEN__)
 // POSIX counterpart of report_access_violation above: on SIGSEGV/SIGBUS print the
 // faulting address and a raw backtrace, then re-raise the default action so the process
 // still dies with the correct signal status. backtrace_symbols_fd writes straight to
@@ -103,7 +106,7 @@ int main(int argc, char** argv) {
   patchy::test::suppress_crash_dialogs();
 #ifdef _WIN32
   AddVectoredExceptionHandler(1, report_access_violation);
-#else
+#elif !defined(__EMSCRIPTEN__)
   struct sigaction crash_action {};
   crash_action.sa_sigaction = report_fatal_signal;
   crash_action.sa_flags = SA_SIGINFO;

@@ -101,6 +101,22 @@
         "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address",
         "CMAKE_MODULE_LINKER_FLAGS": "-fsanitize=address"
       }
+    },
+    {
+      "name": "wasm-core",
+      "displayName": "WebAssembly engine + core tests (Emscripten, no Qt; see docs/wasm.md)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/wasm-core",
+      "toolchainFile": "${sourceDir}/.deps/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "PATCHY_BUILD_APP": "OFF",
+        "PATCHY_BUILD_TESTS": "ON",
+        "CMAKE_CROSSCOMPILING_EMULATOR": "${sourceDir}/.deps/emsdk/node/22.16.0_64bit/bin/node.exe",
+        "CMAKE_C_FLAGS": "-pthread -fwasm-exceptions",
+        "CMAKE_CXX_FLAGS": "-pthread -fwasm-exceptions",
+        "CMAKE_EXE_LINKER_FLAGS": "-pthread -fwasm-exceptions -Wno-pthreads-mem-growth -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=256MB -sMAXIMUM_MEMORY=4GB -sSTACK_SIZE=8MB -sDEFAULT_PTHREAD_STACK_SIZE=1MB -sPTHREAD_POOL_SIZE=32 -sPTHREAD_POOL_SIZE_STRICT=2 -sNODERAWFS=1 -sENVIRONMENT=node,worker -sEXIT_RUNTIME=1 \"--pre-js=${sourceDir}/scripts/wasm/node-env-pre.js\""
+      }
     }
   ],
   "buildPresets": [
@@ -139,6 +155,10 @@
     {
       "name": "linux-asan",
       "configurePreset": "linux-asan"
+    },
+    {
+      "name": "wasm-core",
+      "configurePreset": "wasm-core"
     }
   ],
   "testPresets": [

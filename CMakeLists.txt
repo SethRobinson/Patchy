@@ -62,6 +62,14 @@ if(MSVC)
     PROPERTIES COMPILE_OPTIONS /wd4132
   )
 endif()
+# Emscripten's libc headers inject an informational #pragma message (large-file
+# fopen support note) at miniz's unused stdio helpers. Same one-file scoping.
+if(EMSCRIPTEN)
+  set_source_files_properties(
+    src/formats/miniz/miniz.c
+    PROPERTIES COMPILE_OPTIONS "-Wno-#pragma-messages"
+  )
+endif()
 
 add_library(patchy_core
   src/core/gradient_presets.cpp

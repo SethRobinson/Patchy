@@ -1513,6 +1513,14 @@ void af_modern_embeds_are_center_anchored_if_available() {
   // land with its right edge on the host's right edge (x 3579) and its top
   // edge at y=0 - Affinity's own render pins those corners. Raw-origin
   // placement (the old bug) put it at (2979, 206), half a canvas low/right.
+  if constexpr (sizeof(void*) < 8) {
+    // The tier-1 import of this fixture holds a dozen 75-150 MB scan layers
+    // live at once and exceeds a 32-bit address space (wasm32 throws
+    // std::bad_alloc and falls back to the preview, which has no swash layer).
+    std::cout << "[SKIP] af_modern_embeds_are_center_anchored_if_available: "
+                 "this import needs a 64-bit address space\n";
+    return;
+  }
   const auto path =
       patchy::test::local_format_fixture_path("af-spike/corpus", "restaurant-menu-inside.af");
   if (!std::filesystem::exists(path)) {
