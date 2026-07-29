@@ -118,9 +118,6 @@ canaries.
 
 ## Build system
 
-- The vcpkg manifest does not cover all Qt modules used by the build (`Qml` via
-  qtdeclarative and `LinguistTools` via qttools are unmanifested), so `dev-vcpkg` is
-  not a reliable bootstrap path.
 - `patchy_color` is referenced before its target definition. CMake accepts this, but
   the ordering is easy to break during target reorganization.
 - The absolute VS 18 cmake.exe path is hardcoded in three places (the AGENTS.md

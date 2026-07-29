@@ -7,7 +7,6 @@ How to cut and publish a Patchy release. Read this in full before bumping a vers
 When bumping the release version, update the version fields:
 
 - `CMakeLists.txt` (`project(... VERSION x.y)`)
-- `vcpkg.json` (`version-semver`)
 - `latest_version.json` — the per-platform `version` entries: windows always; macos/linux only when those artifacts actually ship. This is the update-check manifest served to the app from raw.githubusercontent.com on main, and only takes effect once pushed.
 - The `<release>` tag in `packaging/linux/com.rtsoft.patchy.metainfo.xml`
 - A new top entry under `README.md`'s "What's New" section for that version,

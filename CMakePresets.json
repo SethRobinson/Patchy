@@ -19,15 +19,6 @@
       }
     },
     {
-      "name": "dev-vcpkg",
-      "displayName": "Developer build with vcpkg manifest",
-      "inherits": "dev",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "VCPKG_FEATURE_FLAGS": "manifests"
-      }
-    },
-    {
       "name": "debug",
       "displayName": "Debug build",
       "inherits": "dev"
@@ -116,10 +107,6 @@
     {
       "name": "dev",
       "configurePreset": "dev"
-    },
-    {
-      "name": "dev-vcpkg",
-      "configurePreset": "dev-vcpkg"
     },
     {
       "name": "debug",

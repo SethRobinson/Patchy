@@ -1,6 +1,5 @@
 # Local dependency installs
 /.deps/
-/vcpkg_installed/
 
 # Testy compatibility-harness output and machine-local settings (see docs/testy.md)
 /testy/runs/
