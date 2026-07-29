@@ -2524,13 +2524,21 @@ void MainWindow::refresh_layer_list() {
   if (layer_list_ == nullptr) {
     return;
   }
+  const auto started = std::chrono::steady_clock::now();
+  const auto phase_ms = [](std::chrono::steady_clock::time_point from) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
+  };
   const auto scroll_value = layer_list_->verticalScrollBar() != nullptr ? layer_list_->verticalScrollBar()->value() : 0;
   const auto horizontal_scroll_value =
       layer_list_->horizontalScrollBar() != nullptr ? layer_list_->horizontalScrollBar()->value() : 0;
   updating_layer_list_ = true;
   QSignalBlocker blocker(layer_list_);
+  layer_list_->setUpdatesEnabled(false);
+  const auto clear_started = std::chrono::steady_clock::now();
   layer_list_->clear();
+  const auto clear_ms = phase_ms(clear_started);
   if (!has_active_document()) {
+    layer_list_->setUpdatesEnabled(true);
     updating_layer_list_ = false;
     return;
   }
@@ -2579,6 +2587,29 @@ void MainWindow::refresh_layer_list() {
   const auto edit_target =
       canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
   int row_to_select = -1;
+  double item_ms = 0.0;
+  double widget_ms = 0.0;
+  double set_widget_ms = 0.0;
+  // The rebuild is three strictly-separated passes. Pass 1 creates and fully
+  // configures every QListWidgetItem while it is still parentless (a setData
+  // on an inserted item emits a model dataChanged the view answers with
+  // layout work). Pass 2 inserts all items while NO row widgets exist yet,
+  // because setItemWidget registers a persistent editor index and every
+  // later model insert then pays an update walk over all of them - the
+  // insert-with-widgets path made the rebuild quadratic in row count (~2.2 s
+  // for the 622-row Affinity card template; batched, the item and insert
+  // passes cost ~10 ms and the whole rebuild ~0.4 s, all of it genuine widget
+  // construction and QSS polish). Pass 3 attaches the row widgets.
+  struct PendingLayerRow {
+    QListWidgetItem* item{nullptr};
+    const Layer* layer{nullptr};
+    int depth{0};
+    bool ancestors_visible{true};
+    bool group_expanded{true};
+    LayerLockFlags ancestor_lock_flags{kLayerLockNone};
+    bool row_clipped{false};
+  };
+  std::vector<PendingLayerRow> pending_rows;
   std::function<void(const std::vector<Layer>&, int, bool, LayerLockFlags)> append_layers =
       [&](const std::vector<Layer>& layers, int depth, bool ancestors_visible, LayerLockFlags ancestor_lock_flags) {
     for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
@@ -2597,7 +2628,8 @@ void MainWindow::refresh_layer_list() {
       const auto sibling_index = static_cast<std::size_t>(std::distance(layers.begin(), it.base())) - 1U;
       const auto row_clipped =
           !is_group && it->clipped() && effective_clip_base(layers, sibling_index) != nullptr;
-      auto* item = new QListWidgetItem(QString::fromStdString(it->name()), layer_list_);
+      const auto item_started = std::chrono::steady_clock::now();
+      auto* item = new QListWidgetItem(QString::fromStdString(it->name()));
       item->setData(kLayerIdRole, QVariant::fromValue<qulonglong>(static_cast<qulonglong>(it->id())));
       item->setData(kLayerDepthRole, depth);
       item->setData(kLayerIsGroupRole, is_group);
@@ -2631,10 +2663,35 @@ void MainWindow::refresh_layer_list() {
         auto font = item->font();
         font.setBold(true);
         item->setFont(font);
-        row_to_select = layer_list_->row(item);
       }
-      layer_list_->setItemWidget(
-          item, make_layer_row_widget(*it, item, layer_list_,
+      pending_rows.push_back(PendingLayerRow{item, &*it, depth, ancestors_visible, group_expanded,
+                                             ancestor_lock_flags, row_clipped});
+      item_ms += phase_ms(item_started);
+      if (is_group && group_expanded) {
+        append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags);
+      }
+    }
+  };
+  const auto build_started = std::chrono::steady_clock::now();
+  append_layers(doc.layers(), 0, true, kLayerLockNone);
+  const auto insert_started = std::chrono::steady_clock::now();
+  for (const auto& pending : pending_rows) {
+    layer_list_->addItem(pending.item);
+    if (active.has_value() && *active == pending.layer->id()) {
+      row_to_select = layer_list_->count() - 1;
+    }
+  }
+  item_ms += phase_ms(insert_started);
+  for (const auto& pending : pending_rows) {
+    const auto& layer = *pending.layer;
+    auto* item = pending.item;
+    const auto depth = pending.depth;
+    const auto ancestors_visible = pending.ancestors_visible;
+    const auto group_expanded = pending.group_expanded;
+    const auto ancestor_lock_flags = pending.ancestor_lock_flags;
+    const auto row_clipped = pending.row_clipped;
+    const auto widget_started = std::chrono::steady_clock::now();
+    auto* row_widget = make_layer_row_widget(layer, item, layer_list_,
                                       [this](const Layer& row_layer) {
                                         return cached_layer_content_thumbnail(row_layer, document().width(),
                                                                               document().height());
@@ -2653,11 +2710,11 @@ void MainWindow::refresh_layer_list() {
           set_active_layer_mask_linked(linked);
         }
       },
-                                      active.has_value() && *active == it->id() &&
+                                      active.has_value() && *active == layer.id() &&
                                           edit_target == CanvasWidget::LayerEditTarget::Content,
-                                      active.has_value() && *active == it->id() &&
+                                      active.has_value() && *active == layer.id() &&
                                           edit_target == CanvasWidget::LayerEditTarget::Mask,
-                                      active.has_value() && *active == it->id() &&
+                                      active.has_value() && *active == layer.id() &&
                                           edit_target == CanvasWidget::LayerEditTarget::SmartFilterMask,
                                       smart_filter_mask_document_editing_supported(
                                           document().width(), document().height()),
@@ -2725,15 +2782,15 @@ void MainWindow::refresh_layer_list() {
                                       [this](LayerId layer_id, std::size_t execution_index) {
         delete_smart_filter(layer_id, execution_index);
       },
-                                      active.has_value() && *active == it->id() &&
+                                      active.has_value() && *active == layer.id() &&
                                           edit_target == CanvasWidget::LayerEditTarget::VectorMask,
-                                      QSize(document().width(), document().height())));
-      if (is_group && group_expanded) {
-        append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags);
-      }
-    }
-  };
-  append_layers(doc.layers(), 0, true, kLayerLockNone);
+                                      QSize(document().width(), document().height()));
+    widget_ms += phase_ms(widget_started);
+    const auto set_widget_started = std::chrono::steady_clock::now();
+    layer_list_->setItemWidget(item, row_widget);
+    set_widget_ms += phase_ms(set_widget_started);
+  }
+  const auto build_ms = phase_ms(build_started);
 
   if (row_to_select >= 0) {
     layer_list_->setCurrentRow(row_to_select);
@@ -2744,23 +2801,38 @@ void MainWindow::refresh_layer_list() {
   if (canvas_ != nullptr) {
     canvas_->set_selected_layer_ids(selected_layer_ids());
   }
+  const auto restyle_started = std::chrono::steady_clock::now();
   restyle_layer_rows(layer_list_);
+  const auto restyle_ms = phase_ms(restyle_started);
+  const auto widths_started = std::chrono::steady_clock::now();
   if (auto* list = dynamic_cast<LayerListWidget*>(layer_list_); list != nullptr) {
     list->set_drag_blocked(filter_active);
     list->refresh_row_widths();
   }
+  const auto widths_ms = phase_ms(widths_started);
   if (auto* scroll_bar = layer_list_->verticalScrollBar(); scroll_bar != nullptr) {
     scroll_bar->setValue(std::clamp(scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
   }
   if (auto* scroll_bar = layer_list_->horizontalScrollBar(); scroll_bar != nullptr) {
     scroll_bar->setValue(std::clamp(horizontal_scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
   }
+  const auto repaint_started = std::chrono::steady_clock::now();
+  layer_list_->setUpdatesEnabled(true);
   layer_list_->viewport()->update();
   layer_list_->viewport()->repaint();
+  const auto repaint_ms = phase_ms(repaint_started);
   // The Paths panel's transient layer-path row follows the active layer, and
   // every structural layer change funnels through here; the panel's
   // revision-keyed thumbnail cache keeps this cheap.
+  const auto paths_started = std::chrono::steady_clock::now();
   refresh_paths_panel();
+  const auto paths_ms = phase_ms(paths_started);
+  std::ostringstream detail;
+  detail << "rows=" << layer_list_->count() << " clear_ms=" << clear_ms << " build_ms=" << build_ms
+         << " item_ms=" << item_ms << " widget_ms=" << widget_ms
+         << " set_widget_ms=" << set_widget_ms << " restyle_ms=" << restyle_ms
+         << " widths_ms=" << widths_ms << " repaint_ms=" << repaint_ms << " paths_ms=" << paths_ms;
+  log_ui_profile("refresh_layer_list", phase_ms(started), detail.str());
 }
 
 QPixmap MainWindow::cached_layer_content_thumbnail(const Layer& layer, int document_width,
@@ -2854,6 +2926,7 @@ void MainWindow::refresh_layer_thumbnails() {
 }
 
 void MainWindow::refresh_layer_controls() {
+  const UiProfileScope profile_scope("refresh_layer_controls");
   refresh_convert_for_smart_filters_action_state();
   if (!updating_layer_controls_) {
     finish_pending_layer_opacity_edit();
@@ -3126,6 +3199,7 @@ void MainWindow::refresh_layer_controls() {
 }
 
 void MainWindow::refresh_document_info() {
+  const UiProfileScope profile_scope("refresh_document_info");
   refresh_palette_panel();
   schedule_palette_compliance_check();
   if (zoom_status_edit_ != nullptr) {

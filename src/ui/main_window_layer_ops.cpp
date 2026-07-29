@@ -1858,7 +1858,11 @@ void MainWindow::edit_active_layer_style() {
     pending_pattern_images.clear();
   };
 
+  const auto phase_ms = [](std::chrono::steady_clock::time_point from) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
+  };
   auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto dialog_started = std::chrono::steady_clock::now();
   const auto settings =
       request_layer_style_settings(this, *layer, apply_preview_settings, &doc.metadata().patterns,
                                    &pattern_library(), &style_library(), queue_pattern_image,
@@ -1869,25 +1873,55 @@ void MainWindow::edit_active_layer_style() {
                                    RgbColor{static_cast<std::uint8_t>(canvas_->secondary_color().red()),
                                             static_cast<std::uint8_t>(canvas_->secondary_color().green()),
                                             static_cast<std::uint8_t>(canvas_->secondary_color().blue())});
+  const auto dialog_ms = phase_ms(dialog_started);
   if (!settings.has_value()) {
+    const auto restore_started = std::chrono::steady_clock::now();
     restore_original();
+    const auto restore_ms = phase_ms(restore_started);
     preview_edit_lock.release();
-    refresh_layer_list();
+    // Cancel restored the exact pre-dialog state: no row structure, name,
+    // badge, or detail text changed, so a full row rebuild (seconds on a
+    // many-layer document) would be pure waste. Only the previewed layer's
+    // thumbnail revision moved.
+    const auto list_started = std::chrono::steady_clock::now();
+    refresh_layer_thumbnails();
+    const auto list_ms = phase_ms(list_started);
+    const auto controls_started = std::chrono::steady_clock::now();
     refresh_layer_controls();
+    const auto controls_ms = phase_ms(controls_started);
+    std::ostringstream detail;
+    detail << "cancelled dialog_ms=" << dialog_ms << " restore_ms=" << restore_ms
+           << " thumbs_ms=" << list_ms << " controls_ms=" << controls_ms;
+    log_ui_profile("edit_active_layer_style", phase_ms(dialog_started), detail.str());
     open_pending_pattern_images();
     return;
   }
 
   const auto dialog_patterns = doc.metadata().patterns;
+  const auto restore_started = std::chrono::steady_clock::now();
   restore_original();
+  const auto restore_ms = phase_ms(restore_started);
   preview_edit_lock.release();
+  const auto undo_started = std::chrono::steady_clock::now();
   push_undo_snapshot(tr("Layer style"));
+  const auto undo_ms = phase_ms(undo_started);
   if (auto* target = doc.find_layer(layer_id); target != nullptr) {
     clear_layer_psd_style_source(*target);
   }
+  const auto apply_started = std::chrono::steady_clock::now();
   apply_committed_settings(*settings, &dialog_patterns);
+  const auto apply_ms = phase_ms(apply_started);
+  const auto list_started = std::chrono::steady_clock::now();
   refresh_layer_list();
+  const auto list_ms = phase_ms(list_started);
+  const auto controls_started = std::chrono::steady_clock::now();
   refresh_layer_controls();
+  const auto controls_ms = phase_ms(controls_started);
+  std::ostringstream detail;
+  detail << "committed dialog_ms=" << dialog_ms << " restore_ms=" << restore_ms
+         << " undo_ms=" << undo_ms << " apply_ms=" << apply_ms << " list_ms=" << list_ms
+         << " controls_ms=" << controls_ms;
+  log_ui_profile("edit_active_layer_style", phase_ms(dialog_started), detail.str());
   statusBar()->showMessage(tr("Updated layer style"));
   open_pending_pattern_images();
 }

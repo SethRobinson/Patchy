@@ -2674,7 +2674,7 @@ void CanvasWidget::timerEvent(QTimerEvent* event) {
   if (event->timerId() == processing_animation_timer_.timerId()) {
     processing_animation_frame_ = (processing_animation_frame_ + 1) % 12;
     ++render_cache_diagnostics_.processing_overlay_frames;
-    if (processing_overlay_visible_) {
+    if (processing_overlay_visible_ || first_render_spinner_active()) {
       update();
     } else {
       processing_animation_timer_.stop();

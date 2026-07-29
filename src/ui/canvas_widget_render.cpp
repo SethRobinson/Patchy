@@ -84,6 +84,22 @@ constexpr std::int64_t kProcessingOverlayDirtyAreaThreshold = 8'000'000;
 constexpr int kProcessingOverlayDelayMs = 1000;
 constexpr int kProcessingAnimationIntervalMs = 80;
 constexpr int kMaxDirtyRegionRects = 64;
+// A full recomposite can take seconds on a document with hundreds of layers
+// even when its pixel area is small (the 622-layer Affinity card template is
+// under 1 Mpx but composites in ~5 s cold: dozens of styled layers each
+// recompute stroke distance fields). Such documents take the same async
+// full-refresh path as pixel-huge ones instead of blocking paint. Compile-time
+// constant on purpose, like the pixel threshold above: the gate must stay
+// deterministic for tests.
+constexpr int kDeferFullRefreshMinLayers = 200;
+
+int total_layer_count(const std::vector<Layer>& layers) noexcept {
+  int count = 0;
+  for (const auto& layer : layers) {
+    count += 1 + total_layer_count(layer.children());
+  }
+  return count;
+}
 
 int processing_overlay_delay_ms() noexcept {
   bool ok = false;
@@ -235,7 +251,35 @@ bool CanvasWidget::should_defer_full_refresh_to_async() const noexcept {
   }
   const auto canvas_area =
       static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
-  return canvas_area >= kProcessingOverlayDirtyAreaThreshold;
+  return canvas_area >= kProcessingOverlayDirtyAreaThreshold ||
+         total_layer_count(std::as_const(*document_).layers()) >= kDeferFullRefreshMinLayers;
+}
+
+bool CanvasWidget::should_defer_first_render_to_async() const noexcept {
+  // The deferred path above needs a same-size previous frame to keep showing.
+  // Without one (first paint of a fresh session, or a canvas resize), a
+  // many-layer document still must not block paint on a seconds-long
+  // composite: kick the async refresh and paint checkerboard plus the
+  // processing spinner until the frame lands. Pixel-huge documents keep their
+  // historical synchronous first paint.
+  if (document_ == nullptr || processing_operation_active()) {
+    return false;
+  }
+  if (!render_cache_dirty_ && !render_cache_.isNull()) {
+    return false;
+  }
+  if (!render_cache_.isNull() &&
+      render_cache_.size() == QSize(document_->width(), document_->height())) {
+    return false;
+  }
+  return total_layer_count(std::as_const(*document_).layers()) >= kDeferFullRefreshMinLayers;
+}
+
+bool CanvasWidget::first_render_spinner_active() const noexcept {
+  return async_render_cache_in_flight_ && document_ != nullptr &&
+         (render_cache_.isNull() ||
+          render_cache_.size() != QSize(document_->width(), document_->height())) &&
+         total_layer_count(std::as_const(*document_).layers()) >= kDeferFullRefreshMinLayers;
 }
 
 bool CanvasWidget::processing_overlay_visible() const noexcept {
@@ -613,6 +657,15 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
         async_render_cache_pending_ = true;
       } else {
         start_async_render_cache_refresh();
+      }
+    } else if (should_defer_first_render_to_async()) {
+      // Deep documents with no previous frame: compose in the background and
+      // show the spinner instead of freezing the first paint for seconds.
+      if (!async_render_cache_in_flight_) {
+        start_async_render_cache_refresh();
+      }
+      if (!processing_animation_timer_.isActive()) {
+        processing_animation_timer_.start(kProcessingAnimationIntervalMs, this);
       }
     } else {
       ensure_render_cache();
@@ -1780,9 +1833,12 @@ void CanvasWidget::draw_rulers(QPainter& painter) const {
 }
 
 void CanvasWidget::draw_processing_overlay(QPainter& painter) const {
-  if (!processing_overlay_visible_) {
+  const auto first_render_wait = first_render_spinner_active();
+  if (!processing_overlay_visible_ && !first_render_wait) {
     return;
   }
+  const QString overlay_message =
+      processing_overlay_visible_ ? processing_overlay_message_ : tr("Processing...");
 
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
@@ -1796,7 +1852,7 @@ void CanvasWidget::draw_processing_overlay(QPainter& painter) const {
   constexpr int kTextRightPadding = 18;
   const auto max_panel_width = std::max(1, width() - kPanelMargin * 2);
   const auto min_panel_width = std::min(168, max_panel_width);
-  const auto desired_panel_width = label_metrics.horizontalAdvance(processing_overlay_message_) +
+  const auto desired_panel_width = label_metrics.horizontalAdvance(overlay_message) +
                                    kSpinnerColumnWidth + kTextRightPadding;
   const QSize panel_size(std::min(max_panel_width, std::max(min_panel_width, desired_panel_width)), kPanelHeight);
   const auto desired_top = (rulers_visible_ ? kTopRulerHeight : 0) + kPanelMargin;
@@ -1834,7 +1890,7 @@ void CanvasWidget::draw_processing_overlay(QPainter& painter) const {
                         std::max(0, panel_rect.width() - kSpinnerColumnWidth - kTextRightPadding),
                         panel_rect.height());
   painter.drawText(text_rect, Qt::AlignVCenter | Qt::AlignLeft,
-                   label_metrics.elidedText(processing_overlay_message_, Qt::ElideRight, text_rect.width()));
+                   label_metrics.elidedText(overlay_message, Qt::ElideRight, text_rect.width()));
   painter.restore();
 }
 

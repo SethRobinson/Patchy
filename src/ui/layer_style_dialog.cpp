@@ -18,6 +18,7 @@
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/style_browser.hpp"
 #include "ui/style_library.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/style_manager_dialog.hpp"
 #include "ui/theme_qss.hpp"
 
@@ -63,6 +64,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -819,6 +821,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     std::function<void(const QString& name, const PixelBuffer& tile)> open_pattern_as_image,
     GradientLibrary *gradient_library, RgbColor foreground,
     RgbColor background) {
+  const auto request_started = std::chrono::steady_clock::now();
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)), layer.blend_mode(), layer.layer_style(),
       layer.blend_if(), false};
@@ -4234,7 +4237,17 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }
   }
 
-  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+  log_ui_profile("layer_style_dialog_build",
+                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -
+                                                           request_started)
+                     .count());
+  const auto exec_started = std::chrono::steady_clock::now();
+  const auto dialog_result = run_non_modal_dialog(dialog);
+  log_ui_profile("layer_style_dialog_exec",
+                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -
+                                                           exec_started)
+                     .count());
+  if (dialog_result != QDialog::Accepted) {
     return std::nullopt;
   }
 

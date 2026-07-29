@@ -86,5 +86,7 @@ Useful diagnostic variables:
 - `PATCHY_NO_SOUND=1` suppresses script audio; offscreen suites rely on it.
 - `PATCHY_SETTINGS_DIR=<dir>` redirects the app's ini settings store (automation isolation).
 - `PATCHY_UI_TEST_FILTER` selects a UI test substring.
+- `PATCHY_UI_PROFILE=1` prints stderr timing lines for instrumented UI stages (layer-panel rebuild phases, layer-style dialog open/close, undo snapshots).
+- `PATCHY_PERF_SAMPLER=1` (patchy_perf_tests only) samples the main thread's stacks every 10 ms and prints the hottest ones at exit.
 
 Composite checksums from stress reports or large renders are comparable only on the same machine: text antialiasing varies by system and the parallel strip renderer varies with thread count.

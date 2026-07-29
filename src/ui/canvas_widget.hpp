@@ -887,6 +887,14 @@ private:
   // compile-time constant, so tests that force the overlay path via
   // PATCHY_PROCESSING_OVERLAY_MIN_PIXELS keep their blocking semantics).
   [[nodiscard]] bool should_defer_full_refresh_to_async() const noexcept;
+  // First-paint variant for many-layer documents (kDeferFullRefreshMinLayers):
+  // no same-size previous frame exists, so paint shows checkerboard plus the
+  // processing spinner while the async composite runs, instead of blocking for
+  // seconds. Pixel-huge documents keep their historical synchronous first paint.
+  [[nodiscard]] bool should_defer_first_render_to_async() const noexcept;
+  // Whether that first-render wait is currently on screen (drives the spinner
+  // overlay and its animation timer without any stored state to go stale).
+  [[nodiscard]] bool first_render_spinner_active() const noexcept;
   [[nodiscard]] std::vector<RenderedDocumentPatch> render_document_patches_with_processing(
       const QRegion& document_region, const std::vector<std::pair<LayerId, Rect>>& layer_bounds,
       bool force_processing_wait);

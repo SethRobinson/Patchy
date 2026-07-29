@@ -35,6 +35,48 @@ Layer's mutable accessors bump render/content revisions on ACCESS, so read-only 
 
 `opaque_pixel_local_rect` (the Move tool's passive-box bounds) reaches paint through `move_transform_controls_rect` and used to rescan the whole alpha channel every frame - selecting a 70 Mpx layer made every zoom/pan step take about half a second (diagnosed by stack-sampling the live app). The shared `visible_alpha_local_bounds(const Layer&)` helper in `layer_render_utils.cpp` now serves the Move tool and alpha-aligned layer effects. It uses a row scan with early exits and a bounded LRU keyed by the app-globally-unique PIXEL revision. A per-key in-flight latch prevents parallel render strips from duplicating a cold scan without blocking hits for other layers. Style edits do not change the pixel revision, while mutable pixel access and `set_pixels` do. `PATCHY_ZOOM_TRACE=1` prints paint/zoom/view-changed phase timings over 2 ms to stderr for attributing the next report like this one, and `patchy_perf_tests.exe zoom` (env `PATCHY_PERF_ONSCREEN=1`, `PATCHY_PERF_ZOOM_BG=1` selects the tent's 70 Mpx BG layer, `PATCHY_PERF_ZOOM_SELECTION=1` zooms with marching ants) measures per-step latency on the PSBtest tent file (~10-15 ms per step maximized; it was ~255-300 ms before the cache).
 
+## Layer-panel rebuilds are three strictly-separated passes
+
+`MainWindow::refresh_layer_list` (main_window_layer_panel.cpp) rebuilds in
+passes: configure every `QListWidgetItem` while still parentless, insert ALL
+items, then attach the row widgets. The order is load-bearing twice over: a
+`setData`/`setToolTip` on an inserted item emits a model `dataChanged` the view
+answers with layout work, and - the expensive one - `setItemWidget` registers a
+persistent editor index that every LATER model insert pays an update walk over,
+which made interleaved insert-and-attach quadratic in row count (~2.2 s per
+rebuild for the 622-row Affinity card template, ~0.4 s batched; the remaining
+cost is genuine widget construction + QSS polish). Never mutate an inserted
+item mid-rebuild and never attach a row widget before the last item is in.
+`refresh_layer_list` logs per-phase timings under `PATCHY_UI_PROFILE=1`, and
+`patchy_perf_tests.exe layerpanel` reproduces the numbers on the untracked
+Quintavius fixture (af-spike/web_samples2; [SKIP] when absent) - it also times
+folder collapse/expand and a Layer Style dialog open/cancel round trip, and
+`PATCHY_PERF_SAMPLER=1` turns on an in-process sampling profiler over the
+scenario (10 ms main-thread stacks, hottest stacks printed at exit).
+
+The Layer Style dialog's CANCEL path deliberately skips `refresh_layer_list`:
+it restored the exact pre-dialog state, so no row structure/name/badge/detail
+changed - only the previewed layer's thumbnail revision moved
+(`refresh_layer_thumbnails` + `refresh_layer_controls` cover it). Committing
+keeps the full rebuild (badges and details may genuinely change).
+
+## Deep documents defer full recomposites (layer-count gate)
+
+A full recomposite can take seconds on a document with hundreds of layers even
+when its pixel area is tiny (the 622-layer card template is under 1 Mpx but
+composited ~5 s cold: dozens of styled layers recompute stroke EDT masks), and
+below the 8 Mpx pixel threshold that composite used to run synchronously inside
+`paintEvent`. `should_defer_full_refresh_to_async` therefore also engages at
+`kDeferFullRefreshMinLayers` (200, canvas_widget_render.cpp) - same
+previous-frame-async semantics as pixel-huge documents. With no same-size
+previous frame to show (first paint of a fresh session),
+`should_defer_first_render_to_async` kicks the async composite and paints
+checkerboard plus the processing spinner instead of freezing
+(`first_render_spinner_active` drives the overlay with no stored state);
+pixel-huge documents keep their historical synchronous first paint. Both gates
+are compile-time constants on purpose - tests need deterministic paint
+semantics, and nothing in the suites builds 200 layers.
+
 ## Parallel strip rendering
 
 Full renders at 4 Mpx+ composite in parallel horizontal strips (render_document_rect, image_document_io.cpp; ~4-6x on many-core machines). Style-mask float blurs are windowed per clip, so strip output can differ from the sequential walk by ~1-2/255 at strip boundaries near styled layers — the same divergence class the dirty-rect patch path already has vs full refreshes. Every pixel test renders below the threshold (sequential, byte-stable); `PATCHY_RENDER_SINGLE_THREADED=1` forces the sequential path when a byte-stable big render is needed (e.g. cross-run checksum comparisons). Tracing/profiling renders also stay sequential so per-step instrumentation remains meaningful.

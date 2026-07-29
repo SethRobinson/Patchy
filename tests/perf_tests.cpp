@@ -8,26 +8,42 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QDialog>
 #include <QKeyEvent>
 #include <QImage>
 #include <QPainter>
 #include <QRect>
 #include <QRegion>
 #include <QTabWidget>
+#include <QTimer>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
+#include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
+#endif
 
 namespace patchy::ui {
 
@@ -37,6 +53,11 @@ class MainWindowTestAccess {
  public:
   static void open_document_path(MainWindow& window, const QString& path) { window.open_document_path(path); }
   static Document& document(MainWindow& window) { return window.document(); }
+  static void toggle_layer_folder_expanded(MainWindow& window, patchy::LayerId id) {
+    window.toggle_layer_folder_expanded(id);
+  }
+  static void refresh_layer_list(MainWindow& window) { window.refresh_layer_list(); }
+  static void edit_active_layer_style(MainWindow& window) { window.edit_active_layer_style(); }
 };
 
 }  // namespace patchy::ui
@@ -452,6 +473,260 @@ void tent_psb_zoom_step_perf_if_available() {
   }
 }
 
+#ifdef Q_OS_WIN
+// PATCHY_PERF_SAMPLER=1: a diagnostic sampling profiler for the scenarios in
+// this binary. A worker suspends the MAIN thread every ~10 ms, walks its
+// stack, and aggregates identical stacks; the destructor prints the hottest
+// ones. Addresses are collected while suspended and symbolized after resume
+// (dbghelp under a suspended peer risks the loader lock). Diagnostic only.
+class MainThreadSampler {
+ public:
+  MainThreadSampler() {
+    process_ = GetCurrentProcess();
+    main_thread_ = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION,
+                              FALSE, GetCurrentThreadId());
+    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+    symbols_ready_ = SymInitialize(process_, nullptr, TRUE) != FALSE;
+    if (main_thread_ != nullptr) {
+      worker_ = std::thread([this] { run(); });
+    }
+  }
+  MainThreadSampler(const MainThreadSampler&) = delete;
+  MainThreadSampler& operator=(const MainThreadSampler&) = delete;
+  ~MainThreadSampler() {
+    stop_ = true;
+    if (worker_.joinable()) {
+      worker_.join();
+    }
+    dump();
+    if (main_thread_ != nullptr) {
+      CloseHandle(main_thread_);
+    }
+  }
+
+ private:
+  void run() {
+    while (!stop_) {
+      sample();
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }
+
+  void sample() {
+    DWORD64 addresses[26] = {};
+    int depth = 0;
+    if (SuspendThread(main_thread_) == static_cast<DWORD>(-1)) {
+      return;
+    }
+    CONTEXT context = {};
+    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+    if (GetThreadContext(main_thread_, &context) != FALSE) {
+      STACKFRAME64 frame = {};
+      frame.AddrPC.Offset = context.Rip;
+      frame.AddrPC.Mode = AddrModeFlat;
+      frame.AddrFrame.Offset = context.Rbp;
+      frame.AddrFrame.Mode = AddrModeFlat;
+      frame.AddrStack.Offset = context.Rsp;
+      frame.AddrStack.Mode = AddrModeFlat;
+      while (depth < 26) {
+        if (StackWalk64(IMAGE_FILE_MACHINE_AMD64, process_, main_thread_, &frame, &context, nullptr,
+                        SymFunctionTableAccess64, SymGetModuleBase64, nullptr) == FALSE ||
+            frame.AddrPC.Offset == 0) {
+          break;
+        }
+        addresses[depth++] = frame.AddrPC.Offset;
+      }
+    }
+    ResumeThread(main_thread_);
+    if (depth == 0) {
+      return;
+    }
+    std::string key;
+    for (int i = 0; i < depth; ++i) {
+      key += symbol_name(addresses[i]);
+      key += '\n';
+    }
+    ++stacks_[key];
+    ++samples_;
+  }
+
+  std::string symbol_name(DWORD64 address) {
+    if (!symbols_ready_) {
+      std::ostringstream raw;
+      raw << "0x" << std::hex << address;
+      return raw.str();
+    }
+    alignas(SYMBOL_INFO) char storage[sizeof(SYMBOL_INFO) + 512] = {};
+    auto* symbol = reinterpret_cast<SYMBOL_INFO*>(storage);
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+    symbol->MaxNameLen = 511;
+    DWORD64 displacement = 0;
+    if (SymFromAddr(process_, address, &displacement, symbol) == FALSE) {
+      std::ostringstream raw;
+      raw << "0x" << std::hex << address;
+      return raw.str();
+    }
+    return symbol->Name;
+  }
+
+  void dump() {
+    std::vector<std::pair<int, const std::string*>> ranked;
+    ranked.reserve(stacks_.size());
+    for (const auto& [stack, count] : stacks_) {
+      ranked.emplace_back(count, &stack);
+    }
+    std::sort(ranked.begin(), ranked.end(),
+              [](const auto& lhs, const auto& rhs) { return lhs.first > rhs.first; });
+    std::cout << "[SAMPLER] total_samples=" << samples_ << " unique_stacks=" << stacks_.size() << '\n';
+    const auto top = std::min<std::size_t>(ranked.size(), 8U);
+    for (std::size_t index = 0; index < top; ++index) {
+      std::cout << "[SAMPLER] ---- stack #" << (index + 1) << " samples=" << ranked[index].first << '\n';
+      std::istringstream lines(*ranked[index].second);
+      std::string line;
+      while (std::getline(lines, line)) {
+        std::cout << "[SAMPLER]   " << line << '\n';
+      }
+    }
+  }
+
+  HANDLE process_{nullptr};
+  HANDLE main_thread_{nullptr};
+  bool symbols_ready_{false};
+  std::atomic<bool> stop_{false};
+  std::thread worker_;
+  std::map<std::string, int> stacks_;
+  int samples_{0};
+};
+#endif
+
+// Layers-panel and layer-style-dialog latency on a deep imported document (the
+// Quintavius Affinity trading-card template: ~440 layers in ten stacked card
+// folders). Times the full-row-rebuild paths a user hits constantly: folder
+// collapse/expand and opening/closing the Layer Style dialog without changes.
+// Run with PATCHY_UI_PROFILE=1 for the per-phase breakdown lines.
+void quintavius_layer_panel_perf_if_available() {
+  const auto path = patchy::test::local_format_fixture_path(
+      "af-spike/web_samples2", "Quintavius_map-of-noo__Frame.afphoto");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] Quintavius afphoto fixture missing: " << path.string() << '\n';
+    return;
+  }
+
+#ifdef Q_OS_WIN
+  std::unique_ptr<MainThreadSampler> sampler;
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_SAMPLER")) {
+    sampler = std::make_unique<MainThreadSampler>();
+  }
+#endif
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  const auto open_ms = elapsed_ms([&] {
+    patchy::ui::MainWindowTestAccess::open_document_path(window,
+                                                         QString::fromStdString(path.string()));
+    QApplication::processEvents();
+  });
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  const auto settle_started = Clock::now();
+  while (!canvas->render_settled() &&
+         std::chrono::duration<double>(Clock::now() - settle_started).count() < 60.0) {
+    canvas->repaint();
+    QApplication::processEvents();
+  }
+
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  std::function<int(const patchy::Layer&)> descendant_count = [&](const patchy::Layer& layer) {
+    int count = 0;
+    for (const auto& child : layer.children()) {
+      count += 1 + descendant_count(child);
+    }
+    return count;
+  };
+  const patchy::Layer* big_group = nullptr;
+  int big_group_descendants = 0;
+  for (const auto& layer : std::as_const(doc).layers()) {
+    if (layer.kind() != patchy::LayerKind::Group) {
+      continue;
+    }
+    const auto count = descendant_count(layer);
+    if (count > big_group_descendants) {
+      big_group_descendants = count;
+      big_group = &layer;
+    }
+  }
+  CHECK(big_group != nullptr);
+  const auto group_id = big_group->id();
+  const auto group_name = clean_name(big_group->name());
+
+  // Activate a pixel layer deep in the biggest folder, like a user clicking a
+  // card element before styling it.
+  std::function<const patchy::Layer*(const patchy::Layer&)> first_pixel =
+      [&](const patchy::Layer& layer) -> const patchy::Layer* {
+    if (layer.kind() == patchy::LayerKind::Pixel && !layer.pixels().empty()) {
+      return &layer;
+    }
+    for (const auto& child : layer.children()) {
+      if (const auto* found = first_pixel(child); found != nullptr) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+  const auto* style_target = first_pixel(*big_group);
+  CHECK(style_target != nullptr);
+  doc.set_active_layer(style_target->id());
+  patchy::ui::MainWindowTestAccess::refresh_layer_list(window);
+  QApplication::processEvents();
+
+  const auto rebuild_ms = elapsed_ms([&] {
+    patchy::ui::MainWindowTestAccess::refresh_layer_list(window);
+    QApplication::processEvents();
+  });
+  const auto collapse_ms = elapsed_ms([&] {
+    patchy::ui::MainWindowTestAccess::toggle_layer_folder_expanded(window, group_id);
+    QApplication::processEvents();
+  });
+  const auto expand_ms = elapsed_ms([&] {
+    patchy::ui::MainWindowTestAccess::toggle_layer_folder_expanded(window, group_id);
+    QApplication::processEvents();
+  });
+
+  // Open the Layer Style dialog and close it without touching anything; the
+  // repeating timer stands in for the user's Cancel click.
+  QTimer dismisser;
+  dismisser.setInterval(50);
+  bool dismissed = false;
+  QObject::connect(&dismisser, &QTimer::timeout, &window, [&] {
+    for (auto* top_level : QApplication::topLevelWidgets()) {
+      auto* dialog = qobject_cast<QDialog*>(top_level);
+      if (dialog != nullptr && dialog->isVisible() &&
+          dialog->objectName() == QStringLiteral("patchyLayerStyleDialog")) {
+        dismissed = true;
+        dialog->reject();
+      }
+    }
+  });
+  dismisser.start();
+  const auto style_dialog_ms = elapsed_ms([&] {
+    patchy::ui::MainWindowTestAccess::edit_active_layer_style(window);
+    QApplication::processEvents();
+  });
+  dismisser.stop();
+  CHECK(dismissed);
+
+  std::cout << "[PERF_LAYER_PANEL] open_ms=" << open_ms << " rebuild_ms=" << rebuild_ms
+            << " collapse_ms=" << collapse_ms << " expand_ms=" << expand_ms
+            << " style_dialog_cancel_ms=" << style_dialog_ms << " group=\"" << group_name
+            << "\" descendants=" << big_group_descendants
+            << " style_layer=\"" << clean_name(style_target->name()) << "\"\n";
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -467,9 +742,14 @@ int main(int argc, char* argv[]) {
       tent_psb_zoom_step_perf_if_available();
       return 0;
     }
+    if (argc > 1 && std::string_view(argv[1]) == "layerpanel") {
+      quintavius_layer_panel_perf_if_available();
+      return 0;
+    }
     template_psd_dirty_move_perf_if_available();
     template_psd_ui_keyboard_nudge_perf_if_available();
     tent_psb_zoom_step_perf_if_available();
+    quintavius_layer_panel_perf_if_available();
   } catch (const std::exception& error) {
     std::cerr << "[FAIL] " << error.what() << '\n';
     return 1;
