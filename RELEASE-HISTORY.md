@@ -3,6 +3,16 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.84 - July 26, 2026
+
+- Patchy has a Light color scheme now. File > Preferences picks Dark, Light, or the system light/dark setting, and the switch happens live: panels, dialogs, tabs, scroll bars, and the color picker all get real light colors instead of an inverted dark theme
+- The canvas gained Photoshop-style scroll bars, whose range agrees with what hand-tool panning allows, and on Windows the main window and the dialogs Patchy frames itself now have rounded corners and a drop shadow
+- The tool palette's extension arrow is a sticky toggle: it opens, stays open while you work, and closes on a second click or after you pick something. When the window is too short, the palette hides the color swatches last instead of clipping tools
+- Layer thumbnails show where a layer sits in the document, like Photoshop's: the tile is the document rectangle, the layer sits at its own position with checkerboard around it, and mask, vector mask, and Smart Filter previews fit their source instead of stretching into a square slot
+- Hue/Saturation is calibrated against Photoshop. The master controls match byte for byte, and the per-hue-range bands (Reds, Yellows, Greens, and the rest) render with a new Edit range control instead of being ignored
+- Photoshop no longer warns about unreadable data when it opens a PSD that Patchy saved
+- More layer style work: Bevel & Emboss Gloss Contour matches Photoshop's light remap, bevel pattern texture is calibrated and reads multichannel patterns, drop shadows saved by Photoshop 5.x import instead of vanishing, and a clipping run now clips to its base layer's transparency rather than to the base layer's effects
+
 ## 0.83 - July 25, 2026
 
 - The Layers panel got a big cleanup: Mode, Opacity, and Fill share one compact row, the lock buttons sit together on the left, and thumbnails aspect-fit their layer instead of stretching to a square (hidden layers keep full-color thumbnails, and the transparency checker is brighter, like Photoshop's)
@@ -19,7 +29,7 @@ remain in [README.md](README.md#whats-new).
 
 - JavaScript scripting is here: scripts drive documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing through a documented API (patchy.d.ts for machines, a scripting guide under Help for humans), with one undo entry per run no matter how much a script changes
 - The new Script Manager (File > Scripts) puts a folder tree over the bundled and user scripts with per-script icons, names, and hover cards, plus a code editor with syntax highlighting and live run status: spinner, elapsed time, and a stop button. Editing a bundled script saves your own copy, which overrides the original and can be reverted, and New seeds a runnable starter template
-- 20 bundled scripts to use or learn from: CSV data merge, contact sheets, icon export, batch export, versioned saves, layer rename, grid overlays, watermark, play-button overlay, trim to content, duotone, glitch, photo frame, generative art, letter physics, a form-dialog showcase, and playable Breakout, Pong, and Game of Life on real canvases. Scripts can call other scripts with include()
+- 21 bundled scripts to use or learn from: CSV data merge, contact sheets, icon export, batch export, export all layers, versioned saves, layer rename, grid overlays, watermark, play-button overlay, trim to content, duotone, glitch, photo frame, fancy backgrounds, generative art, letter physics, a form-dialog showcase, and playable Breakout, Pong, and Game of Life on real canvases. Scripts can call other scripts with include()
 - Scripts ask for input through patchy.ui.showOptions: a real options dialog with instructions and folder/file pickers in GUI runs, --script-arg overrides from the command line, and the same defaults applied without a dialog when run unattended
 - Scripts can play sound with patchy.ui.playTone and playSound (Breakout and Pong picked up retro blips), a long busy script shows a stop panel with live progress and optional undo of its changes, and the script watchdog measures inactivity rather than total runtime so hour-long batches survive
 - patchy --run-script file.js runs a script against a new or running instance and writes console output to a file, so external tools and AI agents can drive Patchy; the Script Manager's C:\ button shows a copyable command line for any script

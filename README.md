@@ -102,7 +102,7 @@ Click a thumbnail for the full-size image.
     </td>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/affinity_import.png"><img src="docs/images/screenshots/affinity_import.png" width="270" alt="Affinity Photo document open in Patchy as a layered file, the Layers panel showing groups, text layers with effect badges, and raster layers"></a>
-      <br><sub>Affinity Photo and Designer files open as layered documents: groups, editable text, effects, and rasters come through</sub>
+      <br><sub>Affinity Photo, Designer, and Publisher files open as layered documents: groups, editable text, effects, and rasters come through</sub>
     </td>
   </tr>
 </table>
@@ -156,7 +156,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Open and save layered PSD and PSB files with groups, masks, clipping masks, saved alpha and spot channels, text objects, Fill Opacity, the full Photoshop blend mode set, layer styles and more
 - Common raster editing tools, including Brush with Flow and timed Airbrush buildup, Healing Brush, Clone Stamp, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients, and shapes
 - Vector tools: Pen paths, editable shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient, or pattern fills and strokes, vector masks, path selection and anchor editing, and a Paths panel with fill, stroke, and make-selection commands, all round-tripping through PSD files that open correctly in Photoshop
-- Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold) with live preview, editable settings, and native Photoshop PSD data
+- Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold) with live preview, editable settings, native Photoshop PSD data, and .acv Curves preset import and export
 - Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks (13 filter types) with paintable shared masks and per-filter blending
 - Filter Gallery with 32 effects, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks, plus a manual Liquify workspace with warp, twirl, pucker, bloat, and freeze brushes
 - Photoshop-compatible layer style, pattern, and gradient preset libraries, including .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures
@@ -166,7 +166,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
 - Pixel-art and game-dev extras: seamless texture authoring (live tile preview window, in-canvas tiling mode, seam shifting), sprite sheet export/import, image sequence export/import (numbered files become layers and back), and nearest-neighbor scaled export (2x-8x)
 - Reads and writes a wide range of formats: PSD/PSB, PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), Aseprite files, and SVG (opens as editable shape layers, exports with vectors preserved)
-- Imports Affinity documents as layered files, both the current .af format and Affinity 2 .afphoto/.afdesign/.afpub: rasters, groups, masks, clipping, blend modes, editable text layers, vector shapes, adjustment layers, layer effects, and placed images (which become embedded Smart Objects)
+- Imports Affinity documents as layered files: the current .af format, Affinity 2 .afphoto/.afdesign/.afpub, and most Affinity 1.x-era files, bringing across rasters, groups, masks, clipping, blend modes, editable text layers, vector shapes, adjustment layers, layer effects, and placed images (which become embedded Smart Objects)
 - Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) through a 16-bit develop dialog, and HEIC/HEIF photos through platform codecs
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
 - Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), legacy .8bf plugins, and command line options
@@ -178,20 +178,22 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.86 - July 29, 2026
+
+- Affinity import got much wider. Affinity 2's .afphoto, .afdesign, and .afpub documents open now, alongside the current .af format and most Affinity 1.x-era files. Parametric shapes import as real editable shapes down to the long tail (stars, triangles, smoothed polygons, diamonds, pies, crescents, hearts, arrows, cogs, clouds), together with compound-shape booleans, Designer symbols, artboards, and scene-graph transforms
+- Affinity fidelity work: vector masks arrive as native vector masks, stroke line style, alignment, dashes, and miter limit come through, crop containers become masked groups so a hidden crop stays hidden, Affinity-only blend modes render through their closest equivalent with a notice, and the Erase blend mode folds into an isolated group with an inverse-alpha mask, which is how PSD stores that construction natively
+- Layer styles work on groups. A folder can carry effects, they render through the same Photoshop-calibrated pipeline as layers, and the Layer Style dialog opens from a group row or its fx badge. The old warnings about group effects being unsupported are gone
+- The Dissolve blend mode is in, on layers, groups, adjustment layers, and effects, and it round-trips through PSD
+- Fill opacity is bit-exact against Photoshop for Vivid Light, Linear Light, and Hard Mix, the three modes that treat Fill specially
+- Brightness/Contrast now models Photoshop's modern algorithm alongside the legacy one, so files carrying modern settings render, edit, and save back correctly
+- Large documents feel much better in the Layers panel. On a 622-layer file, expanding a folder went from 2.1 seconds to 0.45, and closing the Layer Style dialog went from 8.2 seconds to 0.5
+- Shape strokes no longer grow spikes at sharp corners when anchor points land off the pixel lattice
+- PSD compatibility is measured instead of asserted. The top of this README now shows how Patchy scores against Photoshop 2026 on a mixed PSD corpus, with Photopea, GIMP, Affinity, PhotoDemon, and Krita run through the same tests
+
 ### 0.85 - July 27, 2026
 
 - Layer styles blend the way Photoshop does now. A layer's blend mode applies to its own pixels alone unless Blend Interior Effects as Group is on, and exterior effects contribute against the backdrop instead of under the layer, so glows and shadows keep their weight along anti-aliased text. Color, Gradient, and Pattern Overlay fold into the layer color rather than painting over the composite, so an opaque overlay hides the fill beneath it and layer opacity is no longer applied twice
 - Damaged PSD files open instead of being refused: corrupt scanlines are recovered row by row, with an import notice saying how many came back, and legacy files that carry Photoshop's separate real user mask channel read correctly instead of arriving truncated
-
-### 0.84 - July 26, 2026
-
-- Patchy has a Light color scheme now. File > Preferences picks Dark, Light, or the system light/dark setting, and the switch happens live: panels, dialogs, tabs, scroll bars, and the color picker all get real light colors instead of an inverted dark theme
-- The canvas gained Photoshop-style scroll bars, whose range agrees with what hand-tool panning allows, and on Windows the main window and the dialogs Patchy frames itself now have rounded corners and a drop shadow
-- The tool palette's extension arrow is a sticky toggle: it opens, stays open while you work, and closes on a second click or after you pick something. When the window is too short, the palette hides the color swatches last instead of clipping tools
-- Layer thumbnails show where a layer sits in the document, like Photoshop's: the tile is the document rectangle, the layer sits at its own position with checkerboard around it, and mask, vector mask, and Smart Filter previews fit their source instead of stretching into a square slot
-- Hue/Saturation is calibrated against Photoshop. The master controls match byte for byte, and the per-hue-range bands (Reds, Yellows, Greens, and the rest) render with a new Edit range control instead of being ignored
-- Photoshop no longer warns about unreadable data when it opens a PSD that Patchy saved
-- More layer style work: Bevel & Emboss Gloss Contour matches Photoshop's light remap, bevel pattern texture is calibrated and reads multichannel patterns, drop shadows saved by Photoshop 5.x import instead of vanishing, and a clipping run now clips to its base layer's transparency rather than to the base layer's effects
 
 [Older releases](RELEASE-HISTORY.md)
 
@@ -269,18 +271,18 @@ Important Photoshop features that are not supported yet, or are only partially s
 
 ### Affinity import
 
-Patchy opens Affinity documents read-only: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x-era files. Raster layers (including 16-bit, float, CMYK, and Lab documents), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes (rectangles, ellipses, polygons, stars, triangles, diamonds, trapezoids, pies, segments, crescents, hearts, tears, arrows, double and square stars, cogs, clouds), compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (which become embedded Smart Objects) all import, verified against Affinity's own renders and a wild-file corpus that includes real Affinity 2 documents from all three apps. If a file can't be imported as layers, Patchy falls back to its embedded preview instead of failing the open, and an import notice explains what was skipped.
+Patchy opens Affinity documents read-only: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x-era files. Raster layers (including 16-bit, float, CMYK, and Lab documents), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes (rectangles, ellipses, polygons, stars, triangles, diamonds, trapezoids, pies, segments, crescents, hearts, tears, arrows, double and square stars, cogs, clouds), compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (which become embedded Smart Objects) all import, verified against Affinity's own renders and a wild-file corpus that includes real Affinity 2 documents from all three apps. Vector fills and strokes keep their width, alignment, dash pattern, and miter limit, crop-to-shape containers come in as masked groups, and the Erase blend mode imports as an isolated group with an inverse-alpha mask, which is how PSD stores that construction natively. If a file can't be imported as layers, Patchy falls back to its embedded preview instead of failing the open, and an import notice explains what was skipped.
 
 Affinity features that are not supported yet, or are only partially supported:
 
 - Saving to Affinity formats (import only; save your edits as PSD)
 - A few parametric shape kinds (callouts, spirals, QR codes, circle-rounded stars, and exotic arrow ends) import as named placeholders
 - Adjustment layers beyond the eight kinds Patchy models, and live filters, import as named empty placeholders; Brightness/Contrast and Color Balance import approximately
-- Affinity-only blend modes render through their closest Photoshop-compatible equivalent with a notice (Average matches exactly at half opacity; Negation, Reflect, Glow, and Pigment approximate; Contrast Negate and Erase fall back to Normal)
+- Affinity-only blend modes render through their closest Photoshop-compatible equivalent with a notice (Average matches exactly at half opacity; Negation, Reflect, Glow, and Pigment approximate; Contrast Negate falls back to Normal)
 - Bevel/Emboss and glow effects are approximated; Gaussian blur layer effects bake into the layer pixels (they render correctly but are no longer live)
 - Rotated or sheared frame text renders without its rotation (artistic text rotates correctly)
 - Multi-page documents open the first page only
-- Affinity 1.x-era files: vector stroke widths don't import, and embedded-document placement can land slightly off
+- Affinity 1.x-era files: embedded-document placement can land slightly off
 
 ## License
 
