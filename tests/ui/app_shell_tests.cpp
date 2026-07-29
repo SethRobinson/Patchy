@@ -62,6 +62,7 @@
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/build_info.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/visual_filter_gallery_dialog.hpp"
 #include "ui/zoomable_image_preview.hpp"
@@ -2190,6 +2191,14 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(combined_text.contains(QStringLiteral("href=\"https://rtsoft.com\"")));
     CHECK(combined_text.contains(QStringLiteral(">rtsoft.com</a>")));
 
+    // The version label shares the splashCredit object name with the credit
+    // line below it; creation order puts the version first.
+    const auto credit_labels = dialog->findChildren<QLabel*>(QStringLiteral("splashCredit"));
+    CHECK(credit_labels.size() == 2);
+    CHECK(credit_labels.first()->text().startsWith(QStringLiteral("Version ")));
+    CHECK(credit_labels.first()->text().endsWith(
+        QStringLiteral("(built %1)").arg(patchy::ui::build_date_text())));
+
     auto* contributors = dialog->findChild<QLabel*>(QStringLiteral("splashContributors"));
     CHECK(contributors != nullptr);
     CHECK(contributors->textFormat() == Qt::RichText);
@@ -2421,6 +2430,7 @@ void ui_start_panel_shows_about_info_and_update_status() {
   auto* version = window.findChild<QLabel*>(QStringLiteral("startPanelVersion"));
   CHECK(version != nullptr);
   CHECK(version->text().startsWith(QStringLiteral("Version ")));
+  CHECK(version->text().endsWith(QStringLiteral("(built %1)").arg(patchy::ui::build_date_text())));
   auto* credit = window.findChild<QLabel*>(QStringLiteral("startPanelCredit"));
   CHECK(credit != nullptr);
   CHECK(credit->text() == QStringLiteral("Created by Seth A. Robinson"));

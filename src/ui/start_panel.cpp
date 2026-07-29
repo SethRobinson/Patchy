@@ -1,6 +1,7 @@
 #include "ui/start_panel.hpp"
 
 #include "ui/app_credits.hpp"
+#include "ui/build_info.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
@@ -160,6 +161,27 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   column_layout->addSpacing(2);
   column_layout->addWidget(hint);
 
+#ifdef Q_OS_WASM
+  // Web-only pitch for the native build. The privacy sentence is deliberate:
+  // browser apps get assumed to upload, and this one never does.
+  auto* wasm_note = new QLabel(column);
+  wasm_note->setObjectName(QStringLiteral("startPanelWasmNote"));
+  wasm_note->setTextFormat(Qt::RichText);
+  wasm_note->setWordWrap(true);
+  wasm_note->setAlignment(Qt::AlignHCenter);
+  wasm_note->setTextInteractionFlags(Qt::TextBrowserInteraction);
+  wasm_note->setOpenExternalLinks(true);
+  const auto desktop_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
+                                           "href=\"https://github.com/SethRobinson/Patchy#download\">%1</a>")
+                                .arg(tr("desktop version"));
+  set_themed_label_text(*wasm_note,
+                        tr("Everything runs locally in your browser. Nothing you make is ever sent online.") +
+                            QStringLiteral("<br/>") +
+                            tr("For all your system fonts and better speed, get the %1.").arg(desktop_link));
+  column_layout->addSpacing(2);
+  column_layout->addWidget(wasm_note);
+#endif
+
   // Dim footer pinned to the bottom of the panel: version, credit, links, and
   // the startup update-check status.
   auto* footer = new QVBoxLayout();
@@ -175,7 +197,8 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     footer->addLayout(row);
   };
 
-  auto* version = new QLabel(tr("Version %1").arg(QStringLiteral(PATCHY_VERSION)), this);
+  auto* version = new QLabel(
+      tr("Version %1 (built %2)").arg(QStringLiteral(PATCHY_VERSION), build_date_text()), this);
   version->setObjectName(QStringLiteral("startPanelVersion"));
   version->setTextFormat(Qt::PlainText);
   auto* credit = new QLabel(tr("Created by Seth A. Robinson"), this);
@@ -260,7 +283,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       font-weight: 700;
       padding-left: 2px;
     }
-    QLabel#startPanelHint {
+    QLabel#startPanelHint, QLabel#startPanelWasmNote {
       background: transparent;
       color: @start_panel_hint_text;
       font-size: 11px;

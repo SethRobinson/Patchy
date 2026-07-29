@@ -2,6 +2,7 @@
 
 #include "ui/app_credits.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/build_info.hpp"
 #include "ui/splash_artwork.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/theme_qss.hpp"
@@ -131,7 +132,8 @@ public:
     set_themed_style(*divider, QStringLiteral("color: @splash_border; background: @splash_border;"));
     copy->addWidget(divider);
 
-    auto* version = new QLabel(QObject::tr("Version %1").arg(QStringLiteral(PATCHY_VERSION)), this);
+    auto* version = new QLabel(
+        QObject::tr("Version %1 (built %2)").arg(QStringLiteral(PATCHY_VERSION), build_date_text()), this);
     version->setObjectName(QStringLiteral("splashCredit"));
     version->setTextFormat(Qt::PlainText);
     copy->addWidget(version);
@@ -222,6 +224,7 @@ public:
     bottom->addWidget(close, 0);
   }
 
+#ifndef Q_OS_WASM
   void begin_update_check() {
     set_status(QObject::tr("Checking for updates..."));
     const QPointer<PatchySplashDialog> dialog_guard(this);
@@ -231,6 +234,7 @@ public:
       }
     });
   }
+#endif
 
   void set_status(const QString& text) {
     if (status_ != nullptr) {
@@ -264,7 +268,11 @@ void center_on_screen(QWidget* widget, QWidget* parent) {
 void show_about_splash(QWidget* parent) {
   PatchySplashDialog splash(parent);
   center_on_screen(&splash, parent);
+#ifndef Q_OS_WASM
+  // The web build always runs the latest deployed site, so there is no update
+  // to check for; the status label keeps its "Patchy is ready." text.
   splash.begin_update_check();
+#endif
   splash.exec();
 }
 

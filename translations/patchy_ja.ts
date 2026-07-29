@@ -1845,8 +1845,8 @@
     </message>
     <message>
         <location line="+11"/>
-        <source>Version %1</source>
-        <translation>バージョン %1</translation>
+        <source>Version %1 (built %2)</source>
+        <translation>バージョン %1（ビルド日: %2）</translation>
     </message>
     <message>
         <location line="+5"/>
@@ -13642,8 +13642,8 @@ Clipped to the layer below</source>
         <translation>オープンソースの写真編集。永久無料、サブスクリプション不要。</translation>
     </message>
     <message>
-        <source>Version %1</source>
-        <translation>バージョン %1</translation>
+        <source>Version %1 (built %2)</source>
+        <translation>バージョン %1（ビルド日: %2）</translation>
     </message>
     <message>
         <source>Created by Seth A. Robinson</source>
@@ -13676,6 +13676,18 @@ Clipped to the layer below</source>
     <message>
         <source>You can also drop image files anywhere in the window</source>
         <translation>画像ファイルをウィンドウにドロップして開くこともできます</translation>
+    </message>
+    <message>
+        <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
+        <translation>すべての処理はブラウザー内でローカルに実行されます。作品がオンラインに送信されることは一切ありません。</translation>
+    </message>
+    <message>
+        <source>For all your system fonts and better speed, get the %1.</source>
+        <translation>システムフォントの利用や高速な動作には、%1をご利用ください。</translation>
+    </message>
+    <message>
+        <source>desktop version</source>
+        <translation>デスクトップ版</translation>
     </message>
 </context>
 <context>

@@ -201,9 +201,12 @@ then browse to `http://localhost:8973/patchy.html`.
   `print_dialog.cpp` is replaced by `print_dialog_wasm.cpp` stubs and the
   File menu hides Print/Page Setup (the portable placement/render half lives
   in `print_layout.cpp` everywhere). The single-instance QLocalServer path is
-  off (one tab is one instance). The startup update check returns early (the
-  site redeploy is the update mechanism; the GitHub fetch would only fail
-  CORS). Script sound effects are silent no-ops (no QProcess in the
+  off (one tab is one instance). The update check is gated off everywhere:
+  the startup check returns early, the About dialog skips
+  `begin_update_check` (its status label keeps "Patchy is ready."), and
+  Preferences hides the "Check for updates on startup" checkbox (the site
+  redeploy is the update mechanism; the GitHub fetch would only fail CORS).
+  Script sound effects are silent no-ops (no QProcess in the
   browser). Scanner import was already platform-gated off.
 - **Assets.** `--preload-file` mounts the staged build-dir copies at
   `/fonts`, `/translations`, and `/scripts` (~1.1 MB packed into
@@ -328,6 +331,10 @@ an advertised cap.
 
 Wasm-only accommodations for living inside a single browser canvas:
 
+- **The start panel carries a web-version note** (`startPanelWasmNote`,
+  start_panel.cpp): everything runs locally in the browser and nothing is
+  sent online, with a link to the GitHub download table for the desktop
+  build (system fonts, speed).
 - **Float windows are disabled.** A browser tab is one window: Qt for
   WebAssembly has no window manager and no `startSystemMove`, so a floated
   document covered the whole canvas with no way to move, dock, or reach the
