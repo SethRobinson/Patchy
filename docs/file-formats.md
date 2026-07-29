@@ -204,6 +204,24 @@ four floats as RGBA painted embedded menu icons cyan). Unwrapping embeds
 also rescued documents that previously fell to the tier-0 preview because
 nothing decoded (a v3-era all-vector logo now imports for real at 4 RMSE
 against its own thumbnail; restaurant-menu improved 27.6 -> 23.7).
+Old-generation DyBms (observed on v6-v9) store NO `TWi<n>`/`THi<n>` tile-grid
+fields (nor the mip variants): when both are absent the decoder derives the
+grid from the plane's pixel dimensions (256-byte columns by 256-row bands,
+`ceil(width*sample_bytes/256) x ceil(height/256)` - the derived counts match
+every Sta list in the pinning document), but ONLY when the plane's Sta list
+holds exactly that many codes. A plane with no Sta at all keeps the 1x1
+default: 2.x DyBms whose pixels come from a placed original often store no
+mip fields whatsoever, and an oversized empty mip plane would pass
+`mip_source_planes`' size check and feed the code-5 tiles a blank source
+instead of failing to the honest placeholder (the paulgessinger screens
+mockup regressed exactly that way). Everything else about the old tile
+wire matches 2.x: planar per-channel blocks (dedup'd via shared Blck refs
+across channel Idx lists, which the tree parser already resolves) and
+edge-partial tiles padded to the full 65536-byte stream. Before the
+derivation every raster wider than 256 px in such files failed the
+plane-size validation and imported as an empty placeholder (the dbacchet
+osd-mux v9 schematic flattened to white plus text; it now imports all nine
+rasters for real).
 
 Closed since that sweep (July 2026, third session): parametric `ShpN`
 shapes import as real shape layers, multi-artboard documents import every

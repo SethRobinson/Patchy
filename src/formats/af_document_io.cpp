@@ -633,13 +633,41 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
 // supplies the pixels of code-5 tiles; without one a code-5 plane reports
 // NeedsOriginal so the caller can build a source (original image or mip
 // fallback) and decode again. `out` keeps its layout dimensions either way.
+// `plane_width`/`plane_height` are the plane's pixel dimensions (base bitmap
+// or mip level): old-generation (1.x, doc version <= 9) DyBms store no
+// TWi/THi tile-grid fields at all, so when both are absent the grid is
+// derived from those dimensions (256-byte columns by 256-row bands; the
+// derived count matches every Sta list across the dbacchet v9 schematic).
 [[nodiscard]] PlaneStatus decode_channel_plane(std::span<const std::uint8_t> bytes,
                                                const Container& container, const af::AfClass& dybm,
                                                const PlaneTags& tags, std::size_t sample_bytes,
-                                               bool is_float, const ChannelPlane* source,
-                                               ChannelPlane& out) {
-  const std::int64_t tiles_w = dybm.int_field(tags.tiles_w, 1);
-  const std::int64_t tiles_h = dybm.int_field(tags.tiles_h, 1);
+                                               bool is_float, std::int64_t plane_width,
+                                               std::int64_t plane_height,
+                                               const ChannelPlane* source, ChannelPlane& out) {
+  std::int64_t tiles_w = dybm.int_field(tags.tiles_w, 1);
+  std::int64_t tiles_h = dybm.int_field(tags.tiles_h, 1);
+  if (dybm.field(tags.tiles_w) == nullptr && dybm.field(tags.tiles_h) == nullptr) {
+    const std::int64_t derived_w = std::max<std::int64_t>(
+        1, (plane_width * static_cast<std::int64_t>(sample_bytes) + kTileSize - 1) / kTileSize);
+    const std::int64_t derived_h =
+        std::max<std::int64_t>(1, (plane_height + kTileSize - 1) / kTileSize);
+    // Only trust the derivation when the plane carries a Sta list of exactly
+    // that many codes. A plane with NO status field must keep the 1x1
+    // default: 2.x DyBms whose pixels come from a placed original (code-5
+    // tiles) often store no mip fields at all, and an oversized empty mip
+    // plane would otherwise pass mip_source_planes' size check and feed the
+    // code-5 tiles a BLANK source instead of failing to the honest
+    // placeholder (paulgessinger screens regressed this way).
+    const auto* derived_sta = dybm.field(tags.status);
+    const auto* derived_codes =
+        derived_sta != nullptr ? std::get_if<std::vector<std::int64_t>>(&derived_sta->value)
+                               : nullptr;
+    if (derived_codes != nullptr &&
+        static_cast<std::int64_t>(derived_codes->size()) == derived_w * derived_h) {
+      tiles_w = derived_w;
+      tiles_h = derived_h;
+    }
+  }
   if (tiles_w <= 0 || tiles_h <= 0 || tiles_w > 8192 || tiles_h > 8192 ||
       tiles_w * tiles_h > (1LL << 20U)) {
     return PlaneStatus::Invalid;
@@ -977,8 +1005,9 @@ struct EmbeddedOriginal {
   const std::int64_t mip_height = (height + 1) / 2;
   for (int channel = 1; channel <= channel_count; ++channel) {
     ChannelPlane mip;
-    const PlaneStatus status = decode_channel_plane(
-        bytes, container, dybm, mip_plane_tags(1, channel), sample_bytes, is_float, nullptr, mip);
+    const PlaneStatus status =
+        decode_channel_plane(bytes, container, dybm, mip_plane_tags(1, channel), sample_bytes,
+                             is_float, mip_width, mip_height, nullptr, mip);
     if (status != PlaneStatus::Ok ||
         static_cast<std::size_t>(mip_width) * sample_bytes > mip.width_bytes ||
         static_cast<std::size_t>(mip_height) > mip.rows) {
@@ -1099,9 +1128,9 @@ struct DecodedBitmap {
   std::vector<ChannelPlane> planes(static_cast<std::size_t>(channel_count));
   bool needs_original = false;
   for (int channel = 1; channel <= channel_count; ++channel) {
-    const PlaneStatus status =
-        decode_channel_plane(bytes, container, dybm, base_plane_tags(channel), sample_bytes,
-                             is_float, nullptr, planes[static_cast<std::size_t>(channel - 1)]);
+    const PlaneStatus status = decode_channel_plane(
+        bytes, container, dybm, base_plane_tags(channel), sample_bytes, is_float, width, height,
+        nullptr, planes[static_cast<std::size_t>(channel - 1)]);
     if (status == PlaneStatus::NeedsOriginal) {
       needs_original = true;
       continue;
@@ -1177,7 +1206,7 @@ struct DecodedBitmap {
     }
     for (int channel = 1; channel <= channel_count; ++channel) {
       const PlaneStatus status = decode_channel_plane(
-          bytes, container, dybm, base_plane_tags(channel), sample_bytes, is_float,
+          bytes, container, dybm, base_plane_tags(channel), sample_bytes, is_float, width, height,
           &sources[static_cast<std::size_t>(channel - 1)],
           planes[static_cast<std::size_t>(channel - 1)]);
       if (status != PlaneStatus::Ok) {

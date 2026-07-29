@@ -1345,6 +1345,47 @@ void af_reads_old_generation_wild_files_if_available() {
       CHECK(gradient.color_stops.back().color == (patchy::RgbColor{0, 0, 0}));
     }
   }
+
+  // dbacchet osd-mux (doc version 9): old-generation DyBms store NO TWi/THi
+  // tile-grid fields; the grid is derived from the bitmap dimensions. Before
+  // the derivation every raster wider than 256px failed the plane-size check
+  // and imported as an empty placeholder (the whole document flattened to
+  // white plus text). The second layer is the full-canvas schematic drawing.
+  {
+    const auto path = patchy::test::local_format_fixture_path(
+        "af-spike/web_samples2", "dbacchet_crt_mods_restorations__osd-mux-v2.afphoto");
+    if (!std::filesystem::exists(path)) {
+      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+    } else {
+      std::ifstream stream(path, std::ios::binary);
+      const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                            std::istreambuf_iterator<char>());
+      const auto document = patchy::af::DocumentIo::read(bytes);
+      CHECK(document.width() == 1007);
+      CHECK(document.height() == 1005);
+      CHECK(document.layers().size() >= 2);
+      const auto& schematic = document.layers()[1];
+      CHECK(schematic.name() == "Background");
+      CHECK(!schematic.pixels().empty());
+      CHECK(schematic.bounds().x == 0);
+      CHECK(schematic.bounds().y == 0);
+      CHECK(schematic.bounds().width == 1007);
+      CHECK(schematic.bounds().height == 1005);
+      // The schematic's red wire must survive into the flattened composite.
+      const auto flat = patchy::flatten_document_rgba8(document);
+      bool found_red = false;
+      for (std::int32_t y = 0; y < flat.height() && !found_red; y += 2) {
+        for (std::int32_t x = 0; x < flat.width(); x += 2) {
+          const std::uint8_t* p = flat.pixel(x, y);
+          if (p[3] > 200 && p[0] > 200 && p[1] < 80 && p[2] < 80) {
+            found_red = true;
+            break;
+          }
+        }
+      }
+      CHECK(found_red);
+    }
+  }
 }
 
 void af_modern_embeds_are_center_anchored_if_available() {
